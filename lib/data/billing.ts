@@ -33,6 +33,7 @@ export type NewStripeSubscription = Tables["stripe_subscriptions"]["Insert"];
 export type NewSubscriptionHistory = Tables["subscription_history"]["Insert"];
 
 export type KajabiContactRef = Pick<KajabiContactRow, "kajabi_contact_id" | "email" | "name">;
+export type KajabiCustomerFilter = { emails: string[]; customerIds?: never } | { customerIds: string[]; emails?: never };
 export type KajabiCustomerRef = Pick<KajabiCustomerRow, "kajabi_customer_id" | "email">;
 /** What a customer says about themselves (the raw record) and when Kajabi last changed it. */
 export type KajabiCustomerProfile = Pick<KajabiCustomerRow, "data" | "updated_at_kajabi">;
@@ -84,16 +85,12 @@ export interface BillingRepository {
   lastKajabiContactImportAt(): Promise<string | null>;
 
   // --- Kajabi customers ---
-  /** Every customer: id and email. */
-  kajabiCustomers(): Promise<KajabiCustomerRef[]>;
+  /** Every customer: id and email. `emails` narrows to the customers with one of these emails (exact match), `customerIds` to these customers (those that exist); either is chunked. One filter at a time. */
+  kajabiCustomers(filter?: KajabiCustomerFilter): Promise<KajabiCustomerRef[]>;
   /** Every customer with its raw record (what member processing reads). */
   kajabiCustomerRows(): Promise<KajabiCustomerRow[]>;
-  /** The customers with one of these emails (exact match). Chunked. */
-  kajabiCustomersByEmail(emails: string[]): Promise<KajabiCustomerRef[]>;
   /** The raw record and last-changed time of the customers with one of these emails. Chunked. */
   kajabiCustomerProfilesByEmail(emails: string[]): Promise<KajabiCustomerProfile[]>;
-  /** These customers (those that exist). Chunked. */
-  kajabiCustomersByIds(customerIds: string[]): Promise<KajabiCustomerRef[]>;
 
   // --- Kajabi offers ---
   /** Every offer with its raw record. */
@@ -212,23 +209,21 @@ export class SupabaseBillingRepository implements BillingRepository {
     return this.newest("kajabi_contacts");
   }
 
-  async kajabiCustomers() {
-    return fetchAllRows<KajabiCustomerRef>((from, to) =>
-      asPage(this.customers.select("kajabi_customer_id, email").order("kajabi_customer_id").range(from, to))
-    );
+  async kajabiCustomers(filter?: KajabiCustomerFilter) {
+    const column = filter?.emails ? "email" : "kajabi_customer_id";
+    const values = filter?.emails ?? filter?.customerIds;
+    const read = (part?: string[]) =>
+      fetchAllRows<KajabiCustomerRef>((from, to) => {
+        let query = this.customers.select("kajabi_customer_id, email");
+        if (part) query = query.in(column, part);
+        return asPage(query.order("kajabi_customer_id").range(from, to));
+      });
+    if (!values) return read();
+    return sortByKey(await inChunks(values, read), (r) => r.kajabi_customer_id);
   }
 
   async kajabiCustomerRows() {
     return fetchAllRows<KajabiCustomerRow>((from, to) => asPage(this.customers.select("*").order("kajabi_customer_id").range(from, to)));
-  }
-
-  async kajabiCustomersByEmail(emails: string[]) {
-    const rows = await inChunks(emails, (part) =>
-      fetchAllRows<KajabiCustomerRef>((from, to) =>
-        asPage(this.customers.select("kajabi_customer_id, email").in("email", part).order("kajabi_customer_id").range(from, to))
-      )
-    );
-    return sortByKey(rows, (r) => r.kajabi_customer_id);
   }
 
   async kajabiCustomerProfilesByEmail(emails: string[]) {
@@ -237,15 +232,6 @@ export class SupabaseBillingRepository implements BillingRepository {
         asPage(this.customers.select("data, updated_at_kajabi").in("email", part).order("kajabi_customer_id").range(from, to))
       )
     );
-  }
-
-  async kajabiCustomersByIds(customerIds: string[]) {
-    const rows = await inChunks(customerIds, (part) =>
-      fetchAllRows<KajabiCustomerRef>((from, to) =>
-        asPage(this.customers.select("kajabi_customer_id, email").in("kajabi_customer_id", part).order("kajabi_customer_id").range(from, to))
-      )
-    );
-    return sortByKey(rows, (r) => r.kajabi_customer_id);
   }
 
   async kajabiOfferRows() {
@@ -577,17 +563,16 @@ export class InMemoryBillingRepository implements BillingRepository {
     return this.newest(this.contactRows().map((r) => r.imported_at));
   }
 
-  async kajabiCustomers() {
-    return sortByKey(this.customerRows(), (r) => r.kajabi_customer_id).map(({ kajabi_customer_id, email }) => ({ kajabi_customer_id, email }));
+  async kajabiCustomers(filter?: KajabiCustomerFilter) {
+    const emails = filter?.emails && new Set(filter.emails);
+    const ids = filter?.customerIds && new Set(filter.customerIds);
+    return sortByKey(this.customerRows(), (r) => r.kajabi_customer_id)
+      .filter((c) => (!emails || emails.has(c.email)) && (!ids || ids.has(c.kajabi_customer_id)))
+      .map(({ kajabi_customer_id, email }) => ({ kajabi_customer_id, email }));
   }
 
   async kajabiCustomerRows() {
     return sortByKey(this.customerRows(), (r) => r.kajabi_customer_id);
-  }
-
-  async kajabiCustomersByEmail(emails: string[]) {
-    const wanted = new Set(emails);
-    return (await this.kajabiCustomers()).filter((c) => wanted.has(c.email));
   }
 
   async kajabiCustomerProfilesByEmail(emails: string[]) {
@@ -595,11 +580,6 @@ export class InMemoryBillingRepository implements BillingRepository {
     return sortByKey(this.customerRows(), (r) => r.kajabi_customer_id)
       .filter((c) => wanted.has(c.email))
       .map(({ data, updated_at_kajabi }) => ({ data, updated_at_kajabi }));
-  }
-
-  async kajabiCustomersByIds(customerIds: string[]) {
-    const wanted = new Set(customerIds);
-    return (await this.kajabiCustomers()).filter((c) => wanted.has(c.kajabi_customer_id));
   }
 
   async kajabiOfferRows() {

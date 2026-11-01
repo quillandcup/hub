@@ -92,8 +92,8 @@ export function defineMediaContract(name: string, setup: () => MediaContractCont
       const older = await ctx.eventShowing(used.id, "Older retreat", "2026-03-01");
       const newer = await ctx.eventShowing(used.id, "Newer retreat", "2026-09-01");
       expect(await ctx.repo().usages(used.id)).toEqual([
-        { kind: "event", id: newer, title: "Newer retreat" },
-        { kind: "event", id: older, title: "Older retreat" },
+        { kind: "event", id: newer, title: "Newer retreat", slug: expect.stringMatching(/\S/) },
+        { kind: "event", id: older, title: "Older retreat", slug: expect.stringMatching(/\S/) },
       ]);
       expect(await ctx.repo().usages(unused.id)).toEqual([]);
     });

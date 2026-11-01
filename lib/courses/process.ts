@@ -90,7 +90,7 @@ export async function rebuildCourseAccess(
   const billing = createRepos(supabase).billing;
   const purchases = await billing.kajabiPurchases({ offerIds: allOfferIds });
   const customerIds = Array.from(new Set(purchases.map((p) => p.kajabi_customer_id).filter((id): id is string => !!id)));
-  const customers = await billing.kajabiCustomersByIds(customerIds);
+  const customers = await billing.kajabiCustomers({ customerIds });
   const aliases = await createRepos(supabase).aliases.emailAliases({ activeOnly: true });
   const aliasMap = buildAliasMap(aliases);
   const emailByCustomerId = new Map<string, string>();

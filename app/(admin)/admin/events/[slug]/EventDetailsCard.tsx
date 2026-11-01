@@ -223,16 +223,26 @@ export default function EventDetailsCard({
             )}
             {(scheduleForm || event.host_name) && (
               <Field label="Host" htmlFor="event-host">
-                {scheduleForm && !hubSession ? (
-                  <MemberSearch
-                    members={members}
-                    selectedMemberId={scheduleForm.host_id}
-                    selectedMemberName={scheduleForm.host_name}
-                    onSelect={(member) => set({ host_id: member?.id ?? null, host_name: member ? member.displayName?.trim() || member.name : null })}
-                    placeholder="Search for the host..."
-                  />
-                ) : scheduleForm ? (
-                  <input id="event-host" type="text" value={scheduleForm.host_name ?? ""} onChange={(e) => set({ host_name: e.target.value || null })} className={INPUT} />
+                {scheduleForm ? (
+                  <div className="space-y-2">
+                    <MemberSearch
+                      members={members}
+                      selectedMemberId={scheduleForm.host_id}
+                      selectedMemberName={scheduleForm.host_id ? scheduleForm.host_name : null}
+                      onSelect={(member) => set({ host_id: member?.id ?? null, host_name: member ? member.displayName?.trim() || member.name : null })}
+                      placeholder="Search for the host..."
+                    />
+                    {hubSession && !scheduleForm.host_id && (
+                      <input
+                        id="event-host"
+                        type="text"
+                        value={scheduleForm.host_name ?? ""}
+                        onChange={(e) => set({ host_id: null, host_name: e.target.value || null })}
+                        placeholder="Or a host who isn't a member"
+                        className={INPUT}
+                      />
+                    )}
+                  </div>
                 ) : (
                   event.host_name
                 )}

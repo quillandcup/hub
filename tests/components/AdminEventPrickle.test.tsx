@@ -92,7 +92,20 @@ describe("admin event on a calendar prickle", () => {
     expect(screen.queryByText(/stands on a calendar prickle/)).not.toBeInTheDocument();
     expect(screen.getByDisplayValue("Free Writing Hour")).toBeEnabled();
     expect(screen.getByLabelText("Guest speakers")).toBeEnabled();
-    expect(screen.getByLabelText("Host")).toHaveValue("Jenny");
+    // Hosted by a member: the picker shows them, and there is no free-text field beside it.
+    expect(screen.getByText("Jenny")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Or a host who isn't a member")).not.toBeInTheDocument();
+  });
+
+  it("offers a free-text host for a Hub event whose host is not a member", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: true, json: async () => ({ event: { ...EVENT, host_id: null, host_name: "Guest Host" }, prickleId: "prkl_AAAAAAAAAAA1", hubSession: true, photos: [], badgeType: null, attendees: [] }) }) as Response),
+    );
+    render(<EventDetailClient eventId={EVENT.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit" }));
+
+    expect(screen.getByPlaceholderText("Or a host who isn't a member")).toHaveValue("Guest Host");
   });
 });
 

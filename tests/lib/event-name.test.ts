@@ -31,4 +31,19 @@ describe("eventDisplayName", () => {
     expect(eventDisplayName("Query Letters", "Sam Example", "Jenn Parker")).toBe("Query Letters with Sam Example");
     expect(eventDisplayName("Progress Prickle with Jenn P", null, "Jenn Parker")).toBe("Progress Prickle with Jenn P");
   });
+
+  it("drops the organization's label, the category and \"Prickle:\" from a calendar title, and keeps who it is with", () => {
+    const raw = "Quill & Cup [Authorpreneurship] Prickle: Meeting What Readers Want (at Book Events) with Fantasy Author Ada Example";
+    expect(eventDisplayName(raw, "Fantasy Author Ada Example")).toBe("Meeting What Readers Want (at Book Events) with Fantasy Author Ada Example");
+    // The speaker in the title is not said twice, with or without the speakers field naming them.
+    expect(eventDisplayName(raw, "Ada Example")).toBe("Meeting What Readers Want (at Book Events) with Fantasy Author Ada Example");
+    // A title without one gets its speaker added after the cleaned name.
+    expect(eventDisplayName("Quill & Cup [Craft] Prickle: Query Letters", "Sam Example")).toBe("Query Letters with Sam Example");
+    expect(eventDisplayName("Q&C: Open Table", null, "Jenn Parker")).toBe("Open Table with Jenn P");
+  });
+
+  it("leaves a title that is only the label alone, and one that is already clean", () => {
+    expect(eventDisplayName("Quill & Cup Challenge", null)).toBe("Quill & Cup Challenge");
+    expect(eventDisplayName("Hedgie Book Fair", null)).toBe("Hedgie Book Fair");
+  });
 });

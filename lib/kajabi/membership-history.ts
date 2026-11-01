@@ -238,7 +238,7 @@ export async function fetchMembershipHistory(
     ])
   );
 
-  const customers = await billing.kajabiCustomersByIds(customerIds);
+  const customers = await billing.kajabiCustomers({ customerIds });
 
   const emailAliases = await createRepos(supabase).aliases.emailAliases();
 

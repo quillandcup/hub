@@ -73,7 +73,6 @@ export interface CourseRepository {
   updateCourse(id: string, patch: CoursePatch, only?: { source?: string }): Promise<CourseRecord | null>;
 
   // --- modules and lessons ---
-  moduleById(id: string): Promise<ModuleRecord | null>;
   /** The modules of these courses, by id. Hidden ones (Kajabi drafts) are left out unless `includeHidden`. */
   modulesOf(courseIds: string[], filter?: StructureFilter): Promise<ModuleRecord[]>;
   /** The lessons of these courses (no text), by id. Hidden ones are left out unless `includeHidden`. */
@@ -131,7 +130,6 @@ export interface CourseRepository {
   /** Adds a download or updates the one with the same source key. */
   saveLessonFile(file: NewLessonFile): Promise<void>;
   deleteLessonFile(id: string): Promise<void>;
-  video(id: string): Promise<VideoRecord | null>;
   /** The videos with these ids, by id, in chunks. */
   videosByIds(ids: string[]): Promise<VideoRecord[]>;
   /** The videos of one kind (`kajabi`, `upload`) with these source keys, in chunks. */
@@ -203,10 +201,6 @@ export class SupabaseCourseRepository implements CourseRepository {
     const { data, error } = await query.select("*");
     if (error) throw writeError(error);
     return data?.[0] ?? null;
-  }
-
-  async moduleById(id: string) {
-    return must(await this.db.from("course_modules").select("*").eq("id", id).maybeSingle());
   }
 
   async modulesOf(courseIds: string[], filter: StructureFilter = {}) {
@@ -350,7 +344,7 @@ export class SupabaseCourseRepository implements CourseRepository {
       return course ? { assetId: course[columns.asset as "thumbnail_asset_id" | "hero_asset_id"], state: null } : null;
     }
     if (kind === "module") {
-      const mod = await this.moduleById(id);
+      const mod = must(await this.db.from("course_modules").select("poster_asset_id, state").eq("id", id).maybeSingle());
       return mod ? { assetId: mod.poster_asset_id, state: mod.state } : null;
     }
     const lesson = await this.lessonById(id);
@@ -388,10 +382,6 @@ export class SupabaseCourseRepository implements CourseRepository {
   async deleteLessonFile(id: string) {
     const { error } = await this.db.from("course_lesson_files").delete().eq("id", id);
     if (error) throw new Error(error.message);
-  }
-
-  async video(id: string) {
-    return must(await this.db.from("videos").select("*").eq("id", id).maybeSingle());
   }
 
   async videosByIds(ids: string[]) {
@@ -516,11 +506,6 @@ export class InMemoryCourseRepository implements CourseRepository {
     apply(course, patch);
     course.updated_at = now();
     return copy(course);
-  }
-
-  async moduleById(id: string) {
-    const mod = this.data.courseModules.find((m) => m.id === id);
-    return mod ? copy(mod) : null;
   }
 
   async modulesOf(courseIds: string[], filter: StructureFilter = {}) {
@@ -843,11 +828,6 @@ export class InMemoryCourseRepository implements CourseRepository {
 
   async deleteLessonFile(id: string) {
     this.data.courseLessonFiles = this.data.courseLessonFiles.filter((f) => f.id !== id);
-  }
-
-  async video(id: string) {
-    const video = this.data.videos.find((v) => v.id === id);
-    return video ? copy(video) : null;
   }
 
   async videosByIds(ids: string[]) {

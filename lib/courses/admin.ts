@@ -297,7 +297,7 @@ export async function loadAdminLesson(supabase: SupabaseClient, courseId: string
   if (silver) {
     hub = { slug: silver.slug, lessonId: hubLesson.id };
     if (hubLesson.video_id) {
-      const v = await repos.courses.video(hubLesson.video_id);
+      const v = (await repos.courses.videosByIds([hubLesson.video_id]))[0];
       if (v) video = { status: v.status, playbackId: v.mux_playback_id };
     }
     thumbnailSrc = courseImageSrc("lesson", hubLesson.id, hubLesson.thumbnail_asset_id, l.thumbnail_url);

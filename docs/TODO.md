@@ -445,8 +445,9 @@ Both failed CI on unrelated PRs on 2026-10-30 and passed on a re-run of the same
 
 Context: API route tests run in-process through `apiFetch` (`tests/helpers/api-fetch.ts`) so
 `app/api` coverage counts, and per-area floors on the combined unit + db numbers live in
-`AREA_FLOORS` (`scripts/coverage-report.ts`). Combined, 2026-10-14: lib ~86% lines, components
-~72%, `app/api` ~59% (46% branches), `app/(member)` ~56%, `app/(admin)` ~19%.
+`AREA_FLOORS` (`scripts/coverage-report.ts`). Combined, 2026-10-31: lib ~96% lines, components
+~90%, `app/api` ~85% (73% branches). `app/(member)` and `app/(admin)` were ~56% and ~19% on
+2026-10-14 and haven't been re-measured.
 
 - [ ] **Floors for `app/(member)` and `app/(admin)`.** Neither has one; `app/(admin)` is the
       biggest gap in the repo. Add the floors once a round of page tests lifts them.
@@ -1109,6 +1110,18 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 ## UI Enhancements
 
+### Event photo import: the Google Photos picker only lists the importer's own photos in a shared album _(Needs Scheduling)_
+A member who found a shared album in Google's picker saw only the photos they uploaded themselves, though the same album opened by its link shows everyone's. The picker is Google's own screen (Photos Picker API, `lib/google-photos-picker/client.ts`); Google removed the shared-album read scopes in April 2025, so the app cannot list the album's items itself, and I found no Google documentation of this behaviour, so it is unconfirmed whether it is a limit or a bug. Deferred because nothing on our side controls it. Options, simplest first:
+- **Each contributor imports their own photos** from the same album; a re-import skips photos already imported (`planImportBatch`, `lib/google-photos-picker/import-batch.ts`). No code.
+- **Save the album's photos to the importer's library first** ("Save to library" in Google Photos) and pick them from the main Photos view. Not yet verified that the picker then lists them; try it on the next event.
+- **An upload fallback:** an admin downloads the album as a zip from Google and uploads the files on the import page (`app/(admin)/admin/events/[slug]/import-photos/`), through the same storage, `event_photos` rows and sized copies. The reliable route, and the most work.
+Update `ImportPhotosClient.tsx`'s shared-album note once one of these is confirmed.
+
+### Event photos: store sized copies and serve them from a CDN _(Needs Scheduling)_
+The event photo route (`app/api/events/[eventId]/photos/[photoId]/route.ts`) resizes with sharp on every request (`?w=480` for grids, `?w=1600` for the lightbox) and relies on the browser's one-day private cache, so the first view of each photo is still slow and every request still pays for auth, a database lookup and a full-original download. Two follow-ups, deferred until the page is still slow after the resize change:
+- **Store the sized copies at import time** (the import commit route, `app/api/admin/events/[id]/photos/import/commit/route.ts`), the way `renditionOf` in `lib/media/library.ts` caches library renditions, and backfill the photos already imported. Removes the slow first view.
+- **Serve them from a CDN.** The photos are private and checked per viewer, so this needs short-lived signed Storage URLs handed out by the page instead of the proxy route, and a decision on how long a hidden photo's old URL may keep working. A bigger change; only worth it if the stored copies are not enough.
+
 ### Sidebar auto-hide: pin and wider rollout _(Needs Scheduling)_
 Chat now rests the member sidebar as an icon rail that opens over the page on hover or focus (`components/MemberNavigation.tsx`). Deferred until members have used it: a pin button with a per-member preference to keep it open, and whether other pages with a second pane should do the same. The admin sidebar (`AdminNavigation.tsx`) is unchanged; change all three navigation files together if the behavior spreads.
 
@@ -1618,5 +1631,8 @@ There used to be one narrow fix: changing a `measure='prickles'` goal's anchor a
 
 **Why deferred:** it's a known gap but hasn't caused a reported problem yet, and versioning every field is real design work (schema for change history, UI for "goal changed on this date," how charts/exports treat a versioned goal) beyond what's warranted to build speculatively.
 
+### Drop writing_projects.archived_at _(Needs Scheduling)_
+Nothing reads or sets `writing_projects.archived_at` any more (#736 replaced the two functions that filtered on it and removed the repository filters), and no production row had it set. The column is still in the schema because a drop must not ship in the same PR as the last read (CLAUDE.md, "Migrations: expand, then contract"). **Where to start:** once #736's `main` run has deployed, a migration with `ALTER TABLE public.writing_projects DROP COLUMN archived_at;`, then `pnpm types:gen` (remove the three `archived_at` lines under `writing_projects` in `lib/data/database.types.ts`) and drop the `Omit<..., "archived_at">` in `WritingProjectRow` (`lib/data/writing.ts`). Squawk (`ban-drop-column`) will fail it: the user has to approve the `-- squawk-ignore ban-drop-column (last read removed in #736, deployed)` for that statement. `writing_goals.archived_at` is a different column and stays.
+
 ### Browse Past/Archived Projects (Resolved)
-**Resolved:** My Writing lists projects in a past phase (`complete`, `published`, `abandoned`; `PAST_PHASES` in `lib/writing-projects.ts`) apart from the ongoing ones, under "Past projects" (`app/(member)/projects/PastProjects.tsx`). Changing a project's status on its page moves it between the lists. Members can delete a project from its details modal (soft delete, `writing_projects.deleted_at`, with its goals and entries). There is deliberately no manual archive: it overlapped with the statuses (On hold, Complete, Abandoned). The `archived_at` column and the filters on it stay, but nothing sets it today.
+**Resolved:** My Writing lists projects in a past phase (`complete`, `published`, `abandoned`; `PAST_PHASES` in `lib/writing-projects.ts`) apart from the ongoing ones, under "Past projects" (`app/(member)/projects/PastProjects.tsx`). Changing a project's status on its page moves it between the lists. Members can delete a project from its details modal (soft delete, `writing_projects.deleted_at`, with its goals and entries). There is deliberately no manual archive: it overlapped with the statuses (On hold, Complete, Abandoned). The code no longer reads `writing_projects.archived_at` (#736); the column itself is still there, see the next entry.

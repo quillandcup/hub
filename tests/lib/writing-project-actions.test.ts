@@ -27,7 +27,7 @@ const OTHER = "mbr_AAAAAAAAAAA2";
 const IDENTITY = { memberId: ME, memberName: "Ada Example", memberEmail: "ada@example.com", isSudo: false };
 
 const project = (id: string, member: string, title: string, phase = "drafting") => ({
-  id, member_id: member, title, description: null, cover_asset_id: null, cover_url: null, external_id: null, phase, show_on_profile: true, archived_at: null, deleted_at: null, created_at: "2026-01-01T00:00:00Z",
+  id, member_id: member, title, description: null, cover_asset_id: null, cover_url: null, external_id: null, phase, show_on_profile: true, deleted_at: null, created_at: "2026-01-01T00:00:00Z",
 });
 const goal = (id: string, projectId: string) => ({
   id, member_id: ME, project_id: projectId, title: null, description: null, external_id: null, goal_type: "target", habit_period: null, habit_threshold: null,

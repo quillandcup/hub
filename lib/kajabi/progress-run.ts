@@ -59,7 +59,7 @@ export interface ProgressSummary {
 const describePath = (url: string) => new URL(url).pathname.replace(/\/members\/[^/]+/, "/members/:id");
 
 export async function loadKnownLessonIds(db: Db, courseKajabiId: string): Promise<Set<string>> {
-  const ids = await new SupabaseKajabiCourseRepository(db).liveLessonIds(courseKajabiId);
+  const ids = (await new SupabaseKajabiCourseRepository(db).liveLessonOutlines(courseKajabiId)).map((l) => l.kajabi_id);
   return new Set(ids);
 }
 

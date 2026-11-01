@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
     }
 
     const customerIds = [...new Set(grantedPurchases.map((p) => p.kajabi_customer_id))];
-    const kajabiCustomers = await billing.kajabiCustomersByIds(customerIds);
+    const kajabiCustomers = await billing.kajabiCustomers({ customerIds });
     const emailByCustomerId = new Map(kajabiCustomers.map((c) => [c.kajabi_customer_id, c.email]));
 
     const emails = [...new Set([...emailByCustomerId.values()].filter(Boolean))];

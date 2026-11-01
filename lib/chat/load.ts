@@ -166,7 +166,7 @@ export interface ChannelPerson {
 /** Who is in a conversation now (matched members only, A to Z), under RLS. Paged past the 1000-row cap. */
 export async function loadChannelMembers(supabase: SupabaseClient, channelId: string): Promise<ChannelPerson[]> {
   // A failed read lists nobody, as it always has.
-  const memberIds = await createRepos(supabase).chat.activeMemberIds(channelId).catch(() => []);
+  const memberIds = await createRepos(supabase).chat.activeMembersOf([channelId]).then((rows) => rows.map((r) => r.member_id)).catch(() => []);
   const profiles = await memberProfiles(supabase, memberIds);
   return memberIds
     .flatMap((memberId) => {
@@ -192,7 +192,7 @@ export async function loadChannelForMember(
   const chat = createRepos(supabase).chat;
   const [channel, membership] = await Promise.all([
     chat.channelRecord(channelId).catch(() => null),
-    chat.isInChannel(channelId, memberId).catch(() => false),
+    chat.activeMembership(channelId, memberId).then((m) => m !== null).catch(() => false),
   ]);
   if (!channel) return null;
   if (isSudo && channel.kind !== "channel") return null;
