@@ -103,6 +103,9 @@ describe('describeMarkup', () => {
       'div.comment-item x1 attrs: none',
     ])
     expect(describeMarkup(page).join('\n')).toContain('nav.menu')
+    // A closing tag with a space, an upper-case one, a style or script with no closing tag, and a tag-looking string inside a script are all skipped without rewriting any text.
+    expect(describeMarkup('<div class="a"></div><SCRIPT>var x = "<p class=\\"inner\\">";</SCRIPT ><div class="b"></div>').join('\n')).toBe('div.a x1 attrs: none\ndiv.b x1 attrs: none')
+    expect(describeMarkup('<div class="a"></div><style>.x{}<p class="never">').join('\n')).toBe('div.a x1 attrs: none')
   })
 
   it('is empty for text with no markup, and capped', () => {

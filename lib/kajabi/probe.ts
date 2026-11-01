@@ -168,15 +168,20 @@ export function describeMarkup(text: string, options: { pattern?: RegExp; maxLin
     .replace(/\\"/g, '"')
     .replace(/\\'/g, "'")
     .replace(/\\\//g, "/")
-    .replace(/\\[nrt]/g, " ")
-    .replace(/<script\b[\s\S]*?<\/script>/gi, "")
-    .replace(/<style\b[\s\S]*?<\/style>/gi, "");
+    .replace(/\\[nrt]/g, " ");
+  // Script and style bodies are skipped while walking the tags (no text is rewritten): from such an opening tag, resume after its closing tag.
+  const lower = source.toLowerCase();
   const groups = new Map<string, { count: number; attrs: Set<string>; urls: Set<string> }>();
   const tagRe = /<([a-zA-Z][a-zA-Z0-9-]*)((?:\s[^<>]*)?)\/?>/g;
   const attrRe = /([a-zA-Z_:][-a-zA-Z0-9_:.]*)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+)))?/g;
   const isUrlAttr = (name: string) => /(^|-)(url|href|action|path|endpoint)$/.test(name);
   for (let tag = tagRe.exec(source); tag; tag = tagRe.exec(source)) {
     const name = tag[1].toLowerCase();
+    if (name === "script" || name === "style") {
+      const close = lower.indexOf(`</${name}`, tagRe.lastIndex);
+      tagRe.lastIndex = close === -1 ? source.length : close;
+      continue;
+    }
     const attrs = new Map<string, string>();
     for (let a = attrRe.exec(tag[2]); a; a = attrRe.exec(tag[2])) attrs.set(a[1].toLowerCase(), a[2] ?? a[3] ?? a[4] ?? "");
     const classes = (attrs.get("class") ?? "").split(/\s+/).filter(Boolean).slice(0, 5).map((c) => c.replace(/\d{5,}/g, ":id"));
