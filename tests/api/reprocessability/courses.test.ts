@@ -175,7 +175,7 @@ describe('Courses processing (Bronze -> Silver) reprocessability', () => {
     expect(lessons.find((l: any) => l.source_key === L('open'))!.module_id).toBe(week.id)
 
     // Each item keeps its OWN setting as Kajabi gives it, beside the state that follows from it and what is above it:
-    // an imported course has the same columns as a Hub-owned one, and 'inherit' is only ever the Hub's.
+    // an imported course has the same columns as a Hub-owned one.
     const { data: bronzeModules } = await bronze.from('kajabi_course_modules').select('kajabi_id, publishing_option').in('kajabi_id', [M_MONTH, M_WEEK, M_DRAFT])
     const { data: bronzeLessons } = await bronze.from('kajabi_course_lessons').select('kajabi_id, publishing_option').in('kajabi_id', ['open', 'soon', 'draft', 'indraftmod', 'removed'].map(L))
     expect(Object.fromEntries(modules.map((m: any) => [m.source_key, m.publishing_option]))).toEqual(Object.fromEntries(bronzeModules!.map((m) => [m.kajabi_id, m.publishing_option])))

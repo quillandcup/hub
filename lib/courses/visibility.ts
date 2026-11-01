@@ -55,11 +55,10 @@ export interface FullTree {
 
 /**
  * What an item's state is, given its own setting and the state of what is above it: its setting gives
- * its visibility, never more than what is above it; `inherit` (a Hub-owned item that simply follows) is
- * what is above it. The same rule as `course_item_state` in the database (migration 20270401000000).
+ * its visibility, never more than what is above it. The same rule as `course_item_state` in the database (migration 20270401000000).
  */
 export function itemState(option: string | null | undefined, above: Visibility): Visibility {
-  return option === "inherit" ? above : lessVisible(visibilityFromPublishing(option), above);
+  return lessVisible(visibilityFromPublishing(option), above);
 }
 
 /**

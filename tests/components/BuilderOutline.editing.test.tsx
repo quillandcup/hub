@@ -31,15 +31,15 @@ const L3 = "les_AAAAAAAAAAA3";
 
 const outline = buildHubOutline(
   [
-    { id: M1, parent_id: null, title: "Module 1", position: 1, publishing_option: "inherit" },
-    { id: M2, parent_id: null, title: "Module 2", position: 2, publishing_option: "inherit" },
-    { id: W1, parent_id: M1, title: "Week 1", position: 1, publishing_option: "inherit" },
-    { id: W2, parent_id: M1, title: "Week 2", position: 2, publishing_option: "inherit" },
+    { id: M1, parent_id: null, title: "Module 1", position: 1, publishing_option: "published" },
+    { id: M2, parent_id: null, title: "Module 2", position: 2, publishing_option: "published" },
+    { id: W1, parent_id: M1, title: "Week 1", position: 1, publishing_option: "published" },
+    { id: W2, parent_id: M1, title: "Week 2", position: 2, publishing_option: "published" },
   ],
   [
-    { id: L1, module_id: W1, title: "Lesson one", position: 1, publishing_option: "inherit", hasText: true, hasVideo: false },
-    { id: L2, module_id: W1, title: "Lesson two", position: 2, publishing_option: "inherit", hasText: false, hasVideo: false },
-    { id: L3, module_id: M2, title: "Lesson three", position: 1, publishing_option: "inherit", hasText: false, hasVideo: false },
+    { id: L1, module_id: W1, title: "Lesson one", position: 1, publishing_option: "published", hasText: true, hasVideo: false },
+    { id: L2, module_id: W1, title: "Lesson two", position: 2, publishing_option: "published", hasText: false, hasVideo: false },
+    { id: L3, module_id: M2, title: "Lesson three", position: 1, publishing_option: "published", hasText: false, hasVideo: false },
   ]
 );
 const course = (over: Partial<OutlineCourse> = {}): OutlineCourse => ({
@@ -98,16 +98,16 @@ describe("an editable outline", () => {
 });
 
 describe("status", () => {
-  it("offers following what is above, and sends the choice for that row", async () => {
+  it("sends the choice for that row", async () => {
     actions.setCourseItemStatus.mockResolvedValue({ id: L1 });
     const user = userEvent.setup();
     render(<BuilderOutline course={course()} />);
     await open(user);
     const select = screen.getByRole("combobox", { name: "Status of Lesson one" });
-    expect(select).toHaveValue("inherit");
-    expect(within(select).getByRole("option", { name: "Follows what is above" })).toBeInTheDocument();
-    await user.selectOptions(select, "published");
-    expect(actions.setCourseItemStatus).toHaveBeenCalledWith(COURSE, "lesson", L1, "published");
+    expect(select).toHaveValue("published");
+    expect(within(select).queryByRole("option", { name: /Follow/ })).not.toBeInTheDocument();
+    await user.selectOptions(select, "locked");
+    expect(actions.setCourseItemStatus).toHaveBeenCalledWith(COURSE, "lesson", L1, "locked");
     expect(router.refresh).toHaveBeenCalled();
   });
 

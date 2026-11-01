@@ -60,10 +60,10 @@ describe("LessonTitleField", () => {
 });
 
 describe("LessonStatusField", () => {
-  it("offers following what is above, Draft, Published and Locked, with the current one chosen, and not Schedule or Drip", () => {
-    render(<LessonStatusField courseId={COURSE} lessonId={LESSON} option="inherit" />);
-    expect(screen.getAllByRole("radio").map((r) => r.closest("label")!.textContent)).toEqual(["Follows what is above", "Draft", "Published", "Locked"]);
-    expect(screen.getByRole("radio", { name: "Follows what is above" })).toBeChecked();
+  it("offers Draft, Published and Locked, with the current one chosen, and not Schedule or Drip", () => {
+    render(<LessonStatusField courseId={COURSE} lessonId={LESSON} option="published" />);
+    expect(screen.getAllByRole("radio").map((r) => r.closest("label")!.textContent)).toEqual(["Draft", "Published", "Locked"]);
+    expect(screen.getByRole("radio", { name: "Published" })).toBeChecked();
   });
 
   it("sends the chosen setting for this lesson and refreshes", async () => {

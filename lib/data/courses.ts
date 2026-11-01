@@ -109,7 +109,7 @@ export interface CourseRepository {
   /** Puts the children of one parent in this order, all or nothing. The list must be exactly the current children. Throws a {@link CourseWriteError} (`stale_order`, `not_editable`). */
   reorderChildren(order: { courseId: string; kind: OutlineKind; parentId: string | null; ids: string[] }): Promise<void>;
   /**
-   * Sets a Hub-owned module's or lesson's own setting (inherit, draft, published or locked); its state, and that of what is
+   * Sets a Hub-owned module's or lesson's own setting (draft, published or locked); its state, and that of what is
    * under it, follow. Throws a {@link CourseWriteError} (`unsupported_status`, `not_found`, `not_editable`).
    */
   setItemStatus(kind: OutlineKind, id: string, option: string): Promise<void>;
@@ -551,7 +551,7 @@ export class InMemoryCourseRepository implements CourseRepository {
       poster_asset_id: null,
       poster_source: null,
       poster_url: null,
-      publishing_option: "inherit",
+      publishing_option: "draft",
       state: "open",
       source: "kajabi",
       source_key: null,
@@ -570,7 +570,7 @@ export class InMemoryCourseRepository implements CourseRepository {
       excerpt: null,
       module_id: null,
       position: 0,
-      publishing_option: "inherit",
+      publishing_option: "draft",
       source: "kajabi",
       source_key: null,
       state: "open",
@@ -769,7 +769,7 @@ export class InMemoryCourseRepository implements CourseRepository {
   }
 
   async setItemStatus(kind: OutlineKind, id: string, option: string) {
-    if (!["inherit", "draft", "published", "locked"].includes(option)) throw new CourseWriteError("unsupported_status");
+    if (!["draft", "published", "locked"].includes(option)) throw new CourseWriteError("unsupported_status");
     const item: { course_id: string; source: string; publishing_option: string | null; updated_at: string } | undefined =
       kind === "module" ? this.data.courseModules.find((m) => m.id === id) : this.data.courseLessons.find((l) => l.id === id);
     if (!item) throw new CourseWriteError("not_found");

@@ -55,7 +55,7 @@ async function addModuleImpl(auth: Auth, courseId: string, parentModuleId: strin
   try {
     const position = await courses.nextPosition("module", courseId, parentModuleId);
     // A new item follows what is above it (the database works out its state from that).
-    const id = await courses.addModule({ course_id: courseId, parent_id: parentModuleId, title: name.title, position, publishing_option: "inherit", source: "hub" });
+    const id = await courses.addModule({ course_id: courseId, parent_id: parentModuleId, title: name.title, position, publishing_option: "draft", source: "hub" });
     revalidate(courseId);
     return { id };
   } catch (error) {
@@ -71,7 +71,7 @@ async function addLessonImpl(auth: Auth, courseId: string, moduleId: string, tit
   const courses = createRepos(auth.supabase).courses;
   try {
     const position = await courses.nextPosition("lesson", courseId, moduleId);
-    const id = await courses.addLesson({ course_id: courseId, module_id: moduleId, title: name.title, position, publishing_option: "inherit", source: "hub" });
+    const id = await courses.addLesson({ course_id: courseId, module_id: moduleId, title: name.title, position, publishing_option: "draft", source: "hub" });
     revalidate(courseId);
     return { id };
   } catch (error) {
@@ -183,7 +183,7 @@ export async function reorderCourseItems(courseId: string, kind: ItemKind, paren
   return withAction("course_items_reordered", () => reorderItemsImpl(auth, courseId, kind, parentId, orderedIds));
 }
 
-/** A module's or lesson's own setting: inherit (follow what is above it), draft, published or locked. */
+/** A module's or lesson's own setting: draft, published or locked. */
 export async function setCourseItemStatus(courseId: string, kind: ItemKind, id: string, option: string): Promise<OutlineResult> {
   const auth = await requireAdminAction();
   if (!auth.ok) return { error: auth.error };

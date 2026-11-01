@@ -397,16 +397,16 @@ export function defineCourseContract(name: string, setup: () => CourseContractCo
       expect(reordered).toEqual([...tops].reverse());
     });
 
-    it("works every state out from the settings: each item's own, and following what is above", async () => {
+    it("works every state out from the settings: each item's own, limited by what is above", async () => {
       const course = newCourse("status");
       await ctx.seed.courses([course]);
       const repo = ctx.courses();
-      // Added with no setting of their own: they follow. "Own" has its own setting, published.
-      const m = await repo.addModule({ course_id: course.id, title: "M", position: 1, source: "hub" });
-      const w = await repo.addModule({ course_id: course.id, parent_id: m, title: "W", position: 1, source: "hub" });
-      const l = await repo.addLesson({ course_id: course.id, module_id: w, title: "L", position: 1, source: "hub" });
+      // Added as drafts, the way the editor adds them.
+      const m = await repo.addModule({ course_id: course.id, title: "M", position: 1, publishing_option: "draft", source: "hub" });
+      const w = await repo.addModule({ course_id: course.id, parent_id: m, title: "W", position: 1, publishing_option: "draft", source: "hub" });
+      const l = await repo.addLesson({ course_id: course.id, module_id: w, title: "L", position: 1, publishing_option: "draft", source: "hub" });
       await repo.addLesson({ course_id: course.id, module_id: m, title: "Own", position: 2, publishing_option: "published", source: "hub" });
-      await repo.addLesson({ course_id: course.id, title: "Loose", position: 1, source: "hub" });
+      await repo.addLesson({ course_id: course.id, title: "Loose", position: 1, publishing_option: "draft", source: "hub" });
       const states = async () => {
         const modules = await repo.modulesOf([course.id], { includeHidden: true });
         const lessons = await repo.lessonsOf([course.id], { includeHidden: true });
@@ -414,9 +414,12 @@ export function defineCourseContract(name: string, setup: () => CourseContractCo
       };
       const all = (state: string) => ({ M: state, W: state, L: state, Own: state, Loose: state });
 
-      // What follows nothing above it (the course's availability is its own switch) is open.
-      expect(await states()).toEqual({ M: "open", W: "open", L: "open", Own: "open", Loose: "open" });
+      // Drafts are hidden, and so is a published lesson in a draft module.
+      expect(await states()).toEqual(all("hidden"));
+      // Nothing above a top-level item limits it (the course's availability is its own switch).
       await repo.setItemStatus("module", m, "published");
+      await repo.setItemStatus("module", w, "published");
+      await repo.setItemStatus("lesson", l, "published");
       await repo.setItemStatus("lesson", (await repo.lessonsOf([course.id], { includeHidden: true })).find((x) => x.title === "Loose")!.id, "published");
       expect(await states()).toEqual(all("open"));
 
@@ -432,12 +435,12 @@ export function defineCourseContract(name: string, setup: () => CourseContractCo
       await repo.setItemStatus("lesson", l, "published");
       expect(await states()).toEqual({ M: "coming_soon", W: "coming_soon", L: "coming_soon", Own: "coming_soon", Loose: "open" });
 
-      // Following again.
-      await repo.setItemStatus("module", m, "inherit");
+      // Published again.
+      await repo.setItemStatus("module", m, "published");
       expect(await states()).toEqual(all("open"));
 
       // The same setting again changes nothing, and nothing the editor doesn't offer is stored.
-      await repo.setItemStatus("module", m, "inherit");
+      await repo.setItemStatus("module", m, "published");
       await expect(repo.setItemStatus("lesson", l, "drip")).rejects.toThrow("unsupported_status");
       await expect(repo.setItemStatus("lesson", l, "scheduled")).rejects.toThrow("unsupported_status");
       await expect(repo.setItemStatus("lesson", newCourseId("les"), "draft")).rejects.toThrow("not_found");
@@ -450,8 +453,8 @@ export function defineCourseContract(name: string, setup: () => CourseContractCo
       const section = await repo.addModule({ course_id: course.id, title: "Section", position: 1, publishing_option: "draft", source: "hub" });
       const week = await repo.addModule({ course_id: course.id, parent_id: section, title: "Week", position: 1, publishing_option: "draft", source: "hub" });
       const lessons = [
-        await repo.addLesson({ course_id: course.id, module_id: week, title: "One", position: 1, publishing_option: "inherit", source: "hub" }),
-        await repo.addLesson({ course_id: course.id, module_id: section, title: "Two", position: 2, publishing_option: "inherit", source: "hub" }),
+        await repo.addLesson({ course_id: course.id, module_id: week, title: "One", position: 1, publishing_option: "draft", source: "hub" }),
+        await repo.addLesson({ course_id: course.id, module_id: section, title: "Two", position: 2, publishing_option: "draft", source: "hub" }),
       ];
       const states = async () => Object.fromEntries([...(await repo.modulesOf([course.id], { includeHidden: true })), ...(await repo.lessonsOf([course.id], { includeHidden: true }))].map((r) => [r.title, r.state]));
       expect(await states()).toEqual({ Section: "hidden", Week: "hidden", One: "hidden", Two: "hidden" });
@@ -488,8 +491,8 @@ export function defineCourseContract(name: string, setup: () => CourseContractCo
       await ctx.seed.courses([course]);
       const repo = ctx.courses();
       const mod = await repo.addModule({ course_id: course.id, title: "M", position: 1, publishing_option: "draft", source: "hub" });
-      // Not in the draft module: a lesson in it would follow it to hidden, and this test wants one that is open.
-      const les = await repo.addLesson({ course_id: course.id, title: "L", position: 1, publishing_option: "inherit", source: "hub" });
+      // Not in the draft module: a lesson in it would be hidden, and this test wants one that is open.
+      const les = await repo.addLesson({ course_id: course.id, title: "L", position: 1, publishing_option: "published", source: "hub" });
       const asset = await ctx.seed.mediaAsset();
 
       for (const [kind, id] of [["course", course.id], ["hero", course.id], ["module", mod], ["lesson", les]] as const) {

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { renameCourseItem, setCourseItemStatus, type OutlineResult } from "../../../outline-actions";
-import { FOLLOW_CHOICE, STATUS_CHOICES, statusChoices } from "@/lib/courses/status-choices";
+import { STATUS_CHOICES } from "@/lib/courses/status-choices";
 
 const FIELD =
   "w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800";
@@ -57,10 +57,10 @@ export function LessonTitleField({ courseId, lessonId, title }: { courseId: stri
   );
 }
 
-/** A Hub-owned lesson's own setting: follow what is above it, or Draft, Published or Locked. Schedule and Drip aren't offered yet. */
+/** A Hub-owned lesson's own setting: Draft, Published or Locked. Schedule and Drip aren't offered yet. */
 export function LessonStatusField({ courseId, lessonId, option }: { courseId: string; lessonId: string; option: string | null }) {
   const { busy, error, run } = useChange();
-  const choices = statusChoices(option, true).filter((c) => c.value === FOLLOW_CHOICE.value || ["draft", "published", "locked"].includes(c.value));
+  const choices = STATUS_CHOICES.filter((c) => ["draft", "published", "locked"].includes(c.value));
   return (
     <fieldset disabled={busy}>
       <legend className="sr-only">Status</legend>
@@ -68,7 +68,7 @@ export function LessonStatusField({ courseId, lessonId, option }: { courseId: st
         {choices.map((c) => (
           <label key={c.value} className="flex items-center gap-2">
             <input type="radio" name="status" checked={option === c.value} onChange={() => void run(() => setCourseItemStatus(courseId, "lesson", lessonId, c.value))} />
-            {c.value === FOLLOW_CHOICE.value ? c.label : STATUS_CHOICES.find((x) => x.value === c.value)!.label}
+            {c.label}
           </label>
         ))}
       </div>
