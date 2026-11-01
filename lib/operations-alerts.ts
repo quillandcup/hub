@@ -11,6 +11,7 @@ export type OperationsAlert =
   | { type: "section_failed"; section: string; code?: string; ms: number }
   | { type: "client_crash"; route: string; message: string }
   | { type: "cron_partial_failure"; job: string; problems: string[] }
+  | { type: "slack_bot_token_failed"; problem: "refresh_failed" | "not_stored" | "expired"; detail?: string }
   | { type: "ambiguous_slack_member_match"; collisions: ReadonlyArray<{ reason: string; slackUserIds: string[]; memberIds: string[] }> };
 
 const ALERT_WINDOW_SECONDS = 10 * 60;
@@ -50,6 +51,21 @@ function alertDetails(alert: OperationsAlert): { bucket: string; title: string; 
       bucket: `operations_alert:client_crash:${alert.route}`,
       title: `Page ${alert.route} crashed in the browser`,
       text: `Page ${alert.route} crashed in a member's or admin's browser: "${message}". Server logs have nothing for it; look for the browser event in Sentry for this route, and in the browser console.`,
+    };
+  }
+
+  if (alert.type === "slack_bot_token_failed") {
+    const what = {
+      refresh_failed: "could not be refreshed and is close to expiring",
+      not_stored: "was refreshed but the new token could not be stored (this server instance uses it for now; others still hold the old one)",
+      expired: "has expired and could not be refreshed, so everything the Hub does as Billie Bot is failing (Slack DMs, the Home tab, these alerts, the import's bot calls)",
+    }[alert.problem];
+    // The detail is an error message from our own code or Slack's: one short line, escaped for Slack.
+    const detail = (alert.detail ?? "").replace(/\s+/g, " ").trim().slice(0, 200).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+    return {
+      bucket: `operations_alert:slack_bot_token_failed:${alert.problem}`,
+      title: `Slack bot token ${alert.problem.replace("_", " ")}`,
+      text: `The Slack bot's rotating token ${what}.${detail ? ` (${detail})` : ""} Look for "Slack bot token" lines in the Vercel logs and see "Moving the bot to rotating tokens" in docs/SECRET_ROTATION.md for recovery (pnpm slack:bot-token status shows the stored expiry).`,
     };
   }
 
