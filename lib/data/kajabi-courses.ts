@@ -113,7 +113,6 @@ export interface KajabiCourseRepository {
   // --- modules ---
   /** A course's live modules, or every live module when no course is given. */
   liveModules(courseKajabiId?: string): Promise<KajabiModule[]>;
-  liveModuleIds(courseKajabiId: string): Promise<string[]>;
   upsertModules(rows: NewKajabiModule[]): Promise<void>;
   softDeleteModules(kajabiIds: string[], at: string): Promise<void>;
 
@@ -122,7 +121,6 @@ export interface KajabiCourseRepository {
   liveLessons(courseKajabiId: string): Promise<KajabiLesson[]>;
   /** A course's live lessons without their text and raw payload, or every live lesson's when no course is given. */
   liveLessonOutlines(courseKajabiId?: string): Promise<KajabiLessonOutline[]>;
-  liveLessonIds(courseKajabiId: string): Promise<string[]>;
   /** One live lesson of a course for the lesson page, or null. */
   liveLesson(courseKajabiId: string, lessonKajabiId: string): Promise<KajabiLessonDetail | null>;
   /** What is stored of one live lesson's captured content, or null when Bronze has no such lesson. */
@@ -140,7 +138,6 @@ export interface KajabiCourseRepository {
   // --- lesson downloads ---
   /** The live downloads of these lessons, by filename. Chunked. */
   liveFiles(lessonKajabiIds: string[]): Promise<KajabiLessonFile[]>;
-  liveFileIds(lessonKajabiId: string): Promise<string[]>;
   /** Adds downloads or updates the ones with the same Kajabi id, restoring any that were soft-deleted. Batched. */
   upsertFiles(rows: NewKajabiLessonFile[]): Promise<void>;
   setFileSourceUrl(kajabiId: string, sourceUrl: string | null): Promise<void>;
@@ -231,16 +228,6 @@ export class SupabaseKajabiCourseRepository implements KajabiCourseRepository {
     });
   }
 
-  async liveModuleIds(courseKajabiId: string) {
-    const rows = await fetchAllRows<{ kajabi_id: string }>(
-      (a, b) =>
-        this.bronze.from("kajabi_course_modules").select("kajabi_id").eq("course_kajabi_id", courseKajabiId).is("deleted_at", null).order("kajabi_id").range(a, b) as unknown as PageQuery<{
-          kajabi_id: string;
-        }>,
-    );
-    return rows.map((r) => r.kajabi_id);
-  }
-
   async upsertModules(rows: NewKajabiModule[]) {
     for (const batch of chunk(rows, WRITE_CHUNK)) {
       const { error } = await this.bronze.from("kajabi_course_modules").upsert(batch, { onConflict: "kajabi_id" });
@@ -267,16 +254,6 @@ export class SupabaseKajabiCourseRepository implements KajabiCourseRepository {
       const query = this.bronze.from("kajabi_course_lessons").select(OUTLINE_COLUMNS).is("deleted_at", null);
       return (courseKajabiId === undefined ? query : query.eq("course_kajabi_id", courseKajabiId)).order("kajabi_id").range(a, b) as unknown as PageQuery<KajabiLessonOutline>;
     });
-  }
-
-  async liveLessonIds(courseKajabiId: string) {
-    const rows = await fetchAllRows<{ kajabi_id: string }>(
-      (a, b) =>
-        this.bronze.from("kajabi_course_lessons").select("kajabi_id").eq("course_kajabi_id", courseKajabiId).is("deleted_at", null).order("kajabi_id").range(a, b) as unknown as PageQuery<{
-          kajabi_id: string;
-        }>,
-    );
-    return rows.map((r) => r.kajabi_id);
   }
 
   async liveLesson(courseKajabiId: string, lessonKajabiId: string) {
@@ -351,16 +328,6 @@ export class SupabaseKajabiCourseRepository implements KajabiCourseRepository {
       );
     }
     return rows.sort((x, y) => (x.filename < y.filename ? -1 : x.filename > y.filename ? 1 : x.kajabi_id < y.kajabi_id ? -1 : x.kajabi_id > y.kajabi_id ? 1 : 0));
-  }
-
-  async liveFileIds(lessonKajabiId: string) {
-    const rows = await fetchAllRows<{ kajabi_id: string }>(
-      (a, b) =>
-        this.bronze.from("kajabi_lesson_files").select("kajabi_id").eq("lesson_kajabi_id", lessonKajabiId).is("deleted_at", null).order("kajabi_id").range(a, b) as unknown as PageQuery<{
-          kajabi_id: string;
-        }>,
-    );
-    return rows.map((r) => r.kajabi_id);
   }
 
   async upsertFiles(rows: NewKajabiLessonFile[]) {
@@ -559,10 +526,6 @@ export class InMemoryKajabiCourseRepository implements KajabiCourseRepository {
       .sort((a, b) => cmp(a.kajabi_id, b.kajabi_id));
   }
 
-  async liveModuleIds(courseKajabiId: string) {
-    return (await this.liveModules(courseKajabiId)).map((m) => m.kajabi_id);
-  }
-
   async upsertModules(rows: NewKajabiModule[]) {
     for (const row of rows) {
       const existing = this.data.kajabiModules.find((x) => x.kajabi_id === row.kajabi_id);
@@ -600,10 +563,6 @@ export class InMemoryKajabiCourseRepository implements KajabiCourseRepository {
       content_fetched_at: l.content_fetched_at,
       fetched_at: l.fetched_at,
     }));
-  }
-
-  async liveLessonIds(courseKajabiId: string) {
-    return (await this.liveLessons(courseKajabiId)).map((l) => l.kajabi_id);
   }
 
   async liveLesson(courseKajabiId: string, lessonKajabiId: string) {
@@ -678,13 +637,6 @@ export class InMemoryKajabiCourseRepository implements KajabiCourseRepository {
       .filter((f) => lessons.has(f.lesson_kajabi_id))
       .map((f) => ({ ...f }))
       .sort((a, b) => cmp(a.filename, b.filename) || cmp(a.kajabi_id, b.kajabi_id));
-  }
-
-  async liveFileIds(lessonKajabiId: string) {
-    return live(this.data.kajabiLessonFiles)
-      .filter((f) => f.lesson_kajabi_id === lessonKajabiId)
-      .map((f) => f.kajabi_id)
-      .sort(cmp);
   }
 
   async upsertFiles(rows: NewKajabiLessonFile[]) {

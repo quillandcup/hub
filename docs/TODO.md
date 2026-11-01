@@ -449,8 +449,9 @@ Both failed CI on unrelated PRs on 2026-10-30 and passed on a re-run of the same
 
 Context: API route tests run in-process through `apiFetch` (`tests/helpers/api-fetch.ts`) so
 `app/api` coverage counts, and per-area floors on the combined unit + db numbers live in
-`AREA_FLOORS` (`scripts/coverage-report.ts`). Combined, 2026-10-14: lib ~86% lines, components
-~72%, `app/api` ~59% (46% branches), `app/(member)` ~56%, `app/(admin)` ~19%.
+`AREA_FLOORS` (`scripts/coverage-report.ts`). Combined, 2026-10-31: lib ~96% lines, components
+~90%, `app/api` ~85% (73% branches). `app/(member)` and `app/(admin)` were ~56% and ~19% on
+2026-10-14 and haven't been re-measured.
 
 - [ ] **Floors for `app/(member)` and `app/(admin)`.** Neither has one; `app/(admin)` is the
       biggest gap in the repo. Add the floors once a round of page tests lifts them.

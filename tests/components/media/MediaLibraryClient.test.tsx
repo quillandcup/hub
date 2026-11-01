@@ -31,7 +31,7 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 
 let library: ReturnType<typeof asset>[];
 let detail: ReturnType<typeof asset>;
-let usages: { kind: string; id: string; title: string }[];
+let usages: { kind: string; id: string; title: string; slug?: string }[];
 let calls: { url: string; init?: RequestInit }[];
 let respond: (url: string, init?: RequestInit) => Response | undefined;
 
@@ -110,14 +110,14 @@ describe("MediaEditor", () => {
   };
 
   it("shows the details, where it's used, the sizes, and the download links", async () => {
-    usages = [{ kind: "event", id: "evt_AAAAAAAAAAA1", title: "Spring Retreat" }];
+    usages = [{ kind: "event", id: "evt_AAAAAAAAAAA1", title: "Spring Retreat", slug: "spring-retreat-2026-04-10" }];
     detail = asset({ width: 1250, height: 2000 }); // big enough for the Amazon cover
     await open();
     expect(screen.getByLabelText("Title")).toHaveValue("Hedgies on First");
     expect(screen.getByLabelText("Tags")).toHaveValue("hedgies, retreat");
     expect(screen.getByLabelText(/Alt text/)).toHaveValue("A hedgehog at a desk");
     expect(screen.getByText("1250 x 2000 px · png")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Spring Retreat" })).toHaveAttribute("href", "/admin/events/evt_AAAAAAAAAAA1");
+    expect(screen.getByRole("link", { name: "Spring Retreat" })).toHaveAttribute("href", "/admin/events/spring-retreat-2026-04-10");
     // The whole picture, in its own shape (1250 x 2000 -> 500 x 800), so a click maps to a point on it.
     expect(wholePicture()).toHaveAttribute("src", expect.stringContaining(`/custom?width=500&height=800&format=webp&fit=crop`));
     expect(screen.getByRole("link", { name: "The original" })).toHaveAttribute("href", `/api/media/${ID}/original?download=1`);

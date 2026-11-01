@@ -30,8 +30,10 @@ vi.mock("@/app/(admin)/admin/members/[id]/MemberDetails", () => ({
     slackPage,
     activityFeed,
     emailAliases,
+    eventSlugs,
   }: {
     emailAliases: { alias_email: string }[];
+    eventSlugs?: Record<string, string>;
     slackPage: { rows: { id: string; description: string | null }[] };
     activityFeed: { total: number; page: number } | null;
   }) => (
@@ -42,6 +44,7 @@ vi.mock("@/app/(admin)/admin/members/[id]/MemberDetails", () => ({
         ))}
       </ul>
       <p>{activityFeed ? `activity ${activityFeed.total} on page ${activityFeed.page}` : "activity unavailable"}</p>
+      <p>{`event slugs ${JSON.stringify(eventSlugs ?? {})}`}</p>
       <ol aria-label="email aliases">
         {emailAliases.map((a) => (
           <li key={a.alias_email}>{a.alias_email}</li>
@@ -57,6 +60,7 @@ vi.mock("@/lib/badges", () => ({ getMemberBadges: vi.fn(async () => []) }));
 vi.mock("@/lib/kajabi/membership-history", () => ({ fetchMembershipHistory: vi.fn(async () => []) }));
 vi.mock("@/lib/channels/web-push", () => ({ loadPushDevices: vi.fn(async () => []) }));
 
+import { getMemberBadges } from "@/lib/badges";
 import MemberDetailPage, { memberTabMetadata } from "@/app/(admin)/admin/members/[id]/MemberDetailPage";
 
 const MEMBER = { id: "member-moss", name: "Moss Bramble", email: "moss.bramble@example.test", kajabi_id: null, stripe_customer_id: null };
@@ -107,6 +111,34 @@ describe("MemberDetailPage", () => {
     );
     await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "overview" as const });
     expect(screen.getAllByRole("listitem").map((li) => li.textContent)).toEqual(["hello"]);
+  });
+
+  it("hands the member's event-linked badges the address of their event", async () => {
+    vi.mocked(getMemberBadges).mockResolvedValueOnce([
+      { badgeType: { id: "bt1", event_id: "evt_AAAAAAAAAAA1" }, levelName: "Retreat", level: null, occurrences: 1, firstAwardedAt: null, lastAwardedAt: null, note: null },
+      { badgeType: { id: "bt2", event_id: null }, levelName: "Hostess", level: null, occurrences: 1, firstAwardedAt: null, lastAwardedAt: null, note: null },
+    ] as never);
+    useFakeSupabase(memberTables({ community_event_details: { data: [{ id: "evt_AAAAAAAAAAA1", slug: "spring-retreat-2097-04-10", title: "Spring Retreat" }] } }));
+    await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "overview" as const });
+    expect(screen.getByText('event slugs {"evt_AAAAAAAAAAA1":"spring-retreat-2097-04-10"}')).toBeInTheDocument();
+  });
+
+  it("still renders when an earned badge's event can't be found", async () => {
+    vi.mocked(getMemberBadges).mockResolvedValueOnce([
+      { badgeType: { id: "bt1", event_id: "evt_GONE00000001" }, levelName: "Retreat", level: null, occurrences: 1, firstAwardedAt: null, lastAwardedAt: null, note: null },
+    ] as never);
+    useFakeSupabase(memberTables({ community_event_details: { data: [] } }));
+    await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "overview" as const });
+    expect(screen.getByText("event slugs {}")).toBeInTheDocument();
+  });
+
+  it("still renders when reading an earned badge's event fails", async () => {
+    vi.mocked(getMemberBadges).mockResolvedValueOnce([
+      { badgeType: { id: "bt1", event_id: "evt_AAAAAAAAAAA1" }, levelName: "Retreat", level: null, occurrences: 1, firstAwardedAt: null, lastAwardedAt: null, note: null },
+    ] as never);
+    useFakeSupabase(memberTables({ community_event_details: { data: null, error: { message: "timed out" } } }));
+    await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "overview" as const });
+    expect(screen.getByText("event slugs {}")).toBeInTheDocument();
   });
 
   it("lists the member's email aliases by address", async () => {

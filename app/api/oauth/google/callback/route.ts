@@ -39,6 +39,9 @@ export async function GET(request: NextRequest) {
     failureUrl.searchParams.set("photo_import_error", "invalid_state");
     return NextResponse.redirect(failureUrl);
   }
+  // The event's address (its slug) for where to send the admin next; the id would only redirect there.
+  const event = await createRepos(auth.supabase).events.byId(eventId).catch(() => null);
+  const eventPath = `/admin/events/${event?.slug ?? eventId}`;
 
   try {
     const { accessToken, expiresInSeconds } = await exchangeCodeForToken(code, redirectUriFor(request));
@@ -58,11 +61,10 @@ export async function GET(request: NextRequest) {
       maxAgeSeconds
     );
 
-    const event = await createRepos(auth.supabase).events.byId(eventId).catch(() => null);
-    return NextResponse.redirect(new URL(`/admin/events/${event?.slug ?? eventId}/import-photos`, request.nextUrl.origin));
+    return NextResponse.redirect(new URL(`${eventPath}/import-photos`, request.nextUrl.origin));
   } catch (error: any) {
     console.error("Error starting Google Photos import:", error);
-    const eventFailureUrl = new URL(`/admin/events/${eventId}`, request.nextUrl.origin);
+    const eventFailureUrl = new URL(eventPath, request.nextUrl.origin);
     eventFailureUrl.searchParams.set("photo_import_error", "start_failed");
     return NextResponse.redirect(eventFailureUrl);
   }

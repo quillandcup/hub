@@ -239,7 +239,7 @@ async function syncFiles(supabase: SupabaseClient, content: LessonContent, stamp
   );
 
   const keep = new Set(content.files.map((f) => f.kajabi_id));
-  const gone = (await repo.liveFileIds(content.lessonId)).filter((id) => !keep.has(id));
+  const gone = (await repo.liveFiles([content.lessonId])).map((f) => f.kajabi_id).filter((id) => !keep.has(id));
   await repo.softDeleteFiles(gone, stamp);
 }
 
