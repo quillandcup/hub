@@ -3,6 +3,8 @@
 -- comments as a snapshot; comments no longer listed get deleted_at. Admins read, only the service role writes.
 -- Natural key, no generated id, never exposed by id.
 
+set lock_timeout = '5s';
+
 CREATE TABLE bronze.kajabi_lesson_comments (
   course_kajabi_id TEXT NOT NULL,
   -- Kajabi's post id; equals bronze.kajabi_course_lessons.kajabi_id.
