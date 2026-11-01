@@ -51,7 +51,7 @@ export async function pushReadToSlack(
   // A failed read of either counts as "nothing to move", as it always has.
   const chat = createRepos(service).chat;
   const [slackChannelId, ts] = await Promise.all([
-    chat.slackChannelOf(opts.channelId).catch(() => null),
+    chat.channelRecord(opts.channelId).then((c) => c?.slack_channel_id ?? null).catch(() => null),
     chat.newestSlackTs(opts.channelId, opts.through).catch(() => null),
   ]);
   if (!slackChannelId || !ts) return false;
