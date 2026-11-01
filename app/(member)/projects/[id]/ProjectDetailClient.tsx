@@ -338,6 +338,17 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
         </div>
       )}
 
+      {Object.keys(project.totalsByMeasure).length > 0 && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600 dark:text-slate-400" data-testid="project-totals">
+          {Object.entries(project.totalsByMeasure).map(([measure, total]) => (
+            <span key={measure}>
+              <strong className="text-slate-900 dark:text-slate-100">{total!.toLocaleString()}</strong>{" "}
+              {MEASURE_LABELS[measure as keyof typeof MEASURE_LABELS].toLowerCase()}
+            </span>
+          ))}
+        </div>
+      )}
+
       {activeGoals.length > 0 && (
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-5 space-y-4">
           <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide">Goals</h2>

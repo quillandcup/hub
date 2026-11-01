@@ -174,6 +174,46 @@ describe("computeGoalProgress", () => {
     expect(progress.onPace).toBeNull();
   });
 
+  it("counts the starting balance toward a goal with no start date", () => {
+    const progress = computeGoalProgress({
+      entries: [],
+      targetAmount: 50000,
+      startDate: null,
+      endDate: null,
+      now,
+      startingBalance: 60000,
+    });
+    expect(progress.current).toBe(60000);
+    expect(progress.includesStartingBalance).toBe(true);
+    expect(progress.status).toBe("achieved");
+  });
+
+  it("adds logged progress on top of the starting balance", () => {
+    const progress = computeGoalProgress({
+      entries: [entry({ entryDate: "2026-08-01", amount: 5000 })],
+      targetAmount: 50000,
+      startDate: null,
+      endDate: "2026-12-31",
+      now,
+      startingBalance: 20000,
+    });
+    expect(progress.current).toBe(25000);
+    expect(progress.percent).toBe(50);
+  });
+
+  it("ignores the starting balance for a goal with a start date", () => {
+    const progress = computeGoalProgress({
+      entries: [entry({ entryDate: "2026-08-01", amount: 5000 })],
+      targetAmount: 50000,
+      startDate: "2026-08-01",
+      endDate: null,
+      now,
+      startingBalance: 60000,
+    });
+    expect(progress.current).toBe(5000);
+    expect(progress.includesStartingBalance).toBe(false);
+  });
+
   it("computes a par target at the halfway point of a 30-day window", () => {
     // Aug 1 - Aug 31 = 30 days elapsed at target date; "now" (Aug 16) is 15 days in.
     const progress = computeGoalProgress({

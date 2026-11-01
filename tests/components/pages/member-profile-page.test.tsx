@@ -257,6 +257,8 @@ describe("member profile page: Writing Progress", () => {
     endDate: "2026-08-15",
     current: 18,
     percent: 100,
+    includesStartingBalance: false,
+    projectTotal: 18,
     parTarget: 18,
     onPace: true,
     status: "achieved",

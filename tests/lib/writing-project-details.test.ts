@@ -335,7 +335,7 @@ describe("getMyProjects and getProject", () => {
     const mine = projects[1];
     expect(mine.startingBalances).toEqual({ words: 1000 });
     expect(mine.totalsByMeasure).toEqual({ words: 1150 });
-    expect(mine.goals).toEqual([expect.objectContaining({ kind: "target", title: "Draft it", targetAmount: 2000, current: 150 })]);
+    expect(mine.goals).toEqual([expect.objectContaining({ kind: "target", title: "Draft it", targetAmount: 2000, current: 1150, includesStartingBalance: true, projectTotal: 1150 })]);
   });
 
   it("is empty for someone who is not signed in", async () => {

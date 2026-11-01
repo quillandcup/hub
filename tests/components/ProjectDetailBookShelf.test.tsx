@@ -71,6 +71,17 @@ describe("ProjectDetailClient published book", () => {
   });
   afterEach(() => vi.restoreAllMocks());
 
+  it("shows the project-wide total, starting balance included, with or without goals", () => {
+    const withTotals = { ...project, totalsByMeasure: { words: 60000 } } as unknown as WritingProjectRow;
+    render(<ProjectDetailClient project={withTotals} entries={[]} archivedGoals={[]} />);
+    expect(screen.getByTestId("project-totals")).toHaveTextContent("60,000 words");
+  });
+
+  it("shows no totals line for a project with nothing logged", () => {
+    render(<ProjectDetailClient project={project} entries={[]} archivedGoals={[]} />);
+    expect(screen.queryByTestId("project-totals")).not.toBeInTheDocument();
+  });
+
   it("links to the Book Shelf page", () => {
     render(<ProjectDetailClient project={project} entries={[]} archivedGoals={[]} />);
     expect(screen.getByRole("link", { name: "View on the Book Shelf" })).toHaveAttribute("href", "/bookshelf");
