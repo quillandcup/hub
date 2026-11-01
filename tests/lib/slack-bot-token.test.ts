@@ -202,12 +202,16 @@ describe("getSlackBotToken", () => {
     expect(db.state.calls.filter((c) => c === "slack_bot_token_save")).toHaveLength(3);
   });
 
-  it("says so loudly when it can't store it at all, and keeps the old token while that works", async () => {
+  it("says so loudly when it can't store it at all, but uses the new token Slack just gave: failing every bot call would be worse", async () => {
     store("xoxe.xoxb-old", 30 * 60_000);
     slack.access.mockResolvedValue(refreshed());
     db.state.saveFailures = 10;
-    await expect(getSlackBotToken(db.client)).resolves.toBe("xoxe.xoxb-old");
+    await expect(getSlackBotToken(db.client)).resolves.toBe("xoxe.xoxb-2");
     expect(console.error).toHaveBeenCalledWith(expect.stringContaining("CRITICAL"), expect.anything());
+    // And it keeps using it, without asking Slack again, while it lasts.
+    slack.access.mockClear();
+    await expect(getSlackBotToken(db.client)).resolves.toBe("xoxe.xoxb-2");
+    expect(slack.access).not.toHaveBeenCalled();
   });
 
   it("treats a token with no expiry as always fresh", async () => {

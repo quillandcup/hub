@@ -47,7 +47,7 @@ async function readStored(service: SupabaseClient): Promise<Stored | null> {
 const fresh = (s: Stored): boolean => s.expiresAt === null || s.expiresAt - clock.now() > REFRESH_WITHIN_MS;
 const usable = (s: Stored): boolean => s.expiresAt === null || s.expiresAt - clock.now() > 60 * 1000;
 
-/** Exchange the refresh token for a new credential and store it, retrying the save: the old refresh token is spent. */
+/** Exchange the refresh token for a new credential and store it, retrying the save: the old refresh token is spent. A save that never works is logged and the new token is used anyway. */
 async function refreshAndSave(service: SupabaseClient, current: Stored): Promise<Stored> {
   if (!current.refreshToken) throw new Error("the stored Slack bot token has no refresh token");
   const result = await new WebClient().oauth.v2.access({
@@ -71,8 +71,11 @@ async function refreshAndSave(service: SupabaseClient, current: Stored): Promise
     if (!error) return stored;
     lastError = error;
   }
-  console.error("CRITICAL: refreshed the Slack bot token but could not store it; the bot will stop working once the old token expires:", lastError);
-  throw lastError;
+  // Slack has already honoured the refresh, so this request (and this server instance) can use the new token
+  // for its 12 hours even though it isn't stored: far better than failing every bot call. Others still read the
+  // old one, and the next refresh uses the old refresh token if Slack still accepts it. Loud, because it needs fixing.
+  console.error("CRITICAL: refreshed the Slack bot token but could not store it; the new token is used by this instance only:", lastError);
+  return stored;
 }
 
 /**
