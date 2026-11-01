@@ -128,10 +128,10 @@ export async function importKajabiCourses(
   const softDeleted = { courses: 0, modules: 0, lessons: 0, offers: 0 };
   for (const p of parsed) {
     const courseId = p.course.kajabiId;
-    const goneModules = idsToSoftDelete(await repo.liveModuleIds(courseId), p.modules.map((m) => m.kajabiId));
+    const goneModules = idsToSoftDelete((await repo.liveModules(courseId)).map((m) => m.kajabi_id), p.modules.map((m) => m.kajabiId));
     await repo.softDeleteModules(goneModules, fetchedAt);
     softDeleted.modules += goneModules.length;
-    const goneLessons = idsToSoftDelete(await repo.liveLessonIds(courseId), p.lessons.map((l) => l.kajabiId));
+    const goneLessons = idsToSoftDelete((await repo.liveLessonOutlines(courseId)).map((l) => l.kajabi_id), p.lessons.map((l) => l.kajabiId));
     await repo.softDeleteLessons(goneLessons, fetchedAt);
     softDeleted.lessons += goneLessons.length;
     const liveOffers = await repo.liveOffers([courseId]);

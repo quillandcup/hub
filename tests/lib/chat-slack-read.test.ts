@@ -138,7 +138,7 @@ describe("pushReadToSlack", () => {
   });
 
   it("does nothing when it can't read the conversation or its newest message", async () => {
-    failing = ["slackChannelOf"];
+    failing = ["channelRecord"];
     await expect(pushReadToSlack(service, OPTS)).resolves.toBe(false);
     failing = ["newestSlackTs"];
     await expect(pushReadToSlack(service, OPTS)).resolves.toBe(false);

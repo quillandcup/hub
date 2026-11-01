@@ -297,7 +297,7 @@ export async function loadLessonView(
 
   let video: LessonView["video"] = null;
   if (lesson.video_id) {
-    const v = await repos.courses.video(lesson.video_id);
+    const v = (await repos.courses.videosByIds([lesson.video_id]))[0];
     if (v) video = { id: lesson.video_id, status: v.status, playbackId: v.mux_playback_id };
   }
 

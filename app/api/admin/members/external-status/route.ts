@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
     stripeActiveSubs,
     slackUsers,
   ] = await Promise.all([
-    billing.kajabiCustomersByEmail(canonicalEmails),
+    billing.kajabiCustomers({ emails: canonicalEmails }),
     billing.stripeSubscriptionStatuses(["active", "trialing", "past_due"], stripeIds),
     createRepos(supabase).slackUsers.byEmails(allEmails, { excludeBots: true }),
   ]);
