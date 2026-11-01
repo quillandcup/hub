@@ -60,6 +60,53 @@ describe("LessonTextEditor", () => {
     expect(actions.saveLessonText.mock.calls[0][2]).toContain("<ol><li><p>First</p></li></ol>");
   });
 
+  it("marks the selected text bold, italic, underlined and as a link with the toolbar, and removes the link again", async () => {
+    actions.saveLessonText.mockResolvedValue({ id: LESSON });
+    vi.spyOn(window, "prompt").mockReturnValue("https://example.com");
+    const user = userEvent.setup();
+    render(<LessonTextEditor courseId={COURSE} lessonId={LESSON} initialHtml="<p>Word</p>" />);
+    await user.click(await field());
+    await user.keyboard("{Control>}a{/Control}");
+    for (const name of ["Bold", "Italic", "Underline", "Link"]) await user.click(screen.getByRole("button", { name }));
+    expect(screen.getByRole("button", { name: "Bold" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Remove link" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "Save text" }));
+    const html = actions.saveLessonText.mock.calls[0][2] as string;
+    expect(html).toContain("<strong>");
+    expect(html).toContain("<em>");
+    expect(html).toContain("<u>");
+    expect(html).toContain('href="https://example.com"');
+
+    await user.click(screen.getByRole("button", { name: "Remove link" }));
+    await user.click(screen.getByRole("button", { name: "Save text" }));
+    expect(actions.saveLessonText.mock.calls[1][2]).not.toContain("href=");
+  });
+
+  it("turns the selected text into a subheading, a bulleted list or a quote, and asks for no address when the link prompt is cancelled", async () => {
+    actions.saveLessonText.mockResolvedValue({ id: LESSON });
+    vi.spyOn(window, "prompt").mockReturnValue(null);
+    const user = userEvent.setup();
+    render(<LessonTextEditor courseId={COURSE} lessonId={LESSON} initialHtml="<p>One</p><p>Two</p><p>Three</p>" />);
+    await user.click(await field());
+    await user.keyboard("{Control>}a{/Control}");
+    await user.click(screen.getByRole("button", { name: "Link" }));
+    expect(screen.getByRole("button", { name: "Remove link" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Bulleted list" }));
+    await user.click(screen.getByRole("button", { name: "Quote" }));
+    await user.click(screen.getByRole("button", { name: "Save text" }));
+    const html = actions.saveLessonText.mock.calls[0][2] as string;
+    expect(html).toContain("<blockquote>");
+    expect(html).toContain("<ul>");
+    expect(html).not.toContain("href=");
+
+    // A subheading is made out of a plain paragraph, which the quoted list no longer is: take the quote and list off first.
+    await user.click(screen.getByRole("button", { name: "Quote" }));
+    await user.click(screen.getByRole("button", { name: "Bulleted list" }));
+    await user.click(screen.getByRole("button", { name: "Subheading" }));
+    await user.click(screen.getByRole("button", { name: "Save text" }));
+    expect(actions.saveLessonText.mock.calls[1][2]).toContain("<h3>");
+  });
+
   it("sends nothing but an empty text when everything is cleared", async () => {
     actions.saveLessonText.mockResolvedValue({ id: LESSON });
     const user = userEvent.setup();

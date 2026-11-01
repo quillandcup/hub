@@ -11,11 +11,11 @@ import { getTestSupabaseAdminClient } from '../../helpers/supabase'
 const ts = Date.now()
 const PREFIX = `test-outline-${ts}`
 
-const auth = vi.hoisted(() => ({ admin: true }))
+const auth = vi.hoisted(() => ({ admin: true, client: null as unknown }))
 vi.mock('@/lib/admin-auth', async () => {
   const { getTestSupabaseAdminClient } = await import('../../helpers/supabase')
   return {
-    requireAdminAction: async () => (auth.admin ? { ok: true, user: { id: 'user-admin', email: 'admin@example.test' }, supabase: getTestSupabaseAdminClient() } : { ok: false, error: 'Not authorized' }),
+    requireAdminAction: async () => (auth.admin ? { ok: true, user: { id: 'user-admin', email: 'admin@example.test' }, supabase: auth.client ?? getTestSupabaseAdminClient() } : { ok: false, error: 'Not authorized' }),
   }
 })
 // The outcome is recorded against the current visit, which a test doesn't have.
@@ -147,6 +147,19 @@ describe('Course outline actions', () => {
       expect(await saveLessonText('nope', ids.a, '<p>x</p>')).toEqual({ error: 'Not found.' })
       expect(await saveLessonText(ids.course, ids.m1, '<p>x</p>')).toEqual({ error: 'Not found.' })
       expect(await saveLessonText(ids.course, ids.a, 'x'.repeat(200_001))).toEqual({ error: 'That text is too long.' })
+    })
+
+    it('says so when the database refuses the write, and changes nothing', async () => {
+      await saveLessonText(ids.course, ids.a, '<p>Before</p>')
+      auth.client = { from: () => { throw new Error('connection lost') } }
+      try {
+        const result = await saveLessonText(ids.course, ids.a, '<p>After</p>')
+        expect(result.error).toMatch(/save the text/)
+        expect(result.id).toBeUndefined()
+      } finally {
+        auth.client = null
+      }
+      expect((await stored(ids.a)).body_html).toBe('<p>Before</p>')
     })
 
     it("does nothing for someone who isn't an admin", async () => {
