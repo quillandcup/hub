@@ -58,9 +58,12 @@ export function buildSlackAuthorizeUrl(state: string): string {
 const STATE_COOKIE = "slack_connect_state";
 const STATE_MAX_AGE_SECONDS = 10 * 60;
 
-/** A random state, remembered in a short-lived cookie so the callback can tell the flow started here. */
-export async function setConnectStateCookie(): Promise<string> {
-  const state = randomBytes(32).toString("hex");
+/**
+ * A random state, remembered in a short-lived cookie so the callback can tell the flow started here. `prefix` marks
+ * a flow other than a member connecting (a bot install, lib/slack-bot-install.ts) so the one callback can tell them apart.
+ */
+export async function setConnectStateCookie(prefix = ""): Promise<string> {
+  const state = prefix + randomBytes(32).toString("hex");
   (await cookies()).set(STATE_COOKIE, state, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
