@@ -215,8 +215,6 @@ export interface WritingRepository {
   activeGoalMeasures(memberId: string): Promise<{ project_id: string | null; measure: string }[]>;
   /** The measures of the member's latest entries, newest first, `limit` of them (repeats kept), optionally one project's. */
   recentEntryMeasures(memberId: string, limit: number, options?: { projectId?: string }): Promise<{ project_id: string; measure: string }[]>;
-  /** What the member logged against this prickle, in the order they logged it. */
-  entriesForPrickle(memberId: string, prickleId: string): Promise<{ project_id: string; measure: string; mode: string; amount: number }[]>;
   /** The member's entries by date, with their project's title, optionally one project's. */
   exportEntries(memberId: string, options?: { projectId?: string }): Promise<ExportedEntry[]>;
   /** Saves an entry and returns its id. */
@@ -342,19 +340,6 @@ export class SupabaseWritingRepository implements WritingRepository {
     let query = this.db.from("writing_progress_entries").select("project_id, measure").eq("member_id", memberId).is("deleted_at", null);
     if (projectId) query = query.eq("project_id", projectId);
     const { data, error } = await query.order("created_at", { ascending: false }).order("id", { ascending: false }).limit(limit);
-    if (error) throw new Error(error.message);
-    return data ?? [];
-  }
-
-  async entriesForPrickle(memberId: string, prickleId: string) {
-    const { data, error } = await this.db
-      .from("writing_progress_entries")
-      .select("project_id, measure, mode, amount")
-      .eq("member_id", memberId)
-      .eq("prickle_id", prickleId)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: true })
-      .order("id", { ascending: true });
     if (error) throw new Error(error.message);
     return data ?? [];
   }
@@ -844,12 +829,6 @@ export class InMemoryWritingRepository implements WritingRepository {
     return this.newestFirst(this.liveEntries().filter((e) => e.member_id === memberId && (!projectId || e.project_id === projectId)))
       .slice(0, limit)
       .map((e) => ({ project_id: e.project_id, measure: e.measure }));
-  }
-
-  async entriesForPrickle(memberId: string, prickleId: string) {
-    return this.newestFirst(this.liveEntries().filter((e) => e.member_id === memberId && e.prickle_id === prickleId))
-      .reverse()
-      .map((e) => ({ project_id: e.project_id, measure: e.measure, mode: e.mode, amount: e.amount }));
   }
 
   async exportEntries(memberId: string, { projectId }: { projectId?: string } = {}) {
