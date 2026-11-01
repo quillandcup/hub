@@ -3,6 +3,7 @@ import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
 import { byKeyThenId, compareText, inChunks, must, upsertInChunks, type PageQuery } from "./query";
 import type { Db, Insert, Row, Update } from "./db";
 import type { InMemoryDataset } from "./in-memory";
+import { itemState, planFullTree, visibilityFromPublishing, type Visibility } from "@/lib/courses/visibility";
 
 /** A course (`courses`): imported from Kajabi (`source = 'kajabi'`, a draft until published) or owned by the Hub (`source = 'hub'`). */
 export type CourseRecord = Row<"courses">;
@@ -44,7 +45,7 @@ const writeError = (error: { message: string; code?: string }) => new CourseWrit
 const ID_CHUNK = 200;
 const WRITE_CHUNK = 500;
 const LESSON_COLUMNS =
-  "id, course_id, module_id, title, position, state, excerpt, duration_seconds, video_id, thumbnail_url, thumbnail_asset_id, thumbnail_source, source, source_key, created_at, updated_at" as const;
+  "id, course_id, module_id, title, position, state, publishing_option, excerpt, duration_seconds, video_id, thumbnail_url, thumbnail_asset_id, thumbnail_source, source, source_key, created_at, updated_at" as const;
 
 /**
  * Courses, their modules and lessons, lesson downloads and the Mux videos (`courses`, `course_modules`,
@@ -108,6 +109,16 @@ export interface CourseRepository {
   duplicateItem(kind: OutlineKind, id: string): Promise<string>;
   /** Puts the children of one parent in this order, all or nothing. The list must be exactly the current children. Throws a {@link CourseWriteError} (`stale_order`, `not_editable`). */
   reorderChildren(order: { courseId: string; kind: OutlineKind; parentId: string | null; ids: string[] }): Promise<void>;
+  /**
+   * Sets a Hub-owned course's own setting (draft, published or locked); everything in it follows or is limited by it.
+   * Throws a {@link CourseWriteError} (`unsupported_status`, `not_found`, `not_editable`).
+   */
+  setCourseStatus(courseId: string, option: string): Promise<void>;
+  /**
+   * Sets a Hub-owned module's or lesson's own setting (inherit, draft, published or locked); its state, and that of what is
+   * under it, follow. Throws a {@link CourseWriteError} (`unsupported_status`, `not_found`, `not_editable`, `parent_not_published`).
+   */
+  setItemStatus(kind: OutlineKind, id: string, option: string): Promise<void>;
 
   // --- images ---
   /** The library image a course, banner, module or lesson shows, and the item's state (modules and lessons), or null when the item is missing. */
@@ -332,6 +343,16 @@ export class SupabaseCourseRepository implements CourseRepository {
     if (error) throw writeError(error);
   }
 
+  async setCourseStatus(courseId: string, option: string) {
+    const { error } = await this.db.rpc("set_course_status", { p_course_id: courseId, p_option: option });
+    if (error) throw writeError(error);
+  }
+
+  async setItemStatus(kind: OutlineKind, id: string, option: string) {
+    const { error } = await this.db.rpc("set_course_item_status", { p_kind: kind, p_id: id, p_option: option });
+    if (error) throw writeError(error);
+  }
+
   async imageOf(kind: CourseImageKind, id: string) {
     const columns = IMAGE_COLUMNS[kind];
     if (kind === "course" || kind === "hero") {
@@ -423,6 +444,18 @@ export const newCourseId = (prefix: string) => `${prefix}_${Array.from({ length:
 const copy = <T extends object>(row: T): T => ({ ...row });
 const withoutBody = ({ body_html: _body, ...rest }: Row<"course_lessons">): LessonRecord => rest;
 const now = () => new Date().toISOString();
+
+/** A state column as a {@link Visibility}: anything that isn't open or coming soon is hidden. */
+const visibility = (state: string | undefined): Visibility => (state === "open" || state === "coming_soon" ? state : "hidden");
+
+/**
+ * The database trigger that keeps a course's draft flag and setting one fact: a Hub-owned course's flag follows its
+ * setting; an imported course's setting follows its flag (the sync and the publish step write the flag).
+ */
+const syncPublishing = (course: { source: string; is_draft: boolean; publishing_option: string }) => {
+  if (course.source === "hub") course.is_draft = course.publishing_option === "draft";
+  else course.publishing_option = course.is_draft ? "draft" : "published";
+};
 const unique = (message: string) => new CourseWriteError(`duplicate key value violates unique constraint: ${message}`, "23505");
 /** Applies a patch the way UPDATE does: a column left out (or undefined) keeps its value. */
 const apply = <T extends object>(row: T, patch: object) => {
@@ -474,6 +507,7 @@ export class InMemoryCourseRepository implements CourseRepository {
       kind: "evergreen",
       launch_at: null,
       program_id: null,
+      publishing_option: "draft",
       source: "kajabi",
       source_key: null,
       thumbnail_asset_id: null,
@@ -482,6 +516,7 @@ export class InMemoryCourseRepository implements CourseRepository {
       updated_at: stamp,
       ...(Object.fromEntries(Object.entries(course).filter(([, v]) => v !== undefined)) as NewCourse),
     } as CourseRecord;
+    syncPublishing(row);
     this.data.courses.push(row);
     return row;
   }
@@ -499,6 +534,7 @@ export class InMemoryCourseRepository implements CourseRepository {
     if (!course) return null;
     if (patch.slug !== undefined && this.data.courses.some((c) => c.id !== id && c.slug === patch.slug)) throw unique("courses_slug_key");
     apply(course, patch);
+    syncPublishing(course);
     course.updated_at = now();
     return copy(course);
   }
@@ -551,6 +587,7 @@ export class InMemoryCourseRepository implements CourseRepository {
       poster_asset_id: null,
       poster_source: null,
       poster_url: null,
+      publishing_option: "inherit",
       state: "open",
       source: "kajabi",
       source_key: null,
@@ -569,6 +606,7 @@ export class InMemoryCourseRepository implements CourseRepository {
       excerpt: null,
       module_id: null,
       position: 0,
+      publishing_option: "inherit",
       source: "kajabi",
       source_key: null,
       state: "open",
@@ -646,14 +684,41 @@ export class InMemoryCourseRepository implements CourseRepository {
     return Math.max(0, ...siblings.map((s) => s.position)) + 1;
   }
 
+  /** The state of what is above an item: its module's, or the course's own setting for a top-level module or a lesson in no module. */
+  private stateAbove(courseId: string, moduleId: string | null): Visibility {
+    if (moduleId) return visibility(this.data.courseModules.find((m) => m.id === moduleId)?.state);
+    return visibilityFromPublishing(this.data.courses.find((c) => c.id === courseId)?.publishing_option);
+  }
+
+  /** As the database does for a Hub-owned item that is added: its state is what its setting and what is above it give. */
+  private settle<T extends { source: string; course_id: string; publishing_option: string | null; state: string }>(row: T, moduleId: string | null): T {
+    if (row.source === "hub") row.state = itemState(row.publishing_option, this.stateAbove(row.course_id, moduleId));
+    return row;
+  }
+
+  /** The states of a Hub-owned course, worked out again from the settings (the database's `recompute_course_states`). */
+  private recompute(courseId: string) {
+    const course = this.data.courses.find((c) => c.id === courseId);
+    if (!course || course.source !== "hub") return;
+    const modules = this.data.courseModules.filter((m) => m.course_id === courseId);
+    const lessons = this.data.courseLessons.filter((l) => l.course_id === courseId);
+    const tree = planFullTree(
+      modules.map((m) => ({ kajabiId: m.id, parentKajabiId: m.parent_id, publishingOption: m.publishing_option })),
+      lessons.map((l) => ({ kajabiId: l.id, moduleKajabiId: l.module_id, publishingOption: l.publishing_option })),
+      course.publishing_option
+    );
+    for (const m of modules) m.state = tree.modules.get(m.id) ?? "hidden";
+    for (const l of lessons) l.state = tree.lessons.get(l.id) ?? "hidden";
+  }
+
   async addModule(mod: NewModule) {
-    const row = this.newModule(mod);
+    const row = this.settle(this.newModule(mod), mod.parent_id ?? null);
     this.data.courseModules.push(row);
     return row.id;
   }
 
   async addLesson(lesson: NewLesson) {
-    const row = this.newLesson(lesson);
+    const row = this.settle(this.newLesson(lesson), lesson.module_id ?? null);
     this.data.courseLessons.push(row);
     return row.id;
   }
@@ -689,6 +754,7 @@ export class InMemoryCourseRepository implements CourseRepository {
         title,
         position,
         state: "hidden",
+        publishing_option: "draft",
         body_html: l.body_html,
         excerpt: l.excerpt,
         thumbnail_url: l.thumbnail_url,
@@ -709,7 +775,7 @@ export class InMemoryCourseRepository implements CourseRepository {
     const src = this.data.courseModules.find((m) => m.id === id);
     if (!src) throw new CourseWriteError("not_found");
     const draftModule = (m: Row<"course_modules">, parentId: string | null, title: string, position: number) => {
-      const row = this.newModule({ course_id: m.course_id, parent_id: parentId, title, position, state: "hidden", poster_url: m.poster_url, poster_source: m.poster_source, poster_asset_id: m.poster_asset_id, source: "hub" });
+      const row = this.newModule({ course_id: m.course_id, parent_id: parentId, title, position, state: "hidden", publishing_option: "draft", poster_url: m.poster_url, poster_source: m.poster_source, poster_asset_id: m.poster_asset_id, source: "hub" });
       this.data.courseModules.push(row);
       return row.id;
     };
@@ -737,6 +803,32 @@ export class InMemoryCourseRepository implements CourseRepository {
       const child = children.find((c) => c.id === id)!;
       child.position = i + 1;
     });
+  }
+
+  async setCourseStatus(courseId: string, option: string) {
+    if (!["draft", "published", "locked"].includes(option)) throw new CourseWriteError("unsupported_status");
+    const course = this.data.courses.find((c) => c.id === courseId);
+    if (!course) throw new CourseWriteError("not_found");
+    if (course.source !== "hub") throw new CourseWriteError("not_editable");
+    if (course.publishing_option === option) return;
+    course.publishing_option = option;
+    course.is_draft = option === "draft";
+    course.updated_at = now();
+    this.recompute(courseId);
+  }
+
+  async setItemStatus(kind: OutlineKind, id: string, option: string) {
+    if (!["inherit", "draft", "published", "locked"].includes(option)) throw new CourseWriteError("unsupported_status");
+    const item: { course_id: string; source: string; publishing_option: string | null; updated_at: string } | undefined =
+      kind === "module" ? this.data.courseModules.find((m) => m.id === id) : this.data.courseLessons.find((l) => l.id === id);
+    if (!item) throw new CourseWriteError("not_found");
+    if (item.source !== "hub" || this.data.courses.find((c) => c.id === item.course_id)?.source !== "hub") throw new CourseWriteError("not_editable");
+    if (item.publishing_option === option) return;
+    const moduleId = kind === "module" ? (item as Row<"course_modules">).parent_id : (item as Row<"course_lessons">).module_id;
+    if (option === "published" && this.stateAbove(item.course_id, moduleId) === "hidden") throw new CourseWriteError("parent_not_published");
+    item.publishing_option = option;
+    item.updated_at = now();
+    this.recompute(item.course_id);
   }
 
   async imageOf(kind: CourseImageKind, id: string) {

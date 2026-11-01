@@ -30,16 +30,17 @@ const L3 = "les_AAAAAAAAAAA3";
 
 const outline = buildHubOutline(
   [
-    { id: M1, parent_id: null, title: "Module 1", position: 1, state: "hidden" },
-    { id: M2, parent_id: null, title: "Module 2", position: 2, state: "hidden" },
-    { id: W1, parent_id: M1, title: "Week 1", position: 1, state: "hidden" },
-    { id: W2, parent_id: M1, title: "Week 2", position: 2, state: "hidden" },
+    { id: M1, parent_id: null, title: "Module 1", position: 1, publishing_option: "inherit" },
+    { id: M2, parent_id: null, title: "Module 2", position: 2, publishing_option: "inherit" },
+    { id: W1, parent_id: M1, title: "Week 1", position: 1, publishing_option: "inherit" },
+    { id: W2, parent_id: M1, title: "Week 2", position: 2, publishing_option: "inherit" },
   ],
   [
-    { id: L1, module_id: W1, title: "Lesson one", position: 1, state: "hidden", hasText: true, hasVideo: false },
-    { id: L2, module_id: W1, title: "Lesson two", position: 2, state: "hidden", hasText: false, hasVideo: false },
-    { id: L3, module_id: M2, title: "Lesson three", position: 1, state: "hidden", hasText: false, hasVideo: false },
-  ]
+    { id: L1, module_id: W1, title: "Lesson one", position: 1, publishing_option: "inherit", hasText: true, hasVideo: false },
+    { id: L2, module_id: W1, title: "Lesson two", position: 2, publishing_option: "inherit", hasText: false, hasVideo: false },
+    { id: L3, module_id: M2, title: "Lesson three", position: 1, publishing_option: "inherit", hasText: false, hasVideo: false },
+  ],
+  "draft"
 );
 const course = (over: Partial<OutlineCourse> = {}): OutlineCourse => ({
   id: COURSE,

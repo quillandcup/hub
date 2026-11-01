@@ -52,6 +52,7 @@ const course = (over: Record<string, unknown> = {}) => ({
   accessDuration: "1 year",
   launchAt: "2026-11-02T05:00:00Z",
   programId: "prg_AAAAAAAAAAA2",
+  publishingOption: "published",
   access: { current: 3, upcoming: 2, ended: 1 },
   ...over,
 });
@@ -62,7 +63,7 @@ beforeEach(() => {
   requireAdminPage.mockClear();
   loadHubCourse.mockReset();
   loadHubOutline.mockReset();
-  loadHubOutline.mockResolvedValue(buildHubOutline([], []));
+  loadHubOutline.mockResolvedValue(buildHubOutline([], [], "draft"));
   loadAdminCourse.mockReset();
   loadAdminCourseTitle.mockReset();
 });
@@ -106,8 +107,9 @@ describe("/admin/courses/[id] for a Hub-owned course", () => {
     loadHubCourse.mockResolvedValue(course());
     loadHubOutline.mockResolvedValue(
       buildHubOutline(
-        [{ id: "mod_AAAAAAAAAAA1", parent_id: null, title: "Module 1", position: 1, state: "hidden" }],
-        [{ id: "les_AAAAAAAAAAA1", module_id: "mod_AAAAAAAAAAA1", title: "Lesson one", position: 1, state: "hidden", hasText: false, hasVideo: false }]
+        [{ id: "mod_AAAAAAAAAAA1", parent_id: null, title: "Module 1", position: 1, publishing_option: "inherit" }],
+        [{ id: "les_AAAAAAAAAAA1", module_id: "mod_AAAAAAAAAAA1", title: "Lesson one", position: 1, publishing_option: "inherit", hasText: false, hasVideo: false }],
+        "draft"
       )
     );
     await renderServerRoute(AdminCoursePage, params());

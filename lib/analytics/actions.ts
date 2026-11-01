@@ -36,6 +36,8 @@ export const OUTCOME_ACTIONS = [
   "course_item_deleted",
   "course_item_duplicated",
   "course_items_reordered",
+  "course_item_status_set",
+  "course_status_set",
   // Chat
   "chat_message_sent",
   "chat_reaction_toggled",

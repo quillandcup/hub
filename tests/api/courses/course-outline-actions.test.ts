@@ -23,7 +23,7 @@ vi.mock('@/lib/analytics/server', () => ({ withAction: async (_action: string, r
 const revalidatePath = vi.hoisted(() => vi.fn())
 vi.mock('next/cache', () => ({ revalidatePath }))
 
-import { addCourseLesson, addCourseModule, deleteCourseItem, duplicateCourseItem, renameCourseItem, reorderCourseItems } from '@/app/(admin)/admin/courses/outline-actions'
+import { addCourseLesson, addCourseModule, deleteCourseItem, duplicateCourseItem, renameCourseItem, reorderCourseItems, setCourseItemStatus, setCourseStatus } from '@/app/(admin)/admin/courses/outline-actions'
 
 describe('Course outline actions', () => {
   const supabase = getTestSupabaseAdminClient()
@@ -231,6 +231,94 @@ describe('Course outline actions', () => {
       auth.admin = false
       expect(await deleteCourseItem(ids.course, 'lesson', ids.a)).toEqual({ error: 'Not authorized' })
       expect(await lesson(ids.a)).not.toBeNull()
+    })
+  })
+
+  describe('setCourseStatus and setCourseItemStatus', () => {
+    let course: string
+    let top: string
+    let week: string
+    let lesson: string
+    const states = async () => {
+      const mods = (await supabase.from('course_modules').select('title, state').eq('course_id', course)).data ?? []
+      const les = (await supabase.from('course_lessons').select('title, state').eq('course_id', course)).data ?? []
+      return Object.fromEntries([...mods, ...les].map((r) => [r.title, r.state]))
+    }
+    const courseRow = async () => (await supabase.from('courses').select('publishing_option, is_draft').eq('id', course).single()).data
+
+    beforeAll(async () => {
+      auth.admin = true
+      course = (await supabase.from('courses').insert({ slug: `${PREFIX}-status`, title: 'Status', source: 'hub' }).select('id').single()).data!.id
+      top = (await addCourseModule(course, null, 'Top')).id!
+      week = (await addCourseModule(course, top, 'Week')).id!
+      lesson = (await addCourseLesson(course, week, 'Lesson')).id!
+    })
+
+    it('starts as a draft course, with everything in it following it, hidden', async () => {
+      expect(await courseRow()).toEqual({ publishing_option: 'draft', is_draft: true })
+      expect(await states()).toEqual({ Top: 'hidden', Week: 'hidden', Lesson: 'hidden' })
+    })
+
+    it('publishes the whole course in one step, and what follows it opens', async () => {
+      expect(await setCourseStatus(course, 'published')).toEqual({ id: course })
+      expect(await courseRow()).toEqual({ publishing_option: 'published', is_draft: false })
+      expect(await states()).toEqual({ Top: 'open', Week: 'open', Lesson: 'open' })
+      expect(revalidatePath).toHaveBeenCalledWith(`/admin/courses/${course}`)
+      expect(revalidatePath).toHaveBeenCalledWith('/admin/courses')
+      expect(revalidatePath).toHaveBeenCalledWith('/courses', 'layout')
+    })
+
+    it('locks the course, and a lesson added to it follows (coming soon)', async () => {
+      await setCourseStatus(course, 'locked')
+      const added = await addCourseLesson(course, week, 'Added while locked')
+      expect(await states()).toEqual({ Top: 'coming_soon', Week: 'coming_soon', Lesson: 'coming_soon', 'Added while locked': 'coming_soon' })
+      await deleteCourseItem(course, 'lesson', added.id!)
+      await setCourseStatus(course, 'published')
+    })
+
+    it("sets one item's own setting, and what is under it follows", async () => {
+      expect(await setCourseItemStatus(course, 'module', top, 'draft')).toEqual({ id: top })
+      expect(await states()).toEqual({ Top: 'hidden', Week: 'hidden', Lesson: 'hidden' })
+      expect((await supabase.from('course_modules').select('publishing_option').eq('id', top).single()).data!.publishing_option).toBe('draft')
+      expect(await setCourseItemStatus(course, 'module', top, 'inherit')).toEqual({ id: top })
+      expect(await states()).toEqual({ Top: 'open', Week: 'open', Lesson: 'open' })
+    })
+
+    it("won't publish under a draft, and says what to do", async () => {
+      await setCourseItemStatus(course, 'module', top, 'draft')
+      expect(await setCourseItemStatus(course, 'module', week, 'published')).toEqual({ error: 'Publish what it is in first: the module, or the course, above it is still a draft.' })
+      expect(await setCourseItemStatus(course, 'lesson', lesson, 'published')).toEqual({ error: 'Publish what it is in first: the module, or the course, above it is still a draft.' })
+      await setCourseItemStatus(course, 'module', top, 'inherit')
+    })
+
+    it("doesn't offer scheduled or drip yet, for a course or an item", async () => {
+      const unavailable = { error: "That setting isn't available yet." }
+      expect(await setCourseItemStatus(course, 'lesson', lesson, 'drip')).toEqual(unavailable)
+      expect(await setCourseItemStatus(course, 'lesson', lesson, 'scheduled')).toEqual(unavailable)
+      expect(await setCourseStatus(course, 'scheduled')).toEqual(unavailable)
+      expect(await setCourseStatus(course, 'inherit')).toEqual(unavailable)
+    })
+
+    it('says so for an item or course that is gone, and refuses ids that are not ids', async () => {
+      expect(await setCourseItemStatus(course, 'lesson', 'les_AAAAAAAAAAA1', 'draft')).toEqual({ error: 'That has been deleted. Refresh the page.' })
+      expect(await setCourseStatus('crs_AAAAAAAAAAA1', 'draft')).toEqual({ error: 'That has been deleted. Refresh the page.' })
+      expect(await setCourseItemStatus(course, 'lesson', top, 'draft')).toEqual({ error: 'Not found.' })
+      expect(await setCourseItemStatus('nope', 'lesson', lesson, 'draft')).toEqual({ error: 'Not found.' })
+      expect(await setCourseStatus('nope', 'draft')).toEqual({ error: 'Course not found.' })
+    })
+
+    it("won't change a course imported from Kajabi, or what is in it", async () => {
+      expect((await setCourseStatus(ids.kajabi, 'draft')).error).toMatch(/can't be edited here/)
+      expect((await setCourseItemStatus(ids.kajabi, 'module', ids.kajabiModule, 'draft')).error).toMatch(/can't be edited here/)
+      expect((await supabase.from('course_modules').select('publishing_option').eq('id', ids.kajabiModule).single()).data!.publishing_option).not.toBe('draft')
+    })
+
+    it("does nothing for someone who isn't an admin", async () => {
+      auth.admin = false
+      expect(await setCourseStatus(course, 'draft')).toEqual({ error: 'Not authorized' })
+      expect(await setCourseItemStatus(course, 'module', top, 'draft')).toEqual({ error: 'Not authorized' })
+      auth.admin = true
+      expect(await courseRow()).toEqual({ publishing_option: 'published', is_draft: false })
     })
   })
 })

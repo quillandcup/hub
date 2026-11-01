@@ -229,6 +229,8 @@ export async function processCourses(
       position: m.position ?? 0,
       poster_url: m.poster_url ?? null,
       state: stateOf(tree.modules, m.kajabi_id),
+      // The module's own setting as Kajabi gives it (or nothing): the state above follows from it and what is above it.
+      publishing_option: m.publishing_option ?? null,
       source: "kajabi",
       source_key: m.kajabi_id,
     });
@@ -254,6 +256,7 @@ export async function processCourses(
       title: l.title,
       position: l.position ?? 0,
       state: stateOf(tree.lessons, l.kajabi_id),
+      publishing_option: l.publishing_option ?? null,
       body_html: sanitizeLessonHtml(l.body_html),
       excerpt: lessonExcerpt(sanitizeLessonHtml(l.body_html)),
       thumbnail_url: l.thumbnail_url ?? null,

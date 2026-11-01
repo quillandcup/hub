@@ -2390,6 +2390,7 @@ export type Database = {
           id: string
           module_id: string | null
           position: number
+          publishing_option: string | null
           source: string
           source_key: string | null
           state: string
@@ -2409,6 +2410,7 @@ export type Database = {
           id?: string
           module_id?: string | null
           position?: number
+          publishing_option?: string | null
           source?: string
           source_key?: string | null
           state?: string
@@ -2428,6 +2430,7 @@ export type Database = {
           id?: string
           module_id?: string | null
           position?: number
+          publishing_option?: string | null
           source?: string
           source_key?: string | null
           state?: string
@@ -2486,6 +2489,7 @@ export type Database = {
           poster_asset_id: string | null
           poster_source: string | null
           poster_url: string | null
+          publishing_option: string | null
           source: string
           source_key: string | null
           state: string
@@ -2501,6 +2505,7 @@ export type Database = {
           poster_asset_id?: string | null
           poster_source?: string | null
           poster_url?: string | null
+          publishing_option?: string | null
           source?: string
           source_key?: string | null
           state?: string
@@ -2516,6 +2521,7 @@ export type Database = {
           poster_asset_id?: string | null
           poster_source?: string | null
           poster_url?: string | null
+          publishing_option?: string | null
           source?: string
           source_key?: string | null
           state?: string
@@ -2566,6 +2572,7 @@ export type Database = {
           kind: string
           launch_at: string | null
           program_id: string | null
+          publishing_option: string
           slug: string
           source: string
           source_key: string | null
@@ -2587,6 +2594,7 @@ export type Database = {
           kind?: string
           launch_at?: string | null
           program_id?: string | null
+          publishing_option?: string
           slug: string
           source?: string
           source_key?: string | null
@@ -2608,6 +2616,7 @@ export type Database = {
           kind?: string
           launch_at?: string | null
           program_id?: string | null
+          publishing_option?: string
           slug?: string
           source?: string
           source_key?: string | null
@@ -6558,6 +6567,12 @@ export type Database = {
         }
         Returns: number
       }
+      course_item_state: {
+        Args: { p_above: string; p_option: string }
+        Returns: string
+      }
+      course_least_visible: { Args: { a: string; b: string }; Returns: string }
+      course_visibility: { Args: { p_option: string }; Returns: string }
       create_prickle_commitment: {
         Args: {
           p_created_by?: string
@@ -6845,6 +6860,10 @@ export type Database = {
         Args: { p_bucket: string; p_max_hits: number; p_window_seconds: number }
         Returns: boolean
       }
+      recompute_course_states: {
+        Args: { p_course_id: string }
+        Returns: undefined
+      }
       remove_event_attendee: {
         Args: { p_event_id: string; p_member_id: string }
         Returns: undefined
@@ -6962,6 +6981,14 @@ export type Database = {
           alias: string
           member_id: string
         }[]
+      }
+      set_course_item_status: {
+        Args: { p_id: string; p_kind: string; p_option: string }
+        Returns: undefined
+      }
+      set_course_status: {
+        Args: { p_course_id: string; p_option: string }
+        Returns: undefined
       }
       set_mentorship_note: {
         Args: { p_mentorship_id: string; p_note: string }

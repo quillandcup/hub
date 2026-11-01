@@ -17,6 +17,8 @@ export const courseRow = (over: Partial<Row<"courses">> & Pick<Row<"courses">, "
   kind: "evergreen",
   launch_at: null,
   program_id: null,
+  // What the database's trigger makes of the draft flag, so a seeded course means the same in both implementations.
+  publishing_option: over.is_draft ? "draft" : "published",
   source: "hub",
   source_key: null,
   thumbnail_asset_id: null,
@@ -33,6 +35,8 @@ export const moduleRow = (over: Partial<Row<"course_modules">> & Pick<Row<"cours
   poster_asset_id: null,
   poster_source: null,
   poster_url: null,
+  // Its own setting, as the state it is given implies (a hidden one is a draft), so a seeded row means the same in both implementations.
+  publishing_option: over.state === "hidden" ? "draft" : over.state === "coming_soon" ? "locked" : "published",
   source: "hub",
   source_key: null,
   state: "open",
@@ -47,6 +51,8 @@ export const lessonRow = (over: Partial<Row<"course_lessons">> & Pick<Row<"cours
   excerpt: null,
   module_id: null,
   position: 1,
+  // Its own setting, as the state it is given implies (as for a module).
+  publishing_option: over.state === "hidden" ? "draft" : over.state === "coming_soon" ? "locked" : "published",
   source: "hub",
   source_key: null,
   state: "open",

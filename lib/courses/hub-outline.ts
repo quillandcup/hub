@@ -1,8 +1,12 @@
-import type { ExplainedLesson, ExplainedModule } from "@/lib/courses/explain";
+import { explainCourse, type ExplainedLesson, type ExplainedModule } from "@/lib/courses/explain";
 
 /**
  * The outline of a Hub-owned course, built from its own rows (not from Kajabi's import) in the shape
  * the builder's outline draws, plus the small pure helpers the editor uses to reorder it. Pure.
+ *
+ * The states and the reasons come from `explainCourse`, the same code that explains an imported
+ * course, fed the same kind of settings (each item's own, which may be to follow what is above it, and
+ * the course's), so the two outlines read alike and differ only in who owns them.
  */
 
 export interface HubModuleRow {
@@ -10,8 +14,8 @@ export interface HubModuleRow {
   parent_id: string | null;
   title: string;
   position: number;
-  /** open, coming_soon or hidden: the state members get. */
-  state: string;
+  /** The module's own setting: inherit, draft, published, locked ... */
+  publishing_option: string | null;
 }
 
 export interface HubLessonRow {
@@ -19,7 +23,7 @@ export interface HubLessonRow {
   module_id: string | null;
   title: string;
   position: number;
-  state: string;
+  publishing_option: string | null;
   /** Whether the lesson has text and a video yet, for the "text ✓ · video –" line. */
   hasText: boolean;
   hasVideo: boolean;
@@ -31,52 +35,17 @@ export interface HubOutline {
   content: Record<string, { hasText: boolean; hasVideo: boolean }>;
 }
 
-// Until a Hub-owned item has a setting of its own (the status menu comes next), its pill shows the
-// state members get, in Kajabi's words.
-const OPTION_FOR_STATE: Record<string, string> = { open: "published", coming_soon: "locked", hidden: "draft" };
-const REASON_FOR_STATE: Record<string, string> = { open: "Published", coming_soon: "Coming soon", hidden: "Draft: not published yet" };
-
-const byPosition = <T extends { position: number; title: string; id: string }>(a: T, b: T) => a.position - b.position || a.title.localeCompare(b.title) || a.id.localeCompare(b.id);
-
-const visibility = (state: string): "open" | "coming_soon" | "hidden" => (state === "open" || state === "coming_soon" ? state : "hidden");
-
-function lesson(row: HubLessonRow): ExplainedLesson {
-  const state = visibility(row.state);
+/** `courseOption`: the whole course's own setting (draft, published or locked), which limits everything in it. */
+export function buildHubOutline(modules: HubModuleRow[], lessons: HubLessonRow[], courseOption: string): HubOutline {
   // The id goes in `kajabiId`: the outline's rows are keyed and linked by it, and a Hub-owned item has no Kajabi id.
-  return { kajabiId: row.id, title: row.title, publishingOption: OPTION_FOR_STATE[state], state, reason: REASON_FOR_STATE[state] };
-}
-
-export function buildHubOutline(modules: HubModuleRow[], lessons: HubLessonRow[]): HubOutline {
-  const byId = new Map(modules.map((m) => [m.id, m]));
-  const lessonsIn = new Map<string | null, HubLessonRow[]>();
-  for (const l of lessons) {
-    // A lesson whose module isn't in the list (it can't happen through the foreign key) is shown loose, not dropped.
-    const key = l.module_id && byId.has(l.module_id) ? l.module_id : null;
-    lessonsIn.set(key, [...(lessonsIn.get(key) ?? []), l]);
-  }
-
-  const toModule = (row: HubModuleRow, seen: Set<string>): ExplainedModule => {
-    const state = visibility(row.state);
-    seen.add(row.id);
-    return {
-      kajabiId: row.id,
-      title: row.title,
-      publishingOption: OPTION_FOR_STATE[state],
-      state,
-      reason: REASON_FOR_STATE[state],
-      lessons: (lessonsIn.get(row.id) ?? []).sort(byPosition).map(lesson),
-      children: modules
-        .filter((c) => c.parent_id === row.id && !seen.has(c.id))
-        .sort(byPosition)
-        .map((c) => toModule(c, seen)),
-    };
-  };
-
-  const seen = new Set<string>();
-  const roots = modules.filter((m) => !m.parent_id || !byId.has(m.parent_id)).sort(byPosition);
+  const explained = explainCourse(
+    modules.map((m) => ({ kajabiId: m.id, parentKajabiId: m.parent_id, position: m.position, title: m.title, publishingOption: m.publishing_option })),
+    lessons.map((l) => ({ kajabiId: l.id, moduleKajabiId: l.module_id, position: l.position, title: l.title, publishingOption: l.publishing_option })),
+    { courseOption, place: "the Hub" }
+  );
   return {
-    loose: (lessonsIn.get(null) ?? []).sort(byPosition).map(lesson),
-    modules: roots.map((r) => toModule(r, seen)),
+    loose: explained.loose,
+    modules: explained.modules,
     content: Object.fromEntries(lessons.map((l) => [l.id, { hasText: l.hasText, hasVideo: l.hasVideo }])),
   };
 }

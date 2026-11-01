@@ -118,6 +118,8 @@ export interface HubCourseDetail {
   accessDuration: string | null;
   launchAt: string | null;
   programId: string | null;
+  /** The whole course's setting: draft, published or locked. */
+  publishingOption: string;
   access: AccessCounts;
 }
 
@@ -135,6 +137,7 @@ export async function loadHubCourse(supabase: SupabaseClient, id: string, now = 
     accessDuration: data.access_duration,
     launchAt: data.launch_at,
     programId: data.program_id,
+    publishingOption: data.publishing_option,
     access: countAccess(access, now),
   };
 }
@@ -325,10 +328,11 @@ export async function loadAdminLesson(supabase: SupabaseClient, courseId: string
 /** The modules and lessons of a Hub-owned course, as the builder's outline draws them. */
 export async function loadHubOutline(supabase: SupabaseClient, courseId: string): Promise<HubOutline> {
   const courses = createRepos(supabase).courses;
-  const [modules, lessons] = await Promise.all([courses.modulesOf([courseId], { includeHidden: true }), courses.lessonsOf([courseId], { includeHidden: true })]);
+  const [course, modules, lessons] = await Promise.all([courses.courseById(courseId), courses.modulesOf([courseId], { includeHidden: true }), courses.lessonsOf([courseId], { includeHidden: true })]);
   return buildHubOutline(
-    modules.map((m) => ({ id: m.id, parent_id: m.parent_id, title: m.title, position: m.position, state: m.state })),
+    modules.map((m) => ({ id: m.id, parent_id: m.parent_id, title: m.title, position: m.position, publishing_option: m.publishing_option })),
     // `excerpt` stands in for "has text": the full text is large, and the excerpt is set whenever there is some.
-    lessons.map((l) => ({ id: l.id, module_id: l.module_id, title: l.title, position: l.position, state: l.state, hasText: l.excerpt !== null, hasVideo: l.video_id !== null }))
+    lessons.map((l) => ({ id: l.id, module_id: l.module_id, title: l.title, position: l.position, publishing_option: l.publishing_option, hasText: l.excerpt !== null, hasVideo: l.video_id !== null })),
+    course?.publishing_option ?? "draft"
   );
 }

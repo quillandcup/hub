@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { buildHubOutline, moduleContents, moveBefore, moveBy, type HubLessonRow, type HubModuleRow } from "@/lib/courses/hub-outline";
 
-const mod = (id: string, position: number, parent_id: string | null = null, over: Partial<HubModuleRow> = {}): HubModuleRow => ({ id, parent_id, title: id, position, state: "hidden", ...over });
+const mod = (id: string, position: number, parent_id: string | null = null, over: Partial<HubModuleRow> = {}): HubModuleRow => ({ id, parent_id, title: id, position, publishing_option: "inherit", ...over });
 const les = (id: string, position: number, module_id: string | null, over: Partial<HubLessonRow> = {}): HubLessonRow => ({
   id,
   module_id,
   title: id,
   position,
-  state: "hidden",
+  publishing_option: "inherit",
   hasText: false,
   hasVideo: false,
   ...over,
@@ -16,7 +16,8 @@ const les = (id: string, position: number, module_id: string | null, over: Parti
 describe("buildHubOutline", () => {
   const outline = buildHubOutline(
     [mod("m2", 2), mod("m1", 1), mod("w2", 2, "m1"), mod("w1", 1, "m1")],
-    [les("l3", 2, "w1"), les("l1", 1, "w1", { hasText: true }), les("l2", 1, "m2", { hasVideo: true }), les("loose", 1, null)]
+    [les("l3", 2, "w1"), les("l1", 1, "w1", { hasText: true }), les("l2", 1, "m2", { hasVideo: true }), les("loose", 1, null)],
+    "published"
   );
 
   it("orders modules, submodules and lessons by position, with submodules inside their module", () => {
@@ -27,9 +28,9 @@ describe("buildHubOutline", () => {
     expect(outline.loose.map((l) => l.kajabiId)).toEqual(["loose"]);
   });
 
-  it("breaks a tie in position by title, then id, so the order never jumps", () => {
-    const tied = buildHubOutline([], [les("b", 1, null, { title: "Same" }), les("a", 1, null, { title: "Same" }), les("c", 1, null, { title: "Alpha" })]);
-    expect(tied.loose.map((l) => l.kajabiId)).toEqual(["c", "a", "b"]);
+  it("breaks a tie in position by title, so the order doesn't jump", () => {
+    const tied = buildHubOutline([], [les("b", 1, null, { title: "Same" }), les("a", 1, null, { title: "Alpha" })], "published");
+    expect(tied.loose.map((l) => l.kajabiId)).toEqual(["a", "b"]);
   });
 
   it("says what is in each lesson, by its id", () => {
@@ -41,35 +42,52 @@ describe("buildHubOutline", () => {
     });
   });
 
-  it("shows the state members get as the pill, and a reason in plain words", () => {
-    const states = buildHubOutline(
-      [mod("a", 1, null, { state: "open" }), mod("b", 2, null, { state: "coming_soon" }), mod("c", 3, null, { state: "hidden" })],
-      [les("x", 1, "a", { state: "open" })]
+  it("reads each item's state and reason the way an imported course's are read: from its own setting, what is above it and the course", () => {
+    const built = buildHubOutline(
+      [mod("a", 1), mod("b", 2, null, { publishing_option: "locked" }), mod("c", 3, null, { publishing_option: "draft" })],
+      [les("x", 1, "a"), les("y", 1, "b"), les("z", 1, "c", { publishing_option: "published" })],
+      "published"
     );
-    expect(states.modules.map((m) => [m.publishingOption, m.state, m.reason])).toEqual([
-      ["published", "open", "Published"],
-      ["locked", "coming_soon", "Coming soon"],
-      ["draft", "hidden", "Draft: not published yet"],
+    expect(built.modules.map((m) => [m.publishingOption, m.state, m.reason])).toEqual([
+      ["inherit", "open", "Follows the course"],
+      ["locked", "coming_soon", "Locked in the Hub"],
+      ["draft", "hidden", "Draft in the Hub"],
     ]);
-    expect(states.modules[0].lessons[0]).toMatchObject({ publishingOption: "published", state: "open" });
+    expect(built.modules[0].lessons[0]).toMatchObject({ state: "open", reason: "Follows “a”" });
+    expect(built.modules[1].lessons[0]).toMatchObject({ state: "coming_soon", reason: "Follows “b”: coming soon" });
+    // Its own published setting can't open what a draft module holds.
+    expect(built.modules[2].lessons[0]).toMatchObject({ state: "hidden", reason: "Inside “c” (Draft)" });
   });
 
-  it("treats an unknown state as hidden, never as visible", () => {
-    expect(buildHubOutline([mod("a", 1, null, { state: "weird" })], []).modules[0]).toMatchObject({ state: "hidden", publishingOption: "draft" });
+  it("limits everything by the course's own setting: a draft course hides all, a locked one makes it all at most coming soon", () => {
+    const rows: [HubModuleRow[], HubLessonRow[]] = [[mod("a", 1), mod("b", 2, null, { publishing_option: "published" })], [les("x", 1, "a"), les("y", 1, "b", { publishing_option: "published" }), les("loose", 1, null)]];
+    const states = (course: string) => {
+      const built = buildHubOutline(rows[0], rows[1], course);
+      return [...built.modules.map((m) => m.state), ...built.modules.flatMap((m) => m.lessons.map((l) => l.state)), ...built.loose.map((l) => l.state)];
+    };
+    expect(states("published")).toEqual(["open", "open", "open", "open", "open"]);
+    expect(states("locked")).toEqual(Array(5).fill("coming_soon"));
+    expect(states("draft")).toEqual(Array(5).fill("hidden"));
+    expect(buildHubOutline(...rows, "draft").modules[1].reason).toBe("Inside the course (Draft)");
+    expect(buildHubOutline(...rows, "draft").modules[0].reason).toBe("Follows the course: not published yet");
+  });
+
+  it("treats an unknown setting as hidden, never as visible", () => {
+    expect(buildHubOutline([mod("a", 1, null, { publishing_option: "weird" })], [], "published").modules[0]).toMatchObject({ state: "hidden" });
   });
 
   it("shows a lesson whose module is missing as loose, and a module whose parent is missing at the top, instead of dropping them", () => {
-    const odd = buildHubOutline([mod("m", 1, "gone")], [les("l", 1, "gone")]);
+    const odd = buildHubOutline([mod("m", 1, "gone")], [les("l", 1, "gone")], "published");
     expect(odd.modules.map((m) => m.kajabiId)).toEqual(["m"]);
     expect(odd.loose.map((l) => l.kajabiId)).toEqual(["l"]);
   });
 
   it("is empty for an empty course", () => {
-    expect(buildHubOutline([], [])).toEqual({ loose: [], modules: [], content: {} });
+    expect(buildHubOutline([], [], "draft")).toEqual({ loose: [], modules: [], content: {} });
   });
 
   it("can't loop on modules that name each other as parents", () => {
-    const loop = buildHubOutline([mod("a", 1, "b"), mod("b", 2, "a"), mod("root", 3)], []);
+    const loop = buildHubOutline([mod("a", 1, "b"), mod("b", 2, "a"), mod("root", 3)], [], "published");
     expect(loop.modules.map((m) => m.kajabiId)).toEqual(["root"]);
   });
 });
@@ -110,7 +128,7 @@ describe("moveBy", () => {
 
 describe("moduleContents", () => {
   it("counts the lessons in a module and in its submodules, and the submodules", () => {
-    const built = buildHubOutline([mod("m", 1), mod("w1", 1, "m"), mod("w2", 2, "m")], [les("a", 1, "m"), les("b", 1, "w1"), les("c", 2, "w1"), les("d", 1, "w2")]);
+    const built = buildHubOutline([mod("m", 1), mod("w1", 1, "m"), mod("w2", 2, "m")], [les("a", 1, "m"), les("b", 1, "w1"), les("c", 2, "w1"), les("d", 1, "w2")], "published");
     expect(moduleContents(built.modules[0])).toEqual({ lessons: 4, submodules: 2 });
     expect(moduleContents(built.modules[0].children[0])).toEqual({ lessons: 2, submodules: 0 });
   });
