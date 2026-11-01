@@ -6,8 +6,7 @@ import type { InMemoryDataset } from "./in-memory";
 
 /** Stored rows, as the database has them; the twin keeps these. */
 // `deleted_at` is optional on the twin's rows so a fixture that predates soft delete still reads as live.
-// `archived_at` is left out: the code no longer reads it and the column is dropped in a later migration (docs/TODO.md).
-export type WritingProjectRow = Omit<Row<"writing_projects">, "archived_at" | "deleted_at"> & { deleted_at?: string | null };
+export type WritingProjectRow = Omit<Row<"writing_projects">, "deleted_at"> & { deleted_at?: string | null };
 export type WritingGoalRow = Omit<Row<"writing_goals">, "deleted_at"> & { deleted_at?: string | null };
 export type WritingEntryRow = Omit<Row<"writing_progress_entries">, "deleted_at"> & { deleted_at?: string | null };
 export type WritingBalanceRow = Row<"writing_project_starting_balances">;
