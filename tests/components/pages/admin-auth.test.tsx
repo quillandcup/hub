@@ -233,6 +233,7 @@ describe("every admin server action calls requireAdminAction()", () => {
   const NOT_ADMIN_ONLY: Record<string, string> = {
     // Only clears the caller's own sudo cookies; must keep working even if the role was revoked.
     "app/actions/sudo.ts#exitSudo": "clears own cookies",
+    "app/actions/sudo.ts#exitSudoToAdmin": "clears own cookies, then opens /admin (which checks the role itself)",
   };
   const actionFiles = [
     ...adminFiles.filter((f) => /\.tsx?$/.test(f) && /^\s*["']use server["']/m.test(read(f))),
