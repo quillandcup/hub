@@ -108,6 +108,7 @@ INSERT INTO public.member_data_handling (table_name, column_name, action, why) V
   ('ambiguous_zoom_names', 'resolved_member_id', 'null', 'a resolution of a Zoom name that pointed at them'),
   ('prickle_types', 'default_host_id', 'null', 'a default host setting'),
   ('prickles', 'host', 'null', 'the prickle happened; its host becomes unknown'),
+  ('hub_sessions', 'host', 'null', 'the session happened; its host becomes unknown'),
   ('unmatched_calendar_events', 'resolved_host_id', 'null', 'a resolution that pointed at them'),
   ('staff', 'member_id', 'null', 'a staff record, if they were staff');
 
