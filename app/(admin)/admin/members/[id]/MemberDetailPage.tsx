@@ -14,6 +14,7 @@ import type { Metadata } from "next";
 import MemberDetails, { type MemberView } from "./MemberDetails";
 import MergeButton from "./MergeButton";
 import SplitButton from "./SplitButton";
+import RemoveMemberPanel from "./RemoveMemberPanel";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { startSudo } from "@/app/actions/sudo";
 import { fetchMembershipHistory } from "@/lib/kajabi/membership-history";
@@ -363,6 +364,7 @@ export default async function MemberDetailPage({
           nameAliases={nameAliasRows ?? []}
           emailAliases={emailAliases ?? []}
         />
+        <RemoveMemberPanel member={{ id: member.id, name: member.name, removed: member.email.endsWith("@removed.invalid") }} />
       </main>
     </div>
   );

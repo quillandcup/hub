@@ -1,4 +1,4 @@
--- pgTAP tests for 20270407000000_remove_member_data.sql: what remove_member_data does for a member's removal request.
+-- pgTAP tests for 20270411000000_remove_member_data.sql: what remove_member_data does for a member's removal request.
 --   * the member row becomes the "former member" placeholder (no name, email, user or links left);
 --   * rows marked delete go, rows marked repoint keep their shape, free text on them is cleared;
 --   * a book and award the member wants kept stay (signed with their byline); anything else of theirs goes,
@@ -12,7 +12,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(23);
+SELECT plan(24);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000e101', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'remove-ada@example.test'),
@@ -40,8 +40,8 @@ INSERT INTO public.member_hiatus_history (member_id, start_date, notes, reason) 
 INSERT INTO public.mentorships (mentor_member_id, new_member_id, kind, started_on, status, outcome_note) VALUES
   ('mbr_RMVAAAAAAAA2', 'mbr_RMVAAAAAAAA1', 'trial', '2026-04-01', 'matched', 'Ada did not continue'),
   ('mbr_RMVAAAAAAAA1', 'mbr_RMVAAAAAAAA3', 'trial', '2026-04-01', 'reassigned', 'Cy was busy');
-INSERT INTO public.feedback (user_id, member_id, page_url, feedback_type, message, user_agent) VALUES
-  ('00000000-0000-4000-a000-00000000e101', 'mbr_RMVAAAAAAAA1', '/dashboard', 'idea', 'Please add dark mode', 'Mozilla/5.0 (Example)');
+INSERT INTO public.feedback (user_id, member_id, page_url, feedback_type, message, user_agent, screenshot_path) VALUES
+  ('00000000-0000-4000-a000-00000000e101', 'mbr_RMVAAAAAAAA1', '/dashboard', 'idea', 'Please add dark mode', 'Mozilla/5.0 (Example)', '00000000-0000-4000-a000-00000000e101/shot.png');
 -- Bea's book (removed without keeping public work).
 INSERT INTO public.member_books (id, member_id, title, cover_url, format, published_date, purchase_url) VALUES
   ('book_RMVAAAAAAA3', 'mbr_RMVAAAAAAAA2', 'Bea Book', 'https://example.test/c3.png', 'ebook', '2026-01-01', 'https://example.test/b3');
@@ -53,6 +53,7 @@ CREATE TEMP TABLE out(r jsonb) ON COMMIT DROP;
 INSERT INTO out SELECT public.remove_member_data('mbr_RMVAAAAAAAA1', true);
 
 SELECT is((SELECT r ->> 'auth_user_id' FROM out), '00000000-0000-4000-a000-00000000e101', 'it returns the auth user to delete');
+SELECT is((SELECT r -> 'feedback_paths' FROM out), '["00000000-0000-4000-a000-00000000e101/shot.png"]'::jsonb, 'it returns the feedback screenshots to delete, by bucket');
 SELECT is((SELECT name || '|' || COALESCE(display_name, '-') || '|' || COALESCE(bio, '-') || '|' || status FROM public.members WHERE id = 'mbr_RMVAAAAAAAA1'),
   'Former member|-|-|cancelled', 'the member row becomes the placeholder');
 SELECT ok((SELECT email LIKE '%@removed.invalid' AND user_id IS NULL AND kajabi_id IS NULL FROM public.members WHERE id = 'mbr_RMVAAAAAAAA1'), 'with no email, user or external id left');

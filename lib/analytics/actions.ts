@@ -81,6 +81,8 @@ export const OUTCOME_ACTIONS = [
   "onboarding_dismissed",
   "onboarding_completed",
   "onboarding_step_marked",
+  // Members
+  "member_removed",
 ] as const;
 
 export type OutcomeAction = (typeof OUTCOME_ACTIONS)[number];
