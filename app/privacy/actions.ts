@@ -34,16 +34,12 @@ export async function setAnalyticsOptOut(optOut: boolean): Promise<OptOutResult>
   if (optOut) {
     // Service role: members can't delete their own usage events, and the rows are theirs to have removed. Only what
     // they did: the record that a notification was sent to them (source "system") is the app's own and stays.
-    const { count, error: deleteError } = await createServiceRoleClient()
-      .from("analytics_events")
-      .delete({ count: "exact" })
-      .eq("user_id", user.id)
-      .neq("source", "system");
-    if (deleteError) {
-      console.error("[analytics] Removing a member's usage events failed:", deleteError.message);
+    try {
+      removed = await createRepos(createServiceRoleClient()).analyticsEvents.deleteUsageEvents(user.id);
+    } catch (deleteError) {
+      console.error("[analytics] Removing a member's usage events failed:", deleteError instanceof Error ? deleteError.message : deleteError);
       return { error: "You're left out from now on, but we couldn't remove what was recorded before. Please try again." };
     }
-    removed = count ?? 0;
   }
 
   revalidatePath("/privacy");

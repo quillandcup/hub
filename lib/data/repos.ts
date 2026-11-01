@@ -42,6 +42,10 @@ import { InMemoryOutreachRepository, SupabaseOutreachRepository, type OutreachRe
 import { InMemoryAdminWorkQueueRepository, SupabaseAdminWorkQueueRepository, type AdminWorkQueueRepository } from "./admin-work";
 import { InMemoryWheelOfWonderRepository, SupabaseWheelOfWonderRepository, type WheelOfWonderRepository } from "./wheel-of-wonder";
 import { InMemoryAccessEventRepository, SupabaseAccessEventRepository, type AccessEventRepository } from "./access-events";
+import { InMemorySegmentRepository, SupabaseSegmentRepository, type SegmentRepository } from "./segments";
+import { InMemoryFeatureFlagRepository, SupabaseFeatureFlagRepository, type FeatureFlagRepository } from "./feature-flags";
+import { InMemorySlackSignInRepository, SupabaseSlackSignInRepository, type SlackSignInRepository } from "./slack-sign-in";
+import { InMemoryAnalyticsEventRepository, SupabaseAnalyticsEventRepository, type AnalyticsEventRepository } from "./analytics-events";
 
 /**
  * Every repository, one per aggregate. Pages, actions and routes depend on these interfaces, not on
@@ -91,6 +95,10 @@ export interface Repos {
   adminWork: AdminWorkQueueRepository;
   wheelOfWonder: WheelOfWonderRepository;
   accessEvents: AccessEventRepository;
+  segments: SegmentRepository;
+  featureFlags: FeatureFlagRepository;
+  slackSignIn: SlackSignInRepository;
+  analyticsEvents: AnalyticsEventRepository;
 }
 
 /** Repositories over one client. Which privilege they run with is the client's: user-scoped (RLS) or service role. */
@@ -138,6 +146,10 @@ export function createRepos(db: Db): Repos {
     adminWork: new SupabaseAdminWorkQueueRepository(db),
     wheelOfWonder: new SupabaseWheelOfWonderRepository(db),
     accessEvents: new SupabaseAccessEventRepository(db),
+    segments: new SupabaseSegmentRepository(db),
+    featureFlags: new SupabaseFeatureFlagRepository(db),
+    slackSignIn: new SupabaseSlackSignInRepository(db),
+    analyticsEvents: new SupabaseAnalyticsEventRepository(db),
   };
 }
 
@@ -186,5 +198,9 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     adminWork: new InMemoryAdminWorkQueueRepository(dataset),
     wheelOfWonder: new InMemoryWheelOfWonderRepository(dataset),
     accessEvents: new InMemoryAccessEventRepository(dataset),
+    segments: new InMemorySegmentRepository(dataset),
+    featureFlags: new InMemoryFeatureFlagRepository(dataset),
+    slackSignIn: new InMemorySlackSignInRepository(dataset),
+    analyticsEvents: new InMemoryAnalyticsEventRepository(dataset),
   };
 }

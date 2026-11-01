@@ -1,6 +1,5 @@
 import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
-import { fetchAllRows } from "@/lib/supabase/paginate";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import type { Database } from "@/lib/data/database.types";
@@ -40,15 +39,13 @@ export async function POST(
   const { id: segmentId } = await params;
   const supabase = getServiceClient();
 
-  const { data: segment } = await supabase.from("segments").select("id, name").eq("id", segmentId).single();
+  const repos = createRepos(supabase);
+  const segment = await repos.segments.byId(segmentId).catch(() => null);
   if (!segment) return NextResponse.json({ error: "Segment not found" }, { status: 404 });
 
-  const memberLinks = await fetchAllRows<{ member_id: string }>((from, to) =>
-    supabase.from("segment_members").select("member_id").eq("segment_id", segmentId).range(from, to)
-  );
-  const memberIds = memberLinks.map((m) => m.member_id);
+  const memberIds = await repos.segments.memberIds(segmentId);
 
-  const segmentMembers = await createRepos(supabase).members.byIds(memberIds);
+  const segmentMembers = await repos.members.byIds(memberIds);
 
   // GoTrue's admin listUsers doesn't support filtering by email, so pull the
   // full user list once (mirrors the pattern in GET /api/admin/users) and
@@ -74,7 +71,7 @@ export async function POST(
 
     // Best-effort link, matching POST /api/admin/users — only sets it if
     // the member doesn't already have a linked auth user.
-    await createRepos(supabase).members.linkAuthUser(member.id, data.user.id, { onlyIfUnlinked: true }).catch(() => {});
+    await repos.members.linkAuthUser(member.id, data.user.id, { onlyIfUnlinked: true }).catch(() => {});
 
     results.push({ email, status: "invited" });
   }
