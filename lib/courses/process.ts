@@ -26,7 +26,8 @@ export type ProcessRepos = Pick<Repos, "aliases" | "billing" | "courseProgress" 
 export async function ensureDraftCourses(repos: Pick<Repos, "courses" | "kajabiCourses">): Promise<number> {
   const bronze = await repos.kajabiCourses.liveCourses();
   const rows = await repos.courses.courses();
-  const have = new Set(rows.filter((r) => r.source === "kajabi").map((r) => r.source_key));
+  // A course taken over from Kajabi is Hub-owned but keeps its Kajabi key, so it is not made again under another slug.
+  const have = new Set(rows.filter((r) => r.source_key).map((r) => r.source_key));
   const slugs = new Set(rows.map((r) => r.slug));
   const drafts: { slug: string; title: string; description: string | null; source: string; source_key: string; is_draft: boolean }[] = [];
   for (const c of bronze) {

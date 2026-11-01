@@ -30,6 +30,12 @@ vi.mock("@/app/(admin)/admin/courses/[id]/CourseSettingsForm", () => ({
   ),
 }));
 
+const loadTakeOverPreview = vi.fn();
+vi.mock("@/lib/courses/take-over", () => ({ loadTakeOverPreview: (...a: unknown[]) => loadTakeOverPreview(...a) }));
+vi.mock("@/app/(admin)/admin/courses/[id]/TakeOverPanel", () => ({
+  default: (props: { courseId: string; title: string; preview: { lessons: number } }) => <div data-testid="take-over" data-course={props.courseId} data-title={props.title} data-lessons={props.preview.lessons} />,
+}));
+
 vi.mock("@/app/(admin)/admin/courses/CoursePublishControl", () => ({
   default: (props: { courseId: string; isDraft: boolean }) => <div data-testid="publish" data-course={props.courseId} data-draft={String(props.isDraft)} />,
 }));
@@ -54,6 +60,8 @@ beforeEach(() => {
   requireAdminPage.mockClear();
   loadAdminCourses.mockReset();
   loadAdminCourse.mockReset();
+  loadTakeOverPreview.mockReset();
+  loadTakeOverPreview.mockResolvedValue(null);
 });
 
 describe("/admin/courses", () => {
@@ -183,6 +191,29 @@ describe("/admin/courses/[id]", () => {
     loadAdminCourse.mockResolvedValue(detail());
     await renderServerPage(AdminCoursePage, params);
     expect(screen.getByTestId("publish")).toHaveAttribute("data-draft", "false");
+  });
+
+  it("offers to take an imported course over, with what that would change, once it is in the Hub", async () => {
+    loadAdminCourse.mockResolvedValue(detail());
+    loadTakeOverPreview.mockResolvedValue({ modules: 3, lessons: 12, withText: 0, withVideo: 0, downloads: 0, withoutSetting: 0, tooDeep: false });
+    await renderServerPage(AdminCoursePage, params);
+    expect(screen.getByTestId("take-over")).toHaveAttribute("data-course", "crs_AAAAAAAAAAA1");
+    expect(screen.getByTestId("take-over")).toHaveAttribute("data-title", "The Ready Writer");
+    expect(screen.getByTestId("take-over")).toHaveAttribute("data-lessons", "12");
+  });
+
+  it("offers nothing to take over for a course that is not in the Hub yet, or that has nothing to take over", async () => {
+    loadAdminCourse.mockResolvedValue(detail(null));
+    loadTakeOverPreview.mockResolvedValue({ modules: 1, lessons: 1, withText: 0, withVideo: 0, downloads: 0, withoutSetting: 0, tooDeep: false });
+    const { unmount } = await renderServerPage(AdminCoursePage, params);
+    expect(screen.queryByTestId("take-over")).not.toBeInTheDocument();
+    expect(loadTakeOverPreview).not.toHaveBeenCalled();
+    unmount();
+
+    loadAdminCourse.mockResolvedValue(detail());
+    loadTakeOverPreview.mockResolvedValue(null);
+    await renderServerPage(AdminCoursePage, params);
+    expect(screen.queryByTestId("take-over")).not.toBeInTheDocument();
   });
 
   it("links a course with no Hub row yet to neither", async () => {

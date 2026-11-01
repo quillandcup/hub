@@ -12,6 +12,8 @@ const ts = Date.now()
 const NEW = `test-draft-new-${ts}`
 const TAKEN = `test-draft-taken-${ts}`
 const BLANK = `test-draft-blank-${ts}`
+const OVER = `test-draft-over-${ts}`
+const OVER_TITLE = `Draft Over ${ts}`
 const TITLE = `Draft Course ${ts}`
 const TAKEN_TITLE = `Draft Taken ${ts}`
 
@@ -21,7 +23,7 @@ describe('ensureDraftCourses', () => {
 
   async function cleanup() {
     await supabase.from('courses').delete().like('slug', `%${ts}%`)
-    await bronze.from('kajabi_courses').delete().in('kajabi_id', [NEW, TAKEN, BLANK])
+    await bronze.from('kajabi_courses').delete().in('kajabi_id', [NEW, TAKEN, BLANK, OVER])
   }
 
   beforeAll(async () => {
@@ -32,7 +34,10 @@ describe('ensureDraftCourses', () => {
       { kajabi_id: NEW, title: TITLE, raw_payload: { attributes: { description: 'About it.' } } },
       { kajabi_id: TAKEN, title: TAKEN_TITLE, raw_payload: {} },
       { kajabi_id: BLANK, title: '!!!', raw_payload: {} },
+      { kajabi_id: OVER, title: OVER_TITLE, raw_payload: {} },
     ])
+    // This one was taken over from Kajabi and renamed since: the Hub's course, with its Kajabi key.
+    await supabase.from('courses').insert({ slug: `renamed-after-takeover-${ts}`, title: 'Renamed', source: 'hub', source_key: OVER })
   })
   afterAll(cleanup)
 
@@ -40,6 +45,11 @@ describe('ensureDraftCourses', () => {
     await ensureDraftCourses(createRepos(supabase))
     const { data } = await supabase.from('courses').select('id, slug, title, description, source, is_draft').eq('source_key', NEW)
     expect(data).toEqual([{ id: expect.stringMatching(/^crs_/), slug: `draft-course-${ts}`, title: TITLE, description: 'About it.', source: 'kajabi', is_draft: true }])
+  })
+
+  it('does not make a course again that was taken over from Kajabi, even when its slug has changed since', async () => {
+    await ensureDraftCourses(createRepos(supabase))
+    expect((await supabase.from('courses').select('slug, source').eq('source_key', OVER)).data).toEqual([{ slug: `renamed-after-takeover-${ts}`, source: 'hub' }])
   })
 
   it('skips a course whose slug is taken or empty, and does not touch a row it already made', async () => {

@@ -151,6 +151,12 @@ export interface CourseRepository {
    * {@link syncLessonDurations} fills in once the video has one. False when no such lesson matches.
    */
   setLessonVideo(target: { id: string; courseId: string }, videoId: string | null): Promise<boolean>;
+  /**
+   * Turns a course imported from Kajabi into a Hub-owned one, with its modules and lessons (one way): the Kajabi import skips it
+   * from then on. Throws a {@link CourseWriteError} (`not_found`, `not_editable` for a course that is already the Hub's, `too_deep`
+   * for modules nested deeper than the editor does).
+   */
+  takeOverCourse(courseId: string): Promise<void>;
   /** Copies the length of the video of this Mux asset onto the Hub-owned lessons that use it (whole seconds). */
   syncLessonDurations(assetId: string): Promise<void>;
 }
@@ -445,6 +451,11 @@ export class SupabaseCourseRepository implements CourseRepository {
       .select("id");
     if (error) throw writeError(error);
     return (data ?? []).length > 0;
+  }
+
+  async takeOverCourse(courseId: string) {
+    const { error } = await this.db.rpc("take_over_kajabi_course", { p_course_id: courseId });
+    if (error) throw writeError(error);
   }
 
   async syncLessonDurations(assetId: string) {
@@ -943,6 +954,24 @@ export class InMemoryCourseRepository implements CourseRepository {
     lesson.duration_seconds = null;
     lesson.updated_at = now();
     return true;
+  }
+
+  async takeOverCourse(courseId: string) {
+    const course = this.data.courses.find((c) => c.id === courseId);
+    if (!course) throw new CourseWriteError("not_found");
+    if (course.source !== "kajabi") throw new CourseWriteError("not_editable");
+    const modules = this.data.courseModules.filter((m) => m.course_id === courseId);
+    const byId = new Map(modules.map((m) => [m.id, m]));
+    if (modules.some((m) => m.parent_id && byId.get(m.parent_id)?.parent_id)) throw new CourseWriteError("too_deep");
+    // A setting the editor doesn't know becomes a draft, which is what members see already.
+    const known = ["draft", "published", "scheduled", "drip", "locked"];
+    for (const item of [...modules, ...this.data.courseLessons.filter((l) => l.course_id === courseId)]) {
+      if (!item.publishing_option || !known.includes(item.publishing_option)) item.publishing_option = "draft";
+      item.source = "hub";
+    }
+    course.source = "hub";
+    course.updated_at = now();
+    this.recompute(courseId);
   }
 
   async syncLessonDurations(assetId: string) {

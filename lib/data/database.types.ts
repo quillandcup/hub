@@ -7129,6 +7129,10 @@ export type Database = {
         Args: { p_event_id: string }
         Returns: undefined
       }
+      take_over_kajabi_course: {
+        Args: { p_course_id: string }
+        Returns: undefined
+      }
       upsert_ambiguous_zoom_name: {
         Args: {
           p_candidate_member_ids: string[]
