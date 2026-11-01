@@ -78,7 +78,7 @@ export default function BookshelfClient({ shelf }: BookshelfClientProps) {
         <div className="flex flex-wrap gap-1.5 mb-4" role="group" aria-label="Filter by genre / tropes">
           <button
             type="button"
-            data-track="bookshelf-filter-genre"
+            data-track="bookshelf-filter-all"
             aria-pressed={selected === null}
             onClick={() => setSelected(null)}
             className={chipClass(selected === null)}
@@ -90,6 +90,7 @@ export default function BookshelfClient({ shelf }: BookshelfClientProps) {
               key={genre.toLowerCase()}
               type="button"
               data-track="bookshelf-filter-genre"
+              data-track-no-text
               aria-pressed={selected === genre.toLowerCase()}
               onClick={() => setSelected(selected === genre.toLowerCase() ? null : genre.toLowerCase())}
               className={chipClass(selected === genre.toLowerCase())}

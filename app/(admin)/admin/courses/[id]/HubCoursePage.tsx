@@ -8,6 +8,7 @@ import { formatCourseDate } from "@/lib/courses/format";
 import { localDateOf } from "@/lib/prickle-writing";
 import { ORG_TIMEZONE } from "@/lib/config";
 import BuilderOutline from "../BuilderOutline";
+import CoursePublishControl from "../CoursePublishControl";
 import CourseDetailsForm from "../CourseDetailsForm";
 
 /** The admin page of a course the Hub owns (not one imported from Kajabi): its details, editable. */
@@ -28,6 +29,10 @@ export default async function HubCoursePage({ id }: { id: string }) {
         {course.access.ended} have ended
         {course.launchAt && `. It opens ${formatCourseDate(course.launchAt)}`}.
       </p>
+
+      <div className="mt-4">
+        <CoursePublishControl courseId={course.id} isDraft={course.isDraft} />
+      </div>
 
       <div className="mt-6 max-w-3xl">
         <CourseDetailsForm

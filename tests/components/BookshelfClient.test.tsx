@@ -50,6 +50,18 @@ describe("BookshelfClient genre filter", () => {
     expect(screen.getByText("The Shelf (4)")).toBeInTheDocument();
   });
 
+  it("tracks clearing apart from filtering, and never records a genre's text", () => {
+    render(<BookshelfClient shelf={SHELF} />);
+    const all = screen.getByRole("button", { name: "All" });
+    expect(all).toHaveAttribute("data-track", "bookshelf-filter-all");
+    expect(all).not.toHaveAttribute("data-track-no-text");
+    for (const name of ["Fantasy (2)", "Cozy Mystery (1)", "Romance (1)"]) {
+      const chip = screen.getByRole("button", { name });
+      expect(chip).toHaveAttribute("data-track", "bookshelf-filter-genre");
+      expect(chip).toHaveAttribute("data-track-no-text"); // genres are typed by members
+    }
+  });
+
   it("shows no filter when no book has a genre", () => {
     render(<BookshelfClient shelf={[book("three", [])]} />);
     expect(screen.queryByRole("group", { name: "Filter by genre / tropes" })).not.toBeInTheDocument();

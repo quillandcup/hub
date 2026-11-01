@@ -80,16 +80,16 @@ describe('Admin course data', () => {
     it('lists a published course with its settings, access counts and lesson states', async () => {
       const row = (await loadAdminCourses(supabase, now)).find((c) => c.id === ids.course)!
       // The interval comes back as ISO or Postgres text depending on the connection; it reads the same.
-      expect(row.published).toMatchObject({ slug: `admin-published-${ts}` })
-      expect(accessLabel(row.published!.accessDuration)).toBe('1 year')
-      expect(new Date(row.published!.launchAt!).getTime()).toBeGreaterThan(now.getTime())
+      expect(row.hub).toMatchObject({ slug: `admin-published-${ts}` })
+      expect(accessLabel(row.hub!.accessDuration)).toBe('1 year')
+      expect(new Date(row.hub!.launchAt!).getTime()).toBeGreaterThan(now.getTime())
       expect(row.access).toEqual({ current: 1, upcoming: 1, ended: 1 })
       expect(row.totals).toEqual({ open: 1, coming_soon: 1, hidden: 1 })
     })
 
     it('lists an unpublished course with the slug publishing would use, and no access', async () => {
       const row = (await loadAdminCourses(supabase, now)).find((c) => c.id === ids.draft)!
-      expect(row).toMatchObject({ id: ids.draft, published: null, slug: `admin-unpublished-${ts}`, access: { current: 0, upcoming: 0, ended: 0 } })
+      expect(row).toMatchObject({ id: ids.draft, isDraft: true, slug: `admin-unpublished-${ts}`, access: { current: 0, upcoming: 0, ended: 0 } })
     })
 
     it('has no id for an imported course that has no row yet, so nothing links to it', async () => {
@@ -113,10 +113,10 @@ describe('Admin course data', () => {
     const HUB = `test-adm-hub-${ts}`
     let hubId: string
     beforeAll(async () => {
-      const { data } = await supabase.from('courses').insert({ slug: HUB, title: `Admin Hub ${ts}`, source: 'hub', publishing_option: 'published', description: 'Made in the Hub.', access_duration: '6 months', launch_at: days(5) }).select('id').single()
+      const { data } = await supabase.from('courses').insert({ slug: HUB, title: `Admin Hub ${ts}`, source: 'hub', is_draft: false, description: 'Made in the Hub.', access_duration: '6 months', launch_at: days(5) }).select('id').single()
       hubId = data!.id
       await supabase.from('course_lessons').insert([
-        // Their states follow from their settings and the (published) course, whatever state is passed.
+        // Their states follow from their settings and what is above them, whatever state is passed.
         { course_id: hubId, title: 'Open one', position: 1, publishing_option: 'published', source: 'hub' },
         { course_id: hubId, title: 'Open two', position: 2, publishing_option: 'inherit', source: 'hub' },
         { course_id: hubId, title: 'Soon', position: 3, publishing_option: 'locked', source: 'hub' },
@@ -132,8 +132,8 @@ describe('Admin course data', () => {
     it('are in the list beside the imported ones, marked as the Hub\'s, with their lesson states and access', async () => {
       const row = (await loadAdminCourses(supabase, now)).find((c) => c.id === hubId)!
       expect(row).toMatchObject({ source: 'hub', title: `Admin Hub ${ts}`, slug: HUB, totals: { open: 2, coming_soon: 1, hidden: 1 }, access: { current: 1, upcoming: 0, ended: 0 } })
-      expect(row.published).toMatchObject({ slug: HUB })
-      expect(accessLabel(row.published!.accessDuration)).toBe('6 months')
+      expect(row.hub).toMatchObject({ slug: HUB })
+      expect(accessLabel(row.hub!.accessDuration)).toBe('6 months')
       expect((await loadAdminCourses(supabase, now)).find((c) => c.id === ids.course)!.source).toBe('kajabi')
     })
 

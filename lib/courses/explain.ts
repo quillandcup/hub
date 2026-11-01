@@ -57,20 +57,17 @@ const byPosition = <T extends { position: number | null; title: string }>(a: T, 
   (a.position ?? 0) - (b.position ?? 0) || a.title.localeCompare(b.title);
 
 export interface ExplainOptions {
-  /** The whole course's own setting; published (limits nothing) for an imported course. */
-  courseOption?: string;
   /** Where the settings are kept, for the wording of a reason: Kajabi's, or the Hub's own. */
   place?: "Kajabi" | "the Hub";
 }
 
 export function explainCourse(modules: ExplainModuleIn[], lessons: ExplainLessonIn[], options: ExplainOptions = {}): ExplainedCourse {
-  const courseOption = options.courseOption ?? "published";
   const place = options.place ?? "Kajabi";
   const byId = new Map(modules.map((m) => [m.kajabiId, m]));
   const moduleIns = modules.map((m) => ({ kajabiId: m.kajabiId, parentKajabiId: m.parentKajabiId, publishingOption: m.publishingOption }));
   const lessonIns = lessons.map((l) => ({ kajabiId: l.kajabiId, moduleKajabiId: l.moduleKajabiId, publishingOption: l.publishingOption }));
   // Hidden ones are in it, so a reason can say which module above hides an item.
-  const tree = planFullTree(moduleIns, lessonIns, courseOption);
+  const tree = planFullTree(moduleIns, lessonIns);
 
   const reasonFor = (state: Visibility, own: string | null, parentId: string | null): string => {
     const above = parentId ? byId.get(parentId) : null;
@@ -81,7 +78,7 @@ export function explainCourse(modules: ExplainModuleIn[], lessons: ExplainLesson
     const ownVisibility = visibilityFromPublishing(own);
     if (state === "open") return "Published";
     if (state === ownVisibility) return `${label(own)} in ${place}`;
-    // Limited by what is above: the nearest module with a setting of its own that gives this state, else the course.
+    // Limited by what is above: the nearest module with a setting of its own that gives this state.
     const seen = new Set<string>();
     for (let id = parentId; id && !seen.has(id); ) {
       seen.add(id);
@@ -90,7 +87,6 @@ export function explainCourse(modules: ExplainModuleIn[], lessons: ExplainLesson
       if (m.publishingOption !== "inherit" && tree.modules.get(id) === state && visibilityFromPublishing(m.publishingOption) === state) return `Inside “${m.title}” (${label(m.publishingOption)})`;
       id = m.parentKajabiId;
     }
-    if (visibilityFromPublishing(courseOption) === state) return `Inside the course (${label(courseOption)})`;
     return "Its module can't be resolved";
   };
 

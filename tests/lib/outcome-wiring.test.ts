@@ -38,11 +38,11 @@ const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]
   [() => import("@/app/(member)/settings/slackConnectActions"), "app/(member)/settings/slackConnectActions.ts", [["disconnectSlackAction", "slack_disconnected"]]],
   [() => import("@/app/actions/onboarding"), "app/actions/onboarding.ts", [["startOnboarding", "onboarding_started"], ["dismissOnboarding", "onboarding_dismissed"], ["completeOnboarding", "onboarding_completed"], ["markOnboardingStep", "onboarding_step_marked"]]],
   [() => import("@/app/(admin)/admin/outreach/prospects/actions"), "app/(admin)/admin/outreach/prospects/actions.ts", [["importProspects", "prospects_imported"], ["searchForProspects", "prospects_searched"], ["reviewProspect", "prospect_reviewed"]]],
-  [() => import("@/app/(admin)/admin/courses/actions"), "app/(admin)/admin/courses/actions.ts", [["createCourse", "course_created"], ["updateCourseDetails", "course_details_saved"]]],
+  [() => import("@/app/(admin)/admin/courses/actions"), "app/(admin)/admin/courses/actions.ts", [["createCourse", "course_created"], ["updateCourseDetails", "course_details_saved"], ["setCoursePublished", "course_publish_changed"]]],
   [
     () => import("@/app/(admin)/admin/courses/outline-actions"),
     "app/(admin)/admin/courses/outline-actions.ts",
-    [["addCourseModule", "course_module_added"], ["addCourseLesson", "course_lesson_added"], ["renameCourseItem", "course_item_renamed"], ["deleteCourseItem", "course_item_deleted"], ["duplicateCourseItem", "course_item_duplicated"], ["reorderCourseItems", "course_items_reordered"], ["setCourseItemStatus", "course_item_status_set"], ["setCourseStatus", "course_status_set"]],
+    [["addCourseModule", "course_module_added"], ["addCourseLesson", "course_lesson_added"], ["renameCourseItem", "course_item_renamed"], ["deleteCourseItem", "course_item_deleted"], ["duplicateCourseItem", "course_item_duplicated"], ["reorderCourseItems", "course_items_reordered"], ["setCourseItemStatus", "course_item_status_set"]],
   ],
   [() => import("@/app/(member)/wheel-of-wonder/actions"), "app/(member)/wheel-of-wonder/actions.ts", [["spinWheel", "wheel_spun"], ["introduceOnSlack", "wheel_introduced"]]],
 ];

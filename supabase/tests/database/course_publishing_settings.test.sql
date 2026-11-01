@@ -1,4 +1,4 @@
--- pgTAP tests for the settings of a course, its modules and its lessons (20270330000000): each has its
+-- pgTAP tests for the settings of a course's modules and lessons (20270330000000): each has its
 -- OWN setting, an item can simply follow what is above it, and the state members get is worked out from
 -- them by one rule (lib/courses/visibility.ts is the same rule: keep the two in step, tests/lib/
 -- courses-visibility-rule.test.ts has the same cases). Changing a setting is one audit entry for the
@@ -8,7 +8,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(42);
+SELECT plan(31);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000e2a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'settings-alice@example.test'),
@@ -31,7 +31,7 @@ SELECT is(public.course_item_state('locked', 'open'), 'coming_soon', 'a locked i
 SELECT is(public.course_item_state('draft', 'open'), 'hidden', 'a draft in an open parent is hidden');
 SELECT is(public.course_item_state('published', 'hidden'), 'hidden', 'nothing in a hidden parent is visible');
 
--- A Hub-owned course (a draft until published) with: module A (follows the course) holding submodule A1
+-- A Hub-owned course with: module A (follows: nothing is above it) holding submodule A1
 -- (follows) with a lesson that follows, and a lesson with its own setting 'published'; module B (own
 -- setting: locked) with a lesson that follows; a lesson in no module that follows.
 INSERT INTO public.courses (id, slug, title, source) VALUES ('crs_Settings0001', 'pgtap-settings-hub', 'Hub Course', 'hub');
@@ -58,12 +58,9 @@ CREATE FUNCTION pg_temp.states() RETURNS jsonb LANGUAGE sql AS $$
     UNION ALL SELECT id, state FROM public.course_lessons WHERE course_id = 'crs_Settings0001') s
 $$;
 
-SELECT is((SELECT publishing_option || ':' || is_draft::text FROM public.courses WHERE id = 'crs_Settings0001'), 'draft:true', 'a new Hub-owned course is a draft, and so is_draft');
 SELECT is(pg_temp.states(),
-  '{"mod_SettingsA0001":"hidden","mod_SettingsB0001":"hidden","mod_SettingsA1001":"hidden","les_SettingsA1L01":"hidden","les_SettingsAOwn1":"hidden","les_SettingsB0L01":"hidden","les_SettingsLoose":"hidden"}'::jsonb,
-  'in a draft course everything is hidden, even what has its own published setting (added with its state worked out)');
-SELECT is((SELECT publishing_option || ':' || is_draft::text FROM public.courses WHERE id = 'crs_SettingsKaj01'), 'published:false', 'an imported course that isn''t a draft is published');
-
+  '{"mod_SettingsA0001":"open","mod_SettingsB0001":"coming_soon","mod_SettingsA1001":"open","les_SettingsA1L01":"open","les_SettingsAOwn1":"open","les_SettingsB0L01":"coming_soon","les_SettingsLoose":"open"}'::jsonb,
+  'what is added follows nothing above it: open, and a locked module and what follows it coming soon (added with its state worked out)');
 CREATE TEMP TABLE result(label text, value jsonb) ON COMMIT DROP;
 GRANT INSERT ON result TO authenticated;
 GRANT SELECT ON result TO authenticated;
@@ -82,33 +79,22 @@ SET LOCAL ROLE authenticated;
 
 -- Alice (a member) can change nothing.
 SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000e2a1", "email": "settings-alice@example.test", "role": "authenticated"}', true);
-INSERT INTO result SELECT 'member_course', to_jsonb(pg_temp.failure($$SELECT public.set_course_status('crs_Settings0001', 'published')$$));
 INSERT INTO result SELECT 'member_item', to_jsonb(pg_temp.failure($$SELECT public.set_course_item_status('module', 'mod_SettingsA0001', 'published')$$));
 
 -- Dana (an admin).
 SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000e2a4", "email": "settings-dana@example.test", "role": "authenticated"}', true);
 
--- Items can be marked published while the course is still a draft: they wait, hidden, until it is switched on.
+-- Marking items published changes nothing that is already open.
 SELECT public.set_course_item_status('module', 'mod_SettingsA0001', 'published');
 SELECT public.set_course_item_status('lesson', 'les_SettingsLoose', 'published');
-INSERT INTO result SELECT 'marked_published_in_draft_course', pg_temp.states();
+INSERT INTO result SELECT 'marked_published', pg_temp.states();
 INSERT INTO result SELECT 'unsupported_drip', to_jsonb(pg_temp.failure($$SELECT public.set_course_item_status('lesson', 'les_SettingsLoose', 'drip')$$));
 INSERT INTO result SELECT 'unsupported_scheduled', to_jsonb(pg_temp.failure($$SELECT public.set_course_item_status('lesson', 'les_SettingsLoose', 'scheduled')$$));
-INSERT INTO result SELECT 'unsupported_course_drip', to_jsonb(pg_temp.failure($$SELECT public.set_course_status('crs_Settings0001', 'drip')$$));
 INSERT INTO result SELECT 'unknown_kind', to_jsonb(pg_temp.failure($$SELECT public.set_course_item_status('chapter', 'mod_SettingsA0001', 'draft')$$));
 INSERT INTO result SELECT 'not_found', to_jsonb(pg_temp.failure($$SELECT public.set_course_item_status('lesson', 'les_Nope00000001', 'draft')$$));
-INSERT INTO result SELECT 'course_not_found', to_jsonb(pg_temp.failure($$SELECT public.set_course_status('crs_Nope00000001', 'draft')$$));
 INSERT INTO result SELECT 'imported_item', to_jsonb(pg_temp.failure($$SELECT public.set_course_item_status('lesson', 'les_SettingsKaj01', 'draft')$$));
-INSERT INTO result SELECT 'imported_course', to_jsonb(pg_temp.failure($$SELECT public.set_course_status('crs_SettingsKaj01', 'draft')$$));
 
--- Publish the whole course: what follows it opens, what is locked is coming soon.
-SELECT public.set_course_status('crs_Settings0001', 'published');
-INSERT INTO result SELECT 'course_published', pg_temp.states();
--- Lock the whole course: everything is at most coming soon.
-SELECT public.set_course_status('crs_Settings0001', 'locked');
-INSERT INTO result SELECT 'course_locked', pg_temp.states();
--- Back to published, then a draft module hides what is under it, including what has its own published setting.
-SELECT public.set_course_status('crs_Settings0001', 'published');
+-- A draft module hides what is under it, including what has its own published setting.
 SELECT public.set_course_item_status('module', 'mod_SettingsA0001', 'draft');
 INSERT INTO result SELECT 'module_a_draft', pg_temp.states();
 -- Under a draft module, what is under it can be marked published too, and waits; then the module's own setting
@@ -123,14 +109,13 @@ INSERT INTO result SELECT 'section_off', pg_temp.states();
 -- A locked module also allows publishing under it.
 SELECT public.set_course_item_status('lesson', 'les_SettingsB0L01', 'published');
 INSERT INTO result SELECT 'published_in_locked_module', to_jsonb((SELECT state FROM public.course_lessons WHERE id = 'les_SettingsB0L01'));
--- Back to following: the module follows the (published) course again, and what it holds opens.
+-- Back to following: the module follows nothing above it again, and what it holds opens.
 SELECT public.set_course_item_status('module', 'mod_SettingsA0001', 'inherit');
 INSERT INTO result SELECT 'module_a_follows_again', pg_temp.states();
 -- A setting set to what it already is changes nothing.
 SELECT public.set_course_item_status('module', 'mod_SettingsA0001', 'inherit');
-SELECT public.set_course_status('crs_Settings0001', 'published');
 
--- A new item in a published course is open straight away (it follows), and a copy is a draft.
+-- A new item that follows is open straight away, and a copy is a draft.
 INSERT INTO public.course_lessons (id, course_id, module_id, title, position, publishing_option, source) VALUES ('les_SettingsNew001', 'crs_Settings0001', 'mod_SettingsA0001', 'Added later', 9, 'inherit', 'hub');
 INSERT INTO result SELECT 'added_to_published_course', to_jsonb((SELECT state FROM public.course_lessons WHERE id = 'les_SettingsNew001'));
 SELECT public.duplicate_course_lesson('les_SettingsNew001');
@@ -140,31 +125,15 @@ RESET ROLE;
 -- The Kajabi sync (the service role) writes imported rows as it likes; an inserted imported row keeps the state it was given.
 INSERT INTO public.course_modules (id, course_id, title, position, publishing_option, state, source, source_key) VALUES
   ('mod_SettingsKaj02', 'crs_SettingsKaj01', 'Imported 2', 2, 'draft', 'open', 'kajabi', 'pgtap-settings-km2');
--- An imported course follows its draft flag, as the publish step flips it.
-UPDATE public.courses SET is_draft = true WHERE id = 'crs_SettingsKaj01';
-SELECT is((SELECT publishing_option FROM public.courses WHERE id = 'crs_SettingsKaj01'), 'draft', 'an imported course made a draft has the draft setting');
-UPDATE public.courses SET is_draft = false WHERE id = 'crs_SettingsKaj01';
-SELECT is((SELECT publishing_option FROM public.courses WHERE id = 'crs_SettingsKaj01'), 'published', 'and published again when it is');
-
-SELECT is((SELECT value FROM result WHERE label = 'member_course'), '"not_editable"'::jsonb, 'a member can''t change a course''s setting');
 SELECT is((SELECT value FROM result WHERE label = 'member_item'), '"not_editable"'::jsonb, 'a member can''t change an item''s setting');
-SELECT is((SELECT value FROM result WHERE label = 'marked_published_in_draft_course'),
-  '{"mod_SettingsA0001":"hidden","mod_SettingsB0001":"hidden","mod_SettingsA1001":"hidden","les_SettingsA1L01":"hidden","les_SettingsAOwn1":"hidden","les_SettingsB0L01":"hidden","les_SettingsLoose":"hidden"}'::jsonb,
-  'a module and a lesson can be marked published while the course is a draft, and wait, hidden');
+SELECT is((SELECT value FROM result WHERE label = 'marked_published'),
+  '{"mod_SettingsA0001":"open","mod_SettingsB0001":"coming_soon","mod_SettingsA1001":"open","les_SettingsA1L01":"open","les_SettingsAOwn1":"open","les_SettingsB0L01":"coming_soon","les_SettingsLoose":"open"}'::jsonb,
+  'a module and a lesson can be marked published');
 SELECT is((SELECT value FROM result WHERE label = 'unsupported_drip'), '"unsupported_status"'::jsonb, 'drip isn''t offered yet');
 SELECT is((SELECT value FROM result WHERE label = 'unsupported_scheduled'), '"unsupported_status"'::jsonb, 'nor scheduled');
-SELECT is((SELECT value FROM result WHERE label = 'unsupported_course_drip'), '"unsupported_status"'::jsonb, 'nor for a course');
 SELECT is((SELECT value FROM result WHERE label = 'unknown_kind'), '"unknown_kind"'::jsonb, 'an unknown kind is refused');
 SELECT is((SELECT value FROM result WHERE label = 'not_found'), '"not_found"'::jsonb, 'an item that isn''t there is not found');
-SELECT is((SELECT value FROM result WHERE label = 'course_not_found'), '"not_found"'::jsonb, 'a course that isn''t there is not found');
 SELECT is((SELECT value FROM result WHERE label = 'imported_item'), '"not_editable"'::jsonb, 'an imported item can''t be changed');
-SELECT is((SELECT value FROM result WHERE label = 'imported_course'), '"not_editable"'::jsonb, 'nor an imported course');
-SELECT is((SELECT value FROM result WHERE label = 'course_published'),
-  '{"mod_SettingsA0001":"open","mod_SettingsB0001":"coming_soon","mod_SettingsA1001":"open","les_SettingsA1L01":"open","les_SettingsAOwn1":"open","les_SettingsB0L01":"coming_soon","les_SettingsLoose":"open"}'::jsonb,
-  'publishing the course opens what follows it, and what is locked is coming soon');
-SELECT is((SELECT value FROM result WHERE label = 'course_locked'),
-  '{"mod_SettingsA0001":"coming_soon","mod_SettingsB0001":"coming_soon","mod_SettingsA1001":"coming_soon","les_SettingsA1L01":"coming_soon","les_SettingsAOwn1":"coming_soon","les_SettingsB0L01":"coming_soon","les_SettingsLoose":"coming_soon"}'::jsonb,
-  'locking the course makes everything at most coming soon, even a lesson with its own published setting');
 SELECT is((SELECT value FROM result WHERE label = 'module_a_draft'),
   '{"mod_SettingsA0001":"hidden","mod_SettingsB0001":"coming_soon","mod_SettingsA1001":"hidden","les_SettingsA1L01":"hidden","les_SettingsAOwn1":"hidden","les_SettingsB0L01":"coming_soon","les_SettingsLoose":"open"}'::jsonb,
   'a draft module hides what is under it, its submodule and a lesson with its own published setting included');
@@ -181,7 +150,7 @@ SELECT is((SELECT value FROM result WHERE label = 'published_in_locked_module'),
 SELECT is((SELECT value FROM result WHERE label = 'module_a_follows_again'),
   '{"mod_SettingsA0001":"open","mod_SettingsB0001":"coming_soon","mod_SettingsA1001":"open","les_SettingsA1L01":"open","les_SettingsAOwn1":"open","les_SettingsB0L01":"coming_soon","les_SettingsLoose":"open"}'::jsonb,
   'a module set to follow again opens with the course, and what it holds with it');
-SELECT is((SELECT value FROM result WHERE label = 'added_to_published_course'), '"open"'::jsonb, 'a lesson added to a published course follows it, open');
+SELECT is((SELECT value FROM result WHERE label = 'added_to_published_course'), '"open"'::jsonb, 'a lesson added that follows is open');
 SELECT is((SELECT value FROM result WHERE label = 'copy_is_draft'), '"draft:hidden"'::jsonb, 'a copy is a draft');
 SELECT is((SELECT state FROM public.course_modules WHERE id = 'mod_SettingsKaj02'), 'open', 'an imported row keeps the state the sync gave it');
 
@@ -198,9 +167,5 @@ SELECT is(
 SELECT is(
   (SELECT count(*)::int FROM public.audit_log WHERE entity_type IN ('course_module', 'course_lesson') AND action = 'update' AND changes ? 'state'),
   0, 'a state that only follows a setting is never an entry of its own');
-SELECT is(
-  (SELECT count(*)::int FROM public.audit_log WHERE entity_type = 'course' AND entity_id = 'crs_Settings0001' AND action = 'update' AND changes ? 'publishing_option'),
-  1, 'the whole course''s setting, changed several times in a transaction, is one entry for the course');
-
 SELECT * FROM finish(true);
 ROLLBACK;

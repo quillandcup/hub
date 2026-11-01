@@ -63,7 +63,7 @@ export async function loadCourseWatchStats(
 ): Promise<CourseWatchStats | null> {
   const repos = createRepos(supabase);
   const course = await repos.courses.courseById(courseId);
-  if (!course || course.is_draft) return null;
+  if (!course) return null;
 
   const [moduleRows, lessonRows] = await Promise.all([repos.courses.modulesOf([course.id], { includeHidden: true }), repos.courses.lessonsOf([course.id], { includeHidden: true })]);
   const modules = moduleRows.map((m) => ({ id: m.id, parent_id: m.parent_id, title: m.title, position: m.position, state: m.state }));

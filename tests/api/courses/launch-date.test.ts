@@ -28,7 +28,7 @@ describe('Course launch date', () => {
     return apiFetch(`${getTestApiBaseUrl()}/api/process/courses`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ course: SLUG, ...body }),
+      body: JSON.stringify({ course: SLUG, publish: true, ...body }),
     })
   }
   const accessOf = async (who: string) =>

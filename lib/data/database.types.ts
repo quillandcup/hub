@@ -2572,7 +2572,6 @@ export type Database = {
           kind: string
           launch_at: string | null
           program_id: string | null
-          publishing_option: string
           slug: string
           source: string
           source_key: string | null
@@ -2594,7 +2593,6 @@ export type Database = {
           kind?: string
           launch_at?: string | null
           program_id?: string | null
-          publishing_option?: string
           slug: string
           source?: string
           source_key?: string | null
@@ -2616,7 +2614,6 @@ export type Database = {
           kind?: string
           launch_at?: string | null
           program_id?: string | null
-          publishing_option?: string
           slug?: string
           source?: string
           source_key?: string | null
@@ -6984,10 +6981,6 @@ export type Database = {
       }
       set_course_item_status: {
         Args: { p_id: string; p_kind: string; p_option: string }
-        Returns: undefined
-      }
-      set_course_status: {
-        Args: { p_course_id: string; p_option: string }
         Returns: undefined
       }
       set_mentorship_note: {

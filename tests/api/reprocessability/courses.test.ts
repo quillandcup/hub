@@ -49,7 +49,7 @@ describe('Courses processing (Bronze -> Silver) reprocessability', () => {
     ...over,
   })
 
-  async function process(body: Record<string, unknown> = { course: SLUG, accessDuration: '1 year' }) {
+  async function process(body: Record<string, unknown> = { course: SLUG, publish: true, accessDuration: '1 year' }) {
     return apiFetch(`${getTestApiBaseUrl()}/api/process/courses`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
@@ -126,11 +126,32 @@ describe('Courses processing (Bronze -> Silver) reprocessability', () => {
 
   afterAll(cleanup)
 
+  it('syncs the content of a course that is not published, without publishing it or giving anyone access', async () => {
+    const response = await process({ course: SLUG })
+    expect(response.status).toBe(200)
+    expect((await response.json()).courses[0]).toMatchObject({ slug: SLUG, lessons: 3, access: { members: 0, removed: 0 } })
+
+    expect(await silverCourse()).toMatchObject({ slug: SLUG, is_draft: true })
+    expect((await silverLessons()).length).toBeGreaterThan(0)
+    expect(await access()).toEqual([])
+    // Syncing everything (no course given) reaches drafts too, and still publishes nothing.
+    expect((await process({})).status).toBe(200)
+    expect(await silverCourse()).toMatchObject({ is_draft: true })
+    expect(await access()).toEqual([])
+  })
+
+  it('publishes only when asked, with the same id the draft had, and then builds access', async () => {
+    const draftId = (await silverCourse())!.id
+    expect((await process()).status).toBe(200)
+    expect(await silverCourse()).toMatchObject({ id: draftId, is_draft: false })
+    expect((await access()).length).toBeGreaterThan(0)
+  })
+
   it('creates the course, its modules and lessons (drafts hidden), and access, on first run', async () => {
     const response = await process()
     expect(response.status).toBe(200)
     const result = (await response.json()).courses[0]
-    expect(result).toMatchObject({ slug: SLUG, created: true, modules: 2, lessons: 3, comingSoon: 1, hiddenLessons: 2 })
+    expect(result).toMatchObject({ slug: SLUG, modules: 2, lessons: 3, comingSoon: 1, hiddenLessons: 2 })
 
     const course = await silverCourse()
     expect(course).toMatchObject({ slug: SLUG, title: TITLE, description: 'About', source: 'kajabi', kind: 'evergreen' })
@@ -161,7 +182,7 @@ describe('Courses processing (Bronze -> Silver) reprocessability', () => {
     expect(Object.fromEntries(lessons.map((l: any) => [l.source_key, l.publishing_option]))).toEqual(Object.fromEntries(bronzeLessons!.map((l) => [l.kajabi_id, l.publishing_option])))
     expect(lessons.find((l: any) => l.source_key === L('indraftmod'))).toMatchObject({ publishing_option: 'published', state: 'hidden' })
     // A published, imported course: its own setting follows the draft flag, and limits nothing.
-    expect(course).toMatchObject({ publishing_option: 'published', is_draft: false })
+    expect(course).toMatchObject({ is_draft: false })
   })
 
   it('sanitizes lesson text', async () => {
@@ -261,6 +282,10 @@ describe('Courses processing (Bronze -> Silver) reprocessability', () => {
     const response = await process({ course: 'no-such-course' })
     expect(response.status).toBe(404)
     expect((await response.json()).error).toContain(SLUG)
+  })
+
+  it('answers 400 for publish without a course', async () => {
+    expect((await process({ publish: true })).status).toBe(400)
   })
 
   it('answers 400 for a malformed body and 401 without credentials', async () => {

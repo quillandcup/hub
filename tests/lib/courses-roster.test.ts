@@ -55,9 +55,9 @@ describe("loadCourseRoster", () => {
     expect(await loadCourseRoster(client, "crs_AAAAAAAAAAA9", NOW)).toBeNull();
   });
 
-  it("is null for a draft course (imported, not published)", async () => {
+  it("still lists a draft course, so staff can see who has access before it opens", async () => {
     dataset = new InMemoryDataset({ courses: [courseRow({ id: "crs_AAAAAAAAAAA1", slug: "draft", title: "Course", source: "kajabi", source_key: "k1", is_draft: true })] });
-    expect(await loadCourseRoster(client, "crs_AAAAAAAAAAA1", NOW)).toBeNull();
+    expect((await loadCourseRoster(client, "crs_AAAAAAAAAAA1", NOW))!.rows).toEqual([]);
   });
 
   it("lists everyone with access, with the name they are known by and their progress", async () => {

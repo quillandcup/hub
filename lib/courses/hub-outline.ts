@@ -35,13 +35,12 @@ export interface HubOutline {
   content: Record<string, { hasText: boolean; hasVideo: boolean }>;
 }
 
-/** `courseOption`: the whole course's own setting (draft, published or locked), which limits everything in it. */
-export function buildHubOutline(modules: HubModuleRow[], lessons: HubLessonRow[], courseOption: string): HubOutline {
+export function buildHubOutline(modules: HubModuleRow[], lessons: HubLessonRow[]): HubOutline {
   // The id goes in `kajabiId`: the outline's rows are keyed and linked by it, and a Hub-owned item has no Kajabi id.
   const explained = explainCourse(
     modules.map((m) => ({ kajabiId: m.id, parentKajabiId: m.parent_id, position: m.position, title: m.title, publishingOption: m.publishing_option })),
     lessons.map((l) => ({ kajabiId: l.id, moduleKajabiId: l.module_id, position: l.position, title: l.title, publishingOption: l.publishing_option })),
-    { courseOption, place: "the Hub" }
+    { place: "the Hub" }
   );
   return {
     loose: explained.loose,

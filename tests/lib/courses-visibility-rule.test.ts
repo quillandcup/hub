@@ -44,29 +44,21 @@ describe("planFullTree with a course's own setting", () => {
     { kajabiId: "BL", moduleKajabiId: "B", publishingOption: bLesson },
     { kajabiId: "Loose", moduleKajabiId: null, publishingOption: "inherit" },
   ];
-  const states = (course: string, a?: string, bLesson?: string) => {
-    const tree = planFullTree(modules(a), lessons(bLesson), course);
+  const states = (a?: string, bLesson?: string) => {
+    const tree = planFullTree(modules(a), lessons(bLesson));
     return Object.fromEntries([...tree.modules, ...tree.lessons]);
   };
 
-  it("hides everything in a draft course, even what has its own published setting", () => {
-    expect(states("draft")).toEqual({ A: "hidden", B: "hidden", A1: "hidden", A1L: "hidden", AOwn: "hidden", BL: "hidden", Loose: "hidden" });
-  });
-
-  it("opens what follows a published course, and a locked module is coming soon", () => {
-    expect(states("published")).toEqual({ A: "open", B: "coming_soon", A1: "open", A1L: "open", AOwn: "open", BL: "coming_soon", Loose: "open" });
-  });
-
-  it("makes everything at most coming soon in a locked course", () => {
-    expect(states("locked")).toEqual({ A: "coming_soon", B: "coming_soon", A1: "coming_soon", A1L: "coming_soon", AOwn: "coming_soon", BL: "coming_soon", Loose: "coming_soon" });
+  it("opens what follows nothing above it, and a locked module is coming soon", () => {
+    expect(states()).toEqual({ A: "open", B: "coming_soon", A1: "open", A1L: "open", AOwn: "open", BL: "coming_soon", Loose: "open" });
   });
 
   it("hides what is under a draft module, its submodule and a lesson with its own published setting included", () => {
-    expect(states("published", "draft")).toEqual({ A: "hidden", B: "coming_soon", A1: "hidden", A1L: "hidden", AOwn: "hidden", BL: "coming_soon", Loose: "open" });
+    expect(states("draft")).toEqual({ A: "hidden", B: "coming_soon", A1: "hidden", A1L: "hidden", AOwn: "hidden", BL: "coming_soon", Loose: "open" });
   });
 
   it("allows a lesson published in a locked module, and shows it as coming soon", () => {
-    expect(states("published", "inherit", "published").BL).toBe("coming_soon");
+    expect(states("inherit", "published").BL).toBe("coming_soon");
   });
 
   it("limits nothing by an imported course, which is published", () => {

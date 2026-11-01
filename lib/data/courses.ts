@@ -110,11 +110,6 @@ export interface CourseRepository {
   /** Puts the children of one parent in this order, all or nothing. The list must be exactly the current children. Throws a {@link CourseWriteError} (`stale_order`, `not_editable`). */
   reorderChildren(order: { courseId: string; kind: OutlineKind; parentId: string | null; ids: string[] }): Promise<void>;
   /**
-   * Sets a Hub-owned course's own setting (draft, published or locked); everything in it follows or is limited by it.
-   * Throws a {@link CourseWriteError} (`unsupported_status`, `not_found`, `not_editable`).
-   */
-  setCourseStatus(courseId: string, option: string): Promise<void>;
-  /**
    * Sets a Hub-owned module's or lesson's own setting (inherit, draft, published or locked); its state, and that of what is
    * under it, follow. Throws a {@link CourseWriteError} (`unsupported_status`, `not_found`, `not_editable`).
    */
@@ -343,11 +338,6 @@ export class SupabaseCourseRepository implements CourseRepository {
     if (error) throw writeError(error);
   }
 
-  async setCourseStatus(courseId: string, option: string) {
-    const { error } = await this.db.rpc("set_course_status", { p_course_id: courseId, p_option: option });
-    if (error) throw writeError(error);
-  }
-
   async setItemStatus(kind: OutlineKind, id: string, option: string) {
     const { error } = await this.db.rpc("set_course_item_status", { p_kind: kind, p_id: id, p_option: option });
     if (error) throw writeError(error);
@@ -448,14 +438,6 @@ const now = () => new Date().toISOString();
 /** A state column as a {@link Visibility}: anything that isn't open or coming soon is hidden. */
 const visibility = (state: string | undefined): Visibility => (state === "open" || state === "coming_soon" ? state : "hidden");
 
-/**
- * The database trigger that keeps a course's draft flag and setting one fact: a Hub-owned course's flag follows its
- * setting; an imported course's setting follows its flag (the sync and the publish step write the flag).
- */
-const syncPublishing = (course: { source: string; is_draft: boolean; publishing_option: string }) => {
-  if (course.source === "hub") course.is_draft = course.publishing_option === "draft";
-  else course.publishing_option = course.is_draft ? "draft" : "published";
-};
 const unique = (message: string) => new CourseWriteError(`duplicate key value violates unique constraint: ${message}`, "23505");
 /** Applies a patch the way UPDATE does: a column left out (or undefined) keeps its value. */
 const apply = <T extends object>(row: T, patch: object) => {
@@ -507,7 +489,6 @@ export class InMemoryCourseRepository implements CourseRepository {
       kind: "evergreen",
       launch_at: null,
       program_id: null,
-      publishing_option: "draft",
       source: "kajabi",
       source_key: null,
       thumbnail_asset_id: null,
@@ -516,7 +497,6 @@ export class InMemoryCourseRepository implements CourseRepository {
       updated_at: stamp,
       ...(Object.fromEntries(Object.entries(course).filter(([, v]) => v !== undefined)) as NewCourse),
     } as CourseRecord;
-    syncPublishing(row);
     this.data.courses.push(row);
     return row;
   }
@@ -534,7 +514,6 @@ export class InMemoryCourseRepository implements CourseRepository {
     if (!course) return null;
     if (patch.slug !== undefined && this.data.courses.some((c) => c.id !== id && c.slug === patch.slug)) throw unique("courses_slug_key");
     apply(course, patch);
-    syncPublishing(course);
     course.updated_at = now();
     return copy(course);
   }
@@ -684,15 +663,15 @@ export class InMemoryCourseRepository implements CourseRepository {
     return Math.max(0, ...siblings.map((s) => s.position)) + 1;
   }
 
-  /** The state of what is above an item: its module's, or the course's own setting for a top-level module or a lesson in no module. */
-  private stateAbove(courseId: string, moduleId: string | null): Visibility {
+  /** The state of what is above an item: its module's; nothing limits a top-level module or a lesson in no module (the course's availability is `is_draft`). */
+  private stateAbove(moduleId: string | null): Visibility {
     if (moduleId) return visibility(this.data.courseModules.find((m) => m.id === moduleId)?.state);
-    return visibilityFromPublishing(this.data.courses.find((c) => c.id === courseId)?.publishing_option);
+    return "open";
   }
 
   /** As the database does for a Hub-owned item that is added: its state is what its setting and what is above it give. */
   private settle<T extends { source: string; course_id: string; publishing_option: string | null; state: string }>(row: T, moduleId: string | null): T {
-    if (row.source === "hub") row.state = itemState(row.publishing_option, this.stateAbove(row.course_id, moduleId));
+    if (row.source === "hub") row.state = itemState(row.publishing_option, this.stateAbove(moduleId));
     return row;
   }
 
@@ -704,8 +683,7 @@ export class InMemoryCourseRepository implements CourseRepository {
     const lessons = this.data.courseLessons.filter((l) => l.course_id === courseId);
     const tree = planFullTree(
       modules.map((m) => ({ kajabiId: m.id, parentKajabiId: m.parent_id, publishingOption: m.publishing_option })),
-      lessons.map((l) => ({ kajabiId: l.id, moduleKajabiId: l.module_id, publishingOption: l.publishing_option })),
-      course.publishing_option
+      lessons.map((l) => ({ kajabiId: l.id, moduleKajabiId: l.module_id, publishingOption: l.publishing_option }))
     );
     for (const m of modules) m.state = tree.modules.get(m.id) ?? "hidden";
     for (const l of lessons) l.state = tree.lessons.get(l.id) ?? "hidden";
@@ -803,18 +781,6 @@ export class InMemoryCourseRepository implements CourseRepository {
       const child = children.find((c) => c.id === id)!;
       child.position = i + 1;
     });
-  }
-
-  async setCourseStatus(courseId: string, option: string) {
-    if (!["draft", "published", "locked"].includes(option)) throw new CourseWriteError("unsupported_status");
-    const course = this.data.courses.find((c) => c.id === courseId);
-    if (!course) throw new CourseWriteError("not_found");
-    if (course.source !== "hub") throw new CourseWriteError("not_editable");
-    if (course.publishing_option === option) return;
-    course.publishing_option = option;
-    course.is_draft = option === "draft";
-    course.updated_at = now();
-    this.recompute(courseId);
   }
 
   async setItemStatus(kind: OutlineKind, id: string, option: string) {

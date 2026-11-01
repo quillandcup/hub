@@ -226,8 +226,7 @@ export function defineCourseContract(name: string, setup: () => CourseContractCo
       const repo = ctx.courses();
       const slug = ctx.unique("created");
       const created = await repo.createCourse({ slug, title: "Created", source: "hub" });
-      // A new Hub-owned course is a draft until it is published: its setting says so, and so does the flag that follows it.
-      expect(created).toMatchObject({ slug, title: "Created", source: "hub", kind: "evergreen", is_draft: true, publishing_option: "draft", source_key: null });
+      expect(created).toMatchObject({ slug, title: "Created", source: "hub", kind: "evergreen", source_key: null });
       expect(created.id).toMatch(/^crs_/);
       await ctx.seed.forget({ courses: [created.id] });
 
@@ -397,8 +396,8 @@ export function defineCourseContract(name: string, setup: () => CourseContractCo
       expect(reordered).toEqual([...tops].reverse());
     });
 
-    it("works every state out from the settings: the course's own, each item's own, and following what is above", async () => {
-      const course = newCourse("status", { is_draft: true, publishing_option: "draft" });
+    it("works every state out from the settings: each item's own, and following what is above", async () => {
+      const course = newCourse("status");
       await ctx.seed.courses([course]);
       const repo = ctx.courses();
       // Added with no setting of their own: they follow. "Own" has its own setting, published.
@@ -413,17 +412,11 @@ export function defineCourseContract(name: string, setup: () => CourseContractCo
         return Object.fromEntries([...modules, ...lessons].map((r) => [r.title, r.state]));
       };
       const all = (state: string) => ({ M: state, W: state, L: state, Own: state, Loose: state });
-      const draft = (await repo.courseById(course.id))!;
-      expect(draft).toMatchObject({ publishing_option: "draft", is_draft: true });
 
-      expect(await states()).toEqual(all("hidden"));
-      // Things can be marked published while the course is still a draft: they wait, hidden, until it is switched on.
+      // What follows nothing above it (the course's availability is its own switch) is open.
+      expect(await states()).toEqual({ M: "open", W: "open", L: "open", Own: "open", Loose: "open" });
       await repo.setItemStatus("module", m, "published");
       await repo.setItemStatus("lesson", (await repo.lessonsOf([course.id], { includeHidden: true })).find((x) => x.title === "Loose")!.id, "published");
-      expect(await states()).toEqual(all("hidden"));
-
-      await repo.setCourseStatus(course.id, "published");
-      expect(await repo.courseById(course.id)).toMatchObject({ publishing_option: "published", is_draft: false });
       expect(await states()).toEqual(all("open"));
 
       // A draft module hides what is under it, a lesson with its own published setting included.
@@ -438,29 +431,19 @@ export function defineCourseContract(name: string, setup: () => CourseContractCo
       await repo.setItemStatus("lesson", l, "published");
       expect(await states()).toEqual({ M: "coming_soon", W: "coming_soon", L: "coming_soon", Own: "coming_soon", Loose: "open" });
 
-      // Following again, and the whole course locked or made a draft.
+      // Following again.
       await repo.setItemStatus("module", m, "inherit");
       expect(await states()).toEqual(all("open"));
-      await repo.setCourseStatus(course.id, "locked");
-      expect(await states()).toEqual(all("coming_soon"));
-      expect(await repo.courseById(course.id)).toMatchObject({ publishing_option: "locked", is_draft: false });
-      await repo.setCourseStatus(course.id, "draft");
-      expect(await states()).toEqual(all("hidden"));
-      expect(await repo.courseById(course.id)).toMatchObject({ publishing_option: "draft", is_draft: true });
 
       // The same setting again changes nothing, and nothing the editor doesn't offer is stored.
-      await repo.setCourseStatus(course.id, "draft");
       await repo.setItemStatus("module", m, "inherit");
       await expect(repo.setItemStatus("lesson", l, "drip")).rejects.toThrow("unsupported_status");
       await expect(repo.setItemStatus("lesson", l, "scheduled")).rejects.toThrow("unsupported_status");
-      await expect(repo.setCourseStatus(course.id, "drip")).rejects.toThrow("unsupported_status");
-      await expect(repo.setCourseStatus(course.id, "inherit")).rejects.toThrow("unsupported_status");
       await expect(repo.setItemStatus("lesson", newCourseId("les"), "draft")).rejects.toThrow("not_found");
-      await expect(repo.setCourseStatus(newCourseId("crs"), "draft")).rejects.toThrow("not_found");
     });
 
     it("opens or closes a whole section by its own setting once everything in it is marked published", async () => {
-      const course = newCourse("section", { is_draft: false, publishing_option: "published" });
+      const course = newCourse("section");
       await ctx.seed.courses([course]);
       const repo = ctx.courses();
       const section = await repo.addModule({ course_id: course.id, title: "Section", position: 1, publishing_option: "draft", source: "hub" });
@@ -490,24 +473,13 @@ export function defineCourseContract(name: string, setup: () => CourseContractCo
       expect(await states()).toEqual({ Section: "open", Week: "hidden", One: "hidden", Two: "open" });
     });
 
-    it("won't change the setting of a course imported from Kajabi, or of what is in it", async () => {
-      const imported = newCourse("status-kajabi", { source: "kajabi", source_key: ctx.unique("kj"), is_draft: false, publishing_option: "published" });
+    it("won't change the setting of what is in a course imported from Kajabi", async () => {
+      const imported = newCourse("status-kajabi", { source: "kajabi", source_key: ctx.unique("kj"), is_draft: false });
       await ctx.seed.courses([imported]);
       const repo = ctx.courses();
       const [moduleId] = [...(await repo.upsertModules([{ course_id: imported.id, title: "K", position: 1, publishing_option: "published", state: "open", source: "kajabi", source_key: ctx.unique("km") }])).values()];
-      await expect(repo.setCourseStatus(imported.id, "draft")).rejects.toThrow("not_editable");
       await expect(repo.setItemStatus("module", moduleId, "draft")).rejects.toThrow("not_editable");
-      expect(await repo.courseById(imported.id)).toMatchObject({ publishing_option: "published", is_draft: false });
       expect(await repo.moduleById(moduleId)).toMatchObject({ publishing_option: "published", state: "open" });
-    });
-
-    it("keeps an imported course's setting in step with its draft flag, as the sync and the publish step write it", async () => {
-      const repo = ctx.courses();
-      const created = await repo.createCourse({ slug: ctx.unique("flag"), title: "Flag", source: "kajabi", source_key: ctx.unique("kj"), is_draft: true });
-      expect(created).toMatchObject({ publishing_option: "draft", is_draft: true });
-      await ctx.seed.forget({ courses: [created.id] });
-      expect(await repo.updateCourse(created.id, { is_draft: false })).toMatchObject({ publishing_option: "published", is_draft: false });
-      expect(await repo.updateCourse(created.id, { is_draft: true })).toMatchObject({ publishing_option: "draft", is_draft: true });
     });
 
     it("records and clears the library image of a course, its banner, a module and a lesson", async () => {

@@ -146,18 +146,6 @@ async function setItemStatusImpl(auth: Auth, courseId: string, kind: ItemKind, i
   return { id };
 }
 
-async function setCourseStatusImpl(auth: Auth, courseId: string, option: string): Promise<OutlineResult> {
-  if (!isId(courseId, "crs")) return { error: "Course not found." };
-  try {
-    await createRepos(auth.supabase).courses.setCourseStatus(courseId, option);
-  } catch (error) {
-    return { error: describe(asDbError(error), "change the course's setting") };
-  }
-  revalidate(courseId);
-  revalidatePath("/admin/courses");
-  return { id: courseId };
-}
-
 // Usage analytics: each action records whether it worked (lib/analytics/server.ts).
 export async function addCourseModule(courseId: string, parentModuleId: string | null, title: string): Promise<OutlineResult> {
   const auth = await requireAdminAction();
@@ -200,11 +188,4 @@ export async function setCourseItemStatus(courseId: string, kind: ItemKind, id: 
   const auth = await requireAdminAction();
   if (!auth.ok) return { error: auth.error };
   return withAction("course_item_status_set", () => setItemStatusImpl(auth, courseId, kind, id, option));
-}
-
-/** The whole course's setting: draft, published or locked. */
-export async function setCourseStatus(courseId: string, option: string): Promise<OutlineResult> {
-  const auth = await requireAdminAction();
-  if (!auth.ok) return { error: auth.error };
-  return withAction("course_status_set", () => setCourseStatusImpl(auth, courseId, option));
 }

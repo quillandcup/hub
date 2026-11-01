@@ -17,8 +17,6 @@ export const courseRow = (over: Partial<Row<"courses">> & Pick<Row<"courses">, "
   kind: "evergreen",
   launch_at: null,
   program_id: null,
-  // What the database's trigger makes of the draft flag, so a seeded course means the same in both implementations.
-  publishing_option: over.is_draft ? "draft" : "published",
   source: "hub",
   source_key: null,
   thumbnail_asset_id: null,

@@ -63,7 +63,7 @@ beforeEach(() => {
   requireAdminPage.mockClear();
   loadHubCourse.mockReset();
   loadHubOutline.mockReset();
-  loadHubOutline.mockResolvedValue(buildHubOutline([], [], "draft"));
+  loadHubOutline.mockResolvedValue(buildHubOutline([], []));
   loadAdminCourse.mockReset();
   loadAdminCourseTitle.mockReset();
 });
@@ -108,8 +108,7 @@ describe("/admin/courses/[id] for a Hub-owned course", () => {
     loadHubOutline.mockResolvedValue(
       buildHubOutline(
         [{ id: "mod_AAAAAAAAAAA1", parent_id: null, title: "Module 1", position: 1, publishing_option: "inherit" }],
-        [{ id: "les_AAAAAAAAAAA1", module_id: "mod_AAAAAAAAAAA1", title: "Lesson one", position: 1, publishing_option: "inherit", hasText: false, hasVideo: false }],
-        "draft"
+        [{ id: "les_AAAAAAAAAAA1", module_id: "mod_AAAAAAAAAAA1", title: "Lesson one", position: 1, publishing_option: "inherit", hasText: false, hasVideo: false }]
       )
     );
     await renderServerRoute(AdminCoursePage, params());

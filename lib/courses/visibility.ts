@@ -64,14 +64,13 @@ export function itemState(option: string | null | undefined, above: Visibility):
 
 /**
  * The effective state of every module and lesson, by the one rule: its own publishing option,
- * limited by every module above it and by the course (`courseOption`, published for an imported
- * course). Hidden ones are in the result, marked `hidden`: they are stored so staff can preview them,
+ * limited by every module above it (the course's own availability is `is_draft`, a separate switch).
+ * Hidden ones are in the result, marked `hidden`: they are stored so staff can preview them,
  * and never shown to members.
  */
-export function planFullTree(modules: ModuleIn[], lessons: LessonIn[], courseOption: string = "published"): FullTree {
+export function planFullTree(modules: ModuleIn[], lessons: LessonIn[]): FullTree {
   const byId = new Map(modules.map((m) => [m.kajabiId, m]));
   const effective = new Map<string, Visibility>();
-  const courseState = visibilityFromPublishing(courseOption);
 
   const moduleVisibility = (id: string, seen = new Set<string>()): Visibility => {
     const cached = effective.get(id);
@@ -79,7 +78,7 @@ export function planFullTree(modules: ModuleIn[], lessons: LessonIn[], courseOpt
     const m = byId.get(id);
     if (!m || seen.has(id)) return "hidden"; // unknown parent or a cycle: never show
     seen.add(id);
-    const v = itemState(m.publishingOption, m.parentKajabiId ? moduleVisibility(m.parentKajabiId, seen) : courseState);
+    const v = itemState(m.publishingOption, m.parentKajabiId ? moduleVisibility(m.parentKajabiId, seen) : "open");
     effective.set(id, v);
     return v;
   };
@@ -89,15 +88,15 @@ export function planFullTree(modules: ModuleIn[], lessons: LessonIn[], courseOpt
 
   const lessonStates = new Map<string, Visibility>();
   for (const l of lessons) {
-    lessonStates.set(l.kajabiId, itemState(l.publishingOption, l.moduleKajabiId && byId.has(l.moduleKajabiId) ? moduleVisibility(l.moduleKajabiId) : courseState));
+    lessonStates.set(l.kajabiId, itemState(l.publishingOption, l.moduleKajabiId && byId.has(l.moduleKajabiId) ? moduleVisibility(l.moduleKajabiId) : "open"));
   }
 
   return { modules: moduleStates, lessons: lessonStates };
 }
 
 /** What members see: `planFullTree` without the hidden ones. */
-export function planVisibleTree(modules: ModuleIn[], lessons: LessonIn[], courseOption: string = "published"): VisibleTree {
-  const full = planFullTree(modules, lessons, courseOption);
+export function planVisibleTree(modules: ModuleIn[], lessons: LessonIn[]): VisibleTree {
+  const full = planFullTree(modules, lessons);
   const visible = <T extends Map<string, Visibility>>(states: T) =>
     new Map([...states].filter((entry): entry is [string, "open" | "coming_soon"] => entry[1] !== "hidden"));
   return { modules: visible(full.modules), lessons: visible(full.lessons) };

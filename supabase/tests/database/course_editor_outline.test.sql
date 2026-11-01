@@ -7,7 +7,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(31);
+SELECT plan(38);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000e1a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'outline-alice@example.test'),
@@ -103,6 +103,9 @@ INSERT INTO result SELECT 'kajabi_reorder_message', to_jsonb(pg_temp.failure($$S
 SELECT public.reorder_course_children('crs_OutlineHub001', 'module', NULL, (SELECT array_agg(id ORDER BY title DESC) FROM public.course_modules WHERE course_id = 'crs_OutlineHub001' AND parent_id IS NULL));
 INSERT INTO result SELECT 'reordered_modules', to_jsonb(array_agg(title ORDER BY position)) FROM public.course_modules WHERE course_id = 'crs_OutlineHub001' AND parent_id IS NULL;
 
+-- A reorder to the order it is already in changes nothing, and writes no audit entry.
+SELECT public.reorder_course_children('crs_OutlineHub001', 'lesson', 'mod_OutlineWk0001', (SELECT array_agg(id ORDER BY position) FROM public.course_lessons WHERE module_id = 'mod_OutlineWk0001'));
+
 -- Duplicate: a lesson; then a module with its submodule and their lessons.
 INSERT INTO result SELECT 'duplicate_lesson_id_short', to_jsonb(public.duplicate_course_lesson('les_OutlineL00002') LIKE 'les\_%');
 INSERT INTO result SELECT 'duplicate_lesson', to_jsonb(title || ':' || state || ':' || source || ':' || coalesce(body_html, '') || ':' || position) FROM public.course_lessons WHERE title = 'Lesson 2 (copy)';
@@ -120,7 +123,7 @@ SELECT is((SELECT value FROM result WHERE label = 'member_module_refused'), 'tru
 SELECT is((SELECT value FROM result WHERE label = 'member_lesson_refused'), 'true'::jsonb, 'a member can''t add a lesson');
 SELECT is((SELECT value FROM result WHERE label = 'member_reorder_refused'), 'true'::jsonb, 'a member can''t reorder (the function runs as them)');
 SELECT is((SELECT value FROM result WHERE label = 'admin_module_id_short'), 'true'::jsonb, 'an added module gets a short mod_ id');
-SELECT is((SELECT value FROM result WHERE label = 'admin_lesson_defaults'), '"hidden:hub"'::jsonb, 'an admin adds a Hub-owned lesson, hidden from members');
+SELECT is((SELECT value FROM result WHERE label = 'admin_lesson_defaults'), '"open:hub"'::jsonb, 'an admin adds a Hub-owned lesson, which follows what is above it (nothing: open; members reach it only when the course is available)');
 SELECT is((SELECT value FROM result WHERE label = 'admin_rename_took'), '"Lesson 1, renamed"'::jsonb, 'an admin renames a Hub-owned lesson');
 SELECT is((SELECT value FROM result WHERE label = 'admin_delete_took'), '0'::jsonb, 'an admin deletes a Hub-owned module');
 SELECT is((SELECT value FROM result WHERE label = 'kajabi_lesson_title'), '"Imported Lesson"'::jsonb, 'an admin can''t edit an imported lesson');
@@ -157,6 +160,43 @@ SELECT is(
 SELECT is(
   (SELECT count(*)::int FROM public.audit_log WHERE entity_type IN ('course_module', 'course_lesson') AND entity_id IN ('mod_OutlineKaj001', 'les_OutlineKaj001')),
   0, 'the Kajabi sync rewriting an imported module is not audited');
+
+-- A reorder is one entry for the list, with the order before and after, as the admin.
+SELECT is(
+  (SELECT jsonb_build_object('who', changed_by, 'kind', actor_kind, 'label', entity_label, 'old', changes #> '{order,old}', 'new', changes #> '{order,new}')
+     FROM public.audit_log WHERE entity_type = 'course_lesson_order' AND entity_id = 'mod_OutlineWk0001'),
+  jsonb_build_object('who', '00000000-0000-4000-a000-00000000e1a4', 'kind', 'staff', 'label', 'Week 1',
+    'old', '["les_OutlineL00001","les_OutlineL00002","les_OutlineL00003"]'::jsonb,
+    'new', '["les_OutlineL00003","les_OutlineL00002","les_OutlineL00001"]'::jsonb),
+  'reordering a module''s lessons is one audit entry named for the module, with the order before and after');
+SELECT is(
+  (SELECT jsonb_build_object('label', entity_label, 'count', jsonb_array_length(changes #> '{order,new}'))
+     FROM public.audit_log WHERE entity_type = 'course_module_order' AND entity_id = 'crs_OutlineHub001'),
+  jsonb_build_object('label', 'Hub Course', 'count', 3),
+  'reordering a course''s modules is one audit entry named for the course');
+SELECT is(
+  -- Only this test's own lists: the database tests that run before this file commit reorder entries of their own.
+  (SELECT count(*)::int FROM public.audit_log WHERE entity_type IN ('course_module_order', 'course_lesson_order') AND entity_id IN ('crs_OutlineHub001', 'mod_OutlineWk0001', 'mod_OutlineA00001', 'mod_OutlineB00001', 'mod_OutlineC00001')),
+  2, 'a reorder that changed nothing, a stale list and a refused reorder write no entry');
+SELECT is(
+  (SELECT count(*)::int FROM public.audit_log WHERE entity_type IN ('course_module', 'course_lesson') AND action = 'update' AND changes ? 'position'),
+  0, 'a reorder writes no entry per row, only the one for the list');
+SELECT is(
+  (SELECT count(*)::int FROM public.audit_log WHERE entity_type = 'course_lesson_order' AND entity_id = 'mod_OutlineWk0001' AND txid = txid_current()),
+  1, 'it is recorded in the same transaction as the reorder');
+
+-- The server itself (the service role, no signed-in person) may reorder a Hub-owned course too, recorded as the system;
+-- an anonymous caller may not.
+SELECT set_config('request.jwt.claims', '{"role": "service_role"}', true);
+SELECT public.reorder_course_children('crs_OutlineHub001', 'lesson', 'mod_OutlineWk0001', (SELECT array_agg(id ORDER BY position DESC) FROM public.course_lessons WHERE module_id = 'mod_OutlineWk0001'));
+SELECT is(
+  (SELECT jsonb_build_object('who', changed_by, 'kind', actor_kind) FROM public.audit_log WHERE entity_type = 'course_lesson_order' AND entity_id = 'mod_OutlineWk0001' AND actor_kind = 'system'),
+  jsonb_build_object('who', NULL, 'kind', 'system'),
+  'the service role may reorder a Hub-owned course, recorded as the system');
+SELECT set_config('request.jwt.claims', '{"role": "anon"}', true);
+SELECT throws_ok(
+  $$SELECT public.reorder_course_children('crs_OutlineHub001', 'lesson', 'mod_OutlineWk0001', (SELECT array_agg(id) FROM public.course_lessons WHERE module_id = 'mod_OutlineWk0001'))$$,
+  'P0001', 'not_editable', 'someone who isn''t signed in may not');
 
 SELECT * FROM finish(true);
 ROLLBACK;
