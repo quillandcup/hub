@@ -397,7 +397,7 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       expect((await ctx.repo().projectSummary(a, ids.gone))?.title).toBe("Shelved");
     });
 
-    it("lists projects in a past phase apart from the ongoing ones, and moves one back when its status changes", async () => {
+    it("lists abandoned projects apart from the others, and moves one back when its status changes", async () => {
       const [a, b] = ctx.memberIds;
       const ids = await ctx.seed({
         projects: [
@@ -412,17 +412,18 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       await ctx.repo().updateProject(a, ids.dropped, { phase: "abandoned" });
       await ctx.repo().updateProject(b, ids.other, { phase: "abandoned" });
 
-      expect((await ctx.repo().projectSummaries(a)).map((p) => p.title)).toEqual(["Going"]);
-      expect((await ctx.repo().projectSummaries(a, { past: true })).map((p) => [p.title, p.phase])).toEqual([["Dropped", "abandoned"], ["Done", "complete"]]);
+      // A completed project stays with the ongoing ones; only an abandoned one is listed apart.
+      expect((await ctx.repo().projectSummaries(a)).map((p) => p.title)).toEqual(["Done", "Going"]);
+      expect((await ctx.repo().projectSummaries(a, { past: true })).map((p) => [p.title, p.phase])).toEqual([["Dropped", "abandoned"]]);
       expect(await ctx.repo().projectSummary(a, ids.dropped)).toMatchObject({ title: "Dropped", phase: "abandoned" });
-      // Past projects can still be picked to log against; only the lists apart.
+      // Abandoned projects can still be picked to log against; only the lists apart.
       expect((await ctx.repo().activeProjects(a)).map((p) => p.title)).toEqual(["Dropped", "Done", "Going"]);
       expect(await ctx.repo().projectSummaries(b)).toEqual([]);
       expect((await ctx.repo().projectSummaries(b, { past: true })).map((p) => p.title)).toEqual(["Theirs"]);
 
       await ctx.repo().updateProject(a, ids.dropped, { phase: "revising" });
-      expect((await ctx.repo().projectSummaries(a)).map((p) => p.title)).toEqual(["Dropped", "Going"]);
-      expect((await ctx.repo().projectSummaries(a, { past: true })).map((p) => p.title)).toEqual(["Done"]);
+      expect((await ctx.repo().projectSummaries(a)).map((p) => p.title)).toEqual(["Dropped", "Done", "Going"]);
+      expect(await ctx.repo().projectSummaries(a, { past: true })).toEqual([]);
     });
 
     it("deletes a project with its goals and entries, only for its owner, and keeps it out of every read", async () => {

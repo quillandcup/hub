@@ -344,10 +344,12 @@ export function computeHabitGoalProgress(input: HabitProgressInput): HabitProgre
 }
 
 /**
- * Phases a project is done in: finished, published or given up. My Writing lists these apart from
- * the ongoing projects, under "Past projects"; changing the status brings one back.
+ * Phases a project leaves the main list in. Only "abandoned": a finished or published project stays
+ * with the ongoing ones, since members like to see it there (and they mark a completed one published
+ * from that list). My Writing lists the abandoned ones under "Abandoned"; changing the status brings
+ * one back.
  */
-export const PAST_PHASES = ["complete", "published", "abandoned"] as const satisfies readonly ProjectPhase[];
+export const PAST_PHASES = ["abandoned"] as const satisfies readonly ProjectPhase[];
 
 export function isPastPhase(phase: string): boolean {
   return (PAST_PHASES as readonly string[]).includes(phase);

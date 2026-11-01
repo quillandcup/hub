@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
 
-// Past projects and deleting a project (app/(member)/projects/actions.ts), over the in-memory
+// Abandoned projects and deleting a project (app/(member)/projects/actions.ts), over the in-memory
 // writing repository. The Supabase fake answers only the lookups the identity check and the
 // attendance and bookshelf reads make.
 
@@ -64,22 +64,26 @@ beforeEach(() => {
   vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
 });
 
-describe("past projects", () => {
-  it("lists complete and abandoned projects apart from the ongoing ones, all still openable", async () => {
-    expect((await getMyProjects()).map((p) => p.title)).toEqual(["Novel"]);
+describe("abandoned projects", () => {
+  it("lists abandoned projects apart from the others, all still openable; complete ones stay with the rest", async () => {
+    expect((await getMyProjects()).map((p) => p.title).sort()).toEqual(["Essays", "Novel"]);
     const past = await getMyPastProjects();
-    expect(past.map((p) => p.title).sort()).toEqual(["Dropped", "Essays"]);
+    expect(past.map((p) => p.title)).toEqual(["Dropped"]);
     const opened = await getProject("wprj_3");
     expect("project" in opened && opened.project.phase).toBe("abandoned");
   });
 
-  it("moves a project to the past list when its status changes, and back", async () => {
+  it("moves a project to the abandoned list when its status changes, and back", async () => {
     expect(await updateProjectPhase("wprj_1", "complete")).toEqual({ success: true });
-    expect((await getMyProjects()).map((p) => p.title)).toEqual([]);
+    expect((await getMyProjects()).map((p) => p.title)).toContain("Novel");
+
+    expect(await updateProjectPhase("wprj_1", "abandoned")).toEqual({ success: true });
+    expect((await getMyProjects()).map((p) => p.title)).not.toContain("Novel");
     expect((await getMyPastProjects()).map((p) => p.title)).toContain("Novel");
 
     expect(await updateProjectPhase("wprj_1", "revising")).toEqual({ success: true });
-    expect((await getMyProjects()).map((p) => p.title)).toEqual(["Novel"]);
+    expect((await getMyProjects()).map((p) => p.title)).toContain("Novel");
+    expect(await getMyPastProjects()).toEqual([expect.objectContaining({ title: "Dropped" })]);
   });
 
   it("has nothing without a member", async () => {
@@ -97,14 +101,14 @@ describe("deleteProject", () => {
     expect(dataset.writingGoals[0].deleted_at).toEqual(expect.any(String));
     expect(dataset.writingEntries[0].deleted_at).toEqual(expect.any(String));
 
-    expect(await getMyProjects()).toEqual([]);
+    expect((await getMyProjects()).map((p) => p.title)).toEqual(["Essays"]);
     expect(await getProject("wprj_1")).toEqual({ error: "Project not found" });
     expect(revalidatePath).toHaveBeenCalledWith("/dashboard");
   });
 
-  it("deletes a past project too", async () => {
+  it("deletes an abandoned project too", async () => {
     expect(await deleteProject("wprj_3")).toEqual({ success: true });
-    expect((await getMyPastProjects()).map((p) => p.title)).toEqual(["Essays"]);
+    expect(await getMyPastProjects()).toEqual([]);
   });
 
   it("refuses a project that isn't the member's, or is already deleted", async () => {

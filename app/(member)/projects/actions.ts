@@ -198,7 +198,7 @@ export async function getMyProjects(): Promise<WritingProjectRow[]> {
   return buildProjectRows(projects, entries, goals as RawGoal[], startingBalances, attendance, books);
 }
 
-/** The member's projects in a past phase (complete, published, abandoned), with their totals (goals aren't loaded: the list is read-only). */
+/** The member's abandoned projects (a past phase), with their totals (goals aren't loaded: the list is read-only). */
 export async function getMyPastProjects(): Promise<WritingProjectRow[]> {
   const ctx = await requireIdentity();
   if ("error" in ctx) return [];
