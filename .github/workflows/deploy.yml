@@ -150,13 +150,14 @@ jobs:
       # passed -- unlike the old deploy-hook trigger, there's no gap where
       # Vercel might build a different HEAD than the one CI validated.
       #
-      # NEXT_DEPLOYMENT_ID is the commit being built. A prebuilt deploy doesn't know Vercel's own
+      # NEXT_DEPLOYMENT_ID is the commit being built, cut to 32 characters because Vercel rejects a
+      # longer custom id and fails the build. A prebuilt deploy doesn't know Vercel's own
       # deployment id at build time, so without one Next attaches no id to assets, navigations or
       # server actions, and a tab opened before a deploy posts old server action ids to the new
       # build (UnrecognizedActionError). With one, Next sees the mismatch and hard-reloads the tab.
       - name: Build project artifacts
         if: steps.guard.outputs.proceed == 'true'
-        run: NEXT_DEPLOYMENT_ID="$(git rev-parse HEAD)" vercel build --prod
+        run: NEXT_DEPLOYMENT_ID="$(git rev-parse --short=32 HEAD)" vercel build --prod
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           # Source map upload (next.config.ts). A GitHub secret rather than a Vercel var:
