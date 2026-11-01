@@ -162,7 +162,7 @@ export class SupabaseBadgeRepository implements BadgeRepository {
   async types(): Promise<BadgeType[]> {
     const { data, error } = await this.db.from("badge_types").select(`${TYPE_COLUMNS}, event:community_events(slug)`).order("category").order("name");
     if (error) throw new Error(error.message);
-    return (data ?? []).map((row) => ({ ...toType(row as unknown as TypeRow), event_slug: one((row as unknown as { event: { slug: string } | { slug: string }[] | null }).event)?.slug ?? null }));
+    return (data ?? []).map((row) => ({ ...toType(row), event_slug: one(row.event)?.slug ?? null }));
   }
 
   async typeById(id: string): Promise<BadgeType | null> {
@@ -274,10 +274,7 @@ export class SupabaseBadgeRepository implements BadgeRepository {
   async awardsOf(memberId: string) {
     const rows = await fetchAllRows<{ badge_type_id: string; occurred_at: string; note: string | null }>(
       (from, to) =>
-        this.db.from("member_badges").select("badge_type_id, occurred_at, note").eq("member_id", memberId).order("id").range(from, to) as unknown as PromiseLike<{
-          data: { badge_type_id: string; occurred_at: string; note: string | null }[] | null;
-          error: { message: string } | null;
-        }>,
+        this.db.from("member_badges").select("badge_type_id, occurred_at, note").eq("member_id", memberId).order("id").range(from, to),
     );
     return rows.map((r) => ({ badgeTypeId: r.badge_type_id, occurredAt: r.occurred_at, note: r.note }));
   }
@@ -285,10 +282,7 @@ export class SupabaseBadgeRepository implements BadgeRepository {
   async awardsOfType(badgeTypeId: string) {
     const rows = await fetchAllRows<{ member_id: string; occurred_at: string; note: string | null }>(
       (from, to) =>
-        this.db.from("member_badges").select("member_id, occurred_at, note").eq("badge_type_id", badgeTypeId).order("id").range(from, to) as unknown as PromiseLike<{
-          data: { member_id: string; occurred_at: string; note: string | null }[] | null;
-          error: { message: string } | null;
-        }>,
+        this.db.from("member_badges").select("member_id, occurred_at, note").eq("badge_type_id", badgeTypeId).order("id").range(from, to),
     );
     return rows.map((r) => ({ memberId: r.member_id, occurredAt: r.occurred_at, note: r.note }));
   }
@@ -296,10 +290,7 @@ export class SupabaseBadgeRepository implements BadgeRepository {
   async awardCounts(): Promise<Map<string, number>> {
     const rows = await fetchAllRows<{ badge_type_id: string }>(
       (from, to) =>
-        this.db.from("member_badges").select("badge_type_id").order("id").range(from, to) as unknown as PromiseLike<{
-          data: { badge_type_id: string }[] | null;
-          error: { message: string } | null;
-        }>,
+        this.db.from("member_badges").select("badge_type_id").order("id").range(from, to),
     );
     const counts = new Map<string, number>();
     for (const r of rows) counts.set(r.badge_type_id, (counts.get(r.badge_type_id) ?? 0) + 1);
@@ -315,10 +306,7 @@ export class SupabaseBadgeRepository implements BadgeRepository {
       .order("id", { ascending: false });
     if (error) throw new Error(error.message);
     return (data ?? []).map((row) => {
-      const r = row as unknown as AwardRow & {
-        badge_types: { name: string; icon: string } | { name: string; icon: string }[] | null;
-        community_event_details: { title: string; slug: string } | { title: string; slug: string }[] | null;
-      };
+      const r = row;
       const type = one(r.badge_types);
       const event = one(r.community_event_details);
       return { ...toAward(r), badgeTypeName: type?.name ?? null, badgeTypeIcon: type?.icon ?? null, eventTitle: event?.title ?? null, eventSlug: event?.slug ?? null };

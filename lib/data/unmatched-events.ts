@@ -87,7 +87,7 @@ export class SupabaseUnmatchedEventRepository implements UnmatchedEventRepositor
 
   async pending() {
     return fetchAllRows<PendingUnmatchedEvent>(
-      (from, to) => this.table.select(PENDING_COLUMNS).eq("status", "pending").order("created_at", { ascending: false }).order("id").range(from, to) as unknown as PromiseLike<{ data: PendingUnmatchedEvent[] | null; error: { message: string } | null }>
+      (from, to) => this.table.select(PENDING_COLUMNS).eq("status", "pending").order("created_at", { ascending: false }).order("id").range(from, to)
     );
   }
 
@@ -99,7 +99,7 @@ export class SupabaseUnmatchedEventRepository implements UnmatchedEventRepositor
 
   async decisions() {
     return fetchAllRows<UnmatchedEventDecision>(
-      (from, to) => this.table.select(DECISION_COLUMNS).in("status", ["resolved", "ignored"]).order("id").range(from, to) as unknown as PromiseLike<{ data: UnmatchedEventDecision[] | null; error: { message: string } | null }>
+      (from, to) => this.table.select(DECISION_COLUMNS).in("status", ["resolved", "ignored"]).order("id").range(from, to)
     );
   }
 

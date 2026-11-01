@@ -82,10 +82,7 @@ export class SupabaseProfileRepository implements ProfileRepository {
   async adminIds() {
     return fetchAllRows<{ id: string }>(
       (from, to) =>
-        this.db.from("user_profiles").select("id").eq("role", "admin").order("id").range(from, to) as unknown as PromiseLike<{
-          data: { id: string }[] | null;
-          error: { message: string } | null;
-        }>
+        this.db.from("user_profiles").select("id").eq("role", "admin").order("id").range(from, to)
     ).then((rows) => rows.map((r) => r.id));
   }
 
@@ -102,10 +99,7 @@ export class SupabaseProfileRepository implements ProfileRepository {
   async all() {
     return fetchAllRows<UserProfile>(
       (from, to) =>
-        this.db.from("user_profiles").select("*").order("id").range(from, to) as unknown as PromiseLike<{
-          data: UserProfile[] | null;
-          error: { message: string } | null;
-        }>
+        this.db.from("user_profiles").select("*").order("id").range(from, to)
     );
   }
 

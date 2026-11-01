@@ -1,7 +1,7 @@
 import { fetchAllRows } from "@/lib/supabase/paginate";
 import { chunk } from "@/lib/supabase/paginate";
 import { asJson } from "./json";
-import { asPage, byKeyThenId, compareText, inChunks, must, sortByKey, upsertInChunks } from "./query";
+import { byKeyThenId, compareText, inChunks, must, sortByKey, upsertInChunks } from "./query";
 import type { Database } from "./database.types";
 import type { Db } from "./db";
 import type { InMemoryDataset } from "./in-memory";
@@ -147,7 +147,7 @@ export class SupabaseSlackWorkspaceRepository implements SlackWorkspaceRepositor
 
   async channels() {
     return fetchAllRows<SlackChannel>((from, to) =>
-      asPage<SlackChannel>(this.channelsTable.select(CHANNEL_COLUMNS).order("name").order("channel_id").range(from, to))
+      this.channelsTable.select(CHANNEL_COLUMNS).order("name").order("channel_id").range(from, to)
     );
   }
 
@@ -178,7 +178,7 @@ export class SupabaseSlackWorkspaceRepository implements SlackWorkspaceRepositor
 
   async memberships() {
     return fetchAllRows<SlackChannelMembership>((from, to) =>
-      asPage<SlackChannelMembership>(this.membersTable.select("channel_id, user_id, left_at, first_seen_at").order("channel_id").order("user_id").range(from, to))
+      this.membersTable.select("channel_id, user_id, left_at, first_seen_at").order("channel_id").order("user_id").range(from, to)
     );
   }
 
@@ -222,9 +222,8 @@ export class SupabaseSlackWorkspaceRepository implements SlackWorkspaceRepositor
 
   async lastMemberEvents() {
     const rows = await fetchAllRows<{ channel_id: string; user_id: string; event: "joined" | "left" }>((from, to) =>
-      asPage<{ channel_id: string; user_id: string; event: "joined" | "left" }>(
-        this.db.schema("bronze").from("slack_channel_member_events").select("channel_id, user_id, event").order("occurred_at").order("id").range(from, to)
-      )
+      this.db.schema("bronze").from("slack_channel_member_events").select("channel_id, user_id, event").order("occurred_at").order("id").range(from, to)
+        .overrideTypes<{ channel_id: string; user_id: string; event: "joined" | "left" }[], { merge: false }>() // text column the importer limits to these two
     );
     return lastEventPerUser(rows);
   }
@@ -239,7 +238,7 @@ export class SupabaseSlackWorkspaceRepository implements SlackWorkspaceRepositor
 
   async liveEmojiNames() {
     const rows = await fetchAllRows<{ name: string }>((from, to) =>
-      asPage<{ name: string }>(this.emojiTable.select("name").is("deleted_at", null).order("name").range(from, to))
+      this.emojiTable.select("name").is("deleted_at", null).order("name").range(from, to)
     );
     return rows.map((r) => r.name);
   }
@@ -259,7 +258,7 @@ export class SupabaseSlackWorkspaceRepository implements SlackWorkspaceRepositor
 
   async ignoredUserIds() {
     const rows = await fetchAllRows<{ user_id: string }>((from, to) =>
-      asPage<{ user_id: string }>(this.db.from("ignored_slack_users").select("user_id").order("user_id").range(from, to))
+      this.db.from("ignored_slack_users").select("user_id").order("user_id").range(from, to)
     );
     return new Set(rows.map((r) => r.user_id));
   }
@@ -271,9 +270,7 @@ export class SupabaseSlackWorkspaceRepository implements SlackWorkspaceRepositor
 
   async restrictedChannels() {
     const rows = await fetchAllRows<{ channel_id: string; created_at: string }>((from, to) =>
-      asPage<{ channel_id: string; created_at: string }>(
-        this.db.from("restricted_slack_channels").select("channel_id, created_at").order("channel_id").range(from, to)
-      )
+      this.db.from("restricted_slack_channels").select("channel_id, created_at").order("channel_id").range(from, to)
     );
     return new Map(rows.map((r) => [r.channel_id, r.created_at]));
   }

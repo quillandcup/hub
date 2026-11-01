@@ -1,5 +1,5 @@
 import { fetchAllRows } from "@/lib/supabase/paginate";
-import { compareText, inChunks, type Page } from "./query";
+import { compareText, inChunks } from "./query";
 import type { Db, Row } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 
@@ -35,7 +35,7 @@ export class SupabaseOutreachRepository implements OutreachRepository {
 
   async leadStatuses() {
     return fetchAllRows<OutreachLeadStatus>(
-      (from, to) => this.db.from("outreach_leads").select("member_id, status, updated_at").order("member_id").range(from, to) as unknown as PromiseLike<Page<OutreachLeadStatus>>,
+      (from, to) => this.db.from("outreach_leads").select("member_id, status, updated_at").order("member_id").range(from, to),
     );
   }
 
@@ -59,7 +59,7 @@ export class SupabaseOutreachRepository implements OutreachRepository {
     const rows = await inChunks(memberIds, ID_CHUNK_SIZE, (ids) =>
       fetchAllRows<Pick<OutreachTouchRow, "member_id" | "touched_at">>(
         (from, to) =>
-          this.db.from("outreach_touches").select("member_id, touched_at").in("member_id", ids).order("id").range(from, to) as unknown as PromiseLike<Page<Pick<OutreachTouchRow, "member_id" | "touched_at">>>,
+          this.db.from("outreach_touches").select("member_id, touched_at").in("member_id", ids).order("id").range(from, to),
       ),
     );
     const last = new Map<string, string>();
@@ -73,7 +73,7 @@ export class SupabaseOutreachRepository implements OutreachRepository {
   async touchTimesSince(since: string) {
     const rows = await fetchAllRows<Pick<OutreachTouchRow, "touched_at">>(
       (from, to) =>
-        this.db.from("outreach_touches").select("touched_at").gte("touched_at", since).order("touched_at").order("id").range(from, to) as unknown as PromiseLike<Page<Pick<OutreachTouchRow, "touched_at">>>,
+        this.db.from("outreach_touches").select("touched_at").gte("touched_at", since).order("touched_at").order("id").range(from, to),
     );
     return rows.map((r) => r.touched_at);
   }

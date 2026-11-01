@@ -138,7 +138,7 @@ export class SupabaseProspectRepository implements ProspectRepository {
       (from, to) => {
         let query = this.db.from("outreach_prospects").select("*").order("id");
         if (options.status) query = query.eq("status", options.status);
-        return query.range(from, to) as unknown as PromiseLike<{ data: ProspectRow[] | null; error: { message: string } | null }>;
+        return query.range(from, to);
       },
     );
     return rows.map(toProspect).sort(bestFirst);

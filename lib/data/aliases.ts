@@ -1,5 +1,5 @@
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
-import { escapeLike, type Page } from "./query";
+import { escapeLike } from "./query";
 import type { Db, Insert } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 
@@ -126,7 +126,7 @@ export class SupabaseAliasRepository implements AliasRepository {
     return fetchAllRows<MemberAlias>((from, to) => {
       let query = this.db.from("member_name_aliases").select("alias, member_id, source");
       if (activeOnly) query = query.eq("active", true);
-      return query.order("id").range(from, to) as unknown as PromiseLike<Page<MemberAlias>>;
+      return query.order("id").range(from, to);
     });
   }
 
@@ -134,7 +134,7 @@ export class SupabaseAliasRepository implements AliasRepository {
     return fetchAllRows<MemberEmailAlias>((from, to) => {
       let query = this.db.from("member_email_aliases").select("alias_email, canonical_email");
       if (activeOnly) query = query.eq("active", true);
-      return query.order("id").range(from, to) as unknown as PromiseLike<Page<MemberEmailAlias>>;
+      return query.order("id").range(from, to);
     });
   }
 
@@ -153,7 +153,7 @@ export class SupabaseAliasRepository implements AliasRepository {
           .select("id, alias, created_at, member:members(id, name, email, status)")
           .order("alias")
           .order("id")
-          .range(from, to) as unknown as PromiseLike<Page<Row>>
+          .range(from, to)
     );
     return rows.flatMap((r) => (r.member ? [{ id: r.id, alias: r.alias, createdAt: r.created_at ?? "", member: { ...r.member, email: r.member.email ?? "" } }] : []));
   }
@@ -217,7 +217,7 @@ export class SupabaseAliasRepository implements AliasRepository {
   async emailOwners() {
     type Row = { alias_email: string; member_id: string };
     return fetchAllRows<Row>(
-      (from, to) => this.db.from("member_email_aliases").select("alias_email, member_id").eq("active", true).order("id").range(from, to) as unknown as PromiseLike<Page<Row>>
+      (from, to) => this.db.from("member_email_aliases").select("alias_email, member_id").eq("active", true).order("id").range(from, to)
     );
   }
 
@@ -227,7 +227,7 @@ export class SupabaseAliasRepository implements AliasRepository {
     for (const part of chunk(memberIds, ID_CHUNK)) {
       rows.push(
         ...(await fetchAllRows<Row>(
-          (from, to) => this.db.from("member_email_aliases").select("member_id, alias_email").in("member_id", part).order("id").range(from, to) as unknown as PromiseLike<Page<Row>>
+          (from, to) => this.db.from("member_email_aliases").select("member_id, alias_email").in("member_id", part).order("id").range(from, to)
         ))
       );
     }

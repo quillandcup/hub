@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { asPage, byKeyThenId, compareText, inChunks, must, sortByKey, upsertInChunks } from "@/lib/data/query";
+import { byKeyThenId, compareText, inChunks, must, sortByKey, upsertInChunks } from "@/lib/data/query";
 
 describe("must", () => {
   it("returns the data", () => {
@@ -7,13 +7,6 @@ describe("must", () => {
   });
   it("throws the database message", () => {
     expect(() => must({ data: null, error: { message: "boom" } })).toThrow("boom");
-  });
-});
-
-describe("asPage", () => {
-  it("returns the query unchanged", async () => {
-    const q = Promise.resolve({ data: [1], error: null });
-    expect(asPage<number>(q)).toBe(q);
   });
 });
 

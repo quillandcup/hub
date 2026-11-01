@@ -59,10 +59,7 @@ export class SupabaseMemberDirectoryRepository implements MemberDirectoryReposit
   async all() {
     return fetchAllRows<DirectoryRow>(
       (from, to) =>
-        this.db.from("member_directory").select("*").order("name").order("id").range(from, to) as unknown as PromiseLike<{
-          data: DirectoryRow[] | null;
-          error: { message: string } | null;
-        }>
+        this.db.from("member_directory").select("*").order("name").order("id").range(from, to)
     );
   }
 

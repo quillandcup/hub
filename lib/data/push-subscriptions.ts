@@ -58,7 +58,7 @@ export interface PushSubscriptionRepository {
   markGone(ids: string[], at: string): Promise<void>;
 }
 
-const LIVE = (q: any) => q.is("deleted_at", null).is("paused_at", null).is("disabled_at", null);
+const LIVE = <Q extends { is(column: string, value: null): Q }>(q: Q) => q.is("deleted_at", null).is("paused_at", null).is("disabled_at", null);
 
 export class SupabasePushSubscriptionRepository implements PushSubscriptionRepository {
   constructor(private readonly db: Db) {}

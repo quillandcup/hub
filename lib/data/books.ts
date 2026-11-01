@@ -1,6 +1,5 @@
 import { randomInt } from "node:crypto";
 import { fetchAllRows } from "@/lib/supabase/paginate";
-import type { PageQuery } from "./query";
 import type { Db, Insert, Row, Update } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 
@@ -108,7 +107,7 @@ export class SupabaseBookRepository implements BookRepository {
           .is("deleted_at", null)
           .order("published_date", { ascending: false })
           .order("id")
-          .range(from, to) as unknown as PageQuery<Raw>
+          .range(from, to)
     );
     return rows.map((row) => ({ ...row, author: one(row.author) }));
   }
@@ -134,7 +133,7 @@ export class SupabaseBookRepository implements BookRepository {
       .order("published_date", { ascending: false })
       .order("id");
     if (error) throw new Error(error.message);
-    return ((data ?? []) as unknown as (Omit<MyBook, "cover_asset"> & { cover_asset: MyBook["cover_asset"] | MyBook["cover_asset"][] })[]).map((row) => ({ ...row, cover_asset: one(row.cover_asset) }));
+    return (data ?? []).map((row) => ({ ...row, cover_asset: one(row.cover_asset) }));
   }
 
   async add(book: NewBook) {
@@ -170,7 +169,7 @@ export class SupabaseBookRepository implements BookRepository {
 
   async liveCountsByMember() {
     const rows = await fetchAllRows<{ member_id: string }>(
-      (from, to) => this.db.from("member_books").select("member_id").is("deleted_at", null).order("id").range(from, to) as unknown as PageQuery<{ member_id: string }>
+      (from, to) => this.db.from("member_books").select("member_id").is("deleted_at", null).order("id").range(from, to)
     );
     const counts = new Map<string, number>();
     for (const row of rows) counts.set(row.member_id, (counts.get(row.member_id) ?? 0) + 1);
@@ -189,12 +188,12 @@ export class SupabaseBookRepository implements BookRepository {
     if (q.before) query = query.lt("published_date", q.before.slice(0, 10));
     const { data, error } = await query.order("published_date", { ascending: false }).order("id").range(q.offset, q.offset + q.limit - 1);
     if (error) throw new Error(error.message);
-    return ((data ?? []) as unknown as (Omit<BookHit, "author"> & { author: BookHit["author"] | BookHit["author"][] })[]).map((row) => ({ ...row, author: one(row.author) }));
+    return (data ?? []).map((row) => ({ ...row, author: one(row.author) }));
   }
 
   async withoutCoverAsset() {
     return fetchAllRows<BookWithLegacyCover>(
-      (from, to) => this.db.from("member_books").select("id, member_id, title, cover_url").is("cover_asset_id", null).order("id").range(from, to) as unknown as PageQuery<BookWithLegacyCover>
+      (from, to) => this.db.from("member_books").select("id, member_id, title, cover_url").is("cover_asset_id", null).order("id").range(from, to)
     );
   }
 

@@ -121,20 +121,14 @@ export class SupabaseCalendarEventRepository implements CalendarEventRepository 
   async overlapping(from: string, to: string) {
     return fetchAllRows<CalendarSourceEvent>(
       (a, b) =>
-        this.table.select("*").lt("start_time", to).gt("end_time", from).order("start_time").order("id").range(a, b) as unknown as PromiseLike<{
-          data: CalendarSourceEvent[] | null;
-          error: { message: string } | null;
-        }>
+        this.table.select("*").lt("start_time", to).gt("end_time", from).order("start_time").order("id").range(a, b)
     );
   }
 
   async startingBetween(from: string, to: string) {
     return fetchAllRows<CalendarSourceEvent>(
       (a, b) =>
-        this.table.select("*").gte("start_time", from).lte("start_time", to).order("start_time").order("id").range(a, b) as unknown as PromiseLike<{
-          data: CalendarSourceEvent[] | null;
-          error: { message: string } | null;
-        }>
+        this.table.select("*").gte("start_time", from).lte("start_time", to).order("start_time").order("id").range(a, b)
     );
   }
 

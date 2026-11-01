@@ -5,17 +5,13 @@ import { chunk } from "@/lib/supabase/paginate";
  * `lib/supabase/paginate.ts`; this module has what the repositories used to define for themselves.
  */
 
-/** What a PostgREST read resolves to: rows or an error message. */
-export type Page<T> = { data: T[] | null; error: { message: string } | null };
-
-/** A query that resolves to a `Page` (what `fetchAllRows` wants back from its builder). */
-export type PageQuery<T> = PromiseLike<Page<T>>;
-
-/**
- * Types a built query (usually a `.select(...).range(from, to)` whose generated row type is wider or
- * narrower than the rows you want) as a `PageQuery<T>`. A cast and nothing else: `T` is on you.
+/*
+ * Paged reads: hand `fetchAllRows` the query itself and let PostgREST infer the rows from the generated
+ * types. When they can't be inferred (a select string built at runtime, a view whose columns are all
+ * nullable, a text column held to a union by a check constraint), end the chain with
+ * `.overrideTypes<Row[], { merge: false }>()` and a comment saying why, or narrow where you map the rows.
+ * Don't cast the query (`as unknown as ...`): tests/lib/data-casts.test.ts caps those.
  */
-export const asPage = <T>(query: unknown) => query as PageQuery<T>;
 
 /** The data of a `{ data, error }` result, or throws `new Error(error.message)` (the database's message, for logs). */
 export function must<T>(result: { data: T; error: { message: string } | null }): T {

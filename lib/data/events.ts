@@ -314,18 +314,16 @@ export class SupabaseEventRepository implements EventRepository {
   constructor(private readonly db: Db) {}
 
   async choices(): Promise<EventChoice[]> {
-    type Page = { data: EventChoice[] | null; error: { message: string } | null };
     return fetchAllRows<EventChoice>(
-      (from, to) => this.db.from("community_event_details").select("id, title, starts_at").order("starts_at", { ascending: false }).order("id").range(from, to) as unknown as PromiseLike<Page>
+      (from, to) => this.db.from("community_event_details").select("id, title, starts_at").order("starts_at", { ascending: false }).order("id").range(from, to).overrideTypes<EventChoice[], { merge: false }>() // view columns are all nullable in the generated types
     );
   }
 
   // --- photos ---
 
   async importedPhotoIds(eventId: string) {
-    type Page = { data: { id: string; google_media_item_id: string }[] | null; error: { message: string } | null };
     const rows = await fetchAllRows<{ id: string; google_media_item_id: string }>(
-      (from, to) => this.db.from("event_photos").select("id, google_media_item_id").eq("event_id", eventId).order("id").range(from, to) as unknown as PromiseLike<Page>
+      (from, to) => this.db.from("event_photos").select("id, google_media_item_id").eq("event_id", eventId).order("id").range(from, to)
     );
     return new Set(rows.map((r) => r.google_media_item_id));
   }
@@ -372,9 +370,9 @@ export class SupabaseEventRepository implements EventRepository {
   }
 
   async byPrickleId(prickleId: string) {
-    const { data, error } = await this.db.from("community_event_details").select("*").eq("prickle_id", prickleId).maybeSingle();
+    const { data, error } = await this.db.from("community_event_details").select("*").eq("prickle_id", prickleId).maybeSingle().overrideTypes<EventDetail, { merge: false }>(); // view columns are all nullable in the generated types
     if (error) throw new Error(error.message);
-    return data as unknown as EventDetail | null;
+    return data;
   }
 
   /** Events with the calendar event of their prickle, for these calendar events. */
@@ -419,9 +417,8 @@ export class SupabaseEventRepository implements EventRepository {
 
   async automaticWithoutCalendarEvent() {
     type Row = { id: string; prickles: { calendar_event_id: string | null } | { calendar_event_id: string | null }[] | null };
-    type Page = { data: Row[] | null; error: { message: string } | null };
     const rows = await fetchAllRows<Row>(
-      (from, to) => this.db.from("community_events").select("id, prickles!inner(calendar_event_id)").eq("automatic", true).is("prickles.calendar_event_id", null).order("id").range(from, to) as unknown as PromiseLike<Page>
+      (from, to) => this.db.from("community_events").select("id, prickles!inner(calendar_event_id)").eq("automatic", true).is("prickles.calendar_event_id", null).order("id").range(from, to)
     );
     return rows.map((r) => r.id);
   }
@@ -452,7 +449,6 @@ export class SupabaseEventRepository implements EventRepository {
 
   async listWithCover(): Promise<EventListItem[]> {
     type Raw = Omit<EventListItem, "coverPhotoId" | "imageId"> & { image_id: string | null; event_photos: { id: string; hidden_at: string | null }[] | null };
-    type Page = { data: Raw[] | null; error: { message: string } | null };
     const rows = await fetchAllRows<Raw>(
       (from, to) =>
         this.db
@@ -463,32 +459,32 @@ export class SupabaseEventRepository implements EventRepository {
           .order("taken_at", { referencedTable: "event_photos", ascending: true, nullsFirst: false })
           .order("created_at", { referencedTable: "event_photos", ascending: true })
           .order("id", { referencedTable: "event_photos" })
-          .range(from, to) as unknown as PromiseLike<Page>
+          .range(from, to)
+          .overrideTypes<Raw[], { merge: false }>() // view columns are all nullable in the generated types
     );
     return rows.map(({ event_photos, image_id, ...e }) => ({ ...e, imageId: image_id, coverPhotoId: (event_photos ?? []).find((p) => !p.hidden_at)?.id ?? null }));
   }
 
   async visibleBySlug(slug: string): Promise<EventDetail | null> {
-    const { data, error } = await this.db.from("community_event_details").select("*").eq("slug", slug).is("deleted_at", null).maybeSingle();
+    const { data, error } = await this.db.from("community_event_details").select("*").eq("slug", slug).is("deleted_at", null).maybeSingle().overrideTypes<EventDetail, { merge: false }>(); // view columns are all nullable in the generated types
     if (error) throw new Error(error.message);
-    return data as unknown as EventDetail | null;
+    return data;
   }
 
   // --- admin events ---
 
   async listWithPhotoCounts() {
     type Embedded = EventDetail & { event_photos: { id: string; hidden_at: string | null }[] | null };
-    type Page = { data: Embedded[] | null; error: { message: string } | null };
     const rows = await fetchAllRows<Embedded>(
-      (from, to) => this.db.from("community_event_details").select("*, event_photos(id, hidden_at)").order("starts_at", { ascending: false }).order("id").range(from, to) as unknown as PromiseLike<Page>
+      (from, to) => this.db.from("community_event_details").select("*, event_photos(id, hidden_at)").order("starts_at", { ascending: false }).order("id").range(from, to).overrideTypes<Embedded[], { merge: false }>() // view columns are all nullable in the generated types
     );
     return rows.map(({ event_photos, ...event }) => ({ ...event, photo_count: (event_photos ?? []).filter((p) => !p.hidden_at).length }));
   }
 
   async byId(id: string) {
-    const { data, error } = await this.db.from("community_event_details").select("*").eq("id", id).maybeSingle();
+    const { data, error } = await this.db.from("community_event_details").select("*").eq("id", id).maybeSingle().overrideTypes<EventDetail, { merge: false }>(); // view columns are all nullable in the generated types
     if (error) throw new Error(error.message);
-    return data as unknown as EventDetail | null;
+    return data;
   }
 
   async visiblePhotos(eventId: string): Promise<EventPhotoSummary[]> {
@@ -518,9 +514,10 @@ export class SupabaseEventRepository implements EventRepository {
         .select("id, slug, title, speakers, host_name, location, starts_at, ends_at")
         .in("id", ids)
         .is("deleted_at", null)
-        .gte("ends_at", endsOnOrAfter);
+        .gte("ends_at", endsOnOrAfter)
+        .overrideTypes<FeedEvent[], { merge: false }>(); // view columns are all nullable in the generated types
       if (error) throw new Error(error.message);
-      out.push(...((data ?? []) as unknown as FeedEvent[]));
+      out.push(...(data ?? []));
     }
     return out;
   }
@@ -548,9 +545,10 @@ export class SupabaseEventRepository implements EventRepository {
     const { data, error } = await query
       .order("starts_at", { ascending: false })
       .order("id")
-      .range(q.offset, q.offset + q.limit - 1);
+      .range(q.offset, q.offset + q.limit - 1)
+      .overrideTypes<EventSearchHit[], { merge: false }>(); // view columns are all nullable in the generated types
     if (error) throw new Error(error.message);
-    return (data ?? []) as unknown as EventSearchHit[];
+    return data ?? [];
   }
 
   async create(fields: Insert<"community_events">) {
@@ -572,9 +570,9 @@ export class SupabaseEventRepository implements EventRepository {
   }
 
   async bySlug(slug: string) {
-    const { data, error } = await this.db.from("community_event_details").select("*").eq("slug", slug).maybeSingle();
+    const { data, error } = await this.db.from("community_event_details").select("*").eq("slug", slug).maybeSingle().overrideTypes<EventDetail, { merge: false }>(); // view columns are all nullable in the generated types
     if (error) throw new Error(error.message);
-    return data as unknown as EventDetail | null;
+    return data;
   }
 
   private async detailOf(id: string): Promise<EventDetail> {
@@ -589,7 +587,6 @@ export class SupabaseEventRepository implements EventRepository {
   }
 
   async allPhotosOf(eventId: string) {
-    type Page = { data: Row<"event_photos">[] | null; error: { message: string } | null };
     return fetchAllRows<Row<"event_photos">>(
       (from, to) =>
         this.db
@@ -599,21 +596,19 @@ export class SupabaseEventRepository implements EventRepository {
           .order("taken_at", { ascending: true, nullsFirst: false })
           .order("created_at", { ascending: true })
           .order("id")
-          .range(from, to) as unknown as PromiseLike<Page>
+          .range(from, to)
     );
   }
 
   async photoPaths(eventId: string) {
-    type Page = { data: { storage_path: string }[] | null; error: { message: string } | null };
     const rows = await fetchAllRows<{ storage_path: string }>(
-      (from, to) => this.db.from("event_photos").select("storage_path").eq("event_id", eventId).order("id").range(from, to) as unknown as PromiseLike<Page>
+      (from, to) => this.db.from("event_photos").select("storage_path").eq("event_id", eventId).order("id").range(from, to)
     );
     return rows.map((r) => r.storage_path);
   }
 
   async attendeesOf(eventId: string) {
     type Embedded = { id: string; member_id: string; members: EventAttendeeEntry["member"] };
-    type Page = { data: Embedded[] | null; error: { message: string } | null };
     const rows = await fetchAllRows<Embedded>(
       (from, to) =>
         this.db
@@ -622,7 +617,7 @@ export class SupabaseEventRepository implements EventRepository {
           .eq("event_id", eventId)
           .order("created_at", { ascending: true })
           .order("id")
-          .range(from, to) as unknown as PromiseLike<Page>
+          .range(from, to)
     );
     return rows.map((r) => ({ id: r.id, member_id: r.member_id, member: r.members }));
   }

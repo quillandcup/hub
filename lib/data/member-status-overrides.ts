@@ -1,5 +1,5 @@
 import { fetchAllRows } from "@/lib/supabase/paginate";
-import { byKeyThenId, type Page } from "./query";
+import { byKeyThenId } from "./query";
 import type { Db, Insert, Row, Update } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 
@@ -124,7 +124,7 @@ export class SupabaseMemberStatusRepository implements MemberStatusRepository {
 
   async allHiatuses() {
     return fetchAllRows<HiatusOfMember>(
-      (from, to) => this.db.from("member_hiatus_history").select("id, member_id, start_date, end_date").order("id").range(from, to) as unknown as PromiseLike<Page<HiatusOfMember>>,
+      (from, to) => this.db.from("member_hiatus_history").select("id, member_id, start_date, end_date").order("id").range(from, to),
     );
   }
 
@@ -137,7 +137,7 @@ export class SupabaseMemberStatusRepository implements MemberStatusRepository {
           .lte("start_date", day)
           .or(`end_date.is.null,end_date.gte.${day}`)
           .order("id")
-          .range(from, to) as unknown as PromiseLike<Page<Pick<HiatusRow, "member_id">>>,
+          .range(from, to),
     );
     return new Set(rows.map((r) => r.member_id));
   }
@@ -172,14 +172,14 @@ export class SupabaseMemberStatusRepository implements MemberStatusRepository {
 
   async allStatusOverrides() {
     return fetchAllRows<StatusOverrideRow>(
-      (from, to) => this.db.from("member_status_overrides").select("*").order("created_at").order("id").range(from, to) as unknown as PromiseLike<Page<StatusOverrideRow>>,
+      (from, to) => this.db.from("member_status_overrides").select("*").order("created_at").order("id").range(from, to),
     );
   }
 
   async statusOverridesWithMember() {
     const rows = await fetchAllRows<StatusOverrideWithMemberRow>(
       (from, to) =>
-        this.db.from("member_status_overrides").select(OVERRIDE_WITH_MEMBER).order("created_at", { ascending: false }).order("id").range(from, to) as unknown as PromiseLike<Page<StatusOverrideWithMemberRow>>,
+        this.db.from("member_status_overrides").select(OVERRIDE_WITH_MEMBER).order("created_at", { ascending: false }).order("id").range(from, to),
     );
     return rows.map(withOneMember);
   }
@@ -187,13 +187,13 @@ export class SupabaseMemberStatusRepository implements MemberStatusRepository {
   async createStatusOverride(override: NewStatusOverride) {
     const { data, error } = await this.db.from("member_status_overrides").insert(override).select(OVERRIDE_WITH_MEMBER).single();
     if (error) throw new Error(error.message);
-    return withOneMember(data as unknown as StatusOverrideWithMemberRow);
+    return withOneMember(data);
   }
 
   async updateStatusOverride(id: string, patch: StatusOverridePatch) {
     const { data, error } = await this.db.from("member_status_overrides").update(patch).eq("id", id).select(OVERRIDE_WITH_MEMBER).single();
     if (error) throw new Error(error.message);
-    return withOneMember(data as unknown as StatusOverrideWithMemberRow);
+    return withOneMember(data);
   }
 
   async deleteStatusOverride(id: string) {
@@ -212,7 +212,7 @@ export class SupabaseMemberStatusRepository implements MemberStatusRepository {
 
   async joinDateOverrides() {
     return fetchAllRows<JoinDateOverride>(
-      (from, to) => this.db.from("member_join_date_overrides").select("member_id, first_joined_at").order("member_id").range(from, to) as unknown as PromiseLike<Page<JoinDateOverride>>,
+      (from, to) => this.db.from("member_join_date_overrides").select("member_id, first_joined_at").order("member_id").range(from, to),
     );
   }
 
@@ -228,7 +228,7 @@ export class SupabaseMemberStatusRepository implements MemberStatusRepository {
 
   async profileOverrides() {
     return fetchAllRows<ProfileOverrideRow>(
-      (from, to) => this.db.from("member_profile_overrides").select(PROFILE_COLUMNS).order("member_id").range(from, to) as unknown as PromiseLike<Page<ProfileOverrideRow>>,
+      (from, to) => this.db.from("member_profile_overrides").select(PROFILE_COLUMNS).order("member_id").range(from, to),
     );
   }
 

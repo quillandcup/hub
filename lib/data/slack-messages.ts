@@ -1,7 +1,7 @@
 import { SLACK_SYSTEM_SUBTYPES } from "@/lib/slack-messages";
 import { fetchAllRows } from "@/lib/supabase/paginate";
 import { chunk } from "@/lib/supabase/paginate";
-import { asPage, byKeyThenId, compareText, inChunks, must, upsertInChunks } from "./query";
+import { byKeyThenId, compareText, inChunks, must, upsertInChunks } from "./query";
 import { asJson } from "./json";
 import type { Database } from "./database.types";
 import type { Db } from "./db";
@@ -55,7 +55,7 @@ export type SlackFile = Pick<
   "file_id" | "channel_id" | "message_ts" | "name" | "mimetype" | "size_bytes" | "storage_path" | "copy_error" | "deleted_at"
 > & {
   /** What Slack sent for the file (a vendor payload: the download URLs are in it). */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- callers (lib/slack-capture.ts) read vendor fields off it unchecked
   raw_payload: any;
 };
 
@@ -180,7 +180,7 @@ export class SupabaseSlackMessageRepository implements SlackMessageRepository {
 
   async messageCountsByUser() {
     const rows = await fetchAllRows<{ user_id: string | null }>((from, to) =>
-      asPage<{ user_id: string | null }>(this.bronze.from("slack_messages_meta").select("user_id").order("channel_id").order("message_ts").range(from, to))
+      this.bronze.from("slack_messages_meta").select("user_id").order("channel_id").order("message_ts").range(from, to)
     );
     const counts = new Map<string, number>();
     for (const row of rows) if (row.user_id) counts.set(row.user_id, (counts.get(row.user_id) ?? 0) + 1);
@@ -198,8 +198,7 @@ export class SupabaseSlackMessageRepository implements SlackMessageRepository {
 
   async liveMessagesBetween(from: string, to: string) {
     return fetchAllRows<SlackMessageEngagementRow>((first, last) =>
-      asPage<SlackMessageEngagementRow>(
-        messageOrder(
+      messageOrder(
           this.bronze
             .from("slack_messages_meta")
             .select("channel_id, channel_name, occurred_at, deleted_at, user_id, thread_ts")
@@ -207,15 +206,13 @@ export class SupabaseSlackMessageRepository implements SlackMessageRepository {
             .lte("occurred_at", to)
             .is("deleted_at", null)
             .or(NOT_SYSTEM)
-        ).range(first, last)
-      )
+        ).range(first, last).overrideTypes<SlackMessageEngagementRow[], { merge: false }>() // view columns are all nullable in the generated types
     );
   }
 
   async liveReactionsBetween(from: string, to: string) {
     return fetchAllRows<SlackReactionEngagementRow>((first, last) =>
-      asPage<SlackReactionEngagementRow>(
-        this.bronze
+      this.bronze
           .from("slack_reactions")
           .select("channel_id, channel_name, occurred_at, deleted_at, user_id, reaction")
           .gte("occurred_at", from)
@@ -227,15 +224,12 @@ export class SupabaseSlackMessageRepository implements SlackMessageRepository {
           .order("reaction")
           .order("user_id")
           .range(first, last)
-      )
     );
   }
 
   async liveMessageTimes() {
     return fetchAllRows<SlackMessageTime>((first, last) =>
-      asPage<SlackMessageTime>(
-        messageOrder(this.bronze.from("slack_messages_meta").select("channel_id, occurred_at").is("deleted_at", null).or(NOT_SYSTEM)).range(first, last)
-      )
+      messageOrder(this.bronze.from("slack_messages_meta").select("channel_id, occurred_at").is("deleted_at", null).or(NOT_SYSTEM)).range(first, last).overrideTypes<SlackMessageTime[], { merge: false }>() // view columns are all nullable in the generated types
     );
   }
 
@@ -279,8 +273,7 @@ export class SupabaseSlackMessageRepository implements SlackMessageRepository {
 
   async storedMessagesBetween(from: string, to: string) {
     return fetchAllRows<StoredSlackMessageRef>((first, last) =>
-      asPage<StoredSlackMessageRef>(
-        this.bronze
+      this.bronze
           .from("slack_messages")
           .select("channel_id, message_ts, thread_ts, occurred_at")
           .gte("occurred_at", from)
@@ -289,7 +282,6 @@ export class SupabaseSlackMessageRepository implements SlackMessageRepository {
           .order("channel_id")
           .order("message_ts")
           .range(first, last)
-      )
     );
   }
 
@@ -298,8 +290,7 @@ export class SupabaseSlackMessageRepository implements SlackMessageRepository {
     for (const part of chunk(messageTs, TS_CHUNK)) {
       keys.push(
         ...(await fetchAllRows<ReactionKey>((first, last) =>
-          asPage<ReactionKey>(
-            this.bronze
+          this.bronze
               .from("slack_reactions")
               .select("channel_id, message_ts, reaction, user_id")
               .eq("channel_id", channelId)
@@ -309,7 +300,6 @@ export class SupabaseSlackMessageRepository implements SlackMessageRepository {
               .order("reaction")
               .order("user_id")
               .range(first, last)
-          )
         ))
       );
     }
@@ -360,15 +350,13 @@ export class SupabaseSlackMessageRepository implements SlackMessageRepository {
 
   async filesWithoutCopy() {
     return fetchAllRows<SlackFile>((first, last) =>
-      asPage<SlackFile>(this.files.select(FILE_COLUMNS).is("storage_path", null).order("message_ts").order("file_id").range(first, last))
+      this.files.select(FILE_COLUMNS).is("storage_path", null).order("message_ts").order("file_id").range(first, last)
     );
   }
 
   async liveFilesSince(oldestMessageTs: string) {
     return fetchAllRows<{ file_id: string; channel_id: string; message_ts: string }>((first, last) =>
-      asPage<{ file_id: string; channel_id: string; message_ts: string }>(
-        this.files.select("file_id, channel_id, message_ts").is("deleted_at", null).gte("message_ts", oldestMessageTs).order("file_id").range(first, last)
-      )
+      this.files.select("file_id, channel_id, message_ts").is("deleted_at", null).gte("message_ts", oldestMessageTs).order("file_id").range(first, last)
     );
   }
 
@@ -384,8 +372,7 @@ export class SupabaseSlackMessageRepository implements SlackMessageRepository {
     for (const part of chunk(threadTs, TS_CHUNK)) {
       rows.push(
         ...(await fetchAllRows<{ thread_ts: string; message_ts: string }>((first, last) =>
-          asPage<{ thread_ts: string; message_ts: string }>(
-            this.bronze
+          this.bronze
               .from("slack_messages")
               .select("thread_ts, message_ts")
               .eq("channel_id", channelId)
@@ -393,7 +380,7 @@ export class SupabaseSlackMessageRepository implements SlackMessageRepository {
               .is("deleted_at", null)
               .order("message_ts")
               .range(first, last)
-          )
+              .overrideTypes<{ thread_ts: string; message_ts: string }[], { merge: false }>() // `in("thread_ts")` never matches null
         ))
       );
     }

@@ -1,5 +1,5 @@
 import { fetchAllRows } from "@/lib/supabase/paginate";
-import { compareText, inChunks, type Page } from "./query";
+import { compareText, inChunks } from "./query";
 import type { Db, Row, Update } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 
@@ -96,7 +96,7 @@ export class SupabaseMemberProfileRepository implements MemberProfileRepository 
           .select("subject_member_id, body")
           .eq("author_member_id", authorMemberId)
           .order("subject_member_id")
-          .range(from, to) as unknown as PromiseLike<Page<Pick<Row<"member_notes">, "subject_member_id" | "body">>>,
+          .range(from, to),
     );
     return new Map(rows.map((r) => [r.subject_member_id, r.body]));
   }
@@ -173,9 +173,7 @@ export class SupabaseMemberProfileRepository implements MemberProfileRepository 
   async slackUserLinks() {
     const rows = await fetchAllRows<Pick<Row<"member_slack_connections">, "slack_user_id" | "member_id">>(
       (from, to) =>
-        this.db.from("member_slack_connections").select("slack_user_id, member_id").order("member_id").range(from, to) as unknown as PromiseLike<
-          Page<Pick<Row<"member_slack_connections">, "slack_user_id" | "member_id">>
-        >,
+        this.db.from("member_slack_connections").select("slack_user_id, member_id").order("member_id").range(from, to),
     );
     return new Map(rows.map((r) => [r.slack_user_id, r.member_id]));
   }

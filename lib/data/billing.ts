@@ -1,5 +1,5 @@
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
-import { asPage, inChunks as inChunksOf, sortByKey, upsertInChunks } from "./query";
+import { inChunks as inChunksOf, sortByKey, upsertInChunks } from "./query";
 import type { Database, Json } from "./database.types";
 import type { Db } from "./db";
 import type { InMemoryDataset } from "./in-memory";
@@ -191,12 +191,12 @@ export class SupabaseBillingRepository implements BillingRepository {
 
   async kajabiContacts() {
     return fetchAllRows<KajabiContactRef>((from, to) =>
-      asPage(this.contacts.select("kajabi_contact_id, email, name").order("kajabi_contact_id").range(from, to))
+      this.contacts.select("kajabi_contact_id, email, name").order("kajabi_contact_id").range(from, to)
     );
   }
 
   async kajabiContactRows() {
-    return fetchAllRows<KajabiContactRow>((from, to) => asPage(this.contacts.select("*").order("kajabi_contact_id").range(from, to)));
+    return fetchAllRows<KajabiContactRow>((from, to) => this.contacts.select("*").order("kajabi_contact_id").range(from, to));
   }
 
   async kajabiContactData(kajabiContactId: string) {
@@ -216,31 +216,31 @@ export class SupabaseBillingRepository implements BillingRepository {
       fetchAllRows<KajabiCustomerRef>((from, to) => {
         let query = this.customers.select("kajabi_customer_id, email");
         if (part) query = query.in(column, part);
-        return asPage(query.order("kajabi_customer_id").range(from, to));
+        return query.order("kajabi_customer_id").range(from, to);
       });
     if (!values) return read();
     return sortByKey(await inChunks(values, read), (r) => r.kajabi_customer_id);
   }
 
   async kajabiCustomerRows() {
-    return fetchAllRows<KajabiCustomerRow>((from, to) => asPage(this.customers.select("*").order("kajabi_customer_id").range(from, to)));
+    return fetchAllRows<KajabiCustomerRow>((from, to) => this.customers.select("*").order("kajabi_customer_id").range(from, to));
   }
 
   async kajabiCustomerProfilesByEmail(emails: string[]) {
     return inChunks(emails, (part) =>
       fetchAllRows<KajabiCustomerProfile>((from, to) =>
-        asPage(this.customers.select("data, updated_at_kajabi").in("email", part).order("kajabi_customer_id").range(from, to))
+        this.customers.select("data, updated_at_kajabi").in("email", part).order("kajabi_customer_id").range(from, to)
       )
     );
   }
 
   async kajabiOfferRows() {
-    return fetchAllRows<KajabiOfferRow>((from, to) => asPage(this.offers.select("*").order("kajabi_offer_id").range(from, to)));
+    return fetchAllRows<KajabiOfferRow>((from, to) => this.offers.select("*").order("kajabi_offer_id").range(from, to));
   }
 
   async kajabiOfferNames() {
     const rows = await fetchAllRows<Pick<KajabiOfferRow, "name">>((from, to) =>
-      asPage(this.offers.select("name").order("kajabi_offer_id").range(from, to))
+      this.offers.select("name").order("kajabi_offer_id").range(from, to)
     );
     return [...new Set(rows.map((o) => o.name).filter((n): n is string => !!n))].sort((a, b) => a.localeCompare(b));
   }
@@ -248,7 +248,7 @@ export class SupabaseBillingRepository implements BillingRepository {
   async kajabiOffersByName(names: string[]) {
     const rows = await inChunks(names, (part) =>
       fetchAllRows<KajabiOfferRef>((from, to) =>
-        asPage(this.offers.select("kajabi_offer_id, name").in("name", part).order("kajabi_offer_id").range(from, to))
+        this.offers.select("kajabi_offer_id, name").in("name", part).order("kajabi_offer_id").range(from, to)
       )
     );
     return sortByKey(rows, (r) => r.kajabi_offer_id);
@@ -257,7 +257,7 @@ export class SupabaseBillingRepository implements BillingRepository {
   async kajabiOffersByIds(offerIds: string[]) {
     const rows = await inChunks(offerIds, (part) =>
       fetchAllRows<KajabiOfferDetail>((from, to) =>
-        asPage(this.offers.select("kajabi_offer_id, name, data, trial_period_days").in("kajabi_offer_id", part).order("kajabi_offer_id").range(from, to))
+        this.offers.select("kajabi_offer_id, name, data, trial_period_days").in("kajabi_offer_id", part).order("kajabi_offer_id").range(from, to)
       )
     );
     return sortByKey(rows, (r) => r.kajabi_offer_id);
@@ -269,7 +269,7 @@ export class SupabaseBillingRepository implements BillingRepository {
         let query = this.purchases.select("*");
         if (part) query = query.in("kajabi_offer_id", part);
         if (stillActive) query = query.is("deactivated_at", null);
-        return asPage(query.order("kajabi_purchase_id").range(from, to));
+        return query.order("kajabi_purchase_id").range(from, to);
       });
     if (!offerIds) return read();
     return sortByKey(await inChunks(offerIds, read), (r) => r.kajabi_purchase_id);
@@ -281,7 +281,7 @@ export class SupabaseBillingRepository implements BillingRepository {
         let query = this.purchases.select(PURCHASE_SUMMARY_COLUMNS);
         if (part) query = query.in("kajabi_offer_id", part);
         if (createdSince) query = query.gte("created_at_kajabi", createdSince);
-        return asPage(query.order("kajabi_purchase_id").range(from, to));
+        return query.order("kajabi_purchase_id").range(from, to);
       });
     if (!offerIds) return read();
     return sortByKey(await inChunks(offerIds, read), (r) => r.kajabi_purchase_id);
@@ -290,7 +290,7 @@ export class SupabaseBillingRepository implements BillingRepository {
   async kajabiPurchasesByCustomers(customerIds: string[]) {
     const rows = await inChunks(customerIds, (part) =>
       fetchAllRows<KajabiPurchaseSummary>((from, to) =>
-        asPage(this.purchases.select(PURCHASE_SUMMARY_COLUMNS).in("kajabi_customer_id", part).order("kajabi_purchase_id").range(from, to))
+        this.purchases.select(PURCHASE_SUMMARY_COLUMNS).in("kajabi_customer_id", part).order("kajabi_purchase_id").range(from, to)
       )
     );
     return byCreated(rows);
@@ -301,7 +301,7 @@ export class SupabaseBillingRepository implements BillingRepository {
       fetchAllRows<{ kajabi_customer_id: string | null }>((from, to) => {
         let query = this.purchases.select("kajabi_customer_id").eq("status", "active");
         if (part) query = query.in("kajabi_customer_id", part);
-        return asPage(query.order("kajabi_purchase_id").range(from, to));
+        return query.order("kajabi_purchase_id").range(from, to);
       });
     const rows = customerIds ? await inChunks(customerIds, read) : await read();
     return new Set(rows.map((r) => r.kajabi_customer_id).filter((id): id is string => !!id));
@@ -316,7 +316,7 @@ export class SupabaseBillingRepository implements BillingRepository {
       fetchAllRows<StripeCustomerRef>((from, to) => {
         let query = this.stripeCustomerTable.select("stripe_customer_id, email, name");
         if (part) query = query.in("email", part);
-        return asPage(query.order("stripe_customer_id").range(from, to));
+        return query.order("stripe_customer_id").range(from, to);
       });
     if (!emails) return read();
     return sortByKey(await inChunks(emails, read), (r) => r.stripe_customer_id);
@@ -324,14 +324,14 @@ export class SupabaseBillingRepository implements BillingRepository {
 
   async stripeCustomersWithData() {
     return fetchAllRows<StripeCustomerWithData>((from, to) =>
-      asPage(this.stripeCustomerTable.select("stripe_customer_id, email, data").order("stripe_customer_id").range(from, to))
+      this.stripeCustomerTable.select("stripe_customer_id, email, data").order("stripe_customer_id").range(from, to)
     );
   }
 
   async stripeProductsByName(names: string[]) {
     const rows = await inChunks(names, (part) =>
       fetchAllRows<StripeProductRef>((from, to) =>
-        asPage(this.products.select("stripe_product_id, name").in("name", part).order("stripe_product_id").range(from, to))
+        this.products.select("stripe_product_id, name").in("name", part).order("stripe_product_id").range(from, to)
       )
     );
     return sortByKey(rows, (r) => r.stripe_product_id);
@@ -342,37 +342,33 @@ export class SupabaseBillingRepository implements BillingRepository {
       fetchAllRows<StripeSubscriptionStatus>((from, to) => {
         let query = this.subscriptions.select("stripe_customer_id, status").in("status", statuses);
         if (part) query = query.in("stripe_customer_id", part);
-        return asPage(query.order("stripe_subscription_id").range(from, to));
+        return query.order("stripe_subscription_id").range(from, to);
       });
     return customerIds ? inChunks(customerIds, read) : read();
   }
 
   async stripeSubscriptionRows() {
-    return fetchAllRows<StripeSubscriptionRow>((from, to) => asPage(this.subscriptions.select("*").order("stripe_subscription_id").range(from, to)));
+    return fetchAllRows<StripeSubscriptionRow>((from, to) => this.subscriptions.select("*").order("stripe_subscription_id").range(from, to));
   }
 
   async stripeSubscriptionsWithStatus(status: string) {
     return fetchAllRows<StripeSubscriptionDetail>((from, to) =>
-      asPage(
-        this.subscriptions
+      this.subscriptions
           .select("stripe_subscription_id, stripe_customer_id, status, created_at_stripe, canceled_at, data")
           .eq("status", status)
           .order("stripe_subscription_id")
           .range(from, to)
-      )
     );
   }
 
   async stripeSubscriptionsByCustomers(stripeCustomerIds: string[]) {
     const rows = await inChunks(stripeCustomerIds, (part) =>
       fetchAllRows<StripeSubscriptionTrial & { stripe_subscription_id: string }>((from, to) =>
-        asPage(
-          this.subscriptions
+        this.subscriptions
             .select("stripe_subscription_id, stripe_customer_id, created_at_stripe, canceled_at, data")
             .in("stripe_customer_id", part)
             .order("stripe_subscription_id")
             .range(from, to)
-        )
       )
     );
     return sortByKey(rows, (r) => r.stripe_subscription_id).map(({ stripe_subscription_id: _id, ...trial }) => trial);
