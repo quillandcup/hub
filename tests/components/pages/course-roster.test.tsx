@@ -3,12 +3,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { ADMIN_USER, MEMBER_USER, expectRedirect, renderServerPage, resetServerPageMocks, signInAs, useFakeSupabase, type FakeQuery } from "@/tests/helpers/server-page";
+import { ADMIN_USER, MEMBER_USER, expectRedirect, renderServerPage, resetServerPageMocks, signInAs, ROLE_PROFILES } from "@/tests/helpers/server-page";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
 vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.sudoModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
+
+// Roles come from the profile repository, in memory here.
+let dataset = new InMemoryDataset();
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => createInMemoryRepos(dataset),
+}));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 
 const loadCourseRoster = vi.fn();
@@ -20,16 +29,11 @@ const row = (id: string, name: string, over: object = {}) => ({
   memberId: id, name, startsAt: "2026-01-01T00:00:00Z", endsAt: null, origin: "purchase", accessActive: true,
   completed: 1, total: 4, lastLessonId: "l1", lastLessonTitle: "Reader Expectations", lastActivityAt: "2026-10-05T10:00:00Z", ...over,
 });
-const ROLES: Record<string, string> = { [ADMIN_USER.id]: "admin", [MEMBER_USER.id]: "member" };
-const userProfiles = (q: FakeQuery) => {
-  const id = q.calls.find((c) => c.method === "eq" && c.args[0] === "id")?.args[1] as string;
-  return { data: ROLES[id] ? [{ role: ROLES[id] }] : [] };
-};
 const props = { params: Promise.resolve({ id: "kaj-1" }) };
 
 beforeEach(() => {
   resetServerPageMocks();
-  useFakeSupabase({ user_profiles: userProfiles });
+  dataset = new InMemoryDataset({ userProfiles: ROLE_PROFILES });
   signInAs(ADMIN_USER, null);
   loadCourseRoster.mockReset();
   loadCourseRoster.mockResolvedValue({

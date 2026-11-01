@@ -448,7 +448,7 @@ export async function dismissCheckinHalf(supabase: any, half: CheckinHalfKind, m
     console.error(`dismiss ${half}: insert failed`, { memberId, prickleId, error });
     return `Couldn't dismiss that ${HALF_LABEL[half]}`;
   }
-  await resolveInAppNotifications(supabase, memberId, `prickle_${half}`, prickleId);
+  await resolveInAppNotifications(createRepos(supabase), memberId, `prickle_${half}`, prickleId);
   return null;
 }
 
@@ -593,8 +593,8 @@ export async function resolveAnsweredCheckinNotifications(
   checkin: CheckinInput
 ): Promise<void> {
   await Promise.all([
-    checkinAnswered(checkin) ? resolveInAppNotifications(supabase, memberId, "prickle_checkin", prickleId) : null,
-    checkoutAnswered(checkin) ? resolveInAppNotifications(supabase, memberId, "prickle_checkout", prickleId) : null,
+    checkinAnswered(checkin) ? resolveInAppNotifications(createRepos(supabase), memberId, "prickle_checkin", prickleId) : null,
+    checkoutAnswered(checkin) ? resolveInAppNotifications(createRepos(supabase), memberId, "prickle_checkout", prickleId) : null,
   ]);
 }
 

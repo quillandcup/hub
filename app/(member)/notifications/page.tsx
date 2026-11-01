@@ -7,6 +7,7 @@ import { loadInboxPage } from "@/lib/channels/in-app";
 import { parsePageParam, parsePageSizeParam, parseSortParams } from "@/lib/pagination";
 import { DEFAULT_INBOX_SORT, INBOX_SORT_COLUMNS, parseInboxFilter, parseInboxKind } from "@/lib/notifications/inbox";
 import NotificationInbox from "./NotificationInbox";
+import { createRepos } from "@/lib/data/repos";
 
 export const metadata: Metadata = {
   title: "Notifications",
@@ -32,7 +33,7 @@ export default async function NotificationsPage({
   const params = await searchParams;
   const filter = parseInboxFilter(params.filter);
   const kind = parseInboxKind(params.kind);
-  const inbox = await loadInboxPage(await createClient(), identity.memberId, new Date(), {
+  const inbox = await loadInboxPage(createRepos(await createClient()), identity.memberId, new Date(), {
     filter,
     kind,
     sort: parseSortParams(params.sort, params.dir, INBOX_SORT_COLUMNS, DEFAULT_INBOX_SORT) ?? DEFAULT_INBOX_SORT,

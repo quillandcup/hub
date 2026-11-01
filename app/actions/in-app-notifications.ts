@@ -13,6 +13,7 @@ import {
   markInAppNotificationsUnread,
   type InAppNotification,
 } from "@/lib/channels/in-app";
+import { createRepos } from "@/lib/data/repos";
 
 /*
  * The signed-in member's in-app notifications, for the bell and banner
@@ -53,8 +54,8 @@ export async function getMyBellState(): Promise<BellState> {
   const { memberId } = own;
   const supabase = await createClient();
   const [latest, unreadCount] = await Promise.all([
-    loadInAppNotifications(supabase, memberId, new Date(), { limit: BELL_LIMIT }),
-    countInAppNotifications(supabase, memberId, { unreadOnly: true }),
+    loadInAppNotifications(createRepos(supabase), memberId, new Date(), { limit: BELL_LIMIT }),
+    countInAppNotifications(createRepos(supabase), memberId, { unreadOnly: true }),
   ]);
   return { latest, unreadCount };
 }
@@ -69,7 +70,7 @@ export async function markInAppNotificationsReadAction(ids: string[]): Promise<R
   if ("error" in own) return own;
   const { memberId, isSudo } = own;
   if (!validIds(ids)) return { error: "Invalid notifications" };
-  const { error } = await markInAppNotificationsRead(await writer(isSudo), memberId, ids);
+  const { error } = await markInAppNotificationsRead(createRepos(await writer(isSudo)), memberId, ids);
   if (error) {
     console.error("[in-app] Marking notifications read failed", { member: memberId, ids, error });
     return { error: "Couldn't update your notifications — please try again." };
@@ -83,7 +84,7 @@ export async function markInAppNotificationsUnreadAction(ids: string[]): Promise
   if ("error" in own) return own;
   const { memberId, isSudo } = own;
   if (!validIds(ids)) return { error: "Invalid notifications" };
-  const { error } = await markInAppNotificationsUnread(await writer(isSudo), memberId, ids);
+  const { error } = await markInAppNotificationsUnread(createRepos(await writer(isSudo)), memberId, ids);
   if (error) {
     console.error("[in-app] Marking notifications unread failed", { member: memberId, ids, error });
     return { error: "Couldn't update your notifications — please try again." };
@@ -96,7 +97,7 @@ export async function markAllInAppNotificationsReadAction(): Promise<Result> {
   const own = await ownMember();
   if ("error" in own) return own;
   const { memberId, isSudo } = own;
-  const { error } = await markAllInAppNotificationsRead(await writer(isSudo), memberId);
+  const { error } = await markAllInAppNotificationsRead(createRepos(await writer(isSudo)), memberId);
   if (error) {
     console.error("[in-app] Marking all notifications read failed", { member: memberId, error });
     return { error: "Couldn't update your notifications — please try again." };

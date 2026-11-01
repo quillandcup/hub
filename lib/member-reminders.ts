@@ -212,12 +212,12 @@ export async function sendMemberReminders(
   // Only for members this is live for: a dry run leaves everything as it was.
   for (const m of newcomers.filter((m) => introLive.has(m.id))) {
     if (introduced.has(m.id) && sentFor(m.id, "intro_nudge").length > 0) {
-      await resolveInAppNotifications(supabase, m.id, "intro_nudge", NUDGE_REF.intro_nudge);
+      await resolveInAppNotifications(createRepos(supabase), m.id, "intro_nudge", NUDGE_REF.intro_nudge);
     }
   }
   for (const m of members.filter((m) => prickleLive.has(m.id))) {
     if (attendedRecently(m.id) && sentFor(m.id, "prickle_nudge").length > 0) {
-      await resolveInAppNotifications(supabase, m.id, "prickle_nudge", NUDGE_REF.prickle_nudge);
+      await resolveInAppNotifications(createRepos(supabase), m.id, "prickle_nudge", NUDGE_REF.prickle_nudge);
     }
   }
 
