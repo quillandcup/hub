@@ -1,4 +1,5 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { createRepos } from "@/lib/data/repos";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function PATCH(
@@ -19,11 +20,11 @@ export async function PATCH(
     return NextResponse.json({ error: "enabledGlobally must be a boolean" }, { status: 400 });
   }
 
-  const { error } = await supabase
-    .from("feature_flags")
-    .upsert({ feature_key: key, enabled_globally: enabledGlobally }, { onConflict: "feature_key" });
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  try {
+    await createRepos(supabase).featureFlags.setGlobal(key, enabledGlobally);
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not save the flag" }, { status: 500 });
+  }
 
   return NextResponse.json({ success: true });
 }
