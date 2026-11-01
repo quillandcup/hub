@@ -143,8 +143,8 @@ export function defineCourseContract(name: string, setup: () => CourseContractCo
       expect(await repo.lessonBody(newCourseId("les"))).toBeNull();
       expect(ids(await repo.openLessons([open.id, soon.id, bare.id])).sort(compareText)).toEqual([open.id, bare.id].sort(compareText));
       expect(await repo.openLessons([])).toEqual([]);
-      expect(await repo.video(video.id)).toMatchObject({ id: video.id, status: "ready", mux_playback_id: "playback-1" });
-      expect(await repo.video(randomUUID())).toBeNull();
+      expect(await repo.videosByIds([video.id])).toMatchObject([{ id: video.id, status: "ready", mux_playback_id: "playback-1" }]);
+      expect(await repo.videosByIds([randomUUID()])).toEqual([]);
     });
 
     it("lists a lesson's downloads in order and finds one of them", async () => {
@@ -316,7 +316,8 @@ export function defineCourseContract(name: string, setup: () => CourseContractCo
       const a = await repo.addModule({ course_id: hub.id, title: "A", position: await repo.nextPosition("module", hub.id, null), state: "hidden", source: "hub" });
       const b = await repo.addModule({ course_id: hub.id, title: "B", position: await repo.nextPosition("module", hub.id, null), state: "hidden", source: "hub" });
       const sub = await repo.addModule({ course_id: hub.id, parent_id: a, title: "Sub", position: await repo.nextPosition("module", hub.id, a), state: "hidden", source: "hub" });
-      expect((await repo.moduleById(b))?.position).toBe(2);
+      const hubModule = async (id: string) => (await repo.modulesOf([hub.id], { includeHidden: true })).find((m) => m.id === id) ?? null;
+      expect((await hubModule(b))?.position).toBe(2);
       expect(await repo.nextPosition("module", hub.id, null)).toBe(3);
       expect(await repo.nextPosition("module", hub.id, a)).toBe(2);
 
@@ -330,7 +331,7 @@ export function defineCourseContract(name: string, setup: () => CourseContractCo
 
       expect(await repo.renameItem("module", { id: a, courseId: hub.id }, "A renamed")).toBe(true);
       expect(await repo.renameItem("lesson", { id: l1, courseId: hub.id }, "One renamed")).toBe(true);
-      expect((await repo.moduleById(a))?.title).toBe("A renamed");
+      expect((await hubModule(a))?.title).toBe("A renamed");
       expect((await repo.lessonById(l1))?.title).toBe("One renamed");
       expect(await repo.renameItem("lesson", { id: l1, courseId: imported.id }, "Wrong course")).toBe(false);
       expect(await repo.renameItem("module", { id: newCourseId("mod"), courseId: hub.id }, "Nobody")).toBe(false);
@@ -352,9 +353,9 @@ export function defineCourseContract(name: string, setup: () => CourseContractCo
       expect(await repo.lessonById(loose)).toBeNull();
       expect(await repo.deleteItem("lesson", { id: loose, courseId: hub.id })).toBe(false);
       expect(await repo.deleteItem("module", { id: a, courseId: hub.id })).toBe(true);
-      expect(await repo.moduleById(sub)).toBeNull();
+      expect(await hubModule(sub)).toBeNull();
       expect(await repo.lessonById(l2)).toBeNull();
-      expect(await repo.moduleById(b)).not.toBeNull();
+      expect(await hubModule(b)).not.toBeNull();
     });
 
     it("duplicates a lesson or a module as drafts at the end, and reorders children all or nothing", async () => {
@@ -456,20 +457,21 @@ export function defineCourseContract(name: string, setup: () => CourseContractCo
       const id1 = await repo.createVideo({ source_kind: "kajabi", source_key: k1, status: "preparing", quality: "plus", duration_seconds: 61, has_burned_in_captions: true });
       const id2 = await repo.createVideo({ source_kind: "kajabi", source_key: k2 });
       await ctx.seed.forget({ videos: [id1, id2] });
-      expect(await repo.video(id1)).toMatchObject({ source_key: k1, status: "preparing", quality: "plus", has_burned_in_captions: true, mux_asset_id: null });
-      expect(Number((await repo.video(id1))!.duration_seconds)).toBe(61);
+      const video = async (id: string) => (await repo.videosByIds([id]))[0] ?? null;
+      expect(await video(id1)).toMatchObject({ source_key: k1, status: "preparing", quality: "plus", has_burned_in_captions: true, mux_asset_id: null });
+      expect(Number((await video(id1))!.duration_seconds)).toBe(61);
       expect((await repo.videosBySourceKeys("kajabi", [k1, k2, ctx.unique("none")])).map((v) => v.id).sort(compareText)).toEqual([id1, id2].sort(compareText));
       expect(await repo.videosBySourceKeys("upload", [k1])).toEqual([]);
       expect(await repo.videosBySourceKeys("kajabi", [])).toEqual([]);
 
       const asset = ctx.unique("asset");
       await repo.updateVideo(id1, { mux_asset_id: asset, source_fingerprint: "fp" });
-      expect(await repo.video(id1)).toMatchObject({ mux_asset_id: asset, source_fingerprint: "fp", status: "preparing" });
+      expect(await video(id1)).toMatchObject({ mux_asset_id: asset, source_fingerprint: "fp", status: "preparing" });
       expect((await repo.preparingVideos()).filter((v) => [id1, id2].includes(v.id))).toEqual([{ id: id1, mux_asset_id: asset }]);
 
       expect(await repo.updateVideosByAsset(ctx.unique("unknown-asset"), { status: "ready" })).toBe(0);
       expect(await repo.updateVideosByAsset(asset, { status: "ready", mux_playback_id: "pb", duration_seconds: 62 })).toBe(1);
-      expect(await repo.video(id1)).toMatchObject({ status: "ready", mux_playback_id: "pb" });
+      expect(await video(id1)).toMatchObject({ status: "ready", mux_playback_id: "pb" });
       expect((await repo.preparingVideos()).some((v) => v.id === id1)).toBe(false);
     });
 
