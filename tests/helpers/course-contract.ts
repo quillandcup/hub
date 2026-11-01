@@ -342,6 +342,18 @@ export function defineCourseContract(name: string, setup: () => CourseContractCo
       expect(await repo.deleteItem("lesson", { id: importedLesson.id, courseId: imported.id })).toBe(false);
       expect((await repo.lessonById(importedLesson.id))?.title).toBe("Imported");
 
+      // The text of a Hub-owned lesson, and its teaser; null clears both. Never an imported lesson's, another course's, or a missing one's.
+      expect(await repo.setLessonText({ id: l1, courseId: hub.id }, { body_html: "<p>Hello</p>", excerpt: "Hello" })).toBe(true);
+      expect((await repo.lessonBody(l1))?.body_html).toBe("<p>Hello</p>");
+      expect((await repo.lessonById(l1))?.excerpt).toBe("Hello");
+      expect(await repo.setLessonText({ id: l1, courseId: hub.id }, { body_html: null, excerpt: null })).toBe(true);
+      expect((await repo.lessonBody(l1))?.body_html).toBeNull();
+      expect((await repo.lessonById(l1))?.excerpt).toBeNull();
+      expect(await repo.setLessonText({ id: l1, courseId: imported.id }, { body_html: "<p>x</p>", excerpt: "x" })).toBe(false);
+      expect(await repo.setLessonText({ id: importedLesson.id, courseId: imported.id }, { body_html: "<p>x</p>", excerpt: "x" })).toBe(false);
+      expect(await repo.setLessonText({ id: newCourseId("les"), courseId: hub.id }, { body_html: "<p>x</p>", excerpt: "x" })).toBe(false);
+      expect((await repo.lessonBody(importedLesson.id))?.body_html).toBeNull();
+
       expect((await repo.lessonIdsUnder("module", a)).sort()).toEqual([l1, l2].sort());
       expect(await repo.lessonIdsUnder("lesson", loose)).toEqual([loose]);
       expect(await repo.lessonIdsUnder("module", b)).toEqual([]);
@@ -443,6 +455,7 @@ export function defineCourseContract(name: string, setup: () => CourseContractCo
       await repo.setItemStatus("module", m, "published");
       await expect(repo.setItemStatus("lesson", l, "drip")).rejects.toThrow("unsupported_status");
       await expect(repo.setItemStatus("lesson", l, "scheduled")).rejects.toThrow("unsupported_status");
+      await expect(repo.setItemStatus("lesson", l, "inherit")).rejects.toThrow("unsupported_status");
       await expect(repo.setItemStatus("lesson", newCourseId("les"), "draft")).rejects.toThrow("not_found");
     });
 
