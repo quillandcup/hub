@@ -18,6 +18,8 @@ import CourseSettingsForm from "./CourseSettingsForm";
 import CoursePublishControl from "../CoursePublishControl";
 import CourseVideosPanel from "./CourseVideosPanel";
 import CourseFilesPanel from "./CourseFilesPanel";
+import TakeOverPanel from "./TakeOverPanel";
+import { loadTakeOverPreview } from "@/lib/courses/take-over";
 import { createRepos } from "@/lib/data/repos";
 
 /** The tab shows the course's name first ("The Ready Writer · Courses"), like other record pages. */
@@ -40,6 +42,8 @@ export default async function AdminCoursePage({ params }: { params: Promise<{ id
 
   const { course, explained, content, hubLessonIds, videos, files, details, lastImportedAt } = detail;
   const hub = course.hub;
+  // Only a course that is in the Hub has anything to take over.
+  const takeOver = hub ? await loadTakeOverPreview(createRepos(supabase), id) : null;
 
   return (
     <>
@@ -94,6 +98,8 @@ export default async function AdminCoursePage({ params }: { params: Promise<{ id
             </p>
           )}
         </div>
+
+        {hub && takeOver && <TakeOverPanel courseId={id} title={course.title} preview={takeOver} />}
 
         <div className="mt-6">
           <CourseBuilderForm

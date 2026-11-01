@@ -138,6 +138,20 @@ describe('Admin course data', () => {
       expect((await loadAdminCourses(createRepos(supabase), now)).find((c) => c.id === ids.course)!.source).toBe('kajabi')
     })
 
+    it('are listed once when taken over from Kajabi, as the Hub\'s, not again from the Kajabi copy', async () => {
+      const key = `test-adm-over-${ts}`
+      await bronze.from('kajabi_courses').insert({ kajabi_id: key, title: `Taken Over ${ts}`, raw_payload: {} })
+      const { data } = await supabase.from('courses').insert({ slug: `taken-over-${ts}`, title: `Taken Over ${ts}`, source: 'hub', source_key: key }).select('id').single()
+      try {
+        const rows = (await loadAdminCourses(createRepos(supabase), now)).filter((c) => c.title === `Taken Over ${ts}`)
+        expect(rows).toHaveLength(1)
+        expect(rows[0]).toMatchObject({ source: 'hub', id: data!.id })
+      } finally {
+        await supabase.from('courses').delete().eq('id', data!.id)
+        await bronze.from('kajabi_courses').delete().eq('kajabi_id', key)
+      }
+    })
+
     it('load for their own page, with the details the form edits', async () => {
       const course = (await loadHubCourse(createRepos(supabase), hubId, now))!
       expect(course).toMatchObject({ id: hubId, title: `Admin Hub ${ts}`, slug: HUB, description: 'Made in the Hub.', programId: null, access: { current: 1, upcoming: 0, ended: 0 } })

@@ -499,6 +499,55 @@ export function defineCourseContract(name: string, setup: () => CourseContractCo
       expect((await repo.modulesOf([imported.id], { includeHidden: true })).find((x) => x.id === moduleId)).toMatchObject({ publishing_option: "published", state: "open" });
     });
 
+    it("takes a course over from Kajabi: it, its modules and its lessons become Hub-owned, keeping ids and keys, and nothing else is refused", async () => {
+      const repo = ctx.courses();
+      const kajabi = newCourse("takeover", { source: "kajabi", source_key: ctx.unique("kj") });
+      await ctx.seed.courses([kajabi]);
+      const top = moduleRow({ id: newCourseId("mod"), course_id: kajabi.id, title: "Top", source: "kajabi", source_key: ctx.unique("km"), publishing_option: "published", state: "open" });
+      const sub = moduleRow({ id: newCourseId("mod"), course_id: kajabi.id, parent_id: top.id, title: "Sub", position: 1, source: "kajabi", source_key: ctx.unique("km"), publishing_option: "locked", state: "coming_soon" });
+      const bare = moduleRow({ id: newCourseId("mod"), course_id: kajabi.id, title: "Bare", position: 2, source: "kajabi", source_key: ctx.unique("km"), publishing_option: null, state: "hidden" });
+      await ctx.seed.modules([top, sub, bare]);
+      const open = lessonRow({ id: newCourseId("les"), course_id: kajabi.id, module_id: top.id, title: "Open", source: "kajabi", source_key: ctx.unique("kl"), publishing_option: "published", state: "open" });
+      const weird = lessonRow({ id: newCourseId("les"), course_id: kajabi.id, module_id: bare.id, title: "Weird", source: "kajabi", source_key: ctx.unique("kl"), publishing_option: "weird", state: "hidden" });
+      await ctx.seed.lessons([open, weird]);
+
+      await repo.takeOverCourse(kajabi.id);
+
+      expect(await repo.courseById(kajabi.id)).toMatchObject({ source: "hub", source_key: kajabi.source_key });
+      const modules = await repo.modulesOf([kajabi.id], { includeHidden: true });
+      const lessons = await repo.lessonsOf([kajabi.id], { includeHidden: true });
+      expect(modules.map((m) => m.source)).toEqual(["hub", "hub", "hub"]);
+      expect(lessons.map((l) => l.source)).toEqual(["hub", "hub"]);
+      expect(modules.find((m) => m.id === top.id)).toMatchObject({ source_key: top.source_key, publishing_option: "published", state: "open" });
+      expect(modules.find((m) => m.id === sub.id)).toMatchObject({ publishing_option: "locked", state: "coming_soon" });
+      // No setting, or one the editor doesn't use, becomes a draft: hidden, as members already saw it.
+      expect(modules.find((m) => m.id === bare.id)).toMatchObject({ publishing_option: "draft", state: "hidden" });
+      expect(lessons.find((l) => l.id === weird.id)).toMatchObject({ publishing_option: "draft", state: "hidden", source_key: weird.source_key });
+      expect(lessons.find((l) => l.id === open.id)).toMatchObject({ publishing_option: "published", state: "open" });
+
+      // It is theirs now: the editor's writes work, and the Kajabi-only lookups no longer find it.
+      await repo.setItemStatus("lesson", weird.id, "published");
+      expect((await repo.courses({ source: "kajabi", ids: [kajabi.id] }))).toEqual([]);
+      expect(await repo.takeOverCourse(kajabi.id).catch((e: Error) => e.message)).toBe("not_editable");
+      expect(await repo.takeOverCourse(newCourseId("crs")).catch((e: Error) => e.message)).toBe("not_found");
+    });
+
+    it("won't take over a course the Hub already owns, or one whose modules nest deeper than the editor does", async () => {
+      const repo = ctx.courses();
+      const hub = newCourse("takeover-hub");
+      const deep = newCourse("takeover-deep", { source: "kajabi", source_key: ctx.unique("kj") });
+      await ctx.seed.courses([hub, deep]);
+      const d1 = moduleRow({ id: newCourseId("mod"), course_id: deep.id, title: "D1", source: "kajabi", source_key: ctx.unique("km") });
+      const d2 = moduleRow({ id: newCourseId("mod"), course_id: deep.id, parent_id: d1.id, title: "D2", source: "kajabi", source_key: ctx.unique("km") });
+      const d3 = moduleRow({ id: newCourseId("mod"), course_id: deep.id, parent_id: d2.id, title: "D3", source: "kajabi", source_key: ctx.unique("km") });
+      await ctx.seed.modules([d1, d2, d3]);
+
+      expect(await repo.takeOverCourse(hub.id).catch((e: Error) => e.message)).toBe("not_editable");
+      expect(await repo.takeOverCourse(deep.id).catch((e: Error) => e.message)).toBe("too_deep");
+      expect((await repo.courseById(deep.id))?.source).toBe("kajabi");
+      expect((await repo.modulesOf([deep.id], { includeHidden: true })).map((m) => m.source)).toEqual(["kajabi", "kajabi", "kajabi"]);
+    });
+
     it("records and clears the library image of a course, its banner, a module and a lesson", async () => {
       const course = newCourse("images");
       await ctx.seed.courses([course]);

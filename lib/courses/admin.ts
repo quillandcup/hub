@@ -1,5 +1,5 @@
 import type { Repos } from "@/lib/data/repos";
-import type { LessonRecord } from "@/lib/data/courses";
+import type { CourseRecord, LessonRecord } from "@/lib/data/courses";
 import { isId } from "@/lib/ids";
 import { resolveCourseParam } from "@/lib/courses/course-param";
 import { buildHubOutline, type HubOutline } from "@/lib/courses/hub-outline";
@@ -61,12 +61,16 @@ const toLessons = (rows: any[]) =>
 
 export async function loadAdminCourses(repos: AdminCourseRepos, now = new Date()): Promise<AdminCourseRow[]> {
   const repo = repos.kajabiCourses;
-  const [bronze, silver, modules, lessons] = await Promise.all([
+  const [allBronze, silver, hubCourses, modules, lessons] = await Promise.all([
     repo.liveCourses(),
     repos.courses.courses({ source: "kajabi" }),
+    repos.courses.courses({ source: "hub" }),
     repo.liveModules(),
     repo.liveLessonOutlines(),
   ]);
+  // A course taken over from Kajabi is listed with the Hub's, once.
+  const takenOver = new Set(hubCourses.map((c) => c.source_key).filter(Boolean));
+  const bronze = allBronze.filter((c) => !takenOver.has(c.kajabi_id));
   const silverByKey = new Map(silver.map((c) => [c.source_key, c]));
   const access = await repos.courseProgress.accessOfCourses(silver.map((c) => c.id));
 
@@ -88,12 +92,11 @@ export async function loadAdminCourses(repos: AdminCourseRepos, now = new Date()
         totals: explained.totals,
       };
     });
-  return [...imported, ...(await loadHubCourseRows(repos, now))].sort((a, b) => Number(a.isDraft) - Number(b.isDraft) || a.title.localeCompare(b.title));
+  return [...imported, ...(await loadHubCourseRows(repos, hubCourses, now))].sort((a, b) => Number(a.isDraft) - Number(b.isDraft) || a.title.localeCompare(b.title));
 }
 
 /** The Hub-owned courses, shaped like the imported ones for the list. */
-async function loadHubCourseRows(repos: AdminCourseRepos, now: Date): Promise<AdminCourseRow[]> {
-  const courses = await repos.courses.courses({ source: "hub" });
+async function loadHubCourseRows(repos: AdminCourseRepos, courses: CourseRecord[], now: Date): Promise<AdminCourseRow[]> {
   if (courses.length === 0) return [];
   const ids = courses.map((c) => c.id);
   const [access, lessons] = await Promise.all([repos.courseProgress.accessOfCourses(ids), repos.courses.lessonsOf(ids, { includeHidden: true })]);
