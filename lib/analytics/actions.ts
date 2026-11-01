@@ -42,6 +42,9 @@ export const OUTCOME_ACTIONS = [
   "course_lesson_video_upload_started",
   "course_lesson_video_refreshed",
   "course_lesson_video_removed",
+  "course_lesson_file_upload_started",
+  "course_lesson_file_added",
+  "course_lesson_file_removed",
   // Chat
   "chat_message_sent",
   "chat_reaction_toggled",

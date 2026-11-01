@@ -5,6 +5,7 @@ import { memberEffect } from "@/lib/courses/explain";
 import { STATUS_CHOICES, statusChoices } from "@/lib/courses/status-choices";
 import { LessonStatusField, LessonTitleField } from "./LessonEditableFields";
 import LessonTextField from "./LessonTextField";
+import LessonFilesField from "./LessonFilesField";
 
 const FIELD =
   "w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800";
@@ -64,21 +65,27 @@ export default function LessonBuilderForm({ detail, media }: { detail: AdminLess
           )}
 
           <h3 className="mb-2 mt-6 font-semibold">Downloads</h3>
-          {files.length > 0 ? (
-            <ul className="space-y-2">
-              {files.map((f) => (
-                <li key={f.filename} className="rounded border border-slate-200 px-3 py-2 text-sm dark:border-slate-700">
-                  {f.filename}
-                  {formatBytes(f.sizeBytes) && <span className="ml-2 text-xs text-slate-600 dark:text-slate-400">{formatBytes(f.sizeBytes)}</span>}
-                </li>
-              ))}
-            </ul>
+          {detail.editable ? (
+            <LessonFilesField courseId={detail.course.id} lessonId={lesson.kajabiId} files={files} />
           ) : (
-            <p className="text-sm text-slate-600 dark:text-slate-400">No downloads.</p>
+            <>
+              {files.length > 0 ? (
+                <ul className="space-y-2">
+                  {files.map((f) => (
+                    <li key={f.filename} className="rounded border border-slate-200 px-3 py-2 text-sm dark:border-slate-700">
+                      {f.filename}
+                      {formatBytes(f.sizeBytes) && <span className="ml-2 text-xs text-slate-600 dark:text-slate-400">{formatBytes(f.sizeBytes)}</span>}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-slate-600 dark:text-slate-400">No downloads.</p>
+              )}
+              <button type="button" disabled title={SOON} className={`${BUTTON} mt-3`}>
+                Add files
+              </button>
+            </>
           )}
-          <button type="button" disabled title={SOON} className={`${BUTTON} mt-3`}>
-            Add files
-          </button>
         </div>
       </div>
 

@@ -3,6 +3,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createRepos, type Repos } from "@/lib/data/repos";
 import type { LessonFileRecord } from "@/lib/data/courses";
 import { visibleLessonIds } from "@/lib/courses/visible";
+import { COURSE_FILES_BUCKET, formatBytes } from "@/lib/courses/file-format";
+
+// They live in file-format.ts so a browser component can use them; server code keeps importing them from here.
+export { COURSE_FILES_BUCKET, formatBytes };
 
 /**
  * Lesson downloads -> the Hub (docs/COURSES.md, step D, files). The Kajabi content step records each
@@ -20,7 +24,6 @@ import { visibleLessonIds } from "@/lib/courses/visible";
  * service-role client.
  */
 
-export const COURSE_FILES_BUCKET = "course-files";
 /** Matches the bucket's own limit. A bigger file is reported, not copied. */
 export const MAX_COURSE_FILE_BYTES = 50 * 1024 * 1024;
 const LINK_MARGIN_MS = 5 * 60 * 1000;
@@ -91,13 +94,20 @@ export function storagePathFor(courseId: string, lessonId: string, kajabiFileId:
   return `${courseId}/${lessonId}/${kajabiFileId}-${safeFilename(filename)}`;
 }
 
-/** "148 KB", "2.4 MB". */
-export function formatBytes(bytes: number | null | undefined): string | null {
-  if (bytes === null || bytes === undefined || !Number.isFinite(bytes) || bytes < 0) return null;
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+const MAX_FILENAME_LENGTH = 200;
+/** The `source_key` of a download added in the Hub (Kajabi's are Kajabi's file ids); also the part of its stored path that keeps two files of one name apart. */
+export const UPLOADED_FILE_KEY = /^up-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/** What may be added to a lesson: a name, and a size the bucket accepts. */
+export function parseLessonFileUpload(input: { filename: unknown; size: unknown }): { ok: true; filename: string; size: number } | { ok: false; error: string } {
+  const filename = typeof input.filename === "string" ? input.filename.trim().replace(/^.*[\\/]/, "") : "";
+  if (!filename) return { ok: false, error: "That file has no name." };
+  if (filename.length > MAX_FILENAME_LENGTH) return { ok: false, error: `That file's name is longer than ${MAX_FILENAME_LENGTH} characters.` };
+  if (typeof input.size !== "number" || !Number.isFinite(input.size) || input.size <= 0) return { ok: false, error: "That file is empty." };
+  if (input.size > MAX_COURSE_FILE_BYTES) return { ok: false, error: `That file is larger than ${MAX_COURSE_FILE_BYTES / (1024 * 1024)} MB.` };
+  return { ok: true, filename, size: input.size };
 }
+
 
 export async function planCourseFiles(repos: Pick<Repos, "courses" | "kajabiCourses">, courseKajabiId: string, now: Date): Promise<FilePlan> {
   const repo = repos.kajabiCourses;
