@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
 import { getTestSupabaseAdminClient } from '../../helpers/supabase'
 import { planCourseVideos, refreshVideoStatuses, uploadCourseVideos, type CourseMuxApi } from '@/lib/courses/media'
+import { createRepos } from "@/lib/data/repos";
 
 /**
  * Step D against the real local database with a fake Mux: which videos are uploaded (only visible
@@ -83,7 +84,7 @@ describe('Course media step', () => {
   })
 
   it('plans the videos of visible lessons and, marked as drafts, the ones only drafts use, with what each needs', async () => {
-    const plan = await planCourseVideos(supabase, COURSE, NOW)
+    const plan = await planCourseVideos(createRepos(supabase), COURSE, NOW)
     const byMedia = Object.fromEntries(plan.map((p) => [p.mediaId, p]))
 
     expect(Object.keys(byMedia).sort()).toEqual([media('a'), media('b'), media('c'), media('draft'), media('indraft')])
@@ -96,7 +97,7 @@ describe('Course media step', () => {
   })
 
   it('uploads a video once, recording the video, its fingerprint and the Mux asset', async () => {
-    const result = await uploadCourseVideos(supabase, api, COURSE, NOW, fingerprint)
+    const result = await uploadCourseVideos(createRepos(supabase), api, COURSE, NOW, fingerprint)
 
     expect(result.uploaded).toHaveLength(1)
     expect(result.alreadyInMux).toBe(0)
@@ -118,7 +119,7 @@ describe('Course media step', () => {
   })
 
   it('reports videos that need a fresh link instead of uploading them', async () => {
-    const result = await uploadCourseVideos(supabase, api, COURSE, NOW, fingerprint)
+    const result = await uploadCourseVideos(createRepos(supabase), api, COURSE, NOW, fingerprint)
 
     expect(result.needsNewLink).toEqual(
       expect.arrayContaining([
@@ -130,7 +131,7 @@ describe('Course media step', () => {
 
   it('uploads nothing it has already uploaded', async () => {
     const before = (await videoRows()).length
-    const result = await uploadCourseVideos(supabase, api, COURSE, NOW, fingerprint)
+    const result = await uploadCourseVideos(createRepos(supabase), api, COURSE, NOW, fingerprint)
 
     expect(result.uploaded).toEqual([])
     expect(result.alreadyInMux).toBe(1)
@@ -140,7 +141,7 @@ describe('Course media step', () => {
 
   it('still uploads when the change check cannot reach the source (fingerprint left empty)', async () => {
     await supabase.from('videos').delete().eq('source_key', media('a'))
-    const result = await uploadCourseVideos(supabase, api, COURSE, NOW, async () => {
+    const result = await uploadCourseVideos(createRepos(supabase), api, COURSE, NOW, async () => {
       throw new Error('source answered 403')
     })
 
@@ -151,13 +152,13 @@ describe('Course media step', () => {
   it('marks a failed upload errored, then retries it into the same row', async () => {
     await supabase.from('videos').delete().eq('source_key', media('a'))
     mux.failNext = true
-    const failed = await uploadCourseVideos(supabase, api, COURSE, NOW, fingerprint)
+    const failed = await uploadCourseVideos(createRepos(supabase), api, COURSE, NOW, fingerprint)
 
     expect(failed.failed).toMatchObject([{ mediaId: media('a'), error: 'Mux said no' }])
     const [errored] = await videoRows()
     expect(errored).toMatchObject({ status: 'errored', mux_asset_id: null })
 
-    const retried = await uploadCourseVideos(supabase, api, COURSE, NOW, fingerprint)
+    const retried = await uploadCourseVideos(createRepos(supabase), api, COURSE, NOW, fingerprint)
     expect(retried.uploaded).toHaveLength(1)
     const rows = await videoRows()
     expect(rows).toHaveLength(1)
@@ -167,25 +168,25 @@ describe('Course media step', () => {
   it('brings statuses up to date from Mux: ready gets its playback id and length, preparing is left alone, errored is recorded', async () => {
     const [video] = await videoRows()
     mux.statuses[video.mux_asset_id] = { status: 'ready', durationSeconds: 601.5, playbackId: 'signed-pb' }
-    let result = await refreshVideoStatuses(supabase, api)
+    let result = await refreshVideoStatuses(createRepos(supabase), api)
     expect(result.ready).toBeGreaterThanOrEqual(1)
     expect((await videoRows())[0]).toMatchObject({ status: 'ready', mux_playback_id: 'signed-pb', duration_seconds: 601.5 })
 
     // Nothing preparing for this course any more; a new preparing one that Mux still holds is left as it is.
     await supabase.from('videos').update({ status: 'preparing' }).eq('id', video.id)
     mux.statuses[video.mux_asset_id] = { status: 'preparing' }
-    result = await refreshVideoStatuses(supabase, api)
+    result = await refreshVideoStatuses(createRepos(supabase), api)
     expect(result.stillPreparing).toBeGreaterThanOrEqual(1)
     expect((await videoRows())[0].status).toBe('preparing')
 
     mux.statuses[video.mux_asset_id] = { status: 'errored' }
-    result = await refreshVideoStatuses(supabase, api)
+    result = await refreshVideoStatuses(createRepos(supabase), api)
     expect(result.errored).toBeGreaterThanOrEqual(1)
     expect((await videoRows())[0].status).toBe('errored')
   })
 
   it('plans an errored video for retry', async () => {
-    const plan = await planCourseVideos(supabase, COURSE, NOW)
+    const plan = await planCourseVideos(createRepos(supabase), COURSE, NOW)
     const a = plan.find((p) => p.mediaId === media('a'))!
     expect(a).toMatchObject({ state: 'ready_to_upload', videoStatus: 'errored' })
     expect(a.retryVideoId).toBeTruthy()
@@ -194,20 +195,20 @@ describe('Course media step', () => {
   it('never uploads the videos only drafts use in the normal upload, and uploads exactly those when asked for drafts', async () => {
     const draftKeys = [media('draft'), media('indraft')]
     try {
-      const normal = await uploadCourseVideos(supabase, api, COURSE, NOW, fingerprint)
+      const normal = await uploadCourseVideos(createRepos(supabase), api, COURSE, NOW, fingerprint)
       // The normal upload may retry the visible lesson's errored video (the test before), but never a draft's.
       expect(normal.uploaded.every((u) => !draftKeys.includes(u.mediaId))).toBe(true)
       expect(await supabase.from('videos').select('id').in('source_key', draftKeys)).toMatchObject({ data: [] })
       const afterNormal = mux.created.length
 
-      const drafts = await uploadCourseVideos(supabase, api, COURSE, NOW, fingerprint, { drafts: true })
+      const drafts = await uploadCourseVideos(createRepos(supabase), api, COURSE, NOW, fingerprint, { drafts: true })
       expect(drafts.uploaded.map((u) => u.mediaId).sort()).toEqual([media('draft'), media('indraft')])
       // Only drafts: the visible lessons' videos aren't this action's business.
       expect(drafts.needsNewLink).toEqual([])
       expect(mux.created.length).toBe(afterNormal + 2)
 
       // Repeating it uploads nothing more.
-      const again = await uploadCourseVideos(supabase, api, COURSE, NOW, fingerprint, { drafts: true })
+      const again = await uploadCourseVideos(createRepos(supabase), api, COURSE, NOW, fingerprint, { drafts: true })
       expect(again.uploaded).toEqual([])
       expect(again.alreadyInMux).toBe(2)
     } finally {
@@ -217,7 +218,7 @@ describe('Course media step', () => {
   it('uploads exactly the videos picked, and reports picks this upload does not cover', async () => {
     const draftKeys = [media('draft'), media('indraft')]
     try {
-      const picked = await uploadCourseVideos(supabase, api, COURSE, NOW, fingerprint, {
+      const picked = await uploadCourseVideos(createRepos(supabase), api, COURSE, NOW, fingerprint, {
         drafts: true,
         mediaIds: [media('draft'), media('a'), `${COURSE}-nope`],
       })
@@ -229,7 +230,7 @@ describe('Course media step', () => {
       expect((await supabase.from('videos').select('id').eq('source_key', media('indraft'))).data).toEqual([])
 
       // Without a selection nothing is reported unavailable and every draft still left is considered.
-      const rest = await uploadCourseVideos(supabase, api, COURSE, NOW, fingerprint, { drafts: true })
+      const rest = await uploadCourseVideos(createRepos(supabase), api, COURSE, NOW, fingerprint, { drafts: true })
       expect(rest.notAvailable).toEqual([])
       expect(rest.uploaded.map((u) => u.mediaId)).toEqual([media('indraft')])
       expect(rest.alreadyInMux).toBe(1)

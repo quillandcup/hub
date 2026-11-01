@@ -1,5 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createRepos } from "@/lib/data/repos";
+import type { Repos } from "@/lib/data/repos";
 import type { CourseRecord } from "@/lib/data/courses";
 import { courseImageSrc } from "@/lib/courses/image-urls";
 import { resumeSeconds } from "@/lib/courses/watch";
@@ -13,6 +12,8 @@ import {
   type OutlineLesson,
   type OutlineModule,
 } from "@/lib/courses/outline";
+
+type MemberCourseRepos = Pick<Repos, "courseProgress" | "courses">;
 
 /**
  * What the member course pages read (docs/COURSES.md, "Member experience").
@@ -81,8 +82,8 @@ export interface MemberScope {
   now?: Date;
 }
 
-async function loadAccessRows(supabase: SupabaseClient, memberId: string, courseIds?: string[]) {
-  const rows = await createRepos(supabase).courseProgress.memberAccess(memberId, courseIds);
+async function loadAccessRows(repos: MemberCourseRepos, memberId: string, courseIds?: string[]) {
+  const rows = await repos.courseProgress.memberAccess(memberId, courseIds);
   return new Map(rows.map((r) => [r.course_id, r as AccessRowLike]));
 }
 
@@ -91,8 +92,8 @@ async function loadAccessRows(supabase: SupabaseClient, memberId: string, course
  * which only staff acting as themselves pass: a member's outline must never contain a draft, not even
  * its title. This is the one place the member pages read the structure, so it is the one place that decides.
  */
-async function loadStructure(supabase: SupabaseClient, courseIds: string[], includeHidden = false) {
-  const courses = createRepos(supabase).courses;
+async function loadStructure(repos: MemberCourseRepos, courseIds: string[], includeHidden = false) {
+  const courses = repos.courses;
   const [modules, lessons] = await Promise.all([courses.modulesOf(courseIds, { includeHidden }), courses.lessonsOf(courseIds, { includeHidden })]);
   return {
     modules: modules.map((m) => ({ id: m.id, course_id: m.course_id, parent_id: m.parent_id, title: m.title, position: m.position, state: m.state })),
@@ -111,17 +112,17 @@ async function loadStructure(supabase: SupabaseClient, courseIds: string[], incl
   };
 }
 
-function loadCompleted(supabase: SupabaseClient, memberId: string, lessonIds: string[]): Promise<Set<string>> {
-  return createRepos(supabase).courseProgress.completedLessonIds(memberId, lessonIds);
+function loadCompleted(repos: MemberCourseRepos, memberId: string, lessonIds: string[]): Promise<Set<string>> {
+  return repos.courseProgress.completedLessonIds(memberId, lessonIds);
 }
 
 /** A member's access to one course (admins acting as themselves open everything). */
-export async function loadMemberCourseAccess(supabase: SupabaseClient, scope: MemberScope, courseId: string): Promise<CourseAccess> {
+export async function loadMemberCourseAccess(repos: MemberCourseRepos, scope: MemberScope, courseId: string): Promise<CourseAccess> {
   if (scope.isAdminActing) return { kind: "admin" };
   // A draft is no one's to open yet, whatever access rows exist (staff in sudo see what the member sees).
-  const course = await createRepos(supabase).courses.courseById(courseId);
+  const course = await repos.courses.courseById(courseId);
   if (!course || course.is_draft) return { kind: "none" };
-  const row = (await loadAccessRows(supabase, scope.memberId, [courseId])).get(courseId);
+  const row = (await loadAccessRows(repos, scope.memberId, [courseId])).get(courseId);
   return resolveCourseAccess(row, false, scope.now ?? new Date());
 }
 
@@ -132,9 +133,8 @@ export interface CourseListItem {
 }
 
 /** The courses a member can see: the ones they have (or had) access to, or all of them for staff. Current courses first, ended ones after, each by title. */
-export async function loadCourseList(supabase: SupabaseClient, scope: MemberScope): Promise<CourseListItem[]> {
+export async function loadCourseList(repos: MemberCourseRepos, scope: MemberScope): Promise<CourseListItem[]> {
   const now = scope.now ?? new Date();
-  const repos = createRepos(supabase);
   let courseIds: string[];
   let accessByCourse = new Map<string, AccessRowLike>();
 
@@ -142,7 +142,7 @@ export async function loadCourseList(supabase: SupabaseClient, scope: MemberScop
     // Staff acting as themselves get every course, drafts too, to preview them.
     courseIds = (await repos.courses.courses()).map((c) => c.id);
   } else {
-    accessByCourse = await loadAccessRows(supabase, scope.memberId);
+    accessByCourse = await loadAccessRows(repos, scope.memberId);
     courseIds = Array.from(accessByCourse.keys());
   }
   if (courseIds.length === 0) return [];
@@ -150,8 +150,8 @@ export async function loadCourseList(supabase: SupabaseClient, scope: MemberScop
   const courses: CourseRow[] = (await repos.courses.courses({ ids: courseIds }))
     .filter((c) => scope.isAdminActing || !c.is_draft)
     .map(withCourseImage);
-  const { modules, lessons } = await loadStructure(supabase, courseIds, scope.isAdminActing);
-  const completed = await loadCompleted(supabase, scope.memberId, lessons.map((l) => l.id));
+  const { modules, lessons } = await loadStructure(repos, courseIds, scope.isAdminActing);
+  const completed = await loadCompleted(repos, scope.memberId, lessons.map((l) => l.id));
 
   return courses
     .map((course) => {
@@ -180,13 +180,11 @@ export interface ContinueWatching {
  * next open lesson of a course they've started. Only courses whose access is open now (an ended or upcoming
  * one offers no resume), and nothing for staff acting as themselves, who would otherwise get every course.
  */
-export async function loadContinueWatching(supabase: SupabaseClient, scope: MemberScope): Promise<ContinueWatching | null> {
+export async function loadContinueWatching(repos: MemberCourseRepos, scope: MemberScope): Promise<ContinueWatching | null> {
   if (scope.isAdminActing) return null;
-  const items = (await loadCourseList(supabase, scope)).filter((i) => i.access.kind === "open");
+  const items = (await loadCourseList(repos, scope)).filter((i) => i.access.kind === "open");
   if (items.length === 0) return null;
   const byCourse = new Map(items.map((i) => [i.course.id, i]));
-
-  const repos = createRepos(supabase);
   const rows = await repos.courseProgress.partlyWatched(scope.memberId, 50);
   const positions = new Map(rows.map((r) => [r.lesson_id, r.last_position_seconds]));
 
@@ -229,20 +227,20 @@ export interface CourseView {
 }
 
 /** One course by slug, or null when there is none. */
-export async function loadCourseView(supabase: SupabaseClient, slug: string, scope: MemberScope): Promise<CourseView | null> {
-  const courseRow = await createRepos(supabase).courses.courseBySlug(slug);
+export async function loadCourseView(repos: MemberCourseRepos, slug: string, scope: MemberScope): Promise<CourseView | null> {
+  const courseRow = await repos.courses.courseBySlug(slug);
   // A draft is there for staff acting as themselves to preview; to everyone else (staff in sudo too) it doesn't exist.
   if (!courseRow || (courseRow.is_draft && !scope.isAdminActing)) return null;
   const course = withCourseImage(courseRow);
 
-  const accessRow = scope.isAdminActing ? undefined : (await loadAccessRows(supabase, scope.memberId, [course.id])).get(course.id);
+  const accessRow = scope.isAdminActing ? undefined : (await loadAccessRows(repos, scope.memberId, [course.id])).get(course.id);
   const access = resolveCourseAccess(accessRow, scope.isAdminActing, scope.now ?? new Date());
   // Nothing of the course is shown before it's theirs to open: no access, or not started yet.
   if (access.kind === "none" || access.kind === "upcoming") return { course, access, outline: null, completed: new Set(), progress: null };
 
-  const { modules, lessons } = await loadStructure(supabase, [course.id], scope.isAdminActing);
+  const { modules, lessons } = await loadStructure(repos, [course.id], scope.isAdminActing);
   const outline = buildOutline(modules as OutlineModule[], lessons as OutlineLesson[]);
-  const completed = await loadCompleted(supabase, scope.memberId, outline.lessons.map((l) => l.id));
+  const completed = await loadCompleted(repos, scope.memberId, outline.lessons.map((l) => l.id));
   return { course, access, outline, completed, progress: courseProgress(outline, completed) };
 }
 
@@ -275,12 +273,12 @@ export type LessonResult =
   | ({ kind: "ok" } & LessonView);
 
 export async function loadLessonView(
-  supabase: SupabaseClient,
+  repos: MemberCourseRepos,
   slug: string,
   lessonId: string,
   scope: MemberScope
 ): Promise<LessonResult> {
-  const view = await loadCourseView(supabase, slug, scope);
+  const view = await loadCourseView(repos, slug, scope);
   if (!view) return { kind: "not_found" };
   if (!view.outline || !canOpenLessons(view.access)) return { kind: "no_access", view };
 
@@ -290,8 +288,6 @@ export async function loadLessonView(
   // Staff acting as themselves can preview unreleased lessons; everyone else (and staff in sudo) gets "Coming soon".
   const preview = summary.state !== "open";
   if (preview && !scope.isAdminActing) return { kind: "coming_soon", view: withOutline };
-
-  const repos = createRepos(supabase);
   const lesson = await repos.courses.lessonBody(lessonId);
   if (!lesson) return { kind: "not_found" };
 

@@ -29,7 +29,7 @@ export async function GET(
 
   try {
     const { candidates, offerNamesConfigured } = await findKajabiCandidatesForCohort(
-      supabase,
+      createRepos(supabase),
       { id: cohort.id, starts_at: cohort.starts_at, expires_at: cohort.expires_at },
       program
     );

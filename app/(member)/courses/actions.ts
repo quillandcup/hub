@@ -25,7 +25,7 @@ async function setLessonCompleteImpl(lessonId: string, complete: boolean): Promi
   const service = createServiceRoleClient();
   const lesson = await createRepos(service).courses.lessonById(lessonId);
   if (!lesson || lesson.state !== "open") return { error: "Lesson not found" };
-  const access = await loadMemberCourseAccess(service, caller.scope, lesson.course_id);
+  const access = await loadMemberCourseAccess(createRepos(service), caller.scope, lesson.course_id);
   if (!canOpenLessons(access)) return { error: "You don't have access to this course" };
 
   // Written as the member (RLS: their own rows only), not with the service role.
@@ -37,7 +37,7 @@ async function setLessonCompleteImpl(lessonId: string, complete: boolean): Promi
     return { error: "Couldn't save your progress" };
   }
   if (complete) {
-    await recordLessonCompleted(supabase, { memberId: caller.identity.memberId, lessonId, courseId: lesson.course_id, lessonTitle: lesson.title, lessonSeconds: lesson.duration_seconds === null ? null : Number(lesson.duration_seconds) });
+    await recordLessonCompleted(createRepos(supabase), { memberId: caller.identity.memberId, lessonId, courseId: lesson.course_id, lessonTitle: lesson.title, lessonSeconds: lesson.duration_seconds === null ? null : Number(lesson.duration_seconds) });
   }
 
   revalidatePath("/courses", "layout");

@@ -1,6 +1,5 @@
 import { WebClient } from "@slack/web-api";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createRepos } from "@/lib/data/repos";
+import type { Repos } from "@/lib/data/repos";
 import { chatSlackWritesEnabled } from "@/lib/chat/slack-post";
 import { isDeadTokenError } from "@/lib/slack-connect";
 import { getSlackBotToken } from "@/lib/slack-bot-token";
@@ -18,10 +17,10 @@ export type SlackMembershipResult = { ok: true } | { ok: false; error: string };
 const slackError = (error: unknown): string | undefined => (error as { data?: { error?: string } } | null)?.data?.error;
 
 /** The Slack account each member is, where the Hub has matched one (the same map the chat's authors come from). */
-export async function slackUserIdsFor(service: SupabaseClient, memberIds: string[]): Promise<Map<string, string>> {
+export async function slackUserIdsFor(repos: Pick<Repos, "chat">, memberIds: string[]): Promise<Map<string, string>> {
   if (memberIds.length === 0) return new Map();
   // A failed lookup reads as nobody matched (the callers then say so), as it always has.
-  return createRepos(service).chat.slackUserIdsByMember(memberIds).catch((error: Error) => {
+  return repos.chat.slackUserIdsByMember(memberIds).catch((error: Error) => {
     console.error("looking up the Slack accounts of members failed:", error.message);
     return new Map<string, string>();
   });

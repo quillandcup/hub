@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { createFakeSupabase, type FakeQuery, type FakeSupabase, type FakeTables } from "@/tests/helpers/server-page";
 import { APP_URL, ATTENDANCE_DATA_STARTS_ON, SLACK_INTRO_CHANNEL, SLACK_WORKSPACE_URL } from "@/lib/config";
 import { sendHourFor } from "@/lib/nudge-jitter";
+import { createRepos } from "@/lib/data/repos";
 
 // The reminder job end to end with Supabase, Slack and the calendar loader faked: what matters is
 // who gets which reminder and when, not what the queries look like.
@@ -629,7 +630,7 @@ describe("the reminder feature flags", () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
 
     expect((await sendMemberReminders(fake as never, now, {
-      liveFor: (_kind, ids) => membersWithFeatureForOutreach(fake, "intro_reminders", ids),
+      liveFor: (_kind, ids) => membersWithFeatureForOutreach(createRepos(fake as never), "intro_reminders", ids),
     })).intro).toBe(1);
   });
 });

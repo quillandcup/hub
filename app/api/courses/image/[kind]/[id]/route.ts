@@ -24,7 +24,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   const caller = await getCoursesCaller();
   const supabase = createServiceRoleClient();
-  const isPublic = !caller && kind === "lesson" && "preview" in (await publicLessonPreview(supabase, id));
+  const isPublic = !caller && kind === "lesson" && "preview" in (await publicLessonPreview(createRepos(supabase), id));
   if (!caller && !isPublic) return new NextResponse("Not found", { status: 404 });
 
   const repos = createRepos(supabase);

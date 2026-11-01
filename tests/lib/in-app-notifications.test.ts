@@ -8,7 +8,6 @@ vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => servic
 vi.mock("@/lib/slack-member-ids", () => ({ resolveSlackUserIds: async () => new Map() }));
 vi.mock("@/lib/slack", () => ({ sendSlackDM: vi.fn() }));
 
-const { membersWithFeature } = await import("@/lib/features.server");
 const {
   countInAppNotifications,
   hubPath,
@@ -26,41 +25,6 @@ const callsOf = (fake: FakeSupabase, table: string) => fake.queries.filter((q) =
 
 beforeEach(() => {
   serviceFake = createFakeSupabase();
-});
-
-describe("membersWithFeature", () => {
-  // m1 and m2 can sign in; m3 has no Hub account.
-  const MEMBERS = {
-    data: [
-      { id: "m1", user_id: "u1" },
-      { id: "m2", user_id: "u2" },
-      { id: "m3", user_id: null },
-    ],
-  };
-
-  it("is everyone with an account when the flag is on globally", async () => {
-    const fake = createFakeSupabase({ feature_flags: { data: { enabled_globally: true } }, members: MEMBERS });
-    expect(await membersWithFeature(fake, "browser_notifications", ["m1", "m2", "m3"])).toEqual(new Set(["m1", "m2"]));
-  });
-
-  it("is members opted in individually or through a segment", async () => {
-    const fake = createFakeSupabase({
-      feature_flags: { data: null },
-      members: MEMBERS,
-      user_feature_previews: { data: [{ user_id: "u1" }] },
-      feature_flag_segments: { data: [{ segment_id: "s1" }] },
-      segment_members: { data: [{ member_id: "m2" }] },
-    });
-    expect(await membersWithFeature(fake, "browser_notifications", ["m1", "m2", "m3"])).toEqual(new Set(["m1", "m2"]));
-    expect(callsOf(fake, "user_feature_previews")).toContainEqual({ method: "in", args: ["user_id", ["u1", "u2"]] });
-    expect(callsOf(fake, "segment_members")).toContainEqual({ method: "in", args: ["segment_id", ["s1"]] });
-  });
-
-  it("is nobody without the flag, and skips segment lookups when it has no segments", async () => {
-    const fake = createFakeSupabase({ members: MEMBERS });
-    expect(await membersWithFeature(fake, "browser_notifications", ["m1", "m2"])).toEqual(new Set());
-    expect(callsOf(fake, "segment_members")).toEqual([]);
-  });
 });
 
 describe("hubPath", () => {

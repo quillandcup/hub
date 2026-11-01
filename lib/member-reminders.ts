@@ -194,10 +194,10 @@ export async function sendMemberReminders(
   const newcomers = members.filter((m) => isNewcomer(m.first_joined_at, now));
 
   const [introduced, lastAttendance, log, channelId, zones] = await Promise.all([
-    loadIntroducedMemberIds(supabase, newcomers.map((m) => m.id)),
+    loadIntroducedMemberIds(createRepos(supabase), newcomers.map((m) => m.id)),
     loadLastAttendanceByMember(createRepos(supabase).attendance, memberIds),
     loadNudgeLog(supabase, memberIds),
-    loadIntroChannelId(supabase),
+    loadIntroChannelId(createRepos(supabase)),
     loadMemberTimeZones(supabase, members),
   ]);
   const zoneOf = (memberId: string) => zones.get(memberId) ?? ORG_TIMEZONE;

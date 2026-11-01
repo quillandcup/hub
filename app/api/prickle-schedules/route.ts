@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
   const nextMonth = getNextMonthStart(now).toISOString().slice(0, 10);
   if (month === nextMonth) {
     const currentMonth = getMonthStart(now).toISOString().slice(0, 10);
-    await seedNextMonthSchedules(supabase, currentMonth, nextMonth);
+    await seedNextMonthSchedules(createRepos(supabase), currentMonth, nextMonth);
   }
 
   let schedules;
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
   let eligibilityByHost;
   try {
     eligibilityByHost = await fetchHostEligibilityByMember(
-      supabase,
+      createRepos(supabase),
       (schedules ?? []).map((s) => s.host_id as string),
       now
     );

@@ -1,7 +1,8 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createRepos } from "@/lib/data/repos";
+import type { Repos } from "@/lib/data/repos";
 import { isFeatureOnForEveryone } from "@/lib/features.server";
 import { safeUrl } from "@/lib/url";
+
+type PreviewRepos = Pick<Repos, "courses" | "featureFlags">;
 
 /**
  * What anyone may see of a lesson without signing in, so a shared link can show a title, a
@@ -31,13 +32,11 @@ export interface PublicLessonPreview {
 export type PreviewBlocker = "feature_off" | "not_found" | "course_not_live" | "not_open";
 
 export async function publicLessonPreview(
-  supabase: SupabaseClient,
+  repos: PreviewRepos,
   lessonId: string,
   opts: { slug?: string; now?: Date } = {}
 ): Promise<{ preview: PublicLessonPreview } | { blocked: PreviewBlocker }> {
-  if (!(await isFeatureOnForEveryone(supabase, "courses"))) return { blocked: "feature_off" };
-
-  const repos = createRepos(supabase);
+  if (!(await isFeatureOnForEveryone(repos, "courses"))) return { blocked: "feature_off" };
   const lesson = await repos.courses.lessonById(lessonId);
   if (!lesson) return { blocked: "not_found" };
 

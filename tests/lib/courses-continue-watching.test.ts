@@ -4,6 +4,7 @@ import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
 import { loadContinueWatching } from "@/lib/courses/member";
 import { accessRow, courseRow, lessonRow, progressRow } from "@/tests/helpers/course-fixtures";
+import { createRepos } from "@/lib/data/repos";
 
 let dataset = new InMemoryDataset();
 let failProgressRead = false;
@@ -48,35 +49,35 @@ beforeEach(() => {
 
 describe("loadContinueWatching", () => {
   it("resumes the half-watched lesson with a link to it", async () => {
-    const result = await loadContinueWatching(client, scope);
+    const result = await loadContinueWatching(createRepos(client), scope);
     expect(result).toMatchObject({ href: `/courses/memoir/lessons/${L2}`, positionSeconds: 90, lesson: { title: "Scenes" }, progress: { completed: 1, available: 2 } });
   });
 
   it("falls back to the next open lesson of a started course", async () => {
     seed({ lessonProgress: [progressRow({ member_id: MEMBER, lesson_id: L1, completed_at: "2026-11-01T00:00:00Z" })] });
-    const result = await loadContinueWatching(client, scope);
+    const result = await loadContinueWatching(createRepos(client), scope);
     expect(result).toMatchObject({ href: `/courses/memoir/lessons/${L2}`, positionSeconds: 0 });
   });
 
   it("offers nothing when nothing is started", async () => {
     seed({ lessonProgress: [] });
-    expect(await loadContinueWatching(client, scope)).toBeNull();
+    expect(await loadContinueWatching(createRepos(client), scope)).toBeNull();
   });
 
   it("offers nothing once access has ended", async () => {
     seed({ courseAccess: [accessRow({ member_id: MEMBER, course_id: COURSE, starts_at: "2026-01-01T00:00:00Z", ends_at: "2026-02-01T00:00:00Z" })] });
-    expect(await loadContinueWatching(client, scope)).toBeNull();
+    expect(await loadContinueWatching(createRepos(client), scope)).toBeNull();
   });
 
   it("offers nothing without access, or to staff acting as themselves", async () => {
     seed({ courseAccess: [] });
-    expect(await loadContinueWatching(client, scope)).toBeNull();
+    expect(await loadContinueWatching(createRepos(client), scope)).toBeNull();
     seed();
-    expect(await loadContinueWatching(client, { ...scope, isAdminActing: true })).toBeNull();
+    expect(await loadContinueWatching(createRepos(client), { ...scope, isAdminActing: true })).toBeNull();
   });
 
   it("throws on a database error", async () => {
     failProgressRead = true;
-    await expect(loadContinueWatching(client, scope)).rejects.toThrow(/boom/);
+    await expect(loadContinueWatching(createRepos(client), scope)).rejects.toThrow(/boom/);
   });
 });

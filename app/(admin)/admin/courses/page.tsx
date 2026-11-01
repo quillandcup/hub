@@ -5,13 +5,14 @@ import { createClient } from "@/lib/supabase/server";
 import { loadAdminCourses } from "@/lib/courses/admin";
 import { accessLabel } from "@/lib/courses/access-options";
 import { formatCourseDate } from "@/lib/courses/format";
+import { createRepos } from "@/lib/data/repos";
 
 export const metadata: Metadata = { title: "Courses" };
 
 export default async function AdminCoursesPage() {
   await requireAdminPage();
   const supabase = await createClient();
-  const courses = await loadAdminCourses(supabase);
+  const courses = await loadAdminCourses(createRepos(supabase));
 
   return (
     <div className="container mx-auto max-w-6xl px-6 py-8">

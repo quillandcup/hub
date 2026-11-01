@@ -1,6 +1,7 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createRepos } from "@/lib/data/repos";
+import type { Repos } from "@/lib/data/repos";
 import { buildAliasMap, resolveEmail } from "@/lib/email-aliases";
+
+type ProgressImportRepos = Pick<Repos, "aliases" | "courseProgress" | "courses" | "kajabiCourses" | "members">;
 
 /**
  * Bronze (bronze.kajabi_lesson_progress) -> Silver lesson_progress (docs/COURSES.md, "Importing Kajabi per-lesson
@@ -42,13 +43,11 @@ export class CourseProgressError extends Error {
 }
 
 export async function importKajabiLessonProgress(
-  supabase: SupabaseClient,
+  repos: ProgressImportRepos,
   options: { courseSlug?: string; dryRun?: boolean; now?: Date } = {},
 ): Promise<CourseProgressResult> {
   const dryRun = options.dryRun ?? false;
   const now = options.now ?? new Date();
-
-  const repos = createRepos(supabase as never);
   const only = options.courseSlug ? await repos.courses.courseBySlug(options.courseSlug, { source: "kajabi" }) : null;
   const courses = options.courseSlug ? (only ? [only] : []) : await repos.courses.courses({ source: "kajabi" });
   if (options.courseSlug && courses.length === 0) throw new CourseProgressError(`No Kajabi course has the slug "${options.courseSlug}"`, 404);

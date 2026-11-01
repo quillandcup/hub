@@ -23,7 +23,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   if (!caller) return new NextResponse("Not found", { status: 404 });
 
   const supabase = createServiceRoleClient();
-  const lesson = await loadLessonView(supabase, slug, lessonId, caller.scope);
+  const lesson = await loadLessonView(createRepos(supabase), slug, lessonId, caller.scope);
   if (lesson.kind !== "ok") return new NextResponse("Not found", { status: 404 });
 
   const file = await createRepos(supabase).courses.lessonFile(lessonId, fileId);

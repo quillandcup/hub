@@ -6,6 +6,7 @@ import { ORG_TIMEZONE } from "@/lib/config";
 import { firstOfNextMonth, joinAt, loadPrickleJoinSettings, tomorrowIn } from "@/lib/prickle-join";
 import PrickleJoinForm from "./PrickleJoinForm";
 import RemoveScheduledButton from "./RemoveScheduledButton";
+import { createRepos } from "@/lib/data/repos";
 
 export const metadata: Metadata = {
   title: "Prickle Zoom Link",
@@ -16,7 +17,7 @@ const when = (iso: string) =>
 
 export default async function PrickleJoinPage() {
   await requireAdminPage();
-  const settings = await loadPrickleJoinSettings(await createClient());
+  const settings = await loadPrickleJoinSettings(createRepos(await createClient()));
   const now = clock.now();
   const current = joinAt(settings);
 

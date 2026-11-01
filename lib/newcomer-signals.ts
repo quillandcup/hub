@@ -1,6 +1,8 @@
 import { SLACK_INTRO_CHANNEL } from "@/lib/config";
 import type { AttendanceRepository } from "@/lib/data/attendance";
-import { createRepos } from "@/lib/data/repos";
+import type { Repos } from "@/lib/data/repos";
+
+type NewcomerRepos = Pick<Repos, "activities">;
 
 /**
  * What a newcomer has (or hasn't) done yet, read from the member's own data so the Getting started
@@ -13,8 +15,8 @@ import { createRepos } from "@/lib/data/repos";
  * member_activities, which already has Slack users matched to members; its 'slack_message' type is
  * the top-level messages ('slack_thread_reply' is replies).
  */
-export async function loadIntroducedMemberIds(supabase: any, memberIds: string[]): Promise<Set<string>> {
-  return createRepos(supabase).activities.introducedIn(memberIds, SLACK_INTRO_CHANNEL);
+export async function loadIntroducedMemberIds(repos: NewcomerRepos, memberIds: string[]): Promise<Set<string>> {
+  return repos.activities.introducedIn(memberIds, SLACK_INTRO_CHANNEL);
 }
 
 /** Which of these members have attended at least one prickle. */
@@ -31,6 +33,6 @@ export function loadLastAttendanceByMember(attendance: AttendanceRepository, mem
 }
 
 /** Slack channel id of the intro channel, or null when the workspace has no such channel (yet). Bronze is admin-only, so pass a service-role client. */
-export async function loadIntroChannelId(serviceRole: any): Promise<string | null> {
-  return createRepos(serviceRole).slackWorkspace.channelIdByName(SLACK_INTRO_CHANNEL);
+export async function loadIntroChannelId(repos: Pick<Repos, "slackWorkspace">): Promise<string | null> {
+  return repos.slackWorkspace.channelIdByName(SLACK_INTRO_CHANNEL);
 }

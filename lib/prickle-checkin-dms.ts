@@ -100,7 +100,7 @@ export async function loadCalendarPrickleIdsByMember(
     await Promise.all(
       memberIds.slice(i, i + CALENDAR_LOAD_CONCURRENCY).map(async (memberId) => {
         try {
-          result.set(memberId, await loadCalendarFeedPrickleIds(supabase, memberId, since, now));
+          result.set(memberId, await loadCalendarFeedPrickleIds(createRepos(supabase), memberId, since, now));
         } catch (error) {
           console.error(`loadCalendarPrickleIdsByMember: calendar failed to load for member=${memberId}:`, error);
           result.set(memberId, new Set());
@@ -721,7 +721,7 @@ export async function sendCheckoutDMs(
     loadAttendees(supabase, prickleIds),
     loadSentCheckouts(supabase, prickleIds),
     loadDismissedPairs(supabase, "checkout", prickleIds),
-    loadPresenceByMember(supabase, new Date(presenceSince), new Date(now)),
+    loadPresenceByMember(createRepos(supabase), new Date(presenceSince), new Date(now)),
   ]);
   const dueByPrickle = dueCheckoutMembers(prickles, attendeesByPrickle, presenceByMember, now);
   // A dismissed check-out is as good as a sent one: nothing more goes out for the pair.
@@ -863,7 +863,7 @@ export async function sendTestCheckinDM(
   if (kind === "prickle_checkin") {
     message = checkinMessage(prickle, saved, {
       test: true,
-      join: joinAt(await loadPrickleJoinSettings(supabase), prickle.startTime),
+      join: joinAt(await loadPrickleJoinSettings(createRepos(supabase)), prickle.startTime),
     });
   } else {
     const goals = (await getActiveGoalCandidates(supabase)).filter((g) => g.memberId === memberId);

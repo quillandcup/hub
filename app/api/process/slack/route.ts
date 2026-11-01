@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
       slackUsers,
       members,
       aliases || [],
-      await loadVerifiedSlackLinks(supabase)
+      await loadVerifiedSlackLinks(createRepos(supabase))
     );
 
     console.log(`Matched ${userToMemberMap.size} Slack users to members`);

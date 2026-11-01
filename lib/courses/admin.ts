@@ -1,5 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createRepos } from "@/lib/data/repos";
+import type { Repos } from "@/lib/data/repos";
 import type { LessonRecord } from "@/lib/data/courses";
 import { isId } from "@/lib/ids";
 import { buildHubOutline, type HubOutline } from "@/lib/courses/hub-outline";
@@ -10,6 +9,8 @@ import { resolveCourseAccess } from "@/lib/courses/member";
 import { slugifyTitle, type Visibility } from "@/lib/courses/visibility";
 import { planCourseVideos, type PlannedVideo } from "@/lib/courses/media";
 import { planCourseFiles, type FilePlan } from "@/lib/courses/files";
+
+type AdminCourseRepos = Pick<Repos, "courseProgress" | "courses" | "kajabiCourses" | "programs">;
 
 /**
  * What the admin Courses page reads: every Kajabi course with its Hub state (published or not,
@@ -57,8 +58,7 @@ const toLessons = (rows: any[]) =>
   rows.map((l) => ({ kajabiId: l.kajabi_id, moduleKajabiId: l.module_kajabi_id, position: l.position, title: l.title, publishingOption: l.publishing_option }));
 
 
-export async function loadAdminCourses(supabase: SupabaseClient, now = new Date()): Promise<AdminCourseRow[]> {
-  const repos = createRepos(supabase);
+export async function loadAdminCourses(repos: AdminCourseRepos, now = new Date()): Promise<AdminCourseRow[]> {
   const repo = repos.kajabiCourses;
   const [bronze, silver, modules, lessons] = await Promise.all([
     repo.liveCourses(),
@@ -87,12 +87,11 @@ export async function loadAdminCourses(supabase: SupabaseClient, now = new Date(
         totals: explained.totals,
       };
     });
-  return [...imported, ...(await loadHubCourseRows(supabase, now))].sort((a, b) => Number(a.isDraft) - Number(b.isDraft) || a.title.localeCompare(b.title));
+  return [...imported, ...(await loadHubCourseRows(repos, now))].sort((a, b) => Number(a.isDraft) - Number(b.isDraft) || a.title.localeCompare(b.title));
 }
 
 /** The Hub-owned courses, shaped like the imported ones for the list. */
-async function loadHubCourseRows(supabase: SupabaseClient, now: Date): Promise<AdminCourseRow[]> {
-  const repos = createRepos(supabase);
+async function loadHubCourseRows(repos: AdminCourseRepos, now: Date): Promise<AdminCourseRow[]> {
   const courses = await repos.courses.courses({ source: "hub" });
   if (courses.length === 0) return [];
   const ids = courses.map((c) => c.id);
@@ -128,8 +127,7 @@ export interface HubCourseDetail {
 }
 
 /** One Hub-owned course for its page; null for an unknown id or a course imported from Kajabi. */
-export async function loadHubCourse(supabase: SupabaseClient, id: string, now = new Date()): Promise<HubCourseDetail | null> {
-  const repos = createRepos(supabase);
+export async function loadHubCourse(repos: AdminCourseRepos, id: string, now = new Date()): Promise<HubCourseDetail | null> {
   const data = await repos.courses.courseById(id);
   if (!data || data.source !== "hub") return null;
   const access = await repos.courseProgress.accessOfCourses([id]);
@@ -164,25 +162,25 @@ export interface AdminCourseDetail {
 }
 
 /** The Kajabi id behind a Hub course id, or null for an unknown id or a Hub-owned course. The Kajabi id never leaves the server. */
-export async function kajabiIdOfCourse(supabase: SupabaseClient, courseId: string): Promise<string | null> {
+export async function kajabiIdOfCourse(repos: AdminCourseRepos, courseId: string): Promise<string | null> {
   if (!isId(courseId, "crs")) return null;
-  const course = await createRepos(supabase).courses.courseById(courseId);
+  const course = await repos.courses.courseById(courseId);
   return course?.source === "kajabi" ? course.source_key : null;
 }
 
-export async function loadAdminCourse(supabase: SupabaseClient, courseId: string, now = new Date()): Promise<AdminCourseDetail | null> {
-  const kajabiId = await kajabiIdOfCourse(supabase, courseId);
+export async function loadAdminCourse(repos: AdminCourseRepos, courseId: string, now = new Date()): Promise<AdminCourseDetail | null> {
+  const kajabiId = await kajabiIdOfCourse(repos, courseId);
   if (!kajabiId) return null;
-  const repo = createRepos(supabase).kajabiCourses;
+  const repo = repos.kajabiCourses;
   const bronze = await repo.liveCourse(kajabiId);
   if (!bronze) return null;
 
   const [modules, lessons, rows, videos, files] = await Promise.all([
     repo.liveModules(kajabiId),
     repo.liveLessonOutlines(kajabiId),
-    loadAdminCourses(supabase, now),
-    planCourseVideos(supabase, kajabiId, now),
-    planCourseFiles(supabase, kajabiId, now),
+    loadAdminCourses(repos, now),
+    planCourseVideos(repos, kajabiId, now),
+    planCourseFiles(repos, kajabiId, now),
   ]);
   const course = rows.find((r) => r.id === courseId);
   if (!course) return null;
@@ -190,13 +188,13 @@ export async function loadAdminCourse(supabase: SupabaseClient, courseId: string
   let hubLessonIds: Record<string, string> = {};
   let details: AdminCourseDetail["details"] = { description: null, includesMembership: null };
   if (course.hub) {
-    const silver = await createRepos(supabase).courses.courseById(courseId);
+    const silver = await repos.courses.courseById(courseId);
     if (silver) {
-      const hub = await createRepos(supabase).courses.lessonsOf([silver.id], { source: "kajabi", includeHidden: true });
+      const hub = await repos.courses.lessonsOf([silver.id], { source: "kajabi", includeHidden: true });
       hubLessonIds = Object.fromEntries(hub.flatMap((l) => (l.source_key ? [[l.source_key, l.id]] : [])));
       let includesMembership: boolean | null = null;
       if (silver.program_id) {
-        const program = await createRepos(supabase).programs.byId(silver.program_id);
+        const program = await repos.programs.byId(silver.program_id);
         includesMembership = program?.includes_membership ?? null;
       }
       details = { description: silver.description ?? null, includesMembership };
@@ -219,9 +217,9 @@ export async function loadAdminCourse(supabase: SupabaseClient, courseId: string
 }
 
 /** A course's title for the browser tab, without loading the rest of the page. Null for an unknown id. */
-export async function loadAdminCourseTitle(supabase: SupabaseClient, courseId: string): Promise<string | null> {
+export async function loadAdminCourseTitle(repos: AdminCourseRepos, courseId: string): Promise<string | null> {
   if (!isId(courseId, "crs")) return null;
-  return (await createRepos(supabase).courses.courseById(courseId))?.title ?? null;
+  return (await repos.courses.courseById(courseId))?.title ?? null;
 }
 
 export interface AdminLessonDetail {
@@ -255,12 +253,11 @@ export interface AdminLessonDetail {
 }
 
 /** One lesson for its builder page: Kajabi's data as last imported, with the state members get. Null when the course or lesson isn't there. */
-export async function loadAdminLesson(supabase: SupabaseClient, courseId: string, lessonId: string): Promise<AdminLessonDetail | null> {
+export async function loadAdminLesson(repos: AdminCourseRepos, courseId: string, lessonId: string): Promise<AdminLessonDetail | null> {
   if (!isId(courseId, "crs") || !isId(lessonId, "les")) return null;
-  const repos = createRepos(supabase);
   const found = await repos.courses.lessonById(lessonId);
   if (found && found.course_id === courseId && found.source === "hub") return loadHubLesson(repos, courseId, found);
-  const courseKajabiId = await kajabiIdOfCourse(supabase, courseId);
+  const courseKajabiId = await kajabiIdOfCourse(repos, courseId);
   if (!courseKajabiId) return null;
   const hubLesson = found && found.course_id === courseId && found.source === "kajabi" ? found : null;
   const lessonKajabiId = hubLesson?.source_key;
@@ -335,7 +332,7 @@ export async function loadAdminLesson(supabase: SupabaseClient, courseId: string
 }
 
 /** One lesson of a Hub-owned course, from the Hub's own rows: nothing of it comes from Kajabi. */
-async function loadHubLesson(repos: ReturnType<typeof createRepos>, courseId: string, lesson: LessonRecord): Promise<AdminLessonDetail | null> {
+async function loadHubLesson(repos: AdminCourseRepos, courseId: string, lesson: LessonRecord): Promise<AdminLessonDetail | null> {
   const [course, modules, lessons, body, files] = await Promise.all([
     repos.courses.courseById(courseId),
     repos.courses.modulesOf([courseId], { includeHidden: true }),
@@ -398,8 +395,8 @@ async function loadHubLesson(repos: ReturnType<typeof createRepos>, courseId: st
 }
 
 /** The modules and lessons of a Hub-owned course, as the builder's outline draws them. */
-export async function loadHubOutline(supabase: SupabaseClient, courseId: string): Promise<HubOutline> {
-  const courses = createRepos(supabase).courses;
+export async function loadHubOutline(repos: AdminCourseRepos, courseId: string): Promise<HubOutline> {
+  const courses = repos.courses;
   const [modules, lessons] = await Promise.all([courses.modulesOf([courseId], { includeHidden: true }), courses.lessonsOf([courseId], { includeHidden: true })]);
   return buildHubOutline(
     modules.map((m) => ({ id: m.id, parent_id: m.parent_id, title: m.title, position: m.position, publishing_option: m.publishing_option })),

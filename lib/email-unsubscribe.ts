@@ -1,7 +1,9 @@
-import { createRepos } from "@/lib/data/repos";
+import type { Repos } from "@/lib/data/repos";
 import { createHmac, timingSafeEqual } from "crypto";
 import { APP_URL } from "@/lib/config";
 import { isNotificationKind, type NotificationKindId } from "@/lib/notifications/registry";
+
+type UnsubscribeRepos = Pick<Repos, "notifications">;
 
 /**
  * Signed links that let a member turn off one kind of notification email without signing in
@@ -44,16 +46,16 @@ export const oneClickUnsubscribeUrl = (token: string) => `${APP_URL}${ONE_CLICK_
 
 /**
  * Stores the member's email choice for a kind, the same row the settings page writes (so it's an
- * explicit choice either way). Service-role client: the caller proved who they are with a token.
+ * explicit choice either way). Repositories over the service-role client: the caller proved who they are with a token.
  */
 export async function setEmailEnabled(
-  supabase: any,
+  repos: UnsubscribeRepos,
   memberId: string,
   kind: NotificationKindId,
   enabled: boolean
 ): Promise<boolean> {
   try {
-    await createRepos(supabase).notifications.setPreference(memberId, kind, "email", enabled);
+    await repos.notifications.setPreference(memberId, kind, "email", enabled);
     return true;
   } catch (error) {
     console.error("[email] Saving unsubscribe choice failed", { member: memberId, kind, enabled, error });

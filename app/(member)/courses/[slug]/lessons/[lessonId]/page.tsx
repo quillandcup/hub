@@ -16,6 +16,7 @@ import LessonPlayer, { type PlaybackTokens } from "@/components/courses/LessonPl
 import { LessonCompletionProvider } from "@/components/courses/LessonCompletion";
 import MarkCompleteButton from "../../../MarkCompleteButton";
 import NextLessonPreview from "../../../NextLessonPreview";
+import { createRepos } from "@/lib/data/repos";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string; lessonId: string }> }): Promise<Metadata> {
   const { slug, lessonId } = await params;
@@ -95,7 +96,7 @@ export default async function LessonPage({
   const trackPreview = query?.track === "1";
   if (!isId(lessonId, "les")) notFound();
   const caller = await requireCoursesPage();
-  const result = await loadLessonView(createServiceRoleClient(), slug, lessonId, caller.scope);
+  const result = await loadLessonView(createRepos(createServiceRoleClient()), slug, lessonId, caller.scope);
 
   if (result.kind === "not_found") notFound();
   // Lessons that can't be opened (no access, ended access, coming soon for members) go back to the course page, which says why.

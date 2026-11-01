@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
       created_by: user.id !== "service-role" ? user.id : null,
     });
 
-    await recomputeMemberStatus(supabase, member_id);
+    await recomputeMemberStatus(createRepos(supabase), member_id);
 
     return NextResponse.json({ hiatus }, { status: 201 });
   } catch (error: any) {

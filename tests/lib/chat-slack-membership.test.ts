@@ -4,10 +4,6 @@ const { writesEnabled } = vi.hoisted(() => ({ writesEnabled: vi.fn(() => true) }
 vi.mock("@/lib/chat/slack-post", () => ({ chatSlackWritesEnabled: () => writesEnabled() }));
 vi.mock("@slack/web-api", () => ({ WebClient: vi.fn() }));
 let repos = createInMemoryRepos();
-vi.mock("@/lib/data/repos", async () => ({
-  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
-  createRepos: () => repos,
-}));
 
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
@@ -52,19 +48,19 @@ describe("slackUserIdsFor", () => {
   });
 
   it("maps each member to their Slack account, the first one when there are several", async () => {
-    const ids = await slackUserIdsFor({} as never, ["m-fern", "m-gale", "m-hazel"]);
+    const ids = await slackUserIdsFor(repos, ["m-fern", "m-gale", "m-hazel"]);
     expect([...ids]).toEqual([["m-fern", "U_FERN"], ["m-gale", "U_GALE"]]);
   });
 
   it("asks nothing for nobody", async () => {
     const lookup = vi.spyOn(repos.chat, "slackUserIdsByMember");
-    expect((await slackUserIdsFor({} as never, [])).size).toBe(0);
+    expect((await slackUserIdsFor(repos, [])).size).toBe(0);
     expect(lookup).not.toHaveBeenCalled();
   });
 
   it("reads a failed lookup as nobody matched, and logs it", async () => {
     vi.spyOn(repos.chat, "slackUserIdsByMember").mockRejectedValue(new Error("boom"));
-    expect((await slackUserIdsFor({} as never, ["m-fern"])).size).toBe(0);
+    expect((await slackUserIdsFor(repos, ["m-fern"])).size).toBe(0);
     expect(console.error).toHaveBeenCalledWith(expect.any(String), "boom");
   });
 });

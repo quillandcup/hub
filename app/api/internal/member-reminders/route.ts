@@ -3,6 +3,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 import { withCronHeartbeat } from "@/lib/cron-heartbeats";
 import { sendMemberReminders } from "@/lib/member-reminders";
 import { membersWithFeatureForOutreach } from "@/lib/features.server";
+import { createRepos } from "@/lib/data/repos";
 
 // Triggered hourly by the Supabase pg_cron job `send-member-reminders`
 // (created in 20261105000000 as send-onboarding-nudges, renamed in
@@ -30,7 +31,7 @@ async function runMemberReminders(request: NextRequest): Promise<NextResponse> {
   }
   const supabase = createServiceRoleClient();
   const result = await sendMemberReminders(supabase, new Date(), {
-    liveFor: (kind, memberIds) => membersWithFeatureForOutreach(supabase, FLAG_FOR_KIND[kind], memberIds),
+    liveFor: (kind, memberIds) => membersWithFeatureForOutreach(createRepos(supabase), FLAG_FOR_KIND[kind], memberIds),
   });
   return NextResponse.json(result);
 }

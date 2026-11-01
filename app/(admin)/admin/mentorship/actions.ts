@@ -42,7 +42,7 @@ export async function createMentorship(input: {
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
   const since = new Date(now.getTime() - MENTORSHIP_DAYS * 86_400_000).toISOString().slice(0, 10);
-  const arrival = (await getArrivals(auth.supabase, since, today)).find((a) => a.memberId === newMemberId);
+  const arrival = (await getArrivals(createRepos(auth.supabase), since, today)).find((a) => a.memberId === newMemberId);
   if (!arrival) return { error: NOT_AN_ARRIVAL };
 
   try {

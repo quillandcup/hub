@@ -67,7 +67,7 @@ export async function getMySchedules(): Promise<MyScheduleRow[]> {
   const nextMonth = getNextMonthStart(now).toISOString().slice(0, 10);
 
   if (!isMonthLocked(getNextMonthStart(now), await getLockOverrides(supabase, [nextMonth]), now)) {
-    await seedNextMonthSchedules(supabase, currentMonth, nextMonth);
+    await seedNextMonthSchedules(createRepos(supabase), currentMonth, nextMonth);
   }
 
   const rows = await createRepos(supabase).prickleSchedules.ofHostInMonths(effectiveIdentity.memberId, [currentMonth, nextMonth]);
@@ -105,7 +105,7 @@ export async function getMyHostEligibility(): Promise<HostEligibility | null> {
   const effectiveIdentity = await getEffectiveIdentity(user);
   if (!effectiveIdentity) return null;
 
-  const byMember = await fetchHostEligibilityByMember(supabase, [effectiveIdentity.memberId], new Date());
+  const byMember = await fetchHostEligibilityByMember(createRepos(supabase), [effectiveIdentity.memberId], new Date());
   return byMember.get(effectiveIdentity.memberId) ?? null;
 }
 
@@ -122,7 +122,7 @@ async function selfServeHostingBlock(
   memberId: string,
   now: Date
 ): Promise<string | null> {
-  const eligibility = (await fetchHostEligibilityByMember(supabase, [memberId], now)).get(memberId) ?? {
+  const eligibility = (await fetchHostEligibilityByMember(createRepos(supabase), [memberId], now)).get(memberId) ?? {
     eligible: false,
     tenureStartDate: null,
     eligibleOn: null,

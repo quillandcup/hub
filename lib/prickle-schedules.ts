@@ -5,11 +5,12 @@
 // tests/lib/prickle-schedules.test.ts). seedNextMonthSchedules at the bottom
 // is the one function that touches the database.
 
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { ORG_TIMEZONE } from "@/lib/config";
-import { createRepos } from "@/lib/data/repos";
+import type { Repos } from "@/lib/data/repos";
 import type { Insert } from "@/lib/data/db";
 import type { PrickleDetail } from "@/lib/data/prickles";
+
+type ScheduleRepos = Pick<Repos, "prickleSchedules" | "prickles">;
 
 export type RecurrenceType = "weekly" | "biweekly" | "monthly" | "one_off";
 export type ScheduleStatus = "proposed" | "confirmed" | "declined";
@@ -331,7 +332,7 @@ export interface BootstrapResult {
  * miscategorized slot by hand).
  */
 export async function bootstrapMonthFromCalendar(
-  supabase: SupabaseClient,
+  repos: ScheduleRepos,
   month: string,
   confirmedBy: string | null,
   opts: BootstrapOptions = {}
@@ -340,8 +341,6 @@ export async function bootstrapMonthFromCalendar(
   const monthStart = new Date(`${month}T00:00:00Z`);
   const monthEnd = getMonthEnd(monthStart);
   const nextMonth = getNextMonthStart(monthStart).toISOString().slice(0, 10);
-
-  const repos = createRepos(supabase);
   const [monthPrickles, existingRows] = await Promise.all([
     repos.prickles.startingBetween({
       from: monthStart.toISOString(),
@@ -439,7 +438,7 @@ export async function bootstrapMonthFromCalendar(
     result.confirmedExisting = toConfirmIds.length;
   }
 
-  result.copiedToNextMonth = await seedNextMonthSchedules(supabase, month, nextMonth);
+  result.copiedToNextMonth = await seedNextMonthSchedules(repos, month, nextMonth);
   return result;
 }
 
@@ -544,11 +543,11 @@ function continuationKey(row: Pick<SeedableRow, "host_id" | "type_id" | "recurre
  * single-date by definition.
  */
 export async function seedNextMonthSchedules(
-  supabase: SupabaseClient,
+  repos: ScheduleRepos,
   fromMonth: string,
   toMonth: string
 ): Promise<number> {
-  const schedules = createRepos(supabase).prickleSchedules;
+  const schedules = repos.prickleSchedules;
   const [fromRows, toRows] = await Promise.all([schedules.liveInMonth(fromMonth), schedules.liveInMonth(toMonth)]);
 
   const existingKeys = new Set(toRows.map((r) => continuationKey(r as SeedableRow)));

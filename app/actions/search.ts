@@ -81,7 +81,7 @@ async function openCheckins(supabase: Searcher["ctx"]["supabase"], memberId: str
     getUnloggedRecentPrickles().catch(() => []),
   ]);
   const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref;
-  const upcoming = await getCheckinPrickles(supabase, memberId, timeZone, now).catch(() => []);
+  const upcoming = await getCheckinPrickles(createRepos(supabase), memberId, timeZone, now).catch(() => []);
   const dismissed = await loadDismissedCheckinIds(supabase, memberId, upcoming.map((r) => r.prickle.id)).catch(() => new Set<string>());
   const ins: Suggestion[] = upcoming
     .filter((r) => !dismissed.has(r.prickle.id))

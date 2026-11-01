@@ -1,14 +1,9 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import type { Prickle } from "@/lib/data/prickles";
+import { createInMemoryRepos } from "@/lib/data/repos";
 
-vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 // Prickles and attendance come from their repositories; this test runs them in memory.
-let dataset = new InMemoryDataset();
-vi.mock("@/lib/data/repos", async () => {
-  const { createInMemoryRepos } = await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos");
-  return { createRepos: () => createInMemoryRepos(dataset) };
-});
 
 import { getPrickleScheduleOverview } from "@/lib/prickle-schedule";
 
@@ -41,7 +36,7 @@ const attendanceRow = (id: string, prickleId: string, memberId: string) => ({
 });
 
 async function load(prickles: Prickle[] = PRICKLES) {
-  dataset = new InMemoryDataset({
+  const dataset = new InMemoryDataset({
     members: [HOST_A, HOST_B],
     prickleTypes: [SPRINT_TYPE, DEEP_TYPE],
     prickles,
@@ -52,7 +47,7 @@ async function load(prickles: Prickle[] = PRICKLES) {
       attendanceRow("a4", "sprint-past-1", "m1"),
     ],
   });
-  const overview = await getPrickleScheduleOverview({} as never, NOW, TZ, 14, 21);
+  const overview = await getPrickleScheduleOverview(createInMemoryRepos(dataset), NOW, TZ, 14, 21);
   return { overview };
 }
 

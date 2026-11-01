@@ -160,7 +160,7 @@ async function storeAndProject(
   const complete = slackMessages.filter((m) => (m.reactions ?? []).every((r: any) => (r.users?.length ?? 0) >= (r.count ?? 0)));
   const completeTs = new Set(complete.map((m) => m.ts as string));
   await markRemovedSlackReactions(
-    service,
+    createRepos(service),
     uniqueMessages.filter((m) => completeTs.has(m.message_ts)),
     uniqueReactions,
     importedAt

@@ -42,7 +42,7 @@ export default async function MentorshipPage({
   const [rows, volunteers, arrivals] = await Promise.all([
     getMentorships(createRepos(supabase).mentorship, today),
     getVolunteers(createRepos(supabase).mentorship),
-    getArrivals(supabase, since, today),
+    getArrivals(createRepos(supabase), since, today),
   ]);
   const ranked = rankVolunteers(volunteers, rows);
   const matched = new Set(rows.filter((r) => r.status === "matched").map((r) => `${r.newMemberId}:${r.startedOn}`));

@@ -22,6 +22,7 @@ import { config } from "dotenv";
 import { parseCsv, planImport, toImportRows } from "../lib/mentorship-import";
 import { fetchTrialWindows, pickTrialWindow } from "../lib/trial-window";
 import type { Member, MemberAlias, MemberEmailAlias } from "../lib/member-matching";
+import { createRepos } from "@/lib/data/repos";
 
 const args = process.argv.slice(2);
 const apply = args.includes("--apply");
@@ -95,7 +96,7 @@ async function main() {
   // The real trial end for each match, from Stripe, so how long to wait before calling a trial
   // "not converted" isn't a guess. Left empty when Stripe has no matching trial.
   const windows = await fetchTrialWindows(
-    supabase,
+    createRepos(supabase),
     plan.matches.map((m) => m.trial)
   );
 

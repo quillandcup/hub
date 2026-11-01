@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient } from '../../helpers/supabase'
 import { ensureDraftCourses } from '@/lib/courses/process'
+import { createRepos } from "@/lib/data/repos";
 
 /**
  * Every imported Kajabi course gets a Hub row (a draft until it is published), so its admin
@@ -36,14 +37,14 @@ describe('ensureDraftCourses', () => {
   afterAll(cleanup)
 
   it('makes a draft row with its own Hub id and the slug publishing would use', async () => {
-    await ensureDraftCourses(supabase)
+    await ensureDraftCourses(createRepos(supabase))
     const { data } = await supabase.from('courses').select('id, slug, title, description, source, is_draft').eq('source_key', NEW)
     expect(data).toEqual([{ id: expect.stringMatching(/^crs_/), slug: `draft-course-${ts}`, title: TITLE, description: 'About it.', source: 'kajabi', is_draft: true }])
   })
 
   it('skips a course whose slug is taken or empty, and does not touch a row it already made', async () => {
     const before = (await supabase.from('courses').select('id').eq('source_key', NEW).single()).data!
-    const made = await ensureDraftCourses(supabase)
+    const made = await ensureDraftCourses(createRepos(supabase))
     expect(made).toBe(0)
     expect((await supabase.from('courses').select('id').eq('source_key', NEW).single()).data).toEqual(before)
     expect((await supabase.from('courses').select('id').in('source_key', [TAKEN, BLANK])).data).toEqual([])

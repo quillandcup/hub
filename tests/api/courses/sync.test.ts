@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { getTestSupabaseAdminClient } from '../../helpers/supabase'
 import { syncKajabiCourses } from '@/lib/courses/sync'
 import { processCourses } from '@/lib/courses/process'
+import { createRepos } from "@/lib/data/repos";
 
 /**
  * The course half of the standard Kajabi sync: import structure, refresh published courses, list
@@ -57,7 +58,7 @@ describe('syncKajabiCourses', () => {
   })
 
   it('refreshes a course once it is published, and stops listing it as unpublished', async () => {
-    await processCourses(supabase, { courseSlug: SLUG, publish: true, accessDuration: '1 year' })
+    await processCourses(createRepos(supabase), { courseSlug: SLUG, publish: true, accessDuration: '1 year' })
     state.lessonTitle = 'One, renamed'
     const result = await syncKajabiCourses(supabase, kajabi)
 

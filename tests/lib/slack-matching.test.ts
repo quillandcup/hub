@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { loadVerifiedSlackLinks, matchSlackUsersToMembers } from '@/lib/slack-matching';
+import { InMemoryDataset } from '@/lib/data/in-memory';
+import { createInMemoryRepos } from '@/lib/data/repos';
 import type { MemberAlias } from '@/lib/member-matching';
 
 describe('Slack User Matching', () => {
@@ -69,17 +71,36 @@ describe('Slack User Matching', () => {
   });
 
   it('should read verified links from the connections, kept after a disconnect', async () => {
-    const range = async () => ({ data: [{ slack_user_id: 'U9', member_id: 'member-2' }], error: null });
-    const supabase = { from: (table: string) => ({ select: () => ({ order: () => ({ range: table === 'member_slack_connections' ? range : undefined }) }) }) };
+    const repos = createInMemoryRepos(
+      new InMemoryDataset({
+        slackConnections: [
+          {
+            slack_user_id: 'U9',
+            member_id: 'member-2',
+            connected_at: '2026-01-01T00:00:00Z',
+            revoked_at: '2026-02-01T00:00:00Z',
+            scopes: [],
+            access_secret_id: null,
+            refresh_secret_id: null,
+            expires_at: null,
+            read_pulled_at: null,
+            team_id: null,
+          },
+        ],
+      })
+    );
 
-    const links = await loadVerifiedSlackLinks(supabase as never);
+    const links = await loadVerifiedSlackLinks(repos);
 
     expect([...links]).toEqual([['U9', 'member-2']]);
   });
 
   it('should fail loudly when the connections cannot be read', async () => {
-    const supabase = { from: () => ({ select: () => ({ order: () => ({ range: async () => ({ data: null, error: { message: 'down' } }) }) }) }) };
+    const repos = createInMemoryRepos();
+    repos.memberProfile.slackUserLinks = async () => {
+      throw new Error('down');
+    };
 
-    await expect(loadVerifiedSlackLinks(supabase as never)).rejects.toThrow('down');
+    await expect(loadVerifiedSlackLinks(repos)).rejects.toThrow('down');
   });
 });

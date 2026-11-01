@@ -10,6 +10,7 @@ import {
   lessonWatchedPoints,
   WATCHED_SECONDS_THRESHOLD,
 } from '@/lib/courses/activity'
+import { createRepos } from "@/lib/data/repos";
 
 /**
  * Lesson viewing in the activity log (member_activities, source 'courses'): a watch counts once a day
@@ -69,7 +70,7 @@ describe('lesson activity rows', () => {
     return (await q).data ?? []
   }
   const watch = (over: Partial<Parameters<typeof recordLessonWatched>[1]> = {}, now = NOW) =>
-    recordLessonWatched(supabase, { memberId: ids.member, lessonId: ids.lesson, courseId: ids.course, lessonTitle: 'Plot Basics', videoId: ids.video, lessonSeconds: 600, ...over }, now)
+    recordLessonWatched(createRepos(supabase), { memberId: ids.member, lessonId: ids.lesson, courseId: ids.course, lessonTitle: 'Plot Basics', videoId: ids.video, lessonSeconds: 600, ...over }, now)
   const addSegment = (start: number, end: number, startedAt = NOW) =>
     supabase.from('video_watch_segments').insert({
       client_segment_id: crypto.randomUUID(),
@@ -165,8 +166,8 @@ describe('lesson activity rows', () => {
 
   it('logs "completed" once per lesson, even after unmarking and marking again', async () => {
     const lesson = { memberId: ids.member, lessonId: ids.lesson, courseId: ids.course, lessonTitle: 'Plot Basics', lessonSeconds: 1800 }
-    await recordLessonCompleted(supabase, lesson)
-    await recordLessonCompleted(supabase, lesson)
+    await recordLessonCompleted(createRepos(supabase), lesson)
+    await recordLessonCompleted(createRepos(supabase), lesson)
     const rows = await activities('lesson_completed')
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({ title: 'Completed Plot Basics', engagement_value: lessonCompletedPoints(1800), related_id: ids.lesson })
@@ -175,10 +176,10 @@ describe('lesson activity rows', () => {
   it('never throws, and logs the failure, when the write is refused', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const broken = { from: () => { throw new Error('boom') } } as never
-    await expect(recordLessonCompleted(broken, { memberId: ids.member, lessonId: ids.lesson, courseId: ids.course, lessonTitle: 'x', lessonSeconds: null })).resolves.toBeUndefined()
-    await expect(recordLessonWatched(broken, { memberId: ids.member, lessonId: ids.lesson, courseId: ids.course, lessonTitle: 'x', videoId: ids.video, lessonSeconds: 1 })).resolves.toBeUndefined()
+    await expect(recordLessonCompleted(createRepos(broken), { memberId: ids.member, lessonId: ids.lesson, courseId: ids.course, lessonTitle: 'x', lessonSeconds: null })).resolves.toBeUndefined()
+    await expect(recordLessonWatched(createRepos(broken), { memberId: ids.member, lessonId: ids.lesson, courseId: ids.course, lessonTitle: 'x', videoId: ids.video, lessonSeconds: 1 })).resolves.toBeUndefined()
     const refused = { from: () => ({ insert: async () => ({ error: { code: '42501', message: 'denied' } }) }) } as never
-    await recordLessonCompleted(refused, { memberId: ids.member, lessonId: ids.lesson, courseId: ids.course, lessonTitle: 'x', lessonSeconds: null })
+    await recordLessonCompleted(createRepos(refused), { memberId: ids.member, lessonId: ids.lesson, courseId: ids.course, lessonTitle: 'x', lessonSeconds: null })
     expect(spy).toHaveBeenCalledTimes(3)
     spy.mockRestore()
   })

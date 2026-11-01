@@ -1,8 +1,10 @@
-import { createRepos } from '@/lib/data/repos'
+import { createRepos, type Repos } from "@/lib/data/repos";
 import { cache } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service';
 import type { FeatureKey } from '@/lib/features';
+
+type FeatureRepos = Pick<Repos, "featureFlags" | "members" | "segments">;
 
 /**
  * Resolve the effectively-enabled feature keys for a user in one shot.
@@ -51,12 +53,10 @@ export const getUserFeaturePreviews = cache(async (userId: string): Promise<Feat
  * count: a flag is per signed-in user, and someone who can't sign in has nothing to see. Pass a
  * service-role client: it reads other users' previews.
  */
-export async function membersWithFeature(supabase: any, key: FeatureKey, memberIds: string[]): Promise<Set<string>> {
+export async function membersWithFeature(repos: FeatureRepos, key: FeatureKey, memberIds: string[]): Promise<Set<string>> {
   const enabled = new Set<string>();
   const unique = [...new Set(memberIds)];
   if (unique.length === 0) return enabled;
-
-  const repos = createRepos(supabase);
   const [isGlobal, userIdByMember, segmentLinks] = await Promise.all([
     repos.featureFlags.isGloballyEnabled(key),
     repos.members.userIdsByMemberId(unique),
@@ -87,12 +87,12 @@ export async function membersWithFeature(supabase: any, key: FeatureKey, memberI
  * Otherwise it's the same segments and per-user previews, which need an account.
  */
 export async function membersWithFeatureForOutreach(
-  supabase: any,
+  repos: FeatureRepos,
   key: FeatureKey,
   memberIds: string[]
 ): Promise<Set<string>> {
-  if (await createRepos(supabase).featureFlags.isGloballyEnabled(key)) return new Set(memberIds);
-  return membersWithFeature(supabase, key, memberIds);
+  if (await repos.featureFlags.isGloballyEnabled(key)) return new Set(memberIds);
+  return membersWithFeature(repos, key, memberIds);
 }
 
 /**
@@ -106,7 +106,7 @@ export async function effectiveMemberHasFeature(
   ownFeatures: FeatureKey[]
 ): Promise<boolean> {
   if (!identity.isSudo) return ownFeatures.includes(key);
-  return (await membersWithFeature(createServiceRoleClient(), key, [identity.memberId])).has(identity.memberId);
+  return (await membersWithFeature(createRepos(createServiceRoleClient()), key, [identity.memberId])).has(identity.memberId);
 }
 
 /**
@@ -114,9 +114,9 @@ export async function effectiveMemberHasFeature(
  * what a signed-out visitor may see: nothing public may depend on a flag that only some members have.
  * Pass a service-role client.
  */
-export async function isFeatureOnForEveryone(supabase: any, key: FeatureKey): Promise<boolean> {
+export async function isFeatureOnForEveryone(repos: Pick<Repos, "featureFlags">, key: FeatureKey): Promise<boolean> {
   try {
-    return await createRepos(supabase).featureFlags.isGloballyEnabled(key);
+    return await repos.featureFlags.isGloballyEnabled(key);
   } catch (error) {
     throw new Error(`feature_flags read failed: ${error instanceof Error ? error.message : error}`);
   }

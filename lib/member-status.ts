@@ -1,7 +1,8 @@
-import { createRepos } from "@/lib/data/repos";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Repos } from "@/lib/data/repos";
 import { fetchMembershipHistory } from "@/lib/kajabi/membership-history";
 import { buildMembershipTimeline } from "@/lib/membership-timeline";
+
+type MemberStatusRepos = Pick<Repos, "aliases" | "billing" | "memberStatus" | "members" | "programs">;
 
 export type MemberStatus = "lead" | "active" | "on_hiatus" | "cancelled";
 
@@ -21,10 +22,10 @@ export type MemberStatus = "lead" | "active" | "on_hiatus" | "cancelled";
 // override/program-enrollment tables for a member so the cached column
 // doesn't drift.
 export async function recomputeMemberStatus(
-  supabase: SupabaseClient,
+  repos: MemberStatusRepos,
   memberId: string
 ): Promise<MemberStatus | null> {
-  const member = await createRepos(supabase).members.byId(memberId);
+  const member = await repos.members.byId(memberId);
   if (!member) return null;
 
   let status: MemberStatus;
@@ -34,7 +35,6 @@ export async function recomputeMemberStatus(
     // reprocess_members_atomic's staff_role handling).
     status = "active";
   } else {
-    const repos = createRepos(supabase);
     const [emailAliasRows, hiatusRows, enrollments, overrideRows] = await Promise.all([
       repos.aliases.emailsOf(memberId),
       repos.memberStatus.hiatusesOf(memberId),
@@ -43,9 +43,9 @@ export async function recomputeMemberStatus(
     ]);
 
     const allEmails = [member.email, ...emailAliasRows.map((a) => a.alias_email)];
-    const kajabiCustomers = await createRepos(supabase).billing.kajabiCustomers({ emails: allEmails });
+    const kajabiCustomers = await repos.billing.kajabiCustomers({ emails: allEmails });
     const customerIds = kajabiCustomers.map((c) => c.kajabi_customer_id).filter(Boolean);
-    const membershipHistory = await fetchMembershipHistory(supabase, customerIds);
+    const membershipHistory = await fetchMembershipHistory(repos, customerIds);
 
     const programOverrides = enrollments.map((e) => ({
       id: e.id,
@@ -68,7 +68,7 @@ export async function recomputeMemberStatus(
   }
 
   if (member.status !== status) {
-    await createRepos(supabase).members.setStatus(memberId, status).catch(() => {});
+    await repos.members.setStatus(memberId, status).catch(() => {});
   }
   return status;
 }

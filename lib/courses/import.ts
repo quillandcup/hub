@@ -149,7 +149,7 @@ export async function importKajabiCourses(
   }
 
   // Every imported course gets a Hub row (a draft until published), so its admin address has a Hub id.
-  await ensureDraftCourses(supabase);
+  await ensureDraftCourses(createRepos(supabase));
 
   return {
     courses: parsed.map((p) => ({

@@ -59,7 +59,7 @@ export default async function PastEventsPage({ searchParams }: { searchParams: P
   const first = rows.reduce((least, e) => (e.starts_at < least ? e.starts_at : least), today);
   const months = monthsBetween(first, today);
   const initialMonth = parsePastMonth(month, months);
-  const initialPrickles = await fetchPastEventPrickles(supabase, months.find((m) => m.id === initialMonth)!, timeZone, now);
+  const initialPrickles = await fetchPastEventPrickles(createRepos(supabase), months.find((m) => m.id === initialMonth)!, timeZone, now);
 
   return (
     <div className="container mx-auto px-6 py-6 max-w-5xl">

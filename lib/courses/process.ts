@@ -1,10 +1,11 @@
-import { createRepos } from "@/lib/data/repos";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Repos } from "@/lib/data/repos";
 import { buildAliasMap, resolveEmail } from "@/lib/email-aliases";
 import { computeCourseAccess, type AccessRow } from "@/lib/courses/access";
 import { sanitizeLessonHtml } from "@/lib/courses/sanitize";
 import { lessonExcerpt } from "@/lib/courses/excerpt";
 import { planFullTree, slugifyTitle } from "@/lib/courses/visibility";
+
+type ProcessRepos = Pick<Repos, "aliases" | "billing" | "courseProgress" | "courses" | "kajabiCourses" | "members" | "programs">;
 
 /**
  * Bronze (Kajabi) + Local -> Silver courses (docs/COURSES.md, step C).
@@ -22,8 +23,7 @@ import { planFullTree, slugifyTitle } from "@/lib/courses/visibility";
  * course is authored). Existing rows are left alone, and a title whose slug is empty or already
  * taken is skipped (processing it by slug reports the problem).
  */
-export async function ensureDraftCourses(supabase: SupabaseClient): Promise<number> {
-  const repos = createRepos(supabase);
+export async function ensureDraftCourses(repos: ProcessRepos): Promise<number> {
   const bronze = await repos.kajabiCourses.liveCourses();
   const rows = await repos.courses.courses();
   const have = new Set(rows.filter((r) => r.source === "kajabi").map((r) => r.source_key));
@@ -74,12 +74,12 @@ export class CourseProcessingError extends Error {
 
 /** Rebuild `course_access` for the given Silver courses: upsert what's derived, delete what no longer is (no gap for members mid-run). */
 export async function rebuildCourseAccess(
-  supabase: SupabaseClient,
+  repos: ProcessRepos,
   courses: { id: string; kajabi_id: string; access_duration: string | null; launch_at: string | null }[]
 ): Promise<{ members: number; removed: Map<string, number>; rows: AccessRow[] }> {
   if (courses.length === 0) return { members: 0, removed: new Map(), rows: [] };
 
-  const offerRows = await createRepos(supabase).kajabiCourses.liveOffers(courses.map((c) => c.kajabi_id));
+  const offerRows = await repos.kajabiCourses.liveOffers(courses.map((c) => c.kajabi_id));
   const offerIdsByCourse = new Map<string, Set<string>>();
   for (const o of offerRows) {
     if (!offerIdsByCourse.has(o.course_kajabi_id)) offerIdsByCourse.set(o.course_kajabi_id, new Set());
@@ -87,20 +87,20 @@ export async function rebuildCourseAccess(
   }
   const allOfferIds = Array.from(new Set(offerRows.map((o) => o.offer_kajabi_id)));
 
-  const billing = createRepos(supabase).billing;
+  const billing = repos.billing;
   const purchases = await billing.kajabiPurchases({ offerIds: allOfferIds });
   const customerIds = Array.from(new Set(purchases.map((p) => p.kajabi_customer_id).filter((id): id is string => !!id)));
   const customers = await billing.kajabiCustomers({ customerIds });
-  const aliases = await createRepos(supabase).aliases.emailAliases({ activeOnly: true });
+  const aliases = await repos.aliases.emailAliases({ activeOnly: true });
   const aliasMap = buildAliasMap(aliases);
   const emailByCustomerId = new Map<string, string>();
   for (const c of customers) if (c.email) emailByCustomerId.set(c.kajabi_customer_id, resolveEmail(c.email, aliasMap));
 
   const emails = Array.from(new Set(emailByCustomerId.values()));
   const memberIdByEmail = new Map<string, string>();
-  for (const m of await createRepos(supabase).members.byEmails(emails)) memberIdByEmail.set(m.email.toLowerCase(), m.id);
+  for (const m of await repos.members.byEmails(emails)) memberIdByEmail.set(m.email.toLowerCase(), m.id);
 
-  const progress = createRepos(supabase).courseProgress;
+  const progress = repos.courseProgress;
   const grants = await progress.grantsOfCourses(courses.map((c) => c.id));
 
   const rows = computeCourseAccess({
@@ -136,12 +136,11 @@ export async function rebuildCourseAccess(
 }
 
 export async function processCourses(
-  supabase: SupabaseClient,
+  repos: ProcessRepos,
   options: ProcessCoursesOptions = {}
 ): Promise<ProcessCoursesResult> {
-  await ensureDraftCourses(supabase);
+  await ensureDraftCourses(repos);
   // Which Bronze courses to sync.
-  const repos = createRepos(supabase);
   const bronzeCourses = await repos.kajabiCourses.liveCourses();
   const existingSilver = await repos.courses.courses({ source: "kajabi" });
   const silverByKey = new Map(existingSilver.map((c) => [c.source_key, c]));
@@ -293,7 +292,7 @@ export async function processCourses(
     });
   }
 
-  const access = await rebuildCourseAccess(supabase, accessCourses);
+  const access = await rebuildCourseAccess(repos, accessCourses);
   for (const c of accessCourses) {
     result.courses[c.index].access = {
       members: access.rows.filter((r) => r.course_id === c.id).length,

@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getBadgeRecipients, getPublishedBookCount, type BadgeLevel, type BadgeType } from "@/lib/badges";
 import { getTestSupabaseAdminClient } from "@/tests/helpers/supabase";
+import { createRepos } from "@/lib/data/repos";
 
 /**
  * A book its owner deleted stays in member_books (soft delete) but doesn't count toward the
@@ -51,11 +52,11 @@ describe("published book counts (local database)", () => {
   });
 
   it("counts a member's live books only", async () => {
-    expect(await getPublishedBookCount(supabase as SupabaseClient, memberId)).toBe(1);
+    expect(await getPublishedBookCount(createRepos(supabase as SupabaseClient), memberId)).toBe(1);
   });
 
   it("counts live books only in the all-members scan the badge page uses", async () => {
-    const recipients = await getBadgeRecipients(supabase as SupabaseClient, badgeType, levels);
+    const recipients = await getBadgeRecipients(createRepos(supabase as SupabaseClient), badgeType, levels);
     const mine = recipients.find((r) => r.memberId === memberId);
     expect(mine?.occurrences).toBe(1);
   });

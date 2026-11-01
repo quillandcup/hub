@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient } from './helpers/supabase'
 import { fetchMembershipHistory } from '@/lib/kajabi/membership-history'
+import { createRepos } from "@/lib/data/repos";
 
 describe('fetchMembershipHistory', () => {
   const supabase = getTestSupabaseAdminClient()
@@ -88,7 +89,7 @@ describe('fetchMembershipHistory', () => {
   afterAll(cleanUp)
 
   it('includes membership subscription purchases', async () => {
-    const history = await fetchMembershipHistory(supabase, [testCustomerId])
+    const history = await fetchMembershipHistory(createRepos(supabase), [testCustomerId])
     const entry = history.find(p => p.kajabi_offer_id === subscriptionOfferId)
     expect(entry).toBeDefined()
     expect(entry!.created_at_kajabi).toBe('2024-01-01T00:00:00+00:00')
@@ -97,17 +98,17 @@ describe('fetchMembershipHistory', () => {
   })
 
   it('excludes workshop offers even when subscription flag is true', async () => {
-    const history = await fetchMembershipHistory(supabase, [testCustomerId])
+    const history = await fetchMembershipHistory(createRepos(supabase), [testCustomerId])
     expect(history.find(p => p.kajabi_offer_id === workshopOfferId)).toBeUndefined()
   })
 
   it('excludes non-subscription offers (retreat deposits)', async () => {
-    const history = await fetchMembershipHistory(supabase, [testCustomerId])
+    const history = await fetchMembershipHistory(createRepos(supabase), [testCustomerId])
     expect(history.find(p => p.kajabi_offer_id === retreatOfferId)).toBeUndefined()
   })
 
   it('returns empty array for no customer IDs', async () => {
-    const history = await fetchMembershipHistory(supabase, [])
+    const history = await fetchMembershipHistory(createRepos(supabase), [])
     expect(history).toHaveLength(0)
   })
 
@@ -144,7 +145,7 @@ describe('fetchMembershipHistory', () => {
     ])
 
     try {
-      const history = await fetchMembershipHistory(supabase, [multiSubCustomerId])
+      const history = await fetchMembershipHistory(createRepos(supabase), [multiSubCustomerId])
       expect(history).toHaveLength(2)
 
       const earlier = history.find(p => p.created_at_kajabi === '2022-08-18T00:00:00+00:00')
@@ -182,7 +183,7 @@ describe('fetchMembershipHistory', () => {
     })
 
     try {
-      const history = await fetchMembershipHistory(supabase, [onlyRetreatCustomerId])
+      const history = await fetchMembershipHistory(createRepos(supabase), [onlyRetreatCustomerId])
       expect(history).toHaveLength(0)
     } finally {
       await supabase.schema('bronze').from('kajabi_purchases')

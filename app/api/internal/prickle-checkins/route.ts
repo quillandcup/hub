@@ -118,7 +118,7 @@ async function sendCheckins(supabase: SupabaseClient, candidates: GoalCandidate[
     loadDismissedPairs(supabase, "checkin", [...new Set(plan.map((p) => p.prickle.id))]),
   ]);
 
-  const joinSettings = await loadPrickleJoinSettings(supabase);
+  const joinSettings = await loadPrickleJoinSettings(createRepos(supabase));
   let sent = 0;
   for (const { memberId, prickle } of plan) {
     // Opted out on every channel, or unreachable on the ones they kept. Not logged, so turning

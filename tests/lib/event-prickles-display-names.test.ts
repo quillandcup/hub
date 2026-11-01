@@ -1,5 +1,6 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 
 // The Events page names each prickle's host by display name.
 
@@ -24,16 +25,13 @@ const dataset = new InMemoryDataset({
   prickleTypes: [EVENT_TYPE],
   prickles: [prickle("prkl_AAAAAAAAAAA1", "mbr_AAAAAAAAAAA1", 1), prickle("prkl_AAAAAAAAAAA2", "mbr_AAAAAAAAAAA2", 2), prickle("prkl_AAAAAAAAAAA3", null, 3)],
 });
-vi.mock("@/lib/data/repos", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos");
-  return { ...actual, createRepos: () => actual.createInMemoryRepos(dataset) };
-});
+const repos = createInMemoryRepos(dataset);
 
 import { fetchUpcomingEventPrickles } from "@/lib/event-prickles";
 
 describe("fetchUpcomingEventPrickles", () => {
   it("names hosts by display name, falling back to the legal name, or none", async () => {
-    const events = await fetchUpcomingEventPrickles({} as never, NOW);
+    const events = await fetchUpcomingEventPrickles(repos, NOW);
 
     expect(events.map((e) => e.hostName)).toEqual(["Bestie", "Ann Example", null]);
   });

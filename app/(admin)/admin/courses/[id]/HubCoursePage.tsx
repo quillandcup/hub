@@ -14,7 +14,7 @@ import CourseDetailsForm from "../CourseDetailsForm";
 /** The admin page of a course the Hub owns (not one imported from Kajabi): its details, editable. */
 export default async function HubCoursePage({ id }: { id: string }) {
   const supabase = await createClient();
-  const [course, programs, outline] = await Promise.all([loadHubCourse(supabase, id), createRepos(supabase).programs.names(), loadHubOutline(supabase, id)]);
+  const [course, programs, outline] = await Promise.all([loadHubCourse(createRepos(supabase), id), createRepos(supabase).programs.names(), loadHubOutline(createRepos(supabase), id)]);
   if (!course) notFound();
 
   const accessIndex = ACCESS_OPTIONS.findIndex((o) => accessLabel(o.value) === accessLabel(course.accessDuration));

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient } from '../../helpers/supabase'
 import { publicLessonPreview } from '@/lib/courses/public-preview'
 import { isFeatureOnForEveryone } from '@/lib/features.server'
+import { createRepos } from "@/lib/data/repos";
 
 /**
  * What anyone may see of a lesson without signing in (a shared link's title, picture and teaser):
@@ -22,7 +23,7 @@ describe('Public lesson preview', () => {
     const { error } = await supabase.from('feature_flags').upsert({ feature_key: 'courses', enabled_globally: on })
     expect(error).toBeNull()
   }
-  const preview = (name: string, opts: { slug?: string; now?: Date } = {}) => publicLessonPreview(supabase, ids[name] ?? name, opts)
+  const preview = (name: string, opts: { slug?: string; now?: Date } = {}) => publicLessonPreview(createRepos(supabase), ids[name] ?? name, opts)
 
   beforeAll(async () => {
     const { data } = await supabase.from('feature_flags').select('feature_key, enabled_globally').eq('feature_key', 'courses').maybeSingle()
@@ -102,12 +103,12 @@ describe('Public lesson preview', () => {
 
   it('is blocked whenever the courses feature is not on for everyone, even if a segment or a member has it', async () => {
     await setFlag(false)
-    expect(await isFeatureOnForEveryone(supabase, 'courses')).toBe(false)
+    expect(await isFeatureOnForEveryone(createRepos(supabase), 'courses')).toBe(false)
     expect(await preview('loose')).toEqual({ blocked: 'feature_off' })
     await supabase.from('feature_flags').delete().eq('feature_key', 'courses')
-    expect(await isFeatureOnForEveryone(supabase, 'courses')).toBe(false)
+    expect(await isFeatureOnForEveryone(createRepos(supabase), 'courses')).toBe(false)
     expect(await preview('loose')).toEqual({ blocked: 'feature_off' })
     await setFlag(true)
-    expect(await isFeatureOnForEveryone(supabase, 'courses')).toBe(true)
+    expect(await isFeatureOnForEveryone(createRepos(supabase), 'courses')).toBe(true)
   })
 })

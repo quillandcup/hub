@@ -1,9 +1,10 @@
-import { createRepos } from "@/lib/data/repos";
+import type { Repos } from "@/lib/data/repos";
 import type { WeeklySlotMember } from "@/lib/data/calendar-feed";
 import type { SlotCommitment } from "@/lib/data/prickle-activity";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { localDateFor, normalizeTime, SCHEDULE_TIMEZONE, slotTimeForInstant } from "@/lib/commitments";
 import { getMemberDisplayName } from "@/lib/member-display-name";
+
+type RosterRepos = Pick<Repos, "calendarFeed" | "memberProfile" | "members" | "prickleActivity">;
 
 /**
  * "Who's coming" for a prickle that hasn't started: a soft sign-up built from what members already
@@ -53,7 +54,7 @@ function calendarReadFailed<T>(error: unknown): T[] {
 }
 
 export async function loadPrickleRoster(
-  service: SupabaseClient,
+  repos: RosterRepos,
   prickle: RosterPrickle,
   viewerMemberId: string | null
 ): Promise<PrickleRoster> {
@@ -63,8 +64,6 @@ export async function loadPrickleRoster(
   const slot = slotTimeForInstant(prickle.start_time, SCHEDULE_TIMEZONE);
   const startTimeLocal = normalizeTime(slot.startTimeLocal);
   const localDate = localDateFor(new Date(prickle.start_time), SCHEDULE_TIMEZONE);
-
-  const repos = createRepos(service);
   const [committedRows, onceMemberIds, weeklyRows] = await Promise.all([
     typeId
       ? repos.prickleActivity.slotCommitments({ typeId, dayOfWeek: slot.dayOfWeek, timezone: SCHEDULE_TIMEZONE })

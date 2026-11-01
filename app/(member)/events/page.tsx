@@ -40,7 +40,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
   const repos = createRepos(supabase);
   const [events, eventPrickles, badgeTypes] = await Promise.all([
     repos.events.listWithCover(),
-    fetchUpcomingEventPrickles(supabase, now, Math.max(EVENT_PRICKLE_WINDOW_DAYS, daysToLastMonth)),
+    fetchUpcomingEventPrickles(createRepos(supabase), now, Math.max(EVENT_PRICKLE_WINDOW_DAYS, daysToLastMonth)),
     repos.badges.types(),
   ]);
   const badgeIconOf = new Map(badgeTypes.flatMap((b) => (b.event_id ? [[b.event_id, b.icon] as const] : [])));

@@ -83,7 +83,7 @@ describe("getOnboardingState for a newcomer", () => {
     const state = await run({ members: { data: [NEWCOMER] } });
 
     expect(step(state, "prickles")?.done).toBe(true);
-    expect(upcomingPrickleIds).toHaveBeenCalledWith(userSupabase, "m1");
+    expect(upcomingPrickleIds).toHaveBeenCalledWith(expect.anything(), "m1");
   });
 
   it("counts it done once they've attended one, even with nothing coming up", async () => {

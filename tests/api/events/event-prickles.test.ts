@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient } from '../../helpers/supabase'
+import { createRepos } from '@/lib/data/repos'
 import { fetchUpcomingEventPrickles } from '@/lib/event-prickles'
 
 /**
@@ -89,7 +90,7 @@ describe('fetchUpcomingEventPrickles', () => {
 
   async function fetchMine() {
     // The lib types its client as the server client; the admin client has the same query API.
-    const all = await fetchUpcomingEventPrickles(supabase as never, now)
+    const all = await fetchUpcomingEventPrickles(createRepos(supabase), now)
     const mine = new Set(Object.values(ids))
     return all.filter((p) => mine.has(p.id))
   }

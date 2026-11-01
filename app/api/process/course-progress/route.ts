@@ -2,6 +2,7 @@ import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { CourseProgressError, importKajabiLessonProgress } from "@/lib/courses/progress-import";
 import { NextRequest, NextResponse } from "next/server";
+import { createRepos } from "@/lib/data/repos";
 
 export const maxDuration = 300;
 
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest) {
   const dryRun = body?.dryRun === true;
 
   try {
-    const result = await importKajabiLessonProgress(createServiceRoleClient(), { courseSlug, dryRun });
+    const result = await importKajabiLessonProgress(createRepos(createServiceRoleClient()), { courseSlug, dryRun });
     return NextResponse.json({ success: true, ...result });
   } catch (error: any) {
     if (error instanceof CourseProgressError) return NextResponse.json({ error: error.message }, { status: error.status });

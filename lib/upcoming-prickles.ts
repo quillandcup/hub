@@ -1,8 +1,7 @@
-import { createRepos } from "@/lib/data/repos"
+import type { Repos } from "@/lib/data/repos";
 import type { FeedItemRow } from "@/lib/data/calendar-feed"
 import { toPlainCommitment } from "@/lib/data/prickle-activity"
 import type { PrickleDetail } from "@/lib/data/prickles"
-import type { createClient } from "@/lib/supabase/server"
 import {
   computePrickleStreaks,
   computeSisterStreaks,
@@ -34,6 +33,8 @@ import {
   type SlotVibrancy,
 } from "@/lib/prickle-recommendations"
 
+type UpcomingRepos = Pick<Repos, "attendance" | "calendarFeed" | "prickleActivity" | "prickles">;
+
 // Shared by the Dashboard's "what should I do next" surface and the My
 // Prickles "Upcoming" tab — both rank the same set of upcoming prickles by
 // the same hosting/streak/sister-attendance signals, just over different
@@ -52,7 +53,6 @@ import {
 // the recommendation lookback so one past-prickle fetch serves both.
 const SISTER_LOOKBACK_DAYS = RECOMMENDATION_LOOKBACK_DAYS
 
-type SupabaseClient = Awaited<ReturnType<typeof createClient>>
 
 function getLocalDayAndHour(iso: string, timeZone: string): { dayOfWeek: string; startHour: number } {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -119,19 +119,19 @@ function toUpcomingPrickle(p: PrickleDetail, timeZone: string): UpcomingPrickle 
 
 /** Prickles with start_time in [from, to) (or [from, to] when `inclusiveEnd`), oldest first. */
 async function fetchPrickles(
-  supabase: SupabaseClient,
+  repos: UpcomingRepos,
   from: string,
   to: string,
   timeZone: string,
   inclusiveEnd: boolean
 ): Promise<UpcomingPrickle[]> {
-  const prickles = await createRepos(supabase).prickles.startingBetween({ from, to, inclusiveEnd })
+  const prickles = await repos.prickles.startingBetween({ from, to, inclusiveEnd })
   return prickles.map((p) => toUpcomingPrickle(p, timeZone))
 }
 
 /** Every attendance row (multiple per member/prickle is normal -- leave/rejoin) for these prickles. */
-async function fetchAttendanceForPrickles(supabase: SupabaseClient, prickleIds: string[]): Promise<PastAttendance[]> {
-  return createRepos(supabase).attendance.forPrickles(prickleIds)
+async function fetchAttendanceForPrickles(repos: UpcomingRepos, prickleIds: string[]): Promise<PastAttendance[]> {
+  return repos.attendance.forPrickles(prickleIds)
 }
 
 /**
@@ -154,8 +154,8 @@ export const PRIORITY = {
 
 /** The member's commitments with stored status 'active'. Like the other fetches here, a query error yields no rows, so
  * the Upcoming list still renders -- just without commitment badges. */
-async function fetchActiveCommitments(supabase: SupabaseClient, memberId: string): Promise<Commitment[]> {
-  const rows = await createRepos(supabase).prickleActivity.commitmentsOf(memberId, { status: "active" }).catch(() => [])
+async function fetchActiveCommitments(repos: UpcomingRepos, memberId: string): Promise<Commitment[]> {
+  const rows = await repos.prickleActivity.commitmentsOf(memberId, { status: "active" }).catch(() => [])
   return rows.map(toPlainCommitment)
 }
 
@@ -166,8 +166,8 @@ export type CalendarItemRow = FeedItemRow
 
 /** The member's hand-added calendar items (just this prickle, or a weekly slot). Events aren't
  * prickles, so they're skipped. A query error yields no rows, like the other fetches here. */
-export async function fetchCalendarItems(supabase: SupabaseClient, memberId: string): Promise<CalendarItemRow[]> {
-  return createRepos(supabase).calendarFeed.itemsOf(memberId).catch(() => [])
+export async function fetchCalendarItems(repos: UpcomingRepos, memberId: string): Promise<CalendarItemRow[]> {
+  return repos.calendarFeed.itemsOf(memberId).catch(() => [])
 }
 
 /** Upcoming prickle id -> how the member added it to their calendar. Weekly slots match the same
@@ -397,7 +397,7 @@ export function rankUpcomingPrickles(inputs: RankingInputs): RankedPrickle[] {
  * show (Dashboard caps it; My Prickles shows the full window).
  */
 export async function getRankedUpcomingPrickles(
-  supabase: SupabaseClient,
+  repos: UpcomingRepos,
   memberId: string,
   timeZone: string,
   now: Date,
@@ -412,11 +412,11 @@ export async function getRankedUpcomingPrickles(
   // recent past prickles (for sister-likely-attending + community
   // recommendation signals), plus this member's active commitments. ----
   const [upcoming, myAttendance, pastPrickles, commitments, calendarItems] = await Promise.all([
-    fetchPrickles(supabase, windowStart, windowEnd, timeZone, true),
-    createRepos(supabase).attendance.forMemberWithPrickles(memberId),
-    fetchPrickles(supabase, lookbackStart, windowStart, timeZone, false),
-    fetchActiveCommitments(supabase, memberId),
-    fetchCalendarItems(supabase, memberId),
+    fetchPrickles(repos, windowStart, windowEnd, timeZone, true),
+    repos.attendance.forMemberWithPrickles(memberId),
+    fetchPrickles(repos, lookbackStart, windowStart, timeZone, false),
+    fetchActiveCommitments(repos, memberId),
+    fetchCalendarItems(repos, memberId),
   ])
 
   // ---- Round 2 (parallel): co-attendance on every prickle this member has
@@ -426,9 +426,9 @@ export async function getRankedUpcomingPrickles(
   const myPrickleIds = [...new Set(myAttendance.map((r) => r.prickleId))]
   const upcomingHostIds = [...new Set(upcoming.map((p) => p.hostId).filter((id): id is string => !!id))]
   const [coAttendance, pastAttendance, hostedCounts] = await Promise.all([
-    createRepos(supabase).attendance.coAttendees(memberId, myPrickleIds),
-    upcoming.length > 0 ? fetchAttendanceForPrickles(supabase, pastPrickles.map((p) => p.id)) : Promise.resolve([]),
-    createRepos(supabase).prickles.hostedCounts(upcomingHostIds, windowStart),
+    repos.attendance.coAttendees(memberId, myPrickleIds),
+    upcoming.length > 0 ? fetchAttendanceForPrickles(repos, pastPrickles.map((p) => p.id)) : Promise.resolve([]),
+    repos.prickles.hostedCounts(upcomingHostIds, windowStart),
   ])
 
   // ---- Prickle streaks: which recurring series (type + day-of-week + hour)
@@ -603,11 +603,11 @@ export function checkinOffered(prickle: Pick<UpcomingPrickle, "startTime">, reas
  * Prickles offering a check-in now (checkinOffered), without the full ranking's attendance
  * history: only what personal ties need (the window's prickles, commitments, calendar items).
  */
-export async function getCheckinPrickles(supabase: SupabaseClient, memberId: string, timeZone: string, now: Date): Promise<RankedPrickle[]> {
+export async function getCheckinPrickles(repos: UpcomingRepos, memberId: string, timeZone: string, now: Date): Promise<RankedPrickle[]> {
   const [upcoming, commitments, calendarItems] = await Promise.all([
-    fetchPrickles(supabase, now.toISOString(), new Date(now.getTime() + CHECKIN_SOON_MS).toISOString(), timeZone, true),
-    fetchActiveCommitments(supabase, memberId),
-    fetchCalendarItems(supabase, memberId),
+    fetchPrickles(repos, now.toISOString(), new Date(now.getTime() + CHECKIN_SOON_MS).toISOString(), timeZone, true),
+    fetchActiveCommitments(repos, memberId),
+    fetchCalendarItems(repos, memberId),
   ])
   const commitmentByPrickleId =
     commitments.length > 0

@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
       nonBotSlackUsers,
       members,
       aliases || [],
-      await loadVerifiedSlackLinks(createServiceRoleClient())
+      await loadVerifiedSlackLinks(createRepos(createServiceRoleClient()))
     );
 
     // Set of member IDs that have a Slack user matched to them

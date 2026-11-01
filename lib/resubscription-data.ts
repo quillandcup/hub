@@ -1,8 +1,9 @@
-import { createRepos } from "@/lib/data/repos";
+import type { Repos } from "@/lib/data/repos";
 import { MEMBERSHIP_PRODUCT_NAMES } from "@/lib/membership";
 import { detectResubscriptions } from "@/lib/resubscription-detection";
 import { buildReverseAliasMap, getMemberEmails } from "@/lib/stripe-matching";
-import type { SupabaseClient } from "@supabase/supabase-js";
+
+type ResubscriptionRepos = Pick<Repos, "aliases" | "billing" | "members">;
 
 export interface ResubscribingMember {
   memberId: string | null;
@@ -26,9 +27,9 @@ export interface ResubscriptionsData {
 }
 
 export async function fetchResubscriptionsData(
-  supabase: SupabaseClient
+  repos: ResubscriptionRepos
 ): Promise<ResubscriptionsData> {
-  const billing = createRepos(supabase).billing;
+  const billing = repos.billing;
 
   // Fetch membership offer IDs
   const membershipOffers = await billing.kajabiOffersByName([...MEMBERSHIP_PRODUCT_NAMES]);
@@ -50,10 +51,10 @@ export async function fetchResubscriptionsData(
   const allCustomers = await billing.kajabiCustomers();
 
   // Fetch silver members
-  const allMembers = await createRepos(supabase).members.list();
+  const allMembers = await repos.members.list();
 
   // Fetch email aliases and build the standard reverse alias map
-  const emailAliases = await createRepos(supabase).aliases.emailAliases();
+  const emailAliases = await repos.aliases.emailAliases();
 
   const reverseAliasMap = buildReverseAliasMap(emailAliases);
 

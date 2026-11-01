@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import type { ActivityRow } from "@/lib/data/activities";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
@@ -13,10 +13,7 @@ import { InMemoryAttendanceRepository } from "@/lib/data/attendance";
 
 // Slack activity comes from the activity repository (its filters and chunking are in its contract); the twin stands in here.
 let dataset = new InMemoryDataset();
-vi.mock("@/lib/data/repos", async () => ({
-  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
-  createRepos: () => createInMemoryRepos(dataset),
-}));
+const repos = () => createInMemoryRepos(dataset);
 
 const slack = (id: string, member: string, type: string, channel: string): ActivityRow => ({
   id,
@@ -50,13 +47,13 @@ describe("loadIntroducedMemberIds", () => {
       ],
     });
 
-    expect(await loadIntroducedMemberIds({}, ["m1", "m2", "m3"])).toEqual(new Set(["m1"]));
+    expect(await loadIntroducedMemberIds(repos(), ["m1", "m2", "m3"])).toEqual(new Set(["m1"]));
   });
 
   it("returns nothing for no members", async () => {
     dataset = new InMemoryDataset({ activities: [slack("a1", "m1", "slack_message", SLACK_INTRO_CHANNEL)] });
 
-    expect(await loadIntroducedMemberIds({}, [])).toEqual(new Set());
+    expect(await loadIntroducedMemberIds(repos(), [])).toEqual(new Set());
   });
 });
 
@@ -100,11 +97,11 @@ describe("loadIntroChannelId", () => {
       ],
     });
 
-    expect(await loadIntroChannelId({})).toBe("C123");
+    expect(await loadIntroChannelId(repos())).toBe("C123");
   });
 
   it("is null when the workspace has no such channel", async () => {
     dataset = new InMemoryDataset();
-    expect(await loadIntroChannelId({})).toBeNull();
+    expect(await loadIntroChannelId(repos())).toBeNull();
   });
 });

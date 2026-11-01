@@ -1,6 +1,8 @@
-import { createRepos } from "@/lib/data/repos";
+import type { Repos } from "@/lib/data/repos";
 import { matchAttendeeToMember, type MemberAlias, type MemberEmailAlias } from "@/lib/member-matching";
 import type { Json } from "@/lib/data/database.types";
+
+type PresenceRepos = Pick<Repos, "aliases" | "members" | "zoom">;
 
 /**
  * Live Zoom presence from the participant joined/left webhooks (bronze.zoom_participant_events,
@@ -132,8 +134,8 @@ const IMPORTED_HOSTS_LOOKBACK_MS = 90 * 24 * 60 * 60 * 1000;
  * the import doesn't read yet, and those must not count as being at a prickle (docs/TODO.md,
  * "Secondary Zoom rooms").
  */
-export async function loadImportedHostIds(supabase: any, now: Date): Promise<Set<string>> {
-  return createRepos(supabase).zoom.importedHostIds(new Date(now.getTime() - IMPORTED_HOSTS_LOOKBACK_MS).toISOString());
+export async function loadImportedHostIds(repos: PresenceRepos, now: Date): Promise<Set<string>> {
+  return repos.zoom.importedHostIds(new Date(now.getTime() - IMPORTED_HOSTS_LOOKBACK_MS).toISOString());
 }
 
 /**
@@ -143,19 +145,19 @@ export async function loadImportedHostIds(supabase: any, now: Date): Promise<Set
  * ambiguous participants, and events with no host, are left out.
  */
 export async function loadPresenceByMember(
-  supabase: any,
+  repos: PresenceRepos,
   since: Date,
   now: Date = new Date()
 ): Promise<Map<string, PresenceInterval[]>> {
-  const [allEvents, hostIds] = await Promise.all([createRepos(supabase).zoom.participantEventsSince(since.toISOString()), loadImportedHostIds(supabase, now)]);
+  const [allEvents, hostIds] = await Promise.all([repos.zoom.participantEventsSince(since.toISOString()), loadImportedHostIds(repos, now)]);
   const events = allEvents.filter((e) => e.host_id && hostIds.has(e.host_id));
   const result = new Map<string, PresenceInterval[]>();
   if (events.length === 0) return result;
 
   const [members, aliases, emailAliases] = await Promise.all([
-    createRepos(supabase).members.identities(),
-    createRepos(supabase).aliases.nameAliases({ activeOnly: true }),
-    createRepos(supabase).aliases.emailAliases({ activeOnly: true }),
+    repos.members.identities(),
+    repos.aliases.nameAliases({ activeOnly: true }),
+    repos.aliases.emailAliases({ activeOnly: true }),
   ]);
 
   // One match per participant (name/email), not per event.

@@ -1,5 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createRepos } from "@/lib/data/repos";
+import type { Repos } from "@/lib/data/repos";
 import { safeUrl } from "@/lib/url";
 import { getSlackDmLinksForMembers } from "@/lib/member-slack-links";
 
@@ -26,10 +25,10 @@ export interface MemberHoverCardData {
  * about…" topics. The Slack link is resolved server-side (lib/member-slack-links.ts), so no email
  * or alias reaches the browser. Null when the member isn't visible to the caller.
  */
-export async function loadMemberHoverCard(supabase: SupabaseClient, memberId: string): Promise<MemberHoverCardData | null> {
+export async function loadMemberHoverCard(repos: Pick<Repos, "directory" | "memberProfile">, memberId: string): Promise<MemberHoverCardData | null> {
   const [m, topics, slackLinks] = await Promise.all([
-    createRepos(supabase).directory.byId(memberId),
-    createRepos(supabase).memberProfile.askMeAbout(memberId),
+    repos.directory.byId(memberId),
+    repos.memberProfile.askMeAbout(memberId),
     getSlackDmLinksForMembers([memberId]),
   ]);
   if (!m) return null;

@@ -1,5 +1,4 @@
-import { createRepos } from "@/lib/data/repos";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Repos } from "@/lib/data/repos";
 
 interface MessageKey {
   channel_id: string;
@@ -35,7 +34,7 @@ const reactionKey = (r: ReactionKey) => `${r.channel_id}|${r.message_ts}|${r.rea
  * webhook's), which write deleted_at: null.
  */
 export async function markRemovedSlackReactions(
-  supabase: SupabaseClient,
+  repos: Pick<Repos, "slackMessages">,
   fetchedMessages: MessageKey[],
   fetchedReactions: ReactionKey[],
   removedAt: string
@@ -49,7 +48,7 @@ export async function markRemovedSlackReactions(
     tsByChannel.set(m.channel_id, list);
   }
 
-  const messages = createRepos(supabase).slackMessages;
+  const messages = repos.slackMessages;
   const stale: ReactionKey[] = [];
   for (const [channelId, timestamps] of tsByChannel) {
     for (const r of await messages.liveReactionsOn(channelId, timestamps)) {

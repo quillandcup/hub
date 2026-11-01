@@ -47,7 +47,7 @@ export const webPushChannel: ChannelAdapter = {
     const reachable = new Map<string, string>();
     if (!vapidKeys() || memberIds.length === 0) return reachable;
 
-    const flagged = await membersWithFeature(supabase, WEB_PUSH_FEATURE, memberIds);
+    const flagged = await membersWithFeature(createRepos(supabase), WEB_PUSH_FEATURE, memberIds);
     for (const memberId of await createRepos(supabase).pushSubscriptions.membersWithLive([...flagged])) reachable.set(memberId, memberId);
     return reachable;
   },

@@ -7,7 +7,8 @@ import {
   parseParticipantEvent,
   presenceDue,
 } from "@/lib/zoom-presence";
-import { createFakeSupabase } from "@/tests/helpers/server-page";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 
 const t = (hhmm: string) => new Date(`2026-10-05T${hhmm}:00.000Z`).getTime();
 const iso = (hhmm: string) => new Date(t(hhmm)).toISOString();
@@ -87,12 +88,39 @@ describe("presenceDue", () => {
 });
 
 describe("loadPresenceByMember", () => {
-  it("matches participants to members and merges their intervals, in imported hosts' rooms only", async () => {
-    const ev = (id: string, meeting_uuid: string, host_id: string | null, participant_key: string, participant_name: string, event: string, hhmm: string) =>
-      ({ id, meeting_uuid, host_id, participant_key, participant_name, participant_email: null, event, event_time: iso(hhmm) });
-    const fake = createFakeSupabase({
-      "bronze.zoom_participant_events": {
-        data: [
+  const ev = (id: string, meeting_uuid: string, host_id: string | null, participant_key: string, participant_name: string, event: string, hhmm: string) => ({
+    id,
+    meeting_uuid,
+    meeting_id: null,
+    host_id,
+    participant_key,
+    participant_name,
+    participant_email: null,
+    event,
+    event_time: iso(hhmm),
+    leave_reason: null,
+    raw_payload: {},
+    received_at: iso(hhmm),
+  });
+  const meeting = (id: string, hostId: string) => ({
+    id,
+    meeting_id: id,
+    meeting_uuid: id,
+    topic: "Prickle",
+    start_time: iso("10:00"),
+    end_time: null,
+    duration_minutes: null,
+    host_email: null,
+    host_name: null,
+    participant_count: null,
+    imported_at: null,
+    updated_at: null,
+    data: { host_id: hostId },
+  });
+  const world = (over: ConstructorParameters<typeof InMemoryDataset>[0] = {}) =>
+    createInMemoryRepos(
+      new InMemoryDataset({
+        zoomParticipantEvents: [
           ev("1", "mtg-1", "host-1", "dev-1", "Ada Writer", "joined", "11:00"),
           ev("2", "mtg-1", "host-1", "dev-1", "Ada Writer", "left", "11:30"),
           ev("3", "mtg-1", "host-1", "dev-9", "Nobody Known", "joined", "11:05"),
@@ -100,15 +128,20 @@ describe("loadPresenceByMember", () => {
           ev("4", "mtg-2", "host-2", "dev-2", "Ada Writer", "joined", "11:40"),
           ev("5", "mtg-3", null, "dev-3", "Ada Writer", "joined", "11:45"),
         ],
-      },
-      "bronze.zoom_meetings": { data: [{ id: "z1", host_id: "host-1" }] },
-      members: { data: [{ id: "m1", name: "Ada Writer", email: "ada@example.test" }] },
-      member_name_aliases: { data: [] },
-      member_email_aliases: { data: [] },
-    });
+        zoomMeetings: [meeting("z1", "host-1")],
+        members: [{ id: "mbr_AAAAAAAAAAA1", name: "Ada Writer", email: "ada@example.test" }],
+        ...over,
+      })
+    );
 
-    const presence = await loadPresenceByMember(fake, new Date(t("00:00")));
-    expect([...presence.keys()]).toEqual(["m1"]);
-    expect(presence.get("m1")).toEqual([{ join: t("11:00"), leave: t("11:30") }]);
+  it("matches participants to members and merges their intervals, in imported hosts' rooms only", async () => {
+    const presence = await loadPresenceByMember(world(), new Date(t("00:00")));
+    expect([...presence.keys()]).toEqual(["mbr_AAAAAAAAAAA1"]);
+    expect(presence.get("mbr_AAAAAAAAAAA1")).toEqual([{ join: t("11:00"), leave: t("11:30") }]);
+  });
+
+  it("is empty when no imported host's room has events", async () => {
+    const presence = await loadPresenceByMember(world({ zoomMeetings: [] }), new Date(t("00:00")));
+    expect(presence.size).toBe(0);
   });
 });

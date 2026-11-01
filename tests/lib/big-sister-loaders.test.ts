@@ -7,6 +7,7 @@ import { getMentorships } from "@/lib/mentorship";
 import { getMyMentorships } from "@/lib/my-mentorship";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
+import { createRepos } from "@/lib/data/repos";
 const client = (db: ReturnType<typeof createFakeSupabase>) => db as unknown as SupabaseClient;
 describe("Big Sister query boundaries", () => {
   it("finds multiple Stripe trials through canonical emails and aliases without mixing members", async () => {
@@ -16,14 +17,14 @@ describe("Big Sister query boundaries", () => {
       "bronze.stripe_customers": { data: [{ stripe_customer_id: "a", email: "old@example.test" }, { stripe_customer_id: "b", email: "bea@example.test" }, { stripe_customer_id: "none", email: null }, { stripe_customer_id: "unknown", email: "other@example.test" }] },
       "bronze.stripe_subscriptions": { data: [{ stripe_customer_id: "a", data: trial }, { stripe_customer_id: "a", data: trial }, { stripe_customer_id: "b", data: null }, { stripe_customer_id: "unknown", data: trial }] },
     });
-    const result = await fetchTrialWindows(client(db), [{ id: "ada", email: "ADA@example.test" }, { id: "bea", email: "bea@example.test" }]);
+    const result = await fetchTrialWindows(createRepos(client(db)), [{ id: "ada", email: "ADA@example.test" }, { id: "bea", email: "bea@example.test" }]);
     expect(result.get("ada")).toEqual([{ start: "2026-10-01", end: "2026-10-08" }, { start: "2026-10-01", end: "2026-10-08" }]);
     expect(result.has("bea")).toBe(false); expect(result.has("unknown")).toBe(false);
   });
   it("avoids Stripe requests when there are no members or matching customers", async () => {
     const db = createFakeSupabase();
-    expect(await fetchTrialWindows(client(db), [])).toEqual(new Map()); expect(db.queries).toHaveLength(0);
-    expect(await fetchTrialWindows(client(db), [{ id: "a", email: "a@example.test" }])).toEqual(new Map());
+    expect(await fetchTrialWindows(createRepos(client(db)), [])).toEqual(new Map()); expect(db.queries).toHaveLength(0);
+    expect(await fetchTrialWindows(createRepos(client(db)), [{ id: "a", email: "a@example.test" }])).toEqual(new Map());
     expect(db.queries.some(q => q.table === "bronze.stripe_subscriptions")).toBe(false);
   });
   it("names volunteers, normalizes member embeds and leaves out withdrawn rows", async () => {

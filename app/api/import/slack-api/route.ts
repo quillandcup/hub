@@ -191,7 +191,7 @@ export async function POST(request: NextRequest) {
 
     // Upserts can't express "this reaction was taken back", so mark stored
     // reactions on the fetched messages that Slack no longer reports (deleted_at).
-    const reactionsRemoved = await markRemovedSlackReactions(supabase, allMessages, allReactions, importTimestamp);
+    const reactionsRemoved = await markRemovedSlackReactions(createRepos(supabase), allMessages, allReactions, importTimestamp);
     if (reactionsRemoved > 0) console.log(`  Marked ${reactionsRemoved} reactions removed in Slack`);
 
     // 5.5. Who is in each conversation, and the custom emoji.
@@ -209,7 +209,7 @@ export async function POST(request: NextRequest) {
     // Messages deleted in Slack: soft-deleted here, and only where this run
     // can be sure (never because a message aged out of Slack's history).
     const deletions = await capture('deleted messages', () =>
-      markMessagesDeletedInSlack(supabase, seen, deletionInferenceWindow(oldest, latest, clock.now()), importTimestamp)
+      markMessagesDeletedInSlack(createRepos(supabase), seen, deletionInferenceWindow(oldest, latest, clock.now()), importTimestamp)
     );
     if (deletions) {
       if (deletions.deleted > 0) console.log(`  Marked ${deletions.deleted} messages deleted in Slack`);

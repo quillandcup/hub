@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
   // Members only get open lessons; staff acting as themselves can also record a preview of an unreleased one (their own rows).
   const openToCaller = lesson?.state === "open" || caller.scope.isAdminActing;
   if (!lesson || !openToCaller || !lesson.video_id) return NextResponse.json({ error: "Lesson not found" }, { status: 404 });
-  const access = await loadMemberCourseAccess(service, caller.scope, lesson.course_id);
+  const access = await loadMemberCourseAccess(createRepos(service), caller.scope, lesson.course_id);
   if (!canOpenLessons(access)) return NextResponse.json({ error: "No access to this course" }, { status: 403 });
 
   const supabase = await createClient();
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
   // New stretches may have tipped today's watching over the line that counts as having watched the
   // lesson: log it for the Activity Log and engagement. Members' open lessons only (not a staff preview).
   if (saved > 0 && lesson.state === "open") {
-    await recordLessonWatched(supabase, {
+    await recordLessonWatched(createRepos(supabase), {
       memberId,
       lessonId: batch.lessonId,
       courseId: lesson.course_id,

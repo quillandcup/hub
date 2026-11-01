@@ -34,7 +34,7 @@ export default async function BadgeRecipientsPage({ params }: { params: Promise<
   const linkedProgram = badgeType.program_id ? await createRepos(supabase).programs.byId(badgeType.program_id) : null;
 
   const recipients = await getBadgeRecipients(
-    supabase,
+    createRepos(supabase),
     badgeType,
     levels
   );

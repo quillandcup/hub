@@ -1,8 +1,10 @@
-import { createRepos } from "@/lib/data/repos";
+import type { Repos } from "@/lib/data/repos";
 import { matchAttendeeToMember, type MemberAlias, type MemberEmailAlias } from "@/lib/member-matching";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { joinAt, loadPrickleJoinSettings, type PrickleJoin } from "@/lib/prickle-join";
 import { loadImportedHostIds, pairIntervals, type ParticipantEventRow } from "@/lib/zoom-presence";
+
+type LiveRoomRepos = Pick<Repos, "aliases" | "members" | "prickles" | "zoom">;
 
 /**
  * Who's on the Prickle link right now, for the "On air" light in the member header.
@@ -63,11 +65,11 @@ export interface LiveRoom {
 }
 
 /** Reads participant events, so it needs the service role client (the table is service role only). */
-export async function loadLiveRoom(supabase: any, now: Date = new Date()): Promise<LiveRoom> {
+export async function loadLiveRoom(repos: LiveRoomRepos, now: Date = new Date()): Promise<LiveRoom> {
   const [events, hostIds, settings] = await Promise.all([
-    createRepos(supabase).zoom.participantEventsSince(new Date(now.getTime() - LIVE_WINDOW_MS).toISOString()),
-    loadImportedHostIds(supabase, now),
-    loadPrickleJoinSettings(supabase),
+    repos.zoom.participantEventsSince(new Date(now.getTime() - LIVE_WINDOW_MS).toISOString()),
+    loadImportedHostIds(repos, now),
+    loadPrickleJoinSettings(repos),
   ]);
   const join = joinAt(settings, now);
   const open = openParticipants(
@@ -77,12 +79,12 @@ export async function loadLiveRoom(supabase: any, now: Date = new Date()): Promi
   if (open.length === 0) return { live: false, count: 0, members: [], guests: 0, prickle: null, join };
 
   const [members, aliases, emailAliases, running] = await Promise.all([
-    createRepos(supabase)
+    repos
       .members.identities()
       .then((rows) => rows.map((m) => ({ id: m.id, name: m.name, email: m.email, display_name: m.displayName }))),
-    createRepos(supabase).aliases.nameAliases({ activeOnly: true }),
-    createRepos(supabase).aliases.emailAliases({ activeOnly: true }),
-    createRepos(supabase).prickles.inProgressAt(now.toISOString()),
+    repos.aliases.nameAliases({ activeOnly: true }),
+    repos.aliases.emailAliases({ activeOnly: true }),
+    repos.prickles.inProgressAt(now.toISOString()),
   ]);
 
   const byId = new Map(members.map((m) => [m.id, m]));

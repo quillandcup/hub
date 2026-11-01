@@ -88,7 +88,7 @@ async function setCoursePublishedImpl(auth: Auth, courseId: string, published: b
       const service = createServiceRoleClient();
       await createRepos(service).courses.updateCourse(courseId, { is_draft: !published });
       // Publishing opens access to the people who bought it; a course taken back to a draft keeps its rows, which no longer open anything.
-      if (published) await processCourses(service, { courseSlug: course.slug });
+      if (published) await processCourses(createRepos(service), { courseSlug: course.slug });
     }
   } catch (error) {
     console.error("course publish change failed:", error instanceof Error ? error.message : error);

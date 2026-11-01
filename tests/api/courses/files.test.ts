@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient } from '../../helpers/supabase'
 import { COURSE_FILES_BUCKET, copyCourseFiles, planCourseFiles } from '@/lib/courses/files'
+import { createRepos } from "@/lib/data/repos";
 
 /**
  * Lesson downloads into the Hub, against the real local database and Storage with a fake source:
@@ -85,7 +86,7 @@ describe('Course files step', () => {
   afterAll(cleanup)
 
   it('plans every lesson\'s files, drafts\' marked, each with what it needs', async () => {
-    const plan = await planCourseFiles(supabase, COURSE, NOW)
+    const plan = await planCourseFiles(createRepos(supabase), COURSE, NOW)
     const byName = Object.fromEntries(plan.files.map((f) => [f.filename, f.state]))
 
     expect(byName).toEqual({
@@ -149,7 +150,7 @@ describe('Course files step', () => {
     const tracker = (await rows()).find((r) => r.source_key.endsWith('-f-tracker'))!
     await bronze.from('kajabi_lesson_files').update({ deleted_at: NOW.toISOString() }).eq('kajabi_id', `${COURSE}-f-tracker`)
 
-    const plan = await planCourseFiles(supabase, COURSE, NOW)
+    const plan = await planCourseFiles(createRepos(supabase), COURSE, NOW)
     expect(plan.stale.map((s) => s.filename)).toContain('tracker.pdf')
 
     const result = await copyCourseFiles(supabase, COURSE, NOW, download)
@@ -159,7 +160,7 @@ describe('Course files step', () => {
   })
 
   it('reports a course that is not published as having nowhere to copy to', async () => {
-    const plan = await planCourseFiles(supabase, `${COURSE}-unpublished`, NOW)
+    const plan = await planCourseFiles(createRepos(supabase), `${COURSE}-unpublished`, NOW)
     expect(plan.courseId).toBeNull()
     expect(plan.files).toEqual([])
   })

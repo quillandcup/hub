@@ -245,7 +245,24 @@ describe("imported Google Calendar descriptions", () => {
 });
 
 import { loadEventNotes } from "@/lib/calendar-feed";
-import { createFakeSupabase } from "@/tests/helpers/server-page";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
+
+const calendarItem = (id: string, description: string | null) => ({
+  id,
+  google_event_id: `g-${id}`,
+  summary: "Prickle",
+  description,
+  location: null,
+  raw_data: {},
+  start_time: "2026-11-03T12:00:00Z",
+  end_time: "2026-11-03T13:00:00Z",
+  creator_email: null,
+  creator_name: null,
+  organizer_email: null,
+  organizer_name: null,
+  imported_at: null,
+});
 
 describe("loadEventNotes", () => {
   const prickle = (id: string, calendarEventId: string | null) => ({
@@ -253,28 +270,30 @@ describe("loadEventNotes", () => {
   });
 
   it("maps cleaned descriptions by event id and skips empty ones", async () => {
-    const supabase = createFakeSupabase({
-      "bronze.calendar_events": {
-        data: [
-          { id: "ce1", description: "Bring a snack<br>https://zoom.us/j/1" },
-          { id: "ce2", description: "https://zoom.us/j/2" },
-          { id: "ce3", description: null },
+    const repos = createInMemoryRepos(
+      new InMemoryDataset({
+        calendarEvents: [
+          calendarItem("ce1", "Bring a snack<br>https://zoom.us/j/1"),
+          calendarItem("ce2", "https://zoom.us/j/2"),
+          calendarItem("ce3", null),
         ],
-      },
-    });
+      })
+    );
 
-    const notes = await loadEventNotes(supabase as never, [prickle("p1", "ce1"), prickle("p2", "ce2"), prickle("p3", "ce3"), prickle("p4", null)]);
+    const notes = await loadEventNotes(repos, [prickle("p1", "ce1"), prickle("p2", "ce2"), prickle("p3", "ce3"), prickle("p4", null)]);
 
     expect([...notes]).toEqual([["ce1", "Bring a snack"]]);
   });
 
   it("looks nothing up when no prickle has a source event, and throws on a failed lookup", async () => {
-    const empty = createFakeSupabase();
-    expect((await loadEventNotes(empty as never, [prickle("p1", null)])).size).toBe(0);
-    expect(empty.queries).toHaveLength(0);
+    const repos = createInMemoryRepos(new InMemoryDataset({ calendarEvents: [calendarItem("ce1", "Not asked for")] }));
+    expect((await loadEventNotes(repos, [prickle("p1", null)])).size).toBe(0);
 
-    const failing = createFakeSupabase({ "bronze.calendar_events": { error: { message: "boom" } } });
-    await expect(loadEventNotes(failing as never, [prickle("p1", "ce1")])).rejects.toThrow("boom");
+    const failing = createInMemoryRepos();
+    failing.calendarEvents.byIds = async () => {
+      throw new Error("boom");
+    };
+    await expect(loadEventNotes(failing, [prickle("p1", "ce1")])).rejects.toThrow("boom");
   });
 });
 

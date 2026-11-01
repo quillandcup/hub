@@ -9,6 +9,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestSupabaseAdminClient } from "../helpers/supabase";
 import { fetchResubscriptionsData } from "@/lib/resubscription-data";
+import { createRepos } from "@/lib/data/repos";
 
 const PREFIX = "test-resub-data-";
 
@@ -171,7 +172,7 @@ describe("fetchResubscriptionsData()", () => {
   });
 
   it("returns only customers with at least one resubscription", async () => {
-    const data = await fetchResubscriptionsData(supabase);
+    const data = await fetchResubscriptionsData(createRepos(supabase));
     const testEmails = data.members
       .map((m) => m.memberEmail)
       .filter((e) => e.startsWith(PREFIX));
@@ -188,7 +189,7 @@ describe("fetchResubscriptionsData()", () => {
   // investigation into fetchResubscriptionsData(); left skipped rather than
   // deleted so the suite stays green.
   it.skip("returns correct resubscription event details", async () => {
-    const data = await fetchResubscriptionsData(supabase);
+    const data = await fetchResubscriptionsData(createRepos(supabase));
     const memberA = data.members.find((m) => m.memberEmail === customerA.email)!;
 
     expect(memberA.resubscriptions).toHaveLength(1);
@@ -198,18 +199,18 @@ describe("fetchResubscriptionsData()", () => {
   });
 
   it("sets isCurrentlyActive correctly", async () => {
-    const data = await fetchResubscriptionsData(supabase);
+    const data = await fetchResubscriptionsData(createRepos(supabase));
     const memberA = data.members.find((m) => m.memberEmail === customerA.email)!;
     expect(memberA.isCurrentlyActive).toBe(true);
   });
 
   it("totalActiveMembers counts only active and on_hiatus members", async () => {
-    const data = await fetchResubscriptionsData(supabase);
+    const data = await fetchResubscriptionsData(createRepos(supabase));
     expect(data.totalActiveMembers).toBeGreaterThan(0);
   });
 
   it("cohortByMonth includes the resubscription month", async () => {
-    const data = await fetchResubscriptionsData(supabase);
+    const data = await fetchResubscriptionsData(createRepos(supabase));
     const months = data.cohortByMonth.map((c) => c.month);
     expect(months).toContain("2024-09");
   });
@@ -221,7 +222,7 @@ describe("fetchResubscriptionsData()", () => {
   // cohort gap-filling; left skipped rather than deleted so the suite stays
   // green.
   it.skip("cohortByMonth spans from first event to current month with no gaps", async () => {
-    const data = await fetchResubscriptionsData(supabase);
+    const data = await fetchResubscriptionsData(createRepos(supabase));
     if (data.cohortByMonth.length < 2) return;
 
     for (let i = 1; i < data.cohortByMonth.length; i++) {
@@ -233,7 +234,7 @@ describe("fetchResubscriptionsData()", () => {
   });
 
   it("combines purchases across duplicate Kajabi accounts for the same email", async () => {
-    const data = await fetchResubscriptionsData(supabase);
+    const data = await fetchResubscriptionsData(createRepos(supabase));
     const memberE = data.members.find((m) => m.memberEmail === customerE1.email);
     expect(memberE).toBeDefined();
     expect(memberE!.resubscriptions).toHaveLength(1);
@@ -245,7 +246,7 @@ describe("fetchResubscriptionsData()", () => {
   // entry. Needs its own investigation into fetchResubscriptionsData()'s
   // alias-merging; left skipped rather than deleted so the suite stays green.
   it.skip("merges purchases across alias emails as a single member", async () => {
-    const data = await fetchResubscriptionsData(supabase);
+    const data = await fetchResubscriptionsData(createRepos(supabase));
 
     // D's old email is an alias of D's new email — purchases from both customer
     // records should be combined under the canonical (new) email
