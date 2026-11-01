@@ -111,7 +111,7 @@ describe("TrackBear import idempotency", () => {
 
     expect(result.created).toEqual({ projects: 0, entries: 0, goals: 0, startingBalances: 0, covers: 0 });
     expect(result.alreadyImported).toEqual({ projects: 2, entries: 4, goals: 2 });
-    expect(result.updated).toEqual({ goalDetails: 0 });
+    expect(result.updated).toEqual({ projects: 0, entries: 0, goals: 0, startingBalances: 0 });
     expect(coverCalls).toEqual([]);
     expect(await countRows("writing_projects")).toBe(2);
     expect(await countRows("writing_progress_entries")).toBe(4);
@@ -119,12 +119,16 @@ describe("TrackBear import idempotency", () => {
     expect(await countRows("writing_project_starting_balances")).toBe(2);
   });
 
-  it("a newer export adds only new progress, onto the already-imported project, without overwriting Hub edits", async () => {
+  it("a newer export adds new progress and brings what Hub has back in line with TrackBear", async () => {
+    const projectExternalId = trackbearExternalId("11111111-1111-4111-8111-111111111111");
+    const entryExternalId = trackbearExternalId("10101010-1010-4010-8010-101010101010");
+    await supabase.from("writing_projects").update({ title: "Renamed in Hub" }).eq("member_id", memberId).eq("external_id", projectExternalId);
+    await supabase.from("writing_progress_entries").update({ amount: 7, note: "edited in Hub", tags: [] }).eq("member_id", memberId).eq("external_id", entryExternalId);
     await supabase
-      .from("writing_projects")
-      .update({ title: "Renamed in Hub" })
+      .from("writing_project_starting_balances")
+      .update({ amount: 24657 })
       .eq("member_id", memberId)
-      .eq("external_id", trackbearExternalId("11111111-1111-4111-8111-111111111111"));
+      .eq("measure", "words");
 
     const data = makeTrackbearData();
     data.projects[0].title = "Renamed in TrackBear";
@@ -132,14 +136,31 @@ describe("TrackBear import idempotency", () => {
 
     const result = await runTrackbearImport(writing, memberId, data, fakeCoverCopier);
     expect(result.created).toMatchObject({ projects: 0, entries: 1, goals: 0 });
+    expect(result.updated).toEqual({ projects: 1, entries: 1, goals: 0, startingBalances: 1 });
 
     const { data: project } = await supabase
       .from("writing_projects")
       .select("id, title")
       .eq("member_id", memberId)
-      .eq("external_id", trackbearExternalId("11111111-1111-4111-8111-111111111111"))
+      .eq("external_id", projectExternalId)
       .single();
-    expect(project!.title).toBe("Renamed in Hub");
+    expect(project!.title).toBe("Renamed in TrackBear");
+
+    const { data: entry } = await supabase
+      .from("writing_progress_entries")
+      .select("amount, note, tags")
+      .eq("member_id", memberId)
+      .eq("external_id", entryExternalId)
+      .single();
+    expect(entry).toEqual({ amount: 1500, note: "Great session", tags: ["drafting", "sprint"] });
+
+    const { data: balance } = await supabase
+      .from("writing_project_starting_balances")
+      .select("amount")
+      .eq("member_id", memberId)
+      .eq("measure", "words")
+      .single();
+    expect(balance!.amount).toBe(12000);
 
     const { data: newEntry } = await supabase
       .from("writing_progress_entries")
@@ -150,32 +171,33 @@ describe("TrackBear import idempotency", () => {
     expect(newEntry).toEqual({ project_id: project!.id, amount: 700 });
   });
 
-  it("re-importing fills in goal details only on goals that have none in Hub", async () => {
+  it("re-importing overwrites an imported goal's fields but keeps its dashboard pin, and leaves a deleted goal deleted", async () => {
     const targetId = trackbearExternalId("20202020-2020-4020-8020-202020202020");
-    // As imported before Hub goals had titles.
     await supabase
       .from("writing_goals")
-      .update({ title: null, description: null, show_on_profile: false })
+      .update({ title: "Renamed in Hub", description: null, show_on_profile: false, target_amount: 1, end_date: "2025-01-02", is_starred: false })
       .eq("member_id", memberId)
       .eq("external_id", targetId);
 
     const first = await runTrackbearImport(writing, memberId, makeTrackbearData(), fakeCoverCopier);
-    expect(first.updated).toEqual({ goalDetails: 1 });
-    const { data: backfilled } = await supabase
+    expect(first.updated).toMatchObject({ goals: 1, entries: 0 });
+    const { data: restored } = await supabase
       .from("writing_goals")
-      .select("title, description, show_on_profile")
+      .select("title, description, show_on_profile, target_amount, end_date, is_starred")
       .eq("member_id", memberId)
       .eq("external_id", targetId)
       .single();
-    expect(backfilled).toEqual({ title: "Finish draft", description: "80k by summer", show_on_profile: true });
+    expect(restored).toEqual({ title: "Finish draft", description: "80k by summer", show_on_profile: true, target_amount: 80000, end_date: "2025-06-30", is_starred: false });
 
-    await supabase
-      .from("writing_goals")
-      .update({ title: "Renamed in Hub" })
-      .eq("member_id", memberId)
-      .eq("external_id", targetId);
     const second = await runTrackbearImport(writing, memberId, makeTrackbearData(), fakeCoverCopier);
-    expect(second.updated).toEqual({ goalDetails: 0 });
+    expect(second.updated.goals).toBe(0);
+
+    await supabase.from("writing_goals").update({ deleted_at: new Date().toISOString(), target_amount: 5 }).eq("member_id", memberId).eq("external_id", targetId);
+    const third = await runTrackbearImport(writing, memberId, makeTrackbearData(), fakeCoverCopier);
+    expect(third.updated.goals).toBe(0);
+    const { data: stillDeleted } = await supabase.from("writing_goals").select("target_amount, deleted_at").eq("member_id", memberId).eq("external_id", targetId).single();
+    expect(stillDeleted!.target_amount).toBe(5);
+    expect(stillDeleted!.deleted_at).not.toBeNull();
   });
 
   it("paginates existing-entry lookups past Supabase's 1000-row limit", async () => {
@@ -193,6 +215,13 @@ describe("TrackBear import idempotency", () => {
     const second = await runTrackbearImport(writing, memberId, data, fakeCoverCopier);
     expect(second.created.entries).toBe(0);
     expect(second.alreadyImported.entries).toBe(1204); // everything in this export (the Feb tally isn't in it)
+    expect(await countRows("writing_progress_entries")).toBe(1205);
+
+    // Overwriting works in batches too: every one of the 1200 changes in the export lands.
+    for (const tally of data.tallies.slice(-1200)) tally.count += 1;
+    const third = await runTrackbearImport(writing, memberId, data, fakeCoverCopier);
+    expect(third.updated.entries).toBe(1200);
+    expect(third.created.entries).toBe(0);
     expect(await countRows("writing_progress_entries")).toBe(1205);
   });
 });

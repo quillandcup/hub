@@ -2390,6 +2390,7 @@ export type Database = {
           id: string
           module_id: string | null
           position: number
+          publishing_option: string | null
           source: string
           source_key: string | null
           state: string
@@ -2409,6 +2410,7 @@ export type Database = {
           id?: string
           module_id?: string | null
           position?: number
+          publishing_option?: string | null
           source?: string
           source_key?: string | null
           state?: string
@@ -2428,6 +2430,7 @@ export type Database = {
           id?: string
           module_id?: string | null
           position?: number
+          publishing_option?: string | null
           source?: string
           source_key?: string | null
           state?: string
@@ -2486,6 +2489,7 @@ export type Database = {
           poster_asset_id: string | null
           poster_source: string | null
           poster_url: string | null
+          publishing_option: string | null
           source: string
           source_key: string | null
           state: string
@@ -2501,6 +2505,7 @@ export type Database = {
           poster_asset_id?: string | null
           poster_source?: string | null
           poster_url?: string | null
+          publishing_option?: string | null
           source?: string
           source_key?: string | null
           state?: string
@@ -2516,6 +2521,7 @@ export type Database = {
           poster_asset_id?: string | null
           poster_source?: string | null
           poster_url?: string | null
+          publishing_option?: string | null
           source?: string
           source_key?: string | null
           state?: string
@@ -3506,6 +3512,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      member_data_handling: {
+        Row: {
+          action: string
+          column_name: string
+          table_name: string
+          why: string
+        }
+        Insert: {
+          action: string
+          column_name: string
+          table_name: string
+          why: string
+        }
+        Update: {
+          action?: string
+          column_name?: string
+          table_name?: string
+          why?: string
+        }
+        Relationships: []
       }
       member_directory: {
         Row: {
@@ -6555,6 +6582,12 @@ export type Database = {
         }
         Returns: number
       }
+      course_item_state: {
+        Args: { p_above: string; p_option: string }
+        Returns: string
+      }
+      course_least_visible: { Args: { a: string; b: string }; Returns: string }
+      course_visibility: { Args: { p_option: string }; Returns: string }
       create_prickle_commitment: {
         Args: {
           p_created_by?: string
@@ -6736,6 +6769,16 @@ export type Database = {
           member_id: string
         }[]
       }
+      member_data_report: {
+        Args: { p_member_id: string }
+        Returns: {
+          action: string
+          column_name: string
+          row_count: number
+          table_name: string
+          why: string
+        }[]
+      }
       member_interaction_pairs: {
         Args: { p_include_private: boolean; p_since: string }
         Returns: {
@@ -6841,6 +6884,10 @@ export type Database = {
       rate_limit_hit: {
         Args: { p_bucket: string; p_max_hits: number; p_window_seconds: number }
         Returns: boolean
+      }
+      recompute_course_states: {
+        Args: { p_course_id: string }
+        Returns: undefined
       }
       remove_event_attendee: {
         Args: { p_event_id: string; p_member_id: string }
@@ -6959,6 +7006,10 @@ export type Database = {
           alias: string
           member_id: string
         }[]
+      }
+      set_course_item_status: {
+        Args: { p_id: string; p_kind: string; p_option: string }
+        Returns: undefined
       }
       set_mentorship_note: {
         Args: { p_mentorship_id: string; p_note: string }

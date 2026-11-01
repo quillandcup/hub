@@ -9,8 +9,10 @@ import {
 /**
  * Writes a TrackBear export into a member's writing projects (planning/mapping lives in
  * lib/trackbear-import.ts). Idempotent via each table's external_id unique index: rows already
- * brought over are skipped, and a run that dies partway (timeout, network) is finished by simply
- * importing the same file again.
+ * brought over are not created twice, but they are overwritten with the export's values, so
+ * importing again brings Hub in line with TrackBear (the export wins, except for covers, the
+ * dashboard pin on a goal, and anything made only in Hub). A run that dies partway (timeout,
+ * network) is finished by simply importing the same file again.
  */
 
 const BATCH_SIZE = 500;
@@ -20,8 +22,8 @@ const UPDATE_CONCURRENCY = 50;
 export interface TrackbearImportResult {
   created: { projects: number; entries: number; goals: number; startingBalances: number; covers: number };
   alreadyImported: { projects: number; entries: number; goals: number };
-  /** Already-imported goals that got their TrackBear title/description/show-on-profile filled in. */
-  updated: { goalDetails: number };
+  /** Already-imported records whose Hub values differed from the export and now match it. */
+  updated: { projects: number; entries: number; goals: number; startingBalances: number };
   issues: ImportIssue[];
 }
 
@@ -51,27 +53,64 @@ async function step<T>(what: string, run: () => Promise<T>): Promise<T> {
 }
 
 async function loadExistingImports(writing: WritingRepository, memberId: string): Promise<ExistingImports> {
-  const [projects, entryExternalIds, goals, balances] = await Promise.all([
+  const [projects, entries, goals, balances] = await Promise.all([
     writing.importedProjects(memberId),
-    writing.importedEntryExternalIds(memberId),
+    writing.importedEntries(memberId),
     writing.importedGoals(memberId),
     writing.startingBalances(memberId),
   ]);
   const externalIdByProjectId = new Map(projects.map((p) => [p.id, p.external_id]));
-  const startingBalanceMeasures = new Map<string, Set<string>>();
+  const startingBalances = new Map<string, Map<string, number>>();
   for (const b of balances) {
     const externalId = externalIdByProjectId.get(b.project_id);
     if (!externalId) continue;
-    if (!startingBalanceMeasures.has(externalId)) startingBalanceMeasures.set(externalId, new Set());
-    startingBalanceMeasures.get(externalId)!.add(b.measure);
+    if (!startingBalances.has(externalId)) startingBalances.set(externalId, new Map());
+    startingBalances.get(externalId)!.set(b.measure, b.amount);
   }
   return {
-    startingBalanceMeasures,
+    startingBalances,
     projectIdsByExternalId: new Map(projects.map((p) => [p.external_id, p.id])),
-    entryExternalIds: new Set(entryExternalIds),
+    projectDetails: new Map(
+      projects.map((p) => [
+        p.external_id,
+        { title: p.title, description: p.description, phase: p.phase, showOnProfile: p.show_on_profile, deleted: p.deleted },
+      ])
+    ),
+    entryExternalIds: new Set(entries.map((e) => e.external_id)),
+    entryDetails: new Map(
+      entries.map((e) => [
+        e.external_id,
+        {
+          projectId: e.project_id,
+          entryDate: e.entry_date,
+          measure: e.measure,
+          mode: e.mode,
+          amount: e.amount,
+          note: e.note,
+          tags: e.tags,
+          deleted: e.deleted,
+        },
+      ])
+    ),
     goalExternalIds: new Set(goals.map((g) => g.external_id)),
-    goalExternalIdsMissingDetails: new Set(
-      goals.filter((g) => g.title === null && g.description === null).map((g) => g.external_id)
+    goalDetails: new Map(
+      goals.map((g) => [
+        g.external_id,
+        {
+          projectId: g.project_id,
+          goalType: g.goal_type,
+          measure: g.measure,
+          targetAmount: g.target_amount,
+          startDate: g.start_date,
+          endDate: g.end_date,
+          habitPeriod: g.habit_period,
+          habitThreshold: g.habit_threshold,
+          title: g.title,
+          description: g.description,
+          showOnProfile: g.show_on_profile,
+          deleted: g.deleted,
+        },
+      ])
     ),
   };
 }
@@ -117,28 +156,19 @@ export async function runTrackbearImport(
     for (const [externalId, id] of refreshed.projectIdsByExternalId) projectIds.set(externalId, id);
   }
 
-  // Starting balances + covers only for projects this run created -- an already-imported
-  // project may have been edited in Hub since, and those edits win.
+  // Covers only for projects this run created: the cover is copied into the member's media library once, and
+  // they may have replaced it since.
   const freshProjects = plan.newProjects.filter((p) => insertedProjectIds.has(p.externalId));
 
-  // 2. Starting balances
-  const balanceRows = [
-    ...freshProjects.flatMap((p) =>
-      p.startingBalances.map((b) => ({
-        project_id: projectIds.get(p.externalId)!,
-        member_id: memberId,
-        measure: b.measure,
-        amount: b.amount,
-      }))
-    ),
-    // Projects imported earlier that have no balance for a measure yet.
-    ...plan.startingBalanceBackfills.map((b) => ({
-      project_id: projectIds.get(b.projectExternalId)!,
+  // 2. Starting balances of the new projects
+  const balanceRows = freshProjects.flatMap((p) =>
+    p.startingBalances.map((b) => ({
+      project_id: projectIds.get(p.externalId)!,
       member_id: memberId,
       measure: b.measure,
       amount: b.amount,
-    })),
-  ];
+    }))
+  );
   if (balanceRows.length > 0) {
     await step("Failed to save starting balances", () => writing.importStartingBalances(balanceRows));
     created.startingBalances = balanceRows.length;
@@ -192,18 +222,85 @@ export async function runTrackbearImport(
     );
   }
 
-  // 4b. Goals imported before Hub goals had titles/descriptions/show-on-profile. The repository
-  // only touches goals with neither, so details the member has since added in Hub stay.
-  const updated = { goalDetails: 0 };
-  for (const batch of chunk(plan.goalDetailBackfills, UPDATE_CONCURRENCY)) {
-    const counts = await Promise.all(
-      batch.map((g) =>
-        step("Failed to update goals", () =>
-          writing.backfillGoalDetails(memberId, g.externalId, { title: g.title, description: g.description, show_on_profile: g.showOnProfile })
+  // 4b. Everything already in Hub that differs from the export: the export wins. Only what the export
+  // decides is written, and a record the member deleted in Hub is not brought back.
+  const updated = { projects: 0, entries: 0, goals: 0, startingBalances: 0 };
+
+  for (const batch of chunk(plan.projectUpdates, UPDATE_CONCURRENCY)) {
+    await Promise.all(
+      batch.map((u) =>
+        step("Failed to update projects", () =>
+          writing.updateProject(memberId, projectIds.get(u.externalId)!, {
+            title: u.title,
+            description: u.description,
+            phase: u.phase,
+            show_on_profile: u.showOnProfile,
+          })
         )
       )
     );
-    updated.goalDetails += counts.reduce((a, b) => a + b, 0);
+    updated.projects += batch.length;
+  }
+
+  const balanceUpdatesByProject = new Map<string, { measure: string; amount: number }[]>();
+  for (const u of plan.startingBalanceUpdates) {
+    const list = balanceUpdatesByProject.get(u.projectExternalId) ?? [];
+    list.push({ measure: u.measure, amount: u.amount });
+    balanceUpdatesByProject.set(u.projectExternalId, list);
+  }
+  for (const batch of chunk([...balanceUpdatesByProject], UPDATE_CONCURRENCY)) {
+    await Promise.all(
+      batch.map(([projectExternalId, set]) =>
+        step("Failed to update starting balances", () =>
+          writing.replaceStartingBalances(memberId, projectIds.get(projectExternalId)!, set, [])
+        )
+      )
+    );
+  }
+  updated.startingBalances = plan.startingBalanceUpdates.length;
+
+  const entryPatchResults = await Promise.all(
+    chunk(plan.entryUpdates, BATCH_SIZE).map((batch) =>
+      step("Failed to update progress entries", () =>
+        writing.overwriteImportedEntries(
+          batch.map((e) => ({
+            member_id: memberId,
+            project_id: projectIds.get(e.projectExternalId)!,
+            external_id: e.externalId,
+            entry_date: e.entryDate,
+            measure: e.measure,
+            mode: e.mode,
+            amount: e.amount,
+            note: e.note,
+            tags: e.tags,
+          }))
+        )
+      )
+    )
+  );
+  updated.entries = entryPatchResults.reduce((a, b) => a + b, 0);
+
+  for (const batch of chunk(plan.goalUpdates, UPDATE_CONCURRENCY)) {
+    const counts = await Promise.all(
+      batch.map((g) =>
+        step("Failed to update goals", () =>
+          writing.overwriteImportedGoal(memberId, g.externalId, {
+            project_id: projectIds.get(g.projectExternalId)!,
+            goal_type: g.goalType,
+            measure: g.measure,
+            target_amount: g.targetAmount,
+            start_date: g.startDate,
+            end_date: g.endDate,
+            habit_period: g.habitPeriod,
+            habit_threshold: g.habitThreshold,
+            title: g.title,
+            description: g.description,
+            show_on_profile: g.showOnProfile,
+          })
+        )
+      )
+    );
+    updated.goals += counts.reduce((a, b) => a + b, 0);
   }
 
   // 5. Covers -- best-effort network copies, a few at a time; a failure is reported, not fatal.

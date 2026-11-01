@@ -187,7 +187,7 @@ export async function getMyProjects(): Promise<WritingProjectRow[]> {
   const memberId = effectiveIdentity.memberId;
   const [projects, entries, goals, startingBalances, attendance, books] = await Promise.all([
     writing.projectSummaries(memberId),
-    writing.projectEntries(memberId),
+    writing.entries(memberId),
     writing.projectGoals(memberId),
     writing.startingBalances(memberId),
     getMyPrickleAttendance(),
@@ -207,8 +207,8 @@ export async function getMyPastProjects(): Promise<WritingProjectRow[]> {
   const { writing } = createRepos(supabase);
   const memberId = effectiveIdentity.memberId;
   const [projects, entries, startingBalances, attendance, books] = await Promise.all([
-    writing.pastProjectSummaries(memberId),
-    writing.projectEntries(memberId),
+    writing.projectSummaries(memberId, { past: true }),
+    writing.entries(memberId),
     writing.startingBalances(memberId),
     getMyPrickleAttendance(),
     getMyBooks(),
@@ -1269,7 +1269,7 @@ export async function getArchivedGoals(projectId: string): Promise<GoalRow[]> {
 
   const [goalRows, entryRows, attendance] = await Promise.all([
     createRepos(supabase).writing.archivedGoals(effectiveIdentity.memberId, projectId).catch(() => []),
-    createRepos(supabase).writing.entriesForProjects(effectiveIdentity.memberId, [projectId]),
+    createRepos(supabase).writing.entries(effectiveIdentity.memberId, { projectIds: [projectId] }),
     getMyPrickleAttendance(),
   ]);
 
@@ -1327,10 +1327,9 @@ export async function getStarredGoals(): Promise<(GoalRow & { projectTitle: stri
 
   const projectIds = [...new Set(goals.map((g) => g.project_id))];
   const [entries, attendance] = await Promise.all([
-    createRepos(supabase).writing.entriesForProjects(
-      effectiveIdentity.memberId,
-      projectIds.filter((id): id is string => id !== null)
-    ),
+    createRepos(supabase).writing.entries(effectiveIdentity.memberId, {
+      projectIds: projectIds.filter((id): id is string => id !== null),
+    }),
     getMyPrickleAttendance(),
   ]);
 
@@ -1352,10 +1351,11 @@ export async function getProjectSeries(
   const { supabase, effectiveIdentity } = ctx;
 
   const { writing } = createRepos(supabase);
-  const [entries, startingBalanceAmount] = await Promise.all([
+  const [entries, projectBalances] = await Promise.all([
     writing.seriesEntries(effectiveIdentity.memberId, projectId, measure),
-    writing.startingBalance(effectiveIdentity.memberId, projectId, measure),
+    writing.startingBalances(effectiveIdentity.memberId, projectId),
   ]);
+  const startingBalanceAmount = projectBalances.find((b) => b.measure === measure)?.amount ?? null;
 
   const series = computeCumulativeSeries(
     entries.map((e) => ({

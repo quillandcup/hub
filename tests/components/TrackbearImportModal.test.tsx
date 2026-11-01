@@ -8,7 +8,7 @@ import type { TrackbearImportResult } from '@/lib/trackbear-import-runner'
 const RESULT: TrackbearImportResult = {
   created: { projects: 2, entries: 1, goals: 1, startingBalances: 0, covers: 1 },
   alreadyImported: { projects: 0, entries: 3, goals: 2 },
-  updated: { goalDetails: 2 },
+  updated: { projects: 0, entries: 4, goals: 2, startingBalances: 1 },
   issues: [
     { severity: 'skipped', kind: 'goal', label: 'Yearly words', detail: 'Counts progress across all projects.' },
     { severity: 'dropped', kind: 'project', label: 'Poems', detail: 'Starred flag.' },
@@ -44,13 +44,30 @@ describe('TrackbearImportModal', () => {
     expect(await screen.findByText('2 projects')).toBeInTheDocument()
     expect(screen.getByText('1 progress entry')).toBeInTheDocument()
     expect(screen.getByText(/3 progress entries/)).toBeInTheDocument()
-    expect(screen.getByText(/Added TrackBear titles and descriptions to 2 previously imported goals/)).toBeInTheDocument()
+    expect(screen.getByText(/Changed in Hub to match TrackBear: 4 progress entries, 2 goals, 1 starting balance/)).toBeInTheDocument()
     expect(screen.getByText('Not imported')).toBeInTheDocument()
     expect(screen.getByText('Yearly words:')).toBeInTheDocument()
     expect(screen.getByText(/some details couldn't come along/)).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Done' }))
     expect(onImported).toHaveBeenCalledTimes(1)
+  })
+
+  it('warns before importing that earlier imports are set back to what TrackBear says', () => {
+    render(<TrackbearImportModal isOpen onClose={() => {}} onImported={() => {}} />)
+
+    expect(screen.getByText(/set back to what TrackBear says, including changes you made to it here/)).toBeInTheDocument()
+    expect(screen.getByText(/Things you only made in Hub are left alone/)).toBeInTheDocument()
+  })
+
+  it('says so when everything already in Hub matched', async () => {
+    stubFetch(200, { ...RESULT, updated: { projects: 0, entries: 0, goals: 0, startingBalances: 0 } })
+    render(<TrackbearImportModal isOpen onClose={() => {}} onImported={() => {}} />)
+
+    await uploadAndSubmit()
+
+    expect(await screen.findByText(/Everything already in Hub matched TrackBear/)).toBeInTheDocument()
+    expect(screen.queryByText(/Changed in Hub to match TrackBear/)).not.toBeInTheDocument()
   })
 
   it('shows the server error and does not refresh', async () => {

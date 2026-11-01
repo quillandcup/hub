@@ -1,10 +1,10 @@
-import { planVisibleTree, visibilityFromPublishing, type Visibility } from "@/lib/courses/visibility";
+import { planFullTree, visibilityFromPublishing, type Visibility } from "@/lib/courses/visibility";
 
 /**
  * Why each module and lesson of a Kajabi course is open, "Coming soon" or hidden in the Hub, for
  * the admin Courses page (so whoever edits the course in Kajabi can see what to change). Pure.
  *
- * The state is exactly what members get: it comes from `planVisibleTree`, the same rule the
+ * The state is exactly what members get: it comes from `planFullTree`, the same rule the
  * Silver processing uses, so the explanation can't drift from the result. The reason says which
  * Kajabi setting decides it: the item's own, or the nearest module above it that limits it.
  */
@@ -50,30 +50,41 @@ export interface ExplainedCourse {
   totals: Record<Visibility, number>;
 }
 
-const OPTION_LABEL: Record<string, string> = { published: "Published", locked: "Locked", drip: "Drip", draft: "Draft" };
+const OPTION_LABEL: Record<string, string> = { published: "Published", locked: "Locked", drip: "Drip", draft: "Draft", scheduled: "Scheduled", inherit: "Follows what is above" };
 const label = (option: string | null) => (option ? OPTION_LABEL[option] ?? option : "no setting");
 
 const byPosition = <T extends { position: number | null; title: string }>(a: T, b: T) =>
   (a.position ?? 0) - (b.position ?? 0) || a.title.localeCompare(b.title);
 
-export function explainCourse(modules: ExplainModuleIn[], lessons: ExplainLessonIn[]): ExplainedCourse {
+export interface ExplainOptions {
+  /** Where the settings are kept, for the wording of a reason: Kajabi's, or the Hub's own. */
+  place?: "Kajabi" | "the Hub";
+}
+
+export function explainCourse(modules: ExplainModuleIn[], lessons: ExplainLessonIn[], options: ExplainOptions = {}): ExplainedCourse {
+  const place = options.place ?? "Kajabi";
   const byId = new Map(modules.map((m) => [m.kajabiId, m]));
-  const tree = planVisibleTree(
-    modules.map((m) => ({ kajabiId: m.kajabiId, parentKajabiId: m.parentKajabiId, publishingOption: m.publishingOption })),
-    lessons.map((l) => ({ kajabiId: l.kajabiId, moduleKajabiId: l.moduleKajabiId, publishingOption: l.publishingOption }))
-  );
+  const moduleIns = modules.map((m) => ({ kajabiId: m.kajabiId, parentKajabiId: m.parentKajabiId, publishingOption: m.publishingOption }));
+  const lessonIns = lessons.map((l) => ({ kajabiId: l.kajabiId, moduleKajabiId: l.moduleKajabiId, publishingOption: l.publishingOption }));
+  // Hidden ones are in it, so a reason can say which module above hides an item.
+  const tree = planFullTree(moduleIns, lessonIns);
 
   const reasonFor = (state: Visibility, own: string | null, parentId: string | null): string => {
+    const above = parentId ? byId.get(parentId) : null;
+    if (own === "inherit") {
+      const follows = above ? `“${above.title}”` : "the course";
+      return state === "open" ? `Follows ${follows}` : state === "coming_soon" ? `Follows ${follows}: coming soon` : `Follows ${follows}: not published yet`;
+    }
     const ownVisibility = visibilityFromPublishing(own);
     if (state === "open") return "Published";
-    if (state === ownVisibility) return `${label(own)} in Kajabi`;
-    // Limited by a module above: the nearest one whose own setting gives this state.
+    if (state === ownVisibility) return `${label(own)} in ${place}`;
+    // Limited by what is above: the nearest module with a setting of its own that gives this state.
     const seen = new Set<string>();
     for (let id = parentId; id && !seen.has(id); ) {
       seen.add(id);
       const m = byId.get(id);
-      if (!m) return "Its module is missing from Kajabi's response";
-      if (visibilityFromPublishing(m.publishingOption) === state) return `Inside “${m.title}” (${label(m.publishingOption)})`;
+      if (!m) return place === "Kajabi" ? "Its module is missing from Kajabi's response" : "Its module can't be found";
+      if (m.publishingOption !== "inherit" && tree.modules.get(id) === state && visibilityFromPublishing(m.publishingOption) === state) return `Inside “${m.title}” (${label(m.publishingOption)})`;
       id = m.parentKajabiId;
     }
     return "Its module can't be resolved";
@@ -101,7 +112,7 @@ export function explainCourse(modules: ExplainModuleIn[], lessons: ExplainLesson
       title: m.title,
       publishingOption: m.publishingOption,
       state,
-      reason: m.parentKajabiId && !parent ? "Its parent module is missing from Kajabi's response" : reasonFor(state, m.publishingOption, parent),
+      reason: m.parentKajabiId && !parent ? (place === "Kajabi" ? "Its parent module is missing from Kajabi's response" : "Its parent module can't be found") : reasonFor(state, m.publishingOption, parent),
       lessons: (lessonsByModule.get(m.kajabiId) ?? []).sort(byPosition).map(explainLesson),
       children: modules
         .filter((c) => c.parentKajabiId === m.kajabiId)
@@ -125,6 +136,6 @@ export function explainCourse(modules: ExplainModuleIn[], lessons: ExplainLesson
  */
 export function memberEffect(state: Visibility, reason: string): string {
   const effect = state === "open" ? "Members can open it." : state === "coming_soon" ? "Members see it as coming soon." : "Members don't see it.";
-  const decidedByItself = reason === "Published" || reason.endsWith(" in Kajabi");
+  const decidedByItself = reason === "Published" || / in (Kajabi|the Hub)$/.test(reason);
   return decidedByItself ? effect : `${effect} ${reason}.`;
 }

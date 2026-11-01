@@ -23,7 +23,7 @@ vi.mock('@/lib/analytics/server', () => ({ withAction: async (_action: string, r
 const revalidatePath = vi.hoisted(() => vi.fn())
 vi.mock('next/cache', () => ({ revalidatePath }))
 
-import { addCourseLesson, addCourseModule, deleteCourseItem, duplicateCourseItem, renameCourseItem, reorderCourseItems } from '@/app/(admin)/admin/courses/outline-actions'
+import { addCourseLesson, addCourseModule, deleteCourseItem, duplicateCourseItem, renameCourseItem, reorderCourseItems, setCourseItemStatus } from '@/app/(admin)/admin/courses/outline-actions'
 
 describe('Course outline actions', () => {
   const supabase = getTestSupabaseAdminClient()
@@ -55,11 +55,11 @@ describe('Course outline actions', () => {
   })
 
   describe('addCourseModule and addCourseLesson', () => {
-    it('adds modules at the end, as Hub-owned drafts, and refreshes the pages', async () => {
+    it('adds modules at the end, as Hub-owned ones that follow what is above, and refreshes the pages', async () => {
       const first = await addCourseModule(ids.course, null, '  Module 1  ')
       const second = await addCourseModule(ids.course, null, 'Module 2')
       expect(first.id).toMatch(/^mod_/)
-      expect(await moduleRow(first.id!)).toMatchObject({ title: 'Module 1', position: 1, state: 'hidden', source: 'hub', source_key: null, parent_id: null, course_id: ids.course })
+      expect(await moduleRow(first.id!)).toMatchObject({ title: 'Module 1', position: 1, state: 'open', publishing_option: 'inherit', source: 'hub', source_key: null, parent_id: null, course_id: ids.course })
       expect(await moduleRow(second.id!)).toMatchObject({ position: 2 })
       expect(revalidatePath).toHaveBeenCalledWith(`/admin/courses/${ids.course}`)
       expect(revalidatePath).toHaveBeenCalledWith('/courses', 'layout')
@@ -70,18 +70,18 @@ describe('Course outline actions', () => {
     it('adds a submodule inside a module, numbered among its own siblings, and refuses a third level', async () => {
       const week1 = await addCourseModule(ids.course, ids.m1, 'Week 1')
       const week2 = await addCourseModule(ids.course, ids.m1, 'Week 2')
-      expect(await moduleRow(week1.id!)).toMatchObject({ parent_id: ids.m1, position: 1, state: 'hidden' })
+      expect(await moduleRow(week1.id!)).toMatchObject({ parent_id: ids.m1, position: 1, state: 'open' })
       expect(await moduleRow(week2.id!)).toMatchObject({ position: 2 })
       expect(await addCourseModule(ids.course, week1.id!, 'Too deep')).toEqual({ error: "A submodule can't have submodules" })
       ids.week1 = week1.id!
       ids.week2 = week2.id!
     })
 
-    it('adds lessons at the end of a module, as hidden Hub-owned lessons', async () => {
+    it('adds lessons at the end of a module, as Hub-owned lessons that follow their module', async () => {
       const a = await addCourseLesson(ids.course, ids.week1, 'Lesson A')
       const b = await addCourseLesson(ids.course, ids.week1, 'Lesson B')
       expect(a.id).toMatch(/^les_/)
-      expect(await lesson(a.id!)).toMatchObject({ title: 'Lesson A', position: 1, state: 'hidden', source: 'hub', module_id: ids.week1, course_id: ids.course })
+      expect(await lesson(a.id!)).toMatchObject({ title: 'Lesson A', position: 1, state: 'open', source: 'hub', module_id: ids.week1, course_id: ids.course })
       expect(await lesson(b.id!)).toMatchObject({ position: 2 })
       ids.a = a.id!
       ids.b = b.id!
@@ -231,6 +231,76 @@ describe('Course outline actions', () => {
       auth.admin = false
       expect(await deleteCourseItem(ids.course, 'lesson', ids.a)).toEqual({ error: 'Not authorized' })
       expect(await lesson(ids.a)).not.toBeNull()
+    })
+  })
+
+  describe('setCourseItemStatus', () => {
+    let course: string
+    let top: string
+    let week: string
+    let lesson: string
+    const states = async () => {
+      const mods = (await supabase.from('course_modules').select('title, state').eq('course_id', course)).data ?? []
+      const les = (await supabase.from('course_lessons').select('title, state').eq('course_id', course)).data ?? []
+      return Object.fromEntries([...mods, ...les].map((r) => [r.title, r.state]))
+    }
+
+    beforeAll(async () => {
+      auth.admin = true
+      course = (await supabase.from('courses').insert({ slug: `${PREFIX}-status`, title: 'Status', source: 'hub' }).select('id').single()).data!.id
+      top = (await addCourseModule(course, null, 'Top')).id!
+      week = (await addCourseModule(course, top, 'Week')).id!
+      lesson = (await addCourseLesson(course, week, 'Lesson')).id!
+    })
+
+    it('starts with everything following the top, which follows nothing: open', async () => {
+      expect(await states()).toEqual({ Top: 'open', Week: 'open', Lesson: 'open' })
+    })
+
+    it("sets one item's own setting, and what is under it follows", async () => {
+      expect(await setCourseItemStatus(course, 'module', top, 'draft')).toEqual({ id: top })
+      expect(await states()).toEqual({ Top: 'hidden', Week: 'hidden', Lesson: 'hidden' })
+      expect((await supabase.from('course_modules').select('publishing_option').eq('id', top).single()).data!.publishing_option).toBe('draft')
+      expect(await setCourseItemStatus(course, 'module', top, 'inherit')).toEqual({ id: top })
+      expect(await states()).toEqual({ Top: 'open', Week: 'open', Lesson: 'open' })
+    })
+
+    it("lets everything in a section be marked published while the section is a draft, then switches it all on with the section's own setting", async () => {
+      await setCourseItemStatus(course, 'module', top, 'draft')
+      expect(await setCourseItemStatus(course, 'module', week, 'published')).toEqual({ id: week })
+      expect(await setCourseItemStatus(course, 'lesson', lesson, 'published')).toEqual({ id: lesson })
+      expect(await states()).toEqual({ Top: 'hidden', Week: 'hidden', Lesson: 'hidden' })
+      await setCourseItemStatus(course, 'module', top, 'published')
+      expect(await states()).toEqual({ Top: 'open', Week: 'open', Lesson: 'open' })
+      await setCourseItemStatus(course, 'module', top, 'draft')
+      expect(await states()).toEqual({ Top: 'hidden', Week: 'hidden', Lesson: 'hidden' })
+      await setCourseItemStatus(course, 'module', week, 'inherit')
+      await setCourseItemStatus(course, 'lesson', lesson, 'inherit')
+      await setCourseItemStatus(course, 'module', top, 'inherit')
+    })
+
+    it("doesn't offer scheduled or drip yet, for an item", async () => {
+      const unavailable = { error: "That setting isn't available yet." }
+      expect(await setCourseItemStatus(course, 'lesson', lesson, 'drip')).toEqual(unavailable)
+      expect(await setCourseItemStatus(course, 'lesson', lesson, 'scheduled')).toEqual(unavailable)
+    })
+
+    it('says so for an item that is gone, and refuses ids that are not ids', async () => {
+      expect(await setCourseItemStatus(course, 'lesson', 'les_AAAAAAAAAAA1', 'draft')).toEqual({ error: 'That has been deleted. Refresh the page.' })
+      expect(await setCourseItemStatus(course, 'lesson', top, 'draft')).toEqual({ error: 'Not found.' })
+      expect(await setCourseItemStatus('nope', 'lesson', lesson, 'draft')).toEqual({ error: 'Not found.' })
+    })
+
+    it("won't change what is in a course imported from Kajabi", async () => {
+      expect((await setCourseItemStatus(ids.kajabi, 'module', ids.kajabiModule, 'draft')).error).toMatch(/can't be edited here/)
+      expect((await supabase.from('course_modules').select('publishing_option').eq('id', ids.kajabiModule).single()).data!.publishing_option).not.toBe('draft')
+    })
+
+    it("does nothing for someone who isn't an admin", async () => {
+      auth.admin = false
+      expect(await setCourseItemStatus(course, 'module', top, 'draft')).toEqual({ error: 'Not authorized' })
+      auth.admin = true
+      expect(await states()).toEqual({ Top: 'open', Week: 'open', Lesson: 'open' })
     })
   })
 })

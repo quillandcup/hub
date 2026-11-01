@@ -116,7 +116,7 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
       console.error("onboarding: failed to read ask-me-about", error);
       return [] as string[];
     }),
-    createRepos(supabase).writing.latestActiveProjectId(memberId),
+    createRepos(supabase).writing.activeProjects(memberId, { limit: 1 }).then((projects) => projects[0]?.id ?? null),
     createRepos(supabase).writing.goalCount(memberId),
     // A failed count reads as none: the checklist still renders.
     createRepos(supabase).prickleActivity.countActiveCommitments(memberId).catch((error) => {

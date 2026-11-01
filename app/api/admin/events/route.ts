@@ -4,6 +4,7 @@ import { eventImageError } from "@/lib/media/event-image";
 import { NextRequest, NextResponse } from "next/server";
 import { parseEventAudience, parseGuestSpeakers } from "@/lib/event-audience";
 import { eventWindow } from "@/lib/event-window";
+import { isId } from "@/lib/ids";
 import { EVENT_TYPES, isEventType } from "@/lib/events-filter";
 
 export async function GET(request: NextRequest) {
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest) {
     const parsed = await request.json().catch(() => undefined);
     if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     const body = parsed;
-    const { slug, title, event_type, location, starts_at, ends_at, start_clock, end_clock, host_name, focus, description, agenda, results, google_photos_album_url, image_id } = body;
+    const { slug, title, event_type, location, starts_at, ends_at, start_clock, end_clock, host_name, host_id, focus, description, agenda, results, google_photos_album_url, image_id } = body;
 
     if (!slug || !title || !event_type || !starts_at || !ends_at) {
       return NextResponse.json(
@@ -52,12 +53,17 @@ export async function POST(request: NextRequest) {
     const imageError = await eventImageError(repos.media, image_id);
     if (imageError) return NextResponse.json({ error: imageError }, { status: 400 });
 
+    if (host_id !== undefined && host_id !== null && !isId(host_id, "mbr")) return NextResponse.json({ error: "That host isn't a member" }, { status: 400 });
+    const hostId: string | null = typeof host_id === "string" ? host_id : null;
+
     // An event made in the Hub has no calendar item: its schedule is a Hub session, projected into the prickle it stands on.
     const session = await repos.hubSessions.create({
       title,
       description: description || null,
       location: location || null,
-      hostName: typeof host_name === "string" && host_name.trim() ? host_name.trim() : null,
+      // A member hosts it (their name is shown), or someone who isn't one is named in text.
+      hostId: hostId ?? null,
+      hostName: hostId ? null : typeof host_name === "string" && host_name.trim() ? host_name.trim() : null,
       guestSpeaker: speakers.value ?? null,
       startTime: window.startTime,
       endTime: window.endTime,

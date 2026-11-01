@@ -180,20 +180,70 @@ function validateTrackbearData(parsed: unknown): TrackbearData {
   return data;
 }
 
-/** What's already in Hub from a previous import, so re-importing is idempotent. */
+/** What an already-imported project looks like in Hub, to see what a re-import changes. */
+export interface ExistingProjectDetails {
+  title: string;
+  description: string | null;
+  phase: string;
+  showOnProfile: boolean;
+  /** The member deleted it in Hub: left alone, not brought back. */
+  deleted: boolean;
+}
+
+export interface ExistingEntryDetails {
+  projectId: string;
+  entryDate: string;
+  measure: string;
+  mode: string;
+  amount: number;
+  note: string | null;
+  tags: string[];
+  deleted: boolean;
+}
+
+export interface ExistingGoalDetails {
+  projectId: string | null;
+  goalType: string;
+  measure: string;
+  targetAmount: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  habitPeriod: string | null;
+  habitThreshold: number | null;
+  title: string | null;
+  description: string | null;
+  showOnProfile: boolean;
+  deleted: boolean;
+}
+
+/**
+ * What's already in Hub from a previous import, so re-importing is idempotent. The `*Details`
+ * maps (keyed by external id) let the plan overwrite what differs from the export; without one,
+ * its records are left as they are.
+ */
 export interface ExistingImports {
   /** external_id -> Hub writing_projects.id */
   projectIdsByExternalId: Map<string, string>;
   entryExternalIds: Set<string>;
   goalExternalIds: Set<string>;
-  /** Already-imported goals with no title and no description -- imported before Hub goals had them. */
-  goalExternalIdsMissingDetails?: Set<string>;
-  /** Project external_id -> measures that already have a starting balance row in Hub. */
-  startingBalanceMeasures?: Map<string, Set<string>>;
+  projectDetails?: Map<string, ExistingProjectDetails>;
+  entryDetails?: Map<string, ExistingEntryDetails>;
+  goalDetails?: Map<string, ExistingGoalDetails>;
+  /** Project external_id -> starting balance per measure. */
+  startingBalances?: Map<string, Map<string, number>>;
 }
 
-/** A starting balance for a project imported earlier that has none for this measure yet. */
-export interface StartingBalanceBackfill {
+/** A project's TrackBear title, description, phase and visibility, overwriting Hub's. */
+export interface ProjectUpdate {
+  externalId: string;
+  title: string;
+  description: string | null;
+  phase: ProjectPhase;
+  showOnProfile: boolean;
+}
+
+/** A starting balance Hub is missing or has a different value for. */
+export interface StartingBalanceUpdate {
   projectExternalId: string;
   measure: Exclude<WritingMeasure, "prickles">;
   amount: number;
@@ -240,14 +290,6 @@ export interface PlannedGoal {
   createdAt: string;
 }
 
-/** Title/description/show-on-profile for a goal that was imported before Hub goals had them. */
-export interface GoalDetailBackfill {
-  externalId: string;
-  title: string | null;
-  description: string | null;
-  showOnProfile: boolean;
-}
-
 /**
  * - skipped: the whole record was not imported
  * - dropped: the record was imported, but some of its data has nowhere to go in Hub
@@ -269,8 +311,11 @@ export interface TrackbearImportPlan {
   /** Every importable entry not already imported, whether its project is new or already in Hub. */
   newEntries: PlannedEntry[];
   newGoals: PlannedGoal[];
-  goalDetailBackfills: GoalDetailBackfill[];
-  startingBalanceBackfills: StartingBalanceBackfill[];
+  /** Already-imported records whose Hub values differ from the export; the export wins. */
+  projectUpdates: ProjectUpdate[];
+  startingBalanceUpdates: StartingBalanceUpdate[];
+  entryUpdates: PlannedEntry[];
+  goalUpdates: PlannedGoal[];
   alreadyImported: { projects: number; entries: number; goals: number };
   issues: ImportIssue[];
 }
@@ -311,6 +356,38 @@ function parseStartingBalances(project: TrackbearData["projects"][number], label
   return startingBalances;
 }
 
+function sameTags(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((tag, i) => tag === b[i]);
+}
+
+function entryDiffers(before: ExistingEntryDetails, planned: PlannedEntry, projectId: string | undefined): boolean {
+  return (
+    before.projectId !== projectId ||
+    before.entryDate !== planned.entryDate ||
+    before.measure !== planned.measure ||
+    before.mode !== planned.mode ||
+    before.amount !== planned.amount ||
+    before.note !== planned.note ||
+    !sameTags(before.tags, planned.tags)
+  );
+}
+
+function goalDiffers(before: ExistingGoalDetails, planned: PlannedGoal, projectId: string | undefined): boolean {
+  return (
+    before.projectId !== (projectId ?? null) ||
+    before.goalType !== planned.goalType ||
+    before.measure !== planned.measure ||
+    before.targetAmount !== planned.targetAmount ||
+    before.startDate !== planned.startDate ||
+    before.endDate !== planned.endDate ||
+    before.habitPeriod !== planned.habitPeriod ||
+    before.habitThreshold !== planned.habitThreshold ||
+    before.title !== planned.title ||
+    before.description !== planned.description ||
+    before.showOnProfile !== planned.showOnProfile
+  );
+}
+
 export function planTrackbearImport(data: TrackbearData, existing: ExistingImports): TrackbearImportPlan {
   const issues: ImportIssue[] = [];
   const alreadyImported = { projects: 0, entries: 0, goals: 0 };
@@ -320,17 +397,31 @@ export function planTrackbearImport(data: TrackbearData, existing: ExistingImpor
 
   // --- Projects ---
   const newProjects: PlannedProject[] = [];
-  const startingBalanceBackfills: StartingBalanceBackfill[] = [];
+  const projectUpdates: ProjectUpdate[] = [];
+  const startingBalanceUpdates: StartingBalanceUpdate[] = [];
   for (const project of data.projects) {
     const externalId = trackbearExternalId(project.uuid);
     const label = project.title.trim() || "Untitled project";
     if (existing.projectIdsByExternalId.has(externalId)) {
       alreadyImported.projects++;
-      // A balance Hub has no row for yet (the first import predates balances or failed to save them). Rows
-      // already there win, since the member may have edited them. Problems were reported on the first import.
-      const have = existing.startingBalanceMeasures?.get(externalId);
-      for (const b of parseStartingBalances(project, label, [])) {
-        if (!have?.has(b.measure)) startingBalanceBackfills.push({ projectExternalId: externalId, ...b });
+      const before = existing.projectDetails?.get(externalId);
+      if (before && !before.deleted) {
+        const phase = TRACKBEAR_PHASE_MAP[project.phase] ?? (before.phase as ProjectPhase);
+        const description = project.description?.trim() || null;
+        const showOnProfile = !!project.displayOnProfile;
+        if (
+          before.title !== label ||
+          before.description !== description ||
+          before.phase !== phase ||
+          before.showOnProfile !== showOnProfile
+        ) {
+          projectUpdates.push({ externalId, title: label, description, phase, showOnProfile });
+        }
+        // Problems with these balances were reported when the project was first imported.
+        const have = existing.startingBalances?.get(externalId);
+        for (const b of parseStartingBalances(project, label, [])) {
+          if (have?.get(b.measure) !== b.amount) startingBalanceUpdates.push({ projectExternalId: externalId, ...b });
+        }
       }
       continue;
     }
@@ -371,26 +462,24 @@ export function planTrackbearImport(data: TrackbearData, existing: ExistingImpor
 
   // --- Entries (TrackBear "tallies") ---
   const newEntries: PlannedEntry[] = [];
+  const entryUpdates: PlannedEntry[] = [];
   for (const tally of data.tallies) {
     const externalId = trackbearExternalId(tally.uuid);
-    if (existing.entryExternalIds.has(externalId)) {
-      alreadyImported.entries++;
-      continue;
-    }
+    const known = existing.entryExternalIds.has(externalId);
+    if (known) alreadyImported.entries++;
+    // What was wrong with a record was reported when it was first imported, or it wouldn't be here.
+    const skip = (detail: string, label: string) => {
+      if (!known) issues.push({ severity: "skipped", kind: "entry", label, detail });
+    };
     const project = projectsById.get(tally.workId);
     const label = `${tally.date}${project ? ` · ${project.title}` : ""}`;
     if (!project) {
-      issues.push({
-        severity: "skipped",
-        kind: "entry",
-        label,
-        detail: "Belongs to a project that isn't in the export (deleted in TrackBear?).",
-      });
+      skip("Belongs to a project that isn't in the export (deleted in TrackBear?).", label);
       continue;
     }
     const measure = TRACKBEAR_MEASURE_MAP[tally.measure];
     if (!measure) {
-      issues.push({ severity: "skipped", kind: "entry", label, detail: `Unrecognized measure "${tally.measure}".` });
+      skip(`Unrecognized measure "${tally.measure}".`, label);
       continue;
     }
     const tags = [
@@ -402,7 +491,7 @@ export function planTrackbearImport(data: TrackbearData, existing: ExistingImpor
           .filter(Boolean)
       ),
     ];
-    newEntries.push({
+    const planned: PlannedEntry = {
       externalId,
       projectExternalId: trackbearExternalId(project.uuid),
       entryDate: tally.date,
@@ -412,7 +501,15 @@ export function planTrackbearImport(data: TrackbearData, existing: ExistingImpor
       note: tally.note?.trim() || null,
       tags,
       createdAt: tally.createdAt,
-    });
+    };
+    if (!known) {
+      newEntries.push(planned);
+      continue;
+    }
+    const before = existing.entryDetails?.get(externalId);
+    if (before && !before.deleted && entryDiffers(before, planned, existing.projectIdsByExternalId.get(planned.projectExternalId))) {
+      entryUpdates.push(planned);
+    }
   }
 
   // --- Tags: Hub stores tags as plain labels on each entry, with no color ---
@@ -438,7 +535,7 @@ export function planTrackbearImport(data: TrackbearData, existing: ExistingImpor
 
   // --- Goals (TrackBear "targets" and "habits") ---
   const newGoals: PlannedGoal[] = [];
-  const goalDetailBackfills: GoalDetailBackfill[] = [];
+  const goalUpdates: PlannedGoal[] = [];
   for (const goal of [...data.targets, ...data.habits]) {
     const externalId = trackbearExternalId(goal.uuid);
     const details = {
@@ -446,18 +543,14 @@ export function planTrackbearImport(data: TrackbearData, existing: ExistingImpor
       description: goal.description?.trim() || null,
       showOnProfile: !!goal.displayOnProfile,
     };
-    if (existing.goalExternalIds.has(externalId)) {
-      alreadyImported.goals++;
-      if (
-        existing.goalExternalIdsMissingDetails?.has(externalId) &&
-        (details.title || details.description || details.showOnProfile)
-      ) {
-        goalDetailBackfills.push({ externalId, ...details });
-      }
-      continue;
-    }
+    const known = existing.goalExternalIds.has(externalId);
+    if (known) alreadyImported.goals++;
     const label = goalLabel(goal);
-    const skip = (detail: string) => issues.push({ severity: "skipped", kind: "goal", label, detail });
+    // What was wrong with a goal was reported when it was first imported, or it wouldn't be here.
+    const skip = (detail: string) => {
+      if (!known) issues.push({ severity: "skipped", kind: "goal", label, detail });
+    };
+    const planned: PlannedGoal[] = [];
 
     // Hub goals belong to exactly one project and count every entry on it.
     const workIds = goal.workIds ?? [];
@@ -496,7 +589,7 @@ export function planTrackbearImport(data: TrackbearData, existing: ExistingImpor
         skip("Target has no valid amount/measure.");
         continue;
       }
-      newGoals.push({
+      planned.push({
         ...base,
         goalType: "target",
         measure,
@@ -526,7 +619,7 @@ export function planTrackbearImport(data: TrackbearData, existing: ExistingImpor
           `Date range (${goal.startDate ?? "…"} to ${goal.endDate ?? "…"}) -- Hub habits run open-ended, so streaks count all of the project's entries.`
         );
       }
-      newGoals.push({
+      planned.push({
         ...base,
         goalType: "habit",
         measure,
@@ -541,8 +634,16 @@ export function planTrackbearImport(data: TrackbearData, existing: ExistingImpor
       continue;
     }
 
-    for (const detail of dropped) issues.push({ severity: "dropped", kind: "goal", label, detail });
+    if (!known) {
+      for (const detail of dropped) issues.push({ severity: "dropped", kind: "goal", label, detail });
+      newGoals.push(planned[0]);
+      continue;
+    }
+    const before = existing.goalDetails?.get(externalId);
+    if (before && !before.deleted && goalDiffers(before, planned[0], existing.projectIdsByExternalId.get(planned[0].projectExternalId))) {
+      goalUpdates.push(planned[0]);
+    }
   }
 
-  return { newProjects, newEntries, newGoals, goalDetailBackfills, startingBalanceBackfills, alreadyImported, issues };
+  return { newProjects, newEntries, newGoals, projectUpdates, startingBalanceUpdates, entryUpdates, goalUpdates, alreadyImported, issues };
 }

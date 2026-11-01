@@ -13,6 +13,7 @@ const actions = vi.hoisted(() => ({
   duplicateCourseItem: vi.fn(),
   renameCourseItem: vi.fn(),
   reorderCourseItems: vi.fn(),
+  setCourseItemStatus: vi.fn(),
 }));
 vi.mock("@/app/(admin)/admin/courses/outline-actions", () => actions);
 
@@ -30,15 +31,15 @@ const L3 = "les_AAAAAAAAAAA3";
 
 const outline = buildHubOutline(
   [
-    { id: M1, parent_id: null, title: "Module 1", position: 1, state: "hidden" },
-    { id: M2, parent_id: null, title: "Module 2", position: 2, state: "hidden" },
-    { id: W1, parent_id: M1, title: "Week 1", position: 1, state: "hidden" },
-    { id: W2, parent_id: M1, title: "Week 2", position: 2, state: "hidden" },
+    { id: M1, parent_id: null, title: "Module 1", position: 1, publishing_option: "inherit" },
+    { id: M2, parent_id: null, title: "Module 2", position: 2, publishing_option: "inherit" },
+    { id: W1, parent_id: M1, title: "Week 1", position: 1, publishing_option: "inherit" },
+    { id: W2, parent_id: M1, title: "Week 2", position: 2, publishing_option: "inherit" },
   ],
   [
-    { id: L1, module_id: W1, title: "Lesson one", position: 1, state: "hidden", hasText: true, hasVideo: false },
-    { id: L2, module_id: W1, title: "Lesson two", position: 2, state: "hidden", hasText: false, hasVideo: false },
-    { id: L3, module_id: M2, title: "Lesson three", position: 1, state: "hidden", hasText: false, hasVideo: false },
+    { id: L1, module_id: W1, title: "Lesson one", position: 1, publishing_option: "inherit", hasText: true, hasVideo: false },
+    { id: L2, module_id: W1, title: "Lesson two", position: 2, publishing_option: "inherit", hasText: false, hasVideo: false },
+    { id: L3, module_id: M2, title: "Lesson three", position: 1, publishing_option: "inherit", hasText: false, hasVideo: false },
   ]
 );
 const course = (over: Partial<OutlineCourse> = {}): OutlineCourse => ({
@@ -66,14 +67,14 @@ const open = async (user: ReturnType<typeof userEvent.setup>) => {
 };
 
 describe("an editable outline", () => {
-  it("enables the controls an imported course has off, and keeps the status menus off for now", async () => {
+  it("enables the controls an imported course has off, status menus included", async () => {
     const user = userEvent.setup();
     render(<BuilderOutline course={course()} />);
     await open(user);
     expect(screen.getByRole("button", { name: "Add module" })).toBeEnabled();
     expect(screen.getAllByRole("button", { name: "Duplicate module" })[0]).toBeEnabled();
     expect(screen.getAllByRole("button", { name: "Delete lesson" })[0]).toBeEnabled();
-    for (const select of screen.getAllByRole("combobox")) expect(select).toBeDisabled();
+    for (const select of screen.getAllByRole("combobox")) expect(select).toBeEnabled();
     expect(screen.getAllByRole("button", { name: "Open lesson comments" })[0]).toBeDisabled();
     // The title isn't a link to a lesson page there isn't yet.
     expect(screen.queryByRole("link", { name: "Lesson one" })).not.toBeInTheDocument();
@@ -93,6 +94,32 @@ describe("an editable outline", () => {
     await open(user);
     expect(screen.queryByRole("link", { name: "Open lesson preview" })).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Open lesson preview" })[0]).toBeDisabled();
+  });
+});
+
+describe("status", () => {
+  it("offers following what is above, and sends the choice for that row", async () => {
+    actions.setCourseItemStatus.mockResolvedValue({ id: L1 });
+    const user = userEvent.setup();
+    render(<BuilderOutline course={course()} />);
+    await open(user);
+    const select = screen.getByRole("combobox", { name: "Status of Lesson one" });
+    expect(select).toHaveValue("inherit");
+    expect(within(select).getByRole("option", { name: "Follows what is above" })).toBeInTheDocument();
+    await user.selectOptions(select, "published");
+    expect(actions.setCourseItemStatus).toHaveBeenCalledWith(COURSE, "lesson", L1, "published");
+    expect(router.refresh).toHaveBeenCalled();
+  });
+
+  it("sends a module's choice as a module's, and shows the reason when it is refused", async () => {
+    actions.setCourseItemStatus.mockResolvedValue({ error: "Not found." });
+    const user = userEvent.setup();
+    render(<BuilderOutline course={course()} />);
+    await open(user);
+    await user.selectOptions(screen.getByRole("combobox", { name: "Status of Module 1" }), "draft");
+    expect(actions.setCourseItemStatus).toHaveBeenCalledWith(COURSE, "module", M1, "draft");
+    expect(await screen.findByText("Not found.")).toBeInTheDocument();
+    expect(router.refresh).not.toHaveBeenCalled();
   });
 });
 
