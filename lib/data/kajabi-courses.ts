@@ -21,6 +21,12 @@ export type KajabiCourseOffer = Bronze["kajabi_course_offers"]["Row"];
 export type NewKajabiCourseOffer = Bronze["kajabi_course_offers"]["Insert"];
 export type NewProductProgress = Bronze["kajabi_product_progress"]["Insert"];
 export type NewLessonProgress = Bronze["kajabi_lesson_progress"]["Insert"];
+export type NewLessonComment = Bronze["kajabi_lesson_comments"]["Insert"];
+/** A lesson's comment as stored (soft-deleted ones included). */
+export type StoredLessonComment = Pick<
+  Bronze["kajabi_lesson_comments"]["Row"],
+  "course_kajabi_id" | "comment_key" | "parent_comment_key" | "author_name" | "posted_at" | "body" | "deleted_at"
+>;
 
 /** A lesson without its text and raw payload: what outlines, visibility and the video and file plans need. */
 export type KajabiLessonOutline = Pick<
@@ -165,6 +171,12 @@ export interface KajabiCourseRepository {
   completedLessons(courseKajabiId: string): Promise<CompletedLessonProgress[]>;
   upsertLessonProgress(rows: NewLessonProgress[]): Promise<void>;
   softDeleteLessonProgress(courseKajabiId: string, email: string, lessonKajabiIds: string[], at: string): Promise<void>;
+
+  // --- lesson comments capture ---
+  /** Every stored comment of one lesson, soft-deleted ones included, by key. */
+  lessonComments(lessonKajabiId: string): Promise<StoredLessonComment[]>;
+  upsertLessonComments(rows: NewLessonComment[]): Promise<void>;
+  softDeleteLessonComments(lessonKajabiId: string, commentKeys: string[], at: string): Promise<void>;
 }
 
 
@@ -470,6 +482,32 @@ export class SupabaseKajabiCourseRepository implements KajabiCourseRepository {
       if (error) throw new Error(`Could not remove lesson progress: ${error.message}`);
     }
   }
+
+  async lessonComments(lessonKajabiId: string) {
+    return fetchAllRows<StoredLessonComment>(
+      (a, b) =>
+        this.bronze
+          .from("kajabi_lesson_comments")
+          .select("course_kajabi_id, comment_key, parent_comment_key, author_name, posted_at, body, deleted_at")
+          .eq("lesson_kajabi_id", lessonKajabiId)
+          .order("comment_key")
+          .range(a, b) as unknown as PageQuery<StoredLessonComment>,
+    );
+  }
+
+  async upsertLessonComments(rows: NewLessonComment[]) {
+    for (const batch of chunk(rows, WRITE_CHUNK)) {
+      const { error } = await this.bronze.from("kajabi_lesson_comments").upsert(batch, { onConflict: "lesson_kajabi_id,comment_key" });
+      if (error) throw new Error(`Could not save lesson comments: ${error.message}`);
+    }
+  }
+
+  async softDeleteLessonComments(lessonKajabiId: string, commentKeys: string[], at: string) {
+    for (const batch of chunk(commentKeys, ID_CHUNK)) {
+      const { error } = await this.bronze.from("kajabi_lesson_comments").update({ deleted_at: at }).eq("lesson_kajabi_id", lessonKajabiId).in("comment_key", batch);
+      if (error) throw new Error(`Could not remove lesson comments: ${error.message}`);
+    }
+  }
 }
 
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
@@ -761,6 +799,36 @@ export class InMemoryKajabiCourseRepository implements KajabiCourseRepository {
     const wanted = new Set(lessonKajabiIds);
     for (const p of this.data.kajabiLessonProgress) {
       if (p.course_kajabi_id === courseKajabiId && p.email === email && wanted.has(p.kajabi_lesson_id)) p.deleted_at = at;
+    }
+  }
+
+  async lessonComments(lessonKajabiId: string) {
+    return this.data.kajabiLessonComments
+      .filter((c) => c.lesson_kajabi_id === lessonKajabiId)
+      .map(({ course_kajabi_id, comment_key, parent_comment_key, author_name, posted_at, body, deleted_at }) => ({
+        course_kajabi_id,
+        comment_key,
+        parent_comment_key,
+        author_name,
+        posted_at,
+        body,
+        deleted_at,
+      }))
+      .sort((a, b) => cmp(a.comment_key, b.comment_key));
+  }
+
+  async upsertLessonComments(rows: NewLessonComment[]) {
+    for (const row of rows) {
+      const existing = this.data.kajabiLessonComments.find((x) => x.lesson_kajabi_id === row.lesson_kajabi_id && x.comment_key === row.comment_key);
+      if (existing) Object.assign(existing, row);
+      else this.data.kajabiLessonComments.push({ captured_at: new Date().toISOString(), deleted_at: null, parent_comment_key: null, posted_at: null, ...row });
+    }
+  }
+
+  async softDeleteLessonComments(lessonKajabiId: string, commentKeys: string[], at: string) {
+    const wanted = new Set(commentKeys);
+    for (const c of this.data.kajabiLessonComments) {
+      if (c.lesson_kajabi_id === lessonKajabiId && wanted.has(c.comment_key)) c.deleted_at = at;
     }
   }
 }
