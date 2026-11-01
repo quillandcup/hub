@@ -175,7 +175,8 @@ SELECT is(
   jsonb_build_object('label', 'Hub Course', 'count', 3),
   'reordering a course''s modules is one audit entry named for the course');
 SELECT is(
-  (SELECT count(*)::int FROM public.audit_log WHERE entity_type IN ('course_module_order', 'course_lesson_order')),
+  -- Only this test's own lists: the database tests that run before this file commit reorder entries of their own.
+  (SELECT count(*)::int FROM public.audit_log WHERE entity_type IN ('course_module_order', 'course_lesson_order') AND entity_id IN ('crs_OutlineHub001', 'mod_OutlineWk0001', 'mod_OutlineA00001', 'mod_OutlineB00001', 'mod_OutlineC00001')),
   2, 'a reorder that changed nothing, a stale list and a refused reorder write no entry');
 SELECT is(
   (SELECT count(*)::int FROM public.audit_log WHERE entity_type IN ('course_module', 'course_lesson') AND action = 'update' AND changes ? 'position'),
