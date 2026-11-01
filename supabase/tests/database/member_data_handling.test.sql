@@ -1,4 +1,4 @@
--- pgTAP tests for 20270326000000_member_data_handling.sql: every table that points at a member has a decision for
+-- pgTAP tests for 20270331000000_member_data_handling.sql: every table that points at a member has a decision for
 -- what a removal request does to it, so a new member-owned table can't be added without one.
 --   * every foreign key to members(id) has a row in member_data_handling;
 --   * every row names a foreign key that exists (no stale entries after a rename or drop);
