@@ -108,10 +108,10 @@ export function defineBillingContract(name: string, setup: () => BillingContract
       const refs = (cs: KajabiCustomerSeed[]) =>
         [...cs].sort((x, y) => (x.kajabi_customer_id < y.kajabi_customer_id ? -1 : 1)).map((x) => ({ kajabi_customer_id: x.kajabi_customer_id, email: x.email }));
 
-      expect(await ctx.repo().kajabiCustomersByEmail([a.email, b.email, "nobody@example.test", a.email])).toEqual(refs([a, b]));
-      expect(await ctx.repo().kajabiCustomersByEmail([])).toEqual([]);
-      expect(await ctx.repo().kajabiCustomersByIds([c.kajabi_customer_id, a.kajabi_customer_id, ctx.unique("missing")])).toEqual(refs([a, c]));
-      expect(await ctx.repo().kajabiCustomersByIds([])).toEqual([]);
+      expect(await ctx.repo().kajabiCustomers({ emails: [a.email, b.email, "nobody@example.test", a.email] })).toEqual(refs([a, b]));
+      expect(await ctx.repo().kajabiCustomers({ emails: [] })).toEqual([]);
+      expect(await ctx.repo().kajabiCustomers({ customerIds: [c.kajabi_customer_id, a.kajabi_customer_id, ctx.unique("missing")] })).toEqual(refs([a, c]));
+      expect(await ctx.repo().kajabiCustomers({ customerIds: [] })).toEqual([]);
       const profiles = await ctx.repo().kajabiCustomerProfilesByEmail([a.email, b.email]);
       expect(profiles.map((p) => p.data)).toEqual([{ n: 1 }, { n: 2 }]);
       expect(profiles.map((p) => at(p.updated_at_kajabi!))).toEqual([at("2024-01-01T00:00:00Z"), at("2025-01-01T00:00:00Z")]);
@@ -128,8 +128,8 @@ export function defineBillingContract(name: string, setup: () => BillingContract
       }));
       await ctx.seed({ kajabiCustomers: customers });
 
-      expect(await ctx.repo().kajabiCustomersByIds(customers.map((c) => c.kajabi_customer_id))).toHaveLength(250);
-      expect(await ctx.repo().kajabiCustomersByEmail(customers.map((c) => c.email))).toHaveLength(250);
+      expect(await ctx.repo().kajabiCustomers({ customerIds: customers.map((c) => c.kajabi_customer_id) })).toHaveLength(250);
+      expect(await ctx.repo().kajabiCustomers({ emails: customers.map((c) => c.email) })).toHaveLength(250);
       expect(await ctx.repo().kajabiCustomerProfilesByEmail(customers.map((c) => c.email))).toHaveLength(250);
     });
 
@@ -337,7 +337,7 @@ export function defineBillingContract(name: string, setup: () => BillingContract
           expect(await one("kajabi_purchases", "kajabi_purchase_id", purchase.kajabi_purchase_id)).toMatchObject({ status: "canceled", amount_in_cents: 100 });
           expect(await one("kajabi_offers", "kajabi_offer_id", offer.kajabi_offer_id)).toMatchObject({ name: "Renamed", trial_period_days: null });
           // The reads see what the writes stored.
-          expect(await ctx.repo().kajabiCustomersByIds([customer.kajabi_customer_id])).toEqual([{ kajabi_customer_id: customer.kajabi_customer_id, email: customer.email }]);
+          expect(await ctx.repo().kajabiCustomers({ customerIds: [customer.kajabi_customer_id] })).toEqual([{ kajabi_customer_id: customer.kajabi_customer_id, email: customer.email }]);
         } finally {
           await ctx.removeStored("kajabi_customers", "kajabi_customer_id", [customer.kajabi_customer_id]);
           await ctx.removeStored("kajabi_purchases", "kajabi_purchase_id", [purchase.kajabi_purchase_id]);

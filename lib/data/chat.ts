@@ -185,16 +185,10 @@ export interface ChatRepository {
   channelRecord(channelId: string): Promise<ChannelRecord | null>;
   /** The settings that decide whether membership can change, or null for a missing conversation. */
   manageSettings(channelId: string): Promise<ChannelManageSettings | null>;
-  /** The Slack id of a conversation, or null when it has none (or there is no such conversation). */
-  slackChannelOf(channelId: string): Promise<string | null>;
   /** Ids of the conversations the member is in now. */
   joinedChannelIds(memberId: string): Promise<Set<string>>;
-  /** Whether the member is in the conversation now. */
-  isInChannel(channelId: string, memberId: string): Promise<boolean>;
   /** The member's current place in a conversation (its source), or null when they are not in it. */
   activeMembership(channelId: string, memberId: string): Promise<{ source: string } | null>;
-  /** Who is in a conversation now, by member id. */
-  activeMemberIds(channelId: string): Promise<string[]>;
   /** Who is in each of these conversations now. */
   activeMembersOf(channelIds: string[]): Promise<{ channel_id: string; member_id: string }[]>;
   /** Which of these members are in the conversation now. */
@@ -522,21 +516,11 @@ export class SupabaseChatRepository implements ChatRepository {
     return data;
   }
 
-  async slackChannelOf(channelId: string) {
-    const { data, error } = await this.db.from("chat_channels").select("slack_channel_id").eq("id", channelId).maybeSingle();
-    if (error) throw new Error(error.message);
-    return data?.slack_channel_id ?? null;
-  }
-
   async joinedChannelIds(memberId: string) {
     const rows = await fetchAllRows<{ channel_id: string }>((from, to) =>
       this.db.from("chat_channel_members").select("channel_id").eq("member_id", memberId).is("left_at", null).order("channel_id").range(from, to)
     );
     return new Set(rows.map((r) => r.channel_id));
-  }
-
-  async isInChannel(channelId: string, memberId: string) {
-    return (await this.activeMembership(channelId, memberId)) !== null;
   }
 
   async activeMembership(channelId: string, memberId: string) {
@@ -549,13 +533,6 @@ export class SupabaseChatRepository implements ChatRepository {
       .maybeSingle();
     if (error) throw new Error(error.message);
     return data;
-  }
-
-  async activeMemberIds(channelId: string) {
-    const rows = await fetchAllRows<{ member_id: string }>((from, to) =>
-      this.db.from("chat_channel_members").select("member_id").eq("channel_id", channelId).is("left_at", null).order("member_id").range(from, to)
-    );
-    return rows.map((r) => r.member_id);
   }
 
   async activeMembersOf(channelIds: string[]) {
@@ -1026,25 +1003,13 @@ export class InMemoryChatRepository implements ChatRepository {
     };
   }
 
-  async slackChannelOf(channelId: string) {
-    return this.data.chatChannels.find((c) => c.id === channelId)?.slack_channel_id ?? null;
-  }
-
   async joinedChannelIds(memberId: string) {
     return new Set(this.active().filter((m) => m.member_id === memberId).map((m) => m.channel_id));
-  }
-
-  async isInChannel(channelId: string, memberId: string) {
-    return this.active(channelId).some((m) => m.member_id === memberId);
   }
 
   async activeMembership(channelId: string, memberId: string) {
     const m = this.active(channelId).find((x) => x.member_id === memberId);
     return m ? { source: m.source ?? "slack" } : null;
-  }
-
-  async activeMemberIds(channelId: string) {
-    return this.active(channelId).map((m) => m.member_id).sort();
   }
 
   async activeMembersOf(channelIds: string[]) {

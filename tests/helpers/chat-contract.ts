@@ -392,9 +392,9 @@ export function defineChatContract(name: string, setup: () => ChatContractContex
           archived_at: null,
         });
         expect(await ctx.repo().manageSettings(NONE)).toBeNull();
-        expect(await ctx.repo().slackChannelOf(ids.a)).toBe(slack);
-        expect(await ctx.repo().slackChannelOf(ids.b)).toBeNull();
-        expect(await ctx.repo().slackChannelOf(NONE)).toBeNull();
+        expect((await ctx.repo().channelRecord(ids.a))?.slack_channel_id ?? null).toBe(slack);
+        expect((await ctx.repo().channelRecord(ids.b))?.slack_channel_id ?? null).toBeNull();
+        expect((await ctx.repo().channelRecord(NONE))?.slack_channel_id ?? null).toBeNull();
       });
 
       it("knows who is in a conversation now, leaving out those who left", async () => {
@@ -410,14 +410,14 @@ export function defineChatContract(name: string, setup: () => ChatContractContex
 
         expect(await repo.joinedChannelIds(m0)).toEqual(new Set([ids.a, ids.b]));
         expect(await repo.joinedChannelIds(m2)).toEqual(new Set());
-        expect(await repo.isInChannel(ids.a, m1)).toBe(true);
-        expect(await repo.isInChannel(ids.a, m2)).toBe(false);
-        expect(await repo.isInChannel(ids.b, m1)).toBe(false);
+        expect(await repo.activeMembership(ids.a, m1)).not.toBeNull();
+        expect(await repo.activeMembership(ids.a, m2)).toBeNull();
+        expect(await repo.activeMembership(ids.b, m1)).toBeNull();
         expect(await repo.activeMembership(ids.a, m0)).toEqual({ source: "app" });
         expect(await repo.activeMembership(ids.a, m1)).toEqual({ source: "slack" });
         expect(await repo.activeMembership(ids.a, m2)).toBeNull();
-        expect(sorted(await repo.activeMemberIds(ids.a))).toEqual(sorted([m0, m1]));
-        expect(await repo.activeMemberIds(NONE)).toEqual([]);
+        expect(sorted((await repo.activeMembersOf([ids.a])).map((p) => p.member_id))).toEqual(sorted([m0, m1]));
+        expect((await repo.activeMembersOf([NONE])).map((p) => p.member_id)).toEqual([]);
         const pairs = await repo.activeMembersOf([ids.a, ids.b, NONE]);
         expect(pairs.map((p) => `${p.channel_id}/${p.member_id}`).sort()).toEqual([`${ids.a}/${m0}`, `${ids.a}/${m1}`, `${ids.b}/${m0}`].sort());
         expect(await repo.presentMembers(ids.a, [m0, m1, m2])).toEqual(new Set([m0, m1]));
@@ -453,10 +453,10 @@ export function defineChatContract(name: string, setup: () => ChatContractContex
         const repo = ctx.repo();
 
         await repo.addMembers(ids.a, [], "2026-04-01T00:00:00Z");
-        expect(await repo.activeMemberIds(ids.a)).toEqual([]);
+        expect((await repo.activeMembersOf([ids.a])).map((p) => p.member_id)).toEqual([]);
         await repo.addMembers(ids.a, [{ memberId: m0, source: "app" }, { memberId: m1, source: "slack" }], "2026-04-01T00:00:00Z");
 
-        expect(sorted(await repo.activeMemberIds(ids.a))).toEqual(sorted([m0, m1]));
+        expect(sorted((await repo.activeMembersOf([ids.a])).map((p) => p.member_id))).toEqual(sorted([m0, m1]));
         expect(await repo.activeMembership(ids.a, m0)).toEqual({ source: "app" });
         expect(await repo.activeMembership(ids.a, m1)).toEqual({ source: "slack" });
         expect(at((await repo.readMarker(ids.a, m0))!)).toBe(at("2026-02-01T00:00:00Z"));
@@ -472,8 +472,8 @@ export function defineChatContract(name: string, setup: () => ChatContractContex
         await repo.markLeft(ids.a, m0, "2026-06-01T00:00:00Z");
         await repo.markLeft(ids.a, NONE, "2026-06-01T00:00:00Z");
 
-        expect(await repo.isInChannel(ids.a, m0)).toBe(false);
-        expect(await repo.isInChannel(ids.a, m1)).toBe(true);
+        expect(await repo.activeMembership(ids.a, m0)).toBeNull();
+        expect(await repo.activeMembership(ids.a, m1)).not.toBeNull();
       });
 
       it("lists the conversations a member is in with their Slack settings", async () => {

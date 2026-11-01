@@ -156,7 +156,7 @@ export default async function MemberDetailPage({
 
   // Fetch Kajabi membership history — query all customer IDs across primary + alias emails
   const allEmails = [member.email, ...(emailAliases || []).map((a: any) => a.alias_email)];
-  const kajabiCustomers = await createRepos(supabase).billing.kajabiCustomersByEmail(allEmails);
+  const kajabiCustomers = await createRepos(supabase).billing.kajabiCustomers({ emails: allEmails });
 
   const customerIds = kajabiCustomers.map((c) => c.kajabi_customer_id).filter(Boolean);
   const membershipHistory = await traced("member page: membership history", () => fetchMembershipHistory(supabase, customerIds), { memberId: id });
@@ -205,6 +205,13 @@ export default async function MemberDetailPage({
     badges.manualTypes(),
     badges.awardsWithDetails(id),
   ]);
+
+  // The address of each event a badge is linked to (admin event pages are at the slug).
+  const eventIds = [...new Set(earnedBadges.flatMap((b) => (b.badgeType.event_id ? [b.badgeType.event_id] : [])))];
+  const eventSlugs: Record<string, string> = {};
+  for (const event of await Promise.all(eventIds.map((eventId) => createRepos(supabase).events.byId(eventId).catch(() => null)))) {
+    if (event) eventSlugs[event.id] = event.slug;
+  }
 
   const awards = rawAwards.map((a) => ({
     id: a.id,
@@ -350,6 +357,7 @@ export default async function MemberDetailPage({
           programOverrides={programOverrides}
           statusOverrides={statusOverrides}
           earnedBadges={earnedBadges}
+          eventSlugs={eventSlugs}
           awardableBadgeTypes={awardableBadgeTypes}
           awards={awards}
           nameAliases={nameAliasRows ?? []}
