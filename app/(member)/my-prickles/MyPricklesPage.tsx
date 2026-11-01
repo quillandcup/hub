@@ -92,8 +92,8 @@ export default async function MyPricklesPage({
     calendarItems,
     checkins,
   ] = await Promise.all([
-    getRankedUpcomingPrickles(supabase, memberId, timeZone, now, UPCOMING_WINDOW_DAYS),
-    getPrickleScheduleOverview(supabase, now, timeZone, SCHEDULE_LOOKBACK_DAYS, UPCOMING_WINDOW_DAYS),
+    getRankedUpcomingPrickles(createRepos(supabase), memberId, timeZone, now, UPCOMING_WINDOW_DAYS),
+    getPrickleScheduleOverview(createRepos(supabase), now, timeZone, SCHEDULE_LOOKBACK_DAYS, UPCOMING_WINDOW_DAYS),
     createRepos(supabase).attendance.forMemberWithPrickles(memberId),
     createRepos(supabase).prickles.typesRequiringHost(),
     getMySchedules(),

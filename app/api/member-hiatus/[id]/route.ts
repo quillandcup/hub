@@ -27,7 +27,7 @@ export async function PATCH(
 
     const hiatus = await createRepos(supabase).memberStatus.updateHiatus(id, updates);
 
-    await recomputeMemberStatus(supabase, hiatus.member_id);
+    await recomputeMemberStatus(createRepos(supabase), hiatus.member_id);
 
     return NextResponse.json({ hiatus });
   } catch (error: any) {
@@ -55,7 +55,7 @@ export async function DELETE(
     const existing = await memberStatus.hiatusById(id);
     await memberStatus.deleteHiatus(id);
 
-    if (existing) await recomputeMemberStatus(supabase, existing.member_id);
+    if (existing) await recomputeMemberStatus(createRepos(supabase), existing.member_id);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

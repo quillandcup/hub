@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient } from '../../helpers/supabase'
 import { markRemovedSlackReactions } from '@/lib/slack-reactions'
+import { createRepos } from "@/lib/data/repos";
 
 /**
  * The Slack API import upserts reactions, so on its own it can't notice a
@@ -56,7 +57,7 @@ describe('markRemovedSlackReactions', () => {
 
   it('marks reactions on fetched messages that Slack no longer reports, keeping the rows', async () => {
     const removed = await markRemovedSlackReactions(
-      supabase,
+      createRepos(supabase),
       [{ channel_id: channelId, message_ts: fetchedTs }],
       [reaction(fetchedTs, 'heart', 'U1')],
       removedAt
@@ -73,10 +74,10 @@ describe('markRemovedSlackReactions', () => {
 
   it('does not count or re-stamp a reaction that was already marked removed', async () => {
     const reported = [reaction(fetchedTs, 'heart', 'U1')]
-    await markRemovedSlackReactions(supabase, [{ channel_id: channelId, message_ts: fetchedTs }], reported, removedAt)
+    await markRemovedSlackReactions(createRepos(supabase), [{ channel_id: channelId, message_ts: fetchedTs }], reported, removedAt)
 
     const again = await markRemovedSlackReactions(
-      supabase,
+      createRepos(supabase),
       [{ channel_id: channelId, message_ts: fetchedTs }],
       reported,
       '2026-10-08T03:00:00+00:00'
@@ -88,7 +89,7 @@ describe('markRemovedSlackReactions', () => {
 
   it('marks nothing when every stored reaction is still reported', async () => {
     const removed = await markRemovedSlackReactions(
-      supabase,
+      createRepos(supabase),
       [{ channel_id: channelId, message_ts: fetchedTs }],
       [reaction(fetchedTs, 'heart', 'U1'), reaction(fetchedTs, 'heart', 'U2'), reaction(fetchedTs, 'tada', 'U1')],
       removedAt
@@ -99,7 +100,7 @@ describe('markRemovedSlackReactions', () => {
   })
 
   it('leaves reactions on messages the import did not fetch', async () => {
-    const removed = await markRemovedSlackReactions(supabase, [], [], removedAt)
+    const removed = await markRemovedSlackReactions(createRepos(supabase), [], [], removedAt)
 
     expect(removed).toBe(0)
     expect(Object.values(await stored())).toEqual([null, null, null, null])

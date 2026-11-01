@@ -1,5 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createRepos } from "@/lib/data/repos";
+import type { Repos } from "@/lib/data/repos";
 import { zonedTimeToUtc } from "@/lib/prickle-schedules";
 import { localDateOf } from "@/lib/prickle-writing";
 
@@ -21,9 +20,9 @@ export interface PrickleJoinSetting extends PrickleJoin {
 }
 
 /** Newest first. A handful of rows over the years, so no pagination. */
-export async function loadPrickleJoinSettings(supabase: SupabaseClient): Promise<PrickleJoinSetting[]> {
+export async function loadPrickleJoinSettings(repos: Pick<Repos, "zoom">): Promise<PrickleJoinSetting[]> {
   try {
-    const rows = await createRepos(supabase as never).zoom.joinSettings();
+    const rows = await repos.zoom.joinSettings();
     return rows.map((r) => ({
       id: r.id,
       url: r.join_url,

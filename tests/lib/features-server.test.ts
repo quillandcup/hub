@@ -13,6 +13,7 @@ vi.mock("@/lib/data/repos", async (importOriginal) => {
 });
 
 import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 import { InMemorySegmentRepository } from "@/lib/data/segments";
 import { InMemoryFeatureFlagRepository } from "@/lib/data/feature-flags";
 import {
@@ -30,6 +31,8 @@ const segment = (id: string) => ({ id, name: id, created_at: at, created_by: nul
 const link = (feature_key: string, segment_id: string) => ({ feature_key, segment_id, created_at: at });
 const inSegment = (segment_id: string, member_id: string) => ({ segment_id, member_id, added_at: at });
 const preview = (user_id: string, feature_key: string) => ({ user_id, feature_key, enabled_at: at });
+
+const repos = () => createInMemoryRepos(dataset);
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -104,7 +107,7 @@ describe("membersWithFeature", () => {
     dataset.members = members();
     dataset.featureFlags = [flag(KEY, true)];
 
-    expect(await membersWithFeature({}, KEY, ["m1", "m2", "m3"])).toEqual(new Set(["m1", "m2"]));
+    expect(await membersWithFeature(repos(), KEY, ["m1", "m2", "m3"])).toEqual(new Set(["m1", "m2"]));
   });
 
   it("is members opted in individually or through a segment", async () => {
@@ -116,21 +119,21 @@ describe("membersWithFeature", () => {
     dataset.segmentMembers = [inSegment("s1", "m2"), inSegment("s1", "m3")];
 
     // m3 is in the segment but has no account, so they never count.
-    expect(await membersWithFeature({}, KEY, ["m1", "m2", "m3"])).toEqual(new Set(["m1", "m2"]));
+    expect(await membersWithFeature(repos(), KEY, ["m1", "m2", "m3"])).toEqual(new Set(["m1", "m2"]));
   });
 
   it("is nobody without the flag, and skips segment lookups when it has no segments", async () => {
     dataset.members = members();
     const inSegments = vi.spyOn(InMemorySegmentRepository.prototype, "memberIdsInSegments");
 
-    expect(await membersWithFeature({}, KEY, ["m1", "m2"])).toEqual(new Set());
+    expect(await membersWithFeature(repos(), KEY, ["m1", "m2"])).toEqual(new Set());
     expect(inSegments).toHaveBeenCalledWith([], ["m1", "m2"]);
   });
 
   it("asks about no members without reading anything", async () => {
     const flags = vi.spyOn(InMemoryFeatureFlagRepository.prototype, "isGloballyEnabled");
 
-    expect(await membersWithFeature({}, KEY, [])).toEqual(new Set());
+    expect(await membersWithFeature(repos(), KEY, [])).toEqual(new Set());
     expect(flags).not.toHaveBeenCalled();
   });
 
@@ -138,7 +141,7 @@ describe("membersWithFeature", () => {
     dataset.members = members();
     dataset.userFeaturePreviews = [preview("u1", "events")];
 
-    expect(await membersWithFeature({}, KEY, ["m1"])).toEqual(new Set());
+    expect(await membersWithFeature(repos(), KEY, ["m1"])).toEqual(new Set());
   });
 });
 
@@ -148,7 +151,7 @@ describe("membersWithFeatureForOutreach", () => {
   it("covers every member given, signed in or not, when the flag is on globally", async () => {
     dataset.featureFlags = [flag(KEY, true)];
 
-    expect(await membersWithFeatureForOutreach({}, KEY, ["m1", "m3"])).toEqual(new Set(["m1", "m3"]));
+    expect(await membersWithFeatureForOutreach(repos(), KEY, ["m1", "m3"])).toEqual(new Set(["m1", "m3"]));
   });
 
   it("otherwise needs a segment or a preview, which need an account", async () => {
@@ -158,7 +161,7 @@ describe("membersWithFeatureForOutreach", () => {
     ];
     dataset.userFeaturePreviews = [preview("u1", KEY)];
 
-    expect(await membersWithFeatureForOutreach({}, KEY, ["m1", "m3"])).toEqual(new Set(["m1"]));
+    expect(await membersWithFeatureForOutreach(repos(), KEY, ["m1", "m3"])).toEqual(new Set(["m1"]));
   });
 });
 
@@ -184,14 +187,14 @@ describe("isFeatureOnForEveryone", () => {
     dataset.featureFlags = [flag("courses", true), flag("events")];
     dataset.userFeaturePreviews = [preview("u1", "events")];
 
-    expect(await isFeatureOnForEveryone({}, "courses" as FeatureKey)).toBe(true);
-    expect(await isFeatureOnForEveryone({}, "events" as FeatureKey)).toBe(false);
-    expect(await isFeatureOnForEveryone({}, "work_queue" as FeatureKey)).toBe(false);
+    expect(await isFeatureOnForEveryone(repos(), "courses" as FeatureKey)).toBe(true);
+    expect(await isFeatureOnForEveryone(repos(), "events" as FeatureKey)).toBe(false);
+    expect(await isFeatureOnForEveryone(repos(), "work_queue" as FeatureKey)).toBe(false);
   });
 
   it("names the flags table when it can't be read", async () => {
     vi.spyOn(InMemoryFeatureFlagRepository.prototype, "isGloballyEnabled").mockRejectedValueOnce(new Error("db down"));
 
-    await expect(isFeatureOnForEveryone({}, "courses" as FeatureKey)).rejects.toThrow("feature_flags read failed: db down");
+    await expect(isFeatureOnForEveryone(repos(), "courses" as FeatureKey)).rejects.toThrow("feature_flags read failed: db down");
   });
 });

@@ -8,6 +8,7 @@ import { courseTitle, moduleTitles } from "@/lib/courses/page-title";
 import { courseImageUrl } from "@/lib/courses/image-urls";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import PageBanner from "@/components/PageBanner";
+import { createRepos } from "@/lib/data/repos";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string; moduleId: string }> }): Promise<Metadata> {
   const { slug, moduleId } = await params;
@@ -91,7 +92,7 @@ function ModuleRow({ slug, node, completed, openable }: { slug: string; node: Ou
 export default async function ModulePage({ params }: { params: Promise<{ slug: string; moduleId: string }> }) {
   const { slug, moduleId } = await params;
   const caller = await requireCoursesPage();
-  const view = await loadCourseView(createServiceRoleClient(), slug, caller.scope);
+  const view = await loadCourseView(createRepos(createServiceRoleClient()), slug, caller.scope);
   if (!view) notFound();
   // Without access to open lessons, the course page says why.
   if (!view.outline || !canOpenLessons(view.access)) redirect(`/courses/${slug}`);

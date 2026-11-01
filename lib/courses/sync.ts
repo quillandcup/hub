@@ -34,7 +34,7 @@ export async function syncKajabiCourses(supabase: SupabaseClient, kajabi: Kajabi
       .filter((c) => !publishedKeys.has(c.id))
       .map((c) => ({ id: c.id, title: c.title, slug: slugifyTitle(c.title) }));
 
-    result.processed = (await processCourses(supabase)).courses;
+    result.processed = (await processCourses(createRepos(supabase))).courses;
   } catch (error: any) {
     console.error("Kajabi courses sync failed:", error);
     result.error = error?.message || "Courses sync failed";

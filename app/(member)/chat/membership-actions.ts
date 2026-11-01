@@ -167,7 +167,7 @@ async function addMembersImpl(channelId: string, memberIds: string[]): Promise<M
   const notActive = wanted.filter((id) => !activeIds.has(id));
   if (notActive.length > 0) return { ok: false, error: "Only active members can be added." };
 
-  const slackIds = await slackUserIdsFor(service, wanted);
+  const slackIds = await slackUserIdsFor(createRepos(service), wanted);
   const withoutSlack = wanted.filter((id) => !slackIds.has(id));
   if (channel.isPrivate && withoutSlack.length > 0) {
     const names = await namesOf(withoutSlack);
@@ -224,7 +224,7 @@ async function removeMemberImpl(channelId: string, memberId: string): Promise<Me
   let slackAnnounces = false;
   // In Slack too, unless the Hub alone knows they were in it.
   if (row.source !== "app") {
-    const slackUser = (await slackUserIdsFor(service, [memberId])).get(memberId);
+    const slackUser = (await slackUserIdsFor(createRepos(service), [memberId])).get(memberId);
     if (slackUser) {
       const done = await asMemberElseBot(
         service,
@@ -274,7 +274,7 @@ export async function searchMembersToAdd(channelId: string, query: string): Prom
   const [candidates, present, slackIds] = await Promise.all([
     createRepos(service).members.byIds(ids),
     alreadyIn(channelId, ids),
-    slackUserIdsFor(service, ids),
+    slackUserIdsFor(createRepos(service), ids),
   ]);
   const activeIds = new Set(candidates.filter((m) => m.status === "active").map((m) => m.id));
   return matches

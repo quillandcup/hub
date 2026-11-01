@@ -1,8 +1,9 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { visibleLessonIds } from "@/lib/courses/visible";
-import { createRepos } from "@/lib/data/repos";
+import type { Repos } from "@/lib/data/repos";
 import type { VideoRecord } from "@/lib/data/courses";
 import type { MuxAssetStatus, MuxVideoQuality } from "@/lib/mux";
+
+type MediaPlanRepos = Pick<Repos, "courses" | "kajabiCourses">;
 
 /**
  * Course videos -> Mux (docs/COURSES.md, step D). Takes the video source the Kajabi content step
@@ -57,8 +58,7 @@ export interface PlannedVideo {
 }
 
 /** The videos of a course's lessons, drafts' included and marked, and what each needs. Reads only. */
-export async function planCourseVideos(supabase: SupabaseClient, courseKajabiId: string, now: Date): Promise<PlannedVideo[]> {
-  const repos = createRepos(supabase);
+export async function planCourseVideos(repos: MediaPlanRepos, courseKajabiId: string, now: Date): Promise<PlannedVideo[]> {
   const repo = repos.kajabiCourses;
   const [modules, lessons] = await Promise.all([repo.liveModules(courseKajabiId), repo.liveLessonOutlines(courseKajabiId)]);
 
@@ -120,7 +120,7 @@ export interface UploadResult {
 }
 
 export async function uploadCourseVideos(
-  supabase: SupabaseClient,
+  repos: MediaPlanRepos,
   api: CourseMuxApi,
   courseKajabiId: string,
   now: Date,
@@ -132,8 +132,8 @@ export async function uploadCourseVideos(
    */
   options: { drafts?: boolean; mediaIds?: string[] } = {}
 ): Promise<UploadResult> {
-  const plan = await planCourseVideos(supabase, courseKajabiId, now);
-  const videosRepo = createRepos(supabase).courses;
+  const plan = await planCourseVideos(repos, courseKajabiId, now);
+  const videosRepo = repos.courses;
   const wantDrafts = options.drafts ?? false;
   const picked = options.mediaIds ? new Set(options.mediaIds) : null;
   const result: UploadResult = {
@@ -196,8 +196,8 @@ export interface RefreshResult {
 }
 
 /** Brings videos still "preparing" up to date from Mux, for when the webhook hasn't (or can't) deliver. */
-export async function refreshVideoStatuses(supabase: SupabaseClient, api: CourseMuxApi): Promise<RefreshResult> {
-  const videosRepo = createRepos(supabase).courses;
+export async function refreshVideoStatuses(repos: MediaPlanRepos, api: CourseMuxApi): Promise<RefreshResult> {
+  const videosRepo = repos.courses;
   const preparing = await videosRepo.preparingVideos();
 
   const result: RefreshResult = { checked: 0, ready: 0, errored: 0, stillPreparing: 0 };

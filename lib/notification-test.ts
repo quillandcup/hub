@@ -60,13 +60,13 @@ export async function sampleMessages(
       return [
         checkinMessage(await samplePrickle(supabase, now), null, {
           test,
-          join: joinAt(await loadPrickleJoinSettings(supabase), now),
+          join: joinAt(await loadPrickleJoinSettings(createRepos(supabase)), now),
         }),
       ];
     case "prickle_checkout":
       return [checkoutMessage(await samplePrickle(supabase, now), null, [], { test })];
     case "intro_nudge":
-      return [mark(introNudgeMessage(await loadIntroChannelId(supabase)))];
+      return [mark(introNudgeMessage(await loadIntroChannelId(createRepos(supabase))))];
     case "prickle_nudge":
       return [mark(prickleNudgeMessage("first"))];
     case "big_sister_match":

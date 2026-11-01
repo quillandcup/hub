@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
       slackUsers || [],
       members,
       aliases || [],
-      await loadVerifiedSlackLinks(createServiceRoleClient())
+      await loadVerifiedSlackLinks(createRepos(createServiceRoleClient()))
     );
 
 

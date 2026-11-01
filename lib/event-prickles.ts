@@ -1,15 +1,14 @@
-import type { createClient } from "@/lib/supabase/server";
-import { createRepos } from "@/lib/data/repos";
+import type { Repos } from "@/lib/data/repos";
 import type { PrickleDetail } from "@/lib/data/prickles";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { dateIn, withoutFollowedEvents, type AgendaMonth } from "@/lib/events-agenda";
+
+type EventPrickleRepos = Pick<Repos, "prickles">;
 
 // Upcoming prickle events for the member Events page (app/(member)/events).
 // Prickle events (webinars, Hedgies on First, Monthly Goal Review, pitches...) are ordinary
 // prickles whose type has `prickle_types.listed_in_events` set (an admin edits it on the prickle type),
 // so this is a filtered view over `prickles` rather than a separate table.
-
-type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
 /** How far ahead to look for prickle events. They're scheduled a month or two out
  * on the shared calendar; this keeps the list to what's actually been announced. */
@@ -34,13 +33,13 @@ export interface EventPrickle {
  * EVENT_PRICKLE_LIMIT. `windowDays` widens the look-ahead for a page that shows further out.
  */
 export async function fetchUpcomingEventPrickles(
-  supabase: SupabaseClient,
+  repos: EventPrickleRepos,
   now: Date,
   windowDays: number = EVENT_PRICKLE_WINDOW_DAYS,
 ): Promise<EventPrickle[]> {
   const windowEnd = new Date(now.getTime() + windowDays * 24 * 60 * 60 * 1000);
 
-  const prickles = await createRepos(supabase).prickles.listedInEventsActiveBetween({
+  const prickles = await repos.prickles.listedInEventsActiveBetween({
     from: now.toISOString(),
     to: windowEnd.toISOString(),
     limit: EVENT_PRICKLE_LIMIT,
@@ -66,7 +65,7 @@ function toEventPrickle(p: PrickleDetail): EventPrickle {
  * soonest first: the past side of the Events page, consistent with the upcoming side. Looked up a month at a time.
  */
 export async function fetchPastEventPrickles(
-  supabase: SupabaseClient,
+  repos: EventPrickleRepos,
   month: AgendaMonth,
   timeZone: string,
   now: Date,
@@ -75,7 +74,7 @@ export async function fetchPastEventPrickles(
   const DAY = 24 * 60 * 60 * 1000;
   const from = new Date(Date.parse(`${month.first}T00:00:00Z`) - DAY);
   const to = new Date(Date.parse(`${month.last}T00:00:00Z`) + 2 * DAY);
-  const prickles = await createRepos(supabase).prickles.listedInEventsActiveBetween({
+  const prickles = await repos.prickles.listedInEventsActiveBetween({
     from: from.toISOString(),
     to: to.toISOString(),
     limit: EVENT_PRICKLE_LIMIT,

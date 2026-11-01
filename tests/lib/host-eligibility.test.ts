@@ -4,11 +4,6 @@ import { createInMemoryRepos } from "@/lib/data/repos";
 
 // Members come from their repository; this test gives the function in-memory ones.
 let repos = createInMemoryRepos();
-vi.mock("@/lib/data/repos", async () => ({
-  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
-  createRepos: () => repos,
-}));
-
 import {
   HOST_ELIGIBILITY_MIN_MONTHS,
   fetchHostEligibilityByMember,
@@ -176,11 +171,9 @@ describe("fetchHostEligibilityByMember", () => {
     );
     return vi.spyOn(repos.members, "byIds");
   }
-  const client = {} as Parameters<typeof fetchHostEligibilityByMember>[0];
-
   it("returns an empty map without reading members when there are no ids", async () => {
     const byIds = useMembers([]);
-    expect((await fetchHostEligibilityByMember(client, [], at("2026-09-26"))).size).toBe(0);
+    expect((await fetchHostEligibilityByMember(repos, [], at("2026-09-26"))).size).toBe(0);
     expect(byIds).not.toHaveBeenCalled();
   });
 
@@ -192,7 +185,7 @@ describe("fetchHostEligibilityByMember", () => {
       { id: "unknown", firstJoinedAt: null, mostRecentJoinedAt: null },
     ]);
 
-    const result = await fetchHostEligibilityByMember(client, ["new", "veteran", "rejoiner", "unknown", "new"], at("2026-09-26"));
+    const result = await fetchHostEligibilityByMember(repos, ["new", "veteran", "rejoiner", "unknown", "new"], at("2026-09-26"));
 
     expect(result.get("new")).toEqual({ eligible: false, tenureStartDate: "2026-09-10", eligibleOn: "2026-10-10" });
     expect(result.get("veteran")?.eligible).toBe(true);
@@ -205,6 +198,6 @@ describe("fetchHostEligibilityByMember", () => {
   it("throws when the members read fails", async () => {
     useMembers([]);
     vi.spyOn(repos.members, "byIds").mockRejectedValue(new Error("boom"));
-    await expect(fetchHostEligibilityByMember(client, ["x"], at("2026-09-26"))).rejects.toThrow("boom");
+    await expect(fetchHostEligibilityByMember(repos, ["x"], at("2026-09-26"))).rejects.toThrow("boom");
   });
 });

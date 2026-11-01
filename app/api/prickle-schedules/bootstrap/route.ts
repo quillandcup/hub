@@ -1,6 +1,7 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { bootstrapMonthFromCalendar, getMonthStart } from "@/lib/prickle-schedules";
 import { NextRequest, NextResponse } from "next/server";
+import { createRepos } from "@/lib/data/repos";
 
 // Bootstraps (backports) prickle_schedules for a month from what's already on
 // the prickle calendar (see bootstrapMonthFromCalendar), then immediately seeds
@@ -27,7 +28,7 @@ export async function POST(request: NextRequest) {
     }
     const confirmedBy = user.id === "service-role" || user.id === "cron" ? null : user.id;
 
-    const result = await bootstrapMonthFromCalendar(supabase, month, confirmedBy, {
+    const result = await bootstrapMonthFromCalendar(createRepos(supabase), month, confirmedBy, {
       dryRun: body.dryRun === true,
       confirmMatchingProposed: body.confirmMatchingProposed === true,
     });

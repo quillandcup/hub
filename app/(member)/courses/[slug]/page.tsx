@@ -10,6 +10,7 @@ import CourseOutline from "../CourseOutline";
 import { courseTitle } from "@/lib/courses/page-title";
 import { courseImageUrl } from "@/lib/courses/image-urls";
 import { formatCourseDate } from "@/lib/courses/format";
+import { createRepos } from "@/lib/data/repos";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
@@ -19,7 +20,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 export default async function CoursePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const caller = await requireCoursesPage();
-  const view = await loadCourseView(createServiceRoleClient(), slug, caller.scope);
+  const view = await loadCourseView(createRepos(createServiceRoleClient()), slug, caller.scope);
   if (!view) notFound();
 
   const { course, access, outline, completed, progress } = view;

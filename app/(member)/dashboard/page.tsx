@@ -56,7 +56,7 @@ export default async function DashboardPage() {
   )
 
   const [ranked, starredGoalRows, projects, unlogged, checkins, mentorships] = await Promise.all([
-    getRankedUpcomingPrickles(supabase, memberId, timeZone, now, UPCOMING_WINDOW_DAYS),
+    getRankedUpcomingPrickles(createRepos(supabase), memberId, timeZone, now, UPCOMING_WINDOW_DAYS),
     getStarredGoals(),
     createRepos(supabase).writing.activeProjects(memberId),
     getUnloggedRecentPrickles(),
@@ -77,7 +77,7 @@ export default async function DashboardPage() {
   // Null when the courses flag is off for them, they have no open course, or nothing is in progress.
   const coursesCaller = await getCoursesCaller()
   const continueWatching = coursesCaller
-    ? await loadContinueWatching(createServiceRoleClient(), coursesCaller.scope)
+    ? await loadContinueWatching(createRepos(createServiceRoleClient()), coursesCaller.scope)
     : null
   // Only prompt members who track writing -- there's no progress to ask about otherwise.
   const unloggedPrickles =

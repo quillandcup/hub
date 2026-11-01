@@ -5,13 +5,14 @@ import { requireAdminPage } from "@/lib/admin-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { loadCourseRoster } from "@/lib/courses/roster-data";
 import RosterTable from "./RosterTable";
+import { createRepos } from "@/lib/data/repos";
 
 export const metadata: Metadata = { title: "Who's where · Courses" };
 
 export default async function CourseRosterPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAdminPage();
   const { id } = await params;
-  const data = await loadCourseRoster(createServiceRoleClient(), id);
+  const data = await loadCourseRoster(createRepos(createServiceRoleClient()), id);
   if (!data) notFound();
 
   return (

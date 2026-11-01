@@ -5,6 +5,7 @@ import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
 import { accessRow, courseRow, lessonRow, progressRow } from "@/tests/helpers/course-fixtures";
 import { loadCourseRoster } from "@/lib/courses/roster-data";
+import { createRepos } from "@/lib/data/repos";
 
 let dataset = new InMemoryDataset();
 vi.mock("@/lib/data/repos", async () => ({
@@ -52,12 +53,12 @@ describe("loadCourseRoster", () => {
 
   it("returns null for an unknown course", async () => {
     dataset = new InMemoryDataset();
-    expect(await loadCourseRoster(client, "crs_AAAAAAAAAAA9", NOW)).toBeNull();
+    expect(await loadCourseRoster(createRepos(client), "crs_AAAAAAAAAAA9", NOW)).toBeNull();
   });
 
   it("still lists a draft course, so staff can see who has access before it opens", async () => {
     dataset = new InMemoryDataset({ courses: [courseRow({ id: "crs_AAAAAAAAAAA1", slug: "draft", title: "Course", source: "kajabi", source_key: "k1", is_draft: true })] });
-    expect((await loadCourseRoster(client, "crs_AAAAAAAAAAA1", NOW))!.rows).toEqual([]);
+    expect((await loadCourseRoster(createRepos(client), "crs_AAAAAAAAAAA1", NOW))!.rows).toEqual([]);
   });
 
   it("lists everyone with access, with the name they are known by and their progress", async () => {
@@ -74,7 +75,7 @@ describe("loadCourseRoster", () => {
       ],
       lessonProgress: [progressRow({ member_id: "mbr_AAAAAAAAAAA1", lesson_id: "les_AAAAAAAAAAA1", completed_at: "2026-10-01T00:00:00Z" })],
     });
-    const data = await loadCourseRoster(client, "crs_AAAAAAAAAAA1", NOW);
+    const data = await loadCourseRoster(createRepos(client), "crs_AAAAAAAAAAA1", NOW);
     expect(data!.course).toEqual({ id: "crs_AAAAAAAAAAA1", title: "Course" });
     expect(data!.rows.map((r) => ({ name: r.name, realName: r.realName, completed: r.completed, total: r.total }))).toEqual([
       { name: "Ada E", realName: "Ada Example", completed: 1, total: 1 },
@@ -91,7 +92,7 @@ describe("loadCourseRoster", () => {
       courseAccess: members.map((m) => accessRow({ member_id: m, course_id: "crs_AAAAAAAAAAA1", starts_at: "2026-01-01T00:00:00Z" })),
       lessonProgress: members.map((m) => progressRow({ member_id: m, lesson_id: "les_AAAAAAAAAAA1", completed_at: "2026-10-01T00:00:00Z" })),
     });
-    const data = await loadCourseRoster(client, "crs_AAAAAAAAAAA1", NOW);
+    const data = await loadCourseRoster(createRepos(client), "crs_AAAAAAAAAAA1", NOW);
     expect(data!.rows).toHaveLength(1500);
     expect(data!.rows.every((r) => r.completed === 1 && r.total === 1)).toBe(true);
   });

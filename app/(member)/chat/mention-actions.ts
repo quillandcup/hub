@@ -72,7 +72,7 @@ export async function suggestMentions(channelId: string, trigger: "@" | "#", que
     .slice(0, MAX_SUGGESTIONS * 4);
   if (people.length === 0) return [];
   // Only people the Hub can name to Slack: no Slack account, nothing to mention.
-  const slackIds = await slackUserIdsFor(service, people.map((p) => p.memberId));
+  const slackIds = await slackUserIdsFor(createRepos(service), people.map((p) => p.memberId));
   return people
     .filter((p) => slackIds.has(p.memberId))
     .slice(0, MAX_SUGGESTIONS)

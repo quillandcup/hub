@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
     // converted to a real transaction) and why it's keyed by email rather
     // than Kajabi customer ID (survives Kajabi-side contact merges).
     const stripeTrialInfoByEmail = await fetchStripeTrialInfoByEmail(
-      supabase,
+      createRepos(supabase),
       Array.from(aliasMap, ([alias_email, canonical_email]) => ({ alias_email, canonical_email }))
     );
 

@@ -159,7 +159,7 @@ export default async function MemberDetailPage({
   const kajabiCustomers = await createRepos(supabase).billing.kajabiCustomers({ emails: allEmails });
 
   const customerIds = kajabiCustomers.map((c) => c.kajabi_customer_id).filter(Boolean);
-  const membershipHistory = await traced("member page: membership history", () => fetchMembershipHistory(supabase, customerIds), { memberId: id });
+  const membershipHistory = await traced("member page: membership history", () => fetchMembershipHistory(createRepos(supabase), customerIds), { memberId: id });
 
   // The Slack tab pages on the server (?type=&channel=&sort=&dir=&page=&pageSize=). Loaded for every
   // tab, like the Activity Log: tabs switch on the client without a server round trip, so a visit
@@ -201,7 +201,7 @@ export default async function MemberDetailPage({
 
   const badges = createRepos(supabase).badges;
   const [earnedBadges, awardableBadgeTypes, rawAwards] = await Promise.all([
-    getMemberBadges(supabase, id, metrics?.totalPrickles ?? 0, memberRow.firstJoinedAt),
+    getMemberBadges(createRepos(supabase), id, metrics?.totalPrickles ?? 0, memberRow.firstJoinedAt),
     badges.manualTypes(),
     badges.awardsWithDetails(id),
   ]);

@@ -3,13 +3,14 @@ import { requireCoursesPage } from "@/lib/courses/caller";
 import { canOpenLessons, loadCourseView } from "@/lib/courses/member";
 import { lessonContext, moduleView, type Outline } from "@/lib/courses/outline";
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import { createRepos } from "@/lib/data/repos";
 
 export const COURSES_TITLE = "Courses";
 
 /** One course view per render, shared by a course page and its `generateMetadata`. */
 export const loadCachedCourseView = cache(async (slug: string) => {
   const caller = await requireCoursesPage();
-  const view = await loadCourseView(createServiceRoleClient(), slug, caller.scope);
+  const view = await loadCourseView(createRepos(createServiceRoleClient()), slug, caller.scope);
   return { caller, view };
 });
 

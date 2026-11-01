@@ -141,7 +141,7 @@ export async function loadMemberCard(supabase: SupabaseClient, memberId: string)
     createRepos(supabase).memberProfile.askMeAbout(memberId),
   ]);
   if (!m) return null;
-  const badges = await getMemberBadges(supabase, memberId, await getAttendedPrickleCount(createRepos(supabase).attendance, memberId), m.first_joined_at ?? null);
+  const badges = await getMemberBadges(createRepos(supabase), memberId, await getAttendedPrickleCount(createRepos(supabase).attendance, memberId), m.first_joined_at ?? null);
   return {
     id: m.id,
     name: m.display_name || m.name,

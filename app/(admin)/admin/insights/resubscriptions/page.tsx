@@ -7,6 +7,7 @@ import ResubscriptionsChart from "./ResubscriptionsChart";
 import { fetchResubscriptionsData } from "@/lib/resubscription-data";
 import ResubscribingMembersTable from "./ResubscribingMembersTable";
 import { requireAdminPage } from "@/lib/admin-auth";
+import { createRepos } from "@/lib/data/repos";
 
 export const maxDuration = 60;
 
@@ -25,7 +26,7 @@ export default async function ResubscriptionsPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const data = await fetchResubscriptionsData(supabase);
+  const data = await fetchResubscriptionsData(createRepos(supabase));
 
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient } from '../../helpers/supabase'
+import { createRepos } from '@/lib/data/repos'
 import { PRIORITY, getRankedUpcomingPrickles, type RankedPrickle } from '@/lib/upcoming-prickles'
 import { scoreRecommendation } from '@/lib/prickle-recommendations'
 import { hostShortName } from '@/lib/formatters'
@@ -225,7 +226,7 @@ describe('getRankedUpcomingPrickles (DB)', () => {
 
   async function rankFor(memberKey: string): Promise<RankedPrickle[]> {
     // The lib types its client as the server client; the admin client has the same query API.
-    const all = await getRankedUpcomingPrickles(supabase as never, memberIds[memberKey], TZ, now, WINDOW_DAYS)
+    const all = await getRankedUpcomingPrickles(createRepos(supabase), memberIds[memberKey], TZ, now, WINDOW_DAYS)
     const mine = new Set([experiencedUpcomingId, newHostUpcomingId, viewerHostedUpcomingId])
     return all.filter((r) => mine.has(r.prickle.id))
   }
@@ -295,7 +296,7 @@ describe('getRankedUpcomingPrickles (DB)', () => {
   })
 
   it('ranks upcoming prickles matching ANY slot of an active commitment in the commitment tier, with week/kept progress', async () => {
-    const all = await getRankedUpcomingPrickles(supabase as never, memberIds.committer, TZ, now, WINDOW_DAYS)
+    const all = await getRankedUpcomingPrickles(createRepos(supabase), memberIds.committer, TZ, now, WINDOW_DAYS)
     const mine = new Set([
       experiencedUpcomingId,
       newHostUpcomingId,
@@ -322,7 +323,7 @@ describe('getRankedUpcomingPrickles (DB)', () => {
     expect(kinds(experienced)).not.toContain('commitment')
 
     // Commitments are per member: the no-signal viewer sees no commitment badge on that prickle.
-    const forViewer = await getRankedUpcomingPrickles(supabase as never, memberIds.viewer, TZ, now, WINDOW_DAYS)
+    const forViewer = await getRankedUpcomingPrickles(createRepos(supabase), memberIds.viewer, TZ, now, WINDOW_DAYS)
     const committedForViewer = forViewer.find((r) => r.prickle.id === commitUpcomingId)!
     expect(committedForViewer.priority).toBe(PRIORITY.none)
     expect(kinds(committedForViewer)).not.toContain('commitment')

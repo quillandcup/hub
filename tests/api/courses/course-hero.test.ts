@@ -5,6 +5,7 @@ import { processCourses } from '@/lib/courses/process'
 import { copyCourseImages } from '@/lib/courses/images'
 import { MEDIA_BUCKET } from '@/lib/media/library'
 import { solidImage } from '../../helpers/media-fixtures'
+import { createRepos } from "@/lib/data/repos";
 
 /**
  * A course's hero banner, end to end against the real local database and Storage with a fake source:
@@ -66,7 +67,7 @@ describe('Course hero image', () => {
   })
 
   it('processing carries the hero to the published course, and leaves the cover alone', async () => {
-    await processCourses(supabase, { courseSlug: SLUG, accessDuration: '1 year' })
+    await processCourses(createRepos(supabase), { courseSlug: SLUG, accessDuration: '1 year' })
     const course = await silver()
     expect(course.hero_url).toBe('https://kajabi.test/h1.jpg')
     expect(course.thumbnail_url).toBe('https://kajabi.test/thumb.png')
@@ -96,7 +97,7 @@ describe('Course hero image', () => {
 
   it('copies again when the hero changes, and removes our copy when Kajabi no longer has one', async () => {
     await saveCourseHero(supabase, COURSE, 'https://kajabi.test/h2.jpg', NOW)
-    await processCourses(supabase, { courseSlug: SLUG })
+    await processCourses(createRepos(supabase), { courseSlug: SLUG })
     calls.length = 0
     expect(await copyCourseImages(supabase, COURSE, download)).toMatchObject({ copied: 1, failed: [] })
     expect(calls).toEqual(['h2.jpg'])
@@ -104,7 +105,7 @@ describe('Course hero image', () => {
     expect(changed.hero_source).toBe('https://kajabi.test/h2.jpg')
 
     await bronze().update({ hero_image_url: null }).eq('kajabi_id', COURSE)
-    await processCourses(supabase, { courseSlug: SLUG })
+    await processCourses(createRepos(supabase), { courseSlug: SLUG })
     const result = await copyCourseImages(supabase, COURSE, download)
     expect(result.removed).toBe(1)
     const cleared = await silver()

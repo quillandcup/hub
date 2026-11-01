@@ -42,7 +42,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   try {
     const now = new Date();
-    const events = await loadCalendarFeedEvents(supabase, row.memberId, request.nextUrl.origin, now);
+    const events = await loadCalendarFeedEvents(createRepos(supabase), row.memberId, request.nextUrl.origin, now);
     const body = renderICalendar(
       {
         name: CALENDAR_FEED_NAME,

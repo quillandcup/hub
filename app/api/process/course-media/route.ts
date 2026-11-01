@@ -53,13 +53,13 @@ export async function POST(request: NextRequest) {
     const upload =
       action === "refresh"
         ? undefined
-        : await uploadCourseVideos(supabase, api, course.source_key, new Date(), undefined, {
+        : await uploadCourseVideos(createRepos(supabase), api, course.source_key, new Date(), undefined, {
             drafts: action === "upload_drafts",
             mediaIds: mediaIds as string[] | undefined,
           });
-    const refresh = await refreshVideoStatuses(supabase, api);
+    const refresh = await refreshVideoStatuses(createRepos(supabase), api);
     // Links each lesson to its video (a lesson without a `videos` row yet keeps its existing link).
-    const processed = await processCourses(supabase, { courseSlug: slug });
+    const processed = await processCourses(createRepos(supabase), { courseSlug: slug });
     return NextResponse.json({ success: true, upload, refresh, lessons: processed.courses[0]?.lessons });
   } catch (error: any) {
     console.error("Course media step failed:", error);

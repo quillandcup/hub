@@ -1,6 +1,7 @@
-import { createRepos } from "@/lib/data/repos";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Repos } from "@/lib/data/repos";
 import { buildAliasMap, resolveEmail } from "@/lib/email-aliases";
+
+type CohortRepos = Pick<Repos, "aliases" | "billing" | "members" | "programs">;
 
 export interface KajabiCandidate {
   member_id: string;
@@ -188,7 +189,7 @@ export function computeCandidates(
  * happened").
  */
 export async function findKajabiCandidatesForCohort(
-  supabase: SupabaseClient,
+  repos: CohortRepos,
   cohort: CohortWindow,
   program: ProgramForMatching
 ): Promise<{ candidates: KajabiCandidate[]; offerNamesConfigured: boolean }> {
@@ -196,7 +197,7 @@ export async function findKajabiCandidatesForCohort(
     return { candidates: [], offerNamesConfigured: false };
   }
 
-  const billing = createRepos(supabase).billing;
+  const billing = repos.billing;
   const offers = await billing.kajabiOffersByName(program.kajabi_offer_names);
 
   const offerNameById = new Map<string, string>();
@@ -220,7 +221,7 @@ export async function findKajabiCandidatesForCohort(
   const customerIds = Array.from(new Set(allOfferPurchases.map((p) => p.kajabi_customer_id).filter((id): id is string => !!id)));
   const [customers, emailAliases] = await Promise.all([
     billing.kajabiCustomers({ customerIds }),
-    createRepos(supabase).aliases.emailAliases({ activeOnly: true }),
+    repos.aliases.emailAliases({ activeOnly: true }),
   ]);
 
   const aliasMap = buildAliasMap(emailAliases || []);
@@ -232,7 +233,7 @@ export async function findKajabiCandidatesForCohort(
   const canonicalEmails = Array.from(new Set(Array.from(emailByCustomerId.values())));
   if (canonicalEmails.length === 0) return { candidates: [], offerNamesConfigured: true };
 
-  const members = await createRepos(supabase).members.byEmails(canonicalEmails);
+  const members = await repos.members.byEmails(canonicalEmails);
 
   const memberByEmail = new Map(members.map((m) => [m.email.toLowerCase(), m]));
 
@@ -240,7 +241,7 @@ export async function findKajabiCandidatesForCohort(
   // to this cohort's window) so computeCandidates can annotate any of them —
   // still small, bounded by the same purchase set above.
   const memberIds = Array.from(new Set(Array.from(memberByEmail.values()).map((m) => m.id)));
-  const alreadyElsewhereByMember = await createRepos(supabase).programs.enrolledElsewhere(program.id, cohort.id, memberIds);
+  const alreadyElsewhereByMember = await repos.programs.enrolledElsewhere(program.id, cohort.id, memberIds);
 
   const candidates = computeCandidates(
     // Read by offer id, so none has a null offer.

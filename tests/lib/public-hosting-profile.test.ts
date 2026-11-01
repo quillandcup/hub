@@ -1,13 +1,6 @@
-import { afterEach, describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
-// Everything else in this file keeps the real repositories over the fake client; the hosting
-// schedule test swaps in in-memory ones.
-let repoOverride: import("@/lib/data/repos").Repos | null = null;
-vi.mock("@/lib/data/repos", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos");
-  return { ...actual, createRepos: (db: never) => repoOverride ?? actual.createRepos(db) };
-});
 
 import { computePublicHostingSummary, type HostedPrickleRecord } from "@/lib/hosting-stats";
 import {
@@ -270,10 +263,6 @@ describe("groupHostedPricklesIntoSlots", () => {
 });
 
 describe("getMemberHostingSchedule", () => {
-  afterEach(() => {
-    repoOverride = null;
-  });
-
   const prickle = (id: string, hostId: string | null, startTime: string): Prickle => ({
     id,
     typeId: "t1",
@@ -286,7 +275,7 @@ describe("getMemberHostingSchedule", () => {
   });
 
   it("scopes to the host's upcoming prickles within the window", async () => {
-    repoOverride = createInMemoryRepos(
+    const repos = createInMemoryRepos(
       new InMemoryDataset({
         prickleTypes: [{ id: "t1", name: "PP", normalizedName: "pp", purpose: "writing", requiresHost: true, soloTaskFriendly: false, listedInEvents: false, announcedPublicly: false, guestsAllowed: false }],
         prickles: [
@@ -299,7 +288,7 @@ describe("getMemberHostingSchedule", () => {
     );
     const now = new Date("2026-09-26T00:00:00.000Z");
 
-    const slots = await getMemberHostingSchedule({} as never, "host", now, "America/New_York", 35);
+    const slots = await getMemberHostingSchedule(repos, "host", now, "America/New_York", 35);
 
     expect(slots).toHaveLength(1);
     expect(slots[0]).toMatchObject({ typeName: "PP", nextOccurrenceId: "mine", upcomingCount: 1 });

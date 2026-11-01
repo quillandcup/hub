@@ -4,6 +4,7 @@ import { CourseProcessingError, processCourses } from "@/lib/courses/process";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { zonedTimeToUtc } from "@/lib/prickle-schedules";
 import { NextRequest, NextResponse } from "next/server";
+import { createRepos } from "@/lib/data/repos";
 
 export const maxDuration = 300;
 
@@ -50,7 +51,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await processCourses(createServiceRoleClient(), { courseSlug, publish, accessDuration, launchAt });
+    const result = await processCourses(createRepos(createServiceRoleClient()), { courseSlug, publish, accessDuration, launchAt });
     return NextResponse.json({ success: true, ...result });
   } catch (error: any) {
     if (error instanceof CourseProcessingError) {

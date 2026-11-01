@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createRepos } from "@/lib/data/repos";
+import { createRepos, type Repos } from "@/lib/data/repos";
 import type { LessonFileRecord } from "@/lib/data/courses";
 import { visibleLessonIds } from "@/lib/courses/visible";
 
@@ -99,8 +99,7 @@ export function formatBytes(bytes: number | null | undefined): string | null {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export async function planCourseFiles(supabase: SupabaseClient, courseKajabiId: string, now: Date): Promise<FilePlan> {
-  const repos = createRepos(supabase);
+export async function planCourseFiles(repos: Pick<Repos, "courses" | "kajabiCourses">, courseKajabiId: string, now: Date): Promise<FilePlan> {
   const repo = repos.kajabiCourses;
   const [modules, lessons] = await Promise.all([repo.liveModules(courseKajabiId), repo.liveLessonOutlines(courseKajabiId)]);
   const visible = visibleLessonIds(modules, lessons);
@@ -181,8 +180,8 @@ export async function copyCourseFiles(
   now: Date,
   download: typeof fetch = fetch
 ): Promise<CopyFilesResult> {
-  const plan = await planCourseFiles(supabase, courseKajabiId, now);
   const repos = createRepos(supabase);
+  const plan = await planCourseFiles(repos, courseKajabiId, now);
   const result: CopyFilesResult = { copied: [], alreadyCopied: 0, removed: 0, needsNewLink: [], waitingForLesson: 0, failed: [] };
   const bucket = supabase.storage.from(COURSE_FILES_BUCKET);
 

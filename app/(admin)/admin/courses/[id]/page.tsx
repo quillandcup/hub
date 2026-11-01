@@ -17,11 +17,12 @@ import CourseSettingsForm from "./CourseSettingsForm";
 import CoursePublishControl from "../CoursePublishControl";
 import CourseVideosPanel from "./CourseVideosPanel";
 import CourseFilesPanel from "./CourseFilesPanel";
+import { createRepos } from "@/lib/data/repos";
 
 /** The tab shows the course's name first ("The Ready Writer · Courses"), like other record pages. */
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
-  const title = await loadAdminCourseTitle(await createClient(), id);
+  const title = await loadAdminCourseTitle(createRepos(await createClient()), id);
   return { title: tabTitle({ record: title ?? undefined, section: "Courses" }, "", true) };
 }
 
@@ -32,7 +33,7 @@ export default async function AdminCoursePage({ params }: { params: Promise<{ id
   if (!isId(id, "crs")) notFound();
   const supabase = await createClient();
   // One imported from Kajabi is shown read only; a course the Hub owns is edited here.
-  const detail = await loadAdminCourse(supabase, id);
+  const detail = await loadAdminCourse(createRepos(supabase), id);
   if (!detail) return <HubCoursePage id={id} />;
 
   const { course, explained, content, hubLessonIds, videos, files, details, lastImportedAt } = detail;

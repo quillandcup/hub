@@ -194,7 +194,7 @@ export default async function PrickleDetailPage({
   if (!started) {
     try {
       roster = await loadPrickleRoster(
-        createServiceRoleClient(),
+        createRepos(createServiceRoleClient()),
         { id: prickle.id, type_id: prickle.typeId, start_time: prickle.startTime, host_id: hostId ?? null },
         effectiveIdentity?.memberId ?? null
       );

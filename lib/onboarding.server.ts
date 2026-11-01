@@ -50,11 +50,11 @@ async function loadNewcomerSignals(
   if (!isNewcomer(member?.firstJoinedAt, now)) return none;
 
   const [introduced, attended, channelId, upcoming] = await Promise.all([
-    loadIntroducedMemberIds(supabase, [memberId]),
+    loadIntroducedMemberIds(createRepos(supabase), [memberId]),
     loadAttendedMemberIds(createRepos(supabase).attendance, [memberId]),
     // bronze is admin-read-only; the intro channel's id is public to the workspace, so read just that.
-    loadIntroChannelId(createServiceRoleClient()),
-    loadCalendarFeedPrickleIds(supabase, memberId, now, now),
+    loadIntroChannelId(createRepos(createServiceRoleClient())),
+    loadCalendarFeedPrickleIds(createRepos(supabase), memberId, now, now),
   ]);
   return {
     isNewcomer: true,
@@ -138,14 +138,14 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
     }),
     loadNewcomerSignals(supabase, memberId, now),
     // The Big Sister step is behind the big_sisters preview (this member's own flag).
-    membersWithFeature(createServiceRoleClient(), "big_sisters", [memberId]).then((on) => on.has(memberId)),
+    membersWithFeature(createRepos(createServiceRoleClient()), "big_sisters", [memberId]).then((on) => on.has(memberId)),
     createRepos(supabase).members.profile(memberId),
     // Same gate as the Slack panel in Settings (SettingsPage): the Slack app is configured.
     isSlackConnectConfigured() ? getSlackConnectionStatus(createServiceRoleClient(), memberId) : Promise.resolve(null),
     // Chat needs the connection, so for someone who has it the Slack step can't be skipped.
-    membersWithFeature(createServiceRoleClient(), "chat", [memberId]).then((on) => on.has(memberId)),
+    membersWithFeature(createRepos(createServiceRoleClient()), "chat", [memberId]).then((on) => on.has(memberId)),
     // The hosting steps are behind the hosting preview (this member's own flag).
-    membersWithFeature(createServiceRoleClient(), "hosting", [memberId]).then((on) => on.has(memberId)),
+    membersWithFeature(createRepos(createServiceRoleClient()), "hosting", [memberId]).then((on) => on.has(memberId)),
   ]);
   const mentorships = bigSistersOn
     ? await getMyMentorships(createRepos(supabase).mentorship, memberId, now.toISOString().slice(0, 10))

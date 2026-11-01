@@ -5,12 +5,13 @@ import { loadCourseList } from "@/lib/courses/member";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { formatCourseDate } from "@/lib/courses/format";
 import { courseImageUrl } from "@/lib/courses/image-urls";
+import { createRepos } from "@/lib/data/repos";
 
 export const metadata: Metadata = { title: "Courses" };
 
 export default async function CoursesPage() {
   const caller = await requireCoursesPage();
-  const items = await loadCourseList(createServiceRoleClient(), caller.scope);
+  const items = await loadCourseList(createRepos(createServiceRoleClient()), caller.scope);
 
   return (
     <div className="container mx-auto max-w-5xl px-6 py-8">

@@ -143,7 +143,7 @@ export async function getCheckModalData(prickleId: string): Promise<CheckModalDa
     hasStarted: new Date(prickle.startTime).getTime() <= Date.now(),
     checkin,
     canEdit: !identity.isSudo,
-    join: joinAt(await loadPrickleJoinSettings(supabase), prickle.startTime),
+    join: joinAt(await loadPrickleJoinSettings(createRepos(supabase)), prickle.startTime),
     projects,
   };
 }

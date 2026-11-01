@@ -104,13 +104,13 @@ export default async function MemberProfilePage({
   const [totalPricklesAttended, hostedRecords, hostingSlots, lastPrickleAt] = await Promise.all([
     getAttendedPrickleCount(createRepos(supabase).attendance, id),
     fetchHostedPrickleRecords(supabase, id, { now, includeAttendeeCounts: true }),
-    getMemberHostingSchedule(supabase, id, now, timeZone, HOSTING_SCHEDULE_WINDOW_DAYS),
+    getMemberHostingSchedule(createRepos(supabase), id, now, timeZone, HOSTING_SCHEDULE_WINDOW_DAYS),
     createRepos(supabase).attendance.lastJoinTime(id, { before: now.toISOString() }),
   ])
   const hostingSummary = computePublicHostingSummary(hostedRecords)
 
   const earnedBadges = await getMemberBadges(
-    supabase,
+    createRepos(supabase),
     id,
     totalPricklesAttended,
     member.first_joined_at

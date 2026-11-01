@@ -1,11 +1,12 @@
 import { getMemberDisplayName } from "@/lib/member-display-name";
-import { createRepos } from "@/lib/data/repos";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Repos } from "@/lib/data/repos";
 import { buildAliasMap, resolveEmail } from "@/lib/email-aliases";
 import { fetchMembershipHistory } from "@/lib/kajabi/membership-history";
 import { isMembershipOffer } from "@/lib/membership";
 import { buildMembershipTimeline, type TimelineSegment } from "@/lib/membership-timeline";
 import { fetchTrialWindows, pickTrialWindow } from "@/lib/trial-window";
+
+type ArrivalsRepos = Pick<Repos, "aliases" | "billing" | "memberStatus" | "members" | "programs">;
 
 // Who just arrived: the new members who each get a big sister. Nobody types a start date. An
 // arrival is found in the data:
@@ -76,8 +77,8 @@ interface Candidate {
 }
 
 /** Membership subscription purchases created on or after `sinceDate`, as candidates by member. */
-async function membershipCandidates(supabase: SupabaseClient, sinceDate: string): Promise<Candidate[]> {
-  const billing = createRepos(supabase).billing;
+async function membershipCandidates(repos: ArrivalsRepos, sinceDate: string): Promise<Candidate[]> {
+  const billing = repos.billing;
   const purchases = await billing.kajabiPurchases({ createdSince: `${sinceDate}T00:00:00Z` });
   if (purchases.length === 0) return [];
 
@@ -88,7 +89,7 @@ async function membershipCandidates(supabase: SupabaseClient, sinceDate: string)
   const [offers, customers, aliasRows] = await Promise.all([
     billing.kajabiOffersByIds(offerIds),
     billing.kajabiCustomers({ customerIds }),
-    createRepos(supabase).aliases.emailAliases(),
+    repos.aliases.emailAliases(),
   ]);
 
   // The same first two tests as isRealMembershipStint: a subscription offer that is the membership
@@ -116,7 +117,7 @@ async function membershipCandidates(supabase: SupabaseClient, sinceDate: string)
 
   const emails = [...startByEmail.keys()];
   const found: Candidate[] = [];
-  for (const m of await createRepos(supabase).members.byEmails(emails)) {
+  for (const m of await repos.members.byEmails(emails)) {
     const arrivedOn = startByEmail.get(m.email.toLowerCase());
     if (arrivedOn && !m.staffRole) {
       found.push({ memberId: m.id, memberName: getMemberDisplayName({ name: m.name, display_name: m.displayName }), memberRealName: m.displayName?.trim() && m.displayName.trim() !== m.name ? m.name : undefined, email: m.email, arrivedOn, from: "membership", programName: null });
@@ -126,9 +127,9 @@ async function membershipCandidates(supabase: SupabaseClient, sinceDate: string)
 }
 
 /** Cohorts of programs that include membership that started in [sinceDate, today], by enrolled member. */
-async function programCandidates(supabase: SupabaseClient, sinceDate: string, today: string): Promise<Candidate[]> {
+async function programCandidates(repos: ArrivalsRepos, sinceDate: string, today: string): Promise<Candidate[]> {
   const found: Candidate[] = [];
-  for (const { member, startsOn, programName } of await createRepos(supabase).programs.membershipArrivals(sinceDate, today)) {
+  for (const { member, startsOn, programName } of await repos.programs.membershipArrivals(sinceDate, today)) {
     if (!member || member.staff_role) continue;
     found.push({
       memberId: member.id,
@@ -149,9 +150,8 @@ async function programCandidates(supabase: SupabaseClient, sinceDate: string, to
  * Stripe overrides), leaving out whatever began on or after the arrival itself, which is the
  * arrival and not a reason they were already here.
  */
-async function wasAlreadyMember(supabase: SupabaseClient, c: Candidate): Promise<boolean> {
+async function wasAlreadyMember(repos: ArrivalsRepos, c: Candidate): Promise<boolean> {
   const cutoff = dayMs(c.arrivedOn) - MS_PER_DAY;
-  const repos = createRepos(supabase);
   const [aliasRows, hiatusRows, enrollments, overrideRows] = await Promise.all([
     repos.aliases.emailsOf(c.memberId),
     repos.memberStatus.hiatusesOf(c.memberId),
@@ -160,9 +160,9 @@ async function wasAlreadyMember(supabase: SupabaseClient, c: Candidate): Promise
   ]);
 
   const emails = [c.email, ...aliasRows.map((a) => a.alias_email)];
-  const kajabiCustomers = await createRepos(supabase).billing.kajabiCustomers({ emails });
+  const kajabiCustomers = await repos.billing.kajabiCustomers({ emails });
   const customerIds = kajabiCustomers.map((k) => k.kajabi_customer_id).filter((id): id is string => !!id);
-  const stints = (await fetchMembershipHistory(supabase, customerIds)).filter(
+  const stints = (await fetchMembershipHistory(repos, customerIds)).filter(
     (s) => Date.parse(s.created_at_kajabi) < cutoff
   );
 
@@ -180,10 +180,10 @@ async function wasAlreadyMember(supabase: SupabaseClient, c: Candidate): Promise
  * member: the earliest arrival, with how they arrived. Doesn't know who has been matched; the
  * caller compares with `mentorships`.
  */
-export async function getArrivals(supabase: SupabaseClient, sinceDate: string, today: string): Promise<Arrival[]> {
+export async function getArrivals(repos: ArrivalsRepos, sinceDate: string, today: string): Promise<Arrival[]> {
   const [fromMembership, fromProgram] = await Promise.all([
-    membershipCandidates(supabase, sinceDate),
-    programCandidates(supabase, sinceDate, today),
+    membershipCandidates(repos, sinceDate),
+    programCandidates(repos, sinceDate, today),
   ]);
 
   // Earliest per member first, so each member is checked once.
@@ -197,11 +197,11 @@ export async function getArrivals(supabase: SupabaseClient, sinceDate: string, t
   const candidates = [...earliest.values()];
   if (candidates.length === 0) return [];
 
-  const away = await Promise.all(candidates.map(async (c) => !(await wasAlreadyMember(supabase, c))));
+  const away = await Promise.all(candidates.map(async (c) => !(await wasAlreadyMember(repos, c))));
   const arriving = candidates.filter((_, i) => away[i]);
 
   const windows = await fetchTrialWindows(
-    supabase,
+    repos,
     arriving.filter((c) => c.from === "membership").map((c) => ({ id: c.memberId, email: c.email }))
   );
   return mergeArrivals(

@@ -1,4 +1,6 @@
-import { createRepos } from "@/lib/data/repos";
+import type { Repos } from "@/lib/data/repos";
+
+type DeletionRepos = Pick<Repos, "slackMessages">;
 /**
  * Working out which stored Slack messages were deleted in Slack, from what an
  * import run fetched.
@@ -125,11 +127,11 @@ export interface DeletionResult {
 
 /**
  * Soft-delete stored messages that this import run shows were deleted in Slack.
- * `supabase` only needs to read and update bronze.slack_messages.
+ * `repos` only needs the Slack message repository (bronze.slack_messages).
  */
 export async function markMessagesDeletedInSlack(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: any,
+  repos: DeletionRepos,
   seen: SeenInSlack,
   window: { from: string; to: string } | null,
   deletedAt: string
@@ -137,7 +139,7 @@ export async function markMessagesDeletedInSlack(
   const result: DeletionResult = { judged: 0, deleted: 0, suspiciousChannels: [] };
   if (!window || seen.topLevelByChannel.size === 0) return result;
 
-  const messages = createRepos(supabase).slackMessages;
+  const messages = repos.slackMessages;
   const stored: StoredSlackMessage[] = await messages.storedMessagesBetween(window.from, window.to);
 
   // Count verdicts per channel by judging everything against "nothing was

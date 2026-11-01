@@ -1,5 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createRepos } from "@/lib/data/repos";
+import type { Repos } from "@/lib/data/repos";
 
 // A member's trial length is not a setting anywhere: Kajabi's offers don't expose it
 // (trial_period_days is always null), but each Stripe subscription that had a trial carries
@@ -48,14 +47,14 @@ export function pickTrialWindow(windows: TrialWindow[], trialStartedOn: string):
 /** Every Stripe trial window for each member, found by the member's email and its aliases.
  * Pass the members you need only: it is one lookup per batch, not a scan of all subscriptions. */
 export async function fetchTrialWindows(
-  supabase: SupabaseClient,
+  repos: Pick<Repos, "aliases" | "billing">,
   members: { id: string; email: string }[]
 ): Promise<Map<string, TrialWindow[]>> {
   const result = new Map<string, TrialWindow[]>();
   if (members.length === 0) return result;
 
   const memberIds = members.map((m) => m.id);
-  const aliasRows = await createRepos(supabase).aliases.emailsOfMembers(memberIds);
+  const aliasRows = await repos.aliases.emailsOfMembers(memberIds);
 
   const memberByEmail = new Map<string, string>();
   for (const m of members) memberByEmail.set(m.email.toLowerCase(), m.id);
@@ -64,7 +63,7 @@ export async function fetchTrialWindows(
   }
 
   const emails = [...memberByEmail.keys()];
-  const billing = createRepos(supabase).billing;
+  const billing = repos.billing;
   const customers = await billing.stripeCustomers({ emails });
   const memberByCustomer = new Map<string, string>();
   for (const c of customers) {

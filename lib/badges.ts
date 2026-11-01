@@ -1,12 +1,13 @@
 import { getMemberDisplayName } from "@/lib/member-display-name";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseDateOnly } from "@/lib/member-tenure";
 import type { AttendanceRepository } from "@/lib/data/attendance";
 import type { MentorshipRepository } from "@/lib/data/mentorship";
-import { createRepos } from "@/lib/data/repos";
+import type { Repos } from "@/lib/data/repos";
 
 export type { BadgeType, BadgeLevel } from "@/lib/data/badges";
 import type { BadgeType, BadgeLevel } from "@/lib/data/badges";
+
+type BadgeRepos = Pick<Repos, "attendance" | "badges" | "books" | "members" | "mentorship" | "prickles" | "programs">;
 
 export interface EarnedBadge {
   badgeType: BadgeType;
@@ -290,20 +291,20 @@ export function computeEarnedBadges(
  * prickles.host -- real hosting history, not member_badges. Paginated per CLAUDE.md, though a
  * single host's row count is well under the 1000-row default limit in practice. */
 export async function getHostedQuarterCount(
-  supabase: SupabaseClient,
+  repos: BadgeRepos,
   memberId: string
 ): Promise<number> {
-  const hosted = await createRepos(supabase).prickles.hostedStartTimes({ hostId: memberId });
+  const hosted = await repos.prickles.hostedStartTimes({ hostId: memberId });
   const quarters = new Set(hosted.map((h) => quarterKey(h.startTime)));
   return quarters.size;
 }
 
 /** Number of books `memberId` has logged on the Hedgie Bookshelf (member_books). */
 export async function getPublishedBookCount(
-  supabase: SupabaseClient,
+  repos: BadgeRepos,
   memberId: string
 ): Promise<number> {
-  return createRepos(supabase).books.countLive(memberId);
+  return repos.books.countLive(memberId);
 }
 
 export interface BadgeRecipient {
@@ -520,9 +521,9 @@ export function computeBadgeRecipients(
 
 /** Every calendar quarter (UTC) each member hosted at least one prickle, from `prickles.host`
  * -- the bulk counterpart to getHostedQuarterCount, one paginated scan instead of N. */
-async function getHostedQuarterCountsByMember(supabase: SupabaseClient): Promise<Map<string, number>> {
+async function getHostedQuarterCountsByMember(repos: BadgeRepos): Promise<Map<string, number>> {
   const quartersByMember = new Map<string, Set<string>>();
-  for (const { hostId, startTime } of await createRepos(supabase).prickles.hostedStartTimes()) {
+  for (const { hostId, startTime } of await repos.prickles.hostedStartTimes()) {
     const quarters = quartersByMember.get(hostId) ?? new Set<string>();
     quarters.add(quarterKey(startTime));
     quartersByMember.set(hostId, quarters);
@@ -535,9 +536,9 @@ async function getHostedQuarterCountsByMember(supabase: SupabaseClient): Promise
 /** Number of books each member has logged on the Hedgie Bookshelf -- the bulk counterpart to
  * getPublishedBookCount, one paginated scan instead of N. */
 async function getPublishedBookCountsByMember(
-  supabase: SupabaseClient
+  repos: BadgeRepos
 ): Promise<Map<string, number>> {
-  return createRepos(supabase).books.liveCountsByMember();
+  return repos.books.liveCountsByMember();
 }
 
 /** Distinct prickles attended by a single member -- the per-member counterpart to
@@ -582,12 +583,12 @@ export async function getMentorshipCounts(mentorships: MentorshipRepository): Pr
  * repeat 180 alumna enrolling in a later cohort), tracked as multiple occurrences. Enrollment
  * rows per member are few, so this doesn't need CLAUDE.md's pagination loop. */
 export async function getProgramCompletions(
-  supabase: SupabaseClient,
+  repos: BadgeRepos,
   memberId: string
 ): Promise<Map<string, ProgramCompletion>> {
   const today = new Date().toISOString().slice(0, 10);
   const completions = new Map<string, ProgramCompletion>();
-  for (const e of await createRepos(supabase).programs.enrollmentsOf(memberId)) {
+  for (const e of await repos.programs.enrollmentsOf(memberId)) {
     if (e.expiresAt > today) continue;
     mergeCompletion(completions, e.programId, e.expiresAt);
   }
@@ -597,11 +598,11 @@ export async function getProgramCompletions(
 /** Bulk counterpart to getProgramCompletions -- one paginated scan across every member's
  * enrollments instead of N single-member queries, keyed by program_id then member_id. */
 async function getProgramCompletionsByProgram(
-  supabase: SupabaseClient
+  repos: BadgeRepos
 ): Promise<Map<string, Map<string, ProgramCompletion>>> {
   const today = new Date().toISOString().slice(0, 10);
   const byProgram = new Map<string, Map<string, ProgramCompletion>>();
-  for (const e of await createRepos(supabase).programs.allEnrollmentCohorts()) {
+  for (const e of await repos.programs.allEnrollmentCohorts()) {
     if (e.expiresAt > today) continue;
     const byMember = byProgram.get(e.programId) ?? new Map<string, ProgramCompletion>();
     mergeCompletion(byMember, e.memberId, e.expiresAt);
@@ -611,8 +612,8 @@ async function getProgramCompletionsByProgram(
 }
 
 /** The awards of one badge type in the shape the recipient math reads (member, when, note). */
-async function legacyAwardsOf(supabase: SupabaseClient, badgeTypeId: string) {
-  return (await createRepos(supabase).badges.awardsOfType(badgeTypeId)).map((a) => ({ member_id: a.memberId, occurred_at: a.occurredAt, note: a.note }));
+async function legacyAwardsOf(repos: BadgeRepos, badgeTypeId: string) {
+  return (await repos.badges.awardsOfType(badgeTypeId)).map((a) => ({ member_id: a.memberId, occurred_at: a.occurredAt, note: a.note }));
 }
 
 /**
@@ -623,11 +624,11 @@ async function legacyAwardsOf(supabase: SupabaseClient, badgeTypeId: string) {
  * this badge" view.
  */
 export async function getBadgeRecipients(
-  supabase: SupabaseClient,
+  repos: BadgeRepos,
   badgeType: BadgeType,
   levels: BadgeLevel[]
 ): Promise<BadgeRecipient[]> {
-  const members: RecipientMember[] = (await createRepos(supabase).members.list({ orderBy: "name" })).map((m) => ({
+  const members: RecipientMember[] = (await repos.members.list({ orderBy: "name" })).map((m) => ({
     id: m.id,
     name: m.name,
     displayName: m.displayName,
@@ -640,7 +641,7 @@ export async function getBadgeRecipients(
       badgeType,
       levels,
       members,
-      await legacyAwardsOf(supabase, badgeType.id),
+      await legacyAwardsOf(repos, badgeType.id),
       {
         attendedPrickleCountsByMember: new Map(),
         hostedQuarterCountsByMember: new Map(),
@@ -660,24 +661,24 @@ export async function getBadgeRecipients(
   let mentorshipByMember = new Map<string, MentorshipCount>();
   switch (badgeType.key) {
     case "prickle_milestones":
-      attendedPrickleCountsByMember = await getAttendedPrickleCountsByMember(createRepos(supabase).attendance);
+      attendedPrickleCountsByMember = await getAttendedPrickleCountsByMember(repos.attendance);
       break;
     case "hostess":
-      hostedQuarterCountsByMember = await getHostedQuarterCountsByMember(supabase);
+      hostedQuarterCountsByMember = await getHostedQuarterCountsByMember(repos);
       break;
     case "published_author":
-      publishedBookCountsByMember = await getPublishedBookCountsByMember(supabase);
+      publishedBookCountsByMember = await getPublishedBookCountsByMember(repos);
       break;
     case "hedgie_mentor": {
-      mentorshipByMember = await getMentorshipCounts(createRepos(supabase).mentorship);
-      legacyAwards = await legacyAwardsOf(supabase, badgeType.id);
+      mentorshipByMember = await getMentorshipCounts(repos.mentorship);
+      legacyAwards = await legacyAwardsOf(repos, badgeType.id);
       break;
     }
     // founding_hedgie needs no query -- it's a pure function of members.firstJoinedAt.
     default:
       if (badgeType.program_id) {
-        programCompletionsByProgramId = await getProgramCompletionsByProgram(supabase);
-        legacyAwards = await legacyAwardsOf(supabase, badgeType.id);
+        programCompletionsByProgramId = await getProgramCompletionsByProgram(repos);
+        legacyAwards = await legacyAwardsOf(repos, badgeType.id);
       }
   }
 
@@ -694,20 +695,20 @@ export async function getBadgeRecipients(
  * member's manual award rows, and the query-backed automatic metrics (hosted quarters,
  * published books), then merges them into their earned badges. */
 export async function getMemberBadges(
-  supabase: SupabaseClient,
+  repos: BadgeRepos,
   memberId: string,
   totalPricklesAttended: number,
   firstJoinedAt: string | null
 ): Promise<EarnedBadge[]> {
-  const badges = createRepos(supabase).badges;
+  const badges = repos.badges;
   const [badgeTypes, levels, awards, hostedQuarterCount, publishedBookCount, programCompletions, mentorshipCounts] = await Promise.all([
     badges.types(),
     badges.levels(),
     badges.awardsOf(memberId),
-    getHostedQuarterCount(supabase, memberId),
-    getPublishedBookCount(supabase, memberId),
-    getProgramCompletions(supabase, memberId),
-    getMentorshipCounts(createRepos(supabase).mentorship),
+    getHostedQuarterCount(repos, memberId),
+    getPublishedBookCount(repos, memberId),
+    getProgramCompletions(repos, memberId),
+    getMentorshipCounts(repos.mentorship),
   ]);
 
   const levelsByBadgeType = new Map<string, BadgeLevel[]>();

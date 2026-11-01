@@ -19,6 +19,7 @@ vi.mock("@/lib/supabase/api-auth", () => ({
 import { fetchTrialWindows } from "@/lib/trial-window";
 import { fetchMembershipHistory } from "@/lib/kajabi/membership-history";
 import { GET as kajabiStripeComparison } from "@/app/api/analyze/kajabi-stripe-comparison/route";
+import { createRepos } from "@/lib/data/repos";
 
 const client = {} as SupabaseClient;
 const unix = (iso: string) => Date.parse(`${iso}T12:00:00Z`) / 1000;
@@ -47,7 +48,7 @@ describe("fetchTrialWindows", () => {
       })
     );
 
-    const windows = await fetchTrialWindows(client, [
+    const windows = await fetchTrialWindows(createRepos(client), [
       { id: "mbr_AAAAAAAAAAA1", email: "Ada@Example.test" },
       { id: "mbr_AAAAAAAAAAA2", email: "bea@example.test" },
     ]);
@@ -58,8 +59,8 @@ describe("fetchTrialWindows", () => {
   });
 
   it("answers nothing for no members, or members with no Stripe customer", async () => {
-    expect((await fetchTrialWindows(client, [])).size).toBe(0);
-    expect((await fetchTrialWindows(client, [{ id: "mbr_AAAAAAAAAAA1", email: "ada@example.test" }])).size).toBe(0);
+    expect((await fetchTrialWindows(createRepos(client), [])).size).toBe(0);
+    expect((await fetchTrialWindows(createRepos(client), [{ id: "mbr_AAAAAAAAAAA1", email: "ada@example.test" }])).size).toBe(0);
   });
 });
 
@@ -86,17 +87,17 @@ describe("fetchMembershipHistory", () => {
       })
     );
 
-    const history = await fetchMembershipHistory(client, ["kc-1"]);
+    const history = await fetchMembershipHistory(createRepos(client), ["kc-1"]);
 
     expect(history).toHaveLength(1);
     expect(history[0]).toMatchObject({ created_at_kajabi: "2026-03-08T12:00:00.000Z" });
   });
 
   it("is empty with no customers, no purchases, or purchases of no offer", async () => {
-    expect(await fetchMembershipHistory(client, [])).toEqual([]);
-    expect(await fetchMembershipHistory(client, ["kc-none"])).toEqual([]);
+    expect(await fetchMembershipHistory(createRepos(client), [])).toEqual([]);
+    expect(await fetchMembershipHistory(createRepos(client), ["kc-none"])).toEqual([]);
     repos = createInMemoryRepos(new InMemoryDataset({ kajabiPurchases: [{ kajabi_purchase_id: "p-1", kajabi_customer_id: "kc-1" }] }));
-    expect(await fetchMembershipHistory(client, ["kc-1"])).toEqual([]);
+    expect(await fetchMembershipHistory(createRepos(client), ["kc-1"])).toEqual([]);
   });
 });
 

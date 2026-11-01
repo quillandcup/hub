@@ -4,6 +4,7 @@ import { InMemoryDataset } from "@/lib/data/in-memory";
 import type { ScheduleRow } from "@/lib/data/prickle-schedules";
 import { createInMemoryRepos } from "@/lib/data/repos";
 import { bootstrapMonthFromCalendar } from "@/lib/prickle-schedules";
+import { createRepos } from "@/lib/data/repos";
 
 // Prickles and schedules come from their repositories, in memory here.
 let repos = createInMemoryRepos();
@@ -102,7 +103,7 @@ describe("bootstrapMonthFromCalendar", () => {
 
   it("dry run reports what would change without writing anything", async () => {
     const before = JSON.stringify(data.prickleSchedules);
-    const result = await bootstrapMonthFromCalendar(supabase, OCTOBER, "admin-1", { dryRun: true });
+    const result = await bootstrapMonthFromCalendar(createRepos(supabase), OCTOBER, "admin-1", { dryRun: true });
 
     expect(result).toEqual({
       created: 1,
@@ -117,7 +118,7 @@ describe("bootstrapMonthFromCalendar", () => {
   });
 
   it("backports next month additively: inserts new confirmed slots, leaves existing rows untouched by default", async () => {
-    const result = await bootstrapMonthFromCalendar(supabase, OCTOBER, "admin-1");
+    const result = await bootstrapMonthFromCalendar(createRepos(supabase), OCTOBER, "admin-1");
 
     expect(result.created).toBe(1);
     expect(result.confirmedExisting).toBe(0);
@@ -138,7 +139,7 @@ describe("bootstrapMonthFromCalendar", () => {
   });
 
   it("confirms matching proposed rows only when asked, and never overrides a declined slot", async () => {
-    const result = await bootstrapMonthFromCalendar(supabase, OCTOBER, "admin-1", {
+    const result = await bootstrapMonthFromCalendar(createRepos(supabase), OCTOBER, "admin-1", {
       confirmMatchingProposed: true,
     });
 
@@ -150,7 +151,7 @@ describe("bootstrapMonthFromCalendar", () => {
   });
 
   it("seeds the following month from October's confirmed rows", async () => {
-    const result = await bootstrapMonthFromCalendar(supabase, OCTOBER, "admin-1");
+    const result = await bootstrapMonthFromCalendar(createRepos(supabase), OCTOBER, "admin-1");
 
     const november = data.prickleSchedules.filter((r) => r.month === NOVEMBER);
     expect(result.copiedToNextMonth).toBe(1);
@@ -159,10 +160,10 @@ describe("bootstrapMonthFromCalendar", () => {
   });
 
   it("is idempotent: a second run creates and confirms nothing new", async () => {
-    await bootstrapMonthFromCalendar(supabase, OCTOBER, "admin-1", { confirmMatchingProposed: true });
+    await bootstrapMonthFromCalendar(createRepos(supabase), OCTOBER, "admin-1", { confirmMatchingProposed: true });
     const count = data.prickleSchedules.length;
 
-    const again = await bootstrapMonthFromCalendar(supabase, OCTOBER, "admin-1", {
+    const again = await bootstrapMonthFromCalendar(createRepos(supabase), OCTOBER, "admin-1", {
       confirmMatchingProposed: true,
     });
 
@@ -180,6 +181,6 @@ describe("bootstrapMonthFromCalendar", () => {
       }),
     };
 
-    await expect(bootstrapMonthFromCalendar(supabase, OCTOBER, "admin-1")).rejects.toThrow("db down");
+    await expect(bootstrapMonthFromCalendar(createRepos(supabase), OCTOBER, "admin-1")).rejects.toThrow("db down");
   });
 });

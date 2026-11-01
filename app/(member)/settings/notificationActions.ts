@@ -56,8 +56,8 @@ export async function getNotificationSettings(): Promise<NotificationSettings | 
   const service = createServiceRoleClient();
   const kindFeatures = [...new Set(NOTIFICATION_KINDS.flatMap((k) => ("feature" in k ? [k.feature as FeatureKey] : [])))];
   const [browserFlag, ...kindFeatureMembers] = await Promise.all([
-    membersWithFeature(service, WEB_PUSH_FEATURE, [identity.memberId]),
-    ...kindFeatures.map((key) => membersWithFeature(service, key, [identity.memberId])),
+    membersWithFeature(createRepos(service), WEB_PUSH_FEATURE, [identity.memberId]),
+    ...kindFeatures.map((key) => membersWithFeature(createRepos(service), key, [identity.memberId])),
   ]);
   const featureOn = new Set(kindFeatures.filter((_, i) => kindFeatureMembers[i].has(identity.memberId)));
   const visibleKinds = NOTIFICATION_KINDS.filter((k) => !("feature" in k) || featureOn.has(k.feature as FeatureKey)).map(
@@ -138,7 +138,7 @@ async function savePushSubscriptionImpl(
   if (!validSubscription(subscription)) return { error: "Invalid push subscription" };
 
   const service = createServiceRoleClient();
-  if (!(await membersWithFeature(service, WEB_PUSH_FEATURE, [identity.memberId])).has(identity.memberId)) {
+  if (!(await membersWithFeature(createRepos(service), WEB_PUSH_FEATURE, [identity.memberId])).has(identity.memberId)) {
     return { error: "Browser notifications aren't available to you yet." };
   }
 
@@ -204,7 +204,7 @@ export async function resumePushSubscription(
   if (identity.isSudo) return { error: "Notifications can't be resumed in sudo mode." };
   if (!isAllowedPushEndpoint(previousEndpoint) || !validSubscription(subscription)) return { error: "Invalid push subscription" };
   const service = createServiceRoleClient();
-  if (!(await membersWithFeature(service, WEB_PUSH_FEATURE, [identity.memberId])).has(identity.memberId)) {
+  if (!(await membersWithFeature(createRepos(service), WEB_PUSH_FEATURE, [identity.memberId])).has(identity.memberId)) {
     return { error: "Browser notifications aren't available to you yet." };
   }
   let resumed: boolean;

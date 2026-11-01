@@ -92,7 +92,7 @@ async function loadCandidatePool(viewerMemberId: string): Promise<CandidatePoolR
     slackUsers,
     allMembersForMatching,
     slackAliases,
-    await loadVerifiedSlackLinks(supabase)
+    await loadVerifiedSlackLinks(createRepos(supabase))
   );
   const slackUserIdByMember = new Map<string, string>();
   for (const [slackUserId, memberId] of slackUserToMemberId) {

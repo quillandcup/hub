@@ -1,6 +1,8 @@
-import { createRepos } from "@/lib/data/repos";
+import type { Repos } from "@/lib/data/repos";
 import { isMembershipOffer, trialEndDate } from "@/lib/membership";
 import { buildAliasMap, resolveEmail } from "@/lib/email-aliases";
+
+type MembershipHistoryRepos = Pick<Repos, "aliases" | "billing">;
 
 export type MembershipPurchase = {
   created_at_kajabi: string;
@@ -170,14 +172,14 @@ export function buildMembershipStints(
 // and, combined with member_email_aliases, correctly groups a merged
 // person's old AND new Stripe subscriptions under one canonical email.
 export async function fetchStripeTrialInfoByEmail(
-  supabase: any,
+  repos: MembershipHistoryRepos,
   emailAliases: { alias_email: string; canonical_email: string }[]
 ): Promise<Map<string, StripeTrialInfo[]>> {
   const result = new Map<string, StripeTrialInfo[]>();
 
   const aliasMap = buildAliasMap(emailAliases);
 
-  const billing = createRepos(supabase).billing;
+  const billing = repos.billing;
   const stripeCustomers = await billing.stripeCustomers();
   if (stripeCustomers.length === 0) return result;
 
@@ -216,12 +218,12 @@ export async function fetchStripeTrialInfoByEmail(
 }
 
 export async function fetchMembershipHistory(
-  supabase: any,
+  repos: MembershipHistoryRepos,
   customerIds: string[]
 ): Promise<MembershipPurchase[]> {
   if (customerIds.length === 0) return [];
 
-  const billing = createRepos(supabase).billing;
+  const billing = repos.billing;
   const purchases = await billing.kajabiPurchasesByCustomers(customerIds);
 
   if (purchases.length === 0) return [];
@@ -240,13 +242,13 @@ export async function fetchMembershipHistory(
 
   const customers = await billing.kajabiCustomers({ customerIds });
 
-  const emailAliases = await createRepos(supabase).aliases.emailAliases();
+  const emailAliases = await repos.aliases.emailAliases();
 
   const aliasMap = buildAliasMap(emailAliases || []);
   const firstEmail = customers?.find((c: any) => c.email)?.email;
   const canonicalEmail = firstEmail ? resolveEmail(firstEmail, aliasMap) : undefined;
 
-  const stripeInfoByEmail = await fetchStripeTrialInfoByEmail(supabase, emailAliases || []);
+  const stripeInfoByEmail = await fetchStripeTrialInfoByEmail(repos, emailAliases || []);
 
   return buildMembershipStints(purchases as RawPurchase[], offerMap, canonicalEmail, stripeInfoByEmail).reverse();
 }

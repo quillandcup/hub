@@ -1,7 +1,8 @@
 import { getMemberDisplayName } from "@/lib/member-display-name";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createRepos } from "@/lib/data/repos";
+import type { Repos } from "@/lib/data/repos";
 import { buildRoster, type RosterAccess, type RosterLesson, type RosterProgress, type RosterRow } from "@/lib/courses/roster";
+
+type RosterDataRepos = Pick<Repos, "courseProgress" | "courses" | "members">;
 
 /**
  * The roster page's data (service role, behind `requireAdminPage()`): everyone with access to the
@@ -9,11 +10,10 @@ import { buildRoster, type RosterAccess, type RosterLesson, type RosterProgress,
  * Null when the course isn't in the Hub.
  */
 export async function loadCourseRoster(
-  supabase: SupabaseClient,
+  repos: RosterDataRepos,
   courseId: string,
   now: Date = new Date()
 ): Promise<{ course: { id: string; title: string }; rows: RosterRow[] } | null> {
-  const repos = createRepos(supabase);
   const course = await repos.courses.courseById(courseId);
   if (!course) return null;
 

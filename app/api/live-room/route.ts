@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { loadLiveRoom } from "@/lib/live-room";
 import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from "@/lib/with-timeout";
+import { createRepos } from "@/lib/data/repos";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,7 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const room = await loadLiveRoom(createServiceRoleClient());
+    const room = await loadLiveRoom(createRepos(createServiceRoleClient()));
     return NextResponse.json(room, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("loadLiveRoom failed", error);

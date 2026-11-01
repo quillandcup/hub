@@ -1,8 +1,9 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { ORG_TIMEZONE } from "@/lib/config";
 import type { NewActivity } from "@/lib/data/activities";
-import { createRepos } from "@/lib/data/repos";
+import type { Repos } from "@/lib/data/repos";
 import { localDateString } from "@/lib/events-filter";
+
+type ActivityRepos = Pick<Repos, "activities" | "courseProgress">;
 
 /**
  * Lesson viewing as activity-log rows (`member_activities`, source `courses`), so it shows in the
@@ -54,8 +55,8 @@ interface LessonRef {
 }
 
 /** Logs the row once: the repository treats a repeat (same member, type and related id) as a no-op. */
-async function insertOnce(supabase: SupabaseClient, row: Omit<NewActivity, "category" | "actorKind" | "source">, label: string) {
-  await createRepos(supabase)
+async function insertOnce(repos: ActivityRepos, row: Omit<NewActivity, "category" | "actorKind" | "source">, label: string) {
+  await repos
     .activities.record({ category: "learning", actorKind: "member", source: COURSES_ACTIVITY_SOURCE, ...row })
     .catch((error) => console.error(`${label}: failed to insert member_activities row`, error));
 }
@@ -63,24 +64,24 @@ async function insertOnce(supabase: SupabaseClient, row: Omit<NewActivity, "cate
 /**
  * Called after new watch segments were saved: if the member has now watched enough of the lesson
  * today (their video time across the day's stretches, rewatches included), logs "Watched <lesson>".
- * `supabase` is the member's own client (RLS lets them read their segments and insert their activity).
+ * `repos` run over the member's own client (RLS lets them read their segments and insert their activity).
  */
 export async function recordLessonWatched(
-  supabase: SupabaseClient,
+  repos: ActivityRepos,
   lesson: LessonRef & { videoId: string },
   now: Date = new Date()
 ): Promise<void> {
   try {
     const today = localDateString(now, ORG_TIMEZONE);
     const since = new Date(now.getTime() - LOOKBACK_MS).toISOString();
-    const rows = await createRepos(supabase).courseProgress.watchedSince(lesson.memberId, lesson.videoId, since);
+    const rows = await repos.courseProgress.watchedSince(lesson.memberId, lesson.videoId, since);
     const watchedSeconds = rows
       .filter((r) => localDateString(new Date(r.started_at), ORG_TIMEZONE) === today)
       .reduce((sum, r) => sum + (Number(r.end_seconds) - Number(r.start_seconds)), 0);
     if (!watchedEnough(watchedSeconds, lesson.lessonSeconds)) return;
 
     await insertOnce(
-      supabase,
+      repos,
       {
         memberId: lesson.memberId,
         type: "lesson_watched",
@@ -99,10 +100,10 @@ export async function recordLessonWatched(
 }
 
 /** Called when a member marks a lesson complete. Once per lesson: unmarking and marking again earns nothing more. */
-export async function recordLessonCompleted(supabase: SupabaseClient, lesson: LessonRef, now: Date = new Date()): Promise<void> {
+export async function recordLessonCompleted(repos: ActivityRepos, lesson: LessonRef, now: Date = new Date()): Promise<void> {
   try {
     await insertOnce(
-      supabase,
+      repos,
       {
         memberId: lesson.memberId,
         type: "lesson_completed",

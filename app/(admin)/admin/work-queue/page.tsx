@@ -50,7 +50,7 @@ export default async function WorkQueuePage() {
     repos.members.tenureOf(["active", "on_hiatus"]),
     repos.memberStatus.allHiatuses(),
     repos.adminWork.completions(),
-    bigSistersOn ? getArrivals(supabase, sinceDate, now.toISOString().slice(0, 10)) : Promise.resolve([]),
+    bigSistersOn ? getArrivals(createRepos(supabase), sinceDate, now.toISOString().slice(0, 10)) : Promise.resolve([]),
     bigSistersOn ? repos.mentorship.matchedArrivals() : Promise.resolve([]),
   ]);
 

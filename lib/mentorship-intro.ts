@@ -52,7 +52,7 @@ export async function sendMatchIntroductions(
     // Only members who have the big_sisters preview hear about it: the page the message points to
     // is behind it.
     const people = [match.newMemberId, match.mentorMemberId];
-    const enabled = await membersWithFeature(service, "big_sisters", people);
+    const enabled = await membersWithFeature(createRepos(service), "big_sisters", people);
     const recipients = people.filter((id) => enabled.has(id));
     if (recipients.length === 0) return;
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { createFakeSupabase } from "@/tests/helpers/server-page";
+import { createInMemoryRepos } from "@/lib/data/repos";
 import {
   oneClickUnsubscribeUrl,
   parseUnsubscribeToken,
@@ -63,22 +63,34 @@ describe("unsubscribe tokens", () => {
 
 describe("setEmailEnabled", () => {
   it("stores an explicit choice for that member, kind and the email channel", async () => {
-    const fake = createFakeSupabase();
+    const repos = createInMemoryRepos();
 
-    expect(await setEmailEnabled(fake, MEMBER, "prickle_checkin", false)).toBe(true);
+    expect(await setEmailEnabled(repos, MEMBER, "prickle_checkin", false)).toBe(true);
 
-    const call = fake.queries.find((q) => q.table === "notification_preferences")!.calls.find((c) => c.method === "upsert")!;
-    expect(call.args).toEqual([
-      { member_id: MEMBER, kind: "prickle_checkin", channel: "email", enabled: false },
-      { onConflict: "member_id,kind,channel" },
+    expect(await repos.notifications.preferencesOf(MEMBER)).toEqual([
+      { memberId: MEMBER, kind: "prickle_checkin", channel: "email", enabled: false },
+    ]);
+  });
+
+  it("turns it back on over the earlier choice", async () => {
+    const repos = createInMemoryRepos();
+
+    await setEmailEnabled(repos, MEMBER, "prickle_checkin", false);
+    expect(await setEmailEnabled(repos, MEMBER, "prickle_checkin", true)).toBe(true);
+
+    expect(await repos.notifications.preferencesOf(MEMBER)).toEqual([
+      { memberId: MEMBER, kind: "prickle_checkin", channel: "email", enabled: true },
     ]);
   });
 
   it("reports a failed save", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
-    const fake = createFakeSupabase({ notification_preferences: { error: { message: "boom" } } });
+    const repos = createInMemoryRepos();
+    repos.notifications.setPreference = async () => {
+      throw new Error("boom");
+    };
 
-    expect(await setEmailEnabled(fake, MEMBER, "prickle_checkin", false)).toBe(false);
+    expect(await setEmailEnabled(repos, MEMBER, "prickle_checkin", false)).toBe(false);
     error.mockRestore();
   });
 });

@@ -1,8 +1,9 @@
-import { createClient } from "@/lib/supabase/server"
-import { createRepos } from "@/lib/data/repos"
+import type { Repos } from "@/lib/data/repos";
 import type { PrickleDetail } from "@/lib/data/prickles"
 import { buildAttendanceMap } from "@/lib/scheduled-prickle-stats"
 import { getMemberDisplayName } from "@/lib/member-display-name"
+
+type ScheduleOverviewRepos = Pick<Repos, "attendance" | "prickles">;
 
 // The full recurring weekly schedule ("All Prickles" / "Prickle Times") --
 // one row per (type, day-of-week, hour) slot that still has an upcoming
@@ -12,8 +13,6 @@ import { getMemberDisplayName } from "@/lib/member-display-name"
 // instances by personal relevance rather than describing the recurring
 // pattern itself.
 
-
-type SupabaseClient = Awaited<ReturnType<typeof createClient>>
 
 function unwrapOne<T>(ref: T | T[] | null | undefined): T | null {
   if (Array.isArray(ref)) return ref[0] ?? null
@@ -145,7 +144,7 @@ function pickRepresentativeHost(next: RawPrickleRow, historical: RawPrickleRow[]
  * raw instances (past and upcoming, across the whole window) for a calendar view.
  */
 export async function getPrickleScheduleOverview(
-  supabase: SupabaseClient,
+  repos: ScheduleOverviewRepos,
   now: Date,
   timeZone: string,
   lookbackDays: number,
@@ -156,7 +155,7 @@ export async function getPrickleScheduleOverview(
   const nowIso = now.toISOString()
 
   const raw = (
-    await createRepos(supabase).prickles.startingBetween({ from: windowStart, to: windowEnd, inclusiveEnd: true })
+    await repos.prickles.startingBetween({ from: windowStart, to: windowEnd, inclusiveEnd: true })
   ).map(toRawRow)
 
   // Group into upcoming vs. historical occurrences per (type, day, hour) slot.
@@ -174,7 +173,7 @@ export async function getPrickleScheduleOverview(
 
   const historicalIds = [...historicalBySlot.values()].flat().map((p) => p.id)
   // Historical attendance for those prickles (chunked and paginated inside the repository).
-  const attendance = (await createRepos(supabase).attendance.forPrickles(historicalIds)).map((link) => ({
+  const attendance = (await repos.attendance.forPrickles(historicalIds)).map((link) => ({
     prickle_id: link.prickleId,
     member_id: link.memberId,
   }))
@@ -298,7 +297,7 @@ export function groupHostedPricklesIntoSlots(
  * also carries proposed/unconfirmed requests.
  */
 export async function getMemberHostingSchedule(
-  supabase: SupabaseClient,
+  repos: ScheduleOverviewRepos,
   hostId: string,
   now: Date,
   timeZone: string,
@@ -306,7 +305,7 @@ export async function getMemberHostingSchedule(
 ): Promise<HostedScheduleSlot[]> {
   const windowEnd = new Date(now.getTime() + windowDays * 24 * 60 * 60 * 1000).toISOString()
 
-  const hosted = await createRepos(supabase).prickles.startingBetween({
+  const hosted = await repos.prickles.startingBetween({
     from: now.toISOString(),
     to: windowEnd,
     inclusiveEnd: true,

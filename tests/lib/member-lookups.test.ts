@@ -97,9 +97,7 @@ describe("badge recipients", () => {
         ],
       }),
     );
-    const supabase = createFakeSupabase();
-
-    const recipients = await getBadgeRecipients(supabase as never, badge, []);
+    const recipients = await getBadgeRecipients(repos, badge, []);
 
     expect(recipients.map((r) => r.memberName)).toEqual(["Ada Example", "Fern Example"]);
     expect(recipients.find((r) => r.memberId === FERN.id)).toMatchObject({ memberEmail: FERN.email, note: "for the welcome" });

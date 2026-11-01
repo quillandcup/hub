@@ -17,12 +17,13 @@ import LessonMediaPanel from "./LessonMediaPanel";
 import VideoActions from "./VideoActions";
 import LessonBuilderForm from "./LessonBuilderForm";
 import LessonVideoControls from "./LessonVideoControls";
+import { createRepos } from "@/lib/data/repos";
 
 type Params = { params: Promise<{ id: string; lessonId: string }> };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { id, lessonId } = await params;
-  const detail = await loadAdminLesson(await createClient(), id, lessonId);
+  const detail = await loadAdminLesson(createRepos(await createClient()), id, lessonId);
   // Most specific first: "Lesson · Course · Courses".
   return { title: [detail?.lesson.title, detail?.course.title, "Courses"].filter(Boolean).join(" · ") };
 }
@@ -51,7 +52,7 @@ const BLOCKED_REASON: Record<PreviewBlocker | "no_thumbnail" | "not_in_hub", str
 async function thumbnailLinkFor(detail: AdminLessonDetail, lessonUrl: string | null) {
   const { hub } = detail;
   if (!hub || !lessonUrl) return { link: null, blocked: BLOCKED_REASON.not_in_hub };
-  const result = await publicLessonPreview(createServiceRoleClient(), hub.lessonId);
+  const result = await publicLessonPreview(createRepos(createServiceRoleClient()), hub.lessonId);
   if ("blocked" in result) return { link: null, blocked: BLOCKED_REASON[result.blocked] };
   const { preview } = result;
   if (!preview.thumbnailSrc) return { link: null, blocked: BLOCKED_REASON.no_thumbnail };
@@ -118,7 +119,7 @@ async function lessonPlayback(detail: AdminLessonDetail) {
 export default async function AdminLessonPage({ params }: Params) {
   await requireAdminPage();
   const { id, lessonId } = await params;
-  const detail = await loadAdminLesson(await createClient(), id, lessonId);
+  const detail = await loadAdminLesson(createRepos(await createClient()), id, lessonId);
   if (!detail) notFound();
   const { course, lesson, hub } = detail;
   const media = await lessonMedia(detail);

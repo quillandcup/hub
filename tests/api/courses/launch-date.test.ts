@@ -4,6 +4,7 @@ import { apiFetch } from '../../helpers/api-fetch'
 import { ORG_TIMEZONE } from '@/lib/config'
 import { zonedTimeToUtc } from '@/lib/prickle-schedules'
 import { loadCourseView, loadCourseList } from '@/lib/courses/member'
+import { createRepos } from "@/lib/data/repos";
 
 /**
  * Pre-orders: a course's launch date moves early buyers' access start (and so its end) to launch,
@@ -87,10 +88,10 @@ describe('Course launch date', () => {
 
   it("shows the early buyer 'opens on' before launch: listed, but none of the course", async () => {
     const scope = { memberId: ids.early, isAdminActing: false }
-    const [item] = (await loadCourseList(supabase, scope)).filter((i) => i.course.slug === SLUG)
+    const [item] = (await loadCourseList(createRepos(supabase), scope)).filter((i) => i.course.slug === SLUG)
     expect(item.access.kind).toBe('upcoming')
 
-    const view = await loadCourseView(supabase, SLUG, scope)
+    const view = await loadCourseView(createRepos(supabase), SLUG, scope)
     expect(view).toMatchObject({ access: { kind: 'upcoming' }, outline: null })
   })
 

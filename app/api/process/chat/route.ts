@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
 
     // STEP 2: Match Slack users to members (in memory)
     const userMemberMap = Object.fromEntries(
-      await matchSlackUsersToMembers(slackUsers, members, aliases, await loadVerifiedSlackLinks(supabase))
+      await matchSlackUsersToMembers(slackUsers, members, aliases, await loadVerifiedSlackLinks(createRepos(supabase)))
     );
 
     // STEP 3: Channels and membership

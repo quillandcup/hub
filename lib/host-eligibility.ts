@@ -1,5 +1,4 @@
-import { createRepos } from "@/lib/data/repos";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Repos } from "@/lib/data/repos";
 import { addMonthsClamped } from "@/lib/member-tenure";
 import { ORG_TIMEZONE } from "@/lib/config";
 
@@ -86,7 +85,7 @@ export function hostEligibilityMessage(eligibility: HostEligibility): string {
 // Loads join dates for the given members and computes each one's host
 // eligibility. Members not found are omitted from the result.
 export async function fetchHostEligibilityByMember(
-  supabase: SupabaseClient,
+  repos: Pick<Repos, "members">,
   memberIds: string[],
   now: Date
 ): Promise<Map<string, HostEligibility>> {
@@ -94,7 +93,7 @@ export async function fetchHostEligibilityByMember(
   const ids = [...new Set(memberIds)];
   if (ids.length === 0) return result;
 
-  for (const m of await createRepos(supabase).members.byIds(ids)) {
+  for (const m of await repos.members.byIds(ids)) {
     result.set(m.id, getHostEligibility({ firstJoinedAt: m.firstJoinedAt, mostRecentJoinedAt: m.mostRecentJoinedAt }, now));
   }
   return result;

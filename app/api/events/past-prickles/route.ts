@@ -7,6 +7,7 @@ import { ORG_TIMEZONE } from "@/lib/config";
 import { monthOf } from "@/lib/events-agenda";
 import { fetchPastEventPrickles } from "@/lib/event-prickles";
 import { isValidTimeZone } from "@/lib/time-zone";
+import { createRepos } from "@/lib/data/repos";
 
 /**
  * The past events page's other half: the prickles of listed types that started in one month and have ended
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
   const tzPref = await getUserTimezonePreference();
   const timeZone = isValidTimeZone(tzPref) ? tzPref : ORG_TIMEZONE;
   try {
-    const prickles = await fetchPastEventPrickles(await createClient(), monthOf(`${month}-01`), timeZone, new Date());
+    const prickles = await fetchPastEventPrickles(createRepos(await createClient()), monthOf(`${month}-01`), timeZone, new Date());
     return NextResponse.json({ prickles }, { headers: { "Cache-Control": "private, max-age=60" } });
   } catch (error) {
     console.error("past event prickles failed", month, error);

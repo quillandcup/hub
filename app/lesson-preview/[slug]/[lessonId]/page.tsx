@@ -8,12 +8,13 @@ import { isId } from "@/lib/ids";
 import { lessonPath } from "@/lib/courses/preview-path";
 import { publicLessonPreview } from "@/lib/courses/public-preview";
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import { createRepos } from "@/lib/data/repos";
 
 type Params = { params: Promise<{ slug: string; lessonId: string }> };
 
 /** One read per render, shared by the page and its metadata. Null unless the lesson is public (lib/courses/public-preview.ts). */
 const loadPreview = cache(async (slug: string, lessonId: string) => {
-  const result = await publicLessonPreview(createServiceRoleClient(), lessonId, { slug });
+  const result = await publicLessonPreview(createRepos(createServiceRoleClient()), lessonId, { slug });
   return "preview" in result ? result.preview : null;
 });
 
