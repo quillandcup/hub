@@ -171,7 +171,7 @@ describe("prickle labels name the host by display name", () => {
           prickles: [
             { id: prickleId, typeId: SPRINT.id, hostId: name ? "mbr_AAAAAAAAAAA2" : null, title: null, startTime: "2026-10-20T15:00:00Z", endTime: "2026-10-20T16:00:00Z", source: "calendar", calendarEventId: null },
           ],
-          writingProjects: [{ id: "wprj_AAAAAAAAAAA1", member_id: "member-1", title: "Novel", description: null, cover_asset_id: null, cover_url: null, external_id: null, phase: "drafting", show_on_profile: false, archived_at: null, created_at: "2026-01-01T00:00:00Z" }],
+          writingProjects: [{ id: "wprj_AAAAAAAAAAA1", member_id: "member-1", title: "Novel", description: null, cover_asset_id: null, cover_url: null, external_id: null, phase: "drafting", show_on_profile: false, created_at: "2026-01-01T00:00:00Z" }],
           writingEntries: [loggedEntry("wpe_AAAAAAAAAAA1", prickleId, 1)],
         }),
       );

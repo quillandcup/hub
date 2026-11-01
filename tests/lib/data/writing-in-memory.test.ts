@@ -33,9 +33,8 @@ defineWritingContract("InMemoryWritingRepository", () => {
           description: null,
           cover_asset_id: null, cover_url: null,
           external_id: null,
-          phase: "drafting",
+          phase: p.phase ?? "drafting",
           show_on_profile: false,
-          archived_at: p.archived ? "2026-06-01T00:00:00Z" : null,
           created_at: p.createdAt,
         };
       });

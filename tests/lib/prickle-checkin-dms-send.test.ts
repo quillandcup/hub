@@ -82,7 +82,7 @@ function seedGoals(goals: ReturnType<typeof goalRow>[]) {
     if (!dataset.writingProjects.some((p) => p.id === g.project_id)) {
       dataset.writingProjects.push({
         id: g.project_id, member_id: g.member_id, title: g.writing_projects.title, description: null, cover_asset_id: null, cover_url: null, external_id: null, phase: "drafting",
-        show_on_profile: false, archived_at: g.writing_projects.archived_at, created_at: "2026-01-01T00:00:00Z",
+        show_on_profile: false, created_at: "2026-01-01T00:00:00Z",
       });
     }
     dataset.writingGoals.push({
