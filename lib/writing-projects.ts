@@ -9,7 +9,7 @@ export const PROJECT_PHASES = [
   "on_hold",
   "complete",
   "published",
-  "abandoned",
+  "hibernating",
 ] as const;
 export type ProjectPhase = (typeof PROJECT_PHASES)[number];
 
@@ -31,7 +31,7 @@ export const PHASE_LABELS: Record<ProjectPhase, string> = {
   on_hold: "On hold",
   complete: "Complete",
   published: "Published",
-  abandoned: "Abandoned",
+  hibernating: "Hibernating",
 };
 
 export const WRITING_MEASURES: WritingMeasure[] = [
@@ -344,10 +344,12 @@ export function computeHabitGoalProgress(input: HabitProgressInput): HabitProgre
 }
 
 /**
- * Phases a project is done in: finished, published or given up. My Writing lists these apart from
- * the ongoing projects, under "Past projects"; changing the status brings one back.
+ * Phases a project leaves the main list in. Only "hibernating": a finished or published project stays
+ * with the ongoing ones, since members like to see it there (and they mark a completed one published
+ * from that list). My Writing lists the hibernating ones apart, under "Hibernating"; changing the
+ * status brings one back.
  */
-export const PAST_PHASES = ["complete", "published", "abandoned"] as const satisfies readonly ProjectPhase[];
+export const PAST_PHASES = ["hibernating"] as const satisfies readonly ProjectPhase[];
 
 export function isPastPhase(phase: string): boolean {
   return (PAST_PHASES as readonly string[]).includes(phase);

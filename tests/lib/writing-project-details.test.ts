@@ -300,7 +300,7 @@ describe("setStartingBalances", () => {
 describe("getMyProjects and getProject", () => {
   beforeEach(() => {
     dataset.writingProjects.push(project("wprj_AAAAAAAAAAA2", ME, { title: "Newer", created_at: "2026-03-01T10:00:00Z" }));
-    dataset.writingProjects.push(project("wprj_AAAAAAAAAAA3", ME, { title: "Shelved", phase: "abandoned" }));
+    dataset.writingProjects.push(project("wprj_AAAAAAAAAAA3", ME, { title: "Shelved", phase: "hibernating" }));
     dataset.writingEntries.push(
       entry("wpe_AAAAAAAAAAA1", PROJECT, { amount: 100 }),
       entry("wpe_AAAAAAAAAAA2", PROJECT, { amount: 50, entry_date: "2026-02-02", created_at: "2026-02-02T10:00:00Z" }),

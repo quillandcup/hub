@@ -394,7 +394,7 @@ export function defineWritingContract(name: string, setup: () => WritingContract
         projects: [
           { key: "old", member: 0, title: "Old", createdAt: "2026-01-01T10:00:00Z" },
           { key: "new", member: 0, title: "New", createdAt: "2026-03-01T10:00:00Z" },
-          { key: "gone", member: 0, title: "Shelved", phase: "abandoned", createdAt: "2026-05-01T10:00:00Z" },
+          { key: "gone", member: 0, title: "Shelved", phase: "hibernating", createdAt: "2026-05-01T10:00:00Z" },
         ],
       });
 
@@ -402,7 +402,7 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       expect((await ctx.repo().projectSummary(a, ids.gone))?.title).toBe("Shelved");
     });
 
-    it("lists projects in a past phase apart from the ongoing ones, and moves one back when its status changes", async () => {
+    it("lists hibernating projects apart from the others, and moves one back when its status changes", async () => {
       const [a, b] = ctx.memberIds;
       const ids = await ctx.seed({
         projects: [
@@ -414,20 +414,21 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       });
 
       await ctx.repo().updateProject(a, ids.done, { phase: "complete" });
-      await ctx.repo().updateProject(a, ids.dropped, { phase: "abandoned" });
-      await ctx.repo().updateProject(b, ids.other, { phase: "abandoned" });
+      await ctx.repo().updateProject(a, ids.dropped, { phase: "hibernating" });
+      await ctx.repo().updateProject(b, ids.other, { phase: "hibernating" });
 
-      expect((await ctx.repo().projectSummaries(a)).map((p) => p.title)).toEqual(["Going"]);
-      expect((await ctx.repo().projectSummaries(a, { past: true })).map((p) => [p.title, p.phase])).toEqual([["Dropped", "abandoned"], ["Done", "complete"]]);
-      expect(await ctx.repo().projectSummary(a, ids.dropped)).toMatchObject({ title: "Dropped", phase: "abandoned" });
-      // Past projects can still be picked to log against; only the lists apart.
+      // A completed project stays with the ongoing ones; only a hibernating one is listed apart.
+      expect((await ctx.repo().projectSummaries(a)).map((p) => p.title)).toEqual(["Done", "Going"]);
+      expect((await ctx.repo().projectSummaries(a, { past: true })).map((p) => [p.title, p.phase])).toEqual([["Dropped", "hibernating"]]);
+      expect(await ctx.repo().projectSummary(a, ids.dropped)).toMatchObject({ title: "Dropped", phase: "hibernating" });
+      // Hibernating projects can still be picked to log against; only the lists apart.
       expect((await ctx.repo().activeProjects(a)).map((p) => p.title)).toEqual(["Dropped", "Done", "Going"]);
       expect(await ctx.repo().projectSummaries(b)).toEqual([]);
       expect((await ctx.repo().projectSummaries(b, { past: true })).map((p) => p.title)).toEqual(["Theirs"]);
 
       await ctx.repo().updateProject(a, ids.dropped, { phase: "revising" });
-      expect((await ctx.repo().projectSummaries(a)).map((p) => p.title)).toEqual(["Dropped", "Going"]);
-      expect((await ctx.repo().projectSummaries(a, { past: true })).map((p) => p.title)).toEqual(["Done"]);
+      expect((await ctx.repo().projectSummaries(a)).map((p) => p.title)).toEqual(["Dropped", "Done", "Going"]);
+      expect(await ctx.repo().projectSummaries(a, { past: true })).toEqual([]);
     });
 
     it("deletes a project with its goals and entries, only for its owner, and keeps it out of every read", async () => {

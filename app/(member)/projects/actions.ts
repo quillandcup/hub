@@ -198,7 +198,7 @@ export async function getMyProjects(): Promise<WritingProjectRow[]> {
   return buildProjectRows(projects, entries, goals as RawGoal[], startingBalances, attendance, books);
 }
 
-/** The member's projects in a past phase (complete, published, abandoned), with their totals (goals aren't loaded: the list is read-only). */
+/** The member's hibernating projects (a past phase), with their totals (goals aren't loaded: the list is read-only). */
 export async function getMyPastProjects(): Promise<WritingProjectRow[]> {
   const ctx = await requireIdentity();
   if ("error" in ctx) return [];
@@ -607,7 +607,7 @@ async function deleteProjectImpl(projectId: string): Promise<{ success: true } |
 }
 
 /**
- * Manual phase change (Planning/Drafting/Revising/On hold/Complete/Abandoned). 'published' is
+ * Manual phase change (Planning/Drafting/Revising/On hold/Complete/Hibernating). 'published' is
  * excluded here -- it can only be reached via publishProject, which links a Bookshelf entry in
  * the same step (see the comment there).
  */
