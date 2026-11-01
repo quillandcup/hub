@@ -120,6 +120,12 @@ export default function PrickleDetails({
       minute: "2-digit",
     });
   };
+  // A member's own zone (e.g. America/Costa_Rica) isn't one of the presets; without an option for it
+  // the select would show its first entry while the times are in the member's zone.
+  const timezoneOptions = TIMEZONES.some((tz) => tz.value === timezone)
+    ? TIMEZONES
+    : [{ value: timezone, label: timezone.split("/").pop()!.replace(/_/g, " ") }, ...TIMEZONES];
+
   const formatTimeWithOrg = (date: Date) => withSecondary(formatTime(date), date, timezone);
 
   const formatDate = (date: Date) => {
@@ -143,7 +149,7 @@ export default function PrickleDetails({
             onChange={(e) => setTimezone(e.target.value)}
             className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-plum-500"
           >
-            {TIMEZONES.map((tz) => (
+            {timezoneOptions.map((tz) => (
               <option key={tz.value} value={tz.value}>
                 {tz.label}
               </option>

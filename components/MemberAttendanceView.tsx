@@ -59,6 +59,12 @@ export default function MemberAttendanceView({
     setTimezone(defaultTimezone);
   }, [defaultTimezone]);
 
+  // A member's own zone isn't one of the presets; without an option for it the select would show
+  // its first entry while the times are in the member's zone.
+  const timezoneOptions = TIMEZONES.some((tz) => tz.value === timezone)
+    ? TIMEZONES
+    : [{ value: timezone, label: timezone.split("/").pop()!.replace(/_/g, " ") }, ...TIMEZONES];
+
   // "Time" sorts by time of day in the selected timezone; "Date" by the full instant.
   const getSortValue = useCallback(
     (record: any, column: SortColumn): SortValue => {
@@ -166,7 +172,7 @@ export default function MemberAttendanceView({
                 onChange={(e) => setTimezone(e.target.value)}
                 className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-plum-500"
               >
-                {TIMEZONES.map((tz) => (
+                {timezoneOptions.map((tz) => (
                   <option key={tz.value} value={tz.value}>
                     {tz.label}
                   </option>

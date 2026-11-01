@@ -54,3 +54,18 @@ describe("MemberAttendanceView (admin member page)", () => {
     expect(hosts).toEqual(["Abe E", "Zed E"]);
   });
 });
+
+describe("MemberAttendanceView timezone selector", () => {
+  it("shows the member's own zone when it isn't a preset", () => {
+    render(
+      <MemberAttendanceView
+        member={{ id: "mbr_AAAAAAAAAAA1" }}
+        attendanceRecords={[]}
+        userTimezonePreference="America/Costa_Rica"
+        memberBasePath="/admin/members"
+      />
+    );
+    expect(screen.getByRole("combobox")).toHaveValue("America/Costa_Rica");
+    expect(screen.getByRole("option", { name: "Costa Rica" })).toBeInTheDocument();
+  });
+});
