@@ -10,6 +10,7 @@ import { EVENT_TYPES, isEventType } from "@/lib/events-filter";
 import { eventImageError } from "@/lib/media/event-image";
 import { applyPrickleEdits, type EventOverrides, type PrickleEdits } from "@/lib/prickle-edits";
 import { loadEventDecision } from "@/lib/prickle-event-decisions";
+import { isId } from "@/lib/ids";
 
 /** The text fields of a calendar item's prickle that an admin set by hand (nothing for an event made in the Hub). */
 async function overridesOf(supabase: Db, calendarEventId: string | null | undefined): Promise<EventOverrides> {
@@ -122,6 +123,8 @@ export async function PATCH(
     if (results !== undefined) updates.results = results;
     if (google_photos_album_url !== undefined) updates.google_photos_album_url = google_photos_album_url;
     if (image_id !== undefined) updates.image_id = image_id;
+
+    if (typeof host_id === "string" && host_id && !isId(host_id, "mbr")) return NextResponse.json({ error: "That host isn't a member" }, { status: 400 });
 
     // The title, description, host, guest speaker, location and times belong to the prickle the event stands on.
     // For an event made in the Hub that prickle is a Hub session (all of them are saved to it). For a calendar item

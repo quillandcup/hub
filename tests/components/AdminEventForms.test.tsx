@@ -66,6 +66,45 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe("admin create event form: the host", () => {
+  async function fill(container: HTMLElement) {
+    await userEvent.click(await screen.findByRole("button", { name: "Add Event" }));
+    const [starts, ends] = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="date"]'));
+    await userEvent.type(screen.getByPlaceholderText(/Virginia Retreat/), "Craft Workshop");
+    await userEvent.type(starts, "2097-06-01");
+    await userEvent.type(ends, "2097-06-01");
+  }
+
+  it("sends the member picked as the host, and no free-text host", async () => {
+    const base = globalThis.fetch as unknown as (url: string, init?: RequestInit) => Promise<Response>;
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === "/api/members") return { ok: true, json: async () => ({ members: [{ id: "mbr_FERNAAAAAAA1", name: "Fern Example", displayName: null, email: "fern@example.test" }] }) } as Response;
+      return base(url, init);
+    }));
+    const { container } = render(<EventsClient />);
+    await fill(container);
+
+    await userEvent.type(screen.getByPlaceholderText("Search for the host..."), "Fern");
+    await userEvent.click(await screen.findByText(/Fern Example/));
+    // Once a member is picked there is no free-text field beside them.
+    expect(screen.queryByPlaceholderText("Or a host who isn't a member")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Create Event" }));
+
+    await waitFor(() => expect(calls.some((c) => c.method === "POST")).toBe(true));
+    expect(calls.find((c) => c.method === "POST")!.body).toMatchObject({ host_id: "mbr_FERNAAAAAAA1", host_name: null });
+  });
+
+  it("sends a typed host who isn't a member as text, with no host id", async () => {
+    const { container } = render(<EventsClient />);
+    await fill(container);
+    await userEvent.type(screen.getByPlaceholderText("Or a host who isn't a member"), "Guest Host");
+    await userEvent.click(screen.getByRole("button", { name: "Create Event" }));
+
+    await waitFor(() => expect(calls.some((c) => c.method === "POST")).toBe(true));
+    expect(calls.find((c) => c.method === "POST")!.body).toMatchObject({ host_id: null, host_name: "Guest Host" });
+  });
+});
+
 describe("admin create event form", () => {
   it("offers the new kinds and sends who it's for and how people join", async () => {
     const { container } = render(<EventsClient />);

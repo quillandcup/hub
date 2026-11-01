@@ -12,6 +12,7 @@ import EventAudienceFields from "@/components/EventAudienceFields";
 import { DEFAULT_AUDIENCE } from "@/lib/event-audience";
 import { EVENT_TYPE_OPTIONS } from "@/lib/events-filter";
 import MediaPicker from "@/components/media/MediaPicker";
+import MemberSearch from "@/components/MemberSearch";
 
 interface EventRow {
   id: string;
@@ -46,6 +47,7 @@ const emptyForm = {
   start_clock: "",
   end_clock: "",
   host_name: "",
+  host_id: null as string | null,
   speakers: null as string | null,
   focus: "",
   description: "",
@@ -78,6 +80,14 @@ export default function EventsClient() {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState(emptyForm);
+  // The members a host is picked from.
+  const [members, setMembers] = useState<{ id: string; name: string; displayName?: string | null; email: string }[]>([]);
+  useEffect(() => {
+    fetch("/api/members")
+      .then((res) => res.json())
+      .then((body) => setMembers(body.members || []))
+      .catch(() => {});
+  }, []);
   const table = useDataTable<EventRow, SortColumn>({
     rows: events,
     getSortValue,
@@ -116,7 +126,8 @@ export default function EventsClient() {
           ...formData,
           slug: slugify(formData.title),
           location: formData.location || null,
-          host_name: formData.host_name || null,
+          host_id: formData.host_id,
+          host_name: formData.host_id ? null : formData.host_name || null,
           focus: formData.focus || null,
           description: formData.description || null,
           agenda: formData.agenda || null,
@@ -218,7 +229,18 @@ export default function EventsClient() {
             <p className="@pair:col-span-2 -mt-1 text-xs text-slate-600 dark:text-slate-400">Dates in Eastern time. Leave both times empty for an all-day event.</p>
             <div>
               <label htmlFor="new-event-host" className="block text-sm font-medium mb-1 dark:text-gray-200">Host</label>
-              <input id="new-event-host" type="text" value={formData.host_name} onChange={(e) => setFormData({ ...formData, host_name: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 rounded" />
+              <div className="space-y-2">
+                <MemberSearch
+                  members={members}
+                  selectedMemberId={formData.host_id}
+                  selectedMemberName={formData.host_id ? formData.host_name : null}
+                  onSelect={(member) => setFormData({ ...formData, host_id: member?.id ?? null, host_name: member ? member.displayName?.trim() || member.name : "" })}
+                  placeholder="Search for the host..."
+                />
+                {!formData.host_id && (
+                  <input id="new-event-host" type="text" value={formData.host_name} onChange={(e) => setFormData({ ...formData, host_id: null, host_name: e.target.value })} placeholder="Or a host who isn't a member" className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 rounded" />
+                )}
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium mb-1 dark:text-gray-200">Location (optional)</label>
