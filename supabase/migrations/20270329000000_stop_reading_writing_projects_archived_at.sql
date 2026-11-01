@@ -1,7 +1,9 @@
--- Drops writing_projects.archived_at. Members can't archive a project any more (My Writing lists
--- projects in a past phase apart instead), nothing set the column, and no row in production had it
--- set. writing_goals.archived_at ("mark as done") is a different column and stays.
--- The two functions that filtered on it are replaced first, without that filter.
+-- First of two steps to remove writing_projects.archived_at (expand, then contract; see CLAUDE.md,
+-- "Migrations: expand, then contract"). Members can't archive a project any more (My Writing lists
+-- projects in a past phase apart instead), nothing sets the column, and no production row had it set.
+-- This step replaces the two functions that filtered on it, without that filter. The column itself is
+-- dropped in a later migration, once the code that stopped reading it is deployed.
+-- writing_goals.archived_at ("mark as done") is a different column and stays.
 
 CREATE OR REPLACE FUNCTION public.get_member_directory()
  RETURNS TABLE(id text, name text, display_name text, photo_url text, bio text, first_joined_at date, projects text[], topics text[])
@@ -70,5 +72,3 @@ AS $function$
     ), '[]'::jsonb)
   ) END;
 $function$;
-
-ALTER TABLE public.writing_projects DROP COLUMN archived_at;
