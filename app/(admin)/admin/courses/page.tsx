@@ -53,12 +53,12 @@ export default async function AdminCoursesPage() {
                   )}
                   {c.source === "hub" && <span className="ml-2 rounded-full bg-plum-100 px-2 py-0.5 text-xs font-medium text-plum-800 dark:bg-plum-900/30 dark:text-plum-200">Hub</span>}
                 </td>
-                <td className="px-4 py-3">{c.published ? <span>Published</span> : <span className="text-slate-600 dark:text-slate-400">Not published</span>}</td>
+                <td className="px-4 py-3">{c.isDraft ? <span className="text-slate-600 dark:text-slate-400">Draft</span> : <span>Published</span>}</td>
                 <td className="px-4 py-3">
-                  {c.published ? (
+                  {c.hub ? (
                     <>
-                      {accessLabel(c.published.accessDuration)}
-                      {c.published.launchAt && <span className="block text-xs text-slate-600 dark:text-slate-400">opens {formatCourseDate(c.published.launchAt)}</span>}
+                      {accessLabel(c.hub.accessDuration)}
+                      {c.hub.launchAt && <span className="block text-xs text-slate-600 dark:text-slate-400">opens {formatCourseDate(c.hub.launchAt)}</span>}
                     </>
                   ) : (
                     "–"
@@ -67,7 +67,7 @@ export default async function AdminCoursesPage() {
                 <td className="px-4 py-3">
                   {c.totals.open} / {c.totals.coming_soon} / {c.totals.hidden}
                 </td>
-                <td className="px-4 py-3">{c.published ? `${c.access.current} / ${c.access.upcoming} / ${c.access.ended}` : "–"}</td>
+                <td className="px-4 py-3">{c.hub ? `${c.access.current} / ${c.access.upcoming} / ${c.access.ended}` : "–"}</td>
               </tr>
             ))}
           </tbody>

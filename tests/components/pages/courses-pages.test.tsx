@@ -96,6 +96,31 @@ describe("/courses", () => {
   });
 });
 
+describe("a draft course, previewed by staff", () => {
+  const params = () => ({ params: Promise.resolve({ slug: "the-ready-writer" }) });
+  it("is marked as a draft in the list and on its own page, and a published one is not", async () => {
+    loadCourseList.mockResolvedValue([
+      { course: { ...course, is_draft: true }, access: { kind: "admin" }, progress: courseProgress(outline, new Set()) },
+      { course: { ...course, id: "c2", slug: "live", title: "Live Course", is_draft: false }, access: { kind: "admin" }, progress: courseProgress(outline, new Set()) },
+    ]);
+    await renderServerPage(CoursesPage, {});
+    expect(screen.getAllByText("Draft: only staff see this")).toHaveLength(1);
+
+    const completed = new Set<string>();
+    const view = (isDraft: boolean) => ({ course: { ...course, is_draft: isDraft }, access: { kind: "admin" }, outline, completed, progress: courseProgress(outline, completed) });
+    loadCourseView.mockResolvedValue(view(true));
+    await renderServerPage(CoursePage, params());
+    expect(screen.getByText(/This course is a draft: only staff can see it/)).toBeInTheDocument();
+  });
+
+  it("has no draft banner once published", async () => {
+    const completed = new Set<string>();
+    loadCourseView.mockResolvedValue({ course: { ...course, is_draft: false }, access: { kind: "admin" }, outline, completed, progress: courseProgress(outline, completed) });
+    await renderServerPage(CoursePage, params());
+    expect(screen.queryByText(/This course is a draft/)).not.toBeInTheDocument();
+  });
+});
+
 describe("/courses cards", () => {
   it("shows the course image when there is one, and a title placeholder when there isn't", async () => {
     loadCourseList.mockResolvedValue([

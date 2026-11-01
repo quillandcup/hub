@@ -30,6 +30,7 @@ export const OUTCOME_ACTIONS = [
   "lesson_completion_saved",
   "course_created",
   "course_details_saved",
+  "course_publish_changed",
   "course_module_added",
   "course_lesson_added",
   "course_item_renamed",

@@ -64,7 +64,7 @@ describe('Course routes with a signed-in admin session', () => {
   })
 
   it('processes into Silver through the service role', async () => {
-    const response = await processRoute(post({ course: SLUG }))
+    const response = await processRoute(post({ course: SLUG, publish: true }))
     expect(response.status).toBe(200)
     expect((await supabase.from('courses').select('slug').eq('source_key', COURSE).single()).data?.slug).toBe(SLUG)
   })

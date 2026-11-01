@@ -24,7 +24,7 @@ vi.mock('@/lib/analytics/server', () => ({ withAction: async (_action: string, r
 const revalidatePath = vi.hoisted(() => vi.fn())
 vi.mock('next/cache', () => ({ revalidatePath }))
 
-import { createCourse, updateCourseDetails } from '@/app/(admin)/admin/courses/actions'
+import { createCourse, setCoursePublished, updateCourseDetails } from '@/app/(admin)/admin/courses/actions'
 
 const input = (over: Partial<Parameters<typeof createCourse>[0]> = {}) => ({
   title: `Editor ${ts}`,
@@ -46,6 +46,7 @@ describe('Course editor actions', () => {
     ids.program = program!.id
     const { data: kajabi } = await supabase.from('courses').insert({ slug: `${PREFIX}-kajabi`, title: 'Imported', source: 'kajabi', source_key: `${PREFIX}-kajabi` }).select('id').single()
     ids.kajabi = kajabi!.id
+    await supabase.schema('bronze').from('kajabi_courses').insert({ kajabi_id: `${PREFIX}-kajabi`, title: 'Imported', raw_payload: {} })
   })
   beforeEach(() => {
     auth.admin = true
@@ -54,6 +55,7 @@ describe('Course editor actions', () => {
   afterAll(async () => {
     await supabase.from('courses').delete().like('slug', `${PREFIX}%`)
     await supabase.from('programs').delete().eq('id', ids.program)
+    await supabase.schema('bronze').from('kajabi_courses').delete().eq('kajabi_id', `${PREFIX}-kajabi`)
   })
 
   describe('createCourse', () => {
@@ -157,6 +159,35 @@ describe('Course editor actions', () => {
       auth.admin = false
       expect(await updateCourseDetails(courseId, input({ slug: `${PREFIX}-edit`, title: 'Denied' }))).toEqual({ error: 'Not authorized' })
       expect((await rowBySlug(`${PREFIX}-edit`))!.title).not.toBe('Denied')
+    })
+  })
+
+  describe('setCoursePublished', () => {
+    it('starts a new Hub course as a draft, and publishes and unpublishes it as the admin', async () => {
+      const created = await createCourse(input({ slug: `${PREFIX}-pub`, title: `Publish ${ts}` }))
+      expect((await rowBySlug(`${PREFIX}-pub`))!.is_draft).toBe(true)
+
+      expect(await setCoursePublished(created.id!, true)).toEqual({ id: created.id })
+      expect((await rowBySlug(`${PREFIX}-pub`))!.is_draft).toBe(false)
+      expect(revalidatePath).toHaveBeenCalledWith(`/admin/courses/${created.id}`)
+
+      expect(await setCoursePublished(created.id!, false)).toEqual({ id: created.id })
+      expect((await rowBySlug(`${PREFIX}-pub`))!.is_draft).toBe(true)
+    })
+
+    it('does the same for a course imported from Kajabi: availability is not about where it is authored', async () => {
+      expect(await setCoursePublished(ids.kajabi, true)).toEqual({ id: ids.kajabi })
+      expect((await supabase.from('courses').select('is_draft').eq('id', ids.kajabi).single()).data!.is_draft).toBe(false)
+      expect(await setCoursePublished(ids.kajabi, false)).toEqual({ id: ids.kajabi })
+      expect((await supabase.from('courses').select('is_draft').eq('id', ids.kajabi).single()).data!.is_draft).toBe(true)
+    })
+
+    it('says so when the course is not there, the id is not a course id, or the caller is not an admin', async () => {
+      expect(await setCoursePublished('crs_AAAAAAAAAAA1', true)).toEqual({ error: 'Course not found.' })
+      expect(await setCoursePublished('2149594995', true)).toEqual({ error: 'Course not found.' })
+      auth.admin = false
+      expect(await setCoursePublished(ids.kajabi, true)).toEqual({ error: 'Not authorized' })
+      expect((await supabase.from('courses').select('is_draft').eq('id', ids.kajabi).single()).data!.is_draft).toBe(true)
     })
   })
 })

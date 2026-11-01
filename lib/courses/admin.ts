@@ -29,9 +29,11 @@ export interface AdminCourseRow {
   /** The course's Hub id (what the admin page's address takes); null until the Kajabi import has made its row. */
   id: string | null;
   title: string;
-  /** Null until the course is published in the Hub. */
-  published: { slug: string; accessDuration: string | null; launchAt: string | null } | null;
-  /** The slug publishing would use. */
+  /** Not available to members yet. Independent of `source`: any course, imported or Hub-owned, is a draft until published. */
+  isDraft: boolean;
+  /** The course's Hub settings; null until the Kajabi import has made its row. */
+  hub: { slug: string; accessDuration: string | null; launchAt: string | null } | null;
+  /** The slug the course has, or would get. */
   slug: string;
   access: AccessCounts;
   totals: ExplainedCourse["totals"];
@@ -69,7 +71,6 @@ export async function loadAdminCourses(supabase: SupabaseClient, now = new Date(
   const imported: AdminCourseRow[] = bronze
     .map((c) => {
       const s = silverByKey.get(c.kajabi_id);
-      const live = s && !s.is_draft ? s : undefined;
       const explained = explainCourse(
         toModules(modules.filter((m) => m.course_kajabi_id === c.kajabi_id)),
         toLessons(lessons.filter((l) => l.course_kajabi_id === c.kajabi_id))
@@ -78,13 +79,14 @@ export async function loadAdminCourses(supabase: SupabaseClient, now = new Date(
         source: "kajabi" as const,
         id: s?.id ?? null,
         title: c.title,
-        published: live ? { slug: live.slug, accessDuration: live.access_duration, launchAt: live.launch_at } : null,
+        isDraft: s?.is_draft ?? true,
+        hub: s ? { slug: s.slug, accessDuration: s.access_duration, launchAt: s.launch_at } : null,
         slug: s?.slug ?? slugifyTitle(c.title),
-        access: live ? countAccess(access.filter((a) => a.course_id === live.id), now) : { current: 0, upcoming: 0, ended: 0 },
+        access: s ? countAccess(access.filter((a) => a.course_id === s.id), now) : { current: 0, upcoming: 0, ended: 0 },
         totals: explained.totals,
       };
     });
-  return [...imported, ...(await loadHubCourseRows(supabase, now))].sort((a, b) => Number(!!b.published) - Number(!!a.published) || a.title.localeCompare(b.title));
+  return [...imported, ...(await loadHubCourseRows(supabase, now))].sort((a, b) => Number(a.isDraft) - Number(b.isDraft) || a.title.localeCompare(b.title));
 }
 
 /** The Hub-owned courses, shaped like the imported ones for the list. */
@@ -101,7 +103,8 @@ async function loadHubCourseRows(supabase: SupabaseClient, now: Date): Promise<A
       source: "hub" as const,
       id: c.id,
       title: c.title,
-      published: { slug: c.slug, accessDuration: c.access_duration, launchAt: c.launch_at },
+      isDraft: c.is_draft,
+      hub: { slug: c.slug, accessDuration: c.access_duration, launchAt: c.launch_at },
       slug: c.slug,
       access: countAccess(access.filter((a) => a.course_id === c.id), now),
       totals,
@@ -118,6 +121,8 @@ export interface HubCourseDetail {
   accessDuration: string | null;
   launchAt: string | null;
   programId: string | null;
+  /** Not available to members yet. */
+  isDraft: boolean;
   access: AccessCounts;
 }
 
@@ -135,6 +140,7 @@ export async function loadHubCourse(supabase: SupabaseClient, id: string, now = 
     accessDuration: data.access_duration,
     launchAt: data.launch_at,
     programId: data.program_id,
+    isDraft: data.is_draft,
     access: countAccess(access, now),
   };
 }
@@ -182,7 +188,7 @@ export async function loadAdminCourse(supabase: SupabaseClient, courseId: string
 
   let hubLessonIds: Record<string, string> = {};
   let details: AdminCourseDetail["details"] = { description: null, includesMembership: null };
-  if (course.published) {
+  if (course.hub) {
     const silver = await createRepos(supabase).courses.courseById(courseId);
     if (silver) {
       const hub = await createRepos(supabase).courses.lessonsOf([silver.id], { source: "kajabi", includeHidden: true });

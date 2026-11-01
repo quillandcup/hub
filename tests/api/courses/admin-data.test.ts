@@ -80,16 +80,16 @@ describe('Admin course data', () => {
     it('lists a published course with its settings, access counts and lesson states', async () => {
       const row = (await loadAdminCourses(supabase, now)).find((c) => c.id === ids.course)!
       // The interval comes back as ISO or Postgres text depending on the connection; it reads the same.
-      expect(row.published).toMatchObject({ slug: `admin-published-${ts}` })
-      expect(accessLabel(row.published!.accessDuration)).toBe('1 year')
-      expect(new Date(row.published!.launchAt!).getTime()).toBeGreaterThan(now.getTime())
+      expect(row.hub).toMatchObject({ slug: `admin-published-${ts}` })
+      expect(accessLabel(row.hub!.accessDuration)).toBe('1 year')
+      expect(new Date(row.hub!.launchAt!).getTime()).toBeGreaterThan(now.getTime())
       expect(row.access).toEqual({ current: 1, upcoming: 1, ended: 1 })
       expect(row.totals).toEqual({ open: 1, coming_soon: 1, hidden: 1 })
     })
 
     it('lists an unpublished course with the slug publishing would use, and no access', async () => {
       const row = (await loadAdminCourses(supabase, now)).find((c) => c.id === ids.draft)!
-      expect(row).toMatchObject({ id: ids.draft, published: null, slug: `admin-unpublished-${ts}`, access: { current: 0, upcoming: 0, ended: 0 } })
+      expect(row).toMatchObject({ id: ids.draft, isDraft: true, slug: `admin-unpublished-${ts}`, access: { current: 0, upcoming: 0, ended: 0 } })
     })
 
     it('has no id for an imported course that has no row yet, so nothing links to it', async () => {
@@ -131,8 +131,8 @@ describe('Admin course data', () => {
     it('are in the list beside the imported ones, marked as the Hub\'s, with their lesson states and access', async () => {
       const row = (await loadAdminCourses(supabase, now)).find((c) => c.id === hubId)!
       expect(row).toMatchObject({ source: 'hub', title: `Admin Hub ${ts}`, slug: HUB, totals: { open: 2, coming_soon: 1, hidden: 1 }, access: { current: 1, upcoming: 0, ended: 0 } })
-      expect(row.published).toMatchObject({ slug: HUB })
-      expect(accessLabel(row.published!.accessDuration)).toBe('6 months')
+      expect(row.hub).toMatchObject({ slug: HUB })
+      expect(accessLabel(row.hub!.accessDuration)).toBe('6 months')
       expect((await loadAdminCourses(supabase, now)).find((c) => c.id === ids.course)!.source).toBe('kajabi')
     })
 

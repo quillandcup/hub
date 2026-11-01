@@ -14,6 +14,7 @@ import HubCoursePage from "./HubCoursePage";
 import CourseBuilderBanner from "../CourseBuilderBanner";
 import CourseBuilderForm from "../CourseBuilderForm";
 import CourseSettingsForm from "./CourseSettingsForm";
+import CoursePublishControl from "../CoursePublishControl";
 import CourseVideosPanel from "./CourseVideosPanel";
 import CourseFilesPanel from "./CourseFilesPanel";
 
@@ -35,7 +36,7 @@ export default async function AdminCoursePage({ params }: { params: Promise<{ id
   if (!detail) return <HubCoursePage id={id} />;
 
   const { course, explained, content, hubLessonIds, videos, files, details, lastImportedAt } = detail;
-  const published = course.published;
+  const hub = course.hub;
 
   return (
     <>
@@ -51,7 +52,7 @@ export default async function AdminCoursePage({ params }: { params: Promise<{ id
           Published in Kajabi; Locked shows as coming soon and Draft is hidden from members. You can preview coming-soon lessons and drafts; members never see
           drafts.
         </p>
-        {published && (
+        {hub && (
           <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
             <Link href={`/admin/courses/${id}/stats`} data-track="admin-course-watch-stats" className="text-plum-700 underline dark:text-plum-300">
               Watch stats
@@ -64,26 +65,29 @@ export default async function AdminCoursePage({ params }: { params: Promise<{ id
 
         <div className="mt-6 rounded-lg bg-white p-6 shadow dark:bg-slate-900">
           <h2 className="mb-3 text-lg font-semibold">In the Hub</h2>
-          {published ? (
+          {hub ? (
             <>
+              <div className="mb-4">
+                <CoursePublishControl courseId={id} isDraft={course.isDraft} />
+              </div>
               <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">
-                Published at <code>/courses/{published.slug}</code>. Access {accessLabel(published.accessDuration).toLowerCase()}
-                {published.launchAt && `, opens ${formatCourseDate(published.launchAt)}`}. {course.access.current} members have access now,{" "}
+                Members open it at <code>/courses/{hub.slug}</code>. Access {accessLabel(hub.accessDuration).toLowerCase()}
+                {hub.launchAt && `, opens ${formatCourseDate(hub.launchAt)}`}. {course.access.current} members have access now,{" "}
                 {course.access.upcoming} start later, {course.access.ended} have ended.
               </p>
               <CourseSettingsForm
-                slug={published.slug}
-                accessDuration={published.accessDuration}
-                launchOn={published.launchAt ? localDateOf(published.launchAt, ORG_TIMEZONE) : ""}
+                slug={hub.slug}
+                accessDuration={hub.accessDuration}
+                launchOn={hub.launchAt ? localDateOf(hub.launchAt, ORG_TIMEZONE) : ""}
               />
             </>
           ) : (
             <p className="text-sm text-slate-600 dark:text-slate-300">
-              Not published yet. Publish it from{" "}
+              Not in the Hub yet. It gets its page after the next Kajabi import from{" "}
               <Link href="/admin/data/import" className="underline">
                 Import Data
-              </Link>{" "}
-              after a sync.
+              </Link>
+              .
             </p>
           )}
         </div>
@@ -93,10 +97,10 @@ export default async function AdminCoursePage({ params }: { params: Promise<{ id
             course={{
               id,
               title: course.title,
-              slug: published?.slug ?? null,
+              slug: hub?.slug ?? null,
               description: details.description,
-              accessDuration: published ? published.accessDuration : undefined,
-              launchOn: published?.launchAt ? localDateOf(published.launchAt, ORG_TIMEZONE) : "",
+              accessDuration: hub ? hub.accessDuration : undefined,
+              launchOn: hub?.launchAt ? localDateOf(hub.launchAt, ORG_TIMEZONE) : "",
               includesMembership: details.includesMembership,
               loose: explained.loose,
               modules: explained.modules,
@@ -106,8 +110,8 @@ export default async function AdminCoursePage({ params }: { params: Promise<{ id
           />
         </div>
 
-        <CourseVideosPanel slug={published?.slug ?? null} videos={videos} />
-        <CourseFilesPanel slug={published?.slug ?? null} plan={files} />
+        <CourseVideosPanel slug={hub?.slug ?? null} videos={videos} />
+        <CourseFilesPanel slug={hub?.slug ?? null} plan={files} />
       </div>
     </>
   );
