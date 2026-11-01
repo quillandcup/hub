@@ -1109,6 +1109,11 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 ## UI Enhancements
 
+### Event photos: store sized copies and serve them from a CDN _(Needs Scheduling)_
+The event photo route (`app/api/events/[eventId]/photos/[photoId]/route.ts`) resizes with sharp on every request (`?w=480` for grids, `?w=1600` for the lightbox) and relies on the browser's one-day private cache, so the first view of each photo is still slow and every request still pays for auth, a database lookup and a full-original download. Two follow-ups, deferred until the page is still slow after the resize change:
+- **Store the sized copies at import time** (the import commit route, `app/api/admin/events/[id]/photos/import/commit/route.ts`), the way `renditionOf` in `lib/media/library.ts` caches library renditions, and backfill the photos already imported. Removes the slow first view.
+- **Serve them from a CDN.** The photos are private and checked per viewer, so this needs short-lived signed Storage URLs handed out by the page instead of the proxy route, and a decision on how long a hidden photo's old URL may keep working. A bigger change; only worth it if the stored copies are not enough.
+
 ### Sidebar auto-hide: pin and wider rollout _(Needs Scheduling)_
 Chat now rests the member sidebar as an icon rail that opens over the page on hover or focus (`components/MemberNavigation.tsx`). Deferred until members have used it: a pin button with a per-member preference to keep it open, and whether other pages with a second pane should do the same. The admin sidebar (`AdminNavigation.tsx`) is unchanged; change all three navigation files together if the behavior spreads.
 
