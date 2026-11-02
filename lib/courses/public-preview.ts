@@ -4,7 +4,24 @@ import { courseImageSrc } from "@/lib/courses/image-urls";
 import { lessonExcerpt } from "@/lib/courses/excerpt";
 import { safeUrl } from "@/lib/url";
 
-type PreviewRepos = Pick<Repos, "courses" | "featureFlags">;
+type PreviewRepos = Pick<Repos, "courses" | "featureFlags" | "media">;
+
+/** Pixel size of our copy of a thumbnail or cover, so a link preview can declare it (a card that knows the size is shown large). */
+export interface ShareImageSize {
+  width: number;
+  height: number;
+}
+
+/** Null when there is no copy (Kajabi's own URL is used until the copy step has run), or it can't be read: the size is only a hint. */
+async function sizeOfCopy(repos: PreviewRepos, assetId: string | null): Promise<ShareImageSize | null> {
+  if (!assetId) return null;
+  try {
+    const asset = await repos.media.byId(assetId);
+    return asset && !asset.deleted_at && asset.width && asset.height ? { width: asset.width, height: asset.height } : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * What anyone may see of a lesson without signing in, so a shared link can show a title, a
@@ -28,6 +45,8 @@ export interface PublicLessonPreview {
   courseTitle: string;
   /** Our copy's path, or Kajabi's public https URL until the copy step has run; null when there is no thumbnail. */
   thumbnailSrc: string | null;
+  /** Of our copy; null for Kajabi's URL or when unknown. */
+  thumbnailSize: ShareImageSize | null;
 }
 
 /** Why a lesson has no public preview, for the admin builder; "open" never appears as a reason. */
@@ -69,6 +88,7 @@ export async function publicLessonPreview(
       courseSlug: course.slug,
       courseTitle: course.title,
       thumbnailSrc: lesson.thumbnail_asset_id ? `/api/courses/image/lesson/${lesson.id}` : safeUrl(lesson.thumbnail_url),
+      thumbnailSize: await sizeOfCopy(repos, lesson.thumbnail_asset_id),
     },
   };
 }
@@ -85,6 +105,8 @@ export interface PublicCoursePreview {
   excerpt: string | null;
   /** Our copy's path, or Kajabi's public https URL until the copy step has run; null when there is no cover. */
   thumbnailSrc: string | null;
+  /** Of our copy; null for Kajabi's URL or when unknown. */
+  thumbnailSize: ShareImageSize | null;
 }
 
 export type CoursePreviewBlocker = Exclude<PreviewBlocker, "not_open">;
@@ -106,6 +128,7 @@ async function previewOfCourse(
       title: course.title,
       excerpt: lessonExcerpt(course.description),
       thumbnailSrc: courseImageSrc("course", course.id, course.thumbnail_asset_id, course.thumbnail_url),
+      thumbnailSize: await sizeOfCopy(repos, course.thumbnail_asset_id),
     },
   };
 }

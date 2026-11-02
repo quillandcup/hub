@@ -20,12 +20,20 @@ const repos = (course: Partial<Parameters<typeof courseRow>[0]> = {}, flagOn = t
     })
   );
 
+/** Repositories where the course's cover is a library image of the given size. */
+const reposWithCover = async (size: { width: number | null; height: number | null }) => {
+  const r = repos();
+  const asset = await r.media.add({ storage_path: "originals/c.jpg", mime_type: "image/jpeg", ...size, bytes: 1, sha256: "cover", title: "Cover" } as never);
+  await r.courses.updateCourse(ID, { thumbnail_asset_id: asset.id });
+  return r;
+};
+
 describe("publicCoursePreview", () => {
   it("gives a live course's title, a plain-text teaser of its description and its cover, and nothing else", async () => {
     const r = repos({ description: "<p>Write a book &amp; finish it.</p>", thumbnail_asset_id: "media_AAAAAAAAAAA1" });
     const result = await publicCoursePreview(r, "the-ready-writer", { now: NOW });
     expect(result).toEqual({
-      preview: { courseId: ID, slug: "the-ready-writer", title: "The Ready Writer", excerpt: "Write a book & finish it.", thumbnailSrc: `/api/courses/image/course/${ID}` },
+      preview: { courseId: ID, slug: "the-ready-writer", title: "The Ready Writer", excerpt: "Write a book & finish it.", thumbnailSrc: `/api/courses/image/course/${ID}`, thumbnailSize: null },
     });
   });
 
@@ -34,6 +42,21 @@ describe("publicCoursePreview", () => {
       preview: { thumbnailSrc: "https://cdn.example.test/c.jpg" },
     });
     expect(await publicCoursePreview(repos(), "the-ready-writer", { now: NOW })).toMatchObject({ preview: { excerpt: null, thumbnailSrc: null } });
+  });
+
+  it("declares the cover's pixel size when it is a library copy, so a link preview can show it large", async () => {
+    const result = await publicCoursePreview(await reposWithCover({ width: 1280, height: 720 }), "the-ready-writer", { now: NOW });
+    expect(result).toMatchObject({ preview: { thumbnailSrc: `/api/courses/image/course/${ID}`, thumbnailSize: { width: 1280, height: 720 } } });
+  });
+
+  it("declares no size when it is unknown (Kajabi's URL, a copy with no dimensions) and never fails because of it", async () => {
+    expect(await publicCoursePreview(repos({ thumbnail_url: "https://cdn.example.test/c.jpg" }), "the-ready-writer", { now: NOW })).toMatchObject({ preview: { thumbnailSize: null } });
+    expect(await publicCoursePreview(await reposWithCover({ width: null, height: null }), "the-ready-writer", { now: NOW })).toMatchObject({ preview: { thumbnailSize: null } });
+    const broken = await reposWithCover({ width: 1280, height: 720 });
+    broken.media.byId = async () => {
+      throw new Error("db down");
+    };
+    expect(await publicCoursePreview(broken, "the-ready-writer", { now: NOW })).toMatchObject({ preview: { title: "The Ready Writer", thumbnailSize: null } });
   });
 
   it("drops a cover address that isn't http(s)", async () => {

@@ -63,14 +63,32 @@ describe('Public lesson preview', () => {
   it("gives an open lesson's title, its course, its excerpt and its thumbnail", async () => {
     const result = await preview('loose', { slug: SLUG })
     expect(result).toEqual({
-      preview: { lessonId: ids.loose, title: 'Loose', excerpt: 'Hey Hedgies, today we talk about expectations.', courseSlug: SLUG, courseTitle: 'The Ready Writer', thumbnailSrc: 'https://example.com/loose.jpg' },
+      preview: { lessonId: ids.loose, title: 'Loose', excerpt: 'Hey Hedgies, today we talk about expectations.', courseSlug: SLUG, courseTitle: 'The Ready Writer', thumbnailSrc: 'https://example.com/loose.jpg', thumbnailSize: null },
     })
   })
 
   it('has no excerpt or thumbnail when the lesson has none, and never gives anything else of the lesson', async () => {
     const result = await preview('in_open_module')
     expect(result).toMatchObject({ preview: { excerpt: null, thumbnailSrc: null } })
-    expect(Object.keys((result as { preview: object }).preview).sort()).toEqual(['courseSlug', 'courseTitle', 'excerpt', 'lessonId', 'thumbnailSrc', 'title'])
+    expect(Object.keys((result as { preview: object }).preview).sort()).toEqual(['courseSlug', 'courseTitle', 'excerpt', 'lessonId', 'thumbnailSize', 'thumbnailSrc', 'title'])
+  })
+
+  it("declares the pixel size of a thumbnail that is a library copy, so a link preview can show it large", async () => {
+    const { data: asset, error } = await supabase
+      .from('media_assets')
+      .insert({ storage_path: `originals/shared/${SLUG}.png`, mime_type: 'image/png', width: 1280, height: 720, bytes: 1, sha256: SLUG, title: SLUG, source: 'kajabi', source_key: `https://kajabi.test/${SLUG}.png` })
+      .select('id')
+      .single()
+    expect(error).toBeNull()
+    try {
+      await supabase.from('course_lessons').update({ thumbnail_asset_id: asset!.id }).eq('id', ids.in_open_module)
+      expect(await preview('in_open_module')).toMatchObject({
+        preview: { thumbnailSrc: `/api/courses/image/lesson/${ids.in_open_module}`, thumbnailSize: { width: 1280, height: 720 } },
+      })
+    } finally {
+      await supabase.from('course_lessons').update({ thumbnail_asset_id: null }).eq('id', ids.in_open_module)
+      await supabase.from('media_assets').delete().eq('id', asset!.id)
+    }
   })
 
   it('is open for a lesson inside an open module', async () => {
