@@ -6,6 +6,7 @@ export type ReasonKind =
   | "hosting"
   | "commitment"
   | "calendar"
+  | "present"
   | "streak"
   | "lostStreak"
   | "sister"
@@ -22,6 +23,7 @@ export const REASON_ICON: Record<ReasonKind, string> = {
   hosting: "🎤",
   commitment: "📌",
   calendar: "📅",
+  present: "📍",
   streak: "🔥",
   lostStreak: "🌱",
   sister: "🤝",
@@ -34,6 +36,7 @@ export const REASON_LABEL: Record<ReasonKind, string> = {
   hosting: "Hosting",
   commitment: "You committed to this",
   calendar: "In your calendar",
+  present: "You're in the room",
   streak: "Active streak",
   lostStreak: "Start a new streak",
   sister: "Likely sister attendance",

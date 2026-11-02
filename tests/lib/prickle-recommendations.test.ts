@@ -28,6 +28,7 @@ function upcoming(
     typeId: "t1",
     typeName: "Writing",
     startTime,
+    endTime: new Date(Date.parse(startTime) + 60 * 60 * 1000).toISOString(),
     hostId: opts.hostId === undefined ? `host-${id}` : opts.hostId,
     hostName: opts.hostName === undefined ? `Host ${id.toUpperCase()}` : opts.hostName,
     dayOfWeek: "Saturday",

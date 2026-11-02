@@ -11,6 +11,7 @@ import {
   type SisterStreak,
 } from "@/lib/streaks"
 import { getMemberDisplayName } from "@/lib/member-display-name"
+import { loadPresenceByMember, type PresenceInterval } from "@/lib/zoom-presence"
 import {
   computeCommitmentProgress,
   effectiveCommitmentStatus,
@@ -33,7 +34,7 @@ import {
   type SlotVibrancy,
 } from "@/lib/prickle-recommendations"
 
-type UpcomingRepos = Pick<Repos, "attendance" | "calendarFeed" | "prickleActivity" | "prickles">;
+type UpcomingRepos = Pick<Repos, "aliases" | "attendance" | "calendarFeed" | "members" | "prickleActivity" | "prickles" | "zoom">;
 
 // Shared by the Dashboard's "what should I do next" surface and the My
 // Prickles "Upcoming" tab — both rank the same set of upcoming prickles by
@@ -71,6 +72,7 @@ export type UpcomingPrickle = {
   typeId: string | null
   typeName: string
   startTime: string
+  endTime: string
   hostId: string | null
   hostName: string | null
   dayOfWeek: string
@@ -79,7 +81,7 @@ export type UpcomingPrickle = {
 }
 
 export interface HighlightReason {
-  kind: "hosting" | "commitment" | "calendar" | "streak" | "lostStreak" | "sister" | RecommendationReasonKind
+  kind: "hosting" | "commitment" | "calendar" | "present" | "streak" | "lostStreak" | "sister" | RecommendationReasonKind
   tooltip: string[]
 }
 
@@ -109,6 +111,7 @@ function toUpcomingPrickle(p: PrickleDetail, timeZone: string): UpcomingPrickle 
     typeId: p.typeId,
     typeName,
     startTime: p.startTime,
+    endTime: p.endTime,
     hostId: host?.id ?? null,
     hostName: host ? getMemberDisplayName({ name: host.name, display_name: host.displayName }) : null,
     dayOfWeek,
@@ -392,7 +395,7 @@ export function rankUpcomingPrickles(inputs: RankingInputs): RankedPrickle[] {
 }
 
 /**
- * Upcoming prickles in `[now - CHECKIN_GRACE_MS, now + windowDays]`, ranked highest-priority
+ * Upcoming prickles, the ones running now included, until `now + windowDays`, ranked highest-priority
  * first (see rankUpcomingPrickles). Callers decide how much of the list to
  * show (Dashboard caps it; My Prickles shows the full window).
  */
@@ -417,8 +420,10 @@ export async function getRankedUpcomingWithHistory(
   now: Date,
   windowDays: number
 ): Promise<{ ranked: RankedPrickle[]; myAttendance: Awaited<ReturnType<UpcomingRepos["attendance"]["forMemberWithPrickles"]>> }> {
-  // A prickle that started up to CHECKIN_GRACE_MS ago is still listed (and offers its check-in).
-  const windowStart = new Date(now.getTime() - CHECKIN_GRACE_MS).toISOString()
+  // A prickle that is running now is still listed (and offers its check-in): fetch back far
+  // enough to find it, keep the ones that have not ended.
+  const windowStart = now.toISOString()
+  const runningFrom = new Date(now.getTime() - IN_PROGRESS_LOOKBACK_MS).toISOString()
   const windowEnd = new Date(now.getTime() + windowDays * 24 * 60 * 60 * 1000).toISOString()
   const lookbackStart = new Date(now.getTime() - SISTER_LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString()
 
@@ -427,9 +432,9 @@ export async function getRankedUpcomingWithHistory(
   // recent past prickles (for sister-likely-attending + community
   // recommendation signals), plus this member's active commitments. ----
   const [upcoming, myAttendance, pastPrickles, commitments, calendarItems] = await Promise.all([
-    fetchPrickles(repos, windowStart, windowEnd, timeZone, true),
+    fetchPrickles(repos, runningFrom, windowEnd, timeZone, true).then((all) => all.filter((p) => isRunningOrUpcoming(p, now))),
     repos.attendance.forMemberWithPrickles(memberId),
-    fetchPrickles(repos, lookbackStart, windowStart, timeZone, false),
+    fetchPrickles(repos, lookbackStart, windowStart, timeZone, false).then((all) => all.filter((p) => !isRunningOrUpcoming(p, now))),
     fetchActiveCommitments(repos, memberId),
     fetchCalendarItems(repos, memberId),
   ])
@@ -599,26 +604,79 @@ export async function getRankedUpcomingWithHistory(
     slotVibrancy,
     hostExperience,
   })
-  return { ranked, myAttendance }
+  return { ranked: await markPresent(repos, memberId, ranked, now), myAttendance }
 }
 
 /** How far ahead of the start a prickle offers its check-in. */
 export const CHECKIN_SOON_MS = 2 * 60 * 60 * 1000
 
 /**
- * How long after the start a prickle still offers its check-in: the talking time ends at minute
- * 18, when everyone should be writing. Also how long the check-in DM stays a banner.
+ * How far back to look for a prickle that is running now. Only a bound for the query (the
+ * prickles found are then kept by their own end time), so it just has to be longer than any
+ * prickle.
  */
-export const CHECKIN_GRACE_MS = 18 * 60 * 1000
+export const IN_PROGRESS_LOOKBACK_MS = 12 * 60 * 60 * 1000
+
+/** Starts in the future or has not ended yet: what the upcoming list holds. */
+function isRunningOrUpcoming(prickle: Pick<UpcomingPrickle, "endTime">, now: Date): boolean {
+  return new Date(prickle.endTime).getTime() > now.getTime()
+}
 
 /**
- * Whether a prickle offers a check-in now: it starts within CHECKIN_SOON_MS, or started less than CHECKIN_GRACE_MS ago, and the member has a
- * personal tie to it (hosting it, in one of their commitments, or added to their calendar), so
- * the dashboard, My Prickles and the search palette's "Needs attention" all agree.
+ * Whether a prickle offers a check-in now: it starts within CHECKIN_SOON_MS and has not ended
+ * (a member may check in at any point of it, say to check in and out together at the end), and
+ * the member has a personal tie to it (hosting it, in one of their commitments, added to their
+ * calendar, or in its room: markPresent), so the dashboard, My Prickles and the search palette's
+ * "Needs attention" all agree.
  */
-export function checkinOffered(prickle: Pick<UpcomingPrickle, "startTime">, reasons: HighlightReason[], now: Date | number): boolean {
-  const untilStart = new Date(prickle.startTime).getTime() - (typeof now === "number" ? now : now.getTime())
-  return untilStart <= CHECKIN_SOON_MS && untilStart >= -CHECKIN_GRACE_MS && reasons.some((r) => r.kind === "hosting" || r.kind === "commitment" || r.kind === "calendar")
+export function checkinOffered(prickle: Pick<UpcomingPrickle, "startTime" | "endTime">, reasons: HighlightReason[], now: Date | number): boolean {
+  const nowMs = typeof now === "number" ? now : now.getTime()
+  const untilStart = new Date(prickle.startTime).getTime() - nowMs
+  const ended = new Date(prickle.endTime).getTime() <= nowMs
+  return untilStart <= CHECKIN_SOON_MS && !ended && reasons.some((r) => r.kind === "hosting" || r.kind === "commitment" || r.kind === "calendar" || r.kind === "present")
+}
+
+/**
+ * Marks the prickles the member is in the room for ("present"), and moves them first: a prickle
+ * running now that they were in a Zoom room for, so a member who just showed up, with no
+ * commitment or calendar item, is offered the check-in too. Presence is
+ * the participant webhooks' (lib/zoom-presence.ts), loaded only when such a prickle exists, and
+ * best-effort: if it can't be read the list comes back as it was. A room isn't tied to a prickle,
+ * so a member in one room is present for every prickle running at once.
+ */
+export async function markPresent(repos: UpcomingRepos, memberId: string, ranked: RankedPrickle[], now: Date): Promise<RankedPrickle[]> {
+  const nowMs = now.getTime()
+  const running = (r: RankedPrickle) => new Date(r.prickle.startTime).getTime() <= nowMs && isRunningOrUpcoming(r.prickle, now)
+  const tied = (r: RankedPrickle) => r.reasons.some((x) => x.kind === "hosting" || x.kind === "commitment" || x.kind === "calendar")
+  const candidates = ranked.filter((r) => running(r) && !tied(r))
+  if (candidates.length === 0) return ranked
+
+  let intervals: PresenceInterval[] | undefined
+  try {
+    const since = new Date(Math.min(...candidates.map((r) => new Date(r.prickle.startTime).getTime())))
+    intervals = (await loadPresenceByMember(repos, since, now)).get(memberId)
+  } catch (error) {
+    console.error("Could not read live presence for the check-in offer:", error instanceof Error ? error.message : error)
+    return ranked
+  }
+  if (!intervals?.length) return ranked
+
+  const present = new Set(
+    candidates
+      .filter((r) => {
+        const start = new Date(r.prickle.startTime).getTime()
+        return intervals.some((i) => i.join <= nowMs && (i.leave === null || i.leave > start))
+      })
+      .map((r) => r.prickle.id)
+  )
+  if (present.size === 0) return ranked
+
+  const marked = ranked.map((r) =>
+    present.has(r.prickle.id)
+      ? { ...r, reasons: [...r.reasons, { kind: "present" as const, tooltip: ["You joined this one"] }], priority: Math.min(r.priority, PRIORITY.calendar) }
+      : r
+  )
+  return [...marked.filter((r) => present.has(r.prickle.id)), ...marked.filter((r) => !present.has(r.prickle.id))]
 }
 
 /**
@@ -627,7 +685,7 @@ export function checkinOffered(prickle: Pick<UpcomingPrickle, "startTime">, reas
  */
 export async function getCheckinPrickles(repos: UpcomingRepos, memberId: string, timeZone: string, now: Date): Promise<RankedPrickle[]> {
   const [upcoming, commitments, calendarItems] = await Promise.all([
-    fetchPrickles(repos, new Date(now.getTime() - CHECKIN_GRACE_MS).toISOString(), new Date(now.getTime() + CHECKIN_SOON_MS).toISOString(), timeZone, true),
+    fetchPrickles(repos, new Date(now.getTime() - IN_PROGRESS_LOOKBACK_MS).toISOString(), new Date(now.getTime() + CHECKIN_SOON_MS).toISOString(), timeZone, true).then((all) => all.filter((p) => isRunningOrUpcoming(p, now))),
     fetchActiveCommitments(repos, memberId),
     fetchCalendarItems(repos, memberId),
   ])
@@ -640,12 +698,13 @@ export async function getCheckinPrickles(repos: UpcomingRepos, memberId: string,
           now
         )
       : new Map<string, CommitmentSignal>()
-  return rankUpcomingPrickles({
+  const ranked = rankUpcomingPrickles({
     upcoming,
     memberId,
     now,
     timeZone,
     commitmentByPrickleId,
     calendarAddedByPrickleId: computeCalendarAdded(calendarItems, upcoming),
-  }).filter((r) => checkinOffered(r.prickle, r.reasons, now))
+  })
+  return (await markPresent(repos, memberId, ranked, now)).filter((r) => checkinOffered(r.prickle, r.reasons, now))
 }

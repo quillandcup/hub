@@ -24,7 +24,6 @@ import {
   type GoalCandidate,
   type UpcomingPrickle,
 } from "@/lib/prickle-checkin-dms";
-import { CHECKIN_GRACE_MS } from "@/lib/upcoming-prickles";
 import { EMPTY_CHECKIN, type CheckinInput } from "@/lib/prickle-checkins";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
@@ -33,8 +32,8 @@ const TYPE = "type-progress";
 const OTHER_TYPE = "type-other";
 
 // Monday 2026-10-05, 7:00 AM EDT, and another prickle in the same window.
-const P1: UpcomingPrickle = { id: "p1", typeId: TYPE, hostId: "host", startTime: "2026-10-05T11:00:00.000Z", typeName: "Progress Prickle" };
-const P2: UpcomingPrickle = { id: "p2", typeId: OTHER_TYPE, hostId: "host", startTime: "2026-10-05T11:10:00.000Z", typeName: "Other" };
+const P1: UpcomingPrickle = { id: "p1", typeId: TYPE, hostId: "host", startTime: "2026-10-05T11:00:00.000Z", endTime: "2026-10-05T12:00:00.000Z", typeName: "Progress Prickle" };
+const P2: UpcomingPrickle = { id: "p2", typeId: OTHER_TYPE, hostId: "host", startTime: "2026-10-05T11:10:00.000Z", endTime: "2026-10-05T12:10:00.000Z", typeName: "Other" };
 
 const goal = (overrides: Partial<GoalCandidate> = {}): GoalCandidate => ({
   memberId: "m1",
@@ -465,7 +464,7 @@ describe("in-app notifications", () => {
   it("ties the messages to the prickle, time-sensitive on its timing", () => {
     expect(checkinMessage({ ...P1 }, null)).toMatchObject({
       ref: "p1",
-      timeSensitiveUntil: new Date(Date.parse(P1.startTime) + CHECKIN_GRACE_MS).toISOString(),
+      timeSensitiveUntil: P1.endTime,
     });
 
     const end = "2026-10-05T12:00:00.000Z";

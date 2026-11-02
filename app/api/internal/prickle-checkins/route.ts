@@ -97,6 +97,7 @@ async function sendCheckins(repos: RouteRepos, candidates: GoalCandidate[], now:
     typeId: p.type.id,
     hostId: p.hostId,
     startTime: p.startTime,
+    endTime: p.endTime,
   }));
   if (upcomingPrickles.length === 0) return 0;
 

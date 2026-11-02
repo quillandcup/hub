@@ -10,7 +10,6 @@ import { loadCalendarFeedPrickleIds } from "@/lib/calendar-feed";
 import { APP_URL } from "@/lib/config";
 import { joinSlackBlocks, loadPrickleJoinSettings, joinAt, type PrickleJoin } from "@/lib/prickle-join";
 import { createNotifier } from "@/lib/notifications/notify";
-import { CHECKIN_GRACE_MS } from "@/lib/upcoming-prickles";
 import { resolveInAppNotifications } from "@/lib/channels/in-app";
 import type { ChannelId, OutboundMessage } from "@/lib/channels";
 import { loadPresenceByMember, presenceDue, type PresenceInterval } from "@/lib/zoom-presence";
@@ -119,6 +118,7 @@ export interface UpcomingPrickle {
   typeId: string;
   hostId: string | null;
   startTime: string;
+  endTime: string;
   typeName: string;
 }
 
@@ -788,8 +788,8 @@ async function quickLogPrompts(repos: DmRepos, goals: GoalCandidate[]): Promise<
 /**
  * A DM's prickle: enough to word the message and link the check-in. The times, when known, set
  * how long it's time-sensitive (in-app: a banner, then only in the bell and inbox):
- * - Check-in: until CHECKIN_GRACE_MS after the prickle starts, so a late joiner still sees it
- *   (its text says "in ~20 min"; the prickle page still takes one after).
+ * - Check-in: until the prickle ends, so a member who joins late, or checks in and out together
+ *   at the end, still sees it (its text says "in ~20 min").
  * - Check-out: for CHECKOUT_TIME_SENSITIVE_MS after the prickle ends (one sent later, e.g. from
  *   the attendance backstop, goes straight to the bell).
  */
@@ -821,7 +821,7 @@ export function checkinMessage(
     url: `${APP_URL}${checkinHref(prickle.id, "checkin")}`,
     slackBlocks: test ? [TEST_BANNER, ...blocks] : blocks,
     ref: prickle.id,
-    timeSensitiveUntil: offsetIso(prickle.startTime, CHECKIN_GRACE_MS),
+    timeSensitiveUntil: offsetIso(prickle.endTime, 0),
   };
 }
 
