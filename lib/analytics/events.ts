@@ -56,6 +56,12 @@ export const EVENTS = {
    */
   element_seen: { name: text(80), route: text(120) },
 
+  /** "Allow animations" switched in Settings. `allowed` is the new value; `was_default_off` says the device's reduce-motion setting had it off before the member chose. */
+  animations_setting_changed: { allowed: bool(), was_default_off: bool() },
+
+  /** A GIF attachment played or paused by hand while animations are off (a member who needs it still, choosing to watch one). */
+  gif_play_toggled: { playing: bool() },
+
   // Search (components/search, app/(member)/chat/search). Never the query text: only its shape
   // (lib/analytics/search.ts) and what happened with the results.
   /** The header search palette opened: by its button, by Cmd/Ctrl+K, or by pressing "/". */

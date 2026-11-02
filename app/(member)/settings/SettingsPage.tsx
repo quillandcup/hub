@@ -4,6 +4,7 @@ import { createRepos } from "@/lib/data/repos";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { ThemeSwitcher } from "./ThemeSwitcher";
+import { AnimationsToggle } from "./AnimationsToggle";
 import { TimezoneSwitcher } from "./TimezoneSwitcher";
 import { SecondaryTimezoneSwitcher } from "./SecondaryTimezoneSwitcher";
 import { SessionsPanel } from "./SessionsPanel";
@@ -135,6 +136,7 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
                 content: (
                   <div className="space-y-6">
                     <ThemeSwitcher />
+                    <AnimationsToggle />
                     <TimezoneSwitcher initialTimezone={timezonePreference} />
                     <SecondaryTimezoneSwitcher initialTimezone={profile?.secondary_timezone ?? null} />
                   </div>
