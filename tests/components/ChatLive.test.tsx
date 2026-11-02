@@ -60,7 +60,7 @@ import type { ChatMessageView } from "@/lib/chat/load";
 import { markChatRead } from "@/app/(member)/chat/actions";
 
 /** Like the member layout: the page scrolls inside <main>, not the window. */
-async function mount(view: ChatLiveView = "latest", extra: { threadRootId?: string; markRead?: boolean; latestAt?: string | null; renderedAt?: string | null } = {}) {
+async function mount(view: ChatLiveView = "latest", extra: { threadRootId?: string; markRead?: boolean; latestAt?: string | null; renderedAt?: string | null; catchUpIds?: string[] } = {}) {
   const result = render(
     <main style={{ overflowY: "auto" }}>
       <ChatLive channelId="c1" view={view} latestId="m2" {...extra} />
@@ -117,6 +117,31 @@ describe("ChatLive", () => {
     await mount("older", { renderedAt: new Date(now - 20_000).toISOString() });
     expect(loadLatestChat).not.toHaveBeenCalled();
     expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("asks about the thread roots on a page from the cache, and again when the cache hands an older page to an open conversation", async () => {
+    const now = Date.now();
+    const { rerender } = await mount("latest", { renderedAt: new Date(now - 20_000).toISOString(), catchUpIds: ["root-1", "root-2"] });
+    expect(loadLatestChat).toHaveBeenLastCalledWith("c1", ["root-1", "root-2"], true);
+
+    // A fresh page for the same conversation (a refresh): nothing more to ask.
+    loadLatestChat.mockClear();
+    rerender(
+      <main style={{ overflowY: "auto" }}>
+        <ChatLive channelId="c1" view="latest" latestId="m2" renderedAt={new Date(now - 500).toISOString()} catchUpIds={["root-1"]} />
+      </main>,
+    );
+    await act(async () => {});
+    expect(loadLatestChat).not.toHaveBeenCalled();
+
+    // An older page arriving later (closing a thread): asked about the roots on it.
+    rerender(
+      <main style={{ overflowY: "auto" }}>
+        <ChatLive channelId="c1" view="latest" latestId="m2" renderedAt={new Date(now - 60_000).toISOString()} catchUpIds={["root-3"]} />
+      </main>,
+    );
+    await act(async () => {});
+    expect(loadLatestChat).toHaveBeenLastCalledWith("c1", ["root-3"], true);
   });
 
   it("listens to this channel's messages and to reactions, but not message content", async () => {

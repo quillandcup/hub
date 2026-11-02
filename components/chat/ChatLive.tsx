@@ -63,6 +63,7 @@ export default function ChatLive({
   markRead = false,
   latestAt = null,
   renderedAt = null,
+  catchUpIds = [],
 }: {
   channelId: string;
   view: ChatLiveView;
@@ -74,6 +75,8 @@ export default function ChatLive({
   latestAt?: string | null;
   /** When the server rendered this page (ISO). Older than a moment on mount means it was served from the client cache. */
   renderedAt?: string | null;
+  /** The thread roots on the page. A page from the client cache is asked about them too, since their reply counts may have moved. */
+  catchUpIds?: string[];
 }) {
   const router = useRouter();
   const anchor = useRef<HTMLSpanElement>(null);
@@ -103,11 +106,16 @@ export default function ChatLive({
     leaveAt.current = latestAt;
   }, [latestAt]);
 
+  const catchUpRef = useRef(catchUpIds);
+  useEffect(() => {
+    catchUpRef.current = catchUpIds;
+  });
+
   // Bring the conversation up to date: just the newest messages (or the open thread), merged into
   // the list in place; or the whole page for older pages and when that small fetch can't be done.
   const reload = useCallback(async (fromCache = false) => {
     if (view === "older") return router.refresh();
-    const changed = [...changedIds.current].slice(0, MAX_CHANGED_IDS);
+    const changed = [...new Set([...changedIds.current, ...(fromCache ? catchUpRef.current : [])])].slice(0, MAX_CHANGED_IDS);
     changedIds.current.clear();
     const result =
       view === "thread"
@@ -159,14 +167,15 @@ export default function ChatLive({
     timer.current = setTimeout(cooldown, REFRESH_DELAY_MS);
   }, [reload]);
 
-  // A conversation opened from the client cache shows what it had when it was cached: catch up once,
-  // merged in place (the realtime subscription only reports changes from now on).
+  // A conversation opened from the client cache shows what it had when it was cached: catch up, merged in place
+  // (the realtime subscription only reports changes from now on). Also when the cache hands back an older page to a
+  // conversation already open (closing a thread does): `renderedAt` changes then, and only then.
   useEffect(() => {
     if (view === "older" || !renderedAt) return;
     if (Date.now() - Date.parse(renderedAt) > CACHED_PAGE_MS) void reload(true);
-    // Only on mount: later renders of the same page must not refetch.
+    // Only when the page changes: other renders of the same page must not refetch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [renderedAt]);
 
   // Someone changed something here (a reaction toggled, a message sent): catch up now, without the debounce.
   useEffect(() => onPoke(channelId, () => void reload()), [channelId, reload]);

@@ -60,10 +60,12 @@ export default function ThreadList({
       // Only this thread's: a send in the conversation itself has no thread id and isn't ours.
       if (event.threadRootId !== threadRootId) return;
       if (event.kind === "merge-thread") {
-        if (event.views[0]?.id === threadRootId) setRootView(event.views[0]);
+        // By id, not position: a root the server leaves out (deleted, no replies) mustn't make the first reply count as it.
+        const merged = event.views.find((v) => v.id === threadRootId);
+        if (merged) setRootView(merged);
         setById((prev) => {
           const next = new Map(prev);
-          for (const v of event.views.slice(1)) next.set(v.id, v);
+          for (const v of event.views) if (v.id !== threadRootId) next.set(v.id, v);
           // A reply deleted in Slack is left out of what the server sends: it says which are gone.
           for (const id of event.removedIds ?? []) next.delete(id);
           return next;
