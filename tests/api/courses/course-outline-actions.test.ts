@@ -41,7 +41,7 @@ vi.mock('@/lib/supabase/service', async () => {
 })
 
 import { COURSE_FILES_BUCKET } from '@/lib/courses/file-format'
-import { addCourseLesson, addCourseModule, deleteCourseItem, duplicateCourseItem, moveCourseLesson, renameCourseItem, reorderCourseItems, saveLessonText, setCourseItemStatus } from '@/app/(admin)/admin/courses/outline-actions'
+import { addCourseLesson, addCourseModule, deleteCourseItem, duplicateCourseItem, moveCourseLesson, renameCourseItem, reorderCourseItems, saveLessonText, setCourseItemStatus, setLessonThumbnail } from '@/app/(admin)/admin/courses/outline-actions'
 
 describe('Course outline actions', () => {
   const supabase = getTestSupabaseAdminClient()
@@ -166,6 +166,72 @@ describe('Course outline actions', () => {
       expect(await moveCourseLesson(course, mine.id!, null)).toEqual({ error: 'Not authorized' })
       auth.admin = true
       expect((await lesson(mine.id!))!.module_id).toBe(home.id)
+    })
+  })
+
+  describe('setLessonThumbnail', () => {
+    const asset = async (over: Record<string, unknown> = {}) =>
+      (await supabase.from('media_assets').insert({ storage_path: `originals/shared/${PREFIX}-${Math.random()}.png`, mime_type: 'image/png', width: 16, height: 9, bytes: 10, sha256: `${PREFIX}-${Math.random()}`, title: 'Thumb', ...over }).select('id').single()).data!.id as string
+    const thumb = async (id: string) => (await supabase.from('course_lessons').select('thumbnail_asset_id, thumbnail_source, thumbnail_url').eq('id', id).single()).data!
+    const made: string[] = []
+    afterAll(async () => {
+      if (made.length) await supabase.from('media_assets').delete().in('id', made)
+    })
+
+    it('sets the thumbnail to a library image, forgetting the Kajabi picture, and clears it again', async () => {
+      const added = await addCourseLesson(ids.course, ids.week2, 'Has a thumbnail')
+      await supabase.from('course_lessons').update({ thumbnail_url: 'https://example.com/kajabi.jpg', thumbnail_source: 'https://example.com/kajabi.jpg' }).eq('id', added.id!)
+      const image = await asset()
+      made.push(image)
+
+      expect(await setLessonThumbnail(ids.course, added.id!, image)).toEqual({ id: added.id })
+      expect(await thumb(added.id!)).toEqual({ thumbnail_asset_id: image, thumbnail_source: null, thumbnail_url: null })
+      expect(revalidatePath).toHaveBeenCalledWith(`/admin/courses/${ids.course}`)
+
+      expect(await setLessonThumbnail(ids.course, added.id!, null)).toEqual({ id: added.id })
+      expect(await thumb(added.id!)).toEqual({ thumbnail_asset_id: null, thumbnail_source: null, thumbnail_url: null })
+      await deleteCourseItem(ids.course, 'lesson', added.id!)
+    })
+
+    it("won't use an image that isn't in the library or has been deleted", async () => {
+      const added = await addCourseLesson(ids.course, ids.week2, 'Wants a thumbnail')
+      const gone = await asset({ deleted_at: new Date().toISOString() })
+      made.push(gone)
+
+      expect(await setLessonThumbnail(ids.course, added.id!, 'media_AAAAAAAAAAA1')).toEqual({ error: "That image isn't in the library any more. Choose another." })
+      expect(await setLessonThumbnail(ids.course, added.id!, gone)).toEqual({ error: "That image isn't in the library any more. Choose another." })
+      expect((await thumb(added.id!)).thumbnail_asset_id).toBeNull()
+      await deleteCourseItem(ids.course, 'lesson', added.id!)
+    })
+
+    it("won't set one for another course's lesson or an imported one, with ids that aren't ids, or for a non-admin", async () => {
+      const added = await addCourseLesson(ids.course, ids.week2, 'Not for others')
+      const image = await asset()
+      made.push(image)
+
+      expect((await setLessonThumbnail(ids.other, added.id!, image)).error).toMatch(/can't be edited here/)
+      expect((await setLessonThumbnail(ids.course, 'les_AAAAAAAAAAA1', image)).error).toMatch(/can't be edited here/)
+      expect(await setLessonThumbnail('nope', added.id!, image)).toEqual({ error: 'Not found.' })
+      expect(await setLessonThumbnail(ids.course, 'nope', image)).toEqual({ error: 'Not found.' })
+      expect(await setLessonThumbnail(ids.course, added.id!, 'nope')).toEqual({ error: 'Not found.' })
+      auth.admin = false
+      expect(await setLessonThumbnail(ids.course, added.id!, image)).toEqual({ error: 'Not authorized' })
+      auth.admin = true
+      expect((await thumb(added.id!)).thumbnail_asset_id).toBeNull()
+      await deleteCourseItem(ids.course, 'lesson', added.id!)
+    })
+
+    it('says so when the database refuses the write', async () => {
+      const added = await addCourseLesson(ids.course, ids.week2, 'Refused')
+      const image = await asset()
+      made.push(image)
+      auth.client = { from: (table: string) => (table === 'course_lessons' ? { select: (...a: unknown[]) => (supabase.from(table) as any).select(...a), update: () => { throw new Error('connection lost') } } : supabase.from(table as 'courses')) }
+      try {
+        expect(await setLessonThumbnail(ids.course, added.id!, image)).toEqual({ error: "Couldn't set the thumbnail." })
+      } finally {
+        auth.client = null
+      }
+      await deleteCourseItem(ids.course, 'lesson', added.id!)
     })
   })
 

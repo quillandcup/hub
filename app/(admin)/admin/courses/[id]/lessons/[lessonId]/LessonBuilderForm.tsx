@@ -7,6 +7,7 @@ import { LessonModuleField, LessonStatusField, LessonTitleField } from "./Lesson
 import LessonTextField from "./LessonTextField";
 import LessonFilesField from "./LessonFilesField";
 import LessonDeleteButton from "./LessonDeleteButton";
+import LessonThumbnailField from "./LessonThumbnailField";
 
 const FIELD =
   "w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800";
@@ -123,15 +124,21 @@ export default function LessonBuilderForm({ detail, media }: { detail: AdminLess
 
         <div className={CARD}>
           <h2 className="mb-3 text-lg font-semibold">Lesson thumbnail</h2>
-          {lesson.thumbnailSrc ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={lesson.thumbnailSrc} alt="" className="w-full rounded border border-slate-200 dark:border-slate-700" />
+          {detail.editable ? (
+            <LessonThumbnailField courseId={detail.course.id} lessonId={lesson.kajabiId} assetId={lesson.thumbnailAssetId} currentSrc={lesson.thumbnailSrc} />
           ) : (
-            <p className="text-sm text-slate-600 dark:text-slate-400">No thumbnail.</p>
+            <>
+              {lesson.thumbnailSrc ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={lesson.thumbnailSrc} alt="" className="w-full rounded border border-slate-200 dark:border-slate-700" />
+              ) : (
+                <p className="text-sm text-slate-600 dark:text-slate-400">No thumbnail.</p>
+              )}
+              <button type="button" disabled title={SOON} className={`${BUTTON} mt-3`}>
+                Image actions
+              </button>
+            </>
           )}
-          <button type="button" disabled title={SOON} className={`${BUTTON} mt-3`}>
-            Image actions
-          </button>
         </div>
 
         <div className={CARD}>

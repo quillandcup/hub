@@ -188,6 +188,13 @@ describe("MediaPicker", () => {
     expect(screen.queryByRole("button", { name: "Adjust crop" })).not.toBeInTheDocument();
   });
 
+  it("leaves out Adjust crop where the image is shown whole (adjustable off), keeping Change and Remove", () => {
+    render(<MediaPicker value={A.id} onChange={vi.fn()} surface="lesson_thumbnail" adjustable={false} />);
+    expect(screen.queryByRole("button", { name: "Adjust crop" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Change image" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove" })).toBeInTheDocument();
+  });
+
   it("opens the editor right after an upload is used", async () => {
     function Harness() {
       const [id, setId] = useState<string | null>(null);

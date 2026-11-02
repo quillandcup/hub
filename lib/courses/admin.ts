@@ -240,6 +240,8 @@ export interface AdminLessonDetail {
     bodyHtml: string | null;
     /** Our copy's path when the copy step has run, else Kajabi's URL (http(s) only). */
     thumbnailSrc: string | null;
+    /** The library image that is the thumbnail (a Hub-owned lesson's choice, or our copy of Kajabi's), or null. */
+    thumbnailAssetId: string | null;
     videoDurationSeconds: number | null;
     hasVideo: boolean;
     contentFetchedAt: string | null;
@@ -323,6 +325,7 @@ export async function loadAdminLesson(repos: AdminCourseRepos, courseParam: stri
       reason: explainedLesson.reason,
       bodyHtml: sanitizeLessonHtml(l.body_html),
       thumbnailSrc,
+      thumbnailAssetId: hubLesson.thumbnail_asset_id,
       videoDurationSeconds: l.video_duration_seconds,
       hasVideo: l.video_media_id !== null,
       contentFetchedAt: l.content_fetched_at,
@@ -388,6 +391,7 @@ async function loadHubLesson(repos: AdminCourseRepos, courseId: string, lesson: 
       reason: explained.reason,
       bodyHtml: sanitizeLessonHtml(body?.body_html ?? null),
       thumbnailSrc: courseImageSrc("lesson", lesson.id, lesson.thumbnail_asset_id, lesson.thumbnail_url),
+      thumbnailAssetId: lesson.thumbnail_asset_id,
       videoDurationSeconds: lesson.duration_seconds,
       hasVideo: lesson.video_id !== null,
       contentFetchedAt: null,

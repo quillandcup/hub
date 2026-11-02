@@ -188,6 +188,23 @@ async function setItemStatusImpl(auth: Auth, courseId: string, kind: ItemKind, i
   return { id };
 }
 
+async function setThumbnailImpl(auth: Auth, courseId: string, lessonId: string, assetId: string | null): Promise<OutlineResult> {
+  if (!isId(courseId, "crs") || !isId(lessonId, "les") || (assetId !== null && !isId(assetId, "media"))) return { error: "Not found." };
+  const repos = createRepos(auth.supabase);
+  try {
+    if (assetId !== null) {
+      // An image that is in the library and not deleted: a made-up id would only fail on the foreign key, with a worse message.
+      const asset = await repos.media.byId(assetId);
+      if (!asset || asset.deleted_at) return { error: "That image isn't in the library any more. Choose another." };
+    }
+    if (!(await repos.courses.setLessonThumbnail({ id: lessonId, courseId }, assetId))) return { error: NOT_EDITABLE };
+  } catch (error) {
+    return { error: describe(asDbError(error), "set the thumbnail") };
+  }
+  revalidate(courseId);
+  return { id: lessonId };
+}
+
 async function moveLessonImpl(auth: Auth, courseId: string, lessonId: string, moduleId: string | null): Promise<OutlineResult> {
   if (!isId(courseId, "crs") || !isId(lessonId, "les") || (moduleId !== null && !isId(moduleId, "mod"))) return { error: "Not found." };
   const courses = createRepos(auth.supabase).courses;
@@ -246,6 +263,13 @@ export async function saveLessonText(courseId: string, lessonId: string, html: s
   const auth = await requireAdminAction();
   if (!auth.ok) return { error: auth.error };
   return withAction("course_lesson_text_saved", () => saveLessonTextImpl(auth, courseId, lessonId, html));
+}
+
+/** Sets a Hub-owned lesson's thumbnail to a library image (null: none). */
+export async function setLessonThumbnail(courseId: string, lessonId: string, assetId: string | null): Promise<OutlineResult> {
+  const auth = await requireAdminAction();
+  if (!auth.ok) return { error: auth.error };
+  return withAction("course_lesson_thumbnail_set", () => setThumbnailImpl(auth, courseId, lessonId, assetId));
 }
 
 /** Moves a Hub-owned lesson to the end of another module (null: out of every module). */

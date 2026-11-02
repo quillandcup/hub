@@ -40,6 +40,7 @@ const detail = (over: Partial<AdminLessonDetail> = {}, lesson: Partial<AdminLess
     reason: "Inside “Module 2” (Locked)",
     bodyHtml: "<p>Hey Hedgies</p>",
     thumbnailSrc: "https://example.com/t.jpg",
+    thumbnailAssetId: null,
     videoDurationSeconds: 410,
     hasVideo: true,
     contentFetchedAt: "2026-11-03T15:30:00Z",
@@ -158,6 +159,21 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     loadAdminLesson.mockResolvedValue(detail({ editable: false }));
     await renderServerPage(AdminLessonPage, params);
     expect(screen.getByRole("button", { name: "Delete lesson" })).toBeDisabled();
+  });
+
+  it("lets a Hub-owned lesson's thumbnail be chosen, or made from the video's current frame, and keeps an imported lesson's off", async () => {
+    loadAdminLesson.mockResolvedValue(detail({ editable: true }));
+    const { unmount } = await renderServerPage(AdminLessonPage, params);
+    expect(screen.getByRole("button", { name: "Choose thumbnail" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Use the frame at 0:00 as the thumbnail" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Image actions" })).not.toBeInTheDocument();
+    unmount();
+
+    loadAdminLesson.mockResolvedValue(detail({ editable: false }));
+    await renderServerPage(AdminLessonPage, params);
+    expect(screen.getByRole("button", { name: "Image actions" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Choose thumbnail" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /as the thumbnail$/ })).not.toBeInTheDocument();
   });
 
   it("gives a Hub-owned lesson an editor for its text, and an imported one only the text", async () => {

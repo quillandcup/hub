@@ -55,6 +55,7 @@ export default function MediaPicker({
   noun = "image",
   alt = "The chosen image",
   removable = true,
+  adjustable = true,
   children,
 }: {
   value: string | null;
@@ -68,6 +69,8 @@ export default function MediaPicker({
   noun?: string;
   alt?: string;
   removable?: boolean;
+  /** Offer Adjust crop. Off where the image is shown whole, as it is, so its focal point and fit change nothing (a lesson's thumbnail). */
+  adjustable?: boolean;
   children?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -113,7 +116,7 @@ export default function MediaPicker({
         >
           {value ? `Change ${noun}` : `Choose ${noun}`}
         </button>
-        {value && (
+        {value && adjustable && (
           <button type="button" data-track="media-picker-adjust" disabled={disabled} onClick={() => setAdjusting(true)} className={SECONDARY}>
             Adjust crop
           </button>

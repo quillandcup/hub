@@ -105,6 +105,11 @@ export interface CourseRepository {
    * False when none matches. Throws a {@link CourseWriteError}.
    */
   setLessonText(target: { id: string; courseId: string }, text: { body_html: string | null; excerpt: string | null }): Promise<boolean>;
+  /**
+   * Sets the thumbnail of a Hub-owned lesson of the course to a library image (null: none), and forgets the link it was
+   * copied from, so a cleared thumbnail doesn't fall back to a Kajabi picture. False when none matches. Throws a {@link CourseWriteError}.
+   */
+  setLessonThumbnail(target: { id: string; courseId: string }, assetId: string | null): Promise<boolean>;
   /** The lessons of a module and its submodules, or the one lesson. */
   lessonIdsUnder(kind: OutlineKind, id: string): Promise<string[]>;
   /** Deletes a Hub-owned module or lesson of the course. False when none matches. */
@@ -331,6 +336,18 @@ export class SupabaseCourseRepository implements CourseRepository {
 
   async setLessonText(target: { id: string; courseId: string }, text: { body_html: string | null; excerpt: string | null }) {
     const { data, error } = await this.db.from("course_lessons").update(text).eq("id", target.id).eq("course_id", target.courseId).eq("source", "hub").select("id");
+    if (error) throw writeError(error);
+    return (data ?? []).length > 0;
+  }
+
+  async setLessonThumbnail(target: { id: string; courseId: string }, assetId: string | null) {
+    const { data, error } = await this.db
+      .from("course_lessons")
+      .update({ thumbnail_asset_id: assetId, thumbnail_source: null, thumbnail_url: null })
+      .eq("id", target.id)
+      .eq("course_id", target.courseId)
+      .eq("source", "hub")
+      .select("id");
     if (error) throw writeError(error);
     return (data ?? []).length > 0;
   }
@@ -759,6 +776,16 @@ export class InMemoryCourseRepository implements CourseRepository {
     if (!lesson) return false;
     lesson.body_html = text.body_html;
     lesson.excerpt = text.excerpt;
+    lesson.updated_at = now();
+    return true;
+  }
+
+  async setLessonThumbnail(target: { id: string; courseId: string }, assetId: string | null) {
+    const lesson = this.data.courseLessons.find((l) => l.id === target.id && l.course_id === target.courseId && l.source === "hub");
+    if (!lesson) return false;
+    lesson.thumbnail_asset_id = assetId;
+    lesson.thumbnail_source = null;
+    lesson.thumbnail_url = null;
     lesson.updated_at = now();
     return true;
   }
