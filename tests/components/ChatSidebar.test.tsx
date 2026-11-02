@@ -93,6 +93,19 @@ describe("ChatSidebar", () => {
     expect(links()).toEqual(["Gale, Fern"]);
   });
 
+  it("takes the whole height on the list screen, so the empty pane beside it can't halve it", () => {
+    render(<ChatSidebar channels={CHANNELS} />);
+    const nav = screen.getByRole("navigation", { name: "Conversations" });
+    expect(nav).toHaveClass("basis-full", "grow");
+    expect(nav).not.toHaveClass("flex-1");
+  });
+
+  it("is hidden on a narrow screen while a conversation is open", () => {
+    pathname = "/chat/1";
+    render(<ChatSidebar channels={CHANNELS} />);
+    expect(screen.getByRole("navigation", { name: "Conversations" })).toHaveClass("hidden");
+  });
+
   it("lists only the conversations you are in, with no archived section", () => {
     render(<ChatSidebar channels={[...CHANNELS, channel("5", "#lurking", { joined: false })]} />);
     expect(links()).toEqual(["#general", "#writing-sprints", "Gale, Fern"]);
