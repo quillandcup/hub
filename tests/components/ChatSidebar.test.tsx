@@ -186,9 +186,9 @@ describe("ChatSidebar", () => {
   describe("unread", () => {
     it("bolds and badges conversations with unread messages, capping the number at 99+", () => {
       render(<ChatSidebar channels={CHANNELS} unread={{ "1": 3, "2": 100 }} selfMemberId={ME} />);
-      expect(screen.getByRole("link", { name: "#general, 3 unread" })).toHaveTextContent("3");
-      expect(screen.getByRole("link", { name: "#writing-sprints, 99+ unread" })).toHaveTextContent("99+");
-      expect(screen.getByRole("link", { name: "#general, 3 unread" })).toHaveClass("font-semibold");
+      expect(screen.getByRole("link", { name: /^#general\s*3\s*unread$/ })).toHaveTextContent("3");
+      expect(screen.getByRole("link", { name: /^#writing-sprints\s*99\+\s*unread$/ })).toHaveTextContent("99+");
+      expect(screen.getByRole("link", { name: /^#general\s*3\s*unread$/ })).toHaveClass("font-semibold");
       expect(screen.getByRole("link", { name: "Gale, Fern" })).not.toHaveClass("font-semibold");
     });
 
@@ -206,7 +206,7 @@ describe("ChatSidebar", () => {
       pathname = "/chat/1";
       const { rerender } = render(<ChatSidebar channels={CHANNELS} unread={{ "1": 3, "2": 4 }} selfMemberId={ME} />);
       expect(screen.getByRole("link", { name: "#general" })).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "#writing-sprints, 4 unread" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /^#writing-sprints\s*4\s*unread$/ })).toBeInTheDocument();
 
       pathname = "/chat/2";
       rerender(<ChatSidebar channels={CHANNELS} unread={{ "1": 3, "2": 4 }} selfMemberId={ME} />);
@@ -222,7 +222,7 @@ describe("ChatSidebar", () => {
 
       act(() => onInsert(insert()));
       act(() => onInsert(insert()));
-      expect(screen.getByRole("link", { name: "#general, 2 unread" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /^#general\s*2\s*unread$/ })).toBeInTheDocument();
 
       act(() => onInsert(insert({ author_member_id: ME })));
       act(() => onInsert(insert({ thread_root_id: "m1" })));
@@ -230,7 +230,7 @@ describe("ChatSidebar", () => {
       act(() => onInsert(insert({ channel_id: "2" })));
       act(() => onInsert(insert({ channel_id: "5" })));
       act(() => onInsert(insert({ channel_id: "3" })));
-      expect(screen.getByRole("link", { name: "#general, 2 unread" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /^#general\s*2\s*unread$/ })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: "#writing-sprints" })).toBeInTheDocument();
       expect(screen.queryByRole("link", { name: "#lurking" })).not.toBeInTheDocument();
       expect(screen.queryByRole("link", { name: "#old-news" })).not.toBeInTheDocument();
@@ -240,10 +240,10 @@ describe("ChatSidebar", () => {
       const { rerender } = render(<ChatSidebar channels={CHANNELS} unread={{}} selfMemberId={ME} />);
       await flush();
       act(() => onInsert(insert()));
-      expect(screen.getByRole("link", { name: "#general, 1 unread" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /^#general\s*1\s*unread$/ })).toBeInTheDocument();
 
       rerender(<ChatSidebar channels={CHANNELS} unread={{ "1": 5 }} selfMemberId={ME} />);
-      expect(screen.getByRole("link", { name: "#general, 5 unread" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /^#general\s*5\s*unread$/ })).toBeInTheDocument();
     });
 
     describe("a message deleted after it was counted", () => {
@@ -264,10 +264,10 @@ describe("ChatSidebar", () => {
         act(() => onUpdate(del()));
         await settle();
         expect(loadCounts).toHaveBeenCalledTimes(1);
-        expect(screen.getByRole("link", { name: "#general, 1 unread" })).toBeInTheDocument();
+        expect(screen.getByRole("link", { name: /^#general\s*1\s*unread$/ })).toBeInTheDocument();
         act(() => onUpdate(del()));
         await settle();
-        expect(screen.getByRole("link", { name: "#general, 1 unread" })).toBeInTheDocument();
+        expect(screen.getByRole("link", { name: /^#general\s*1\s*unread$/ })).toBeInTheDocument();
       });
 
       it("drops the badge when the last unread message goes", async () => {
@@ -285,7 +285,7 @@ describe("ChatSidebar", () => {
         await flush();
         act(() => onUpdate(del()));
         await settle();
-        expect(screen.getByRole("link", { name: "#general, 2 unread" })).toBeInTheDocument();
+        expect(screen.getByRole("link", { name: /^#general\s*2\s*unread$/ })).toBeInTheDocument();
       });
 
       it("ignores edits, your own, replies, the open conversation and ones you are not in", async () => {
@@ -299,7 +299,7 @@ describe("ChatSidebar", () => {
         act(() => onUpdate(del({ channel_id: "5" })));
         await settle();
         expect(loadCounts).not.toHaveBeenCalled();
-        expect(screen.getByRole("link", { name: "#general, 2 unread" })).toBeInTheDocument();
+        expect(screen.getByRole("link", { name: /^#general\s*2\s*unread$/ })).toBeInTheDocument();
       });
 
       it("keeps its numbers if the recount fails, and skips a conversation opened meanwhile", async () => {
@@ -308,7 +308,7 @@ describe("ChatSidebar", () => {
         await flush();
         act(() => onUpdate(del()));
         await settle();
-        expect(screen.getByRole("link", { name: "#general, 2 unread" })).toBeInTheDocument();
+        expect(screen.getByRole("link", { name: /^#general\s*2\s*unread$/ })).toBeInTheDocument();
 
         loadCounts.mockResolvedValue({ "1": 1 });
         act(() => onUpdate(del()));
@@ -333,14 +333,14 @@ describe("ChatSidebar", () => {
       render(<ChatSidebar channels={CHANNELS} unread={{ "1": 4 }} selfMemberId={ME} />);
       await flush();
       expect(syncRead).toHaveBeenCalledWith("2");
-      expect(screen.getByRole("link", { name: "#general, 1 unread" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /^#general\s*1\s*unread$/ })).toBeInTheDocument();
     });
 
     it("keeps its numbers when the server had nothing to pull, and asks again when the window regains focus", async () => {
       render(<ChatSidebar channels={CHANNELS} unread={{ "1": 4 }} selfMemberId={ME} />);
       await flush();
       expect(syncRead).toHaveBeenCalledWith(null);
-      expect(screen.getByRole("link", { name: "#general, 4 unread" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /^#general\s*4\s*unread$/ })).toBeInTheDocument();
 
       syncRead.mockResolvedValue({});
       act(() => void window.dispatchEvent(new Event("focus")));

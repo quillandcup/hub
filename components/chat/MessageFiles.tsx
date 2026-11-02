@@ -69,7 +69,9 @@ function ImageTile({
         className="block overflow-hidden rounded-lg"
       >
         {/* eslint-disable-next-line @next/next/no-img-element -- served through the access-checked chat files route, not an optimizable asset */}
+        {/* suppressHydrationWarning: with animations off, AnimationsController may swap src for a still before React hydrates this image */}
         <img
+          suppressHydrationWarning
           src={url}
           alt={file.name ?? "Image"}
           width={file.width ?? undefined}

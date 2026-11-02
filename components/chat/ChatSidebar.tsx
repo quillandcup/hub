@@ -150,7 +150,6 @@ function Section({
                 hasUnread={prefetched.has(c.id)}
                 data-track="chat-sidebar-channel"
                 aria-current={active ? "page" : undefined}
-                aria-label={count > 0 ? `${c.label}, ${badge(count)} unread` : undefined}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors ${
                   active
                     ? "bg-plum-50 dark:bg-plum-900/20 text-plum-600 dark:text-plum-400 font-medium"
@@ -170,8 +169,9 @@ function Section({
                   ))}
                 <span className="truncate">{c.kind === "channel" ? c.label.replace(/^#/, "") : c.label}</span>
                 {count > 0 && (
-                  <span aria-hidden="true" className="ml-auto rounded-full bg-plum-600 px-1.5 text-xs font-medium text-white">
+                  <span className="ml-auto rounded-full bg-plum-600 px-1.5 text-xs font-medium text-white">
                     {badge(count)}
+                    <span className="sr-only"> unread</span>
                   </span>
                 )}
               </ChannelLink>

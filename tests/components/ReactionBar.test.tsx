@@ -37,10 +37,11 @@ describe("ReactionBar", () => {
     vi.mocked(toggleChatReaction).mockResolvedValue({ ok: true, active: false });
     render(<ReactionBar channelId="c1" messageId="m1" reactions={REACTIONS} custom={{}} canReact />);
 
-    expect(screen.getByRole("button", { name: /Remove your :tada: reaction/ })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: /Add :eyes: reaction/ })).toHaveAttribute("aria-pressed", "false");
+    // The chip's name is its emoji and count; whether it is yours is its pressed state.
+    expect(screen.getByRole("button", { name: /🎉/, pressed: true })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /👀/, pressed: false })).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: /Remove your :tada: reaction/ }));
+    await userEvent.click(screen.getByRole("button", { name: /🎉/ }));
     await waitFor(() => expect(toggleChatReaction).toHaveBeenCalledWith("m1", "tada"));
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
@@ -56,7 +57,7 @@ describe("ReactionBar", () => {
   it("shows why a reaction was refused and doesn't refresh", async () => {
     vi.mocked(toggleChatReaction).mockResolvedValue({ ok: false, error: "This conversation is archived." });
     render(<ReactionBar channelId="c1" messageId="m1" reactions={REACTIONS} custom={{}} canReact />);
-    await userEvent.click(screen.getByRole("button", { name: /Add :eyes: reaction/ }));
+    await userEvent.click(screen.getByRole("button", { name: /👀/ }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("This conversation is archived.");
     expect(refresh).not.toHaveBeenCalled();

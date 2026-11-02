@@ -88,7 +88,6 @@ export default function ReactionBar({
                 type="button"
                 disabled={pending}
                 aria-pressed={r.mine}
-                aria-label={`${r.mine ? "Remove your" : "Add"} :${r.emoji}: reaction (${r.count})`}
                 data-track="chat-reaction-toggle"
                 onClick={() => toggle(r.emoji)}
                 className={`${chipClass(r.mine)} hover:border-plum-400 disabled:opacity-60`}

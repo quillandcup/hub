@@ -281,7 +281,7 @@ describe("chat shell", () => {
     unread = [{ channel_id: HOSTS, unread: 3 }];
     render(await ChatLayout({ children: null }));
     const nav = screen.getByRole("navigation", { name: "Conversations" });
-    expect(within(nav).getByRole("link", { name: "#hosts, 3 unread" })).toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: /^Private channel\s*hosts\s*3\s*unread$/ })).toBeInTheDocument();
     expect(within(nav).getByRole("link", { name: /quiet/ })).not.toHaveAccessibleName(/unread/);
     cleanup();
 
@@ -678,7 +678,7 @@ describe("authors and members", () => {
 
   it("shows a members link with the count in the channel header", async () => {
     await renderChannel(GENERAL);
-    expect(screen.getByRole("link", { name: "2 members" })).toHaveAttribute("href", `/chat/${GENERAL}/members`);
+    expect(screen.getByRole("link", { name: /^2\s*members$/ })).toHaveAttribute("href", `/chat/${GENERAL}/members`);
   });
 
   it("lists the members, each linking to their profile", async () => {
