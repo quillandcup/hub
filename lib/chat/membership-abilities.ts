@@ -29,6 +29,7 @@ export function membershipAbilities(args: {
 }): MembershipAbilities {
   if (!args.postingOn) return NONE;
   if (args.isSudo) return { ...NONE, blocked: "You can't change a conversation's members while viewing as another member." };
+  if (args.kind === "dm" && args.bridge?.bridge_mode === "app_only") return { ...NONE, blocked: "A direct message is between the two of you." };
   if (args.kind !== "channel") return { ...NONE, blocked: "Slack doesn't allow changing who is in a group message." };
   if (args.archived) return { ...NONE, blocked: "This conversation is archived." };
   const bridged = args.bridge?.bridge_mode === "bridged" && !args.bridge.bridge_disabled && args.bridge.bridge_status === "ok" && Boolean(args.slackChannelId);

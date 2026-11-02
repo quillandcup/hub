@@ -28,6 +28,7 @@ const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]
   [() => import("@/app/(member)/awards/actions"), "app/(member)/awards/actions.ts", [["addAward", "award_added"]]],
   [() => import("@/app/(member)/courses/actions"), "app/(member)/courses/actions.ts", [["setLessonComplete", "lesson_completion_saved"]]],
   [() => import("@/app/(member)/chat/actions"), "app/(member)/chat/actions.ts", [["sendChatMessage", "chat_message_sent"], ["toggleChatReaction", "chat_reaction_toggled"]]],
+  [() => import("@/app/(member)/chat/dm-actions"), "app/(member)/chat/dm-actions.ts", [["startDirectMessage", "chat_dm_started"]]],
   [() => import("@/app/(member)/chat/membership-actions"), "app/(member)/chat/membership-actions.ts", [["addChatMembers", "chat_members_added"], ["joinChatChannel", "chat_channel_joined"], ["removeChatMember", "chat_member_removed"]]],
   [() => import("@/app/(member)/big-sisters/actions"), "app/(member)/big-sisters/actions.ts", [["setBigSisterAvailability", "big_sister_availability_set"]]],
   [() => import("@/app/(member)/members/[id]/noteActions"), "app/(member)/members/[id]/noteActions.ts", [["saveMemberNote", "member_note_saved"]]],
