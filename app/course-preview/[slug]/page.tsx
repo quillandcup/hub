@@ -30,7 +30,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   if (!preview) return { title: "Login" };
 
   const description = preview.excerpt ?? `${preview.title}, a course for Quill & Cup members. Sign in to open it.`;
-  const images = preview.thumbnailSrc ? [{ url: absolute(preview.thumbnailSrc), alt: preview.title }] : undefined;
+  const images = preview.thumbnailSrc ? [{ url: absolute(preview.thumbnailSrc), alt: preview.title, ...preview.thumbnailSize }] : undefined;
   return {
     title: preview.title,
     description,

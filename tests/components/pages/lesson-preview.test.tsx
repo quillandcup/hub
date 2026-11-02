@@ -23,6 +23,7 @@ const preview = (over: Record<string, unknown> = {}) => ({
     courseSlug: "the-ready-writer",
     courseTitle: "The Ready Writer",
     thumbnailSrc: `/api/courses/image/lesson/${LESSON}`,
+    thumbnailSize: { width: 1280, height: 720 },
     ...over,
   },
 });
@@ -52,7 +53,7 @@ describe("/lesson-preview/[slug]/[lessonId]", () => {
   });
 
   it("shows no picture or excerpt that the lesson doesn't have", async () => {
-    publicLessonPreview.mockResolvedValue(preview({ excerpt: null, thumbnailSrc: null }));
+    publicLessonPreview.mockResolvedValue(preview({ excerpt: null, thumbnailSrc: null, thumbnailSize: null }));
     await renderServerPage(LessonPreviewPage, params());
     expect(document.querySelector("img")).toBeNull();
     expect(screen.getByRole("heading", { name: /Reader Expectations/ })).toBeInTheDocument();
@@ -83,19 +84,19 @@ describe("the lesson preview's link metadata", () => {
 
     expect(meta.title).toBe("Reader Expectations vs. Reader Preferences · The Ready Writer");
     expect(meta.description).toMatch(/difference between expectations and preferences/);
-    expect(meta.openGraph).toMatchObject({ type: "article", url: `${APP_URL}/courses/the-ready-writer/lessons/${LESSON}`, images: [{ url: `${APP_URL}/api/courses/image/lesson/${LESSON}` }] });
+    expect(meta.openGraph).toMatchObject({ type: "article", url: `${APP_URL}/courses/the-ready-writer/lessons/${LESSON}`, images: [{ url: `${APP_URL}/api/courses/image/lesson/${LESSON}`, width: 1280, height: 720 }] });
     expect(meta.twitter).toMatchObject({ card: "summary_large_image", images: [`${APP_URL}/api/courses/image/lesson/${LESSON}`] });
   });
 
   it("keeps an already absolute picture address (Kajabi's CDN until the copy exists), and asks search engines not to index it", async () => {
-    publicLessonPreview.mockResolvedValue(preview({ thumbnailSrc: "https://cdn.example.test/t.jpg" }));
+    publicLessonPreview.mockResolvedValue(preview({ thumbnailSrc: "https://cdn.example.test/t.jpg", thumbnailSize: null }));
     const meta = await generateMetadata(params());
     expect(meta.openGraph).toMatchObject({ images: [{ url: "https://cdn.example.test/t.jpg" }] });
     expect(meta.robots).toEqual({ index: false, follow: false });
   });
 
   it("falls back to a line about the course when there is no excerpt, and a small card without a picture", async () => {
-    publicLessonPreview.mockResolvedValue(preview({ excerpt: null, thumbnailSrc: null }));
+    publicLessonPreview.mockResolvedValue(preview({ excerpt: null, thumbnailSrc: null, thumbnailSize: null }));
     const meta = await generateMetadata(params());
     expect(meta.description).toBe("A lesson in The Ready Writer. Sign in to watch.");
     expect(meta.twitter).toMatchObject({ card: "summary" });
