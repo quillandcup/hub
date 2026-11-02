@@ -154,6 +154,10 @@ export default async function LessonPage({
   // The next lesson, with its thumbnail, for the "keep going" card once this one is complete.
   const nextLesson = neighbors.next && { id: neighbors.next.id, title: neighbors.next.title, thumbnail_url: neighbors.next.thumbnail_url };
 
+  const parent = context?.trail.at(-1);
+  const backHref = parent ? `/courses/${view.course.slug}/modules/${parent.id}` : `/courses/${view.course.slug}`;
+  const backTitle = parent?.title ?? view.course.title;
+
   return (
     <>
       {preview && (
@@ -169,8 +173,8 @@ export default async function LessonPage({
 
       <div className="@container mx-auto w-full max-w-screen-2xl px-6 py-6">
         <nav aria-label="Breadcrumb" className="text-sm text-slate-600 dark:text-slate-400">
-          <Link data-track="lesson-breadcrumb-back" href={(context?.trail ?? []).length ? `/courses/${view.course.slug}/modules/${(context?.trail ?? []).at(-1)!.id}` : `/courses/${view.course.slug}`} className="block truncate hover:underline @pair:hidden">
-            ← {(context?.trail ?? []).at(-1)?.title ?? view.course.title}
+          <Link data-track="lesson-breadcrumb-back" href={backHref} className="block truncate hover:underline @pair:hidden">
+            ← {backTitle}
           </Link>
           <ol className="hidden flex-wrap items-center gap-x-2 gap-y-1 @pair:flex">
             <li>

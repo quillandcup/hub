@@ -388,6 +388,12 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
     expect(screen.getByRole("link", { name: "View the full course outline" })).toHaveAttribute("href", "/courses/the-ready-writer");
   });
 
+  it("backs out to the course when the lesson sits in no module", async () => {
+    loadLessonView.mockResolvedValue(ok({ lesson: { ...lesson("les_AAAAAAAAAAA9", "Loose", 1), body_html: "<p>Hi</p>" } }));
+    await renderServerPage(LessonPage, params("les_AAAAAAAAAAA9"));
+    expect(within(screen.getByRole("navigation", { name: "Breadcrumb" })).getByRole("link", { name: "← The Ready Writer" })).toHaveAttribute("href", "/courses/the-ready-writer");
+  });
+
   it("puts the title and text below the video and its Back / Mark complete / Next controls", async () => {
     signPlaybackTokens.mockResolvedValue({ playback: "p", poster: "t", storyboard: "s" });
     loadLessonView.mockResolvedValue(ok({ video: { status: "ready", playbackId: "pb-1" } }));
