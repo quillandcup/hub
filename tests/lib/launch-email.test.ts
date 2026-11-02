@@ -70,6 +70,29 @@ describe("sendLaunchEmails", () => {
     expect(auth.calls.marked).toEqual(["u1", "u5"]);
   });
 
+  it("reports who was sent, in member-id order, and tells onRecipient as each goes", async () => {
+    const auth = fakeAuth(users());
+    const told: string[] = [];
+    const report = await sendLaunchEmails(auth.api, members(), async () => {}, { apply: true, now: NOW, onRecipient: (r) => told.push(r.memberId) });
+    expect(report.recipients).toEqual([
+      { memberId: "mbr_AAAAAAAAAAA1", name: "Ada Example", email: "ada@example.test" },
+      { memberId: "mbr_AAAAAAAAAAA5", name: "Ed Example", email: "ed@example.test" },
+    ]);
+    expect(told).toEqual(["mbr_AAAAAAAAAAA1", "mbr_AAAAAAAAAAA5"]);
+  });
+
+  it("a dry run lists who would be sent too, without sending", async () => {
+    const auth = fakeAuth(users());
+    const report = await sendLaunchEmails(auth.api, members(), async () => {}, { apply: false, now: NOW });
+    expect(report.recipients.map((r) => r.memberId)).toEqual(["mbr_AAAAAAAAAAA1", "mbr_AAAAAAAAAAA5"]);
+  });
+
+  it("does not list someone whose send failed", async () => {
+    const auth = fakeAuth(users());
+    const report = await sendLaunchEmails(auth.api, members(), async () => { throw new Error("nope"); }, { apply: true, now: NOW });
+    expect(report.recipients).toEqual([]);
+  });
+
   it("is idempotent: a second run sends nothing", async () => {
     const auth = fakeAuth(users());
     const send = async () => {};

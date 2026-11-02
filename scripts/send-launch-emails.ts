@@ -9,8 +9,10 @@
 //   options: --batch=N (default 20)  --pause=SECONDS (default 60)
 //
 // Eligible: active members whose account is released (not banned), who have not signed in and have
-// not had this email. A re-run skips whoever was already sent one. Run `pnpm auth:precreate release`
-// first. Output is counts and member ids only: no emails, no names. Resend's free plan allows 100
+// not had this email. Members go in member-id order, so a run is repeatable, and a re-run skips
+// whoever was already sent one. Run `pnpm auth:precreate release` first. The terminal shows each
+// recipient (name and address) as they are sent, and the summary lists them; the counts and failed
+// member ids are the only other output. Nothing here is saved to a file. Resend's free plan allows 100
 // emails a day: use --limit to stay under what is left.
 
 import { createClient } from "@supabase/supabase-js";
@@ -80,8 +82,11 @@ async function main() {
     onlyEmail,
     batchSize,
     pauseMs: pause === undefined ? undefined : pause * 1000,
+    onRecipient: (r) => console.log(`${apply ? "sent" : "would send"}  ${r.memberId}  ${r.name} <${r.email}>`),
   });
-  console.log(JSON.stringify(report, null, 2));
+  const { recipients, ...counts } = report;
+  console.log(JSON.stringify(counts, null, 2));
+  console.log(`${apply ? "Sent to" : "Would send to"} ${recipients.length}: ${recipients.map((r) => r.name).join(", ") || "nobody"}`);
   if (!apply) console.log("Dry run only. Add --apply to send.");
 }
 
