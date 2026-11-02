@@ -19,6 +19,7 @@ import { getUserTimezonePreference } from "@/lib/timezone";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { clock } from "@/lib/clock";
 import { isId } from "@/lib/ids";
+import { getServiceRepos } from "@/lib/data/server";
 
 export interface PaletteSearch {
   results: KindResults[];
@@ -81,7 +82,7 @@ async function openCheckins(supabase: Searcher["ctx"]["supabase"], memberId: str
     getUnloggedRecentPrickles().catch(() => []),
   ]);
   const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref;
-  const upcoming = await getCheckinPrickles(createRepos(supabase), memberId, timeZone, now).catch(() => []);
+  const upcoming = await getCheckinPrickles(createRepos(supabase), memberId, timeZone, now, getServiceRepos()).catch(() => []);
   const dismissed = await loadDismissedCheckinIds(createRepos(supabase), memberId, upcoming.map((r) => r.prickle.id)).catch(() => new Set<string>());
   const ins: Suggestion[] = upcoming
     .filter((r) => !dismissed.has(r.prickle.id))

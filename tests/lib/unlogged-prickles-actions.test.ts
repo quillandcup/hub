@@ -15,6 +15,10 @@ vi.mock("@/lib/data/repos", async () => ({
   ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
   createRepos: () => repos,
 }));
+// Live presence is read with the service role (the participant events table is service role only); unless a test gives
+// the service role its own data, it is the same twin.
+let serviceRepos: ReturnType<typeof createInMemoryRepos> | null = null;
+vi.mock("@/lib/data/server", () => ({ getServiceRepos: () => serviceRepos ?? repos }));
 
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
@@ -164,6 +168,18 @@ describe("getUnloggedRecentPrickles from live presence", () => {
     useClient();
 
     expect((await getUnloggedRecentPrickles()).map((p) => p.id)).toEqual(["p-here"]);
+  });
+
+  it("reads presence with the service role, since the member's own access can't see the participant events", async () => {
+    repos = world([sprint("p-here", 3, 2)], []);
+    serviceRepos = world([sprint("p-here", 3, 2)], [event("1", "joined", 2.9), event("2", "left", 2.1)]);
+    useClient();
+
+    try {
+      expect((await getUnloggedRecentPrickles()).map((p) => p.id)).toEqual(["p-here"]);
+    } finally {
+      serviceRepos = null;
+    }
   });
 
   it("leaves out social prickles, ones still running and ones the member left before", async () => {

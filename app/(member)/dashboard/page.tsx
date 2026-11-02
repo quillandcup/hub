@@ -23,6 +23,7 @@ import ContinueWatchingCard from "@/components/courses/ContinueWatchingCard";
 import { getCoursesCaller } from "@/lib/courses/caller";
 import { loadContinueWatching } from "@/lib/courses/member";
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import { getServiceRepos } from "@/lib/data/server";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -52,7 +53,7 @@ export default async function DashboardPage() {
   // Everything below that does not need another result starts together. Chains inside the batch:
   // the ranking -> the dismissed check-ins of the rows shown, the Big Sister flag -> the
   // mentorships -> their Slack links, the courses caller -> continue watching.
-  const rankedAndDismissed = getRankedUpcomingPrickles(repos, memberId, timeZone, now, UPCOMING_WINDOW_DAYS).then(
+  const rankedAndDismissed = getRankedUpcomingPrickles(repos, memberId, timeZone, now, UPCOMING_WINDOW_DAYS, getServiceRepos()).then(
     async (ranked) => ({
       ranked,
       dismissedCheckins: await loadDismissedCheckinIds(

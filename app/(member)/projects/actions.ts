@@ -45,6 +45,7 @@ import {
 } from "@/lib/prickle-writing";
 
 import { withAction } from "@/lib/analytics/server";
+import { getServiceRepos } from "@/lib/data/server";
 const PHASES = PROJECT_PHASES;
 type Phase = ProjectPhase;
 
@@ -1000,7 +1001,7 @@ export async function getUnloggedRecentPrickles(): Promise<PrickleOption[]> {
       prickleStartedSince: since,
     }),
     // Prickles that just ended and are not in the attendance yet; best effort, the DM covers them too.
-    recentPresentPrickles(repos, effectiveIdentity.memberId, new Date()).catch((error) => {
+    recentPresentPrickles(repos, effectiveIdentity.memberId, new Date(), getServiceRepos()).catch((error) => {
       console.error("Could not read live presence for the unlogged prickles:", error instanceof Error ? error.message : error);
       return [];
     }),

@@ -13,7 +13,7 @@ import type { PrickleDetail } from "@/lib/data/prickles";
 import { createNotifier } from "@/lib/notifications/notify";
 import { resolveInAppNotifications } from "@/lib/channels/in-app";
 import type { ChannelId, OutboundMessage } from "@/lib/channels";
-import { loadPresenceByMember, presenceDue, type PresenceInterval } from "@/lib/zoom-presence";
+import { loadPresenceByMember, presenceDue, type PresenceInterval, type PresenceRepos } from "@/lib/zoom-presence";
 import {
   checkinAnswered,
   checkinHref,
@@ -628,14 +628,15 @@ const PRESENCE_LOOKBEHIND_MS = 12 * 60 * 60 * 1000;
 export async function recentPresentPrickles(
   repos: Pick<Repos, "aliases" | "members" | "prickles" | "zoom">,
   memberId: string,
-  now: Date
+  now: Date,
+  presenceRepos: PresenceRepos = repos
 ): Promise<PrickleDetail[]> {
   const since = now.getTime() - CHECKOUT_LOOKBACK_MS;
   const ended = (await repos.prickles.startingBetween({ from: new Date(since).toISOString(), to: now.toISOString() })).filter(
     (p) => p.type?.purpose === "writing" && new Date(p.endTime).getTime() <= now.getTime()
   );
   if (ended.length === 0) return [];
-  const intervals = (await loadPresenceByMember(repos, new Date(since - PRESENCE_LOOKBEHIND_MS), now)).get(memberId) ?? [];
+  const intervals = (await loadPresenceByMember(presenceRepos, new Date(since - PRESENCE_LOOKBEHIND_MS), now)).get(memberId) ?? [];
   return ended
     .filter((p) => {
       const start = new Date(p.startTime).getTime();
