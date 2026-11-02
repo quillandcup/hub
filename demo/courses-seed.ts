@@ -135,6 +135,9 @@ const COURSES: DemoCourse[] = [
 
 const DAY = 86_400_000;
 
+/** The setting that gives each state. The database works the state out from the setting (and what is above it) when a Hub-owned row is added, whatever state the insert says, and a row with no setting is a draft. */
+const SETTING: Record<State, string> = { open: "published", coming_soon: "locked", hidden: "draft" };
+
 function must<T>(result: { data: T; error: { message: string } | null }, what: string): NonNullable<T> {
   if (result.error || result.data === null || result.data === undefined) throw new Error(`${what}: ${result.error?.message ?? "no data"}`);
   return result.data;
@@ -170,7 +173,7 @@ export async function seedCourses(admin: SupabaseClient, memberId: string, now: 
       const moduleRow = must(
         await admin
           .from("course_modules")
-          .insert({ course_id: courseId, parent_id: parentId, title: mod.title, position: position++, state, source: "hub", source_key: `${DEMO_COURSE_SOURCE_PREFIX}${course.key}-${mod.key}` })
+          .insert({ course_id: courseId, parent_id: parentId, title: mod.title, position: position++, publishing_option: SETTING[state], source: "hub", source_key: `${DEMO_COURSE_SOURCE_PREFIX}${course.key}-${mod.key}` })
           .select("id")
           .single(),
         `module ${mod.key}`,
@@ -199,7 +202,7 @@ export async function seedCourses(admin: SupabaseClient, memberId: string, now: 
               module_id: moduleId,
               title: lesson.title,
               position: position++,
-              state: lessonState,
+              publishing_option: SETTING[lessonState],
               body_html: lesson.body ?? null,
               excerpt: lessonExcerpt(lesson.body),
               video_id: videoId,
