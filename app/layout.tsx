@@ -9,6 +9,7 @@ import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import { EnvironmentIndicator } from "@/components/EnvironmentIndicator";
+import { AnimationsController } from "@/components/AnimationsController";
 import { ConsentBanner } from "@/components/ConsentBanner";
 import { AnalyticsIdentity } from "@/components/AnalyticsIdentity";
 import { AnalyticsEvents } from "@/components/AnalyticsEvents";
@@ -84,6 +85,7 @@ export default async function RootLayout({
           disableTransitionOnChange
         >
           <EnvironmentIndicator />
+          <AnimationsController />
           {children}
         </ThemeProvider>
         <SessionReplay needsConsent={eventsNeedConsent} optedOut={optedOut} />

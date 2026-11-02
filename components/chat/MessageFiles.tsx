@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { deleteChatFile } from "@/app/(member)/chat/actions";
+import { useAnimationsOff } from "@/components/AnimationsController";
 import ImageLightbox from "@/components/ImageLightbox";
 import { chatFileUrl, chatZipUrl, formatFileSize, isInlineImage, type ChatFile } from "@/lib/chat/files";
 
@@ -31,6 +32,9 @@ function ImageTile({
   onOpen: () => void;
 }) {
   const [menu, setMenu] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const animationsOff = useAnimationsOff();
+  const moves = /gif|webp/i.test(file.mimetype ?? "");
   const url = chatFileUrl(messageId, file.id);
   const absolute = () => new URL(url, window.location.origin).toString();
 
@@ -58,9 +62,27 @@ function ImageTile({
           width={file.width ?? undefined}
           height={file.height ?? undefined}
           loading="lazy"
+          data-animated={moves ? "" : undefined}
+          data-playing={animationsOff && playing ? "" : undefined}
           className="block h-auto max-h-48 w-auto max-w-full"
         />
       </button>
+      {animationsOff && moves && (
+        <button
+          type="button"
+          onClick={() => setPlaying((p) => !p)}
+          aria-label={playing ? `Pause ${file.name ?? "image"}` : `Play ${file.name ?? "image"}`}
+          aria-pressed={playing}
+          data-track="chat-gif-play"
+          className={
+            playing
+              ? "absolute bottom-1 left-1 flex h-7 w-7 items-center justify-center rounded-full bg-slate-900/70 text-xs text-white"
+              : "absolute left-1/2 top-1/2 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-slate-900/80 text-xl text-white"
+          }
+        >
+          <span aria-hidden>{playing ? "❚❚" : "▶"}</span>
+        </button>
+      )}
       {canDelete && (
         <button
           type="button"

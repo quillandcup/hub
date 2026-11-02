@@ -43,3 +43,14 @@ select:not([multiple]):not([size]) {
   background-size: 1.25em 1.25em;
   padding-right: 2.25rem;
 }
+
+/* "Allow animations" off (Settings > Preferences, or the device's reduce-motion): no keyframe
+   animation or transition; a spinner or skeleton just sits still. GIFs are frozen by
+   components/AnimationsController. */
+html[data-animations="off"] *,
+html[data-animations="off"] *::before,
+html[data-animations="off"] *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
