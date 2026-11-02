@@ -36,12 +36,33 @@ test("with animations off a GIF waits for play and an animated emoji is a still"
   await expect(page.getByRole("button", { name: "Pause party-disc.gif" })).toBeVisible();
   await expect(gif).toHaveAttribute("src", /\/api\/chat\/files\//);
   await shot(page, testInfo, "playing", { checks: false });
+
+  // Regression: the pause icon was stuck over a playing GIF because clicking it left it focused and the icon also
+  // showed on focus. It belongs to hover (and keyboard focus) only: gone with the mouse away, back on hover.
+  // A touch screen has no hover, so there the icon stays (nothing else would say that a tap pauses).
+  const icon = page.getByTestId("gif-state-icon");
+  const away = (await page.evaluate(() => window.matchMedia("(hover: none)").matches)) ? "1" : "0";
+  await expect(icon).toHaveText("❚❚");
+  await page.mouse.move(2, 2);
+  await expect(icon).toHaveCSS("opacity", away);
+  await gif.hover();
+  await expect(icon).toHaveCSS("opacity", "1");
+  await page.mouse.move(2, 2);
+  await expect(icon).toHaveCSS("opacity", away);
+  // Paused, the play icon always shows.
+  await page.getByRole("button", { name: "Pause party-disc.gif" }).click();
+  await page.mouse.move(2, 2);
+  await expect(icon).toHaveText("▶");
+  await expect(icon).toHaveCSS("opacity", "1");
+  await page.getByRole("button", { name: "Play party-disc.gif" }).click();
+  await page.mouse.move(2, 2);
+  await expect(icon).toHaveCSS("opacity", away);
   await page.getByRole("button", { name: "Pause party-disc.gif" }).click();
   await expect(gif).toHaveAttribute("src", STILL);
   await expect(page.getByRole("button", { name: "Play party-disc.gif" })).toBeVisible();
 
   // Expand still opens the picture larger.
-  await page.getByRole("button", { name: "Expand party-disc.gif" }).click({ force: true });
+  await page.getByRole("button", { name: "Expand party-disc.gif" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await shot(page, testInfo, "expanded", { checks: false });
   await page.keyboard.press("Escape");

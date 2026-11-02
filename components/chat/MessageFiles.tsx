@@ -7,8 +7,7 @@ import { useAnimationsOff } from "@/components/AnimationsController";
 import ImageLightbox from "@/components/ImageLightbox";
 import { chatFileUrl, chatZipUrl, formatFileSize, isInlineImage, type ChatFile } from "@/lib/chat/files";
 
-const iconBtn =
-  "inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700";
+const iconBtn = "inline-flex h-6 w-6 items-center justify-center rounded text-sm text-white hover:bg-white/20";
 
 function triggerDownload(href: string, name: string | null) {
   const a = document.createElement("a");
@@ -59,7 +58,7 @@ function ImageTile({
   };
 
   return (
-    <div className="group relative shrink-0 overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700" data-testid="message-image">
+    <div className="group relative shrink-0 rounded-lg border border-slate-200 dark:border-slate-700" data-testid="message-image">
       {/* Animations off: the picture itself plays and pauses (Expand is in the toolbar); otherwise it enlarges. */}
       <button
         type="button"
@@ -67,7 +66,7 @@ function ImageTile({
         aria-label={stills ? `${playing ? "Pause" : "Play"} ${file.name ?? "image"}` : `Enlarge ${file.name ?? "image"}`}
         aria-pressed={stills ? playing : undefined}
         data-track={stills ? "chat-gif-play" : "chat-file-open"}
-        className="block"
+        className="block overflow-hidden rounded-lg"
       >
         {/* eslint-disable-next-line @next/next/no-img-element -- served through the access-checked chat files route, not an optimizable asset */}
         <img
@@ -82,26 +81,19 @@ function ImageTile({
         />
         {stills && (
           <span
+            data-testid="gif-state-icon"
             aria-hidden
             className={`pointer-events-none absolute left-1/2 top-1/2 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-slate-900/80 text-xl text-white ${
-              playing ? "opacity-0 group-hover:opacity-100 group-has-[:focus-visible]:opacity-100" : ""
+              // Playing: shown on hover or keyboard focus; a touch screen has no hover, so there it stays, or nothing says a tap pauses.
+              playing ? "opacity-0 group-hover:opacity-100 group-has-[:focus-visible]:opacity-100 [@media(hover:none)]:opacity-100" : ""
             }`}
           >
             {playing ? "❚❚" : "▶"}
           </span>
         )}
       </button>
-      {canDelete && (
-        <button
-          type="button"
-          aria-label={`Remove ${file.name ?? "image"}`}
-          onClick={() => onDelete(file)}
-          className="absolute right-1 top-1 hidden h-6 w-6 items-center justify-center rounded-full bg-white/90 text-sm shadow group-focus-within:flex group-hover:flex dark:bg-slate-800/90"
-        >
-          ×
-        </button>
-      )}
-      <div className="absolute bottom-1 left-1 hidden items-center gap-0.5 rounded-md bg-white/95 p-0.5 shadow group-focus-within:flex group-hover:flex dark:bg-slate-800/95">
+      {/* Slack's layout: a small dark group in the top-right corner, clear of the picture's middle; delete is in More. */}
+      <div className="absolute right-1.5 top-1.5 hidden items-center gap-0.5 rounded-md bg-slate-900/70 p-0.5 group-focus-within:flex group-hover:flex">
         {stills && (
           <button type="button" aria-label={`Expand ${file.name ?? "image"}`} title="Expand" data-track="chat-file-open" onClick={onOpen} className={iconBtn}>
             🔍
@@ -115,7 +107,7 @@ function ImageTile({
             ⋮
           </button>
           {menu && (
-            <div role="menu" className="absolute bottom-full left-0 z-10 mb-1 w-40 rounded-md border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800">
+            <div role="menu" className="absolute right-0 top-full z-10 mt-1 w-40 rounded-md border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800">
               <button role="menuitem" type="button" className={item} onClick={close(() => navigator.clipboard.writeText(absolute()))}>
                 Copy link
               </button>
