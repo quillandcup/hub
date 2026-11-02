@@ -149,6 +149,17 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     expect(within(screen.getByRole("form", { name: "Lesson builder" })).getByRole("combobox", { name: "Select module" })).toBeDisabled();
   });
 
+  it("lets a Hub-owned lesson be deleted from its page, and keeps an imported lesson's button off", async () => {
+    loadAdminLesson.mockResolvedValue(detail({ editable: true }));
+    const { unmount } = await renderServerPage(AdminLessonPage, params);
+    expect(screen.getByRole("button", { name: "Delete lesson" })).toBeEnabled();
+    unmount();
+
+    loadAdminLesson.mockResolvedValue(detail({ editable: false }));
+    await renderServerPage(AdminLessonPage, params);
+    expect(screen.getByRole("button", { name: "Delete lesson" })).toBeDisabled();
+  });
+
   it("gives a Hub-owned lesson an editor for its text, and an imported one only the text", async () => {
     loadAdminLesson.mockResolvedValue(detail({ editable: true }, { bodyHtml: "<p>Hey Hedgies</p>" }));
     const { unmount } = await renderServerPage(AdminLessonPage, params);
