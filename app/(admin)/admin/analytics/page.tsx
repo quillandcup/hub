@@ -7,6 +7,8 @@ import { FUNNELS, WINDOW_DAYS, parseWindowDays } from "@/lib/analytics/funnels";
 import { FunnelBars } from "@/components/admin/FunnelBars";
 import { AudienceFilter } from "@/components/admin/AudienceFilter";
 import { audienceQuery, audienceRpcArgs, parseAudience } from "@/lib/analytics/audience";
+import { ORG_TIMEZONE } from "@/lib/config";
+import { ChatAdoption } from "./ChatAdoption";
 
 export const metadata: Metadata = {
   title: "Feature Usage",
@@ -84,8 +86,10 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
   const since = new Date(clock.now() - days * DAY_MS).toISOString();
 
   const supabase = await createClient();
-  const [adoptionResult, summary, topClicks, controlRates, actionOutcomes, notificationRates, ...funnels] = await Promise.all([
+  const [adoptionResult, chatWeekly, chatPeople, summary, topClicks, controlRates, actionOutcomes, notificationRates, ...funnels] = await Promise.all([
     supabase.rpc("admin_adoption_summary"),
+    supabase.rpc("admin_chat_adoption_weekly", { p_since: since, p_timezone: ORG_TIMEZONE }),
+    supabase.rpc("admin_chat_adoption_people", { p_since: since }),
     supabase.rpc("analytics_event_summary", { since, ...audienceArgs }),
     supabase.rpc("analytics_top_clicks", { since, route_prefix: routePrefix as string, hide_admin: !showAdmin, ...audienceArgs }),
     supabase.rpc("analytics_control_rates", { since, route_prefix: routePrefix as string, hide_admin: !showAdmin, ...audienceArgs }),
@@ -100,7 +104,7 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
   const actions = (actionOutcomes.data ?? []) as ActionRow[];
   const notifications = (notificationRates.data ?? []) as NotificationRow[];
   const adoption = adoptionResult.data?.[0] ?? null;
-  const error = adoptionResult.error ?? summary.error ?? topClicks.error ?? controlRates.error ?? actionOutcomes.error ?? notificationRates.error ?? funnels.find((f) => f.error)?.error;
+  const error = adoptionResult.error ?? chatWeekly.error ?? chatPeople.error ?? summary.error ?? topClicks.error ?? controlRates.error ?? actionOutcomes.error ?? notificationRates.error ?? funnels.find((f) => f.error)?.error;
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-8">
@@ -160,6 +164,10 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
             </dl>
           </div>
         </section>
+      )}
+
+      {chatWeekly.data && chatPeople.data && (
+        <ChatAdoption weekly={chatWeekly.data} people={chatPeople.data} days={days} />
       )}
 
       {FUNNELS.map((funnel, i) => {
