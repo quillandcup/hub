@@ -165,9 +165,13 @@ describe('Kajabi lesson comments capture idempotency', () => {
     pages.set(L1, { kind: 'noList', hasCommentBox: false, locked: true })
     pages.set(L2, { kind: 'noList', hasCommentBox: true })
     pages.set(L3, { kind: 'noList', hasCommentBox: false })
-    const summary = await run([L1, L2, L3])
+    const logged: string[] = []
+    const summary = await run([L1, L2, L3], { log: (line: string) => logged.push(line) })
     expect(summary).toMatchObject({ lessonsLocked: 1, lessonsNoComments: 1, lessonsWithoutList: 1, lessonsFailed: 0, lessonsCaptured: 0, rows: { written: 0, unchanged: 0, removed: 0 } })
     expect([await rows(L1), await rows(L2)]).toEqual(before)
+    // Only the lesson that is none of the expected cases is named, so it can be opened and looked at.
+    expect(logged.filter((l) => l.includes(L3) && l.includes('no comments list, no comment box and no lock notice'))).toHaveLength(1)
+    expect(logged.some((l) => l.includes(L1) || l.includes(L2))).toBe(false)
   })
 
   it('does not remove comments when the page shows more than was read, and reports the mismatch', async () => {
