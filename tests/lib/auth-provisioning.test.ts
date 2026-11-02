@@ -54,6 +54,17 @@ describe("provisionAuthUsers", () => {
     expect(members.find((m) => m.id === "mbr_AAAAAAAAAAA3")?.userId).toBeNull();
   });
 
+  it("creates at most `limit` users and counts the rest as deferred; a second run finishes them", async () => {
+    const { repos, auth } = setup(fakeAuth());
+    const first = await provisionAuthUsers(auth.api, repos, { apply: true, limit: 1 });
+    expect(first).toMatchObject({ created: 1, deferred: 2 });
+    expect(auth.calls.create).toHaveLength(1);
+
+    const second = await provisionAuthUsers(auth.api, repos, { apply: true });
+    expect(second).toMatchObject({ created: 2, deferred: 0 });
+    expect(auth.calls.create).toHaveLength(3);
+  });
+
   it("never bans a member whose auth user is an admin", async () => {
     const { data, repos, auth } = setup(fakeAuth());
     data.members[0].userId = "admin-1";

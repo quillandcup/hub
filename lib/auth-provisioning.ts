@@ -28,6 +28,8 @@ export type ProvisionReport = {
   /** Members considered (active or on hiatus). */
   considered: number;
   created: number;
+  /** Missing users not created because `limit` was reached; the next run creates them. */
+  deferred: number;
   createdBanned: number;
   alreadyExisted: number;
   linked: number;
@@ -74,9 +76,9 @@ async function loadContext(auth: AdminAuthApi, repos: ProvisioningRepos) {
 }
 
 /** Creates the missing auth users (banned) and links members to existing ones. Idempotent; sends no email. */
-export async function provisionAuthUsers(auth: AdminAuthApi, repos: ProvisioningRepos, options: { apply: boolean }): Promise<ProvisionReport> {
+export async function provisionAuthUsers(auth: AdminAuthApi, repos: ProvisioningRepos, options: { apply: boolean; limit?: number }): Promise<ProvisionReport> {
   const { active, hiatus, byEmail, byId, adminIds } = await loadContext(auth, repos);
-  const report: ProvisionReport = { considered: 0, created: 0, createdBanned: 0, alreadyExisted: 0, linked: 0, unbannedStaff: 0, skipped: 0, failed: 0, failedMemberIds: [] };
+  const report: ProvisionReport = { considered: 0, created: 0, deferred: 0, createdBanned: 0, alreadyExisted: 0, linked: 0, unbannedStaff: 0, skipped: 0, failed: 0, failedMemberIds: [] };
   const fail = (id: string) => {
     report.failed++;
     report.failedMemberIds.push(id);
@@ -103,6 +105,10 @@ export async function provisionAuthUsers(auth: AdminAuthApi, repos: Provisioning
     }
     if (!email) {
       report.skipped++;
+      continue;
+    }
+    if (options.limit !== undefined && report.created >= options.limit) {
+      report.deferred++;
       continue;
     }
     const isStaff = member.staffRole !== null || (member.userId !== null && adminIds.has(member.userId));

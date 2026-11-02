@@ -4,6 +4,7 @@
 //
 //   pnpm auth:precreate                     plan: dry run, counts only (default)
 //   pnpm auth:precreate create --apply      create the missing users (banned) and link members
+//   pnpm auth:precreate create --apply --limit=3   create at most 3, a trial before the rest
 //   pnpm auth:precreate release --apply     clear the ban of active members (never on_hiatus)
 //
 // Targets whatever NEXT_PUBLIC_SUPABASE_URL the env files say (.env.prod via the package script).
@@ -17,6 +18,12 @@ import { provisionAuthUsers, releaseAuthUsers, type AdminAuthApi } from "@/lib/a
 const args = process.argv.slice(2);
 const apply = args.includes("--apply");
 const command = args.find((a) => !a.startsWith("--")) ?? "plan";
+const limitArg = args.find((a) => a.startsWith("--limit="));
+const limit = limitArg ? Number(limitArg.slice("--limit=".length)) : undefined;
+if (limit !== undefined && (!Number.isInteger(limit) || limit < 1)) {
+  console.error("--limit must be a positive whole number.");
+  process.exit(1);
+}
 if (!["plan", "create", "release"].includes(command)) {
   console.error(`Unknown subcommand "${command}". Use plan, create or release.`);
   process.exit(1);
@@ -37,7 +44,7 @@ async function main() {
   console.log(`Target: ${new URL(url!).host}`);
   console.log(`Mode: ${command}${write ? " --apply (WRITES)" : " (dry run, nothing is written)"}`);
   if (command === "release") console.log(JSON.stringify(await releaseAuthUsers(auth, repos, { apply: write }), null, 2));
-  else console.log(JSON.stringify(await provisionAuthUsers(auth, repos, { apply: write }), null, 2));
+  else console.log(JSON.stringify(await provisionAuthUsers(auth, repos, { apply: write, limit }), null, 2));
   if (command !== "plan" && !apply) console.log("Dry run only. Add --apply to write.");
 }
 
