@@ -35,6 +35,8 @@ export type LaunchOptions = {
   apply: boolean;
   /** Send at most this many in this run. */
   limit?: number;
+  /** Only this member's address (compared case-insensitively), when eligible; for a first send to one person. */
+  onlyEmail?: string;
   batchSize?: number;
   /** Pause between batches, in milliseconds. */
   pauseMs?: number;
@@ -70,6 +72,7 @@ export async function sendLaunchEmails(
   options: LaunchOptions
 ): Promise<LaunchReport> {
   const { batchSize = 20, pauseMs = 60_000 } = options;
+  const only = options.onlyEmail ? options.onlyEmail.trim().toLowerCase() : null;
   const now = (options.now ?? new Date()).getTime();
   const [active, users] = await Promise.all([members.list({ status: "active" }), listAllAuthUsers(auth)]);
   const byId = new Map<string, LaunchUser>();
@@ -83,6 +86,7 @@ export async function sendLaunchEmails(
   let sentInBatch = 0;
 
   for (const member of active) {
+    if (only && norm(member.email) !== only) continue;
     report.considered++;
     const email = norm(member.email);
     const user = (member.userId ? byId.get(member.userId) : undefined) ?? (email ? byEmail.get(email) : undefined);

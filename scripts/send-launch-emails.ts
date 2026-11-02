@@ -5,6 +5,7 @@
 //   pnpm launch:email --test                  send ONE email, rendered for a sample code, to EMAIL_DEV_ADDRESS; marks nobody
 //   pnpm launch:email --apply --limit=2       really send at most 2
 //   pnpm launch:email --apply                 really send to everyone eligible, 20 at a time, a minute apart
+//   pnpm launch:email --apply --only=someone@example.com   really send to that one member (if eligible)
 //   options: --batch=N (default 20)  --pause=SECONDS (default 60)
 //
 // Eligible: active members whose account is released (not banned), who have not signed in and have
@@ -21,10 +22,10 @@ import { LAUNCH_EMAIL_SUBJECT, renderLaunchEmail, sendLaunchEmails, type LaunchA
 const args = process.argv.slice(2);
 const apply = args.includes("--apply");
 const testOnly = args.includes("--test");
-const known = (a: string) => a === "--apply" || a === "--test" || /^--(limit|batch|pause)=/.test(a);
+const known = (a: string) => a === "--apply" || a === "--test" || /^--(limit|batch|pause|only)=/.test(a);
 const unknown = args.find((a) => !known(a));
 if (unknown) {
-  console.error(`Unknown argument ${unknown}. Use --test, --apply, --limit=N, --batch=N, --pause=SECONDS.`);
+  console.error(`Unknown argument ${unknown}. Use --test, --apply, --limit=N, --only=EMAIL, --batch=N, --pause=SECONDS.`);
   process.exit(1);
 }
 const num = (name: string): number | undefined => {
@@ -37,6 +38,12 @@ const num = (name: string): number | undefined => {
   }
   return n;
 };
+const onlyArg = args.find((a) => a.startsWith("--only="));
+const onlyEmail = onlyArg ? onlyArg.slice("--only=".length).trim() : undefined;
+if (onlyArg && !onlyEmail?.includes("@")) {
+  console.error("--only needs an email address.");
+  process.exit(1);
+}
 const limit = num("limit");
 const batchSize = num("batch");
 const pause = num("pause");
@@ -70,6 +77,7 @@ async function main() {
   const report = await sendLaunchEmails(auth, createRepos(db).members, sendEmail, {
     apply,
     limit,
+    onlyEmail,
     batchSize,
     pauseMs: pause === undefined ? undefined : pause * 1000,
   });

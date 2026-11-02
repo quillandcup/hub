@@ -88,6 +88,21 @@ describe("sendLaunchEmails", () => {
     expect(auth.calls.marked).toEqual([]);
   });
 
+  it("with onlyEmail, considers and sends to that one member only (any letter case), and marks only them", async () => {
+    const auth = fakeAuth(users());
+    const sent: string[] = [];
+    const report = await sendLaunchEmails(auth.api, members(), async (m) => void sent.push(m.to), { apply: true, onlyEmail: " ED@example.test ", now: NOW });
+    expect(sent).toEqual(["ed@example.test"]);
+    expect(report).toMatchObject({ considered: 1, sent: 1 });
+    expect(auth.calls.marked).toEqual(["u5"]);
+  });
+
+  it("with onlyEmail for someone not eligible, sends nothing", async () => {
+    const auth = fakeAuth(users());
+    const report = await sendLaunchEmails(auth.api, members(), async () => {}, { apply: true, onlyEmail: "bo@example.test", now: NOW });
+    expect(report).toMatchObject({ considered: 1, sent: 0, stillBanned: 1 });
+  });
+
   it("stops at --limit and defers the rest to the next run", async () => {
     const auth = fakeAuth(users());
     const report = await sendLaunchEmails(auth.api, members(), async () => {}, { apply: true, limit: 1, now: NOW });
