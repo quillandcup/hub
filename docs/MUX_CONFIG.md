@@ -41,6 +41,8 @@ Rotating means deleting the webhook in the dashboard and running `push` again.
 
 **When `diff` says "create" but a webhook already exists.** The check compares addresses leniently (host case, a trailing slash and a default port do not count as different), and lists each webhook it does not manage by address (scheme, host and path only: credentials and any query are never shown). If it still says "create" and lists exactly one other webhook that is this app's, at an old or different address, **do not push**: that would create a second webhook and every event would be delivered twice. Run `pnpm mux:config:diff --adopt` to see it move to the configured address, then `pnpm mux:config:push --adopt`. Moving a webhook keeps its signing secret, so `MUX_WEBHOOK_SECRET` stays valid and nothing needs syncing.
 
+**When the only other webhook is a developer tunnel** (an `ngrok`, `loca.lt` or `trycloudflare.com` address, or localhost), it is someone's local setup, not production's. The script says so, refuses `--adopt` for it, and you should not push. The usual cause: a Mux account has several environments (for example Production and Development), a token belongs to one of them, and the System token was created in a different environment from `MUX_TOKEN_ID`. In the dashboard, switch environments until Settings, Access Tokens shows the token whose id is in `MUX_TOKEN_ID`, and create the System token there; its Settings, Webhooks page should list the production address.
+
 **Which token does what.** Webhooks use the System token (`MUX_SYSTEM_TOKEN_ID` / `_SECRET`). The playback restriction is part of Mux Video, so it uses the app token (`MUX_TOKEN_ID` / `_SECRET`): the System token is refused there.
 
 ## A developer's own webhook (`--dev`)

@@ -6,6 +6,7 @@ import {
   describeAddress,
   devWebhookAddress,
   envValue,
+  looksLikeTunnel,
   normalizeAddress,
   sameAddress,
   parseMuxConfig,
@@ -176,5 +177,24 @@ describe("webhook addresses", () => {
       to: want,
     });
     expect(planWebhook(want, [hook("https://a.test/x"), hook("https://b.test/x", true, "w2")], { adoptSingle: true }).kind).toBe("create");
+  });
+});
+
+describe("developer tunnels", () => {
+  it("recognises the usual tunnel hosts and localhost, and not a real app address", () => {
+    for (const address of [
+      "https://raffle-wisplike-easing.ngrok-free.dev/api/webhooks/mux",
+      "https://abc.ngrok.io/x",
+      "https://abc.ngrok-free.app/x",
+      "https://my-name.loca.lt/x",
+      "https://random-words.trycloudflare.com/x",
+      "http://localhost:3000/api/webhooks/mux",
+      "http://127.0.0.1:3000/x",
+    ]) {
+      expect(looksLikeTunnel(address), address).toBe(true);
+    }
+    for (const address of ["https://hub.example.com/api/webhooks/mux", "https://hub.example.com/ngrok.io", "https://notngrok.io.example.com/x", "not a url", ""]) {
+      expect(looksLikeTunnel(address), address).toBe(false);
+    }
   });
 });
