@@ -16,6 +16,7 @@ function upcoming(id: string, startTime: string, opts: Partial<UpcomingPrickle> 
     typeId: "t1",
     typeName: "Writing",
     startTime,
+    endTime: new Date(Date.parse(startTime) + 60 * 60 * 1000).toISOString(),
     hostId: `host-${id}`,
     hostName: `Host ${id}`,
     dayOfWeek: "Tuesday",

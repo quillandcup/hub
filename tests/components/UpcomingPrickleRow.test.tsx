@@ -3,7 +3,6 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import UpcomingPrickleRow, { CHECKIN_SOON_MS } from "@/components/UpcomingPrickleRow";
-import { CHECKIN_GRACE_MS } from "@/lib/upcoming-prickles";
 import type { HighlightReason, UpcomingPrickle } from "@/lib/upcoming-prickles";
 
 vi.mock("@/app/(member)/my-prickles/calendar-feed-actions", () => ({
@@ -14,12 +13,14 @@ vi.mock("@/app/(member)/my-prickles/calendar-feed-actions", () => ({
 import { addPrickleToMyCalendar } from "@/app/(member)/my-prickles/calendar-feed-actions";
 
 const NOW = Date.parse("2026-10-05T15:00:00Z");
+const HOUR = 60 * 60 * 1000;
 const prickle = (startsInMs: number) =>
   ({
     id: "p1",
     typeName: "Progress Prickle",
     hostName: "Jenn Parker",
     startTime: new Date(NOW + startsInMs).toISOString(),
+    endTime: new Date(NOW + startsInMs + HOUR).toISOString(),
   }) as UpcomingPrickle;
 
 const TIED: HighlightReason[] = [{ kind: "calendar", tooltip: ["You added this one"] }];
@@ -41,13 +42,13 @@ describe("UpcomingPrickleRow check-in pill", () => {
     expect(screen.queryByRole("link", { name: /Check in/ })).not.toBeInTheDocument();
   });
 
-  it("still offers Check in → while the prickle is in its first 18 minutes", () => {
-    renderRow(-(CHECKIN_GRACE_MS - 60_000));
+  it("still offers Check in → while the prickle is running, up to its end", () => {
+    renderRow(-(HOUR - 60_000));
     expect(screen.getByRole("link", { name: "Check in →" })).toBeInTheDocument();
   });
 
-  it("has no pill once the first 18 minutes have passed", () => {
-    renderRow(-(CHECKIN_GRACE_MS + 60_000));
+  it("has no pill once the prickle has ended", () => {
+    renderRow(-(HOUR + 60_000));
     expect(screen.queryByRole("link", { name: /Check in/ })).not.toBeInTheDocument();
   });
 
