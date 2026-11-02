@@ -34,7 +34,7 @@ export default async function AdminLayout({
   const timeZone = await getViewerTimeZone();
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-canvas dark:bg-slate-950">
+    <div className="relative flex h-dvh overflow-hidden bg-canvas dark:bg-slate-950">
       <AdminNavigation enabledFeatures={enabledFeatures} navMode={isNavMode(profile?.nav_mode) ? profile.nav_mode : null} />
       <div className="flex flex-col flex-1 min-w-0">
         <WithInAppNotifications identity={identity}>
