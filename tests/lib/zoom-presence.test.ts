@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  CHECKOUT_AFTER_END_MS,
+  CHECKOUT_BEFORE_END_MS,
   EARLY_LEAVE_GRACE_MS,
   loadPresenceByMember,
   pairIntervals,
@@ -68,10 +68,12 @@ describe("presenceDue", () => {
   const start = t("11:00");
   const end = t("12:00");
 
-  it("is due CHECKOUT_AFTER_END_MS after the end for anyone who was there", () => {
+  it("is due CHECKOUT_BEFORE_END_MS before the end for anyone in the room, and after it", () => {
     const stayed = [{ join: t("10:50"), leave: null }];
-    expect(presenceDue(stayed, start, end, end + CHECKOUT_AFTER_END_MS - 1)).toBe(false);
-    expect(presenceDue(stayed, start, end, end + CHECKOUT_AFTER_END_MS)).toBe(true);
+    expect(CHECKOUT_BEFORE_END_MS).toBe(10 * 60 * 1000);
+    expect(presenceDue(stayed, start, end, end - CHECKOUT_BEFORE_END_MS - 1)).toBe(false);
+    expect(presenceDue(stayed, start, end, end - CHECKOUT_BEFORE_END_MS)).toBe(true);
+    expect(presenceDue(stayed, start, end, end + 60 * 60 * 1000)).toBe(true);
   });
 
   it("is due EARLY_LEAVE_GRACE_MS after an early leave, if they haven't come back", () => {

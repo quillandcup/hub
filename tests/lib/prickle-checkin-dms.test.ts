@@ -115,10 +115,11 @@ describe("dueCheckoutMembers", () => {
   const due = (presence: Record<string, { join: number; leave: number | null }[]>, now: number, attendance: string[] = []) =>
     [...(dueCheckoutMembers([P], new Map([["p1", new Set(attendance)]]), new Map(Object.entries(presence)), now).get("p1") ?? [])];
 
-  it("checks out someone still in the room 5 minutes after the prickle ends (back-to-back room)", () => {
+  it("checks out someone in the room 10 minutes before the prickle ends, so they can finish by the end", () => {
     const presence = { m1: [{ join: t("10:55"), leave: null }] };
-    expect(due(presence, t("12:04"))).toEqual([]);
-    expect(due(presence, t("12:05"))).toEqual(["m1"]);
+    expect(due(presence, t("11:49"))).toEqual([]);
+    expect(due(presence, t("11:50"))).toEqual(["m1"]);
+    expect(due(presence, t("12:30"))).toEqual(["m1"]);
   });
 
   it("checks out an early leaver 10 minutes after they leave, unless they rejoin", () => {

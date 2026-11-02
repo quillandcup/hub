@@ -105,21 +105,25 @@ export function pairIntervals(
   return result;
 }
 
-/** How long after a prickle's scheduled end everyone still there (or who stayed to the end) is checked out. */
-export const CHECKOUT_AFTER_END_MS = 5 * 60 * 1000;
+/**
+ * How long before a prickle's scheduled end everyone in the room is checked out, so they can
+ * finish it by the end and leave for what is next. The cron runs every 5 minutes, so the DM goes
+ * out between this and half of it before the end.
+ */
+export const CHECKOUT_BEFORE_END_MS = 10 * 60 * 1000;
 /** How long someone has to be gone, without rejoining, before an early leaver is checked out. */
 export const EARLY_LEAVE_GRACE_MS = 10 * 60 * 1000;
 
 /**
  * Whether a member with these intervals (across devices and meetings) is due a check-out for a
- * prickle running [start, end): they were in the room during it, and either the prickle ended
- * CHECKOUT_AFTER_END_MS ago, or they've left (no open interval) and been gone EARLY_LEAVE_GRACE_MS
+ * prickle running [start, end): they were in the room during it, and either it is within
+ * CHECKOUT_BEFORE_END_MS of its end (or over), or they've left (no open interval) and been gone EARLY_LEAVE_GRACE_MS
  * -- so a bathroom break or a dropped connection doesn't count as leaving.
  */
 export function presenceDue(intervals: PresenceInterval[], start: number, end: number, now: number): boolean {
   const overlapping = intervals.filter((i) => i.join < end && (i.leave === null || i.leave > start));
   if (overlapping.length === 0) return false;
-  if (now >= end + CHECKOUT_AFTER_END_MS) return true;
+  if (now >= end - CHECKOUT_BEFORE_END_MS) return true;
   if (intervals.some((i) => i.leave === null)) return false;
   const lastLeave = Math.max(...intervals.map((i) => i.leave as number));
   return now >= lastLeave + EARLY_LEAVE_GRACE_MS;

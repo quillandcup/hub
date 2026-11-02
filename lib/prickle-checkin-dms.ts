@@ -658,7 +658,7 @@ export interface RecentPrickle {
  *   meeting from a host the attendance import covers, since those run one at a time (1
  *   overlapping pair in 417 meetings over 60 days, checked 2026-10-03; see docs/TODO.md,
  *   "Secondary Zoom rooms") -- and either it
- *   ended 5 minutes ago (so a room running prickles back to back doesn't hold them up) or they
+ *   ends in 10 minutes or less (so they can finish before the end and leave for what is next) or they
  *   left more than 10 minutes ago without rejoining (an early leaver). See presenceDue.
  * - Attendance: imported once their Zoom meeting ends, so its existence means the session is
  *   over for them. The backstop for any lost or late webhook.
