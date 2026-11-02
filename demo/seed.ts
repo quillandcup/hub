@@ -138,7 +138,7 @@ export async function seed(now: Date = new Date()) {
   if (hostingFlagError) throw new Error(`feature_flags: ${hostingFlagError.message}`);
 
   // Chat: the features on, and a few days of conversation in four channels.
-  await seedChat(admin, now);
+  await seedChat(admin, now, env.supabaseUrl);
 
   // Courses: the feature on, three invented ones in different states, and the demo member's progress.
   if (memberId) await seedCourses(admin, memberId, now);

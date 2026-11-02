@@ -1175,6 +1175,10 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 ## UI Enhancements
 
 
+### Chat page checks in the demo _(Needs Scheduling)_
+
+The demo's page checks (`demo/checks.ts`) have never run on the chat page: no scene covered it until `demo/scenes/animations-off.spec.ts`, whose chat screenshots therefore pass `checks: false`. Run against the seeded `#daily-wins`, they report real findings: white-on-colour initials avatars below 4.5:1 contrast (emerald and rose backgrounds, small text), `label-content-name-mismatch` on links and buttons whose `aria-label` doesn't contain their visible text (channel links with an unread count, reaction chips, the members button), and a React hydration warning in the console. Deferred because they are separate fixes from the animations setting. Start by running the scene with `DEMO_CHECKS=report`, fix the avatar colours and labels (a member who needs animations off may rely on a screen reader too), find the hydration mismatch, then drop `checks: false` from the scene.
+
 ### Shared `SubmitButton` that disables itself while its action is pending _(Needs Scheduling)_
 
 There is no shared way to stop a double submit. Found while reviewing the event-log design (`docs/EVENT_LOG.md`, "Correlation"): a very fast double click can send an action twice and, for analytics, overwrite the correlation cookie before the first request reads it. Counts when checked: 58 files render a `<form>`, 19 use `useTransition`, none use `useFormStatus`, and `components/` has no submit-button component, so each form handles pending state (or doesn't) on its own.

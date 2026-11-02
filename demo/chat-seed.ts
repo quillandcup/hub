@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { COMMUNITY } from "@/lib/data/profiles/community";
+import { SLACK_FILES_BUCKET } from "@/lib/slack-capture";
+import { animatedGif, bouncingDisc, DISC_PALETTE } from "./gif";
 
 /**
  * The demo community's chat: four channels with a few days of friendly, fictional conversation, threads and
@@ -26,10 +28,17 @@ interface DemoReply {
   body: string;
 }
 
+/** An animated emoji the demo workspace "uploaded": reactions use it, and the animations-off scene checks it is a still. */
+export const DEMO_ANIMATED_EMOJI = "party_disc";
+/** A GIF attached to a message, with the file id it has in the Slack copy table. */
+const DEMO_GIF = { id: "FDEMO0000001", name: "party-disc.gif", size: 160 };
+
 interface DemoMessage {
   by: string;
   hoursAgo: number;
   body: string;
+  /** Attach the demo's animated GIF. */
+  gif?: boolean;
   reactions?: { emoji: string; by: string[] }[];
   replies?: DemoReply[];
 }
@@ -95,6 +104,13 @@ export const DEMO_CHANNELS: DemoChannel[] = [
     topic: "Share the words, big or small.",
     readHoursAgo: 30,
     messages: [
+      {
+        by: who("willa"),
+        hoursAgo: 31,
+        body: "my word-count celebration dance, in GIF form 💃",
+        gif: true,
+        reactions: [{ emoji: DEMO_ANIMATED_EMOJI, by: [who("member"), who("regular1"), who("host")] }],
+      },
       {
         by: who("regular1"),
         hoursAgo: 26,
@@ -173,8 +189,37 @@ export const DEMO_CHANNELS: DemoChannel[] = [
   },
 ];
 
+const DEMO_GIF_PATH = "demo/party-disc.gif";
+const EMOJI_BUCKET = "demo-emoji";
+
+/**
+ * The two animated images: the attachment goes in the private slack-files bucket where the chat's file route
+ * reads it (its `slack_files` row says it is already copied, so no Slack is needed), and the emoji in a public
+ * bucket, which is what a workspace's emoji CDN is to the browser (a cross-origin image served with CORS).
+ */
+async function seedAnimatedAssets(admin: SupabaseClient, supabaseUrl: string) {
+  const gif = animatedGif(DEMO_GIF.size, DISC_PALETTE, bouncingDisc(DEMO_GIF.size), 300);
+  const options = { contentType: "image/gif", upsert: true };
+
+  const attachment = await admin.storage.from(SLACK_FILES_BUCKET).upload(DEMO_GIF_PATH, gif, options);
+  if (attachment.error) throw new Error(`slack-files upload: ${attachment.error.message}`);
+
+  const created = await admin.storage.createBucket(EMOJI_BUCKET, { public: true });
+  if (created.error && !/already exists/i.test(created.error.message)) throw new Error(`${EMOJI_BUCKET} bucket: ${created.error.message}`);
+  const emoji = await admin.storage.from(EMOJI_BUCKET).upload(`${DEMO_ANIMATED_EMOJI}.gif`, gif, options);
+  if (emoji.error) throw new Error(`${EMOJI_BUCKET} upload: ${emoji.error.message}`);
+
+  const { error } = await admin
+    .schema("bronze")
+    .from("slack_custom_emoji")
+    .upsert({ name: DEMO_ANIMATED_EMOJI, image_url: `${supabaseUrl}/storage/v1/object/public/${EMOJI_BUCKET}/${DEMO_ANIMATED_EMOJI}.gif`, deleted_at: null }, { onConflict: "name" });
+  if (error) throw new Error(`slack_custom_emoji: ${error.message}`);
+}
+
 /** Turn the chat features on and write the channels, their members, messages, threads and reactions. Replaced on every run. */
-export async function seedChat(admin: SupabaseClient, now: Date) {
+export async function seedChat(admin: SupabaseClient, now: Date, supabaseUrl: string) {
+  await seedAnimatedAssets(admin, supabaseUrl);
+
   const { error: flagError } = await admin
     .from("feature_flags")
     .upsert([{ feature_key: "chat", enabled_globally: true }, { feature_key: "chat_posting", enabled_globally: true }], { onConflict: "feature_key" });
@@ -253,10 +298,24 @@ export async function seedChat(admin: SupabaseClient, now: Date) {
           reply_count: replies.length,
           last_reply_at: lastReply ? at(message.hoursAgo, lastReply.minutesAfter) : null,
         })
-        .select("id")
+        .select("id, slack_ts")
         .single();
       if (rootError || !root) throw new Error(`chat_messages ${channel.name}: ${rootError?.message}`);
-      const contents = [{ message_id: root.id, body: message.body }];
+      const contents: { message_id: string; body: string; files?: unknown }[] = [{ message_id: root.id, body: message.body }];
+      if (message.gif) {
+        const channelSlackId = `${DEMO_SLACK_PREFIX}${String(index + 1).padStart(6, "0")}`;
+        const { error: fileError } = await admin
+          .schema("bronze")
+          .from("slack_files")
+          .upsert(
+            { file_id: DEMO_GIF.id, channel_id: channelSlackId, message_ts: root.slack_ts as string, name: DEMO_GIF.name, mimetype: "image/gif", storage_path: DEMO_GIF_PATH, raw_payload: {}, deleted_at: null },
+            { onConflict: "file_id" },
+          );
+        if (fileError) throw new Error(`slack_files: ${fileError.message}`);
+        contents[0].files = [{ id: DEMO_GIF.id, name: DEMO_GIF.name, mimetype: "image/gif", size: null, width: DEMO_GIF.size, height: DEMO_GIF.size }];
+        const { error: flagFiles } = await admin.from("chat_messages").update({ has_files: true }).eq("id", root.id);
+        if (flagFiles) throw new Error(`chat_messages has_files: ${flagFiles.message}`);
+      }
 
       for (const reply of replies) {
         const { data: row, error: replyError } = await admin
