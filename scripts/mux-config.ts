@@ -20,7 +20,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
 import appConfig from "../app.config";
-import { devWebhookAddress, envValue, parseMuxConfig, planRestriction, planWebhook, restrictionBody, setEnvValue, unmanagedWebhooks, webhookAddress, type LiveRestriction, type LiveWebhook, describeAddress } from "../lib/mux-config";
+import { devWebhookAddress, envValue, parseMuxConfig, planRestriction, planWebhook, restrictionBody, setEnvValue, unmanagedWebhooks, webhookAddress, type LiveRestriction, type LiveWebhook, describeAddress, looksLikeTunnel, sameAddress } from "../lib/mux-config";
 
 const API = "https://api.mux.com";
 const [command, ...flags] = process.argv.slice(2);
@@ -95,6 +95,10 @@ async function webhooks() {
     note("webhooks: not checked (the System token was refused: it needs the System permission)");
     return;
   }
+  // Never move a developer's tunnel webhook to the production address: it is someone's local setup, and its secret is not production's.
+  if (adopt && !dev && live.length === 1 && !live.some((w) => sameAddress(w.address, address)) && looksLikeTunnel(live[0].address)) {
+    fail("--adopt refused: the only webhook here is a developer tunnel, not production's. The System token is probably from another Mux environment than MUX_TOKEN_ID (docs/MUX_CONFIG.md).");
+  }
   const action = planWebhook(address, live, { adoptSingle: dev || adopt });
   const unmanaged = unmanagedWebhooks(address, live).filter((w) => !(action.kind === "update-address" && w.id === action.id));
   const others = unmanaged.length;
@@ -109,7 +113,11 @@ async function webhooks() {
     note(`webhooks: ${others} other webhook(s) in this environment are not managed here and are left alone:`);
     for (const w of unmanaged) note(`  ${describeAddress(w.address)} (${w.enabled ? "enabled" : "disabled"})`);
     if (action.kind === "create" && others === 1 && !dev) {
-      note("  If that is this app's webhook at another address, do not push (a second webhook would double every delivery): run `diff --adopt` to see it moved to the address above, keeping its signing secret.");
+      if (looksLikeTunnel(unmanaged[0].address)) {
+        note("  That is a developer tunnel, not production's webhook: do not adopt it and do not push. Production's webhook is probably in another Mux environment than this System token's: create the token in the environment that holds MUX_TOKEN_ID (see docs/MUX_CONFIG.md).");
+      } else {
+        note("  If that is this app's webhook at another address, do not push (a second webhook would double every delivery): run `diff --adopt` to see it moved to the address above, keeping its signing secret.");
+      }
     }
   }
   if (!push || action.kind === "ok") return;

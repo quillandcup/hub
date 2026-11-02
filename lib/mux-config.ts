@@ -98,6 +98,19 @@ export function describeAddress(address: string): string {
   }
 }
 
+/**
+ * Whether an address is a developer's tunnel (ngrok, localtunnel, a Cloudflare quick tunnel...). A webhook there is
+ * someone's local setup, never production's, so it must not be "adopted" by moving it to the production address.
+ */
+export function looksLikeTunnel(address: string): boolean {
+  try {
+    const host = new URL(address.trim()).hostname.toLowerCase();
+    return /(^|\.)(ngrok-free\.(dev|app)|ngrok\.(io|app|dev)|ngrok-free\.dev|loca\.lt|localtunnel\.me|trycloudflare\.com|serveo\.net|localhost\.run|lhr\.life)$/.test(host) || host === "localhost" || host === "127.0.0.1";
+  } catch {
+    return false;
+  }
+}
+
 export type WebhookAction =
   | { kind: "ok"; id: string }
   | { kind: "create"; address: string }
