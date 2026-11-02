@@ -702,6 +702,10 @@ Statement timeouts (57014) kept hitting unrelated queries in production: the adm
 
 ## Security & Access Control
 
+### Stale private-channel memberships in the chat mirror _(Needs Scheduling)_
+
+A production check (2026-11-02) found 9 active `chat_channel_members` rows in private channels, for 2 members, with no active Slack membership behind them in `bronze.slack_channel_members` (matched through `chat_slack_authors`). A member with such a row still sees that private channel in the Hub (`chat_visible_channel_ids()` trusts the row). **Looked at (same day):** none is staff and all have a matched Slack account. 6 rows (one member) are Bronze memberships marked left the same day, not yet projected: lag until the next `project_slack_chat_channels` run, which should clear itself. 3 rows (the other member) have no Bronze membership row at all, and `project_slack_chat_channels` only updates rows Bronze still lists (`ON CONFLICT ... SET left_at`, never a delete), so nothing ever closes them. **Still open:** find why those 3 have no Bronze row (a re-matched Slack account, or removed rows), and make the projection close Hub rows Bronze no longer backs, only after confirming the membership import fully succeeded for that channel (the soft-delete rule in `CLAUDE.md`). A test should show a member who left a private channel in Slack loses it in the Hub.
+
 
 ### Removal on request for records with a required member id _(Approach decided 2026-10-31; not built)_
 

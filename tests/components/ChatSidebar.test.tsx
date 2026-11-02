@@ -94,6 +94,37 @@ describe("ChatSidebar", () => {
     expect(links()).toEqual(["#old-news"]);
   });
 
+  it("lists only the conversations you are in, with the channels you could join behind Browse channels", async () => {
+    const all = [...CHANNELS, channel("5", "#lurking", { joined: false }), channel("6", "#secret", { joined: false, visibility: "private" })];
+    render(<ChatSidebar channels={all} />);
+    expect(links()).toEqual(["#general", "#writing-sprints", "Gale, Fern", "#old-news"]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Browse channels" }));
+    expect(screen.getByText("Channels you can join")).toBeInTheDocument();
+    expect(links()).toContain("#lurking");
+    expect(links().some((l) => l.includes("secret"))).toBe(false);
+    expect(screen.getByRole("link", { name: "#lurking" })).toHaveAttribute("href", "/chat/5");
+
+    await userEvent.type(screen.getByRole("searchbox", { name: "Find a channel" }), "lurk");
+    expect(links()).toEqual(["#lurking"]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Hide other channels" }));
+    expect(links()).toEqual([]);
+  });
+
+  it("offers no Browse button when there is nothing to join", () => {
+    render(<ChatSidebar channels={CHANNELS} />);
+    expect(screen.queryByRole("button", { name: "Browse channels" })).not.toBeInTheDocument();
+  });
+
+  it("shows a lock instead of the # on a private channel", () => {
+    render(<ChatSidebar channels={[channel("7", "#founding", { visibility: "private" })]} />);
+    const link = screen.getByRole("link", { name: /founding/ });
+    expect(link).toHaveTextContent("founding");
+    expect(link).not.toHaveTextContent("#");
+    expect(screen.getByRole("img", { name: "Private channel" })).toBeInTheDocument();
+  });
+
   it("says so when nothing matches, and leaves the message search alone", async () => {
     render(<ChatSidebar channels={CHANNELS} />);
     await userEvent.type(screen.getByRole("searchbox", { name: "Find a channel" }), "zzz");
@@ -150,7 +181,7 @@ describe("ChatSidebar", () => {
       act(() => onInsert(insert({ channel_id: "3" })));
       expect(screen.getByRole("link", { name: "#general, 2 unread" })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: "#writing-sprints" })).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "#lurking" })).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "#lurking" })).not.toBeInTheDocument();
       expect(screen.getByRole("link", { name: "#old-news" })).toBeInTheDocument();
     });
 
