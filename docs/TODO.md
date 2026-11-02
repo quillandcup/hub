@@ -855,9 +855,9 @@ Per-user login/access history (`access_events` table + `get_access_sessions()`, 
 
 ## Notifications
 
-### Check-in offer: 18 minutes after the member joins, not after the start
+### Check-in offer for a member who drops into a prickle
 
-The check-in banner and the Dashboard/My Prickles check-in pill now last until 18 minutes after the prickle *starts* (`CHECKIN_GRACE_MS` in `lib/upcoming-prickles.ts`; the talking time ends at minute 18). A member who joins late gets only what is left of those 18 minutes, and one who joins at minute 17 gets one. Deferred because the banner's end (`banner_until`) is fixed when the DM is sent, before anyone has joined, and the pill needs a personal tie (hosting, commitment, calendar), so a drop-in has none. To do it per member: use the first `prickle_attendance` join time for the member (webhook or backstop) as the start of their 18 minutes, extend or re-send the in-app notification on join, and offer the pill to anyone currently in the prickle. Start in `lib/prickle-checkin-dms.ts` and `checkinOffered`.
+The check-in banner and the Dashboard/My Prickles check-in pill last until 18 minutes after the prickle starts (`CHECKIN_GRACE_MS` in `lib/upcoming-prickles.ts`; the talking time ends at minute 18), the same for everyone. What is still missing is the offer for a member with no personal tie to the prickle: `checkinOffered` requires hosting, a commitment or a calendar item, so someone who just joins gets no pill and no DM. Deferred because "who is offered" is shared by the Dashboard, My Prickles and the search palette, and joining is only known from attendance (Zoom webhook or the backstop). To do it: also offer the check-in to a member who is in the prickle now, within the same 18 minutes after the start. Start in `checkinOffered` and `getCheckinPrickles`.
 
 ### Channels, Notifications & Messaging _(v1 live: Slack, in-app (flagged), browser push (flagged), email + per-kind notification settings; more channels next)_
 One system for everything the Hub sends members, instead of each feature hand-rolling a Slack DM. Three layers (this replaces the CRM section's "Messaging Abstraction Layer" item):
