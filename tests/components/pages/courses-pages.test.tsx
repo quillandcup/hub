@@ -75,7 +75,7 @@ describe("/courses", () => {
     loadCourseList.mockResolvedValue([]);
     await renderServerPage(CoursesPage, {});
     expect(screen.getByText(/don't have any courses yet/)).toBeInTheDocument();
-    // Discovery: the empty page offers the featured course on its Kajabi page, in a new tab.
+    // Discovery: the empty page offers the featured course on its waitlist page, in a new tab.
     const offer = screen.getByRole("link", { name: `See ${FEATURED_COURSE.title}` });
     expect(offer).toHaveAttribute("href", FEATURED_COURSE.offerUrl);
     expect(offer).toHaveAttribute("target", "_blank");
