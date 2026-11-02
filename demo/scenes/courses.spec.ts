@@ -29,7 +29,7 @@ async function settled(page: Page) {
 
 /**
  * The member's courses: the list, a course outline with progress, a lesson with text and a download, a lesson whose
- * video is still being prepared, a module page, and the course that is ended or not open yet. Every state a
+ * video is still being prepared, a module page, and the courses that are ended or not open yet. Every state a
  * member can be in, at every size and colour scheme (phones and tablets put the section list in a disclosure).
  */
 test("a member finds their courses and opens a lesson, at any size", async ({ page, signInAs }, testInfo) => {
@@ -37,9 +37,7 @@ test("a member finds their courses and opens a lesson, at any size", async ({ pa
 
   await page.goto("/courses");
   await hasOneTitle(page, "Courses");
-  // The course whose access ended is gone from the list, so a member sees their current course and the one that opens later.
-  await expect(page.locator("main").getByRole("heading", { level: 2 })).toHaveCount(2);
-  await expect(page.getByRole("heading", { level: 2, name: "Outline Workshop" })).toHaveCount(0);
+  await expect(page.locator("main").getByRole("heading", { level: 2 })).toHaveCount(3);
   await expect(page.getByRole("progressbar", { name: "Finish Your First Draft progress" })).toBeVisible();
   await shot(page, testInfo, "courses-list");
 
@@ -101,15 +99,14 @@ test("a member marks a lesson complete and takes it back", async ({ page, signIn
   await expect(button).toHaveAttribute("aria-pressed", "false");
 });
 
-/** A course whose access ended says so and shows none of the course (it is gone from the list); one bought ahead of launch says when it opens. */
+/** A course whose access ended keeps its progress and closes its lessons; one bought ahead of launch says when it opens. */
 test("an ended course and one that has not opened yet say so, at any size", async ({ page, signInAs }, testInfo) => {
   await signInAs("member");
 
   await page.goto(`/courses/${SLUGS.ended}`);
   await hasOneTitle(page, "Outline Workshop");
-  await expect(page.getByText(/Your access to this course ended on/)).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("Your access ended");
   await expect(page.getByRole("link", { name: /Find your story beats/ })).toHaveCount(0);
-  await expect(page.getByRole("navigation", { name: "Course outline" })).toHaveCount(0);
   await shot(page, testInfo, "course-ended", { fullPage: true });
 
   await page.goto(`/courses/${SLUGS.upcoming}`);
