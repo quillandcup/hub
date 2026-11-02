@@ -47,6 +47,21 @@ describe("UpcomingPrickleRow check-in pill", () => {
     expect(screen.getByRole("link", { name: "Check in →" })).toBeInTheDocument();
   });
 
+  it("offers Check out → once the prickle has started, not before", () => {
+    renderRow(-60_000);
+    expect(screen.getByRole("link", { name: "Check out →" })).toHaveAttribute("href", "/my-prickles/history?checkout=p1");
+  });
+
+  it("has no Check out → before the start", () => {
+    renderRow(30 * 60 * 1000);
+    expect(screen.queryByRole("link", { name: /Check out/ })).not.toBeInTheDocument();
+  });
+
+  it("shows a finished check-out as done", () => {
+    renderRow(-60_000, { pleasantBefore: 3, energyBefore: 3, emotionBefore: null, need: "company", intentionMet: 4, pleasantAfter: 4, energyAfter: 3, emotionAfter: null });
+    expect(screen.getByRole("link", { name: "Checked out ✓" })).toBeInTheDocument();
+  });
+
   it("has no pill once the prickle has ended", () => {
     renderRow(-(HOUR + 60_000));
     expect(screen.queryByRole("link", { name: /Check in/ })).not.toBeInTheDocument();
