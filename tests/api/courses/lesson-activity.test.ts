@@ -142,7 +142,8 @@ describe('lesson activity rows', () => {
   })
 
   it('logs again on another day, and does not count yesterday\'s stretches toward today', async () => {
-    const yesterday = new Date(NOW.getTime() - 24 * 60 * 60 * 1000)
+    // Another day, not "exactly 24 hours ago": on the day the clocks go back (25 hours long) that is still today, late in the evening.
+    const yesterday = new Date(NOW.getTime() - 26 * 60 * 60 * 1000)
     await addSegment(0, 400, yesterday)
     await watch({}, yesterday)
     expect(await activities('lesson_watched')).toHaveLength(1)
