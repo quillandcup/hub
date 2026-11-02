@@ -6270,6 +6270,16 @@ export type Database = {
         Args: { p_admin_id: string; p_event_id: string; p_member_id: string }
         Returns: undefined
       }
+      admin_adoption_summary: {
+        Args: never
+        Returns: {
+          active_members: number
+          seen_30d: number
+          seen_7d: number
+          seen_today: number
+          with_account: number
+        }[]
+      }
       admin_member_engagement: {
         Args: { p_now?: string; p_search?: string }
         Returns: {
