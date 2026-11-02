@@ -102,6 +102,13 @@ describe("admin layout", () => {
     expect(screen.getByText("admin page body")).toBeInTheDocument();
   });
 
+  it("makes the shell the positioned ancestor, so an sr-only element can't stretch the page past the window", async () => {
+    signInAs(ADMIN_USER, null);
+    await renderServerPage(AdminLayout, layoutProps);
+    const shell = screen.getByText("admin page body").closest("div.h-dvh");
+    expect(shell).toHaveClass("relative", "overflow-hidden");
+  });
+
   it("redirects a member to /no-access instead of rendering the admin area", async () => {
     signInAs(MEMBER_USER, null);
     await expectRedirect(AdminLayout, layoutProps, "/no-access");

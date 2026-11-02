@@ -56,6 +56,12 @@ it.each(["AAAA", ""])("passes available browser push keys for automatic resume (
   await waitFor(() => expect(syncBrowserPush).toHaveBeenCalledWith("m1", key || null, expect.any(AbortSignal)));
 });
 
+it("makes the shell the positioned ancestor, so an sr-only element can't stretch the page past the window", async () => {
+  render(await MemberLayout({ children: <div>Member content</div> }));
+  const shell = screen.getByText("Member content").closest("div.h-dvh");
+  expect(shell).toHaveClass("relative", "overflow-hidden");
+});
+
 it("shows the footer under the page", async () => {
   render(await MemberLayout({ children: <div>Member content</div> }));
   expect(screen.getByTestId("footer")).toBeInTheDocument();
