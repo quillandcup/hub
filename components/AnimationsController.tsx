@@ -48,7 +48,9 @@ function thaw(img: HTMLImageElement) {
   const original = img.getAttribute(FROZEN);
   if (!original) return;
   img.removeAttribute(FROZEN);
-  img.src = original;
+  // The attribute is DOM text: only restore a plain http(s) address, never a javascript: or other scheme.
+  const url = new URL(original, window.location.href);
+  if (url.protocol === "http:" || url.protocol === "https:") img.src = url.href;
 }
 
 function eachImage(root: ParentNode, fn: (img: HTMLImageElement) => void) {
