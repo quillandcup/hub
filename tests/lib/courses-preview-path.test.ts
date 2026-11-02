@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lessonPath, lessonPreviewRewrite } from "@/lib/courses/preview-path";
+import { coursePath, coursePreviewRewrite, lessonPath, lessonPreviewRewrite } from "@/lib/courses/preview-path";
 
 const LESSON = "les_AAAAAAAAAAA1";
 
@@ -28,5 +28,32 @@ describe("lessonPreviewRewrite", () => {
 describe("lessonPath", () => {
   it("is the address a member opens", () => {
     expect(lessonPath("the-ready-writer", LESSON)).toBe(`/courses/the-ready-writer/lessons/${LESSON}`);
+  });
+});
+
+describe("coursePreviewRewrite", () => {
+  it("maps a course address to its public preview", () => {
+    expect(coursePreviewRewrite("/courses/the-ready-writer")).toBe("/course-preview/the-ready-writer");
+  });
+
+  it("is null for every other path, so only a course address is rewritten", () => {
+    for (const path of [
+      "/courses",
+      "/courses/",
+      "/courses/the-ready-writer/",
+      `/courses/the-ready-writer/lessons/${LESSON}`,
+      "/courses/the-ready-writer/modules/mod_AAAAAAAAAAA1",
+      "/courses/The_Ready",
+      "/courses/-leading-dash",
+      "/course-preview/the-ready-writer",
+      "/admin/courses/the-ready-writer",
+    ])
+      expect(coursePreviewRewrite(path), path).toBeNull();
+  });
+});
+
+describe("coursePath", () => {
+  it("is the address a member opens", () => {
+    expect(coursePath("the-ready-writer")).toBe("/courses/the-ready-writer");
   });
 });

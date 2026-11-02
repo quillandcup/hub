@@ -116,7 +116,21 @@ describe("proxy lesson preview", () => {
     expect(res.cookies.getAll()).toHaveLength(0);
   });
 
-  it.each(["/courses", "/courses/the-ready-writer", "/dashboard", `/courses/the-ready-writer/lessons/${LESSON}/files/file_AAAAAAAAAAA1`, "/lesson-preview/the-ready-writer/" + LESSON])(
+  it("rewrites a signed-out visit to a course address to the course's public preview, and remembers it", async () => {
+    const res = await call("/courses/the-ready-writer");
+    expect(res.headers.get("location")).toBeNull();
+    expect(res.headers.get("x-middleware-rewrite")).toContain("/course-preview/the-ready-writer");
+    expect(decodeURIComponent(res.cookies.get("hub_next")?.value ?? "")).toBe("/courses/the-ready-writer");
+  });
+
+  it("leaves a signed-in visit to a course address untouched", async () => {
+    signIn(MEMBER);
+    const res = await call("/courses/the-ready-writer");
+    expect(res.headers.get("location")).toBeNull();
+    expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+  });
+
+  it.each(["/courses", "/courses/The_Ready", "/dashboard", "/course-preview/the-ready-writer", `/courses/the-ready-writer/lessons/${LESSON}/files/file_AAAAAAAAAAA1`, "/lesson-preview/the-ready-writer/" + LESSON])(
     "still sends a signed-out visit to %s to /login",
     async (path) => {
       expect(await redirectedTo(path)).toBe("/login");

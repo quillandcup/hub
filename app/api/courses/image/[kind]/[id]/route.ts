@@ -5,7 +5,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 import { createRepos } from "@/lib/data/repos";
 import { MEDIA_BUCKET } from "@/lib/media/library";
 import { isId } from "@/lib/ids";
-import { publicLessonPreview } from "@/lib/courses/public-preview";
+import { publicCoursePreviewById, publicLessonPreview } from "@/lib/courses/public-preview";
 
 const PREFIXES = { course: "crs", hero: "crs", module: "mod", lesson: "les" } as const;
 
@@ -14,9 +14,10 @@ const PREFIXES = { course: "crs", hero: "crs", module: "mod", lesson: "les" } as
  * bucket is private, so images come through here: the caller must be able to use the courses feature, and a hidden
  * (draft) module or lesson's image is for staff acting as themselves only. Anything else is a plain 404.
  *
- * One exception, for shared links: a lesson thumbnail is public when the lesson itself is (lib/courses/public-preview.ts:
- * open to members, in a live course, with the courses feature on for everyone), so a link pasted into Slack or a message
- * can show it. Those are cached publicly; everything else stays private.
+ * One exception, for shared links: a lesson thumbnail is public when the lesson itself is, and a course cover when the
+ * course is (lib/courses/public-preview.ts: a live course, with the courses feature on for everyone, and for a lesson
+ * open to members), so a link pasted into Slack or a message can show it. Those are cached publicly; everything else
+ * (hero banners, module posters) stays private.
  */
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ kind: string; id: string }> }) {
   const { kind, id } = await params;
@@ -24,7 +25,11 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   const caller = await getCoursesCaller();
   const supabase = createServiceRoleClient();
-  const isPublic = !caller && kind === "lesson" && "preview" in (await publicLessonPreview(createRepos(supabase), id));
+  const isPublic =
+    !caller &&
+    (kind === "lesson"
+      ? "preview" in (await publicLessonPreview(createRepos(supabase), id))
+      : kind === "course" && "preview" in (await publicCoursePreviewById(createRepos(supabase), id)));
   if (!caller && !isPublic) return new NextResponse("Not found", { status: 404 });
 
   const repos = createRepos(supabase);
