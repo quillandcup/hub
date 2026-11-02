@@ -24,7 +24,7 @@ export default function PrickleJoinForm({
   minStartDate: string;
 }) {
   const [urlValue, setUrl] = useState(url);
-  const [meetingIdValue, setMeetingId] = useState(formatMeetingId(meetingId));
+  const [meetingIdValue, setMeetingId] = useState(meetingId);
   const [passcodeValue, setPasscode] = useState(passcode);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [startDate, setStartDate] = useState(defaultStartDate);
