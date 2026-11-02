@@ -22,7 +22,25 @@ vi.mock('@/lib/admin-auth', async () => {
 vi.mock('@/lib/analytics/server', () => ({ withAction: async (_action: string, run: () => Promise<unknown>) => run() }))
 const revalidatePath = vi.hoisted(() => vi.fn())
 vi.mock('next/cache', () => ({ revalidatePath }))
+// The service client that removes a deleted lesson's stored files, made to fail one way at a time.
+const storageFault = vi.hoisted(() => ({ mode: null as null | 'error' | 'throw' }))
+vi.mock('@/lib/supabase/service', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/supabase/service')>('@/lib/supabase/service')
+  return {
+    createServiceRoleClient: () => {
+      const client = actual.createServiceRoleClient()
+      if (!storageFault.mode) return client
+      return new Proxy(client, {
+        get: (target, prop) =>
+          prop === 'storage'
+            ? { from: () => ({ remove: async () => { if (storageFault.mode === 'throw') throw new Error('storage down'); return { data: null, error: { message: 'storage down' } } } }) }
+            : (target as any)[prop],
+      })
+    },
+  }
+})
 
+import { COURSE_FILES_BUCKET } from '@/lib/courses/file-format'
 import { addCourseLesson, addCourseModule, deleteCourseItem, duplicateCourseItem, renameCourseItem, reorderCourseItems, saveLessonText, setCourseItemStatus } from '@/app/(admin)/admin/courses/outline-actions'
 
 describe('Course outline actions', () => {
@@ -266,6 +284,57 @@ describe('Course outline actions', () => {
       expect(await deleteCourseItem(ids.course, 'module', added.id!)).toEqual({ id: added.id })
       expect(await moduleRow(sub.id!)).toBeNull()
       expect(await lesson(les.id!)).toBeNull()
+    })
+
+    describe('downloads', () => {
+      /** A lesson with a download that is really in the bucket. */
+      const lessonWithFile = async (title: string, moduleId = ids.week2) => {
+        const added = await addCourseLesson(ids.course, moduleId, title)
+        const path = `${ids.course}/${added.id}/up-${title.replace(/\W/g, '')}-file.pdf`
+        await supabase.storage.createBucket(COURSE_FILES_BUCKET, { public: false })
+        expect((await supabase.storage.from(COURSE_FILES_BUCKET).upload(path, new Blob(['x']), { contentType: 'application/pdf' })).error).toBeNull()
+        await supabase.from('course_lesson_files').insert({ lesson_id: added.id!, source_key: `up-${title}`, filename: 'file.pdf', storage_path: path, position: 1 })
+        return { lessonId: added.id!, path }
+      }
+      const stored = async (path: string) => ((await supabase.storage.from(COURSE_FILES_BUCKET).list(path.split('/').slice(0, -1).join('/'))).data ?? []).some((o) => path.endsWith(`/${o.name}`))
+
+      it("removes a deleted lesson's stored files with it", async () => {
+        const { lessonId, path } = await lessonWithFile('Has a file')
+        expect(await stored(path)).toBe(true)
+        expect(await deleteCourseItem(ids.course, 'lesson', lessonId)).toEqual({ id: lessonId })
+        expect(await stored(path)).toBe(false)
+        expect((await supabase.from('course_lesson_files').select('id').eq('lesson_id', lessonId)).data).toEqual([])
+      })
+
+      it("removes the stored files of every lesson in a deleted module", async () => {
+        const mod = await addCourseModule(ids.course, null, 'Module with files')
+        const one = await lessonWithFile('Module file one', mod.id!)
+        const two = await lessonWithFile('Module file two', mod.id!)
+        expect(await deleteCourseItem(ids.course, 'module', mod.id!)).toEqual({ id: mod.id })
+        expect(await stored(one.path)).toBe(false)
+        expect(await stored(two.path)).toBe(false)
+      })
+
+      it("keeps the files of a lesson that couldn't be deleted", async () => {
+        const { lessonId, path } = await lessonWithFile('Worked through with file')
+        await supabase.from('lesson_progress').insert({ member_id: ids.member, lesson_id: lessonId, last_position_seconds: 5 })
+        expect((await deleteCourseItem(ids.course, 'lesson', lessonId)).error).toMatch(/Members have progress/)
+        expect(await stored(path)).toBe(true)
+      })
+
+      it("still deletes the lesson when the stored file can't be removed, leaving the object unreferenced", async () => {
+        for (const mode of ['error', 'throw'] as const) {
+          const { lessonId, path } = await lessonWithFile(`Storage ${mode}`)
+          storageFault.mode = mode
+          try {
+            expect(await deleteCourseItem(ids.course, 'lesson', lessonId)).toEqual({ id: lessonId })
+          } finally {
+            storageFault.mode = null
+          }
+          expect(await lesson(lessonId)).toBeNull()
+          await supabase.storage.from(COURSE_FILES_BUCKET).remove([path])
+        }
+      })
     })
 
     it("won't delete a lesson, or a module holding one, that a member has progress in", async () => {
