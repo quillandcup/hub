@@ -7,7 +7,9 @@ import { APP_URL } from "@/lib/config";
 import { COURSE_VIDEO_QUALITY } from "@/lib/courses/media";
 import { createRepos } from "@/lib/data/repos";
 import { isId } from "@/lib/ids";
-import { createDirectUpload, createMuxClient, getAssetStatus, getUploadStatus } from "@/lib/mux";
+import { createDirectUpload, createMuxClient, getAssetStatus, getUploadStatus, signThumbnailTokens } from "@/lib/mux";
+import { storeImage } from "@/lib/media/library";
+import { formatClock } from "@/lib/courses/watch-stats";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 
 /**
@@ -21,6 +23,11 @@ type Auth = Extract<Awaited<ReturnType<typeof requireAdminAction>>, { ok: true }
 export type VideoResult = { error?: string; url?: string };
 export type VideoRefreshResult = { error?: string; status?: "none" | "waiting" | "preparing" | "ready" | "errored" };
 export type VideoRemoveResult = { error?: string; id?: string };
+export type FrameResult = { error?: string; id?: string };
+
+/** The widest a still can be asked for: the lesson thumbnail is shown at a card's size, so a sharp 16:9 is plenty. */
+const FRAME_WIDTH = 1280;
+const STILL_BASE = "https://image.mux.com";
 
 const NOT_EDITABLE = "That course can't be edited here: it isn't in the Hub, or it's imported from Kajabi.";
 
@@ -106,7 +113,47 @@ async function removeImpl(auth: Auth, courseId: string, lessonId: string): Promi
   return { id: lessonId };
 }
 
+async function frameImpl(auth: Auth, courseId: string, lessonId: string, seconds: number): Promise<FrameResult> {
+  const lesson = await hubLesson(auth, courseId, lessonId);
+  if (!lesson) return { error: NOT_EDITABLE };
+  if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds < 0 || seconds > 24 * 3600) return { error: "That isn't a moment in the video." };
+  if (!lesson.video_id) return { error: "This lesson has no video." };
+
+  try {
+    const service = createServiceRoleClient();
+    const [video] = await createRepos(service).courses.videosByIds([lesson.video_id]);
+    if (!video || video.status !== "ready" || !video.mux_playback_id) return { error: "The video isn't ready yet." };
+
+    // The still Mux makes of the video at that moment, fetched with a short-lived signed address and kept in the library.
+    const [token] = await signThumbnailTokens(createMuxClient(), video.mux_playback_id, [seconds], { width: FRAME_WIDTH });
+    const response = await fetch(`${STILL_BASE}/${video.mux_playback_id}/thumbnail.jpg?token=${token}`);
+    if (!response.ok) throw new Error(`Mux answered ${response.status} for the still`);
+    const stored = await storeImage(createRepos(service).media, service.storage, {
+      bytes: Buffer.from(await response.arrayBuffer()),
+      title: `${lesson.title} at ${formatClock(seconds)}`,
+      createdBy: auth.user.id,
+      tags: ["lesson thumbnail"],
+      source: "video_frame",
+      sourceKey: `${video.id}@${Math.round(seconds * 10) / 10}`,
+    });
+    if (!stored.ok) return { error: stored.error };
+    if (!(await createRepos(auth.supabase).courses.setLessonThumbnail({ id: lessonId, courseId }, stored.asset.id))) return { error: NOT_EDITABLE };
+  } catch (error) {
+    console.error("lesson video: couldn't use a frame as the thumbnail:", error instanceof Error ? error.message : error);
+    return { error: "Couldn't use that frame." };
+  }
+  revalidate(courseId, lessonId);
+  return { id: lessonId };
+}
+
 // Usage analytics: each action records whether it worked (lib/analytics/server.ts).
+/** Sets the lesson's thumbnail to the video as it looks `seconds` in. */
+export async function setLessonThumbnailFromVideo(courseId: string, lessonId: string, seconds: number): Promise<FrameResult> {
+  const auth = await requireAdminAction();
+  if (!auth.ok) return { error: auth.error };
+  return withAction("course_lesson_thumbnail_from_frame", () => frameImpl(auth, courseId, lessonId, seconds));
+}
+
 /** Makes a one-use upload address for the lesson's video and points the lesson at the video it will become. */
 export async function startLessonVideoUpload(courseId: string, lessonId: string): Promise<VideoResult> {
   const auth = await requireAdminAction();

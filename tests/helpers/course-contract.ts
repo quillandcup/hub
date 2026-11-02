@@ -499,6 +499,28 @@ export function defineCourseContract(name: string, setup: () => CourseContractCo
       expect((await repo.modulesOf([imported.id], { includeHidden: true })).find((x) => x.id === moduleId)).toMatchObject({ publishing_option: "published", state: "open" });
     });
 
+    it("sets a Hub-owned lesson's thumbnail to a library image, and clears it, forgetting the Kajabi picture it had", async () => {
+      const repo = ctx.courses();
+      const hub = newCourse("thumb");
+      const imported = newCourse("thumb-kajabi", { source: "kajabi", source_key: ctx.unique("kj") });
+      await ctx.seed.courses([hub, imported]);
+      const lesson = await repo.addLesson({ course_id: hub.id, title: "L", position: 1, publishing_option: "draft", thumbnail_url: "https://example.com/kajabi.jpg", thumbnail_source: "https://example.com/kajabi.jpg", source: "hub" });
+      const importedLesson = lessonRow({ id: newCourseId("les"), course_id: imported.id, title: "Imported", source: "kajabi", source_key: ctx.unique("kl") });
+      await ctx.seed.lessons([importedLesson]);
+      const asset = await ctx.seed.mediaAsset();
+
+      expect(await repo.setLessonThumbnail({ id: lesson, courseId: hub.id }, asset)).toBe(true);
+      expect(await repo.lessonById(lesson)).toMatchObject({ thumbnail_asset_id: asset, thumbnail_source: null, thumbnail_url: null });
+      expect(await repo.setLessonThumbnail({ id: lesson, courseId: hub.id }, null)).toBe(true);
+      expect(await repo.lessonById(lesson)).toMatchObject({ thumbnail_asset_id: null, thumbnail_source: null, thumbnail_url: null });
+
+      // Not another course's lesson, an imported lesson, or a missing one.
+      expect(await repo.setLessonThumbnail({ id: lesson, courseId: imported.id }, asset)).toBe(false);
+      expect(await repo.setLessonThumbnail({ id: importedLesson.id, courseId: imported.id }, asset)).toBe(false);
+      expect(await repo.setLessonThumbnail({ id: newCourseId("les"), courseId: hub.id }, asset)).toBe(false);
+      expect((await repo.lessonById(importedLesson.id))?.thumbnail_asset_id).toBeNull();
+    });
+
     it("takes a course over from Kajabi: it, its modules and its lessons become Hub-owned, keeping ids and keys, and nothing else is refused", async () => {
       const repo = ctx.courses();
       const kajabi = newCourse("takeover", { source: "kajabi", source_key: ctx.unique("kj") });
