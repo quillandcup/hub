@@ -563,6 +563,35 @@ export function defineCourseContract(name: string, setup: () => CourseContractCo
       expect((await repo.lessonById(importedLesson.id))?.thumbnail_asset_id).toBeNull();
     });
 
+    it("keeps a video's caption tracks: adds, finds, updates and deletes them, oldest first, and only for a video that is there", async () => {
+      const repo = ctx.courses();
+      const videoId = await repo.createVideo({ source_kind: "upload", source_key: ctx.unique("upload") });
+      const otherId = await repo.createVideo({ source_kind: "upload", source_key: ctx.unique("upload") });
+      await ctx.seed.forget({ videos: [videoId, otherId] });
+
+      expect(await repo.textTracksOf(videoId)).toEqual([]);
+      const first = await repo.addTextTrack({ video_id: videoId, kind: "captions", language: "en", label: "English", source: "manual", storage_path: "video-tracks/x/a.vtt", mux_track_id: "trk_1" });
+      const second = await repo.addTextTrack({ video_id: videoId, kind: "subtitles", language: "es", label: "Spanish (automatic)", source: "mux_auto" });
+      await repo.addTextTrack({ video_id: otherId, kind: "captions", language: "en", label: "English", source: "manual" });
+
+      const tracks = await repo.textTracksOf(videoId);
+      expect(tracks.map((t) => t.id)).toEqual([first, second]);
+      expect(tracks[0]).toMatchObject({ kind: "captions", language: "en", label: "English", source: "manual", storage_path: "video-tracks/x/a.vtt", mux_track_id: "trk_1", is_default: false });
+      expect(tracks[1]).toMatchObject({ source: "mux_auto", storage_path: null, mux_track_id: null });
+
+      expect(await repo.textTrack(videoId, second)).toMatchObject({ id: second, language: "es" });
+      expect(await repo.textTrack(otherId, second)).toBeNull();
+      expect(await repo.textTrack(videoId, randomUUID())).toBeNull();
+
+      await repo.updateTextTrack(second, { mux_track_id: "trk_2" });
+      expect((await repo.textTrack(videoId, second))?.mux_track_id).toBe("trk_2");
+
+      await repo.deleteTextTrack(first);
+      expect((await repo.textTracksOf(videoId)).map((t) => t.id)).toEqual([second]);
+      expect(await repo.textTracksOf(otherId)).toHaveLength(1);
+      await expect(repo.addTextTrack({ video_id: randomUUID(), kind: "captions", language: "en", label: "Orphan", source: "manual" })).rejects.toThrow();
+    });
+
     it("takes a course over from Kajabi: it, its modules and its lessons become Hub-owned, keeping ids and keys, and nothing else is refused", async () => {
       const repo = ctx.courses();
       const kajabi = newCourse("takeover", { source: "kajabi", source_key: ctx.unique("kj") });

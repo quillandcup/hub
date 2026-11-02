@@ -195,6 +195,7 @@ describe('Admin course data', () => {
         lesson: { kajabiId: withText.id, title: 'With text', publishingOption: 'published', state: 'open', hasVideo: false, contentFetchedAt: null },
         hub: { slug: HUB, lessonId: withText.id },
         video: null,
+        captions: [],
         files: [],
       })
       expect(detail.lesson.bodyHtml).toContain('Hello')
@@ -203,6 +204,24 @@ describe('Admin course data', () => {
       expect(detail.modules.map((m) => m.path)).toEqual(['First', 'First / Week', 'Second'])
 
       expect((await loadAdminLesson(createRepos(supabase), hubId, plain.id))!.lesson).toMatchObject({ state: 'hidden', reason: 'Draft in the Hub', publishingOption: 'draft' })
+    })
+
+    it("lists the caption tracks of a Hub lesson's video, oldest first", async () => {
+      const { data: video } = await supabase.from('videos').insert({ source_kind: 'upload', source_key: `test-adm-cap-${ts}`, status: 'ready', mux_playback_id: 'pb', mux_asset_id: `test-adm-cap-asset-${ts}` }).select('id').single()
+      const { data: lesson } = await supabase.from('course_lessons').insert({ course_id: hubId, title: 'With captions', position: 9, publishing_option: 'draft', source: 'hub', video_id: video!.id }).select('id').single()
+      const first = (await supabase.from('video_text_tracks').insert({ video_id: video!.id, kind: 'captions', language: 'en', label: 'English', source: 'manual' }).select('id').single()).data!.id
+      const second = (await supabase.from('video_text_tracks').insert({ video_id: video!.id, kind: 'subtitles', language: 'es', label: 'Spanish (automatic)', source: 'mux_auto' }).select('id').single()).data!.id
+      try {
+        const detail = (await loadAdminLesson(createRepos(supabase), hubId, lesson!.id))!
+        expect(detail.video).toMatchObject({ status: 'ready', playbackId: 'pb' })
+        expect(detail.captions).toEqual([
+          { id: first, label: 'English', language: 'en', kind: 'captions', source: 'manual' },
+          { id: second, label: 'Spanish (automatic)', language: 'es', kind: 'subtitles', source: 'mux_auto' },
+        ])
+      } finally {
+        await supabase.from('course_lessons').delete().eq('id', lesson!.id)
+        await supabase.from('videos').delete().eq('id', video!.id)
+      }
     })
 
     it("give no lesson page for another course's lesson, an unknown one, or an id that isn't one", async () => {

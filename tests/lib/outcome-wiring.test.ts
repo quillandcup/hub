@@ -46,6 +46,11 @@ const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]
     [["addCourseModule", "course_module_added"], ["addCourseLesson", "course_lesson_added"], ["renameCourseItem", "course_item_renamed"], ["deleteCourseItem", "course_item_deleted"], ["duplicateCourseItem", "course_item_duplicated"], ["reorderCourseItems", "course_items_reordered"], ["setCourseItemStatus", "course_item_status_set"], ["saveLessonText", "course_lesson_text_saved"], ["setLessonThumbnail", "course_lesson_thumbnail_set"], ["moveCourseLesson", "course_lesson_moved"]],
   ],
   [
+    () => import("@/app/(admin)/admin/courses/lesson-caption-actions"),
+    "app/(admin)/admin/courses/lesson-caption-actions.ts",
+    [["addLessonCaptions", "course_lesson_captions_added"], ["generateLessonCaptions", "course_lesson_captions_generated"], ["removeLessonCaptions", "course_lesson_captions_removed"]],
+  ],
+  [
     () => import("@/app/(admin)/admin/courses/lesson-video-actions"),
     "app/(admin)/admin/courses/lesson-video-actions.ts",
     [["startLessonVideoUpload", "course_lesson_video_upload_started"], ["refreshLessonVideo", "course_lesson_video_refreshed"], ["setLessonThumbnailFromVideo", "course_lesson_thumbnail_from_frame"], ["removeLessonVideo", "course_lesson_video_removed"]],

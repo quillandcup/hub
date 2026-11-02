@@ -257,6 +257,8 @@ export interface AdminLessonDetail {
   hub: { slug: string; lessonId: string } | null;
   /** The lesson's video in the Hub (what plays), when it has one. */
   video: { status: string; playbackId: string | null } | null;
+  /** The caption and subtitle tracks of that video (a Hub-owned lesson's can be added to and removed). */
+  captions: { id: string; label: string; language: string; kind: string; source: string }[];
   /** The lesson is in a Hub-owned course: its setting and title can be changed here. An imported lesson is shown as Kajabi has it. */
   editable: boolean;
 }
@@ -338,6 +340,7 @@ export async function loadAdminLesson(repos: AdminCourseRepos, courseParam: stri
     files: files.map((f) => ({ id: null, filename: f.filename, sizeBytes: f.size_bytes })),
     hub,
     video,
+    captions: [],
     editable: false,
   };
 }
@@ -376,9 +379,13 @@ async function loadHubLesson(repos: AdminCourseRepos, courseId: string, lesson: 
   };
 
   let video: AdminLessonDetail["video"] = null;
+  let captions: AdminLessonDetail["captions"] = [];
   if (lesson.video_id) {
     const v = (await repos.courses.videosByIds([lesson.video_id]))[0];
-    if (v) video = { status: v.status, playbackId: v.mux_playback_id };
+    if (v) {
+      video = { status: v.status, playbackId: v.mux_playback_id };
+      captions = (await repos.courses.textTracksOf(v.id)).map((t) => ({ id: t.id, label: t.label, language: t.language, kind: t.kind, source: t.source }));
+    }
   }
   return {
     course: { id: courseId, title: course.title },
@@ -402,6 +409,7 @@ async function loadHubLesson(repos: AdminCourseRepos, courseId: string, lesson: 
     files: files.map((f) => ({ id: f.id, filename: f.filename, sizeBytes: f.size_bytes })),
     hub: { slug: course.slug, lessonId: lesson.id },
     video,
+    captions,
     editable: true,
   };
 }

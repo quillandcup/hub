@@ -17,6 +17,7 @@ import LessonMediaPanel from "./LessonMediaPanel";
 import VideoActions from "./VideoActions";
 import LessonBuilderForm from "./LessonBuilderForm";
 import LessonVideoControls from "./LessonVideoControls";
+import LessonCaptions from "./LessonCaptions";
 import { createRepos } from "@/lib/data/repos";
 
 type Params = { params: Promise<{ id: string; lessonId: string }> };
@@ -68,6 +69,7 @@ async function lessonMedia(detail: AdminLessonDetail) {
     <>
       {media}
       <LessonVideoControls courseId={detail.course.id} lessonId={detail.lesson.kajabiId} status={detail.video?.status ?? null} />
+      {detail.video?.status === "ready" && <LessonCaptions courseId={detail.course.id} lessonId={detail.lesson.kajabiId} tracks={detail.captions} />}
     </>
   );
 }
