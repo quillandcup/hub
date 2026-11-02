@@ -96,6 +96,19 @@ describe("markPresent", () => {
     expect(result[1].reasons).toEqual([]);
   });
 
+  it("reads presence through the repositories it is given for it, since the member's own can't read the table", async () => {
+    // The participant events are service role only: a member's repositories see none of them, so the caller passes
+    // service ones for this read alone.
+    const members = world([]);
+    const service = world([ev("1", "dev-1", "Ada Writer", "joined", "11:05")]);
+
+    const own = await markPresent(members, "mbr_AAAAAAAAAAA1", [ranked("here")], NOW);
+    expect(own[0].reasons).toEqual([]);
+
+    const result = await markPresent(members, "mbr_AAAAAAAAAAA1", [ranked("here")], NOW, service);
+    expect(result[0].reasons).toEqual([expect.objectContaining({ kind: "present" })]);
+  });
+
   it("counts someone who joined and left after the start, but not someone who left before it", async () => {
     const repos = world([ev("1", "dev-1", "Ada Writer", "joined", "11:05"), ev("2", "dev-1", "Ada Writer", "left", "11:20")]);
     expect((await markPresent(repos, "mbr_AAAAAAAAAAA1", [ranked("here")], NOW))[0].reasons).toHaveLength(1);

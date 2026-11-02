@@ -38,6 +38,7 @@ const MAX_UPCOMING_DISPLAY = 8;
 const SCHEDULE_LOOKBACK_DAYS = 90;
 
 /** My Prickles tabs, at /my-prickles (Upcoming) and /my-prickles/<id> (lib/tab-routes.ts). */
+import { getServiceRepos } from "@/lib/data/server";
 import { MY_PRICKLES_TAB_IDS, MY_PRICKLES_TITLE, MY_PRICKLES_TAB_LABELS, type MyPricklesTabId } from "./tabs";
 export { MY_PRICKLES_TAB_IDS, MY_PRICKLES_TITLE, MY_PRICKLES_TAB_LABELS, type MyPricklesTabId };
 
@@ -92,7 +93,7 @@ export default async function MyPricklesPage({
     checkins,
   ] = await Promise.all([
     // Chained inside the batch: the dismissed check-ins of the rows shown need the ranking, nothing else.
-    getRankedUpcomingWithHistory(createRepos(supabase), memberId, timeZone, now, UPCOMING_WINDOW_DAYS).then(async (result) => {
+    getRankedUpcomingWithHistory(createRepos(supabase), memberId, timeZone, now, UPCOMING_WINDOW_DAYS, getServiceRepos()).then(async (result) => {
       const personal = result.ranked.filter((r) => r.priority < PRIORITY.none).length;
       const shown = result.ranked.slice(0, Math.max(personal, MAX_UPCOMING_DISPLAY));
       const dismissed = await loadDismissedCheckinIds(createRepos(supabase), memberId, shown.map((r) => r.prickle.id));

@@ -11,7 +11,7 @@ import {
   type SisterStreak,
 } from "@/lib/streaks"
 import { getMemberDisplayName } from "@/lib/member-display-name"
-import { loadPresenceByMember, type PresenceInterval } from "@/lib/zoom-presence"
+import { loadPresenceByMember, type PresenceInterval, type PresenceRepos } from "@/lib/zoom-presence"
 import {
   computeCommitmentProgress,
   effectiveCommitmentStatus,
@@ -404,9 +404,10 @@ export async function getRankedUpcomingPrickles(
   memberId: string,
   timeZone: string,
   now: Date,
-  windowDays: number
+  windowDays: number,
+  presenceRepos?: PresenceRepos
 ): Promise<RankedPrickle[]> {
-  return (await getRankedUpcomingWithHistory(repos, memberId, timeZone, now, windowDays)).ranked
+  return (await getRankedUpcomingWithHistory(repos, memberId, timeZone, now, windowDays, presenceRepos)).ranked
 }
 
 /**
@@ -418,7 +419,8 @@ export async function getRankedUpcomingWithHistory(
   memberId: string,
   timeZone: string,
   now: Date,
-  windowDays: number
+  windowDays: number,
+  presenceRepos?: PresenceRepos
 ): Promise<{ ranked: RankedPrickle[]; myAttendance: Awaited<ReturnType<UpcomingRepos["attendance"]["forMemberWithPrickles"]>> }> {
   // A prickle that is running now is still listed (and offers its check-in): fetch back far
   // enough to find it, keep the ones that have not ended.
@@ -604,7 +606,7 @@ export async function getRankedUpcomingWithHistory(
     slotVibrancy,
     hostExperience,
   })
-  return { ranked: await markPresent(repos, memberId, ranked, now), myAttendance }
+  return { ranked: await markPresent(repos, memberId, ranked, now, presenceRepos), myAttendance }
 }
 
 /** How far ahead of the start a prickle offers its check-in. */
@@ -644,7 +646,13 @@ export function checkinOffered(prickle: Pick<UpcomingPrickle, "startTime" | "end
  * best-effort: if it can't be read the list comes back as it was. A room isn't tied to a prickle,
  * so a member in one room is present for every prickle running at once.
  */
-export async function markPresent(repos: UpcomingRepos, memberId: string, ranked: RankedPrickle[], now: Date): Promise<RankedPrickle[]> {
+export async function markPresent(
+  repos: UpcomingRepos,
+  memberId: string,
+  ranked: RankedPrickle[],
+  now: Date,
+  presenceRepos: PresenceRepos = repos
+): Promise<RankedPrickle[]> {
   const nowMs = now.getTime()
   const running = (r: RankedPrickle) => new Date(r.prickle.startTime).getTime() <= nowMs && isRunningOrUpcoming(r.prickle, now)
   const tied = (r: RankedPrickle) => r.reasons.some((x) => x.kind === "hosting" || x.kind === "commitment" || x.kind === "calendar")
@@ -654,7 +662,7 @@ export async function markPresent(repos: UpcomingRepos, memberId: string, ranked
   let intervals: PresenceInterval[] | undefined
   try {
     const since = new Date(Math.min(...candidates.map((r) => new Date(r.prickle.startTime).getTime())))
-    intervals = (await loadPresenceByMember(repos, since, now)).get(memberId)
+    intervals = (await loadPresenceByMember(presenceRepos, since, now)).get(memberId)
   } catch (error) {
     console.error("Could not read live presence for the check-in offer:", error instanceof Error ? error.message : error)
     return ranked
@@ -683,7 +691,13 @@ export async function markPresent(repos: UpcomingRepos, memberId: string, ranked
  * Prickles offering a check-in now (checkinOffered), without the full ranking's attendance
  * history: only what personal ties need (the window's prickles, commitments, calendar items).
  */
-export async function getCheckinPrickles(repos: UpcomingRepos, memberId: string, timeZone: string, now: Date): Promise<RankedPrickle[]> {
+export async function getCheckinPrickles(
+  repos: UpcomingRepos,
+  memberId: string,
+  timeZone: string,
+  now: Date,
+  presenceRepos?: PresenceRepos
+): Promise<RankedPrickle[]> {
   const [upcoming, commitments, calendarItems] = await Promise.all([
     fetchPrickles(repos, new Date(now.getTime() - IN_PROGRESS_LOOKBACK_MS).toISOString(), new Date(now.getTime() + CHECKIN_SOON_MS).toISOString(), timeZone, true).then((all) => all.filter((p) => isRunningOrUpcoming(p, now))),
     fetchActiveCommitments(repos, memberId),
@@ -706,5 +720,5 @@ export async function getCheckinPrickles(repos: UpcomingRepos, memberId: string,
     commitmentByPrickleId,
     calendarAddedByPrickleId: computeCalendarAdded(calendarItems, upcoming),
   })
-  return (await markPresent(repos, memberId, ranked, now)).filter((r) => checkinOffered(r.prickle, r.reasons, now))
+  return (await markPresent(repos, memberId, ranked, now, presenceRepos)).filter((r) => checkinOffered(r.prickle, r.reasons, now))
 }

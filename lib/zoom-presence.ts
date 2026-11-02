@@ -2,7 +2,11 @@ import type { Repos } from "@/lib/data/repos";
 import { matchAttendeeToMember, type MemberAlias, type MemberEmailAlias } from "@/lib/member-matching";
 import type { Json } from "@/lib/data/database.types";
 
-type PresenceRepos = Pick<Repos, "aliases" | "members" | "zoom">;
+/**
+ * What reading live presence needs. The participant events table is service role only (it names everyone in every
+ * room), so a member-facing caller passes service repositories here and keeps only the member's own intervals.
+ */
+export type PresenceRepos = Pick<Repos, "aliases" | "members" | "zoom">;
 
 /**
  * Live Zoom presence from the participant joined/left webhooks (bronze.zoom_participant_events,
