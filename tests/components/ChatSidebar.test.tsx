@@ -98,8 +98,11 @@ describe("ChatSidebar", () => {
     const all = [...CHANNELS, channel("5", "#lurking", { joined: false }), channel("6", "#secret", { joined: false, visibility: "private" })];
     render(<ChatSidebar channels={all} />);
     expect(links()).toEqual(["#general", "#writing-sprints", "Gale, Fern", "#old-news"]);
+    // The control is in the Channels heading, above the group messages.
+    const browse = screen.getByRole("button", { name: "Browse channels" });
+    expect(screen.getByRole("heading", { name: "Channels" }).parentElement).toContainElement(browse);
 
-    await userEvent.click(screen.getByRole("button", { name: "Browse channels" }));
+    await userEvent.click(browse);
     expect(screen.getByText("Channels you can join")).toBeInTheDocument();
     expect(links()).toContain("#lurking");
     expect(links().some((l) => l.includes("secret"))).toBe(false);
@@ -108,8 +111,16 @@ describe("ChatSidebar", () => {
     await userEvent.type(screen.getByRole("searchbox", { name: "Find a channel" }), "lurk");
     expect(links()).toEqual(["#lurking"]);
 
-    await userEvent.click(screen.getByRole("button", { name: "Hide other channels" }));
+    expect(screen.getByRole("button", { name: "Browse channels" })).toHaveAttribute("aria-expanded", "true");
+    await userEvent.click(screen.getByRole("button", { name: "Browse channels" }));
     expect(links()).toEqual([]);
+  });
+
+  it("still shows the Channels heading with Browse when the member has joined no channel", async () => {
+    render(<ChatSidebar channels={[channel("5", "#lurking", { joined: false })]} />);
+    expect(screen.getByRole("heading", { name: "Channels" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Browse channels" }));
+    expect(screen.getByRole("link", { name: "#lurking" })).toBeInTheDocument();
   });
 
   it("offers no Browse button when there is nothing to join", () => {
