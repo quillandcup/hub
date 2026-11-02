@@ -3,6 +3,7 @@ import { render } from "react-email";
 import { LaunchEmail } from "@/emails/launch/LaunchEmail";
 import { clock } from "@/lib/clock";
 import { APP_URL } from "@/lib/config";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import type { MemberRepository } from "@/lib/data/members";
 import { listAllAuthUsers, type AdminAuthApi, type AuthUserLite } from "@/lib/auth-provisioning";
 
@@ -41,7 +42,11 @@ export type LaunchOptions = {
   /** Pause between batches, in milliseconds. */
   pauseMs?: number;
   now?: Date;
+  /** Called per member as they are sent (or, in a dry run, would be), so a person running it sees who. */
+  onRecipient?: (r: LaunchRecipient) => void;
 };
+
+export type LaunchRecipient = { memberId: string; name: string; email: string };
 
 export type LaunchReport = {
   considered: number;
@@ -55,6 +60,8 @@ export type LaunchReport = {
   failed: number;
   /** Ids only, never emails or names. */
   failedMemberIds: string[];
+  /** Who was sent (or would be), in send order. Names and addresses: for the terminal, never for logs or commits. */
+  recipients: LaunchRecipient[];
 };
 
 export async function renderLaunchEmail(code: string) {
@@ -82,7 +89,12 @@ export async function sendLaunchEmails(
     if (norm(u.email)) byEmail.set(norm(u.email), u);
   }
 
-  const report: LaunchReport = { considered: 0, sent: 0, deferred: 0, alreadySent: 0, alreadySignedIn: 0, stillBanned: 0, noAuthUser: 0, failed: 0, failedMemberIds: [] };
+  const report: LaunchReport = { considered: 0, sent: 0, deferred: 0, alreadySent: 0, alreadySignedIn: 0, stillBanned: 0, noAuthUser: 0, failed: 0, failedMemberIds: [], recipients: [] };
+  const noteRecipient = (member: (typeof active)[number], address: string) => {
+    const r = { memberId: member.id, name: getMemberDisplayName({ name: member.name, display_name: member.displayName }), email: address };
+    report.recipients.push(r);
+    options.onRecipient?.(r);
+  };
   let sentInBatch = 0;
 
   for (const member of active) {
@@ -112,6 +124,7 @@ export async function sendLaunchEmails(
     }
     if (!options.apply) {
       report.sent++;
+      noteRecipient(member, user.email);
       continue;
     }
 
@@ -144,6 +157,7 @@ export async function sendLaunchEmails(
     }
     report.sent++;
     sentInBatch++;
+    noteRecipient(member, user.email);
   }
   return report;
 }
