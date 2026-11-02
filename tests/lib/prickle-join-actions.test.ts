@@ -68,6 +68,16 @@ describe("savePrickleJoin", () => {
     expect(Date.parse((await saved()).effective_from)).toBeLessThan(Date.now());
   });
 
+  it("stores the meeting ID in Zoom's format, whatever was typed", async () => {
+    await savePrickleJoin({ url: URL_OK, meetingId: "88071702629", passcode: "x" });
+    expect(await saved()).toMatchObject({ meeting_id: "880 7170 2629" });
+  });
+
+  it.each(["12345", "abc", "880 7170 2629 1"])("rejects the meeting ID %j", async (meetingId) => {
+    expect(await savePrickleJoin({ url: URL_OK, meetingId, passcode: "x" })).toEqual({ error: "Enter the meeting ID as 9 to 11 digits, or leave it blank" });
+    expect(await repos.zoom.joinSettings()).toHaveLength(0);
+  });
+
   it("refuses a non-admin before touching anything", async () => {
     mocks.auth.mockResolvedValue({ ok: false, error: "Not authorized" });
 

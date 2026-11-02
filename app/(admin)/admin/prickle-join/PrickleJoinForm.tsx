@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import DatePicker from "@/components/DatePicker";
+import { formatMeetingId } from "@/lib/prickle-join";
 import { savePrickleJoin } from "./actions";
 
 const inputClass =
@@ -23,7 +24,7 @@ export default function PrickleJoinForm({
   minStartDate: string;
 }) {
   const [urlValue, setUrl] = useState(url);
-  const [meetingIdValue, setMeetingId] = useState(meetingId);
+  const [meetingIdValue, setMeetingId] = useState(formatMeetingId(meetingId));
   const [passcodeValue, setPasscode] = useState(passcode);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [startDate, setStartDate] = useState(defaultStartDate);
@@ -51,7 +52,7 @@ export default function PrickleJoinForm({
         <label htmlFor="join-meeting-id" className="block text-sm font-medium mb-1">
           Meeting ID
         </label>
-        <input id="join-meeting-id" value={meetingIdValue} onChange={(e) => setMeetingId(e.target.value)} className={inputClass} placeholder="827 9700 1119" />
+        <input id="join-meeting-id" value={meetingIdValue} onChange={(e) => setMeetingId(formatMeetingId(e.target.value))} inputMode="numeric" className={inputClass} placeholder="827 9700 1119" />
       </div>
       <div>
         <label htmlFor="join-passcode" className="block text-sm font-medium mb-1">

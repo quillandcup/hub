@@ -91,6 +91,28 @@ export function isAllowedStartDate(date: string, now: Date, timeZone: string): b
   return date >= earliestStartDate(now, timeZone);
 }
 
+/** Zoom meeting IDs are 9 to 11 digits. */
+const MEETING_ID_MAX_DIGITS = 11;
+
+/**
+ * A meeting ID the way Zoom shows it: digits only, grouped 3-3-3, 3-3-4 or 3-4-4 ("828 3004 2304" is
+ * 3-4-4). Safe to apply on every keystroke: it keeps what was typed so far and ignores anything but digits.
+ */
+export function formatMeetingId(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, MEETING_ID_MAX_DIGITS);
+  const first = digits.slice(0, 3);
+  const middleLength = digits.length === MEETING_ID_MAX_DIGITS ? 4 : 3;
+  const middle = digits.slice(3, 3 + middleLength);
+  const last = digits.slice(3 + middleLength);
+  return [first, middle, last].filter(Boolean).join(" ");
+}
+
+/** Whether `value` (already formatted or not) holds a full meeting ID, 9 to 11 digits. */
+export function isMeetingId(value: string): boolean {
+  const count = value.replace(/\D/g, "").length;
+  return count >= 9 && count <= MEETING_ID_MAX_DIGITS && !/[^\d\s]/.test(value);
+}
+
 /** Adds `days` to a YYYY-MM-DD date (calendar arithmetic, no time zone involved). */
 function addDays(date: string, days: number): string {
   const d = new Date(`${date}T00:00:00Z`);

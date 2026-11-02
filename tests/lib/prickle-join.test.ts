@@ -119,3 +119,28 @@ describe("joinSlackBlocks", () => {
     expect(joinSlackBlocks({ url: "https://zoom.example.test/j/1", meetingId: null, passcode: null })).toHaveLength(1);
   });
 });
+
+import { formatMeetingId, isMeetingId } from "@/lib/prickle-join";
+
+describe("meeting ID format", () => {
+  it.each([
+    ["", ""],
+    ["8", "8"],
+    ["8283", "828 3"],
+    ["828300420", "828 300 420"],
+    ["8283004230", "828 300 4230"],
+    ["82830042304", "828 3004 2304"],
+    ["828 3004 2304 99", "828 3004 2304"],
+    ["a828-300 4230", "828 300 4230"],
+  ])("formats %j as %j", (input, expected) => {
+    expect(formatMeetingId(input)).toBe(expected);
+  });
+
+  it("accepts 9 to 11 digits and refuses the rest", () => {
+    expect(isMeetingId("828 3004 2304")).toBe(true);
+    expect(isMeetingId("828300420")).toBe(true);
+    expect(isMeetingId("8283004")).toBe(false);
+    expect(isMeetingId("828 3004 2304 9")).toBe(false);
+    expect(isMeetingId("ab8283004230")).toBe(false);
+  });
+});

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdminAction } from "@/lib/admin-auth";
 import { createRepos } from "@/lib/data/repos";
 import { ORG_TIMEZONE } from "@/lib/config";
-import { effectiveFromForDate, isAllowedStartDate } from "@/lib/prickle-join";
+import { effectiveFromForDate, formatMeetingId, isAllowedStartDate, isMeetingId } from "@/lib/prickle-join";
 
 /**
  * Set the Zoom room link, meeting ID and passcode. With no `startDate` it applies from now; with one
@@ -17,7 +17,9 @@ export async function savePrickleJoin(input: { url: string; meetingId: string; p
   if (!auth.ok) return { error: auth.error };
 
   const url = typeof input?.url === "string" ? input.url.trim() : "";
-  const meetingId = typeof input?.meetingId === "string" ? input.meetingId.trim() : "";
+  const rawMeetingId = typeof input?.meetingId === "string" ? input.meetingId.trim() : "";
+  if (rawMeetingId && !isMeetingId(rawMeetingId)) return { error: "Enter the meeting ID as 9 to 11 digits, or leave it blank" };
+  const meetingId = formatMeetingId(rawMeetingId);
   const passcode = typeof input?.passcode === "string" ? input.passcode.trim() : "";
   const startDate = typeof input?.startDate === "string" ? input.startDate.trim() : "";
   try {
