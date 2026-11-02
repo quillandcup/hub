@@ -36,17 +36,23 @@ function Section({
   channels,
   pathname,
   unread,
+  action,
 }: {
   title: string;
   channels: ChannelSummary[];
   pathname: string;
   unread: Record<string, number>;
+  /** A control at the right of the heading, shown on hover or focus (always on a touch screen). */
+  action?: React.ReactNode;
 }) {
-  if (channels.length === 0) return null;
+  if (channels.length === 0 && !action) return null;
   const prefetched = new Set(channels.filter((c) => c.id !== pathname.split("/")[2] && (unread[c.id] ?? 0) > 0).slice(0, MAX_UNREAD_PREFETCH).map((c) => c.id));
   return (
-    <div className="mb-4">
-      <h2 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1 px-3">{title}</h2>
+    <div className="group mb-4">
+      <div className="mb-1 flex items-center justify-between px-3">
+        <h2 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">{title}</h2>
+        {action}
+      </div>
       <ul className="space-y-0.5">
         {channels.map((c) => {
           const active = pathname === `/chat/${c.id}`;
@@ -235,6 +241,7 @@ export default function ChatSidebar({
   const [browsing, setBrowsing] = useState(false);
   const mine = shown.filter((c) => c.joined);
   const live = mine.filter((c) => !c.archived);
+  const hasJoinable = channels.some((c) => !c.joined && c.kind === "channel" && c.visibility === "public");
   const joinable = shown.filter((c) => !c.joined && c.kind === "channel" && c.visibility === "public");
   return (
     // Its own full-height column that scrolls by itself, so a long channel list never sets the
@@ -265,29 +272,37 @@ export default function ChatSidebar({
           className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm"
         />
       </div>
-      <Section title="Channels" channels={live.filter((c) => c.kind === "channel")} pathname={pathname} unread={counts} />
-      <Section title="Group messages" channels={live.filter((c) => c.kind !== "channel")} pathname={pathname} unread={counts} />
-      <Section title="Archived" channels={mine.filter((c) => c.archived)} pathname={pathname} unread={counts} />
-      {channels.some((c) => !c.joined && c.kind === "channel" && c.visibility === "public") && (
-        <div className="mb-4 px-1">
-          <button
-            type="button"
-            data-track="chat-sidebar-browse"
-            aria-expanded={browsing}
-            onClick={() => setBrowsing((b) => !b)}
-            className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-          >
-            <svg aria-hidden="true" viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M2 3h11M2 7h6M2 11h4" />
-              <circle cx="10.5" cy="10" r="2.5" />
-              <path d="m12.4 11.9 2 2" />
-            </svg>
-            {browsing ? "Hide other channels" : "Browse channels"}
-          </button>
-        </div>
-      )}
+      <Section
+        title="Channels"
+        channels={live.filter((c) => c.kind === "channel")}
+        pathname={pathname}
+        unread={counts}
+        action={
+          hasJoinable && (
+            <button
+              type="button"
+              data-track="chat-sidebar-browse"
+              aria-label="Browse channels"
+              aria-expanded={browsing}
+              title="Browse channels"
+              onClick={() => setBrowsing((b) => !b)}
+              className={`rounded p-1 text-slate-600 hover:bg-slate-200 focus-visible:opacity-100 group-hover:opacity-100 dark:text-slate-400 dark:hover:bg-slate-700 [@media(hover:none)]:opacity-100 ${
+                browsing ? "bg-slate-200 opacity-100 dark:bg-slate-700" : "opacity-0"
+              }`}
+            >
+              <svg aria-hidden="true" viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M2 3h11M2 7h6M2 11h4" />
+                <circle cx="10.5" cy="10" r="2.5" />
+                <path d="m12.4 11.9 2 2" />
+              </svg>
+            </button>
+          )
+        }
+      />
       {browsing && <Section title="Channels you can join" channels={joinable} pathname={pathname} unread={counts} />}
       {browsing && joinable.length === 0 && wanted && <p className="px-3 text-sm text-slate-600 dark:text-slate-400">No other channels match.</p>}
+      <Section title="Group messages" channels={live.filter((c) => c.kind !== "channel")} pathname={pathname} unread={counts} />
+      <Section title="Archived" channels={mine.filter((c) => c.archived)} pathname={pathname} unread={counts} />
       {channels.length === 0 && <p className="px-3 text-sm text-slate-600 dark:text-slate-400">No conversations yet.</p>}
       {channels.length > 0 && Boolean(wanted) && mine.length === 0 && !(browsing && joinable.length > 0) &&<p className="px-3 text-sm text-slate-600 dark:text-slate-400">No channels match.</p>}
       <p className="mt-4 px-3 text-xs">
