@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { renameCourseItem, setCourseItemStatus, type OutlineResult } from "../../../outline-actions";
+import { moveCourseLesson, renameCourseItem, setCourseItemStatus, type OutlineResult } from "../../../outline-actions";
 import { STATUS_CHOICES } from "@/lib/courses/status-choices";
 
 const FIELD =
@@ -52,6 +52,30 @@ export function LessonTitleField({ courseId, lessonId, title }: { courseId: stri
         onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
         className={FIELD}
       />
+      {error && <span role="alert" className="mt-1 block text-red-700 dark:text-red-300">{error}</span>}
+    </label>
+  );
+}
+
+/** Which module a Hub-owned lesson is in. Choosing another puts the lesson at the end of that module's lessons. */
+export function LessonModuleField({ courseId, lessonId, moduleId, modules }: { courseId: string; lessonId: string; moduleId: string; modules: { kajabiId: string; path: string }[] }) {
+  const { busy, error, run } = useChange();
+  return (
+    <label className="mt-4 block text-sm">
+      <span className="mb-1 block font-medium">Select module</span>
+      <select
+        value={moduleId}
+        disabled={busy}
+        onChange={(e) => void run(() => moveCourseLesson(courseId, lessonId, e.target.value || null))}
+        className={FIELD}
+      >
+        <option value="">No module</option>
+        {modules.map((m) => (
+          <option key={m.kajabiId} value={m.kajabiId}>
+            {m.path}
+          </option>
+        ))}
+      </select>
       {error && <span role="alert" className="mt-1 block text-red-700 dark:text-red-300">{error}</span>}
     </label>
   );

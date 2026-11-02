@@ -41,6 +41,7 @@ export const OUTCOME_ACTIONS = [
   "course_lesson_text_saved",
   "course_lesson_thumbnail_set",
   "course_lesson_thumbnail_from_frame",
+  "course_lesson_moved",
   "course_lesson_video_upload_started",
   "course_lesson_video_refreshed",
   "course_lesson_video_removed",

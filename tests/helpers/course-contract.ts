@@ -499,6 +499,48 @@ export function defineCourseContract(name: string, setup: () => CourseContractCo
       expect((await repo.modulesOf([imported.id], { includeHidden: true })).find((x) => x.id === moduleId)).toMatchObject({ publishing_option: "published", state: "open" });
     });
 
+    it("moves a Hub-owned lesson to the end of another module, or out of every module, and works its state out from where it is now", async () => {
+      const repo = ctx.courses();
+      const course = newCourse("move-lesson");
+      const other = newCourse("move-lesson-other");
+      await ctx.seed.courses([course, other]);
+      const open = await repo.addModule({ course_id: course.id, title: "Open", position: 1, publishing_option: "published", source: "hub" });
+      const hidden = await repo.addModule({ course_id: course.id, title: "Hidden", position: 2, publishing_option: "draft", source: "hub" });
+      const foreign = await repo.addModule({ course_id: other.id, title: "Elsewhere", position: 1, publishing_option: "published", source: "hub" });
+      const a = await repo.addLesson({ course_id: course.id, module_id: open, title: "A", position: 1, publishing_option: "published", source: "hub" });
+      const b = await repo.addLesson({ course_id: course.id, module_id: open, title: "B", position: 2, publishing_option: "published", source: "hub" });
+      const inHidden = await repo.addLesson({ course_id: course.id, module_id: hidden, title: "In hidden", position: 1, publishing_option: "published", source: "hub" });
+      const where = async (id: string) => {
+        const l = (await repo.lessonById(id))!;
+        return [l.module_id, l.position, l.state];
+      };
+
+      // Into a draft module: last there, and hidden now.
+      await repo.moveLesson(a, hidden);
+      expect(await where(a)).toEqual([hidden, 2, "hidden"]);
+      // The list it left keeps its numbers.
+      expect(await where(b)).toEqual([open, 2, "open"]);
+      // Out of every module, then into the open one: last again, and open again.
+      await repo.moveLesson(inHidden, null);
+      expect((await where(inHidden)).slice(0, 1)).toEqual([null]);
+      expect((await where(inHidden))[2]).toBe("open");
+      await repo.moveLesson(a, open);
+      expect(await where(a)).toEqual([open, 3, "open"]);
+      // Where it already is: nothing changes.
+      await repo.moveLesson(a, open);
+      expect(await where(a)).toEqual([open, 3, "open"]);
+
+      const message = (promise: Promise<unknown>) => promise.then(() => "", (e: Error) => e.message);
+      expect(await message(repo.moveLesson(a, foreign))).toBe("module_not_found");
+      expect(await message(repo.moveLesson(a, newCourseId("mod")))).toBe("module_not_found");
+      expect(await message(repo.moveLesson(newCourseId("les"), open))).toBe("not_found");
+      const imported = newCourse("move-lesson-kajabi", { source: "kajabi", source_key: ctx.unique("kj") });
+      await ctx.seed.courses([imported]);
+      const importedLesson = lessonRow({ id: newCourseId("les"), course_id: imported.id, title: "Imported", source: "kajabi", source_key: ctx.unique("kl") });
+      await ctx.seed.lessons([importedLesson]);
+      expect(await message(repo.moveLesson(importedLesson.id, null))).toBe("not_editable");
+    });
+
     it("sets a Hub-owned lesson's thumbnail to a library image, and clears it, forgetting the Kajabi picture it had", async () => {
       const repo = ctx.courses();
       const hub = newCourse("thumb");

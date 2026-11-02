@@ -119,6 +119,11 @@ export interface CourseRepository {
   /** Puts the children of one parent in this order, all or nothing. The list must be exactly the current children. Throws a {@link CourseWriteError} (`stale_order`, `not_editable`). */
   reorderChildren(order: { courseId: string; kind: OutlineKind; parentId: string | null; ids: string[] }): Promise<void>;
   /**
+   * Moves a Hub-owned lesson to the end of another module of its course (null: out of every module) and works the states out
+   * again. Throws a {@link CourseWriteError} (`not_found`, `not_editable`, `module_not_found` for a module of another course or none).
+   */
+  moveLesson(lessonId: string, moduleId: string | null): Promise<void>;
+  /**
    * Sets a Hub-owned module's or lesson's own setting (draft, published or locked); its state, and that of what is
    * under it, follow. Throws a {@link CourseWriteError} (`unsupported_status`, `not_found`, `not_editable`).
    */
@@ -366,6 +371,11 @@ export class SupabaseCourseRepository implements CourseRepository {
     const { data, error } = kind === "module" ? await this.db.rpc("duplicate_course_module", { p_module_id: id }) : await this.db.rpc("duplicate_course_lesson", { p_lesson_id: id });
     if (error) throw writeError(error);
     return data as string;
+  }
+
+  async moveLesson(lessonId: string, moduleId: string | null) {
+    const { error } = await this.db.rpc("move_course_lesson", { p_lesson_id: lessonId, p_module_id: moduleId as string });
+    if (error) throw writeError(error);
   }
 
   async reorderChildren(order: { courseId: string; kind: OutlineKind; parentId: string | null; ids: string[] }) {
@@ -836,6 +846,19 @@ export class InMemoryCourseRepository implements CourseRepository {
       copyLessons(child.id, draftModule(child, copyId, child.title, child.position));
     }
     return copyId;
+  }
+
+  async moveLesson(lessonId: string, moduleId: string | null) {
+    const lesson = this.data.courseLessons.find((l) => l.id === lessonId);
+    if (!lesson) throw new CourseWriteError("not_found");
+    if (lesson.source !== "hub" || this.data.courses.find((c) => c.id === lesson.course_id)?.source !== "hub") throw new CourseWriteError("not_editable");
+    if ((lesson.module_id ?? null) === moduleId) return;
+    if (moduleId !== null && !this.data.courseModules.some((m) => m.id === moduleId && m.course_id === lesson.course_id)) throw new CourseWriteError("module_not_found");
+    const siblings = this.data.courseLessons.filter((l) => l.course_id === lesson.course_id && (l.module_id ?? null) === moduleId);
+    lesson.module_id = moduleId;
+    lesson.position = Math.max(0, ...siblings.map((l) => l.position)) + 1;
+    lesson.updated_at = now();
+    this.recompute(lesson.course_id);
   }
 
   async reorderChildren(order: { courseId: string; kind: OutlineKind; parentId: string | null; ids: string[] }) {

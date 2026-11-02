@@ -42,7 +42,7 @@ const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]
   [
     () => import("@/app/(admin)/admin/courses/outline-actions"),
     "app/(admin)/admin/courses/outline-actions.ts",
-    [["addCourseModule", "course_module_added"], ["addCourseLesson", "course_lesson_added"], ["renameCourseItem", "course_item_renamed"], ["deleteCourseItem", "course_item_deleted"], ["duplicateCourseItem", "course_item_duplicated"], ["reorderCourseItems", "course_items_reordered"], ["setCourseItemStatus", "course_item_status_set"], ["saveLessonText", "course_lesson_text_saved"], ["setLessonThumbnail", "course_lesson_thumbnail_set"]],
+    [["addCourseModule", "course_module_added"], ["addCourseLesson", "course_lesson_added"], ["renameCourseItem", "course_item_renamed"], ["deleteCourseItem", "course_item_deleted"], ["duplicateCourseItem", "course_item_duplicated"], ["reorderCourseItems", "course_items_reordered"], ["setCourseItemStatus", "course_item_status_set"], ["saveLessonText", "course_lesson_text_saved"], ["setLessonThumbnail", "course_lesson_thumbnail_set"], ["moveCourseLesson", "course_lesson_moved"]],
   ],
   [
     () => import("@/app/(admin)/admin/courses/lesson-video-actions"),

@@ -179,7 +179,9 @@ SELECT is(
   (SELECT count(*)::int FROM public.audit_log WHERE entity_type IN ('course_module_order', 'course_lesson_order') AND entity_id IN ('crs_OutlineHub001', 'mod_OutlineWk0001', 'mod_OutlineA00001', 'mod_OutlineB00001', 'mod_OutlineC00001')),
   2, 'a reorder that changed nothing, a stale list and a refused reorder write no entry');
 SELECT is(
-  (SELECT count(*)::int FROM public.audit_log WHERE entity_type IN ('course_module', 'course_lesson') AND action = 'update' AND changes ? 'position'),
+  -- Only this test's own rows: other tests commit entries for lessons they move, and a move changes position too.
+  (SELECT count(*)::int FROM public.audit_log WHERE entity_type IN ('course_module', 'course_lesson') AND action = 'update' AND changes ? 'position'
+      AND entity_id IN ('mod_OutlineA00001', 'mod_OutlineB00001', 'mod_OutlineC00001', 'mod_OutlineWk0001', 'les_OutlineL00001', 'les_OutlineL00002', 'les_OutlineL00003')),
   0, 'a reorder writes no entry per row, only the one for the list');
 SELECT is(
   (SELECT count(*)::int FROM public.audit_log WHERE entity_type = 'course_lesson_order' AND entity_id = 'mod_OutlineWk0001' AND txid = txid_current()),
