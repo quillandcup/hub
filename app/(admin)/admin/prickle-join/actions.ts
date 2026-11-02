@@ -4,11 +4,11 @@ import { revalidatePath } from "next/cache";
 import { requireAdminAction } from "@/lib/admin-auth";
 import { createRepos } from "@/lib/data/repos";
 import { ORG_TIMEZONE } from "@/lib/config";
-import { effectiveFromForDate, isFutureDate } from "@/lib/prickle-join";
+import { effectiveFromForDate, isAllowedStartDate } from "@/lib/prickle-join";
 
 /**
  * Set the Zoom room link, meeting ID and passcode. With no `startDate` it applies from now; with one
- * (YYYY-MM-DD, after today) from the start of that day in the org timezone, so a prickle belongs to
+ * (YYYY-MM-DD, up to a month back) from the start of that day in the org timezone, so a prickle belongs to
  * the day it starts. Append-only: prickles that already started keep the setting they had (see
  * lib/prickle-join.ts), which keeps past calendar events accurate. The link must be https.
  */
@@ -27,8 +27,8 @@ export async function savePrickleJoin(input: { url: string; meetingId: string; p
   }
 
   const now = new Date();
-  if (startDate && !isFutureDate(startDate, now, ORG_TIMEZONE)) {
-    return { error: "Pick a start day after today, or leave it blank to start now" };
+  if (startDate && !isAllowedStartDate(startDate, now, ORG_TIMEZONE)) {
+    return { error: "Pick a start day within the last month or later, or leave it blank to start now" };
   }
   const effectiveFrom = startDate ? effectiveFromForDate(startDate, ORG_TIMEZONE) : now;
 

@@ -33,7 +33,7 @@ describe("joinDescription", () => {
   });
 });
 
-import { effectiveFromForDate, isFutureDate } from "@/lib/prickle-join";
+import { effectiveFromForDate, isAllowedStartDate } from "@/lib/prickle-join";
 
 describe("scheduling a change", () => {
   it("starts at the day's midnight in the org timezone, DST included", () => {
@@ -48,20 +48,22 @@ describe("scheduling a change", () => {
     expect(joinAt(h, "2026-11-02T05:30:00Z")?.passcode).toBe("new");
   });
 
-  it("only accepts days after today in the org timezone", () => {
+  it("accepts a day from a month back up, in the org timezone", () => {
     const now = new Date("2026-11-02T03:00:00Z"); // still Nov 1 evening in New York
-    expect(isFutureDate("2026-11-01", now, "America/New_York")).toBe(false);
-    expect(isFutureDate("2026-11-02", now, "America/New_York")).toBe(true);
-    expect(isFutureDate("nope", now, "America/New_York")).toBe(false);
+    expect(isAllowedStartDate("2026-11-01", now, "America/New_York")).toBe(true);
+    expect(isAllowedStartDate("2026-12-01", now, "America/New_York")).toBe(true);
+    expect(isAllowedStartDate("2026-10-01", now, "America/New_York")).toBe(true);
+    expect(isAllowedStartDate("2026-09-30", now, "America/New_York")).toBe(false);
+    expect(isAllowedStartDate("nope", now, "America/New_York")).toBe(false);
   });
 });
 
-import { firstOfNextMonth, tomorrowIn } from "@/lib/prickle-join";
+import { firstOfNextMonth, earliestStartDate } from "@/lib/prickle-join";
 
 describe("start day defaults", () => {
   it("uses the org timezone's calendar, not UTC", () => {
     const lateOct31Eastern = new Date("2026-11-01T02:00:00Z"); // 10 PM Oct 31 in New York
-    expect(tomorrowIn(lateOct31Eastern, "America/New_York")).toBe("2026-11-01");
+    expect(earliestStartDate(lateOct31Eastern, "America/New_York")).toBe("2026-09-30");
     expect(firstOfNextMonth(lateOct31Eastern, "America/New_York")).toBe("2026-11-01");
     expect(firstOfNextMonth(new Date("2026-12-15T12:00:00Z"), "America/New_York")).toBe("2027-01-01");
   });

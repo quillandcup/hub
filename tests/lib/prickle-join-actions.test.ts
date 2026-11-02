@@ -61,6 +61,13 @@ describe("savePrickleJoin", () => {
     expect(await saved()).toMatchObject({ meeting_id: null, passcode: null, effective_from: "2099-01-05T05:00:00.000Z" });
   });
 
+  it("accepts a start day in the past, so a missed update can be dated back", async () => {
+    const lastWeek = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
+
+    expect(await savePrickleJoin({ url: URL_OK, meetingId: "", passcode: "x", startDate: lastWeek })).toEqual({ success: true });
+    expect(Date.parse((await saved()).effective_from)).toBeLessThan(Date.now());
+  });
+
   it("refuses a non-admin before touching anything", async () => {
     mocks.auth.mockResolvedValue({ ok: false, error: "Not authorized" });
 
@@ -75,7 +82,7 @@ describe("savePrickleJoin", () => {
 
   it.each(["2000-01-01", "nope"])("rejects the start day %j", async (startDate) => {
     expect(await savePrickleJoin({ url: URL_OK, meetingId: "", passcode: "x", startDate })).toEqual({
-      error: "Pick a start day after today, or leave it blank to start now",
+      error: "Pick a start day within the last month or later, or leave it blank to start now",
     });
     expect(await repos.zoom.joinSettings()).toHaveLength(0);
   });
