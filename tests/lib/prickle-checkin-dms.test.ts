@@ -24,6 +24,7 @@ import {
   type GoalCandidate,
   type UpcomingPrickle,
 } from "@/lib/prickle-checkin-dms";
+import { CHECKIN_GRACE_MS } from "@/lib/upcoming-prickles";
 import { EMPTY_CHECKIN, type CheckinInput } from "@/lib/prickle-checkins";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
@@ -464,7 +465,7 @@ describe("in-app notifications", () => {
   it("ties the messages to the prickle, time-sensitive on its timing", () => {
     expect(checkinMessage({ ...P1 }, null)).toMatchObject({
       ref: "p1",
-      timeSensitiveUntil: P1.startTime,
+      timeSensitiveUntil: new Date(Date.parse(P1.startTime) + CHECKIN_GRACE_MS).toISOString(),
     });
 
     const end = "2026-10-05T12:00:00.000Z";

@@ -392,7 +392,7 @@ export function rankUpcomingPrickles(inputs: RankingInputs): RankedPrickle[] {
 }
 
 /**
- * Upcoming prickles in `[now, now + windowDays]`, ranked highest-priority
+ * Upcoming prickles in `[now - CHECKIN_GRACE_MS, now + windowDays]`, ranked highest-priority
  * first (see rankUpcomingPrickles). Callers decide how much of the list to
  * show (Dashboard caps it; My Prickles shows the full window).
  */
@@ -417,7 +417,8 @@ export async function getRankedUpcomingWithHistory(
   now: Date,
   windowDays: number
 ): Promise<{ ranked: RankedPrickle[]; myAttendance: Awaited<ReturnType<UpcomingRepos["attendance"]["forMemberWithPrickles"]>> }> {
-  const windowStart = now.toISOString()
+  // A prickle that started up to CHECKIN_GRACE_MS ago is still listed (and offers its check-in).
+  const windowStart = new Date(now.getTime() - CHECKIN_GRACE_MS).toISOString()
   const windowEnd = new Date(now.getTime() + windowDays * 24 * 60 * 60 * 1000).toISOString()
   const lookbackStart = new Date(now.getTime() - SISTER_LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString()
 
@@ -605,13 +606,19 @@ export async function getRankedUpcomingWithHistory(
 export const CHECKIN_SOON_MS = 2 * 60 * 60 * 1000
 
 /**
- * Whether a prickle offers a check-in now: it starts within CHECKIN_SOON_MS and the member has a
+ * How long after the start a prickle still offers its check-in: the talking time ends at minute
+ * 18, when everyone should be writing. Also how long the check-in DM stays a banner.
+ */
+export const CHECKIN_GRACE_MS = 18 * 60 * 1000
+
+/**
+ * Whether a prickle offers a check-in now: it starts within CHECKIN_SOON_MS, or started less than CHECKIN_GRACE_MS ago, and the member has a
  * personal tie to it (hosting it, in one of their commitments, or added to their calendar), so
  * the dashboard, My Prickles and the search palette's "Needs attention" all agree.
  */
 export function checkinOffered(prickle: Pick<UpcomingPrickle, "startTime">, reasons: HighlightReason[], now: Date | number): boolean {
   const untilStart = new Date(prickle.startTime).getTime() - (typeof now === "number" ? now : now.getTime())
-  return untilStart <= CHECKIN_SOON_MS && reasons.some((r) => r.kind === "hosting" || r.kind === "commitment" || r.kind === "calendar")
+  return untilStart <= CHECKIN_SOON_MS && untilStart >= -CHECKIN_GRACE_MS && reasons.some((r) => r.kind === "hosting" || r.kind === "commitment" || r.kind === "calendar")
 }
 
 /**
@@ -620,7 +627,7 @@ export function checkinOffered(prickle: Pick<UpcomingPrickle, "startTime">, reas
  */
 export async function getCheckinPrickles(repos: UpcomingRepos, memberId: string, timeZone: string, now: Date): Promise<RankedPrickle[]> {
   const [upcoming, commitments, calendarItems] = await Promise.all([
-    fetchPrickles(repos, now.toISOString(), new Date(now.getTime() + CHECKIN_SOON_MS).toISOString(), timeZone, true),
+    fetchPrickles(repos, new Date(now.getTime() - CHECKIN_GRACE_MS).toISOString(), new Date(now.getTime() + CHECKIN_SOON_MS).toISOString(), timeZone, true),
     fetchActiveCommitments(repos, memberId),
     fetchCalendarItems(repos, memberId),
   ])
