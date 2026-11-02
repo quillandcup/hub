@@ -30,8 +30,8 @@ type RouteRepos = Repos;
 export const maxDuration = 60;
 
 /**
- * Prickle check-in and check-out DMs, both to members with an active writing goal (any measure);
- * answers save to their check-in (lib/prickle-checkin-dms.ts). Each tick:
+ * Prickle check-in DMs (to members with an active writing goal, any measure) and check-out DMs (to
+ * anyone in the room; the progress questions only for those with a goal); answers save to their check-in (lib/prickle-checkin-dms.ts). Each tick:
  * - Check-ins: ~15-30 min before an upcoming writing prickle on the member's calendar feed
  *   (hosting, a commitment, or added by hand), how they're feeling coming in and their intention for it.
  *   See planCheckinDMs.
@@ -55,12 +55,10 @@ async function runPrickleCheckins(request: NextRequest): Promise<NextResponse> {
   const repos = createRepos(createServiceRoleClient());
 
   const candidates = await getActiveGoalCandidates(repos);
-  if (candidates.length === 0) {
-    return NextResponse.json({ checkins: 0, checkouts: 0, reason: "no active writing goals" });
-  }
 
   const now = Date.now();
-  const checkins = await sendCheckins(repos, candidates, now);
+  // Check-ins only go to members with a goal; check-outs go to anyone in the room.
+  const checkins = candidates.length > 0 ? await sendCheckins(repos, candidates, now) : 0;
   const checkouts = await sendCheckoutDMs(repos, await loadRecentPrickles(repos, now), candidates, now);
   return NextResponse.json({ checkins, checkouts });
 }

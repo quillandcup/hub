@@ -37,7 +37,7 @@ vi.mock("@/lib/data/repos", async () => ({
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 
 const { POST } = await import("@/app/api/internal/prickle-checkins/route");
-const { getActiveGoalCandidates, sendCheckoutDMs, sendTestCheckinDM, tryRecordCheckinDM } = await import(
+const { NO_GOAL_TIP, getActiveGoalCandidates, sendCheckoutDMs, sendTestCheckinDM, tryRecordCheckinDM } = await import(
   "@/lib/prickle-checkin-dms"
 );
 
@@ -279,9 +279,10 @@ describe("prickle check-in route", () => {
     expect(sendSlackDM).not.toHaveBeenCalled();
   });
 
-  it("answers early when nobody has an active writing goal", async () => {
+  it("sends nothing when nobody has a goal and no prickle has anyone due a check-out", async () => {
     const res = await POST(cronRequest());
-    expect(await res.json()).toEqual({ checkins: 0, checkouts: 0, reason: "no active writing goals" });
+    expect(await res.json()).toEqual({ checkins: 0, checkouts: 0 });
+    expect(sendSlackDM).not.toHaveBeenCalled();
   });
 });
 
@@ -343,6 +344,17 @@ describe("sendCheckoutDMs", () => {
       undefined, // footer
     ]);
     expect(blocks!.at(-1).elements.at(-1).text).toContain("/settings/notifications|Notification settings");
+  });
+
+  it("checks out an attendee with no goal too: no progress questions, a tip to set one", async () => {
+    setup([goalRow("g4", "m2", "proj4", "words")]); // m1 attended and has no goal
+
+    expect(await checkout()).toBe(1);
+    const { slackUserId, blocks } = sendSlackDM.mock.calls[0][0];
+    expect(slackUserId).toBe("U-m1");
+    expect(blocks!.map((b: any) => b.block_id)).not.toContain("quick_log:p1:proj4:words");
+    expect(blocks!.some((b: any) => String(b.block_id).startsWith("quick_log"))).toBe(false);
+    expect(blocks!.at(-1).elements.map((e: any) => e.text).join(" ")).toContain(NO_GOAL_TIP);
   });
 
   it("skips an attendee who turned check-outs off, without logging it", async () => {

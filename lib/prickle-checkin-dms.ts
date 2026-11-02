@@ -41,9 +41,10 @@ type DmRepos = Repos;
 /**
  * Prickle check-in and check-out DMs: Slack's way into the same check-in as the prickle page
  * (lib/prickle-checkins.ts, prickle_checkins). ~20 min before a prickle on their calendar, a
- * member with an active writing goal gets a check-in DM (mood, the feeling, their intention); after
- * it, each such attendee gets a check-out DM (did they get what they came for, mood, the feeling,
- * plus a progress quick-log per goal). Each answer saves straight into their check-in.
+ * member with an active writing goal gets a check-in DM (mood, the feeling, their intention); before
+ * it ends, each attendee in the room gets a check-out DM (did they get what they came for, mood, the
+ * feeling, plus a progress quick-log per goal when they have goals, else a tip to set one). Each
+ * answer saves straight into their check-in.
  */
 
 export interface GoalCandidate {
@@ -683,21 +684,19 @@ export function dueCheckoutMembers(
 }
 
 /**
- * Which (member, prickle) pairs get a check-out now: members due one (dueCheckoutMembers) with
- * any active goal, minus pairs already sent one. Exactly one entry per member per prickle, however
- * many attendance rows (leave/rejoin), devices or goals they have.
+ * Which (member, prickle) pairs get a check-out now: members due one (dueCheckoutMembers), with
+ * or without a writing goal, minus pairs already sent one. Exactly one entry per member per
+ * prickle, however many attendance rows (leave/rejoin) or devices they have.
  */
 export function planCheckoutDMs<P extends RecentPrickle>(
   prickles: P[],
   dueByPrickle: Map<string, Set<string>>,
-  candidates: GoalCandidate[],
   alreadySent: Set<string>
 ): { memberId: string; prickle: P }[] {
-  const withGoals = new Set(candidates.map((c) => c.memberId));
   const plan: { memberId: string; prickle: P }[] = [];
   for (const prickle of prickles) {
     for (const memberId of dueByPrickle.get(prickle.id) ?? []) {
-      if (withGoals.has(memberId) && !alreadySent.has(`${memberId}:${prickle.id}`)) plan.push({ memberId, prickle });
+      if (!alreadySent.has(`${memberId}:${prickle.id}`)) plan.push({ memberId, prickle });
     }
   }
   return plan;
@@ -729,9 +728,10 @@ async function loadLoggedProjects(repos: DmRepos, memberIds: string[], prickleId
 /**
  * Check-out DMs, run from the same 5-minute cron as the check-ins
  * (app/api/internal/prickle-checkins/route.ts) over `prickles`: started writing prickles from the
- * last CHECKOUT_LOOKBACK_MS. Each member due one (dueCheckoutMembers) with any active writing
- * goal gets one DM: did they get what they came for, mood, the feeling, and a progress dropdown per goal in that goal's measure (words, chapters,
- * scenes...) -- or, for a prickles goal, the output attendance tracking can't capture. A project
+ * last CHECKOUT_LOOKBACK_MS. Each member due one (dueCheckoutMembers) gets one DM: did they get
+ * what they came for, mood, the feeling, and a progress dropdown per goal in that goal's measure (words, chapters,
+ * scenes...) -- or, for a prickles goal, the output attendance tracking can't capture. A member
+ * with no active goal gets no dropdowns but a tip to set one (checkoutMessage). A project
  * they've already logged progress against for this prickle gets no dropdown, and with the
  * check-out answered too (checkoutAnswered), no DM. Returns the number of DMs sent.
  */
@@ -741,7 +741,7 @@ export async function sendCheckoutDMs(
   candidates: GoalCandidate[],
   now: number
 ): Promise<number> {
-  if (prickles.length === 0 || candidates.length === 0) return 0;
+  if (prickles.length === 0) return 0;
   const prickleIds = prickles.map((p) => p.id);
   const earliestStart = Math.min(...prickles.map((p) => new Date(p.startTime).getTime()));
   const presenceSince = Number.isFinite(earliestStart)
@@ -755,7 +755,7 @@ export async function sendCheckoutDMs(
   ]);
   const dueByPrickle = dueCheckoutMembers(prickles, attendeesByPrickle, presenceByMember, now);
   // A dismissed check-out is as good as a sent one: nothing more goes out for the pair.
-  const plan = planCheckoutDMs(prickles, dueByPrickle, candidates, new Set([...alreadySent, ...skipped]));
+  const plan = planCheckoutDMs(prickles, dueByPrickle, new Set([...alreadySent, ...skipped]));
   if (plan.length === 0) return 0;
 
   const memberIds = [...new Set(plan.map((p) => p.memberId))];
@@ -775,13 +775,12 @@ export async function sendCheckoutDMs(
 
     // Not logged when skipped, so a later tick still sends if they clear an answer.
     const saved = checkins.get(`${memberId}:${prickle.id}`) ?? null;
-    const unlogged = (goalsByMember.get(memberId) ?? []).filter(
-      (g) => !loggedProjects.has(`${memberId}:${prickle.id}:${g.projectId}`)
-    );
+    const goals = goalsByMember.get(memberId) ?? [];
+    const unlogged = goals.filter((g) => !loggedProjects.has(`${memberId}:${prickle.id}:${g.projectId}`));
     if (checkoutAnswered(saved) && unlogged.length === 0) continue;
 
     // Build before claiming: a failed progress lookup mustn't consume the notification.
-    const message = checkoutMessage(prickle, saved, await quickLogPrompts(repos, unlogged));
+    const message = checkoutMessage(prickle, saved, await quickLogPrompts(repos, unlogged), { hasGoals: goals.length > 0 });
     const shouldSend = await tryRecordCheckinDM(repos, prickle.id, memberId, "prickle_checkout");
     if (!shouldSend) continue;
 
@@ -852,12 +851,15 @@ export function checkinMessage(
   };
 }
 
+/** What a check-out says to a member with no writing goal, as a link to their projects. */
+export const NO_GOAL_TIP = "Tip: set a writing goal on a project to log your progress at check-out";
+
 /** The check-out DM. Sending it is the caller's call: no dedup or skip checks here. */
 export function checkoutMessage(
   prickle: DMPrickle,
   saved: CheckinInput | null,
   prompts: QuickLogPrompt[],
-  { test = false } = {}
+  { test = false, hasGoals = true }: { test?: boolean; hasGoals?: boolean } = {}
 ): OutboundMessage {
   const blocks = buildCheckoutBlocks(prickle.id, prickle.typeName, saved, prompts, prickle.title ?? prickle.typeName);
   return {
@@ -866,6 +868,8 @@ export function checkoutMessage(
     slackBlocks: test ? [TEST_BANNER, ...blocks] : blocks,
     ref: prickle.id,
     timeSensitiveUntil: offsetIso(prickle.endTime, CHECKOUT_TIME_SENSITIVE_MS),
+    // No goal, no progress questions: say how to get them.
+    ...(hasGoals ? {} : { footerLinks: [{ label: NO_GOAL_TIP, url: `${APP_URL}/projects` }] }),
   };
 }
 
@@ -897,7 +901,7 @@ export async function sendTestCheckinDM(
     });
   } else {
     const goals = (await getActiveGoalCandidates(repos)).filter((g) => g.memberId === memberId);
-    message = checkoutMessage(prickle, saved, await quickLogPrompts(repos, goals), { test: true });
+    message = checkoutMessage(prickle, saved, await quickLogPrompts(repos, goals), { test: true, hasGoals: goals.length > 0 });
   }
   const delivered = await notifier.send(memberId, message);
   return delivered.length > 0 ? { delivered } : { error: "Nothing went out; check the server logs." };
