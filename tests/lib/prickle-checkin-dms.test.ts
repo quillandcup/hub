@@ -93,18 +93,13 @@ describe("planCheckoutDMs", () => {
   const attendees = (entries: Record<string, string[]>) =>
     new Map(Object.entries(entries).map(([prickle, members]) => [prickle, new Set(members)]));
 
-  it("plans one check-out per attendee with a goal, per prickle", () => {
-    const plan = planCheckoutDMs(
-      prickles,
-      attendees({ p1: ["m1", "m2"], p2: ["m1"] }),
-      [goal({ memberId: "m1" }), goal({ memberId: "m1", goalId: "g2", projectId: "proj2" })],
-      new Set()
-    );
-    expect(plan.map((e) => `${e.memberId}:${e.prickle.id}`)).toEqual(["m1:p1", "m1:p2"]);
+  it("plans one check-out per member due one, per prickle, goal or not", () => {
+    const plan = planCheckoutDMs(prickles, attendees({ p1: ["m1", "m2"], p2: ["m1"] }), new Set());
+    expect(plan.map((e) => `${e.memberId}:${e.prickle.id}`)).toEqual(["m1:p1", "m2:p1", "m1:p2"]);
   });
 
   it("skips pairs already sent and prickles with no attendance yet", () => {
-    const plan = planCheckoutDMs(prickles, attendees({ p1: ["m1"] }), [goal()], new Set(["m1:p1"]));
+    const plan = planCheckoutDMs(prickles, attendees({ p1: ["m1"] }), new Set(["m1:p1"]));
     expect(plan).toEqual([]);
   });
 });
