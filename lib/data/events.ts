@@ -256,6 +256,8 @@ export interface FeedEvent {
   location: string | null;
   starts_at: string;
   ends_at: string;
+  start_time: string;
+  end_time: string;
 }
 
 export interface EventSearchQuery {
@@ -511,7 +513,7 @@ export class SupabaseEventRepository implements EventRepository {
     for (const ids of chunk(eventIds, ID_CHUNK_SIZE)) {
       const { data, error } = await this.db
         .from("community_event_details")
-        .select("id, slug, title, speakers, host_name, location, starts_at, ends_at")
+        .select("id, slug, title, speakers, host_name, location, starts_at, ends_at, start_time, end_time")
         .in("id", ids)
         .is("deleted_at", null)
         .gte("ends_at", endsOnOrAfter)
@@ -780,7 +782,7 @@ export class InMemoryEventRepository implements EventRepository {
     const wanted = new Set(eventIds);
     return eventDetails(this.data)
       .filter((e) => wanted.has(e.id) && !e.deleted_at && e.ends_at >= endsOnOrAfter)
-      .map((e) => ({ id: e.id, slug: e.slug, title: e.title, speakers: e.speakers, host_name: e.host_name, location: e.location, starts_at: e.starts_at, ends_at: e.ends_at }));
+      .map((e) => ({ id: e.id, slug: e.slug, title: e.title, speakers: e.speakers, host_name: e.host_name, location: e.location, starts_at: e.starts_at, ends_at: e.ends_at, start_time: e.start_time, end_time: e.end_time }));
   }
 
   async search(q: EventSearchQuery): Promise<EventSearchHit[]> {
