@@ -28,10 +28,9 @@ export default async function CoursesPage() {
         <div className="@container">
           <ul className="grid gap-6 @pair:grid-cols-2 @columns:grid-cols-3">
           {items.map(({ course, access, progress }) => {
-            const ended = access.kind === "ended";
             const upcoming = access.kind === "upcoming";
             const courseHref = `/courses/${course.slug}`;
-            const href = ended || !progress.continueLessonId ? courseHref : `${courseHref}/lessons/${progress.continueLessonId}`;
+            const href = !progress.continueLessonId ? courseHref : `${courseHref}/lessons/${progress.continueLessonId}`;
             const percent = progress.available > 0 ? Math.round((progress.completed / progress.available) * 100) : 0;
             const started = progress.completed > 0;
             const thumbnail = courseImageUrl(course.thumbnail_url);
@@ -52,11 +51,6 @@ export default async function CoursesPage() {
                   )}
                   {course.is_draft && (
                     <span className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1 text-xs text-slate-700 shadow-sm">Draft: only staff see this</span>
-                  )}
-                  {ended && (
-                    <span className="absolute right-3 top-3 rounded-full bg-white/90 px-3 py-1 text-xs text-slate-700 shadow-sm">
-                      Access ended {formatCourseDate(access.endsAt)}
-                    </span>
                   )}
                   {upcoming && (
                     <span className="absolute right-3 top-3 rounded-full bg-white/90 px-3 py-1 text-xs text-plum-800 shadow-sm">
@@ -99,7 +93,7 @@ export default async function CoursesPage() {
                           href={href}
                           className="mt-4 inline-block rounded-lg bg-plum-600 px-4 py-2 text-sm font-medium text-white hover:bg-plum-700"
                         >
-                          {ended ? "View progress" : progress.allDone ? "Review" : started ? "Continue" : "Start"}
+                          {progress.allDone ? "Review" : started ? "Continue" : "Start"}
                         </Link>
                       </>
                     )}

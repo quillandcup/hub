@@ -83,16 +83,13 @@ describe("/courses", () => {
     expect(screen.getByRole("link", { name: "Continue" })).toHaveAttribute("href", `/courses/the-ready-writer/lessons/${LESSON_B}`);
   });
 
-  it("offers Start before anything is done, and marks an ended course with a link to its outline", async () => {
-    loadCourseList.mockResolvedValue([
-      { course, access: { kind: "open", endsAt: null }, progress: courseProgress(outline, new Set()) },
-      { course: { ...course, id: "c2", slug: "old", title: "Old Course" }, access: { kind: "ended", endsAt: "2026-01-15T12:00:00Z" }, progress: courseProgress(outline, new Set([LESSON_A])) },
-    ]);
+  it("offers Start before anything is done", async () => {
+    loadCourseList.mockResolvedValue([{ course, access: { kind: "open", endsAt: null }, progress: courseProgress(outline, new Set()) }]);
     await renderServerPage(CoursesPage, {});
 
     expect(screen.getByRole("link", { name: "Start" })).toHaveAttribute("href", `/courses/the-ready-writer/lessons/${LESSON_A}`);
-    expect(screen.getByText("Access ended January 15, 2026")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "View progress" })).toHaveAttribute("href", "/courses/old");
+    expect(screen.queryByText(/Access ended/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "View progress" })).not.toBeInTheDocument();
   });
 });
 
@@ -235,20 +232,21 @@ describe("/courses/[slug]", () => {
     expect(screen.getByText("0 of 1 available lesson done")).toBeInTheDocument();
   });
 
-  it("closes the lessons when access has ended, but keeps the progress", async () => {
-    const completed = new Set([LESSON_A]);
+  it("says access has ended, with how to get it back, and shows none of the course", async () => {
     loadCourseView.mockResolvedValue({
       course,
       access: { kind: "ended", endsAt: "2026-01-15T12:00:00Z" },
-      outline,
-      completed,
-      progress: courseProgress(outline, completed),
+      outline: null,
+      completed: new Set(),
+      progress: null,
     });
     await renderServerPage(CoursePage, params());
 
-    expect(screen.getByRole("status")).toHaveTextContent("Your access ended on January 15, 2026");
-    expect(screen.getByText("1 of 2 available lessons done")).toBeInTheDocument();
-    expect(within(screen.getByRole("navigation", { name: "Course outline" })).queryAllByRole("link")).toHaveLength(0);
+    expect(screen.getByText("Your access to this course ended on January 15, 2026.")).toBeInTheDocument();
+    expect(screen.getByText(/Your progress is saved/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: SUPPORT_EMAIL })).toHaveAttribute("href", `mailto:${SUPPORT_EMAIL}`);
+    expect(screen.getByRole("link", { name: "Back to your courses" })).toHaveAttribute("href", "/courses");
+    expect(screen.queryByRole("navigation", { name: "Course outline" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Continue" })).not.toBeInTheDocument();
   });
 });
