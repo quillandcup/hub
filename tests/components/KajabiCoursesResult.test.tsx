@@ -18,7 +18,7 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("KajabiCoursesResult", () => {
-  it("lists what was imported and which published courses were refreshed", () => {
+  it("lists what was imported and which courses were refreshed (every course with a Hub row, drafts included)", () => {
     render(
       <KajabiCoursesResult
         courses={{
@@ -31,6 +31,9 @@ describe("KajabiCoursesResult", () => {
       />
     );
 
+    // Not "published": processing refreshes every course that has a Hub row, including drafts that members can't see.
+    expect(screen.getByText("Courses refreshed:")).toBeInTheDocument();
+    expect(screen.queryByText(/Published courses refreshed/)).not.toBeInTheDocument();
     expect(screen.getByText(/The Ready Writer: 3 modules, 12 lessons, 1 offers/)).toBeInTheDocument();
     expect(screen.getByText(/the-ready-writer: 12 lessons \(2 coming soon\), 40 with access, 2 access removed, 1 lessons and 0 modules removed/)).toBeInTheDocument();
   });
