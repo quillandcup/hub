@@ -195,7 +195,13 @@ const fakeTables = (): FakeTables => ({
   chat_messages: (q) => {
     if (q.calls.some((c) => c.method === "in" && c.args[0] === "thread_root_id")) return { data: replies };
     const wanted = eqArg(q, "id");
-    return { data: wanted ? (messages as { id: string }[]).filter((m) => m.id === wanted) : messages };
+    const all = messages as { id: string; thread_root_id?: string | null }[];
+    if (wanted) return { data: all.filter((m) => m.id === wanted) };
+    // Like the database: the conversation's own query is top-level only, and a thread's is its replies.
+    const threadRoot = eqArg(q, "thread_root_id");
+    if (threadRoot) return { data: all.filter((m) => m.thread_root_id === threadRoot) };
+    if (q.calls.some((c) => c.method === "is" && c.args[0] === "thread_root_id")) return { data: all.filter((m) => !m.thread_root_id) };
+    return { data: messages };
   },
   chat_reactions: () => ({ data: reactions }),
 });
@@ -458,6 +464,21 @@ describe("channel page", () => {
     expect(panel.getByRole("link", { name: "Close thread" })).toHaveAttribute("href", `/chat/${GENERAL}`);
     expect(panel.getByText("the reply")).toBeInTheDocument();
     expect(panel.queryByRole("link", { name: /repl/ })).not.toBeInTheDocument();
+  });
+
+  it("still opens a thread, keeping its root and replies out of the messages, when deleted messages with no replies are in the page", async () => {
+    // Those have a row but no view, so splitting the views by position would shift the thread's into the main list.
+    messages = [
+      msg(1, { reply_count: 1 }),
+      msg(4, { deleted_at: "2026-10-04T00:00:00Z", chat_message_contents: null }),
+      msg(5, { deleted_at: "2026-10-04T00:00:00Z", chat_message_contents: null }),
+      msg(2, { thread_root_id: id(101), chat_message_contents: { body: "the reply" } }),
+    ];
+    await renderChannel(GENERAL, { thread: id(101) });
+
+    const panel = within(screen.getByRole("complementary", { name: "Thread" }));
+    expect(panel.getByText("the reply")).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "Messages" })).queryByText("the reply")).not.toBeInTheDocument();
   });
 
   it("keeps ?before= when a panel is closed, so the reader stays on the older page", async () => {

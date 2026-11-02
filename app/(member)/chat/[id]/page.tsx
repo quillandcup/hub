@@ -143,11 +143,15 @@ export default async function ChatChannelPage({
   const { views, ...rendered } = await buildMessageViews(createRepos(supabase), channel, [...mainRows, ...threadRows], identity.memberId, timer);
   const ctx = chatTextContext(rendered, channels);
   timer.log(channel.kind === "channel" ? "channel" : "group");
-  const messageViews = views.slice(0, mainRows.length);
-  const threadViews = views.slice(mainRows.length);
+  // Matched to their rows by id, not by position: a deleted message with no replies has a row but no view, so the
+  // views are fewer than the rows and a position split would put the thread's root and replies into the main list.
+  const viewById = new Map(views.map((v) => [v.id, v]));
+  const viewsOf = (rows: { id: string }[]) => rows.flatMap((r) => viewById.get(r.id) ?? []);
+  const messageViews = viewsOf(mainRows);
   const firstUnreadId = firstUnreadMessageId(messageViews, readMarker);
-  const rootView = root ? threadViews[0] : null;
-  const replyViews = root ? threadViews.slice(1) : [];
+  const rootView = root ? (viewById.get(root.id) ?? null) : null;
+  const replyViews = viewsOf(threadPage?.messages ?? []);
+  const threadViews = rootView ? [rootView, ...replyViews] : [];
   const panelOpen = !sudoHidden && (rootView !== null || (profileId !== null && !threadId));
   const canPost = postingOn && channel.joined;
   // Reacting also works in a public channel the member has not joined.
