@@ -89,6 +89,7 @@ describe("click to play", () => {
       </>,
     );
     const play = await screen.findByRole("button", { name: /play demo1\.gif/i });
+    expect(screen.getByRole("button", { name: /expand demo1\.gif/i })).toBeInTheDocument();
     await userEvent.click(play);
     expect(screen.getByAltText("demo1.gif")).toHaveAttribute("data-playing");
     await userEvent.click(screen.getByRole("button", { name: /pause demo1\.gif/i }));
