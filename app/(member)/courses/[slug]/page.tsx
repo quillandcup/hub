@@ -41,24 +41,6 @@ export default async function CoursePage({ params }: { params: Promise<{ slug: s
     );
   }
 
-  // Access has ended: the course is gone from the member's list, and a link to it says so (their progress is kept if access is renewed).
-  if (access.kind === "ended") {
-    return (
-      <div className="container mx-auto max-w-2xl px-6 py-8">
-        <h1 className="mb-2 text-3xl font-bold">{course.title}</h1>
-        <div className="mt-6 rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
-          <p className="font-medium">Your access to this course ended on {formatCourseDate(access.endsAt)}.</p>
-          <p className="mt-2">
-            To get it back, email <a data-track="course-ended-contact-support" className="underline" href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>. Your progress is saved.
-          </p>
-          <Link data-track="course-ended-back-to-your-courses" href="/courses" className="mt-4 inline-block underline">
-            Back to your courses
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
   if (!outline || !progress) {
     return (
       <div className="container mx-auto max-w-2xl px-6 py-8">
@@ -117,6 +99,11 @@ export default async function CoursePage({ params }: { params: Promise<{ slug: s
       <div className="@container">
       <div className="container mx-auto grid max-w-5xl gap-6 px-6 py-8 @split:grid-cols-[1fr_18rem]">
         <div>
+          {access.kind === "ended" && (
+            <p role="status" className="mb-4 rounded-lg bg-slate-100 p-4 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+              Your access ended on {formatCourseDate(access.endsAt)}. Your progress is saved below, but the lessons are closed.
+            </p>
+          )}
           <CourseOutline slug={course.slug} outline={outline} completed={completed} canOpen={canOpen} previewComingSoon={caller.scope.isAdminActing} />
         </div>
 
