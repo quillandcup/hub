@@ -182,7 +182,11 @@ export async function runCommentsCapture(options: CommentsRunOptions): Promise<C
       } else if (result.read.kind === "noList") {
         if (result.read.locked) summary.lessonsLocked++;
         else if (result.read.hasCommentBox) summary.lessonsNoComments++;
-        else summary.lessonsWithoutList++;
+        else {
+          summary.lessonsWithoutList++;
+          // Its id is a Kajabi lesson id, not personal data: say which, so it can be opened and looked at.
+          log(`lesson ${lesson.lessonKajabiId}: no comments list, no comment box and no lock notice (open it in the preview to see why)`);
+        }
       } else if (result.read.capped) {
         summary.lessonsCapped++;
         log(`lesson ${lesson.lessonKajabiId}: stopped at the Show More limit, nothing written for it`);
