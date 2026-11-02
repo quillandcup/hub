@@ -31,10 +31,10 @@ function formatUpcomingTime(iso: string, timeZone: string): string {
 }
 
 /**
- * One upcoming prickle. When it starts within CHECKIN_SOON_MS and the member has a personal tie to it (checkinOffered), a "Check in →" pill opens the
+ * One upcoming prickle. When it starts within CHECKIN_SOON_MS, or started less than CHECKIN_GRACE_MS ago, and the member has a personal tie to it (checkinOffered), a "Check in →" pill opens the
  * check-in modal (My Prickles' Attendance History, checkinHref). There's no check-out here: this
- * list only holds prickles that haven't started, and the check-out is offered from the history
- * once they have.
+ * list holds prickles that haven't started or started less than CHECKIN_GRACE_MS ago, and the
+ * check-out is offered from the history once they have ended.
  */
 export default function UpcomingPrickleRow({
   prickle,
