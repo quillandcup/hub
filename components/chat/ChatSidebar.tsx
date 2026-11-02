@@ -67,8 +67,15 @@ function Section({
                       : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                 }`}
               >
-                <span className="truncate">{c.label}</span>
-                {c.visibility === "private" && c.kind === "channel" && <span title="Private channel">🔒</span>}
+                {c.kind === "channel" &&
+                  (c.visibility === "private" ? (
+                    <span title="Private channel" aria-label="Private channel">
+                      🔒
+                    </span>
+                  ) : (
+                    <span>#</span>
+                  ))}
+                <span className="truncate">{c.kind === "channel" ? c.label.replace(/^#/, "") : c.label}</span>
                 {count > 0 && (
                   <span aria-hidden="true" className="ml-auto rounded-full bg-plum-600 px-1.5 text-xs font-medium text-white">
                     {badge(count)}
@@ -222,7 +229,12 @@ export default function ChatSidebar({
   // below, which goes to /chat/search): this only narrows the list, as you type, and sends nowhere.
   const wanted = filter.trim().replace(/^#/, "").toLowerCase();
   const shown = wanted ? channels.filter((c) => c.label.replace(/^#/, "").toLowerCase().includes(wanted)) : channels;
-  const live = shown.filter((c) => !c.archived);
+  // The list is the conversations the member is in; the public channels they could join sit behind
+  // "Browse channels", so a long workspace doesn't bury their own.
+  const [browsing, setBrowsing] = useState(false);
+  const mine = shown.filter((c) => c.joined);
+  const live = mine.filter((c) => !c.archived);
+  const joinable = shown.filter((c) => !c.joined && c.kind === "channel" && c.visibility === "public");
   return (
     // Its own full-height column that scrolls by itself, so a long channel list never sets the
     // height of the conversation beside it. On a narrow screen it is the home screen at /chat and
@@ -254,9 +266,24 @@ export default function ChatSidebar({
       </div>
       <Section title="Channels" channels={live.filter((c) => c.kind === "channel")} pathname={pathname} unread={counts} />
       <Section title="Group messages" channels={live.filter((c) => c.kind !== "channel")} pathname={pathname} unread={counts} />
-      <Section title="Archived" channels={shown.filter((c) => c.archived)} pathname={pathname} unread={counts} />
+      <Section title="Archived" channels={mine.filter((c) => c.archived)} pathname={pathname} unread={counts} />
+      {channels.some((c) => !c.joined && c.kind === "channel" && c.visibility === "public") && (
+        <div className="mb-4 px-1">
+          <button
+            type="button"
+            data-track="chat-sidebar-browse"
+            aria-expanded={browsing}
+            onClick={() => setBrowsing((b) => !b)}
+            className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            {browsing ? "Hide other channels" : "Browse channels"}
+          </button>
+        </div>
+      )}
+      {browsing && <Section title="Channels you can join" channels={joinable} pathname={pathname} unread={counts} />}
+      {browsing && joinable.length === 0 && wanted && <p className="px-3 text-sm text-slate-600 dark:text-slate-400">No other channels match.</p>}
       {channels.length === 0 && <p className="px-3 text-sm text-slate-600 dark:text-slate-400">No conversations yet.</p>}
-      {channels.length > 0 && shown.length === 0 && <p className="px-3 text-sm text-slate-600 dark:text-slate-400">No channels match.</p>}
+      {channels.length > 0 && Boolean(wanted) && mine.length === 0 && !(browsing && joinable.length > 0) &&<p className="px-3 text-sm text-slate-600 dark:text-slate-400">No channels match.</p>}
       <p className="mt-4 px-3 text-xs">
         <Link data-track="chat-sidebar-privacy" href="/privacy" className="text-slate-600 underline hover:text-plum-700 dark:text-slate-400 dark:hover:text-plum-300">
           Who can see this?
