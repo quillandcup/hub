@@ -260,10 +260,13 @@ export default async function PrivacyPage() {
         </Detail>
 
         <Detail title="Connecting your Slack account">
-          Hub chat needs your Slack account connected. That lets the Hub act as you in Slack and only as you: post your
-          messages and reactions, edit and delete the ones you wrote, join and leave channels, add people to a channel,
-          and mark conversations read. It doesn&apos;t give the Hub access to your one-on-one Slack direct messages, and
-          the Hub does nothing in Slack you didn&apos;t ask for there. The connection is kept encrypted and used only by the Hub&apos;s
+          Hub chat needs your Slack account connected. That lets the Hub act as you in Slack: post your messages and
+          reactions, edit and delete the ones you wrote, join and leave channels, add people to a channel, and mark
+          conversations read. The one exception is who is in a conversation: when Slack won&apos;t let your own account
+          do it (staff removing someone from a conversation they aren&apos;t in, or a connection that has stopped
+          working), Billie Bot does it instead. It doesn&apos;t give the Hub
+          access to your one-on-one Slack direct messages, and the Hub does nothing in Slack you didn&apos;t ask for
+          there. The connection is kept encrypted and used only by the Hub&apos;s
           server. You can disconnect it in Settings at any time (chat then stays closed until you reconnect), and Slack
           shows it under your authorized apps.
         </Detail>
