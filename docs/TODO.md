@@ -43,6 +43,22 @@ Also: re-audit the public repo for private data (see Security).
 
 ## Member Status Refinements
 
+### Course-only members have no status _(Needs Scheduling)_
+Nothing today tells a course-only buyer (a course without a membership) from a member. The only
+course at launch includes membership, so none exist yet, but a course sold on its own (the
+Self-Editing Academy had no membership before and may return) would need it. Add a tier concept
+(member vs course-only) that the member layout and navigation read, so a course-only person sees
+courses, profile and settings only. Start in `app/(member)/layout.tsx`, `components/MemberNavigation.tsx`
+and the course access rules in `lib/courses/`.
+
+### Access sync: ban and sign out when a member stops being active _(Needs Scheduling)_
+`scripts/precreate-auth-users.ts` (`lib/auth-provisioning.ts`) creates auth users banned and
+releases the active ones by hand at launch. Afterwards nothing keeps auth in step with status.
+Automatically ban the auth user and delete their `auth.sessions` rows when a member stops being
+active (on hiatus counts as not active), and unban when they become active again. Run it from
+`/api/process/members` and `recomputeMemberStatus`, plus a periodic sweep as the safety net.
+Never ban staff or admins.
+
 ### Rename `members` to `contacts` _(Needs Scheduling)_
 The `members` table holds everyone (leads, active, on hiatus, cancelled), so "member" is
 the wrong word for most of its rows. Its ids are being converted to short prefixed text ids

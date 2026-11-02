@@ -52,6 +52,7 @@
     "config:push": "dotenv -e .env.prod -- supabase config push",
     "slack:manifest:diff": "dotenv -e .env.prod -e .env.shared -- tsx scripts/slack-manifest.ts diff",
     "slack:manifest:push": "dotenv -e .env.prod -e .env.shared -- tsx scripts/slack-manifest.ts push",
+    "auth:precreate": "dotenv -e .env.prod -e .env.shared -- tsx scripts/precreate-auth-users.ts",
     "slack:bot-token": "dotenv -e .env.prod -e .env.shared -- tsx scripts/slack-bot-token.ts",
     "sentry:config:diff": "dotenv -e .env.prod -e .env.shared -- tsx scripts/sentry-config.ts diff",
     "sentry:config:push": "dotenv -e .env.prod -e .env.shared -- tsx scripts/sentry-config.ts push",
