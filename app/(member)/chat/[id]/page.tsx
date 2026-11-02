@@ -199,6 +199,7 @@ export default async function ChatChannelPage({
                 view={before ? "older" : "latest"}
                 markRead={!identity.isSudo}
                 renderedAt={renderedAt}
+                catchUpIds={messageViews.filter((v) => v.replyCount > 0).map((v) => v.id)}
                 latestAt={messageViews.length > 0 ? messageViews[messageViews.length - 1].createdAt : null}
                 latestId={messageViews.length > 0 ? messageViews[messageViews.length - 1].id : null}
               />

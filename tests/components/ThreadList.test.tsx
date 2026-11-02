@@ -76,6 +76,12 @@ describe("ThreadList", () => {
     expect(texts()).toEqual(["the root", "second reply"]);
   });
 
+  it("keeps every reply when the server's thread leaves the root out (a deleted root), instead of treating the first as the root", () => {
+    mount();
+    act(() => emitListEvent({ kind: "merge-thread", channelId: "c1", threadRootId: "root", views: [view("r1", "first reply, edited", 1), view("r2", "second reply", 2)], ctx: CTX }));
+    expect(texts()).toEqual(["the root", "first reply", "second reply"]);
+  });
+
   it("ignores another thread's, another conversation's and the conversation list's events", () => {
     mount();
     act(() => emitListEvent({ kind: "add", channelId: "c1", threadRootId: "other", view: optimisticView({ id: "pending-1", body: "elsewhere", viewer: VIEWER }) }));
