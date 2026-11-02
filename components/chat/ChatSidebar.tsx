@@ -69,11 +69,12 @@ function Section({
               >
                 {c.kind === "channel" &&
                   (c.visibility === "private" ? (
-                    <span title="Private channel" aria-label="Private channel">
-                      🔒
-                    </span>
+                    <svg role="img" aria-label="Private channel" viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <rect x="3" y="7" width="10" height="7" rx="1.5" />
+                      <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" />
+                    </svg>
                   ) : (
-                    <span>#</span>
+                    <span className="w-3.5 shrink-0 text-center">#</span>
                   ))}
                 <span className="truncate">{c.kind === "channel" ? c.label.replace(/^#/, "") : c.label}</span>
                 {count > 0 && (
@@ -274,8 +275,12 @@ export default function ChatSidebar({
             data-track="chat-sidebar-browse"
             aria-expanded={browsing}
             onClick={() => setBrowsing((b) => !b)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
           >
+            <svg aria-hidden="true" viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <circle cx="7" cy="7" r="4.5" />
+              <path d="m10.5 10.5 3.5 3.5" />
+            </svg>
             {browsing ? "Hide other channels" : "Browse channels"}
           </button>
         </div>

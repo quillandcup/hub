@@ -120,8 +120,9 @@ describe("ChatSidebar", () => {
   it("shows a lock instead of the # on a private channel", () => {
     render(<ChatSidebar channels={[channel("7", "#founding", { visibility: "private" })]} />);
     const link = screen.getByRole("link", { name: /founding/ });
-    expect(link).toHaveTextContent("🔒founding");
+    expect(link).toHaveTextContent("founding");
     expect(link).not.toHaveTextContent("#");
+    expect(screen.getByRole("img", { name: "Private channel" })).toBeInTheDocument();
   });
 
   it("says so when nothing matches, and leaves the message search alone", async () => {
