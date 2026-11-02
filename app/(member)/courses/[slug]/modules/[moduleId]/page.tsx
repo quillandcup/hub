@@ -107,6 +107,8 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
   const lessons = nodeLessons(node).filter((l) => l.state === "open");
   const done = lessons.filter((l) => view.completed.has(l.id)).length;
 
+  const parent = trail.at(-2);
+
   return (
     <>
       {preview && (
@@ -118,7 +120,10 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
       )}
       <div className="@container mx-auto w-full max-w-4xl px-6 py-6">
         <nav aria-label="Breadcrumb" className="text-sm text-slate-600 dark:text-slate-400">
-          <ol className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <Link data-track="course-module-breadcrumb-back" href={parent ? `/courses/${slug}/modules/${parent.id}` : `/courses/${slug}`} className="block truncate hover:underline @pair:hidden">
+            ← {parent?.title ?? view.course.title}
+          </Link>
+          <ol className="hidden flex-wrap items-center gap-x-2 gap-y-1 @pair:flex">
             <li>
               <Link data-track="course-module-breadcrumb-course" href={`/courses/${slug}`} className="hover:underline">
                 {view.course.title}
