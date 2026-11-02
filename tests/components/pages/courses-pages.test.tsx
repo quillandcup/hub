@@ -2,7 +2,7 @@
 /** The member courses pages: list, course outline, lesson. Data loaders are mocked; markup is real. */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, screen, within } from "@testing-library/react";
-import { SUPPORT_EMAIL } from "@/lib/config";
+import { FEATURED_COURSE, SUPPORT_EMAIL } from "@/lib/config";
 import { buildOutline, courseProgress, type OutlineLesson, type OutlineModule } from "@/lib/courses/outline";
 import { expectRedirect, renderServerPage, resetServerPageMocks } from "@/tests/helpers/server-page";
 
@@ -75,6 +75,11 @@ describe("/courses", () => {
     loadCourseList.mockResolvedValue([]);
     await renderServerPage(CoursesPage, {});
     expect(screen.getByText(/don't have any courses yet/)).toBeInTheDocument();
+    // Discovery: the empty page offers the featured course on its Kajabi page, in a new tab.
+    const offer = screen.getByRole("link", { name: `See ${FEATURED_COURSE.title}` });
+    expect(offer).toHaveAttribute("href", FEATURED_COURSE.offerUrl);
+    expect(offer).toHaveAttribute("target", "_blank");
+    expect(offer).toHaveAttribute("rel", expect.stringContaining("noopener"));
   });
 
   it("shows progress against available lessons and a Continue link to the next lesson", async () => {
@@ -85,6 +90,8 @@ describe("/courses", () => {
     expect(screen.getByText("1 of 2 available lessons done")).toBeInTheDocument();
     expect(screen.getByRole("progressbar", { name: "The Ready Writer progress" })).toHaveAttribute("aria-valuenow", "1");
     expect(screen.getByRole("link", { name: "Continue" })).toHaveAttribute("href", `/courses/the-ready-writer/lessons/${LESSON_B}`);
+    // Someone who has a course isn't pitched one.
+    expect(screen.queryByRole("link", { name: `See ${FEATURED_COURSE.title}` })).not.toBeInTheDocument();
   });
 
   it("offers Start before anything is done, and marks an ended course with a link to its outline", async () => {

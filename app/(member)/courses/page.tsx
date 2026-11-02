@@ -5,6 +5,7 @@ import { loadCourseList } from "@/lib/courses/member";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { formatCourseDate } from "@/lib/courses/format";
 import { courseImageUrl } from "@/lib/courses/image-urls";
+import { FEATURED_COURSE } from "@/lib/config";
 import { createRepos } from "@/lib/data/repos";
 
 export const metadata: Metadata = { title: "Courses" };
@@ -22,7 +23,17 @@ export default async function CoursesPage() {
 
       {items.length === 0 ? (
         <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
-          You don&apos;t have any courses yet. Once you join one, it shows up here.
+          <p>You don&apos;t have any courses yet. Once you join one, it shows up here.</p>
+          <p className="mt-3">Looking for a place to start? {FEATURED_COURSE.title} is the one to try.</p>
+          <a
+            data-track="courses-open-offer"
+            href={FEATURED_COURSE.offerUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-4 inline-block rounded-lg bg-plum-600 px-4 py-2 text-sm font-medium text-white hover:bg-plum-700"
+          >
+            See {FEATURED_COURSE.title}
+          </a>
         </div>
       ) : (
         <div className="@container">

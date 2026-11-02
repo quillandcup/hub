@@ -66,6 +66,12 @@ export const appConfig = {
   bookshelfPublic: false,
 
   /**
+   * The course the Courses page offers to a member who has none: its name, and the public Kajabi offer
+   * page where it is bought (Kajabi stays the checkout).
+   */
+  featuredCourse: { title: "The Ready Writer", offerUrl: "https://www.quillandcup.com/offers/Dv8M6UEC" },
+
+  /**
    * Sentry org/project slugs for the production build's source map upload, and the regional API host the org's
    * settings are read and written on (sentry-config.yml, scripts/sentry-config.ts). The org is in the EU region.
    */
