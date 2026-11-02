@@ -81,9 +81,11 @@ function ImageTile({
         />
         {stills && (
           <span
+            data-testid="gif-state-icon"
             aria-hidden
             className={`pointer-events-none absolute left-1/2 top-1/2 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-slate-900/80 text-xl text-white ${
-              playing ? "opacity-0 group-hover:opacity-100 group-has-[:focus-visible]:opacity-100" : ""
+              // Playing: shown on hover or keyboard focus; a touch screen has no hover, so there it stays, or nothing says a tap pauses.
+              playing ? "opacity-0 group-hover:opacity-100 group-has-[:focus-visible]:opacity-100 [@media(hover:none)]:opacity-100" : ""
             }`}
           >
             {playing ? "❚❚" : "▶"}
