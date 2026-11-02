@@ -479,7 +479,10 @@ async function readCommentsPage(context: BrowserContext, lesson: PostLink): Prom
       const hasCommentBox = (await page.locator("form.new_comment").count()) > 0;
       // "This Post is Locked": the course opens a lesson only after the one before it is complete, and the preview has no progress.
       const locked = !hasCommentBox && (await page.getByText(/post is locked/i).count()) > 0;
-      return { kind: "noList", hasCommentBox, locked };
+      // A quiz or assessment page is questions with radio buttons and has no comments by design.
+      const quiz =
+        !hasCommentBox && !locked && ((await page.locator('input[type="radio"]').count()) > 0 || (await page.getByText(/^\s*Question\s+1\b/i).count()) > 0);
+      return { kind: "noList", hasCommentBox, locked, quiz };
     }
 
     const more = page.locator("a.btn--more");
@@ -569,7 +572,7 @@ async function captureComments(courseId: string): Promise<void> {
         `${summary.rows.written} rows written, ${summary.rows.unchanged} unchanged, ${summary.rows.removed} removed\n` +
         `comment ids: ${k["reply-link"] + k["reply-container"] + k["data-comment"]} from the page (${k["reply-link"]} reply link, ${k["reply-container"]} reply container, ${k["data-comment"]} data-comment), ${k.hash} hashed, ${summary.duplicateKeys} repeated within a lesson\n` +
         `lessons: ${summary.lessonsCapped} cut off at the Show More limit, ${summary.lessonsMismatched} with a different total on the page, ` +
-        `${summary.lessonsNoComments} with no comments (the page has a comment box), ${summary.lessonsLocked} locked until an earlier lesson is completed (their comments cannot be read from this preview), ${summary.lessonsWithoutList} with none of those (look at these), ${summary.lessonsFailed} failed, ${summary.lessonsNotInBronze} not in Bronze (skipped)`
+        `${summary.lessonsNoComments} with no comments (the page has a comment box), ${summary.lessonsQuizzes} quizzes (no comments by design), ${summary.lessonsLocked} locked until an earlier lesson is completed (their comments cannot be read from this preview), ${summary.lessonsWithoutList} with none of those (look at these), ${summary.lessonsFailed} failed, ${summary.lessonsNotInBronze} not in Bronze (skipped)`
     );
     if (summary.lessonsFailed > 0 || summary.lessonsCapped > 0) process.exitCode = 1;
   } finally {

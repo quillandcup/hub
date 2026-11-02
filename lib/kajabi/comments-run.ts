@@ -76,11 +76,12 @@ export async function saveLessonComments(
  * page does have the box to write a comment (so the lesson has none); without it the page may not be a lesson page
  * at all (a redirect, comments off, a page that did not finish rendering), which is worth a look. `locked`: the page
  * says the post is locked (a course that makes members finish one lesson before the next opens): the preview opens as
- * a member with no progress, so such a lesson shows no comments, and its comments cannot be read from it.
+ * a member with no progress, so such a lesson shows no comments, and its comments cannot be read from it. `quiz`: the
+ * page is a quiz or assessment (radio-button questions), which has no comments by design.
  */
 export type LessonRead =
   | { kind: "ok"; page: PageComments; capped: boolean }
-  | { kind: "noList"; hasCommentBox: boolean; locked?: boolean };
+  | { kind: "noList"; hasCommentBox: boolean; locked?: boolean; quiz?: boolean };
 
 export interface CommentsRunOptions {
   db: Db;
@@ -111,6 +112,8 @@ export interface CommentsSummary {
   duplicateKeys: number;
   /** Lessons whose page loaded with a comment box but no comments: none to capture (nothing written for them). */
   lessonsNoComments: number;
+  /** Lessons that are a quiz or assessment: no comments by design (nothing written for them). */
+  lessonsQuizzes: number;
   /** Lessons whose page says the post is locked until an earlier lesson is completed: their comments cannot be read from this preview (nothing written for them). */
   lessonsLocked: number;
   /** Lessons whose page has neither a comments list, a comment box nor a lock notice: not read, worth a look (nothing written for them). */
@@ -142,6 +145,7 @@ export async function runCommentsCapture(options: CommentsRunOptions): Promise<C
     keySources: { "reply-link": 0, "reply-container": 0, "data-comment": 0, hash: 0 },
     duplicateKeys: 0,
     lessonsNoComments: 0,
+    lessonsQuizzes: 0,
     lessonsLocked: 0,
     lessonsWithoutList: 0,
     lessonsCapped: 0,
@@ -181,6 +185,7 @@ export async function runCommentsCapture(options: CommentsRunOptions): Promise<C
         failureKinds.set(result.reason, (failureKinds.get(result.reason) ?? 0) + 1);
       } else if (result.read.kind === "noList") {
         if (result.read.locked) summary.lessonsLocked++;
+        else if (result.read.quiz) summary.lessonsQuizzes++;
         else if (result.read.hasCommentBox) summary.lessonsNoComments++;
         else {
           summary.lessonsWithoutList++;
