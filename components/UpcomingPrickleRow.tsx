@@ -4,7 +4,7 @@ import { WithSecondaryTime } from "@/components/SecondaryTimezone"
 import { hostShortName } from "@/lib/formatters"
 import ReasonBadges from "@/components/ReasonBadges"
 import { CHECKIN_SOON_MS, checkinOffered, type HighlightReason, type UpcomingPrickle } from "@/lib/upcoming-prickles"
-import { checkinAnswered, checkinHref, type CheckinInput } from "@/lib/prickle-checkins"
+import { checkinAnswered, checkinHref, checkoutAnswered, type CheckinInput } from "@/lib/prickle-checkins"
 import type { PrickleCalendarState } from "@/lib/calendar-feed"
 import { AddPrickleToCalendar, type AutoIncludedReason } from "@/app/(member)/my-prickles/AddToCalendar"
 
@@ -32,9 +32,8 @@ function formatUpcomingTime(iso: string, timeZone: string): string {
 
 /**
  * One upcoming prickle. When it starts within CHECKIN_SOON_MS, or is running, and the member has a personal tie to it (checkinOffered), a "Check in →" pill opens the
- * check-in modal (My Prickles' Attendance History, checkinHref). There's no check-out here: this
- * list holds prickles that haven't ended, and the check-out is offered from the history once
- * they have.
+ * check-in modal (My Prickles' Attendance History, checkinHref). Once it has started, a "Check out →"
+ * pill opens the check-out, so a member who leaves early needn't wait for the DM.
  */
 export default function UpcomingPrickleRow({
   prickle,
@@ -61,6 +60,9 @@ export default function UpcomingPrickleRow({
 }) {
   const startsSoon = !checkinDismissed && checkinOffered(prickle, reasons, now)
   const checkedIn = checkinAnswered(checkin)
+  // Once it has started, a member can also check out right away (leaving early, or checking in and out together).
+  const canCheckOut = startsSoon && new Date(prickle.startTime).getTime() <= now
+  const checkedOut = checkoutAnswered(checkin)
   return (
     <div className="py-3 border-b border-slate-100 dark:border-slate-800 last:border-0 -mx-2 px-2 rounded hover:bg-slate-50 dark:hover:bg-slate-800/50">
       <div className="flex items-center justify-between gap-3">
@@ -97,6 +99,19 @@ export default function UpcomingPrickleRow({
               }`}
             >
               {checkedIn ? "Checked in ✓" : "Check in →"}
+            </Link>
+          )}
+          {canCheckOut && (
+            <Link
+              href={checkinHref(prickle.id, "checkout")}
+              data-track="upcoming-prickle-check-out"
+              className={`px-3 py-1 rounded-full text-xs font-medium border whitespace-nowrap transition-colors ${
+                checkedOut
+                  ? "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400"
+                  : "border-plum-300 dark:border-plum-700 text-plum-700 dark:text-plum-300 hover:bg-plum-50 dark:hover:bg-plum-950"
+              }`}
+            >
+              {checkedOut ? "Checked out ✓" : "Check out →"}
             </Link>
           )}
         </div>
