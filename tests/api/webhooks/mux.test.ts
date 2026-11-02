@@ -100,6 +100,28 @@ describe('Mux webhook', () => {
     expect(from).not.toHaveBeenCalled()
   })
 
+  it("logs Checkly's unsigned probe quietly, still refuses it, and logs the same from anyone else as an error", async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const unsigned = (headers: Record<string, string> = {}) =>
+      new Request('http://localhost:3000/api/webhooks/mux', { method: 'POST', headers, body: '{}' }) as unknown as NextRequest
+
+    const probe = await POST(unsigned({ 'user-agent': 'Checkly/1.0 (https://www.checklyhq.com)' }))
+    expect(probe.status).toBe(401)
+    expect(info).toHaveBeenCalledWith(expect.stringContaining('from Checkly'), expect.any(String))
+    expect(error).not.toHaveBeenCalled()
+
+    // Not Checkly, or no user agent at all: the error it always was, and the same answer.
+    for (const headers of [{ 'user-agent': 'curl/8.4.0' }, {}] as Record<string, string>[]) {
+      error.mockClear()
+      expect((await POST(unsigned(headers))).status).toBe(401)
+      expect(error).toHaveBeenCalledWith('Invalid Mux webhook:', expect.any(String))
+    }
+    expect(from).not.toHaveBeenCalled()
+    error.mockRestore()
+    info.mockRestore()
+  })
+
   it('rejects a stale timestamp (replay)', async () => {
     const tenMinutesAgo = Math.floor(Date.now() / 1000) - 600
     const response = await POST(signedRequest(JSON.stringify(readyEvent), { timestamp: tenMinutesAgo }))

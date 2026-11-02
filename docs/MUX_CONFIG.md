@@ -84,7 +84,7 @@ It saves the secret to `MUX_WEBHOOK_SECRET` in `.env.local` (restart `pnpm dev`)
 
 `__checks__/mux-e2e.check.ts` (Checkly, once a day, deployed by `.github/workflows/checkly.yml`):
 
-- **Webhook rejects unsigned** (always on): `POST /api/webhooks/mux` with an empty body must answer 401. Proves the route is deployed, reachable and refusing unsigned calls. It sends nothing a member could own.
+- **Webhook rejects unsigned** (always on): `POST /api/webhooks/mux` with an empty body must answer 401. Proves the route is deployed, reachable and refusing unsigned calls. It sends nothing a member could own. It runs nightly and on every pull request that runs the checks (`.github/workflows/checkly.yml`), so the route sees an unsigned request now and then: it recognises Checkly's user agent (`Checkly/1.0 (...)`) and logs that refusal at info level, not as an error. Any other unsigned or badly signed request is still logged as an error (the user agent is only a hint for the log level; the answer is always the same 401).
 - **Signed playback returns a manifest** and **a signed asset without a token is refused (403)**: need a tiny test asset. They mint a token with `__checks__/mux-token.ts` (same claims as `signPlaybackTokens`) and fetch the HLS manifest.
 
 The stream checks use a standing test asset in a **separate Mux environment** ("checks"), with that environment's own signing key, so Checkly never holds production's keys and the check costs about a cent a month. They are not declared until all three values are set:
