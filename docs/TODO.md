@@ -1174,6 +1174,10 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 ## UI Enhancements
 
+### Full "Browse channels" page for chat _(Needs Scheduling)_
+
+The chat sidebar lists only the conversations a member is in. Public channels they could join are in a small panel behind the icon in the Channels heading (`BrowseChannels` in `components/chat/ChatSidebar.tsx`), and archived channels are in neither (the sidebar's Archived section was removed). A full page, like Slack's channel directory, would hold what the panel can't: archived channels, filters (channel type, joined or not), member counts and a longer search. Deferred because the panel covers finding a channel to join for now; start from `loadChatChannels` (`lib/chat/load.ts`), which already returns archived channels and a `joined` flag. Slack's "+" (create a channel) and the heading's ellipsis menu are also not built.
+
 
 ### Shared `SubmitButton` that disables itself while its action is pending _(Needs Scheduling)_
 
