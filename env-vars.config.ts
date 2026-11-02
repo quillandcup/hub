@@ -370,6 +370,15 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     destinations: vercelAllEnvs,
   },
 
+  {
+    name: "MUX_PLAYBACK_RESTRICTION_ID",
+    group: "Video (Mux)",
+    description:
+      "ID of the Mux playback restriction in this Mux environment (production and preview/local have different ones; `pnpm mux:config:diff` prints it). Not a secret. When set and the mux_playback_restriction feature flag is on for a viewer, their video token carries it and Mux enforces the allowed-domains list. Unset: nothing is enforced.",
+    type: "config",
+    destinations: vercelAllEnvs,
+  },
+
   // --- Admin & Cron ------------------------------------------------------------------------------
   {
     name: "SUDO_SECRET",

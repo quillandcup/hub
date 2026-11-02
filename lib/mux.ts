@@ -105,19 +105,38 @@ export interface PlaybackTokens {
   storyboard: string;
 }
 
-/** Three short-lived tokens for one lesson view: manifest, poster and seek-preview storyboard. */
+/**
+ * The id of this Mux environment's playback restriction (`MUX_PLAYBACK_RESTRICTION_ID`), or null when
+ * unset. The id differs per Mux environment (production, preview/local, checks); `pnpm mux:config:diff`
+ * prints it. Not a secret.
+ */
+export function playbackRestrictionId(): string | null {
+  return process.env.MUX_PLAYBACK_RESTRICTION_ID?.trim() || null;
+}
+
+/**
+ * Three short-lived tokens for one lesson view: manifest, poster and seek-preview storyboard.
+ *
+ * `restrictionId` (see {@link playbackRestrictionId}) adds Mux's `playback_restriction_id` claim to the
+ * **video** token only, which makes Mux enforce the referrer restriction on the stream. Mux supports the
+ * claim on every token type, but the stream is what we protect; images stay unrestricted so a thumbnail
+ * can never be what a wrong domain list breaks. Without it the tokens are exactly as before.
+ */
 export async function signPlaybackTokens(
   mux: Mux,
   playbackId: string,
   expiration = "1h",
+  restrictionId: string | null = null,
 ): Promise<PlaybackTokens> {
   const tokens = await mux.jwt.signPlaybackId(playbackId, {
     type: [...PLAYBACK_TOKEN_TYPES],
     expiration,
   });
-  const playback = tokens["playback-token"];
   const poster = tokens["thumbnail-token"];
   const storyboard = tokens["storyboard-token"];
+  const playback = restrictionId
+    ? await mux.jwt.signPlaybackId(playbackId, { type: "video", expiration, params: { playback_restriction_id: restrictionId } })
+    : tokens["playback-token"];
   if (!playback || !poster || !storyboard) {
     throw new Error("Mux returned fewer playback tokens than requested");
   }
