@@ -1,12 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { animationsAllowed, looksAnimated } from "@/lib/animations";
+import { animationsAllowed, animationsChoice, looksAnimated } from "@/lib/animations";
+
+describe("animationsChoice", () => {
+  it("is system unless allow or reduce was stored", () => {
+    expect(animationsChoice(null)).toBe("system");
+    expect(animationsChoice("allow")).toBe("allow");
+    expect(animationsChoice("reduce")).toBe("reduce");
+    expect(animationsChoice("junk")).toBe("system");
+    expect(animationsChoice("on")).toBe("system");
+  });
+});
 
 describe("animationsAllowed", () => {
   it("an explicit choice beats the device setting", () => {
-    expect(animationsAllowed("off", false)).toBe(false);
-    expect(animationsAllowed("on", true)).toBe(true);
+    expect(animationsAllowed("reduce", false)).toBe(false);
+    expect(animationsAllowed("allow", true)).toBe(true);
   });
-  it("follows reduce-motion until chosen", () => {
+  it("system follows the device's reduce-motion setting", () => {
     expect(animationsAllowed(null, true)).toBe(false);
     expect(animationsAllowed(null, false)).toBe(true);
     expect(animationsAllowed("junk", true)).toBe(false);

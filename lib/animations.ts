@@ -1,12 +1,19 @@
 /** Device preference for animated emoji, GIFs and motion. Stored per device, like the theme. */
 export const ANIMATIONS_STORAGE_KEY = "hub-animations";
 
-export type AnimationsChoice = "on" | "off";
+/** What the member chose: follow the device's "reduce motion" setting (nothing stored), or force it either way. */
+export type AnimationsChoice = "system" | "allow" | "reduce";
 
-/** An explicit choice wins; otherwise follow the device's "reduce motion" setting. */
+/** The stored value as a choice; nothing stored, or anything unrecognised, is "system". */
+export function animationsChoice(stored: string | null): AnimationsChoice {
+  return stored === "allow" || stored === "reduce" ? stored : "system";
+}
+
+/** An explicit choice wins; "system" follows the device's "reduce motion" setting. */
 export function animationsAllowed(stored: string | null, osPrefersReducedMotion: boolean): boolean {
-  if (stored === "on") return true;
-  if (stored === "off") return false;
+  const choice = animationsChoice(stored);
+  if (choice === "allow") return true;
+  if (choice === "reduce") return false;
   return !osPrefersReducedMotion;
 }
 

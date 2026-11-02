@@ -1,17 +1,22 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import { act, render, screen, cleanup, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AnimationsController } from "@/components/AnimationsController";
-import { AnimationsToggle } from "@/app/(member)/settings/AnimationsToggle";
+import { AnimationsSwitcher } from "@/app/(member)/settings/AnimationsSwitcher";
 import { ANIMATIONS_STORAGE_KEY } from "@/lib/animations";
 
+/** A matchMedia for the reduced-motion query whose answer a test can change and announce. */
 function mockMotion(reduce: boolean) {
-  window.matchMedia = vi.fn().mockReturnValue({
+  const listeners = new Set<() => void>();
+  const media = {
     matches: reduce,
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-  }) as unknown as typeof window.matchMedia;
+    addEventListener: (_: string, fn: () => void) => listeners.add(fn),
+    removeEventListener: (_: string, fn: () => void) => listeners.delete(fn),
+    fire: () => listeners.forEach((fn) => fn()),
+  };
+  window.matchMedia = vi.fn().mockReturnValue(media) as unknown as typeof window.matchMedia;
+  return media;
 }
 
 beforeEach(() => {
@@ -20,54 +25,67 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-describe("Allow animations", () => {
-  it("is checked by default and turning it off marks the page and is remembered", async () => {
+describe("Animations choice", () => {
+  const both = (
+    <>
+      <AnimationsController />
+      <AnimationsSwitcher />
+    </>
+  );
+
+  it("is System by default (device allows motion), and each choice marks the page and is remembered", async () => {
     mockMotion(false);
-    render(
-      <>
-        <AnimationsController />
-        <AnimationsToggle />
-      </>,
-    );
-    const box = await screen.findByRole("checkbox", { name: /allow animations/i });
-    expect(box).toBeChecked();
+    render(both);
+    const select = await screen.findByRole("combobox", { name: "Animations" });
+    expect(select).toHaveValue("system");
+    expect(screen.getByText(/currently off, so they move/)).toBeInTheDocument();
     expect(document.documentElement.dataset.animations).toBe("on");
 
-    await userEvent.click(box);
-    expect(box).not.toBeChecked();
-    expect(localStorage.getItem(ANIMATIONS_STORAGE_KEY)).toBe("off");
+    await userEvent.selectOptions(select, "reduce");
+    expect(localStorage.getItem(ANIMATIONS_STORAGE_KEY)).toBe("reduce");
     expect(document.documentElement.dataset.animations).toBe("off");
 
-    await userEvent.click(box);
+    await userEvent.selectOptions(select, "allow");
+    expect(localStorage.getItem(ANIMATIONS_STORAGE_KEY)).toBe("allow");
+    expect(document.documentElement.dataset.animations).toBe("on");
+
+    // System stores nothing: back to the initial state.
+    await userEvent.selectOptions(select, "system");
+    expect(localStorage.getItem(ANIMATIONS_STORAGE_KEY)).toBeNull();
     expect(document.documentElement.dataset.animations).toBe("on");
   });
 
-  it("starts off when the device asks for reduced motion", async () => {
-    mockMotion(true);
-    render(
-      <>
-        <AnimationsController />
-        <AnimationsToggle />
-      </>,
-    );
-    expect(await screen.findByRole("checkbox", { name: /allow animations/i })).not.toBeChecked();
+  it("System follows a device that asks for reduced motion, and a change in the device while open", async () => {
+    const media = mockMotion(true);
+    render(both);
+    expect(await screen.findByRole("combobox", { name: "Animations" })).toHaveValue("system");
+    expect(screen.getByText(/currently on, so GIFs and emoji are still/)).toBeInTheDocument();
     expect(document.documentElement.dataset.animations).toBe("off");
+
+    // The device setting changes while the page is open: the page and the note follow.
+    media.matches = false;
+    act(() => media.fire());
+    await waitFor(() => expect(document.documentElement.dataset.animations).toBe("on"));
+    expect(screen.getByText(/currently off, so they move/)).toBeInTheDocument();
+  });
+
+  it("an explicit choice ignores the device, and Allow keeps motion on a reduced-motion device", async () => {
+    mockMotion(true);
+    localStorage.setItem(ANIMATIONS_STORAGE_KEY, "allow");
+    render(both);
+    expect(await screen.findByRole("combobox", { name: "Animations" })).toHaveValue("allow");
+    expect(document.documentElement.dataset.animations).toBe("on");
   });
 
   it("restores a GIF's source when animations come back", async () => {
     mockMotion(false);
-    localStorage.setItem(ANIMATIONS_STORAGE_KEY, "off");
+    localStorage.setItem(ANIMATIONS_STORAGE_KEY, "reduce");
     // jsdom never loads images: the probe stays pending, so only the bookkeeping is visible.
     document.body.innerHTML = '<img id="g" src="https://x.test/party.gif" alt=":party:">';
-    render(
-      <>
-        <AnimationsController />
-        <AnimationsToggle />
-      </>,
-    );
+    render(both);
     const img = document.getElementById("g") as HTMLImageElement;
     expect(img.getAttribute("data-frozen-src")).toBe("https://x.test/party.gif");
-    await userEvent.click(await screen.findByRole("checkbox", { name: /allow animations/i }));
+    await userEvent.selectOptions(await screen.findByRole("combobox", { name: "Animations" }), "allow");
     expect(img.hasAttribute("data-frozen-src")).toBe(false);
     expect(img.getAttribute("src")).toBe("https://x.test/party.gif");
   });
@@ -76,7 +94,7 @@ describe("Allow animations", () => {
 describe("click to play", () => {
   it("shows Play on a GIF attachment only while animations are off, and toggles it", async () => {
     mockMotion(false);
-    localStorage.setItem(ANIMATIONS_STORAGE_KEY, "off");
+    localStorage.setItem(ANIMATIONS_STORAGE_KEY, "reduce");
     const { default: MessageFiles } = await import("@/components/chat/MessageFiles");
     render(
       <>
@@ -100,7 +118,7 @@ describe("click to play", () => {
 describe("freezing images", () => {
   it("freezes a pause back to a still and never restores a non-http address", async () => {
     mockMotion(false);
-    localStorage.setItem(ANIMATIONS_STORAGE_KEY, "off");
+    localStorage.setItem(ANIMATIONS_STORAGE_KEY, "reduce");
     document.body.innerHTML = '<img id="e" src="https://x.test/party.gif" alt=":party:"><img id="p" src="/api/chat/files/m/F1" data-animated alt="p">';
     render(<AnimationsController />);
     const emoji = document.getElementById("e") as HTMLImageElement;
@@ -118,7 +136,7 @@ describe("freezing images", () => {
     // The saved address is DOM text: a javascript: value is never put back into src.
     emoji.setAttribute("data-frozen-src", "javascript:alert(1)");
     emoji.setAttribute("src", "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==");
-    localStorage.setItem(ANIMATIONS_STORAGE_KEY, "on");
+    localStorage.setItem(ANIMATIONS_STORAGE_KEY, "allow");
     window.dispatchEvent(new Event("hub-animations-changed"));
     await waitFor(() => expect(emoji.hasAttribute("data-frozen-src")).toBe(false));
     expect(emoji.getAttribute("src")).not.toContain("javascript:");
@@ -126,7 +144,7 @@ describe("freezing images", () => {
 
   it("leaves ordinary images alone", () => {
     mockMotion(false);
-    localStorage.setItem(ANIMATIONS_STORAGE_KEY, "off");
+    localStorage.setItem(ANIMATIONS_STORAGE_KEY, "reduce");
     document.body.innerHTML = '<img id="n" src="https://x.test/cover.png" alt="cover">';
     render(<AnimationsController />);
     expect(document.getElementById("n")!.hasAttribute("data-frozen-src")).toBe(false);
