@@ -48,37 +48,57 @@ export default async function DashboardPage() {
 
   const now = new Date()
 
-  // Big Sister cards are behind the big_sisters preview.
-  const bigSistersOn = await effectiveMemberHasFeature(
-    "big_sisters",
-    effectiveIdentity,
-    await getUserFeaturePreviews(user.id)
+  const repos = createRepos(supabase)
+  // Everything below that does not need another result starts together. Chains inside the batch:
+  // the ranking -> the dismissed check-ins of the rows shown, the Big Sister flag -> the
+  // mentorships -> their Slack links, the courses caller -> continue watching.
+  const rankedAndDismissed = getRankedUpcomingPrickles(repos, memberId, timeZone, now, UPCOMING_WINDOW_DAYS).then(
+    async (ranked) => ({
+      ranked,
+      dismissedCheckins: await loadDismissedCheckinIds(
+        repos,
+        memberId,
+        ranked.slice(0, MAX_UPCOMING_DISPLAY).map((r) => r.prickle.id)
+      ),
+    })
   )
-
-  const [ranked, starredGoalRows, projects, unlogged, checkins, mentorships] = await Promise.all([
-    getRankedUpcomingPrickles(createRepos(supabase), memberId, timeZone, now, UPCOMING_WINDOW_DAYS),
-    getStarredGoals(),
-    createRepos(supabase).writing.activeProjects(memberId),
-    getUnloggedRecentPrickles(),
-    getMyCheckins(),
-    bigSistersOn
-      ? getMyMentorships(createRepos(supabase).mentorship, memberId, now.toISOString().slice(0, 10))
-      : Promise.resolve({ bigSister: null, mentees: [] }),
-  ])
-  const starredGoals = starredGoalRows.filter((goal) => !isMissedGoal(goal))
-  // Only this member's own partners, since the Slack lookup uses the service role.
-  const slackLinks = Object.fromEntries(
-    await getSlackDmLinksForMembers(
-      [mentorships.bigSister?.memberId, ...mentorships.mentees.map((m) => m.memberId)].filter(
-        (id): id is string => !!id
+  // Big Sister cards are behind the big_sisters preview.
+  const mentorshipsAndLinks = (async () => {
+    const bigSistersOn = await effectiveMemberHasFeature(
+      "big_sisters",
+      effectiveIdentity,
+      await getUserFeaturePreviews(user.id)
+    )
+    const mentorships = bigSistersOn
+      ? await getMyMentorships(repos.mentorship, memberId, now.toISOString().slice(0, 10))
+      : { bigSister: null, mentees: [] }
+    // Only this member's own partners, since the Slack lookup uses the service role.
+    const slackLinks = Object.fromEntries(
+      await getSlackDmLinksForMembers(
+        [mentorships.bigSister?.memberId, ...mentorships.mentees.map((m) => m.memberId)].filter(
+          (id): id is string => !!id
+        )
       )
     )
-  )
+    return { mentorships, slackLinks }
+  })()
   // Null when the courses flag is off for them, they have no open course, or nothing is in progress.
-  const coursesCaller = await getCoursesCaller()
-  const continueWatching = coursesCaller
-    ? await loadContinueWatching(createRepos(createServiceRoleClient()), coursesCaller.scope)
-    : null
+  const continueWatchingLoad = (async () => {
+    const coursesCaller = await getCoursesCaller()
+    return coursesCaller ? await loadContinueWatching(createRepos(createServiceRoleClient()), coursesCaller.scope) : null
+  })()
+
+  const [{ ranked, dismissedCheckins }, starredGoalRows, projects, unlogged, checkins, { mentorships, slackLinks }, continueWatching] =
+    await Promise.all([
+      rankedAndDismissed,
+      getStarredGoals(),
+      repos.writing.activeProjects(memberId),
+      getUnloggedRecentPrickles(),
+      getMyCheckins(),
+      mentorshipsAndLinks,
+      continueWatchingLoad,
+    ])
+  const starredGoals = starredGoalRows.filter((goal) => !isMissedGoal(goal))
   // Only prompt members who track writing -- there's no progress to ask about otherwise.
   const unloggedPrickles =
     projects.length > 0
@@ -86,7 +106,6 @@ export default async function DashboardPage() {
       : []
   const upcoming = ranked.map((r) => r.prickle)
   const displayedUpcoming = ranked.slice(0, MAX_UPCOMING_DISPLAY)
-  const dismissedCheckins = await loadDismissedCheckinIds(createRepos(supabase), memberId, displayedUpcoming.map((r) => r.prickle.id))
 
   const firstName = (effectiveIdentity.memberDisplayName ?? effectiveIdentity.memberName)?.split(" ")[0]
 

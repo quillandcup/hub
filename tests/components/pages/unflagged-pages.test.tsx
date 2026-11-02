@@ -39,7 +39,7 @@ vi.mock("@/app/(member)/prickle-picker/PrickleWizard", () => ({
 }));
 
 // My Prickles data dependencies.
-vi.mock("@/lib/upcoming-prickles", () => ({ PRIORITY: { none: 6 }, getRankedUpcomingPrickles: vi.fn(async () => []) }));
+vi.mock("@/lib/upcoming-prickles", () => ({ PRIORITY: { none: 6 }, getRankedUpcomingWithHistory: vi.fn(async () => ({ ranked: [], myAttendance: [] })) }));
 vi.mock("@/lib/prickle-schedule", () => ({
   getPrickleScheduleOverview: vi.fn(async () => ({ rows: [], instances: [] })),
 }));
@@ -67,7 +67,7 @@ import StreaksPage from "@/app/(member)/streaks/page";
 import WheelOfWonderPage from "@/app/(member)/wheel-of-wonder/page";
 import AdminWheelOfWonderPage from "@/app/(admin)/admin/wheel-of-wonder/page";
 import MyPricklesPage, { type MyPricklesTabId } from "@/app/(member)/my-prickles/MyPricklesPage";
-import { getRankedUpcomingPrickles } from "@/lib/upcoming-prickles";
+import { getRankedUpcomingWithHistory } from "@/lib/upcoming-prickles";
 
 const OTHER_MEMBERS = [
   { id: "member-fern", name: "Fern Quillsby" },
@@ -193,7 +193,7 @@ describe("retired feature flags: pages render for a member with no feature previ
 
   it("My Prickles' Upcoming overflow note links to Find a Prickle", async () => {
     const ranked = Array.from({ length: 9 }, (_, i) => ({ prickle: { id: `prickle-${i}` }, reasons: [] }));
-    vi.mocked(getRankedUpcomingPrickles).mockResolvedValueOnce(ranked as never);
+    vi.mocked(getRankedUpcomingWithHistory).mockResolvedValueOnce({ ranked, myAttendance: [] } as never);
     await renderServerPage(MyPricklesPage, myPricklesProps());
     expect(screen.getAllByTestId("upcoming-row")).toHaveLength(8);
     expect(screen.getByRole("link", { name: /Find a Prickle/ })).toHaveAttribute("href", "/my-prickles/find");
@@ -202,7 +202,7 @@ describe("retired feature flags: pages render for a member with no feature previ
   it("My Prickles' Upcoming shows every personal prickle, past the recommendation cap", async () => {
     const personal = Array.from({ length: 10 }, (_, i) => ({ prickle: { id: `mine-${i}` }, reasons: [], priority: 1 }));
     const recommended = Array.from({ length: 5 }, (_, i) => ({ prickle: { id: `rec-${i}` }, reasons: [], priority: 6 }));
-    vi.mocked(getRankedUpcomingPrickles).mockResolvedValueOnce([...personal, ...recommended] as never);
+    vi.mocked(getRankedUpcomingWithHistory).mockResolvedValueOnce({ ranked: [...personal, ...recommended], myAttendance: [] } as never);
     await renderServerPage(MyPricklesPage, myPricklesProps());
     expect(screen.getAllByTestId("upcoming-row")).toHaveLength(10);
   });

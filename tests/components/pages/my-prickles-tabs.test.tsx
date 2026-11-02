@@ -37,7 +37,7 @@ vi.mock("@/lib/features.server", () => ({
 }));
 
 // My Prickles data dependencies and heavy client children.
-vi.mock("@/lib/upcoming-prickles", () => ({ PRIORITY: { none: 6 }, getRankedUpcomingPrickles: vi.fn(async () => []) }));
+vi.mock("@/lib/upcoming-prickles", () => ({ PRIORITY: { none: 6 }, getRankedUpcomingWithHistory: vi.fn(async () => ({ ranked: [], myAttendance: [] })) }));
 vi.mock("@/lib/prickle-schedule", () => ({
   getPrickleScheduleOverview: vi.fn(async () => ({ rows: [], instances: [] })),
 }));
@@ -86,7 +86,7 @@ import CommitmentsRoute from "@/app/(member)/my-prickles/commitments/page";
 import HostingRoute from "@/app/(member)/my-prickles/hosting/page";
 import HistoryRoute from "@/app/(member)/my-prickles/history/page";
 import { getMyHostEligibility } from "@/app/(member)/hosting/actions";
-import { getRankedUpcomingPrickles } from "@/lib/upcoming-prickles";
+import { getRankedUpcomingWithHistory } from "@/lib/upcoming-prickles";
 import { getMyCalendarItems } from "@/app/(member)/my-prickles/calendar-feed-actions";
 
 const routeProps = (searchParams: Record<string, string> = {}) => ({
@@ -117,6 +117,14 @@ describe("My Prickles tabs that replaced standalone pages", () => {
     expect(within(screen.getByRole("tabpanel")).getByTestId("history-calendar")).toHaveTextContent(
       `member: ${MEMBER_IDENTITY.memberId}`
     );
+  });
+
+  it("loads the attendance history once, through the ranking, not a second time for History", async () => {
+    const spy = vi.spyOn(createInMemoryRepos(dataset).attendance.constructor.prototype, "forMemberWithPrickles");
+    await renderServerRoute(HistoryRoute, routeProps());
+    // The ranking is mocked here, so any call comes from the page itself.
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 });
 
@@ -235,9 +243,10 @@ describe("My Prickles Upcoming tab calendar controls", () => {
     ...over,
   });
   const ranked = (...rows: { prickle: ReturnType<typeof prickle>; reasons?: { kind: string }[] }[]) =>
-    vi.mocked(getRankedUpcomingPrickles).mockResolvedValueOnce(
-      rows.map((r) => ({ prickle: r.prickle, reasons: r.reasons ?? [], priority: 0 })) as never
-    );
+    vi.mocked(getRankedUpcomingWithHistory).mockResolvedValueOnce({
+      ranked: rows.map((r) => ({ prickle: r.prickle, reasons: r.reasons ?? [], priority: 0 })),
+      myAttendance: [],
+    } as never);
   const rows = () => screen.getAllByTestId("upcoming-row");
   const calendarOf = (row: HTMLElement) => JSON.parse(row.getAttribute("data-calendar")!);
 

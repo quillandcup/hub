@@ -403,6 +403,20 @@ export async function getRankedUpcomingPrickles(
   now: Date,
   windowDays: number
 ): Promise<RankedPrickle[]> {
+  return (await getRankedUpcomingWithHistory(repos, memberId, timeZone, now, windowDays)).ranked
+}
+
+/**
+ * Same as getRankedUpcomingPrickles, plus the member's attendance history the ranking already
+ * loaded, so a page that also needs it (My Prickles' History tab) doesn't fetch it a second time.
+ */
+export async function getRankedUpcomingWithHistory(
+  repos: UpcomingRepos,
+  memberId: string,
+  timeZone: string,
+  now: Date,
+  windowDays: number
+): Promise<{ ranked: RankedPrickle[]; myAttendance: Awaited<ReturnType<UpcomingRepos["attendance"]["forMemberWithPrickles"]>> }> {
   const windowStart = now.toISOString()
   const windowEnd = new Date(now.getTime() + windowDays * 24 * 60 * 60 * 1000).toISOString()
   const lookbackStart = new Date(now.getTime() - SISTER_LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString()
@@ -570,7 +584,7 @@ export async function getRankedUpcomingPrickles(
     )
   }
 
-  return rankUpcomingPrickles({
+  const ranked = rankUpcomingPrickles({
     upcoming,
     memberId,
     now,
@@ -584,6 +598,7 @@ export async function getRankedUpcomingPrickles(
     slotVibrancy,
     hostExperience,
   })
+  return { ranked, myAttendance }
 }
 
 /** How far ahead of the start a prickle offers its check-in. */

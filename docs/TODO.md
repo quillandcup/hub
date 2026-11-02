@@ -1519,6 +1519,14 @@ Add a hidden keyboard shortcut (typing "helpme", similar to Confluent Cloud's de
 ### Hedgie Help for admins without a member record
 The top-bar Help menu (`components/HelpMenu.tsx`) shows in the admin area too, but `/help` lives in the `(member)` route group, whose layout redirects an admin with no member record (and no sudo) to `/admin`. Such an admin choosing Hedgie Help lands straight back where they were. Deferred because it is not known how many admins have no member record. Start by moving `app/(member)/help` to a route group that needs only a signed-in user, or exempting `/help` in `app/(member)/layout.tsx`.
 
+### Fewer queries on My Prickles and the Dashboard: the medium-risk rest
+
+Done in the first pass: History reuses the attendance the ranking loads, the chunked attendance reads run four at a time, and the Dashboard and My Prickles start their dependent reads inside the main batch. Deliberately not done:
+
+- **Hosting stats, schedules, eligibility and the member directory load on every tab.** `Tabs` renders only the active tab but gets every tab's content from the server and switches on the client with `history.replaceState`, so skipping a tab's data on the server would show it empty after a click. Needs the heavy tabs to load their data on demand (a client fetch or a server action when first opened), or each tab to be a real navigation. Start in `app/(member)/my-prickles/MyPricklesPage.tsx` (`getMyHostingStats`, `fetchOtherMembers`).
+- **The ranking fetches the member's whole attendance history** (`getRankedUpcomingWithHistory`, `lib/upcoming-prickles.ts`) for streaks and sister streaks. Narrowing it changes what the ranking sees, so it needs a check that the ranked output is identical.
+- **The layout blocks the page** on its own lookups. Un-blocking it is a shell change.
+
 ## Internationalization
 
 ### Secondary Time Zone: Remaining Displays

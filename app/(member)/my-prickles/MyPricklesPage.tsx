@@ -9,7 +9,7 @@ import { redirect } from "next/navigation";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
 import { getUserTimezonePreference } from "@/lib/timezone";
-import { PRIORITY, getRankedUpcomingPrickles, type HighlightReason, type UpcomingPrickle } from "@/lib/upcoming-prickles";
+import { PRIORITY, getRankedUpcomingWithHistory, type HighlightReason, type UpcomingPrickle } from "@/lib/upcoming-prickles";
 import { getPrickleScheduleOverview } from "@/lib/prickle-schedule";
 import { getMonthStart, getNextMonthStart, isMonthLocked } from "@/lib/prickle-schedules";
 import { getMySchedules, getMyHostingStats, getMyHostEligibility } from "@/app/(member)/hosting/actions";
@@ -78,9 +78,8 @@ export default async function MyPricklesPage({
   const nextMonth = getNextMonthStart(now).toISOString().slice(0, 10);
 
   const [
-    ranked,
+    rankedWithHistory,
     scheduleOverview,
-    attendedPrickles,
     prickleTypes,
     schedules,
     lockRows,
@@ -92,9 +91,14 @@ export default async function MyPricklesPage({
     calendarItems,
     checkins,
   ] = await Promise.all([
-    getRankedUpcomingPrickles(createRepos(supabase), memberId, timeZone, now, UPCOMING_WINDOW_DAYS),
+    // Chained inside the batch: the dismissed check-ins of the rows shown need the ranking, nothing else.
+    getRankedUpcomingWithHistory(createRepos(supabase), memberId, timeZone, now, UPCOMING_WINDOW_DAYS).then(async (result) => {
+      const personal = result.ranked.filter((r) => r.priority < PRIORITY.none).length;
+      const shown = result.ranked.slice(0, Math.max(personal, MAX_UPCOMING_DISPLAY));
+      const dismissed = await loadDismissedCheckinIds(createRepos(supabase), memberId, shown.map((r) => r.prickle.id));
+      return { ...result, dismissed };
+    }),
     getPrickleScheduleOverview(createRepos(supabase), now, timeZone, SCHEDULE_LOOKBACK_DAYS, UPCOMING_WINDOW_DAYS),
-    createRepos(supabase).attendance.forMemberWithPrickles(memberId),
     createRepos(supabase).prickles.typesRequiringHost(),
     getMySchedules(),
     createRepos(supabase).prickleSchedules.locksOf([currentMonth, nextMonth]),
@@ -107,6 +111,8 @@ export default async function MyPricklesPage({
     getMyCheckins(),
   ]);
 
+  // The ranking already loaded the member's whole attendance history; History reuses it.
+  const { ranked, myAttendance: attendedPrickles, dismissed: dismissedCheckins } = rankedWithHistory;
   const overrides = lockRows.map((r) => ({ month: r.month, locked: r.locked }));
   const currentMonthLocked = isMonthLocked(getMonthStart(now), overrides, now);
   const nextMonthLocked = isMonthLocked(getNextMonthStart(now), overrides, now);
@@ -117,7 +123,6 @@ export default async function MyPricklesPage({
   // of everything happening org-wide in the window.
   const personalCount = ranked.filter((r) => r.priority < PRIORITY.none).length;
   const displayedUpcoming = ranked.slice(0, Math.max(personalCount, MAX_UPCOMING_DISPLAY));
-  const dismissedCheckins = await loadDismissedCheckinIds(createRepos(supabase), memberId, displayedUpcoming.map((r) => r.prickle.id));
 
   // The "Add to my calendar" control on each upcoming row: what's already in their feed, and the
   // weekly slot an "every week" add would cover. Prickles with no type can't be added.
