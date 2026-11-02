@@ -63,7 +63,9 @@ const SLUG = `lesson-activity-${ts}`
 describe('lesson activity rows', () => {
   const supabase = getTestSupabaseAdminClient()
   const ids: Record<string, string> = {}
-  const NOW = new Date()
+  // Pinned to midday Eastern in June: "yesterday" below is NOW minus 24h, which is only the previous
+  // Eastern day when the day isn't 25 hours long (it was not, once, on the evening the clocks went back).
+  const NOW = new Date('2026-06-15T16:00:00Z')
   const activities = async (type?: string) => {
     let q = supabase.from('member_activities').select('*').eq('member_id', ids.member).eq('source', 'courses')
     if (type) q = q.eq('activity_type', type)
@@ -142,7 +144,8 @@ describe('lesson activity rows', () => {
   })
 
   it('logs again on another day, and does not count yesterday\'s stretches toward today', async () => {
-    const yesterday = new Date(NOW.getTime() - 24 * 60 * 60 * 1000)
+    // Another day, not "exactly 24 hours ago": on the day the clocks go back (25 hours long) that is still today, late in the evening.
+    const yesterday = new Date(NOW.getTime() - 26 * 60 * 60 * 1000)
     await addSegment(0, 400, yesterday)
     await watch({}, yesterday)
     expect(await activities('lesson_watched')).toHaveLength(1)

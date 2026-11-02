@@ -41,7 +41,7 @@ export type ProvisionReport = {
   failedMemberIds: string[];
 };
 
-export type ReleaseReport = { considered: number; released: number; alreadyOpen: number; noAuthUser: number; failed: number; failedMemberIds: string[] };
+export type ReleaseReport = { considered: number; released: number; /** Still banned because `limit` was reached; the next run releases them. */ deferred: number; alreadyOpen: number; noAuthUser: number; failed: number; failedMemberIds: string[] };
 
 const PER_PAGE = 1000;
 
@@ -146,10 +146,10 @@ function byByEmail(map: Map<string, AuthUserLite>, email: string) {
 }
 
 /** Clears the ban of active members' auth users. Members on hiatus are never touched. Idempotent. */
-export async function releaseAuthUsers(auth: AdminAuthApi, repos: ProvisioningRepos, options: { apply: boolean; now?: Date }): Promise<ReleaseReport> {
+export async function releaseAuthUsers(auth: AdminAuthApi, repos: ProvisioningRepos, options: { apply: boolean; limit?: number; now?: Date }): Promise<ReleaseReport> {
   const { active, byEmail, byId } = await loadContext(auth, repos);
   const now = (options.now ?? new Date()).getTime();
-  const report: ReleaseReport = { considered: 0, released: 0, alreadyOpen: 0, noAuthUser: 0, failed: 0, failedMemberIds: [] };
+  const report: ReleaseReport = { considered: 0, released: 0, deferred: 0, alreadyOpen: 0, noAuthUser: 0, failed: 0, failedMemberIds: [] };
   for (const member of active) {
     report.considered++;
     const email = norm(member.email);
@@ -161,6 +161,10 @@ export async function releaseAuthUsers(auth: AdminAuthApi, repos: ProvisioningRe
     const banned = !!user.banned_until && new Date(user.banned_until).getTime() > now;
     if (!banned) {
       report.alreadyOpen++;
+      continue;
+    }
+    if (options.limit !== undefined && report.released >= options.limit) {
+      report.deferred++;
       continue;
     }
     if (options.apply) {

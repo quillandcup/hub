@@ -5,7 +5,7 @@
 //   pnpm auth:precreate                     plan: dry run, counts only (default)
 //   pnpm auth:precreate create --apply      create the missing users (banned) and link members
 //   pnpm auth:precreate create --apply --limit=3   create at most 3, a trial before the rest
-//   pnpm auth:precreate release --apply     clear the ban of active members (never on_hiatus)
+//   pnpm auth:precreate release --apply [--limit=N]   clear the ban of active members (never on_hiatus)
 //
 // Targets whatever NEXT_PUBLIC_SUPABASE_URL the env files say (.env.prod via the package script).
 // Writes need --apply. Output is counts and member ids only: no emails, no names.
@@ -18,6 +18,11 @@ import { provisionAuthUsers, releaseAuthUsers, type AdminAuthApi } from "@/lib/a
 const args = process.argv.slice(2);
 const apply = args.includes("--apply");
 const command = args.find((a) => !a.startsWith("--")) ?? "plan";
+const unknownFlag = args.find((a) => a.startsWith("--") && a !== "--apply" && !a.startsWith("--limit="));
+if (unknownFlag) {
+  console.error(`Unknown option ${unknownFlag}. Use --apply and --limit=N.`);
+  process.exit(1);
+}
 const limitArg = args.find((a) => a.startsWith("--limit="));
 const limit = limitArg ? Number(limitArg.slice("--limit=".length)) : undefined;
 if (limit !== undefined && (!Number.isInteger(limit) || limit < 1)) {
@@ -43,7 +48,7 @@ async function main() {
   const write = apply && command !== "plan";
   console.log(`Target: ${new URL(url!).host}`);
   console.log(`Mode: ${command}${write ? " --apply (WRITES)" : " (dry run, nothing is written)"}`);
-  if (command === "release") console.log(JSON.stringify(await releaseAuthUsers(auth, repos, { apply: write }), null, 2));
+  if (command === "release") console.log(JSON.stringify(await releaseAuthUsers(auth, repos, { apply: write, limit }), null, 2));
   else console.log(JSON.stringify(await provisionAuthUsers(auth, repos, { apply: write, limit }), null, 2));
   if (command !== "plan" && !apply) console.log("Dry run only. Add --apply to write.");
 }

@@ -130,6 +130,19 @@ describe("releaseAuthUsers", () => {
     expect(auth.calls.update).toHaveLength(1);
   });
 
+  it("releases at most `limit` and counts the rest as deferred; a second run finishes them", async () => {
+    const { data, repos, auth } = setup(fakeAuth());
+    data.members.push({ id: "mbr_AAAAAAAAAAA5", name: "Ed Example", email: "ed@example.test" } as (typeof data.members)[number]);
+    await provisionAuthUsers(auth.api, repos, { apply: true });
+
+    const first = await releaseAuthUsers(auth.api, repos, { apply: true, limit: 1 });
+    expect(first).toMatchObject({ released: 1, deferred: 1 });
+    expect(auth.calls.update).toHaveLength(1);
+
+    const second = await releaseAuthUsers(auth.api, repos, { apply: true });
+    expect(second).toMatchObject({ released: 1, deferred: 0 });
+  });
+
   it("dry run changes nothing and counts members without an auth user", async () => {
     const { repos, auth } = setup(fakeAuth());
     expect(await releaseAuthUsers(auth.api, repos, { apply: false })).toMatchObject({ noAuthUser: 2, released: 0 });
