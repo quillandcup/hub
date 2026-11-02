@@ -6280,6 +6280,26 @@ export type Database = {
           with_account: number
         }[]
       }
+      admin_chat_adoption_people: {
+        Args: { p_since: string }
+        Returns: {
+          display_name: string
+          hub_messages: number
+          member_id: string
+          name: string
+          slack_messages: number
+        }[]
+      }
+      admin_chat_adoption_weekly: {
+        Args: { p_since: string; p_timezone: string }
+        Returns: {
+          hub_authors: number
+          hub_messages: number
+          slack_authors: number
+          slack_messages: number
+          week_start: string
+        }[]
+      }
       admin_member_engagement: {
         Args: { p_now?: string; p_search?: string }
         Returns: {

@@ -15,6 +15,7 @@ vi.mock("@/app/(admin)/admin/analytics/explore/ExploreForm", () => ({
   ),
 }));
 
+import { ORG_TIMEZONE } from "@/lib/config";
 import FeatureUsagePage from "@/app/(admin)/admin/analytics/page";
 import ExploreUsagePage from "@/app/(admin)/admin/analytics/explore/page";
 
@@ -77,6 +78,19 @@ describe("/admin/analytics", () => {
     expect(adoption.getByText("Seen in 24 hours").parentElement).toHaveTextContent("5% of active");
     expect(adoption.getByText("Seen in 7 days").parentElement).toHaveTextContent("13% of active");
     expect(adoption.getByText("Seen in 30 days").parentElement).toHaveTextContent("20% of active");
+  });
+
+  it("shows chat adoption for the window, asking for the weeks in the organisation's time zone", async () => {
+    const supabase = useFakeSupabase({
+      "rpc:admin_chat_adoption_weekly": { data: [{ week_start: "2026-11-01", hub_messages: 3, slack_messages: 7, hub_authors: 2, slack_authors: 4 }] },
+      "rpc:admin_chat_adoption_people": { data: [{ member_id: "mbr_AAAAAAAAAAA1", name: "Ada Example", display_name: null, hub_messages: 3, slack_messages: 7 }] },
+    });
+    await renderServerPage(FeatureUsagePage, { searchParams: Promise.resolve({ days: "7" }) });
+    const chat = within(screen.getByRole("region", { name: "Chat adoption" }));
+    expect(chat.getByText("Written in the Hub").nextElementSibling).toHaveTextContent("30%");
+    expect(chat.getByText("Ada Example")).toBeInTheDocument();
+    expect(rpcCalls(supabase, "admin_chat_adoption_weekly")[0][0]).toMatchObject({ p_timezone: ORG_TIMEZONE, p_since: expect.any(String) });
+    expect(rpcCalls(supabase, "admin_chat_adoption_people")[0][0]).toMatchObject({ p_since: expect.any(String) });
   });
 
   it("leaves the adoption section out when the numbers aren't there", async () => {
