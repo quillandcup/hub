@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChannelSummary } from "@/lib/chat/load";
@@ -83,44 +83,71 @@ describe("ChatSidebar", () => {
 
   it("narrows every section as you type, ignoring case and a leading #", async () => {
     render(<ChatSidebar channels={CHANNELS} />);
-    expect(links()).toHaveLength(4);
+    expect(links()).toHaveLength(3);
 
     await userEvent.type(screen.getByRole("searchbox", { name: "Find a channel" }), "#WRIT");
     expect(links()).toEqual(["#writing-sprints"]);
-    expect(screen.queryByText("Archived")).not.toBeInTheDocument();
 
     await userEvent.clear(screen.getByRole("searchbox", { name: "Find a channel" }));
-    await userEvent.type(screen.getByRole("searchbox", { name: "Find a channel" }), "news");
-    expect(links()).toEqual(["#old-news"]);
+    await userEvent.type(screen.getByRole("searchbox", { name: "Find a channel" }), "gale");
+    expect(links()).toEqual(["Gale, Fern"]);
   });
 
-  it("lists only the conversations you are in, with the channels you could join behind Browse channels", async () => {
-    const all = [...CHANNELS, channel("5", "#lurking", { joined: false }), channel("6", "#secret", { joined: false, visibility: "private" })];
+  it("lists only the conversations you are in, with no archived section", () => {
+    render(<ChatSidebar channels={[...CHANNELS, channel("5", "#lurking", { joined: false })]} />);
+    expect(links()).toEqual(["#general", "#writing-sprints", "Gale, Fern"]);
+    expect(screen.queryByText("Archived")).not.toBeInTheDocument();
+  });
+
+  it("opens the channels you could join in a panel under the icon, not further down the list", async () => {
+    const all = [
+      ...CHANNELS,
+      channel("5", "#lurking", { joined: false }),
+      channel("6", "#secret", { joined: false, visibility: "private" }),
+      channel("7", "#gone", { joined: false, archived: true }),
+    ];
     render(<ChatSidebar channels={all} />);
-    expect(links()).toEqual(["#general", "#writing-sprints", "Gale, Fern", "#old-news"]);
-    // The control is in the Channels heading, above the group messages.
     const browse = screen.getByRole("button", { name: "Browse channels" });
     expect(screen.getByRole("heading", { name: "Channels" }).parentElement).toContainElement(browse);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
     await userEvent.click(browse);
-    expect(screen.getByText("Channels you can join")).toBeInTheDocument();
-    expect(links()).toContain("#lurking");
-    expect(links().some((l) => l.includes("secret"))).toBe(false);
-    expect(screen.getByRole("link", { name: "#lurking" })).toHaveAttribute("href", "/chat/5");
+    const panel = screen.getByRole("dialog", { name: "Channels you can join" });
+    expect(browse).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("heading", { name: "Channels" }).parentElement).toContainElement(panel);
+    const names = within(panel).getAllByRole("link").map((a) => a.textContent);
+    expect(names).toEqual(["#lurking"]);
+    expect(within(panel).getByRole("link", { name: "#lurking" })).toHaveAttribute("href", "/chat/5");
 
-    await userEvent.type(screen.getByRole("searchbox", { name: "Find a channel" }), "lurk");
-    expect(links()).toEqual(["#lurking"]);
+    await userEvent.type(within(panel).getByRole("searchbox", { name: "Find a channel to join" }), "zzz");
+    expect(within(panel).getByText("No channels match.")).toBeInTheDocument();
+  });
 
-    expect(screen.getByRole("button", { name: "Browse channels" })).toHaveAttribute("aria-expanded", "true");
+  it("closes the panel on Escape, a click outside, choosing a channel or the icon again", async () => {
+    render(<ChatSidebar channels={[...CHANNELS, channel("5", "#lurking", { joined: false })]} />);
+    const open = async () => {
+      await userEvent.click(screen.getByRole("button", { name: "Browse channels" }));
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    };
+    await open();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await open();
+    await userEvent.click(screen.getByRole("searchbox", { name: "Search messages" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await open();
+    await userEvent.click(screen.getByRole("link", { name: "#lurking" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await open();
     await userEvent.click(screen.getByRole("button", { name: "Browse channels" }));
-    expect(links()).toEqual([]);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("still shows the Channels heading with Browse when the member has joined no channel", async () => {
     render(<ChatSidebar channels={[channel("5", "#lurking", { joined: false })]} />);
     expect(screen.getByRole("heading", { name: "Channels" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Browse channels" }));
-    expect(screen.getByRole("link", { name: "#lurking" })).toBeInTheDocument();
+    expect(within(screen.getByRole("dialog")).getByRole("link", { name: "#lurking" })).toBeInTheDocument();
   });
 
   it("offers no Browse button when there is nothing to join", () => {
@@ -193,7 +220,7 @@ describe("ChatSidebar", () => {
       expect(screen.getByRole("link", { name: "#general, 2 unread" })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: "#writing-sprints" })).toBeInTheDocument();
       expect(screen.queryByRole("link", { name: "#lurking" })).not.toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "#old-news" })).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "#old-news" })).not.toBeInTheDocument();
     });
 
     it("starts over from the server's numbers when they change, as after a refresh", async () => {
