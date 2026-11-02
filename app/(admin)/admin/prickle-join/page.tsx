@@ -3,7 +3,7 @@ import { clock } from "@/lib/clock";
 import { requireAdminPage } from "@/lib/admin-auth";
 import { createClient } from "@/lib/supabase/server";
 import { ORG_TIMEZONE } from "@/lib/config";
-import { firstOfNextMonth, joinAt, loadPrickleJoinSettings, tomorrowIn } from "@/lib/prickle-join";
+import { firstOfNextMonth, joinAt, loadPrickleJoinSettings, earliestStartDate } from "@/lib/prickle-join";
 import PrickleJoinForm from "./PrickleJoinForm";
 import RemoveScheduledButton from "./RemoveScheduledButton";
 import { createRepos } from "@/lib/data/repos";
@@ -33,7 +33,7 @@ export default async function PrickleJoinPage() {
       <PrickleJoinForm
         url={current?.url ?? ""} meetingId={current?.meetingId ?? ""} passcode={current?.passcode ?? ""} timeZone={ORG_TIMEZONE}
         defaultStartDate={firstOfNextMonth(new Date(now), ORG_TIMEZONE)}
-        minStartDate={tomorrowIn(new Date(now), ORG_TIMEZONE)}
+        minStartDate={earliestStartDate(new Date(now), ORG_TIMEZONE)}
       />
       {settings.length > 0 && (
         <div>

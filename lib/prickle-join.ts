@@ -77,14 +77,40 @@ export function effectiveFromForDate(date: string, timeZone: string): Date {
   return zonedTimeToUtc(date, "00:00", timeZone);
 }
 
+/** How far back a change can be dated: long enough to fix a link or passcode that was not updated at the start of the month. */
+const MAX_BACKDATE_DAYS = 31;
+
 /**
- * Validates an admin's chosen start day: a real YYYY-MM-DD strictly after today in `timeZone`
- * (blank means "right now", handled by the caller). Today or earlier is refused so a change can
- * never rewrite prickles that already ran or are running under the old link.
+ * Validates an admin's chosen start day: a real YYYY-MM-DD no more than `MAX_BACKDATE_DAYS` before today
+ * in `timeZone` (blank means "right now", handled by the caller). A past day is allowed because the link
+ * is read at a prickle's start, so dating it back corrects the prickles since then; the limit keeps a
+ * typo from rewriting months of history.
  */
-export function isFutureDate(date: string, now: Date, timeZone: string): boolean {
+export function isAllowedStartDate(date: string, now: Date, timeZone: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date))) return false;
-  return date > localDateOf(now.toISOString(), timeZone);
+  return date >= earliestStartDate(now, timeZone);
+}
+
+/** Zoom meeting IDs are 9 to 11 digits. */
+const MEETING_ID_MAX_DIGITS = 11;
+
+/**
+ * A meeting ID the way Zoom shows it: digits only, grouped 3-3-3, 3-3-4 or 3-4-4 ("828 3004 2304" is
+ * 3-4-4). Safe to apply on every keystroke: it keeps what was typed so far and ignores anything but digits.
+ */
+export function formatMeetingId(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, MEETING_ID_MAX_DIGITS);
+  const first = digits.slice(0, 3);
+  const middleLength = digits.length === MEETING_ID_MAX_DIGITS ? 4 : 3;
+  const middle = digits.slice(3, 3 + middleLength);
+  const last = digits.slice(3 + middleLength);
+  return [first, middle, last].filter(Boolean).join(" ");
+}
+
+/** Whether `value` (already formatted or not) holds a full meeting ID, 9 to 11 digits. */
+export function isMeetingId(value: string): boolean {
+  const count = value.replace(/\D/g, "").length;
+  return count >= 9 && count <= MEETING_ID_MAX_DIGITS && !/[^\d\s]/.test(value);
 }
 
 /** Adds `days` to a YYYY-MM-DD date (calendar arithmetic, no time zone involved). */
@@ -94,9 +120,9 @@ function addDays(date: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** The day after today in `timeZone`: the earliest start day an admin can schedule. */
-export function tomorrowIn(now: Date, timeZone: string): string {
-  return addDays(localDateOf(now.toISOString(), timeZone), 1);
+/** The earliest start day an admin can pick: `MAX_BACKDATE_DAYS` before today in `timeZone`. */
+export function earliestStartDate(now: Date, timeZone: string): string {
+  return addDays(localDateOf(now.toISOString(), timeZone), -MAX_BACKDATE_DAYS);
 }
 
 /** The first day of next month in `timeZone`: the default start day, since the passcode changes monthly. */

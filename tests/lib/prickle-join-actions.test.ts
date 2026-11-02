@@ -61,6 +61,23 @@ describe("savePrickleJoin", () => {
     expect(await saved()).toMatchObject({ meeting_id: null, passcode: null, effective_from: "2099-01-05T05:00:00.000Z" });
   });
 
+  it("accepts a start day in the past, so a missed update can be dated back", async () => {
+    const lastWeek = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
+
+    expect(await savePrickleJoin({ url: URL_OK, meetingId: "", passcode: "x", startDate: lastWeek })).toEqual({ success: true });
+    expect(Date.parse((await saved()).effective_from)).toBeLessThan(Date.now());
+  });
+
+  it("stores the meeting ID in Zoom's format, whatever was typed", async () => {
+    await savePrickleJoin({ url: URL_OK, meetingId: "88071702629", passcode: "x" });
+    expect(await saved()).toMatchObject({ meeting_id: "880 7170 2629" });
+  });
+
+  it.each(["12345", "abc", "880 7170 2629 1"])("rejects the meeting ID %j", async (meetingId) => {
+    expect(await savePrickleJoin({ url: URL_OK, meetingId, passcode: "x" })).toEqual({ error: "Enter the meeting ID as 9 to 11 digits, or leave it blank" });
+    expect(await repos.zoom.joinSettings()).toHaveLength(0);
+  });
+
   it("refuses a non-admin before touching anything", async () => {
     mocks.auth.mockResolvedValue({ ok: false, error: "Not authorized" });
 
@@ -75,7 +92,7 @@ describe("savePrickleJoin", () => {
 
   it.each(["2000-01-01", "nope"])("rejects the start day %j", async (startDate) => {
     expect(await savePrickleJoin({ url: URL_OK, meetingId: "", passcode: "x", startDate })).toEqual({
-      error: "Pick a start day after today, or leave it blank to start now",
+      error: "Pick a start day within the last month or later, or leave it blank to start now",
     });
     expect(await repos.zoom.joinSettings()).toHaveLength(0);
   });

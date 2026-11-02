@@ -47,6 +47,14 @@ describe("PrickleJoinForm", () => {
     expect(await screen.findByText("Saved. Applies to prickles starting 2099-02-01 and later.")).toBeInTheDocument();
   });
 
+  it("formats the meeting ID as it is typed", async () => {
+    const user = userEvent.setup();
+    renderForm();
+    await user.clear(screen.getByLabelText("Meeting ID"));
+    await user.type(screen.getByLabelText("Meeting ID"), "8283-004x2304");
+    expect(screen.getByLabelText("Meeting ID")).toHaveValue("828 3004 2304");
+  });
+
   it("starts right now when asked, ignoring the date", async () => {
     const user = userEvent.setup();
     renderForm();

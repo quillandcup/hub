@@ -33,7 +33,7 @@ describe("joinDescription", () => {
   });
 });
 
-import { effectiveFromForDate, isFutureDate } from "@/lib/prickle-join";
+import { effectiveFromForDate, isAllowedStartDate } from "@/lib/prickle-join";
 
 describe("scheduling a change", () => {
   it("starts at the day's midnight in the org timezone, DST included", () => {
@@ -48,20 +48,22 @@ describe("scheduling a change", () => {
     expect(joinAt(h, "2026-11-02T05:30:00Z")?.passcode).toBe("new");
   });
 
-  it("only accepts days after today in the org timezone", () => {
+  it("accepts a day from a month back up, in the org timezone", () => {
     const now = new Date("2026-11-02T03:00:00Z"); // still Nov 1 evening in New York
-    expect(isFutureDate("2026-11-01", now, "America/New_York")).toBe(false);
-    expect(isFutureDate("2026-11-02", now, "America/New_York")).toBe(true);
-    expect(isFutureDate("nope", now, "America/New_York")).toBe(false);
+    expect(isAllowedStartDate("2026-11-01", now, "America/New_York")).toBe(true);
+    expect(isAllowedStartDate("2026-12-01", now, "America/New_York")).toBe(true);
+    expect(isAllowedStartDate("2026-10-01", now, "America/New_York")).toBe(true);
+    expect(isAllowedStartDate("2026-09-30", now, "America/New_York")).toBe(false);
+    expect(isAllowedStartDate("nope", now, "America/New_York")).toBe(false);
   });
 });
 
-import { firstOfNextMonth, tomorrowIn } from "@/lib/prickle-join";
+import { firstOfNextMonth, earliestStartDate } from "@/lib/prickle-join";
 
 describe("start day defaults", () => {
   it("uses the org timezone's calendar, not UTC", () => {
     const lateOct31Eastern = new Date("2026-11-01T02:00:00Z"); // 10 PM Oct 31 in New York
-    expect(tomorrowIn(lateOct31Eastern, "America/New_York")).toBe("2026-11-01");
+    expect(earliestStartDate(lateOct31Eastern, "America/New_York")).toBe("2026-09-30");
     expect(firstOfNextMonth(lateOct31Eastern, "America/New_York")).toBe("2026-11-01");
     expect(firstOfNextMonth(new Date("2026-12-15T12:00:00Z"), "America/New_York")).toBe("2027-01-01");
   });
@@ -115,5 +117,30 @@ describe("joinSlackBlocks", () => {
     expect(withCode[0].elements[0]).toMatchObject({ url: "https://zoom.example.test/j/1" });
     expect(withCode[1].elements[0].text).toBe("Meeting ID: 123 456 · Passcode: pw");
     expect(joinSlackBlocks({ url: "https://zoom.example.test/j/1", meetingId: null, passcode: null })).toHaveLength(1);
+  });
+});
+
+import { formatMeetingId, isMeetingId } from "@/lib/prickle-join";
+
+describe("meeting ID format", () => {
+  it.each([
+    ["", ""],
+    ["8", "8"],
+    ["8283", "828 3"],
+    ["828300420", "828 300 420"],
+    ["8283004230", "828 300 4230"],
+    ["82830042304", "828 3004 2304"],
+    ["828 3004 2304 99", "828 3004 2304"],
+    ["a828-300 4230", "828 300 4230"],
+  ])("formats %j as %j", (input, expected) => {
+    expect(formatMeetingId(input)).toBe(expected);
+  });
+
+  it("accepts 9 to 11 digits and refuses the rest", () => {
+    expect(isMeetingId("828 3004 2304")).toBe(true);
+    expect(isMeetingId("828300420")).toBe(true);
+    expect(isMeetingId("8283004")).toBe(false);
+    expect(isMeetingId("828 3004 2304 9")).toBe(false);
+    expect(isMeetingId("ab8283004230")).toBe(false);
   });
 });
