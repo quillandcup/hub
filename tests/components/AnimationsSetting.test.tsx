@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AnimationsController } from "@/components/AnimationsController";
 import { AnimationsToggle } from "@/app/(member)/settings/AnimationsToggle";
@@ -94,5 +94,41 @@ describe("click to play", () => {
     expect(screen.getByAltText("demo1.gif")).toHaveAttribute("data-playing");
     await userEvent.click(screen.getByRole("button", { name: /pause demo1\.gif/i }));
     expect(screen.getByAltText("demo1.gif")).not.toHaveAttribute("data-playing");
+  });
+});
+
+describe("freezing images", () => {
+  it("freezes a pause back to a still and never restores a non-http address", async () => {
+    mockMotion(false);
+    localStorage.setItem(ANIMATIONS_STORAGE_KEY, "off");
+    document.body.innerHTML = '<img id="e" src="https://x.test/party.gif" alt=":party:"><img id="p" src="/api/chat/files/m/F1" data-animated alt="p">';
+    render(<AnimationsController />);
+    const emoji = document.getElementById("e") as HTMLImageElement;
+    const attachment = document.getElementById("p") as HTMLImageElement;
+    // An emoji by its .gif address and an attachment by its flag are both picked up; a plain image is not.
+    expect(emoji.hasAttribute("data-frozen-src")).toBe(true);
+    expect(attachment.hasAttribute("data-frozen-src")).toBe(true);
+
+    // Press play on the attachment (data-playing): it is released; remove it (pause): it is frozen again.
+    attachment.setAttribute("data-playing", "");
+    await waitFor(() => expect(attachment.hasAttribute("data-frozen-src")).toBe(false));
+    attachment.removeAttribute("data-playing");
+    await waitFor(() => expect(attachment.hasAttribute("data-frozen-src")).toBe(true));
+
+    // The saved address is DOM text: a javascript: value is never put back into src.
+    emoji.setAttribute("data-frozen-src", "javascript:alert(1)");
+    emoji.setAttribute("src", "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==");
+    localStorage.setItem(ANIMATIONS_STORAGE_KEY, "on");
+    window.dispatchEvent(new Event("hub-animations-changed"));
+    await waitFor(() => expect(emoji.hasAttribute("data-frozen-src")).toBe(false));
+    expect(emoji.getAttribute("src")).not.toContain("javascript:");
+  });
+
+  it("leaves ordinary images alone", () => {
+    mockMotion(false);
+    localStorage.setItem(ANIMATIONS_STORAGE_KEY, "off");
+    document.body.innerHTML = '<img id="n" src="https://x.test/cover.png" alt="cover">';
+    render(<AnimationsController />);
+    expect(document.getElementById("n")!.hasAttribute("data-frozen-src")).toBe(false);
   });
 });
