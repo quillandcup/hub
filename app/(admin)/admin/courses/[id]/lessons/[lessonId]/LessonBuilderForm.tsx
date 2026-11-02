@@ -3,7 +3,7 @@ import type { AdminLessonDetail } from "@/lib/courses/admin";
 import { formatBytes } from "@/lib/courses/files";
 import { memberEffect } from "@/lib/courses/explain";
 import { STATUS_CHOICES, statusChoices } from "@/lib/courses/status-choices";
-import { LessonStatusField, LessonTitleField } from "./LessonEditableFields";
+import { LessonModuleField, LessonStatusField, LessonTitleField } from "./LessonEditableFields";
 import LessonTextField from "./LessonTextField";
 import LessonFilesField from "./LessonFilesField";
 import LessonDeleteButton from "./LessonDeleteButton";
@@ -38,17 +38,21 @@ export default function LessonBuilderForm({ detail, media }: { detail: AdminLess
               <input type="text" disabled defaultValue={lesson.title} className={FIELD} />
             </label>
           )}
-          <label className="mt-4 block text-sm">
-            <span className="mb-1 block font-medium">Select module</span>
-            <select disabled defaultValue={inModule} className={FIELD}>
-              <option value="">No module</option>
-              {modules.map((m) => (
-                <option key={m.kajabiId} value={m.kajabiId}>
-                  {m.path}
-                </option>
-              ))}
-            </select>
-          </label>
+          {detail.editable ? (
+            <LessonModuleField courseId={detail.course.id} lessonId={lesson.kajabiId} moduleId={inModule} modules={modules} />
+          ) : (
+            <label className="mt-4 block text-sm">
+              <span className="mb-1 block font-medium">Select module</span>
+              <select disabled defaultValue={inModule} className={FIELD}>
+                <option value="">No module</option>
+                {modules.map((m) => (
+                  <option key={m.kajabiId} value={m.kajabiId}>
+                    {m.path}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
           <h3 className="mb-2 mt-6 font-semibold">Media</h3>
           {media}

@@ -39,6 +39,7 @@ export const OUTCOME_ACTIONS = [
   "course_items_reordered",
   "course_item_status_set",
   "course_lesson_text_saved",
+  "course_lesson_moved",
   "course_lesson_video_upload_started",
   "course_lesson_video_refreshed",
   "course_lesson_video_removed",

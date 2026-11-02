@@ -188,6 +188,22 @@ async function setItemStatusImpl(auth: Auth, courseId: string, kind: ItemKind, i
   return { id };
 }
 
+async function moveLessonImpl(auth: Auth, courseId: string, lessonId: string, moduleId: string | null): Promise<OutlineResult> {
+  if (!isId(courseId, "crs") || !isId(lessonId, "les") || (moduleId !== null && !isId(moduleId, "mod"))) return { error: "Not found." };
+  const courses = createRepos(auth.supabase).courses;
+  try {
+    // The lesson must be one of this course's, so a made-up course id can't be used to reach another's.
+    const lesson = await courses.lessonById(lessonId);
+    if (!lesson || lesson.course_id !== courseId) return { error: NOT_EDITABLE };
+    await courses.moveLesson(lessonId, moduleId);
+  } catch (error) {
+    if (error instanceof Error && error.message === "module_not_found") return { error: "That module isn't in this course. Refresh the page." };
+    return { error: describe(asDbError(error), "move it") };
+  }
+  revalidate(courseId);
+  return { id: lessonId };
+}
+
 // Usage analytics: each action records whether it worked (lib/analytics/server.ts).
 export async function addCourseModule(courseId: string, parentModuleId: string | null, title: string): Promise<OutlineResult> {
   const auth = await requireAdminAction();
@@ -230,6 +246,13 @@ export async function saveLessonText(courseId: string, lessonId: string, html: s
   const auth = await requireAdminAction();
   if (!auth.ok) return { error: auth.error };
   return withAction("course_lesson_text_saved", () => saveLessonTextImpl(auth, courseId, lessonId, html));
+}
+
+/** Moves a Hub-owned lesson to the end of another module (null: out of every module). */
+export async function moveCourseLesson(courseId: string, lessonId: string, moduleId: string | null): Promise<OutlineResult> {
+  const auth = await requireAdminAction();
+  if (!auth.ok) return { error: auth.error };
+  return withAction("course_lesson_moved", () => moveLessonImpl(auth, courseId, lessonId, moduleId));
 }
 
 /** A module's or lesson's own setting: draft, published or locked. */

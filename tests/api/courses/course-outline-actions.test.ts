@@ -41,7 +41,7 @@ vi.mock('@/lib/supabase/service', async () => {
 })
 
 import { COURSE_FILES_BUCKET } from '@/lib/courses/file-format'
-import { addCourseLesson, addCourseModule, deleteCourseItem, duplicateCourseItem, renameCourseItem, reorderCourseItems, saveLessonText, setCourseItemStatus } from '@/app/(admin)/admin/courses/outline-actions'
+import { addCourseLesson, addCourseModule, deleteCourseItem, duplicateCourseItem, moveCourseLesson, renameCourseItem, reorderCourseItems, saveLessonText, setCourseItemStatus } from '@/app/(admin)/admin/courses/outline-actions'
 
 describe('Course outline actions', () => {
   const supabase = getTestSupabaseAdminClient()
@@ -124,6 +124,48 @@ describe('Course outline actions', () => {
       expect(await addCourseModule(ids.course, null, 'Denied')).toEqual({ error: 'Not authorized' })
       expect(await addCourseLesson(ids.course, ids.week1, 'Denied')).toEqual({ error: 'Not authorized' })
       expect(revalidatePath).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('moveCourseLesson', () => {
+    // Its own course, so the modules and lessons made here aren't among the ones the other tests count.
+    let course: string
+    beforeAll(async () => {
+      course = (await supabase.from('courses').insert({ slug: `${PREFIX}-move`, title: 'Move', source: 'hub' }).select('id').single()).data!.id
+    })
+
+    it('moves a lesson to the end of another module, or out of every module, and refreshes the pages', async () => {
+      const first = await addCourseModule(course, null, 'Move from')
+      const second = await addCourseModule(course, null, 'Move to')
+      const one = await addCourseLesson(course, first.id!, 'Mover')
+      await addCourseLesson(course, second.id!, 'Already there')
+
+      expect(await moveCourseLesson(course, one.id!, second.id!)).toEqual({ id: one.id })
+      expect(await lesson(one.id!)).toMatchObject({ module_id: second.id, position: 2 })
+      expect(revalidatePath).toHaveBeenCalledWith(`/admin/courses/${course}`)
+
+      expect(await moveCourseLesson(course, one.id!, null)).toEqual({ id: one.id })
+      expect((await lesson(one.id!))!.module_id).toBeNull()
+    })
+
+    it("won't move a lesson of another course or an imported one, into a module of another course, or with ids that aren't ids", async () => {
+      const home = await addCourseModule(course, null, 'Move refusals home')
+      const mine = await addCourseLesson(course, home.id!, 'Stay put')
+      expect((await moveCourseLesson(ids.other, mine.id!, null)).error).toMatch(/can't be edited here/)
+      expect((await moveCourseLesson(course, mine.id!, ids.otherModule)).error).toBe("That module isn't in this course. Refresh the page.")
+      expect((await moveCourseLesson(course, 'les_AAAAAAAAAAA1', null)).error).toMatch(/can't be edited here/)
+      expect(await moveCourseLesson('nope', mine.id!, null)).toEqual({ error: 'Not found.' })
+      expect(await moveCourseLesson(course, mine.id!, 'nope')).toEqual({ error: 'Not found.' })
+      expect((await lesson(mine.id!))!.module_id).toBe(home.id)
+    })
+
+    it("does nothing for someone who isn't an admin", async () => {
+      const home = await addCourseModule(course, null, 'Move admin home')
+      const mine = await addCourseLesson(course, home.id!, 'Not for them')
+      auth.admin = false
+      expect(await moveCourseLesson(course, mine.id!, null)).toEqual({ error: 'Not authorized' })
+      auth.admin = true
+      expect((await lesson(mine.id!))!.module_id).toBe(home.id)
     })
   })
 
