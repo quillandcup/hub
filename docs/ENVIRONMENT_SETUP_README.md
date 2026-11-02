@@ -140,8 +140,8 @@ Follow these guides in order:
 
 ### Q: How much does this cost?
 **A:** 
-- Vercel Hobby tier: Free (current plan)
-- Supabase Free tier: Free for dev project
+- Vercel: Pro plan (current), and a paid Supabase plan for production; the plans are in `docs/DEPLOYMENT.md`, "Plans and headroom"
+- The development Supabase project: its plan isn't recorded here
 - Custom domain: Varies by registrar ($10-15/year typically)
 - Total added cost: ~$10-15/year for domain only
 

@@ -387,21 +387,19 @@ Before going live:
 - [ ] Admin user invited and tested
 - [ ] API keys rotated from defaults
 
-## Cost Estimates
+## Plans and headroom
 
-### Supabase Free Tier
-- 500MB database
-- 1GB file storage  
-- 50,000 monthly active users
-- **Cost**: Free
+Checked read-only on 2026-11-01 with the Vercel and Supabase CLIs (the Supabase CLI doesn't print the plan name, so it is inferred from what the project has):
 
-### Vercel Hobby Tier
-- Unlimited deployments
-- 100GB bandwidth/month
-- Automatic HTTPS
-- **Cost**: Free
+### Supabase (production project)
+- **A paid plan, not Free:** point-in-time recovery is on (`supabase backups list --project-ref <ref>` shows `pitr_enabled: true`; Free has no backups to list), and the database runs on Small-size compute (512 MB shared buffers, `max_connections` 90). Confirm the plan name and the included database and storage sizes on the organization's billing page.
+- **Usage that day:** database 442 MB, file storage 793 MB, 38 of 90 connections in use. Biggest tables: `access_events` (119 MB, about 196,000 rows), `slack_messages` (24 MB), `analytics_events` (20 MB).
+- **What to watch as use grows:** connections (90 is the hard ceiling for this compute size) and the database size; the usage events are rolled up and pruned after 13 months (`docs/ANALYTICS.md`), but the `access_events` rows are kept (the nightly job only removes their raw IP and browser string after 90 days), and it is the largest table.
 
-Both should be sufficient for starting out. Monitor usage and upgrade as needed.
+### Vercel
+- **Pro plan, active** (`vercel api /v2/teams/<team id>`, field `billing.plan`). Functions here are capped at 300 s (`maxDuration`).
+
+The development Supabase project's plan isn't recorded here.
 
 ## Next Steps
 
