@@ -133,6 +133,10 @@ export async function seed(now: Date = new Date()) {
     if (entriesError) throw new Error(`writing_progress_entries: ${entriesError.message}`);
   }
 
+  // Hosting for members (the Hosting tab in My Prickles) is behind a feature flag that is off by default.
+  const { error: hostingFlagError } = await admin.from("feature_flags").upsert({ feature_key: "hosting", enabled_globally: true }, { onConflict: "feature_key" });
+  if (hostingFlagError) throw new Error(`feature_flags: ${hostingFlagError.message}`);
+
   // Chat: the features on, and a few days of conversation in four channels.
   await seedChat(admin, now);
 

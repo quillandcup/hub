@@ -497,7 +497,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
         type="button"
         onClick={() => openPalette("button")}
         data-track="search-open"
-        className="mr-auto flex h-10 items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 text-sm text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600 sm:w-80 lg:w-[28rem] xl:w-[36rem]"
+        className="mr-auto flex h-10 min-w-0 items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 text-sm text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600 sm:w-80 lg:w-[28rem] xl:w-[36rem]"
         aria-label="Search pages, members, chat…"
         aria-keyshortcuts="Meta+K Control+K"
       >
