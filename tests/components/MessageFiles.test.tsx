@@ -64,15 +64,22 @@ describe("MessageFiles attachments", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  /** Delete is in the More menu (Slack's layout), not a button of its own. */
+  const deleteFirst = async () => {
+    await userEvent.click(screen.getAllByRole("button", { name: "More actions" })[0]);
+    await userEvent.click(screen.getByRole("menuitem", { name: "Delete file" }));
+  };
+
   it("offers delete only to the owner, and removes the file once the action succeeds", async () => {
     const { unmount } = render(<MessageFiles messageId="m1" files={files} />);
-    expect(screen.queryByRole("button", { name: "Remove a.png" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getAllByRole("button", { name: "More actions" })[0]);
+    expect(screen.queryByRole("menuitem", { name: "Delete file" })).not.toBeInTheDocument();
     unmount();
 
     vi.spyOn(window, "confirm").mockReturnValue(true);
     deleteChatFile.mockResolvedValue({ ok: true });
     render(<MessageFiles messageId="m1" files={files} canDelete />);
-    await userEvent.click(screen.getByRole("button", { name: "Remove a.png" }));
+    await deleteFirst();
     expect(deleteChatFile).toHaveBeenCalledWith("m1", "F1");
     await waitFor(() => expect(screen.queryByRole("img", { name: "a.png" })).not.toBeInTheDocument());
     expect(screen.getByRole("button", { name: /1 attachment$/ })).toBeInTheDocument();
@@ -81,11 +88,11 @@ describe("MessageFiles attachments", () => {
   it("keeps the file and shows the error when delete fails or is cancelled", async () => {
     render(<MessageFiles messageId="m1" files={files} canDelete />);
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
-    await userEvent.click(screen.getByRole("button", { name: "Remove a.png" }));
+    await deleteFirst();
     expect(deleteChatFile).not.toHaveBeenCalled();
     confirm.mockReturnValue(true);
     deleteChatFile.mockResolvedValue({ ok: false, error: "Slack said no." });
-    await userEvent.click(screen.getByRole("button", { name: "Remove a.png" }));
+    await deleteFirst();
     expect(await screen.findByRole("alert")).toHaveTextContent("Slack said no.");
     expect(screen.getByRole("img", { name: "a.png" })).toBeInTheDocument();
   });
@@ -162,7 +169,8 @@ describe("MessageFiles without file names", () => {
     ]);
     render(<MessageFiles messageId="m1" files={files} canDelete />);
     expect(screen.getByText("File")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Remove image" }));
+    await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Delete file" }));
     expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("this file"));
     await userEvent.click(screen.getByRole("button", { name: "Enlarge image" }));
     expect(screen.getByRole("dialog", { name: "Image" })).toBeInTheDocument();
