@@ -41,7 +41,7 @@ test("with animations off a GIF waits for play and an animated emoji is a still"
   await expect(page.getByRole("button", { name: "Play party-disc.gif" })).toBeVisible();
 
   // Expand still opens the picture larger.
-  await page.getByRole("button", { name: "Expand party-disc.gif" }).click({ force: true });
+  await page.getByRole("button", { name: "Expand party-disc.gif" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await shot(page, testInfo, "expanded", { checks: false });
   await page.keyboard.press("Escape");
