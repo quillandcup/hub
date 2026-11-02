@@ -9,6 +9,7 @@ import {
 import { loadCalendarFeedPrickleIds } from "@/lib/calendar-feed";
 import { APP_URL } from "@/lib/config";
 import { joinSlackBlocks, loadPrickleJoinSettings, joinAt, type PrickleJoin } from "@/lib/prickle-join";
+import type { PrickleDetail } from "@/lib/data/prickles";
 import { createNotifier } from "@/lib/notifications/notify";
 import { resolveInAppNotifications } from "@/lib/channels/in-app";
 import type { ChannelId, OutboundMessage } from "@/lib/channels";
@@ -614,6 +615,32 @@ export const CHECKOUT_LOOKBACK_MS = 6 * 60 * 60 * 1000;
 
 /** How far before a prickle's start to read presence events: a member can join a room hours early. */
 const PRESENCE_LOOKBEHIND_MS = 12 * 60 * 60 * 1000;
+
+/**
+ * Writing prickles that ended in the last CHECKOUT_LOOKBACK_MS and that `memberId` was in the room
+ * for, from live presence (the Zoom participant webhooks). The dashboard's "How did it go?" card
+ * lists these straight away instead of waiting for the attendance import, which only arrives once
+ * the whole Zoom meeting ends. Reads presence only when such a prickle exists. Newest first.
+ */
+export async function recentPresentPrickles(
+  repos: Pick<Repos, "aliases" | "members" | "prickles" | "zoom">,
+  memberId: string,
+  now: Date
+): Promise<PrickleDetail[]> {
+  const since = now.getTime() - CHECKOUT_LOOKBACK_MS;
+  const ended = (await repos.prickles.startingBetween({ from: new Date(since).toISOString(), to: now.toISOString() })).filter(
+    (p) => p.type?.purpose === "writing" && new Date(p.endTime).getTime() <= now.getTime()
+  );
+  if (ended.length === 0) return [];
+  const intervals = (await loadPresenceByMember(repos, new Date(since - PRESENCE_LOOKBEHIND_MS), now)).get(memberId) ?? [];
+  return ended
+    .filter((p) => {
+      const start = new Date(p.startTime).getTime();
+      const end = new Date(p.endTime).getTime();
+      return intervals.some((i) => i.join < end && (i.leave === null || i.leave > start));
+    })
+    .sort((a, b) => b.startTime.localeCompare(a.startTime));
+}
 
 /** A started writing prickle, from the last CHECKOUT_LOOKBACK_MS, that may be due a check-out. */
 export interface RecentPrickle {

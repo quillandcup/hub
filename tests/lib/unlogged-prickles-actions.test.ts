@@ -112,6 +112,93 @@ describe("getUnloggedRecentPrickles", () => {
   });
 });
 
+describe("getUnloggedRecentPrickles from live presence", () => {
+  const at = (hoursAgo: number) => new Date(Date.now() - hoursAgo * 3600_000).toISOString();
+  const sprint = (id: string, startHoursAgo: number, endHoursAgo: number, type = SPRINT) => {
+    const prickle: Prickle = { id, typeId: type.id, hostId: null, title: null, startTime: at(startHoursAgo), endTime: at(endHoursAgo), source: "calendar", calendarEventId: null };
+    return prickle;
+  };
+  const event = (id: string, event: "joined" | "left", hoursAgo: number, name = "Ada Writer") => ({
+    id,
+    meeting_uuid: "mtg-1",
+    meeting_id: null,
+    host_id: "host-1",
+    participant_key: `dev-${name}`,
+    participant_name: name,
+    participant_email: null,
+    event,
+    event_time: at(hoursAgo),
+    leave_reason: null,
+    raw_payload: {},
+    received_at: at(hoursAgo),
+  });
+  const meeting = {
+    id: "z1",
+    meeting_id: "z1",
+    meeting_uuid: "mtg-1",
+    topic: "Prickle",
+    start_time: at(4),
+    end_time: null,
+    duration_minutes: null,
+    host_email: null,
+    host_name: null,
+    participant_count: null,
+    imported_at: null,
+    updated_at: null,
+    data: { host_id: "host-1" },
+  };
+  const world = (prickles: Prickle[], events: ReturnType<typeof event>[], more: ConstructorParameters<typeof InMemoryDataset>[0] = {}) =>
+    createInMemoryRepos(
+      new InMemoryDataset({
+        prickleTypes: [SPRINT, social],
+        prickles,
+        zoomParticipantEvents: events,
+        zoomMeetings: [meeting],
+        members: [{ id: "member-1", name: "Ada Writer", email: "ada@example.test" }],
+        ...more,
+      }),
+    );
+
+  it("lists a prickle that just ended and the member was in the room for, before any attendance exists", async () => {
+    repos = world([sprint("p-here", 3, 2)], [event("1", "joined", 2.9), event("2", "left", 2.1)]);
+    useClient();
+
+    expect((await getUnloggedRecentPrickles()).map((p) => p.id)).toEqual(["p-here"]);
+  });
+
+  it("leaves out social prickles, ones still running and ones the member left before", async () => {
+    repos = world(
+      [sprint("p-in", 3.2, 2.8), sprint("p-social", 3.2, 2.8, social), sprint("p-running", 3, -1), sprint("p-after", 2, 1.5)],
+      [event("1", "joined", 3.5), event("2", "left", 2.5)],
+    );
+    useClient();
+
+    expect((await getUnloggedRecentPrickles()).map((p) => p.id)).toEqual(["p-in"]);
+  });
+
+  it("lists it once when the attendance has also arrived, and hides a finished check-out", async () => {
+    const both = attended("p-both", at(4));
+    const done = sprint("p-done", 3, 2);
+    repos = world([both.prickle, done], [event("1", "joined", 4.5), event("2", "left", 1.5)], {
+      attendance: [both.attendance],
+      prickleCheckins: [{ memberId: "member-1", prickleId: "p-done", checkin: { ...EMPTY_CHECKIN, intentionMet: 4, pleasantAfter: 4, energyAfter: 3 } }],
+    });
+    useClient();
+
+    expect((await getUnloggedRecentPrickles()).map((p) => p.id)).toEqual(["p-both"]);
+  });
+
+  it("still answers from attendance when presence cannot be read", async () => {
+    const recent = attended("p-att", at(5));
+    repos = attendedDataset([recent]);
+    vi.spyOn(repos.zoom, "participantEventsSince").mockRejectedValueOnce(new Error("database is down"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    useClient();
+
+    expect((await getUnloggedRecentPrickles()).map((p) => p.id)).toEqual(["p-att"]);
+  });
+});
+
 describe("dismissUnloggedPrickle", () => {
   it("records the dismissal for the acting member", async () => {
     repos = createInMemoryRepos();

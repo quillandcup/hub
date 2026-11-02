@@ -3,7 +3,7 @@
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { createRepos } from "@/lib/data/repos";
 import { BookExistsError } from "@/lib/data/books";
-import { dismissCheckout } from "@/lib/prickle-checkin-dms";
+import { dismissCheckout, recentPresentPrickles } from "@/lib/prickle-checkin-dms";
 import { createClient } from "@/lib/supabase/server";
 import type { ProjectPatch } from "@/lib/data/writing";
 import { getCurrentUser } from "@/lib/auth";
@@ -982,7 +982,8 @@ export async function getMyEntriesForPrickle(prickleId: string): Promise<Prickle
 const UNLOGGED_LOOKBACK_DAYS = 14;
 
 /**
- * Writing prickles the acting member attended in the last two weeks with no progress entry
+ * Writing prickles the acting member attended in the last two weeks (or, from live presence,
+ * was in the room for in the last few hours, before the attendance import) with no progress entry
  * linked, no finished check-out and no dismissal -- the dashboard's "How did it go?" prompt.
  * Newest first.
  */
@@ -993,10 +994,15 @@ export async function getUnloggedRecentPrickles(): Promise<PrickleOption[]> {
   const since = new Date(Date.now() - UNLOGGED_LOOKBACK_DAYS * DAY_MS).toISOString();
 
   const repos = createRepos(supabase);
-  const [attendance, linked, dismissed, timeZone] = await Promise.all([
+  const [attendance, present, linked, dismissed, timeZone] = await Promise.all([
     repos.attendance.forMemberWithPrickles(effectiveIdentity.memberId, {
       purpose: "writing",
       prickleStartedSince: since,
+    }),
+    // Prickles that just ended and are not in the attendance yet; best effort, the DM covers them too.
+    recentPresentPrickles(repos, effectiveIdentity.memberId, new Date()).catch((error) => {
+      console.error("Could not read live presence for the unlogged prickles:", error instanceof Error ? error.message : error);
+      return [];
     }),
     repos.writing.prickleIdsLoggedSince(effectiveIdentity.memberId, since),
     repos.prickleActivity.dismissedSince("checkout", effectiveIdentity.memberId, since),
@@ -1004,7 +1010,7 @@ export async function getUnloggedRecentPrickles(): Promise<PrickleOption[]> {
   ]);
 
   // Linked to an entry, dismissed from this prompt, or checked out of: nothing left to ask about.
-  const attendedIds = attendance.map((a) => a.prickleId);
+  const attendedIds = [...attendance.map((a) => a.prickleId), ...present.map((p) => p.id)];
   const checkins = await repos.prickleActivity.checkinsAmong(effectiveIdentity.memberId, attendedIds);
   const checkedOutIds = [...checkins].filter(([, c]) => checkoutAnswered(c)).map(([prickleId]) => prickleId);
   const linkedIds = new Set([
@@ -1013,7 +1019,7 @@ export async function getUnloggedRecentPrickles(): Promise<PrickleOption[]> {
     ...checkedOutIds,
   ]);
   const byId = new Map<string, PrickleOption>();
-  for (const { prickle: p } of attendance) {
+  for (const p of [...attendance.map((a) => a.prickle), ...present]) {
     if (!p || linkedIds.has(p.id) || byId.has(p.id)) continue;
     const label = formatPrickleLabel(
       { startTime: p.startTime, typeName: p.type?.name ?? null, hostName: p.host ? getMemberDisplayName({ name: p.host.name, display_name: p.host.displayName }) : null },
