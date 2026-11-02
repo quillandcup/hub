@@ -147,4 +147,37 @@ describe("production operations alerts", () => {
     expect(text).toContain("&lt;b&gt;a &amp; b&lt;/b&gt; xxx");
     expect(text).not.toContain("x".repeat(201));
   });
+
+  it("says where the course video path broke, and what to do", async () => {
+    const { repos, hit } = allowing();
+    await sendOperationsAlert(repos, { type: "video_failed", what: "webhook_asset" });
+    await sendOperationsAlert(repos, { type: "video_failed", what: "webhook_upload" });
+    await sendOperationsAlert(repos, { type: "video_failed", what: "asset_errored" });
+
+    expect(hit.mock.calls.map(([bucket]) => bucket)).toEqual([
+      "operations_alert:video_failed:webhook_asset",
+      "operations_alert:video_failed:webhook_upload",
+      "operations_alert:video_failed:asset_errored",
+    ]);
+    expect(postMessage.mock.calls[0][0].text).toContain("Failed to record Mux asset update");
+    expect(postMessage.mock.calls[1][0].text).toContain("Failed to record Mux upload");
+    expect(postMessage.mock.calls[2][0].text).toContain("could not prepare a course video");
+  });
+
+  it("alerts a playback failure per lesson route, with the untrusted detail trimmed and escaped", async () => {
+    const { repos, hit } = allowing();
+    await sendOperationsAlert(repos, { type: "video_failed", what: "playback", route: "/courses/[slug]/lessons/[id]", detail: `code <4> & ${"x".repeat(500)}` });
+
+    expect(hit).toHaveBeenCalledWith("operations_alert:video_failed:playback:/courses/[slug]/lessons/[id]", 600, 1);
+    const text = postMessage.mock.calls[0][0].text;
+    expect(text).toContain("failed to play in a member's browser on /courses/[slug]/lessons/[id]");
+    expect(text).toContain("code &lt;4&gt; &amp; xxx");
+    expect(text).not.toContain("x".repeat(201));
+  });
+
+  it("alerts a playback failure without a route", async () => {
+    const { repos } = allowing();
+    await sendOperationsAlert(repos, { type: "video_failed", what: "playback" });
+    expect(postMessage.mock.calls[0][0].text).toContain("failed to play in a member's browser.");
+  });
 });

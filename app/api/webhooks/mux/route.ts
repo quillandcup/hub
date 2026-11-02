@@ -1,4 +1,6 @@
+import * as Sentry from "@sentry/nextjs";
 import { NextRequest, NextResponse } from "next/server";
+import { sendOperationsAlert } from "@/lib/operations-alerts";
 import { createRepos } from "@/lib/data/repos";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { assetUpdateFromEvent, createMuxClient, unwrapWebhook, uploadAssetFromEvent } from "@/lib/mux";
@@ -38,6 +40,8 @@ export async function POST(request: NextRequest) {
       await courses.updateVideo(video.id, { mux_asset_id: uploaded.assetId });
     } catch (error) {
       console.error("Failed to record Mux upload:", error);
+      Sentry.captureException(error, { tags: { section: "mux_webhook", stage: "upload" } });
+      await sendOperationsAlert(createRepos(supabase), { type: "video_failed", what: "webhook_upload" });
       return NextResponse.json({ error: "Update failed" }, { status: 500 });
     }
     return NextResponse.json({ received: true, processed: true });
@@ -57,6 +61,8 @@ export async function POST(request: NextRequest) {
     if (updated > 0 && update.durationSeconds !== undefined) await createRepos(supabase).courses.syncLessonDurations(update.muxAssetId);
   } catch (error) {
     console.error("Failed to record Mux asset update:", error);
+    Sentry.captureException(error, { tags: { section: "mux_webhook", stage: "asset" } });
+    await sendOperationsAlert(createRepos(supabase), { type: "video_failed", what: "webhook_asset" });
     // A 5xx makes Mux retry.
     return NextResponse.json({ error: "Update failed" }, { status: 500 });
   }
@@ -66,6 +72,9 @@ export async function POST(request: NextRequest) {
     console.warn("Mux event for an asset with no videos row yet: %s", update.muxAssetId);
     return NextResponse.json({ error: "Unknown asset" }, { status: 500 });
   }
+
+  // The lesson tells members "We've been told" for an errored video: this is the telling.
+  if (update.status === "errored") await sendOperationsAlert(createRepos(supabase), { type: "video_failed", what: "asset_errored" });
 
   return NextResponse.json({ received: true, processed: true });
 }
