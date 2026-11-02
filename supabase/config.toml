@@ -429,7 +429,9 @@ max_rows = 1000
 
 [remotes.prod.db.pooler]
 default_pool_size = 15
-max_client_conn = 200
+# The compute upgrade raised this to 400 in the dashboard; declared 200 here would have cut it back
+# on the next push to main.
+max_client_conn = 400
 
 [remotes.prod.auth]
 site_url = "https://hub.quillandcup.com/auth/callback"
@@ -459,14 +461,16 @@ verify_enabled = true
 # limit from 20/h to 2/h and turned off storage analytics/vector). Local stays at the CLI
 # defaults. See "Supabase config as code" in CLAUDE.md.
 [remotes.prod.auth.rate_limit]
-email_sent = 20
+# Every magic link and invite is an Auth email. 20 an hour would stop most of ~80 members signing in
+# during the launch hour, so this is set well above that; Resend's own limits are the next ceiling.
+email_sent = 150
 
 [remotes.prod.storage.analytics]
 enabled = true
 max_namespaces = 10
 
 [remotes.prod.storage.vector]
-enabled = true
+enabled = false
 
 # Known, harmless diff: `config diff` reports auth.sms.twilio.enabled as remote-only (production
 # has Twilio as the default SMS provider, with no credentials and phone login off). We don't

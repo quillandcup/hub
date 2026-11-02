@@ -10,7 +10,7 @@ import {
   fonts,
 } from "./layout";
 
-export function MagicLinkEmail({ confirmationUrl }: { confirmationUrl: string }) {
+export function MagicLinkEmail({ confirmationUrl, code }: { confirmationUrl: string; code: string }) {
   return (
     <EmailLayout preview="Your Hedgie Hub sign-in link is ready.">
       <EmailHeading>Your sign-in link is ready.</EmailHeading>
@@ -42,6 +42,25 @@ export function MagicLinkEmail({ confirmationUrl }: { confirmationUrl: string })
       >
         Sign in to Hedgie Hub
       </Button>
+
+      <EmailBody>
+        Opening this on a different device or browser than the one you signed
+        in from? The link may not work there. Enter this code on the sign-in
+        page instead:
+      </EmailBody>
+
+      <Text
+        style={{
+          fontSize: "28px",
+          letterSpacing: "0.2em",
+          textAlign: "center",
+          fontFamily: "monospace",
+          color: colors.headingText,
+          margin: "8px 0 24px 0",
+        }}
+      >
+        {code}
+      </Text>
 
       <EmailDivider />
 

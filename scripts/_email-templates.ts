@@ -9,6 +9,7 @@ import { EmailChangeEmail } from "../supabase/emails/email-change";
 // Supabase Go template variables — substituted at send time by Supabase's mailer.
 const CONFIRMATION_URL = "{{ .ConfirmationURL }}";
 const NEW_EMAIL = "{{ .NewEmail }}";
+const OTP_CODE = "{{ .Token }}";
 
 export type EmailTemplate = { name: string; subject: string; html: string };
 
@@ -32,7 +33,7 @@ export async function buildTemplates(): Promise<EmailTemplate[]> {
     {
       name: "magic_link",
       subject: "Your Hedgie Hub sign-in link",
-      html: await render(React.createElement(MagicLinkEmail, { confirmationUrl: CONFIRMATION_URL })),
+      html: await render(React.createElement(MagicLinkEmail, { confirmationUrl: CONFIRMATION_URL, code: OTP_CODE })),
     },
     {
       name: "email_change",

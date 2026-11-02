@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   title: "Login",
 };
 
-export default function LoginPage() {
-  return <LoginForm slackHomeUrl={slackHomeDeepLink()} />;
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  const { error } = await searchParams;
+  return <LoginForm slackHomeUrl={slackHomeDeepLink()} callbackFailed={error === "auth_callback_failed"} />;
 }

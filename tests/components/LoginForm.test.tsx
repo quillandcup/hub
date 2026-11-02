@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import LoginForm from '@/app/login/LoginForm'
 
@@ -8,12 +8,14 @@ const LAST_EMAIL_KEY = 'hedgiehub:lastEmail'
 
 const signInWithOtp = vi.fn()
 const resendPendingInvite = vi.fn()
+const verifyEmailCode = vi.fn()
 
 vi.mock('@/lib/supabase/client', () => ({
   createClient: () => ({ auth: { signInWithOtp } }),
 }))
 vi.mock('@/app/login/actions', () => ({
   resendPendingInvite: (email: string) => resendPendingInvite(email),
+  verifyEmailCode: (email: string, code: string) => verifyEmailCode(email, code),
 }))
 
 const signupDisabled = { error: { code: 'signup_disabled', message: 'Signups not allowed for this instance' } }
@@ -27,6 +29,7 @@ beforeEach(() => {
   window.localStorage.clear()
   signInWithOtp.mockReset().mockResolvedValue({ error: null })
   resendPendingInvite.mockReset()
+  verifyEmailCode.mockReset()
   signInWithSlackCode.mockReset()
 })
 
@@ -85,6 +88,59 @@ describe('LoginForm', () => {
 
     expect(await screen.findByText(/couldn't find a Hedgie Hub account/)).toBeInTheDocument()
     expect(screen.queryByText(/Signups not allowed/)).not.toBeInTheDocument()
+  })
+
+  describe('asking twice within the minute', () => {
+    const rateLimited = { error: { code: 'over_email_send_rate_limit', message: 'For security purposes, you can only request this after 52 seconds.' } }
+
+    afterEach(() => vi.useRealTimers())
+
+    it('says a link was just sent, then clears itself', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      signInWithOtp.mockResolvedValue(rateLimited)
+      render(<LoginForm slackHomeUrl={null} />)
+      fireEvent.change(screen.getByLabelText('Email address'), { target: { value: 'member@example.com' } })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Send Magic Link' }))
+      })
+
+      expect(screen.getByText(/We just emailed you a link/)).toBeInTheDocument()
+      expect(screen.queryByText(/For security purposes/)).not.toBeInTheDocument()
+
+      await act(async () => {
+        vi.advanceTimersByTime(10_000)
+      })
+      expect(screen.queryByText(/We just emailed you a link/)).not.toBeInTheDocument()
+    })
+  })
+
+  describe('signing in with the emailed code', () => {
+    it('offers the code only after a link was sent', async () => {
+      render(<LoginForm slackHomeUrl={null} />)
+      expect(screen.queryByLabelText(/Enter the code from the email/)).not.toBeInTheDocument()
+
+      await userEvent.type(screen.getByLabelText('Email address'), 'member@example.com')
+      await userEvent.click(screen.getByRole('button', { name: 'Send Magic Link' }))
+
+      expect(await screen.findByLabelText(/Enter the code from the email/)).toBeInTheDocument()
+    })
+
+    it('sends the typed email and code, and shows the error when it is refused', async () => {
+      verifyEmailCode.mockResolvedValue({ error: "That code didn't work." })
+      await submit('member@example.com')
+
+      await userEvent.type(await screen.findByLabelText(/Enter the code from the email/), '12345678')
+      await userEvent.click(screen.getByRole('button', { name: 'Sign in with code' }))
+
+      expect(await screen.findByText("That code didn't work.")).toBeInTheDocument()
+      expect(verifyEmailCode).toHaveBeenCalledWith('member@example.com', '12345678')
+    })
+  })
+
+  it('explains a failed sign-in link and points at the code', () => {
+    render(<LoginForm slackHomeUrl={null} callbackFailed />)
+
+    expect(screen.getByText(/That sign-in link didn't work/)).toBeInTheDocument()
   })
 
   it("links to the Slack app's Home tab when configured", () => {
