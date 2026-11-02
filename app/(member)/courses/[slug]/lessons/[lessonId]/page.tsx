@@ -169,7 +169,10 @@ export default async function LessonPage({
 
       <div className="@container mx-auto w-full max-w-screen-2xl px-6 py-6">
         <nav aria-label="Breadcrumb" className="text-sm text-slate-600 dark:text-slate-400">
-          <ol className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <Link data-track="lesson-breadcrumb-back" href={(context?.trail ?? []).length ? `/courses/${view.course.slug}/modules/${(context?.trail ?? []).at(-1)!.id}` : `/courses/${view.course.slug}`} className="block truncate hover:underline @pair:hidden">
+            ← {(context?.trail ?? []).at(-1)?.title ?? view.course.title}
+          </Link>
+          <ol className="hidden flex-wrap items-center gap-x-2 gap-y-1 @pair:flex">
             <li>
               <Link data-track="lesson-breadcrumb-course" href={`/courses/${view.course.slug}`} className="hover:underline">
                 {view.course.title}

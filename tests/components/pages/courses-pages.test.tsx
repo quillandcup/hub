@@ -295,6 +295,7 @@ describe("/courses/[slug]/modules/[moduleId]", () => {
     const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
     expect(within(crumbs).getByRole("link", { name: "The Ready Writer" })).toHaveAttribute("href", "/courses/the-ready-writer");
     expect(crumbs.querySelector("[aria-current='page']")).toHaveTextContent("Month 1");
+    expect(within(crumbs).getByRole("link", { name: "← The Ready Writer" })).toHaveAttribute("href", "/courses/the-ready-writer");
   });
 
   it("lists nested modules as links with their own progress, under a linked parent crumb", async () => {
@@ -310,6 +311,7 @@ describe("/courses/[slug]/modules/[moduleId]", () => {
     document.body.innerHTML = "";
     await renderServerPage(ModulePage, params("week"));
     expect(within(screen.getByRole("navigation", { name: "Breadcrumb" })).getByRole("link", { name: "Month 1" })).toHaveAttribute("href", "/courses/the-ready-writer/modules/mod");
+    expect(within(screen.getByRole("navigation", { name: "Breadcrumb" })).getByRole("link", { name: "← Month 1" })).toHaveAttribute("href", "/courses/the-ready-writer/modules/mod");
   });
 
   it("hides an unreleased module from members and previews it for staff", async () => {
@@ -378,6 +380,7 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
     expect(within(crumbs).getByRole("link", { name: "The Ready Writer" })).toHaveAttribute("href", "/courses/the-ready-writer");
     expect(within(crumbs).getByRole("link", { name: "Month 1" })).toHaveAttribute("href", "/courses/the-ready-writer/modules/mod");
     expect(crumbs.querySelector("[aria-current='page']")).toHaveTextContent("Voice");
+    expect(within(crumbs).getByRole("link", { name: "← Month 1" })).toHaveAttribute("href", "/courses/the-ready-writer/modules/mod");
     expect(screen.queryByText(/Lesson 2 of/)).not.toBeInTheDocument();
     expect(screen.queryByText("9:05")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Mark as complete" })).toBeEnabled();
