@@ -56,7 +56,7 @@ export const NOTIFICATION_KINDS = [
     id: "prickle_checkout",
     category: "Prickles",
     label: "Prickle check-outs",
-    description: "Sent after each writing prickle you attended: did you get what you came for, how you feel now, and a quick progress log for your goals.",
+    description: "Sent a few minutes before each writing prickle you are in ends: did you get what you came for, how you feel now, and a quick progress log for your goals if you have any.",
     defaultChannels: ["slack", "in_app", "web_push"],
   },
   {

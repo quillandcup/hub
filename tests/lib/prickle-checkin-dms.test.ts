@@ -50,37 +50,22 @@ const calendar = (entries: Record<string, string[]>) =>
 const pairs = (plan: { memberId: string; prickle: UpcomingPrickle }[]) => plan.map((e) => `${e.memberId}:${e.prickle.id}`);
 
 describe("planCheckinDMs", () => {
-  it("checks in with a member with a non-prickles goal for a prickle on their calendar", () => {
-    const plan = planCheckinDMs([goal({ measure: "chapters" })], [P1, P2], calendar({ m1: ["p1"] }));
-    expect(pairs(plan)).toEqual(["m1:p1"]);
+  it("checks in with a member, goal or not, for a prickle on their calendar", () => {
+    expect(pairs(planCheckinDMs(["m1"], [P1, P2], calendar({ m1: ["p1"] })))).toEqual(["m1:p1"]);
   });
 
-  it("doesn't check in on a non-prickles goal for a prickle that isn't on their calendar", () => {
-    expect(planCheckinDMs([goal()], [P1, P2], calendar({}))).toEqual([]);
-    expect(planCheckinDMs([goal()], [P1, P2], calendar({ m2: ["p1"] }))).toEqual([]);
+  it("doesn't check in for a prickle that isn't on their calendar", () => {
+    expect(planCheckinDMs(["m1"], [P1, P2], calendar({}))).toEqual([]);
+    expect(planCheckinDMs(["m1"], [P1, P2], calendar({ m2: ["p1"] }))).toEqual([]);
   });
 
-  it("doesn't check in on a prickles goal for writing prickles that aren't on their calendar", () => {
-    expect(planCheckinDMs([goal({ measure: "prickles" })], [P1, P2], calendar({}))).toEqual([]);
-  });
-
-  it("sends a member exactly one check-in per prickle, however many goals they have", () => {
-    const goals = [
-      goal({ goalId: "g1", measure: "words" }),
-      goal({ goalId: "g2", projectId: "proj2", measure: "scenes" }),
-      goal({ goalId: "g3", measure: "prickles" }),
-      goal({ goalId: "g4", projectId: "proj3", measure: "chapters" }),
-    ];
-    const plan = planCheckinDMs(goals, [P1, P2], calendar({ m1: ["p1", "p2"] }));
+  it("sends a member exactly one check-in per prickle, however many times they are listed", () => {
+    const plan = planCheckinDMs(["m1", "m1", "m1"], [P1, P2], calendar({ m1: ["p1", "p2"] }));
     expect(pairs(plan)).toEqual(["m1:p1", "m1:p2"]);
   });
 
   it("plans each member separately", () => {
-    const plan = planCheckinDMs(
-      [goal({ memberId: "m1" }), goal({ memberId: "m2", goalId: "g2" }), goal({ memberId: "m1", goalId: "g3" })],
-      [P1, P2],
-      calendar({ m1: ["p1"], m2: ["p1", "p2"] })
-    );
+    const plan = planCheckinDMs(["m1", "m2"], [P1, P2], calendar({ m1: ["p1"], m2: ["p1", "p2"] }));
     expect(pairs(plan)).toEqual(["m1:p1", "m2:p1", "m2:p2"]);
   });
 });

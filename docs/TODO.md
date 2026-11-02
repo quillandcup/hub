@@ -1687,7 +1687,7 @@ Check-ins (`prickle_checkins`) and progress entries linked to prickles (`writing
 - Open: where it lives (member admin page tab vs a dedicated "check-ins" admin page) and the exact flag thresholds.
 
 ### Prickle Check-ins: Save Find a Prickle's Answers as a Check-in (Idea)
-The Slack check-in DM now asks the check-in questions ~20 minutes before a prickle, for members with an active writing goal and the prickle on their calendar feed. The "How are you feeling?" answers in Find a Prickle (My Prickles → Find a Prickle, `lib/prickle-picker.ts`) still only pre-fill the check-in on the prickle the member clicks through to; nothing is saved unless they press Save there. Idea: save them as that prickle's check-in when the member picks it (and skip the check-in DM, which `checkinAnswered` already does once both answers exist).
+The Slack check-in DM now asks the check-in questions ~20 minutes before a prickle, for active members (a writing goal is not needed) who have the prickle on their calendar feed. The "How are you feeling?" answers in Find a Prickle (My Prickles → Find a Prickle, `lib/prickle-picker.ts`) still only pre-fill the check-in on the prickle the member clicks through to; nothing is saved unless they press Save there. Idea: save them as that prickle's check-in when the member picks it (and skip the check-in DM, which `checkinAnswered` already does once both answers exist).
 
 ### Prickle Check-ins Phase 3: Member Insights + Normalized Prickle Ratings (Wait for Data)
 Only meaningful once a few weeks of check-ins exist.

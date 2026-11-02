@@ -62,6 +62,10 @@ const PRICKLE = {
 };
 const MEMBERS = [{ id: "host", name: "Host Example" }, { id: "m1", name: "Ada Example" }, { id: "m2", name: "Bea Example" }];
 
+/** Puts prickle p1 on these members' calendars, and no one else's. */
+const onCalendar = (...memberIds: string[]) =>
+  calendarPrickleIds.mockImplementation(async (_repos, memberId) => new Set(memberIds.includes(memberId) ? ["p1"] : []));
+
 const optIn = (memberId: string, kind: string, channel: string, enabled: boolean) => ({ memberId, kind, channel, enabled });
 
 /** A fresh world: the prickle, the members, and nothing else. `repos` and `dataset` are the new twin. */
@@ -141,7 +145,7 @@ describe("prickle check-in route", () => {
       goalRow("g2", "m1", "proj2", "chapters"),
       goalRow("g3", "m1", "proj3", "prickles"),
     ]);
-    calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
+    onCalendar("m1");
 
     const res = await POST(cronRequest());
 
@@ -150,9 +154,16 @@ describe("prickle check-in route", () => {
     expect(sendSlackDM.mock.calls[0][0].slackUserId).toBe("U-m1");
   });
 
+  it("checks in with a member who has no writing goal, for a prickle on their calendar", async () => {
+    onCalendar("m1");
+
+    expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 1, checkouts: 0 });
+    expect(sendSlackDM.mock.calls.map((c) => c[0].slackUserId)).toEqual(["U-m1"]);
+  });
+
   it("does not claim a check-in nobody can be reached for, so a later rollout can send it", async () => {
     setup([goalRow("g1", "m1", "proj1", "words")], { notificationPreferences: bothOff("m1") });
-    calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
+    onCalendar("m1");
 
     expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 0, checkouts: 0 });
     expect(sendSlackDM).not.toHaveBeenCalled();
@@ -161,7 +172,7 @@ describe("prickle check-in route", () => {
 
   it("skips a member who already answered every check-in question", async () => {
     setup([goalRow("g1", "m1", "proj1", "words")], { checkins: { m1: answers({ pleasantBefore: 2, energyBefore: 2, need: "company" }) } });
-    calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
+    onCalendar("m1");
 
     expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 0, checkouts: 0 });
     expect(sendSlackDM).not.toHaveBeenCalled();
@@ -171,7 +182,7 @@ describe("prickle check-in route", () => {
 
   it("asks the check-in questions, starting from answers already saved", async () => {
     setup([goalRow("g1", "m1", "proj1", "words")], { checkins: { m1: answers({ pleasantBefore: 4, need: "company" }) } });
-    calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
+    onCalendar("m1");
 
     await POST(cronRequest());
 
@@ -185,7 +196,7 @@ describe("prickle check-in route", () => {
 
   it("skips a member who turned check-ins off, without logging it", async () => {
     setup([goalRow("g1", "m1", "proj1", "words"), goalRow("g2", "m2", "proj2", "words")], { notificationPreferences: bothOff("m1") });
-    calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
+    onCalendar("m1", "m2");
 
     expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 1, checkouts: 0 });
     expect(sendSlackDM.mock.calls.map((c) => c[0].slackUserId)).toEqual(["U-m2"]);
@@ -193,7 +204,7 @@ describe("prickle check-in route", () => {
 
   it("retries a check-in after every channel failed, then deduplicates a successful send", async () => {
     setup([goalRow("g1", "m1", "proj1", "words")], { notificationPreferences: slackOnly("m1") });
-    calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
+    onCalendar("m1");
     sendSlackDM.mockRejectedValueOnce(new Error("channel_not_found"));
     vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -205,7 +216,7 @@ describe("prickle check-in route", () => {
 
   it("surfaces a failed claim release and keeps the notification deduplicated", async () => {
     setup([goalRow("g1", "m1", "proj1", "words")], { notificationPreferences: slackOnly("m1") });
-    calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
+    onCalendar("m1");
     sendSlackDM.mockRejectedValueOnce(new Error("channel_not_found"));
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.spyOn(InMemoryPrickleActivityRepository.prototype, "releaseDm").mockRejectedValueOnce(new Error("database unavailable"));
@@ -220,7 +231,7 @@ describe("prickle check-in route", () => {
 
   it("keeps the claim when in-app delivery succeeds despite Slack failing", async () => {
     setup([goalRow("g1", "m1", "proj1", "words")]);
-    calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
+    onCalendar("m1");
     sendSlackDM.mockRejectedValueOnce(new Error("channel_not_found"));
     vi.spyOn(console, "error").mockImplementation(() => {});
     expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 1, checkouts: 0 });
@@ -231,7 +242,7 @@ describe("prickle check-in route", () => {
 
   it("doesn't claim or send when preferences are unavailable", async () => {
     setup([goalRow("g1", "m1", "proj1", "words")]);
-    calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
+    onCalendar("m1");
     repos.notifications.preferencesForKind = async () => {
       throw new Error("unavailable");
     };
@@ -242,7 +253,7 @@ describe("prickle check-in route", () => {
 
   it("doesn't check in with the same member for the same prickle again on the next tick", async () => {
     setup([goalRow("g1", "m1", "proj1", "words")]);
-    calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
+    onCalendar("m1");
 
     await POST(cronRequest());
     const second = await POST(cronRequest());
@@ -354,7 +365,10 @@ describe("sendCheckoutDMs", () => {
     expect(slackUserId).toBe("U-m1");
     expect(blocks!.map((b: any) => b.block_id)).not.toContain("quick_log:p1:proj4:words");
     expect(blocks!.some((b: any) => String(b.block_id).startsWith("quick_log"))).toBe(false);
-    expect(blocks!.at(-1).elements.map((e: any) => e.text).join(" ")).toContain(NO_GOAL_TIP);
+    // The tip is a line of its own above the footer.
+    expect(blocks!.at(-2).elements[0].text).toContain(NO_GOAL_TIP);
+    expect(blocks!.at(-1).elements.at(-1).text).toContain("Notification settings");
+    expect(NO_GOAL_TIP.length).toBeLessThanOrEqual(50);
   });
 
   it("skips an attendee who turned check-outs off, without logging it", async () => {

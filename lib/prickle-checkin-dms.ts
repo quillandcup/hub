@@ -40,8 +40,8 @@ type DmRepos = Repos;
 
 /**
  * Prickle check-in and check-out DMs: Slack's way into the same check-in as the prickle page
- * (lib/prickle-checkins.ts, prickle_checkins). ~20 min before a prickle on their calendar, a
- * member with an active writing goal gets a check-in DM (mood, the feeling, their intention); before
+ * (lib/prickle-checkins.ts, prickle_checkins). ~20 min before a prickle on their calendar, an
+ * active member gets a check-in DM (mood, the feeling, their intention); before
  * it ends, each attendee in the room gets a check-out DM (did they get what they came for, mood, the
  * feeling, plus a progress quick-log per goal when they have goals, else a tip to set one). Each
  * answer saves straight into their check-in.
@@ -57,9 +57,9 @@ export interface GoalCandidate {
 
 /**
  * Every member's active (non-archived project, non-archived goal) writing goal, whatever its
- * measure -- the consent gate for both the check-in and the check-out DM. A member who is
- * tracking words, chapters, scenes etc. wants them as much as one counting prickles; the measure
- * only decides what the check-out's progress quick-log asks about.
+ * measure -- what the check-out's progress quick-log asks about (a member who is tracking
+ * words, chapters, scenes etc. wants it as much as one counting prickles). Neither DM needs one:
+ * without a goal the check-out just has no progress questions.
  */
 export async function getActiveGoalCandidates(repos: DmRepos): Promise<GoalCandidate[]> {
   const rows = await repos.writing.activeGoalCandidates();
@@ -125,18 +125,18 @@ export interface UpcomingPrickle {
 }
 
 /**
- * Which (member, prickle) pairs get a check-in DM: a member with any active goal, for each
- * upcoming prickle on their calendar (hosting, commitments, added by hand). Nothing else -- a
- * prickle they haven't put on their calendar never triggers a DM. Exactly one entry per member
- * per prickle, however many goals they have.
+ * Which (member, prickle) pairs get a check-in DM: each of `memberIds`, with or without a writing
+ * goal, for each upcoming prickle on their calendar (hosting, commitments, added by hand).
+ * Nothing else -- a prickle they haven't put on their calendar never triggers a DM. Exactly one
+ * entry per member per prickle.
  */
 export function planCheckinDMs<P extends UpcomingPrickle>(
-  candidates: GoalCandidate[],
+  memberIds: Iterable<string>,
   upcomingPrickles: P[],
   calendarPrickleIdsByMember: Map<string, Set<string>>
 ): { memberId: string; prickle: P }[] {
   const plan: { memberId: string; prickle: P }[] = [];
-  for (const memberId of new Set(candidates.map((c) => c.memberId))) {
+  for (const memberId of new Set(memberIds)) {
     const onCalendar = calendarPrickleIdsByMember.get(memberId);
     if (!onCalendar) continue;
     for (const prickle of upcomingPrickles) {
@@ -484,13 +484,15 @@ export function buildCheckoutBlocks(
   typeName: string,
   saved: CheckinInput | null,
   prompts: QuickLogPrompt[],
-  prickleTitle: string = typeName
+  prickleTitle: string = typeName,
+  hasGoals = true
 ): any[] {
   return [
     ...scaleBlocks(prickleId, "intention_met", INTENTION_MET, `Checking out of *${typeName}*: ${INTENTION_MET_QUESTION}`, saved),
     ...moodBlocks(prickleId, "after", "And now: ", saved),
     ...buildQuickLogBlocks(prickleTitle, prickleId, prompts),
     dismissBlock("checkout", prickleId),
+    ...(hasGoals ? [] : [noGoalTipBlock()]),
     checkinFooter(prickleId, "checkout"),
   ];
 }
@@ -851,8 +853,17 @@ export function checkinMessage(
   };
 }
 
-/** What a check-out says to a member with no writing goal, as a link to their projects. */
-export const NO_GOAL_TIP = "Tip: set a writing goal on a project to log your progress at check-out";
+/**
+ * What the Slack check-out says to a member with no writing goal, on a line of its own above the
+ * footer. Short enough for one line on a phone, and plain that it is for next time.
+ */
+export const NO_GOAL_TIP = "💡 Next time: set a goal to log progress here";
+function noGoalTipBlock() {
+  return {
+    type: "context",
+    elements: [{ type: "mrkdwn", text: `<${APP_URL}/projects|${NO_GOAL_TIP}>` }],
+  };
+}
 
 /** The check-out DM. Sending it is the caller's call: no dedup or skip checks here. */
 export function checkoutMessage(
@@ -861,15 +872,13 @@ export function checkoutMessage(
   prompts: QuickLogPrompt[],
   { test = false, hasGoals = true }: { test?: boolean; hasGoals?: boolean } = {}
 ): OutboundMessage {
-  const blocks = buildCheckoutBlocks(prickle.id, prickle.typeName, saved, prompts, prickle.title ?? prickle.typeName);
+  const blocks = buildCheckoutBlocks(prickle.id, prickle.typeName, saved, prompts, prickle.title ?? prickle.typeName, hasGoals);
   return {
     text: `${test ? "[Test] " : ""}Checking out of ${prickle.typeName}: did you get what you came for?`,
     url: `${APP_URL}${checkinHref(prickle.id, "checkout")}`,
     slackBlocks: test ? [TEST_BANNER, ...blocks] : blocks,
     ref: prickle.id,
     timeSensitiveUntil: offsetIso(prickle.endTime, CHECKOUT_TIME_SENSITIVE_MS),
-    // No goal, no progress questions: say how to get them.
-    ...(hasGoals ? {} : { footerLinks: [{ label: NO_GOAL_TIP, url: `${APP_URL}/projects` }] }),
   };
 }
 

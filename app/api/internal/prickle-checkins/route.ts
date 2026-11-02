@@ -18,7 +18,6 @@ import {
   sendCheckoutDMs,
   tryRecordCheckinDM,
   releaseCheckinDM,
-  type GoalCandidate,
   type RecentPrickle,
   type UpcomingPrickle,
 } from "@/lib/prickle-checkin-dms";
@@ -30,8 +29,8 @@ type RouteRepos = Repos;
 export const maxDuration = 60;
 
 /**
- * Prickle check-in DMs (to members with an active writing goal, any measure) and check-out DMs (to
- * anyone in the room; the progress questions only for those with a goal); answers save to their check-in (lib/prickle-checkin-dms.ts). Each tick:
+ * Prickle check-in DMs (to active members with the prickle on their calendar) and check-out DMs (to
+ * anyone in the room; the progress questions only for those with a writing goal); answers save to their check-in (lib/prickle-checkin-dms.ts). Each tick:
  * - Check-ins: ~15-30 min before an upcoming writing prickle on the member's calendar feed
  *   (hosting, a commitment, or added by hand), how they're feeling coming in and their intention for it.
  *   See planCheckinDMs.
@@ -57,8 +56,9 @@ async function runPrickleCheckins(request: NextRequest): Promise<NextResponse> {
   const candidates = await getActiveGoalCandidates(repos);
 
   const now = Date.now();
-  // Check-ins only go to members with a goal; check-outs go to anyone in the room.
-  const checkins = candidates.length > 0 ? await sendCheckins(repos, candidates, now) : 0;
+  // Check-ins go to active members with the prickle on their calendar; check-outs to anyone in the room.
+  const activeMemberIds = (await repos.members.identities({ status: "active" })).map((m) => m.id);
+  const checkins = await sendCheckins(repos, activeMemberIds, now);
   const checkouts = await sendCheckoutDMs(repos, await loadRecentPrickles(repos, now), candidates, now);
   return NextResponse.json({ checkins, checkouts });
 }
@@ -83,7 +83,7 @@ function writingPrickles(prickles: PrickleDetail[]) {
   return prickles.filter((p): p is PrickleDetail & { type: PrickleType } => p.type?.purpose === "writing");
 }
 
-async function sendCheckins(repos: RouteRepos, candidates: GoalCandidate[], now: number): Promise<number> {
+async function sendCheckins(repos: RouteRepos, memberIds: string[], now: number): Promise<number> {
   const windowStart = new Date(now + 15 * 60 * 1000).toISOString();
   const windowEnd = new Date(now + 30 * 60 * 1000).toISOString();
 
@@ -99,7 +99,6 @@ async function sendCheckins(repos: RouteRepos, candidates: GoalCandidate[], now:
   }));
   if (upcomingPrickles.length === 0) return 0;
 
-  const memberIds = [...new Set(candidates.map((c) => c.memberId))];
   const calendarPrickleIdsByMember = await loadCalendarPrickleIdsByMember(
     repos,
     memberIds,
@@ -107,7 +106,7 @@ async function sendCheckins(repos: RouteRepos, candidates: GoalCandidate[], now:
     new Date(now)
   );
 
-  const plan = planCheckinDMs(candidates, upcomingPrickles, calendarPrickleIdsByMember);
+  const plan = planCheckinDMs(memberIds, upcomingPrickles, calendarPrickleIdsByMember);
   if (plan.length === 0) return 0;
   const plannedMemberIds = [...new Set(plan.map((p) => p.memberId))];
   const [notifier, checkins, dismissed] = await Promise.all([
