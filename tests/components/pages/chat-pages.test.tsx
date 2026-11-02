@@ -5,8 +5,8 @@
  * paging, and what is hidden in sudo.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import {
   MEMBER_IDENTITY,
@@ -262,10 +262,13 @@ describe("chat shell", () => {
     render(await ChatLayout({ children: <p>content</p> }));
     const nav = screen.getByRole("navigation", { name: "Conversations" });
 
-    expect(within(nav).getByRole("link", { name: "#general" })).toHaveAttribute("href", `/chat/${GENERAL}`);
-    expect(within(nav).getByRole("link", { name: /#hosts/ })).toBeInTheDocument();
+    // The list is the member's own conversations; a public channel they are not in is behind Browse.
+    expect(within(nav).getByRole("link", { name: /hosts/ })).toBeInTheDocument();
     expect(within(nav).getByRole("link", { name: "Gale Prickleton" })).toHaveAttribute("href", `/chat/${GROUP}`);
-    expect(within(nav).queryByText("#secret")).not.toBeInTheDocument();
+    expect(within(nav).queryByRole("link", { name: "#general" })).not.toBeInTheDocument();
+    await userEvent.click(within(nav).getByRole("button", { name: "Browse channels" }));
+    expect(within(nav).getByRole("link", { name: "#general" })).toHaveAttribute("href", `/chat/${GENERAL}`);
+    expect(within(nav).queryByText(/secret/)).not.toBeInTheDocument();
     expect(screen.getByText("content")).toBeInTheDocument();
   });
 
@@ -275,11 +278,11 @@ describe("chat shell", () => {
   });
 
   it("shows unread counts beside the conversations that have some, and none in sudo", async () => {
-    unread = [{ channel_id: GENERAL, unread: 3 }];
+    unread = [{ channel_id: HOSTS, unread: 3 }];
     render(await ChatLayout({ children: null }));
     const nav = screen.getByRole("navigation", { name: "Conversations" });
-    expect(within(nav).getByRole("link", { name: "#general, 3 unread" })).toBeInTheDocument();
-    expect(within(nav).getByRole("link", { name: /#hosts/ })).not.toHaveAccessibleName(/unread/);
+    expect(within(nav).getByRole("link", { name: "#hosts, 3 unread" })).toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: /quiet/ })).not.toHaveAccessibleName(/unread/);
     cleanup();
 
     signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
@@ -293,7 +296,7 @@ describe("chat shell", () => {
     signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
     render(await ChatLayout({ children: null }));
     const nav = screen.getByRole("navigation", { name: "Conversations" });
-    expect(within(nav).getByRole("link", { name: "#general" })).toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: /hosts/ })).toBeInTheDocument();
     expect(within(nav).queryByRole("link", { name: "Gale Prickleton" })).not.toBeInTheDocument();
   });
 
