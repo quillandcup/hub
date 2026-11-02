@@ -1,5 +1,7 @@
 import type { Repos } from "@/lib/data/repos";
 import { isFeatureOnForEveryone } from "@/lib/features.server";
+import { courseImageSrc } from "@/lib/courses/image-urls";
+import { lessonExcerpt } from "@/lib/courses/excerpt";
 import { safeUrl } from "@/lib/url";
 
 type PreviewRepos = Pick<Repos, "courses" | "featureFlags">;
@@ -69,4 +71,50 @@ export async function publicLessonPreview(
       thumbnailSrc: lesson.thumbnail_asset_id ? `/api/courses/image/lesson/${lesson.id}` : safeUrl(lesson.thumbnail_url),
     },
   };
+}
+
+/**
+ * What anyone may see of a course without signing in: its title, a short plain-text teaser of its
+ * description and its cover. Never its lessons. Public under the same rule as a lesson's course: the
+ * `courses` feature is on for everyone, the course is published and its opening date has passed.
+ */
+export interface PublicCoursePreview {
+  courseId: string;
+  slug: string;
+  title: string;
+  excerpt: string | null;
+  /** Our copy's path, or Kajabi's public https URL until the copy step has run; null when there is no cover. */
+  thumbnailSrc: string | null;
+}
+
+export type CoursePreviewBlocker = Exclude<PreviewBlocker, "not_open">;
+
+async function previewOfCourse(
+  repos: PreviewRepos,
+  find: () => ReturnType<PreviewRepos["courses"]["courseById"]>,
+  now: Date
+): Promise<{ preview: PublicCoursePreview } | { blocked: CoursePreviewBlocker }> {
+  if (!(await isFeatureOnForEveryone(repos, "courses"))) return { blocked: "feature_off" };
+  const course = await find();
+  if (!course) return { blocked: "not_found" };
+  if (course.is_draft) return { blocked: "course_not_live" };
+  if (course.launch_at && new Date(course.launch_at).getTime() > now.getTime()) return { blocked: "course_not_live" };
+  return {
+    preview: {
+      courseId: course.id,
+      slug: course.slug,
+      title: course.title,
+      excerpt: lessonExcerpt(course.description),
+      thumbnailSrc: courseImageSrc("course", course.id, course.thumbnail_asset_id, course.thumbnail_url),
+    },
+  };
+}
+
+export function publicCoursePreview(repos: PreviewRepos, slug: string, opts: { now?: Date } = {}) {
+  return previewOfCourse(repos, () => repos.courses.courseBySlug(slug), opts.now ?? new Date());
+}
+
+/** The same check by id, for the cover image route. */
+export function publicCoursePreviewById(repos: PreviewRepos, courseId: string, opts: { now?: Date } = {}) {
+  return previewOfCourse(repos, () => repos.courses.courseById(courseId), opts.now ?? new Date());
 }

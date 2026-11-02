@@ -4,7 +4,8 @@ import { MEDIA_BUCKET } from '@/lib/media/library'
 
 /**
  * The course image route: the private media bucket is only reached through it, for a signed-in courses
- * user, and a hidden (draft) lesson's image is for staff acting as themselves only.
+ * user, and a hidden (draft) lesson's image is for staff acting as themselves only. The exception is a
+ * shared link: a public lesson's thumbnail and a live course's cover, with the feature on for everyone.
  */
 
 const state = vi.hoisted(() => ({ caller: null as null | { scope: { memberId: string; isAdminActing: boolean } } }))
@@ -111,19 +112,39 @@ describe('Course image route', () => {
       expect(await body(res)).toBe('OPEN')
     })
 
-    it('still answers 404 for a draft lesson, a course cover or banner, and a lesson that has no image', async () => {
+    it('still answers 404 for a draft lesson, a course banner, and a lesson that has no image', async () => {
       await flag(true)
       as(null)
       expect((await get('lesson', 'draft')).status).toBe(404)
-      expect((await get('course', 'course')).status).toBe(404)
       expect((await get('hero', 'course')).status).toBe(404)
       expect((await get('lesson', 'bare')).status).toBe(404)
+    })
+
+    it("serves a live course's cover, cached publicly, when the courses feature is on for everyone", async () => {
+      await flag(true)
+      as(null)
+      const res = await get('course', 'course')
+      expect(res.status).toBe(200)
+      expect(res.headers.get('cache-control')).toContain('public')
+      expect(await body(res)).toBe('COVER')
+    })
+
+    it("answers 404 for the cover of a draft course, and of one that hasn't opened yet", async () => {
+      await flag(true)
+      as(null)
+      await supabase.from('courses').update({ is_draft: true }).eq('id', ids.course)
+      expect((await get('course', 'course')).status).toBe(404)
+      await supabase.from('courses').update({ is_draft: false, launch_at: new Date(Date.now() + 86_400_000).toISOString() }).eq('id', ids.course)
+      expect((await get('course', 'course')).status).toBe(404)
+      await supabase.from('courses').update({ launch_at: null }).eq('id', ids.course)
+      expect((await get('course', 'course')).status).toBe(200)
     })
 
     it('answers 404 for everything while the courses feature is not on for everyone', async () => {
       await flag(false)
       as(null)
       expect((await get('lesson', 'open')).status).toBe(404)
+      expect((await get('course', 'course')).status).toBe(404)
     })
 
     it('keeps a signed-in courses user on the private cache header, even for a public lesson', async () => {
@@ -135,7 +156,7 @@ describe('Course image route', () => {
 
   it('answers 404 for no caller, a bad kind or id, a lesson without an image and an unknown row', async () => {
     as(null)
-    expect((await get('course', 'course')).status).toBe(404)
+    expect((await get('hero', 'course')).status).toBe(404)
     as(false)
     expect((await get('banner', 'course')).status).toBe(404)
     expect((await get('lesson', 'course')).status).toBe(404) // a course id is not a lesson id
