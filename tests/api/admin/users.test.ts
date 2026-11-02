@@ -81,6 +81,26 @@ describe('Admin Users API', () => {
     expect(Array.isArray(body.users)).toBe(true)
   })
 
+  it('GET marks a banned user, and leaves an expired or missing ban as null', async () => {
+    const { data: banned } = await supabase.auth.admin.createUser({
+      email: `admin-users-banned-${ts}@example.com`,
+      email_confirm: true,
+      ban_duration: '24h',
+    })
+    try {
+      const res = await apiFetch(`${base}/api/admin/users`, { headers: getTestAuthHeaders() })
+      const body = await res.json()
+      const bannedRow = body.users.find((u: any) => u.id === banned!.user!.id)
+      const plainRow = body.users.find((u: any) => u.id === testUserId)
+
+      expect(typeof bannedRow.bannedUntil).toBe('string')
+      expect(new Date(bannedRow.bannedUntil).getTime()).toBeGreaterThan(Date.now())
+      expect(plainRow.bannedUntil).toBeNull()
+    } finally {
+      await supabase.auth.admin.deleteUser(banned!.user!.id).catch(() => {})
+    }
+  })
+
   it('GET includes the test user with email, role, and features fields', async () => {
     const res = await apiFetch(`${base}/api/admin/users`, {
       headers: getTestAuthHeaders(),

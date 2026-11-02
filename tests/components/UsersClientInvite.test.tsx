@@ -75,3 +75,24 @@ describe('UsersClient invite form', () => {
     await waitFor(() => expect(postedBodies()).toEqual([{ email: 'staff@example.com' }]))
   })
 })
+
+describe('UsersClient banned users', () => {
+  const row = { email: 'held@example.com', role: 'member', features: [], createdAt: '2026-11-02T00:00:00Z', staffId: null, staffName: null, staffRole: null, memberId: null, memberName: null, pending: false }
+
+  it('shows a Banned badge only for users with an active ban', async () => {
+    fetchMock.mockImplementation(() =>
+      jsonResponse({
+        users: [
+          { ...row, id: 'u-held', bannedUntil: '2999-01-01T00:00:00Z' },
+          { ...row, id: 'u-open', email: 'open@example.com', bannedUntil: null },
+        ],
+        allMembers,
+      })
+    )
+    render(<UsersClient currentUserId="me" />)
+
+    const held = (await screen.findByText('held@example.com')).closest('td')!
+    expect(held).toHaveTextContent('Banned')
+    expect(screen.getByText('open@example.com').closest('td')).not.toHaveTextContent('Banned')
+  })
+})

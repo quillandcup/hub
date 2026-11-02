@@ -72,6 +72,8 @@ export async function GET(request: NextRequest) {
       memberId: member?.id ?? null,
       memberName: member?.name ?? null,
       pending: !u.email_confirmed_at,
+      // A ban (banned_until in the future) stops sign-in and token refresh; it is how access is held back or removed.
+      bannedUntil: u.banned_until && new Date(u.banned_until).getTime() > Date.now() ? u.banned_until : null,
     };
   });
 

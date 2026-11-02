@@ -37,6 +37,7 @@ interface AppUser {
   memberId: string | null;
   memberName: string | null;
   pending: boolean;
+  bannedUntil: string | null;
 }
 
 interface AccessSession {
@@ -477,6 +478,14 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                           {user.email}
                           {isCurrentUser && (
                             <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">(you)</span>
+                          )}
+                          {user.bannedUntil && (
+                            <span
+                              className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+                              title={`Can't sign in until ${new Date(user.bannedUntil).toLocaleDateString()}`}
+                            >
+                              Banned
+                            </span>
                           )}
                         </div>
                       </td>
