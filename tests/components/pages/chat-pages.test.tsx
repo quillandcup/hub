@@ -86,6 +86,7 @@ let sudoMemberHasFlag = true;
 let readMarker: string | null = null;
 /** The member's read marker can't be read. */
 let markerError = false;
+let singleMember = false;
 let unread: { channel_id: string; unread: number }[] = [];
 vi.mock("@/lib/features.server", () => ({
   getUserFeaturePreviews: vi.fn(),
@@ -168,7 +169,8 @@ const fakeTables = (): FakeTables => ({
       return { data: JOINED.includes(channelId) ? [{ channel_id: channelId, last_read_at: readMarker, joined_at: "2026-01-01T00:00:00Z" }] : [] };
     }
     if (eqArg(q, "member_id")) return { data: JOINED.map((c) => ({ channel_id: c })) };
-    return { data: [{ channel_id: GROUP, member_id: "member-fern" }, { channel_id: GROUP, member_id: "member-gale" }] };
+    const both = [{ channel_id: GROUP, member_id: "member-fern" }, { channel_id: GROUP, member_id: "member-gale" }];
+    return { data: singleMember ? both.slice(0, 1) : both };
   },
   member_directory: (q) => {
     const rows = [
@@ -219,6 +221,7 @@ beforeEach(() => {
   staffRole = "member";
   readMarker = null;
   markerError = false;
+  singleMember = false;
   unread = [];
   earnedBadges = [];
   messages = [];
@@ -281,7 +284,7 @@ describe("chat shell", () => {
     unread = [{ channel_id: HOSTS, unread: 3 }];
     render(await ChatLayout({ children: null }));
     const nav = screen.getByRole("navigation", { name: "Conversations" });
-    expect(within(nav).getByRole("link", { name: "#hosts, 3 unread" })).toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: /^Private channel\s*hosts\s*3\s*unread$/ })).toBeInTheDocument();
     expect(within(nav).getByRole("link", { name: /quiet/ })).not.toHaveAccessibleName(/unread/);
     cleanup();
 
@@ -678,7 +681,13 @@ describe("authors and members", () => {
 
   it("shows a members link with the count in the channel header", async () => {
     await renderChannel(GENERAL);
-    expect(screen.getByRole("link", { name: "2 members" })).toHaveAttribute("href", `/chat/${GENERAL}/members`);
+    expect(screen.getByRole("link", { name: /^2\s*members$/ })).toHaveAttribute("href", `/chat/${GENERAL}/members`);
+  });
+
+  it("names the members link in the singular for one member", async () => {
+    singleMember = true;
+    await renderChannel(GENERAL);
+    expect(screen.getByRole("link", { name: /^1\s*member$/ })).toBeInTheDocument();
   });
 
   it("lists the members, each linking to their profile", async () => {

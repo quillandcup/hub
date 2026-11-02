@@ -8,8 +8,6 @@ import { demoChannelId } from "../video/slack-stand-in";
  * themselves, not just the setting.
  */
 const STILL = /^data:image\/png/;
-// The chat page's own accessibility findings (avatar contrast, labels that differ from their text) predate this
-// scene and no scene covered chat before, so its shots skip the page checks (docs/TODO.md, "Chat page checks in the demo").
 
 test("with animations off a GIF waits for play and an animated emoji is a still", async ({ page, signInAs }, testInfo) => {
   await signInAs("member");
@@ -29,13 +27,13 @@ test("with animations off a GIF waits for play and an animated emoji is a still"
   const emoji = page.getByRole("img", { name: ":party_disc:" }).first();
   await expect(emoji).toHaveAttribute("src", STILL);
   await expect(page.getByRole("button", { name: /play :party_disc:/i })).toHaveCount(0);
-  await shot(page, testInfo, "paused", { checks: false });
+  await shot(page, testInfo, "paused");
 
   // Anywhere on the picture plays it (the real file again), and again pauses it (a still again).
   await toggle.click();
   await expect(page.getByRole("button", { name: "Pause party-disc.gif" })).toBeVisible();
   await expect(gif).toHaveAttribute("src", /\/api\/chat\/files\//);
-  await shot(page, testInfo, "playing", { checks: false });
+  await shot(page, testInfo, "playing");
 
   // Regression: the pause icon was stuck over a playing GIF because clicking it left it focused and the icon also
   // showed on focus. It belongs to hover (and keyboard focus) only: gone with the mouse away, back on hover.
@@ -64,7 +62,7 @@ test("with animations off a GIF waits for play and an animated emoji is a still"
   // Expand still opens the picture larger.
   await page.getByRole("button", { name: "Expand party-disc.gif" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
-  await shot(page, testInfo, "expanded", { checks: false });
+  await shot(page, testInfo, "expanded");
   await page.keyboard.press("Escape");
 
   // Turned back on (as Settings does), the pictures are the real, moving files and there is no play button.
@@ -76,7 +74,7 @@ test("with animations off a GIF waits for play and an animated emoji is a still"
   await expect(gif).toHaveAttribute("src", /\/api\/chat\/files\//);
   await expect(emoji).toHaveAttribute("src", /party_disc\.gif$/);
   await expect(page.getByRole("button", { name: /play party-disc\.gif/i })).toHaveCount(0);
-  await shot(page, testInfo, "animations-on", { checks: false });
+  await shot(page, testInfo, "animations-on");
 });
 
 test("the Animations choice is in Settings > Preferences, defaults to System and is remembered", async ({ page, signInAs }, testInfo) => {
