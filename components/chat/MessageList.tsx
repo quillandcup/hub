@@ -34,6 +34,7 @@ export default function MessageList({
   canReact = false,
   showSent = true,
   timeZone = ORG_TIMEZONE,
+  renderedAt = null,
 }: {
   channelId: string;
   /** The server's current window, oldest first. */
@@ -50,6 +51,8 @@ export default function MessageList({
   showSent?: boolean;
   /** The reader's time zone: decides which day a message belongs to and the times shown. */
   timeZone?: string;
+  /** When the server rendered `views`. A page from the client cache is older than what live changes have since merged. */
+  renderedAt?: string | null;
 }) {
   const [byId, setById] = useState(() => new Map(views.map((v) => [v.id, v])));
   const [context, setContext] = useState(ctx);
@@ -62,14 +65,19 @@ export default function MessageList({
   const [unreadOverride, setUnreadOverride] = useState<{ id: string | null } | null>(null);
   const unreadId = unreadOverride ? (unreadOverride.id ?? undefined) : firstUnreadId;
 
+  // When the server last read the messages merged in live. A page rendered before that (one the client cache gave
+  // back, such as closing a thread) has older data, and must not put back what the live changes have since fixed.
+  const [liveAt, setLiveAt] = useState<string | null>(null);
   if (views !== seen.views || ctx !== seen.ctx) {
     setSeen({ views, ctx });
-    setById((prev) => {
-      const next = new Map(prev);
-      for (const v of views) next.set(v.id, v);
-      return next;
-    });
-    setContext((prev) => mergeChatContext(prev, ctx));
+    if (!(renderedAt && liveAt && renderedAt < liveAt)) {
+      setById((prev) => {
+        const next = new Map(prev);
+        for (const v of views) next.set(v.id, v);
+        return next;
+      });
+      setContext((prev) => mergeChatContext(prev, ctx));
+    }
   }
   const cursor = loadedCursor === undefined ? olderBefore : loadedCursor;
   const messages = [...byId.values()].sort((a, b) => sortKey(a) - sortKey(b) || a.id.localeCompare(b.id));
@@ -105,6 +113,7 @@ export default function MessageList({
           for (const id of event.removedIds ?? []) next.delete(id);
           return next;
         });
+        if (event.at) setLiveAt(event.at);
         setContext((prev) => mergeChatContext(prev, event.ctx));
         return;
       }

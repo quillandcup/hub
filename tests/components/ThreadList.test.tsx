@@ -27,13 +27,14 @@ const texts = () => screen.getAllByRole("article").map((a) => /the root|[a-z ]*r
 beforeEach(() => cleanup());
 
 describe("ThreadList", () => {
-  it("shows the root and its replies in order, or says there are none", () => {
+  it("shows the root and its replies in order, and says nothing when there are none (as Slack doesn't)", () => {
     mount();
     expect(texts()).toEqual(["the root", "first reply"]);
     cleanup();
 
     mount([]);
-    expect(screen.getByText("No replies yet.")).toBeInTheDocument();
+    expect(screen.getAllByRole("article")).toHaveLength(1);
+    expect(screen.queryByText(/No replies/)).not.toBeInTheDocument();
   });
 
   it("shows a reply the member just sent at once, swaps in the saved one and drops a failed one", () => {

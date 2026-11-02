@@ -162,10 +162,12 @@ export async function loadLatestChat(channelId: string, alsoMessageIds: string[]
   // longer readable. The open list takes them away.
   const shown = new Set(views.map((v) => v.id));
   const removedIds = wanted.filter((id) => !shown.has(id));
-  return { views, ctx: chatTextContext(rendered, []), olderBefore: page.olderBefore, readMarker, removedIds };
+  return { views, ctx: chatTextContext(rendered, []), olderBefore: page.olderBefore, readMarker, removedIds, at: new Date().toISOString() };
 }
 
 export interface LatestChat extends OlderChat {
+  /** When the server read these messages: a page rendered before this has older data than the list now shows. */
+  at?: string;
   /** Messages asked about by id that are gone now (deleted, or not readable): the open list drops them. */
   removedIds?: string[];
   /** Where the member has read up to (null: nowhere, or sudo). Only when asked for. */

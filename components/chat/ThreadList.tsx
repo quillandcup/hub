@@ -100,7 +100,6 @@ export default function ThreadList({
     <>
       <MessageItem message={rootView} ctx={context} channelId={channelId} inThread canReact={canReact} canEdit={canReact} timeZone={timeZone} />
       <div className="ml-4 pl-4 border-l-2 border-slate-200 dark:border-slate-700">
-        {replyViews.length === 0 && <p className="py-3 text-sm text-slate-600 dark:text-slate-400">No replies yet.</p>}
         {replyViews.map((m) => (
           <MessageItem key={m.id} message={m} ctx={context} channelId={channelId} inThread canReact={canReact} canEdit={canReact} timeZone={timeZone} />
         ))}

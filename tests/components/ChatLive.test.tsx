@@ -367,13 +367,13 @@ describe("ChatLive", () => {
     });
 
     it("tells the list which messages the server says are gone, so a delete made in Slack leaves it", async () => {
-      loadLatestChat.mockResolvedValue({ ...(fetched("m1") as object), removedIds: ["gone-1"] });
+      loadLatestChat.mockResolvedValue({ ...(fetched("m1") as object), removedIds: ["gone-1"], at: "2026-11-02T02:10:00.000Z" });
       await mount();
       act(() => handlers.chat_messages({ eventType: "UPDATE", new: { id: "gone-1", thread_root_id: null }, old: {} }));
       await act(async () => vi.advanceTimersByTime(1000));
 
       expect(loadLatestChat).toHaveBeenCalledWith("c1", ["gone-1"]);
-      expect(events).toEqual([expect.objectContaining({ kind: "merge", removedIds: ["gone-1"] })]);
+      expect(events).toEqual([expect.objectContaining({ kind: "merge", removedIds: ["gone-1"], at: "2026-11-02T02:10:00.000Z" })]);
     });
 
     it("still holds a new message behind the pill when scrolled up, and fetches when it is clicked", async () => {
