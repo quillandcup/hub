@@ -212,6 +212,7 @@ export default async function ChatChannelPage({
                 canReact={canReact}
                 showSent={!before}
                 timeZone={timeZone}
+                renderedAt={renderedAt}
               />
             </section>
           )}

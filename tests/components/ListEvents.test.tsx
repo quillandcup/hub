@@ -216,6 +216,22 @@ describe("MessageList: shows what is being sent", () => {
     expect(shown).toHaveLength(2);
   });
 
+  it("doesn't let a page rendered before the live data put back what it fixed (closing a thread gives a cached page)", () => {
+    const stale = [serverView(1, { replyCount: 1 })];
+    const { rerender } = render(list(stale, { renderedAt: "2026-11-02T02:00:00.000Z" }));
+    expect(screen.getByText(/1 reply/)).toBeInTheDocument();
+
+    // A live fetch, read later than that page, says the reply is gone.
+    act(() => emitListEvent({ kind: "merge", channelId: "c1", views: [serverView(1, { replyCount: 0 })], ctx: CTX, at: "2026-11-02T02:10:00.000Z" }));
+    expect(screen.queryByText(/1 reply/)).not.toBeInTheDocument();
+
+    // The client cache hands back the older page: ignored. A page rendered after the live fetch is taken.
+    rerender(list([serverView(1, { replyCount: 1 })], { renderedAt: "2026-11-02T02:00:00.000Z" }));
+    expect(screen.queryByText(/1 reply/)).not.toBeInTheDocument();
+    rerender(list([serverView(1, { replyCount: 2 })], { renderedAt: "2026-11-02T02:20:00.000Z" }));
+    expect(screen.getByText(/2 replies/)).toBeInTheDocument();
+  });
+
   it("ignores a merge for another conversation or while showing an older page", () => {
     render(list([serverView(1)]));
     act(() => emitListEvent({ kind: "merge", channelId: "c2", views: [serverView(3)], ctx: CTX }));

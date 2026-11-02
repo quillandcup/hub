@@ -77,6 +77,7 @@ describe("loadLatestChat", () => {
       ctx: { ctx: true },
       olderBefore: "2026-10-01T00:00:00Z",
       removedIds: [],
+      at: expect.any(String),
     });
     expect(m.loadMessages).toHaveBeenCalledWith(REPOS, CHANNEL, {});
     expect(m.loadChatChannels).not.toHaveBeenCalled();
