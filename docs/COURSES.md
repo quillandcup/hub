@@ -216,7 +216,7 @@ This follows the medallion rules in `CLAUDE.md`: Bronze mirrors Kajabi, upserted
   - Derived from active Kajabi purchases of the course's offers (`deactivated_at IS NULL`), plus `course_access_grants`.
   - Rebuilt on every member/purchase reprocess, so a refund removes access.
   - `starts_at` is the purchase date (the same coalesced date cohort matching uses: `created_at_kajabi`, else `effective_start_at`). `ends_at` is `starts_at + courses.access_duration`, or null for lifetime.
-  - A member whose access has ended still sees the course in `/courses`, marked as ended, with their progress. Lessons don't open.
+  - **When access ends the course stays visible, but nothing inside it opens** (decided 2026-11-02, after a first build that hid the course was undone): it stays in the member's `/courses` list marked as ended, and its overview page shows the outline and their progress. A member can't open a lesson, watch a video, download a file, or read or write a comment. Later: a banner at the top of that page, "Access ended: resubscribe to this course here" with a link (`docs/TODO.md`, "Resubscribe link on an ended course"). A course with no end date (lifetime access) never ends, so nothing is per-course beyond `course_access.ends_at`. Staff acting as themselves are unaffected.
 - **Per-course access settings on `courses`:**
   - `access_duration` (an interval, null = lifetime). The Ready Writer: 1 year.
   - Whether the course includes membership. This lives on the linked `programs` row (`includes_membership`, which Big Sisters and member status already read), not duplicated on `courses`.
@@ -402,7 +402,7 @@ Decisions:
 ### Who can comment
 
 - **Members with current access to the course.** Admins can always read and comment. A per-course instructor list is a later option, if Ania wants non-admin helpers.
-- **Ended access: the whole course is hidden** (decided 2026-10-28), so its comments go with it. This is stricter than today's course pages, where an ended course still lists with its progress and closed lessons; decide whether that card should go too.
+- **Ended access: comments are closed with the lessons** (decided 2026-11-02): comments live on lesson pages, which don't open once access ends, so a member whose access ended can neither read nor write them. The course overview with their progress stays visible.
 - **Instructor replies** carry an "Instructor" badge from `is_staff_reply`. Alternative: badge by current role at render time, which relabels old comments if a role changes.
 
 ### Moderation
@@ -520,7 +520,7 @@ Steps A and C also run with the standard Kajabi sync (the admin button and the n
 
 ## Open decisions
 
-- **What a member sees after access ends** (to discuss with Ania). Today an ended course still lists on `/courses` with its progress, a note that access ended, and its lessons closed (their links are switched off, so a member can see the outline and their progress but not open a lesson). Lesson comments are hidden with the course. The owner is fine showing the course and its progress indicators, and expects the right answer to vary by course: access for a limited time versus access forever. Needs a per-course setting if it does.
+- None right now. (What a member sees after access ends is decided: the course and their progress stay visible, nothing inside opens; see "Member experience". The Ready Writer is one year and includes membership for that term; afterwards membership continues only if they subscribe separately. A reminder before access ends, with a prompt to switch to membership billing, is still under "Later".)
 
 ## Decided (2026-10-18)
 
