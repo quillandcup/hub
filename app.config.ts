@@ -66,10 +66,10 @@ export const appConfig = {
   bookshelfPublic: false,
 
   /**
-   * The course the Courses page offers to a member who has none: its name, and the public Kajabi offer
-   * page where it is bought (Kajabi stays the checkout).
+   * The course the Courses page offers to a member who has none: its name, and the public waitlist
+   * page where members sign up for it.
    */
-  featuredCourse: { title: "The Ready Writer", offerUrl: "https://www.quillandcup.com/offers/Dv8M6UEC" },
+  featuredCourse: { title: "The Ready Writer", offerUrl: "https://www.quillandcup.com/waitlist" },
 
   /**
    * Sentry org/project slugs for the production build's source map upload, and the regional API host the org's
