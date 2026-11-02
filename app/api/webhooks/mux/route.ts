@@ -8,6 +8,13 @@ import { assetUpdateFromEvent, createMuxClient, unwrapWebhook, uploadAssetFromEv
 export const maxDuration = 60;
 
 /**
+ * Our own Checkly check (`__checks__/mux-e2e.check.ts`) posts an unsigned body to this route on purpose, nightly and on
+ * every pull request that runs the checks, to see that it is refused. Checkly's API checks identify themselves with this
+ * user agent. It is only a hint for how loud the log line is: anyone can send it, and the answer is the same 401.
+ */
+const CHECKLY_USER_AGENT = /^Checkly\//;
+
+/**
  * Mux webhook: tells us when a course video's asset is ready (or failed), so `videos` can move
  * from "preparing" to "ready" and carry its playback id and duration.
  *
@@ -22,7 +29,10 @@ export async function POST(request: NextRequest) {
   try {
     event = await unwrapWebhook(createMuxClient(), body, request.headers);
   } catch (error) {
-    console.error("Invalid Mux webhook:", error instanceof Error ? error.message : error);
+    const reason = error instanceof Error ? error.message : error;
+    // The expected refusal of our own monitor is not an error to look at; any other unsigned or badly signed request is.
+    if (CHECKLY_USER_AGENT.test(request.headers.get("user-agent") ?? "")) console.info("Mux webhook refused a request from Checkly (its unsigned-request check):", reason);
+    else console.error("Invalid Mux webhook:", reason);
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
