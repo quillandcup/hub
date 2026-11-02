@@ -179,6 +179,21 @@ describe("buildCalendarFeedEvents", () => {
     expect(event.uid).toBe(`event-e1.m1@${UID_DOMAIN}`);
   });
 
+  it("writes a one-day added event at its time, not all-day", () => {
+    const [event] = buildCalendarFeedEvents({
+      memberId: "m1",
+      origin: ORIGIN,
+      hosted: [],
+      committed: [],
+      events: [
+        { id: "e2", slug: "craft-talk", title: "Craft Talk", location: null, startsAt: "2026-10-09", endsAt: "2026-10-09", startTime: "2026-10-09T23:00:00Z", endTime: "2026-10-10T00:30:00Z" },
+      ],
+    });
+    expect(event.allDay).toBeUndefined();
+    expect(event.start.toISOString()).toBe("2026-10-09T23:00:00.000Z");
+    expect(event.end.toISOString()).toBe("2026-10-10T00:30:00.000Z");
+  });
+
   it("names an event in the feed without the calendar's label, category and Prickle: prefix", () => {
     const [event] = buildCalendarFeedEvents({
       memberId: "m1",

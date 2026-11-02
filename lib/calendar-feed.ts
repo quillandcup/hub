@@ -118,7 +118,7 @@ export interface CommittedOccurrence {
   commitmentTitle: string;
 }
 
-/** An event (retreat etc.) the member added. Dates are inclusive local calendar dates. */
+/** An event (retreat etc.) the member added. `startsAt`/`endsAt` are inclusive Eastern calendar dates; `startTime`/`endTime` the instants. */
 export interface FeedEventRow {
   id: string;
   slug: string;
@@ -126,6 +126,8 @@ export interface FeedEventRow {
   location: string | null;
   startsAt: string;
   endsAt: string;
+  startTime?: string | null;
+  endTime?: string | null;
 }
 
 /** Scheduled prickles are keyed (and UID'd) by id: prickle ids are stable across reprocessing
@@ -249,11 +251,17 @@ export function buildCalendarFeedEvents({
   for (const e of addedEvents) {
     const key = `event-${e.id}`;
     const url = `${origin}/events/${e.slug}`;
+    // A one-day event has a time of day, so it goes in at that time; a multi-day one (a retreat) is all-day.
+    const timed = e.startsAt === e.endsAt && e.startTime && e.endTime;
     events.set(key, {
       uid: uid(key),
-      start: new Date(`${e.startsAt}T00:00:00Z`),
-      end: new Date(new Date(`${e.endsAt}T00:00:00Z`).getTime() + 24 * 60 * 60 * 1000),
-      allDay: true,
+      ...(timed
+        ? { start: new Date(e.startTime!), end: new Date(e.endTime!) }
+        : {
+            start: new Date(`${e.startsAt}T00:00:00Z`),
+            end: new Date(new Date(`${e.endsAt}T00:00:00Z`).getTime() + 24 * 60 * 60 * 1000),
+            allDay: true,
+          }),
       summary: cleanEventTitle(e.title),
       description: `Added from Hedgie Hub.\n\n${url}`,
       location: e.location ?? undefined,
@@ -464,6 +472,8 @@ async function loadAddedItems(
       location: e.location,
       startsAt: e.starts_at,
       endsAt: e.ends_at,
+      startTime: e.start_time,
+      endTime: e.end_time,
     }));
   };
 
