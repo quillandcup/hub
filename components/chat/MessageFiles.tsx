@@ -36,6 +36,11 @@ function ImageTile({
   const [playing, setPlaying] = useState(false);
   const animationsOff = useAnimationsOff();
   const moves = /gif|webp/i.test(file.mimetype ?? "");
+  const stills = animationsOff && moves;
+  const togglePlay = () => {
+    track("gif_play_toggled", { playing: !playing });
+    setPlaying((p) => !p);
+  };
   const url = chatFileUrl(messageId, file.id);
   const absolute = () => new URL(url, window.location.origin).toString();
 
@@ -55,7 +60,15 @@ function ImageTile({
 
   return (
     <div className="group relative shrink-0 overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700" data-testid="message-image">
-      <button type="button" onClick={onOpen} aria-label={`Enlarge ${file.name ?? "image"}`} data-track="chat-file-open" className="block">
+      {/* Animations off: the picture itself plays and pauses (Expand is in the toolbar); otherwise it enlarges. */}
+      <button
+        type="button"
+        onClick={stills ? togglePlay : onOpen}
+        aria-label={stills ? `${playing ? "Pause" : "Play"} ${file.name ?? "image"}` : `Enlarge ${file.name ?? "image"}`}
+        aria-pressed={stills ? playing : undefined}
+        data-track={stills ? "chat-gif-play" : "chat-file-open"}
+        className="block"
+      >
         {/* eslint-disable-next-line @next/next/no-img-element -- served through the access-checked chat files route, not an optimizable asset */}
         <img
           src={url}
@@ -64,29 +77,20 @@ function ImageTile({
           height={file.height ?? undefined}
           loading="lazy"
           data-animated={moves ? "" : undefined}
-          data-playing={animationsOff && playing ? "" : undefined}
+          data-playing={stills && playing ? "" : undefined}
           className="block h-auto max-h-48 w-auto max-w-full"
         />
+        {stills && (
+          <span
+            aria-hidden
+            className={`pointer-events-none absolute left-1/2 top-1/2 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-slate-900/80 text-xl text-white ${
+              playing ? "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100" : ""
+            }`}
+          >
+            {playing ? "❚❚" : "▶"}
+          </span>
+        )}
       </button>
-      {animationsOff && moves && (
-        <button
-          type="button"
-          onClick={() => {
-            track("gif_play_toggled", { playing: !playing });
-            setPlaying((p) => !p);
-          }}
-          aria-label={playing ? `Pause ${file.name ?? "image"}` : `Play ${file.name ?? "image"}`}
-          aria-pressed={playing}
-          data-track="chat-gif-play"
-          className={
-            playing
-              ? "absolute bottom-1 left-1 flex h-7 w-7 items-center justify-center rounded-full bg-slate-900/70 text-xs text-white"
-              : "absolute left-1/2 top-1/2 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-slate-900/80 text-xl text-white"
-          }
-        >
-          <span aria-hidden>{playing ? "❚❚" : "▶"}</span>
-        </button>
-      )}
       {canDelete && (
         <button
           type="button"
@@ -98,6 +102,11 @@ function ImageTile({
         </button>
       )}
       <div className="absolute bottom-1 left-1 hidden items-center gap-0.5 rounded-md bg-white/95 p-0.5 shadow group-focus-within:flex group-hover:flex dark:bg-slate-800/95">
+        {stills && (
+          <button type="button" aria-label={`Expand ${file.name ?? "image"}`} title="Expand" data-track="chat-file-open" onClick={onOpen} className={iconBtn}>
+            🔍
+          </button>
+        )}
         <a href={url} download={file.name ?? undefined} aria-label={`Download ${file.name ?? "image"}`} data-track="chat-file-download" className={iconBtn}>
           ⬇
         </a>
