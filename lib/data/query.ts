@@ -24,9 +24,24 @@ export function must<T>(result: { data: T; error: { message: string } | null }):
  * rows in chunk order. An empty input runs nothing and returns `[]`. Order within the result across chunks
  * follows the chunks, so sort afterwards when order matters (see `sortByKey`).
  */
-export async function inChunks<T>(values: string[], size: number, run: (part: string[]) => Promise<T[]>): Promise<T[]> {
+export async function inChunks<T>(
+  values: string[],
+  size: number,
+  run: (part: string[]) => Promise<T[]>,
+  concurrency = 4,
+): Promise<T[]> {
   const parts = chunk([...new Set(values)], size);
-  return (await Promise.all(parts.map(run))).flat();
+  const results: T[][] = new Array(parts.length);
+  let next = 0;
+  // At most `concurrency` chunks in flight; each result lands at its chunk's index, so order is deterministic.
+  const worker = async () => {
+    while (next < parts.length) {
+      const i = next++;
+      results[i] = await run(parts[i]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, parts.length) }, worker));
+  return results.flat();
 }
 
 /** Escapes LIKE wildcards, so an `ilike` of an email containing `_` or `%` matches only itself (case aside). */

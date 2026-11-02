@@ -21,6 +21,21 @@ describe("inChunks", () => {
     expect(await inChunks(["a", "b", "a", "c", "d"], 2, run)).toEqual(["A", "B", "C", "D"]);
     expect(run.mock.calls.map((c) => c[0])).toEqual([["a", "b"], ["c", "d"]]);
   });
+  it("keeps chunk order and never runs more than the cap at once, even when later chunks finish first", async () => {
+    let active = 0;
+    let peak = 0;
+    const values = Array.from({ length: 250 }, (_, i) => `v${i}`);
+    const out = await inChunks(values, 10, async (part) => {
+      active++;
+      peak = Math.max(peak, active);
+      await new Promise((r) => setTimeout(r, part[0] === "v0" ? 10 : 0));
+      active--;
+      return part;
+    });
+    expect(out).toEqual(values);
+    expect(peak).toBeLessThanOrEqual(4);
+    expect(peak).toBeGreaterThan(1);
+  });
   it("rejects when a chunk fails", async () => {
     await expect(inChunks(["a", "b"], 1, async (p) => { if (p[0] === "b") throw new Error("x"); return p; })).rejects.toThrow("x");
   });

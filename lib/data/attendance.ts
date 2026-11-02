@@ -1,6 +1,7 @@
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
 import type { Db } from "./db";
 import { InMemoryDataset } from "./in-memory";
+import { inChunks } from "./query";
 import { one, prickleDetail, prickleEmbed, toDetail, type DetailRow, type PrickleDetail } from "./prickles";
 
 /** Ids per `.in(...)` filter, so the request URL stays under the length limit even with long ids. */
@@ -185,8 +186,7 @@ export class SupabaseAttendanceRepository implements AttendanceRepository {
   }
 
   async forPrickles(prickleIds: string[]): Promise<AttendanceLink[]> {
-    const links: AttendanceLink[] = [];
-    for (const ids of chunk(prickleIds, ID_CHUNK_SIZE)) {
+    return inChunks(prickleIds, ID_CHUNK_SIZE, async (ids) => {
       const rows = await fetchAllRows((from, to) =>
         this.db
           .from("prickle_attendance")
@@ -195,9 +195,8 @@ export class SupabaseAttendanceRepository implements AttendanceRepository {
           .order("id")
           .range(from, to),
       );
-      for (const row of rows) links.push({ memberId: row.member_id, prickleId: row.prickle_id, joinTime: row.join_time });
-    }
-    return links;
+      return rows.map((row) => ({ memberId: row.member_id, prickleId: row.prickle_id, joinTime: row.join_time }));
+    });
   }
 
   async prickleIdsWithAttendance(prickleIds: string[]): Promise<Set<string>> {
@@ -334,8 +333,7 @@ export class SupabaseAttendanceRepository implements AttendanceRepository {
   }
 
   async coAttendees(memberId: string, prickleIds: string[]): Promise<Attendee[]> {
-    const found: Attendee[] = [];
-    for (const ids of chunk(prickleIds, ID_CHUNK_SIZE)) {
+    return inChunks(prickleIds, ID_CHUNK_SIZE, async (ids) => {
       const rows = await fetchAllRows<AttendeeRow>((from, to) =>
         this.db
           .from("prickle_attendance")
@@ -346,9 +344,8 @@ export class SupabaseAttendanceRepository implements AttendanceRepository {
           .range(from, to)
           .overrideTypes<AttendeeRow[], { merge: false }>(), // runtime select string: rows typed by hand
       );
-      found.push(...rows.map(toAttendee));
-    }
-    return found;
+      return rows.map(toAttendee);
+    });
   }
 
   async attendeesJoinedBetween(from: string, to: string): Promise<Attendee[]> {
