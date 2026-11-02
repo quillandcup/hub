@@ -6,10 +6,10 @@ import userEvent from "@testing-library/user-event";
 
 const router = vi.hoisted(() => ({ refresh: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
-const actions = vi.hoisted(() => ({ renameCourseItem: vi.fn(), setCourseItemStatus: vi.fn() }));
+const actions = vi.hoisted(() => ({ renameCourseItem: vi.fn(), setCourseItemStatus: vi.fn(), moveCourseLesson: vi.fn() }));
 vi.mock("@/app/(admin)/admin/courses/outline-actions", () => actions);
 
-import { LessonStatusField, LessonTitleField } from "@/app/(admin)/admin/courses/[id]/lessons/[lessonId]/LessonEditableFields";
+import { LessonModuleField, LessonStatusField, LessonTitleField } from "@/app/(admin)/admin/courses/[id]/lessons/[lessonId]/LessonEditableFields";
 
 const COURSE = "crs_AAAAAAAAAAA1";
 const LESSON = "les_AAAAAAAAAAA1";
@@ -81,6 +81,48 @@ describe("LessonStatusField", () => {
     render(<LessonStatusField courseId={COURSE} lessonId={LESSON} option="draft" />);
     await user.click(screen.getByRole("radio", { name: "Locked" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Not found.");
+    expect(router.refresh).not.toHaveBeenCalled();
+  });
+});
+
+describe("LessonModuleField", () => {
+  const modules = [
+    { kajabiId: "mod_AAAAAAAAAAA1", path: "Module 1" },
+    { kajabiId: "mod_AAAAAAAAAAA2", path: "Module 1 / Week 1" },
+  ];
+
+  it("lists No module and every module by its path, with the lesson's own chosen", () => {
+    render(<LessonModuleField courseId={COURSE} lessonId={LESSON} moduleId="mod_AAAAAAAAAAA2" modules={modules} />);
+    const select = screen.getByRole("combobox", { name: "Select module" });
+    expect(select).toHaveValue("mod_AAAAAAAAAAA2");
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["No module", "Module 1", "Module 1 / Week 1"]);
+  });
+
+  it("moves the lesson to the module chosen, and refreshes the page", async () => {
+    actions.moveCourseLesson.mockResolvedValue({ id: LESSON });
+    const user = userEvent.setup();
+    render(<LessonModuleField courseId={COURSE} lessonId={LESSON} moduleId="" modules={modules} />);
+    await user.selectOptions(screen.getByRole("combobox", { name: "Select module" }), "mod_AAAAAAAAAAA1");
+
+    expect(actions.moveCourseLesson).toHaveBeenCalledWith(COURSE, LESSON, "mod_AAAAAAAAAAA1");
+    await waitFor(() => expect(router.refresh).toHaveBeenCalled());
+  });
+
+  it("takes the lesson out of every module with No module", async () => {
+    actions.moveCourseLesson.mockResolvedValue({ id: LESSON });
+    const user = userEvent.setup();
+    render(<LessonModuleField courseId={COURSE} lessonId={LESSON} moduleId="mod_AAAAAAAAAAA1" modules={modules} />);
+    await user.selectOptions(screen.getByRole("combobox", { name: "Select module" }), "");
+    expect(actions.moveCourseLesson).toHaveBeenCalledWith(COURSE, LESSON, null);
+  });
+
+  it("shows why a move was refused, without refreshing", async () => {
+    actions.moveCourseLesson.mockResolvedValue({ error: "That module isn't in this course. Refresh the page." });
+    const user = userEvent.setup();
+    render(<LessonModuleField courseId={COURSE} lessonId={LESSON} moduleId="" modules={modules} />);
+    await user.selectOptions(screen.getByRole("combobox", { name: "Select module" }), "mod_AAAAAAAAAAA1");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("That module isn't in this course");
     expect(router.refresh).not.toHaveBeenCalled();
   });
 });

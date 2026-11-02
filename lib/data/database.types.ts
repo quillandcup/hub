@@ -6881,6 +6881,10 @@ export type Database = {
           mentored_count: number
         }[]
       }
+      move_course_lesson: {
+        Args: { p_lesson_id: string; p_module_id: string }
+        Returns: undefined
+      }
       my_mentorships: {
         Args: { p_member_id: string }
         Returns: {
