@@ -67,6 +67,37 @@ export function devWebhookAddress(tunnelDomain: string, path: string): string {
   return `https://${tunnelDomain}${path}`;
 }
 
+/**
+ * An address in a comparable form: scheme and host in lower case, no default port, no trailing slash on the path (its
+ * case kept), and the query kept (a different query is a different address). A string that is not a URL is compared as written, trimmed.
+ */
+export function normalizeAddress(address: string): string {
+  try {
+    const url = new URL(address.trim());
+    const path = url.pathname.replace(/\/+$/, "");
+    // URL already lower-cases the scheme and host and drops a default port; the path keeps its case.
+    return `${url.protocol}//${url.host}${path}${url.search}`;
+  } catch {
+    return address.trim();
+  }
+}
+
+/** Whether two webhook addresses are the same place (ignoring host case, a trailing slash and a default port). */
+export const sameAddress = (a: string, b: string): boolean => normalizeAddress(a) === normalizeAddress(b);
+
+/**
+ * An address safe to print: scheme, host and path only. A webhook address can carry credentials (`user:pass@`) or a
+ * token in its query, so those are never shown; a query is marked as present.
+ */
+export function describeAddress(address: string): string {
+  try {
+    const url = new URL(address.trim());
+    return `${url.protocol}//${url.host}${url.pathname}${url.search ? "?(query hidden)" : ""}`;
+  } catch {
+    return "(not a URL)";
+  }
+}
+
 export type WebhookAction =
   | { kind: "ok"; id: string }
   | { kind: "create"; address: string }
@@ -76,15 +107,15 @@ export type WebhookAction =
 /**
  * What to do so a webhook for `address` exists and is enabled. Other webhooks are never touched
  * (reported by the caller as unmanaged), except with `adoptSingle` (a developer's own Mux
- * environment): when exactly one webhook exists at another address, its address is updated, which
- * keeps its signing secret.
+ * environment, or `--adopt` when the one webhook in production is ours at an old address): when exactly one webhook
+ * exists at another address, its address is updated, which keeps its signing secret.
  */
 export function planWebhook(
   address: string,
   live: readonly LiveWebhook[],
   opts: { adoptSingle?: boolean } = {},
 ): WebhookAction {
-  const match = live.find((w) => w.address === address);
+  const match = live.find((w) => sameAddress(w.address, address));
   if (match) {
     return match.enabled ? { kind: "ok", id: match.id } : { kind: "enable", id: match.id, address };
   }
@@ -96,7 +127,7 @@ export function planWebhook(
 
 /** Webhooks Mux has that the config doesn't declare (left alone; listed so they are visible). */
 export const unmanagedWebhooks = (address: string, live: readonly LiveWebhook[]) =>
-  live.filter((w) => w.address !== address);
+  live.filter((w) => !sameAddress(w.address, address));
 
 export type RestrictionAction =
   | { kind: "ok"; id: string }

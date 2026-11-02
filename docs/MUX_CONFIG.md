@@ -39,6 +39,10 @@ The production webhook already exists (created by hand). `push` leaves it alone 
 
 Rotating means deleting the webhook in the dashboard and running `push` again.
 
+**When `diff` says "create" but a webhook already exists.** The check compares addresses leniently (host case, a trailing slash and a default port do not count as different), and lists each webhook it does not manage by address (scheme, host and path only: credentials and any query are never shown). If it still says "create" and lists exactly one other webhook that is this app's, at an old or different address, **do not push**: that would create a second webhook and every event would be delivered twice. Run `pnpm mux:config:diff --adopt` to see it move to the configured address, then `pnpm mux:config:push --adopt`. Moving a webhook keeps its signing secret, so `MUX_WEBHOOK_SECRET` stays valid and nothing needs syncing.
+
+**Which token does what.** Webhooks use the System token (`MUX_SYSTEM_TOKEN_ID` / `_SECRET`). The playback restriction is part of Mux Video, so it uses the app token (`MUX_TOKEN_ID` / `_SECRET`): the System token is refused there.
+
 ## A developer's own webhook (`--dev`)
 
 Real "video ready" notifications locally need a public address (`docs/WEBHOOK_SETUP.md`: `TUNNEL_DOMAIN` in `.env.local`, then `pnpm tunnel`) and a webhook in **your own** Mux environment, with that environment's token (`MUX_SYSTEM_TOKEN_ID/SECRET` in `.env.local`).
