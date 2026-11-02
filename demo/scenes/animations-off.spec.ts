@@ -2,10 +2,10 @@ import { expect, shot, test } from "../fixtures";
 import { demoChannelId } from "../video/slack-stand-in";
 
 /**
- * Settings > Preferences > Allow animations. Off, a GIF in chat is a still frame with a play button that the whole
+ * Settings > Preferences > Animations (System, Allow, Reduce). Reduced, a GIF in chat is a still frame with a play button that the whole
  * picture toggles, and an animated custom emoji (a reaction) is a still; on, they move as before. This is easy to
  * break without noticing (a new image component, a new place emoji appear), so the scene checks the pictures
- * themselves, not just the checkbox.
+ * themselves, not just the setting.
  */
 const STILL = /^data:image\/png/;
 // The chat page's own accessibility findings (avatar contrast, labels that differ from their text) predate this
@@ -13,7 +13,7 @@ const STILL = /^data:image\/png/;
 
 test("with animations off a GIF waits for play and an animated emoji is a still", async ({ page, signInAs }, testInfo) => {
   await signInAs("member");
-  await page.addInitScript(() => window.localStorage.setItem("hub-animations", "off"));
+  await page.addInitScript(() => window.localStorage.setItem("hub-animations", "reduce"));
 
   await page.goto(`/chat/${await demoChannelId("daily-wins")}`);
   const gif = page.getByAltText("party-disc.gif");
@@ -69,7 +69,7 @@ test("with animations off a GIF waits for play and an animated emoji is a still"
 
   // Turned back on (as Settings does), the pictures are the real, moving files and there is no play button.
   await page.evaluate(() => {
-    window.localStorage.setItem("hub-animations", "on");
+    window.localStorage.setItem("hub-animations", "allow");
     window.dispatchEvent(new Event("hub-animations-changed"));
   });
   await expect(page.locator("html")).toHaveAttribute("data-animations", "on");
@@ -79,19 +79,21 @@ test("with animations off a GIF waits for play and an animated emoji is a still"
   await shot(page, testInfo, "animations-on", { checks: false });
 });
 
-test("the setting is in Settings > Preferences and is remembered", async ({ page, signInAs }, testInfo) => {
+test("the Animations choice is in Settings > Preferences, defaults to System and is remembered", async ({ page, signInAs }, testInfo) => {
   await signInAs("member");
   await page.goto("/settings/preferences");
-  const box = page.getByRole("checkbox", { name: /allow animations/i });
-  await expect(box).toBeChecked();
-  await shot(page, testInfo, "allowed");
+  const choice = page.getByRole("combobox", { name: "Animations" });
+  await expect(choice).toHaveValue("system");
+  await shot(page, testInfo, "system");
 
-  await box.uncheck();
+  await choice.selectOption("reduce");
   await expect(page.locator("html")).toHaveAttribute("data-animations", "off");
   await page.reload();
-  await expect(page.getByRole("checkbox", { name: /allow animations/i })).not.toBeChecked();
-  await shot(page, testInfo, "turned-off");
+  await expect(page.getByRole("combobox", { name: "Animations" })).toHaveValue("reduce");
+  await shot(page, testInfo, "reduced");
 
-  await page.getByRole("checkbox", { name: /allow animations/i }).check();
+  // System puts it back to following the device (this browser does not ask for reduced motion).
+  await page.getByRole("combobox", { name: "Animations" }).selectOption("system");
   await expect(page.locator("html")).toHaveAttribute("data-animations", "on");
+  expect(await page.evaluate(() => window.localStorage.getItem("hub-animations"))).toBeNull();
 });
