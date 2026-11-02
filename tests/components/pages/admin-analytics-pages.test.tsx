@@ -86,8 +86,10 @@ describe("/admin/analytics", () => {
     await renderServerPage(FeatureUsagePage, { searchParams: Promise.resolve({}) });
 
     expect(screen.getByRole("heading", { name: "On air light: someone is at the table" })).toBeInTheDocument();
-    expect(screen.getByText("4 visits (40% of step 1)")).toBeInTheDocument();
-    expect(screen.getByText("0 visits (0% of step 1)")).toBeInTheDocument();
+    const live = within(screen.getByRole("heading", { name: "On air light: someone is at the table" }).closest("section")!);
+    expect(live.getByText("4 visits (40% of step 1)")).toBeInTheDocument();
+    const off = within(screen.getByRole("heading", { name: "On air light: off air" }).closest("section")!);
+    expect(off.getByText("0 visits (0% of step 1)")).toBeInTheDocument();
 
     const clicked = within(screen.getByRole("heading", { name: "Most-clicked things" }).closest("section")!);
     expect(clicked.getByText("Join on Zoom")).toBeInTheDocument();
