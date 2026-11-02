@@ -137,6 +137,20 @@ describe('LoginForm', () => {
     })
   })
 
+  it('shows the code field from the start for someone arriving from an email that carries a code', async () => {
+    render(<LoginForm slackHomeUrl={null} codeMode />)
+    expect(screen.getByLabelText(/Enter the code from the email/)).toBeInTheDocument()
+
+    verifyEmailCode.mockResolvedValue({ error: "That code didn't work." })
+    await userEvent.type(screen.getByLabelText('Email address'), 'member@example.com')
+    // typing the address must not hide the code field
+    await userEvent.type(screen.getByLabelText(/Enter the code from the email/), '87654321')
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in with code' }))
+
+    await screen.findByText("That code didn't work.")
+    expect(verifyEmailCode).toHaveBeenCalledWith('member@example.com', '87654321')
+  })
+
   it('explains a failed sign-in link and points at the code', () => {
     render(<LoginForm slackHomeUrl={null} callbackFailed />)
 

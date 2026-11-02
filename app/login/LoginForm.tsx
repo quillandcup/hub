@@ -21,9 +21,12 @@ const CALLBACK_FAILED_TEXT =
 export default function LoginForm({
   slackHomeUrl,
   callbackFailed = false,
+  codeMode = false,
 }: {
   slackHomeUrl: string | null;
   callbackFailed?: boolean;
+  /** Arrived from an email that carries a code (the launch email): show the code field from the start. */
+  codeMode?: boolean;
 }) {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -57,7 +60,7 @@ export default function LoginForm({
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setEmail(value);
-    setLinkSent(false);
+    if (!codeMode) setLinkSent(false);
     try {
       window.localStorage.setItem(LAST_EMAIL_KEY, value);
     } catch {
@@ -182,7 +185,7 @@ export default function LoginForm({
             </button>
           </form>
 
-          {linkSent && (
+          {(linkSent || codeMode) && (
             <form onSubmit={handleCode} className="mt-6 space-y-3">
               <label htmlFor="code" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                 Link not opening here? Enter the code from the email

@@ -19,7 +19,7 @@ export type AuthUserLite = { id: string; email?: string | null; banned_until?: s
 export interface AdminAuthApi {
   listUsers(params: { page: number; perPage: number }): Promise<{ data: { users: AuthUserLite[] } | null; error: { message: string } | null }>;
   createUser(attrs: { email: string; email_confirm: boolean; ban_duration?: string }): Promise<{ data: { user: AuthUserLite | null } | null; error: { message: string } | null }>;
-  updateUserById(id: string, attrs: { ban_duration: string }): Promise<{ data: unknown; error: { message: string } | null }>;
+  updateUserById(id: string, attrs: { ban_duration?: string; app_metadata?: Record<string, unknown> }): Promise<{ data: unknown; error: { message: string } | null }>;
 }
 
 export type ProvisioningRepos = { members: MemberRepository; profiles: ProfileRepository };
