@@ -1923,6 +1923,7 @@ export type Database = {
           bridge_mode: string
           bridge_status: string
           created_at: string
+          dm_key: string | null
           id: string
           kind: string
           name: string | null
@@ -1938,6 +1939,7 @@ export type Database = {
           bridge_mode?: string
           bridge_status?: string
           created_at?: string
+          dm_key?: string | null
           id?: string
           kind: string
           name?: string | null
@@ -1953,6 +1955,7 @@ export type Database = {
           bridge_mode?: string
           bridge_status?: string
           created_at?: string
+          dm_key?: string | null
           id?: string
           kind?: string
           name?: string | null
@@ -6563,6 +6566,10 @@ export type Database = {
       chat_edit_message: {
         Args: { p_body: string; p_message_id: string }
         Returns: undefined
+      }
+      chat_find_or_create_dm: {
+        Args: { p_other_member_id: string }
+        Returns: string
       }
       chat_is_channel_member: {
         Args: { p_channel_id: string }

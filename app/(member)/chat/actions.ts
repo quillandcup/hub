@@ -33,6 +33,7 @@ import type { ChatTextContext } from "@/components/chat/ChatText";
 
 import { withAction } from "@/lib/analytics/server";
 import { chatCaller, postingCaller } from "@/lib/chat/caller";
+import { isHubOnlyMessage } from "@/lib/chat/hub-only";
 /**
  * The signed-in member has seen a conversation through `through` (the time of the newest message
  * they had on screen): moves their own read marker forward (the `chat_mark_read` function can only
@@ -286,19 +287,22 @@ async function sendChatMessageImpl(channelId: string, body: string, threadRootId
   if (!isId(channelId, "chn") || (threadRootId !== undefined && !isId(threadRootId, "msg"))) return { ok: false, error: "Something went wrong." };
   const caller = await postingCaller();
   if (!caller) return { ok: false, error: "Posting isn't available to you yet." };
+  const supabase = await createClient();
+  // A Hub-only conversation (a direct message) never touches Slack: no connection needed, nothing sent after.
+  const hubOnly = (await createRepos(supabase).chat.bridgeState(channelId).catch(() => null))?.bridge_mode === "app_only";
   // Messages are posted as the member, with their own Slack token, and there is no bot fallback: without a
   // connection nothing would reach Slack, so say so now instead of saving a message that can only fail.
-  if (!(await getSlackConnectionStatus(createServiceRoleClient(), caller.identity.memberId)).connected) {
+  if (!hubOnly && !(await getSlackConnectionStatus(createServiceRoleClient(), caller.identity.memberId)).connected) {
     return { ok: false, error: "Connect Slack in Settings to post: your messages are posted as you." };
   }
 
   let files: Record<string, unknown>[] | null = null;
   if (uploads.length > 0) {
-    files = await stagedFilesFor(caller.identity.memberId, uploads);
-    if (!files) return { ok: false, error: POST_ERRORS.bad_files };
+    // Attachments aren't supported in Hub-only conversations yet (chat_post_message refuses them too).
+    files = hubOnly ? null : await stagedFilesFor(caller.identity.memberId, uploads);
+    if (!files) return { ok: false, error: hubOnly ? "Files can't be sent in direct messages yet." : POST_ERRORS.bad_files };
   }
 
-  const supabase = await createClient();
   const { data, error } = await supabase.rpc("chat_post_message", {
     p_channel_id: channelId,
     p_body: body,
@@ -315,6 +319,7 @@ async function sendChatMessageImpl(channelId: string, body: string, threadRootId
   // (pending), so return now and send after the response: the page shows it at once, and flips it to
   // sent through Realtime when Slack has it. A failure marks it failed (Retry) and the nightly run retries.
   const messageId = data as string;
+  if (hubOnly) return { ok: true, id: messageId };
   after(async () => {
     try {
       await sendChatMessageToSlack(createServiceRoleClient(), messageId);
@@ -344,11 +349,12 @@ async function toggleChatReactionImpl(messageId: string, emoji: string): Promise
   if (!caller) return { ok: false, error: "Reacting isn't available to you yet." };
 
   const supabase = await createClient();
+  const hubOnly = await isHubOnlyMessage(createRepos(supabase).chat, messageId);
 
   // Reactions go to Slack as the member (their own token; the bot can't react under a name), and there is no
   // Hub-only fallback: without a connection one would be hidden here and never reach Slack, and a reaction
   // the member made in Slack could not be taken back from here. So say what to do instead.
-  if (!(await getSlackConnectionStatus(createServiceRoleClient(), caller.identity.memberId)).connected) {
+  if (!hubOnly && !(await getSlackConnectionStatus(createServiceRoleClient(), caller.identity.memberId)).connected) {
     return { ok: false, error: "Connect Slack in Settings to react: your reactions are sent as you." };
   }
 
@@ -360,6 +366,7 @@ async function toggleChatReactionImpl(messageId: string, emoji: string): Promise
   }
   // A member who connected Slack has it in Slack too, as them: after the response, so the chip
   // updates at once, and never able to fail the reaction itself.
+  if (hubOnly) return { ok: true, active: data };
   const memberId = caller.identity.memberId;
   after(async () => {
     try {
@@ -380,7 +387,7 @@ export async function retryChatMessage(messageId: string): Promise<SendChatResul
   // Under the caller's RLS, so only a message they can see; the author check is on top.
   const supabase = await createClient();
   const row = await createRepos(supabase).chat.retryState(messageId).catch(() => null);
-  if (!row || row.origin !== "app" || row.author_member_id !== caller.identity.memberId || row.slack_sync_status === "sent") {
+  if (!row || row.origin !== "app" || row.author_member_id !== caller.identity.memberId || row.slack_sync_status === "sent" || row.slack_sync_status === null) {
     return { ok: false, error: "That message can't be retried." };
   }
   const service = createServiceRoleClient();
@@ -422,10 +429,13 @@ async function editChatMessageImpl(messageId: string, body: string): Promise<Cha
   if (text === "") return { ok: false, error: CHANGE_ERRORS.empty };
   if (text.length > 4000) return { ok: false, error: CHANGE_ERRORS.too_long };
 
-  const inSlack = await updateChatMessageInSlack(createServiceRoleClient(), { messageId, memberId: caller.identity.memberId, body: text });
-  if (!inSlack.ok) return inSlack;
-
   const supabase = await createClient();
+  // A Hub-only message (in a direct message) has no Slack copy to change first.
+  if (!(await isHubOnlyMessage(createRepos(supabase).chat, messageId))) {
+    const inSlack = await updateChatMessageInSlack(createServiceRoleClient(), { messageId, memberId: caller.identity.memberId, body: text });
+    if (!inSlack.ok) return inSlack;
+  }
+
   const { error } = await supabase.rpc("chat_edit_message", { p_message_id: messageId, p_body: text });
   if (error) return { ok: false, error: changeError(error, "edit") };
   return { ok: true };
@@ -437,10 +447,12 @@ async function deleteChatMessageImpl(messageId: string): Promise<ChangeChatResul
   const caller = await postingCaller();
   if (!caller) return { ok: false, error: "Deleting isn't available to you yet." };
 
-  const inSlack = await deleteChatMessageInSlack(createServiceRoleClient(), { messageId, memberId: caller.identity.memberId });
-  if (!inSlack.ok) return inSlack;
-
   const supabase = await createClient();
+  if (!(await isHubOnlyMessage(createRepos(supabase).chat, messageId))) {
+    const inSlack = await deleteChatMessageInSlack(createServiceRoleClient(), { messageId, memberId: caller.identity.memberId });
+    if (!inSlack.ok) return inSlack;
+  }
+
   const { error } = await supabase.rpc("chat_delete_message", { p_message_id: messageId });
   if (error) return { ok: false, error: changeError(error, "delete") };
   return { ok: true };

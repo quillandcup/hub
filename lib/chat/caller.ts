@@ -29,3 +29,11 @@ export async function postingCaller(): Promise<ChatCaller | null> {
   if (!(await effectiveMemberHasFeature("chat_posting", caller.identity, await getUserFeaturePreviews(caller.userId)))) return null;
   return caller;
 }
+
+/** Starting a Hub direct message is its own preview on top of posting. (Replying to one you were sent only needs posting.) */
+export async function dmCaller(): Promise<ChatCaller | null> {
+  const caller = await postingCaller();
+  if (!caller) return null;
+  if (!(await effectiveMemberHasFeature("chat_dms", caller.identity, await getUserFeaturePreviews(caller.userId)))) return null;
+  return caller;
+}

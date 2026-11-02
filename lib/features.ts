@@ -1,4 +1,4 @@
-export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat' | 'chat_posting' | 'big_sisters' | 'intro_reminders' | 'prickle_reminders' | 'courses' | 'hosting' | 'mux_playback_restriction';
+export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat' | 'chat_posting' | 'chat_dms' | 'big_sisters' | 'intro_reminders' | 'prickle_reminders' | 'courses' | 'hosting' | 'mux_playback_restriction';
 
 export interface FeaturePreview {
   key: FeatureKey;
@@ -51,6 +51,11 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     key: 'chat_posting',
     name: 'Chat posting',
     description: 'Write messages and thread replies in Hub chat; they appear in Slack too, posted by Billie Bot under your name and photo. Needs Chat',
+  },
+  {
+    key: 'chat_dms',
+    name: 'Chat direct messages',
+    description: 'Start a direct message with another member from their profile. Hub direct messages stay in the Hub (nothing goes to Slack), and staff cannot read them. Members you message see the conversation whether or not they have this on; this decides who can start one. Needs Chat and Chat posting',
   },
   {
     key: 'big_sisters',

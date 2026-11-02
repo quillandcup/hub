@@ -25,6 +25,7 @@ import { computePublicHostingSummary } from "@/lib/hosting-stats"
 import { getMemberHostingSchedule } from "@/lib/prickle-schedule"
 import MemberHostingCard from "./MemberHostingCard"
 import MemberNotesCard from "./MemberNotesCard"
+import MessageMemberButton from "@/components/chat/MessageMemberButton"
 import { ORG_TIMEZONE } from "@/lib/config";
 
 // Long enough to catch a monthly slot's next occurrence, not just weekly ones.
@@ -116,11 +117,15 @@ export default async function MemberProfilePage({
     member.first_joined_at
   )
   // The Big Sister badge links to /big-sisters, which only members with the preview can open.
-  const bigSistersEnabled = await effectiveMemberHasFeature(
-    "big_sisters",
-    effectiveIdentity,
-    await getUserFeaturePreviews(user.id)
-  )
+  const ownFeatures = await getUserFeaturePreviews(user.id)
+  const bigSistersEnabled = await effectiveMemberHasFeature("big_sisters", effectiveIdentity, ownFeatures)
+  // A direct message needs chat, posting and the DM preview, and never starts in sudo (read-only) or with yourself.
+  const canMessage =
+    member.id !== effectiveIdentity.memberId &&
+    !effectiveIdentity.isSudo &&
+    (await Promise.all(
+      (["chat", "chat_posting", "chat_dms"] as const).map((key) => effectiveMemberHasFeature(key, effectiveIdentity, ownFeatures))
+    )).every(Boolean)
 
   // No fallback to joined_at (Kajabi contact creation) — a lead who never
   // had a real subscription has no first_joined_at, and isn't a member, so
@@ -172,6 +177,7 @@ export default async function MemberProfilePage({
             </p>
           )}
         </div>
+        {canMessage && <MessageMemberButton memberId={member.id} className="ml-auto shrink-0" />}
         {member.id === effectiveIdentity.memberId && (
           <Link data-track="member-profile-edit-profile"
             href="/settings/profile"

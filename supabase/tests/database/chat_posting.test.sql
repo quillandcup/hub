@@ -8,7 +8,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(19);
+SELECT plan(20);
 
 SELECT ok(NOT has_function_privilege('anon', 'chat_post_message(text, text, text)', 'EXECUTE'), 'anon cannot post');
 SELECT ok(has_function_privilege('authenticated', 'chat_post_message(text, text, text)', 'EXECUTE'), 'authenticated can post');
@@ -103,11 +103,8 @@ SELECT is((SELECT reply_count FROM chat_messages WHERE id = 'msg_AAAAAAAAf7d1'),
 SELECT is((SELECT value FROM result WHERE label = 'empty'), 'chat_post: empty', 'a blank message is refused');
 SELECT is((SELECT value FROM result WHERE label = 'long'), 'chat_post: too_long', 'so is one over 4000 characters');
 SELECT is((SELECT value FROM result WHERE label = 'archived'), 'chat_post: archived', 'an archived conversation takes no posts');
-SELECT is(
-  (SELECT string_agg(value, ',' ORDER BY label) FROM result WHERE label IN ('disabled', 'app only')),
-  'chat_post: not_bridged,chat_post: not_bridged',
-  'a conversation that is not mirrored, or not on Slack, is refused'
-);
+SELECT is((SELECT value FROM result WHERE label = 'disabled'), 'chat_post: not_bridged', 'a bridged conversation whose mirroring is switched off is refused');
+SELECT matches((SELECT value FROM result WHERE label = 'app only'), '^ok:', 'an app-only conversation takes the post (a Hub direct message, never sent to Slack)');
 SELECT is(
   (SELECT string_agg(value, ',' ORDER BY label) FROM result WHERE label IN ('unsent root', 'reply to reply')),
   'chat_post: bad_thread,chat_post: bad_thread',

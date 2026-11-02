@@ -905,7 +905,11 @@ Migration `20261003130000` renamed the code, route, cron job and dedup log to ch
 
 ---
 
-### Big Sisters: message in the Hub _(Blocked on Hub DMs)_
+### Hub direct messages: what is left _(Needs Scheduling)_
+
+Hub DMs between two members exist behind the `chat_dms` feature (`docs/SLACK_BRIDGED_CHAT.md`, "Hub direct messages"); a member starts one with the "Message" button on a profile. **Deferred, and why:** (1) **Notifications.** A new DM only shows as an unread badge in chat. It needs a notification kind in `lib/notifications/registry.ts` sent through `createNotifier` (sample message in `lib/notification-test.ts`, email template in `emails/notifications/`), linking to `/chat/<id>`, with a dedup so a burst of messages is one notification and a dry-run flag per `liveFor`; held back to agree the wording and batching. (2) **Attachments.** `chat_post_message` refuses files in an `app_only` conversation: staged uploads are only moved to Slack by `lib/chat/slack-upload.ts`, so a Hub-only path needs its own place to keep and serve them. (3) **A "New message" picker** in `components/chat/ChatSidebar.tsx` (`EntitySearch`/`MemberSearch`): today the only way in is a profile. (4) **Members who can't sign in.** `chat_find_or_create_dm` accepts any member id; it should refuse (or the button hide) members on hiatus or cancelled, who have no Hub login. (5) **Group DMs in the Hub**, and blocking or reporting a member (the report path is also open in the design doc). (6) **Break-glass for DMs** still has no tool; the text is unreadable to staff until it exists.
+
+### Big Sisters: message in the Hub _(Hub DMs now exist; button not built)_
 
 The dashboard card and `/big-sisters` link a new member and their big sister to each other's **Slack** DM (`getSlackDmLinksForMembers`), because Hub chat can't start a conversation yet: `app/(member)/chat/actions.ts` only posts into existing channels, and `chat_channels` has a `dm` kind (Hub-native, always `restricted`, see `docs/SLACK_BRIDGED_CHAT.md`) with nothing that creates one. When Hub DMs exist: add a "Message in the Hub" button to `components/member/BigSisterCards.tsx` (find-or-create the DM with the other member and link to `/chat/<id>`), make it the primary action and keep Slack as the fallback for members who aren't in Hub chat, and point the `big_sister_match` introduction's `url` at the DM. Gate it on the `chat_posting` feature like the rest of chat.
 
