@@ -5,6 +5,7 @@ import { selectPlayback, selectPlaybackRate, selectSource, selectTime, useCaptio
 import { VideoPlayer, VideoSkin } from "@videojs/react/video";
 import { MuxVideo } from "@videojs/react/media/mux-video";
 import "@videojs/react/video/skin.css";
+import { track } from "@/lib/analytics/client";
 import { courseImageUrl } from "@/lib/courses/image-urls";
 import { MAX_SEGMENTS_PER_BATCH, RESUME_MAX_FRACTION, type WatchSegmentInput } from "@/lib/courses/watch";
 import { AUTO_COMPLETE_FRACTION, useLessonCompletion } from "./LessonCompletion";
@@ -13,6 +14,45 @@ export interface PlaybackTokens {
   playback: string;
   poster: string;
   storyboard: string;
+}
+
+/**
+ * Records that the video started (once per page view) and, when it fails to play, the browser's error: as an
+ * event for the course funnel and as an alert to staff (/api/client-errors), since a member who can't watch
+ * rarely says so. Renders nothing.
+ */
+function PlaybackReporter({ resumed }: { resumed: boolean }) {
+  const media = useMedia();
+  useEffect(() => {
+    if (!media) return;
+    const el = media as unknown as HTMLMediaElement;
+    let played = false;
+    let failed = false;
+    const onPlaying = () => {
+      if (played) return;
+      played = true;
+      track("course_video_played", { resumed });
+    };
+    const onError = () => {
+      if (failed) return;
+      failed = true;
+      const code = el.error?.code ?? 0;
+      track("course_video_error", { code });
+      fetch("/api/client-errors", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: window.location.pathname, kind: "video", message: `Playback error, code ${code}` }),
+        keepalive: true,
+      }).catch(() => {});
+    };
+    el.addEventListener("playing", onPlaying);
+    el.addEventListener("error", onError);
+    return () => {
+      el.removeEventListener("playing", onPlaying);
+      el.removeEventListener("error", onError);
+    };
+  }, [media, resumed]);
+  return null;
 }
 
 const RATE_KEY = "course-player:playback-rate";
@@ -357,6 +397,7 @@ export default function LessonPlayer({
           <RememberSpeed />
           <RememberCaptions />
           <AutoCompleteAtWatchedMark />
+          <PlaybackReporter resumed={resumeSeconds > 0} />
           <ResumePosition seconds={resumeSeconds} />
           {onTime && <ReportTime onTime={onTime} />}
           {trackProgress && lessonId && <WatchTracker lessonId={lessonId} />}

@@ -25,6 +25,8 @@ const player = vi.hoisted(() => ({
   media: undefined as undefined | (EventTarget & { currentTime: number; duration: number; paused: boolean; seeking: boolean; playbackRate: number }),
 }));
 
+const track = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/analytics/client", () => ({ track }));
 vi.mock("@/app/(member)/courses/actions", () => ({ setLessonComplete: vi.fn(async () => ({})) }));
 vi.mock("@videojs/react", () => ({
   selectPlayback: "playback",
@@ -666,5 +668,59 @@ describe("LessonPlayer resume", () => {
     it("reports nothing when nobody asked", () => {
       expect(() => render(ui())).not.toThrow();
     });
+  });
+});
+
+describe("LessonPlayer reports what happened to the video", () => {
+  const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => new Response(null, { status: 204 }));
+  const fire = (media: EventTarget, event: string) => act(() => void media.dispatchEvent(new Event(event)));
+
+  beforeEach(() => {
+    track.mockClear();
+    fetchMock.mockClear();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("records the first play once, and whether it picked up from a saved position", () => {
+    const media = (player.media = fakeMedia());
+    render(<LessonPlayer title="T" playbackId="pb-1" tokens={tokens} resumeSeconds={42} />);
+    fire(media, "playing");
+    fire(media, "playing");
+    expect(track.mock.calls.filter(([name]) => name === "course_video_played")).toEqual([["course_video_played", { resumed: true }]]);
+  });
+
+  it("says it was not a resume when it started from the beginning", () => {
+    const media = (player.media = fakeMedia());
+    render(<LessonPlayer title="T" playbackId="pb-1" tokens={tokens} />);
+    fire(media, "playing");
+    expect(track).toHaveBeenCalledWith("course_video_played", { resumed: false });
+  });
+
+  it("records a playback error with the browser's code, and alerts staff once", () => {
+    const media = Object.assign((player.media = fakeMedia()), { error: { code: 4 } });
+    render(<LessonPlayer title="T" playbackId="pb-1" tokens={tokens} />);
+    fire(media, "error");
+    fire(media, "error");
+    expect(track.mock.calls.filter(([name]) => name === "course_video_error")).toEqual([["course_video_error", { code: 4 }]]);
+    const alerts = fetchMock.mock.calls.filter(([url]) => url === "/api/client-errors");
+    expect(alerts).toHaveLength(1);
+    expect(JSON.parse(alerts[0][1]!.body as string)).toEqual({ path: window.location.pathname, kind: "video", message: "Playback error, code 4" });
+  });
+
+  it("reports code 0 when the browser gives none, and survives a failed report", () => {
+    fetchMock.mockRejectedValueOnce(new Error("offline"));
+    const media = (player.media = fakeMedia());
+    render(<LessonPlayer title="T" playbackId="pb-1" tokens={tokens} />);
+    expect(() => fire(media, "error")).not.toThrow();
+    expect(track).toHaveBeenCalledWith("course_video_error", { code: 0 });
+  });
+
+  it("stops listening when the player goes away", () => {
+    const media = (player.media = fakeMedia());
+    const { unmount } = render(<LessonPlayer title="T" playbackId="pb-1" tokens={tokens} />);
+    unmount();
+    fire(media, "playing");
+    expect(track.mock.calls.filter(([name]) => name === "course_video_played")).toEqual([]);
   });
 });

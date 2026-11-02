@@ -24,6 +24,17 @@ describe("POST /api/client-errors", () => {
     expect(sendOperationsAlert).toHaveBeenCalledWith(expect.objectContaining({ rateLimit: expect.anything() }), { type: "client_crash", route: "/admin/events/[id]", message: "Error: boom" });
   });
 
+  it("alerts a course video that failed to play as its own kind, by route template", async () => {
+    const response = await post({ path: "/courses/ready-writer/lessons/les_esQojgSTH2XD", kind: "video", message: "Playback error, code 4" });
+    expect(response.status).toBe(204);
+    expect(sendOperationsAlert).toHaveBeenCalledWith(expect.objectContaining({ rateLimit: expect.anything() }), {
+      type: "video_failed",
+      what: "playback",
+      route: "/courses/ready-writer/lessons/[id]",
+      detail: "Playback error, code 4",
+    });
+  });
+
   it("refuses anyone not signed in", async () => {
     getCurrentUser.mockResolvedValue(null);
     expect((await post({ path: "/x", message: "m" })).status).toBe(401);

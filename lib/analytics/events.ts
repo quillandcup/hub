@@ -97,6 +97,15 @@ export const EVENTS = {
   /** A course lesson was marked complete or cleared (components/courses/LessonCompletion.tsx): by the member's button, or automatically when the player reached the watched mark. */
   lesson_completion_changed: { completed: bool(), via: oneOf("button", "watched") },
 
+  /** A course lesson page was opened by a member (components/courses/LessonViewed.tsx): `has_video` tells a video lesson from a text one. */
+  course_lesson_viewed: { has_video: bool() },
+
+  /** The lesson's video started playing, once per page view (components/courses/LessonPlayer.tsx): `resumed` is whether it picked up from a saved position. */
+  course_video_played: { resumed: bool() },
+
+  /** The lesson's video failed to play in the member's browser (components/courses/LessonPlayer.tsx): `code` is the browser's media error (1 aborted, 2 network, 3 decode, 4 source not supported; 0 unknown). Also alerts staff. */
+  course_video_error: { code: int(10) },
+
   /** Files were added to the chat composer (components/chat/Composer.tsx): `via` is how, `count` how many. */
   chat_files_attached: { via: oneOf("picker", "paste", "drop"), count: int() },
 

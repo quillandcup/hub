@@ -11,9 +11,13 @@ export type OperationsAlert =
   | { type: "slack_dm_failed"; notificationKind: string; memberId: string }
   | { type: "section_failed"; section: string; code?: string; ms: number }
   | { type: "client_crash"; route: string; message: string }
+  | { type: "video_failed"; what: VideoFailure; route?: string; detail?: string }
   | { type: "cron_partial_failure"; job: string; problems: string[] }
   | { type: "slack_bot_token_failed"; problem: "refresh_failed" | "not_stored" | "expired"; detail?: string }
   | { type: "ambiguous_slack_member_match"; collisions: ReadonlyArray<{ reason: string; slackUserIds: string[]; memberIds: string[] }> };
+
+/** Where the course video path broke: Mux's webhook couldn't be recorded, Mux couldn't prepare a video, or a member's player errored. */
+export type VideoFailure = "webhook_upload" | "webhook_asset" | "asset_errored" | "playback";
 
 const ALERT_WINDOW_SECONDS = 10 * 60;
 
@@ -48,6 +52,22 @@ function alertDetails(alert: OperationsAlert): { bucket: string; title: string; 
       bucket: `operations_alert:client_crash:${alert.route}`,
       title: `Page ${alert.route} crashed in the browser`,
       text: `Page ${alert.route} crashed in a member's or admin's browser: "${message}". Server logs have nothing for it; look for the browser event in Sentry for this route, and in the browser console.`,
+    };
+  }
+
+  if (alert.type === "video_failed") {
+    // The detail may come from a browser, so it is untrusted: one short line, escaped for Slack.
+    const detail = (alert.detail ?? "").replace(/\s+/g, " ").trim().slice(0, 200).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+    const text = {
+      webhook_upload: "Mux told us an upload finished, but the Hub could not record it, so that video will stay in preparing. Mux retries for a while; if it keeps failing, check the Vercel logs for \"Failed to record Mux upload\".",
+      webhook_asset: "Mux told us a video is ready (or failed), but the Hub could not record it, so a lesson may keep saying the video is being prepared. Mux retries for a while; if it keeps failing, check the Vercel logs for \"Failed to record Mux asset update\".",
+      asset_errored: "Mux could not prepare a course video (asset errored). The lesson tells members \"We've been told\"; re-upload the video, or look at the asset in the Mux dashboard.",
+      playback: `A course video failed to play in a member's browser${alert.route ? ` on ${alert.route}` : ""}. Signed playback, an expired token or Mux itself may be the cause; try the lesson yourself and look at the Mux dashboard's errors.`,
+    }[alert.what];
+    return {
+      bucket: `operations_alert:video_failed:${alert.what}${alert.route ? `:${alert.route}` : ""}`,
+      title: `Course video: ${alert.what.replace("_", " ")}`,
+      text: `${text}${detail ? ` (${detail})` : ""}`,
     };
   }
 

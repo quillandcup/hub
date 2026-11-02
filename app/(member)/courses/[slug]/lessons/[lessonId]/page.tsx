@@ -13,6 +13,7 @@ import PageBanner from "@/components/PageBanner";
 import LessonSectionList from "../../../LessonSectionList";
 import LessonDownloads from "../../../LessonDownloads";
 import LessonPlayer, { type PlaybackTokens } from "@/components/courses/LessonPlayer";
+import LessonViewed from "@/components/courses/LessonViewed";
 import { LessonCompletionProvider } from "@/components/courses/LessonCompletion";
 import MarkCompleteButton from "../../../MarkCompleteButton";
 import NextLessonPreview from "../../../NextLessonPreview";
@@ -162,6 +163,8 @@ export default async function LessonPage({
           {watchRecorded ? "Your watching is recorded (completion isn't)." : "Progress isn't tracked here."}
         </PageBanner>
       )}
+
+      {!preview && <LessonViewed lessonId={lesson.id} hasVideo={Boolean(video)} />}
 
       <div className="@container mx-auto w-full max-w-screen-2xl px-6 py-6">
         <nav aria-label="Breadcrumb" className="text-sm text-slate-600 dark:text-slate-400">

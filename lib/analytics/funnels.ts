@@ -21,6 +21,24 @@ export interface FunnelDefinition {
  */
 export const FUNNELS: FunnelDefinition[] = [
   {
+    title: "Course lessons: opened, played, completed",
+    description:
+      "Visits that opened a lesson with a video, started the video, then finished the lesson (by the button or by watching to the end). A drop between the first two is members who open the page and don't press play; a drop after is members who stop partway.",
+    steps: [
+      { event: "course_lesson_viewed", label: "Opened a video lesson", where: { has_video: true } },
+      { event: "course_video_played", label: "Started the video" },
+      { event: "lesson_completion_changed", label: "Completed the lesson", where: { completed: true } },
+    ],
+  },
+  {
+    title: "Course lessons: downloads",
+    description: "Visits that opened a lesson, then clicked one of its downloads.",
+    steps: [
+      { event: "course_lesson_viewed", label: "Opened a lesson" },
+      { event: "element_clicked", label: "Clicked a download", where: { name: "lesson-download-file" } },
+    ],
+  },
+  {
     title: "On air light: someone is at the table",
     description: "Visits that opened the popover while the room was live, then clicked Join on Zoom.",
     steps: [
