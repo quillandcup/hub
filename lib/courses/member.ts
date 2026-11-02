@@ -162,8 +162,9 @@ export async function loadCourseList(repos: MemberCourseRepos, scope: MemberScop
       );
       return { course, access, progress: courseProgress(outline, completed) };
     })
-    .filter((item) => item.access.kind !== "none")
-    .sort((a, b) => Number(a.access.kind === "ended") - Number(b.access.kind === "ended") || a.course.title.localeCompare(b.course.title));
+    // When access ends the course is removed from the member's list (decided 2026-11-01); their progress stays stored, so it is back if access is renewed.
+    .filter((item) => item.access.kind !== "none" && item.access.kind !== "ended")
+    .sort((a, b) => a.course.title.localeCompare(b.course.title));
 }
 
 export interface ContinueWatching {
@@ -235,8 +236,8 @@ export async function loadCourseView(repos: MemberCourseRepos, slug: string, sco
 
   const accessRow = scope.isAdminActing ? undefined : (await loadAccessRows(repos, scope.memberId, [course.id])).get(course.id);
   const access = resolveCourseAccess(accessRow, scope.isAdminActing, scope.now ?? new Date());
-  // Nothing of the course is shown before it's theirs to open: no access, or not started yet.
-  if (access.kind === "none" || access.kind === "upcoming") return { course, access, outline: null, completed: new Set(), progress: null };
+  // Nothing of the course is shown unless it's theirs to open now: no access, not started yet, or access has ended.
+  if (access.kind === "none" || access.kind === "upcoming" || access.kind === "ended") return { course, access, outline: null, completed: new Set(), progress: null };
 
   const { modules, lessons } = await loadStructure(repos, [course.id], scope.isAdminActing);
   const outline = buildOutline(modules as OutlineModule[], lessons as OutlineLesson[]);

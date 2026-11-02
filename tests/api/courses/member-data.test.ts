@@ -77,15 +77,16 @@ describe('Course member data', () => {
       expect(mine[0].progress).toMatchObject({ available: 2, completed: 1, continueLessonId: ids.lessonB, allDone: false })
     })
 
-    it('still lists a course whose access ended, marked ended, with their progress', async () => {
-      const [item] = (await loadCourseList(createRepos(supabase), scope('ended'))).filter((i) => i.course.slug === SLUG)
-      expect(item.access.kind).toBe('ended')
-      expect(item.progress.completed).toBe(1)
+    it('no longer lists a course whose access ended: it is removed from the list, and their progress stays stored', async () => {
+      expect((await loadCourseList(createRepos(supabase), scope('ended'))).filter((i) => i.course.slug === SLUG)).toEqual([])
+      // The progress is still there (it is back if access is renewed).
+      const { data: kept } = await supabase.from('lesson_progress').select('lesson_id').eq('member_id', ids.ended).not('completed_at', 'is', null)
+      expect(kept?.map((r) => r.lesson_id)).toContain(ids.lessonA)
     })
 
-    it('lists current courses before ended ones, even when the ended one sorts first by title', async () => {
+    it("lists a member's current course and leaves out their ended one, whatever their titles sort like", async () => {
       const slugs = (await loadCourseList(createRepos(supabase), scope('current'))).map((i) => i.course.slug).filter((slug) => slug.startsWith(SLUG))
-      expect(slugs).toEqual([SLUG, `${SLUG}-old`])
+      expect(slugs).toEqual([SLUG])
     })
 
     it('lists nothing for a member with no access, and everything for staff acting as themselves', async () => {
@@ -230,6 +231,14 @@ describe('Course member data', () => {
       const open = await loadLessonView(createRepos(supabase), SLUG, ids.lessonA, scope('staff', true))
       expect(open.kind === 'ok' && open.preview).toBe(false)
       expect(open.kind === 'ok' && open.neighbors.next?.id).toBe(ids.lessonSoon)
+    })
+
+    it('shows none of a course once access ended: no outline, no progress, but the page can say when it ended', async () => {
+      const view = await loadCourseView(createRepos(supabase), SLUG, scope('ended'))
+      expect(view!.access.kind).toBe('ended')
+      expect(view!.outline).toBeNull()
+      expect(view!.progress).toBeNull()
+      expect(view!.completed.size).toBe(0)
     })
 
     it('does not open lessons once access ended, or without access', async () => {
