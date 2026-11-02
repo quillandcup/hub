@@ -1,6 +1,9 @@
 "use server";
 
+import { redirect } from "next/navigation";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
+import { createClient as createServerClient } from "@/lib/supabase/server";
+import { takeNextPath } from "@/lib/next-path-cookie";
 import type { Database } from "@/lib/data/database.types";
 
 // Don't re-send more often than this, so the public login form can't be used to flood an
@@ -42,4 +45,28 @@ export async function resendPendingInvite(email: string): Promise<{ invited: boo
     return { invited: false };
   }
   return { invited: true };
+}
+
+export interface EmailCodeResult {
+  error: string;
+}
+
+/**
+ * The code from the sign-in email, typed on /login. The link in the same email only works in the
+ * browser the member asked from (the PKCE verifier lives in that browser's cookies), so opening it
+ * from a phone's mail app fails; a code works anywhere. Supabase checks it against the member's own
+ * code and applies its per-IP verification limit.
+ */
+export async function verifyEmailCode(email: string, code: string): Promise<EmailCodeResult> {
+  const token = code.replace(/\s+/g, "");
+  if (!email?.trim() || !/^\d{6,8}$/.test(token)) {
+    return { error: "Enter the code from the email, digits only." };
+  }
+
+  const supabase = await createServerClient();
+  const { error } = await supabase.auth.verifyOtp({ email: email.trim().toLowerCase(), token, type: "email" });
+  if (error) {
+    return { error: "That code didn't work. It may have expired or been replaced by a newer email. Request a new link." };
+  }
+  redirect(await takeNextPath());
 }

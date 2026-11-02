@@ -3,15 +3,37 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
-import { resendPendingInvite } from "./actions";
+import { resendPendingInvite, verifyEmailCode } from "./actions";
 import SlackSignIn from "./SlackSignIn";
 
 const LAST_EMAIL_KEY = "hedgiehub:lastEmail";
 
-export default function LoginForm({ slackHomeUrl }: { slackHomeUrl: string | null }) {
+// How long the "you just asked for one" notice stays up: it only explains the one-minute wait
+// between emails, so it clears itself rather than lingering after the wait is over.
+const RATE_LIMIT_NOTICE_MS = 10_000;
+
+const RATE_LIMITED_TEXT =
+  "We just emailed you a link. Check your inbox (and spam), or try again in a minute.";
+
+const CALLBACK_FAILED_TEXT =
+  "That sign-in link didn't work. Links only work in the browser you asked from, and each works once. Enter the code from the email below, or request a new link.";
+
+export default function LoginForm({
+  slackHomeUrl,
+  callbackFailed = false,
+}: {
+  slackHomeUrl: string | null;
+  callbackFailed?: boolean;
+}) {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(
+    callbackFailed ? { type: "error", text: CALLBACK_FAILED_TEXT } : null
+  );
+  const [linkSent, setLinkSent] = useState(false);
+  const [code, setCode] = useState("");
+  const [codeError, setCodeError] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
 
   const supabase = createClient();
 
@@ -26,9 +48,16 @@ export default function LoginForm({ slackHomeUrl }: { slackHomeUrl: string | nul
     }
   }, []);
 
+  useEffect(() => {
+    if (message?.type !== "error" || message.text !== RATE_LIMITED_TEXT) return;
+    const timer = window.setTimeout(() => setMessage(null), RATE_LIMIT_NOTICE_MS);
+    return () => window.clearTimeout(timer);
+  }, [message]);
+
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setEmail(value);
+    setLinkSent(false);
     try {
       window.localStorage.setItem(LAST_EMAIL_KEY, value);
     } catch {
@@ -66,13 +95,20 @@ export default function LoginForm({ slackHomeUrl }: { slackHomeUrl: string | nul
         );
         return;
       }
+      if (error?.code === "over_email_send_rate_limit") {
+        // Supabase allows one email per address a minute; a second click inside it lands here.
+        setMessage({ type: "error", text: RATE_LIMITED_TEXT });
+        return;
+      }
       if (error) throw error;
 
       setMessage({
         type: "success",
         text: "Check your email for the magic link!",
       });
-      setEmail("");
+      setLinkSent(true);
+      setCode("");
+      setCodeError(null);
     } catch (error: any) {
       setMessage({
         type: "error",
@@ -80,6 +116,19 @@ export default function LoginForm({ slackHomeUrl }: { slackHomeUrl: string | nul
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setVerifying(true);
+    setCodeError(null);
+    try {
+      // Redirects on success, so only a failure comes back.
+      const result = await verifyEmailCode(email, code);
+      if (result?.error) setCodeError(result.error);
+    } finally {
+      setVerifying(false);
     }
   };
 
@@ -132,6 +181,31 @@ export default function LoginForm({ slackHomeUrl }: { slackHomeUrl: string | nul
               {loading ? "Sending..." : "Send Magic Link"}
             </button>
           </form>
+
+          {linkSent && (
+            <form onSubmit={handleCode} className="mt-6 space-y-3">
+              <label htmlFor="code" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Link not opening here? Enter the code from the email
+              </label>
+              <input
+                id="code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="12345678"
+                className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 tracking-widest focus:outline-none focus:ring-2 focus:ring-plum-500"
+              />
+              {codeError && <p className="text-sm text-red-700 dark:text-red-300">{codeError}</p>}
+              <button
+                type="submit"
+                disabled={verifying || code.trim() === ""}
+                className="w-full px-6 py-3 border border-plum-600 text-plum-700 dark:text-plum-300 hover:bg-plum-50 dark:hover:bg-slate-800 disabled:opacity-50 font-semibold rounded-lg transition-colors"
+              >
+                {verifying ? "Checking..." : "Sign in with code"}
+              </button>
+            </form>
+          )}
 
           {/* Shown only once SLACK_TEAM_ID and SLACK_APP_ID are set, i.e. the Slack app is live. */}
           {slackHomeUrl && (
