@@ -6,6 +6,7 @@ import { STATUS_CHOICES, statusChoices } from "@/lib/courses/status-choices";
 import { LessonStatusField, LessonTitleField } from "./LessonEditableFields";
 import LessonTextField from "./LessonTextField";
 import LessonFilesField from "./LessonFilesField";
+import LessonDeleteButton from "./LessonDeleteButton";
 
 const FIELD =
   "w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800";
@@ -143,9 +144,13 @@ export default function LessonBuilderForm({ detail, media }: { detail: AdminLess
           <p className="mt-3 text-xs text-slate-600 dark:text-slate-400">Comment settings aren&apos;t imported from Kajabi.</p>
         </div>
 
-        <button type="button" disabled title={SOON} className="text-sm text-red-700 disabled:cursor-not-allowed disabled:opacity-60 dark:text-red-300">
-          Delete lesson
-        </button>
+        {detail.editable ? (
+          <LessonDeleteButton courseId={detail.course.id} lessonId={lesson.kajabiId} title={lesson.title} />
+        ) : (
+          <button type="button" disabled title={SOON} className="text-sm text-red-700 disabled:cursor-not-allowed disabled:opacity-60 dark:text-red-300">
+            Delete lesson
+          </button>
+        )}
       </div>
     </form>
   );

@@ -8,6 +8,8 @@ import { createRepos } from "@/lib/data/repos";
 import { isId } from "@/lib/ids";
 import { parseItemTitle } from "@/lib/courses/editor";
 import { lessonExcerpt } from "@/lib/courses/excerpt";
+import { COURSE_FILES_BUCKET } from "@/lib/courses/file-format";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 import { sanitizeLessonHtml } from "@/lib/courses/sanitize";
 
 /**
@@ -120,17 +122,35 @@ async function deleteItemImpl(auth: Auth, courseId: string, kind: ItemKind, id: 
 
   // A lesson members have worked through is theirs too: deleting it would erase their progress.
   const repos = createRepos(auth.supabase);
+  let storedFiles: string[] = [];
   try {
     const lessonIds = await repos.courses.lessonIdsUnder(kind, id);
     if (lessonIds.length > 0 && (await repos.courseProgress.hasProgressIn(lessonIds))) {
       return { error: `Members have progress in ${kind === "lesson" ? "this lesson" : "its lessons"}, so it can't be deleted. Hide it instead.` };
     }
+    // The downloads' rows go with the lesson; the files they point at are in the bucket and are removed below.
+    if (lessonIds.length > 0) storedFiles = (await repos.courses.filesOfLessons(lessonIds)).map((f) => f.storage_path);
     if (!(await repos.courses.deleteItem(kind, { id, courseId }))) return { error: NOT_EDITABLE };
   } catch (error) {
     return { error: describe(asDbError(error), "delete it") };
   }
+  await removeStoredFiles(storedFiles);
   revalidate(courseId);
   return { id };
+}
+
+/** Takes files out of the downloads bucket once nothing points at them. A failure leaves an unreferenced object, which is logged, not shown: the delete itself worked. */
+async function removeStoredFiles(paths: string[]) {
+  if (paths.length === 0) return;
+  try {
+    const bucket = createServiceRoleClient().storage.from(COURSE_FILES_BUCKET);
+    for (let i = 0; i < paths.length; i += 100) {
+      const { error } = await bucket.remove(paths.slice(i, i + 100));
+      if (error) console.error("course outline: couldn't remove stored files:", error.message);
+    }
+  } catch (error) {
+    console.error("course outline: couldn't remove stored files:", error instanceof Error ? error.message : error);
+  }
 }
 
 async function duplicateItemImpl(auth: Auth, courseId: string, kind: ItemKind, id: string): Promise<OutlineResult> {
