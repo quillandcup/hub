@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { deleteChatFile } from "@/app/(member)/chat/actions";
+import { track } from "@/lib/analytics/client";
 import { useAnimationsOff } from "@/components/AnimationsController";
 import ImageLightbox from "@/components/ImageLightbox";
 import { chatFileUrl, chatZipUrl, formatFileSize, isInlineImage, type ChatFile } from "@/lib/chat/files";
@@ -70,7 +71,10 @@ function ImageTile({
       {animationsOff && moves && (
         <button
           type="button"
-          onClick={() => setPlaying((p) => !p)}
+          onClick={() => {
+            track("gif_play_toggled", { playing: !playing });
+            setPlaying((p) => !p);
+          }}
           aria-label={playing ? `Pause ${file.name ?? "image"}` : `Play ${file.name ?? "image"}`}
           aria-pressed={playing}
           data-track="chat-gif-play"

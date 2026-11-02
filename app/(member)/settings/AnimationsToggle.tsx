@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ANIMATIONS_CHANGED_EVENT } from "@/components/AnimationsController";
+import { track } from "@/lib/analytics/client";
 import { ANIMATIONS_STORAGE_KEY, animationsAllowed } from "@/lib/animations";
 
 /**
@@ -20,6 +21,10 @@ export function AnimationsToggle() {
   if (allowed === null) return <div className="h-12 animate-pulse rounded-md bg-slate-200 dark:bg-slate-700" />;
 
   const change = (next: boolean) => {
+    track("animations_setting_changed", {
+      allowed: next,
+      was_default_off: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    });
     setAllowed(next);
     localStorage.setItem(ANIMATIONS_STORAGE_KEY, next ? "on" : "off");
     window.dispatchEvent(new Event(ANIMATIONS_CHANGED_EVENT));
