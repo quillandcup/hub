@@ -329,11 +329,13 @@ export default function ChatSidebar({
   return (
     // Its own full-height column that scrolls by itself, so a long channel list never sets the
     // height of the conversation beside it. On a narrow screen it is the home screen at /chat and
-    // gives way to whatever is open (which has a link back).
+    // gives way to whatever is open (which has a link back). At /chat it takes the whole height
+    // (basis-full): the pane beside it is flex-1 too and, though its placeholder is hidden there, would
+    // otherwise get half of it, cutting the list short.
     <nav
       aria-label="Conversations"
       className={`shrink-0 overflow-y-auto border-slate-200 p-4 @split:h-full @split:w-60 @split:border-r dark:border-slate-800 ${
-        pathname === "/chat" ? "flex-1 @split:flex-none" : "hidden @split:block"
+        pathname === "/chat" ? "grow basis-full @split:flex-none" : "hidden @split:block"
       }`}
     >
       <form action="/chat/search" role="search" className="mb-4 px-1">
