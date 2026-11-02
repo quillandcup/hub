@@ -350,7 +350,7 @@ Before committing changes to API routes, verify:
 
 - **Framework**: Next.js 15 App Router
 - **Database**: Supabase (PostgreSQL)
-- **Deployment**: Vercel (Hobby tier: 300s timeout, limited resources)
+- **Deployment**: Vercel (Pro plan; routes here are capped at 300s, see `maxDuration`)
 - **Auth**: Supabase Auth (invite-only, RLS enabled)
 
 ## Data Architecture
