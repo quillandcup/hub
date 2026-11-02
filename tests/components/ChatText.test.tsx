@@ -1,6 +1,10 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+
+const getMemberHoverCard = vi.fn();
+vi.mock("@/app/actions/member-hover-card", () => ({ getMemberHoverCard: (...a: unknown[]) => getMemberHoverCard(...a) }));
+vi.mock("@/lib/analytics/client", () => ({ track: vi.fn() }));
 import ChatText from "@/components/chat/ChatText";
 
 const ctx = {
@@ -13,6 +17,11 @@ const ctx = {
     hog: { text: "🦔" },
   },
 };
+
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe("ChatText", () => {
   it("shows custom emoji as images, over a standard emoji of the same name", () => {
@@ -51,5 +60,27 @@ describe("ChatText", () => {
   it("underlines links so they stand out", () => {
     render(<ChatText body="<https://example.test|the form>" ctx={ctx} />);
     expect(screen.getByRole("link", { name: "the form" })).toHaveClass("underline");
+  });
+
+  it("opens the member's hover card when a matched mention is hovered, and not for other mentions", async () => {
+    vi.useFakeTimers();
+    getMemberHoverCard.mockResolvedValue({
+      card: { id: "member-jude", name: "Jude Example", photoUrl: null, firstJoinedAt: "2025-03-10", askMeAbout: [], instagramUrl: null, facebookUrl: null, twitterUrl: null, messageUrl: null },
+    });
+    render(<ChatText body="<@U_JUDE> and <@U_NOBODY>" ctx={ctx} />);
+
+    fireEvent.pointerEnter(screen.getByText("@Pat"), { pointerType: "mouse" });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    fireEvent.pointerEnter(screen.getByText("@Jude Cocaigne"), { pointerType: "mouse" });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+    expect(getMemberHoverCard).toHaveBeenCalledWith("member-jude");
+    expect(screen.getByRole("dialog")).toHaveTextContent("Hedgie since March 2025");
+    expect(screen.getByRole("link", { name: "View profile" })).toHaveAttribute("href", "/members/member-jude");
   });
 });

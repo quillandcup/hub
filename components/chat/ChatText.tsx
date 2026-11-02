@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import MemberHoverCard from "@/components/member/MemberHoverCard";
 import { parseSlackText, type Block, type Inline } from "@/lib/chat/render";
 import { unicodeEmoji, type CustomEmoji } from "@/lib/chat/emoji";
 import { baseName, toneOf, tonedUnicode } from "@/lib/chat/skin-tone";
@@ -72,9 +73,11 @@ function renderInline(nodes: Inline[], ctx: ChatTextContext): ReactNode[] {
         const label = `@${ctx.userNames[n.id] ?? "someone"}`;
         const memberId = ctx.userMembers[n.id];
         return memberId ? (
-          <Link key={i} href={`/members/${memberId}`} data-track="chat-mention" className={`${CHIP_CLASS} ${LINK_CLASS} no-underline hover:underline`}>
-            {label}
-          </Link>
+          <MemberHoverCard key={i} memberId={memberId} surface="chat">
+            <Link href={`/members/${memberId}`} data-track="chat-mention" className={`${CHIP_CLASS} ${LINK_CLASS} no-underline hover:underline`}>
+              {label}
+            </Link>
+          </MemberHoverCard>
         ) : (
           <span key={i} className={CHIP_CLASS}>
             {label}
