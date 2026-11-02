@@ -37,4 +37,38 @@ export const FUNNELS: FunnelDefinition[] = [
       { event: "onair_join_clicked", label: "Clicked Start a PUP on Zoom", where: { live: false } },
     ],
   },
+  {
+    title: "Rollout: checking in",
+    description: "Visits that opened the dashboard, a prickle, and saved a check-in. A drop after the prickle page is members who looked and didn't check in.",
+    steps: [
+      { event: "page_viewed", label: "Opened the dashboard", where: { route: "/dashboard" } },
+      { event: "page_viewed", label: "Opened a prickle", where: { route: "/prickles/[id]" } },
+      { event: "action_completed", label: "Saved a check-in", where: { action: "checkin_saved", ok: true } },
+    ],
+  },
+  {
+    title: "Rollout: weekly commitments",
+    description: "Visits that opened My Prickles' commitments tab and set up a commitment.",
+    steps: [
+      { event: "page_viewed", label: "Opened commitments", where: { route: "/my-prickles/commitments" } },
+      { event: "action_completed", label: "Created a commitment", where: { action: "commitment_created", ok: true } },
+    ],
+  },
+  {
+    title: "Rollout: profile",
+    description: "Visits that opened the profile settings and saved them.",
+    steps: [
+      { event: "page_viewed", label: "Opened profile settings", where: { route: "/settings/profile" } },
+      { event: "action_completed", label: "Saved the profile", where: { action: "profile_saved", ok: true } },
+    ],
+  },
+  {
+    title: "Rollout: the getting-started tour",
+    description: "Visits where a member started the tour, marked a step, and finished it. Dismissals are in the all-events table below.",
+    steps: [
+      { event: "action_completed", label: "Started the tour", where: { action: "onboarding_started", ok: true } },
+      { event: "action_completed", label: "Marked a step done", where: { action: "onboarding_step_marked", ok: true } },
+      { event: "action_completed", label: "Finished the tour", where: { action: "onboarding_completed", ok: true } },
+    ],
+  },
 ];

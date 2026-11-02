@@ -84,7 +84,8 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
   const since = new Date(clock.now() - days * DAY_MS).toISOString();
 
   const supabase = await createClient();
-  const [summary, topClicks, controlRates, actionOutcomes, notificationRates, ...funnels] = await Promise.all([
+  const [adoptionResult, summary, topClicks, controlRates, actionOutcomes, notificationRates, ...funnels] = await Promise.all([
+    supabase.rpc("admin_adoption_summary"),
     supabase.rpc("analytics_event_summary", { since, ...audienceArgs }),
     supabase.rpc("analytics_top_clicks", { since, route_prefix: routePrefix as string, hide_admin: !showAdmin, ...audienceArgs }),
     supabase.rpc("analytics_control_rates", { since, route_prefix: routePrefix as string, hide_admin: !showAdmin, ...audienceArgs }),
@@ -98,7 +99,8 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
   const held = allControls.length - judged.length;
   const actions = (actionOutcomes.data ?? []) as ActionRow[];
   const notifications = (notificationRates.data ?? []) as NotificationRow[];
-  const error = summary.error ?? topClicks.error ?? controlRates.error ?? actionOutcomes.error ?? notificationRates.error ?? funnels.find((f) => f.error)?.error;
+  const adoption = adoptionResult.data?.[0] ?? null;
+  const error = adoptionResult.error ?? summary.error ?? topClicks.error ?? controlRates.error ?? actionOutcomes.error ?? notificationRates.error ?? funnels.find((f) => f.error)?.error;
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-8">
@@ -133,6 +135,32 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
       </div>
 
       {error && <p className="text-sm text-red-600">Could not load usage: {error.message}</p>}
+
+      {adoption && (
+        <section aria-label="Adoption">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Adoption</h2>
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            Active members who have a Hub account and who have been seen in the app, whatever the window above. Staff viewing as a member don&apos;t count.
+          </p>
+          <div className="@container">
+            <dl className="mt-3 grid grid-cols-2 gap-3 @cards:grid-cols-5">
+              {[
+                { label: "Active members", value: adoption.active_members, of: null },
+                { label: "With an account", value: adoption.with_account, of: adoption.active_members },
+                { label: "Seen in 24 hours", value: adoption.seen_today, of: adoption.active_members },
+                { label: "Seen in 7 days", value: adoption.seen_7d, of: adoption.active_members },
+                { label: "Seen in 30 days", value: adoption.seen_30d, of: adoption.active_members },
+              ].map((tile) => (
+                <div key={tile.label} className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+                  <dt className="text-xs text-slate-500 dark:text-slate-400">{tile.label}</dt>
+                  <dd className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">{tile.value}</dd>
+                  {tile.of !== null && <dd className="text-xs text-slate-500 dark:text-slate-400">{formatRate(tile.value, tile.of)} of active</dd>}
+                </div>
+              ))}
+            </dl>
+          </div>
+        </section>
+      )}
 
       {FUNNELS.map((funnel, i) => {
         const rows = (funnels[i].data ?? []) as { sessions: number }[];

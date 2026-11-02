@@ -65,6 +65,36 @@ describe("/admin/analytics", () => {
     }
   });
 
+  it("shows how far the Hub has reached: members with an account and those seen, as shares of the active", async () => {
+    useFakeSupabase({
+      "rpc:admin_adoption_summary": { data: [{ active_members: 80, with_account: 20, seen_today: 4, seen_7d: 10, seen_30d: 16 }] },
+    });
+    await renderServerPage(FeatureUsagePage, { searchParams: Promise.resolve({}) });
+    const adoption = within(screen.getByRole("region", { name: "Adoption" }));
+    expect(adoption.getByText("Active members").nextElementSibling).toHaveTextContent("80");
+    expect(adoption.getByText("With an account").nextElementSibling).toHaveTextContent("20");
+    expect(adoption.getByText("With an account").parentElement).toHaveTextContent("25% of active");
+    expect(adoption.getByText("Seen in 24 hours").parentElement).toHaveTextContent("5% of active");
+    expect(adoption.getByText("Seen in 7 days").parentElement).toHaveTextContent("13% of active");
+    expect(adoption.getByText("Seen in 30 days").parentElement).toHaveTextContent("20% of active");
+  });
+
+  it("leaves the adoption section out when the numbers aren't there", async () => {
+    useFakeSupabase({ "rpc:admin_adoption_summary": { data: [] } });
+    await renderServerPage(FeatureUsagePage, { searchParams: Promise.resolve({}) });
+    expect(screen.queryByRole("region", { name: "Adoption" })).toBeNull();
+  });
+
+  it("lists the rollout funnels, each counted from its own events", async () => {
+    const supabase = useFakeSupabase();
+    await renderServerPage(FeatureUsagePage, { searchParams: Promise.resolve({}) });
+    for (const title of ["Rollout: checking in", "Rollout: weekly commitments", "Rollout: profile", "Rollout: the getting-started tour"]) {
+      expect(screen.getByText(title)).toBeInTheDocument();
+    }
+    const checkIn = rpcCalls(supabase, "analytics_funnel").find(([args]) => (args as { steps: string[] }).steps.at(-1) === "action_completed" && JSON.stringify((args as { filters: unknown[] }).filters).includes("checkin_saved"));
+    expect(checkIn).toBeTruthy();
+  });
+
   it("checks the caller is an admin first", async () => {
     useFakeSupabase();
     await renderServerPage(FeatureUsagePage, { searchParams: Promise.resolve({}) });
@@ -86,8 +116,10 @@ describe("/admin/analytics", () => {
     await renderServerPage(FeatureUsagePage, { searchParams: Promise.resolve({}) });
 
     expect(screen.getByRole("heading", { name: "On air light: someone is at the table" })).toBeInTheDocument();
-    expect(screen.getByText("4 visits (40% of step 1)")).toBeInTheDocument();
-    expect(screen.getByText("0 visits (0% of step 1)")).toBeInTheDocument();
+    const live = within(screen.getByRole("heading", { name: "On air light: someone is at the table" }).closest("section")!);
+    expect(live.getByText("4 visits (40% of step 1)")).toBeInTheDocument();
+    const off = within(screen.getByRole("heading", { name: "On air light: off air" }).closest("section")!);
+    expect(off.getByText("0 visits (0% of step 1)")).toBeInTheDocument();
 
     const clicked = within(screen.getByRole("heading", { name: "Most-clicked things" }).closest("section")!);
     expect(clicked.getByText("Join on Zoom")).toBeInTheDocument();
