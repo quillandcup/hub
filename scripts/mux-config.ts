@@ -7,6 +7,8 @@
 //   tsx scripts/mux-config.ts push            apply it
 //   tsx scripts/mux-config.ts diff|push --dev a developer's own Mux environment: only the webhook,
 //                                             pointing at https://$TUNNEL_DOMAIN/api/webhooks/mux
+//   --adopt                                   when exactly one webhook exists at another address and it is this
+//                                             app's, move it to the configured address (keeps its signing secret)
 //   --replace-secret                          allow creating a webhook although MUX_WEBHOOK_SECRET
 //                                             already has a value in the env file (it is replaced)
 //
@@ -18,24 +20,14 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
 import appConfig from "../app.config";
-import {
-  devWebhookAddress,
-  envValue,
-  parseMuxConfig,
-  planRestriction,
-  planWebhook,
-  restrictionBody,
-  setEnvValue,
-  unmanagedWebhooks,
-  webhookAddress,
-  type LiveRestriction,
-  type LiveWebhook,
-} from "../lib/mux-config";
+import { devWebhookAddress, envValue, parseMuxConfig, planRestriction, planWebhook, restrictionBody, setEnvValue, unmanagedWebhooks, webhookAddress, type LiveRestriction, type LiveWebhook, describeAddress } from "../lib/mux-config";
 
 const API = "https://api.mux.com";
 const [command, ...flags] = process.argv.slice(2);
 const dev = flags.includes("--dev");
 const replaceSecret = flags.includes("--replace-secret");
+// Production: when exactly one webhook exists at another address and it is ours, move it instead of creating a second one.
+const adopt = flags.includes("--adopt");
 const envFile = dev ? ".env.local" : ".env.prod";
 
 function fail(message: string): never {
@@ -43,7 +35,7 @@ function fail(message: string): never {
   process.exit(1);
 }
 
-if (command !== "diff" && command !== "push") fail("usage: mux-config.ts diff|push [--dev] [--replace-secret]");
+if (command !== "diff" && command !== "push") fail("usage: mux-config.ts diff|push [--dev] [--replace-secret] [--adopt]");
 const push = command === "push";
 
 const systemAuth =
@@ -103,8 +95,9 @@ async function webhooks() {
     note("webhooks: not checked (the System token was refused: it needs the System permission)");
     return;
   }
-  const action = planWebhook(address, live, { adoptSingle: dev });
-  const others = unmanagedWebhooks(address, live).length - (action.kind === "update-address" ? 1 : 0);
+  const action = planWebhook(address, live, { adoptSingle: dev || adopt });
+  const unmanaged = unmanagedWebhooks(address, live).filter((w) => !(action.kind === "update-address" && w.id === action.id));
+  const others = unmanaged.length;
   if (action.kind === "ok") note(`webhooks: ok (${address} is enabled)`);
   else {
     changes++;
@@ -112,7 +105,13 @@ async function webhooks() {
     if (action.kind === "enable") note(`webhooks: ~ enable the webhook at ${address}`);
     if (action.kind === "update-address") note(`webhooks: ~ move the webhook from ${action.from} to ${address} (keeps its secret)`);
   }
-  if (others > 0) note(`webhooks: ${others} other webhook(s) in this environment are not managed here and are left alone`);
+  if (others > 0) {
+    note(`webhooks: ${others} other webhook(s) in this environment are not managed here and are left alone:`);
+    for (const w of unmanaged) note(`  ${describeAddress(w.address)} (${w.enabled ? "enabled" : "disabled"})`);
+    if (action.kind === "create" && others === 1 && !dev) {
+      note("  If that is this app's webhook at another address, do not push (a second webhook would double every delivery): run `diff --adopt` to see it moved to the address above, keeping its signing secret.");
+    }
+  }
   if (!push || action.kind === "ok") return;
 
   if (action.kind === "enable") await mux(systemAuth, "PATCH", `/system/v1/webhooks/${action.id}`, { enabled: true });
@@ -131,7 +130,8 @@ async function webhooks() {
 }
 
 async function restrictions() {
-  const auth = systemAuth ?? appAuth;
+  // Playback restrictions are part of Mux Video, which the app token has; the System token (webhooks) does not.
+  const auth = appAuth ?? systemAuth;
   if (!auth) fail("MUX_TOKEN_ID / MUX_TOKEN_SECRET are not set");
   const live = await listAll<LiveRestriction>(auth, "/video/v1/playback-restrictions");
   if (!live) fail("the token was refused for playback restrictions (it needs Mux Video access)");

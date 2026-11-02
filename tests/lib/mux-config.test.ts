@@ -3,8 +3,11 @@ import { describe, expect, it } from "vitest";
 import { parse as parseYaml } from "yaml";
 import appConfig from "@/app.config";
 import {
+  describeAddress,
   devWebhookAddress,
   envValue,
+  normalizeAddress,
+  sameAddress,
   parseMuxConfig,
   planRestriction,
   planWebhook,
@@ -133,5 +136,45 @@ describe("env file helpers", () => {
     expect(envValue("K=\n", "K")).toBe("");
     expect(envValue("A=1\n", "K")).toBe("");
     expect(envValue('K="abc"\n', "K")).toBe("abc");
+  });
+});
+
+describe("webhook addresses", () => {
+  const want = "https://x.test/api/webhooks/mux";
+
+  it("treats a trailing slash, host case and a default port as the same place, but not another path, host or query", () => {
+    expect(sameAddress(want, "https://x.test/api/webhooks/mux/")).toBe(true);
+    expect(sameAddress(want, "https://X.Test/api/webhooks/mux")).toBe(true);
+    expect(sameAddress(want, "https://x.test:443/api/webhooks/mux")).toBe(true);
+    expect(sameAddress(want, " https://x.test/api/webhooks/mux ")).toBe(true);
+    expect(sameAddress(want, "https://x.test/api/webhooks/MUX")).toBe(false);
+    expect(sameAddress(want, "https://y.test/api/webhooks/mux")).toBe(false);
+    expect(sameAddress(want, "http://x.test/api/webhooks/mux")).toBe(false);
+    expect(sameAddress(want, "https://x.test/api/webhooks/mux?a=1")).toBe(false);
+    expect(normalizeAddress("not a url ")).toBe("not a url");
+  });
+
+  it("finds the existing webhook when it differs only by a trailing slash, instead of planning a second one", () => {
+    expect(planWebhook(want, [hook("https://x.test/api/webhooks/mux/")])).toEqual({ kind: "ok", id: "w1" });
+    expect(planWebhook(want, [hook("https://X.test/api/webhooks/mux/", false)])).toEqual({ kind: "enable", id: "w1", address: want });
+    expect(unmanagedWebhooks(want, [hook("https://x.test/api/webhooks/mux/")])).toEqual([]);
+  });
+
+  it("prints an address without credentials or a query, and marks that a query was there", () => {
+    expect(describeAddress("https://user:pass@x.test/api/webhooks/mux?token=secret")).toBe("https://x.test/api/webhooks/mux?(query hidden)");
+    expect(describeAddress("https://x.test/api/webhooks/mux")).toBe("https://x.test/api/webhooks/mux");
+    const printed = describeAddress("https://user:pass@x.test/p?token=secret");
+    for (const secret of ["user", "pass", "token", "secret"]) expect(printed).not.toContain(secret);
+    expect(describeAddress("nope")).toBe("(not a URL)");
+  });
+
+  it("moves the one webhook that exists at another address when adopting (keeping its secret), but still never touches several", () => {
+    expect(planWebhook(want, [hook("https://old.test/api/webhooks/mux")], { adoptSingle: true })).toEqual({
+      kind: "update-address",
+      id: "w1",
+      from: "https://old.test/api/webhooks/mux",
+      to: want,
+    });
+    expect(planWebhook(want, [hook("https://a.test/x"), hook("https://b.test/x", true, "w2")], { adoptSingle: true }).kind).toBe("create");
   });
 });
