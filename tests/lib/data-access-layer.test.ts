@@ -153,6 +153,7 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   course_lessons: [],
   course_lesson_files: [],
   videos: [],
+  video_text_tracks: [],
   lesson_progress: [],
   course_access: [],
   course_access_grants: [],

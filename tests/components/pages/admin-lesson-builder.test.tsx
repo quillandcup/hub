@@ -58,6 +58,7 @@ const detail = (over: Partial<AdminLessonDetail> = {}, lesson: Partial<AdminLess
   files: [{ id: null, filename: "Tracker_Sheet.pdf", sizeBytes: 2048 }],
   hub: { slug: "the-ready-writer", lessonId: "les_AAAAAAAAAAA1" },
   video: { status: "ready", playbackId: "pb1" },
+  captions: [],
   editable: false,
   ...over,
 });
@@ -174,6 +175,25 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     expect(screen.getByRole("button", { name: "Image actions" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Choose thumbnail" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /as the thumbnail$/ })).not.toBeInTheDocument();
+  });
+
+  it("lists the captions of a Hub-owned lesson's ready video with the means to add them, and shows an imported lesson's none", async () => {
+    loadAdminLesson.mockResolvedValue(detail({ editable: true, captions: [{ id: "00000000-0000-4000-a000-000000000001", label: "English", language: "en", kind: "captions", source: "manual" }] }));
+    const { unmount } = await renderServerPage(AdminLessonPage, params);
+    expect(screen.getByRole("heading", { name: "Captions" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove English" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Upload captions" })).toBeEnabled();
+    unmount();
+
+    // Not before the video is ready, and not for an imported lesson.
+    loadAdminLesson.mockResolvedValue(detail({ editable: true, video: { status: "preparing", playbackId: null } }));
+    const { unmount: second } = await renderServerPage(AdminLessonPage, params);
+    expect(screen.queryByRole("heading", { name: "Captions" })).not.toBeInTheDocument();
+    second();
+
+    loadAdminLesson.mockResolvedValue(detail({ editable: false }));
+    await renderServerPage(AdminLessonPage, params);
+    expect(screen.queryByRole("heading", { name: "Captions" })).not.toBeInTheDocument();
   });
 
   it("gives a Hub-owned lesson an editor for its text, and an imported one only the text", async () => {

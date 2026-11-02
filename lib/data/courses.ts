@@ -20,6 +20,8 @@ export type NewLesson = Insert<"course_lessons">;
 export type NewLessonFile = Insert<"course_lesson_files">;
 export type NewVideo = Insert<"videos">;
 export type VideoPatch = Update<"videos">;
+export type TextTrackRecord = Row<"video_text_tracks">;
+export type NewTextTrack = Insert<"video_text_tracks">;
 
 /** Which courses to read: a course's origin, whether it is a draft, and a set of ids. Omitted = no restriction. */
 export type CourseFilter = { source?: string; isDraft?: boolean; ids?: string[] };
@@ -156,6 +158,15 @@ export interface CourseRepository {
   preparingVideos(): Promise<{ id: string; mux_asset_id: string }[]>;
   /** Updates the video of a Mux asset and returns how many rows that was (0 = no video has that asset yet). */
   updateVideosByAsset(assetId: string, patch: VideoPatch): Promise<number>;
+  /** A video's caption, subtitle and transcript tracks, oldest first. */
+  textTracksOf(videoId: string): Promise<TextTrackRecord[]>;
+  /** One of a video's tracks, or null. */
+  textTrack(videoId: string, trackId: string): Promise<TextTrackRecord | null>;
+  /** Adds a track and returns its id. */
+  addTextTrack(track: NewTextTrack): Promise<string>;
+  /** Updates a track (the Mux track id once it is attached, for one). */
+  updateTextTrack(id: string, patch: Update<"video_text_tracks">): Promise<void>;
+  deleteTextTrack(id: string): Promise<void>;
   /**
    * Points a Hub-owned lesson of the course at a video (null takes it off) and clears the lesson's length, which
    * {@link syncLessonDurations} fills in once the video has one. False when no such lesson matches.
@@ -466,6 +477,30 @@ export class SupabaseCourseRepository implements CourseRepository {
     const { data, error } = await this.db.from("videos").update(patch).eq("mux_asset_id", assetId).select("id");
     if (error) throw new Error(error.message);
     return (data ?? []).length;
+  }
+
+  async textTracksOf(videoId: string) {
+    return must(await this.db.from("video_text_tracks").select("*").eq("video_id", videoId).order("created_at").order("id")) ?? [];
+  }
+
+  async textTrack(videoId: string, trackId: string) {
+    return must(await this.db.from("video_text_tracks").select("*").eq("video_id", videoId).eq("id", trackId).maybeSingle());
+  }
+
+  async addTextTrack(track: NewTextTrack) {
+    const { data, error } = await this.db.from("video_text_tracks").insert(track).select("id").single();
+    if (error) throw writeError(error);
+    return data.id;
+  }
+
+  async updateTextTrack(id: string, patch: Update<"video_text_tracks">) {
+    const { error } = await this.db.from("video_text_tracks").update(patch).eq("id", id);
+    if (error) throw writeError(error);
+  }
+
+  async deleteTextTrack(id: string) {
+    const { error } = await this.db.from("video_text_tracks").delete().eq("id", id);
+    if (error) throw writeError(error);
   }
 
   async setLessonVideo(target: { id: string; courseId: string }, videoId: string | null) {
@@ -995,6 +1030,37 @@ export class InMemoryCourseRepository implements CourseRepository {
       video.updated_at = now();
     }
     return matching.length;
+  }
+
+  async textTracksOf(videoId: string) {
+    return this.data.videoTextTracks
+      .filter((t) => t.video_id === videoId)
+      .map(copy)
+      .sort((a, b) => compareText(a.created_at, b.created_at)); // a stable sort: tracks added in the same millisecond keep the order they came in
+  }
+
+  async textTrack(videoId: string, trackId: string) {
+    const track = this.data.videoTextTracks.find((t) => t.video_id === videoId && t.id === trackId);
+    return track ? copy(track) : null;
+  }
+
+  async addTextTrack(track: NewTextTrack) {
+    if (!this.data.videos.some((v) => v.id === track.video_id)) throw new CourseWriteError("insert or update on table \"video_text_tracks\" violates foreign key constraint", "23503");
+    const stamp = now();
+    const id = crypto.randomUUID();
+    this.data.videoTextTracks.push({ id, created_at: stamp, updated_at: stamp, is_default: false, mux_track_id: null, storage_path: null, ...track } as Row<"video_text_tracks">);
+    return id;
+  }
+
+  async updateTextTrack(id: string, patch: Update<"video_text_tracks">) {
+    const track = this.data.videoTextTracks.find((t) => t.id === id);
+    if (!track) return;
+    apply(track, patch);
+    track.updated_at = now();
+  }
+
+  async deleteTextTrack(id: string) {
+    this.data.videoTextTracks = this.data.videoTextTracks.filter((t) => t.id !== id);
   }
 
   async setLessonVideo(target: { id: string; courseId: string }, videoId: string | null) {

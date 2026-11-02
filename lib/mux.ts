@@ -78,6 +78,53 @@ export function uploadAssetFromEvent(event: { type: string; data?: unknown }): {
   return data?.id && data.asset_id ? { uploadId: data.id, assetId: data.asset_id } : null;
 }
 
+/** Whether a Mux client error is "not found" (the track or asset is already gone). */
+const isNotFound = (error: unknown) => (error as { status?: number } | null)?.status === 404;
+
+/**
+ * Attaches a caption or subtitle file to an asset: Mux downloads it from `url` (a short-lived link to our copy) and the
+ * player then offers it from the stream. Mux reads SubRip (SRT) and WebVTT. `closedCaptions` marks one that also describes sounds.
+ */
+export async function addTextTrack(
+  mux: Mux,
+  assetId: string,
+  opts: { url: string; language: string; name: string; closedCaptions: boolean },
+): Promise<{ trackId: string }> {
+  const track = await mux.video.assets.createTrack(assetId, {
+    type: "text",
+    text_type: "subtitles",
+    url: opts.url,
+    language_code: opts.language,
+    name: opts.name,
+    closed_captions: opts.closedCaptions,
+  });
+  if (!track.id) throw new Error("Mux attached a track with no id");
+  return { trackId: track.id };
+}
+
+/** Takes a text track off an asset. A track Mux no longer has is already what was wanted. */
+export async function removeTextTrack(mux: Mux, assetId: string, trackId: string): Promise<void> {
+  try {
+    await mux.video.assets.deleteTrack(assetId, trackId);
+  } catch (error) {
+    if (!isNotFound(error)) throw error;
+  }
+}
+
+/** Languages Mux can write subtitles for from the audio (its automatic speech recognition). */
+export type GeneratedSubtitleLanguage = NonNullable<NonNullable<Parameters<Mux["video"]["assets"]["generateSubtitles"]>[2]["generated_subtitles"][number]["language_code"]>>;
+
+/** Asks Mux to write subtitles for the asset's audio. The track appears at once and fills in when Mux has finished. */
+export async function generateTextTrack(mux: Mux, assetId: string, opts: { language: GeneratedSubtitleLanguage; name: string }): Promise<{ trackId: string }> {
+  const asset = await mux.video.assets.retrieve(assetId);
+  const audio = asset.tracks?.find((t) => t.type === "audio" && t.id);
+  if (!audio?.id) throw new Error("The asset has no audio to write subtitles for");
+  const tracks = await mux.video.assets.generateSubtitles(assetId, audio.id, { generated_subtitles: [{ language_code: opts.language, name: opts.name }] });
+  const made = tracks.find((t) => t.type === "text" && t.id);
+  if (!made?.id) throw new Error("Mux made no subtitle track");
+  return { trackId: made.id };
+}
+
 export interface MuxAssetStatus {
   status: "preparing" | "ready" | "errored";
   durationSeconds?: number;
