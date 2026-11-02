@@ -71,6 +71,9 @@ export const SLACK_ALERTS_CHANNEL_ID = appConfig.slack.alertsChannelId;
 /** First day (YYYY-MM-DD) prickle attendance is recorded from. */
 export const ATTENDANCE_DATA_STARTS_ON = appConfig.attendanceDataStartsOn;
 
+/** The course the Courses page offers to members who have none, and where it is bought (app.config.ts `featuredCourse`). */
+export const FEATURED_COURSE = appConfig.featuredCourse;
+
 /** The `From` of notification emails: `Name <address>`. */
 export const EMAIL_FROM = `${appConfig.email.fromName} <${appConfig.email.fromAddress}>`;
 
