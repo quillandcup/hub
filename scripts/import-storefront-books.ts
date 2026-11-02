@@ -9,7 +9,7 @@
  * The spec is a JSON array kept outside the repo (it names members), one object per book:
  *   { "memberName": "...", "title": "...", "coverUrl": "https://...", "purchaseUrl": "https://...",
  *     "publishedDate": "YYYY-MM-DD", "price": 4.99, "format": "ebook" | "print" }
- * `format` defaults to print. Take the cover, price and dates from the store's product data: the page's buy buttons read
+ * Every field is required (`import-storefront-books-spec.ts` lists what is wrong before anything runs). Take the cover, price and dates from the store's product data: the page's buy buttons read
  * it with a public storefront token that is in the page's HTML.
  *
  * Without --apply it checks each book (the member is found exactly once, it isn't already on their shelf, the cover
@@ -24,16 +24,7 @@ import { createRepos } from "../lib/data/repos";
 import { storeImage } from "../lib/media/library";
 import { bookCoverUrlFor } from "../lib/bookCover";
 import { loadLayeredEnv } from "./load-layered-env";
-
-interface Spec {
-  memberName: string;
-  title: string;
-  coverUrl: string;
-  purchaseUrl: string;
-  publishedDate: string;
-  price: number;
-  format?: "print" | "ebook";
-}
+import { parseBookSpec } from "./import-storefront-books-spec";
 
 const USAGE = "Usage: pnpm books:import --spec <file> [--env <file>] [--apply]";
 
@@ -50,6 +41,12 @@ async function main() {
     console.error(USAGE);
     process.exit(1);
   }
+  const parsed = parseBookSpec(JSON.parse(readFileSync(specFile, "utf8")));
+  if (!parsed.ok) {
+    console.error(`${specFile}:\n  ${parsed.errors.join("\n  ")}`);
+    process.exit(1);
+  }
+  const specs = parsed.books;
   loadLayeredEnv(envFile);
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -59,7 +56,6 @@ async function main() {
   }
   const db = createClient<Database>(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
   const repos = createRepos(db);
-  const specs = JSON.parse(readFileSync(specFile, "utf8")) as Spec[];
   const members = await repos.members.list();
   console.log(`${apply ? "Adding" : "Checking (nothing will be written)"} ${specs.length} book(s) in ${new URL(url).host}`);
 
@@ -99,7 +95,7 @@ async function main() {
       purchase_url: spec.purchaseUrl,
       published_date: spec.publishedDate,
       price: spec.price,
-      format: spec.format ?? "print",
+      format: spec.format,
     });
     console.log(`  "${spec.title}": added ${id}, cover ${stored.asset.id} (${stored.asset.width} x ${stored.asset.height})`);
   }
