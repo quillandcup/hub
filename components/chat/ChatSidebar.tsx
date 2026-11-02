@@ -278,9 +278,9 @@ export default function ChatSidebar({
             className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
           >
             <svg aria-hidden="true" viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M5 2 4 11M9.5 2 8.5 11M2 5h9M1.5 8.5h9" />
-              <circle cx="11.5" cy="11.5" r="2.5" />
-              <path d="m13.5 13.5 1.5 1.5" />
+              <path d="M2 3h11M2 7h6M2 11h4" />
+              <circle cx="10.5" cy="10" r="2.5" />
+              <path d="m12.4 11.9 2 2" />
             </svg>
             {browsing ? "Hide other channels" : "Browse channels"}
           </button>
