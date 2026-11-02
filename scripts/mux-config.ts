@@ -5,8 +5,8 @@
 //
 //   tsx scripts/mux-config.ts diff            what a push would change (read-only)
 //   tsx scripts/mux-config.ts push            apply it
-//   tsx scripts/mux-config.ts diff|push --dev a developer's own Mux environment: only the webhook,
-//                                             pointing at https://$TUNNEL_DOMAIN/api/webhooks/mux
+//   tsx scripts/mux-config.ts diff|push --dev a developer's own Mux environment (.env.local): its
+//                                             playback restriction, and its webhook pointing at https://$TUNNEL_DOMAIN/api/webhooks/mux
 //   --adopt                                   when exactly one webhook exists at another address and it is this
 //                                             app's, move it to the configured address (keeps its signing secret)
 //   --replace-secret                          allow creating a webhook although MUX_WEBHOOK_SECRET
@@ -20,7 +20,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
 import appConfig from "../app.config";
-import { devWebhookAddress, envValue, parseMuxConfig, planRestriction, planWebhook, restrictionBody, setEnvValue, unmanagedWebhooks, webhookAddress, type LiveRestriction, type LiveWebhook, describeAddress, looksLikeTunnel, sameAddress } from "../lib/mux-config";
+import { devWebhookAddress, envValue, parseMuxConfig, planRestriction, planWebhook, restrictionBody, restrictionEnvAdvice, setEnvValue, unmanagedWebhooks, webhookAddress, type LiveRestriction, type LiveWebhook, describeAddress, looksLikeTunnel, sameAddress } from "../lib/mux-config";
 
 const API = "https://api.mux.com";
 const [command, ...flags] = process.argv.slice(2);
@@ -137,6 +137,12 @@ async function webhooks() {
   }
 }
 
+/** The restriction's id is configuration, not a secret: always say it, and the env line that uses it. */
+function adviseId(id: string) {
+  const advice = restrictionEnvAdvice(id, process.env.MUX_PLAYBACK_RESTRICTION_ID);
+  if (advice) note(`  ${advice}`);
+}
+
 async function restrictions() {
   // Playback restrictions are part of Mux Video, which the app token has; the System token (webhooks) does not.
   const auth = appAuth ?? systemAuth;
@@ -145,7 +151,10 @@ async function restrictions() {
   if (!live) fail("the token was refused for playback restrictions (it needs Mux Video access)");
   const action = planRestriction(config.restriction, live);
   const want = config.restriction;
-  if (action.kind === "ok") note(`playback restriction: ok (${want.allowedDomains.length} domains, no-referrer ${want.allowNoReferrer ? "allowed" : "denied"})`);
+  if (action.kind === "ok") {
+    note(`playback restriction: ok (id ${action.id}, ${want.allowedDomains.length} domains, no-referrer ${want.allowNoReferrer ? "allowed" : "denied"})`);
+    adviseId(action.id);
+  }
   else if (action.kind === "ambiguous") {
     note(`playback restriction: ${action.count} exist and none can be told apart as ours; nothing is changed. Delete the extras in the dashboard.`);
     changes++;
@@ -159,16 +168,19 @@ async function restrictions() {
   if (action.kind === "create") {
     const created = await mux<{ id: string }>(auth, "POST", "/video/v1/playback-restrictions", { referrer: restrictionBody(want) });
     note(`playback restriction: created (id ${created.data?.id}). Tokens only honor it when they carry this id as playback_restriction_id.`);
+    if (created.data?.id) adviseId(created.data.id);
   } else {
     await mux(auth, "PUT", `/video/v1/playback-restrictions/${action.id}/referrer`, restrictionBody(want));
-    note("playback restriction: updated");
+    note(`playback restriction: updated (id ${action.id})`);
+    adviseId(action.id);
   }
 }
 
 async function main() {
   note(`${push ? "Pushing" : "Diffing"} mux-config.yml against ${dev ? "your dev" : "the production"} Mux environment`);
+  // Restriction first: with --dev the webhook part stops without a tunnel, the restriction does not need one.
+  await restrictions();
   await webhooks();
-  if (!dev) await restrictions();
   note(changes === 0 ? "✓ nothing to change" : push ? `✓ applied ${changes} change(s)` : `${changes} change(s) pending; run mux:config:push to apply`);
 }
 

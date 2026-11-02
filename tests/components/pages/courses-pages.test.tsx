@@ -24,6 +24,8 @@ vi.mock("@/lib/courses/member", async (importOriginal) => ({
 
 const signPlaybackTokens = vi.fn();
 vi.mock("@/lib/mux", () => ({ createMuxClient: () => ({}), signPlaybackTokens: (...a: unknown[]) => signPlaybackTokens(...a) }));
+const restrictionIdForViewer = vi.fn();
+vi.mock("@/lib/mux-restriction.server", () => ({ restrictionIdForViewer: (...a: unknown[]) => restrictionIdForViewer(...a) }));
 vi.mock("@/components/courses/LessonPlayer", () => ({
   default: ({ playbackId, posterUrl, lessonId, resumeSeconds, trackProgress }: { playbackId: string; posterUrl?: string | null; lessonId?: string; resumeSeconds?: number; trackProgress?: boolean }) => (
     <div data-testid="player" data-poster={posterUrl ?? ""} data-lesson={lessonId} data-resume={resumeSeconds} data-tracking={String(trackProgress)}>
@@ -62,6 +64,8 @@ beforeEach(() => {
   loadCourseView.mockReset();
   loadLessonView.mockReset();
   signPlaybackTokens.mockReset();
+  restrictionIdForViewer.mockReset();
+  restrictionIdForViewer.mockResolvedValue(null);
   caller.identity.isSudo = false;
   caller.scope.isAdminActing = false;
 });
@@ -634,7 +638,17 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
     await renderServerPage(LessonPage, params());
 
     expect(screen.getByTestId("player")).toHaveTextContent("pb-1");
-    expect(signPlaybackTokens).toHaveBeenCalledWith({}, "pb-1");
+    expect(signPlaybackTokens).toHaveBeenCalledWith({}, "pb-1", undefined, null);
+  });
+
+  it("passes the viewer's restriction id to the token signing, asking for the effective viewer", async () => {
+    restrictionIdForViewer.mockResolvedValue("res-1");
+    signPlaybackTokens.mockResolvedValue({ playback: "p", poster: "t", storyboard: "s" });
+    loadLessonView.mockResolvedValue(ok({ video: { status: "ready", playbackId: "pb-1" } }));
+    await renderServerPage(LessonPage, params());
+
+    expect(restrictionIdForViewer).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ memberId: expect.any(String) }));
+    expect(signPlaybackTokens).toHaveBeenCalledWith({}, "pb-1", undefined, "res-1");
   });
 
   it("gives the player the lesson's own thumbnail as its poster", async () => {

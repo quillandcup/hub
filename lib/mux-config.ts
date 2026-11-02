@@ -170,6 +170,21 @@ export const restrictionBody = (want: DesiredRestriction) => ({
   allow_no_referrer: want.allowNoReferrer,
 });
 
+/** The env line that makes the app use this restriction. The id is configuration, not a secret. */
+export const restrictionEnvLine = (id: string) => `MUX_PLAYBACK_RESTRICTION_ID=${id}`;
+
+/**
+ * What to tell the operator about the live restriction's id against `MUX_PLAYBACK_RESTRICTION_ID` as the
+ * script loaded it (`current`): nothing more when it matches, the line to add when it is unset, and a
+ * warning when it holds a different id (the token would carry an id Mux does not know).
+ */
+export function restrictionEnvAdvice(id: string, current: string | undefined): string | null {
+  const set = current?.trim();
+  if (set === id) return null;
+  if (!set) return `MUX_PLAYBACK_RESTRICTION_ID is not set in this environment. To use it, add this line to the env file: ${restrictionEnvLine(id)}`;
+  return `MUX_PLAYBACK_RESTRICTION_ID in this environment is ${set}, not the live restriction's id. Set it to: ${restrictionEnvLine(id)}`;
+}
+
 /**
  * Set `KEY=value` in the text of an env file: replace the line if there is one, else append. Used
  * to save a new webhook's signing secret without it ever being printed.

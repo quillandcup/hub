@@ -14,7 +14,31 @@ The webhook address is `<APP_URL>/api/webhooks/mux` (`APP_URL` is `appUrl` in `a
 | Spending alerts | no, no API | Dashboard only (up to 3, email, paid plans). Manual checklist: alerts above $10, $25 and $75 (done 2026-10-28). |
 | Access tokens | no | Created by hand; see "Tokens". |
 
-**A playback restriction does nothing by itself.** Mux applies it only to a token that carries its id as the `playback_restriction_id` claim, and `signPlaybackTokens` in `lib/mux.ts` doesn't add one yet (tracked in `docs/TODO.md`, "Mux configuration as code"). Creating the restriction first is harmless.
+**A playback restriction does nothing by itself.** Mux applies it only to a token that carries its id as the `playback_restriction_id` claim. Creating the restriction is harmless; enforcing it is a separate, switchable step (next section).
+
+## Enforcing the restriction
+
+`signPlaybackTokens` (`lib/mux.ts`) adds the claim to the **video** token (the stream) when both hold:
+
+1. `MUX_PLAYBACK_RESTRICTION_ID` is set in that deployment (a non-secret env var, declared in `env-vars.config.ts`, synced to Vercel preview and production). The id is **per Mux environment**: production's, the "Hedgie Hub - Local Dev" environment's (used by preview and local) and the checks environment's all differ. Unset means nothing is enforced.
+2. The `mux_playback_restriction` feature flag is on for the effective viewer (the sudo'd member in sudo). It is created off (`enabled_globally = false`) and is turned on from the feature flags admin UI: first as your own preview, then a segment, then everyone.
+
+Otherwise the tokens are exactly what they were before. Thumbnail and storyboard tokens never carry the claim: Mux supports it on every token type, but the stream is what we protect, and images are what a wrong domain list would break most confusingly. Only the member lesson page passes the id; the admin lesson builder's player stays unrestricted. The nightly Checkly stream check uses a separate Mux environment with no restriction and tokens from `__checks__/mux-token.ts`, so it is unaffected and needs no change now. If you ever want it to prove enforcement, that environment needs its own restriction and the check's token needs the same claim.
+
+**Rollout, in order**
+
+1. Production: put `MUX_PLAYBACK_RESTRICTION_ID=<id>` in `.env.prod`, then `pnpm env:sync --only=MUX_PLAYBACK_RESTRICTION_ID --target=production`. Preview: the Local Dev environment's id in `.env.preview`, `pnpm env:sync --only=MUX_PLAYBACK_RESTRICTION_ID --target=preview` (see "The Local Dev environment" below).
+2. Turn `mux_playback_restriction` on for yourself only (admin feature flags page, your own preview). Nobody else is affected.
+3. In a real browser, on production and on a preview, open a lesson with video: desktop Chrome and Safari, and a phone including Safari on iOS (which sends no `Referer`, allowed by `allowNoReferrer`). Check the video plays, seeking works, and that a request from another site is refused (403).
+4. Widen the flag. To back out at any time, turn the flag off (tokens revert at once) or unset the env var.
+
+## Finding the restriction's id
+
+It is configuration, not a secret. `pnpm mux:config:diff` prints it on the "playback restriction" line (and `push` prints it when it creates or updates one), together with the exact `MUX_PLAYBACK_RESTRICTION_ID=<id>` line to add when the loaded environment doesn't have it. Or ask Mux directly: `GET /video/v1/playback-restrictions` (Basic auth with the environment's `MUX_TOKEN_ID`/`MUX_TOKEN_SECRET`), the `id` of the one entry.
+
+## The Local Dev environment
+
+Preview deployments and local development use a different Mux environment with its own keys, so they need their own restriction. The `:dev` scripts manage the restriction too (they read `.env.local`, whose `MUX_TOKEN_ID`/`MUX_TOKEN_SECRET` are that environment's): `pnpm mux:config:diff:dev`, then `pnpm mux:config:push:dev` creates it (the webhook part needs `TUNNEL_DOMAIN` and a System token and is independent of this). The dev restriction uses the same domain list from `mux-config.yml`. Then set the printed id as `MUX_PLAYBACK_RESTRICTION_ID` in `.env.local` and `.env.preview`.
 
 ## Day to day
 

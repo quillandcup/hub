@@ -5,6 +5,7 @@ import { requireCoursesPage } from "@/lib/courses/caller";
 import { loadLessonView } from "@/lib/courses/member";
 import { lessonContext, lessonSection, nextModuleLesson, type OutlineLesson } from "@/lib/courses/outline";
 import { createMuxClient, signPlaybackTokens } from "@/lib/mux";
+import { restrictionIdForViewer } from "@/lib/mux-restriction.server";
 import { startSeconds } from "@/lib/courses/watch";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { courseTitle, lessonTitles } from "@/lib/courses/page-title";
@@ -24,9 +25,9 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 }
 
 /** Playback tokens, only for a ready video and only after the access check has passed. */
-async function mintTokens(playbackId: string): Promise<PlaybackTokens | null> {
+async function mintTokens(playbackId: string, restrictionId: string | null): Promise<PlaybackTokens | null> {
   try {
-    return await signPlaybackTokens(createMuxClient(), playbackId);
+    return await signPlaybackTokens(createMuxClient(), playbackId, undefined, restrictionId);
   } catch (error) {
     console.error("Couldn't mint Mux playback tokens:", error instanceof Error ? error.message : error);
     return null;
@@ -109,7 +110,7 @@ export default async function LessonPage({
 
   let player: React.ReactNode = null;
   if (video) {
-    const tokens = video.status === "ready" && video.playbackId ? await mintTokens(video.playbackId) : null;
+    const tokens = video.status === "ready" && video.playbackId ? await mintTokens(video.playbackId, await restrictionIdForViewer(caller.userId, caller.identity)) : null;
     player =
       tokens && video.playbackId ? (
         <LessonPlayer

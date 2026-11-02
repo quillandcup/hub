@@ -1,4 +1,4 @@
-export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat' | 'chat_posting' | 'big_sisters' | 'intro_reminders' | 'prickle_reminders' | 'courses' | 'hosting';
+export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat' | 'chat_posting' | 'big_sisters' | 'intro_reminders' | 'prickle_reminders' | 'courses' | 'hosting' | 'mux_playback_restriction';
 
 export interface FeaturePreview {
   key: FeatureKey;
@@ -76,5 +76,10 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     key: 'hosting',
     name: 'Hosting',
     description: 'Hosting for members: the Hosting tab in My Prickles (stats, monthly slot requests), the host vibe settings, and the hosting steps of the Getting started tour. Hidden until the change of process is agreed with the staff who run it; staff-side host tools are unaffected',
+  },
+  {
+    key: 'mux_playback_restriction',
+    name: 'Mux playback restriction',
+    description: 'Makes course video play only from the Hub, preview and local sites (plus devices that send no referrer) by adding the Mux playback restriction to the video token. Wrong settings stop video playing for whoever it covers, so turn it on for yourself first, watch videos on desktop and phone (including Safari on iPhone), then widen it. Does nothing where MUX_PLAYBACK_RESTRICTION_ID is not set',
   },
 ];
