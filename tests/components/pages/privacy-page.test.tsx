@@ -149,6 +149,8 @@ describe("/privacy page", () => {
     expect(chat.getByText(/we will record who looked, why and when/)).toBeInTheDocument();
     expect(chat.getByText("Break-glass access")).toBeInTheDocument();
     expect(chat.getByText(/It doesn't give the Hub access to your one-on-one Slack direct messages/)).toBeInTheDocument();
+    // Staff can use Billie Bot for some operations (membership changes fall back to it), so the page doesn't claim the Hub acts *only* as the member.
+    expect(chat.queryByText(/and only as you/)).not.toBeInTheDocument();
     expect(chat.getByText("Viewing the Hub as you")).toBeInTheDocument();
     expect(chat.getByText(/when you last read it/)).toBeInTheDocument();
   });
