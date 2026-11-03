@@ -10,6 +10,17 @@ const FROZEN = "data-frozen-src";
 /** An emoji whose host sends no CORS headers (Slack's CDN): its frame can't be read, so it stays as it is. */
 const UNFREEZABLE = "data-unfreezable";
 
+/** DOM text as an http(s) address, or null: an attribute is never trusted to be a safe src (no javascript: or data: schemes). */
+function httpAddress(text: string | null): string | null {
+  if (!text) return null;
+  try {
+    const url = new URL(text, window.location.href);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Replace a moving image with its first frame; when the browser won't let us read it, with its alt text. */
 function freeze(img: HTMLImageElement) {
   if (img.hasAttribute(FROZEN) || img.hasAttribute(UNFREEZABLE) || img.hasAttribute("data-playing")) return;
@@ -18,7 +29,7 @@ function freeze(img: HTMLImageElement) {
   img.setAttribute(FROZEN, original);
 
   // An image that comes with its own still (a custom emoji copied into our storage) just swaps to it: no drawing, no CORS.
-  const still = img.getAttribute("data-still");
+  const still = httpAddress(img.getAttribute("data-still"));
   if (still) {
     img.src = still;
     return;
@@ -62,8 +73,8 @@ function thaw(img: HTMLImageElement) {
   if (!original) return;
   img.removeAttribute(FROZEN);
   // The attribute is DOM text: only restore a plain http(s) address, never a javascript: or other scheme.
-  const url = new URL(original, window.location.href);
-  if (url.protocol === "http:" || url.protocol === "https:") img.src = url.href;
+  const address = httpAddress(original);
+  if (address) img.src = address;
 }
 
 function eachImage(root: ParentNode, fn: (img: HTMLImageElement) => void) {
@@ -101,8 +112,7 @@ export function AnimationsController() {
           } else if (r.type === "attributes" && r.target instanceof HTMLImageElement) {
             // React reusing an <img> for another source: freeze the new one.
             const img = r.target;
-            const still = img.getAttribute("data-still");
-            if (img.getAttribute(FROZEN) !== img.src && !img.src.startsWith("data:") && !(still && img.src === new URL(still, window.location.href).href)) {
+            if (img.getAttribute(FROZEN) !== img.src && !img.src.startsWith("data:") && img.src !== httpAddress(img.getAttribute("data-still"))) {
               img.removeAttribute(FROZEN);
               img.removeAttribute(UNFREEZABLE);
               freeze(img);

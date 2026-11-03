@@ -188,6 +188,15 @@ describe("freezing images", () => {
     await waitFor(() => expect(emoji.getAttribute("src")).toBe("https://cdn.test/abc.png"));
   });
 
+  it("ignores a still that is not an http(s) address", () => {
+    mockMotion(false);
+    localStorage.setItem(ANIMATIONS_STORAGE_KEY, "reduce");
+    document.body.innerHTML = '<img id="e" src="https://cdn.test/a.gif" data-still="javascript:alert(1)" alt=":x:">';
+    render(<AnimationsController />);
+    const emoji = document.getElementById("e") as HTMLImageElement;
+    expect(emoji.getAttribute("src")).not.toContain("javascript:");
+  });
+
   it("leaves ordinary images alone", () => {
     mockMotion(false);
     localStorage.setItem(ANIMATIONS_STORAGE_KEY, "reduce");
