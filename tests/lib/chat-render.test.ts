@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { emojiNamesIn, mentionedUserIds, mentionsToPlainText, parseInline, parseSlackText } from "@/lib/chat/render";
+import { emojiNamesIn, listMarker, mentionedUserIds, mentionsToPlainText, parseInline, parseSlackText } from "@/lib/chat/render";
 
 const text = (v: string) => ({ t: "text", v });
 
@@ -78,9 +78,27 @@ describe("parseSlackText", () => {
   it("reads bullet lines", () => {
     expect(parseSlackText("list:\n• one\n• *two*")).toEqual([
       { t: "line", c: [text("list:")], gap: false },
-      { t: "bullet", c: [text("one")] },
-      { t: "bullet", c: [{ t: "bold", c: [text("two")] }] },
+      { t: "bullet", c: [text("one")], indent: 0 },
+      { t: "bullet", c: [{ t: "bold", c: [text("two")] }], indent: 0 },
     ]);
+  });
+
+  it("reads numbered lines and nested items, however far each is indented, and starts again after a blank line or other text", () => {
+    const items = (body: string) => parseSlackText(body).map((b) => (b.t === "bullet" ? `${b.indent}${b.n ?? "•"}` : b.t));
+    // Ours indent two spaces, Slack's own text four; the level is how many deeper than the item above, not the width.
+    expect(items("1. a\n2. b\n  1. c\n  2. d\n    1. e\n3. f")).toEqual(["01", "02", "11", "12", "21", "03"]);
+    expect(items("• a\n    ◦ b\n        ▪ c\n    ◦ d\n• e")).toEqual(["0•", "1•", "2•", "1•", "0•"]);
+    expect(items("• a\n\n    • b")).toEqual(["0•", "0•"]);
+    expect(items("• a\ntext\n    • b")).toEqual(["0•", "line", "0•"]);
+    // Things that look like numbers but aren't list items.
+    expect(items("1.5 million\n2024.no space\n3.")).toEqual(["line", "line", "line"]);
+  });
+
+  it("draws the marker Slack does: •, ◦, ▪ by depth for bullets; 1., a., i. for numbers", () => {
+    expect([0, 1, 2, 3].map((indent) => listMarker({ indent }))).toEqual(["•", "◦", "▪", "•"]);
+    expect([0, 1, 2].map((indent) => listMarker({ indent, n: 4 }))).toEqual(["4.", "d.", "iv."]);
+    expect(listMarker({ indent: 1, n: 27 })).toBe("aa.");
+    expect(listMarker({ indent: 2, n: 1994 })).toBe("mcmxciv.");
   });
 
   it("reads code fences and keeps their contents literal", () => {

@@ -19,7 +19,8 @@ export type Inline =
 
 export type Block =
   | { t: "line"; c: Inline[]; gap: boolean }
-  | { t: "bullet"; c: Inline[] }
+  /** A list item: `n` is its number in an ordered list (absent for a bullet), `indent` how deep it is nested (0 at the top). */
+  | { t: "bullet"; c: Inline[]; indent: number; n?: number }
   | { t: "quote"; c: Inline[] }
   | { t: "code"; v: string };
 
@@ -86,20 +87,61 @@ export function parseInline(text: string): Inline[] {
   return out;
 }
 
-/** A message body as blocks: code fences, quoted lines, bullets and ordinary lines. A blank line before a line is kept as its `gap`. */
+/** A list line: its indent, the number of an ordered item (a `•`, `◦` or `▪` for a bullet) and the text. */
+const LIST_ITEM = /^(\s*)(?:[•◦▪]|(\d+)\.)\s+(.*)$/;
+
+const letters = (n: number): string => {
+  let out = "";
+  for (let k = n; k > 0; k = Math.floor((k - 1) / 26)) out = String.fromCharCode(97 + ((k - 1) % 26)) + out;
+  return out;
+};
+const ROMAN_PARTS: [number, string][] = [[1000, "m"], [900, "cm"], [500, "d"], [400, "cd"], [100, "c"], [90, "xc"], [50, "l"], [40, "xl"], [10, "x"], [9, "ix"], [5, "v"], [4, "iv"], [1, "i"]];
+const roman = (n: number): string => {
+  let out = "";
+  let rest = n;
+  for (const [value, symbol] of ROMAN_PARTS) {
+    while (rest >= value) {
+      out += symbol;
+      rest -= value;
+    }
+  }
+  return out;
+};
+
+/** What stands before a list item, as Slack draws it: `•`, `◦`, `▪` by depth for a bullet; `1.`, `a.`, `i.` by depth for a number. */
+export function listMarker(item: { indent: number; n?: number }): string {
+  const level = item.indent % 3;
+  if (item.n === undefined) return ["•", "◦", "▪"][level];
+  return `${[String(item.n), letters(item.n), roman(item.n)][level]}.`;
+}
+
+/** A message body as blocks: code fences, quoted lines, list items and ordinary lines. A blank line before a line is kept as its `gap`. */
 export function parseSlackText(text: string): Block[] {
   const blocks: Block[] = [];
   let blank = false;
+  // The indents of the list items so far in this list, so a nested item is one level deeper than the item it follows
+  // however many spaces it is indented by (ours are two, Slack's four).
+  const widths: number[] = [];
   const addLines = (raw: string) => {
     for (const [n, line] of raw.split("\n").entries()) {
       if (!line.trim()) {
         // The empty piece before the first newline is just the rest of a fence line, not a blank line.
         blank = blocks.length > 0 && n > 0;
+        widths.length = 0;
         continue;
       }
+      const item = LIST_ITEM.exec(line);
+      if (item) {
+        const width = item[1].length;
+        while (widths.length && width < widths[widths.length - 1]) widths.pop();
+        if (!widths.length || width > widths[widths.length - 1]) widths.push(width);
+        blocks.push({ t: "bullet", c: parseInline(item[3]), indent: widths.length - 1, ...(item[2] ? { n: Number(item[2]) } : {}) });
+        blank = false;
+        continue;
+      }
+      widths.length = 0;
       // Slack's own text escapes the `>`; a message written in the Hub keeps it raw (and Slack never sends a raw one).
       if (/^(&gt;|>)\s?/.test(line)) blocks.push({ t: "quote", c: parseInline(line.replace(/^(&gt;|>)\s?/, "")) });
-      else if (/^\s*[•◦▪]\s+/.test(line)) blocks.push({ t: "bullet", c: parseInline(line.replace(/^\s*[•◦▪]\s+/, "")) });
       else blocks.push({ t: "line", c: parseInline(line), gap: blank });
       blank = false;
     }

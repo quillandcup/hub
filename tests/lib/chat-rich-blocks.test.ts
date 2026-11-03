@@ -56,6 +56,22 @@ describe("bodyToBlocks", () => {
     expect(block.elements[3]).toEqual({ type: "rich_text_preformatted", elements: [text("let x = 1")] });
   });
 
+  it("makes numbered and nested lists as Slack's flat lists: one per run of the same kind and depth, with the offset of one that picks up again", () => {
+    const body = "1. an <u>underline</u>\n2. <u>continued</u> until now\n  1. no underline\n  2. <u>under returns</u>\n3. what\n  • <u>*about*</u>\n    • _now_";
+    const [block] = bodyToBlocks(body, { plain: true });
+    expect(block.elements.map((e) => (e.type === "rich_text_list" ? [e.style, e.indent, e.offset ?? 0, e.elements.length] : e.type))).toEqual([
+      ["ordered", 0, 0, 2],
+      ["ordered", 1, 0, 2],
+      ["ordered", 0, 2, 1],
+      ["bullet", 1, 0, 1],
+      ["bullet", 2, 0, 1],
+    ]);
+    const last = block.elements[4] as { elements: { elements: unknown[] }[] };
+    expect(last.elements[0].elements).toEqual([{ type: "text", text: "now", style: { italic: true } }]);
+    const fourth = block.elements[3] as { elements: { elements: unknown[] }[] };
+    expect(fourth.elements[0].elements).toEqual([{ type: "text", text: "about", style: { underline: true, bold: true } }]);
+  });
+
   it("reads a Hub body as plain text (what is typed is what is sent) and a Slack body as Slack's escapes", () => {
     expect(bodyToBlocks("a < b & c <u>d</u>", { plain: true })[0].elements[0]).toEqual(section(text("a < b & c "), text("d", { underline: true })));
     expect(bodyToBlocks("a &lt; b &amp; c <u>d</u>", { plain: false })[0].elements[0]).toEqual(section(text("a < b & c "), text("d", { underline: true })));
@@ -113,6 +129,21 @@ describe("blocksToBody", () => {
     );
     expect(blocksToBody(blocks, { plain: false })).toBe("<u>a &lt; b &amp; </u>\n• x\n• y\n  3. p\n&gt; q1\n&gt; q2\n```\n&lt;b&gt;\ncode\n```");
     expect(blocksToBody(blocks, { plain: true })).toBe("<u>a < b & </u>\n• x\n• y\n  3. p\n> q1\n> q2\n```\n<b>\ncode\n```");
+  });
+
+  it("reads a nested numbered list with underline, bold and italic together (as Slack sends it) into a body that reads back the same", () => {
+    const blocks = rich(
+      { type: "rich_text_list", style: "ordered", indent: 0, elements: [section(text("an "), text("underline", { underline: true })), section(text("continued", { underline: true }), text(" until now"))] },
+      { type: "rich_text_list", style: "ordered", indent: 1, elements: [section(text("no underline")), section(text("under returns", { underline: true })), section(text("no more"))] },
+      { type: "rich_text_list", style: "ordered", indent: 0, offset: 2, elements: [section(text("what"))] },
+      { type: "rich_text_list", style: "ordered", indent: 1, elements: [section(text("about", { underline: true, bold: true }))] },
+      { type: "rich_text_list", style: "ordered", indent: 2, elements: [section(text("now", { underline: true, italic: true }))] }
+    );
+    const body = blocksToBody(blocks, { plain: false })!;
+    expect(body).toBe("1. an <u>underline</u>\n2. <u>continued</u> until now\n  1. no underline\n  2. <u>under returns</u>\n  3. no more\n3. what\n  1. <u>*about*</u>\n    1. <u>_now_</u>");
+    // And sending it back keeps the shape (the numbers inside a nested list are Slack's to letter).
+    const again = bodyToBlocks(body, { plain: false })[0].elements.map((e) => (e.type === "rich_text_list" ? [e.indent, e.elements.length] : e.type));
+    expect(again).toEqual([[0, 2], [1, 3], [0, 1], [1, 1], [2, 1]]);
   });
 
   it("finds an underline anywhere, and is the inverse of bodyToBlocks for what a Hub message can carry", () => {

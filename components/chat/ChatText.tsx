@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import MemberHoverCard from "@/components/member/MemberHoverCard";
 import { isEmojiOnly } from "@/lib/chat/emoji-only";
-import { emojiNamesIn, parseSlackText, type Block, type Inline } from "@/lib/chat/render";
+import { emojiNamesIn, listMarker, parseSlackText, type Block, type Inline } from "@/lib/chat/render";
 import { unicodeEmoji, type CustomEmoji } from "@/lib/chat/emoji";
 import { baseName, toneOf, tonedUnicode } from "@/lib/chat/skin-tone";
 
@@ -145,14 +145,19 @@ function renderBlocks(blocks: Block[], ctx: ChatTextContext): ReactNode[] {
       out.push(renderBlock(block, i, ctx));
       continue;
     }
-    const items: { c: Inline[]; key: number }[] = [];
-    for (; i < blocks.length && blocks[i].t === "bullet"; i++) items.push({ c: (blocks[i] as { c: Inline[] }).c, key: i });
+    const items: { c: Inline[]; key: number; indent: number; n?: number }[] = [];
+    for (; i < blocks.length && blocks[i].t === "bullet"; i++) {
+      const item = blocks[i] as Extract<Block, { t: "bullet" }>;
+      items.push({ c: item.c, key: i, indent: item.indent, n: item.n });
+    }
     i--;
     out.push(
       <ul key={items[0].key} className="mt-1 ml-1 space-y-0.5">
         {items.map((it) => (
-          <li key={it.key} className="flex gap-2">
-            <span aria-hidden="true">•</span>
+          <li key={it.key} className="flex gap-2" style={it.indent ? { paddingLeft: `${it.indent * 1.5}rem` } : undefined}>
+            <span aria-hidden="true" className={it.n === undefined ? undefined : "min-w-[1.25em] text-right"}>
+              {listMarker(it)}
+            </span>
             <span>{renderInline(it.c, ctx)}</span>
           </li>
         ))}
