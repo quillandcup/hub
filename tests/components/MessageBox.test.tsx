@@ -476,6 +476,28 @@ describe("MessageBox: conveniences", () => {
     expect(style()).toContain(`max-height: ${MAX_BOX_HEIGHT_PX}px`);
   });
 
+  describe("Backspace on an empty line of a quote", () => {
+    it("steps out of the quote, so a comment can follow what is quoted", async () => {
+      const box = await mount();
+      await typeInto(box, "> sdf{Shift>}{Enter}{/Shift}{Backspace}ok");
+      const quote = box.querySelector("blockquote")!;
+      expect(quote).toHaveTextContent("sdf");
+      expect(quote).not.toHaveTextContent("ok");
+      expect(quote.querySelector("br:not(.ProseMirror-trailingBreak)")).toBeNull();
+      expect(box.textContent).toBe("sdfok");
+      expect(box.lastElementChild?.tagName).toBe("P");
+      expect(box.lastElementChild).toHaveTextContent("ok");
+    });
+
+    it("leaves the quote alone when the line has text, and when the line break is not at the end", async () => {
+      const box = await mount();
+      await typeInto(box, "> one{Shift>}{Enter}{/Shift}two{Backspace}");
+      expect(box.querySelectorAll("blockquote").length).toBe(1);
+      expect(box.querySelector("blockquote")).toHaveTextContent("onetwo");
+      expect(box.lastElementChild?.tagName).toBe("BLOCKQUOTE");
+    });
+  });
+
   it("turns pasted full names into mentions and leaves unknown ones as text", async () => {
     vi.mocked(suggestMentions).mockImplementation(async (_c, _t, q) => (q === "Ania Ray" ? [ANIA] : []));
     const box = await mount();

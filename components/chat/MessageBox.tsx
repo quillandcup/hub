@@ -64,6 +64,23 @@ const boxKeyEvent = (e: KeyboardEvent): BoxKeyEvent => ({
 
 // The editor's content drawn like the sent message (ChatText): lists, quotes, code and links. The tailwind reset
 // strips them, so they are put back here for the editor's elements only.
+/**
+ * Backspace on an empty line of a quote steps out of the quote, as in Slack, so a comment can follow what is quoted. (The
+ * editor's own Backspace would join the empty line back onto the quoted one.) The empty line is an empty paragraph in the
+ * quote, or what is left after a soft line break at the end of one. Returns whether it acted.
+ */
+export function leaveQuoteFromEmptyLine(editor: Editor): boolean {
+  const { selection } = editor.state;
+  const { $from } = selection;
+  if (!selection.empty || !editor.isActive("blockquote") || $from.parent.type.name !== "paragraph") return false;
+  const afterBreak = $from.nodeBefore?.type.name === "hardBreak" && $from.parentOffset === $from.parent.content.size;
+  if (afterBreak) {
+    return editor.chain().command(({ tr }) => !!tr.delete($from.pos - 1, $from.pos)).splitBlock().lift("blockquote").run();
+  }
+  if ($from.parent.content.size === 0 && $from.index($from.depth - 1) > 0) return editor.commands.lift("blockquote");
+  return false;
+}
+
 const CONTENT_STYLES = [
   "[&_.ProseMirror]:outline-none",
   "[&_.ProseMirror_p]:m-0",
@@ -351,6 +368,7 @@ export default function MessageBox({
       if (shortcut) track("chat_format_applied", { kind: shortcut, via: "shortcut" });
       // Enter in a list or code block adds an item or a line; Ctrl/Cmd+Enter sends from anywhere.
       if (event.key === "Enter" && !event.metaKey && !event.ctrlKey && (editor?.isActive("bulletList") || editor?.isActive("orderedList") || editor?.isActive("codeBlock"))) return false;
+      if (event.key === "Backspace" && !event.shiftKey && !event.metaKey && !event.ctrlKey && editor && leaveQuoteFromEmptyLine(editor)) return true;
       live.current.onKeyDown?.(e);
       return event.defaultPrevented;
     };
