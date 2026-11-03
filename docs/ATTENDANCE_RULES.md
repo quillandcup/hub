@@ -62,7 +62,7 @@ These rules determine how a Zoom meeting gets split when it overlaps with calend
 
 **Purpose**: Prevent double-counting people who show up early/late for scheduled prickles as also attending adjacent PUPs.
 
-**Location**: `app/api/process/attendance/route.ts` → attendance record creation loop
+**Location**: `app/api/process/attendance/route.ts` → attendance record creation loop. The same rule is applied to live presence by `staysOf` / `countedPrickleIds` in `lib/zoom-presence.ts` (check-out messages, the drop-in check-in, the Dashboard's "in the room" tie and card), see `CHECKIN_DELIVERY.md`. It applies to every prickle, scheduled or not, not only to unscheduled meetings.
 
 **Threshold**: **15 minutes**
 

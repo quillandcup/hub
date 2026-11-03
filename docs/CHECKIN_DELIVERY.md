@@ -45,6 +45,18 @@ to set a goal (`NO_GOAL_TIP`, linking to `/projects`). The tip is on a line of i
 message, in the email under the explanation, and at the bottom of the web check-out; the in-app and
 push text stay one line without it.
 
+**Staying on from the previous prickle does not count as attending the next.** Everything that
+works from live presence (the drop-in check-in, the check-out message, the "You're in the room" tie
+and the "What did you write?" card) counts time in the room the way the attendance processing does
+(`staysOf` and `countedPrickleIds` in `lib/zoom-presence.ts`, `EDGE_STAY_MS` = 15 minutes,
+`docs/ATTENDANCE_RULES.md`): a stay of less than 15 minutes in a prickle does not count when the stay
+in the neighbouring prickle was 15 minutes or more. A member who lingers a few minutes into the
+next prickle therefore gets no check-out for it and is not marked present in it. For the drop-in
+check-in the rule is stricter on purpose: a member who is carrying on from a 15-minute-plus stay in
+another prickle never gets it, rather than getting it at minute 15 to 18, which is too late for
+"how are you coming in". A fresh joiner gets it on the next cron tick and can dismiss it if they do
+not stay.
+
 Presence needs the Zoom participant's name or email to match a member (`matchAttendeeToMember`).
 A participant who does not match gets none of the presence-based pieces and falls back to the
 attendance import.

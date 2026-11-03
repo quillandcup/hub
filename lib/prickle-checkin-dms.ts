@@ -13,7 +13,7 @@ import type { PrickleDetail } from "@/lib/data/prickles";
 import { createNotifier } from "@/lib/notifications/notify";
 import { resolveInAppNotifications } from "@/lib/channels/in-app";
 import type { ChannelId, OutboundMessage } from "@/lib/channels";
-import { loadPresenceByMember, presenceDue, type PresenceInterval, type PresenceRepos } from "@/lib/zoom-presence";
+import { countedPrickleIds, loadPresenceByMember, presenceDue, staysOf, toWindow, type PresenceInterval, type PresenceRepos, type PrickleWindow } from "@/lib/zoom-presence";
 import {
   checkinAnswered,
   NO_GOAL_TIP,
@@ -634,18 +634,14 @@ export async function recentPresentPrickles(
   presenceRepos: PresenceRepos = repos
 ): Promise<PrickleDetail[]> {
   const since = now.getTime() - CHECKOUT_LOOKBACK_MS;
-  const ended = (await repos.prickles.startingBetween({ from: new Date(since).toISOString(), to: now.toISOString() })).filter(
-    (p) => p.type?.purpose === "writing" && new Date(p.endTime).getTime() <= now.getTime()
-  );
+  const recent = await repos.prickles.startingBetween({ from: new Date(since).toISOString(), to: now.toISOString() });
+  const ended = recent.filter((p) => p.type?.purpose === "writing" && new Date(p.endTime).getTime() <= now.getTime());
   if (ended.length === 0) return [];
   const intervals = (await loadPresenceByMember(presenceRepos, new Date(since - PRESENCE_LOOKBEHIND_MS), now)).get(memberId) ?? [];
-  return ended
-    .filter((p) => {
-      const start = new Date(p.startTime).getTime();
-      const end = new Date(p.endTime).getTime();
-      return intervals.some((i) => i.join < end && (i.leave === null || i.leave > start));
-    })
-    .sort((a, b) => b.startTime.localeCompare(a.startTime));
+  // Counted the way the attendance processing counts a stay (a lingering tail of the prickle
+  // before is not attending), with every prickle of the period as a possible neighbour.
+  const counted = countedPrickleIds(intervals, recent.map(toWindow), now.getTime());
+  return ended.filter((p) => counted.has(p.id)).sort((a, b) => b.startTime.localeCompare(a.startTime));
 }
 
 /** A started writing prickle, from the last CHECKOUT_LOOKBACK_MS, that may be due a check-out. */
@@ -665,7 +661,10 @@ export interface RecentPrickle {
  *   overlapping pair in 417 meetings over 60 days, checked 2026-10-03; see docs/TODO.md,
  *   "Secondary Zoom rooms") -- and either it
  *   ends in 10 minutes or less (so they can finish before the end and leave for what is next) or they
- *   left more than 10 minutes ago without rejoining (an early leaver). See presenceDue.
+ *   left more than 10 minutes ago without rejoining (an early leaver). See presenceDue. Time in
+ *   the room counts only as the attendance processing would count it (countedPrickleIds): a
+ *   member who lingers a few minutes into the next prickle after the previous one is not due a
+ *   check-out for it.
  * - Attendance: imported once their Zoom meeting ends, so its existence means the session is
  *   over for them. The backstop for any lost or late webhook.
  */
@@ -673,15 +672,18 @@ export function dueCheckoutMembers(
   prickles: RecentPrickle[],
   attendeesByPrickle: Map<string, Set<string>>,
   presenceByMember: Map<string, PresenceInterval[]>,
-  now: number
+  now: number,
+  /** Every prickle around these, of any kind: the neighbours that decide what counts (defaults to `prickles`). */
+  windows: PrickleWindow[] = prickles.map(toWindow)
 ): Map<string, Set<string>> {
   const due = new Map<string, Set<string>>();
+  const counted = new Map([...presenceByMember].map(([memberId, intervals]) => [memberId, countedPrickleIds(intervals, windows, now)]));
   for (const prickle of prickles) {
     const members = new Set(attendeesByPrickle.get(prickle.id) ?? []);
     const start = new Date(prickle.startTime).getTime();
     const end = new Date(prickle.endTime).getTime();
     for (const [memberId, intervals] of presenceByMember) {
-      if (presenceDue(intervals, start, end, now)) members.add(memberId);
+      if (counted.get(memberId)?.has(prickle.id) && presenceDue(intervals, start, end, now)) members.add(memberId);
     }
     if (members.size > 0) due.set(prickle.id, members);
   }
@@ -744,7 +746,9 @@ export async function sendCheckoutDMs(
   repos: DmRepos,
   prickles: RecentPrickle[],
   candidates: GoalCandidate[],
-  now: number
+  now: number,
+  /** Every prickle in the same period, of any kind, so a stay next to another is judged as attendance is (defaults to `prickles`). */
+  windows?: PrickleWindow[]
 ): Promise<number> {
   if (prickles.length === 0) return 0;
   const prickleIds = prickles.map((p) => p.id);
@@ -758,7 +762,7 @@ export async function sendCheckoutDMs(
     loadDismissedPairs(repos, "checkout", prickleIds),
     loadPresenceByMember(repos, new Date(presenceSince), new Date(now)),
   ]);
-  const dueByPrickle = dueCheckoutMembers(prickles, attendeesByPrickle, presenceByMember, now);
+  const dueByPrickle = dueCheckoutMembers(prickles, attendeesByPrickle, presenceByMember, now, windows);
   // A dismissed check-out is as good as a sent one: nothing more goes out for the pair.
   const plan = planCheckoutDMs(prickles, dueByPrickle, new Set([...alreadySent, ...skipped]));
   if (plan.length === 0) return 0;
@@ -939,6 +943,11 @@ export interface DropInResult {
  * within that window; `activeMemberIds` the members it may go to. Who is in the room comes from
  * live presence (lib/zoom-presence.ts): an open interval, i.e. joined and not left.
  *
+ * Only a member who is new to the room. One who carries on from the prickle before (their stay
+ * there was 15 minutes or more, EDGE_STAY_MS) gets none: they are not "coming in", and by the
+ * attendance rule they only count here once they have stayed 15 minutes, which is too late for
+ * a check-in. `windows` are the prickles around these, of any kind, that make that call.
+ *
  * It goes through the same notifier, dedup log and skips as the check-in sent ahead of time, so a
  * member who already got that one, answered, or dismissed is left alone. A new sender starts as a
  * dry run: `liveFor` says who gets it for real (the `checkin_dropins` flag); for everyone else it
@@ -950,7 +959,8 @@ export async function sendDropInCheckins(
   prickles: UpcomingPrickle[],
   activeMemberIds: string[],
   now: number,
-  liveFor: (memberIds: string[]) => Promise<Set<string>>
+  liveFor: (memberIds: string[]) => Promise<Set<string>>,
+  windows: PrickleWindow[] = prickles.map(toWindow)
 ): Promise<DropInResult> {
   if (prickles.length === 0) return { sent: 0, dryRun: 0 };
   const earliestStart = Math.min(...prickles.map((p) => new Date(p.startTime).getTime()));
@@ -964,9 +974,19 @@ export async function sendDropInCheckins(
   ]);
   const plan: { memberId: string; prickle: UpcomingPrickle }[] = [];
   for (const [memberId, intervals] of presence) {
-    if (!active.has(memberId) || !intervals.some((i) => i.leave === null && i.join <= now)) continue;
+    if (!active.has(memberId)) continue;
+    // The stays still going: in the room now, and not carrying on from another prickle.
+    const fresh = new Set(
+      intervals
+        .filter((i) => i.leave === null && i.join <= now)
+        .flatMap((i) => staysOf(i, windows, now))
+        .filter((stay) => !stay.continuing)
+        .map((stay) => stay.prickleId)
+    );
     for (const prickle of prickles) {
-      if (!claimed.has(`${memberId}:${prickle.id}`) && !dismissed.has(`${memberId}:${prickle.id}`)) plan.push({ memberId, prickle });
+      if (fresh.has(prickle.id) && !claimed.has(`${memberId}:${prickle.id}`) && !dismissed.has(`${memberId}:${prickle.id}`)) {
+        plan.push({ memberId, prickle });
+      }
     }
   }
   if (plan.length === 0) return { sent: 0, dryRun: 0 };

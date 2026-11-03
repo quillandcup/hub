@@ -349,6 +349,21 @@ describe("check-in for a member who joins a running prickle", () => {
     expect(sendSlackDM).toHaveBeenCalledTimes(1);
   });
 
+  it("sends a new arrival but not a member carrying on from the prickle before", async () => {
+    // p0 ran from 65 to 5 minutes ago; p1 started 5 minutes ago. m1 has been in the room since p0; m2 just joined.
+    const previous = { ...PRICKLE, id: "p0", startTime: minutesAgo(65), endTime: minutesAgo(5) };
+    reset([previous, running(5)], [...MEMBERS]);
+    dataset.zoomParticipantEvents.push(event("1", "Ada Example", "joined", minutesAgo(45)), event("2", "Bea Example", "joined", minutesAgo(3)));
+    dataset.zoomMeetings.push(meeting as never);
+    dropInLive.add("m1");
+    dropInLive.add("m2");
+
+    // m1 is also due the check-out for p0, which is the point: they were in it. Only m2 is checked in.
+    expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 1, checkouts: 1 });
+    const checkIns = sendSlackDM.mock.calls.filter((c) => c[0].text.includes("You're in"));
+    expect(checkIns.map((c) => c[0].slackUserId)).toEqual(["U-m2"]);
+  });
+
   it("is a dry run for a member the flag does not cover: logged with its channels, nothing sent or recorded", async () => {
     world(5, [inRoom()]);
     const log = vi.spyOn(console, "log").mockImplementation(() => {});

@@ -110,6 +110,64 @@ export function pairIntervals(
 }
 
 /**
+ * The attendance rule for a short stay next to a long one (app/api/process/attendance/route.ts,
+ * docs/ATTENDANCE_RULES.md): a stay of less than this in a prickle does not count when the stay
+ * in the neighbouring prickle was at least this long. It is the tail of the previous prickle or
+ * the early arrival for the next, not attendance. A short stay with no longer neighbour counts.
+ */
+export const EDGE_STAY_MS = 15 * 60 * 1000;
+
+/** A prickle's time window, in epoch milliseconds. */
+export interface PrickleWindow {
+  id: string;
+  start: number;
+  end: number;
+}
+
+export function toWindow(prickle: { id: string; startTime: string; endTime: string }): PrickleWindow {
+  return { id: prickle.id, start: new Date(prickle.startTime).getTime(), end: new Date(prickle.endTime).getTime() };
+}
+
+/** One stay (a join and its leave) in one prickle. */
+export interface Stay {
+  prickleId: string;
+  /** How long the stay overlapped the prickle, up to now (a stay still going is measured to now). */
+  ms: number;
+  /** Whether it counts as attending: EDGE_STAY_MS or more, or no neighbouring stay of that length. */
+  counts: boolean;
+  /** Next to a stay of EDGE_STAY_MS or more in another prickle: the member is carrying on from one, or into one. */
+  continuing: boolean;
+}
+
+/**
+ * The prickles one stay overlapped and how it counts in each, by the same rule the attendance
+ * processing applies to a Zoom attendee record: neighbours are the prickles the stay overlapped,
+ * in order of start. Used by every feature that works from live presence, so a member who only
+ * lingers into the next prickle is not treated as having attended it.
+ */
+export function staysOf(interval: PresenceInterval, windows: PrickleWindow[], now: number): Stay[] {
+  const end = Math.min(interval.leave ?? now, now);
+  const overlapped = [...windows]
+    .sort((a, b) => a.start - b.start || a.id.localeCompare(b.id))
+    .map((w) => ({ id: w.id, ms: Math.min(end, w.end) - Math.max(interval.join, w.start) }))
+    .filter((o) => o.ms > 0);
+  return overlapped.map((o, i) => {
+    const long = (n?: { ms: number }) => n !== undefined && n.ms >= EDGE_STAY_MS;
+    const continuing = long(overlapped[i - 1]) || long(overlapped[i + 1]);
+    return { prickleId: o.id, ms: o.ms, counts: o.ms >= EDGE_STAY_MS || !continuing, continuing };
+  });
+}
+
+/** The prickles a member's stays count for (see staysOf), across all of their intervals. */
+export function countedPrickleIds(intervals: PresenceInterval[], windows: PrickleWindow[], now: number): Set<string> {
+  const counted = new Set<string>();
+  for (const interval of intervals) {
+    for (const stay of staysOf(interval, windows, now)) if (stay.counts) counted.add(stay.prickleId);
+  }
+  return counted;
+}
+
+/**
  * How long before a prickle's scheduled end everyone in the room is checked out, so they can
  * finish it by the end and leave for what is next. The cron runs every 5 minutes, so the DM goes
  * out between this and half of it before the end.

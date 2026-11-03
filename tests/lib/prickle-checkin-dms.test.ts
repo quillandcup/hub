@@ -130,6 +130,16 @@ describe("dueCheckoutMembers", () => {
     expect(due(presence, t("12:30"))).toEqual(["m1"]);
   });
 
+  it("does not check out someone who only lingered into this prickle from the one before it", () => {
+    const next = { id: "p2", typeName: "Progress Prickle", startTime: "2026-10-05T12:00:00.000Z", endTime: "2026-10-05T13:00:00.000Z" };
+    const windows = [P, next].map((p) => ({ id: p.id, start: new Date(p.startTime).getTime(), end: new Date(p.endTime).getTime() }));
+    const presence = new Map([["m1", [{ join: t("11:00"), leave: t("12:03") }]]]);
+    const dueAt = (now: number) => dueCheckoutMembers([P, next], new Map(), presence, now, windows);
+
+    expect([...(dueAt(t("12:30")).get("p1") ?? [])]).toEqual(["m1"]);
+    expect(dueAt(t("12:30")).has("p2")).toBe(false);
+  });
+
   it("checks out an early leaver 10 minutes after they leave, unless they rejoin", () => {
     expect(due({ m1: [{ join: t("11:00"), leave: t("11:30") }] }, t("11:40"))).toEqual(["m1"]);
     expect(due({ m1: [{ join: t("11:00"), leave: t("11:30") }] }, t("11:39"))).toEqual([]);

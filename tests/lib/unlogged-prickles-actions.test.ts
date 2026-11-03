@@ -192,6 +192,14 @@ describe("getUnloggedRecentPrickles from live presence", () => {
     expect((await getUnloggedRecentPrickles()).map((p) => p.id)).toEqual(["p-in"]);
   });
 
+  it("leaves out a prickle the member only lingered into from the one before it", async () => {
+    // p-before ran 3.0 to 2.0 hours ago, p-after 2.0 to 1.0: in the room from 2.9 to 1.95 (about 3 minutes into p-after).
+    repos = world([sprint("p-before", 3, 2), sprint("p-after", 2, 1)], [event("1", "joined", 2.9), event("2", "left", 1.95)]);
+    useClient();
+
+    expect((await getUnloggedRecentPrickles()).map((p) => p.id)).toEqual(["p-before"]);
+  });
+
   it("lists it once when the attendance has also arrived, and hides a finished check-out", async () => {
     const both = attended("p-both", at(4));
     const done = sprint("p-done", 3, 2);

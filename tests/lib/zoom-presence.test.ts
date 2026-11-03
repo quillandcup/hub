@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   CHECKOUT_BEFORE_END_MS,
+  EDGE_STAY_MS,
+  countedPrickleIds,
+  staysOf,
   EARLY_LEAVE_GRACE_MS,
   loadPresenceByMember,
   pairIntervals,
@@ -145,5 +148,47 @@ describe("loadPresenceByMember", () => {
   it("is empty when no imported host's room has events", async () => {
     const presence = await loadPresenceByMember(world({ zoomMeetings: [] }), new Date(t("00:00")));
     expect(presence.size).toBe(0);
+  });
+});
+
+describe("staysOf and countedPrickleIds (the attendance rule for a short stay next to a long one)", () => {
+  // Two prickles back to back: A 11:00-12:00, B 12:00-13:00.
+  const windows = [
+    { id: "A", start: t("11:00"), end: t("12:00") },
+    { id: "B", start: t("12:00"), end: t("13:00") },
+  ];
+  const now = t("12:30");
+
+  it("uses 15 minutes", () => {
+    expect(EDGE_STAY_MS).toBe(15 * 60 * 1000);
+  });
+
+  it("does not count a few minutes of lingering into the next prickle, and marks it as continuing", () => {
+    const stays = staysOf({ join: t("11:00"), leave: t("12:03") }, windows, now);
+    expect(stays).toEqual([
+      { prickleId: "A", ms: 60 * 60 * 1000, counts: true, continuing: false },
+      { prickleId: "B", ms: 3 * 60 * 1000, counts: false, continuing: true },
+    ]);
+    expect([...countedPrickleIds([{ join: t("11:00"), leave: t("12:03") }], windows, now)]).toEqual(["A"]);
+  });
+
+  it("counts both once the stay in the next prickle reaches 15 minutes", () => {
+    expect([...countedPrickleIds([{ join: t("11:00"), leave: t("12:15") }], windows, now)].sort()).toEqual(["A", "B"]);
+    expect([...countedPrickleIds([{ join: t("11:00"), leave: t("12:14") }], windows, now)]).toEqual(["A"]);
+  });
+
+  it("drops an early arrival of a few minutes next to a long stay, the other way round", () => {
+    expect([...countedPrickleIds([{ join: t("11:56"), leave: t("12:40") }], windows, now)]).toEqual(["B"]);
+  });
+
+  it("counts a short stay on its own, with no long neighbour", () => {
+    const stays = staysOf({ join: t("12:20"), leave: t("12:30") }, windows, now);
+    expect(stays).toEqual([{ prickleId: "B", ms: 10 * 60 * 1000, counts: true, continuing: false }]);
+  });
+
+  it("measures a stay still going, or a leave with no join, up to now", () => {
+    expect(staysOf({ join: t("12:20"), leave: null }, windows, now)).toEqual([{ prickleId: "B", ms: 10 * 60 * 1000, counts: true, continuing: false }]);
+    expect(staysOf({ join: -Infinity, leave: t("11:30") }, windows, now)).toEqual([{ prickleId: "A", ms: 30 * 60 * 1000, counts: true, continuing: false }]);
+    expect(staysOf({ join: t("10:00"), leave: t("10:30") }, windows, now)).toEqual([]);
   });
 });
