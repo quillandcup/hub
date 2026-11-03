@@ -95,4 +95,21 @@ describe("useFileDrop", () => {
     fire(a, dragEvent("drop", { files: [file] }));
     expect(onFiles).toHaveBeenCalledWith([file]);
   });
+
+  it("leaves files over an element marked data-no-file-drop to it: no overlay, nothing handed over", () => {
+    const el = document.createElement("div");
+    const edit = document.createElement("div");
+    edit.setAttribute("data-no-file-drop", "");
+    el.appendChild(edit);
+    const onFiles = vi.fn();
+    const { result } = renderHook(() => useFileDrop(() => el, onFiles));
+    const entered = dragEvent("dragenter");
+    fire(edit, entered);
+    expect(result.current.dragging).toBe(false);
+    const dropped = dragEvent("drop", { files: [new File(["x"], "a.png")] });
+    fire(edit, dropped);
+    expect(onFiles).not.toHaveBeenCalled();
+    fire(el, dragEvent("drop", { files: [new File(["x"], "b.png")] }));
+    expect(onFiles).toHaveBeenCalledTimes(1);
+  });
 });

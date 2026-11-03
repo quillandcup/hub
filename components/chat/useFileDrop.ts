@@ -24,13 +24,15 @@ export function useFileDrop(targets: () => Target | Target[], onFiles: (files: F
       setState(null);
     };
     const cleanups = els.map((el) => {
+      // An edit box inside the column (marked `data-no-file-drop`) takes no files, and they must not go to another box.
+      const blocked = (e: DragEvent) => e.target instanceof Element && e.target.closest("[data-no-file-drop]") !== null;
       const enter = (e: DragEvent) => {
-        if (!hasFiles(e)) return;
+        if (!hasFiles(e) || blocked(e)) return;
         e.preventDefault();
         depths.set(el, (depths.get(el) ?? 0) + 1);
         setState({ rect: el.getBoundingClientRect() });
       };
-      const over = (e: DragEvent) => hasFiles(e) && e.preventDefault();
+      const over = (e: DragEvent) => hasFiles(e) && !blocked(e) && e.preventDefault();
       const leave = (e: DragEvent) => {
         if (!hasFiles(e)) return;
         const depth = Math.max(0, (depths.get(el) ?? 0) - 1);
@@ -39,6 +41,7 @@ export function useFileDrop(targets: () => Target | Target[], onFiles: (files: F
       };
       const drop = (e: DragEvent) => {
         if (!hasFiles(e)) return;
+        if (blocked(e)) return end();
         e.preventDefault();
         const files = Array.from(e.dataTransfer!.files);
         end();

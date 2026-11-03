@@ -62,3 +62,41 @@ describe("plain (a message written in the Hub)", () => {
     expect(fromEditableText("hi @Ania Ray: 1 < 2 & 3", editable.tokens, { plain: true })).toBe("hi <@U1>: 1 < 2 & 3");
   });
 });
+
+describe("repeated edits are stable", () => {
+  const samples = [
+    "> Test - can only send in slack",
+    "a & b <c> d",
+    "intro\n> quoted & <b>\nafter > not a quote",
+    "• one\n• two & three",
+    "1. first\n2. second",
+    "`a < b` and ```\nx > y & z\n```",
+    "&amp; stays &lt;literal&gt;",
+  ];
+
+  it("a Slack-written message (mrkdwn: entities, quote as &gt;) round-trips unchanged, twice", () => {
+    for (const sample of samples) {
+      // Slack's text for it: the characters escaped, a leading > left as the quote's &gt;.
+      const slack = sample.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const once = toEditableText(slack, names);
+      const saved = fromEditableText(once.text, once.tokens);
+      const twice = toEditableText(saved, names);
+      expect(twice.text).toBe(once.text);
+      expect(fromEditableText(twice.text, twice.tokens)).toBe(saved);
+      expect(once.text).toBe(sample);
+    }
+  });
+
+  it("sends a quote as a quote, not as a literal escaped >", () => {
+    expect(fromEditableText("> Test\nnot > quote & <b>", new Map())).toBe("> Test\nnot &gt; quote &amp; &lt;b&gt;");
+  });
+
+  it("a Hub message round-trips unchanged, and an entity-escaped quote line is shown as a quote", () => {
+    for (const sample of samples) {
+      const once = toEditableText(sample, names, { plain: true });
+      expect(once.text).toBe(sample.replace(/^&gt;(?= |$)/gm, ">"));
+      expect(fromEditableText(once.text, once.tokens, { plain: true })).toBe(once.text);
+    }
+    expect(toEditableText("&gt; Test - can only send in slack", names, { plain: true }).text).toBe("> Test - can only send in slack");
+  });
+});

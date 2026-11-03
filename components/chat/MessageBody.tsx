@@ -35,6 +35,8 @@ export default function MessageBody({
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Shown when files are pasted or dropped on the edit box: Slack can't add files to an edited message.
+  const [filesNote, setFilesNote] = useState(false);
   // What the member just saved (or deleted), shown until the server's copy catches up.
   const [saved, setSaved] = useState<{ from: string; text: string } | null>(null);
   const [deleted, setDeleted] = useState(false);
@@ -51,6 +53,7 @@ export default function MessageBody({
       const d = (e as CustomEvent<{ messageId: string; what: "edit" | "delete" }>).detail;
       if (d?.messageId !== message.id) return;
       setError(null);
+      setFilesNote(false);
       if (d.what === "edit") {
         // People and channels are shown by name. A message written in Slack is all Slack markup (links, entities);
         // one written in the Hub is plain text with just those tokens.
@@ -106,7 +109,18 @@ export default function MessageBody({
 
   if (mode === "edit") {
     return (
-      <div className="mt-1">
+      <div
+        className="mt-1"
+        data-no-file-drop
+        onDragOver={(e) => {
+          if (e.dataTransfer?.types?.includes("Files")) e.preventDefault();
+        }}
+        onDrop={(e) => {
+          if (!e.dataTransfer?.types?.includes("Files")) return;
+          e.preventDefault();
+          setFilesNote(true);
+        }}
+      >
         <MessageBox
           id={`edit-${message.id}`}
           channelId={channelId}
@@ -119,6 +133,11 @@ export default function MessageBody({
           rows={3}
           maxLength={4000}
           onValueChange={setDraft}
+          onPaste={(e) => {
+            if ((e.clipboardData?.files?.length ?? 0) === 0) return;
+            e.preventDefault();
+            setFilesNote(true);
+          }}
           onKeyDown={(e) => {
             if (e.key === "Escape") {
               setMode("view");
@@ -152,6 +171,7 @@ export default function MessageBody({
           </button>
           <span className="text-slate-500 dark:text-slate-400">Enter to save, Esc to cancel</span>
         </div>
+        {filesNote && <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Files can&apos;t be added while editing. Send them in a new message.</p>}
         {error && (
           <p role="alert" className="mt-1 text-xs text-red-600 dark:text-red-400">
             {error}
