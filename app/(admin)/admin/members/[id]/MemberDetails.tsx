@@ -15,6 +15,7 @@ import type { SlackSummary } from "@/lib/data/activities";
 import MemberSlackActivityPanel, { type SlackPageData } from "./MemberSlackActivityPanel";
 import ActivityFeedTable from "@/app/(admin)/admin/activity/ActivityFeedTable";
 import MemberNoteForm from "./MemberNoteForm";
+import LatestNoteCard, { type LatestNote } from "./LatestNoteCard";
 import ActivityFilters from "@/app/(admin)/admin/activity/ActivityFilters";
 import { feedSearch, type FeedFilters, type FeedPage } from "@/lib/activity-feed";
 import MemberBadgesPanel from "./MemberBadgesPanel";
@@ -48,6 +49,8 @@ interface MemberDetailsProps {
   /** The signed-in admin, and how long they can edit a note they wrote: the timeline shows Edit only on their own recent notes. */
   currentUserId: string | null;
   noteEditMinutes: number;
+  /** The newest staff note, for the Overview; null when there are none. */
+  latestNote: LatestNote | null;
   userTimezonePreference?: string; // User's timezone preference from profile
   membershipHistory: any[];
   programOverrides?: { id: string; starts_at: string; expires_at: string | null; reason: string | null }[];
@@ -84,6 +87,7 @@ export default function MemberDetails({
   activityFilters,
   currentUserId,
   noteEditMinutes,
+  latestNote,
   userTimezonePreference = "browser",
   membershipHistory,
   programOverrides = [],
@@ -234,6 +238,8 @@ export default function MemberDetails({
             </SummaryCard>
           </div>
           </div>
+
+          <LatestNoteCard memberId={member.id} note={latestNote} timeZone={timeZone} />
 
           <MemberTimelinePanel
             memberId={member.id}

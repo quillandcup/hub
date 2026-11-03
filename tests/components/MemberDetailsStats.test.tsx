@@ -44,6 +44,7 @@ function renderDetails(status: string, stats: Partial<MemberView> = { metrics: {
       activityFilters={{} as never}
       currentUserId={null}
       noteEditMinutes={15}
+      latestNote={null}
       membershipHistory={[]}
       earnedBadges={[]}
       awardableBadgeTypes={[]}

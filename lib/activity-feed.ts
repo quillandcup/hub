@@ -78,7 +78,7 @@ export interface FeedQuery extends FeedFilters {
   pageSize: number;
 }
 
-export const FEED_DAY_OPTIONS = [1, 7, 30, 90] as const;
+export const FEED_DAY_OPTIONS = [1, 7, 30, 90, 365] as const;
 
 /** What a feed shows when its URL has no ?view= / ?days=: the central log is audit-first, a member's page shows everything. */
 export interface FeedDefaults {
