@@ -7,6 +7,7 @@ import { isProduction } from "@/lib/config";
 import { getSlackUserToken, isDeadTokenError } from "@/lib/slack-connect";
 import { parseChatFiles } from "@/lib/chat/files";
 import { escapeForSlack } from "@/lib/chat/slack-escape";
+import { reportRefusedBlocks } from "@/lib/chat/blocks-refused";
 import { bodyToBlocks, isInvalidBlocks, needsBlocks, stripUnderline } from "@/lib/chat/rich-blocks";
 import { sendChatFilesToSlack } from "@/lib/chat/slack-upload";
 
@@ -118,6 +119,7 @@ export async function sendChatMessageToSlack(supabase: SupabaseClient, messageId
       // Slack refusing the blocks must not lose the message: it goes as plain text instead.
       if (!withBlocks || !isInvalidBlocks(error)) throw error;
       console.error("sendChatMessageToSlack: Slack refused the blocks for message %s, sending it as text", messageId);
+      await reportRefusedBlocks(createRepos(supabase as unknown as Db), "post", messageId, error);
       result = await post(false);
     }
   } catch (error) {

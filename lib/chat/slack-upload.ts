@@ -1,4 +1,5 @@
 import { bodyToBlocks, isInvalidBlocks, needsBlocks, stripUnderline } from "@/lib/chat/rich-blocks";
+import { reportRefusedBlocks } from "@/lib/chat/blocks-refused";
 import { WebClient } from "@slack/web-api";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { clock } from "@/lib/clock";
@@ -109,6 +110,7 @@ export async function sendChatFilesToSlack(ctx: FileSendContext): Promise<"sent"
         // Slack refusing the blocks must not lose the message: it goes with a plain comment instead.
         if (!withBlocks || !isInvalidBlocks(error)) throw error;
         console.error("sendChatFilesToSlack: Slack refused the blocks for message %s, sending the comment as text", messageId);
+        await reportRefusedBlocks(createRepos(supabase), "upload", messageId, error);
         result = await upload(ctx.connection.token, false);
       }
       postedVia = "user_token";

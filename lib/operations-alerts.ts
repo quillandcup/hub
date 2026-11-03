@@ -14,6 +14,7 @@ export type OperationsAlert =
   | { type: "video_failed"; what: VideoFailure; route?: string; detail?: string }
   | { type: "cron_partial_failure"; job: string; problems: string[] }
   | { type: "slack_bot_token_failed"; problem: "refresh_failed" | "not_stored" | "expired"; detail?: string }
+  | { type: "slack_blocks_refused"; where: "post" | "edit" | "upload" }
   | { type: "ambiguous_slack_member_match"; collisions: ReadonlyArray<{ reason: string; slackUserIds: string[]; memberIds: string[] }> };
 
 /** Where the course video path broke: Mux's webhook couldn't be recorded, Mux couldn't prepare a video, or a member's player errored. */
@@ -83,6 +84,16 @@ function alertDetails(alert: OperationsAlert): { bucket: string; title: string; 
       bucket: `operations_alert:slack_bot_token_failed:${alert.problem}`,
       title: `Slack bot token ${alert.problem.replace("_", " ")}`,
       text: `The Slack bot's rotating token ${what}.${detail ? ` (${detail})` : ""} Look for "Slack bot token" lines in the Vercel logs and see "The bot's rotating token" in docs/SECRET_ROTATION.md for recovery (pnpm slack:bot-token status shows the stored expiry).`,
+    };
+  }
+
+  if (alert.type === "slack_blocks_refused") {
+    const what = { post: "chat message", edit: "chat message edit", upload: "chat message with files" }[alert.where];
+    return {
+      bucket: `operations_alert:slack_blocks_refused:${alert.where}`,
+      title: `Slack refused a ${what}'s blocks`,
+      // No message id here: it is a Hub id, and this goes to Slack. The Sentry event has it.
+      text: `Slack refused the rich-text blocks (invalid_blocks) for a ${what}, so it was sent as plain text without its list or underline. The blocks our conversion built (bodyToBlocks in lib/chat/rich-blocks.ts) are something Slack does not accept. Find the Sentry event tagged chat_blocks_refused=${alert.where} (it has the message id and Slack's error) and the "Slack refused the blocks" line in the Vercel logs; reproduce with that message's text.`,
     };
   }
 
