@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it, expect, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import { render } from "@testing-library/react";
@@ -53,8 +55,19 @@ describe("CalendarWeekView layout", () => {
     expect(stickyLeft.length).toBeGreaterThanOrEqual(2);
     // The day header sits above the time column, which sits above the day cells, so nothing scrolls over them.
     const header = container.querySelector(".sticky.top-0") as HTMLElement;
-    expect(header.className).toContain("z-30");
-    expect(stickyLeft.some((el) => el.className.includes("z-20"))).toBe(true);
+    expect(header.className).toContain("z-20");
+    expect(stickyLeft.some((el) => el.className.includes("z-10"))).toBe(true);
+  });
+
+  it("keeps its sticky layers below the app header, whose popovers (On Air, help, user menu) must paint over them", () => {
+    const { container } = renderCalendar();
+    const appHeader = readFileSync(join(process.cwd(), "components/AppHeader.tsx"), "utf8");
+    const headerZ = Number(/<header[^>]*\bz-(\d+)/.exec(appHeader)?.[1]);
+    expect(headerZ).toBeGreaterThan(0);
+    for (const el of Array.from(container.querySelectorAll("[class*='sticky']"))) {
+      const z = Number(/\bz-(\d+)/.exec(el.className)?.[1] ?? 0);
+      expect(z).toBeLessThan(headerZ);
+    }
   });
 
   it("makes the area that scrolls the calendar a named region that the keyboard can reach and scroll", () => {
