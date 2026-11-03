@@ -6,6 +6,7 @@ const m = vi.hoisted(() => ({
   status: { connected: true, hasDmScopes: true, slackUserId: "USELF" } as Record<string, unknown>,
   token: { token: "xoxp-test", slackUserId: "USELF" } as { token: string; slackUserId: string } | null,
   claimed: true,
+  covered: new Set<string>(),
   list: vi.fn(),
   history: vi.fn(),
   open: vi.fn(),
@@ -19,7 +20,11 @@ vi.mock("@slack/web-api", () => ({
   },
 }));
 vi.mock("@/lib/chat/slack-post", () => ({ chatSlackWritesEnabled: () => m.writes }));
+vi.mock("@/lib/features.server", () => ({
+  membersWithFeatureForOutreach: async (_repos: unknown, _key: string, ids: string[]) => new Set(ids.filter((id) => m.covered.has(id))),
+}));
 vi.mock("@/lib/slack-connect", () => ({
+  SLACK_DM_SCOPES: ["im:read", "im:history", "im:write", "mpim:history", "files:read"],
   getSlackConnectionStatus: async () => m.status,
   getSlackUserToken: async () => m.token,
   isDeadTokenError: (e: unknown) => (e as { data?: { error?: string } })?.data?.error === "token_revoked",
@@ -29,7 +34,7 @@ vi.mock("@/lib/data/repos", async () => {
   return { ...actual, createRepos: () => actual.createInMemoryRepos(m.dataset as never) };
 });
 
-import { openSlackDm, pullMemberDms, SLACK_DM_PULL_INTERVAL_SECONDS } from "@/lib/chat/slack-dms";
+import { openSlackDm, pullDmsForCoveredMembers, pullMemberDms, SLACK_DM_PULL_INTERVAL_SECONDS } from "@/lib/chat/slack-dms";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 
 const service = { rpc: (...args: unknown[]) => m.rpc(...args) } as never;
@@ -68,7 +73,7 @@ describe("pullMemberDms", () => {
       has_more: false,
     });
     const ds = m.dataset as InMemoryDataset;
-    await expect(pullMemberDms(service, MEMBER)).resolves.toEqual({ conversations: 1, messages: 3 });
+    await expect(pullMemberDms(service, MEMBER)).resolves.toEqual({ conversations: 1, messages: 3, errors: [] });
 
     expect(m.list).toHaveBeenCalledWith(expect.objectContaining({ types: "im" }));
     expect(ds.slackChannels).toEqual([expect.objectContaining({ channel_id: "D1", is_im: true, is_mpim: false, is_private: true, im_user_id: "UGALE" })]);
@@ -110,7 +115,7 @@ describe("pullMemberDms", () => {
 
   it("skips Slackbot's conversation and a deactivated person's", async () => {
     m.list.mockResolvedValue({ channels: [{ id: "D3", user: "USLACKBOT" }, { id: "D4", user: "UGONE", is_user_deleted: true }, { id: "D5" }] });
-    await expect(pullMemberDms(service, MEMBER)).resolves.toEqual({ conversations: 0, messages: 0 });
+    await expect(pullMemberDms(service, MEMBER)).resolves.toEqual({ conversations: 0, messages: 0, errors: [] });
     expect(m.history).not.toHaveBeenCalled();
   });
 
@@ -141,7 +146,7 @@ describe("pullMemberDms", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     m.list.mockResolvedValue({ channels: [{ id: "D1", user: "UGALE" }, { id: "D6", user: "UOTHER" }] });
     m.history.mockRejectedValue({ data: { error: "missing_scope" } });
-    await expect(pullMemberDms(service, MEMBER)).resolves.toEqual({ conversations: 0, messages: 0 });
+    await expect(pullMemberDms(service, MEMBER)).resolves.toEqual({ conversations: 0, messages: 0, errors: [`member ${MEMBER}: stopped on missing_scope`] });
     expect(m.history).toHaveBeenCalledTimes(1); // the second DM was not tried
     expect(rpcCalls("slack_connection_revoke")).toHaveLength(0);
     warn.mockRestore();
@@ -151,7 +156,7 @@ describe("pullMemberDms", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     m.list.mockResolvedValue({ channels: [{ id: "D1", user: "UGALE" }, { id: "D6", user: "UOTHER" }] });
     m.history.mockRejectedValueOnce(new Error("boom")).mockResolvedValue({ messages: [{ ts: "1762170000.000100", user: "UOTHER", text: "hi" }], has_more: false });
-    await expect(pullMemberDms(service, MEMBER)).resolves.toEqual({ conversations: 1, messages: 1 });
+    await expect(pullMemberDms(service, MEMBER)).resolves.toEqual({ conversations: 1, messages: 1, errors: [expect.stringContaining("boom")] });
     expect(error).toHaveBeenCalled();
     error.mockRestore();
   });
@@ -160,7 +165,7 @@ describe("pullMemberDms", () => {
     m.history
       .mockResolvedValueOnce({ messages: [{ ts: "1762170000.000100", user: "UGALE", text: "a" }], has_more: true, response_metadata: { next_cursor: "c2" } })
       .mockResolvedValueOnce({ messages: [{ ts: "1762170000.000200", user: "UGALE", text: "b" }], has_more: false });
-    await expect(pullMemberDms(service, MEMBER)).resolves.toEqual({ conversations: 1, messages: 2 });
+    await expect(pullMemberDms(service, MEMBER)).resolves.toEqual({ conversations: 1, messages: 2, errors: [] });
     expect(m.history).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: "c2" }));
   });
 });
@@ -203,5 +208,62 @@ describe("openSlackDm", () => {
     m.rpc.mockImplementation(async (name: string) => (name === "project_slack_dm" ? { data: { channel: null }, error: null } : { data: true, error: null }));
     await expect(openSlackDm(service, MEMBER, GALE)).resolves.toEqual({ ok: false, reason: "slack_refused" });
     error.mockRestore();
+  });
+});
+
+describe("pullDmsForCoveredMembers", () => {
+  useFakeClock(() => Date.parse("2026-11-03T12:00:00Z"));
+  const DM_SCOPES = ["im:read", "im:history", "im:write", "mpim:history", "files:read"];
+  const OTHER = "mbr_AAAAAAAAAAH1";
+  const later = () => Date.parse("2026-11-03T12:00:00Z") + 60_000;
+  const connection = (member_id: string, scopes: string[], revoked_at: string | null = null) =>
+    ({ member_id, slack_user_id: `U_${member_id}`, team_id: null, scopes, connected_at: "2026-11-01T00:00:00Z", revoked_at, expires_at: null, read_pulled_at: null, dms_pulled_at: null, access_secret_id: null, refresh_secret_id: null }) as never;
+
+  beforeEach(() => {
+    m.dataset = new InMemoryDataset({
+      slackConnections: [connection(MEMBER, DM_SCOPES), connection(GALE, DM_SCOPES), connection(OTHER, DM_SCOPES.slice(1)), connection("mbr_AAAAAAAAAAJ1", DM_SCOPES, "2026-11-02T00:00:00Z")],
+    });
+    m.covered = new Set([MEMBER, GALE, OTHER, "mbr_AAAAAAAAAAJ1"]);
+  });
+
+  it("pulls, ignoring the interval, the DMs of covered members with a working connection and the DM scopes", async () => {
+    m.list.mockResolvedValue({ channels: [{ id: "D1", user: "UX" }] });
+    m.history.mockResolvedValue({ messages: [{ ts: "1762170000.000100", user: "UX", text: "hi" }], has_more: false });
+    const result = await pullDmsForCoveredMembers(service, { deadline: later() });
+    // The member without every scope and the revoked connection are left out; the other two are pulled (each with a token mock).
+    expect(result).toEqual({ members: 2, conversations: 2, messages: 2, deferred: 0, errors: [] });
+    expect(rpcCalls("chat_claim_slack_dm_pull").map(([, args]) => args.p_min_seconds)).toEqual([0, 0]);
+  });
+
+  it("leaves out members the feature doesn't cover", async () => {
+    m.covered = new Set([GALE]);
+    const result = await pullDmsForCoveredMembers(service, { deadline: later() });
+    expect(result.members).toBe(1);
+    expect(m.list).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops starting members when the time is up, and says how many are left", async () => {
+    const result = await pullDmsForCoveredMembers(service, { deadline: Date.parse("2026-11-03T11:59:00Z") });
+    expect(result).toEqual({ members: 2, conversations: 0, messages: 0, deferred: 2, errors: [] });
+    expect(m.list).not.toHaveBeenCalled();
+  });
+
+  it("reports what went wrong for a member and goes on with the next", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    m.list.mockRejectedValueOnce({ data: { error: "missing_scope" } }).mockResolvedValue({ channels: [] });
+    const result = await pullDmsForCoveredMembers(service, { deadline: later() });
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]).toMatch(/stopped on missing_scope/);
+    expect(m.list).toHaveBeenCalledTimes(2);
+    warn.mockRestore();
+  });
+
+  it("is not stopped by a member's pull throwing", async () => {
+    m.rpc.mockImplementationOnce(async () => {
+      throw new Error("db down");
+    });
+    const result = await pullDmsForCoveredMembers(service, { deadline: later() });
+    expect(result.errors).toEqual([expect.stringContaining("db down")]);
+    expect(m.list).toHaveBeenCalledTimes(1);
   });
 });

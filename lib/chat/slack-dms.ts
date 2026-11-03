@@ -2,9 +2,10 @@ import { WebClient } from "@slack/web-api";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createRepos } from "@/lib/data/repos";
 import { chatSlackWritesEnabled } from "@/lib/chat/slack-post";
-import { getSlackConnectionStatus, getSlackUserToken, isDeadTokenError } from "@/lib/slack-connect";
+import { getSlackConnectionStatus, getSlackUserToken, isDeadTokenError, SLACK_DM_SCOPES } from "@/lib/slack-connect";
 import { isKeptSlackMessage, slackMessageText, slackMessageUserId, slackTsToIso } from "@/lib/slack-messages";
 import { clock } from "@/lib/clock";
+import { membersWithFeatureForOutreach } from "@/lib/features.server";
 
 /**
  * Slack 1:1 DMs, read with the member's own token (docs/SLACK_BRIDGED_CHAT.md, "Slack 1:1 DMs through members'
@@ -29,6 +30,8 @@ const MAX_PROJECTED = 500;
 export interface DmPullResult {
   conversations: number;
   messages: number;
+  /** What went wrong for this member (a DM that failed, a pull cut short), for the nightly run to report. A connection Slack dropped isn't one: the member is asked to reconnect. */
+  errors: string[];
 }
 
 const errorCode = (error: unknown): string | undefined => (error as { data?: { error?: string } } | null)?.data?.error;
@@ -61,7 +64,7 @@ export async function pullMemberDms(service: SupabaseClient, memberId: string, o
   const repos = createRepos(service);
   // Fail fast on a rate limit instead of sleeping inside a request.
   const slack = new WebClient(connection.token, { rejectRateLimitedCalls: true, retryConfig: { retries: 0 } });
-  const result: DmPullResult = { conversations: 0, messages: 0 };
+  const result: DmPullResult = { conversations: 0, messages: 0, errors: [] };
   try {
     const ims: SlackIm[] = [];
     let cursor: string | undefined;
@@ -80,12 +83,18 @@ export async function pullMemberDms(service: SupabaseClient, memberId: string, o
       } catch (error) {
         if (isDeadTokenError(error) || isRateLimited(error) || errorCode(error) === "missing_scope") throw error;
         console.error("pullMemberDms failed for a DM of member %s:", memberId, error);
+        result.errors.push(`a DM of member ${memberId}: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
   } catch (error) {
     if (isDeadTokenError(error)) await service.rpc("slack_connection_revoke", { p_member: memberId });
-    else if (isRateLimited(error) || errorCode(error) === "missing_scope") console.warn("pullMemberDms stopped for member %s: %s", memberId, errorCode(error) ?? "rate limited");
-    else console.error("pullMemberDms failed for member %s:", memberId, error);
+    else if (isRateLimited(error) || errorCode(error) === "missing_scope") {
+      console.warn("pullMemberDms stopped for member %s: %s", memberId, errorCode(error) ?? "rate limited");
+      result.errors.push(`member ${memberId}: stopped on ${errorCode(error) ?? "a rate limit"}`);
+    } else {
+      console.error("pullMemberDms failed for member %s:", memberId, error);
+      result.errors.push(`member ${memberId}: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
   return result;
 }
@@ -206,4 +215,43 @@ export async function openSlackDm(service: SupabaseClient, memberId: string, oth
     console.error("openSlackDm failed for member %s:", memberId, error);
     return { ok: false, reason: "slack_refused" };
   }
+}
+
+export interface NightlyDmPullResult {
+  /** Members the bridge covers who have the DM scopes. */
+  members: number;
+  conversations: number;
+  messages: number;
+  /** Members left for the next run because the time ran out. */
+  deferred: number;
+  errors: string[];
+}
+
+/**
+ * The nightly backstop for live delivery (Slack's events can be missed, and a member who never opens chat is
+ * never pulled): pull the DMs of every member the `slack_dm_bridge` feature covers who has a working
+ * connection with the DM scopes, ignoring the interval. One member at a time, oldest pull first, and no new
+ * member after `deadline` (a clock time, ms) so the run ends inside its function time; the rest are next run's.
+ */
+export async function pullDmsForCoveredMembers(service: SupabaseClient, opts: { deadline: number }): Promise<NightlyDmPullResult> {
+  const repos = createRepos(service);
+  const connected = await repos.memberProfile.memberIdsWithSlackScopes(SLACK_DM_SCOPES);
+  const covered = [...(await membersWithFeatureForOutreach(repos, "slack_dm_bridge", connected))];
+  const result: NightlyDmPullResult = { members: covered.length, conversations: 0, messages: 0, deferred: 0, errors: [] };
+  for (const [index, memberId] of covered.entries()) {
+    if (clock.now() >= opts.deadline) {
+      result.deferred = covered.length - index;
+      break;
+    }
+    try {
+      const pulled = await pullMemberDms(service, memberId, { force: true });
+      if (!pulled) continue;
+      result.conversations += pulled.conversations;
+      result.messages += pulled.messages;
+      result.errors.push(...pulled.errors);
+    } catch (error) {
+      result.errors.push(`member ${memberId}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  return result;
 }

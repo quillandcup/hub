@@ -61,6 +61,8 @@ export interface MemberProfileRepository {
   slackUserConnectedByOther(slackUserId: string, memberId: string): Promise<boolean>;
   /** Slack user id to member id for every member who connected Slack, revoked ones included (the Slack id still belongs to them). Paginated. */
   slackUserLinks(): Promise<Map<string, string>>;
+  /** The members with a working (not revoked) connection that was granted every one of these scopes, by member id. Paginated. */
+  memberIdsWithSlackScopes(scopes: string[]): Promise<string[]>;
 }
 
 export class SupabaseMemberProfileRepository implements MemberProfileRepository {
@@ -177,6 +179,13 @@ export class SupabaseMemberProfileRepository implements MemberProfileRepository 
     );
     return new Map(rows.map((r) => [r.slack_user_id, r.member_id]));
   }
+
+  async memberIdsWithSlackScopes(scopes: string[]) {
+    const rows = await fetchAllRows<Pick<Row<"member_slack_connections">, "member_id">>((from, to) =>
+      this.db.from("member_slack_connections").select("member_id").is("revoked_at", null).contains("scopes", scopes).order("member_id").range(from, to),
+    );
+    return rows.map((r) => r.member_id);
+  }
 }
 
 /** In-memory twin over an `InMemoryDataset`. */
@@ -277,5 +286,12 @@ export class InMemoryMemberProfileRepository implements MemberProfileRepository 
 
   async slackUserLinks() {
     return new Map(this.data.slackConnections.map((c) => [c.slack_user_id, c.member_id]));
+  }
+
+  async memberIdsWithSlackScopes(scopes: string[]) {
+    return this.data.slackConnections
+      .filter((c) => c.revoked_at === null && scopes.every((s) => c.scopes.includes(s)))
+      .map((c) => c.member_id)
+      .sort();
   }
 }
