@@ -859,6 +859,11 @@ Per-user login/access history (`access_events` table + `get_access_sessions()`, 
 
 ## Notifications
 
+### Check-in notification for a member who drops into a prickle _(Needs Scheduling)_
+A member who joins a prickle without having it on their calendar gets no check-in on any channel (Slack, in-app, browser push, email). The check-in message goes out 15-30 minutes before the start to members with the prickle on their calendar (`planCheckinDMs`), and a drop-in is not known then. Their only check-in is the "Check in →" pill on the Dashboard and My Prickles, which appears once their Zoom join arrives (`markPresent` in `lib/upcoming-prickles.ts`). The check-out already reaches them, because it uses live presence. Deferred because it needs a new send path rather than a tweak: the cron only plans from calendars today, and the check-in message says "starts in about 20 minutes", which is wrong for someone joining late.
+
+To do it: when the Zoom join webhook (or the next cron tick, from `loadPresenceByMember`) shows an active member in the room of a running writing prickle who has no calendar tie, send the check-in through the same notifier (kind `prickle_checkin`, so preferences, dedup in `prickle_checkin_dm_log` and the in-app banner until the prickle ends all apply), with copy for a prickle already running (no "in ~20 min") and only during the first stretch of the prickle, since a check-in is about coming in. Start in `app/api/internal/prickle-checkins/route.ts`, `checkinMessage` and `planCheckinDMs` in `lib/prickle-checkin-dms.ts`. Per `CLAUDE.md`, a new automated sender starts in dry run behind a flag (`liveFor`, see `lib/member-reminders.ts`). The current behavior is described in `docs/CHECKIN_DELIVERY.md`.
+
 ### Channels, Notifications & Messaging _(v1 live: Slack, in-app (flagged), browser push (flagged), email + per-kind notification settings; more channels next)_
 One system for everything the Hub sends members, instead of each feature hand-rolling a Slack DM. Three layers (this replaces the CRM section's "Messaging Abstraction Layer" item):
 
