@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { safeNextPath } from '@/lib/safe-next'
 import { takeNextPath } from '@/lib/next-path-cookie'
+import { callbackOutcome, logSignIn } from '@/lib/signin-log'
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
@@ -16,6 +17,9 @@ export async function GET(request: Request) {
       const next = safeNextPath(searchParams.get('next')) ?? (await takeNextPath())
       return NextResponse.redirect(`${origin}${next}`)
     }
+    logSignIn(callbackOutcome(error), error)
+  } else {
+    logSignIn('callback_no_code')
   }
 
   // Return the user to an error page with instructions

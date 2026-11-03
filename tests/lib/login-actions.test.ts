@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { verifyOtp, redirect, takeNextPath } = vi.hoisted(() => ({
+const { verifyOtp, redirect, takeNextPath, logSignIn } = vi.hoisted(() => ({
+  logSignIn: vi.fn(),
   verifyOtp: vi.fn(),
   redirect: vi.fn(() => {
     throw new Error("NEXT_REDIRECT");
@@ -11,12 +12,14 @@ const { verifyOtp, redirect, takeNextPath } = vi.hoisted(() => ({
 vi.mock("next/navigation", () => ({ redirect }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ auth: { verifyOtp } }) }));
 vi.mock("@/lib/next-path-cookie", () => ({ takeNextPath }));
+vi.mock("@/lib/signin-log", () => ({ logSignIn }));
 
 import { verifyEmailCode } from "@/app/login/actions";
 
 beforeEach(() => {
   verifyOtp.mockReset().mockResolvedValue({ error: null });
   redirect.mockClear();
+  logSignIn.mockClear();
   takeNextPath.mockReset().mockResolvedValue("/courses");
 });
 
@@ -26,6 +29,7 @@ describe("verifyEmailCode", () => {
 
     expect(result.error).toMatch(/digits only/);
     expect(verifyOtp).not.toHaveBeenCalled();
+    expect(logSignIn).toHaveBeenCalledWith("code_malformed");
   });
 
   it("verifies the code (spaces removed, email lowercased) and goes to the remembered page", async () => {
@@ -33,6 +37,7 @@ describe("verifyEmailCode", () => {
 
     expect(verifyOtp).toHaveBeenCalledWith({ email: "member@example.com", token: "12345678", type: "email" });
     expect(redirect).toHaveBeenCalledWith("/courses");
+    expect(logSignIn).toHaveBeenCalledWith("code_ok");
   });
 
   it("returns a plain message, not Supabase's, when the code is refused", async () => {
@@ -42,6 +47,7 @@ describe("verifyEmailCode", () => {
 
     expect(result.error).toMatch(/didn't work/);
     expect(result.error).not.toMatch(/Token has expired/);
+    expect(logSignIn).toHaveBeenCalledWith("code_refused", expect.objectContaining({ message: "Token has expired or is invalid" }));
     expect(redirect).not.toHaveBeenCalled();
   });
 });
