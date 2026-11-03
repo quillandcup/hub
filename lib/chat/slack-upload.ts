@@ -1,4 +1,4 @@
-import { bodyToBlocks, hasUnderline } from "@/lib/chat/rich-blocks";
+import { bodyToBlocks, isInvalidBlocks, needsBlocks, stripUnderline } from "@/lib/chat/rich-blocks";
 import { WebClient } from "@slack/web-api";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { clock } from "@/lib/clock";
@@ -87,13 +87,13 @@ export async function sendChatFilesToSlack(ctx: FileSendContext): Promise<"sent"
       uploads.push({ file: buffer, filename: f.name ?? "file" });
     }
 
-    // The text that goes with the files is the comment, which is mrkdwn and so has no underline. Slack takes rich-text
-    // blocks instead of a comment (and ignores them when there is one), so a message with an underline goes that way.
-    const upload = (token: string, comment: string) =>
+    // The text that goes with the files is the comment, which is mrkdwn and so has no underline or list. Slack takes rich-text
+    // blocks instead of a comment (and ignores them when there is one), so a message with either goes that way.
+    const upload = (token: string, withBlocks: boolean) =>
       new WebClient(token).filesUploadV2({
         channel_id: slackChannelId,
         thread_ts: ctx.threadTs,
-        ...(hasUnderline(ctx.body) ? { blocks: bodyToBlocks(ctx.body, { plain: true }) } : { initial_comment: comment || undefined }),
+        ...(withBlocks ? { blocks: bodyToBlocks(ctx.body, { plain: true }) } : { initial_comment: ctx.escape(stripUnderline(ctx.body)) || undefined }),
         file_uploads: uploads,
       });
 
@@ -102,7 +102,15 @@ export async function sendChatFilesToSlack(ctx: FileSendContext): Promise<"sent"
     if (!ctx.connection) return ctx.fail("the member has no working Slack connection");
     let result: Awaited<ReturnType<typeof upload>>;
     try {
-      result = await upload(ctx.connection.token, ctx.escape(ctx.body));
+      const withBlocks = needsBlocks(ctx.body);
+      try {
+        result = await upload(ctx.connection.token, withBlocks);
+      } catch (error) {
+        // Slack refusing the blocks must not lose the message: it goes with a plain comment instead.
+        if (!withBlocks || !isInvalidBlocks(error)) throw error;
+        console.error("sendChatFilesToSlack: Slack refused the blocks for message %s, sending the comment as text", messageId);
+        result = await upload(ctx.connection.token, false);
+      }
       postedVia = "user_token";
     } catch (error) {
       // A dead token, or one connected before the Hub asked to upload files for the member (missing_scope):

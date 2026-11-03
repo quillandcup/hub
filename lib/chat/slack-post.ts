@@ -7,7 +7,7 @@ import { isProduction } from "@/lib/config";
 import { getSlackUserToken, isDeadTokenError } from "@/lib/slack-connect";
 import { parseChatFiles } from "@/lib/chat/files";
 import { escapeForSlack } from "@/lib/chat/slack-escape";
-import { bodyToBlocks, hasUnderline, stripUnderline } from "@/lib/chat/rich-blocks";
+import { bodyToBlocks, isInvalidBlocks, needsBlocks, stripUnderline } from "@/lib/chat/rich-blocks";
 import { sendChatFilesToSlack } from "@/lib/chat/slack-upload";
 
 /**
@@ -99,16 +99,27 @@ export async function sendChatMessageToSlack(supabase: SupabaseClient, messageId
 
   let result: Awaited<ReturnType<WebClient["chat"]["postMessage"]>>;
   try {
-    result = await new WebClient(connection.token).chat.postMessage({
-      channel: slackChannelId,
-      // An underline has no mrkdwn, so a message with one goes as rich-text blocks (its text, without the underline, is the fallback).
-      text: escapeForSlack(stripUnderline(body)),
-      ...(hasUnderline(body) ? { blocks: bodyToBlocks(body, { plain: true }) } : {}),
-      thread_ts: threadTs,
-      unfurl_links: false,
-      unfurl_media: false,
-      metadata: hubMessageMetadata(messageId),
-    });
+    const client = new WebClient(connection.token);
+    const post = (blocks: boolean) =>
+      client.chat.postMessage({
+        channel: slackChannelId,
+        text: escapeForSlack(stripUnderline(body)),
+        // An underline or a list has no mrkdwn, so a message with one goes as rich-text blocks (its text, minus the underline, is the fallback).
+        ...(blocks ? { blocks: bodyToBlocks(body, { plain: true }) } : {}),
+        thread_ts: threadTs,
+        unfurl_links: false,
+        unfurl_media: false,
+        metadata: hubMessageMetadata(messageId),
+      });
+    const withBlocks = needsBlocks(body);
+    try {
+      result = await post(withBlocks);
+    } catch (error) {
+      // Slack refusing the blocks must not lose the message: it goes as plain text instead.
+      if (!withBlocks || !isInvalidBlocks(error)) throw error;
+      console.error("sendChatMessageToSlack: Slack refused the blocks for message %s, sending it as text", messageId);
+      result = await post(false);
+    }
   } catch (error) {
     if (isDeadTokenError(error)) {
       console.error("Slack token for member %s is dead, revoking it", authorMemberId);

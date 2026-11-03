@@ -101,6 +101,21 @@ describe("lookupFileMessageTs", () => {
 describe("sendChatFilesToSlack", () => {
   useFakeClock();
 
+  it("sends a message with a list and files as blocks, and falls back to a plain comment (underline dropped) when Slack refuses them", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await sendChatFilesToSlack(ctx({ body: "• a\n• <u>b</u>" }));
+    const [first] = uploadV2.mock.calls[0];
+    expect(first).not.toHaveProperty("initial_comment");
+    expect(first.blocks[0].elements[0]).toMatchObject({ type: "rich_text_list", style: "bullet" });
+
+    uploadV2.mockClear();
+    uploadV2.mockRejectedValueOnce({ data: { error: "invalid_blocks" } });
+    expect(await sendChatFilesToSlack(ctx({ body: "• a\n• <u>b</u>" }))).toBe("sent");
+    expect(uploadV2).toHaveBeenCalledTimes(2);
+    expect(uploadV2.mock.calls[1][0]).toMatchObject({ initial_comment: "• a\n• b" });
+    expect(uploadV2.mock.calls[1][0]).not.toHaveProperty("blocks");
+  });
+
   it("sends files with no text as no comment and no blocks", async () => {
     await sendChatFilesToSlack(ctx({ body: "" }));
     const [args] = uploadV2.mock.calls[0];

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { blocksToBody, bodyToBlocks, hasUnderline, stripUnderline, type RichTextBlock } from "@/lib/chat/rich-blocks";
+import { blocksToBody, bodyToBlocks, hasUnderline, isInvalidBlocks, needsBlocks, stripUnderline, type RichTextBlock } from "@/lib/chat/rich-blocks";
 
 const section = (...elements: object[]) => ({ type: "rich_text_section", elements });
 const text = (t: string, style?: object) => ({ type: "text", text: t, ...(style ? { style } : {}) });
@@ -11,6 +11,18 @@ describe("hasUnderline / stripUnderline", () => {
     expect(hasUnderline("a <u></u> <u>unclosed and *bold*")).toBe(false);
     expect(hasUnderline("plain <b>")).toBe(false);
     expect(stripUnderline("a <u>b *c*</u> d")).toBe("a b *c* d");
+  });
+});
+
+describe("needsBlocks / isInvalidBlocks", () => {
+  it("is true for an underline or a list line (bulleted, numbered, nested), false for everything else, a list inside a code block included", () => {
+    for (const body of ["a <u>b</u>", "• a", "1. a", "text\n  ◦ nested", "intro\n2. two"]) expect(needsBlocks(body), body).toBe(true);
+    for (const body of ["plain *bold* _italic_ ~s~ `c`", "> quote", "```\n1. a\n• b\n```", "1.5 million", "a <u>unclosed", "tea & biscuits"]) expect(needsBlocks(body), body).toBe(false);
+  });
+
+  it("recognises Slack's refusal of blocks, and nothing else", () => {
+    expect(isInvalidBlocks({ data: { error: "invalid_blocks" } })).toBe(true);
+    for (const other of [{ data: { error: "channel_not_found" } }, new Error("invalid_blocks"), null, undefined, "invalid_blocks"]) expect(isInvalidBlocks(other)).toBe(false);
   });
 });
 
