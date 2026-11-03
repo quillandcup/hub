@@ -34,7 +34,8 @@ vi.mock("@/lib/supabase/service", () => ({
         return q;
       },
     });
-    return { ...make("public"), schema: (s: string) => make(s) };
+    const storage = { from: (bucket: string) => ({ getPublicUrl: (path: string) => ({ data: { publicUrl: `https://cdn.test/${bucket}/${path}` } }) }) };
+    return { ...make("public"), schema: (s: string) => make(s), storage };
   },
 }));
 
@@ -72,6 +73,19 @@ describe("cached chat lookups", () => {
   it("does not query for an empty list", async () => {
     expect(await customEmojiFor([])).toEqual({});
     expect(from).not.toHaveBeenCalled();
+  });
+
+  it("serves a copied emoji from our storage, with its still when it moves, and Slack's address until then", async () => {
+    tables["bronze.slack_custom_emoji"] = [
+      { name: "dance", image_url: "https://slack.test/dance.gif", alias_for: null, image_path: "abc.gif", still_path: "abc.still.png" },
+      { name: "flat", image_url: "https://slack.test/flat.png", alias_for: null, image_path: "def.png", still_path: null },
+      { name: "new", image_url: "https://slack.test/new.gif", alias_for: null, image_path: null, still_path: null },
+    ];
+    expect(await customEmojiFor(["dance", "flat", "new"])).toEqual({
+      dance: { url: "https://cdn.test/slack-emoji/abc.gif", still: "https://cdn.test/slack-emoji/abc.still.png" },
+      flat: { url: "https://cdn.test/slack-emoji/def.png" },
+      new: { url: "https://slack.test/new.gif" },
+    });
   });
 
   it("queries again, and sees new data, after invalidation", async () => {

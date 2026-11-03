@@ -1,5 +1,7 @@
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { createRepos } from "@/lib/data/repos";
+import type { SlackEmojiImage } from "@/lib/data/slack-workspace";
+import { emojiPublicUrl } from "@/lib/chat/emoji-url";
 import { safeUrl } from "@/lib/url";
 import { unicodeEmoji, type CustomEmoji } from "@/lib/chat/emoji";
 import { cachedLookup } from "@/lib/chat/lookup-cache";
@@ -156,9 +158,10 @@ export const customEmojiFor = cachedLookup("custom-emoji", customEmojiUncached);
  */
 async function customEmojiUncached(names: string[]): Promise<Record<string, CustomEmoji>> {
   let wanted = [...new Set(names)];
-  const rows = new Map<string, { image_url: string | null; alias_for: string | null }>();
+  const rows = new Map<string, SlackEmojiImage>();
   if (wanted.length === 0) return {};
-  const workspace = createRepos(createServiceRoleClient()).slackWorkspace;
+  const service = createServiceRoleClient();
+  const workspace = createRepos(service).slackWorkspace;
 
   // Aliases point at other names, which may be custom too: fetch until nothing new turns up.
   for (let depth = 0; depth < ALIAS_DEPTH && wanted.length > 0; depth++) {
@@ -178,6 +181,11 @@ async function customEmojiUncached(names: string[]): Promise<Record<string, Cust
       if (!row) {
         const text = i > 0 ? unicodeEmoji(current) : null;
         if (text) out[name] = { text };
+        break;
+      }
+      if (row.image_path) {
+        // Our copy (CORS-readable, so it can be a still too); Slack's address until the sync has copied it.
+        out[name] = { url: emojiPublicUrl(service, row.image_path), ...(row.still_path ? { still: emojiPublicUrl(service, row.still_path) } : {}) };
         break;
       }
       if (row.image_url) {

@@ -208,10 +208,35 @@ export function defineSlackWorkspaceContract(name: string, setup: () => SlackWor
       const rows = await ctx.repo().emojiByNames([wave, party, gone, ...many]);
 
       expect(rows).toEqual([
-        { name: party, image_url: null, alias_for: wave },
-        { name: wave, image_url: "https://emoji.example.test/wave.png", alias_for: null },
+        { name: party, image_url: null, alias_for: wave, image_path: null, still_path: null },
+        { name: wave, image_url: "https://emoji.example.test/wave.png", alias_for: null, image_path: null, still_path: null },
       ].sort((x, y) => (x.name < y.name ? -1 : 1)));
       expect(await ctx.repo().emojiByNames([])).toEqual([]);
+    });
+
+    it("lists the emoji still to copy, and records a copy until the image changes", async () => {
+      const [fresh, copied, alias, gone] = [ctx.unique("fresh"), ctx.unique("copied"), ctx.unique("alias"), ctx.unique("gone")];
+      const url = (n: string) => `https://emoji.example.test/${n}.gif`;
+      await ctx.repo().upsertEmoji([
+        { name: fresh, image_url: url(fresh) },
+        { name: copied, image_url: url(copied) },
+        { name: alias, alias_for: fresh },
+        { name: gone, image_url: url(gone), deleted_at: "2031-05-01T00:00:00.000Z" },
+      ]);
+      const mine = async () => (await ctx.repo().emojiToCopy()).filter((e) => [fresh, copied, alias, gone].includes(e.name));
+      expect(await mine()).toEqual([{ name: copied, image_url: url(copied) }, { name: fresh, image_url: url(fresh) }].sort((a, b) => (a.name < b.name ? -1 : 1)));
+
+      await ctx.repo().markEmojiCopied(copied, { from: url(copied), imagePath: "abc.gif", stillPath: "abc.still.png" });
+      expect((await mine()).map((e) => e.name)).toEqual([fresh]);
+      expect(await ctx.repo().emojiByNames([copied])).toEqual([
+        { name: copied, image_url: url(copied), alias_for: null, image_path: "abc.gif", still_path: "abc.still.png" },
+      ]);
+
+      // A copy of an image the emoji no longer has is not recorded; a changed image is copied again.
+      await ctx.repo().markEmojiCopied(fresh, { from: "https://emoji.example.test/old.gif", imagePath: "old.gif", stillPath: null });
+      expect((await mine()).map((e) => e.name)).toContain(fresh);
+      await ctx.repo().upsertEmoji([{ name: copied, image_url: url(`${copied}-v2`) }]);
+      expect((await mine()).map((e) => e.name)).toContain(copied);
     });
   });
 }

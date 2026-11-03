@@ -170,6 +170,33 @@ describe("freezing images", () => {
     }
   });
 
+  it("swaps an emoji that brings its own still to it, and back, without drawing anything", async () => {
+    mockMotion(false);
+    localStorage.setItem(ANIMATIONS_STORAGE_KEY, "reduce");
+    // An apng copy has no animated extension; the still is what marks it.
+    document.body.innerHTML = '<img id="e" src="https://cdn.test/abc.png" data-still="https://cdn.test/abc.still.png" alt=":party:">';
+    render(<AnimationsController />);
+    const emoji = document.getElementById("e") as HTMLImageElement;
+    expect(emoji.getAttribute("src")).toBe("https://cdn.test/abc.still.png");
+    expect(emoji.getAttribute("data-frozen-src")).toBe("https://cdn.test/abc.png");
+    // Swapping the source does not make the controller freeze it again.
+    await new Promise((r) => setTimeout(r, 0));
+    expect(emoji.getAttribute("src")).toBe("https://cdn.test/abc.still.png");
+
+    localStorage.setItem(ANIMATIONS_STORAGE_KEY, "allow");
+    window.dispatchEvent(new Event("hub-animations-changed"));
+    await waitFor(() => expect(emoji.getAttribute("src")).toBe("https://cdn.test/abc.png"));
+  });
+
+  it("ignores a still that is not an http(s) address", () => {
+    mockMotion(false);
+    localStorage.setItem(ANIMATIONS_STORAGE_KEY, "reduce");
+    document.body.innerHTML = '<img id="e" src="https://cdn.test/a.gif" data-still="javascript:alert(1)" alt=":x:">';
+    render(<AnimationsController />);
+    const emoji = document.getElementById("e") as HTMLImageElement;
+    expect(emoji.getAttribute("src")).not.toContain("javascript:");
+  });
+
   it("leaves ordinary images alone", () => {
     mockMotion(false);
     localStorage.setItem(ANIMATIONS_STORAGE_KEY, "reduce");

@@ -52,6 +52,16 @@ export type SlackMemberEventSeed = Required<Pick<SlackMemberEvent, "channel_id" 
 /** What the emoji sync writes: `bronze.slack_custom_emoji`'s columns. */
 export type NewSlackEmoji = Database["bronze"]["Tables"]["slack_custom_emoji"]["Insert"];
 
+/** A live emoji as the chat reads it. */
+export interface SlackEmojiImage {
+  name: string;
+  image_url: string | null;
+  alias_for: string | null;
+  /** Our copy in the slack-emoji bucket, and the still first frame of an animated one; null until copied. */
+  image_path: string | null;
+  still_path: string | null;
+}
+
 /** A custom emoji as the in-memory dataset keeps it. */
 export type SlackEmojiSeed = Pick<NewSlackEmoji, "name"> & Partial<Omit<NewSlackEmoji, "name">>;
 
@@ -100,8 +110,12 @@ export interface SlackWorkspaceRepository {
   upsertEmoji(emoji: NewSlackEmoji[]): Promise<void>;
   /** The names of the emoji not marked removed, by name. */
   liveEmojiNames(): Promise<string[]>;
-  /** The live emoji with these names: image and alias target. Chunked. */
-  emojiByNames(names: string[]): Promise<{ name: string; image_url: string | null; alias_for: string | null }[]>;
+  /** The live emoji with these names: image (Slack's URL, and our copy's paths once copied) and alias target. Chunked. */
+  emojiByNames(names: string[]): Promise<SlackEmojiImage[]>;
+  /** The live emoji with an image that has not been copied (or whose image changed since), by name. */
+  emojiToCopy(): Promise<{ name: string; image_url: string }[]>;
+  /** Records our copy of an emoji's image, made from `from`. A no-op when the emoji's image_url has changed since. */
+  markEmojiCopied(name: string, copy: { from: string; imagePath: string; stillPath: string | null }): Promise<void>;
   /** Marks emoji removed at `at` (those not already). Chunked. */
   markEmojiRemoved(names: string[], at: string): Promise<void>;
 
@@ -245,9 +259,25 @@ export class SupabaseSlackWorkspaceRepository implements SlackWorkspaceRepositor
 
   async emojiByNames(names: string[]) {
     const rows = await inChunks(names, NAME_CHUNK, async (part) =>
-      must(await this.emojiTable.select("name, image_url, alias_for").in("name", part).is("deleted_at", null)) ?? []
+      must(await this.emojiTable.select("name, image_url, alias_for, image_path, still_path").in("name", part).is("deleted_at", null)) ?? []
     );
     return sortByKey(rows, (r) => r.name);
+  }
+
+  async emojiToCopy() {
+    const rows = await fetchAllRows<{ name: string; image_url: string | null; copied_from_url: string | null }>((from, to) =>
+      this.emojiTable.select("name, image_url, copied_from_url").is("deleted_at", null).not("image_url", "is", null).order("name").range(from, to)
+    );
+    return rows.filter((r) => r.image_url !== r.copied_from_url).map((r) => ({ name: r.name, image_url: r.image_url as string }));
+  }
+
+  async markEmojiCopied(name: string, copy: { from: string; imagePath: string; stillPath: string | null }) {
+    must(
+      await this.emojiTable
+        .update({ image_path: copy.imagePath, still_path: copy.stillPath, copied_from_url: copy.from })
+        .eq("name", name)
+        .eq("image_url", copy.from)
+    );
   }
 
   async markEmojiRemoved(names: string[], at: string) {
@@ -385,8 +415,20 @@ export class InMemorySlackWorkspaceRepository implements SlackWorkspaceRepositor
     const wanted = new Set(names);
     return this.data.slackCustomEmoji
       .filter((e) => wanted.has(e.name) && !e.deleted_at)
-      .map((e) => ({ name: e.name, image_url: e.image_url ?? null, alias_for: e.alias_for ?? null }))
+      .map((e) => ({ name: e.name, image_url: e.image_url ?? null, alias_for: e.alias_for ?? null, image_path: e.image_path ?? null, still_path: e.still_path ?? null }))
       .sort((a, b) => compareText(a.name, b.name));
+  }
+
+  async emojiToCopy() {
+    return this.data.slackCustomEmoji
+      .filter((e) => !e.deleted_at && e.image_url && e.image_url !== (e.copied_from_url ?? null))
+      .map((e) => ({ name: e.name, image_url: e.image_url as string }))
+      .sort((a, b) => compareText(a.name, b.name));
+  }
+
+  async markEmojiCopied(name: string, copy: { from: string; imagePath: string; stillPath: string | null }) {
+    const row = this.data.slackCustomEmoji.find((e) => e.name === name && e.image_url === copy.from);
+    if (row) Object.assign(row, { image_path: copy.imagePath, still_path: copy.stillPath, copied_from_url: copy.from });
   }
 
   async markEmojiRemoved(names: string[], at: string) {

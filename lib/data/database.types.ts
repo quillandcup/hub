@@ -645,27 +645,36 @@ export type Database = {
       slack_custom_emoji: {
         Row: {
           alias_for: string | null
+          copied_from_url: string | null
           deleted_at: string | null
           first_seen_at: string
+          image_path: string | null
           image_url: string | null
           imported_at: string
           name: string
+          still_path: string | null
         }
         Insert: {
           alias_for?: string | null
+          copied_from_url?: string | null
           deleted_at?: string | null
           first_seen_at?: string
+          image_path?: string | null
           image_url?: string | null
           imported_at?: string
           name: string
+          still_path?: string | null
         }
         Update: {
           alias_for?: string | null
+          copied_from_url?: string | null
           deleted_at?: string | null
           first_seen_at?: string
+          image_path?: string | null
           image_url?: string | null
           imported_at?: string
           name?: string
+          still_path?: string | null
         }
         Relationships: []
       }
