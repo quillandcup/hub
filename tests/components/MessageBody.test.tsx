@@ -83,6 +83,19 @@ describe("MessageBody", () => {
     off();
   });
 
+  it("ignores a second save while one is still going", async () => {
+    vi.mocked(editChatMessage).mockReturnValue(new Promise(() => {}));
+    mount();
+    fire("edit");
+    const box = await messageBox("Edit message");
+    await boxUser().clear(box);
+    await typeInto(box, "second draft{Enter}");
+    await waitFor(() => expect(editChatMessage).toHaveBeenCalledTimes(1));
+    await typeInto(box, "{Enter}");
+    expect(editChatMessage).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog", { name: "Delete message" })).not.toBeInTheDocument();
+  });
+
   describe("a message written in Slack", () => {
     const NAMED: ChatTextContext = { ...CTX, userNames: { U1: "Ania Ray" }, channelNames: { C1: "general" } };
     const slackWritten = (body: string) => ({ ...mine({ fromHub: false }), body });
@@ -148,7 +161,7 @@ describe("MessageBody", () => {
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
 
-  it("cancels with Escape or Cancel, and saves nothing for unchanged or empty text", async () => {
+  it("cancels with Escape or Cancel, and saves nothing for unchanged text", async () => {
     mount();
     fire("edit");
     await typeInto(await messageBox(), " more{Escape}");
@@ -160,10 +173,20 @@ describe("MessageBody", () => {
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
 
     fire("edit");
-    await boxUser().clear(await messageBox());
-    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(editChatMessage).not.toHaveBeenCalled();
+  });
+
+  it("asks to delete when an emptied edit is saved, like Slack, and saves no edit", async () => {
+    vi.mocked(deleteChatMessage).mockResolvedValue({ ok: true });
+    mount();
+    fire("edit");
+    await boxUser().clear(await messageBox());
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(screen.getByRole("dialog", { name: "Delete message" })).toBeInTheDocument();
+    expect(editChatMessage).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(deleteChatMessage).toHaveBeenCalledWith("m1"));
   });
 
   it("keeps the editor open with the reason when the edit is refused", async () => {

@@ -70,7 +70,9 @@ export default function MessageBody({
 
   const save = async () => {
     const typed = draft.trim();
-    if (!typed || busy) return;
+    if (busy) return;
+    // Like Slack: saving an emptied edit asks to delete the message.
+    if (!typed) return setMode("confirm-delete");
     const next = fromEditableText(typed, shownTokens.current, { plain: message.fromHub });
     if (next === text) return setMode("view");
     setBusy(true);
@@ -131,7 +133,7 @@ export default function MessageBody({
         <div className="mt-1 flex items-center gap-2 text-xs">
           <button
             type="button"
-            disabled={busy || draft.trim() === ""}
+            disabled={busy}
             onClick={() => void save()}
             className="rounded-md bg-plum-600 px-2.5 py-1 font-medium text-white hover:bg-plum-700 disabled:opacity-50"
           >
