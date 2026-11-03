@@ -11,7 +11,7 @@ const COPY: Record<SlackConnectNeed, { text: string; action: string }> = {
   connect: { text: "Hub chat needs your Slack account, so your messages and reactions come from you.", action: "Connect Slack" },
   reconnect: { text: "Your Slack connection stopped working, so chat is closed until you reconnect it.", action: "Reconnect Slack" },
   update: { text: "Chat needs you to reconnect Slack once, to give the Hub the permissions it asks for now.", action: "Reconnect Slack" },
-  permissions: { text: "We're getting ready to bring Slack direct messages into Hub chat. Reconnect Slack once now so you won't have to later. The Hub reads none of your direct messages until then.", action: "Reconnect Slack" },
+  permissions: { text: "Slack direct messages are coming to Hub chat. Reconnect Slack once now, or you won't be able to message people in the Hub when they arrive.", action: "Reconnect Slack" },
 };
 
 /**
