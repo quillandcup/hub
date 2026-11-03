@@ -17,6 +17,8 @@ export interface Prickle {
   attendance_count: number;
   host_missing?: boolean;
   host_late?: boolean;
+  /** Running now: the count is from who is in the room, not yet the attendance import. */
+  live?: boolean;
   /** Shown in Events (an event follows it), or removed from Events. Absent when it has no event. */
   in_events?: "shown" | "hidden";
 }
@@ -454,7 +456,9 @@ export default function CalendarWeekView({
                               </div>
                               {mode !== "member" && attendanceLabel(prickle, attendanceDataThrough) && (
                                 <div className="text-xs font-bold mt-0.5">
+                                  {prickle.live && <span aria-hidden="true">● </span>}
                                   {attendanceLabel(prickle, attendanceDataThrough)}
+                                  {prickle.live && " now"}
                                 </div>
                               )}
                             </div>
