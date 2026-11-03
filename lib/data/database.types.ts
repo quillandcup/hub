@@ -3362,38 +3362,6 @@ export type Database = {
           },
         ]
       }
-      member_ask_me_about: {
-        Row: {
-          created_at: string
-          member_id: string
-          topics: string[]
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          created_at?: string
-          member_id: string
-          topics?: string[]
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          created_at?: string
-          member_id?: string
-          topics?: string[]
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "member_ask_me_about_member_id_fkey"
-            columns: ["member_id"]
-            isOneToOne: true
-            referencedRelation: "members"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       member_admin_notes: {
         Row: {
           body: string
@@ -3424,6 +3392,38 @@ export type Database = {
             foreignKeyName: "member_admin_notes_member_id_fkey"
             columns: ["member_id"]
             isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      member_ask_me_about: {
+        Row: {
+          created_at: string
+          member_id: string
+          topics: string[]
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          member_id: string
+          topics?: string[]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          member_id?: string
+          topics?: string[]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_ask_me_about_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: true
             referencedRelation: "members"
             referencedColumns: ["id"]
           },
