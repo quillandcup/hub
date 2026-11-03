@@ -702,10 +702,13 @@ Statement timeouts (57014) kept hitting unrelated queries in production: the adm
 
 ## Security & Access Control
 
-### Stale private-channel memberships in the chat mirror _(Needs Scheduling)_
+### Stale private-channel memberships in the chat mirror _(Resolved 2026-11-02)_
 
-A production check (2026-11-02) found 9 active `chat_channel_members` rows in private channels, for 2 members, with no active Slack membership behind them in `bronze.slack_channel_members` (matched through `chat_slack_authors`). A member with such a row still sees that private channel in the Hub (`chat_visible_channel_ids()` trusts the row). **Looked at (same day):** none is staff and all have a matched Slack account. 6 rows (one member) are Bronze memberships marked left the same day, not yet projected: lag until the next `project_slack_chat_channels` run, which should clear itself. 3 rows (the other member) have no Bronze membership row at all, and `project_slack_chat_channels` only updates rows Bronze still lists (`ON CONFLICT ... SET left_at`, never a delete), so nothing ever closes them. **Still open:** find why those 3 have no Bronze row (a re-matched Slack account, or removed rows), and make the projection close Hub rows Bronze no longer backs, only after confirming the membership import fully succeeded for that channel (the soft-delete rule in `CLAUDE.md`). A test should show a member who left a private channel in Slack loses it in the Hub.
+A production check (2026-11-02) found 9 active `chat_channel_members` rows in private channels, for 2 members, with no active Slack membership behind them in `bronze.slack_channel_members`. A member with such a row still saw that private channel in the Hub (`chat_visible_channel_ids()` trusts the row). Two causes: (1) the Slack webhook updated Bronze when someone left but skipped the chat projection (`lib/processing/trigger.ts`), so the Hub kept the row until the next full run; (2) `project_slack_chat_channels` only upserted rows Bronze still lists, so a row whose Slack account stopped matching the member was never closed.
 
+**Resolved:** `applySlackMembershipEvent` (`lib/slack-capture.ts`) now applies a join or leave to `chat_channel_members` at once, for a bridged channel and a matched Slack user; and `project_slack_chat_channels` (`supabase/migrations/20270422000000_chat_close_unbacked_memberships.sql`) closes Slack-sourced rows that no active Bronze membership backs, only in channels where Bronze lists someone active (an empty list could be a failed fetch) and never a Hub-made (`app`) membership. Tests: `tests/api/reprocessability/chat.test.ts` (membership), `tests/api/idempotency/slack-capture.test.ts`.
+
+**Still open (small):** the projection's close step runs with the nightly or manual chat processing, so a leave the webhook missed (outage) waits for that; and `member_interactions` reads membership too, so it only catches up on its own next run.
 
 ### Removal on request for records with a required member id _(Approach decided 2026-10-31; not built)_
 

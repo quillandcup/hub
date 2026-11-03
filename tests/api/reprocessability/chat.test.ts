@@ -18,7 +18,8 @@ describe('Chat mirror reprocessability', () => {
   const day = '2099-05-01'
 
   async function cleanup() {
-    await supabase.from('chat_channels').delete().eq('slack_channel_id', channelId) // cascades messages, contents, reactions
+    await supabase.from('chat_channels').delete().eq('slack_channel_id', channelId) // cascades messages, contents, reactions, members
+    await supabase.schema('bronze').from('slack_channel_members').delete().eq('channel_id', channelId)
     await supabase.schema('bronze').from('slack_reactions').delete().eq('channel_id', channelId)
     await supabase.schema('bronze').from('slack_messages').delete().eq('channel_id', channelId)
     await supabase.schema('bronze').from('slack_channels').delete().eq('channel_id', channelId)
@@ -148,5 +149,63 @@ describe('Chat mirror reprocessability', () => {
     await process()
 
     expect((await messages()).some((r) => r.slack_ts === ts)).toBe(true)
+  })
+
+  describe('membership', () => {
+    const otherSlackUserId = 'U_TEST_CHAT_OTHER'
+    const hubMembership = async () => {
+      const { data, error } = await supabase
+        .from('chat_channel_members').select('left_at').eq('channel_id', (await channel()).id).eq('member_id', testMemberId).single()
+      expect(error).toBeNull()
+      return data!.left_at as string | null
+    }
+    const setHubMembership = async (source: 'slack' | 'app', leftAt: string | null = null) => {
+      const { error } = await supabase.from('chat_channel_members').upsert(
+        { channel_id: (await channel()).id, member_id: testMemberId, source, left_at: leftAt, joined_at: `${day}T09:00:00Z` },
+        { onConflict: 'channel_id,member_id' }
+      )
+      expect(error).toBeNull()
+    }
+    const bronzeActive = async (userIds: string[]) => {
+      await supabase.schema('bronze').from('slack_channel_members').delete().eq('channel_id', channelId)
+      if (userIds.length === 0) return
+      const { error } = await supabase.schema('bronze').from('slack_channel_members').insert(
+        userIds.map((user_id) => ({ channel_id: channelId, user_id, left_at: null, imported_at: new Date().toISOString() }))
+      )
+      expect(error).toBeNull()
+    }
+
+    it('closes a Slack-sourced membership that no active Bronze membership backs', async () => {
+      await setHubMembership('slack')
+      await bronzeActive([otherSlackUserId])
+      await process()
+
+      expect(await hubMembership()).not.toBeNull()
+    })
+
+    it('keeps a membership Bronze backs, and brings a rejoined member back', async () => {
+      await setHubMembership('slack')
+      await bronzeActive([testSlackUserId, otherSlackUserId])
+      await process()
+      expect(await hubMembership()).toBeNull()
+
+      await setHubMembership('slack', `${day}T12:00:00Z`)
+      await process()
+      expect(await hubMembership()).toBeNull()
+    })
+
+    it('leaves a Hub-made (app) membership alone', async () => {
+      await setHubMembership('app')
+      await bronzeActive([otherSlackUserId])
+      await process()
+      expect(await hubMembership()).toBeNull()
+    })
+
+    it('closes nothing in a channel where Bronze lists nobody active (could be a failed fetch)', async () => {
+      await setHubMembership('slack')
+      await bronzeActive([])
+      await process()
+      expect(await hubMembership()).toBeNull()
+    })
   })
 })

@@ -342,6 +342,26 @@ export async function applySlackMembershipEvent(
   } else if (event.type === "member_left_channel") {
     await workspace.markMemberLeft(event.channel, event.user, now);
   }
+
+  // The Hub's chat mirror follows at once: a member who leaves a private channel must stop seeing it now,
+  // not at the next projection (the webhook skips that, see lib/processing/trigger.ts). Bronze above is
+  // the record and the projection reconciles the mirror anyway, so a failure here is logged, not thrown.
+  try {
+    await mirrorMembershipToChat(supabase, { channel: event.channel, user: event.user, joined: event.type === "member_joined_channel" }, now);
+  } catch (error) {
+    console.error("Mirroring a Slack membership event to chat failed (the next projection catches up):", error);
+  }
+}
+
+/** Applies one join or leave to `chat_channel_members`, for a bridged channel and a Slack user matched to a member. */
+async function mirrorMembershipToChat(supabase: SupabaseClient, change: { channel: string; user: string; joined: boolean }, at: string) {
+  const chat = createRepos(supabase).chat;
+  const channelId = await chat.idBySlackChannel(change.channel);
+  if (!channelId || (await chat.bridgeState(channelId))?.bridge_disabled) return;
+  const memberId = (await chat.memberIdsBySlackUser([change.user])).get(change.user);
+  if (!memberId) return;
+  if (change.joined) await chat.addMembers(channelId, [{ memberId, source: "slack" }], at);
+  else await chat.markLeft(channelId, memberId, at);
 }
 
 /**
