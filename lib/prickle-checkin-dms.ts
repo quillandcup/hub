@@ -409,10 +409,10 @@ function checkinFooter(prickleId: string, kind: "checkin" | "checkout" = "checki
 // same thing in Slack and on the site.
 export { checkinAnswered, checkoutAnswered };
 
-/** The check-in DM, before a prickle: mood, the feeling, then their intention. */
-export function buildCheckinBlocks(prickleId: string, typeName: string, saved: CheckinInput | null): any[] {
+/** The check-in DM, before a prickle (or, `running`, to a member who has just joined it): mood, the feeling, then their intention. */
+export function buildCheckinBlocks(prickleId: string, typeName: string, saved: CheckinInput | null, running = false): any[] {
   return [
-    ...moodBlocks(prickleId, "before", `*${typeName}* starts in about 20 minutes. `, saved),
+    ...moodBlocks(prickleId, "before", running ? `You're in *${typeName}*. ` : `*${typeName}* starts in about 20 minutes. `, saved),
     selectQuestion(prickleId, "need", "Choose your intention: what do you need most from this session?", "Choose your intention", saved),
     dismissBlock("checkin", prickleId),
     checkinFooter(prickleId),
@@ -844,11 +844,11 @@ const TEST_BANNER = {
 export function checkinMessage(
   prickle: DMPrickle,
   saved: CheckinInput | null,
-  { test = false, join = null }: { test?: boolean; join?: PrickleJoin | null } = {}
+  { test = false, join = null, running = false }: { test?: boolean; join?: PrickleJoin | null; running?: boolean } = {}
 ): OutboundMessage {
-  const blocks = [...buildCheckinBlocks(prickle.id, prickle.typeName, saved), ...joinSlackBlocks(join)];
+  const blocks = [...buildCheckinBlocks(prickle.id, prickle.typeName, saved, running), ...joinSlackBlocks(join)];
   return {
-    text: `${test ? "[Test] " : ""}Ready for ${prickle.typeName} in ~20 min? Check in: how are you feeling, and what do you need from it?`,
+    text: `${test ? "[Test] " : ""}${running ? `You're in ${prickle.typeName}.` : `Ready for ${prickle.typeName} in ~20 min?`} Check in: how are you feeling, and what do you need from it?`,
     url: `${APP_URL}${checkinHref(prickle.id, "checkin")}`,
     slackBlocks: test ? [TEST_BANNER, ...blocks] : blocks,
     ref: prickle.id,
@@ -915,4 +915,100 @@ export async function sendTestCheckinDM(
   }
   const delivered = await notifier.send(memberId, message);
   return delivered.length > 0 ? { delivered } : { error: "Nothing went out; check the server logs." };
+}
+
+// --- Check-in for a member who joins a running prickle -----------------------------------------
+
+/**
+ * How long after a prickle starts a member who joins its room is still asked to check in: the
+ * talking time ends at minute 18, when everyone should be writing, so later than that is too late
+ * for "how are you feeling coming in".
+ */
+export const DROP_IN_CHECKIN_WINDOW_MS = 18 * 60 * 1000;
+
+/** What a member who joined a prickle was sent (or, in a dry run, would have been). */
+export interface DropInResult {
+  sent: number;
+  dryRun: number;
+}
+
+/**
+ * The check-in for a member who joined the Zoom room of a prickle that started less than
+ * DROP_IN_CHECKIN_WINDOW_MS ago without it on their calendar (so the usual check-in, sent before
+ * the start, never reached them). `prickles` are the writing prickles running now that started
+ * within that window; `activeMemberIds` the members it may go to. Who is in the room comes from
+ * live presence (lib/zoom-presence.ts): an open interval, i.e. joined and not left.
+ *
+ * It goes through the same notifier, dedup log and skips as the check-in sent ahead of time, so a
+ * member who already got that one, answered, or dismissed is left alone. A new sender starts as a
+ * dry run: `liveFor` says who gets it for real (the `checkin_dropins` flag); for everyone else it
+ * only logs the member, prickle, channels and why, and writes no dedup row, so switching it on
+ * later starts from a clean slate.
+ */
+export async function sendDropInCheckins(
+  repos: DmRepos,
+  prickles: UpcomingPrickle[],
+  activeMemberIds: string[],
+  now: number,
+  liveFor: (memberIds: string[]) => Promise<Set<string>>
+): Promise<DropInResult> {
+  if (prickles.length === 0) return { sent: 0, dryRun: 0 };
+  const earliestStart = Math.min(...prickles.map((p) => new Date(p.startTime).getTime()));
+  const presence = await loadPresenceByMember(repos, new Date(earliestStart - PRESENCE_LOOKBEHIND_MS), new Date(now));
+  const active = new Set(activeMemberIds);
+  const prickleIds = prickles.map((p) => p.id);
+
+  const [claimed, dismissed] = await Promise.all([
+    repos.prickleActivity.claimedDmPairs("prickle_checkin", prickleIds),
+    loadDismissedPairs(repos, "checkin", prickleIds),
+  ]);
+  const plan: { memberId: string; prickle: UpcomingPrickle }[] = [];
+  for (const [memberId, intervals] of presence) {
+    if (!active.has(memberId) || !intervals.some((i) => i.leave === null && i.join <= now)) continue;
+    for (const prickle of prickles) {
+      if (!claimed.has(`${memberId}:${prickle.id}`) && !dismissed.has(`${memberId}:${prickle.id}`)) plan.push({ memberId, prickle });
+    }
+  }
+  if (plan.length === 0) return { sent: 0, dryRun: 0 };
+
+  const memberIds = [...new Set(plan.map((p) => p.memberId))];
+  const [live, notifier, checkins] = await Promise.all([
+    liveFor(memberIds),
+    createNotifier(repos, "prickle_checkin", memberIds),
+    loadCheckins(repos, memberIds, [...new Set(plan.map((p) => p.prickle.id))]),
+  ]);
+
+  let sent = 0;
+  let dryRun = 0;
+  for (const { memberId, prickle } of plan) {
+    const saved = checkins.get(`${memberId}:${prickle.id}`) ?? null;
+    if (checkinAnswered(saved)) continue;
+    const message = checkinMessage(prickle, saved, { running: true });
+
+    if (!live.has(memberId)) {
+      const channels = notifier.channelsFor(memberId);
+      if (channels.length > 0) dryRun++;
+      console.log(
+        "[prickle-checkins] DRY RUN drop-in check-in",
+        JSON.stringify({
+          memberId,
+          prickleId: prickle.id,
+          wouldSend: channels.length > 0,
+          channels,
+          why: "in the room of a prickle that started within the last 18 minutes, no check-in sent",
+          text: message.text,
+          url: message.url ?? null,
+        })
+      );
+      continue;
+    }
+
+    // Opted out everywhere, or no address: not claimed, so turning check-ins back on still sends one.
+    if (!notifier.canReach(memberId)) continue;
+    if (!(await tryRecordCheckinDM(repos, prickle.id, memberId, "prickle_checkin"))) continue;
+    const delivered = await notifier.send(memberId, message);
+    if (delivered.length > 0) sent++;
+    else await releaseCheckinDM(repos, prickle.id, memberId, "prickle_checkin");
+  }
+  return { sent, dryRun };
 }

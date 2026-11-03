@@ -25,6 +25,13 @@ vi.mock("@/lib/calendar-feed", () => ({
   loadCalendarFeedPrickleIds: (repos: unknown, memberId: string) => calendarPrickleIds(repos, memberId),
 }));
 
+// Who the drop-in check-in is live for (the `checkin_dropins` flag); everyone else is a dry run.
+const dropInLive = new Set<string>();
+vi.mock("@/lib/features.server", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/features.server")>("@/lib/features.server")),
+  membersWithFeatureForOutreach: async (_repos: unknown, _key: string, ids: string[]) => new Set(ids.filter((id) => dropInLive.has(id))),
+}));
+
 vi.mock("@/lib/cron-heartbeats", () => ({ withCronHeartbeat: async (_job: string, res: Response) => res }));
 
 // The route builds its repositories over the service-role client: the same in-memory ones here.
@@ -125,6 +132,7 @@ beforeEach(() => {
   reset();
   sendSlackDM.mockClear();
   sendEmail.mockClear();
+  dropInLive.clear();
   calendarPrickleIds.mockReset();
   calendarPrickleIds.mockResolvedValue(new Set());
   process.env.CRON_INTERNAL_SECRET = "test-secret";
@@ -294,6 +302,91 @@ describe("prickle check-in route", () => {
     const res = await POST(cronRequest());
     expect(await res.json()).toEqual({ checkins: 0, checkouts: 0 });
     expect(sendSlackDM).not.toHaveBeenCalled();
+  });
+});
+
+describe("check-in for a member who joins a running prickle", () => {
+  const minutesAgo = (m: number) => new Date(Date.now() - m * 60 * 1000).toISOString();
+  const running = (startedMinutesAgo: number) => ({ ...PRICKLE, startTime: minutesAgo(startedMinutesAgo), endTime: minutesAgo(startedMinutesAgo - 60) });
+  const event = (id: string, name: string, event: "joined" | "left", at: string) => ({
+    id,
+    meeting_uuid: "mtg-1",
+    meeting_id: null,
+    host_id: "host-1",
+    participant_key: `dev-${name}`,
+    participant_name: name,
+    participant_email: null,
+    event,
+    event_time: at,
+    leave_reason: null,
+    raw_payload: {},
+    received_at: at,
+  });
+  const meeting = {
+    id: "z1", meeting_id: "z1", meeting_uuid: "mtg-1", topic: "Prickle", start_time: minutesAgo(30), end_time: null, duration_minutes: null,
+    host_email: null, host_name: null, participant_count: null, imported_at: null, updated_at: null, data: { host_id: "host-1" },
+  };
+  /** A prickle that started `startedMinutesAgo` minutes ago, with the events of Zoom participants. */
+  function world(startedMinutesAgo: number, events: ReturnType<typeof event>[]) {
+    reset([running(startedMinutesAgo)]);
+    dataset.zoomParticipantEvents.push(...events);
+    dataset.zoomMeetings.push(meeting as never);
+  }
+  const inRoom = () => event("1", "Ada Example", "joined", minutesAgo(3));
+
+  it("sends it to a member in the room who has no calendar tie, in the running prickle's words, once", async () => {
+    world(5, [inRoom()]);
+    dropInLive.add("m1");
+
+    expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 1, checkouts: 0 });
+    expect(sendSlackDM).toHaveBeenCalledTimes(1);
+    expect(sendSlackDM.mock.calls[0][0].slackUserId).toBe("U-m1");
+    expect(sendSlackDM.mock.calls[0][0].text).toContain("You're in Progress Prickle.");
+    expect(sendSlackDM.mock.calls[0][0].text).not.toContain("~20 min");
+    expect(dataset.checkinDmLog).toHaveLength(1);
+
+    expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 0, checkouts: 0 });
+    expect(sendSlackDM).toHaveBeenCalledTimes(1);
+  });
+
+  it("is a dry run for a member the flag does not cover: logged with its channels, nothing sent or recorded", async () => {
+    world(5, [inRoom()]);
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 0, checkouts: 0 });
+    expect(sendSlackDM).not.toHaveBeenCalled();
+    expect(dataset.checkinDmLog).toEqual([]);
+    const line = log.mock.calls.map((c) => c.join(" ")).find((l) => l.includes("DRY RUN drop-in check-in"));
+    expect(line).toContain('"memberId":"m1"');
+    expect(line).toContain('"wouldSend":true');
+  });
+
+  it("leaves alone a member who already got the check-in ahead of the start", async () => {
+    world(5, [inRoom()]);
+    dropInLive.add("m1");
+    dataset.checkinDmLog.push({ id: "log-1", prickle_id: "p1", member_id: "m1", kind: "prickle_checkin", sent_at: minutesAgo(25) });
+
+    expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 0, checkouts: 0 });
+    expect(sendSlackDM).not.toHaveBeenCalled();
+  });
+
+  it("skips a member who left the room, or who joined a prickle that started more than 18 minutes ago", async () => {
+    world(5, [inRoom(), event("2", "Ada Example", "left", minutesAgo(1))]);
+    dropInLive.add("m1");
+    expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 0, checkouts: 0 });
+
+    world(19, [event("3", "Ada Example", "joined", minutesAgo(2))]);
+    expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 0, checkouts: 0 });
+    expect(sendSlackDM).not.toHaveBeenCalled();
+  });
+
+  it("skips a member who turned check-ins off everywhere, without claiming it", async () => {
+    world(5, [inRoom()]);
+    dropInLive.add("m1");
+    dataset.notificationPreferences.push(optIn("m1", "prickle_checkin", "slack", false), optIn("m1", "prickle_checkin", "in_app", false));
+
+    expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 0, checkouts: 0 });
+    expect(dataset.checkinDmLog).toEqual([]);
   });
 });
 

@@ -29,7 +29,14 @@ its Zoom room** while it runs (`markPresent`, live presence from the participant
 The **check-in message** is sent ahead of time, so only the first three can count: it goes to
 active members who have the prickle on their calendar feed (`planCheckinDMs`), whether or not
 they have a writing goal. Being in the room is not known 15 minutes before the start, so a
-drop-in never gets a check-in message on any channel; their only check-in is the pill.
+member who just joins (a "drop-in") gets a second kind of check-in message
+(`sendDropInCheckins`): once live presence shows them in the room of a writing prickle that
+started less than `DROP_IN_CHECKIN_WINDOW_MS` (18 minutes, the end of the talking time) ago, they
+are sent the same check-in through the same notifier, worded "You're in …" instead of "starts in
+about 20 minutes". The dedup log keeps it to one per member and prickle, so a member who got the
+usual one is not sent another. It is behind the `checkin_dropins` flag, a dry run for members it
+does not cover: it logs the member, prickle, channels and why (`DRY RUN drop-in check-in` in the
+logs of `/api/internal/prickle-checkins`) and sends and records nothing.
 
 The **check-out message** does not use ties at all. It goes to anyone Zoom presence shows in the
 room (`dueCheckoutMembers`), and as a backstop to anyone with imported attendance. A member
@@ -47,6 +54,7 @@ attendance import.
 | Constant | Value | Meaning |
 |---|---|---|
 | Check-in send window | 15–30 min before the start | `sendCheckins` in the cron route; the text says "~20 min" |
+| `DROP_IN_CHECKIN_WINDOW_MS` | 18 minutes | A member who joins the room is sent the check-in if the prickle started less than this ago |
 | `CHECKIN_SOON_MS` | 2 hours | The pill is offered from this long before the start |
 | `CHECKOUT_BEFORE_END_MS` | 10 minutes | Members in the room are due the check-out this long before the end. The cron runs every 5 minutes, so it lands 10 to 5 minutes before. |
 | `EARLY_LEAVE_GRACE_MS` | 10 minutes | An early leaver is due the check-out this long after leaving without rejoining (a bathroom break is not leaving) |
@@ -59,7 +67,7 @@ attendance import.
 
 | Where | Appears | Disappears |
 |---|---|---|
-| Message on Slack (and email or browser push, if the member turned them on) | 15–30 minutes before the start, to active members with the prickle on their calendar, goal or not | Stays in Slack; its buttons keep working |
+| Message on Slack (and email or browser push, if the member turned them on) | 15–30 minutes before the start, to active members with the prickle on their calendar, goal or not. A member who joins the room instead gets it then (see above). | Stays in Slack; its buttons keep working |
 | In-app banner | When the message is sent | At the prickle's end, or sooner if answered, opened or dismissed |
 | Bell and inbox | When the message is sent | Never removed; marked read when opened, dismissed or answered |
 | Dashboard and My Prickles, "Check in →" | 2 hours before the start, with a tie (being in the room counts, so a drop-in sees it once their join arrives) | At the end; dismissing the offer hides it sooner; "Checked in ✓" once answered |
@@ -85,7 +93,7 @@ sent when the questions are already answered, or the offer was dismissed.
 | Scenario | Channels | Dashboard and search |
 |---|---|---|
 | Check-in, prickle on the calendar, with or without a goal | Sent 15–30 minutes before the start | Pill from 2 hours before the start until the end |
-| Check-in, drop-in with no tie | Nothing | Pill once the Zoom join arrives and the prickle has started |
+| Check-in, drop-in with no tie | When the Zoom join arrives, if the prickle started less than 18 minutes ago (live for members the `checkin_dropins` flag covers, a dry run for the rest) | Pill once the Zoom join arrives and the prickle has started |
 | Check-out, in the room, with a goal | Sent 10 to 5 minutes before the end, with progress questions | "Check out →" from the start; card after the end |
 | Check-out, in the room, no goal | Same send, no progress questions; Slack and email add the tip line | Same pill and card; the web check-out shows the tip too |
 | Check-out, left early | Sent 10 minutes after leaving without rejoining | Same pill and card |

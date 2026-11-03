@@ -1,4 +1,4 @@
-export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat' | 'chat_posting' | 'chat_dms' | 'big_sisters' | 'intro_reminders' | 'prickle_reminders' | 'courses' | 'hosting' | 'mux_playback_restriction';
+export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat' | 'chat_posting' | 'chat_dms' | 'big_sisters' | 'intro_reminders' | 'prickle_reminders' | 'checkin_dropins' | 'courses' | 'hosting' | 'mux_playback_restriction';
 
 export interface FeaturePreview {
   key: FeatureKey;
@@ -71,6 +71,11 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     key: 'prickle_reminders',
     name: 'Send prickle reminders',
     description: 'Sends the reminder to put a prickle on your calendar (it backs off the longer it goes unanswered) for real to the members this covers: everyone when switched on globally, otherwise only members in a linked segment or with their own preview. For everyone else the job only logs who it would have reminded and why. Members also have to turn the reminders on themselves in Settings → Notifications, as they are off until then',
+  },
+  {
+    key: 'checkin_dropins',
+    name: 'Check-in for members who join a prickle',
+    description: 'Sends the check-in (how are you feeling, what do you need) for real to a member who has joined the Zoom room of a prickle that started in the last 18 minutes without having it on their calendar, for the members this covers: everyone when switched on globally, otherwise only members in a linked segment or with their own preview. For everyone else the job only logs who it would have sent it to and why (see the logs of /api/internal/prickle-checkins). Members still choose their channels in Settings → Notifications',
   },
   {
     key: 'courses',

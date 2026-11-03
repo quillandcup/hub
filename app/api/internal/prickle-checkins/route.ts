@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { joinAt, loadPrickleJoinSettings } from "@/lib/prickle-join";
 import { createNotifier } from "@/lib/notifications/notify";
+import { membersWithFeatureForOutreach } from "@/lib/features.server";
 import { withCronHeartbeat } from "@/lib/cron-heartbeats";
 import { prickleTitle } from "@/lib/domain/prickle";
 import { createRepos, type Repos } from "@/lib/data/repos";
@@ -10,12 +11,14 @@ import {
   checkinAnswered,
   checkinMessage,
   CHECKOUT_LOOKBACK_MS,
+  DROP_IN_CHECKIN_WINDOW_MS,
   getActiveGoalCandidates,
   loadCalendarPrickleIdsByMember,
   loadCheckins,
   planCheckinDMs,
   loadDismissedPairs,
   sendCheckoutDMs,
+  sendDropInCheckins,
   tryRecordCheckinDM,
   releaseCheckinDM,
   type RecentPrickle,
@@ -34,6 +37,9 @@ export const maxDuration = 60;
  * - Check-ins: ~15-30 min before an upcoming writing prickle on the member's calendar feed
  *   (hosting, a commitment, or added by hand), how they're feeling coming in and their intention for it.
  *   See planCheckinDMs.
+ * - Check-ins for members who joined: the Zoom room of a prickle that started in the last 18 minutes,
+ *   without it on their calendar (live presence), behind the `checkin_dropins` flag: a dry run
+ *   (logged, nothing sent or recorded) for members it does not cover. See sendDropInCheckins.
  * - Check-outs: 5-10 minutes before a writing prickle ends, or 10 minutes after an early leaver
  *   leaves, from live Zoom presence; failing that, once its attendance is imported (after the
  *   Zoom meeting ends). Did they get what they came for, mood, the feeling, and progress. See sendCheckoutDMs.
@@ -58,7 +64,8 @@ async function runPrickleCheckins(request: NextRequest): Promise<NextResponse> {
   const now = Date.now();
   // Check-ins go to active members with the prickle on their calendar; check-outs to anyone in the room.
   const activeMemberIds = (await repos.members.identities({ status: "active" })).map((m) => m.id);
-  const checkins = await sendCheckins(repos, activeMemberIds, now);
+  const checkins =
+    (await sendCheckins(repos, activeMemberIds, now)) + (await sendDropIns(repos, activeMemberIds, now));
   const checkouts = await sendCheckoutDMs(repos, await loadRecentPrickles(repos, now), candidates, now);
   return NextResponse.json({ checkins, checkouts });
 }
@@ -81,6 +88,30 @@ async function loadRecentPrickles(repos: RouteRepos, now: number): Promise<Recen
 /** The prickles whose type is for writing (only those get check-ins and check-outs), with the type known. */
 function writingPrickles(prickles: PrickleDetail[]) {
   return prickles.filter((p): p is PrickleDetail & { type: PrickleType } => p.type?.purpose === "writing");
+}
+
+/** A member who joined a running prickle that has no check-in for them yet (see sendDropInCheckins). */
+async function sendDropIns(repos: RouteRepos, activeMemberIds: string[], now: number): Promise<number> {
+  const started = await repos.prickles.startingBetween({
+    from: new Date(now - DROP_IN_CHECKIN_WINDOW_MS).toISOString(),
+    to: new Date(now).toISOString(),
+    inclusiveEnd: true,
+  });
+  const running: UpcomingPrickle[] = writingPrickles(started)
+    .filter((p) => new Date(p.endTime).getTime() > now)
+    .map((p) => ({
+      id: p.id,
+      typeName: p.type.name,
+      title: prickleTitle(p),
+      typeId: p.type.id,
+      hostId: p.hostId,
+      startTime: p.startTime,
+      endTime: p.endTime,
+    }));
+  const { sent } = await sendDropInCheckins(repos, running, activeMemberIds, now, (memberIds) =>
+    membersWithFeatureForOutreach(repos, "checkin_dropins", memberIds)
+  );
+  return sent;
 }
 
 async function sendCheckins(repos: RouteRepos, memberIds: string[], now: number): Promise<number> {
