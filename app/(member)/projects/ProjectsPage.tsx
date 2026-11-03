@@ -8,6 +8,8 @@ import { getMyAwards } from "@/app/(member)/awards/actions";
 import ProjectsClient from "./ProjectsClient";
 import MyBooksPanel from "./MyBooksPanel";
 import MyAwardsPanel from "./MyAwardsPanel";
+import JourneyMap from "@/components/writing/JourneyMap";
+import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
 import { Tabs } from "@/components/Tabs";
 import { RememberTabUrl } from "@/components/ReturnToTab";
 
@@ -23,7 +25,16 @@ export default async function ProjectsPage({ tab }: { tab: MyWritingTabId }) {
   const effectiveIdentity = await getEffectiveIdentity(user);
   if (!effectiveIdentity) redirect("/admin");
 
-  const [projects, pastProjects, books, awards] = await Promise.all([getMyProjects(), getMyPastProjects(), getMyBooks(), getMyAwards()]);
+  const [projects, pastProjects, books, awards, ownFeatures] = await Promise.all([
+    getMyProjects(),
+    getMyPastProjects(),
+    getMyBooks(),
+    getMyAwards(),
+    getUserFeaturePreviews(user.id),
+  ]);
+  // The Journey tab is behind the writing_journey preview; an old link to it otherwise opens Projects.
+  const journeyOn = await effectiveMemberHasFeature("writing_journey", effectiveIdentity, ownFeatures);
+  if (tab === "journey" && !journeyOn) redirect("/projects");
   const projectTitles = Object.fromEntries([...projects, ...pastProjects].map((p) => [p.id, p.title]));
 
   return (
@@ -63,6 +74,15 @@ export default async function ProjectsPage({ tab }: { tab: MyWritingTabId }) {
               label: MY_WRITING_TAB_LABELS.awards,
               content: <MyAwardsPanel initialAwards={awards} myBooks={books} />,
             },
+            ...(journeyOn
+              ? [
+                  {
+                    id: "journey" as const,
+                    label: MY_WRITING_TAB_LABELS.journey,
+                    content: <JourneyMap projects={projects.map((p) => ({ id: p.id, title: p.title, phase: p.phase }))} />,
+                  },
+                ]
+              : []),
           ]}
         />
       </main>

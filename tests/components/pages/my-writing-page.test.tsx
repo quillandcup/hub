@@ -33,6 +33,7 @@ vi.mock("@/app/(member)/bookshelf/actions", () => ({
   deleteBook: vi.fn(),
 }));
 vi.mock("@/app/(member)/awards/actions", () => ({ getMyAwards: vi.fn() }));
+vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: vi.fn(), effectiveMemberHasFeature: vi.fn() }));
 
 vi.mock("@/app/(member)/projects/ProjectsClient", () => ({
   default: ({ initialProjects }: { initialProjects: WritingProjectRow[] }) => (
@@ -54,6 +55,8 @@ import ProjectsPage from "@/app/(member)/projects/ProjectsPage";
 import { getMyProjects, getMyPastProjects } from "@/app/(member)/projects/actions";
 import { getMyBooks } from "@/app/(member)/bookshelf/actions";
 import { getMyAwards } from "@/app/(member)/awards/actions";
+import JourneyRoute from "@/app/(member)/projects/journey/page";
+import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
 
 const PROJECTS = [
   { id: "proj-lantern", title: "Lantern Draft Two" },
@@ -92,6 +95,8 @@ beforeEach(() => {
   vi.mocked(getMyPastProjects).mockResolvedValue([]);
   vi.mocked(getMyBooks).mockResolvedValue(BOOKS);
   vi.mocked(getMyAwards).mockResolvedValue(AWARDS);
+  vi.mocked(getUserFeaturePreviews).mockResolvedValue([]);
+  vi.mocked(effectiveMemberHasFeature).mockResolvedValue(false);
 });
 
 describe("My Writing page", () => {
@@ -138,6 +143,20 @@ describe("My Writing page", () => {
     expect(within(screen.getByRole("tabpanel")).getByTestId("awards-panel")).toHaveTextContent(
       "awards: Golden Quill; books: 2"
     );
+  });
+
+  it("hides the Spark to Shelf tab, and sends /projects/journey to Projects, while the writing_journey flag is off", async () => {
+    await expectRedirect(ProjectsPage, { tab: "journey" }, "/projects");
+    expect(vi.mocked(effectiveMemberHasFeature)).toHaveBeenCalledWith("writing_journey", expect.anything(), []);
+  });
+
+  it("adds the Spark to Shelf tab with the member's projects once the flag is on", async () => {
+    vi.mocked(effectiveMemberHasFeature).mockResolvedValue(true);
+    vi.mocked(getMyProjects).mockResolvedValue([{ id: "proj-lantern", title: "Lantern Draft Two", phase: "beta_readers" }] as WritingProjectRow[]);
+    await renderServerRoute(JourneyRoute, undefined as never);
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Projects", "Books", "Awards", "Spark to Shelf"]);
+    expect(screen.getByRole("tab", { name: "Spark to Shelf" })).toHaveAttribute("aria-selected", "true");
+    expect(within(screen.getByRole("tabpanel")).getByRole("link", { name: "Lantern Draft Two" })).toHaveAttribute("href", "/projects/proj-lantern");
   });
 
   it("redirects a user with no effective member identity to /admin", async () => {
