@@ -7369,6 +7369,7 @@ export type Database = {
         Args: { topics: string[] }
         Returns: boolean
       }
+      valid_book_editions: { Args: { editions: Json }; Returns: boolean }
       valid_book_genres: { Args: { genres: string[] }; Returns: boolean }
     }
     Enums: {
