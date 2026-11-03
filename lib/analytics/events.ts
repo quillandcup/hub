@@ -134,6 +134,33 @@ export const EVENTS = {
     via: oneOf("toolbar", "shortcut"),
   },
 
+  /**
+   * A message was sent or an edit saved (components/chat/Composer.tsx, MessageBody.tsx): what it contains, as flags and counts, never
+   * its text (lib/chat/message-features.ts). `where` is a new message, a thread reply or an edit; `files` the files sent or added and
+   * `files_removed` those taken off in an edit; `list_depth` 0 for no list, 2 and up nested; `used_toolbar` and `used_shortcut` whether
+   * the toolbar or a shortcut applied any format while writing it, so a format present with neither was typed (`*bold*`, `> `) or pasted.
+   */
+  chat_message_composed: {
+    where: oneOf("message", "reply", "edit"),
+    files: int(),
+    files_removed: int(),
+    bold: bool(),
+    italic: bool(),
+    underline: bool(),
+    strike: bool(),
+    code: bool(),
+    codeblock: bool(),
+    quote: bool(),
+    bullets: bool(),
+    numbers: bool(),
+    link: bool(),
+    list_depth: int(10),
+    lines: int(),
+    mentions: int(),
+    used_toolbar: bool(),
+    used_shortcut: bool(),
+  },
+
   /** An emoji was picked from the `:name` suggestions in a message box (components/chat/MessageBox.tsx): `custom` whether it was a workspace emoji, `via` the keyboard or the pointer. */
   chat_emoji_suggestion_picked: { custom: bool(), via: oneOf("keyboard", "pointer") },
 
