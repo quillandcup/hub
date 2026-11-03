@@ -11,7 +11,7 @@ import {
   type SisterStreak,
 } from "@/lib/streaks"
 import { getMemberDisplayName } from "@/lib/member-display-name"
-import { loadPresenceByMember, type PresenceInterval, type PresenceRepos } from "@/lib/zoom-presence"
+import { countedPrickleIds, loadPresenceByMember, toWindow, type PresenceInterval, type PresenceRepos, type PrickleWindow } from "@/lib/zoom-presence"
 import {
   computeCommitmentProgress,
   effectiveCommitmentStatus,
@@ -660,23 +660,28 @@ export async function markPresent(
   if (candidates.length === 0) return ranked
 
   let intervals: PresenceInterval[] | undefined
+  let windows: PrickleWindow[] = []
   try {
     const since = new Date(Math.min(...candidates.map((r) => new Date(r.prickle.startTime).getTime())))
-    intervals = (await loadPresenceByMember(presenceRepos, since, now)).get(memberId)
+    ;[intervals, windows] = await Promise.all([
+      loadPresenceByMember(presenceRepos, since, now).then((all) => all.get(memberId)),
+      // The prickles around these, of any kind: whether a stay counts depends on its neighbours.
+      repos.prickles
+        .startingBetween({ from: new Date(since.getTime() - IN_PROGRESS_LOOKBACK_MS).toISOString(), to: now.toISOString(), inclusiveEnd: true })
+        .then((all) => all.map(toWindow)),
+    ])
   } catch (error) {
     console.error("Could not read live presence for the check-in offer:", error instanceof Error ? error.message : error)
     return ranked
   }
   if (!intervals?.length) return ranked
 
-  const present = new Set(
-    candidates
-      .filter((r) => {
-        const start = new Date(r.prickle.startTime).getTime()
-        return intervals.some((i) => i.join <= nowMs && (i.leave === null || i.leave > start))
-      })
-      .map((r) => r.prickle.id)
-  )
+  // In the room for it, counted the way the attendance processing counts a stay: someone who only
+  // lingers into the next prickle from the one before does not.
+  const known = new Map(windows.map((w) => [w.id, w]))
+  for (const r of candidates) known.set(r.prickle.id, toWindow(r.prickle))
+  const counted = countedPrickleIds(intervals, [...known.values()], nowMs)
+  const present = new Set(candidates.filter((r) => counted.has(r.prickle.id)).map((r) => r.prickle.id))
   if (present.size === 0) return ranked
 
   const marked = ranked.map((r) =>

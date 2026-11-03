@@ -3,6 +3,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 import { joinAt, loadPrickleJoinSettings } from "@/lib/prickle-join";
 import { createNotifier } from "@/lib/notifications/notify";
 import { membersWithFeatureForOutreach } from "@/lib/features.server";
+import { toWindow, type PrickleWindow } from "@/lib/zoom-presence";
 import { withCronHeartbeat } from "@/lib/cron-heartbeats";
 import { prickleTitle } from "@/lib/domain/prickle";
 import { createRepos, type Repos } from "@/lib/data/repos";
@@ -66,23 +67,31 @@ async function runPrickleCheckins(request: NextRequest): Promise<NextResponse> {
   const activeMemberIds = (await repos.members.identities({ status: "active" })).map((m) => m.id);
   const checkins =
     (await sendCheckins(repos, activeMemberIds, now)) + (await sendDropIns(repos, activeMemberIds, now));
-  const checkouts = await sendCheckoutDMs(repos, await loadRecentPrickles(repos, now), candidates, now);
+  const recent = await loadRecentPrickles(repos, now);
+  const checkouts = await sendCheckoutDMs(repos, recent.writing, candidates, now, recent.windows);
   return NextResponse.json({ checkins, checkouts });
 }
 
-/** Writing prickles that have started and ended within CHECKOUT_LOOKBACK_MS (or not yet ended). */
-async function loadRecentPrickles(repos: RouteRepos, now: number): Promise<RecentPrickle[]> {
+/**
+ * Writing prickles that have started and ended within CHECKOUT_LOOKBACK_MS (or not yet ended), and
+ * the windows of every prickle in that period, of any kind: the neighbours that decide whether
+ * time in the room counts as attending one (see staysOf).
+ */
+async function loadRecentPrickles(repos: RouteRepos, now: number): Promise<{ writing: RecentPrickle[]; windows: PrickleWindow[] }> {
   const active = await repos.prickles.activeBetween({
     from: new Date(now - CHECKOUT_LOOKBACK_MS).toISOString(),
     to: new Date(now).toISOString(),
   });
-  return writingPrickles(active).map((p) => ({
-    id: p.id,
-    typeName: p.type.name,
-    title: prickleTitle(p),
-    startTime: p.startTime,
-    endTime: p.endTime,
-  }));
+  return {
+    writing: writingPrickles(active).map((p) => ({
+      id: p.id,
+      typeName: p.type.name,
+      title: prickleTitle(p),
+      startTime: p.startTime,
+      endTime: p.endTime,
+    })),
+    windows: active.map(toWindow),
+  };
 }
 
 /** The prickles whose type is for writing (only those get check-ins and check-outs), with the type known. */
@@ -92,13 +101,14 @@ function writingPrickles(prickles: PrickleDetail[]) {
 
 /** A member who joined a running prickle that has no check-in for them yet (see sendDropInCheckins). */
 async function sendDropIns(repos: RouteRepos, activeMemberIds: string[], now: number): Promise<number> {
-  const started = await repos.prickles.startingBetween({
-    from: new Date(now - DROP_IN_CHECKIN_WINDOW_MS).toISOString(),
+  // The prickles of the last few hours, so a stay next to another can be told from a new arrival.
+  const recent = await repos.prickles.startingBetween({
+    from: new Date(now - CHECKOUT_LOOKBACK_MS).toISOString(),
     to: new Date(now).toISOString(),
     inclusiveEnd: true,
   });
-  const running: UpcomingPrickle[] = writingPrickles(started)
-    .filter((p) => new Date(p.endTime).getTime() > now)
+  const running: UpcomingPrickle[] = writingPrickles(recent)
+    .filter((p) => new Date(p.startTime).getTime() >= now - DROP_IN_CHECKIN_WINDOW_MS && new Date(p.endTime).getTime() > now)
     .map((p) => ({
       id: p.id,
       typeName: p.type.name,
@@ -108,8 +118,13 @@ async function sendDropIns(repos: RouteRepos, activeMemberIds: string[], now: nu
       startTime: p.startTime,
       endTime: p.endTime,
     }));
-  const { sent } = await sendDropInCheckins(repos, running, activeMemberIds, now, (memberIds) =>
-    membersWithFeatureForOutreach(repos, "checkin_dropins", memberIds)
+  const { sent } = await sendDropInCheckins(
+    repos,
+    running,
+    activeMemberIds,
+    now,
+    (memberIds) => membersWithFeatureForOutreach(repos, "checkin_dropins", memberIds),
+    recent.map(toWindow)
   );
   return sent;
 }

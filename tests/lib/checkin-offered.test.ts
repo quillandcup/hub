@@ -69,9 +69,10 @@ describe("markPresent", () => {
     updated_at: null,
     data: { host_id: "host-1" },
   };
-  const world = (events: ReturnType<typeof ev>[]) =>
+  const world = (events: ReturnType<typeof ev>[], prickles: { id: string; startTime: string; endTime: string }[] = []) =>
     createInMemoryRepos(
       new InMemoryDataset({
+        prickles: prickles.map((p) => ({ ...p, typeId: null, hostId: null, title: null, source: "calendar", calendarEventId: null })),
         zoomParticipantEvents: events,
         zoomMeetings: [meeting],
         members: [{ id: "mbr_AAAAAAAAAAA1", name: "Ada Writer", email: "ada@example.test" }],
@@ -115,6 +116,16 @@ describe("markPresent", () => {
 
     const early = world([ev("1", "dev-1", "Ada Writer", "joined", "10:00"), ev("2", "dev-1", "Ada Writer", "left", "10:50")]);
     expect((await markPresent(early, "mbr_AAAAAAAAAAA1", [ranked("here")], NOW))[0].reasons).toEqual([]);
+  });
+
+  it("does not mark a prickle the member only lingered into from the one before it", async () => {
+    // In the room from 10:20 to 11:03; the running prickle began at 11:00, the one before it ran 10:00-11:00.
+    const before = { startTime: iso("10:00"), endTime: iso("11:00") };
+    const repos = world([ev("1", "dev-1", "Ada Writer", "joined", "10:20"), ev("2", "dev-1", "Ada Writer", "left", "11:03")], [{ id: "before", ...before }]);
+    const list = [ranked("before", TIED, before), ranked("here")];
+
+    const result = await markPresent(repos, "mbr_AAAAAAAAAAA1", list, new Date(iso("11:05")), repos);
+    expect(result.find((r) => r.prickle.id === "here")!.reasons).toEqual([]);
   });
 
   it("leaves a member who is not in the room, or another member, alone", async () => {
