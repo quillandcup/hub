@@ -186,7 +186,7 @@ Resend reports what happened to each email (sent, delivered, opened, clicked, bo
 
 - Send yourself a real email from production: Admin -> Test Notifications (`/admin/notifications`), email channel. It goes to your own address with your member tag, so it lands on your own **Activity Log** within seconds, and again as it is opened or clicked (if tracking is on). Outside production, email goes to `EMAIL_DEV_ADDRESS` with no member tag on purpose, so it never reaches a timeline.
 - In Resend, the webhook's page lists each delivery and the status code the route answered.
-- Read-only check of what arrived (production, see `docs/TODO.md` for how): `select event_type, occurred_at from bronze.resend_events order by occurred_at desc limit 10`. Don't paste addresses or subjects anywhere public.
+- Read-only check of what arrived (production, with `supabase db query --linked`; see `.claude/rules/verify-against-prod.md`): `select event_type, occurred_at from bronze.resend_events order by occurred_at desc limit 10`. Don't paste addresses or subjects anywhere public.
 
 ### Webhook Events
 
