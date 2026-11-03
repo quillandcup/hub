@@ -38,7 +38,7 @@ export function decodeEntities(s: string): string {
 const PATTERNS: { re: RegExp; build: (m: RegExpExecArray) => Inline }[] = [
   { re: /<([^<>]+)>/, build: (m) => angle(m[1]) },
   { re: /`([^`\n]+)`/, build: (m) => ({ t: "code", v: decodeEntities(m[1]) }) },
-  { re: /:([a-z0-9_+-]+)(?:::skin-tone-\d)?:/i, build: (m) => ({ t: "emoji", name: m[1].toLowerCase() }) },
+  { re: /(?<!\w):([a-z0-9_+-]+)(?:::skin-tone-\d)?:(?!\w)/i, build: (m) => ({ t: "emoji", name: m[1].toLowerCase() }) },
   { re: EMOTICON_IN_TEXT, build: (m) => ({ t: "text", v: EMOTICONS[m[1]] }) },
   { re: /(?<![\w*])\*(?!\s)([^*\n]+?)(?<!\s)\*(?![\w*])/, build: (m) => ({ t: "bold", c: parseInline(m[1]) }) },
   { re: /(?<![\w_])_(?!\s)([^_\n]+?)(?<!\s)_(?![\w_])/, build: (m) => ({ t: "italic", c: parseInline(m[1]) }) },
@@ -128,7 +128,7 @@ export function mentionedChannelIds(text: string): string[] {
 
 /** Emoji shortcodes used in a body, for looking up the workspace's custom ones in one batch. */
 export function emojiNamesIn(text: string): string[] {
-  return [...text.matchAll(/:([a-z0-9_+-]+)(?:::skin-tone-\d)?:/gi)].map((m) => m[1].toLowerCase());
+  return [...text.matchAll(/(?<!\w):([a-z0-9_+-]+)(?:::skin-tone-\d)?:(?!\w)/gi)].map((m) => m[1].toLowerCase());
 }
 
 /** A body as one-line plain text for places that can't render chips (search hit titles): mentions and channel links become names. */
@@ -167,7 +167,7 @@ export function toEditableText(
   // A message written in the Hub is plain text that only carries mention and channel tokens: nothing else is
   // Slack markup, so nothing else is turned into a name or decoded.
   // A standard emoji's :shortcode: is shown as the emoji itself (what picking one writes); a custom one, or code, stays as typed.
-  const withEmoji = body.replace(/```[\s\S]*?```|`[^`\n]*`|<[^<>]*>|:([a-z0-9_+-]+)(?:::skin-tone-(\d))?:/gi, (whole, name?: string) => {
+  const withEmoji = body.replace(/```[\s\S]*?```|`[^`\n]*`|<[^<>]*>|(?<!\w):([a-z0-9_+-]+)(?:::skin-tone-(\d))?:(?!\w)/gi, (whole, name?: string) => {
     if (!name || name.toLowerCase() in (names.customEmoji ?? {})) return whole;
     const unicode = unicodeEmoji(name);
     if (!unicode) return whole;
