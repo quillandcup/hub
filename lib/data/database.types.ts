@@ -2829,6 +2829,8 @@ export type Database = {
           event_id: string
           id: string
           member_id: string
+          ticket_note: string | null
+          ticket_source: string | null
         }
         Insert: {
           created_at?: string
@@ -2836,6 +2838,8 @@ export type Database = {
           event_id: string
           id?: string
           member_id: string
+          ticket_note?: string | null
+          ticket_source?: string | null
         }
         Update: {
           created_at?: string
@@ -2843,6 +2847,8 @@ export type Database = {
           event_id?: string
           id?: string
           member_id?: string
+          ticket_note?: string | null
+          ticket_source?: string | null
         }
         Relationships: [
           {

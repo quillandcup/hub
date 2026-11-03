@@ -174,4 +174,35 @@ describe('Event Attendees + Badge Linking', () => {
     expect(body.badgeType.id).toBe(badgeTypeId)
     expect(body.attendees.map((a: any) => a.memberId)).toEqual([memberAId])
   })
+
+  it('records how an attendee got in, on add and later, and reports it', async () => {
+    const headers = { ...getTestAuthHeaders(), 'Content-Type': 'application/json' }
+    const attendees = `${baseUrl}/api/admin/events/${eventId}/attendees`
+
+    const bad = await apiFetch(attendees, { method: 'POST', headers, body: JSON.stringify({ memberId: memberBId, ticketSource: 'free' }) })
+    expect(bad.status).toBe(400)
+
+    const added = await apiFetch(attendees, { method: 'POST', headers, body: JSON.stringify({ memberId: memberBId, ticketSource: 'comped', ticketNote: 'covered by staff' }) })
+    expect(added.status).toBe(201)
+
+    const patched = await apiFetch(`${attendees}/${memberBId}`, { method: 'PATCH', headers, body: JSON.stringify({ ticketSource: 'gifted' }) })
+    expect(patched.status).toBe(200)
+
+    const { attendees: listed } = await (await apiFetch(`${baseUrl}/api/admin/events/${eventId}`, { headers: getTestAuthHeaders() })).json()
+    expect(listed.find((a: any) => a.memberId === memberBId)).toMatchObject({ ticketSource: 'gifted', ticketNote: 'covered by staff' })
+
+    // the badge still follows attendance, whatever the ticket
+    const { data: awards } = await supabase.from('member_badges').select('id').eq('member_id', memberBId).eq('badge_type_id', badgeTypeId)
+    expect(awards).toHaveLength(1)
+  })
+
+  it('PATCH rejects an empty or invalid body and a member who is not an attendee', async () => {
+    const headers = { ...getTestAuthHeaders(), 'Content-Type': 'application/json' }
+    const url = `${baseUrl}/api/admin/events/${eventId}/attendees/${memberBId}`
+
+    expect((await apiFetch(url, { method: 'PATCH', headers, body: 'not json' })).status).toBe(400)
+    expect((await apiFetch(url, { method: 'PATCH', headers, body: '{}' })).status).toBe(400)
+    expect((await apiFetch(url, { method: 'PATCH', headers, body: JSON.stringify({ ticketSource: 'free' }) })).status).toBe(400)
+    expect((await apiFetch(`${baseUrl}/api/admin/events/${eventId}/attendees/mbr_AAAAAAAAAAA9`, { method: 'PATCH', headers, body: JSON.stringify({ ticketSource: 'comped' }) })).status).toBe(404)
+  })
 })

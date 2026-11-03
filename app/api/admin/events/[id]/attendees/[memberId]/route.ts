@@ -1,3 +1,5 @@
+import { createRepos } from "@/lib/data/repos";
+import { parseTicketInput } from "@/lib/event-tickets";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -19,6 +21,37 @@ export async function DELETE(
     console.error("Error removing event attendee:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  return NextResponse.json({ success: true });
+}
+
+// Records how an attendee got in (comped, gifted, donated, purchased); an empty source clears it.
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string; memberId: string }> }
+) {
+  const auth = await requireAdmin(request);
+  if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const { supabase } = auth;
+  const { id, memberId } = await params;
+
+  const body = await request.json().catch(() => undefined);
+  if (body === undefined || body === null || typeof body !== "object") {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+  const ticket = parseTicketInput(body);
+  if (!ticket) return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
+  if ("error" in ticket) return NextResponse.json({ error: ticket.error }, { status: 400 });
+
+  let found: boolean;
+  try {
+    found = await createRepos(supabase).events.setAttendeeTicket(id, memberId, ticket);
+  } catch (error) {
+    console.error("Error updating event attendee ticket:", error);
+    return NextResponse.json({ error: "Failed to update the ticket" }, { status: 500 });
+  }
+  if (!found) return NextResponse.json({ error: "Not an attendee of this event" }, { status: 404 });
 
   return NextResponse.json({ success: true });
 }

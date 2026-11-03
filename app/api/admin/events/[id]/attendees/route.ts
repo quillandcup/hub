@@ -1,3 +1,5 @@
+import { createRepos } from "@/lib/data/repos";
+import { parseTicketInput } from "@/lib/event-tickets";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -20,6 +22,9 @@ export async function POST(
     return NextResponse.json({ error: "Missing required field: memberId" }, { status: 400 });
   }
 
+  const ticket = parseTicketInput(body);
+  if (ticket && "error" in ticket) return NextResponse.json({ error: ticket.error }, { status: 400 });
+
   const { error } = await supabase.rpc("add_event_attendee", {
     p_event_id: id,
     p_member_id: body.memberId,
@@ -29,6 +34,16 @@ export async function POST(
   if (error) {
     console.error("Error adding event attendee:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Metadata about the ticket, set after the atomic add (the function's signature stays as it is).
+  if (ticket) {
+    try {
+      await createRepos(supabase).events.setAttendeeTicket(id, body.memberId, ticket);
+    } catch (ticketError) {
+      console.error("Error recording event attendee ticket:", ticketError);
+      return NextResponse.json({ error: "Added, but the ticket could not be recorded" }, { status: 500 });
+    }
   }
 
   return NextResponse.json({ success: true }, { status: 201 });
