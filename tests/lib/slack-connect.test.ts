@@ -17,6 +17,9 @@ import {
   getSlackConnectionStatus,
   getSlackUserToken,
   hasReadSyncScopes,
+  hasDmScopes,
+  SLACK_READ_SYNC_SCOPES,
+  SLACK_DM_SCOPES,
   SLACK_USER_SCOPES,
   isDeadTokenError,
   isSlackConnectConfigured,
@@ -75,7 +78,7 @@ describe("configuration and the authorize URL", () => {
     expect(url.origin + url.pathname).toBe("https://slack.com/oauth/v2/authorize");
     expect(url.searchParams.get("client_id")).toBe("client-1");
     expect(url.searchParams.get("user_scope")).toBe(
-      "chat:write,reactions:write,channels:read,groups:read,mpim:read,channels:write,groups:write,mpim:write,files:write"
+      "chat:write,reactions:write,channels:read,groups:read,mpim:read,channels:write,groups:write,mpim:write,files:write,im:read,im:history,im:write,mpim:history,files:read"
     );
     expect(url.searchParams.get("redirect_uri")).toBe(`${APP_URL}/api/oauth/slack/callback`);
     expect(slackRedirectUri()).toBe(`${APP_URL}/api/oauth/slack/callback`);
@@ -321,6 +324,24 @@ describe("hasReadSyncScopes", () => {
   });
 });
 
+describe("the direct message scopes", () => {
+  it("are asked for, but chat's read-sync gate doesn't need them", () => {
+    expect(SLACK_USER_SCOPES).toEqual([...SLACK_READ_SYNC_SCOPES, ...SLACK_DM_SCOPES]);
+    expect(SLACK_DM_SCOPES).toEqual(expect.arrayContaining(["im:read", "im:history", "im:write", "mpim:history"]));
+    expect(hasReadSyncScopes([...SLACK_READ_SYNC_SCOPES])).toBe(true);
+    expect(hasDmScopes([...SLACK_READ_SYNC_SCOPES])).toBe(false);
+    expect(hasDmScopes([...SLACK_USER_SCOPES])).toBe(true);
+    expect(hasDmScopes(["im:history"])).toBe(false);
+  });
+
+  it("are in the app manifest's user scopes, and the connect link asks for them", async () => {
+    const manifest = (await import("node:fs")).readFileSync("slack-app-manifest.yml", "utf8");
+    const user = manifest.slice(manifest.indexOf("    user:\n"), manifest.indexOf("  # Where Slack sends a member back"));
+    for (const scope of SLACK_USER_SCOPES) expect(user).toContain(`- ${scope}\n`);
+    expect(manifest).not.toContain("user_events:");
+  });
+});
+
 describe("getSlackConnectionStatus", () => {
   const status = (row: Record<string, unknown> | null) =>
     getSlackConnectionStatus({ from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: row }) }) }) }) } as never, "member-fern");
@@ -328,7 +349,9 @@ describe("getSlackConnectionStatus", () => {
   it("says never connected, connected with every scope, connected before the scopes it needs now, and revoked", async () => {
     await expect(status(null)).resolves.toMatchObject({ connected: false, sharesReadState: false, revoked: false });
     await expect(status({ slack_user_id: "U1", connected_at: "t", revoked_at: null, scopes: SLACK_USER_SCOPES })).resolves.toMatchObject({ connected: true, sharesReadState: true, revoked: false, slackUserId: "U1" });
-    await expect(status({ slack_user_id: "U1", connected_at: "t", revoked_at: null, scopes: ["chat:write"] })).resolves.toMatchObject({ connected: true, sharesReadState: false, revoked: false });
+    await expect(status({ slack_user_id: "U1", connected_at: "t", revoked_at: null, scopes: ["chat:write"] })).resolves.toMatchObject({ connected: true, sharesReadState: false, hasDmScopes: false, revoked: false });
+    await expect(status({ slack_user_id: "U1", connected_at: "t", revoked_at: null, scopes: SLACK_READ_SYNC_SCOPES })).resolves.toMatchObject({ connected: true, sharesReadState: true, hasDmScopes: false });
+    await expect(status({ slack_user_id: "U1", connected_at: "t", revoked_at: null, scopes: SLACK_USER_SCOPES })).resolves.toMatchObject({ hasDmScopes: true });
     await expect(status({ slack_user_id: "U1", connected_at: "t", revoked_at: "2026-10-20T00:00:00Z", scopes: SLACK_USER_SCOPES })).resolves.toMatchObject({ connected: false, slackUserId: null, revoked: true });
   });
 });

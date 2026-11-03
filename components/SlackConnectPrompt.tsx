@@ -5,17 +5,18 @@ import AnnouncementBar from "@/components/announcements/AnnouncementBar";
 
 const DISMISSED_KEY = "slack-connect-prompt-dismissed";
 
-export type SlackConnectNeed = "connect" | "reconnect" | "update";
+export type SlackConnectNeed = "connect" | "reconnect" | "update" | "permissions";
 
 const COPY: Record<SlackConnectNeed, { text: string; action: string }> = {
   connect: { text: "Hub chat needs your Slack account, so your messages and reactions come from you.", action: "Connect Slack" },
   reconnect: { text: "Your Slack connection stopped working, so chat is closed until you reconnect it.", action: "Reconnect Slack" },
   update: { text: "Chat needs you to reconnect Slack once, to give the Hub the permissions it asks for now.", action: "Reconnect Slack" },
+  permissions: { text: "Reconnect Slack once so the Hub has the permissions it will need for direct messages. Chat keeps working, and the Hub doesn't read your direct messages.", action: "Reconnect Slack" },
 };
 
 /**
  * A bar across the member area for a member who has chat but not a working Slack connection (never connected,
- * one Slack stopped honouring, or one made before the Hub asked for what it needs now). It is the only way they
+ * one Slack stopped honouring, or one made before the Hub asked for what it needs now, or for what it will need for direct messages). It is the only way they
  * learn why chat is closed before running into it; the chat pages send them to Settings for the same reason.
  * Dismissed for the session, not shown in Settings (its panel says the same with the button).
  */

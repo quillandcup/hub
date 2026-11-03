@@ -267,8 +267,9 @@ export default async function PrivacyPage() {
         <Detail title="Connecting your Slack account">
           Hub chat needs your Slack account connected. That lets the Hub act as you in Slack: post your messages and
           reactions, edit and delete the ones you wrote, join and leave channels, add people to a channel, and mark
-          conversations read. It doesn&apos;t give the Hub access to your one-on-one Slack direct messages, and the Hub
-          does nothing in Slack you didn&apos;t ask for there. The connection is kept encrypted and used only by the Hub&apos;s
+          conversations read. Slack will also list permission to read and send your direct messages, which the Hub asks for
+          ahead of time so you only reconnect once. The Hub does not read your direct messages today, and nothing in this
+          table changes until this page says so first. It does nothing in Slack you didn&apos;t ask for. The connection is kept encrypted and used only by the Hub&apos;s
           server. You can disconnect it in Settings at any time (chat then stays closed until you reconnect), and Slack
           shows it under your authorized apps.
         </Detail>

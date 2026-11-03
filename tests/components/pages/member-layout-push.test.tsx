@@ -12,7 +12,7 @@ const previews = vi.hoisted(() => ({ list: [] as string[] }));
 vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: async () => previews.list, effectiveMemberHasFeature }));
 const tour = vi.hoisted(() => ({ active: false }));
 vi.mock("@/lib/onboarding.server", () => ({ getOnboardingState: async () => (tour.active ? { active: true, steps: [], currentStepId: null } : null) }));
-const slack = vi.hoisted(() => ({ configured: true, status: { connected: true, sharesReadState: true, revoked: false } }));
+const slack = vi.hoisted(() => ({ configured: true, status: { connected: true, sharesReadState: true, hasDmScopes: true, revoked: false } }));
 vi.mock("@/lib/slack-connect", () => ({ isSlackConnectConfigured: () => slack.configured, getSlackConnectionStatus: async () => slack.status }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 vi.mock("@/components/SlackConnectPrompt", () => ({ default: ({ need }: { need: string }) => <p data-testid="slack-prompt"><span data-testid="bar">slack</span>{need}</p> }));
@@ -33,7 +33,7 @@ import MemberLayout from "@/app/(member)/layout";
 beforeEach(() => {
   tour.active = false;
   slack.configured = true;
-  slack.status = { connected: true, sharesReadState: true, revoked: false };
+  slack.status = { connected: true, sharesReadState: true, hasDmScopes: true, revoked: false };
   previews.list = [];
   identity.isSudo = false;
   effectiveMemberHasFeature.mockReset().mockResolvedValue(false);
@@ -74,9 +74,10 @@ it("shows the footer under the page", async () => {
 });
 
 it.each([
-  ["connect", { connected: false, sharesReadState: false, revoked: false }],
-  ["reconnect", { connected: false, sharesReadState: false, revoked: true }],
-  ["update", { connected: true, sharesReadState: false, revoked: false }],
+  ["connect", { connected: false, sharesReadState: false, hasDmScopes: false, revoked: false }],
+  ["reconnect", { connected: false, sharesReadState: false, hasDmScopes: false, revoked: true }],
+  ["update", { connected: true, sharesReadState: false, hasDmScopes: false, revoked: false }],
+  ["permissions", { connected: true, sharesReadState: true, hasDmScopes: false, revoked: false }],
 ])("asks a member who has chat but not a working Slack connection to %s it", async (need, status) => {
   effectiveMemberHasFeature.mockImplementation(async (feature: string) => feature === "chat");
   slack.status = status;
@@ -91,7 +92,7 @@ it("doesn't ask when Slack is connected, chat is off, it is sudo, or Slack isn't
   expect(screen.queryByTestId("slack-prompt")).not.toBeInTheDocument();
   cleanup();
 
-  slack.status = { connected: false, sharesReadState: false, revoked: false };
+  slack.status = { connected: false, sharesReadState: false, hasDmScopes: false, revoked: false };
   effectiveMemberHasFeature.mockResolvedValue(false);
   await render(await MemberLayout({ children: <div>Member content</div> }));
   await settled();
@@ -114,7 +115,7 @@ it("doesn't ask when Slack is connected, chat is off, it is sudo, or Slack isn't
 
 it("leaves the Slack bar out while the Getting started tour is running, which has the same step", async () => {
   effectiveMemberHasFeature.mockImplementation(async (feature: string) => feature === "chat");
-  slack.status = { connected: false, sharesReadState: false, revoked: false };
+  slack.status = { connected: false, sharesReadState: false, hasDmScopes: false, revoked: false };
   tour.active = true;
   await render(await MemberLayout({ children: <div>Member content</div> }));
   await settled();
@@ -123,7 +124,7 @@ it("leaves the Slack bar out while the Getting started tour is running, which ha
 
 it("stacks the bars above the header by priority: sudo, then install, then Slack", async () => {
   effectiveMemberHasFeature.mockResolvedValue(true);
-  slack.status = { connected: false, sharesReadState: false, revoked: false };
+  slack.status = { connected: false, sharesReadState: false, hasDmScopes: false, revoked: false };
   identity.isSudo = true;
   // Sudo hides the Slack bar (the member's own connection), so check that pair first.
   await render(await MemberLayout({ children: <div>Member content</div> }));

@@ -29,9 +29,11 @@ const FLASH: Record<string, { ok: boolean; text: string }> = {
 export default function SlackConnectPanel({
   connected,
   sharesReadState = true,
+  hasDmScopes = true,
 }: {
   connected: boolean;
   sharesReadState?: boolean;
+  hasDmScopes?: boolean;
 }) {
   const router = useRouter();
   const flash = FLASH[useSearchParams().get("slack") ?? ""];
@@ -58,6 +60,15 @@ export default function SlackConnectPanel({
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
               To mark conversations read in both places, reconnect Slack once so it can share how far you have read.{" "}
               <a href="/api/oauth/slack/start" data-track="settings-slack-reconnect" className="font-medium text-plum-700 underline dark:text-plum-400">
+                Reconnect Slack
+              </a>
+            </p>
+          )}
+          {sharesReadState && !hasDmScopes && (
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+              Reconnect Slack once so the Hub has the permissions it will need for direct messages. Slack will list permission to
+              read and send your direct messages; the Hub doesn&apos;t read them today.{" "}
+              <a href="/api/oauth/slack/start" data-track="settings-slack-reconnect-dm" className="font-medium text-plum-700 underline dark:text-plum-400">
                 Reconnect Slack
               </a>
             </p>
