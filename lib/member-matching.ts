@@ -45,12 +45,29 @@ export function normalizeName(name: string): string {
 }
 
 /**
+ * The key aliases are compared by: lowercase, periods and apostrophes dropped ("J.K." is "jk", "O'Brien"
+ * is "obrien"), any other punctuation a space ("Mary-Ann" is "mary ann"), spaces collapsed. Text with
+ * no Latin letters (a name in another script) compares as its lowercased self. The same rule as
+ * `public.name_alias_key`, which the add-alias conflict check uses, so "Ada C" and "Ada C." are one alias
+ * to both the matcher and the check. Keep the two in step.
+ */
+export function aliasKey(name: string): string {
+  const key = name
+    .toLowerCase()
+    .replace(/['\u2019.]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return key || name.trim().toLowerCase();
+}
+
+/**
  * Matches a name (and optional email) to a member record
  *
  * Matching rules (in priority order):
  * 1. Email exact match (if email provided and skipEmail=false) - HIGHEST confidence
  * 1.5. Email alias match (for merged members whose old email is now an alias)
- * 2. Alias match (case-insensitive) - HIGH confidence
+ * 2. Alias match (case, punctuation and spacing ignored, a hyphen counting as a space; two members with the same alias is ambiguous) - HIGH confidence
  * 3. First name + last initial (e.g., "Katie P" → "Member 22") - HIGH confidence
  * 4. First name only (if unambiguous) - HIGH confidence
  * 5. Normalized name match - HIGH confidence
@@ -74,7 +91,7 @@ export function matchAttendeeToMember(
   // Build lookup maps for O(1) matching
   const membersByEmail = new Map<string, Member>();
   const membersByNormalizedName = new Map<string, Member>();
-  const aliasToMember = new Map<string, Member>();
+  const aliasToMembers = new Map<string, Member[]>();
 
   // Index members by email and normalized name
   for (const member of members) {
@@ -82,13 +99,15 @@ export function matchAttendeeToMember(
     membersByNormalizedName.set(normalizeName(member.name), member);
   }
 
-  // Index aliases (case-insensitive for flexibility)
-  // Aliases are disambiguation rules and should be flexible
+  // Index aliases by aliasKey: aliases are disambiguation rules and should be flexible
+  const membersById = new Map(members.map(m => [m.id, m]));
   for (const alias of aliases) {
-    const member = members.find(m => m.id === alias.member_id);
-    if (member) {
-      aliasToMember.set(alias.alias.trim().toLowerCase(), member);
-    }
+    const member = membersById.get(alias.member_id);
+    if (!member) continue;
+    const key = aliasKey(alias.alias);
+    const owners = aliasToMembers.get(key) ?? [];
+    if (!owners.includes(member)) owners.push(member);
+    aliasToMembers.set(key, owners);
   }
 
   // Index email aliases: alias_email → member (for merged members)
@@ -124,14 +143,22 @@ export function matchAttendeeToMember(
     }
   }
 
-  // Rule 2: Try alias match (case-insensitive for flexibility)
-  const normalizedForAlias = attendeeName.trim().toLowerCase();
-  if (aliasToMember.has(normalizedForAlias)) {
-    const member = aliasToMember.get(normalizedForAlias)!;
+  // Rule 2: Try alias match (case, punctuation and spacing ignored). Two members holding the same
+  // alias is ambiguous; picking one would hand one of them the other's attendance or hosting.
+  const aliasOwners = aliasToMembers.get(aliasKey(attendeeName));
+  if (aliasOwners?.length === 1) {
     return {
-      member_id: member.id,
+      member_id: aliasOwners[0].id,
       confidence: 'high',
       method: 'alias'
+    };
+  }
+  if (aliasOwners && aliasOwners.length > 1) {
+    return {
+      reason: 'ambiguous',
+      candidates: aliasOwners,
+      attempted_name: attendeeName,
+      attempted_email: attendeeEmail,
     };
   }
 

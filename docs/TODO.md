@@ -1103,6 +1103,11 @@ Decisions so far:
 
 ## Analytics & Matching
 
+### Alias key: accented letters _(Needs Scheduling)_
+The key aliases are compared by (`aliasKey` in `lib/member-matching.ts` and `public.name_alias_key`, kept in step) keeps only `a-z` and `0-9`, so an accented letter is dropped: `José` becomes `jos`, which also equals `Jos`. Unlikely to cause a wrong match today (prod had no such collisions when the key was last checked), but two different names can share a key, and a non-Latin name with some Latin letters is reduced to those letters.
+
+**Why deferred:** fixing it means folding accents (`unaccent` in SQL and an equivalent in JS, so the two still agree) and re-checking prod for new collisions across members; not needed for the separator change. **Where to start:** change both functions together in one migration plus `aliasKey`, extend `supabase/tests/database/name_alias_conflict.test.sql` and `tests/lib/member-matching.test.ts`, and run the cross-member collision query against prod first.
+
 ### Best Feedback Friend (BFF) program: enrollment and matching in the Hub _(Needs Scheduling)_
 Today a member joins the BFF program (quarterly enrollment, a quarter-long commitment: read each other's work, meet at least monthly, give reinforcing and constructive feedback) by filling out an external **BFF interest form**, and the pairing is done by hand from the answers. The Hub has no BFF screen, table or notification; the only trace is the BFF Program as a Kajabi product (`docs/TODO.md`, "Multi-product" notes) and the "Former BFF"-style labels below. The Kajabi lessons "How to get a BFF" and "What to expect in the BFF Program?" (a draft that only points to an attached document) stay in Kajabi until this exists, so there is no help article.
 

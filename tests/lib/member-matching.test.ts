@@ -84,6 +84,65 @@ describe('Member Matching', () => {
       })
     })
 
+    it('matches an alias ignoring punctuation, case and spacing ("Ada C" for the alias "Ada C.")', () => {
+      const members = [
+        { id: 'a', name: 'Adeline Example', email: 'a@example.com' },
+        { id: 'b', name: 'Bo Example', email: 'b@example.com' },
+      ]
+      const aliases = [{ member_id: 'a', alias: 'Ada C.', source: 'zoom' }]
+
+      for (const typed of ['Ada C', 'ada  c', 'ADA C.', ' Ada, C ']) {
+        expect(matchAttendeeToMember(typed, null, members, aliases, [], true)).toEqual({
+          member_id: 'a',
+          confidence: 'high',
+          method: 'alias',
+        })
+      }
+    })
+
+    it('treats a separator as a space and drops periods and apostrophes', () => {
+      const members = [{ id: 'a', name: 'Adeline Example', email: 'a@example.com' }]
+      const aliases = [
+        { member_id: 'a', alias: 'Mary-Ann', source: 'zoom' },
+        { member_id: 'a', alias: 'J.K. Rowling', source: 'zoom' },
+        { member_id: 'a', alias: "O'Brien", source: 'zoom' },
+      ]
+      for (const typed of ['Mary Ann', 'mary_ann', 'Mary - Ann', 'JK Rowling', 'OBrien', 'O\u2019Brien']) {
+        expect(matchAttendeeToMember(typed, null, members, aliases, [], true)).toMatchObject({ member_id: 'a', method: 'alias' })
+      }
+      expect(matchAttendeeToMember('Maryann', null, members, aliases, [], true)).toBeNull()
+    })
+
+    it('compares an alias with no Latin letters as lowercased text, not as empty', () => {
+      const members = [{ id: 'a', name: 'Li Lei', email: 'a@example.com' }]
+      const aliases = [{ member_id: 'a', alias: '李雷', source: 'zoom' }]
+      expect(matchAttendeeToMember('李雷', null, members, aliases)).toMatchObject({ member_id: 'a', method: 'alias' })
+      expect(matchAttendeeToMember('韩梅梅', null, members, aliases)).toBeNull()
+    })
+
+    it('is ambiguous, not last-wins, when two members have aliases that differ only in punctuation', () => {
+      const members = [
+        { id: 'a', name: 'Adeline Example', email: 'a@example.com' },
+        { id: 'b', name: 'Bo Example', email: 'b@example.com' },
+      ]
+      const aliases = [
+        { member_id: 'a', alias: 'Sam W.', source: 'zoom' },
+        { member_id: 'b', alias: 'Sam W', source: 'zoom' },
+      ]
+      const result = matchAttendeeToMember('Sam W', null, members, aliases)
+      expect(result).toMatchObject({ reason: 'ambiguous', attempted_name: 'Sam W' })
+      expect((result as { candidates: { id: string }[] }).candidates.map(c => c.id).sort()).toEqual(['a', 'b'])
+    })
+
+    it('is not ambiguous when one member holds both spellings', () => {
+      const members = [{ id: 'a', name: 'Adeline Example', email: 'a@example.com' }]
+      const aliases = [
+        { member_id: 'a', alias: 'Ada C.', source: 'zoom' },
+        { member_id: 'a', alias: 'Ada C', source: 'slack' },
+      ]
+      expect(matchAttendeeToMember('Ada C', null, members, aliases)).toMatchObject({ member_id: 'a', method: 'alias' })
+    })
+
     it('should match by normalized name when no email or alias', () => {
       const result = matchAttendeeToMember(
         'Member 33',
