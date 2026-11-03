@@ -22,10 +22,10 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   ]);
 
   return (
-    <div className="@container h-full">
-      <div className="flex h-full flex-col @split:flex-row">
+    <div className="@container h-full min-h-0 overflow-hidden">
+      <div className="flex h-full min-h-0 flex-col @split:flex-row">
         <ChatSidebar channels={channels} unread={unread} selfMemberId={identity.isSudo ? null : identity.memberId} />
-        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">{children}</div>
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain">{children}</div>
       </div>
     </div>
   );

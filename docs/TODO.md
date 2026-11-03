@@ -1606,6 +1606,10 @@ When Slack token rotation is adopted (see `docs/SLACK_BRIDGED_CHAT.md`, "Slack a
 
 ## Bug Fixes
 
+### Chat: confirm the unused-preload console warnings and the scroll-past-bottom are gone
+- **Missing:** the cause of eight "preloaded but not used" console warnings on `/chat` and of a one-off scroll below the composer was found by reading code, not reproduced (no browser session). The member avatar `<img>` was not lazy (React preloads such images during server render) and the member shell's `<main>` lacked `min-h-0`. Both are hardened; if the warnings or the overscroll come back, open the console on `/chat`, read the preload URLs, and check them against `MemberAvatar`, `EmojiImage` and `next/font` (Playfair in `app/layout.tsx` is preloaded on every page, used only by `font-display` headings).
+- **Where to start:** `app/(member)/layout.tsx`, `app/(member)/chat/layout.tsx`, `components/chat/MessageList.tsx`.
+
 ### MemberCalendarClient: week and month navigation still use the host's zone
 - **Missing:** `components/MemberCalendarClient.tsx` computes the current week start (`setDate`/`setHours(0,0,0,0)`) and the initial/previous/next month from the browser's zone, while the data and the grid cells are keyed in the member's `timezone` preference. When the two differ, the "current week" and "current month" can be the wrong one around midnight. `AttendanceMonthGrid` cell keys and "today" were fixed (they shifted a whole day); the navigation state was not.
 - **Why deferred:** found while making unit tests zone-independent; a fuller fix means holding the week/month as zone-free calendar dates (see `startOfWeek` in `app/(member)/my-prickles/AllPricklesCalendar.tsx` for the pattern) and needs boundary tests.

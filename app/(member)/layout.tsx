@@ -71,7 +71,7 @@ export default async function MemberLayout({
 
   // While the tour shows, room to scroll the page's last controls clear of its bar.
   const main = (
-    <main className={`flex-1 overflow-auto ${onboardingState?.active ? 'pb-36' : ''}`}>
+    <main className={`min-h-0 flex-1 overflow-auto overscroll-contain${onboardingState?.active ? 'pb-36' : ''}`}>
       {children}
     </main>
   )
