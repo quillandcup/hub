@@ -1,4 +1,4 @@
-export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat' | 'chat_posting' | 'chat_dms' | 'big_sisters' | 'intro_reminders' | 'prickle_reminders' | 'checkin_dropins' | 'courses' | 'hosting' | 'writing_journey' | 'mux_playback_restriction';
+export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat' | 'chat_posting' | 'chat_dms' | 'slack_dm_bridge' | 'big_sisters' | 'intro_reminders' | 'prickle_reminders' | 'checkin_dropins' | 'courses' | 'hosting' | 'writing_journey' | 'mux_playback_restriction';
 
 export interface FeaturePreview {
   key: FeatureKey;
@@ -56,6 +56,11 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     key: 'chat_dms',
     name: 'Chat direct messages',
     description: 'Start a direct message with another member from their profile. Hub direct messages stay in the Hub (nothing goes to Slack), and staff cannot read them. Members you message see the conversation whether or not they have this on; this decides who can start one. Needs Chat and Chat posting',
+  },
+  {
+    key: 'slack_dm_bridge',
+    name: 'Slack DM bridge',
+    description: 'Brings your one-on-one Slack direct messages into Hub chat, read with your own Slack token (reconnect Slack first so it has the direct message permissions). They are restricted like private channels: only you and the other person, and staff only through break-glass access. Read-only for now. Needs Chat',
   },
   {
     key: 'big_sisters',

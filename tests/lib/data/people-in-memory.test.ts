@@ -77,7 +77,7 @@ defineMemberProfileContract("InMemoryMemberProfileRepository", () => {
         connected_at: "2026-01-01T00:00:00Z",
         revoked_at: options.revoked ? "2026-02-01T00:00:00Z" : null,
         expires_at: null,
-        read_pulled_at: null,
+        read_pulled_at: null, dms_pulled_at: null,
         access_secret_id: null,
         refresh_secret_id: null,
       });
@@ -178,7 +178,7 @@ describe("people repositories seeding", () => {
       members: [{ ...members[0], kajabiTags: ["Ideal Hedgie"], status: "lead" }],
       askMeAbout: [{ member_id: members[0].id, topics, updated_by: null, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" }],
       onboarding: [{ member_id: members[0].id, marked_steps: ["names"], dismissed_at: null, completed_at: null, acknowledged_steps: null, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" }],
-      slackConnections: [{ member_id: members[0].id, slack_user_id: "U1", team_id: null, scopes: ["a"], connected_at: "2026-01-01T00:00:00Z", revoked_at: null, expires_at: null, read_pulled_at: null, access_secret_id: null, refresh_secret_id: null }],
+      slackConnections: [{ member_id: members[0].id, slack_user_id: "U1", team_id: null, scopes: ["a"], connected_at: "2026-01-01T00:00:00Z", revoked_at: null, expires_at: null, read_pulled_at: null, dms_pulled_at: null, access_secret_id: null, refresh_secret_id: null }],
     });
     topics.push("changed after seeding");
     const repos = createInMemoryRepos(data);

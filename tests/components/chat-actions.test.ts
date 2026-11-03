@@ -20,10 +20,13 @@ const slackRead = vi.hoisted(() => ({
 vi.mock("next/server", () => ({ after: (cb: () => unknown) => void slackRead.after.push(cb) }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({ service: true }) }));
 vi.mock("@/lib/chat/slack-read", () => ({ pushReadToSlack: slackRead.push, pullReadFromSlack: slackRead.pull }));
+const dms = vi.hoisted(() => ({ pull: vi.fn(async () => ({ conversations: 0, messages: 0 })) }));
+vi.mock("@/lib/chat/slack-dms", () => ({ pullMemberDms: dms.pull }));
 let chatOn = true;
+let dmBridgeOn = false;
 vi.mock("@/lib/features.server", () => ({
   getUserFeaturePreviews: vi.fn(async () => []),
-  effectiveMemberHasFeature: async () => chatOn,
+  effectiveMemberHasFeature: async (key: string) => (key === "slack_dm_bridge" ? dmBridgeOn : chatOn),
 }));
 
 const { markChatRead, syncChatReadFromSlack } = await import("@/app/(member)/chat/actions");
@@ -86,6 +89,9 @@ describe("markChatRead and Slack", () => {
 
 describe("syncChatReadFromSlack", () => {
   beforeEach(() => {
+    dmBridgeOn = false;
+    dms.pull.mockClear();
+    slackRead.after.length = 0;
     fake = useFakeSupabase({ "rpc:chat_unread_counts": () => ({ data: [{ channel_id: CHANNEL, unread: 3 }] }) });
   });
 
@@ -111,5 +117,40 @@ describe("syncChatReadFromSlack", () => {
     chatOn = false;
     await expect(syncChatReadFromSlack(null)).resolves.toBeNull();
     expect(slackRead.pull).not.toHaveBeenCalled();
+  });
+
+  it("pulls the member's Slack DMs after the response when the bridge is on for them, and not otherwise", async () => {
+    await syncChatReadFromSlack(null);
+    expect(slackRead.after).toHaveLength(0);
+
+    dmBridgeOn = true;
+    await syncChatReadFromSlack(null);
+    expect(slackRead.after).toHaveLength(1);
+    expect(dms.pull).not.toHaveBeenCalled(); // not before the response
+    await slackRead.after[0]();
+    expect(dms.pull).toHaveBeenCalledWith({ service: true }, MEMBER_IDENTITY.memberId);
+  });
+
+  it("never lets a failing DM pull fail the action", async () => {
+    dmBridgeOn = true;
+    dms.pull.mockRejectedValueOnce(new Error("slack down"));
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    await syncChatReadFromSlack(null);
+    await expect(Promise.resolve(slackRead.after[0]())).resolves.toBeUndefined();
+    expect(log).toHaveBeenCalled();
+    log.mockRestore();
+  });
+
+  it("doesn't pull DMs in sudo, signed out or with chat off", async () => {
+    dmBridgeOn = true;
+    signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
+    await syncChatReadFromSlack(null);
+    signInAs(null);
+    await syncChatReadFromSlack(null);
+    signInAs(MEMBER_USER, MEMBER_IDENTITY);
+    chatOn = false;
+    await syncChatReadFromSlack(null);
+    chatOn = true;
+    expect(slackRead.after).toHaveLength(0);
   });
 });

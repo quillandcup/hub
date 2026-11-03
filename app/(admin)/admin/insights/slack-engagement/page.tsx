@@ -89,11 +89,11 @@ export default async function SlackEngagementPage({
     repos.slackMessages.liveMessageTimes(),
   ])
 
-  // Group DMs count toward the totals, but they aren't channels: keep them (and
+  // Group DMs and 1:1 DMs count toward the totals, but they aren't channels: keep them (and
   // their names, which list the members) out of the per-channel tables.
-  const allConversations = channelRows as unknown as (SlackChannelRow & { is_mpim: boolean })[]
-  const groupDmIds = new Set(allConversations.filter((c) => c.is_mpim).map((c) => c.channel_id))
-  const channels: SlackChannelRow[] = allConversations.filter((c) => !c.is_mpim)
+  const allConversations = channelRows as unknown as (SlackChannelRow & { is_mpim: boolean; is_im: boolean })[]
+  const groupDmIds = new Set(allConversations.filter((c) => c.is_mpim || c.is_im).map((c) => c.channel_id))
+  const channels: SlackChannelRow[] = allConversations.filter((c) => !c.is_mpim && !c.is_im)
   const channelMessages = messages.filter((m) => !groupDmIds.has(m.channel_id))
   const channelReactions = reactions.filter((r) => !groupDmIds.has(r.channel_id))
 
