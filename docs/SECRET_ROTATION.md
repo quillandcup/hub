@@ -92,44 +92,12 @@ management).
   -> find the OAuth 2.0 Client ID -> reset/add a secret.
 
 ### Slack
-- **Reinstalling the app to the workspace does NOT rotate the bot token** if scopes haven't
-  changed -- classic Slack bot tokens (`xoxb-...`) don't expire and Slack only revokes them
-  when the app is actually uninstalled. Force it with `auth.revoke`, using the *current*
-  (soon-to-be-dead) token as auth:
-  ```bash
-  curl -X POST https://slack.com/api/auth.revoke -H "Authorization: Bearer $OLD_SLACK_BOT_TOKEN"
-  # {"ok":true,"revoked":true} confirms it's dead -- this also fully uninstalls the app
-  ```
-- Then reinstall to get a fresh token:
-  https://app.slack.com/app-settings/T01NPHKSMA9/A0AS93BKT09/oauth -> **Reinstall to
-  Workspace**.
-- Slack-dependent features (feedback widget notifications, new book/award pings, writing
-  nudge DMs) are down between the revoke and the reinstall+resync+redeploy -- do this in one
-  sitting.
-- **The revoke uninstalls Billie Bot, which removes it from every channel.** Public channels
-  come back on the next Slack import (it auto-joins them), but each **private channel and
-  group DM** needs a member to run `/invite @Billie Bot` there. Before revoking, note which
-  private channels it's in (`bronze.slack_channels` where `is_private`); after reinstalling,
-  re-invite it to each one, then run a manual Slack API import from the admin import page.
-  The next morning, `/admin/hygiene` must show no "Billie Bot lost access" warning. The
-  2026-09-25 rotation skipped this and silently cut 13 private channels out of the import
-  for days. Long-term fix: Slack token rotation (see `docs/SLACK_BRIDGED_CHAT.md`), which
-  never needs an uninstall.
+**The bot's rotating token.** Billie Bot has no `SLACK_BOT_TOKEN` environment variable: its token is a 12-hour credential kept in Vault (`slack_bot_token`) that the Hub refreshes by itself (`lib/slack-bot-token.ts`; the refresh lease is `slack_token_refresh_claim`; by hand: `pnpm slack:bot-token`). Slack's opt-in to token rotation (`token_rotation_enabled` in `slack-app-manifest.yml`, on since 2026-10-29) can't be undone, and the bot moved onto it on 2026-11-01, so there is nothing to rotate by hand and no uninstall. Refresh tokens are single-use, so two refreshes at once would lose the credential: a refresh runs under a lease row (one holder at a time, 60 seconds, runs out if the holder dies); everyone else keeps using the token they have (still valid when refreshing starts) or waits a few seconds, and the holder reads the stored credential again after winning, in case a refresh finished just before. The new pair is stored with retries before anything else, since the old refresh token is spent the moment Slack answers.
 
-### Moving the bot to rotating tokens (one time, irreversible)
-Slack's token rotation replaces the bot's never-expiring token with a 12-hour one that the Hub refreshes by itself, so no later rotation needs an uninstall. **Opting in cannot be undone** (Slack's docs: "token rotation may not be turned off once it's turned on"), and Slack advises trying it on a development app first. The code is `lib/slack-bot-token.ts`, the refresh lease is `slack_token_refresh_claim`, the by-hand tool is `pnpm slack:bot-token`. Members' own tokens rotate the same way and use the same lease. In order:
-1. **Deploy the code and migration** (merge as usual). Nothing changes yet: `SLACK_BOT_TOKEN_ROTATION` is unset, so the bot still uses `SLACK_BOT_TOKEN`.
-2. `pnpm slack:bot-token status` should say no rotating token is stored.
-3. **Opt in** (done 2026-10-29): `token_rotation_enabled: true` in `slack-app-manifest.yml`, merged (CI pushes the manifest; run `pnpm slack:manifest:diff` first and check it shows only that). Existing tokens keep working. Members who connect Slack from now on get rotating user tokens (those who connected before keep non-rotating ones until they reconnect, which is why this is done before members connect).
-4. **Exchange**: `pnpm slack:bot-token exchange --confirm` trades the current bot token for a rotating one and stores it in Vault. A long-lived token can be exchanged once; the script refuses to run twice. It prints the first expiry, never a token.
-5. **Switch it on**: set `SLACK_BOT_TOKEN_ROTATION=on` in `.env.prod`, `pnpm env:sync --only=SLACK_BOT_TOKEN_ROTATION --target=production`, redeploy. From then on every use of the bot goes through `getSlackBotToken()`, which refreshes the credential in its last hour.
-6. **Alerts**: a problem with the bot token (a refresh that fails near expiry, a refreshed token that can't be stored, or an expired one) is reported to Sentry and as an operations alert that doesn't depend on the bot: #hub-alerts when the bot still works, an email to `ALERTS_EMAIL` when it doesn't (rate-limited to one per ten minutes per kind). On 2026-10-31 a save bug took the bot down for a day with no alert, because the only path was the bot.
-7. **Check**: `status` shows an expiry; about 11 hours later it moves forward (a refresh happened); the Vercel logs show no `Refreshing the Slack bot token failed` or `CRITICAL` lines; an admin test notification (`/admin/notifications`) reaches Slack. The old `SLACK_BOT_TOKEN` stops working after the first refresh: never `auth.revoke` it (that uninstalls the app); `auth.test` with it confirms it is dead.
-
-How refreshes stay safe: a refresh token is single-use, so two refreshes at once would lose the credential. The refresh happens under a lease row (one holder at a time, 60 seconds, runs out if the holder dies); everyone else keeps using the token they have (it is still valid when refreshing starts) or waits a few seconds for the holder's result, and the holder reads the stored credential again after winning the lease, in case a refresh finished just before. The new pair is stored with retries before anything else, since the old refresh token is spent the moment Slack answers.
-
-If the refresh token is ever lost (`invalid_refresh_token` in the logs, a `CRITICAL` line, an alert email, or the bot answering `invalid_auth`): sign in as an admin and open `/api/oauth/slack/bot/start`. It sends you to Slack to approve Billie Bot, and Slack returns to the member-connect callback, which recognises the `bot.` state, checks the workspace, trades the code for a fresh access and refresh token and stores them (`lib/slack-bot-install.ts`). No dashboard step: an app with token rotation on has no Reinstall to Workspace button. Check with `pnpm slack:bot-token status`. This happened on 2026-11-01 after the save bug in #784: the stored refresh token had been spent. The fallback if that flow is itself broken is `pnpm slack:bot-token seed --confirm`, pasting a token pair obtained some other way (checked with Slack before storing).
-
+- **Alerts**: a problem with the bot token (a refresh that fails near expiry, a refreshed token that can't be stored, or an expired one) goes to Sentry and as an operations alert that doesn't depend on the bot: #hub-alerts when the bot still works, an email to `ALERTS_EMAIL` when it doesn't (rate-limited to one per ten minutes per kind).
+- **Check**: `pnpm slack:bot-token status` shows an expiry that moves forward about every 11 hours; the Vercel logs show no `Refreshing the Slack bot token failed` or `CRITICAL` lines; an admin test notification (`/admin/notifications`) reaches Slack.
+- **If the refresh token is lost** (`invalid_refresh_token` in the logs, a `CRITICAL` line, an alert email, or the bot answering `invalid_auth`): sign in as an admin and open `/api/oauth/slack/bot/start`. It sends you to Slack to approve Billie Bot, and Slack returns to the member-connect callback, which recognises the `bot.` state, checks the workspace, trades the code for a fresh access and refresh token and stores them (`lib/slack-bot-install.ts`). No dashboard step: an app with token rotation on has no Reinstall button. This happened on 2026-11-01 after a save bug (#784) spent the stored refresh token. The fallback if that flow is itself broken is `pnpm slack:bot-token seed --confirm`, pasting a token pair obtained some other way (checked with Slack before storing).
+- Never `auth.revoke` the bot's token: that uninstalls the app and removes it from every channel (each private channel and group DM then needs a member to run `/invite @Billie Bot`).
 - **Signing secret** (`SLACK_SIGNING_SECRET`): https://api.slack.com/apps/A0AS93BKT09/general
   -> App Credentials -> Regenerate. Events, interactions and `/hub` are rejected between the
   regenerate and the resync+redeploy.

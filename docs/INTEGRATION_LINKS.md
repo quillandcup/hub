@@ -43,7 +43,6 @@ Vercel values. `env-vars.config.ts` is the source of truth for which var goes wh
 | `KAJABI_CLIENT_SECRET` | https://app.kajabi.com/admin/settings/public_api | `pnpm env:sync` |
 | `GOOGLE_SERVICE_ACCOUNT_KEY` | https://console.cloud.google.com/iam-admin/serviceaccounts?project=quillandcup -> Keys | `pnpm env:sync` |
 | `GOOGLE_OAUTH_CLIENT_SECRET` | https://console.cloud.google.com/apis/credentials?project=quillandcup | `pnpm env:sync` |
-| `SLACK_BOT_TOKEN` | https://app.slack.com/app-settings/T01NPHKSMA9/A0AS93BKT09/oauth (read the runbook first: rotating uninstalls the bot) | `pnpm env:sync` |
 | `SLACK_SIGNING_SECRET` | https://api.slack.com/apps/A0AS93BKT09/general -> App Credentials -> Regenerate | `pnpm env:sync` |
 | `SLACK_CONFIG_REFRESH_TOKEN` | https://api.slack.com/apps -> "Your App Configuration Tokens" (below the app list) -> Generate Token; copy the refresh token | `gh secret set SLACK_CONFIG_REFRESH_TOKEN --repo quillandcup/hub` (never synced: CI rewrites it every run) |
 | `GH_TOKEN_SLACK_MANIFEST` | https://github.com/settings/personal-access-tokens -> fine-grained, owner `quillandcup`, this repo only, **Secrets: Read and write** | `pnpm env:sync:github` |

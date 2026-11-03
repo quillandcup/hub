@@ -8,21 +8,17 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 /**
  * The bot's token (Billie Bot), for everything the Hub does as the app itself.
  *
- * Until the Slack app opts into token rotation the token is the `SLACK_BOT_TOKEN` environment variable and
- * nothing here touches the database. Once it has (docs/SECRET_ROTATION.md, "Moving the bot to rotating
- * tokens"), `SLACK_BOT_TOKEN_ROTATION` is turned on and the token is a 12-hour credential kept in Vault
- * (`slack_bot_token`): read from there, and refreshed with its refresh token shortly before it expires,
- * under a lease so that concurrent requests never refresh it twice (lib/slack-token-refresh.ts). Until the
- * one-time exchange has stored a credential, the environment variable is still what is used, so turning the
- * switch on early is harmless.
+ * The token is a 12-hour credential kept in Vault (`slack_bot_token`): read from there, and refreshed with its
+ * refresh token shortly before it expires, under a lease so that concurrent requests never refresh it twice
+ * (lib/slack-token-refresh.ts). There is no environment variable to fall back on: the app has rotating tokens
+ * on for good and the old long-lived token stopped working at the first refresh. docs/SECRET_ROTATION.md,
+ * "The bot's rotating token", covers recovery.
  *
  * Every use of the bot calls `getSlackBotToken()` for each operation (or batch); never cache the string.
  */
 
 /** Refresh when this little of the token's life is left: an hour, so a failed attempt has many retries. */
 const REFRESH_WITHIN_MS = 60 * 60 * 1000;
-
-export const rotationEnabled = (): boolean => ["1", "true", "on"].includes((process.env.SLACK_BOT_TOKEN_ROTATION ?? "").trim().toLowerCase());
 
 interface Stored {
   accessToken: string;
@@ -105,17 +101,15 @@ async function refreshAndSave(service: SupabaseClient, current: Stored): Promise
 }
 
 /**
- * The bot token to use now, or undefined when none is configured (callers treat that as "Slack isn't set up").
- * Throws only when rotation is on, the stored token has expired and could not be refreshed.
+ * The bot token to use now, or undefined when none is stored (callers treat that as "Slack isn't set up").
+ * Throws only when the stored token has expired and could not be refreshed.
  */
 export async function getSlackBotToken(service?: SupabaseClient): Promise<string | undefined> {
-  const fromEnv = process.env.SLACK_BOT_TOKEN || undefined;
-  if (!rotationEnabled()) return fromEnv;
   if (cached && clock.now() < cached.refreshAt) return cached.token;
 
   const db = service ?? createServiceRoleClient();
   const stored = await readStored(db);
-  if (!stored) return fromEnv; // not exchanged yet
+  if (!stored) return undefined;
   if (fresh(stored)) {
     cached = { token: stored.accessToken, refreshAt: stored.expiresAt === null ? Number.MAX_SAFE_INTEGER : stored.expiresAt - REFRESH_WITHIN_MS };
     return stored.accessToken;
@@ -154,28 +148,6 @@ export async function getSlackBotToken(service?: SupabaseClient): Promise<string
   }
   cached = fresh(result) ? { token: result.accessToken, refreshAt: (result.expiresAt as number) - REFRESH_WITHIN_MS } : null;
   return result.accessToken;
-}
-
-/**
- * One-time: turn the bot's long-lived token into a rotating one (`oauth.v2.exchange`, after the app has opted
- * into rotation) and store it. Each long-lived token can be exchanged once; the old one stops working after the
- * first refresh. Returns the new expiry. Run by scripts/slack-bot-token.ts.
- */
-export async function exchangeBotToken(service: SupabaseClient, botToken: string): Promise<{ expiresAt: Date }> {
-  const result = await new WebClient().oauth.v2.exchange({
-    client_id: process.env.SLACK_CLIENT_ID ?? "",
-    client_secret: process.env.SLACK_CLIENT_SECRET ?? "",
-    token: botToken,
-  });
-  if (!result.ok || !result.access_token || !result.refresh_token || !result.expires_in) throw new Error("Slack did not return a rotating token");
-  const expiresAt = new Date(clock.now() + result.expires_in * 1000);
-  const { error } = await service.rpc("slack_bot_token_save", {
-    p_access_token: result.access_token,
-    p_refresh_token: result.refresh_token,
-    p_expires_at: expiresAt.toISOString(),
-  });
-  if (error) throw new Error(`Slack returned a rotating token but it could not be stored (${error.message}). The exchange can't be repeated for this token.`);
-  return { expiresAt };
 }
 
 /**
