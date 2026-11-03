@@ -8,6 +8,7 @@ import EmojiPicker from "@/components/chat/EmojiPicker";
 import { useToggleReaction } from "@/components/chat/ReactionBar";
 import type { CustomEmoji } from "@/lib/chat/emoji";
 import { MESSAGE_CHANGE_EVENT } from "@/lib/chat/list-events";
+import { messageToClipboard, type Names } from "@/lib/chat/clipboard";
 
 const buttonClass =
   "group/tip relative flex h-8 w-8 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800";
@@ -77,6 +78,7 @@ export default function MessageActions({
   messageId,
   body,
   custom,
+  names = { userNames: {}, channelNames: {} },
   canReact,
   canReply,
   canChange = false,
@@ -85,6 +87,8 @@ export default function MessageActions({
   messageId: string;
   /** The message's text, when it has any, for "Copy message". */
   body: string | null;
+  /** Who and what the body mentions, so "Copy message" can say names instead of ids. */
+  names?: Names;
   custom: Record<string, CustomEmoji>;
   canReact: boolean;
   /** Offer "Reply in thread" (not inside a thread, not for a message still being sent). */
@@ -133,10 +137,15 @@ export default function MessageActions({
     setMenuPos({ top, left });
   }, [open]);
 
-  const copy = async (what: string, text: string) => {
+  const copy = async (what: string, text: string, html?: string) => {
     setOpen(null);
     try {
-      await navigator.clipboard.writeText(text);
+      // The message goes on as readable text and as styled HTML (so a paste into the chat box keeps the formatting), never the stored markup.
+      if (html && typeof ClipboardItem !== "undefined" && navigator.clipboard.write) {
+        await navigator.clipboard.write([
+          new ClipboardItem({ "text/plain": new Blob([text], { type: "text/plain" }), "text/html": new Blob([html], { type: "text/html" }) }),
+        ]);
+      } else await navigator.clipboard.writeText(text);
       setCopied(what);
       startCopiedTimer(() => setCopied(null), 1500);
     } catch {
@@ -260,7 +269,10 @@ export default function MessageActions({
                   type="button"
                   role="menuitem"
                   data-track="chat-copy-message"
-                  onClick={() => void copy("Message", body)}
+                  onClick={() => {
+                    const { text, html } = messageToClipboard(body, names);
+                    void copy("Message", text, html);
+                  }}
                   className="block w-full px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-slate-800"
                 >
                   Copy message

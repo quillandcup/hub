@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
@@ -37,6 +37,35 @@ describe("MessageActions reactions", () => {
     await userEvent.click(screen.getByRole("button", { name: "Add reaction…" }));
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByLabelText("Search emoji")).not.toBeInTheDocument();
+  });
+});
+
+describe("MessageActions copy message", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("copies readable text and styled HTML, never the stored <u> markup", async () => {
+    const items: Record<string, Blob>[] = [];
+    vi.stubGlobal("ClipboardItem", class { constructor(public data: Record<string, Blob>) { items.push(data); } });
+    const write = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { write, writeText: vi.fn() }, configurable: true });
+    render(<MessageActions {...props} body="can this <u>underline</u> too? <@U1>" names={{ userNames: { U1: "Ania Ray" }, channelNames: {} }} />);
+    await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Copy message" }));
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(await items[0]["text/plain"].text()).toBe("can this underline too? @Ania Ray");
+    expect(await items[0]["text/html"].text()).toBe("<p>can this <u>underline</u> too? @Ania Ray</p>");
+  });
+
+  it("copies the readable text when the browser cannot copy HTML", async () => {
+    vi.stubGlobal("ClipboardItem", undefined);
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    render(<MessageActions {...props} body="a <u>b</u>" />);
+    await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Copy message" }));
+    expect(writeText).toHaveBeenCalledWith("a b");
   });
 });
 

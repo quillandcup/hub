@@ -187,6 +187,7 @@ export default function MessageItem({
           channelId={channelId}
           messageId={message.id}
           body={message.contentState === "ok" ? message.body : null}
+          names={ctx}
           custom={ctx.customEmoji}
           canReact={reactable}
           canReply={!inThread}
