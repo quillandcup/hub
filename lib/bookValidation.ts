@@ -1,6 +1,6 @@
-import { safeUrl } from "@/lib/url";
 import { bookCoverUrl } from "@/lib/bookCover";
 import { genresError } from "@/lib/book-genres";
+import { editionsError } from "@/lib/book-editions";
 import type { BookInput } from "@/app/(member)/bookshelf/actions";
 
 /**
@@ -13,7 +13,7 @@ export function validateBookInput(input: BookInput): string | null {
   if (!input.publishedDate) return "Publication date is required";
   if (!input.coverUrl?.trim()) return "Cover image is required";
   if (!bookCoverUrl(input.coverUrl)) return "Cover image failed to upload correctly — try again";
-  if (!input.purchaseUrl?.trim()) return "Where to buy it is required";
-  if (!safeUrl(input.purchaseUrl)) return "Enter a valid link (starting with https://) for where to buy it";
+  const editions = editionsError(input.editions);
+  if (editions) return editions;
   return genresError(input.genres);
 }

@@ -92,10 +92,8 @@ async function main() {
       title: spec.title,
       cover_url: bookCoverUrlFor(stored.asset.id),
       cover_asset_id: stored.asset.id,
-      purchase_url: spec.purchaseUrl,
       published_date: spec.publishedDate,
-      price: spec.price,
-      format: spec.format,
+      editions: [{ format: spec.format, purchase_url: spec.purchaseUrl, price: spec.price }],
     });
     console.log(`  "${spec.title}": added ${id}, cover ${stored.asset.id} (${stored.asset.width} x ${stored.asset.height})`);
   }

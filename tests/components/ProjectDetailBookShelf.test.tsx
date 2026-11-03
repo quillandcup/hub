@@ -54,11 +54,9 @@ const project = {
     title: "The Lantern Keeper",
     description: null,
     coverUrl: "https://example.com/cover.png",
-    purchaseUrl: "https://example.com/buy",
     publishedDate: "2025-06-15",
-    price: 4.99,
+    editions: [{ format: "ebook", purchaseUrl: "https://example.com/buy", price: 4.99 }],
     genres: [],
-    format: "ebook",
     projectId: "wpr_AAAAAAAAAAA1",
   },
 } as unknown as WritingProjectRow;

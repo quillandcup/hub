@@ -4,27 +4,26 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
-import { safeUrl } from "@/lib/url";
 import { validateBookInput } from "@/lib/bookValidation";
 import { cleanGenres } from "@/lib/book-genres";
+import { cleanEditions, type BookEdition, type BookEditionInput, type BookFormat } from "@/lib/book-editions";
 import { createRepos } from "@/lib/data/repos";
 import { releaseReplacedCover, resolveBookCover } from "@/lib/book-cover-assets";
 import { notifyStaffNewBook } from "@/lib/slack";
 import { getPenNameOptions, resolvePenName, type PenNameOptions } from "@/lib/book-pen-name";
 
 import { withAction } from "@/lib/analytics/server";
-export type BookFormat = "print" | "ebook";
+export type { BookFormat };
 
 export interface BookInput {
   title: string;
   description?: string;
   coverUrl: string;
-  purchaseUrl: string;
   publishedDate: string;
-  price?: number | null;
+  /** One edition per format (print, ebook), each with its own link and price; at least one. */
+  editions: BookEditionInput[];
   /** Genre tags, in the member's order (at most MAX_GENRES, see lib/book-genres.ts). */
   genres?: string[];
-  format: BookFormat;
   /** Name the book is published under: the member's display name or one of their aliases; blank = display name. */
   penName?: string | null;
 }
@@ -34,11 +33,10 @@ export interface MyBookRow {
   title: string;
   description: string | null;
   coverUrl: string;
-  purchaseUrl: string;
   publishedDate: string;
-  price: number | null;
+  /** One per format, print first. */
+  editions: BookEditionInput[];
   genres: string[];
-  format: BookFormat;
   /** Null when the book follows the member's display name. */
   penName: string | null;
   /** The Projects entry this book was published from, or null for a standalone/legacy book. */
@@ -79,11 +77,9 @@ export async function getMyBooks(): Promise<MyBookRow[]> {
     title: row.title,
     description: row.description,
     coverUrl: row.cover_url,
-    purchaseUrl: row.purchase_url,
     publishedDate: row.published_date,
-    price: row.price,
+    editions: row.editions.map((e) => ({ format: e.format, purchaseUrl: e.purchase_url, price: e.price })),
     genres: row.genres,
-    format: row.format as BookFormat, // a check constraint limits the column to print and ebook
     penName: row.pen_name,
     projectId: row.project_id,
     coverAsset: row.cover_asset,
@@ -104,6 +100,7 @@ async function addBookImpl(input: BookInput): Promise<{ success: true } | { erro
   const cover = await resolveBookCover(createRepos(supabase).media, effectiveIdentity.memberId, input.coverUrl);
   if ("error" in cover) return cover;
 
+  const editions = cleanEditions(input.editions);
   try {
     await createRepos(supabase).books.add({
       member_id: effectiveIdentity.memberId,
@@ -111,11 +108,9 @@ async function addBookImpl(input: BookInput): Promise<{ success: true } | { erro
       description: input.description?.trim() || null,
       cover_url: cover.url,
       cover_asset_id: cover.assetId,
-      purchase_url: safeUrl(input.purchaseUrl)!,
       published_date: input.publishedDate,
-      price: input.price ?? null,
+      editions,
       genres: cleanGenres(input.genres),
-      format: input.format,
       pen_name: pen.penName,
     });
   } catch (error) {
@@ -127,7 +122,7 @@ async function addBookImpl(input: BookInput): Promise<{ success: true } | { erro
     title: input.title.trim(),
     memberId: effectiveIdentity.memberId,
     memberName: effectiveIdentity.memberName,
-    purchaseUrl: safeUrl(input.purchaseUrl),
+    purchaseUrl: editions[0].purchase_url,
   }).catch((err) => console.error("New book Slack notification failed:", err));
 
   revalidatePath("/bookshelf");
@@ -165,11 +160,9 @@ async function updateBookImpl(
       description: input.description?.trim() || null,
       cover_url: cover.url,
       cover_asset_id: cover.assetId,
-      purchase_url: safeUrl(input.purchaseUrl)!,
       published_date: input.publishedDate,
-      price: input.price ?? null,
+      editions: cleanEditions(input.editions),
       genres: cleanGenres(input.genres),
-      format: input.format,
       pen_name: pen.penName,
     });
   } catch (error) {

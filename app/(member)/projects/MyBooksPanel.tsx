@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import BookFormModal from "@/components/books/BookFormModal";
+import { editionsSummary } from "@/lib/book-editions";
 import { deleteBook, type MyBookRow } from "@/app/(member)/bookshelf/actions";
 
 interface MyBooksPanelProps {
@@ -19,9 +20,6 @@ function formatDate(dateOnly: string): string {
   });
 }
 
-function formatPrice(price: number | null): string | null {
-  return price == null ? null : `$${price.toFixed(2)}`;
-}
 
 /** Manages all of the member's books -- both those published from a tracked project and standalone
  * ones (past books added before projects existed, or added by hand). Relocated here from the old
@@ -77,8 +75,7 @@ export default function MyBooksPanel({ initialBooks, projectTitles }: MyBooksPan
               <div className="min-w-0">
                 <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{book.title}</p>
                 <p className="text-xs text-slate-600 dark:text-slate-400">
-                  {formatDate(book.publishedDate)} · <span className="capitalize">{book.format}</span>
-                  {formatPrice(book.price) && ` · ${formatPrice(book.price)}`}
+                  {formatDate(book.publishedDate)} · {editionsSummary(book.editions)}
                   {book.projectId && projectTitles[book.projectId] && (
                     <>
                       {" · From "}

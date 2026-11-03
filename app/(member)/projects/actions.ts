@@ -9,7 +9,7 @@ import type { ProjectPatch } from "@/lib/data/writing";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
-import { safeUrl } from "@/lib/url";
+import { cleanEditions } from "@/lib/book-editions";
 import { validateBookInput } from "@/lib/bookValidation";
 import { cleanGenres } from "@/lib/book-genres";
 import { resolvePenName } from "@/lib/book-pen-name";
@@ -706,6 +706,7 @@ async function publishProjectImpl(
   const cover = await resolveBookCover(createRepos(supabase).media, effectiveIdentity.memberId, book.coverUrl);
   if ("error" in cover) return cover;
 
+  const editions = cleanEditions(book.editions);
   try {
     await createRepos(supabase).books.add({
       member_id: effectiveIdentity.memberId,
@@ -714,11 +715,9 @@ async function publishProjectImpl(
       description: book.description?.trim() || null,
       cover_url: cover.url,
       cover_asset_id: cover.assetId,
-      purchase_url: safeUrl(book.purchaseUrl)!,
       published_date: book.publishedDate,
-      price: book.price ?? null,
+      editions,
       genres: cleanGenres(book.genres),
-      format: book.format,
       pen_name: pen.penName,
     });
   } catch (error) {
@@ -734,7 +733,7 @@ async function publishProjectImpl(
     title: book.title.trim(),
     memberId: effectiveIdentity.memberId,
     memberName: effectiveIdentity.memberName,
-    purchaseUrl: safeUrl(book.purchaseUrl),
+    purchaseUrl: editions[0].purchase_url,
   }).catch((err) => console.error("New book Slack notification failed:", err));
 
   revalidatePath("/projects", "layout");

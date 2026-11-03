@@ -2,23 +2,28 @@ import { randomInt } from "node:crypto";
 import { fetchAllRows } from "@/lib/supabase/paginate";
 import type { Db, Insert, Row, Update } from "./db";
 import type { InMemoryDataset } from "./in-memory";
+import { BOOK_FORMATS, editionColumns, rowEditions, type BookEdition } from "@/lib/book-editions";
 
 /** A book on a member's bookshelf (`member_books`). A deleted one keeps its row, with `deleted_at` set. */
 // `book_member` in the generated row is the author function, not a column.
 export type BookRow = Omit<Row<"member_books">, "book_member">;
-export type NewBook = Insert<"member_books">;
-export type BookPatch = Update<"member_books">;
+// The editions are written through `editions`; the old single-edition columns follow the first one (see `editionColumns`).
+type EditionColumns = "editions" | "format" | "purchase_url" | "price";
+export type NewBook = Omit<Insert<"member_books">, EditionColumns> & { editions: BookEdition[] };
+export type BookPatch = Omit<Update<"member_books">, EditionColumns> & { editions?: BookEdition[] };
 
 /** What the bookshelf page shows for a book: the book, and its author's names (null when the member is gone). */
-export type ShelfBook = Pick<BookRow, "id" | "member_id" | "title" | "description" | "cover_url" | "purchase_url" | "published_date" | "price" | "genres" | "format" | "pen_name"> & {
+export type ShelfBook = Pick<BookRow, "id" | "member_id" | "title" | "description" | "cover_url" | "published_date" | "genres" | "pen_name"> & {
+  editions: BookEdition[];
   author: { name: string; display_name: string | null } | null;
 };
 
 /** What a member's profile shows for each book. */
-export type ProfileBook = Pick<BookRow, "id" | "title" | "cover_url" | "purchase_url" | "published_date">;
+export type ProfileBook = Pick<BookRow, "id" | "title" | "cover_url" | "published_date"> & { editions: BookEdition[] };
 
 /** One of a member's own books with the library image behind its cover. */
-export type MyBook = Pick<BookRow, "id" | "title" | "description" | "cover_url" | "purchase_url" | "published_date" | "price" | "genres" | "format" | "project_id" | "pen_name"> & {
+export type MyBook = Pick<BookRow, "id" | "title" | "description" | "cover_url" | "published_date" | "genres" | "project_id" | "pen_name"> & {
+  editions: BookEdition[];
   cover_asset: { id: string; width: number; height: number } | null;
 };
 
@@ -60,6 +65,20 @@ function one<T>(embed: T | T[] | null | undefined): T | null {
   return (Array.isArray(embed) ? embed[0] : embed) ?? null;
 }
 
+/** The columns a read selects to build a book's editions: the stored ones and the old single-edition columns they fall back to. */
+const EDITION_FIELDS = "editions, format, purchase_url, price";
+
+type WithEditionColumns = { editions: Row<"member_books">["editions"]; format: string; purchase_url: string; price: number | null };
+
+/** The row without the edition columns, and its editions. */
+function withEditions<T extends WithEditionColumns>(row: T) {
+  const { editions, format, purchase_url, price, ...rest } = row;
+  return { ...rest, editions: rowEditions(editions, { format, purchase_url, price }) };
+}
+
+/** The columns an insert or update writes for these editions. */
+const editionPatch = (editions: BookEdition[] | undefined) => (editions ? editionColumns(editions) : {});
+
 /**
  * Members' bookshelves (`member_books`). Local data: the table is the source of truth, not reprocessed.
  * A book is soft deleted (`deleted_at`) and then never read back, except by `previousCoverAssetId`
@@ -98,46 +117,46 @@ export class SupabaseBookRepository implements BookRepository {
   constructor(private readonly db: Db) {}
 
   async shelf() {
-    type Raw = Omit<ShelfBook, "author"> & { author: ShelfBook["author"] | ShelfBook["author"][] };
+    type Raw = Omit<ShelfBook, "author" | "editions"> & WithEditionColumns & { author: ShelfBook["author"] | ShelfBook["author"][] };
     const rows = await fetchAllRows<Raw>(
       (from, to) =>
         this.db
           .from("member_books")
-          .select("id, member_id, title, description, cover_url, purchase_url, published_date, price, genres, format, pen_name, author:book_member(name, display_name)")
+          .select(`id, member_id, title, description, cover_url, published_date, genres, pen_name, ${EDITION_FIELDS}, author:book_member(name, display_name)`)
           .is("deleted_at", null)
           .order("published_date", { ascending: false })
           .order("id")
           .range(from, to)
     );
-    return rows.map((row) => ({ ...row, author: one(row.author) }));
+    return rows.map((row) => ({ ...withEditions(row), author: one(row.author) }));
   }
 
   async ofMember(memberId: string) {
     const { data, error } = await this.db
       .from("member_books")
-      .select("id, title, cover_url, purchase_url, published_date")
+      .select(`id, title, cover_url, published_date, ${EDITION_FIELDS}`)
       .eq("member_id", memberId)
       .is("deleted_at", null)
       .order("published_date", { ascending: false })
       .order("id");
     if (error) throw new Error(error.message);
-    return data ?? [];
+    return (data ?? []).map(withEditions);
   }
 
   async mine(memberId: string) {
     const { data, error } = await this.db
       .from("member_books")
-      .select("id, title, description, cover_url, purchase_url, published_date, price, genres, format, project_id, pen_name, cover_asset:media_assets(id, width, height)")
+      .select(`id, title, description, cover_url, published_date, genres, project_id, pen_name, ${EDITION_FIELDS}, cover_asset:media_assets(id, width, height)`)
       .eq("member_id", memberId)
       .is("deleted_at", null)
       .order("published_date", { ascending: false })
       .order("id");
     if (error) throw new Error(error.message);
-    return (data ?? []).map((row) => ({ ...row, cover_asset: one(row.cover_asset) }));
+    return (data ?? []).map((row) => ({ ...withEditions(row), cover_asset: one(row.cover_asset) }));
   }
 
-  async add(book: NewBook) {
-    const { data, error } = await this.db.from("member_books").insert(book).select("id").single();
+  async add({ editions, ...book }: NewBook) {
+    const { data, error } = await this.db.from("member_books").insert({ ...book, ...editionColumns(editions) }).select("id").single();
     if (error) {
       if (error.code === "23505") throw new BookExistsError(error.message);
       throw new Error(error.message);
@@ -145,8 +164,8 @@ export class SupabaseBookRepository implements BookRepository {
     return data.id;
   }
 
-  async update(id: string, patch: BookPatch) {
-    const { data, error } = await this.db.from("member_books").update(patch).eq("id", id).is("deleted_at", null).select("id").maybeSingle();
+  async update(id: string, { editions, ...patch }: BookPatch) {
+    const { data, error } = await this.db.from("member_books").update({ ...patch, ...editionPatch(editions) }).eq("id", id).is("deleted_at", null).select("id").maybeSingle();
     if (error) throw new Error(error.message);
     return data !== null;
   }
@@ -223,6 +242,7 @@ export function bookRow(seed: BookSeed): BookRow {
     cover_url: "",
     purchase_url: "",
     price: null,
+    editions: [],
     genres: [],
     genres_search: null,
     format: "print",
@@ -242,6 +262,10 @@ export class InMemoryBookRepository implements BookRepository {
     return this.data.memberBooks.map((b) => bookRow(b)).filter((b) => b.deleted_at === null);
   }
 
+  private editionsOf(b: BookRow) {
+    return rowEditions(b.editions, b);
+  }
+
   private author(memberId: string) {
     return this.data.members.find((m) => m.id === memberId) ?? null;
   }
@@ -257,11 +281,9 @@ export class InMemoryBookRepository implements BookRepository {
           title: b.title,
           description: b.description,
           cover_url: b.cover_url,
-          purchase_url: b.purchase_url,
           published_date: b.published_date,
-          price: b.price,
           genres: b.genres,
-          format: b.format,
+          editions: this.editionsOf(b),
           pen_name: b.pen_name,
           author: m ? { name: m.name, display_name: m.displayName ?? null } : null,
         };
@@ -272,7 +294,7 @@ export class InMemoryBookRepository implements BookRepository {
     return this.live()
       .filter((b) => b.member_id === memberId)
       .sort(newestFirst)
-      .map(({ id, title, cover_url, purchase_url, published_date }) => ({ id, title, cover_url, purchase_url, published_date }));
+      .map((b) => ({ id: b.id, title: b.title, cover_url: b.cover_url, published_date: b.published_date, editions: this.editionsOf(b) }));
   }
 
   async mine(memberId: string) {
@@ -286,11 +308,9 @@ export class InMemoryBookRepository implements BookRepository {
           title: b.title,
           description: b.description,
           cover_url: b.cover_url,
-          purchase_url: b.purchase_url,
           published_date: b.published_date,
-          price: b.price,
           genres: b.genres,
-          format: b.format,
+          editions: this.editionsOf(b),
           project_id: b.project_id,
           pen_name: b.pen_name,
           cover_asset: asset ? { id: asset.id, width: asset.width, height: asset.height } : null,
@@ -298,19 +318,28 @@ export class InMemoryBookRepository implements BookRepository {
       });
   }
 
-  async add(book: NewBook) {
+  /** The database's CHECK on `editions`: at most one edition per format, each print or ebook, with a link and a price of zero or more. */
+  private assertEditions(editions: BookEdition[]) {
+    const formats = new Set(editions.map((e) => e.format));
+    const valid = editions.length <= 2 && formats.size === editions.length
+      && editions.every((e) => (BOOK_FORMATS as readonly string[]).includes(e.format) && e.purchase_url.trim() !== "" && (e.price === null || e.price >= 0));
+    if (!valid) throw new Error("violates check constraint member_books_editions_valid");
+  }
+
+  async add({ editions, ...book }: NewBook) {
     if (!this.author(book.member_id)) throw new Error("violates foreign key constraint on member_id");
-    if (book.format !== undefined && book.format !== "print" && book.format !== "ebook") throw new Error("violates check constraint member_books_format_check");
+    this.assertEditions(editions);
     if (book.project_id && this.live().some((b) => b.project_id === book.project_id)) throw new BookExistsError();
-    const row = bookRow({ ...book, id: book.id ?? newBookId(), cover_asset_id: book.cover_asset_id ?? null, created_at: new Date().toISOString() } as BookSeed);
+    const row = bookRow({ ...book, ...editionColumns(editions), id: book.id ?? newBookId(), cover_asset_id: book.cover_asset_id ?? null, created_at: new Date().toISOString() } as BookSeed);
     this.data.memberBooks.push(row);
     return row.id;
   }
 
-  async update(id: string, patch: BookPatch) {
+  async update(id: string, { editions, ...patch }: BookPatch) {
     const index = this.data.memberBooks.findIndex((b) => b.id === id && (b.deleted_at ?? null) === null);
     if (index < 0) return false;
-    this.data.memberBooks[index] = bookRow({ ...bookRow(this.data.memberBooks[index]), ...patch } as BookSeed);
+    if (editions) this.assertEditions(editions);
+    this.data.memberBooks[index] = bookRow({ ...bookRow(this.data.memberBooks[index]), ...patch, ...editionPatch(editions) } as BookSeed);
     return true;
   }
 

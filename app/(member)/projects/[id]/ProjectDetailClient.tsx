@@ -10,6 +10,7 @@ import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
 import BookFormModal from "@/components/books/BookFormModal";
+import BookEditionLinks from "@/components/books/BookEditionLinks";
 import ProjectDetailsModal from "@/components/writing/ProjectDetailsModal";
 import {
   StarToggle,
@@ -273,7 +274,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
               Published
             </h2>
             <a data-track="project-buy-book"
-              href={project.book.purchaseUrl}
+              href={project.book.editions[0]?.purchaseUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm font-semibold text-slate-900 dark:text-slate-100 hover:underline"
@@ -281,9 +282,8 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
               {project.book.title}
             </a>
             <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
-              <span className="capitalize">{project.book.format}</span>
+              <BookEditionLinks editions={project.book.editions} track="project-buy-book-edition" />
               {project.book.genres.length > 0 && <span>· {project.book.genres.join(", ")}</span>}
-              {project.book.price != null && <span>· ${project.book.price.toFixed(2)}</span>}
             </p>
             <p className="text-xs mt-2">
               <Link data-track="project-view-on-the-bookshelf" href="/bookshelf" className="text-plum-600 hover:text-plum-700 dark:text-plum-400">

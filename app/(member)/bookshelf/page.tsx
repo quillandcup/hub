@@ -20,11 +20,9 @@ export default async function BookshelfPage() {
     title: row.title,
     description: row.description,
     coverUrl: row.cover_url,
-    purchaseUrl: row.purchase_url,
     publishedDate: row.published_date,
-    price: row.price,
+    editions: row.editions.map((e) => ({ format: e.format, purchaseUrl: e.purchase_url, price: e.price })),
     genres: row.genres,
-    format: row.format as ShelfBook["format"],
   }));
 
   return <BookshelfClient shelf={shelf} />;

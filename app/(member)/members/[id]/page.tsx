@@ -25,6 +25,7 @@ import { computePublicHostingSummary } from "@/lib/hosting-stats"
 import { getMemberHostingSchedule } from "@/lib/prickle-schedule"
 import MemberHostingCard from "./MemberHostingCard"
 import MemberNotesCard from "./MemberNotesCard"
+import BookEditionLinks from "@/components/books/BookEditionLinks"
 import MessageMemberButton from "@/components/chat/MessageMemberButton"
 import { ORG_TIMEZONE } from "@/lib/config";
 
@@ -286,7 +287,7 @@ export default async function MemberProfilePage({
           <ul className="space-y-3">
             {books.map((book) => {
               const safeCover = safeUrl(book.cover_url)
-              const safePurchase = safeUrl(book.purchase_url)
+              const safePurchase = safeUrl(book.editions[0]?.purchase_url)
               return (
                 <li key={book.id} className="flex items-center gap-3">
                   {safeCover && (
@@ -311,6 +312,15 @@ export default async function MemberProfilePage({
                     )}
                     <p className="text-xs text-slate-600 dark:text-slate-400">
                       {formatMonthYear(parseDateOnly(book.published_date))}
+                      {book.editions.length > 1 && (
+                        <>
+                          {" · "}
+                          <BookEditionLinks
+                            editions={book.editions.map((e) => ({ format: e.format, purchaseUrl: e.purchase_url, price: e.price }))}
+                            track="member-profile-open-edition"
+                          />
+                        </>
+                      )}
                     </p>
                   </div>
                 </li>

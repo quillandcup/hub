@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import type { BookFormat } from "./actions";
+import BookEditionLinks from "@/components/books/BookEditionLinks";
+import type { BookEditionInput } from "@/lib/book-editions";
 
 export interface ShelfBook {
   id: string;
@@ -11,11 +12,10 @@ export interface ShelfBook {
   title: string;
   description: string | null;
   coverUrl: string;
-  purchaseUrl: string;
   publishedDate: string;
-  price: number | null;
+  /** One per format, print first. */
+  editions: BookEditionInput[];
   genres: string[];
-  format: BookFormat;
 }
 
 interface BookshelfClientProps {
@@ -27,10 +27,6 @@ function formatDate(dateOnly: string): string {
     month: "long",
     year: "numeric",
   });
-}
-
-function formatPrice(price: number | null): string | null {
-  return price == null ? null : `$${price.toFixed(2)}`;
 }
 
 /** Every genre on the shelf with how many books carry it, most common first. Spellings that differ only in case count as one. */
@@ -118,7 +114,7 @@ export default function BookshelfClient({ shelf }: BookshelfClientProps) {
               />
               <div className="min-w-0">
                 <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  <a href={book.purchaseUrl} data-track="bookshelf-open-book" target="_blank" rel="noopener noreferrer" className="hover:underline">
+                  <a href={book.editions[0]?.purchaseUrl} data-track="bookshelf-open-book" target="_blank" rel="noopener noreferrer" className="hover:underline">
                     {book.title}
                   </a>
                 </h3>
@@ -130,9 +126,8 @@ export default function BookshelfClient({ shelf }: BookshelfClientProps) {
                   · {formatDate(book.publishedDate)}
                 </p>
                 <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
-                  <span className="capitalize">{book.format}</span>
+                  <BookEditionLinks editions={book.editions} track="bookshelf-open-edition" />
                   {book.genres.length > 0 && <span>· {book.genres.join(", ")}</span>}
-                  {formatPrice(book.price) && <span>· {formatPrice(book.price)}</span>}
                 </p>
                 {book.description && (
                   <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 line-clamp-3">
