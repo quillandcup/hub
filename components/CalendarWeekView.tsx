@@ -295,7 +295,7 @@ export default function CalendarWeekView({
       {/* Calendar Grid */}
       <div>
           {/* Day Headers — sticky so they stay visible while time rows scroll */}
-          <div className={`sticky top-0 z-30 grid ${gridColsClass} border-b border-slate-200 dark:border-slate-800`}>
+          <div className={`sticky top-0 z-20 grid ${gridColsClass} border-b border-slate-200 dark:border-slate-800`}>
             <div className="sticky left-0 z-10 p-2 bg-slate-50 dark:bg-slate-800"></div>
             {days.map((day, i) => {
               const isToday = day.toDateString() === todayString;
@@ -324,7 +324,7 @@ export default function CalendarWeekView({
               {/* Time Labels: stay at the left while the days scroll sideways on a narrow screen. Sticky `left-0` sticks at
                   the content edge of the scroller around the calendar, so that scroller must have no padding of its
                   own (put it on a box inside), or the column parks inside the gap and scrolled days show beside it. */}
-              <div className="sticky left-0 z-20">
+              <div className="sticky left-0 z-10">
                 {hours.map(hour => {
                   const period = hour < 12 ? "AM" : "PM";
                   const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
