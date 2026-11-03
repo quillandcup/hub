@@ -39,6 +39,30 @@ describe("EmojiPicker", () => {
     expect(JSON.parse(localStorage.getItem("chat-recent-reactions")!)).toEqual(["partyparrot"]);
   });
 
+  it("shows the tabs above the search as line icons, the active one underlined, and follows the grid scroll", async () => {
+    await open();
+    const dialog = screen.getByRole("dialog");
+    const tablist = screen.getByRole("tablist");
+    expect(tablist.compareDocumentPosition(screen.getByLabelText("Search emoji")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const tab = screen.getByRole("tab", { name: "Frequently used" });
+    expect(tab).toHaveAttribute("aria-selected", "true");
+    expect(tab).toHaveClass("border-b-2", "border-plum-600");
+    expect(tab.querySelector("svg")).toBeInTheDocument();
+    expect(tab).not.toHaveTextContent(/\S/);
+    expect(dialog.querySelector("h3")).toHaveClass("sticky", "z-10");
+    // Scroll-spy: a section whose top has reached the top edge becomes the active tab.
+    const scroller = dialog.querySelector<HTMLElement>(".overflow-y-auto")!;
+    const sections = Array.from(scroller.querySelectorAll<HTMLElement>("[data-section]"));
+    sections.forEach((s, i) => (s.getBoundingClientRect = () => ({ top: i * 100 - 250 } as DOMRect)));
+    scroller.getBoundingClientRect = () => ({ top: 0 } as DOMRect);
+    fireEvent.scroll(scroller);
+    const id = sections.filter((_, i) => i * 100 - 250 <= 8).at(-1)!.dataset.section!;
+    const expected = screen.getAllByRole("tab").filter((t) => t.getAttribute("aria-selected") === "true");
+    expect(expected).toHaveLength(1);
+    expect(sections.findIndex((s) => s.dataset.section === id)).toBeGreaterThan(0);
+    expect(expected[0]).not.toBe(tab);
+  });
+
   it("searches names, aliases and keywords, custom first", async () => {
     const { onPick } = await open();
     await userEvent.type(screen.getByLabelText("Search emoji"), "hedg");
@@ -152,8 +176,7 @@ describe("EmojiPicker on narrow screens", () => {
     expect(screen.getByTestId("emoji-backdrop")).toHaveClass("fixed", "inset-0", "sm:hidden");
     expect(screen.getByLabelText("Search emoji")).toHaveClass("text-base");
     expect(within(screen.getByRole("group", { name: "Frequently used" })).getByRole("button", { name: "React with :heart:" })).toHaveClass("h-10", "w-10");
-    expect(screen.getByRole("tab", { name: "Food" })).toHaveClass("h-10", "w-10");
-    expect(screen.getByRole("tablist")).toHaveClass("overflow-x-auto");
+    expect(screen.getByRole("tab", { name: "Food" })).toHaveClass("h-11", "flex-1");
     await userEvent.click(screen.getByRole("button", { name: "Close" }));
     expect(onClose).toHaveBeenCalled();
   });

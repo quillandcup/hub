@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Car, Clock, Coffee, Flag, Hash, Leaf, Lightbulb, Star, Trophy, UserRound, type LucideIcon } from "lucide-react";
 import { Emoji } from "@/components/chat/ChatText";
 import { track } from "@/lib/analytics/client";
 import { scrollParent } from "@/lib/chat/scroll";
@@ -21,11 +22,25 @@ type TabId = "recent" | (typeof CATEGORIES)[number]["id"] | "custom";
 
 /** Names per chunk of a long list; each chunk is skipped by the browser while off screen. */
 const CHUNK = 144;
-/** Cells per row at the picker's width, only to size a skipped chunk (w-80 less padding, 2rem cells). */
+/** Cells per row at the picker's width, only to size a skipped chunk (w-80 less padding, 2.5rem cells, which is also a row's height). */
 const PER_ROW = 7;
 
 /** What "Frequently used" holds until the member has picked something: the old quick reactions, so first use is not empty. */
 export const DEFAULT_FREQUENT = ["+1", "heart", "joy", "tada", "pray", "eyes", "white_check_mark", "raised_hands"];
+
+/** Line icons for the category tabs (monochrome, like Slack's), by tab id. */
+const TAB_ICONS: Record<TabId, LucideIcon> = {
+  recent: Clock,
+  people: UserRound,
+  nature: Leaf,
+  food: Coffee,
+  travel: Car,
+  activities: Trophy,
+  objects: Lightbulb,
+  symbols: Hash,
+  flags: Flag,
+  custom: Star,
+};
 
 const CELL = "flex h-10 w-10 items-center justify-center rounded text-xl hover:bg-slate-100 dark:hover:bg-slate-800";
 
@@ -131,16 +146,28 @@ export default function EmojiPicker({
 
   const toneSample = tone ? tonedUnicode("\u{1F44D}", tone) : "\u{1F44D}";
 
+  // Where a section starts inside the scroller's content, from rects (offsetTop depends on the offset parent).
+  const sectionTop = (el: HTMLElement) => el.getBoundingClientRect().top - scroller.current!.getBoundingClientRect().top + scroller.current!.scrollTop;
+
   const jump = (id: TabId) => {
     setActive(id);
     setQuery("");
     // After the browse view is back, scroll to the section.
     requestAnimationFrame(() => {
-      const box = scroller.current;
-      const section = box?.querySelector(`[data-section="${id}"]`);
-      // Measured against the scroller's own top: offsetTop minus the scroller's offset left a tab's section a header-height short, so a tab seemed to do nothing.
-      if (box && section instanceof HTMLElement) box.scrollTop += section.getBoundingClientRect().top - box.getBoundingClientRect().top;
+      const section = scroller.current?.querySelector(`[data-section="${id}"]`);
+      if (section instanceof HTMLElement) scroller.current!.scrollTop = sectionTop(section);
     });
+  };
+
+  // The tab follows the grid: the last section whose top has reached the top edge.
+  const spy = () => {
+    const el = scroller.current;
+    if (!el || searching) return;
+    let current: TabId | null = null;
+    for (const s of Array.from(el.querySelectorAll<HTMLElement>("[data-section]"))) {
+      if (sectionTop(s) <= el.scrollTop + 8) current = s.dataset.section as TabId;
+    }
+    if (current) setActive(current);
   };
 
   const chooseTone = (next: number | null) => {
@@ -219,13 +246,13 @@ export default function EmojiPicker({
   const section = (id: TabId, label: string, names: string[], via: "recent" | "browse") =>
     names.length > 0 && (
       <section key={id} data-section={id} aria-label={label}>
-        <h3 className="sticky top-0 bg-white px-1 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-900 dark:text-slate-400">{label}</h3>
+        <h3 className="sticky top-0 z-10 bg-white px-1 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-900 dark:text-slate-400">{label}</h3>
         <div role="group" aria-label={label}>
           {chunks(names).map((chunk, i) => (
             <div
               key={i}
               className="flex flex-wrap [content-visibility:auto]"
-              style={{ containIntrinsicSize: `auto ${Math.ceil(chunk.length / PER_ROW) * 2}rem` }}
+              style={{ containIntrinsicSize: `auto ${Math.ceil(chunk.length / PER_ROW) * 2.5}rem` }}
             >
               {chunk.map((n) => cell(n, via, id))}
             </div>
@@ -234,10 +261,10 @@ export default function EmojiPicker({
       </section>
     );
 
-  const tabs: { id: TabId; label: string; icon: string }[] = [
-    { id: "recent" as const, label: "Frequently used", icon: "🕘" },
+  const tabs: { id: TabId; label: string }[] = [
+    { id: "recent" as const, label: "Frequently used" },
     ...CATEGORIES,
-    ...(customList.length ? [{ id: "custom" as const, label: "Custom", icon: "⭐" }] : []),
+    ...(customList.length ? [{ id: "custom" as const, label: "Custom" }] : []),
   ];
 
   return (
@@ -251,12 +278,33 @@ export default function EmojiPicker({
         style={shift ? { transform: `translateX(${shift}px)` } : undefined}
         className={`fixed inset-x-0 bottom-0 z-50 flex max-h-[85vh] w-full flex-col rounded-t-xl border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900 sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:z-40 sm:max-h-none sm:w-80 sm:rounded-lg ${flip ? "sm:bottom-full sm:mb-1" : "sm:top-full sm:mt-1"}`}
       >
+      {!searching && (
+        <div role="tablist" aria-label="Emoji categories" className="flex border-b border-slate-200 dark:border-slate-700">
+          {tabs.map((t) => {
+            const Icon = TAB_ICONS[t.id];
+            return (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={active === t.id}
+                aria-label={t.label}
+                title={t.label}
+                onClick={() => jump(t.id)}
+                className={`flex h-11 min-w-0 flex-1 items-center justify-center border-b-2 hover:text-slate-900 dark:hover:text-slate-100 ${active === t.id ? "border-plum-600 text-plum-700 dark:border-plum-400 dark:text-plum-300" : "border-transparent text-slate-500 dark:text-slate-400"}`}
+              >
+                <Icon aria-hidden="true" className="h-5 w-5" strokeWidth={active === t.id ? 2.25 : 1.5} />
+              </button>
+            );
+          })}
+        </div>
+      )}
       <div className="flex items-center">
         <input
           ref={input}
           type="search"
           aria-label="Search emoji"
-          placeholder="Search emoji"
+          placeholder="Search all emoji"
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -270,7 +318,7 @@ export default function EmojiPicker({
               first.focus();
             }
           }}
-          className="m-2 min-h-10 min-w-0 flex-1 rounded border border-slate-300 bg-white px-2 py-1 text-base text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+          className="m-2 min-h-10 min-w-0 flex-1 rounded border border-slate-300 bg-white px-2 py-1 text-base text-slate-800 focus:border-plum-500 focus:outline-none focus:ring-2 focus:ring-plum-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
         />
         <button
           type="button"
@@ -281,27 +329,9 @@ export default function EmojiPicker({
           &times;
         </button>
       </div>
-      {!searching && (
-        <div role="tablist" aria-label="Emoji categories" className="flex gap-0.5 overflow-x-auto border-b border-slate-200 px-2 pb-1 dark:border-slate-700">
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              role="tab"
-              aria-selected={active === t.id}
-              aria-label={t.label}
-              title={t.label}
-              onClick={() => jump(t.id)}
-              className={`h-10 w-10 shrink-0 rounded text-lg hover:bg-slate-100 dark:hover:bg-slate-800 ${active === t.id ? "bg-plum-50 dark:bg-plum-900/30" : ""}`}
-            >
-              {t.icon}
-            </button>
-          ))}
-        </div>
-      )}
       {/* Arrow keys move through the cells (the grid is one tab stop). */}
       { }
-      <div ref={scroller} onKeyDown={onGridKey} className="relative h-64 min-h-0 overflow-y-auto px-2 pb-2">
+      <div ref={scroller} onKeyDown={onGridKey} onScroll={spy} className="relative h-64 min-h-0 overflow-y-auto px-2 pb-2">
         {failed ? (
           <p role="alert" className="p-2 text-sm text-red-600 dark:text-red-400">
             Couldn&apos;t load the emoji. Close this and try again.
