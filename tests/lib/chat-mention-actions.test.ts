@@ -8,7 +8,10 @@ const m = vi.hoisted(() => ({
   slackIds: vi.fn(),
   directory: { rows: [] as { id: string; name: string; display_name: string | null; photo_url: string | null }[], typed: [] as string[] },
   inactive: new Set<string>(),
+  emojiNames: vi.fn(),
+  emojiFor: vi.fn(),
 }));
+vi.mock("@/lib/chat/names", () => ({ liveCustomEmojiNames: m.emojiNames, customEmojiFor: m.emojiFor }));
 vi.mock("@/lib/chat/caller", () => ({ postingCaller: m.postingCaller }));
 vi.mock("@/lib/chat/load", () => ({
   loadChannelForMember: m.loadChannelForMember,
@@ -32,7 +35,7 @@ vi.mock("@/lib/data/repos", () => ({
   }),
 }));
 
-import { suggestMentions } from "@/app/(member)/chat/mention-actions";
+import { suggestCustomEmoji, suggestMentions } from "@/app/(member)/chat/mention-actions";
 
 const CHANNEL = "chn_AAAAAAAAAAC1";
 const FERN = "mbr_AAAAAAAAAAF1";
@@ -111,5 +114,30 @@ describe("suggestMentions", () => {
     m.postingCaller.mockResolvedValue({ identity: { memberId: FERN, isSudo: false } });
     expect(await suggestMentions("nope", "@", "an")).toEqual([]);
     expect(await suggestMentions(CHANNEL, "!" as "@", "an")).toEqual([]);
+  });
+});
+
+describe("suggestCustomEmoji", () => {
+  beforeEach(() => {
+    m.emojiNames.mockReset();
+    m.emojiNames.mockResolvedValue(["hedgie", "pray-hedgie", "frankenstein-pray", "party"]);
+    m.emojiFor.mockReset();
+    m.emojiFor.mockImplementation(async (names: string[]) => Object.fromEntries(names.filter((n) => n !== "frankenstein-pray").map((n) => [n, { url: `https://example.com/${n}.png` }])));
+  });
+
+  it("offers custom emoji containing what was typed, names starting with it first, with their images", async () => {
+    const found = await suggestCustomEmoji(" Pray ");
+    expect(m.emojiFor).toHaveBeenCalledWith(["pray-hedgie", "frankenstein-pray"]);
+    expect(found).toEqual([
+      { name: "pray-hedgie", emoji: { url: "https://example.com/pray-hedgie.png" } },
+    ]);
+  });
+
+  it("offers nothing for under two characters or a member who cannot post, and skips names with no image", async () => {
+    expect(await suggestCustomEmoji("p")).toEqual([]);
+    expect(m.emojiNames).not.toHaveBeenCalled();
+    m.postingCaller.mockResolvedValue(null);
+    expect(await suggestCustomEmoji("pray")).toEqual([]);
+    expect(m.emojiNames).not.toHaveBeenCalled();
   });
 });

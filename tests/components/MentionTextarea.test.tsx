@@ -5,8 +5,10 @@ import { cleanup, render, screen, act, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 
-vi.mock("@/app/(member)/chat/mention-actions", () => ({ suggestMentions: vi.fn() }));
-import { suggestMentions, type MentionSuggestion } from "@/app/(member)/chat/mention-actions";
+vi.mock("@/lib/analytics/client", () => ({ track: vi.fn() }));
+import { track } from "@/lib/analytics/client";
+vi.mock("@/app/(member)/chat/mention-actions", () => ({ suggestMentions: vi.fn(), suggestCustomEmoji: vi.fn() }));
+import { suggestCustomEmoji, suggestMentions, type MentionSuggestion } from "@/app/(member)/chat/mention-actions";
 import MentionTextarea from "@/components/chat/MentionTextarea";
 
 const ANIA = { label: "@Ania Ray", token: "<@U1>", photoUrl: null };
@@ -44,6 +46,8 @@ beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
   vi.mocked(suggestMentions).mockReset();
   vi.mocked(suggestMentions).mockResolvedValue([]);
+  vi.mocked(suggestCustomEmoji).mockReset();
+  vi.mocked(suggestCustomEmoji).mockResolvedValue([]);
   keyed = [];
   tokensRef.current = new Map();
 });
@@ -162,6 +166,71 @@ describe("MentionTextarea", () => {
     await type("n");
     await act(async () => resolveFirst([ANIA]));
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
+
+  describe("emoji after a colon", () => {
+    it("offers matching emoji after :pr, writes the picked :shortcode: and never asks for people", async () => {
+      render(<Harness />);
+      const user = await type("thanks :pray");
+      const list = await screen.findByRole("listbox", { name: "Emoji" });
+      expect(list).toBeInTheDocument();
+      expect(screen.getAllByRole("option")[0]).toHaveTextContent(":pray:");
+      expect(screen.getAllByRole("option")[0]).toHaveAttribute("aria-selected", "true");
+      expect(suggestMentions).not.toHaveBeenCalled();
+      expect(suggestCustomEmoji).toHaveBeenLastCalledWith("pray");
+
+      await user.keyboard("{ArrowDown}{ArrowUp}{Enter}");
+      expect(box()).toHaveValue("thanks :pray: ");
+      expect(track).toHaveBeenCalledWith("chat_emoji_suggestion_picked", { custom: false, via: "keyboard" });
+      expect(keyed).not.toContain("Enter");
+      expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    });
+
+    it("lists a custom emoji ahead of other standard ones and draws its image", async () => {
+      vi.mocked(suggestCustomEmoji).mockResolvedValue([{ name: "pray-hedgie", emoji: { url: "https://example.com/pray.png" } }]);
+      render(<Harness />);
+      const user = await type(":pray");
+      const options = await screen.findAllByRole("option");
+      expect(options[0]).toHaveTextContent(":pray:");
+      expect(options[1]).toHaveTextContent(":pray-hedgie:");
+      expect(options[1].querySelector("img")).toHaveAttribute("src", "https://example.com/pray.png");
+      await user.click(options[1]);
+      expect(box()).toHaveValue(":pray-hedgie: ");
+      expect(track).toHaveBeenCalledWith("chat_emoji_suggestion_picked", { custom: true, via: "pointer" });
+    });
+
+    it("waits for two characters and a word start, and Enter sends when nothing matches", async () => {
+      render(<Harness />);
+      await type("at 10:30 or :p");
+      expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+      expect(suggestCustomEmoji).not.toHaveBeenCalled();
+
+      await user_clear();
+      const user = await type(":zzzqqq");
+      expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+      await user.keyboard("{Enter}");
+      expect(keyed).toContain("Enter");
+    });
+
+    it("closes with Escape, and a pick in the middle of the text keeps what follows", async () => {
+      render(<Harness initial="see  now" />);
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      box().focus();
+      box().setSelectionRange(4, 4);
+      await user.keyboard(":tada");
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(200);
+      });
+      await screen.findByRole("listbox", { name: "Emoji" });
+      await user.keyboard("{Escape}");
+      expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+      await user.keyboard("{Backspace}{Backspace}{Backspace}{Backspace}{Backspace}:tada");
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(200);
+      });
+      await user.keyboard("{Tab}");
+      expect(box()).toHaveValue("see :tada:  now");
+    });
   });
 });
 

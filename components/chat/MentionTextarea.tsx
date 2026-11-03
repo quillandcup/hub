@@ -2,23 +2,34 @@
 
 import { useEffect, useId, useLayoutEffect, useRef, useState, type MutableRefObject, type TextareaHTMLAttributes } from "react";
 import MemberAvatar from "@/app/(member)/members/[id]/MemberAvatar";
-import { suggestMentions, type MentionSuggestion } from "@/app/(member)/chat/mention-actions";
+import { suggestCustomEmoji, suggestMentions, type MentionSuggestion } from "@/app/(member)/chat/mention-actions";
+import { Emoji } from "@/components/chat/ChatText";
+import { track } from "@/lib/analytics/client";
+import { emojiChoices, loadCatalog, type EmojiChoice } from "@/lib/chat/emoji-suggest";
 
 const SUGGEST_DELAY_MS = 120;
 
-/** `@Ani` or `#gen` just before the caret (at the start or after a space), with who asked for it and where it starts. */
-function triggerBefore(value: string, caret: number): { trigger: "@" | "#"; query: string; start: number } | null {
-  const match = /(^|\s)([@#])([^@#<>\n]{0,30})$/.exec(value.slice(0, caret));
-  if (!match) return null;
-  const start = caret - match[2].length - match[3].length;
-  return { trigger: match[2] as "@" | "#", query: match[3], start };
+type Trigger = "@" | "#" | ":";
+type Open = { trigger: Trigger; query: string; start: number };
+
+/**
+ * `@Ani`, `#gen` or `:pra` just before the caret (at the start or after a space), with who asked for it and where it
+ * starts. An emoji needs two characters after the colon, like Slack, so "10:30" and a lone ":" offer nothing.
+ */
+function triggerBefore(value: string, caret: number): Open | null {
+  const before = value.slice(0, caret);
+  const match = /(^|\s)([@#])([^@#<>\n]{0,30})$/.exec(before);
+  if (match) return { trigger: match[2] as "@" | "#", query: match[3], start: caret - match[2].length - match[3].length };
+  const emoji = /(^|\s):([a-z0-9_+-]{2,30})$/i.exec(before);
+  return emoji ? { trigger: ":", query: emoji[2], start: caret - emoji[2].length - 1 } : null;
 }
 
 /**
- * A message box that offers people (`@`) and channels (`#`) as they are typed, like Slack's. Picking one writes
+ * A message box that offers people (`@`), channels (`#`) and emoji (`:pray`) as they are typed, like Slack's. Picking one writes
  * its name into the text (`@Ania Ray`) and remembers what Slack needs for it in `tokens` (shown name to `<@U…>`),
  * which the owner turns the text back into Slack's markup with on send (`fromEditableText`). Arrow keys move
- * through the choices, Enter or Tab picks, Escape closes; while choices are showing those keys are the box's,
+ * through the choices, Enter or Tab picks, Escape closes; an emoji is written as its `:shortcode: `, which Slack and the
+ * chat both draw; while choices are showing those keys are the box's,
  * otherwise `onKeyDown` gets them (send on Enter, cancel on Escape).
  */
 export default function MentionTextarea({
@@ -39,8 +50,9 @@ export default function MentionTextarea({
 } & Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "value" | "onChange">) {
   const listId = useId();
   const inner = useRef<HTMLTextAreaElement | null>(null);
-  const [open, setOpen] = useState<{ trigger: "@" | "#"; query: string; start: number } | null>(null);
+  const [open, setOpen] = useState<Open | null>(null);
   const [choices, setChoices] = useState<MentionSuggestion[]>([]);
+  const [emoji, setEmoji] = useState<EmojiChoice[]>([]);
   const [active, setActive] = useState(0);
   const latest = useRef("");
   const pendingCaret = useRef<number | null>(null);
@@ -55,6 +67,14 @@ export default function MentionTextarea({
     const key = `${open.trigger}${open.query}`;
     latest.current = key;
     const timer = setTimeout(async () => {
+      if (open.trigger === ":") {
+        // Standard emoji are matched here (their data loads on first use); custom ones come from the server.
+        const [standard, custom] = await Promise.all([loadCatalog().catch(() => []), suggestCustomEmoji(open.query).catch(() => [])]);
+        if (latest.current !== key) return;
+        setEmoji(emojiChoices(open.query, standard, custom));
+        setActive(0);
+        return;
+      }
       const found = await suggestMentions(channelId, open.trigger, open.query).catch(() => []);
       // An answer to something typed since is stale.
       if (latest.current !== key) return;
@@ -74,7 +94,15 @@ export default function MentionTextarea({
 
   const look = (text: string, caret: number) => {
     const found = triggerBefore(text, caret);
-    if (!found) setChoices([]);
+    if (!found) {
+      setChoices([]);
+      setEmoji([]);
+    }
+    // A different kind of choice must not show the last kind's list while its own is on the way.
+    if (found?.trigger !== open?.trigger) {
+      setChoices([]);
+      setEmoji([]);
+    }
     setOpen(found);
   };
 
@@ -93,7 +121,19 @@ export default function MentionTextarea({
     setChoices([]);
   };
 
-  const showing = open !== null && choices.length > 0;
+  const pickEmoji = (choice: EmojiChoice, via: "keyboard" | "pointer") => {
+    if (!open || !inner.current) return;
+    track("chat_emoji_suggestion_picked", { custom: "url" in choice.emoji, via });
+    const caret = inner.current.selectionStart ?? value.length;
+    const shown = `:${choice.name}: `;
+    pendingCaret.current = open.start + shown.length;
+    onValueChange(`${value.slice(0, open.start)}${shown}${value.slice(caret)}`);
+    setOpen(null);
+    setEmoji([]);
+  };
+
+  const count = open?.trigger === ":" ? emoji.length : choices.length;
+  const showing = open !== null && count > 0;
 
   return (
     <div className="relative">
@@ -114,12 +154,13 @@ export default function MentionTextarea({
           if (showing && !e.nativeEvent.isComposing) {
             if (e.key === "ArrowDown" || e.key === "ArrowUp") {
               e.preventDefault();
-              setActive((i) => (i + (e.key === "ArrowDown" ? 1 : choices.length - 1)) % choices.length);
+              setActive((i) => (i + (e.key === "ArrowDown" ? 1 : count - 1)) % count);
               return;
             }
             if (e.key === "Enter" || e.key === "Tab") {
               e.preventDefault();
-              pick(choices[active]);
+              if (open?.trigger === ":") pickEmoji(emoji[active], "keyboard");
+              else pick(choices[active]);
               return;
             }
             if (e.key === "Escape") {
@@ -135,24 +176,24 @@ export default function MentionTextarea({
         <ul
           id={listId}
           role="listbox"
-          aria-label={open.trigger === "@" ? "People" : "Channels"}
+          aria-label={open.trigger === "@" ? "People" : open.trigger === "#" ? "Channels" : "Emoji"}
           className="absolute bottom-full left-0 z-30 mb-1 max-h-56 w-72 max-w-full overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-lg dark:border-slate-700 dark:bg-slate-900"
         >
-          {choices.map((c, i) => (
+          {(open.trigger === ":" ? emoji.map((e) => ({ key: e.name, label: `:${e.name}:`, onPick: () => pickEmoji(e, "pointer"), lead: <Emoji name={e.name} custom={{ [e.name]: e.emoji }} /> })) : choices.map((c) => ({ key: c.token, label: c.label, onPick: () => pick(c), lead: open.trigger === "@" ? <MemberAvatar name={c.label.slice(1)} photoUrl={c.photoUrl} size={20} /> : null }))).map((c, i) => (
             <li
-              key={c.token}
+              key={c.key}
               id={`${listId}-${i}`}
               role="option"
               aria-selected={i === active}
               // mousedown, not click: the box would lose focus (and close the list) before a click lands.
               onMouseDown={(e) => {
                 e.preventDefault();
-                pick(c);
+                c.onPick();
               }}
               onMouseEnter={() => setActive(i)}
               className={`flex cursor-pointer items-center gap-2 px-3 py-1.5 ${i === active ? "bg-plum-50 dark:bg-slate-800" : ""}`}
             >
-              {open.trigger === "@" && <MemberAvatar name={c.label.slice(1)} photoUrl={c.photoUrl} size={20} />}
+              {c.lead}
               <span className="truncate">{c.label}</span>
             </li>
           ))}

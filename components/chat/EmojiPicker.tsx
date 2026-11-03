@@ -7,9 +7,9 @@ import { scrollParent } from "@/lib/chat/scroll";
 import type { CustomEmoji } from "@/lib/chat/emoji";
 import { SKIN_TONES, baseName, readTone, withTone, writeTone } from "@/lib/chat/skin-tone";
 import { unicodeEmoji } from "@/lib/chat/emoji";
+import { loadCatalog } from "@/lib/chat/emoji-suggest";
 import {
   CATEGORIES,
-  buildCatalog,
   customNames,
   readRecents,
   rememberRecent,
@@ -18,18 +18,6 @@ import {
 } from "@/lib/chat/emoji-catalog";
 
 type TabId = "recent" | (typeof CATEGORIES)[number]["id"] | "custom";
-
-/** The emoji data is big: fetched when the picker first opens, then kept. */
-let catalogPromise: Promise<StandardEntry[]> | null = null;
-function loadCatalog(): Promise<StandardEntry[]> {
-  catalogPromise ??= Promise.all([import("emojibase-data/en/data.json"), import("emojibase-data/en/shortcodes/iamcal.json")])
-    .then(([data, codes]) => buildCatalog(data.default as never, codes.default as never))
-    .catch((error) => {
-      catalogPromise = null;
-      throw error;
-    });
-  return catalogPromise;
-}
 
 /** Names per chunk of a long list; each chunk is skipped by the browser while off screen. */
 const CHUNK = 144;
