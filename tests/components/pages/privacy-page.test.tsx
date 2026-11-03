@@ -150,7 +150,17 @@ describe("/privacy page", () => {
     expect(chat.queryByText(/only where they could see the original/)).not.toBeInTheDocument();
     expect(chat.getByText(/we will record who looked, why and when/)).toBeInTheDocument();
     expect(chat.getByText("Break-glass access")).toBeInTheDocument();
-    expect(chat.getByText(/bring your one-on-one Slack direct messages into Hub chat/)).toBeInTheDocument();
+    // One-on-one Slack DMs: what is read and kept, who sees it, the people you message, and how to object.
+    expect(chat.getByText(/^One-on-one Slack DMs, when the DM bridge is on for you or for the person you message/)).toBeInTheDocument();
+    expect(chat.getByText(/^One-on-one Slack DMs, when it is on for neither of you/)).toBeInTheDocument();
+    expect(chat.getByText(/the Hub reads their one-on-one DMs when they open chat, as new/)).toBeInTheDocument();
+    expect(chat.getByText(/they can read the text only through break-glass access/)).toBeInTheDocument();
+    expect(chat.getByText(/your side of that conversation is read and kept through their connection/)).toBeInTheDocument();
+    expect(chat.getByText(/switch it off for you and remove what we have kept of your DMs/)).toBeInTheDocument();
+    expect(chat.getAllByRole("link", { name: SUPPORT_EMAIL }).length).toBeGreaterThan(0);
+    // The old "not yet" wording is gone.
+    expect(chat.queryByText(/isn't happening yet/)).not.toBeInTheDocument();
+    expect(chat.queryByText(/None reach it yet/)).not.toBeInTheDocument();
     // Staff can use Billie Bot for some operations (membership changes fall back to it), so the page doesn't claim the Hub acts *only* as the member.
     expect(chat.queryByText(/and only as you/)).not.toBeInTheDocument();
     expect(chat.getByText("Viewing the Hub as you")).toBeInTheDocument();
@@ -160,7 +170,7 @@ describe("/privacy page", () => {
   it("folds the long chat explanations into collapsed details", async () => {
     await renderServerPage(PrivacyPage, {});
     const titles = [...document.querySelectorAll("details > summary")].map((s) => s.textContent);
-    expect(titles).toEqual(["Break-glass access", "Connecting your Slack account", "Viewing the Hub as you", "Deleted messages and reactions", "How usage statistics work"]);
+    expect(titles).toEqual(["Break-glass access", "Connecting your Slack account", "Your one-on-one Slack DMs", "Viewing the Hub as you", "Deleted messages and reactions", "How usage statistics work"]);
     expect(document.querySelectorAll("details[open]")).toHaveLength(0);
   });
 

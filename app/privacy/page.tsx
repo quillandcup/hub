@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 };
 
 /** When the wording below was last checked against the code. Bump it whenever the page changes. */
-export const PRIVACY_EFFECTIVE = "2026-10-30";
+export const PRIVACY_EFFECTIVE = "2026-11-03";
 
 /**
  * What the Hub collects, who can see it, how long it is kept and what a member can do about it.
@@ -20,7 +20,7 @@ export const PRIVACY_EFFECTIVE = "2026-10-30";
  * On for every signed-in member (it was behind the `message_privacy` flag until 2026-10-30). Every
  * statement here must be true, so change it with the code. It states policy and lists no
  * resources one by one (what a delete keeps, for instance), so it does not need an edit for every new
- * feature. What is true of the code today (checked 2026-10-30):
+ * feature. What is true of the code today (checked 2026-11-03):
  *
  * - Chat: staff read chat content only where RLS lets admins (`chat_can_read_content`: public and
  *   non-restricted private channels); restricted channels, DMs and group DMs have no admin read path at all;
@@ -29,6 +29,13 @@ export const PRIVACY_EFFECTIVE = "2026-10-30";
  *   requires `deleted_at IS NULL`); files follow the content policy. The break-glass section is the
  *   commitment for the rare case, not a screen: there is no in-app tool yet, so anything done under it is done
  *   by hand and has to follow what that section promises (docs/SLACK_BRIDGED_CHAT.md).
+ * - One-on-one Slack DMs (the `slack_dm_bridge` feature, docs/SLACK_BRIDGED_CHAT.md): for a member it is on for, their
+ *   own Slack token lists and reads their DMs (when they open chat, on a live event, nightly; `lib/chat/slack-dms.ts`,
+ *   `lib/chat/slack-dm-events.ts`, `/api/reconcile/slack-dms`), into Bronze (service role only, never shown to admins as text) and
+ *   the chat as a private, restricted `dm` conversation: the Hub members in it (either of them, once any pull has
+ *   projected it) can read it, admins see only that it exists and its metadata, sudo never shows it. A DM with a
+ *   non-member keeps their messages under their Slack name; nothing else about them. The page's DM statements must
+ *   change with that code, in particular if a pull ever starts to cover a member the feature doesn't.
  * - Usage log: what is recorded and when (`lib/analytics/events.ts`, `lib/analytics/receive.ts`), the consent
  *   rule (`components/ConsentBanner.tsx`, `lib/analytics/consent.ts`), the visit cookie
  *   (`lib/analytics/session-cookie.ts`), notification sends and opens (`lib/notifications/notify.ts`,
@@ -82,7 +89,12 @@ export default async function PrivacyPage() {
           </li>
           <li>
             Staff can see who talks with whom, where and when, and what is said in the channels that reach the Hub. Restricted
-            channels and group DMs are open to them only through break-glass access. We plan to bring your one-on-one Slack DMs into the Hub too, restricted the same way. None reach it yet.
+            channels, group DMs and your one-on-one Slack DMs are open to them only through break-glass access.
+          </li>
+          <li>
+            The Hub brings your one-on-one Slack DMs into Hub chat, member by member. For members it is switched on for, it
+            reads them with that member&apos;s own Slack connection and keeps them. If someone you message has it on, your side
+            of that conversation is kept too. See &ldquo;Your one-on-one Slack DMs&rdquo; below, including how to tell us you object.
           </li>
           <li>
             Your exact IP address and browser details are removed after {RETENTION.rawNetworkDays} days, and usage
@@ -248,7 +260,8 @@ export default async function PrivacyPage() {
             <Row where="Restricted private channels" activity="Yes" content="No, except break-glass access (below)" />
             <Row where="Group DMs that include Billie Bot" activity="Yes" content="No, except break-glass access (below)" />
             <Row where="Slack group DMs or private channels without Billie Bot" activity="No" content="No. These never reach the Hub" />
-            <Row where="Your one-on-one Slack DMs" activity="Not yet. Planned: yes" content="Not yet. Planned: restricted, so break-glass access only" />
+            <Row where="One-on-one Slack DMs, when the DM bridge is on for you or for the person you message" activity="Yes" content="No, except break-glass access (below)" />
+            <Row where="One-on-one Slack DMs, when it is on for neither of you" activity="No" content="No. These never reach the Hub" />
           </tbody>
         </table>
         <p>
@@ -268,23 +281,45 @@ export default async function PrivacyPage() {
         <Detail title="Connecting your Slack account">
           Hub chat needs your Slack account connected. That lets the Hub act as you in Slack: post your messages and
           reactions, edit and delete the ones you wrote, join and leave channels, add people to a channel, and mark
-          conversations read. We plan to use the same connection to bring your one-on-one Slack direct messages into Hub chat:
-          the Hub would read them, keep them, and let you reply from the Hub. They would be restricted like private channels
-          (staff can read them only through break-glass access, below). That isn&apos;t happening yet. Slack already lists the
-          permission to read and send your direct messages, so you only reconnect once, and the Hub does not use it. If you
-          object, or want your DMs left out, tell us at{" "}
-          <a href={`mailto:${SUPPORT_EMAIL}`} className="underline">
-            {SUPPORT_EMAIL}
-          </a>{" "}
-          before then, or disconnect Slack in Settings. Apart from that the Hub does nothing in Slack you didn&apos;t ask for.
-          The connection is kept encrypted and used only by the Hub&apos;s
+          conversations read. Slack also lists permission to read and send your direct messages. The Hub uses that only for
+          the DM bridge below, and only for members it is switched on for. Apart from that the Hub does nothing in Slack you
+          didn&apos;t ask for. The connection is kept encrypted and used only by the Hub&apos;s
           server. You can disconnect it in Settings at any time (chat then stays closed until you reconnect), and Slack
           shows it under your authorized apps.
         </Detail>
 
+        <Detail title="Your one-on-one Slack DMs">
+          Slack&apos;s bot can&apos;t be in a one-on-one DM, so the Hub brings them in with your own Slack connection. We switch
+          this on member by member. For a member it is on for, the Hub reads their one-on-one DMs when they open chat, as new
+          messages arrive, and every night. The first time it goes back as far as Slack still shows, about 90 days. It keeps
+          what it reads in the Hub, shows it in your chat so you can read and reply there (your replies go to Slack as you),
+          and counts it as activity, like any message. Slack deletes messages older than a year on our plan; the Hub&apos;s
+          copy stays, until you ask us to remove it.
+          <br />
+          <br />
+          <strong>Who can see them.</strong> You, and the other person if they are a Hub member with chat (they see the same
+          copy). Staff can see that the conversation exists, who is in it, who wrote and when, but they can read the text
+          only through break-glass access, as for a restricted channel. Viewing the Hub as you never shows them.
+          <br />
+          <br />
+          <strong>The people you message.</strong> If the bridge is on for someone you message, your side of that
+          conversation is read and kept through their connection, even when it isn&apos;t on for you, and shown to them (and
+          to you, if you are a Hub member with chat). If the other person isn&apos;t a member, their messages are kept in your
+          conversation under their Slack name, and we keep nothing else about them.
+          <br />
+          <br />
+          <strong>If you object.</strong> Tell us at{" "}
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="underline">
+            {SUPPORT_EMAIL}
+          </a>{" "}
+          and we will switch it off for you and remove what we have kept of your DMs. A conversation the other person has it on
+          for stays in their chat, because it is their conversation too. Disconnecting Slack in Settings stops the Hub reading
+          your DMs from then on.
+        </Detail>
+
         <Detail title="Viewing the Hub as you">
           To help with support, an admin can view the Hub as a member. The chat is read-only and shows what you can see,
-          except restricted channels and group DMs.
+          except restricted channels, group DMs and direct messages.
         </Detail>
 
         <Detail title="Deleted messages and reactions">
