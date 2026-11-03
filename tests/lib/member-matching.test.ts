@@ -100,6 +100,19 @@ describe('Member Matching', () => {
       }
     })
 
+    it('treats a separator as a space and drops periods and apostrophes', () => {
+      const members = [{ id: 'a', name: 'Adeline Example', email: 'a@example.com' }]
+      const aliases = [
+        { member_id: 'a', alias: 'Mary-Ann', source: 'zoom' },
+        { member_id: 'a', alias: 'J.K. Rowling', source: 'zoom' },
+        { member_id: 'a', alias: "O'Brien", source: 'zoom' },
+      ]
+      for (const typed of ['Mary Ann', 'mary_ann', 'Mary - Ann', 'JK Rowling', 'OBrien', 'O\u2019Brien']) {
+        expect(matchAttendeeToMember(typed, null, members, aliases, [], true)).toMatchObject({ member_id: 'a', method: 'alias' })
+      }
+      expect(matchAttendeeToMember('Maryann', null, members, aliases, [], true)).toBeNull()
+    })
+
     it('compares an alias with no Latin letters as lowercased text, not as empty', () => {
       const members = [{ id: 'a', name: 'Li Lei', email: 'a@example.com' }]
       const aliases = [{ member_id: 'a', alias: '李雷', source: 'zoom' }]
