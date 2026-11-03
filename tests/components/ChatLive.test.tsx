@@ -209,6 +209,43 @@ describe("ChatLive", () => {
     expect(HTMLElement.prototype.scrollTo).not.toHaveBeenCalled();
   });
 
+  describe("a conversation opened from the client cache", () => {
+    const caughtUp = () =>
+      loadLatestChat.mockResolvedValueOnce({
+        views: [{ id: "m2", createdAt: "2026-10-03T12:00:00Z", contentState: "ok", mine: false }],
+        ctx: {},
+        olderBefore: null,
+        readMarker: "2026-10-03T11:00:00Z",
+      });
+    const cached = () => ({ renderedAt: new Date(Date.now() - 20_000).toISOString() });
+
+    it("lands again once the catch-up has merged in, since the first landing ran on what was cached", async () => {
+      caughtUp();
+      await mount("latest", cached());
+      expect(HTMLElement.prototype.scrollTo).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not move a reader who has scrolled by then", async () => {
+      let release!: () => void;
+      loadLatestChat.mockReturnValueOnce(
+        new Promise((resolve) => {
+          release = () => resolve({ views: [{ id: "m2", createdAt: "2026-10-03T12:00:00Z", contentState: "ok", mine: false }], ctx: {}, olderBefore: null });
+        }),
+      );
+      await mount("latest", cached());
+      expect(HTMLElement.prototype.scrollTo).toHaveBeenCalledTimes(1);
+      window.dispatchEvent(new Event("wheel"));
+      release();
+      await act(async () => {});
+      expect(HTMLElement.prototype.scrollTo).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not land again for a page that was just rendered", async () => {
+      await mount("latest", { renderedAt: new Date().toISOString() });
+      expect(HTMLElement.prototype.scrollTo).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it("opens on the line between read and new when there is one, else on the newest message", async () => {
     render(
       <main style={{ overflowY: "auto" }}>

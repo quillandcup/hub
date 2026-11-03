@@ -82,6 +82,11 @@ export default function ChatLive({
   const anchor = useRef<HTMLSpanElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const followNewest = useRef(false);
+  // Bumped when a page served from the client cache has been caught up: what it was cached with is
+  // not what is there now (new messages, a moved unread line), so the landing is redone.
+  const [caughtUp, setCaughtUp] = useState(0);
+  // The reader has scrolled themselves: the landing no longer moves them.
+  const movedByReader = useRef(false);
   // Messages that got a reaction since the last fetch: the newest-messages fetch brings them up to
   // date too, wherever they are in the list (a day-old message isn't among the newest).
   const changedIds = useRef(new Set<string>());
@@ -122,6 +127,7 @@ export default function ChatLive({
         ? await loadThreadChat(channelId, threadRootId ?? "", changed).catch(() => null)
         : await (fromCache ? loadLatestChat(channelId, changed, true) : loadLatestChat(channelId, changed)).catch(() => null);
     if (!result) return router.refresh();
+    if (fromCache && view === "latest") setCaughtUp((n) => n + 1);
     if (view === "thread") {
       emitListEvent({ kind: "merge-thread", channelId, threadRootId: threadRootId ?? "", views: result.views, ctx: result.ctx, removedIds: (result as { removedIds?: string[] }).removedIds });
     } else {
@@ -292,18 +298,42 @@ export default function ChatLive({
     };
   }, [markRead, view, channelId]);
 
-  // Opening a conversation lands where the reader left off: on the line between what they had read
-  // and what is new, if there is one, else on the newest message (so the first new message after
-  // that is followed instead of waiting behind the pill).
-  useEffect(() => {
-    if (view !== "latest") return;
+  const land = useCallback(() => {
     // A link to one message (#m-<id>) wins over where the reader left off.
     if (scrollToHashMessage(anchor.current)) return;
     const scroller = scrollParent(anchor.current);
     const line = scroller.querySelector("#unread-divider");
     if (line) scroller.scrollTop += line.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 24;
     else scrollToBottom(anchor.current);
-  }, [channelId, view]);
+  }, []);
+
+  // Opening a conversation lands where the reader left off: on the line between what they had read
+  // and what is new, if there is one, else on the newest message (so the first new message after
+  // that is followed instead of waiting behind the pill).
+  useEffect(() => {
+    if (view !== "latest") return;
+    movedByReader.current = false;
+    land();
+  }, [channelId, view, land]);
+
+  // Back or the sidebar can open the conversation from the client cache, and the landing above ran on
+  // what was cached. Once the catch-up has merged in, land again, unless the reader has already scrolled.
+  useEffect(() => {
+    if (caughtUp === 0 || movedByReader.current) return;
+    land();
+  }, [caughtUp, land]);
+
+  useEffect(() => {
+    if (view !== "latest") return;
+    const moved = () => {
+      movedByReader.current = true;
+    };
+    const events = ["wheel", "touchmove", "keydown", "mousedown"] as const;
+    for (const e of events) window.addEventListener(e, moved, { passive: true });
+    return () => {
+      for (const e of events) window.removeEventListener(e, moved);
+    };
+  }, [view, channelId]);
 
   // Once there is a newer last message, follow it if that is what we were doing.
   useEffect(() => {
