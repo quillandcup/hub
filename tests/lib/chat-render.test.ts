@@ -59,6 +59,13 @@ describe("parseInline", () => {
 });
 
 describe("parseSlackText", () => {
+  it("reads a raw > as a quote too, which is how a message written in the Hub keeps it", () => {
+    expect(parseSlackText("> quoted\nplain")).toEqual([
+      { t: "quote", c: [text("quoted")] },
+      { t: "line", c: [text("plain")], gap: false },
+    ]);
+  });
+
   it("splits lines, marks a blank line before one as its gap and reads quotes", () => {
     expect(parseSlackText("one\n\n&gt; quoted *hard*\ntwo\n\nthree")).toEqual([
       { t: "line", c: [text("one")], gap: false },

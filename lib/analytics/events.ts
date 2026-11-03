@@ -121,6 +121,12 @@ export const EVENTS = {
   /** A reaction was chosen in the full emoji picker (components/chat/EmojiPicker.tsx): `via` is its Frequently used row, browsing a category, or search; `custom` whether it was a workspace emoji. */
   chat_reaction_picked: { via: oneOf("recent", "browse", "search"), custom: bool() },
 
+  /** A format was applied in a message box (components/chat/MentionTextarea.tsx): which one, and from the toolbar or a keyboard shortcut. */
+  chat_format_applied: {
+    kind: oneOf("bold", "italic", "strike", "code", "codeblock", "quote", "bullets", "numbers"),
+    via: oneOf("toolbar", "shortcut"),
+  },
+
   /** An emoji was picked from the `:name` suggestions in a message box (components/chat/MentionTextarea.tsx): `custom` whether it was a workspace emoji, `via` the keyboard or the pointer. */
   chat_emoji_suggestion_picked: { custom: bool(), via: oneOf("keyboard", "pointer") },
 

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useBlurDelay } from "@/lib/hooks/useBlurDelay";
+import { useComboboxKeys } from "@/lib/hooks/useComboboxKeys";
 
 export interface SearchItem {
   id: string;
@@ -38,80 +39,6 @@ interface EntitySearchProps {
 }
 
 const LOCAL_MATCH_LIMIT = 10;
-
-/**
- * Keyboard and ARIA wiring for the dropdown (the WAI-ARIA combobox pattern): ArrowDown/ArrowUp
- * move through the options (wrapping), Enter picks the highlighted one (or the only one), Escape
- * clears the search. Focus stays in the input; the highlighted option is announced through
- * aria-activedescendant.
- */
-function useComboboxKeys({
-  count,
-  options,
-  onPick,
-  onEscape,
-}: {
-  count: number;
-  /** The options showing; a different set (a new search) drops the highlight. */
-  options: unknown;
-  onPick: (index: number) => void;
-  /** Return true if Escape did something, so it doesn't also bubble (e.g. closing a modal). */
-  onEscape: () => boolean;
-}) {
-  // The highlight remembers which option set it belongs to, so new results start unhighlighted.
-  const [highlight, setHighlight] = useState<{ index: number; options: unknown }>({ index: -1, options });
-  const listboxId = useId();
-  const optionId = (i: number) => `${listboxId}-${i}`;
-  const activeIndex = highlight.options === options ? highlight.index : -1;
-  // A stale index (the options shrank) counts as nothing highlighted.
-  const active = activeIndex < count ? activeIndex : -1;
-  const setActiveIndex = (next: number | ((i: number) => number)) =>
-    setHighlight({ index: typeof next === "function" ? next(activeIndex) : next, options });
-
-  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "ArrowDown") {
-      if (count === 0) return;
-      e.preventDefault();
-      setActiveIndex((i) => (i + 1 >= count ? 0 : i + 1));
-    } else if (e.key === "ArrowUp") {
-      if (count === 0) return;
-      e.preventDefault();
-      setActiveIndex((i) => (i <= 0 || i >= count ? count - 1 : i - 1));
-    } else if (e.key === "Enter") {
-      const index = active >= 0 ? active : count === 1 ? 0 : -1;
-      if (index >= 0) {
-        e.preventDefault();
-        onPick(index);
-        setActiveIndex(-1);
-      }
-    } else if (e.key === "Escape" && onEscape()) {
-      e.stopPropagation();
-      setActiveIndex(-1);
-    }
-  };
-
-  return {
-    activeIndex: active,
-    reset: () => setActiveIndex(-1),
-    inputProps: (expanded: boolean) => ({
-      role: "combobox" as const,
-      "aria-expanded": expanded,
-      "aria-controls": listboxId,
-      "aria-autocomplete": "list" as const,
-      "aria-activedescendant": expanded && active >= 0 ? optionId(active) : undefined,
-      onKeyDown,
-    }),
-    listboxProps: { id: listboxId, role: "listbox" as const },
-    optionProps: (i: number) => ({
-      id: optionId(i),
-      role: "option" as const,
-      "aria-selected": i === active,
-      // Keep focus in the input so the dropdown doesn't close before the click lands.
-      onMouseDown: (e: React.MouseEvent) => e.preventDefault(),
-      onMouseEnter: () => setActiveIndex(i),
-    }),
-  };
-}
 
 /** Debounced server search: results for the current term, plus loading/error state. */
 function useRemoteResults(search: RemoteSearch | undefined, term: string, debounceMs: number) {

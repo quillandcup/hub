@@ -90,7 +90,8 @@ export function parseSlackText(text: string): Block[] {
         blank = blocks.length > 0 && n > 0;
         continue;
       }
-      if (/^&gt;\s?/.test(line)) blocks.push({ t: "quote", c: parseInline(line.replace(/^&gt;\s?/, "")) });
+      // Slack's own text escapes the `>`; a message written in the Hub keeps it raw (and Slack never sends a raw one).
+      if (/^(&gt;|>)\s?/.test(line)) blocks.push({ t: "quote", c: parseInline(line.replace(/^(&gt;|>)\s?/, "")) });
       else if (/^\s*[•◦▪]\s+/.test(line)) blocks.push({ t: "bullet", c: parseInline(line.replace(/^\s*[•◦▪]\s+/, "")) });
       else blocks.push({ t: "line", c: parseInline(line), gap: blank });
       blank = false;
