@@ -21,7 +21,7 @@ export async function restrictSlackChannel(channelId: string) {
   const channel = await workspace.channelById(channelId).catch(() => null);
   if (!channel) return { error: "Channel not found" };
   // Public channels are open to every member; group DMs are always restricted.
-  if (!channel.is_private || channel.is_mpim) return { error: "Only private channels can be restricted" };
+  if (!channel.is_private || channel.is_mpim || channel.is_im) return { error: "Only private channels can be restricted" };
 
   try {
     await workspace.restrictChannel(channelId, channel.name); // already restricted is fine

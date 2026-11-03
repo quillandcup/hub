@@ -14,7 +14,7 @@ type ChannelTable = Database["bronze"]["Tables"]["slack_channels"];
  */
 export type SlackChannel = Pick<
   ChannelTable["Row"],
-  "channel_id" | "name" | "is_private" | "is_archived" | "is_mpim" | "member_count" | "created" | "imported_at"
+  "channel_id" | "name" | "is_private" | "is_archived" | "is_mpim" | "is_im" | "member_count" | "created" | "imported_at"
 >;
 
 /** A channel as the in-memory dataset keeps it: the id and name, and whatever else a test names. */
@@ -65,7 +65,7 @@ export interface SlackEmojiImage {
 /** A custom emoji as the in-memory dataset keeps it. */
 export type SlackEmojiSeed = Pick<NewSlackEmoji, "name"> & Partial<Omit<NewSlackEmoji, "name">>;
 
-const CHANNEL_COLUMNS = "channel_id, name, is_private, is_archived, is_mpim, member_count, created, imported_at";
+const CHANNEL_COLUMNS = "channel_id, name, is_private, is_archived, is_mpim, is_im, member_count, created, imported_at";
 
 /** A private channel whose messages staff can't read (`restricted_slack_channels`), as `channel id -> when it was restricted`. */
 export type RestrictedChannelSeed = { channel_id: string; name?: string | null; created_at: string };
@@ -321,7 +321,7 @@ export class InMemorySlackWorkspaceRepository implements SlackWorkspaceRepositor
   constructor(private readonly data: InMemoryDataset) {}
 
   private full(c: SlackChannelSeed): SlackChannel {
-    return { is_private: null, is_archived: null, is_mpim: false, member_count: null, created: null, imported_at: "1970-01-01T00:00:00.000Z", ...c };
+    return { is_private: null, is_archived: null, is_mpim: false, is_im: false, member_count: null, created: null, imported_at: "1970-01-01T00:00:00.000Z", ...c };
   }
 
   async channels() {

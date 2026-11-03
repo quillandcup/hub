@@ -27,8 +27,9 @@ export default async function SlackChannelsPage() {
   // Workspace channel count stays well under 1000.
   const repos = createRepos(supabase);
   const [conversations, restrictedSince] = await Promise.all([repos.slackWorkspace.channels(), repos.slackWorkspace.restrictedChannels()]);
-  const channels = conversations.filter((c) => !c.is_mpim);
-  const groupDmCount = conversations.length - channels.length;
+  const channels = conversations.filter((c) => !c.is_mpim && !c.is_im);
+  const groupDmCount = conversations.filter((c) => c.is_mpim).length;
+  const oneOnOneCount = conversations.filter((c) => c.is_im).length;
 
   return (
     <div className="container mx-auto px-6 py-8 max-w-4xl">
@@ -83,7 +84,8 @@ export default async function SlackChannelsPage() {
       </div>
 
       <p className="text-sm text-slate-600 dark:text-slate-400 mt-4">
-        {groupDmCount} group {groupDmCount === 1 ? "DM" : "DMs"} and all direct messages are always restricted.
+        {groupDmCount} group {groupDmCount === 1 ? "DM" : "DMs"}
+        {oneOnOneCount > 0 && `, ${oneOnOneCount} one-on-one ${oneOnOneCount === 1 ? "DM" : "DMs"}`} and all direct messages are always restricted.
       </p>
     </div>
   );

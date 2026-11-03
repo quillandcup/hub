@@ -10,6 +10,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 import { sendChatMessageToSlack } from "@/lib/chat/slack-post";
 import { syncReactionToSlack } from "@/lib/chat/slack-react";
 import { pullReadFromSlack, pushReadToSlack } from "@/lib/chat/slack-read";
+import { pullMemberDms } from "@/lib/chat/slack-dms";
 import { removeChatFileBytes } from "@/lib/chat/file-cleanup";
 import { keepCopies } from "@/lib/chat/slack-upload";
 import type { Json } from "@/lib/data/database.types";
@@ -105,6 +106,18 @@ export async function syncChatReadFromSlack(openChannelId: string | null): Promi
   const caller = await chatCaller();
   if (!caller || caller.identity.isSudo) return null;
   const exceptChannelId = openChannelId && isId(openChannelId, "chn") ? openChannelId : null;
+  // Their Slack DMs come in the same way (a member's own token is the only way to read them), after the
+  // response, for members the bridge is switched on for; throttled on its own, longer than the read pull.
+  const memberId = caller.identity.memberId;
+  if (await effectiveMemberHasFeature("slack_dm_bridge", caller.identity, await getUserFeaturePreviews(caller.userId))) {
+    after(async () => {
+      try {
+        await pullMemberDms(createServiceRoleClient(), memberId);
+      } catch (error) {
+        console.error("pullMemberDms threw for %s:", memberId, error);
+      }
+    });
+  }
   const pulled = await pullReadFromSlack(createServiceRoleClient(), caller.identity.memberId, { exceptChannelId }).catch((e) => {
     console.error("pullReadFromSlack failed:", e);
     return false;

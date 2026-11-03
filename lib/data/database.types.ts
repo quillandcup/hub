@@ -653,8 +653,10 @@ export type Database = {
           channel_id: string
           created: string | null
           id: string
+          im_user_id: string | null
           imported_at: string
           is_archived: boolean | null
+          is_im: boolean
           is_mpim: boolean
           is_private: boolean | null
           member_count: number | null
@@ -667,8 +669,10 @@ export type Database = {
           channel_id: string
           created?: string | null
           id?: string
+          im_user_id?: string | null
           imported_at?: string
           is_archived?: boolean | null
+          is_im?: boolean
           is_mpim?: boolean
           is_private?: boolean | null
           member_count?: number | null
@@ -681,8 +685,10 @@ export type Database = {
           channel_id?: string
           created?: string | null
           id?: string
+          im_user_id?: string | null
           imported_at?: string
           is_archived?: boolean | null
+          is_im?: boolean
           is_mpim?: boolean
           is_private?: boolean | null
           member_count?: number | null
@@ -4279,6 +4285,7 @@ export type Database = {
         Row: {
           access_secret_id: string | null
           connected_at: string
+          dms_pulled_at: string | null
           expires_at: string | null
           member_id: string
           read_pulled_at: string | null
@@ -4291,6 +4298,7 @@ export type Database = {
         Insert: {
           access_secret_id?: string | null
           connected_at?: string
+          dms_pulled_at?: string | null
           expires_at?: string | null
           member_id: string
           read_pulled_at?: string | null
@@ -4303,6 +4311,7 @@ export type Database = {
         Update: {
           access_secret_id?: string | null
           connected_at?: string
+          dms_pulled_at?: string | null
           expires_at?: string | null
           member_id?: string
           read_pulled_at?: string | null
@@ -6708,6 +6717,10 @@ export type Database = {
         Returns: boolean
       }
       chat_can_see_channel: { Args: { p_channel_id: string }; Returns: boolean }
+      chat_claim_slack_dm_pull: {
+        Args: { p_member: string; p_min_seconds: number }
+        Returns: boolean
+      }
       chat_claim_slack_read_pull: {
         Args: { p_member: string; p_min_seconds: number }
         Returns: boolean
@@ -7117,6 +7130,10 @@ export type Database = {
       }
       project_slack_chat_messages: {
         Args: { from_date: string; to_date: string; user_member_map: Json }
+        Returns: Json
+      }
+      project_slack_dm: {
+        Args: { p_channel_id: string; p_members: Json }
         Returns: Json
       }
       rate_limit_hit: {

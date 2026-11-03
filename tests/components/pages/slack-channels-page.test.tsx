@@ -42,6 +42,7 @@ const CHANNELS = [
   { channel_id: "C_PUBLIC", name: "general", is_private: false, is_archived: false, is_mpim: false, member_count: 80 },
   { channel_id: "C_OPEN", name: "hosts", is_private: true, is_archived: false, is_mpim: false, member_count: 6 },
   { channel_id: "C_QUIET", name: "inner-circle", is_private: true, is_archived: false, is_mpim: false, member_count: 4 },
+  { channel_id: "D_ONE", name: "", is_private: true, is_mpim: false, is_im: true, is_archived: false, member_count: 2 },
   { channel_id: "G_DM", name: "mpdm-fern--bramble-1", is_private: true, is_mpim: true, is_archived: false, member_count: 2 },
 ];
 
@@ -73,7 +74,9 @@ describe("Slack Channels page", () => {
 
     // Group DMs are never listed by name (the name is the member list).
     expect(screen.queryByText(/mpdm-fern/)).not.toBeInTheDocument();
-    expect(screen.getByText(/1 group DM and all direct messages are always restricted/)).toBeInTheDocument();
+    // One-on-one DMs (read with members' own tokens) are counted, never listed or restrictable.
+    expect(screen.getByText(/1 group DM, 1 one-on-one DM and all direct messages are always restricted/)).toBeInTheDocument();
+    expect(screen.queryByText("D_ONE")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "activity log" })).toHaveAttribute("href", "/admin/activity?view=privacy");
   });
 });

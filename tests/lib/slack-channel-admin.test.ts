@@ -31,6 +31,7 @@ beforeEach(() => {
       { channel_id: "C_PUBLIC", name: "open-house", is_private: false },
       { channel_id: "C_PRIVATE", name: "back-room", is_private: true },
       { channel_id: "C_GROUP", name: "mpdm-fake", is_private: true, is_mpim: true },
+      { channel_id: "D_ONE", name: "", is_private: true, is_im: true },
     ],
   });
   requireAdminAction.mockResolvedValue({ ok: true, supabase: {} });
@@ -44,9 +45,10 @@ describe("restrictSlackChannel", () => {
     expect(dataset.restrictedSlackChannels.map((r) => [r.channel_id, r.name])).toEqual([["C_PRIVATE", "back-room"]]);
   });
 
-  it("refuses public channels and group DMs, and unknown channels", async () => {
+  it("refuses public channels, group DMs and one-on-one DMs, and unknown channels", async () => {
     expect(await restrictSlackChannel("C_PUBLIC")).toEqual({ error: "Only private channels can be restricted" });
     expect(await restrictSlackChannel("C_GROUP")).toEqual({ error: "Only private channels can be restricted" });
+    expect(await restrictSlackChannel("D_ONE")).toEqual({ error: "Only private channels can be restricted" });
     expect(await restrictSlackChannel("C_NOPE")).toEqual({ error: "Channel not found" });
     expect(dataset.restrictedSlackChannels).toEqual([]);
   });
