@@ -36,6 +36,12 @@ describe("ChatText", () => {
     expect(screen.getByText(":nope-nope:")).toBeInTheDocument();
   });
 
+  it("shows inline code in red monospace like Slack, and a code block without the red", () => {
+    render(<ChatText body={"say `get it` now\n```\nblock\n```"} ctx={ctx} />);
+    expect(screen.getByText("get it")).toHaveClass("font-mono", "text-red-600");
+    expect(screen.getByText("block")).not.toHaveClass("text-red-600");
+  });
+
   it("renders bullet lines as one list and a blank line as a paragraph gap", () => {
     render(<ChatText body={"Intro\n\nA list:\n• one\n• *two*"} ctx={ctx} />);
     expect(screen.getAllByRole("list")).toHaveLength(1);
