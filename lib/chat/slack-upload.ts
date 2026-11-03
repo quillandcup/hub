@@ -159,7 +159,7 @@ export async function sendChatFilesToSlack(ctx: FileSendContext): Promise<"sent"
 }
 
 /** The bytes are already in hand: save them as the permanent copies (so the Hub never asks Slack for its own upload) and drop the staged ones. */
-async function keepCopies(
+export async function keepCopies(
   supabase: SupabaseClient,
   sent: ChatFile[],
   staged: ChatFile[],

@@ -11,12 +11,14 @@ import { sendChatMessageToSlack } from "@/lib/chat/slack-post";
 import { syncReactionToSlack } from "@/lib/chat/slack-react";
 import { pullReadFromSlack, pushReadToSlack } from "@/lib/chat/slack-read";
 import { removeChatFileBytes } from "@/lib/chat/file-cleanup";
+import { keepCopies } from "@/lib/chat/slack-upload";
+import type { Json } from "@/lib/data/database.types";
 import { deleteChatFileInSlack, deleteChatMessageInSlack, updateChatMessageInSlack } from "@/lib/chat/slack-edit";
 import { getSlackConnectionStatus } from "@/lib/slack-connect";
 import { isId } from "@/lib/ids";
 import { ownDraftFiles } from "@/lib/chat/draft-files";
 import type { DraftFile } from "@/lib/data/chat-drafts";
-import { PENDING_FILE_PREFIX } from "@/lib/chat/files";
+import { PENDING_FILE_PREFIX, parseChatFiles, type ChatFile } from "@/lib/chat/files";
 import { MAX_CHAT_FILES, MAX_CHAT_FILE_BYTES, isOwnStagingPath, newStagingPath, type StagedUpload } from "@/lib/chat/staging";
 import { SLACK_FILES_BUCKET } from "@/lib/slack-capture";
 import { clock } from "@/lib/clock";
@@ -454,7 +456,7 @@ const changeError = (error: { message?: string } | null, verb: "edit" | "delete"
  * (their own token or the bot), then the Hub's copy, so the Hub never shows text Slack doesn't have.
  * Same gate as posting.
  */
-async function editChatMessageImpl(messageId: string, body: string): Promise<ChangeChatResult> {
+async function editChatMessageImpl(messageId: string, body: string, uploads: StagedUpload[] = []): Promise<ChangeChatResult> {
   if (!isId(messageId, "msg")) return { ok: false, error: "Something went wrong." };
   const caller = await postingCaller();
   if (!caller) return { ok: false, error: "Editing isn't available to you yet." };
@@ -465,14 +467,61 @@ async function editChatMessageImpl(messageId: string, body: string): Promise<Cha
   if (text.length > 4000) return { ok: false, error: CHANGE_ERRORS.too_long };
 
   const supabase = await createClient();
+  const service = createServiceRoleClient();
+  const hubOnly = await isHubOnlyMessage(createRepos(supabase).chat, messageId);
+
+  // Files added in the edit box: the member's own staged uploads, checked as for a new message.
+  let added: Record<string, unknown>[] = [];
+  let existingIds: string[] = [];
+  const bytes: { staged: string; file: Buffer; filename: string }[] = [];
+  if (uploads.length > 0) {
+    if (hubOnly) return { ok: false, error: "Files can't be sent in direct messages yet." };
+    const staged = await stagedFilesFor(caller.identity.memberId, uploads);
+    if (!staged) return { ok: false, error: POST_ERRORS.bad_files };
+    const current = await createRepos(service).chat.outboxMessage(messageId).catch(() => null);
+    existingIds = parseChatFiles(current?.files).map((f) => f.id);
+    if (existingIds.length + staged.length > MAX_CHAT_FILES) return { ok: false, error: `A message can have up to ${MAX_CHAT_FILES} files.` };
+    for (const f of staged) {
+      const { data } = await service.storage.from(SLACK_FILES_BUCKET).download(f.staged as string);
+      if (!data) return { ok: false, error: "Couldn't read an uploaded file. Try again." };
+      bytes.push({ staged: f.staged as string, file: Buffer.from(await data.arrayBuffer()), filename: f.name as string });
+    }
+    added = staged;
+  }
+
   // A Hub-only message (in a direct message) has no Slack copy to change first.
-  if (!(await isHubOnlyMessage(createRepos(supabase).chat, messageId))) {
-    const inSlack = await updateChatMessageInSlack(createServiceRoleClient(), { messageId, memberId: caller.identity.memberId, body: text });
+  let fileIds: string[] = [];
+  if (!hubOnly) {
+    const inSlack = await updateChatMessageInSlack(service, {
+      messageId,
+      memberId: caller.identity.memberId,
+      body: text,
+      ...(bytes.length > 0 ? { addFiles: { existingIds, uploads: bytes.map(({ file, filename }) => ({ file, filename })) } } : {}),
+    });
     if (!inSlack.ok) return inSlack;
+    fileIds = inSlack.fileIds ?? [];
   }
 
   const { error } = await supabase.rpc("chat_edit_message", { p_message_id: messageId, p_body: text });
   if (error) return { ok: false, error: changeError(error, "edit") };
+
+  if (bytes.length > 0) {
+    const files = added.map((f, i) => ({ id: fileIds[i], name: f.name, mimetype: f.mimetype, size: f.size }));
+    const { error: addError } = await supabase.rpc("chat_add_message_files", { p_message_id: messageId, p_files: files as Json });
+    if (addError) return { ok: false, error: changeError(addError, "edit") };
+    // The bytes are in hand: keep them as the permanent copies, so the Hub never asks Slack for its own upload.
+    const target = await createRepos(service).chat.slackTarget(messageId).catch(() => null);
+    if (target?.slackChannelId && target.slackTs) {
+      await keepCopies(
+        service,
+        files as ChatFile[],
+        files.map((_, i) => ({ id: "", name: null, mimetype: null, size: null, width: null, height: null, staged: bytes[i].staged })),
+        new Map(bytes.map((b) => [b.staged, b.file])),
+        target.slackChannelId,
+        target.slackTs
+      );
+    }
+  }
   return { ok: true };
 }
 
