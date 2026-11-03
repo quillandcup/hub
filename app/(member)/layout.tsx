@@ -38,36 +38,40 @@ export default async function MemberLayout({
 
   if (!user) redirect('/login')
 
-  // A failed read leaves the defaults (a member, the browser's time zone), as it always has.
-  const profile = await createRepos(supabase).profiles.byId(user.id).catch(() => null)
+  // The three lookups need only the user, so they run together; the rest start from the identity.
+  // A failed profile read leaves the defaults (a member, the browser's time zone), as it always has.
+  // Features are resolved for every member, not just admins previewing — a flag can also
+  // be on for someone via a global rollout or a segment (see lib/features.server.ts), and nav
+  // visibility needs to match that.
+  const [profile, enabledFeatures, effectiveIdentity] = await Promise.all([
+    createRepos(supabase).profiles.byId(user.id).catch(() => null),
+    getUserFeaturePreviews(user.id) as Promise<FeatureKey[]>,
+    getEffectiveIdentity(user),
+  ])
+
+  // Admin with no member record and no sudo active → send to admin area
+  if (!effectiveIdentity) redirect('/admin')
 
   const isAdmin = profile?.role === 'admin'
   const storedTimezone = profile?.timezone_preference ?? 'browser'
   const secondaryTimezone = isValidTimeZone(profile?.secondary_timezone) ? profile.secondary_timezone : null
 
-  // Resolved for every member, not just admins previewing — a flag can also
-  // be on for someone via a global rollout or a segment (see
-  // lib/features.server.ts), and nav visibility needs to match that.
-  const enabledFeatures: FeatureKey[] = await getUserFeaturePreviews(user.id)
-
-  const effectiveIdentity = await getEffectiveIdentity(user)
-
-  // Admin with no member record and no sudo active → send to admin area
-  if (!effectiveIdentity) redirect('/admin')
-
   // The tour is the member's own: hidden during sudo, so an admin browsing as them doesn't see or
   // change it (app/actions/onboarding.ts refuses then too).
   const showOnboarding = !effectiveIdentity.isSudo
-  const showInstallPrompt = await effectiveMemberHasFeature('browser_notifications', effectiveIdentity, enabledFeatures)
-  const onboardingState = showOnboarding ? await getOnboardingState(effectiveIdentity.memberId) : null
 
   // Chat needs a working Slack connection (lib/chat/access.ts sends them to Settings); tell a member who has chat
   // but not that, wherever they are, instead of leaving them to find out at the chat door.
-  let slackNeed: 'connect' | 'reconnect' | 'update' | null = null
-  if (!effectiveIdentity.isSudo && isSlackConnectConfigured() && (await effectiveMemberHasFeature('chat', effectiveIdentity, enabledFeatures))) {
+  const slackNeedFor = async (): Promise<'connect' | 'reconnect' | 'update' | null> => {
+    if (effectiveIdentity.isSudo || !isSlackConnectConfigured() || !(await effectiveMemberHasFeature('chat', effectiveIdentity, enabledFeatures))) return null
     const slack = await getSlackConnectionStatus(createServiceRoleClient(), effectiveIdentity.memberId)
-    slackNeed = !slack.connected ? (slack.revoked ? 'reconnect' : 'connect') : !slack.sharesReadState ? 'update' : null
+    return !slack.connected ? (slack.revoked ? 'reconnect' : 'connect') : !slack.sharesReadState ? 'update' : null
   }
+  const [showInstallPrompt, onboardingState, slackNeed] = await Promise.all([
+    effectiveMemberHasFeature('browser_notifications', effectiveIdentity, enabledFeatures),
+    showOnboarding ? getOnboardingState(effectiveIdentity.memberId) : Promise.resolve(null),
+    slackNeedFor(),
+  ])
 
   // While the tour shows, room to scroll the page's last controls clear of its bar.
   const main = (
