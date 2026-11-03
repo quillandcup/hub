@@ -61,6 +61,7 @@ function tabPages<Id extends string>(
     section,
     keywords: opts.keywords?.[id],
     ...(id === "hosting" ? { feature: "hosting" as const } : {}),
+    ...(base === "/projects" && id === "journey" ? { feature: "writing_journey" as const } : {}),
   }));
 }
 

@@ -1,4 +1,4 @@
-export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat' | 'chat_posting' | 'chat_dms' | 'big_sisters' | 'intro_reminders' | 'prickle_reminders' | 'checkin_dropins' | 'courses' | 'hosting' | 'mux_playback_restriction';
+export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat' | 'chat_posting' | 'chat_dms' | 'big_sisters' | 'intro_reminders' | 'prickle_reminders' | 'checkin_dropins' | 'courses' | 'hosting' | 'writing_journey' | 'mux_playback_restriction';
 
 export interface FeaturePreview {
   key: FeatureKey;
@@ -86,6 +86,11 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     key: 'hosting',
     name: 'Hosting',
     description: 'Hosting for members: the Hosting tab in My Prickles (stats, monthly slot requests), the host vibe settings, and the hosting steps of the Getting started tour. Hidden until the change of process is agreed with the staff who run it; staff-side host tools are unaffected',
+  },
+  {
+    key: 'writing_journey',
+    name: 'Spark to Shelf',
+    description: 'The Journey tab in My Writing: the stages a book goes through at Quill & Cup (draft, edits, beta readers, publishing) with the Quill & Cup offer at each, and where each of your projects is on it',
   },
   {
     key: 'mux_playback_restriction',
