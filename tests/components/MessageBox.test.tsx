@@ -391,6 +391,44 @@ describe("MessageBox: formatting", () => {
     expect(latest).toBe("• x <u>u</u>\n  • y\n    1. z");
   });
 
+  it("Backspace at the start of a list item brings it out one level, and out of the list from the first level, like Slack", async () => {
+    const box = await mount({ initial: "• a\n  • bb\n    • cc" });
+    const user = boxUser();
+    const startOf = async (text: string) => {
+      const node = [...box.querySelectorAll("p")].find((p) => p.textContent === text)!.firstChild as Text;
+      const range = document.createRange();
+      range.setStart(node, 0);
+      range.collapse(true);
+      box.focus();
+      window.getSelection()!.removeAllRanges();
+      window.getSelection()!.addRange(range);
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 10));
+      });
+    };
+    await startOf("cc");
+    await user.keyboard("{Backspace}");
+    expect(latest).toBe("• a\n  • bb\n  • cc");
+    await startOf("cc");
+    await user.keyboard("{Backspace}");
+    expect(latest).toBe("• a\n  • bb\n• cc");
+    await startOf("cc");
+    await user.keyboard("{Backspace}");
+    expect(latest).toBe("• a\n  • bb\ncc");
+  });
+
+  it("marks each list with its depth (for the marker Slack uses at that level) and won't nest a sixth level", async () => {
+    const five = "• 0\n  • 1\n    • 2\n      • 3\n        • 4\n        • 5";
+    const box = await mount({ initial: five });
+    expect([...box.querySelectorAll("ul")].map((ul) => ul.getAttribute("data-list-depth"))).toEqual(["0", "1", "2", "3", "4"]);
+    const user = boxUser();
+    await caretToEnd(box);
+    // "5" sits beside "4" (the fifth level); sinking it would make a sixth.
+    await user.keyboard("{Tab}");
+    expect(latest).toBe(five);
+    expect(box.querySelector('[data-list-depth="5"]')).toBeNull();
+  });
+
   it("links the selection from the toolbar with an address, checks the address, and unlinks", async () => {
     const box = await mount({ initial: "see the docs" });
     const user = boxUser();

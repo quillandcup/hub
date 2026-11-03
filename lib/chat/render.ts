@@ -87,8 +87,11 @@ export function parseInline(text: string): Inline[] {
   return out;
 }
 
+/** Slack nests lists five levels deep (indent 0 to 4); an item nested deeper than that stays at the fifth. */
+export const MAX_LIST_INDENT = 4;
+
 /** A list line: its indent, the number of an ordered item (a `•`, `◦` or `▪` for a bullet) and the text. */
-const LIST_ITEM = /^(\s*)(?:[•◦▪]|(\d+)\.)\s+(.*)$/;
+const LIST_ITEM = /^(\s*)(?:[•◦▪]|(\d+|[a-z]{1,4})\.)\s+(.*)$/;
 
 const letters = (n: number): string => {
   let out = "";
@@ -107,6 +110,61 @@ const roman = (n: number): string => {
   }
   return out;
 };
+
+const lettersValue = (s: string): number => [...s].reduce((n, c) => n * 26 + (c.charCodeAt(0) - 96), 0);
+const ROMAN_NUMBER = /^m{0,3}(cm|cd|d?c{0,3})(xc|xl|l?x{0,3})(ix|iv|v?i{0,3})$/;
+const romanValue = (s: string): number => {
+  let rest = s;
+  let n = 0;
+  for (const [value, symbol] of ROMAN_PARTS) {
+    while (rest.startsWith(symbol)) {
+      n += value;
+      rest = rest.slice(symbol.length);
+    }
+  }
+  return n;
+};
+
+/**
+ * The number a list marker stands for at a nesting level, or null if it isn't a marker there. Digits are numbers at any
+ * level (what the Hub writes); Slack's own text writes `a.` at the second level and `i.` at the third, so those count at
+ * the levels where Slack uses them (so an ordinary indented "a. thing" outside a list isn't taken for an item).
+ */
+export function markerNumber(marker: string, level: number): number | null {
+  if (/^\d+$/.test(marker)) return Number(marker);
+  if (level % 3 === 1 && /^[a-z]{1,2}$/.test(marker)) return lettersValue(marker);
+  if (level % 3 === 2 && marker && ROMAN_NUMBER.test(marker)) return romanValue(marker);
+  return null;
+}
+
+/** A list line read in the context of the list above it. */
+export interface ListLine {
+  /** How many levels deep (0 at the top; not capped, see MAX_LIST_INDENT). */
+  level: number;
+  /** The number of a numbered item (absent for a bullet). */
+  n?: number;
+  text: string;
+  /** The indents of the list so far, to read the next line with. */
+  widths: number[];
+}
+
+/**
+ * Reads a line as a list item, given the indents of the items above it in the same list (empty at the start of one), or
+ * null if it isn't one. A nested item is one level deeper than the item above it whatever its indent (ours are two spaces,
+ * Slack's four), and a letter or numeral is a marker only at the level Slack uses it at (`markerNumber`).
+ */
+export function listLine(line: string, above: number[]): ListLine | null {
+  const m = LIST_ITEM.exec(line);
+  if (!m) return null;
+  const widths = [...above];
+  const width = m[1].length;
+  while (widths.length && width < widths[widths.length - 1]) widths.pop();
+  if (!widths.length || width > widths[widths.length - 1]) widths.push(width);
+  const level = widths.length - 1;
+  const n = m[2] === undefined ? undefined : markerNumber(m[2], level);
+  if (n === null) return null;
+  return { level, ...(n === undefined ? {} : { n }), text: m[3], widths };
+}
 
 /** What stands before a list item, as Slack draws it: `•`, `◦`, `▪` by depth for a bullet; `1.`, `a.`, `i.` by depth for a number. */
 export function listMarker(item: { indent: number; n?: number }): string {
@@ -130,12 +188,10 @@ export function parseSlackText(text: string): Block[] {
         widths.length = 0;
         continue;
       }
-      const item = LIST_ITEM.exec(line);
+      const item = listLine(line, widths);
       if (item) {
-        const width = item[1].length;
-        while (widths.length && width < widths[widths.length - 1]) widths.pop();
-        if (!widths.length || width > widths[widths.length - 1]) widths.push(width);
-        blocks.push({ t: "bullet", c: parseInline(item[3]), indent: widths.length - 1, ...(item[2] ? { n: Number(item[2]) } : {}) });
+        widths.splice(0, widths.length, ...item.widths);
+        blocks.push({ t: "bullet", c: parseInline(item.text), indent: Math.min(item.level, MAX_LIST_INDENT), ...(item.n === undefined ? {} : { n: item.n }) });
         blank = false;
         continue;
       }

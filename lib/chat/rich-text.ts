@@ -1,4 +1,5 @@
 import { isEmojiOnly } from "@/lib/chat/emoji-only";
+import { listLine, MAX_LIST_INDENT, type ListLine } from "@/lib/chat/render";
 
 /**
  * The message box shows styled text (bold, lists, quotes, links, emoji images) but its owners hand text around as
@@ -157,24 +158,23 @@ const paragraph = (line: string, lookup?: EmojiLookup): RichNode => {
   return content.length ? { type: "paragraph", content } : { type: "paragraph" };
 };
 
-/** A list line: how far it is indented, the number of an ordered item (a `•`, `◦` or `▪` for a bullet) and its text. */
-const LIST_LINE = /^(\s*)(?:[•◦▪]|(\d+)\.) (.*)$/;
-
 type ListItem = { ordered: boolean; start: number; text: string; kids: ListItem[] };
 
 /**
- * A run of list lines as nested lists: an item is inside the one above it when it is indented further (by however many
- * spaces: ours are two, Slack's four), and neighbours of the same kind are one list. A numbered list starts at its first number.
+ * A run of list lines (read by `listLine`, the chat's own reader) as nested lists: an item is inside the one above it when it
+ * is a level deeper, and neighbours of the same kind are one list. A numbered list starts at its first number. Slack stops at
+ * five levels: an item that would be deeper joins the fifth level's list instead.
  */
-function listsFrom(run: string[], lookup?: EmojiLookup): RichNode[] {
+function listsFrom(run: ListLine[], lookup?: EmojiLookup): RichNode[] {
   const roots: ListItem[] = [];
-  const stack: { width: number; item: ListItem }[] = [];
+  // The latest item at each level, which the next deeper item goes inside.
+  const path: ListItem[] = [];
   for (const line of run) {
-    const [, indent, number, body] = LIST_LINE.exec(line)!;
-    const item: ListItem = { ordered: number !== undefined, start: number === undefined ? 1 : Number(number), text: body, kids: [] };
-    while (stack.length && stack[stack.length - 1].width >= indent.length) stack.pop();
-    (stack.length ? stack[stack.length - 1].item.kids : roots).push(item);
-    stack.push({ width: indent.length, item });
+    const level = Math.min(line.level, MAX_LIST_INDENT);
+    const item: ListItem = { ordered: line.n !== undefined, start: line.n ?? 1, text: line.text, kids: [] };
+    (level === 0 ? roots : path[level - 1].kids).push(item);
+    path.length = level;
+    path[level] = item;
   }
   const emit = (items: ListItem[]): RichNode[] => {
     const out: RichNode[] = [];
@@ -221,10 +221,15 @@ export function mrkdwnToDoc(source: string, lookup?: EmojiLookup): RichNode {
     };
     if (/^> ?/.test(line)) {
       content.push({ type: "blockquote", content: group(/^> ?/).map((l) => paragraph(l, lookup)) });
-    } else if (LIST_LINE.test(line)) {
+    } else if (listLine(line, [])) {
       // A run of list lines, bullets and numbers mixed, nested by how far each is indented.
-      const run: string[] = [];
-      while (i < lines.length && LIST_LINE.test(lines[i])) run.push(lines[i++]);
+      const run: ListLine[] = [];
+      for (let above: number[] = []; i < lines.length; i++) {
+        const item = listLine(lines[i], above);
+        if (!item) break;
+        run.push(item);
+        above = item.widths;
+      }
       content.push(...listsFrom(run, lookup));
     } else {
       content.push(paragraph(line, lookup));
