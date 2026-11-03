@@ -83,6 +83,19 @@ describe("MessageBody", () => {
     off();
   });
 
+  it("ignores a second save while one is still going", async () => {
+    vi.mocked(editChatMessage).mockReturnValue(new Promise(() => {}));
+    mount();
+    fire("edit");
+    const box = await messageBox("Edit message");
+    await boxUser().clear(box);
+    await typeInto(box, "second draft{Enter}");
+    await waitFor(() => expect(editChatMessage).toHaveBeenCalledTimes(1));
+    await typeInto(box, "{Enter}");
+    expect(editChatMessage).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog", { name: "Delete message" })).not.toBeInTheDocument();
+  });
+
   describe("a message written in Slack", () => {
     const NAMED: ChatTextContext = { ...CTX, userNames: { U1: "Ania Ray" }, channelNames: { C1: "general" } };
     const slackWritten = (body: string) => ({ ...mine({ fromHub: false }), body });
