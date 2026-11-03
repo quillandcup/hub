@@ -61,3 +61,7 @@ rulesets:
               integration_id: 15368
             - context: Check migrations
               integration_id: 15368
+            # The code scanning result (new alerts in the PR's changes), posted by the GitHub
+            # Advanced Security app (57789), not an Actions job: the Analyze jobs only run the scan.
+            - context: CodeQL
+              integration_id: 57789
