@@ -111,8 +111,8 @@ const JUMBO_STYLES = "[&_.ProseMirror]:!text-[2rem] [&_.ProseMirror]:!leading-ti
  * A toolbar over the box (and Ctrl/Cmd+B, +I, +Shift+X) formats the selection; typing `*word*`, a `> `, `- ` or `1. `
  * does too, and pasting an address over selected text links it.
  *
- * Enter and Escape go to the owner's `onKeyDown` (send on Enter, cancel on Escape), except that Enter inside a list or
- * code block is the editor's (a new item, a new line) unless Ctrl/Cmd is held.
+ * Enter and Escape go to the owner's `onKeyDown` (send on Enter, cancel on Escape), except that Enter inside a code block
+ * is the editor's (a new line) unless Ctrl/Cmd is held, and Shift+Enter inside a list starts the next item.
  */
 export default function MessageBox({
   channelId,
@@ -369,8 +369,20 @@ export default function MessageBox({
       const shortcut = toolbar ? shortcutFormat(e) : null;
       // The editor applies its own shortcuts; this only records them.
       if (shortcut) track("chat_format_applied", { kind: shortcut, via: "shortcut" });
-      // Enter in a list or code block adds an item or a line; Ctrl/Cmd+Enter sends from anywhere.
-      if (event.key === "Enter" && !event.metaKey && !event.ctrlKey && (editor?.isActive("bulletList") || editor?.isActive("orderedList") || editor?.isActive("codeBlock"))) return false;
+      // Enter sends, in a list too (as in Slack set to send on Enter); Shift+Enter in a list starts the next item (or, on an empty
+      // item, steps out of the list). In a code block Enter is a new line, and Ctrl/Cmd+Enter sends from anywhere.
+      const modified = event.metaKey || event.ctrlKey;
+      if (event.key === "Enter" && event.shiftKey && !modified && editor?.isActive("listItem") && !editor.isActive("codeBlock")) {
+        event.preventDefault();
+        // What the list's own Enter does: split the item, or on an empty one step out of the list.
+        editor
+          .chain()
+          .focus()
+          .first(({ commands }) => [() => commands.splitListItem("listItem"), () => commands.liftEmptyBlock(), () => commands.splitBlock()])
+          .run();
+        return true;
+      }
+      if (event.key === "Enter" && !modified && editor?.isActive("codeBlock")) return false;
       if (event.key === "Backspace" && !event.shiftKey && !event.metaKey && !event.ctrlKey && editor && leaveQuoteFromEmptyLine(editor)) return true;
       live.current.onKeyDown?.(e);
       return event.defaultPrevented;

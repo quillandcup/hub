@@ -96,6 +96,12 @@ const listDepth = (node: PMNode): number => {
 };
 
 /**
+ * A deliberate difference from Slack: our lists are nested (an item's deeper items belong to it), where Slack's are flat (every
+ * item has its own indent, and changing one never moves another). So when you back an item out with Backspace, or lift it, the
+ * items under it come with it, one level up, and no level is ever skipped. Slack leaves them where they were, with a gap; that
+ * is a quirk of its flat model, and this is the better behavior. What the chat reads back (`listLine` in lib/chat/render.ts)
+ * closes up a skipped level in a message written in Slack the same way. Pinned in tests/components/MessageBox.test.tsx.
+ *
  * Lists go five levels deep, as in Slack (past that it can neither show nor send them): a change that nests one deeper is
  * refused (Tab on an item that is already at the fifth level does nothing). Each list also gets `data-list-depth`, which
  * the box's styles use to give a level its marker the way Slack does (•, ◦, ▪, •, ◦ and 1., a., i., 1., a.).
