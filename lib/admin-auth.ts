@@ -4,7 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createRepos } from "@/lib/data/repos";
 import { getCurrentUser, type AuthUser } from "@/lib/auth";
 import { ADMIN_NO_ACCESS_PATH } from "@/lib/admin-paths";
-import { COMMUNITY_MANAGER_ROLE } from "@/lib/staff-access";
+import { COMMUNITY_MANAGER_HOME, COMMUNITY_MANAGER_ROLE } from "@/lib/staff-access";
+import { getStaffPreviewRole } from "@/lib/staff-preview.server";
 
 /**
  * Secure admin check for admin-area server components (the Data Access Layer
@@ -36,12 +37,16 @@ export const requireAdminPage = cache(async (): Promise<AuthUser> => {
 
   const supabase = await createClient();
   if (!(await createRepos(supabase).profiles.isAdmin(user.id))) redirect(ADMIN_NO_ACCESS_PATH);
+  // An admin previewing a lower role is refused an admin-only page like that role would be. They go to that
+  // role's home, not /no-access, which has no banner to leave the preview from.
+  if (await getStaffPreviewRole()) redirect(COMMUNITY_MANAGER_HOME);
 
   return user;
 });
 
 export type StaffRole = "admin" | typeof COMMUNITY_MANAGER_ROLE;
-export type StaffUser = AuthUser & { role: StaffRole };
+/** `role` is the one to check against (the previewed role for an admin previewing); `realRole` is who they are. */
+export type StaffUser = AuthUser & { role: StaffRole; realRole: StaffRole };
 
 /**
  * Secure check for an admin page a community manager may also open (the read-only pages in
@@ -58,7 +63,9 @@ export const requireStaffPage = cache(async (): Promise<StaffUser> => {
   const profile = await createRepos(await createClient()).profiles.byId(user.id).catch(() => null);
   if (profile?.role !== "admin" && profile?.role !== COMMUNITY_MANAGER_ROLE) redirect(ADMIN_NO_ACCESS_PATH);
 
-  return { ...user, role: profile.role };
+  // A real admin previewing a lower role is that role here.
+  const role = (profile.role === "admin" && (await getStaffPreviewRole())) || profile.role;
+  return { ...user, role, realRole: profile.role };
 });
 
 export type AdminActionAuth =
@@ -84,5 +91,7 @@ export async function requireAdminAction(): Promise<AdminActionAuth> {
 
   const supabase = await createClient();
   if (!(await createRepos(supabase).profiles.isAdmin(user.id))) return { ok: false, error: "Not authorized" };
+  // Previewing a lower role: its actions are refused, as they would be for that role.
+  if (await getStaffPreviewRole()) return { ok: false, error: "Not authorized" };
   return { ok: true, user, supabase };
 }

@@ -47,6 +47,8 @@ const NOT_TRACKED: Record<string, string> = {
   "app/actions/sudo.ts::startSudo": "viewing as a member records nothing",
   "app/actions/sudo.ts::exitSudo": "viewing as a member records nothing",
   "app/actions/sudo.ts::exitSudoToAdmin": "viewing as a member records nothing",
+  "app/actions/staff-preview.ts::startRolePreview": "previewing a staff role is a UI check by an admin, records nothing",
+  "app/actions/staff-preview.ts::stopRolePreview": "previewing a staff role is a UI check by an admin, records nothing",
   // No signed-in member to attribute an event to, or recording is the thing being declined.
   "app/auth/slack/actions.ts::completeSlackSignIn": "before sign-in; outcomes go to the server logs (lib/signin-log.ts) and failures are reported as signin_failed once the person gets in",
   "app/auth/slack/actions.ts::signInWithSlackCode": "before sign-in; see completeSlackSignIn",
