@@ -94,6 +94,8 @@ export const OUTCOME_ACTIONS = [
   "onboarding_step_marked",
   // Members
   "member_removed",
+  "admin_note_added",
+  "admin_note_deleted",
 ] as const;
 
 export type OutcomeAction = (typeof OUTCOME_ACTIONS)[number];
