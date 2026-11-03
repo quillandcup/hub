@@ -586,7 +586,7 @@ The domain is registered at Squarespace, but its DNS records are currently manag
 
 ### Email Routing on Separate Subdomains _(Needs Scoping)_
 Auth and notification email sends from `no-reply@hub.quillandcup.com` through Resend; footers point replies to the support address. Newsletters would get their own subdomain (`news.`) later, and login email only gets `auth.` if it needs isolating. Open:
-- Keep open/click tracking off on `hub.`; enable it only on `news.` if newsletters go through Resend.
+- Open/click tracking is off on `hub.` today, so the email timeline (`docs/EMAIL_TIMELINE.md`) shows sends, deliveries and bounces but no opens or clicks. No recorded reason says why it was left off; likely ones, none confirmed: tracking rewrites every link through a tracking subdomain (which needs its own CNAME and hurts the look of sign-in links), and Resend sets it per domain, so it would apply to sign-in emails too. Decide, then turn it on in Resend (Domains -> Tracking) with a tracking subdomain; no code change is needed.
 - Publish a DMARC record on the root `quillandcup.com` (subdomains inherit it).
 - Reply handling, if replies ever matter: the Supabase Send Email hook (real `Reply-To`) or inbound routing after the Cloudflare move. `hub` is a CNAME to Vercel and can't coexist with an MX record, so inbound mail needs a different name.
 - Carry the Resend DNS records over in the Cloudflare move (DNS-only/grey cloud). Check the Resend plan's domain limit before adding subdomains.
@@ -899,7 +899,7 @@ One system for everything the Hub sends members, instead of each feature hand-ro
 - Quiet hours / time zone, and per-member frequency caps across kinds
 - Escalation and dedupe: don't email what was already seen in-app; delay-then-send (e.g. email only if a DM is still unread after N minutes)
 - Digests: batch low-priority events into a daily/weekly email
-- Email delivery tracking: Resend webhooks (delivered, bounced, complaints) and sent/opened/clicked events in `member_activities`
+- **Resolved:** email delivery tracking. Resend webhooks and a nightly pull write sent/opened/clicked/bounced events onto the member timeline (`docs/EMAIL_TIMELINE.md`). What is left is in "Email timeline: what is left" (CRM Features).
 
 - A per-message "Stop these" Slack button that writes `notification_preferences` (the settings link covers it for now)
 - Show on the settings page when a channel can't reach the member (e.g. no matched Slack account)
@@ -1682,6 +1682,15 @@ Slack ingestion, the member-matching library and Slack activity on member profil
 Lesson viewing now writes `member_activities` rows (`lesson_watched`, `lesson_completed`, source `courses`; `lib/courses/activity.ts`), so it shows in the Activity Log and adds to the engagement score. Deferred:
 - **Reconciliation.** The rows are a best-effort copy written next to the primary write, so a failed insert is logged and never retried, and a changed threshold or weight doesn't rewrite past rows. If drift shows up, add a pull-based pass (nightly) that re-derives missing rows from the source tables.
 - **Churn recency ignores lessons.** `riskLevel` (`lib/member-engagement.ts`, `admin_members_page`, `/admin/at-risk`) is days since the last *prickle*, so a member who only watches lessons still rates "high" risk. Decide whether recency should count any activity type, or fold risk into the engagement score as a trend (recent points against the member's own earlier baseline); the three places apply the rule separately today.
+
+### Email timeline: what is left
+Phase 1 is built (`docs/EMAIL_TIMELINE.md`): Resend events onto the member timeline, from a webhook and a nightly pull. Deferred:
+- **Replies (phase 2).** Resend can receive mail (`email.received`; the webhook carries metadata only, the body comes from `resend.emails.receiving.get`). It needs an inbound address on a name that can carry an MX record (`hub.` is a CNAME to Vercel, so a subdomain such as `reply.`), `Reply-To` set on Hub email, the event stored (the route ignores `email.received` today), the body kept in a service-role-only table like Slack content, and an admin read through a server action. Start: `lib/email-events.ts` (`STORED_EVENT_TYPES`), and "Email Routing on Separate Subdomains" under Infrastructure.
+- **Read an email's body inside the Hub.** Today a timeline row links to the email at Resend. An admin server action (`requireAdminAction`) could fetch `GET /emails/{id}` and show the text in a dialog; bodies would not be stored.
+- **Retention and removal.** `bronze.resend_events` (addresses, subjects) and the `resend` timeline rows have no retention rule, and `remove_member_data` does not clear the Bronze copy (it is keyed by address, like the other Bronze copies listed under "Still open" there). Decide how long to keep them and extend the routine.
+- **Auth and launch email tags.** Supabase Auth's emails go over SMTP and match by address only. Sending them through the Send Email hook would let them carry tags and a real `Reply-To`. Sign-in link scanners click every link, so once tracking is on, clicks on those emails are noise; consider hiding `email_clicked` for `kind` null.
+- **Members with several addresses.** Matching uses the member's own address, not their aliases.
+- **Dashboard.** Delivery health (bounce and complaint rates) from `bronze.resend_events`, and an engagement signal if opens or clicks prove meaningful (their `engagement_value` is 0 on purpose).
 
 ### Host Confirmation Flow (not built)
 After each prickle ends, message the host to confirm participants and resolve unmatched Zoom attendees. For unhosted prickles: TBD, options include assigning a random active member or the most senior hedgie (by join date or total duration excluding hiatus). Build it as a notification kind sent with `createNotifier`, not wired directly to Slack. Related: "Let a prickle's host report unmatched Zoom attendees".

@@ -15,6 +15,8 @@ import { describe, expect, it } from "vitest";
  */
 const REPOSITORY_TABLES: Record<string, string[]> = {
   prickle_attendance: [],
+  // Resend email events (ResendEventRepository): every query is in the repository.
+  resend_events: [],
   prickles: [
   ],
   // Prickle types (PrickleRepository): every query is moved.

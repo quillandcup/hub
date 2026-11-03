@@ -76,7 +76,7 @@ async function main() {
   const db = createClient<Database>(url!, key!, { auth: { autoRefreshToken: false, persistSession: false } });
   const auth = db.auth.admin as unknown as LaunchAuthApi;
   console.log(`Mode: ${apply ? "--apply (SENDS REAL EMAIL)" : "plan (dry run, nothing is sent)"}`);
-  const report = await sendLaunchEmails(auth, createRepos(db).members, sendEmail, {
+  const report = await sendLaunchEmails(auth, createRepos(db).members, (mail) => sendEmail({ ...mail, tags: { kind: "launch" } }), {
     apply,
     limit,
     onlyEmail,

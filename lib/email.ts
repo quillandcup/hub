@@ -18,7 +18,15 @@ export interface SendEmailParams {
   /** Plain-text alternative; mail clients and spam filters both like having one. */
   text: string;
   headers?: Record<string, string>;
+  /**
+   * Resend tags, echoed on every webhook event for the email, which is how the timeline knows what an event was
+   * about (docs/EMAIL_TIMELINE.md): `kind` (the notification kind) and `member` (the member id). Resend allows
+   * only letters, digits, `_` and `-` in a name or value; anything else is replaced with `_`.
+   */
+  tags?: Record<string, string>;
 }
+
+const tagText = (text: string) => text.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 256);
 
 const RESEND_URL = "https://api.resend.com/emails";
 const MAX_ATTEMPTS = 3;
@@ -42,6 +50,7 @@ export async function sendEmail(params: SendEmailParams): Promise<void> {
   }
 
   let { to, subject } = params;
+  let tags = params.tags;
   if (isEmailTestMode()) {
     const devAddress = process.env.EMAIL_DEV_ADDRESS;
     if (!devAddress) {
@@ -49,6 +58,8 @@ export async function sendEmail(params: SendEmailParams): Promise<void> {
     }
     subject = `🧪 [test mode — would have gone to ${to}] ${subject}`;
     to = devAddress;
+    // The email goes to the dev address, so it must not land on the member's timeline.
+    if (tags) tags = Object.fromEntries(Object.entries(tags).filter(([name]) => name !== "member"));
   }
 
   const body = JSON.stringify({
@@ -58,6 +69,7 @@ export async function sendEmail(params: SendEmailParams): Promise<void> {
     html: params.html,
     text: params.text,
     headers: params.headers,
+    tags: tags && Object.entries(tags).map(([name, value]) => ({ name: tagText(name), value: tagText(value) })),
   });
 
   for (let attempt = 1; ; attempt++) {

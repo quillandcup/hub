@@ -1,6 +1,7 @@
 import { pageBounds } from "@/lib/pagination";
 import type { SlackPageQuery, SlackSortColumn } from "@/lib/slack-activity-table";
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
+import { inChunks } from "./query";
 import type { Json } from "./database.types";
 import type { Db, Insert, Row } from "./db";
 import type { InMemoryDataset } from "./in-memory";
@@ -54,6 +55,8 @@ export interface ActivityRepository {
   recordMany(activities: NewActivity[]): Promise<number>;
   /** Removes the rows a source wrote for one related id (an engagement signal for something that was deleted). */
   removeFor(source: string, relatedId: string): Promise<void>;
+  /** Removes the rows a source wrote for any of these related ids, chunked. */
+  removeForMany(source: string, relatedIds: string[]): Promise<void>;
   /** Moves every activity of one member to another (a merge). */
   reassign(fromMemberId: string, toMemberId: string): Promise<void>;
 
@@ -151,6 +154,14 @@ export class SupabaseActivityRepository implements ActivityRepository {
   async removeFor(source: string, relatedId: string) {
     const { error } = await this.db.from("member_activities").delete().eq("related_id", relatedId).eq("source", source);
     if (error) throw new Error(error.message);
+  }
+
+  async removeForMany(source: string, relatedIds: string[]) {
+    await inChunks(relatedIds, ID_CHUNK, async (part) => {
+      const { error } = await this.db.from("member_activities").delete().eq("source", source).in("related_id", part);
+      if (error) throw new Error(error.message);
+      return [];
+    });
   }
 
   async reassign(fromMemberId: string, toMemberId: string) {
@@ -322,6 +333,11 @@ export class InMemoryActivityRepository implements ActivityRepository {
 
   async removeFor(source: string, relatedId: string) {
     this.data.activities = this.data.activities.filter((a) => !(a.source === source && a.related_id === relatedId));
+  }
+
+  async removeForMany(source: string, relatedIds: string[]) {
+    const ids = new Set(relatedIds);
+    this.data.activities = this.data.activities.filter((a) => !(a.source === source && a.related_id !== null && ids.has(a.related_id)));
   }
 
   async reassign(fromMemberId: string, toMemberId: string) {

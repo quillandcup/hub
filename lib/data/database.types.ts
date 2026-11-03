@@ -534,6 +534,57 @@ export type Database = {
         }
         Relationships: []
       }
+      resend_events: {
+        Row: {
+          bounce_type: string | null
+          detail: string | null
+          email_id: string
+          event_id: string
+          event_type: string
+          from_address: string | null
+          id: string
+          link: string | null
+          occurred_at: string
+          raw_payload: Json
+          received_at: string
+          recipients: string[]
+          subject: string | null
+          tags: Json
+        }
+        Insert: {
+          bounce_type?: string | null
+          detail?: string | null
+          email_id: string
+          event_id: string
+          event_type: string
+          from_address?: string | null
+          id?: string
+          link?: string | null
+          occurred_at: string
+          raw_payload: Json
+          received_at?: string
+          recipients?: string[]
+          subject?: string | null
+          tags?: Json
+        }
+        Update: {
+          bounce_type?: string | null
+          detail?: string | null
+          email_id?: string
+          event_id?: string
+          event_type?: string
+          from_address?: string | null
+          id?: string
+          link?: string | null
+          occurred_at?: string
+          raw_payload?: Json
+          received_at?: string
+          recipients?: string[]
+          subject?: string | null
+          tags?: Json
+        }
+        Relationships: []
+      }
       slack_channel_member_events: {
         Row: {
           channel_id: string

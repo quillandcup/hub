@@ -5,7 +5,7 @@ import { APP_URL, SUPPORT_EMAIL } from "@/lib/config";
 import { oneClickUnsubscribeUrl, signUnsubscribeToken, unsubscribePageUrl } from "@/lib/email-unsubscribe";
 
 const sendEmail = vi.fn(
-  async (_params: { to: string; subject: string; html: string; text: string; headers?: Record<string, string> }) => {}
+  async (_params: { to: string; subject: string; html: string; text: string; headers?: Record<string, string>; tags?: Record<string, string> }) => {}
 );
 vi.mock("@/lib/email", () => ({ sendEmail: (p: any) => sendEmail(p) }));
 
@@ -132,6 +132,8 @@ describe("email channel", () => {
       "List-Unsubscribe": `<${oneClickUnsubscribeUrl(token)}>`,
       "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
     });
+    // Tagged with the kind and the member, so Resend's events land on that member's timeline.
+    expect(sent.tags).toEqual({ kind: "prickle_checkin", member: "m1" });
   });
 
   it("can't reach an opted-in member with no email address", async () => {
