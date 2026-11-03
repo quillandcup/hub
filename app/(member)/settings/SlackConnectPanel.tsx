@@ -66,8 +66,10 @@ export default function SlackConnectPanel({
           )}
           {sharesReadState && !hasDmScopes && (
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-              Reconnect Slack once so the Hub has the permissions it will need for direct messages. Slack will list permission to
-              read and send your direct messages; the Hub doesn&apos;t read them today.{" "}
+              Slack direct messages are coming to Hub chat. Reconnect Slack once now, or you won&apos;t be able to message
+              people in the Hub when they arrive. Slack will list permission to read and send your direct messages; the Hub
+              doesn&apos;t use it yet.
+              {" "}
               <a href="/api/oauth/slack/start" data-track="settings-slack-reconnect-dm" className="font-medium text-plum-700 underline dark:text-plum-400">
                 Reconnect Slack
               </a>

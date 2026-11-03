@@ -82,7 +82,7 @@ export default async function PrivacyPage() {
           </li>
           <li>
             Staff can see who talks with whom, where and when, and what is said in the channels that reach the Hub. Restricted
-            channels and group DMs are open to them only through break-glass access, and your one-on-one Slack DMs never reach the Hub.
+            channels and group DMs are open to them only through break-glass access. We plan to bring your one-on-one Slack DMs into the Hub too, restricted the same way. None reach it yet.
           </li>
           <li>
             Your exact IP address and browser details are removed after {RETENTION.rawNetworkDays} days, and usage
@@ -247,7 +247,8 @@ export default async function PrivacyPage() {
             <Row where="Private channels that include Billie Bot" activity="Yes" content="Yes, unless the channel is marked restricted" />
             <Row where="Restricted private channels" activity="Yes" content="No, except break-glass access (below)" />
             <Row where="Group DMs that include Billie Bot" activity="Yes" content="No, except break-glass access (below)" />
-            <Row where="Slack DMs, and Slack group DMs or private channels without Billie Bot" activity="No" content="No. These never reach the Hub" />
+            <Row where="Slack group DMs or private channels without Billie Bot" activity="No" content="No. These never reach the Hub" />
+            <Row where="Your one-on-one Slack DMs" activity="Not yet. Planned: yes" content="Not yet. Planned: restricted, so break-glass access only" />
           </tbody>
         </table>
         <p>
@@ -267,9 +268,16 @@ export default async function PrivacyPage() {
         <Detail title="Connecting your Slack account">
           Hub chat needs your Slack account connected. That lets the Hub act as you in Slack: post your messages and
           reactions, edit and delete the ones you wrote, join and leave channels, add people to a channel, and mark
-          conversations read. Slack will also list permission to read and send your direct messages, which the Hub asks for
-          ahead of time so you only reconnect once. The Hub does not read your direct messages today, and nothing in this
-          table changes until this page says so first. It does nothing in Slack you didn&apos;t ask for. The connection is kept encrypted and used only by the Hub&apos;s
+          conversations read. We plan to use the same connection to bring your one-on-one Slack direct messages into Hub chat:
+          the Hub would read them, keep them, and let you reply from the Hub. They would be restricted like private channels
+          (staff can read them only through break-glass access, below). That isn&apos;t happening yet. Slack already lists the
+          permission to read and send your direct messages, so you only reconnect once, and the Hub does not use it. If you
+          object, or want your DMs left out, tell us at{" "}
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="underline">
+            {SUPPORT_EMAIL}
+          </a>{" "}
+          before then, or disconnect Slack in Settings. Apart from that the Hub does nothing in Slack you didn&apos;t ask for.
+          The connection is kept encrypted and used only by the Hub&apos;s
           server. You can disconnect it in Settings at any time (chat then stays closed until you reconnect), and Slack
           shows it under your authorized apps.
         </Detail>
