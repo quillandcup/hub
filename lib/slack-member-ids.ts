@@ -17,11 +17,14 @@ async function buildSlackUserIdToMemberIdMap(
   repos: SlackIdRepos,
   scope: { memberIds?: readonly string[]; slackUserId?: string }
 ): Promise<Map<string, string>> {
-  const [allMembers, aliases, slackUsers] = await Promise.all([
+  const [allMembers, aliases, everySlackUser] = await Promise.all([
     repos.members.identities(),
     repos.aliases.nameAliases(),
     repos.slackUsers.list(),
   ]);
+  // A deactivated account can't receive a DM, and a person who moved to a new account keeps the old one
+  // in Bronze with the same email: matching both made one member look like two and dropped them.
+  const slackUsers = everySlackUser.filter((user) => !user.is_deleted);
 
   const members: Member[] = allMembers;
   const matched = await matchSlackUsersToMembers(slackUsers, members, aliases);

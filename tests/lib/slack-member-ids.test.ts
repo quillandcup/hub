@@ -47,6 +47,28 @@ describe("notification Slack recipient matching", () => {
     error.mockRestore();
   });
 
+  it("ignores a deactivated Slack account that shares the member's email and keeps an alias", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const repos = createInMemoryRepos(
+      new InMemoryDataset({
+        members: [{ id: "m1", name: "Alex River", email: "alex@example.com" }],
+        nameAliases: [{ id: "nal_AAAAAAAAAAA1", member_id: "m1", alias: "U1", source: "slack", active: true }],
+        slackUsers: [
+          { user_id: "U1", real_name: null, email: "alex@example.com", is_deleted: true },
+          { user_id: "U2", real_name: "Alex River", email: "alex@example.com", is_deleted: false },
+        ],
+      })
+    );
+    sendOperationsAlert.mockClear();
+
+    expect(await resolveSlackUserIds(repos, ["m1"])).toEqual(new Map([["m1", "U2"]]));
+    expect(await resolveMemberIdForSlackUser(repos, "U2")).toBe("m1");
+    expect(await resolveMemberIdForSlackUser(repos, "U1")).toBeNull();
+    expect(error).not.toHaveBeenCalled();
+    expect(sendOperationsAlert).not.toHaveBeenCalled();
+    error.mockRestore();
+  });
+
   it("honors an explicit Slack ID alias over a shared name", async () => {
     const repos = createInMemoryRepos(
       new InMemoryDataset({
