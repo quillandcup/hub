@@ -86,6 +86,9 @@ const CONTENT_STYLES = [
   "[&_.ProseMirror_p]:m-0",
   "[&_.ProseMirror_ul]:my-0.5 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-6",
   "[&_.ProseMirror_ol]:my-0.5 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-6",
+  // A level's marker, as in Slack (the extension sets data-list-depth): •, ◦, ▪, •, ◦ and 1., a., i., 1., a.
+  "[&_.ProseMirror_ul[data-list-depth='1']]:[list-style-type:circle] [&_.ProseMirror_ul[data-list-depth='2']]:[list-style-type:square] [&_.ProseMirror_ul[data-list-depth='4']]:[list-style-type:circle]",
+  "[&_.ProseMirror_ol[data-list-depth='1']]:[list-style-type:lower-alpha] [&_.ProseMirror_ol[data-list-depth='2']]:[list-style-type:lower-roman] [&_.ProseMirror_ol[data-list-depth='4']]:[list-style-type:lower-alpha]",
   "[&_.ProseMirror_blockquote]:my-0.5 [&_.ProseMirror_blockquote]:border-l-4 [&_.ProseMirror_blockquote]:border-slate-500 [&_.ProseMirror_blockquote]:pl-3 [&_.ProseMirror_blockquote]:text-slate-600 dark:[&_.ProseMirror_blockquote]:border-slate-500 dark:[&_.ProseMirror_blockquote]:text-slate-400",
   "[&_.ProseMirror_pre]:my-1 [&_.ProseMirror_pre]:overflow-x-auto [&_.ProseMirror_pre]:rounded [&_.ProseMirror_pre]:border [&_.ProseMirror_pre]:border-slate-200 [&_.ProseMirror_pre]:bg-slate-100 [&_.ProseMirror_pre]:p-2 [&_.ProseMirror_pre]:font-mono [&_.ProseMirror_pre]:text-sm dark:[&_.ProseMirror_pre]:border-slate-700 dark:[&_.ProseMirror_pre]:bg-slate-800",
   "[&_.ProseMirror_code]:rounded [&_.ProseMirror_code]:border [&_.ProseMirror_code]:border-slate-200 [&_.ProseMirror_code]:bg-slate-100 [&_.ProseMirror_code]:px-1 [&_.ProseMirror_code]:py-0.5 [&_.ProseMirror_code]:font-mono [&_.ProseMirror_code]:text-[0.9em] [&_.ProseMirror_code]:text-red-700 dark:[&_.ProseMirror_code]:border-slate-700 dark:[&_.ProseMirror_code]:bg-slate-800 dark:[&_.ProseMirror_code]:text-red-400",

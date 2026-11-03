@@ -1,5 +1,8 @@
 import { Extension, Node, markInputRule, type Extensions } from "@tiptap/react";
+import type { Node as PMNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { Decoration, DecorationSet } from "@tiptap/pm/view";
+import { MAX_LIST_INDENT } from "@/lib/chat/render";
 import StarterKit from "@tiptap/starter-kit";
 
 /**
@@ -81,6 +84,47 @@ const maxLengthExtension = (limit: number) =>
     },
   });
 
+const LISTS = new Set(["bulletList", "orderedList"]);
+
+/** How many lists deep the deepest item is nested (a list in a list item of a list is 2). */
+const listDepth = (node: PMNode): number => {
+  let deepest = 0;
+  node.forEach((child) => {
+    deepest = Math.max(deepest, listDepth(child));
+  });
+  return deepest + (LISTS.has(node.type.name) ? 1 : 0);
+};
+
+/**
+ * Lists go five levels deep, as in Slack (past that it can neither show nor send them): a change that nests one deeper is
+ * refused (Tab on an item that is already at the fifth level does nothing). Each list also gets `data-list-depth`, which
+ * the box's styles use to give a level its marker the way Slack does (•, ◦, ▪, •, ◦ and 1., a., i., 1., a.).
+ */
+const ListDepth = Extension.create({
+  name: "listDepth",
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: new PluginKey("listDepth"),
+        filterTransaction: (tr) => !tr.docChanged || listDepth(tr.doc) <= MAX_LIST_INDENT + 1 || listDepth(tr.doc) <= listDepth(tr.before),
+        props: {
+          decorations: (state) => {
+            const decorations: Decoration[] = [];
+            state.doc.descendants((node, pos) => {
+              if (!LISTS.has(node.type.name)) return;
+              const $pos = state.doc.resolve(pos);
+              let depth = 0;
+              for (let d = $pos.depth; d > 0; d--) if (LISTS.has($pos.node(d).type.name)) depth++;
+              decorations.push(Decoration.node(pos, pos + node.nodeSize, { "data-list-depth": String(depth) }));
+            });
+            return DecorationSet.create(state.doc, decorations);
+          },
+        },
+      }),
+    ];
+  },
+});
+
 /**
  * What the message box edits: paragraphs, bold, italic, strikethrough, code, code blocks, quotes, lists and links.
  * Only what a Slack message can say; no headings or rules. Underline is here too, but Slack's mrkdwn has none, so a message
@@ -98,6 +142,7 @@ export function messageBoxExtensions(maxLength?: number): Extensions {
     EmojiNode,
     SlackMarkdownRules,
     SlackShortcuts,
+    ListDepth,
     ...(maxLength === undefined ? [] : [maxLengthExtension(maxLength)]),
   ];
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { emojiNamesIn, listMarker, mentionedUserIds, mentionsToPlainText, parseInline, parseSlackText } from "@/lib/chat/render";
+import { emojiNamesIn, listMarker, markerNumber, MAX_LIST_INDENT, mentionedUserIds, mentionsToPlainText, parseInline, parseSlackText } from "@/lib/chat/render";
 
 const text = (v: string) => ({ t: "text", v });
 
@@ -94,8 +94,33 @@ describe("parseSlackText", () => {
     expect(items("1.5 million\n2024.no space\n3.")).toEqual(["line", "line", "line"]);
   });
 
+  it("reads the nested numbered list Slack writes in its own text, with a. and i. at the levels it uses them", () => {
+    const body = "1. an underline\n2. continued until now\n    a. no underline\n    b. under returns\n    c. no more\n3. what\n    a. about\n        i. now\n        ii. then\n            1. deeper\n                a. deepest\n                b. and one more";
+    const items = parseSlackText(body).map((b) => (b.t === "bullet" ? `${b.indent}:${b.n}` : b.t));
+    expect(items).toEqual(["0:1", "0:2", "1:1", "1:2", "1:3", "0:3", "1:1", "2:1", "2:2", "3:1", "4:1", "4:2"]);
+  });
+
+  it("takes a letter or numeral for a marker only inside a list and at the level where Slack uses it", () => {
+    const kinds = (body: string) => parseSlackText(body).map((b) => b.t);
+    expect(kinds("text\n  a. thing")).toEqual(["line", "line"]);
+    expect(kinds("a. thing\n• x")).toEqual(["line", "bullet"]);
+    expect(kinds("1. x\n  etc. y\n  i. z")).toEqual(["bullet", "line", "line"]);
+    expect(kinds("1. x\n  a. y\n    i. z")).toEqual(["bullet", "bullet", "bullet"]);
+    // A numeral that isn't one, or a letter at a level that counts in numbers or numerals.
+    expect(kinds("1. x\n  a. y\n    q. z")).toEqual(["bullet", "bullet", "line"]);
+    expect(kinds("1. x\n  a. y\n    i. z\n      a. w")).toEqual(["bullet", "bullet", "bullet", "line"]);
+    expect([markerNumber("27", 0), markerNumber("b", 1), markerNumber("aa", 4), markerNumber("xiv", 2), markerNumber("b", 2), markerNumber("i", 0), markerNumber("", 2)]).toEqual([27, 2, 27, 14, null, null, null]);
+  });
+
+  it("stops at five levels, as Slack does: deeper items stay at the fifth", () => {
+    const body = ["• 0", "  • 1", "    • 2", "      • 3", "        • 4", "          • 5", "            • 6"].join("\n");
+    expect(parseSlackText(body).map((b) => (b.t === "bullet" ? b.indent : -1))).toEqual([0, 1, 2, 3, 4, 4, 4]);
+    expect(MAX_LIST_INDENT).toBe(4);
+  });
+
   it("draws the marker Slack does: •, ◦, ▪ by depth for bullets; 1., a., i. for numbers", () => {
-    expect([0, 1, 2, 3].map((indent) => listMarker({ indent }))).toEqual(["•", "◦", "▪", "•"]);
+    expect([0, 1, 2, 3, 4].map((indent) => listMarker({ indent }))).toEqual(["•", "◦", "▪", "•", "◦"]);
+    expect([0, 1, 2, 3, 4].map((indent) => listMarker({ indent, n: 1 }))).toEqual(["1.", "a.", "i.", "1.", "a."]);
     expect([0, 1, 2].map((indent) => listMarker({ indent, n: 4 }))).toEqual(["4.", "d.", "iv."]);
     expect(listMarker({ indent: 1, n: 27 })).toBe("aa.");
     expect(listMarker({ indent: 2, n: 1994 })).toBe("mcmxciv.");

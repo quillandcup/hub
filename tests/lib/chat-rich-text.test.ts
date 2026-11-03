@@ -116,6 +116,19 @@ describe("mrkdwnToDoc", () => {
     expect(parsed[2].attrs).toEqual({ start: 3 });
   });
 
+  it("reads Slack's own nested numbered list (a. and i. at their levels) into nested ordered lists, and caps the depth at five levels", () => {
+    const [list] = mrkdwnToDoc("1. a\n    a. b\n        i. c\n            1. d\n                a. e").content!;
+    const depth = (n: RichNode): number => (n.type === "orderedList" ? 1 : 0) + Math.max(0, ...(n.content ?? []).map(depth));
+    expect(list.type).toBe("orderedList");
+    expect(depth(list)).toBe(5);
+    const bullets = ["• 0", "  • 1", "    • 2", "      • 3", "        • 4", "          • 5", "            • 6"].join("\n");
+    const [deep] = mrkdwnToDoc(bullets).content!;
+    const bulletDepth = (n: RichNode): number => (n.type === "bulletList" ? 1 : 0) + Math.max(0, ...(n.content ?? []).map(bulletDepth));
+    expect(bulletDepth(deep)).toBe(5);
+    // The two beyond the fifth sit beside it, not under it.
+    expect(docToMrkdwn({ type: "doc", content: [deep] })).toBe(["• 0", "  • 1", "    • 2", "      • 3", "        • 4", "        • 5", "        • 6"].join("\n"));
+  });
+
   it("makes an empty document one empty paragraph, and a blank line an empty paragraph", () => {
     expect(mrkdwnToDoc("").content).toEqual([p()]);
     expect(mrkdwnToDoc("a\n\nb").content).toEqual([p(t("a")), p(), p(t("b"))]);

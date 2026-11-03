@@ -55,6 +55,14 @@ describe("ChatText", () => {
     expect(container.querySelector("li u strong")).toHaveTextContent("under returns");
   });
 
+  it("draws all five levels with Slack's markers, for bullets and for numbers", () => {
+    const levels = (marker: (i: number) => string) => ["x0", "x1", "x2", "x3", "x4"].map((t, i) => `${"    ".repeat(i)}${marker(i)} ${t}`).join("\n");
+    const markers = (body: string) => [...render(<ChatText body={body} ctx={ctx} />).container.querySelectorAll("li")].map((li) => li.firstElementChild!.textContent);
+    expect(markers(levels(() => "•"))).toEqual(["•", "◦", "▪", "•", "◦"]);
+    cleanup();
+    expect(markers(levels((i) => ["1.", "a.", "i.", "1.", "a."][i]))).toEqual(["1.", "a.", "i.", "1.", "a."]);
+  });
+
   it("draws <u>…</u> as underlined text, around other formatting", () => {
     const { container } = render(<ChatText body="a <u>under *bold*</u> b" ctx={ctx} />);
     const u = container.querySelector("u")!;
