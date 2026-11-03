@@ -21,19 +21,22 @@ export interface JourneyProject {
 /** Arrows between stages, by the canvas coordinates the stages sit at (JOURNEY_STAGES). */
 const EDGES: { d: string; kind: JourneyOffer | "bff" | "loop" }[] = [
   { d: "M73,250 C120,235 150,235 177,250", kind: "live" },
-  { d: "M383,250 C420,250 420,140 457,140", kind: "live" },
+  { d: "M383,250 C420,250 420,232 457,232", kind: "live" },
   { d: "M383,250 C420,250 420,360 457,360", kind: "external" },
-  { d: "M663,140 C700,140 700,250 737,250", kind: "roadmap" },
-  { d: "M663,360 C700,360 700,250 737,250", kind: "roadmap" },
-  { d: "M943,250 C980,250 1000,250 1017,250", kind: "external" },
-  { d: "M1223,250 C1260,250 1260,105 1297,105", kind: "roadmap" },
-  { d: "M1223,250 C1260,250 1260,395 1297,395", kind: "roadmap" },
-  { d: "M1503,105 C1540,105 1540,250 1577,250", kind: "roadmap" },
-  { d: "M1503,395 C1540,395 1540,250 1577,250", kind: "roadmap" },
-  { d: "M1400,189 L1400,166", kind: "loop" },
-  { d: "M1400,311 L1400,334", kind: "loop" },
+  { d: "M663,360 L737,360", kind: "roadmap" },
+  { d: "M943,360 L1017,360", kind: "external" },
+  { d: "M1223,360 L1297,360", kind: "roadmap" },
+  { d: "M1503,232 C1550,232 1550,105 1577,105", kind: "live" },
+  { d: "M1503,232 C1555,232 1555,395 1577,395", kind: "live" },
+  { d: "M1503,360 C1530,360 1530,105 1577,105", kind: "roadmap" },
+  { d: "M1503,360 C1535,360 1535,395 1577,395", kind: "roadmap" },
+  { d: "M1783,105 C1820,105 1820,250 1857,250", kind: "roadmap" },
+  { d: "M1783,395 C1820,395 1820,250 1857,250", kind: "roadmap" },
+  { d: "M2063,250 L2137,250", kind: "roadmap" },
+  { d: "M1960,189 L1960,166", kind: "loop" },
+  { d: "M1960,311 L1960,334", kind: "loop" },
   { d: "M260,111 C245,135 235,155 245,188", kind: "bff" },
-  { d: "M340,111 C400,110 460,100 500,92", kind: "bff" },
+  { d: "M340,111 C400,110 440,150 480,184", kind: "bff" },
 ];
 
 const EDGE_STYLE: Record<(typeof EDGES)[number]["kind"], { className: string; dash?: string }> = {
@@ -107,7 +110,7 @@ export default function JourneyMap({ projects }: { projects: JourneyProject[] })
                 <li
                   key={stage.id}
                   className={`absolute -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border-2 p-3 ${STAGE_STYLE[stage.offerStatus]}`}
-                  style={{ left: stage.x, top: stage.y, width: STAGE_WIDTH, height: STAGE_HEIGHT }}
+                  style={{ left: stage.x, top: stage.y, width: stage.width ?? STAGE_WIDTH, height: stage.height ?? STAGE_HEIGHT }}
                 >
                   <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-slate-500">
                     <span>{stage.step}</span>
