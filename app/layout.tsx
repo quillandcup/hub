@@ -27,6 +27,8 @@ const displayFont = Playfair_Display({
   subsets: ["latin"],
   variable: "--font-display",
   display: "swap",
+  // Headings only: preloaded on every page it is "unused" within seconds of load (Chrome warns, again on each refetch). It still loads when a heading uses it.
+  preload: false,
 });
 
 export const metadata: Metadata = {
