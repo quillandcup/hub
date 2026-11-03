@@ -140,25 +140,6 @@ export default function Composer({
   }, []);
 
   const formRef = useRef<HTMLFormElement>(null);
-  const attach = (incoming: File[], via: "picker" | "paste" | "drop" = "picker") => {
-    if (incoming.length === 0) return;
-    const tooBig = incoming.find((f) => f.size > MAX_CHAT_FILE_BYTES);
-    if (tooBig) return setError(`${tooBig.name} is over ${MAX_CHAT_FILE_BYTES / (1024 * 1024)} MB.`);
-    if (attached.length + stored.length + incoming.length > MAX_CHAT_FILES) return setError(`Attach up to ${MAX_CHAT_FILES} files at a time.`);
-    setError(null);
-    setAttached((current) => [...current, ...incoming]);
-    track("chat_files_attached", { via, count: incoming.length });
-    // With drafts on they upload now, so they are part of the draft.
-    if (saveDrafts) void stage(incoming);
-  };
-
-  // Files dropped anywhere on the conversation column, or on the thread panel this box is in.
-  const latestAttach = useRef(attach);
-  useEffect(() => {
-    latestAttach.current = attach;
-  });
-  const onDrop = useCallback((files: File[]) => latestAttach.current(files, "drop"), []);
-  const { dragging, rect } = useFileDrop(() => dropTargetIds.map((id) => document.getElementById(id)), onDrop, !sending);
   const totalBytes = attached.reduce((n, f) => n + f.size, 0);
   const totalSent = sentBytes.reduce((n, v) => n + v, 0);
   // A ring over each file being sent, or being uploaded as it was attached.
@@ -229,6 +210,27 @@ export default function Composer({
     setAttached((current) => current.filter((f) => !incoming.includes(f)));
     setStored((current) => [...current, ...views]);
   };
+
+  const attach = (incoming: File[], via: "picker" | "paste" | "drop" = "picker") => {
+    if (incoming.length === 0) return;
+    const tooBig = incoming.find((f) => f.size > MAX_CHAT_FILE_BYTES);
+    if (tooBig) return setError(`${tooBig.name} is over ${MAX_CHAT_FILE_BYTES / (1024 * 1024)} MB.`);
+    if (attached.length + stored.length + incoming.length > MAX_CHAT_FILES) return setError(`Attach up to ${MAX_CHAT_FILES} files at a time.`);
+    setError(null);
+    setAttached((current) => [...current, ...incoming]);
+    track("chat_files_attached", { via, count: incoming.length });
+    // With drafts on they upload now, so they are part of the draft.
+    if (saveDrafts) void stage(incoming);
+  };
+
+  // Files dropped anywhere on the conversation column, or on the thread panel this box is in.
+  const latestAttach = useRef(attach);
+  useEffect(() => {
+    latestAttach.current = attach;
+  });
+  const onDrop = useCallback((files: File[]) => latestAttach.current(files, "drop"), []);
+
+  const { dragging, rect } = useFileDrop(() => dropTargetIds.map((id) => document.getElementById(id)), onDrop, !sending);
 
   /** Stop an upload in progress: nothing is sent, the files stay attached and the box is editable again. */
   const cancelUpload = () => {
