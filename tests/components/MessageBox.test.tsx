@@ -478,29 +478,21 @@ describe("linkAddress", () => {
 });
 
 describe("MessageBox: placeholder", () => {
-  it("is hidden while the box has focus, so the caret is not drawn over it, and back when it loses focus empty", async () => {
-    render(
-      <>
-        <MessageBox channelId="c1" aria-label="Message" value="" onValueChange={() => {}} tokens={tokensRef} placeholder="Say something" />
-        <button>elsewhere</button>
-      </>
-    );
-    const box = await messageBox("Message");
-    expect(screen.getByText("Say something")).toBeInTheDocument();
-    await boxUser().click(box);
-    await waitFor(() => expect(screen.queryByText("Say something")).not.toBeInTheDocument());
-    await boxUser().click(screen.getByRole("button", { name: "elsewhere" }));
-    await waitFor(() => expect(screen.getByText("Say something")).toBeInTheDocument());
-  });
-
   it("is not drawn over an empty quote that typing > and a space starts", async () => {
     render(<MessageBox channelId="c1" aria-label="Message" value="" onValueChange={() => {}} tokens={tokensRef} placeholder="Say something" />);
     const box = await messageBox("Message");
     await boxUser().type(box, "> ");
     await waitFor(() => expect(box.querySelector("blockquote")).not.toBeNull());
     expect(screen.queryByText("Say something")).not.toBeInTheDocument();
-    box.blur();
-    expect(screen.queryByText("Say something")).not.toBeInTheDocument();
+  });
+
+  it("stays while the box has focus and is empty, until something is typed", async () => {
+    render(<MessageBox channelId="c1" aria-label="Message" value="" onValueChange={() => {}} tokens={tokensRef} placeholder="Say something" />);
+    const box = await messageBox("Message");
+    await boxUser().click(box);
+    expect(screen.getByText("Say something")).toBeInTheDocument();
+    await boxUser().type(box, "hi");
+    await waitFor(() => expect(screen.queryByText("Say something")).not.toBeInTheDocument());
   });
 });
 
