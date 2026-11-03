@@ -34,7 +34,9 @@ export class SupabaseResendEventRepository implements ResendEventRepository {
   constructor(private readonly db: Db) {}
 
   async record(events: NewResendEvent[]) {
-    for (const part of chunk(events, INSERT_CHUNK)) {
+    // A bulk insert gives a column that some rows leave out the value null, not its default: fill the NOT NULL ones in.
+    const rows = events.map((event) => ({ ...event, tags: event.tags ?? {}, recipients: event.recipients ?? [] }));
+    for (const part of chunk(rows, INSERT_CHUNK)) {
       must(await this.db.schema("bronze").from("resend_events").upsert(part, { onConflict: "event_id", ignoreDuplicates: true }));
     }
   }
