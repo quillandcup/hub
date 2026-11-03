@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import MentionTextarea from "@/components/chat/MentionTextarea";
+import MessageBox, { type MessageBoxHandle } from "@/components/chat/MessageBox";
 import { fromEditableText, toEditableText, type EditableText } from "@/lib/chat/render";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
@@ -38,7 +38,7 @@ export default function MessageBody({
   // What the member just saved (or deleted), shown until the server's copy catches up.
   const [saved, setSaved] = useState<{ from: string; text: string } | null>(null);
   const [deleted, setDeleted] = useState(false);
-  const boxRef = useRef<HTMLTextAreaElement | null>(null);
+  const boxRef = useRef<MessageBoxHandle | null>(null);
   // The names the box shows for a Slack-written message's mentions and links, to put back as Slack's markup on save.
   const shownTokens = useRef<EditableText["tokens"]>(new Map());
 
@@ -105,13 +105,12 @@ export default function MessageBody({
   if (mode === "edit") {
     return (
       <div className="mt-1">
-        <label className="sr-only" htmlFor={`edit-${message.id}`}>
-          Edit message
-        </label>
-        <MentionTextarea
+        <MessageBox
           id={`edit-${message.id}`}
           channelId={channelId}
-          textareaRef={boxRef}
+          boxRef={boxRef}
+          aria-label="Edit message"
+          customEmoji={ctx.customEmoji}
           tokens={shownTokens}
           autoFocus
           value={draft}

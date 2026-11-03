@@ -16,6 +16,7 @@ vi.mock("@/app/(member)/chat/actions", () => ({
 }));
 import { sendChatMessage } from "@/app/(member)/chat/actions";
 import Composer from "@/components/chat/Composer";
+import { messageBox, typeInto } from "../helpers/message-box";
 import MessageList from "@/components/chat/MessageList";
 import { emitListEvent, isPendingId, optimisticView, subscribeListEvents, type ListEvent } from "@/lib/chat/list-events";
 
@@ -52,13 +53,13 @@ describe("Composer: the message shows up before the server has finished", () => 
     vi.mocked(sendChatMessage).mockReturnValue(result.promise);
     render(<Composer channelId="c1" placeholder="Message #hosts" viewer={VIEWER} />);
 
-    await userEvent.type(screen.getByRole("textbox"), "Hello there{Enter}");
+    await typeInto(await messageBox(), "Hello there{Enter}");
 
     // The action hasn't returned, and the message is already out there, with the box empty.
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({ kind: "add", channelId: "c1", view: { body: "Hello there", authorName: "Fern Quillsby", mine: true, syncStatus: "pending" } });
     expect(isPendingId((events[0] as { view: ChatMessageView }).view.id)).toBe(true);
-    expect(screen.getByRole("textbox")).toHaveValue("");
+    expect((await messageBox()).textContent).toBe("");
     expect(refresh).not.toHaveBeenCalled();
 
     result.resolve({ ok: true, id: "real-id" });
@@ -71,28 +72,28 @@ describe("Composer: the message shows up before the server has finished", () => 
   it("takes the message away and gives the text back when the send is refused", async () => {
     vi.mocked(sendChatMessage).mockResolvedValue({ ok: false, error: "This conversation is archived." });
     render(<Composer channelId="c1" placeholder="Message #hosts" viewer={VIEWER} />);
-    await userEvent.type(screen.getByRole("textbox"), "still here{Enter}");
+    await typeInto(await messageBox(), "still here{Enter}");
 
     expect(await screen.findByRole("alert")).toHaveTextContent("archived");
     expect(events.map((e) => e.kind)).toEqual(["add", "drop"]);
-    expect(screen.getByRole("textbox")).toHaveValue("still here");
+    expect((await messageBox()).textContent).toBe("still here");
     expect(refresh).not.toHaveBeenCalled();
   });
 
   it("does the same when the action itself throws", async () => {
     vi.mocked(sendChatMessage).mockRejectedValue(new Error("network"));
     render(<Composer channelId="c1" placeholder="Message #hosts" viewer={VIEWER} />);
-    await userEvent.type(screen.getByRole("textbox"), "oops{Enter}");
+    await typeInto(await messageBox(), "oops{Enter}");
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Something went wrong");
     expect(events.map((e) => e.kind)).toEqual(["add", "drop"]);
-    expect(screen.getByRole("textbox")).toHaveValue("oops");
+    expect((await messageBox()).textContent).toBe("oops");
   });
 
   it("announces a reply with its thread, so the thread's list shows it and the conversation's doesn't", async () => {
     vi.mocked(sendChatMessage).mockResolvedValue({ ok: true, id: "reply-1" });
     render(<Composer channelId="c1" threadRootId="root" placeholder="Reply…" viewer={VIEWER} />);
-    await userEvent.type(screen.getByRole("textbox"), "thanks{Enter}");
+    await typeInto(await messageBox(), "thanks{Enter}");
 
     await waitFor(() => expect(events.map((e) => e.kind)).toEqual(["add", "swap"]));
     expect(events.every((e) => "threadRootId" in e && e.threadRootId === "root")).toBe(true);
@@ -103,7 +104,7 @@ describe("Composer: the message shows up before the server has finished", () => 
     for (const props of [{ showSent: false, viewer: VIEWER }, {}]) {
       cleanup();
       render(<Composer channelId="c1" placeholder="Message #hosts" {...props} />);
-      await userEvent.type(screen.getByRole("textbox"), "hi{Enter}");
+      await typeInto(await messageBox(), "hi{Enter}");
       await waitFor(() => expect(sendChatMessage).toHaveBeenCalled());
       vi.mocked(sendChatMessage).mockClear();
     }
@@ -114,7 +115,7 @@ describe("Composer: the message shows up before the server has finished", () => 
     const result = deferred<{ ok: true; id: string }>();
     vi.mocked(sendChatMessage).mockReturnValue(result.promise);
     render(<Composer channelId="c1" placeholder="Message #hosts" viewer={VIEWER} />);
-    await userEvent.type(screen.getByRole("textbox"), "one{Enter}two{Enter}");
+    await typeInto(await messageBox(), "one{Enter}two{Enter}");
 
     expect(sendChatMessage).toHaveBeenCalledTimes(1);
     result.resolve({ ok: true, id: "m-1" });

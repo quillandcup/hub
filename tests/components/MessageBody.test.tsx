@@ -13,6 +13,7 @@ vi.mock("@/app/(member)/chat/mention-actions", () => ({ suggestMentions: vi.fn()
 import { suggestMentions } from "@/app/(member)/chat/mention-actions";
 import { deleteChatMessage, editChatMessage } from "@/app/(member)/chat/actions";
 import MessageBody from "@/components/chat/MessageBody";
+import { messageBox, typeInto, boxUser } from "../helpers/message-box";
 import { MESSAGE_CHANGE_EVENT, onPoke, optimisticView } from "@/lib/chat/list-events";
 
 const CTX: ChatTextContext = { userNames: {}, userMembers: {}, channelIds: {}, channelNames: {}, customEmoji: {} };
@@ -69,10 +70,10 @@ describe("MessageBody", () => {
     mount();
 
     fire("edit");
-    const box = screen.getByRole("textbox", { name: "Edit message" });
-    expect(box).toHaveValue("first draft");
-    await userEvent.clear(box);
-    await userEvent.type(box, "second draft{Enter}");
+    const box = await messageBox("Edit message");
+    expect(box.textContent).toBe("first draft");
+    await boxUser().clear(box);
+    await typeInto(box, "second draft{Enter}");
 
     await waitFor(() => expect(editChatMessage).toHaveBeenCalledWith("m1", "second draft"));
     expect(await screen.findByText("second draft")).toBeInTheDocument();
@@ -91,10 +92,10 @@ describe("MessageBody", () => {
       mount(slackWritten("hi <@U1> in <#C1|general>, see <https://example.test/a|the doc> &amp; more"), true, NAMED);
 
       fire("edit");
-      const box = screen.getByRole("textbox", { name: "Edit message" });
-      expect(box).toHaveValue("hi @Ania Ray in #general, see the doc & more");
+      const box = await messageBox("Edit message");
+      expect(box.textContent).toBe("hi @Ania Ray in #general, see the doc & more");
 
-      await userEvent.type(box, " thanks{Enter}");
+      await typeInto(box, " thanks{Enter}");
       await waitFor(() =>
         expect(editChatMessage).toHaveBeenCalledWith("m1", "hi <@U1> in <#C1|general>, see <https://example.test/a|the doc> &amp; more thanks")
       );
@@ -105,10 +106,10 @@ describe("MessageBody", () => {
       vi.mocked(editChatMessage).mockResolvedValue({ ok: true });
       mount(slackWritten("hi <@U1> &amp; co"), true, NAMED);
       fire("edit");
-      const box = screen.getByRole("textbox", { name: "Edit message" });
-      await userEvent.type(box, " and @sa");
+      const box = await messageBox("Edit message");
+      await typeInto(box, " and @sa");
       await userEvent.click(await screen.findByRole("option", { name: /Sam Lee/ }));
-      await userEvent.type(box, "{Enter}");
+      await typeInto(box, "{Enter}");
       await waitFor(() => expect(editChatMessage).toHaveBeenCalledWith("m1", "hi <@U1> &amp; co and <@U2>"));
     });
 
@@ -120,7 +121,7 @@ describe("MessageBody", () => {
       expect(editChatMessage).not.toHaveBeenCalled();
 
       fire("edit");
-      await userEvent.type(screen.getByRole("textbox"), " a < b & c{Enter}");
+      await typeInto(await messageBox(), " a < b & c{Enter}");
       await waitFor(() => expect(editChatMessage).toHaveBeenCalledWith("m1", "hi <@U1> a &lt; b &amp; c"));
     });
   });
@@ -131,11 +132,11 @@ describe("MessageBody", () => {
     const named: ChatTextContext = { ...CTX, userNames: { U1: "Ania Ray" } };
     mount({ ...mine(), body: "a < b & <@U1>" }, true, named);
     fire("edit");
-    const box = screen.getByRole("textbox", { name: "Edit message" });
-    expect(box).toHaveValue("a < b & @Ania Ray");
-    await userEvent.type(box, " @sa");
+    const box = await messageBox("Edit message");
+    expect(box.textContent).toBe("a < b & @Ania Ray");
+    await typeInto(box, " @sa");
     await userEvent.click(await screen.findByRole("option", { name: /Sam Lee/ }));
-    await userEvent.type(box, "{Enter}");
+    await typeInto(box, "{Enter}");
     await waitFor(() => expect(editChatMessage).toHaveBeenCalledWith("m1", "a < b & <@U1> <@U2>"));
   });
 
@@ -143,23 +144,23 @@ describe("MessageBody", () => {
     vi.mocked(editChatMessage).mockResolvedValue({ ok: true });
     mount();
     fire("edit");
-    await userEvent.type(screen.getByRole("textbox"), "!{Enter}");
+    await typeInto(await messageBox(), "!{Enter}");
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
 
   it("cancels with Escape or Cancel, and saves nothing for unchanged or empty text", async () => {
     mount();
     fire("edit");
-    await userEvent.type(screen.getByRole("textbox"), " more{Escape}");
+    await typeInto(await messageBox(), " more{Escape}");
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     expect(screen.getByText("first draft")).toBeInTheDocument();
 
     fire("edit");
-    await userEvent.type(screen.getByRole("textbox"), "{Enter}"); // unchanged
+    await typeInto(await messageBox(), "{Enter}"); // unchanged
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
 
     fire("edit");
-    await userEvent.clear(screen.getByRole("textbox"));
+    await boxUser().clear(await messageBox());
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(editChatMessage).not.toHaveBeenCalled();
@@ -169,10 +170,10 @@ describe("MessageBody", () => {
     vi.mocked(editChatMessage).mockResolvedValue({ ok: false, error: "That message is no longer in Slack." });
     mount();
     fire("edit");
-    await userEvent.type(screen.getByRole("textbox"), "!{Enter}");
+    await typeInto(await messageBox(), "!{Enter}");
 
     expect(await screen.findByRole("alert")).toHaveTextContent("no longer in Slack");
-    expect(screen.getByRole("textbox")).toHaveValue("first draft!");
+    expect((await messageBox()).textContent).toBe("first draft!");
     expect(refresh).not.toHaveBeenCalled();
   });
 

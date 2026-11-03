@@ -14,6 +14,7 @@ vi.mock("@/app/(member)/chat/mention-actions", () => ({ suggestMentions: vi.fn()
 import { suggestMentions } from "@/app/(member)/chat/mention-actions";
 import { prepareChatUploads, retryChatMessage, sendChatMessage } from "@/app/(member)/chat/actions";
 import Composer from "@/components/chat/Composer";
+import { messageBox, typeInto, boxUser } from "../helpers/message-box";
 import RetryButton from "@/components/chat/RetryButton";
 
 beforeEach(() => {
@@ -33,11 +34,11 @@ describe("Composer", () => {
   it("sends on Enter, clears the box and refreshes the page", async () => {
     vi.mocked(sendChatMessage).mockResolvedValue({ ok: true, id: "m1" });
     render(<Composer channelId="c1" placeholder="Message #hosts" />);
-    await userEvent.type(screen.getByRole("textbox", { name: "Message #hosts" }), "Hello there{Enter}");
+    await typeInto(await messageBox("Message #hosts"), "Hello there{Enter}");
 
     await waitFor(() => expect(sendChatMessage).toHaveBeenCalledWith("c1", "Hello there", undefined, []));
     await waitFor(() => expect(refresh).toHaveBeenCalled());
-    expect(screen.getByRole("textbox")).toHaveValue("");
+    expect((await messageBox()).textContent).toBe("");
   });
 
   it("sends a picked person and channel as Slack mentions, and shows them by name while it sends", async () => {
@@ -50,12 +51,12 @@ describe("Composer", () => {
     const off = subscribeListEvents((e) => events.push(e));
     render(<Composer channelId="c1" placeholder="Message #hosts" viewer={{ memberId: "member-fern", name: "Fern", photoUrl: null }} showSent />);
 
-    const box = screen.getByRole("textbox", { name: "Message #hosts" });
-    await userEvent.type(box, "ping @ani");
+    const box = await messageBox("Message #hosts");
+    await typeInto(box, "ping @ani");
     await userEvent.click(await screen.findByRole("option", { name: /Ania Ray/ }));
-    await userEvent.type(box, "see #gen");
+    await typeInto(box, "see #gen");
     await userEvent.click(await screen.findByRole("option", { name: "#general" }));
-    await userEvent.type(box, "a < b & c{Enter}");
+    await typeInto(box, "a < b & c{Enter}");
 
     await waitFor(() => expect(sendChatMessage).toHaveBeenCalledWith("c1", "ping <@U1> see <#C1> a < b & c", undefined, []));
     expect(JSON.stringify(events)).toContain("ping <@U1|Ania Ray> see <#C1|general> a < b & c");
@@ -66,42 +67,42 @@ describe("Composer", () => {
     vi.mocked(suggestMentions).mockResolvedValue([{ label: "@Ania Ray", token: "<@U1>", photoUrl: null }]);
     vi.mocked(sendChatMessage).mockResolvedValue({ ok: false, error: "This conversation is archived." });
     render(<Composer channelId="c1" placeholder="Message #hosts" />);
-    const box = screen.getByRole("textbox");
-    await userEvent.type(box, "hi @ani");
+    const box = await messageBox();
+    await typeInto(box, "hi @ani");
     await userEvent.click(await screen.findByRole("option", { name: /Ania Ray/ }));
-    await userEvent.type(box, "there{Enter}");
+    await typeInto(box, "there{Enter}");
     expect(await screen.findByRole("alert")).toHaveTextContent("archived");
-    expect(box).toHaveValue("hi @Ania Ray there");
+    expect(box.textContent).toBe("hi @Ania Ray there");
   });
 
   it("starts a new line on Shift+Enter instead of sending", async () => {
     render(<Composer channelId="c1" placeholder="Message #hosts" />);
-    await userEvent.type(screen.getByRole("textbox"), "one{Shift>}{Enter}{/Shift}two");
+    await typeInto(await messageBox(), "one{Shift>}{Enter}{/Shift}two");
     expect(sendChatMessage).not.toHaveBeenCalled();
-    expect(screen.getByRole("textbox")).toHaveValue("one\ntwo");
+    expect((await messageBox()).innerHTML).toContain("one<br>two");
   });
 
   it("replies in a thread when given its root", async () => {
     vi.mocked(sendChatMessage).mockResolvedValue({ ok: true, id: "m2" });
     render(<Composer channelId="c1" threadRootId="root-1" placeholder="Reply…" />);
-    await userEvent.type(screen.getByRole("textbox"), "yes{Enter}");
+    await typeInto(await messageBox(), "yes{Enter}");
     await waitFor(() => expect(sendChatMessage).toHaveBeenCalledWith("c1", "yes", "root-1", []));
   });
 
   it("keeps the text and says why when the post is refused", async () => {
     vi.mocked(sendChatMessage).mockResolvedValue({ ok: false, error: "This conversation is archived." });
     render(<Composer channelId="c1" placeholder="Message #hosts" />);
-    await userEvent.type(screen.getByRole("textbox"), "still here{Enter}");
+    await typeInto(await messageBox(), "still here{Enter}");
 
     expect(await screen.findByRole("alert")).toHaveTextContent("This conversation is archived.");
-    expect(screen.getByRole("textbox")).toHaveValue("still here");
+    expect((await messageBox()).textContent).toBe("still here");
     expect(refresh).not.toHaveBeenCalled();
   });
 
   it("sends nothing for a blank message", async () => {
     render(<Composer channelId="c1" placeholder="Message #hosts" />);
     expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
-    await userEvent.type(screen.getByRole("textbox"), "   {Enter}");
+    await typeInto(await messageBox(), "   {Enter}");
     expect(sendChatMessage).not.toHaveBeenCalled();
   });
 
@@ -184,7 +185,7 @@ describe("Composer attachments", () => {
       return new Promise((r) => s.addEventListener("abort", () => r({ ok: false, reason: "aborted" })));
     });
     render(<Composer channelId="c1" placeholder="Message #hosts" />);
-    await userEvent.type(screen.getByRole("textbox"), "hi");
+    await typeInto(await messageBox(), "hi");
     await attach(cat());
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
     await userEvent.click(await screen.findByRole("button", { name: "Cancel" }));
@@ -193,7 +194,7 @@ describe("Composer attachments", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeEnabled());
     expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Preview cat.gif" })).toBeInTheDocument();
-    expect(screen.getByRole("textbox")).toHaveValue("hi");
+    expect((await messageBox()).textContent).toBe("hi");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(sendChatMessage).not.toHaveBeenCalled();
   });
@@ -285,7 +286,7 @@ describe("Composer attachments", () => {
     expect(screen.queryByRole("list", { name: "Attached files" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
 
-    screen.getByRole("textbox").focus();
+    (await messageBox()).focus();
     await userEvent.paste({ files: [new File(["png"], "shot.png", { type: "image/png" })], getData: () => "", types: ["Files"] } as unknown as DataTransfer);
     expect(screen.getByRole("button", { name: "Preview shot.png" })).toBeInTheDocument();
   });

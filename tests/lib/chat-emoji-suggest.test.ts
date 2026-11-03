@@ -35,7 +35,7 @@ describe("emojiChoices", () => {
   });
 
   it("draws a standard emoji as its Unicode, ignores case, and stops at the limit", () => {
-    expect(emojiChoices("PRAY", CATALOG, [])[0]).toEqual({ name: "pray", emoji: { text: "🙏" } });
+    expect(emojiChoices("PRAY", CATALOG, [])[0]).toEqual({ name: "pray", emoji: { text: "🙏" }, standard: true });
     const many = Array.from({ length: 20 }, (_, i) => std(`smile${i}`, "😀"));
     expect(emojiChoices("smile", many, [])).toHaveLength(MAX_EMOJI_CHOICES);
   });
