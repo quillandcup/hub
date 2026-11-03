@@ -101,6 +101,13 @@ describe("lookupFileMessageTs", () => {
 describe("sendChatFilesToSlack", () => {
   useFakeClock();
 
+  it("sends files with no text as no comment and no blocks", async () => {
+    await sendChatFilesToSlack(ctx({ body: "" }));
+    const [args] = uploadV2.mock.calls[0];
+    expect(args.initial_comment).toBeUndefined();
+    expect(args).not.toHaveProperty("blocks");
+  });
+
   it("sends a message with an underline as rich-text blocks and no comment (Slack ignores blocks when there is a comment)", async () => {
     await sendChatFilesToSlack(ctx({ body: "look <u>here</u> & <b>" }));
     const [args] = uploadV2.mock.calls[0];
