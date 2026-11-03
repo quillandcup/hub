@@ -862,6 +862,11 @@ Per-user login/access history (`access_events` table + `get_access_sessions()`, 
 
 ## Notifications
 
+### Notification link tags: custom `nk`/`nc` or standard UTM? _(Needs Decision)_
+Every Hub link in a Slack, email or push notification carries `?nk=<kind>&nc=<channel>`; the page reads them on landing, records `notification_opened` in `analytics_events` and strips them (`lib/notifications/attribution.ts`, `components/AnalyticsEvents.tsx`, `docs/ANALYTICS.md`). They are custom parameters, not UTM, and no recorded reason says why: the change that added them (#210) does not mention UTM, and nothing in the repo uses `utm_` parameters. Left as is for now. Likely reasons, none confirmed: all usage analytics is first-party (no outside tool reads these links, so UTM's reach does not help), `nk` and `nc` carry our own kind and channel ids from the registry, which have no UTM field of their own, and custom names keep notification traffic out of any Google Analytics campaign report if it ever loads inside the Hub (the marketing site sets `_ga`).
+
+Decide whether to keep them or move to `utm_source` (the channel), `utm_medium=notification` and `utm_campaign` (the kind). Worth switching only if an outside tool should understand the links. The change is small: `KIND_PARAM` and `CHANNEL_PARAM` in `lib/notifications/attribution.ts`, the reader in `AnalyticsEvents`, `docs/ANALYTICS.md` and the attribution tests. Emails and Slack messages already sent keep the old parameters, so the reader would have to accept both for a while.
+
 ### Channels, Notifications & Messaging _(v1 live: Slack, in-app (flagged), browser push (flagged), email + per-kind notification settings; more channels next)_
 One system for everything the Hub sends members, instead of each feature hand-rolling a Slack DM. Three layers (this replaces the CRM section's "Messaging Abstraction Layer" item):
 
