@@ -54,7 +54,7 @@ describe("parseInline", () => {
   });
 
   it("does not take a time like 10:30:45 for an emoji", () => {
-    expect(parseInline("at 10:30:45 sharp")).toEqual([text("at 10"), { t: "emoji", name: "30" }, text("45 sharp")]);
+    expect(parseInline("at 10:30:45 sharp")).toEqual([text("at 10:30:45 sharp")]);
   });
 });
 

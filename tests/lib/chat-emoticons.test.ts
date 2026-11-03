@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { convertEmoticonBefore } from "@/lib/chat/emoticons";
 import { applyPastedMentions, pastedNameCandidates } from "@/lib/chat/paste-mentions";
-import { parseInline, toEditableText } from "@/lib/chat/render";
+import { emojiNamesIn, parseInline, toEditableText } from "@/lib/chat/render";
 
 const names = { userNames: {}, channelNames: {} };
 
@@ -55,5 +55,17 @@ describe("pasted mentions", () => {
   it("skips ambiguous names", () => {
     const r = applyPastedMentions("@Sam Lee", [sam, { label: "@Sam Lee", token: "<@U3>" }]);
     expect(r.picked.size).toBe(0);
+  });
+});
+
+describe("addresses are not emoji shortcodes", () => {
+  it("leaves the :ab: and :cd: inside an IPv6 address or MAC alone, in messages and the edit box", () => {
+    const v6 = "fe80::ab:cd:ef and 2001:db8::ab:cd:1";
+    expect(parseInline(v6)).toEqual([{ t: "text", v: v6 }]);
+    expect(toEditableText(v6, names).text).toBe(v6);
+    expect(emojiNamesIn(v6)).toEqual([]);
+  });
+  it("still draws adjacent and spaced shortcodes", () => {
+    expect(parseInline("hi :cd: :ab::ok:").filter((n) => n.t === "emoji").length).toBe(3);
   });
 });
