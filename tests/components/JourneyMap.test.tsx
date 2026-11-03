@@ -42,10 +42,22 @@ describe("JourneyMap", () => {
     expect(stage("Self-Edit")).toHaveTextContent("Status: Revising");
     expect(stage("Developmental edit")).toHaveTextContent("Status: Developmental edit");
     expect(stage("Beta readers")).toHaveTextContent("Status: Beta readers");
+    expect(stage("Final beta read")).toHaveTextContent("Status: Final beta read");
     expect(stage("Line & copy edit")).toHaveTextContent("Status: Line & copy edit");
     expect(stage("ARC readers")).toHaveTextContent("Status: Complete");
     expect(stage("Launch")).toHaveTextContent("Status: Published");
     expect(stage("Self-Publish")).not.toHaveTextContent("Status:");
+  });
+
+  it("names The Ready Writer at Draft and spans the Self-Editing Academy over the edit and beta stages", () => {
+    render(<JourneyMap projects={[]} />);
+    const stage = (title: string) => screen.getByRole("heading", { name: new RegExp(title) }).closest("li")!;
+    expect(stage("Draft")).toHaveTextContent("The Ready Writer");
+    const academy = JOURNEY_STAGES.find((s) => s.offer === "Self-Editing Academy")!;
+    const [first, last] = [JOURNEY_STAGES.find((s) => s.id === "developmental-edit")!, JOURNEY_STAGES.find((s) => s.id === "final-beta-read")!];
+    expect(academy.x - academy.width! / 2).toBeLessThanOrEqual(first.x);
+    expect(academy.x + academy.width! / 2).toBeGreaterThanOrEqual(last.x);
+    expect(academy.y).toBeLessThan(first.y);
   });
 
   it("has no Paused section when nothing is paused", () => {

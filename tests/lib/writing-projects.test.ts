@@ -26,13 +26,15 @@ describe("PROJECT_PHASES", () => {
     expect(PROJECT_PHASES).not.toContain("finished");
   });
 
-  it("puts 'developmental_edit', 'beta_readers' and 'line_copy_edit' in that order after 'revising', and members can pick them", () => {
+  it("puts 'developmental_edit', 'beta_readers', 'line_copy_edit' and 'final_beta_read' in that order after 'revising', and members can pick them", () => {
     const at = (p: (typeof PROJECT_PHASES)[number]) => PROJECT_PHASES.indexOf(p);
     expect(at("developmental_edit")).toBe(at("revising") + 1);
     expect(at("beta_readers")).toBe(at("developmental_edit") + 1);
     expect(at("line_copy_edit")).toBe(at("beta_readers") + 1);
+    expect(at("final_beta_read")).toBe(at("line_copy_edit") + 1);
     expect(PHASE_LABELS.line_copy_edit).toBe("Line & copy edit");
-    expect(MANUALLY_SETTABLE_PHASES).toEqual(expect.arrayContaining(["developmental_edit", "beta_readers", "line_copy_edit"]));
+    expect(PHASE_LABELS.final_beta_read).toBe("Final beta read");
+    expect(MANUALLY_SETTABLE_PHASES).toEqual(expect.arrayContaining(["developmental_edit", "beta_readers", "line_copy_edit", "final_beta_read"]));
   });
 
   it("has a label for every phase", () => {

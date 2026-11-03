@@ -1702,22 +1702,30 @@ The "Name the feeling" search suggests Feeling Wheel words for common words that
 ### In-App Pipeline Visualization + Next-Stage Nudges (Needs Scoping)
 Show each member, on their own writing project, a visual of where they sit in the overall Quill & Cup pipeline (idea → draft → self-edit → feedback → publish → launch/sell) — both to make the system visible ("we have a system, and you're on it") and to nudge them toward the next stage as they approach it, which doubles as adoption/revenue for the programs at each stage as they get built.
 
-**Reference diagram:** `docs/pipeline-map.html` (open directly in a browser) is a first pass at the pipeline as a whole — stages, what's live vs. hired-out vs. still on the roadmap, and the parallel/fork points (Self-Edit Academy vs. hiring a Developmental Editor; Self-Publish vs. Query & Submit, with ARC Readers running alongside both rather than after them). It's a static reference/design source, not app code — treat it as the shape to translate into an in-app, per-project version, not something to embed as-is.
+**Reference:** the pipeline is drawn in the app as the Journey map (`components/writing/JourneyMap.tsx`, stages in `lib/writing-journey.ts`); the old static `docs/pipeline-map.html` was removed.
 
 **This is a product/business decision as much as a build, not just a tech task:** most of the pipeline stages aren't Quill & Cup programs yet (Beta Readers, Self-Publishing Course, Trad Publishing/Query Course, and arguably Line & Copy Edit) — building the in-app visualization is a relatively contained UI feature, but *nudging members toward a stage* only pays off once that stage is a real, staffed program. Sequencing (visualize the roadmap now vs. wait until each program exists) is a call for Cody/Ania, not something to default on.
 
-**How `writing_projects.phase` maps to the pipeline (resolved — see "How this maps to the app" section in `docs/pipeline-map.html` for the full reasoning):** the mapping is intentionally many-to-one, not something to fix by adding more phase values.
-- `planning`/`outlining`/`drafting` → Draft (180 Program)
-- `revising` → covers four diagram stages at once (Self-Edit Academy, Developmental Edit, Beta Readers, Line & Copy Edit) — `phase` can't and shouldn't try to distinguish these
+**How `writing_projects.phase` maps to the pipeline (resolved; see `lib/writing-journey.ts`):** each status puts a project at one stage, and a stage can have no status (the publishing fork).
+- `planning`/`outlining`/`drafting` → Draft (The Ready Writer)
+- `revising` → the Self-Editing Academy, drawn as one bar over Developmental edit, Beta readers (round 1), Line & copy edit and Beta readers (round 2). A member on the hired-pro path sits at the stage itself
+- `developmental_edit`, `beta_readers`, `line_copy_edit`, `final_beta_read` → their own stages
 - `complete` → both publishing forks (Self-Publish, Query & Submit), before either resolves
 - `published` → Launch & Sell
 - `on_hold`/`hibernating` → not pipeline positions; pause/exit flags that apply at any stage
-- **Why not split `phase` further:** `phase` answers "how far along is the manuscript" (member-set from a simple dropdown); the pipeline answers "which program or vendor are you using," which has forks (DIY vs. hired, self-publish vs. query) a linear enum can't represent without conflating progress with vendor choice. Disambiguating which node a `revising` project is actually on belongs to program-enrollment data — the `member_products` table already planned above under Kajabi Data Expansion — once it exists, not a bigger phase list.
+- **Why a status can't say which path a project is on** (the Self-Editing Academy or a hired professional; see "Journey: tell the two edit paths apart" below): `phase` answers "how far along is the manuscript" (member-set from a simple dropdown); the pipeline answers "which program or vendor are you using," which has forks (DIY vs. hired, self-publish vs. query) a linear enum can't represent without conflating progress with vendor choice. Disambiguating which node a `revising` project is actually on belongs to program-enrollment data — the `member_products` table already planned above under Kajabi Data Expansion — once it exists, not a bigger phase list.
 
 **Still needs scoping before implementation:**
 - What a "nudge" actually is — a banner on `/writing`, a Slack DM (ties into the Messaging Abstraction Layer under CRM Features), an email, or just a visual marker with no push?
-- Whether the visualization is linear per project or needs to show the same fork/parallel structure as the reference diagram (e.g. a member who hired a Developmental Editor shouldn't be nudged toward Self-Edit Academy) — likely blocked on `member_products` existing, per above
+- Whether the visualization is linear per project or needs to show the same fork/parallel structure as the Journey map (e.g. a member who hired a Developmental Editor shouldn't be nudged toward the Self-Editing Academy) — likely blocked on `member_products` existing, per above
 - How stages that don't exist yet as programs should render — greyed out/"coming soon," or hidden until built?
+
+### Journey: tell the two edit paths apart _(Needs Scheduling)_
+The Journey map (`components/writing/JourneyMap.tsx`, stages in `lib/writing-journey.ts`) draws two ways through the edit stages: the Self-Editing Academy (one bar over Developmental edit, both rounds of beta readers and Line & copy edit) and the do-it-yourself hired-professional path (each stage on its own). A project's status (`writing_projects.phase`) says how far along the manuscript is, not which path the writer is on, so two members at "Developmental edit" or "Beta readers" can be on different paths, and the map can't show it. Today only the Revising status maps to the Academy bar; every other edit status shows under the hired-pro stage of the same name.
+
+**Why deferred:** the fix is enrollment data, not more statuses. Splitting `phase` per path would mix progress with which vendor or program the member chose. The data this needs is a record of who is in which program (the planned `member_products` table, see "Kajabi Data Expansion"), and the Academy does not exist in the Hub as a course yet (see "Catch-up from imported Kajabi progress").
+
+**Where to start:** build `member_products` from `kajabi_purchases` and `kajabi_offers` (the Kajabi Data Expansion entry). Then, per project, take the path from the member's active Self-Editing Academy access (never typed, derived like trial conversion in `lib/mentorship.ts`), highlight the Academy bar or the hired-pro stages on the map from that, and let it drive next-stage nudges (a member who hired a developmental editor shouldn't be nudged toward the Academy; see "In-App Pipeline Visualization + Next-Stage Nudges"). A member with no enrollment data keeps today's behavior.
 
 ### Collaborative / Multi-Author Projects (Deferred — needs scoping)
 Some members write as part of a group — e.g. Ania is one of ~7 authors writing separate novellas set in the same shared town, with intertwining characters (a shared-universe anthology). The core writing-projects data model is single-owner only and doesn't account for this.
