@@ -17,6 +17,8 @@ export interface NotificationEmailProps {
   title?: string;
   /** Where to act on it in the Hub. */
   url?: string;
+  /** A short extra line with a link, under the explanation. */
+  note?: { text: string; url: string };
   footerLinks?: { label: string; url: string }[];
 }
 
@@ -28,6 +30,7 @@ export function NotificationEmail({
   text,
   title,
   url,
+  note,
   footerLinks,
   intro,
   buttonLabel,
@@ -41,6 +44,14 @@ export function NotificationEmail({
       <EmailHeading>{title ?? text}</EmailHeading>
 
       <EmailBody>{title && intro !== text ? `${text} ${intro}` : intro}</EmailBody>
+
+      {note && (
+        <Text style={{ fontSize: "14px", color: colors.mutedText, margin: "0 0 16px" }}>
+          <a href={note.url} style={{ color: colors.accent }}>
+            {note.text}
+          </a>
+        </Text>
+      )}
 
       {url && (
         <>

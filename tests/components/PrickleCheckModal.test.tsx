@@ -9,6 +9,8 @@ import {
   EMPTY_CHECKIN,
   ENERGY_QUESTION,
   INTENTION_MET_QUESTION,
+  NO_GOAL_TIP,
+  NO_GOAL_TIP_PATH,
   PLEASANTNESS_QUESTION,
 } from "@/lib/prickle-checkins";
 
@@ -31,6 +33,7 @@ function data(overrides: Partial<CheckModalData> = {}): CheckModalData {
     prickleTitle: TITLE,
     entryDate: "2026-10-05",
     hasStarted: true,
+    hasGoals: true,
     checkin: null,
     canEdit: true,
     join: null,
@@ -134,6 +137,24 @@ describe("PrickleCheckModal check-out", () => {
     const words = screen.getByLabelText(NOVEL_QUESTION);
     expect(words).toHaveAttribute("type", "number");
     expect(screen.getByLabelText(/How many scenes did you write on Memoir/)).toBeInTheDocument();
+  });
+
+  it("tells a member with no goals to set one next time, linking to their projects", async () => {
+    vi.mocked(getCheckModalData).mockResolvedValue(data({ hasGoals: false }));
+    renderModal("checkout");
+    const tip = await screen.findByRole("link", { name: NO_GOAL_TIP });
+    expect(tip).toHaveAttribute("href", NO_GOAL_TIP_PATH);
+  });
+
+  it("has no tip for a member with goals, or on the check-in", async () => {
+    renderModal("checkout");
+    await screen.findByRole("group", { name: INTENTION_MET_QUESTION });
+    expect(screen.queryByRole("link", { name: NO_GOAL_TIP })).not.toBeInTheDocument();
+
+    vi.mocked(getCheckModalData).mockResolvedValue(data({ hasGoals: false }));
+    renderModal("checkin");
+    await screen.findByLabelText(/My intention/);
+    expect(screen.queryByRole("link", { name: NO_GOAL_TIP })).not.toBeInTheDocument();
   });
 
   it("saves the check-out answers, then logs only the amounts that were filled in", async () => {

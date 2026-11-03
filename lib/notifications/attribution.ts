@@ -79,6 +79,7 @@ export function attributeMessage(message: OutboundMessage, appUrl: string, attri
     text: attributeText(message.text, appUrl, attribution),
     ...(message.url ? { url: withAttribution(message.url, appUrl, attribution) } : {}),
     ...(message.slackBlocks ? { slackBlocks: attributeValue(message.slackBlocks, appUrl, attribution) } : {}),
+    ...(message.note ? { note: { ...message.note, url: withAttribution(message.note.url, appUrl, attribution) } } : {}),
     ...(message.footerLinks
       ? { footerLinks: message.footerLinks.map((l) => ({ ...l, url: withAttribution(l.url, appUrl, attribution) })) }
       : {}),

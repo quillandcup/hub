@@ -9,6 +9,14 @@
  * tests/lib/prickle-checkins.test.ts fails if they drift). Why these questions: docs/CHECKINS.md.
  */
 
+/**
+ * What a check-out says to a member with no writing goal, wherever it is shown (the Slack message,
+ * the email, the web check-out): short enough for one line on a phone, and plain that it is for
+ * next time. It links to their projects, where goals are set.
+ */
+export const NO_GOAL_TIP = "💡 Next time: set a goal to log progress here";
+export const NO_GOAL_TIP_PATH = "/projects";
+
 /** A labeled point on a 1-5 scale. Every point is labeled: that's what makes the answers comparable. */
 export interface ScalePoint {
   value: number;

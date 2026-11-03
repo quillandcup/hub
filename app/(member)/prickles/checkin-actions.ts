@@ -76,6 +76,8 @@ export interface CheckModalData {
   /** The prickle's local date, for the progress entries the check-out logs. */
   entryDate: string;
   hasStarted: boolean;
+  /** Whether the member has an active writing goal; without one the check-out shows a tip to set one. */
+  hasGoals: boolean;
   checkin: CheckinInput | null;
   /** False in sudo: an admin sees the answers but nothing is saved on the member's behalf. */
   canEdit: boolean;
@@ -141,6 +143,7 @@ export async function getCheckModalData(prickleId: string): Promise<CheckModalDa
     prickleTitle,
     entryDate: localDateOf(prickle.startTime, timeZone),
     hasStarted: new Date(prickle.startTime).getTime() <= Date.now(),
+    hasGoals: goalRows.some((g) => g.project_id !== null),
     checkin,
     canEdit: !identity.isSudo,
     join: joinAt(await loadPrickleJoinSettings(createRepos(supabase)), prickle.startTime),

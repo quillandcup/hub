@@ -55,6 +55,17 @@ describe("notification email templates", () => {
     expect(text).not.toContain("<");
   });
 
+  it("shows the note as a link under the explanation, in both versions", async () => {
+    const note = { text: "Next time: set a goal", url: `${APP_URL}/projects` };
+    const { html, text } = await renderNotificationEmail("prickle_checkout", { text: "Checking out", url, note });
+
+    expect(html).toContain(`href="${note.url}"`);
+    expect(html).toContain(note.text);
+    expect(text).toContain(note.text);
+    const without = await renderNotificationEmail("prickle_checkout", { text: "Checking out", url });
+    expect(without.html).not.toContain(note.text);
+  });
+
   it("uses the title as the subject and heading and keeps the text as the body", async () => {
     const { subject, html } = await renderNotificationEmail("intro_nudge", {
       title: "Say hello in #start-here",

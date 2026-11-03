@@ -96,6 +96,11 @@ describe("attributeMessage", () => {
     ]);
   });
 
+  it("tags the note's link", () => {
+    const out = attributeMessage({ text: "x", note: { text: "Next time", url: `${APP}/projects` } }, APP, TAG);
+    expect(out.note).toEqual({ text: "Next time", url: tagged("/projects") });
+  });
+
   it("changes nothing on a message without links, and does not change the original", () => {
     const message = { text: "Hello" };
     expect(attributeMessage(message, APP, TAG)).toEqual({ text: "Hello" });
