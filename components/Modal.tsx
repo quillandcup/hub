@@ -8,6 +8,8 @@ interface ModalProps {
   title: string;
   children: ReactNode;
   maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '5xl';
+  /** Nearly the whole screen, with the content filling it (a diagram or canvas that wants the room). */
+  fill?: boolean;
 }
 
 const maxWidthClasses = {
@@ -29,6 +31,7 @@ export default function Modal({
   title,
   children,
   maxWidth = '2xl',
+  fill = false,
 }: ModalProps) {
   const titleId = useId();
 
@@ -52,11 +55,13 @@ export default function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`bg-white dark:bg-slate-900 rounded-lg shadow-xl ${maxWidthClasses[maxWidth]} w-full max-h-[80vh] overflow-hidden`}
+        className={`bg-white dark:bg-slate-900 rounded-lg shadow-xl w-full overflow-hidden ${
+          fill ? "flex h-[94vh] max-w-[96vw] flex-col" : `${maxWidthClasses[maxWidth]} max-h-[80vh]`
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-6 border-b border-slate-200 dark:border-slate-800">
+        <div className={`${fill ? "px-4 py-3" : "p-6"} border-b border-slate-200 dark:border-slate-800`}>
           <div className="flex items-center justify-between gap-4">
             <h3 id={titleId} className="text-xl font-bold flex-1 truncate">{title}</h3>
             <button
@@ -71,7 +76,7 @@ export default function Modal({
         </div>
 
         {/* Content */}
-        <div className="p-6 overflow-y-auto max-h-[calc(80vh-88px)]">
+        <div className={fill ? "min-h-0 flex-1 p-3" : "p-6 overflow-y-auto max-h-[calc(80vh-88px)]"}>
           {children}
         </div>
       </div>
