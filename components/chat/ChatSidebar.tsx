@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { authenticateRealtime } from "@/lib/chat/live";
 import { loadUnreadCounts, type ChannelSummary } from "@/lib/chat/load";
@@ -18,6 +18,8 @@ const MAX_UNREAD_PREFETCH = 5;
 
 /** How long deletes in a conversation are batched before its count is re-read. */
 const DELETE_RECOUNT_MS = 300;
+/** How long after a message in a conversation the list lacks before the list is fetched again (a burst is one fetch). */
+const NEW_CONVERSATION_REFRESH_MS = 500;
 
 /**
  * One conversation in the list. The default link prefetch stops at the loading skeleton (the page is
@@ -259,11 +261,14 @@ function useUnreadCounts(
   }
 
   // Read through refs so the subscription is not rebuilt on every navigation.
+  const router = useRouter();
   const active = useRef(activeId);
   const joined = useRef(new Set<string>());
+  const known = useRef(new Set<string>());
   useEffect(() => {
     active.current = activeId;
     joined.current = new Set(channels.filter((c) => c.joined && !c.archived).map((c) => c.id));
+    known.current = new Set(channels.map((c) => c.id));
   });
 
   useEffect(() => {
@@ -273,6 +278,16 @@ function useUnreadCounts(
     let subscription: ReturnType<typeof supabase.channel> | null = null;
     const stale = new Set<string>();
     let timer: ReturnType<typeof setTimeout> | null = null;
+    // A conversation the list doesn't have yet (a Slack DM that has just come in, a new channel): the layout
+    // doesn't re-run on client navigation, so ask the server for the list again, once per conversation.
+    const asked = new Set<string>();
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    const listNeedsRefresh = (channelId: string) => {
+      if (known.current.has(channelId) || asked.has(channelId)) return;
+      asked.add(channelId);
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => router.refresh(), NEW_CONVERSATION_REFRESH_MS);
+    };
     void (async () => {
       await authenticateRealtime(supabase);
       if (cancelled) return;
@@ -280,7 +295,9 @@ function useUnreadCounts(
         .channel("chat:unread")
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, (payload) => {
           const row = payload.new as { channel_id: string; thread_root_id: string | null; author_member_id: string | null; deleted_at: string | null };
-          if (row.thread_root_id || row.deleted_at || row.author_member_id === selfMemberId) return;
+          if (row.deleted_at) return;
+          listNeedsRefresh(row.channel_id);
+          if (row.thread_root_id || row.author_member_id === selfMemberId) return;
           if (row.channel_id === active.current || !joined.current.has(row.channel_id)) return;
           setCounts((c) => ({ ...c, [row.channel_id]: Math.min((c[row.channel_id] ?? 0) + 1, 100) }));
         })
@@ -312,9 +329,10 @@ function useUnreadCounts(
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
+      if (refreshTimer) clearTimeout(refreshTimer);
       if (subscription) void supabase.removeChannel(subscription);
     };
-  }, [selfMemberId]);
+  }, [selfMemberId, router]);
 
   // Catch up with what the member read in Slack when they open chat and whenever they come back to
   // this window (from Slack, say). The server answers with fresh counts, or nothing when the member
