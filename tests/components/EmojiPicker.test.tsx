@@ -55,6 +55,17 @@ describe("EmojiPicker", () => {
     expect(screen.getByText(/No emoji match/)).toBeInTheDocument();
   });
 
+  it("scrolls a tab's section to the top of the grid, whatever the grid's own offset", async () => {
+    await open();
+    const grid = screen.getByRole("group", { name: "Food" }).closest("div.overflow-y-auto") as HTMLElement;
+    const section = grid.querySelector('[data-section="food"]') as HTMLElement;
+    grid.scrollTop = 40;
+    grid.getBoundingClientRect = () => ({ top: 100 }) as DOMRect;
+    section.getBoundingClientRect = () => ({ top: 400 }) as DOMRect;
+    await userEvent.click(screen.getByRole("tab", { name: "Food" }));
+    await vi.waitFor(() => expect(grid.scrollTop).toBe(340));
+  });
+
   it("does not scroll when the picker is gone before the next frame", async () => {
     const frames: FrameRequestCallback[] = [];
     const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => frames.push(cb));
