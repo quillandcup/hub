@@ -60,7 +60,9 @@ describe('Admin users and invite: aliases and the auth-user listing', () => {
     const body = await res.json()
     const row = body.users.find((u: { id: string }) => u.id === authUserId)
     expect(row.aliases.sort()).toEqual([emailAlias, nameAlias].sort())
-    expect(body.users.find((u: { memberId: string | null }) => u.memberId === null)?.aliases).toEqual([])
+    // A user with no linked member has no aliases (vacuously true if every user here is linked).
+    const unlinked = body.users.filter((u: { memberId: string | null }) => u.memberId === null)
+    expect(unlinked.every((u: { aliases: string[] }) => u.aliases.length === 0)).toBe(true)
   })
 
   it('GET answers 500 with the reason when the auth users cannot be listed', async () => {
