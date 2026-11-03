@@ -119,7 +119,7 @@ function renderBlock(block: Block, i: number, ctx: ChatTextContext): ReactNode {
       );
     case "quote":
       return (
-        <blockquote key={i} className="my-1 border-l-4 border-slate-300 dark:border-slate-600 pl-3 text-slate-600 dark:text-slate-400">
+        <blockquote key={i} className="my-1 border-l-4 border-slate-500 pl-3 text-slate-600 dark:text-slate-400">
           {renderInline(block.c, ctx)}
         </blockquote>
       );
