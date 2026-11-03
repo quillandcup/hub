@@ -414,7 +414,7 @@ async function toggleChatReactionImpl(messageId: string, emoji: string): Promise
 }
 
 /** The author sends one of their own failed messages to Slack again. */
-export async function retryChatMessage(messageId: string): Promise<SendChatResult> {
+async function retryChatMessageImpl(messageId: string): Promise<SendChatResult> {
   if (!isId(messageId, "msg")) return { ok: false, error: "Something went wrong." };
   const caller = await postingCaller();
   if (!caller) return { ok: false, error: "Posting isn't available to you yet." };
@@ -531,4 +531,8 @@ export async function deleteChatMessage(...args: Parameters<typeof deleteChatMes
 
 export async function deleteChatFile(...args: Parameters<typeof deleteChatFileImpl>): ReturnType<typeof deleteChatFileImpl> {
   return withAction("chat_file_deleted", () => deleteChatFileImpl(...args));
+}
+
+export async function retryChatMessage(...args: Parameters<typeof retryChatMessageImpl>): ReturnType<typeof retryChatMessageImpl> {
+  return withAction("chat_message_retried", () => retryChatMessageImpl(...args));
 }
