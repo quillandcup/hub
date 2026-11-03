@@ -23,6 +23,7 @@ import { InMemoryEventRepository, SupabaseEventRepository, type EventRepository 
 import { InMemoryWritingRepository, SupabaseWritingRepository, type WritingRepository } from "./writing";
 import { InMemoryPrickleScheduleRepository, SupabasePrickleScheduleRepository, type PrickleScheduleRepository } from "./prickle-schedules";
 import { InMemoryProgramRepository, SupabaseProgramRepository, type ProgramRepository } from "./programs";
+import { InMemoryResendEventRepository, SupabaseResendEventRepository, type ResendEventRepository } from "./resend";
 import { InMemoryZoomRepository, SupabaseZoomRepository, type ZoomRepository } from "./zoom";
 import { InMemoryHubSessionRepository, SupabaseHubSessionRepository, type HubSessionRepository } from "./hub-sessions";
 import { InMemoryMediaRepository, SupabaseMediaRepository, type MediaRepository } from "./media";
@@ -78,6 +79,7 @@ export interface Repos {
   unmatchedEvents: UnmatchedEventRepository;
   media: MediaRepository;
   zoom: ZoomRepository;
+  resendEvents: ResendEventRepository;
   programs: ProgramRepository;
   chat: ChatRepository;
   chatDrafts: ChatDraftRepository;
@@ -132,6 +134,7 @@ export function createRepos(db: Db): Repos {
     unmatchedEvents: new SupabaseUnmatchedEventRepository(db),
     media: new SupabaseMediaRepository(db),
     zoom: new SupabaseZoomRepository(db),
+    resendEvents: new SupabaseResendEventRepository(db),
     programs: new SupabaseProgramRepository(db),
     chat: new SupabaseChatRepository(db),
     chatDrafts: new SupabaseChatDraftRepository(db),
@@ -187,6 +190,7 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     unmatchedEvents: new InMemoryUnmatchedEventRepository(dataset),
     media: new InMemoryMediaRepository(dataset),
     zoom: new InMemoryZoomRepository(dataset),
+    resendEvents: new InMemoryResendEventRepository(dataset),
     programs: new InMemoryProgramRepository(dataset),
     chat: new InMemoryChatRepository(dataset),
     chatDrafts: new InMemoryChatDraftRepository(dataset),

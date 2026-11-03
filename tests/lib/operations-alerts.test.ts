@@ -181,3 +181,23 @@ describe("production operations alerts", () => {
     expect(postMessage.mock.calls[0][0].text).toContain("failed to play in a member's browser.");
   });
 });
+
+describe("slack_blocks_refused alert", () => {
+  it("names where it happened, says what to look for, and leaves a message id out of the Slack post", async () => {
+    const { repos, hit } = allowing();
+    await sendOperationsAlert(repos, { type: "slack_blocks_refused", where: "edit" });
+    expect(hit).toHaveBeenCalledWith("operations_alert:slack_blocks_refused:edit", 600, 1);
+    const [{ text }] = postMessage.mock.calls[0];
+    expect(text).toContain("chat message edit");
+    expect(text).toContain("chat_blocks_refused=edit");
+    expect(text).not.toMatch(/msg_/);
+  });
+
+  it("is rate limited separately for a post, an edit and an upload", async () => {
+    const repos = createInMemoryRepos();
+    await sendOperationsAlert(repos, { type: "slack_blocks_refused", where: "post" });
+    await sendOperationsAlert(repos, { type: "slack_blocks_refused", where: "post" });
+    await sendOperationsAlert(repos, { type: "slack_blocks_refused", where: "upload" });
+    expect(postMessage).toHaveBeenCalledTimes(2);
+  });
+});

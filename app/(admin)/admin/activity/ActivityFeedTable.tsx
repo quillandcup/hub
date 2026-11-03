@@ -11,6 +11,7 @@ import {
   actorDisplay,
   changedFields,
   describeRow,
+  emailLinkOf,
   reactionName,
   feedSearch,
   formatValue,
@@ -88,7 +89,7 @@ function hasDetail(row: ActivityFeedRow) {
   return (
     (row.kind === "audit" && changedFields(row.data).length > 0) ||
     (row.kind === "session" && Array.isArray(row.data?.pages) && row.data.pages.length > 0) ||
-    (row.kind === "activity" && !!row.description)
+    (row.kind === "activity" && (!!row.description || !!emailLinkOf(row.data)))
   );
 }
 
@@ -170,6 +171,19 @@ export default function ActivityFeedTable({
                         {row.kind === "activity" && row.description && (
                           <p className="mt-2 text-sm text-slate-600 dark:text-slate-400 whitespace-pre-wrap">
                             {row.description}
+                          </p>
+                        )}
+                        {row.kind === "activity" && emailLinkOf(row.data) && (
+                          <p className="mt-2 text-sm">
+                            <a
+                              href={emailLinkOf(row.data)!}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              data-track="activity-email-open-in-resend"
+                              className="text-plum-600 dark:text-plum-400 hover:underline"
+                            >
+                              Read this email at Resend
+                            </a>
                           </p>
                         )}
                       </details>

@@ -4,6 +4,8 @@ import { createRepos } from "@/lib/data/repos";
 import type { Db } from "@/lib/data/db";
 import { chatSlackWritesEnabled, escapeForSlack, hubMessageMetadata } from "@/lib/chat/slack-post";
 import { bodyToBlocks, isInvalidBlocks, needsBlocks, stripUnderline } from "@/lib/chat/rich-blocks";
+import { reportRefusedBlocks } from "@/lib/chat/blocks-refused";
+import { uploadedFileIds } from "@/lib/chat/slack-upload";
 import { getSlackUserToken, isDeadTokenError } from "@/lib/slack-connect";
 
 /**
@@ -15,7 +17,7 @@ import { getSlackUserToken, isDeadTokenError } from "@/lib/slack-connect";
  * never says something Slack doesn't.
  */
 
-export type SlackWriteResult = { ok: true } | { ok: false; error: string };
+export type SlackWriteResult = { ok: true; fileIds?: string[] } | { ok: false; error: string };
 
 /**
  * Which token may change this message, or why none can: null `token` with no error means the
@@ -52,11 +54,11 @@ const slackError = (error: unknown): string | undefined => (error as { data?: { 
 /** Replace the text of one of the member's Hub messages in Slack (nothing to do for one that never got there). */
 export async function updateChatMessageInSlack(
   supabase: SupabaseClient,
-  opts: { messageId: string; memberId: string; body: string }
+  opts: { messageId: string; memberId: string; body: string; addFiles?: { existingIds: string[]; uploads: { file: Buffer; filename: string }[] } }
 ): Promise<SlackWriteResult> {
   const writer = await writerFor(supabase, opts.messageId, opts.memberId, "edited");
   if (!writer.ok) return writer;
-  if (!writer.slack) return { ok: true };
+  if (!writer.slack) return opts.addFiles?.uploads.length ? { ok: false, error: "This message isn't in Slack yet, so files can't be added." } : { ok: true };
   const { token, channel, ts, native } = writer.slack;
   try {
     // A message written in the Hub is plain text we escape and tag as ours. One written in Slack is Slack's own
@@ -64,12 +66,20 @@ export async function updateChatMessageInSlack(
     // goes as rich-text blocks (its text, minus the underline, is the fallback); any other update sends no blocks, which
     // drops the old rich-text blocks, so the new text is what shows (and a removed underline or list is gone).
     const client = new WebClient(token);
+    // New files are uploaded as the member without sharing them anywhere (no channel_id), then attached by the edit:
+    // chat.update's file_ids lists the message's files, so the ones it already has are named again beside the new ones.
+    let fileIds: string[] | undefined;
+    if (opts.addFiles?.uploads.length) {
+      fileIds = uploadedFileIds(await client.filesUploadV2({ file_uploads: opts.addFiles.uploads }));
+      if (fileIds.length !== opts.addFiles.uploads.length) return { ok: false, error: "Slack didn't take the files. Try again in a moment." };
+    }
+    const withFiles = fileIds ? { file_ids: [...opts.addFiles!.existingIds, ...fileIds] } : {};
     const update = (withBlocks: boolean) => {
       const blocks = withBlocks ? bodyToBlocks(opts.body, { plain: !native }) : [];
       return client.chat.update(
         native
-          ? { channel, ts, text: stripUnderline(opts.body), blocks }
-          : { channel, ts, text: escapeForSlack(stripUnderline(opts.body)), blocks, metadata: hubMessageMetadata(opts.messageId) }
+          ? { channel, ts, text: stripUnderline(opts.body), blocks, ...withFiles }
+          : { channel, ts, text: escapeForSlack(stripUnderline(opts.body)), blocks, metadata: hubMessageMetadata(opts.messageId), ...withFiles }
       );
     };
     const withBlocks = needsBlocks(opts.body);
@@ -80,9 +90,10 @@ export async function updateChatMessageInSlack(
       // Slack refusing the blocks must not lose the edit: it goes as plain text instead.
       if (!withBlocks || !isInvalidBlocks(error)) throw error;
       console.error("updateChatMessageInSlack: Slack refused the blocks for message %s, sending the edit as text", opts.messageId);
+      await reportRefusedBlocks(createRepos(supabase as unknown as Db), "edit", opts.messageId, error);
       result = await update(false);
     }
-    return result.ok ? { ok: true } : { ok: false, error: "Slack didn't take the edit. Try again in a moment." };
+    return result.ok ? { ok: true, ...(fileIds ? { fileIds } : {}) } : { ok: false, error: "Slack didn't take the edit. Try again in a moment." };
   } catch (error) {
     if (isDeadTokenError(error)) {
       await supabase.rpc("slack_connection_revoke", { p_member: opts.memberId });

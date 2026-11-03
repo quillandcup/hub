@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-const { update, remove, config, getSlackUserToken } = vi.hoisted(() => ({
+const { reportRefused } = vi.hoisted(() => ({ reportRefused: vi.fn() }));
+vi.mock("@/lib/chat/blocks-refused", () => ({ reportRefusedBlocks: (...args: unknown[]) => reportRefused(...args) }));
+const { update, remove, upload, config, getSlackUserToken } = vi.hoisted(() => ({
+  upload: vi.fn(),
   update: vi.fn(),
   remove: vi.fn(),
   config: { isProduction: true },
@@ -8,7 +11,7 @@ const { update, remove, config, getSlackUserToken } = vi.hoisted(() => ({
 }));
 vi.mock("@slack/web-api", () => ({
   WebClient: vi.fn(function (token?: string) {
-    return { files: { delete: (a: unknown) => remove(a, token) }, chat: { update: (a: unknown) => update(a, token), delete: (a: unknown) => remove(a, token) } };
+    return { files: { delete: (a: unknown) => remove(a, token) }, filesUploadV2: (a: unknown) => upload(a, token), chat: { update: (a: unknown) => update(a, token), delete: (a: unknown) => remove(a, token) } };
   }),
 }));
 vi.mock("@/lib/config", async (original) => ({
@@ -64,6 +67,7 @@ beforeEach(() => {
   getSlackUserToken.mockReset();
   getSlackUserToken.mockResolvedValue({ token: "xoxp-fern", slackUserId: "U_FERN" });
   update.mockReset();
+  upload.mockReset();
   update.mockResolvedValue({ ok: true });
   remove.mockReset();
   remove.mockResolvedValue({ ok: true });
@@ -115,6 +119,7 @@ describe("updateChatMessageInSlack", () => {
 
   it("sends an edited message with a list as rich-text blocks, and falls back to its text when Slack refuses them", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
+    reportRefused.mockClear();
     await updateChatMessageInSlack(service, { ...EDIT, body: "1. one\n2. two" });
     expect(update.mock.calls[0][0].blocks[0].elements[0]).toMatchObject({ type: "rich_text_list", style: "ordered" });
     expect(update.mock.calls[0][0].text).toBe("1. one\n2. two");
@@ -125,12 +130,14 @@ describe("updateChatMessageInSlack", () => {
     await expect(updateChatMessageInSlack(service, { ...EDIT, body: "• a" })).resolves.toEqual({ ok: true });
     expect(update).toHaveBeenCalledTimes(2);
     expect(update.mock.calls[1][0]).toMatchObject({ text: "• a", blocks: [] });
+    expect(reportRefused).toHaveBeenCalledWith(expect.anything(), "edit", "m1", { data: { error: "invalid_blocks" } });
 
     // Plain text has nothing to fall back from.
     update.mockReset();
     update.mockRejectedValueOnce({ data: { error: "invalid_blocks" } });
     await expect(updateChatMessageInSlack(service, EDIT)).resolves.toMatchObject({ ok: false });
     expect(update).toHaveBeenCalledTimes(1);
+    expect(reportRefused).toHaveBeenCalledTimes(1);
   });
 
   it("sends a Slack-written message with an underline as rich-text blocks read from its Slack text (escapes and all)", async () => {
@@ -208,6 +215,32 @@ describe("updateChatMessageInSlack", () => {
     await expect(updateChatMessageInSlack(service, EDIT)).resolves.toMatchObject({ ok: false, error: expect.stringContaining("any more") });
     update.mockRejectedValueOnce(new Error("offline"));
     await expect(updateChatMessageInSlack(service, EDIT)).resolves.toMatchObject({ ok: false, error: expect.stringContaining("Try again") });
+  });
+});
+
+describe("updateChatMessageInSlack with files", () => {
+  const buf = Buffer.from("x");
+  it("uploads the new files as the member without sharing them, then edits with the old file ids and the new ones", async () => {
+    upload.mockResolvedValue({ ok: true, files: [{ ok: true, files: [{ id: "FNEW" }] }] });
+    const result = await updateChatMessageInSlack(service, { ...EDIT, addFiles: { existingIds: ["FOLD"], uploads: [{ file: buf, filename: "a.png" }] } });
+    expect(result).toEqual({ ok: true, fileIds: ["FNEW"] });
+    expect(upload).toHaveBeenCalledWith({ file_uploads: [{ file: buf, filename: "a.png" }] }, "xoxp-fern");
+    expect(upload.mock.calls[0][0]).not.toHaveProperty("channel_id");
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ file_ids: ["FOLD", "FNEW"] }), "xoxp-fern");
+  });
+
+  it("changes nothing in Slack when it gives back fewer files than were uploaded, or when the message never reached Slack", async () => {
+    upload.mockResolvedValue({ ok: true, files: [] });
+    expect(await updateChatMessageInSlack(service, { ...EDIT, addFiles: { existingIds: [], uploads: [{ file: buf, filename: "a.png" }] } })).toMatchObject({ ok: false });
+    expect(update).not.toHaveBeenCalled();
+    row = { ...ROW, slack_ts: null };
+    expect(await updateChatMessageInSlack(service, { ...EDIT, addFiles: { existingIds: [], uploads: [{ file: buf, filename: "a.png" }] } })).toMatchObject({ ok: false });
+  });
+
+  it("sends no file_ids when no files were added", async () => {
+    await updateChatMessageInSlack(service, EDIT);
+    expect(update.mock.calls[0][0]).not.toHaveProperty("file_ids");
+    expect(upload).not.toHaveBeenCalled();
   });
 });
 

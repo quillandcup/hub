@@ -118,6 +118,11 @@ export default async function PrivacyPage() {
           </thead>
           <tbody className="align-top">
             <CollectRow
+              what="The emails we send you"
+              detail="When each email was sent, whether it arrived or bounced, and whether it was opened or a link in it clicked. Our email provider reports this to us. The email itself stays with the provider."
+              why="So staff can see what you have received when you write to us, and fix delivery problems."
+            />
+            <CollectRow
               what="Your account and what you do in it"
               detail="Your profile, projects, goals, check-ins, commitments, sign-ins, and the notifications we sent you."
               why="To run the Hub, and so your seat is kept warm through different seasons of life."

@@ -7,6 +7,7 @@ import {
   actorName,
   changedFields,
   describeRow,
+  emailLinkOf,
   MEMBER_DEFAULTS,
   feedSearch,
   fetchActivityFeed,
@@ -134,6 +135,24 @@ describe("member defaults", () => {
   it("leaves the central log's defaults alone", () => {
     expect(parseFeedFilters({}).view).toBe("audit");
     expect(feedSearch(parseFeedFilters({ view: "all" }))).toBe("?view=all");
+  });
+});
+
+describe("emailLinkOf", () => {
+  it("returns the Resend address of an email activity", () => {
+    expect(emailLinkOf({ resend_url: "https://resend.com/emails/4ef9a417-02e9-4d39-ad75-9611e0fcc33c" })).toBe(
+      "https://resend.com/emails/4ef9a417-02e9-4d39-ad75-9611e0fcc33c",
+    );
+  });
+
+  it("returns nothing for any other address, so stored data can't send an admin elsewhere", () => {
+    expect(emailLinkOf({ resend_url: "https://evil.example.com/emails/abc" })).toBeNull();
+    expect(emailLinkOf({ resend_url: "https://resend.com.evil.example/emails/abc" })).toBeNull();
+    expect(emailLinkOf({ resend_url: "javascript:alert(1)" })).toBeNull();
+    expect(emailLinkOf({ resend_url: "https://resend.com/emails/abc/../../x" })).toBeNull();
+    expect(emailLinkOf({ resend_url: 5 })).toBeNull();
+    expect(emailLinkOf({})).toBeNull();
+    expect(emailLinkOf(null)).toBeNull();
   });
 });
 

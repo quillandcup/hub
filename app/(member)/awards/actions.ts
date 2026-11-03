@@ -114,7 +114,7 @@ async function addAwardImpl(input: AwardInput): Promise<{ success: true } | { er
   return { success: true };
 }
 
-export async function updateAward(
+async function updateAwardImpl(
   awardId: string,
   input: AwardInput
 ): Promise<{ success: true } | { error: string }> {
@@ -138,7 +138,7 @@ export async function updateAward(
   return { success: true };
 }
 
-export async function deleteAward(awardId: string): Promise<{ success: true } | { error: string }> {
+async function deleteAwardImpl(awardId: string): Promise<{ success: true } | { error: string }> {
   const ctx = await requireIdentity();
   if ("error" in ctx) return ctx;
   const { supabase } = ctx;
@@ -158,4 +158,12 @@ export async function deleteAward(awardId: string): Promise<{ success: true } | 
 // Usage analytics: each action records whether it worked (lib/analytics/server.ts).
 export async function addAward(...args: Parameters<typeof addAwardImpl>): ReturnType<typeof addAwardImpl> {
   return withAction("award_added", () => addAwardImpl(...args));
+}
+
+export async function updateAward(...args: Parameters<typeof updateAwardImpl>): ReturnType<typeof updateAwardImpl> {
+  return withAction("award_edited", () => updateAwardImpl(...args));
+}
+
+export async function deleteAward(...args: Parameters<typeof deleteAwardImpl>): ReturnType<typeof deleteAwardImpl> {
+  return withAction("award_deleted", () => deleteAwardImpl(...args));
 }

@@ -51,7 +51,7 @@ async function setLessonCompleteImpl(lessonId: string, complete: boolean): Promi
  * scoped to that staff member's own member id, which comes from the session, not the request.
  * Members can't do this to themselves: their watch history is append-only.
  */
-export async function clearMyLessonProgress(lessonId: string): Promise<{ error?: string; segments?: number }> {
+async function clearMyLessonProgressImpl(lessonId: string): Promise<{ error?: string; segments?: number }> {
   const auth = await requireAdminAction();
   if (!auth.ok) return { error: auth.error };
   if (!isId(lessonId, "les")) return { error: "Lesson not found" };
@@ -87,4 +87,8 @@ export async function clearMyLessonProgress(lessonId: string): Promise<{ error?:
 // Usage analytics: each action records whether it worked (lib/analytics/server.ts).
 export async function setLessonComplete(...args: Parameters<typeof setLessonCompleteImpl>): ReturnType<typeof setLessonCompleteImpl> {
   return withAction("lesson_completion_saved", () => setLessonCompleteImpl(...args));
+}
+
+export async function clearMyLessonProgress(...args: Parameters<typeof clearMyLessonProgressImpl>): ReturnType<typeof clearMyLessonProgressImpl> {
+  return withAction("lesson_progress_cleared", () => clearMyLessonProgressImpl(...args));
 }

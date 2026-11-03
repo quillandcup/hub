@@ -33,6 +33,10 @@
       "schedule": "30 3 * * *"
     },
     {
+      "path": "/api/reconcile/email",
+      "schedule": "45 3 * * *"
+    },
+    {
       "path": "/api/reconcile/retention",
       "schedule": "0 4 * * *"
     }

@@ -45,6 +45,7 @@ export const emailChannel: ChannelAdapter = {
       subject,
       html,
       text,
+      tags: { kind, member: memberId },
       headers: {
         "List-Unsubscribe": `<${oneClickUnsubscribeUrl(token)}>`,
         "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",

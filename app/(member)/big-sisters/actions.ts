@@ -55,7 +55,7 @@ async function setBigSisterAvailabilityImpl(available: boolean, note?: string): 
  * set_mentorship_note, which only lets the match's big sister (or an admin) write the note, and
  * only the note. Read-only in sudo.
  */
-export async function saveReasonNote(mentorshipId: string, note: string): Promise<Result> {
+async function saveReasonNoteImpl(mentorshipId: string, note: string): Promise<Result> {
   const user = await getCurrentUser();
   if (!user) return { error: "Not signed in" };
   const identity = await getEffectiveIdentity(user);
@@ -80,4 +80,8 @@ export async function saveReasonNote(mentorshipId: string, note: string): Promis
 // Usage analytics: each action records whether it worked (lib/analytics/server.ts).
 export async function setBigSisterAvailability(...args: Parameters<typeof setBigSisterAvailabilityImpl>): ReturnType<typeof setBigSisterAvailabilityImpl> {
   return withAction("big_sister_availability_set", () => setBigSisterAvailabilityImpl(...args));
+}
+
+export async function saveReasonNote(...args: Parameters<typeof saveReasonNoteImpl>): ReturnType<typeof saveReasonNoteImpl> {
+  return withAction("big_sister_note_saved", () => saveReasonNoteImpl(...args));
 }

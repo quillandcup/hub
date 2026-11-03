@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PanZoomCanvas from "@/components/PanZoomCanvas";
 import {
   JOURNEY_BFF,
   JOURNEY_CANVAS,
@@ -61,11 +62,10 @@ export default function JourneyMap({ projects }: { projects: JourneyProject[] })
   return (
     <div className="space-y-4">
       <p className="text-sm text-slate-600 dark:text-slate-400">
-        The stages a book goes through at Quill &amp; Cup, and what we offer at each. Your projects sit at the stage their status puts them. Scroll sideways to follow the road.
+        The stages a book goes through at Quill &amp; Cup, and what we offer at each. Your projects sit at the stage their status puts them. Drag to move around, and pinch or use + and − to zoom.
       </p>
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-amber-50/60 dark:bg-slate-900/60">
-        <div className="relative" style={{ width, height }}>
+      <PanZoomCanvas width={width} height={height}>
           <svg className="absolute inset-0" width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
             <defs>
               <marker id="journey-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -132,8 +132,7 @@ export default function JourneyMap({ projects }: { projects: JourneyProject[] })
               );
             })}
           </ol>
-        </div>
-      </div>
+      </PanZoomCanvas>
 
       <ul className="flex flex-wrap gap-4 text-xs text-slate-600 dark:text-slate-400">
         <li>Solid: live at Quill &amp; Cup</li>

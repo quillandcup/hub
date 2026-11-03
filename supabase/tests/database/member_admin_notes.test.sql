@@ -1,4 +1,4 @@
--- pgTAP tests for 20270428000100_member_admin_notes.sql:
+-- pgTAP tests for 20270428000300_member_admin_notes.sql:
 --   * an admin writes, reads and soft deletes staff notes; the id has the mnote_ prefix;
 --   * a member, even the one the note is about, sees none, can't write or change one;
 --   * a signed-out visitor can't read the table at all;

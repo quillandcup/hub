@@ -134,7 +134,8 @@ management).
 - https://app.checklyhq.com/settings/user/api-keys
 
 ### Resend
-- https://resend.com/api-keys
+- https://resend.com/api-keys (the key needs full access: the nightly email import lists sent emails)
+- `RESEND_WEBHOOK_SECRET`: https://resend.com/webhooks -> the webhook posting to `/api/webhooks/resend` -> signing secret. Rotating it: Resend accepts both secrets' signatures for a while, but this route checks only the one it has, so sync the new value (`pnpm env:sync --only=RESEND_WEBHOOK_SECRET`) right after rotating.
 
 ### Self-generated secrets (no external dashboard)
 `SUDO_SECRET`, `CRON_SECRET`, `CRON_INTERNAL_SECRET` aren't tied to any provider -- just

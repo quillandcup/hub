@@ -65,6 +65,13 @@ export const CRON_HEARTBEATS = {
     envVar: "CHECKLY_HEARTBEAT_RECONCILE_LOGINS",
     ...daily,
   },
+  "reconcile-email": {
+    name: "Cron: Resend email events (daily 03:45 UTC)",
+    path: "/api/reconcile/email",
+    scheduler: "vercel",
+    envVar: "CHECKLY_HEARTBEAT_RECONCILE_EMAIL",
+    ...daily,
+  },
   "reconcile-retention": {
     name: "Cron: raw network details retention (daily 04:00 UTC)",
     path: "/api/reconcile/retention",
