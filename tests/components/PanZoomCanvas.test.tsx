@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import PanZoomCanvas from "@/components/PanZoomCanvas";
 
 const transform = () => screen.getByTestId("pan-zoom-content").style.transform;
@@ -76,5 +76,29 @@ describe("PanZoomCanvas", () => {
     expect(parse().scale).toBeGreaterThan(1);
     fireEvent.pointerUp(surface, { pointerId: 1 });
     fireEvent.pointerUp(surface, { pointerId: 2 });
+  });
+
+  it("has no expand button unless given a title", () => {
+    renderCanvas();
+    expect(screen.queryByRole("button", { name: "Open larger" })).toBeNull();
+  });
+
+  it("opens the same canvas in an overlay that closes with Escape or the close button", () => {
+    render(
+      <PanZoomCanvas width={1000} height={500} expandTitle="Journey">
+        <a href="/somewhere">Stage link</a>
+      </PanZoomCanvas>
+    );
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Open larger" }));
+    const dialog = screen.getByRole("dialog", { name: "Journey" });
+    expect(within(dialog).getByRole("link", { name: "Stage link" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Zoom in" })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Open larger" })).toBeNull(); // no overlay inside the overlay
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Open larger" }));
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });

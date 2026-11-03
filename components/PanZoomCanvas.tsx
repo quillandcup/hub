@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import Modal from "@/components/Modal";
 import { fitView, zoomAt, type PanZoomView } from "@/lib/pan-zoom";
 
 const DRAG_THRESHOLD = 4;
@@ -15,13 +16,17 @@ export default function PanZoomCanvas({
   width,
   height,
   className = "h-[28rem]",
+  expandTitle,
   children,
 }: {
   width: number;
   height: number;
   className?: string;
+  /** Adds an expand button that opens the same canvas in a near-full-screen overlay with this title. */
+  expandTitle?: string;
   children: ReactNode;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const container = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<PanZoomView>({ scale: 1, x: 0, y: 0 });
   const pointers = useRef(new Map<number, { x: number; y: number }>());
@@ -128,6 +133,11 @@ export default function PanZoomCanvas({
         </div>
       </div>
       <div className="absolute bottom-3 right-3 flex gap-2">
+        {expandTitle && (
+          <button type="button" onClick={() => setExpanded(true)} aria-label="Open larger" className="h-9 w-9 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-lg leading-none">
+            ⤢
+          </button>
+        )}
         <button type="button" onClick={fit} aria-label="Fit to screen" className="h-9 w-9 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-lg leading-none">
           ⛶
         </button>
@@ -140,6 +150,13 @@ export default function PanZoomCanvas({
           </button>
         </div>
       </div>
+      {expandTitle && (
+        <Modal isOpen={expanded} onClose={() => setExpanded(false)} title={expandTitle} fill>
+          <PanZoomCanvas width={width} height={height} className="h-full">
+            {children}
+          </PanZoomCanvas>
+        </Modal>
+      )}
     </div>
   );
 }

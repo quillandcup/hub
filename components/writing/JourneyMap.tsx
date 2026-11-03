@@ -65,7 +65,7 @@ export default function JourneyMap({ projects }: { projects: JourneyProject[] })
         The stages a book goes through at Quill &amp; Cup, and what we offer at each. Your projects sit at the stage their status puts them. Drag to move around, and pinch or use + and − to zoom.
       </p>
 
-      <PanZoomCanvas width={width} height={height}>
+      <PanZoomCanvas width={width} height={height} expandTitle="Journey">
           <svg className="absolute inset-0" width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
             <defs>
               <marker id="journey-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">

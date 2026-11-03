@@ -1729,6 +1729,10 @@ On payment failure, notify the member (a `payment_failed` notification kind via 
 Full roadmap: `docs/superpowers/specs/writing-projects-tracking.md`. Core single-author flow (log progress against a project/goal, prickle-linked nudges, streak/chart stats) is scoped there phase-by-phase.
 
 
+### Journey tab: use the full page width _(Needs Scheduling)_
+
+The Journey tab (My Writing, behind the `writing_journey` flag) shows its diagram inside the tab container, which is `max-w-3xl` for every My Writing tab, so on a laptop it opens fitted at about 0.57x. Deferred: an "Open larger" overlay (`PanZoomCanvas` `expandTitle`, `Modal` `fill`) covers it for now. Worth doing if members rarely open the overlay: let only this tab break out of the container (`app/(member)/projects/ProjectsPage.tsx`, the `Tabs` `className`), keeping the tab bar aligned with the other tabs.
+
 ### Soft-delete the rest of the member-written tables _(Decided 2026-10-31: independent records only)_
 
 Members' deletes of writing goals, progress entries, books and awards soft delete (`deleted_at`; see "Members' own business resources soft delete too" in `CLAUDE.md`). **Decided: the rule is independent records only**, with settings and in-place edits overwriting. So three member deletes stay row `DELETE`s on purpose:
