@@ -83,4 +83,17 @@ describe("GET /api/admin/feedback", () => {
     expect(res.status).toBe(500);
     expect(await res.json()).toEqual({ error: "Failed to load feedback" });
   });
+
+  it("narrows to one member's feedback when asked by a member id", async () => {
+    const res = await GET(new NextRequest(`http://localhost/api/admin/feedback?member=${ADA}`));
+    const { items, total } = await res.json();
+    expect(items.map((i: { id: string }) => i.id)).toEqual(["f1"]);
+    expect(total).toBe(1);
+  });
+
+  it("ignores a member parameter that is not a member id, and shows everyone's", async () => {
+    const res = await GET(new NextRequest("http://localhost/api/admin/feedback?member=not-an-id"));
+    const { items } = await res.json();
+    expect(items.map((i: { id: string }) => i.id)).toEqual(["f1", "f2", "f3"]);
+  });
 });

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isId } from "@/lib/ids";
 import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 
@@ -16,10 +17,13 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const page = Math.max(0, parseInt(searchParams.get("page") || "0", 10) || 0);
   const status = searchParams.get("status");
+  // One member's feedback (the Activity Log links here), by their readable id.
+  const member = searchParams.get("member");
+  const memberId = member && isId(member, "mbr") ? member : undefined;
 
   let result: Awaited<ReturnType<ReturnType<typeof createRepos>["adminWork"]["feedbackPage"]>>;
   try {
-    result = await createRepos(supabase).adminWork.feedbackPage({ status: status || undefined, page, pageSize: PAGE_SIZE });
+    result = await createRepos(supabase).adminWork.feedbackPage({ status: status || undefined, memberId, page, pageSize: PAGE_SIZE });
   } catch (error) {
     console.error("Failed to load feedback:", error);
     return NextResponse.json({ error: "Failed to load feedback" }, { status: 500 });

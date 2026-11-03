@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { activityLink } from "@/lib/activity-links";
 import ReactionEmoji from "@/components/ReactionEmoji";
 import type { ReactionEmojiValue } from "@/lib/slack-reaction-emoji";
 import { DataTablePager } from "@/components/DataTablePager";
@@ -82,6 +83,20 @@ function Summary({ row }: { row: ActivityFeedRow }) {
   return (
     <>
       Reacted <ReactionEmoji name={name} emoji={row.data?.reaction_emoji as ReactionEmojiValue | undefined} />
+    </>
+  );
+}
+
+/** A link to the row's source (the prickle, the member, the feedback) when it has a page. */
+function SourceLink({ row }: { row: ActivityFeedRow }) {
+  const link = activityLink(row);
+  if (!link) return null;
+  return (
+    <>
+      {" "}
+      <Link href={link.href} data-track="activity-open-source" className="whitespace-nowrap text-plum-600 hover:underline dark:text-plum-400">
+        {link.label} →
+      </Link>
     </>
   );
 }
@@ -170,6 +185,7 @@ export default function ActivityFeedTable({
                     {row.kind === "note" ? (
                       <NoteEntry row={row} controls={noteControls} />
                     ) : hasDetail(row) ? (
+                      <>
                       <details>
                         <summary className="cursor-pointer"><Summary row={row} /></summary>
                         {row.kind === "audit" && <ChangeTable row={row} />}
@@ -193,8 +209,13 @@ export default function ActivityFeedTable({
                           </p>
                         )}
                       </details>
+                      <SourceLink row={row} />
+                      </>
                     ) : (
-                      <Summary row={row} />
+                      <>
+                        <Summary row={row} />
+                        <SourceLink row={row} />
+                      </>
                     )}
                   </td>
                   {!hideAbout && (

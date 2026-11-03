@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { getMemberDisplayName } from "@/lib/member-display-name";
 
 import { useCallback, useEffect, useState } from "react";
@@ -44,7 +46,7 @@ const STATUS_COLORS: Record<Status, string> = {
   wontfix: "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300",
 };
 
-export default function FeedbackClient() {
+export default function FeedbackClient({ memberId }: { memberId?: string }) {
   const [items, setItems] = useState<FeedbackItem[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -60,6 +62,7 @@ export default function FeedbackClient() {
     try {
       const params = new URLSearchParams({ page: String(page) });
       if (statusFilter) params.set("status", statusFilter);
+      if (memberId) params.set("member", memberId);
       const res = await fetch(`/api/admin/feedback?${params}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load feedback");
@@ -70,7 +73,7 @@ export default function FeedbackClient() {
     } finally {
       setLoading(false);
     }
-  }, [page, statusFilter]);
+  }, [page, statusFilter, memberId]);
 
   useEffect(() => {
     load();
@@ -113,6 +116,20 @@ export default function FeedbackClient() {
           Bugs, data issues, and ideas submitted from the feedback widget
         </p>
       </div>
+
+      {memberId && (
+        <p className="mb-3 text-sm text-slate-600 dark:text-slate-400">
+          Showing one member&apos;s feedback.{" "}
+          <Link href="/admin/feedback" className="text-plum-600 hover:underline dark:text-plum-400">
+            Show everyone&apos;s
+          </Link>{" "}
+          or{" "}
+          <Link href={`/admin/members/${memberId}`} className="text-plum-600 hover:underline dark:text-plum-400">
+            open the member
+          </Link>
+          .
+        </p>
+      )}
 
       <div className="mb-4 flex gap-2">
         {(["", "new", "acknowledged", "resolved", "wontfix"] as const).map((s) => (

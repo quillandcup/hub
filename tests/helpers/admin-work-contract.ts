@@ -127,6 +127,17 @@ export function defineAdminWorkContract(name: string, setup: () => AdminWorkCont
         expect(pageOfOne.total).toBeGreaterThanOrEqual(1);
       });
 
+      it("pages one member's feedback only, and counts only theirs", async () => {
+        await submit(1, { member: ada });
+        await submit(2, { member: bo });
+        await submit(3, { member: ada });
+
+        const adas = await ctx.repo().feedbackPage({ memberId: id(ada), page: 0, pageSize: 100 });
+        expect(adas.rows.filter((r) => r.message.endsWith(ctx.run)).map((r) => r.message)).toEqual([`Feedback 3 ${ctx.run}`, `Feedback 1 ${ctx.run}`]);
+        expect(adas.rows.every((r) => r.member_id === id(ada))).toBe(true);
+        expect(adas.total).toBe(adas.rows.length);
+      });
+
       it("changes a submission's status and notes, and ignores one that is not there", async () => {
         const saved = await submit(1);
         await ctx.repo().updateFeedback(saved.id, { status: "acknowledged" });

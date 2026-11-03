@@ -1162,6 +1162,10 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 ## UI Enhancements
 
+### Activity Log: link more of the sources _(Needs Scheduling)_
+
+The Activity Log links a check-in, check-out or attendance to its prickle, an audited change to a member to that member, and a feedback entry to that member's feedback (`lib/activity-links.ts`; the feed function gives activity rows an `entity_type`/`entity_id`, migration `20270503000000`). Still without a link: Slack messages and reactions (needs the Slack permalink: the workspace address is config, and restricted channels should not link), lesson completions (the admin lesson page needs the course id as well as the lesson id), writing progress, commitments and course sources. Feedback goes to the member's filtered list and not to the one item on purpose: a feedback id is a uuid (Tier 2, `CLAUDE.md`, "Resource ID Tiers") and an admin page URL counts as exposed; elevating `feedback` to a readable prefix would allow a direct link. Where to start: add the case to `activityLink`, and the source to the `CASE` in `get_activity_feed`'s activity rows.
+
 ### Retire the per-user feature checkboxes on Users, and the `/admin/segments` redirect _(Needs Scheduling)_
 
 Segments became the Previews page (`/admin/previews`), which also turns a flag on or off per person (`PATCH /api/admin/users/[id]` with `features`). The Users page still edits the same previews in its row editor, on purpose, for a transition period. Once Previews is the habit, drop the Feature Flags column and checkboxes from `app/(admin)/admin/users/UsersClient.tsx`, and delete the redirect at `app/(admin)/admin/segments/page.tsx` (plus its `EXCLUDED` line in `tests/lib/site-pages.test.ts`) when no old links remain. Also open: the Previews page lists people from `/api/admin/users`, which loads every account; if that gets slow, give Previews its own search endpoint.
