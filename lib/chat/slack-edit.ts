@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createRepos } from "@/lib/data/repos";
 import type { Db } from "@/lib/data/db";
 import { chatSlackWritesEnabled, escapeForSlack, hubMessageMetadata } from "@/lib/chat/slack-post";
-import { bodyToBlocks, hasUnderline, stripUnderline } from "@/lib/chat/rich-blocks";
+import { bodyToBlocks, isInvalidBlocks, needsBlocks, stripUnderline } from "@/lib/chat/rich-blocks";
 import { getSlackUserToken, isDeadTokenError } from "@/lib/slack-connect";
 
 /**
@@ -60,16 +60,28 @@ export async function updateChatMessageInSlack(
   const { token, channel, ts, native } = writer.slack;
   try {
     // A message written in the Hub is plain text we escape and tag as ours. One written in Slack is Slack's own
-    // mrkdwn (the member edits that text), sent as it is. An underline has no mrkdwn, so a message that has one goes as
-    // rich-text blocks (its text, without the underline, is the fallback); any other update sends no blocks, which
-    // drops the old rich-text blocks, so the new text is what shows (and a removed underline is gone).
-    const underlined = hasUnderline(opts.body);
-    const blocks = underlined ? bodyToBlocks(opts.body, { plain: !native }) : [];
-    const result = await new WebClient(token).chat.update(
-      native
-        ? { channel, ts, text: stripUnderline(opts.body), blocks }
-        : { channel, ts, text: escapeForSlack(stripUnderline(opts.body)), blocks, metadata: hubMessageMetadata(opts.messageId) }
-    );
+    // mrkdwn (the member edits that text), sent as it is. An underline or a list has no mrkdwn, so a message that has one
+    // goes as rich-text blocks (its text, minus the underline, is the fallback); any other update sends no blocks, which
+    // drops the old rich-text blocks, so the new text is what shows (and a removed underline or list is gone).
+    const client = new WebClient(token);
+    const update = (withBlocks: boolean) => {
+      const blocks = withBlocks ? bodyToBlocks(opts.body, { plain: !native }) : [];
+      return client.chat.update(
+        native
+          ? { channel, ts, text: stripUnderline(opts.body), blocks }
+          : { channel, ts, text: escapeForSlack(stripUnderline(opts.body)), blocks, metadata: hubMessageMetadata(opts.messageId) }
+      );
+    };
+    const withBlocks = needsBlocks(opts.body);
+    let result: Awaited<ReturnType<typeof update>>;
+    try {
+      result = await update(withBlocks);
+    } catch (error) {
+      // Slack refusing the blocks must not lose the edit: it goes as plain text instead.
+      if (!withBlocks || !isInvalidBlocks(error)) throw error;
+      console.error("updateChatMessageInSlack: Slack refused the blocks for message %s, sending the edit as text", opts.messageId);
+      result = await update(false);
+    }
     return result.ok ? { ok: true } : { ok: false, error: "Slack didn't take the edit. Try again in a moment." };
   } catch (error) {
     if (isDeadTokenError(error)) {

@@ -148,6 +148,38 @@ describe("sendChatMessageToSlack", () => {
     ]);
   });
 
+  it("posts a message with a list as rich-text blocks too (bullets and numbers, nested), with its text as the fallback", async () => {
+    dataset.chatMessageContents![0].body = "Steps:\n1. first\n  • nested\n2. second";
+    await sendChatMessageToSlack(supabase as never, ID);
+    const [args] = postMessage.mock.calls[0];
+    expect(args.text).toBe("Steps:\n1. first\n  • nested\n2. second");
+    expect(args.blocks[0].elements.map((e: { type: string; style?: string; indent?: number }) => [e.type, e.style, e.indent])).toEqual([
+      ["rich_text_section", undefined, undefined],
+      ["rich_text_list", "ordered", 0],
+      ["rich_text_list", "bullet", 1],
+      ["rich_text_list", "ordered", 0],
+    ]);
+  });
+
+  it("sends the message as plain text when Slack refuses the blocks, instead of failing it; other errors still fail it", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    dataset.chatMessageContents![0].body = "• a\n• b";
+    postMessage.mockRejectedValueOnce({ data: { error: "invalid_blocks" } });
+    await expect(sendChatMessageToSlack(supabase as never, ID)).resolves.toBe("sent");
+    expect(postMessage).toHaveBeenCalledTimes(2);
+    expect(postMessage.mock.calls[0][0]).toHaveProperty("blocks");
+    expect(postMessage.mock.calls[1][0]).not.toHaveProperty("blocks");
+    expect(postMessage.mock.calls[1][0].text).toBe("• a\n• b");
+
+    // A message with no blocks has nothing to fall back from.
+    postMessage.mockReset();
+    stateOf(ID)!.slack_sync_status = "pending";
+    dataset.chatMessageContents![0].body = "plain";
+    postMessage.mockRejectedValueOnce({ data: { error: "invalid_blocks" } });
+    await expect(sendChatMessageToSlack(supabase as never, ID)).resolves.toBe("failed");
+    expect(postMessage).toHaveBeenCalledTimes(1);
+  });
+
   it("sends no blocks for a message without an underline", async () => {
     await sendChatMessageToSlack(supabase as never, ID);
     expect(postMessage.mock.calls[0][0]).not.toHaveProperty("blocks");

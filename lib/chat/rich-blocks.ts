@@ -31,6 +31,16 @@ const UNDERLINE = /<u>[^\n]+?<\/u>/;
 /** Whether a body has an underline in it. */
 export const hasUnderline = (body: string): boolean => UNDERLINE.test(body);
 
+/**
+ * Whether a body says something Slack's mrkdwn can't: an underline, or a list. (A `•` or `1.` line in a post's text is just
+ * text to Slack, not a list, and a nested one even less so.) Such a message is sent as rich-text blocks, with its text as the
+ * fallback; every other message goes as plain mrkdwn as before.
+ */
+export const needsBlocks = (body: string): boolean => hasUnderline(body) || parseSlackText(body).some((b) => b.t === "bullet");
+
+/** Whether Slack refused the blocks themselves, in which case the message is sent again as plain text rather than lost. */
+export const isInvalidBlocks = (error: unknown): boolean => (error as { data?: { error?: string } } | null)?.data?.error === "invalid_blocks";
+
 /** The body without its underline markers (the text to post as the fallback). */
 export const stripUnderline = (body: string): string => body.replace(/<\/?u>/g, "");
 

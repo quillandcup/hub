@@ -113,6 +113,26 @@ describe("updateChatMessageInSlack", () => {
     );
   });
 
+  it("sends an edited message with a list as rich-text blocks, and falls back to its text when Slack refuses them", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await updateChatMessageInSlack(service, { ...EDIT, body: "1. one\n2. two" });
+    expect(update.mock.calls[0][0].blocks[0].elements[0]).toMatchObject({ type: "rich_text_list", style: "ordered" });
+    expect(update.mock.calls[0][0].text).toBe("1. one\n2. two");
+
+    update.mockReset();
+    update.mockResolvedValue({ ok: true });
+    update.mockRejectedValueOnce({ data: { error: "invalid_blocks" } });
+    await expect(updateChatMessageInSlack(service, { ...EDIT, body: "• a" })).resolves.toEqual({ ok: true });
+    expect(update).toHaveBeenCalledTimes(2);
+    expect(update.mock.calls[1][0]).toMatchObject({ text: "• a", blocks: [] });
+
+    // Plain text has nothing to fall back from.
+    update.mockReset();
+    update.mockRejectedValueOnce({ data: { error: "invalid_blocks" } });
+    await expect(updateChatMessageInSlack(service, EDIT)).resolves.toMatchObject({ ok: false });
+    expect(update).toHaveBeenCalledTimes(1);
+  });
+
   it("sends a Slack-written message with an underline as rich-text blocks read from its Slack text (escapes and all)", async () => {
     row = { ...ROW, origin: "slack", posted_via: null };
     await updateChatMessageInSlack(service, { ...EDIT, body: "a &lt; b <u>u</u> <@U1>" });
