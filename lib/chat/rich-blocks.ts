@@ -20,9 +20,10 @@ type Leaf =
   | { type: "broadcast"; range: string; style?: Style }
   | { type: "emoji"; name: string };
 type Section = { type: "rich_text_section"; elements: Leaf[] };
+type ListElement = { type: "rich_text_list"; style: "bullet" | "ordered"; indent: number; offset?: number; elements: Section[] };
 export type RichTextBlock = {
   type: "rich_text";
-  elements: (Section | { type: "rich_text_list"; style: "bullet" | "ordered"; indent: number; elements: Section[] } | { type: "rich_text_quote"; elements: Leaf[] } | { type: "rich_text_preformatted"; elements: Leaf[] })[];
+  elements: (Section | ListElement | { type: "rich_text_quote"; elements: Leaf[] } | { type: "rich_text_preformatted"; elements: Leaf[] })[];
 };
 
 const UNDERLINE = /<u>[^\n]+?<\/u>/;
@@ -85,9 +86,18 @@ function toBlocks(blocks: Block[]): RichTextBlock {
       }
       elements.push({ type: "rich_text_section", elements: section });
     } else if (b.t === "bullet") {
-      const items: Section[] = [];
-      for (; i < blocks.length && blocks[i].t === "bullet"; i++) items.push({ type: "rich_text_section", elements: leaves((blocks[i] as Extract<Block, { t: "bullet" }>).c) });
-      elements.push({ type: "rich_text_list", style: "bullet", indent: 0, elements: items });
+      // Slack's lists are flat: one `rich_text_list` for each run of items with the same style and depth (a nested list is the
+      // next element, with a deeper `indent`), and a numbered one that picks up again says how many items came before (`offset`).
+      let current: ListElement | null = null;
+      for (; i < blocks.length && blocks[i].t === "bullet"; i++) {
+        const item = blocks[i] as Extract<Block, { t: "bullet" }>;
+        const style = item.n === undefined ? "bullet" : "ordered";
+        if (!current || current.style !== style || current.indent !== item.indent) {
+          current = { type: "rich_text_list", style, indent: item.indent, ...(item.n && item.n > 1 ? { offset: item.n - 1 } : {}), elements: [] };
+          elements.push(current);
+        }
+        current.elements.push({ type: "rich_text_section", elements: leaves(item.c) });
+      }
     } else if (b.t === "quote") {
       const quoted: Leaf[] = [];
       for (; i < blocks.length && blocks[i].t === "quote"; i++) {

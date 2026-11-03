@@ -157,6 +157,42 @@ const paragraph = (line: string, lookup?: EmojiLookup): RichNode => {
   return content.length ? { type: "paragraph", content } : { type: "paragraph" };
 };
 
+/** A list line: how far it is indented, the number of an ordered item (a `•`, `◦` or `▪` for a bullet) and its text. */
+const LIST_LINE = /^(\s*)(?:[•◦▪]|(\d+)\.) (.*)$/;
+
+type ListItem = { ordered: boolean; start: number; text: string; kids: ListItem[] };
+
+/**
+ * A run of list lines as nested lists: an item is inside the one above it when it is indented further (by however many
+ * spaces: ours are two, Slack's four), and neighbours of the same kind are one list. A numbered list starts at its first number.
+ */
+function listsFrom(run: string[], lookup?: EmojiLookup): RichNode[] {
+  const roots: ListItem[] = [];
+  const stack: { width: number; item: ListItem }[] = [];
+  for (const line of run) {
+    const [, indent, number, body] = LIST_LINE.exec(line)!;
+    const item: ListItem = { ordered: number !== undefined, start: number === undefined ? 1 : Number(number), text: body, kids: [] };
+    while (stack.length && stack[stack.length - 1].width >= indent.length) stack.pop();
+    (stack.length ? stack[stack.length - 1].item.kids : roots).push(item);
+    stack.push({ width: indent.length, item });
+  }
+  const emit = (items: ListItem[]): RichNode[] => {
+    const out: RichNode[] = [];
+    for (let k = 0; k < items.length; ) {
+      const { ordered, start } = items[k];
+      const group: ListItem[] = [];
+      while (k < items.length && items[k].ordered === ordered) group.push(items[k++]);
+      out.push({
+        type: ordered ? "orderedList" : "bulletList",
+        ...(ordered && start !== 1 ? { attrs: { start } } : {}),
+        content: group.map((it) => ({ type: "listItem", content: [paragraph(it.text, lookup), ...emit(it.kids)] })),
+      });
+    }
+    return out;
+  };
+  return emit(roots);
+}
+
 /** Text as the editor's document: fences, `> ` lines, `• ` and `1. ` lines, then the inline markers. A `:name:` becomes an emoji only when `lookup` knows it. */
 export function mrkdwnToDoc(source: string, lookup?: EmojiLookup): RichNode {
   const lines = source.split("\n");
@@ -185,10 +221,11 @@ export function mrkdwnToDoc(source: string, lookup?: EmojiLookup): RichNode {
     };
     if (/^> ?/.test(line)) {
       content.push({ type: "blockquote", content: group(/^> ?/).map((l) => paragraph(l, lookup)) });
-    } else if (/^\s*[•◦▪] /.test(line)) {
-      content.push({ type: "bulletList", content: group(/^\s*[•◦▪] /).map((l) => ({ type: "listItem", content: [paragraph(l, lookup)] })) });
-    } else if (/^\s*\d+\. /.test(line)) {
-      content.push({ type: "orderedList", content: group(/^\s*\d+\. /).map((l) => ({ type: "listItem", content: [paragraph(l, lookup)] })) });
+    } else if (LIST_LINE.test(line)) {
+      // A run of list lines, bullets and numbers mixed, nested by how far each is indented.
+      const run: string[] = [];
+      while (i < lines.length && LIST_LINE.test(lines[i])) run.push(lines[i++]);
+      content.push(...listsFrom(run, lookup));
     } else {
       content.push(paragraph(line, lookup));
       i++;

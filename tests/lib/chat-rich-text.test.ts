@@ -104,6 +104,18 @@ describe("mrkdwnToDoc", () => {
     expect(mrkdwnToDoc("```oops").content).toEqual([p(t("```oops"))]);
   });
 
+  it("nests list items by how far they are indented (two spaces or Slack's four), mixing bullets and numbers, and starts a number list where it says", () => {
+    const parsed = mrkdwnToDoc("1. a\n    • b\n    • c\n        1. d\n2. e\n• f\n3. g").content!;
+    expect(parsed.map((n) => n.type)).toEqual(["orderedList", "bulletList", "orderedList"]);
+    const first = parsed[0].content!;
+    expect(first).toHaveLength(2);
+    expect(first[0].content!.map((n) => n.type)).toEqual(["paragraph", "bulletList"]);
+    const inner = first[0].content![1].content!;
+    expect(inner).toHaveLength(2);
+    expect(inner[1].content!.map((n) => n.type)).toEqual(["paragraph", "orderedList"]);
+    expect(parsed[2].attrs).toEqual({ start: 3 });
+  });
+
   it("makes an empty document one empty paragraph, and a blank line an empty paragraph", () => {
     expect(mrkdwnToDoc("").content).toEqual([p()]);
     expect(mrkdwnToDoc("a\n\nb").content).toEqual([p(t("a")), p(), p(t("b"))]);
@@ -118,6 +130,7 @@ describe("round trip", () => {
     "plain <u>under line</u> and <u>_both_</u> and <u>*<https://x.test|link>*</u>",
     "> quoted line\n> another",
     "• one\n• two\n1. first\n2. second",
+    "1. an <u>underline</u>\n2. <u>continued</u> until now\n  • no underline\n  • <u>under returns</u>\n    1. deeper *bold*\n3. what\n• after",
     "```\nlet a = 1\nlet b = 2\n```",
     "line one\n\nline three :hedgie:",
     "a < b & c > d — nothing here is markup",

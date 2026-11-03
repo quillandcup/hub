@@ -37,6 +37,24 @@ describe("ChatText", () => {
     expect(wrapper(":nosuchemoji:")).not.toHaveClass("text-[2rem]");
   });
 
+  it("draws nested bullet and numbered lists with the markers Slack uses (•, ◦; 1., a., i.), indented by depth, with underline and other formatting in the items", () => {
+    const body = "1. an <u>underline</u>\n2. <u>continued</u> until now\n  1. no underline\n  2. <u>*under returns*</u>\n    1. _now_\n3. what\n• bullet\n  • nested";
+    const { container } = render(<ChatText body={body} ctx={ctx} />);
+    const rows = [...container.querySelectorAll("li")].map((li) => [li.firstElementChild!.textContent, li.textContent!.replace(li.firstElementChild!.textContent!, ""), (li as HTMLElement).style.paddingLeft]);
+    expect(rows).toEqual([
+      ["1.", "an underline", ""],
+      ["2.", "continued until now", ""],
+      ["a.", "no underline", "1.5rem"],
+      ["b.", "under returns", "1.5rem"],
+      ["i.", "now", "3rem"],
+      ["3.", "what", ""],
+      ["•", "bullet", ""],
+      ["◦", "nested", "1.5rem"],
+    ]);
+    expect(container.querySelectorAll("u")).toHaveLength(3);
+    expect(container.querySelector("li u strong")).toHaveTextContent("under returns");
+  });
+
   it("draws <u>…</u> as underlined text, around other formatting", () => {
     const { container } = render(<ChatText body="a <u>under *bold*</u> b" ctx={ctx} />);
     const u = container.querySelector("u")!;

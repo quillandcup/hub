@@ -374,6 +374,22 @@ describe("MessageBox: formatting", () => {
     expect(keyed).toContain("Enter");
   });
 
+  it("nests a list item with Tab and brings it back with Shift+Tab, written as indented lines, and shows nested lists from text", async () => {
+    const box = await mount({ initial: "1. a\n2. b" });
+    const user = boxUser();
+    await caretToEnd(box);
+    await user.keyboard("{Tab}");
+    expect(latest).toBe("1. a\n  1. b");
+    expect(box.querySelectorAll("ol ol")).toHaveLength(1);
+    await user.keyboard("{Shift>}{Tab}{/Shift}");
+    expect(latest).toBe("1. a\n2. b");
+
+    cleanup();
+    const nested = await mount({ initial: "• x <u>u</u>\n  • y\n    1. z" });
+    expect(nested.querySelectorAll("ul ul ol")).toHaveLength(1);
+    expect(latest).toBe("• x <u>u</u>\n  • y\n    1. z");
+  });
+
   it("links the selection from the toolbar with an address, checks the address, and unlinks", async () => {
     const box = await mount({ initial: "see the docs" });
     const user = boxUser();
