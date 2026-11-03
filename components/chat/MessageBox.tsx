@@ -368,7 +368,16 @@ export default function MessageBox({
     else dom.removeAttribute("aria-activedescendant");
   });
 
-  const empty = useEditorState({ editor, selector: ({ editor: e }) => e?.isEmpty ?? true });
+  const empty = useEditorState({
+    editor,
+    selector: ({ editor: e }) => {
+      if (!e) return true;
+      // An empty quote, list or code block counts as empty to the editor, but it has a mark of its own on screen: the placeholder only goes on a plain empty line.
+      const { doc } = e.state;
+      return doc.childCount === 1 && doc.firstChild?.type.name === "paragraph" && doc.firstChild.content.size === 0;
+    },
+  });
+  const focused = useEditorState({ editor, selector: ({ editor: e }) => e?.isFocused ?? false });
   const jumbo = useEditorState({ editor, selector: ({ editor: e }) => (e ? docIsEmojiOnly(e.getJSON() as RichNode) : false) });
 
   return (
@@ -376,8 +385,8 @@ export default function MessageBox({
       {toolbar && editor && <FormatToolbar editor={editor} onFormat={(kind) => track("chat_format_applied", { kind, via: "toolbar" })} />}
       <div className={`relative ${CONTENT_STYLES} ${jumbo ? JUMBO_STYLES : ""}`} style={editor ? undefined : { minHeight: `${rows * 1.25 + 1}rem` }}>
         <EditorContent editor={editor} />
-        {empty && placeholder && (
-          // Drawn where the owner's padding puts the text (px-3 py-2).
+        {empty && !focused && placeholder && (
+          // Drawn where the owner's padding puts the text (px-3 py-2); gone while focused, since the caret would sit on top of it.
           <span aria-hidden="true" className="pointer-events-none absolute left-3 top-2 text-sm text-slate-500 dark:text-slate-400">
             {placeholder}
           </span>
