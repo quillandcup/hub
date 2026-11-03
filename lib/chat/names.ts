@@ -193,7 +193,7 @@ async function customEmojiUncached(names: string[]): Promise<Record<string, Cust
       }
       if (row.image_path) {
         // Our copy (CORS-readable, so it can be a still too); Slack's address until the sync has copied it.
-        out[name] = { url: emojiPublicUrl(service, row.image_path), ...(row.still_path ? { still: emojiPublicUrl(service, row.still_path) } : {}) };
+        out[name] = { url: emojiPublicUrl(service, row.image_path), stored: true, ...(row.still_path ? { still: emojiPublicUrl(service, row.still_path) } : {}) };
         break;
       }
       if (row.image_url) {

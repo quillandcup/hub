@@ -5,8 +5,9 @@ import { looksAnimated } from "@/lib/animations";
  * Slack's CDN, which can't be read to make one) is paired with its `:name:` text: with Animations off the page's CSS
  * (globals.css) hides the image and shows the text, so it never moves against the member's choice and is never broken.
  */
-export default function EmojiImage({ name, url, still, title }: { name: string; url: string; still?: string; title?: string }) {
-  const noStill = !still && looksAnimated(url);
+export default function EmojiImage({ name, url, still, stored, title }: { name: string; url: string; still?: string; stored?: boolean; title?: string }) {
+  // Our own copy without a still has a single frame (a one-frame GIF): nothing to hide.
+  const noStill = !still && !stored && looksAnimated(url);
   return (
     <>
       {/* eslint-disable-next-line @next/next/no-img-element -- small emoji images; no sizing to optimise */}

@@ -9,8 +9,8 @@ import { SLACK_EMOJI_MAP } from "@/lib/slack-emoji";
  */
 
 /** What a custom emoji name resolves to: its image, or the standard emoji it is an alias for. */
-/** `still` is the first frame of an animated image, from our own storage, shown when Animations are off. */
-export type CustomEmoji = { url: string; still?: string } | { text: string };
+/** `stored`: the url is our own copy; `still` is the first frame of an animated copy, shown when Animations are off (a copy without one does not move). */
+export type CustomEmoji = { url: string; still?: string; stored?: boolean } | { text: string };
 
 let standard: Map<string, string> | null = null;
 
