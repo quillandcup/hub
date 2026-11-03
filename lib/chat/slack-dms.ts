@@ -46,13 +46,14 @@ interface SlackIm {
  * Pulls one member's DMs from Slack into Bronze and the chat. Returns null when nothing was done: not
  * production (like every read or write of the real workspace), no connection with the DM scopes, or pulled
  * within the interval. A dead token revokes the connection; a rate limit or a missing scope stops the pull
- * (the next one retries); one DM failing is logged and the others go on.
+ * (the next one retries); one DM failing is logged and the others go on. `force` skips the interval (a live event
+ * named a DM the chat hasn't seen).
  */
-export async function pullMemberDms(service: SupabaseClient, memberId: string): Promise<DmPullResult | null> {
+export async function pullMemberDms(service: SupabaseClient, memberId: string, opts: { force?: boolean } = {}): Promise<DmPullResult | null> {
   if (!chatSlackWritesEnabled()) return null;
   const status = await getSlackConnectionStatus(service, memberId);
   if (!status.connected || !status.hasDmScopes || !status.slackUserId) return null;
-  const { data: claimed } = await service.rpc("chat_claim_slack_dm_pull", { p_member: memberId, p_min_seconds: SLACK_DM_PULL_INTERVAL_SECONDS });
+  const { data: claimed } = await service.rpc("chat_claim_slack_dm_pull", { p_member: memberId, p_min_seconds: opts.force ? 0 : SLACK_DM_PULL_INTERVAL_SECONDS });
   if (!claimed) return null;
   const connection = await getSlackUserToken(service, memberId);
   if (!connection) return null;

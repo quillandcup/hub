@@ -87,6 +87,11 @@ describe("pullMemberDms", () => {
     ]);
   });
 
+  it("skips the interval when forced (a live event named a DM we hadn't seen)", async () => {
+    await pullMemberDms(service, MEMBER, { force: true });
+    expect(rpcCalls("chat_claim_slack_dm_pull")[0][1]).toEqual({ p_member: MEMBER, p_min_seconds: 0 });
+  });
+
   it("goes back 90 days on the first pull, then only past what the chat already has", async () => {
     await pullMemberDms(service, MEMBER);
     const ninetyDaysAgo = Math.floor(Date.parse("2026-11-03T12:00:00Z") / 1000) - 90 * 86400;

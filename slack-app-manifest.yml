@@ -113,6 +113,11 @@ settings:
       # - channel_rename
       # - channel_archive
       # - user_change
+    # A member's 1:1 DM messages, on their behalf (their im:history user scope): one event for each DM message of
+    # every member who authorized it. The webhook keeps one only for a member the slack_dm_bridge feature covers
+    # (lib/chat/slack-dm-events.ts) and drops the rest.
+    user_events:
+      - message.im
   org_deploy_enabled: false
   socket_mode_enabled: false
   # Bot and user tokens last 12 hours and are refreshed by the Hub (lib/slack-bot-token.ts, lib/slack-connect.ts,
