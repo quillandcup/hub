@@ -5,7 +5,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(19);
+SELECT plan(22);
 
 INSERT INTO public.members (id, name, email, joined_at, status) VALUES
   ('mbr_AAAAAAAAnc01', 'Nia Conflict', 'nc-nia@example.test', now(), 'active'),
@@ -16,6 +16,9 @@ INSERT INTO public.member_name_aliases (member_id, alias, source, active) VALUES
   ('mbr_AAAAAAAAnc02', 'Omar The Writer', 'admin', true);
 
 SELECT is(public.name_alias_key('  Ada   Example. '), 'ada example', 'key: lowercase, punctuation dropped, single spaces');
+SELECT is(public.name_alias_key('Mary-Ann'), 'mary ann', 'key: a hyphen is a space');
+SELECT is(public.name_alias_key('J.K. O''Brien_x'), 'jk obrien x', 'key: periods and apostrophes are dropped, other separators are spaces');
+SELECT is(public.name_alias_key('Mary Ann'), public.name_alias_key('mary-ann'), 'key: "Mary Ann" and "mary-ann" are one alias');
 SELECT is(public.name_alias_key('李雷'), '李雷', 'key: a name with no Latin letters compares lowercased and trimmed, not as empty');
 
 SELECT is((SELECT kind FROM public.name_alias_conflict('mbr_AAAAAAAAnc01', 'Brand New Name')), NULL, 'a free name has no conflict');

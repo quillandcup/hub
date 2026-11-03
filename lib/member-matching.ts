@@ -45,12 +45,20 @@ export function normalizeName(name: string): string {
 }
 
 /**
- * The key aliases are compared by: `normalizeName`, or the lowercased text when nothing Latin is left
- * (a name in another script). The same rule as `public.name_alias_key`, which the add-alias conflict
- * check uses, so "Ada C" and "Ada C." are one alias to both the matcher and the check.
+ * The key aliases are compared by: lowercase, periods and apostrophes dropped ("J.K." is "jk", "O'Brien"
+ * is "obrien"), any other punctuation a space ("Mary-Ann" is "mary ann"), spaces collapsed. Text with
+ * no Latin letters (a name in another script) compares as its lowercased self. The same rule as
+ * `public.name_alias_key`, which the add-alias conflict check uses, so "Ada C" and "Ada C." are one alias
+ * to both the matcher and the check. Keep the two in step.
  */
 export function aliasKey(name: string): string {
-  return normalizeName(name) || name.trim().toLowerCase();
+  const key = name
+    .toLowerCase()
+    .replace(/['\u2019.]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return key || name.trim().toLowerCase();
 }
 
 /**
@@ -59,7 +67,7 @@ export function aliasKey(name: string): string {
  * Matching rules (in priority order):
  * 1. Email exact match (if email provided and skipEmail=false) - HIGHEST confidence
  * 1.5. Email alias match (for merged members whose old email is now an alias)
- * 2. Alias match (case, punctuation and spacing ignored; two members with the same alias is ambiguous) - HIGH confidence
+ * 2. Alias match (case, punctuation and spacing ignored, a hyphen counting as a space; two members with the same alias is ambiguous) - HIGH confidence
  * 3. First name + last initial (e.g., "Katie P" → "Member 22") - HIGH confidence
  * 4. First name only (if unambiguous) - HIGH confidence
  * 5. Normalized name match - HIGH confidence
