@@ -3,7 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import MentionTextarea from "@/components/chat/MentionTextarea";
 import { fromEditableText, toEditableText, type EditableText } from "@/lib/chat/render";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import Modal from "@/components/Modal";
+import MemberAvatar from "@/app/(member)/members/[id]/MemberAvatar";
+import { formatChatTime } from "@/lib/chat/format";
 import ChatText, { type ChatTextContext } from "@/components/chat/ChatText";
 import { deleteChatMessage, editChatMessage } from "@/app/(member)/chat/actions";
 import { isPendingId, MESSAGE_CHANGE_EVENT, pokeChat } from "@/lib/chat/list-events";
@@ -161,22 +165,46 @@ export default function MessageBody({
       <div className="mt-0.5 text-sm text-slate-800 dark:text-slate-200">
         <ChatText body={text} ctx={ctx} />
       </div>
-      {changeable && mode === "confirm-delete" && (
-        <div className="mt-1 flex items-center gap-3 text-xs">
-          <span className="text-slate-600 dark:text-slate-400">Delete this message? It goes from Slack too.</span>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void remove()}
-            className="rounded-md bg-red-600 px-2.5 py-1 font-medium text-white hover:bg-red-700 disabled:opacity-50"
-          >
-            {busy ? "Deleting…" : "Delete"}
-          </button>
-          <button type="button" disabled={busy} onClick={() => setMode("view")} className="text-slate-600 hover:underline dark:text-slate-400">
-            Keep
-          </button>
-        </div>
-      )}
+      {changeable && mode === "confirm-delete" &&
+        createPortal(
+          <Modal isOpen onClose={() => !busy && setMode("view")} title="Delete message" maxWidth="md">
+            <p className="text-sm text-slate-700 dark:text-slate-300">Are you sure you want to delete this message? This cannot be undone.</p>
+            <div className="mt-4 flex gap-3 rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+              <MemberAvatar name={message.authorName} photoUrl={message.authorPhotoUrl} size={36} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline gap-2">
+                  <span className="font-semibold">{message.authorName}</span>
+                  <time dateTime={message.createdAt} className="text-xs text-slate-600 dark:text-slate-400">
+                    {formatChatTime(message.createdAt)}
+                  </time>
+                </div>
+                <div className="text-sm text-slate-800 dark:text-slate-200">
+                  <ChatText body={text} ctx={ctx} />
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setMode("view")}
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                autoFocus
+                disabled={busy}
+                onClick={() => void remove()}
+                className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {busy ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </Modal>,
+          document.body
+        )}
       {error && (
         <p role="alert" className="mt-1 text-xs text-red-600 dark:text-red-400">
           {error}

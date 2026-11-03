@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useTimeout } from "@/components/useTimeout";
 import EmojiPicker from "@/components/chat/EmojiPicker";
@@ -95,13 +96,17 @@ export default function MessageActions({
   const [copied, setCopied] = useState<string | null>(null);
   const startCopiedTimer = useTimeout();
   const root = useRef<HTMLDivElement>(null);
+  const moreButton = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLUListElement>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const { toggle, pending, error } = useToggleReaction(channelId, messageId);
 
   // A popover closes on an outside click or Escape.
   useEffect(() => {
     if (!open) return;
     const onPointer = (e: MouseEvent) => {
-      if (!root.current?.contains(e.target as Node)) setOpen(null);
+      const t = e.target as Node;
+      if (!root.current?.contains(t) && !menu.current?.contains(t)) setOpen(null);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(null);
@@ -112,6 +117,20 @@ export default function MessageActions({
       document.removeEventListener("mousedown", onPointer);
       document.removeEventListener("keydown", onKey);
     };
+  }, [open]);
+
+  // The menu is drawn in the body at fixed coordinates, so the message list's overflow and the composer
+  // can't clip it: below the button, or above it when there is no room below, and inside the window sideways.
+  useLayoutEffect(() => {
+    if (open !== "more") return setMenuPos(null);
+    const button = moreButton.current?.getBoundingClientRect();
+    const box = menu.current?.getBoundingClientRect();
+    if (!button || !box) return;
+    const gap = 4;
+    const below = button.bottom + gap;
+    const top = below + box.height > window.innerHeight - 8 && button.top - gap - box.height >= 8 ? button.top - gap - box.height : below;
+    const left = Math.max(8, Math.min(button.right - box.width, window.innerWidth - box.width - 8));
+    setMenuPos({ top, left });
   }, [open]);
 
   const copy = async (what: string, text: string) => {
@@ -173,6 +192,7 @@ export default function MessageActions({
         <button
           type="button"
           aria-label="More actions"
+          ref={moreButton}
           aria-haspopup="menu"
           aria-expanded={open === "more"}
           data-track="chat-hover-more"
@@ -182,11 +202,14 @@ export default function MessageActions({
           <MoreIcon />
           <Tip>More actions</Tip>
         </button>
-        {open === "more" && (
+        {open === "more" &&
+          createPortal(
           <ul
+            ref={menu}
             role="menu"
             aria-label="More actions"
-            className="absolute right-0 top-full z-30 mt-1 w-48 rounded-lg border border-slate-200 bg-white py-1 text-sm shadow dark:border-slate-700 dark:bg-slate-900"
+            style={{ top: menuPos?.top ?? 0, left: menuPos?.left ?? 0, visibility: menuPos ? "visible" : "hidden" }}
+            className="fixed z-50 w-48 rounded-lg border border-slate-200 bg-white py-1 text-sm shadow dark:border-slate-700 dark:bg-slate-900"
           >
             <li role="none">
               <button
@@ -244,7 +267,8 @@ export default function MessageActions({
                 </button>
               </li>
             )}
-          </ul>
+          </ul>,
+          document.body
         )}
       </div>
       {error && (

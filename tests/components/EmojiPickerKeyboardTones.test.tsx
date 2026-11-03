@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 
@@ -31,7 +31,11 @@ const cells = () => Array.from(document.querySelectorAll<HTMLElement>("button[da
 describe("EmojiPicker skin tones", () => {
   it("applies the chosen tone to emoji with variants, not to others, and remembers it", async () => {
     const { onPick } = await open();
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Skin Tone" }));
+    expect(screen.getAllByRole("radio")).toHaveLength(6);
     await userEvent.click(screen.getByRole("radio", { name: "Medium skin tone" }));
+    await userEvent.click(screen.getByRole("button", { name: "Skin Tone" }));
     expect(screen.getByRole("radio", { name: "Medium skin tone" })).toHaveAttribute("aria-checked", "true");
     expect(localStorage.getItem("chat-skin-tone")).toBe("4");
     expect(screen.getByRole("button", { name: "React with :grinning:" })).toBeInTheDocument();
@@ -43,10 +47,20 @@ describe("EmojiPicker skin tones", () => {
   it("starts from the remembered tone and goes back to the default", async () => {
     localStorage.setItem("chat-skin-tone", "2");
     await open();
+    await userEvent.click(screen.getByRole("button", { name: "Skin Tone" }));
     expect(screen.getByRole("radio", { name: "Light skin tone" })).toHaveAttribute("aria-checked", "true");
     await userEvent.click(screen.getByRole("radio", { name: "Default skin tone" }));
     expect(localStorage.getItem("chat-skin-tone")).toBeNull();
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "React with :+1:" }).length).toBeGreaterThan(0);
+  });
+
+  it("shows the chosen tone only in the top row, with no repeated tone row", async () => {
+    localStorage.setItem("chat-skin-tone", "3");
+    const { onPick } = await open();
+    const grid = screen.getByRole("group", { name: "Frequently used" });
+    await userEvent.click(within(grid).getByRole("button", { name: "React with :+1::skin-tone-3:" }));
+    expect(onPick).toHaveBeenCalledWith("+1::skin-tone-3");
   });
 
   it("shows a toned reaction as the toned emoji", () => {

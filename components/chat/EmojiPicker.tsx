@@ -5,7 +5,7 @@ import { Emoji } from "@/components/chat/ChatText";
 import { track } from "@/lib/analytics/client";
 import { scrollParent } from "@/lib/chat/scroll";
 import type { CustomEmoji } from "@/lib/chat/emoji";
-import { SKIN_TONES, baseName, readTone, withTone, writeTone } from "@/lib/chat/skin-tone";
+import { SKIN_TONES, baseName, readTone, tonedUnicode, withTone, writeTone } from "@/lib/chat/skin-tone";
 import { unicodeEmoji } from "@/lib/chat/emoji";
 import { loadCatalog } from "@/lib/chat/emoji-suggest";
 import {
@@ -25,7 +25,7 @@ const CHUNK = 144;
 const PER_ROW = 7;
 
 /** What "Frequently used" holds until the member has picked something: the old quick reactions, so first use is not empty. */
-export const DEFAULT_FREQUENT = ["thumbsup", "heart", "joy", "tada", "pray", "eyes", "white_check_mark", "raised_hands"];
+export const DEFAULT_FREQUENT = ["+1", "heart", "joy", "tada", "pray", "eyes", "white_check_mark", "raised_hands"];
 
 const CELL = "flex h-10 w-10 items-center justify-center rounded text-xl hover:bg-slate-100 dark:hover:bg-slate-800";
 
@@ -50,8 +50,10 @@ export default function EmojiPicker({
     const own = readRecents().filter((name) => baseName(name) in custom || unicodeEmoji(baseName(name)));
     return own.length ? own : DEFAULT_FREQUENT;
   });
+  const usingDefaults = recents === DEFAULT_FREQUENT;
   const [active, setActive] = useState<TabId>("recent");
   const [tone, setTone] = useState<number | null>(readTone);
+  const [pickingTone, setPickingTone] = useState(false);
   const [roving, setRoving] = useState<string | null>(null);
   const [flip, setFlip] = useState(false);
   const [shift, setShift] = useState(0);
@@ -80,9 +82,10 @@ export default function EmojiPicker({
     const el = root.current;
     const rect = el?.getBoundingClientRect();
     if (!el || !rect) return;
-    if (rect.bottom > window.innerHeight && rect.top - rect.height - 40 > 0) setFlip(true);
     const pane = scrollParent(el);
     const paneRect = pane === document.scrollingElement || pane === document.documentElement ? null : pane.getBoundingClientRect();
+    // Above the button only when that is not cut off by the pane's top either (a thread's first message sits right under it).
+    if (rect.bottom > window.innerHeight && rect.top - rect.height - 40 > (paneRect?.top ?? 0)) setFlip(true);
     const left = Math.max(8, (paneRect?.left ?? 0) + 8);
     const right = Math.min(window.innerWidth - 8, (paneRect?.right ?? window.innerWidth) - 8);
     if (rect.left < left) setShift(left - rect.left);
@@ -126,6 +129,8 @@ export default function EmojiPicker({
     onPick(name);
   };
 
+  const toneSample = tone ? tonedUnicode("\u{1F44D}", tone) : "\u{1F44D}";
+
   const jump = (id: TabId) => {
     setActive(id);
     setQuery("");
@@ -147,7 +152,9 @@ export default function EmojiPicker({
     const id = `${where}:${name}`;
     firstCell ??= id;
     // A chosen tone applies to standard emoji that have tone variants (not custom ones or recents, which keep what was picked).
-    const shown = via !== "recent" && tonable.has(name) && !(name in custom) ? withTone(name, tone) : name;
+    // The seed row (nothing picked yet) is the exception: it follows the chosen tone, so the thumbs-up shows in it.
+    const seeded = via === "recent" && usingDefaults;
+    const shown = (via !== "recent" || seeded) && tonable.has(name) && !(name in custom) ? withTone(name, tone) : name;
     return (
       <button
         key={id}
@@ -290,22 +297,6 @@ export default function EmojiPicker({
           ))}
         </div>
       )}
-      <div role="radiogroup" aria-label="Skin tone" className="flex items-center gap-0.5 overflow-x-auto px-2 pb-1">
-        {[{ tone: null, label: "Default", sample: "\u{1F44D}" }, ...SKIN_TONES].map((t) => (
-          <button
-            key={t.label}
-            type="button"
-            role="radio"
-            aria-checked={tone === t.tone}
-            aria-label={`${t.label} skin tone`}
-            title={`${t.label} skin tone`}
-            onClick={() => chooseTone(t.tone)}
-            className={`h-10 w-10 shrink-0 rounded text-lg hover:bg-slate-100 dark:hover:bg-slate-800 ${tone === t.tone ? "bg-plum-50 ring-1 ring-plum-400 dark:bg-plum-900/30" : ""}`}
-          >
-            {t.sample}
-          </button>
-        ))}
-      </div>
       {/* Arrow keys move through the cells (the grid is one tab stop). */}
       { }
       <div ref={scroller} onKeyDown={onGridKey} className="relative h-64 min-h-0 overflow-y-auto px-2 pb-2">
@@ -338,6 +329,42 @@ export default function EmojiPicker({
             )}
             {section("custom", "Custom", customList, "browse")}
           </>
+        )}
+      </div>
+      <div className="flex items-center gap-1 border-t border-slate-200 px-2 py-1 dark:border-slate-700">
+        {pickingTone ? (
+          <div role="radiogroup" aria-label="Skin tone" className="flex items-center gap-0.5 overflow-x-auto">
+            {[{ tone: null, label: "Default", sample: "\u{1F44D}" }, ...SKIN_TONES].map((t) => (
+              <button
+                key={t.label}
+                type="button"
+                role="radio"
+                aria-checked={tone === t.tone}
+                aria-label={`${t.label} skin tone`}
+                title={`${t.label} skin tone`}
+                onClick={() => {
+                  chooseTone(t.tone);
+                  setPickingTone(false);
+                }}
+                className={`h-10 w-10 shrink-0 rounded text-lg hover:bg-slate-100 dark:hover:bg-slate-800 ${tone === t.tone ? "bg-plum-50 ring-1 ring-plum-400 dark:bg-plum-900/30" : ""}`}
+              >
+                {t.sample}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <button
+            type="button"
+            aria-haspopup="true"
+            aria-expanded="false"
+            onClick={() => setPickingTone(true)}
+            className="flex min-h-10 items-center gap-2 rounded px-2 text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            <span aria-hidden="true" className="text-lg">
+              {toneSample}
+            </span>
+            Skin Tone
+          </button>
         )}
       </div>
       </div>
