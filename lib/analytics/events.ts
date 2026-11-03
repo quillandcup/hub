@@ -13,6 +13,7 @@
  */
 
 import { OUTCOME_ACTIONS } from "@/lib/analytics/actions";
+import { SIGNIN_METHODS } from "@/lib/signin-method-client";
 
 type Spec =
   | { kind: "bool"; optional?: boolean }
@@ -155,6 +156,14 @@ export const EVENTS = {
    * in one (the link carries its kind and channel; lib/notifications/attribution.ts reads and strips them).
    */
   notification_opened: { kind: text(40), channel: text(20) },
+
+  /**
+   * A member signed in, and how (lib/signin-method.ts: `email_link`, `email_code`, `slack_link`,
+   * `slack_continue`, `slack_code`). Recorded by the browser on the first page after sign-in, if
+   * tracking is allowed. Failed sign-ins are not events: they happen before there is a member (see
+   * docs/ANALYTICS.md, "Sign-in").
+   */
+  signed_in: { method: oneOf(...SIGNIN_METHODS) },
 
   // On air light (components/LiveRoomIndicator.tsx). `live` is whether anyone was at the table.
   onair_popover_opened: { live: bool(), room_size: int() },

@@ -58,6 +58,21 @@ Pages that report as they render use `trackWhenEnabled` (`lib/analytics/client.t
 
 Events that appear on their own (a listed prickle type, an `#event` tag) are made by the calendar sync, not an admin, so they are not counted here. No names, titles or free text are recorded.
 
+## Sign-in: what is and isn't recorded
+
+**Successes are an event.** `signed_in` carries `method`: `email_link` (the one-click link in the sign-in email), `email_code` (its code typed on /login), `slack_link` (the Slack app's button or a copied sign-in link: one route, so they can't be told apart), `slack_continue` (the Continue page) and `slack_code` (the code from Slack typed on /login). The server that completes the sign-in leaves the method in a five-minute cookie (`lib/signin-method.ts`); the first page the member loads records the event if tracking is allowed and removes the cookie (`components/AnalyticsEvents.tsx`). Break `signed_in` down by `method` in the Explore page.
+
+**Failures are logs.** Usage events only exist for signed-in members (the receiver answers 401 to anyone else), so a failed sign-in can't be an event. The failure points are logged instead, one line each, with no email, name, code or member id (`lib/signin-log.ts`): read them with `vercel logs --query "signin:"` (`.claude/rules/read-only-clis.md`).
+
+| `outcome` | Meaning |
+|---|---|
+| `callback_other_browser` | the emailed link was opened in a different browser than the one that asked for it (the cross-device case; `error_code` `pkce_code_verifier_not_found`) |
+| `callback_refused` | the link's code was refused for another reason (expired, already used) |
+| `callback_no_code` | `/auth/callback` was opened without a code |
+| `code_ok` / `code_refused` / `code_malformed` | a typed email code worked, was refused (expired, wrong, replaced), or wasn't a code |
+
+Also readable in the database, read-only: `auth.audit_log_entries` (link requests show as `user_recovery_requested`, sign-ins as `login`), and `auth.flow_state` for links requested from `/login` that were clicked (`auth_code_issued_at` set) but never completed. Vercel keeps logs for a short time, so look during the days after a launch.
+
 ## What analytics is not for
 
 Operational records stay in their own tables. The Wheel of Wonder's connections (`wheel_of_wonder_matches`) are the source of truth for who was matched and whether a Slack reply confirmed it: they drive the spin's matching, the count shown to members, and are written server-side from Slack webhooks. Usage events are consent-gated, lossy (a declined banner, a blocked script, a closed tab) and deliberately hold no other member's id, so they can show the *funnel around* a feature (spun, revealed, joined) but not replace its record.

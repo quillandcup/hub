@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { takeNextPath } from "@/lib/next-path-cookie";
+import { logSignIn } from "@/lib/signin-log";
+import { rememberSignInMethod } from "@/lib/signin-method";
 import type { Database } from "@/lib/data/database.types";
 
 // Don't re-send more often than this, so the public login form can't be used to flood an
@@ -60,13 +62,17 @@ export interface EmailCodeResult {
 export async function verifyEmailCode(email: string, code: string): Promise<EmailCodeResult> {
   const token = code.replace(/\s+/g, "");
   if (!email?.trim() || !/^\d{6,8}$/.test(token)) {
+    logSignIn("code_malformed");
     return { error: "Enter the code from the email, digits only." };
   }
 
   const supabase = await createServerClient();
   const { error } = await supabase.auth.verifyOtp({ email: email.trim().toLowerCase(), token, type: "email" });
   if (error) {
+    logSignIn("code_refused", error);
     return { error: "That code didn't work. It may have expired or been replaced by a newer email. Request a new link." };
   }
+  logSignIn("code_ok");
+  await rememberSignInMethod("email_code");
   redirect(await takeNextPath());
 }
