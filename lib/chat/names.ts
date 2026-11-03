@@ -148,6 +148,14 @@ export const slackUserMemberIds = cachedLookup("slack-user-member-ids", slackUse
 export const slackChannelNames = cachedLookup("slack-channel-names", slackChannelNamesUncached);
 export const slackUserPhotos = cachedLookup("slack-user-photos", slackUserPhotosUncached);
 export const customEmojiFor = cachedLookup("custom-emoji", customEmojiUncached);
+const customEmojiNames = cachedLookup("custom-emoji-names", async () => ({
+  all: await createRepos(createServiceRoleClient()).slackWorkspace.liveEmojiNames(),
+}));
+
+/** The names of every live custom emoji (cached like the other lookups), for the `:name` suggestions. */
+export async function liveCustomEmojiNames(): Promise<string[]> {
+  return (await customEmojiNames(["all"])).all ?? [];
+}
 
 /**
  * Custom emoji by name, for the names a page shows. bronze.slack_custom_emoji is admin-read only

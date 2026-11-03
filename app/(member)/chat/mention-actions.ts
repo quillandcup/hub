@@ -3,6 +3,8 @@
 import { postingCaller } from "@/lib/chat/caller";
 import { createRepos } from "@/lib/data/repos";
 import { isId } from "@/lib/ids";
+import { customEmojiFor, liveCustomEmojiNames } from "@/lib/chat/names";
+import type { EmojiChoice } from "@/lib/chat/emoji-suggest";
 import { loadChannelForMember, loadChannelMembers, loadChatChannels } from "@/lib/chat/load";
 import { slackUserIdsFor } from "@/lib/chat/slack-membership";
 import { createClient } from "@/lib/supabase/server";
@@ -77,4 +79,19 @@ export async function suggestMentions(channelId: string, trigger: "@" | "#", que
     .filter((p) => slackIds.has(p.memberId))
     .slice(0, MAX_SUGGESTIONS)
     .map((p) => ({ label: p.label, token: `<@${slackIds.get(p.memberId)}>`, photoUrl: p.photoUrl }));
+}
+
+/**
+ * The workspace's custom emoji whose name contains what follows a `:`, for the message box (standard emoji are
+ * matched in the browser). Same gate as posting; the emoji are workspace decoration, so only names and images.
+ */
+export async function suggestCustomEmoji(query: string): Promise<EmojiChoice[]> {
+  const text = query.trim().toLowerCase().slice(0, 40);
+  if (text.length < 2 || !(await postingCaller())) return [];
+  const names = (await liveCustomEmojiNames())
+    .filter((n) => n.toLowerCase().includes(text))
+    .sort((a, b) => Number(b.startsWith(text)) - Number(a.startsWith(text)) || a.localeCompare(b))
+    .slice(0, MAX_SUGGESTIONS);
+  const found = await customEmojiFor(names);
+  return names.filter((n) => n in found).map((name) => ({ name, emoji: found[name] }));
 }
