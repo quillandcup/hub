@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import Modal from "@/components/Modal";
 import { CheckinHalfFields } from "@/components/writing/CheckinFields";
 import {
@@ -12,7 +13,7 @@ import {
 import { joinCredentials } from "@/lib/prickle-join";
 import { logProgress } from "@/app/(member)/projects/actions";
 import { MEASURE_LABELS } from "@/lib/writing-projects";
-import { EMPTY_CHECKIN as EMPTY, halfOf, type CheckinInput } from "@/lib/prickle-checkins";
+import { EMPTY_CHECKIN as EMPTY, NO_GOAL_TIP, NO_GOAL_TIP_PATH, halfOf, type CheckinInput } from "@/lib/prickle-checkins";
 
 interface PrickleCheckModalProps {
   prickleId: string;
@@ -203,6 +204,14 @@ export default function PrickleCheckModal({ prickleId, half, onClose, onSaved, p
                     )
                   )}
                 </div>
+              )}
+
+              {!data.hasGoals && (
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  <Link href={NO_GOAL_TIP_PATH} className="hover:underline">
+                    {NO_GOAL_TIP}
+                  </Link>
+                </p>
               )}
             </>
           )}

@@ -13,6 +13,8 @@ export interface OutboundMessage {
   linkLabel?: string;
   /** Slack Block Kit body, when the Slack version is richer than `text` (e.g. interactive selects). */
   slackBlocks?: any[];
+  /** A short extra line, with a link, for channels that have room for one (the email body). Slack builds its own block and in-app and push stay one line, so they leave it out. */
+  note?: { text: string; url: string };
   /** Small trailing links (e.g. "Notification settings"); each channel renders them its own way. */
   footerLinks?: { label: string; url: string }[];
   /**

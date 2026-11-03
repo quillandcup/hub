@@ -116,7 +116,27 @@ describe("getCheckModalData", () => {
 
     const data = await getCheckModalData("prkl_AAAAAAAAAAA1");
 
-    expect(data).toMatchObject({ prickleTitle: "Sunday Sprint with Jenn P", entryDate: "2097-03-03", hasStarted: false, canEdit: true, projects: [] });
+    expect(data).toMatchObject({ prickleTitle: "Sunday Sprint with Jenn P", entryDate: "2097-03-03", hasStarted: false, hasGoals: false, canEdit: true, projects: [] });
+  });
+
+  it("says whether the member has an active writing goal, which decides the check-out's tip", async () => {
+    const dataset = new InMemoryDataset({
+      members: [HOST],
+      prickleTypes: [SPRINT],
+      prickles: [prickle("prkl_AAAAAAAAAAA1", SPRINT.id)],
+    });
+    dataset.writingProjects.push({
+      id: "wprj_AAAAAAAAAAA1", member_id: MEMBER_IDENTITY.memberId, title: "Novel", description: null, cover_asset_id: null, cover_url: null, external_id: null,
+      phase: "drafting", show_on_profile: false, created_at: "2026-01-01T00:00:00Z",
+    });
+    dataset.writingGoals.push({
+      id: "wgol_AAAAAAAAAAA1", member_id: MEMBER_IDENTITY.memberId, project_id: "wprj_AAAAAAAAAAA1", title: null, description: null, external_id: null, goal_type: "target",
+      habit_period: null, habit_threshold: null, is_starred: false, measure: "words", show_on_profile: false, start_date: null, end_date: null, target_amount: 1000,
+      archived_at: null, created_at: "2026-01-01T00:00:00Z",
+    });
+    repos = createInMemoryRepos(dataset);
+
+    expect(await getCheckModalData("prkl_AAAAAAAAAAA1")).toMatchObject({ hasGoals: true });
   });
 
   it("is null for a prickle that doesn't exist", async () => {

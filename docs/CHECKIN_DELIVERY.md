@@ -34,7 +34,9 @@ drop-in never gets a check-in message on any channel; their only check-in is the
 The **check-out message** does not use ties at all. It goes to anyone Zoom presence shows in the
 room (`dueCheckoutMembers`), and as a backstop to anyone with imported attendance. A member
 with no writing goal gets the same check-out without the progress questions, plus a one-line tip
-in Slack to set a goal (`NO_GOAL_TIP`).
+to set a goal (`NO_GOAL_TIP`, linking to `/projects`). The tip is on a line of its own in the Slack
+message, in the email under the explanation, and at the bottom of the web check-out; the in-app and
+push text stay one line without it.
 
 Presence needs the Zoom participant's name or email to match a member (`matchAttendeeToMember`).
 A participant who does not match gets none of the presence-based pieces and falls back to the
@@ -85,7 +87,7 @@ sent when the questions are already answered, or the offer was dismissed.
 | Check-in, prickle on the calendar, with or without a goal | Sent 15–30 minutes before the start | Pill from 2 hours before the start until the end |
 | Check-in, drop-in with no tie | Nothing | Pill once the Zoom join arrives and the prickle has started |
 | Check-out, in the room, with a goal | Sent 10 to 5 minutes before the end, with progress questions | "Check out →" from the start; card after the end |
-| Check-out, in the room, no goal | Same send, no progress questions; Slack adds the tip line | Same pill and card |
+| Check-out, in the room, no goal | Same send, no progress questions; Slack and email add the tip line | Same pill and card; the web check-out shows the tip too |
 | Check-out, left early | Sent 10 minutes after leaving without rejoining | Same pill and card |
 | Check-out, Zoom name not matched | Only after the attendance import, within 6 hours of the end | Card only, once attendance arrives |
 
@@ -101,5 +103,5 @@ cheap tweak, not done: have the check-out send mark the same prickle's unanswere
 ## Checking it
 
 Admin → Test Notifications (`/admin/notifications`) sends each kind to the admin's own accounts,
-with the admin's own goals, so the Slack tip line only shows if the admin has none. Check it on a
+with the admin's own goals, so the tip only shows if the admin has none. Check it on a
 phone: it should stay on one line.

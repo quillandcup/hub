@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { InMemoryPrickleActivityRepository } from "@/lib/data/prickle-activity";
 import { createInMemoryRepos, type Repos } from "@/lib/data/repos";
-import { EMPTY_CHECKIN, type CheckinInput } from "@/lib/prickle-checkins";
+import { EMPTY_CHECKIN, NO_GOAL_TIP, type CheckinInput } from "@/lib/prickle-checkins";
 
 const answers = (a: Partial<CheckinInput>): CheckinInput => ({ ...EMPTY_CHECKIN, ...a });
 
@@ -37,7 +37,7 @@ vi.mock("@/lib/data/repos", async () => ({
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 
 const { POST } = await import("@/app/api/internal/prickle-checkins/route");
-const { NO_GOAL_TIP, getActiveGoalCandidates, sendCheckoutDMs, sendTestCheckinDM, tryRecordCheckinDM } = await import(
+const { getActiveGoalCandidates, sendCheckoutDMs, sendTestCheckinDM, tryRecordCheckinDM } = await import(
   "@/lib/prickle-checkin-dms"
 );
 

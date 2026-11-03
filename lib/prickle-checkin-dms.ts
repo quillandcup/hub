@@ -16,6 +16,8 @@ import type { ChannelId, OutboundMessage } from "@/lib/channels";
 import { loadPresenceByMember, presenceDue, type PresenceInterval, type PresenceRepos } from "@/lib/zoom-presence";
 import {
   checkinAnswered,
+  NO_GOAL_TIP,
+  NO_GOAL_TIP_PATH,
   checkinHref,
   checkoutAnswered,
   coreFeelings,
@@ -854,15 +856,11 @@ export function checkinMessage(
   };
 }
 
-/**
- * What the Slack check-out says to a member with no writing goal, on a line of its own above the
- * footer. Short enough for one line on a phone, and plain that it is for next time.
- */
-export const NO_GOAL_TIP = "💡 Next time: set a goal to log progress here";
+/** The tip as a line of its own above the Slack footer. */
 function noGoalTipBlock() {
   return {
     type: "context",
-    elements: [{ type: "mrkdwn", text: `<${APP_URL}/projects|${NO_GOAL_TIP}>` }],
+    elements: [{ type: "mrkdwn", text: `<${APP_URL}${NO_GOAL_TIP_PATH}|${NO_GOAL_TIP}>` }],
   };
 }
 
@@ -880,6 +878,8 @@ export function checkoutMessage(
     slackBlocks: test ? [TEST_BANNER, ...blocks] : blocks,
     ref: prickle.id,
     timeSensitiveUntil: offsetIso(prickle.endTime, CHECKOUT_TIME_SENSITIVE_MS),
+    // The email carries the tip too; Slack has its own block, in-app and push stay one line.
+    ...(hasGoals ? {} : { note: { text: NO_GOAL_TIP, url: `${APP_URL}${NO_GOAL_TIP_PATH}` } }),
   };
 }
 

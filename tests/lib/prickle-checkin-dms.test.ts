@@ -24,7 +24,7 @@ import {
   type GoalCandidate,
   type UpcomingPrickle,
 } from "@/lib/prickle-checkin-dms";
-import { EMPTY_CHECKIN, type CheckinInput } from "@/lib/prickle-checkins";
+import { EMPTY_CHECKIN, NO_GOAL_TIP, NO_GOAL_TIP_PATH, type CheckinInput } from "@/lib/prickle-checkins";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
 
@@ -67,6 +67,23 @@ describe("planCheckinDMs", () => {
   it("plans each member separately", () => {
     const plan = planCheckinDMs(["m1", "m2"], [P1, P2], calendar({ m1: ["p1"], m2: ["p1", "p2"] }));
     expect(pairs(plan)).toEqual(["m1:p1", "m2:p1", "m2:p2"]);
+  });
+});
+
+describe("checkoutMessage tip", () => {
+  const prickle = { id: "p1", typeName: "Progress Prickle", startTime: P1.startTime, endTime: P1.endTime };
+
+  it("carries the no-goal tip for the email only when the member has no goals", () => {
+    expect(checkoutMessage(prickle, null, [], { hasGoals: false }).note).toEqual({ text: NO_GOAL_TIP, url: expect.stringContaining(NO_GOAL_TIP_PATH) });
+    expect(checkoutMessage(prickle, null, []).note).toBeUndefined();
+    expect(checkoutMessage(prickle, null, [], { hasGoals: true }).note).toBeUndefined();
+  });
+
+  it("puts the tip on its own Slack line above the footer, and nowhere else in the text", () => {
+    const blocks = checkoutMessage(prickle, null, [], { hasGoals: false }).slackBlocks!;
+    expect(blocks.at(-2).elements[0].text).toContain(NO_GOAL_TIP);
+    expect(checkoutMessage(prickle, null, []).slackBlocks!.some((b: any) => JSON.stringify(b).includes(NO_GOAL_TIP))).toBe(false);
+    expect(checkoutMessage(prickle, null, [], { hasGoals: false }).text).not.toContain(NO_GOAL_TIP);
   });
 });
 
