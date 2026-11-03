@@ -82,7 +82,7 @@ function alertDetails(alert: OperationsAlert): { bucket: string; title: string; 
     return {
       bucket: `operations_alert:slack_bot_token_failed:${alert.problem}`,
       title: `Slack bot token ${alert.problem.replace("_", " ")}`,
-      text: `The Slack bot's rotating token ${what}.${detail ? ` (${detail})` : ""} Look for "Slack bot token" lines in the Vercel logs and see "Moving the bot to rotating tokens" in docs/SECRET_ROTATION.md for recovery (pnpm slack:bot-token status shows the stored expiry).`,
+      text: `The Slack bot's rotating token ${what}.${detail ? ` (${detail})` : ""} Look for "Slack bot token" lines in the Vercel logs and see "The bot's rotating token" in docs/SECRET_ROTATION.md for recovery (pnpm slack:bot-token status shows the stored expiry).`,
     };
   }
 

@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { useFakeClock } from "@/tests/helpers/fake-clock";
 
-const slack = vi.hoisted(() => ({ access: vi.fn(), exchange: vi.fn() }));
+// tests/setup.ts replaces getSlackBotToken for every file; this one tests the real thing.
+vi.unmock("@/lib/slack-bot-token");
+const slack = vi.hoisted(() => ({ access: vi.fn() }));
 vi.mock("@slack/web-api", () => ({
   WebClient: vi.fn(function () {
-    return { oauth: { v2: { access: slack.access, exchange: slack.exchange } } };
+    return { oauth: { v2: { access: slack.access } } };
   }),
 }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => db.client }));
@@ -13,7 +15,7 @@ vi.mock("@/lib/data/repos", () => ({ createRepos: (client: unknown) => ({ over: 
 vi.mock("@/lib/operations-alerts", () => ({ sendOperationsAlert: alerts.send }));
 vi.mock("@sentry/nextjs", () => ({ captureException: alerts.sentry }));
 
-import { botTokenStatus, exchangeBotToken, forgetSlackBotToken, getSlackBotToken, rotationEnabled, seedBotToken } from "@/lib/slack-bot-token";
+import { botTokenStatus, forgetSlackBotToken, getSlackBotToken, seedBotToken } from "@/lib/slack-bot-token";
 
 const NOW = Date.parse("2026-11-01T12:00:00Z");
 const HOUR = 3600_000;
@@ -71,12 +73,9 @@ beforeEach(() => {
   db.state.reads = [];
   db.state.calls = [];
   slack.access.mockReset();
-  slack.exchange.mockReset();
   alerts.send.mockReset();
   alerts.send.mockResolvedValue(undefined);
   alerts.sentry.mockReset();
-  vi.stubEnv("SLACK_BOT_TOKEN", "xoxb-from-env");
-  vi.stubEnv("SLACK_BOT_TOKEN_ROTATION", "on");
   vi.stubEnv("SLACK_CLIENT_ID", "client-1");
   vi.stubEnv("SLACK_CLIENT_SECRET", "secret-1");
   vi.spyOn(console, "error").mockImplementation(() => {});
@@ -89,23 +88,8 @@ afterEach(() => {
 describe("getSlackBotToken", () => {
   useFakeClock(() => NOW);
 
-  it("is the environment variable, and touches no database, until rotation is switched on", async () => {
-    vi.stubEnv("SLACK_BOT_TOKEN_ROTATION", "");
-    store("xoxe.xoxb-stored", 5 * HOUR);
-    await expect(getSlackBotToken(db.client)).resolves.toBe("xoxb-from-env");
-    expect(db.rpc).not.toHaveBeenCalled();
-    vi.stubEnv("SLACK_BOT_TOKEN", "");
-    await expect(getSlackBotToken(db.client)).resolves.toBeUndefined();
-  });
-
-  it.each([["1", true], ["true", true], ["On", true], ["off", false], ["", false]])("reads SLACK_BOT_TOKEN_ROTATION=%j as %s", (value, on) => {
-    vi.stubEnv("SLACK_BOT_TOKEN_ROTATION", value);
-    expect(rotationEnabled()).toBe(on);
-  });
-
-  it("keeps using the environment variable until the exchange has stored a rotating token, so switching on early is harmless", async () => {
-    await expect(getSlackBotToken(db.client)).resolves.toBe("xoxb-from-env");
-    vi.stubEnv("SLACK_BOT_TOKEN", "");
+  it("is undefined when no rotating token is stored: there is no environment variable to fall back on", async () => {
+    vi.stubEnv("SLACK_BOT_TOKEN", "xoxb-from-env");
     await expect(getSlackBotToken(db.client)).resolves.toBeUndefined();
   });
 
@@ -298,25 +282,8 @@ describe("seedBotToken (recovery after a reinstall)", () => {
   });
 });
 
-describe("exchangeBotToken", () => {
+describe("botTokenStatus", () => {
   useFakeClock(() => NOW);
-
-  it("trades the long-lived token for a rotating one and stores it", async () => {
-    slack.exchange.mockResolvedValue({ ok: true, access_token: "xoxe.xoxb-1", refresh_token: "xoxe-refresh-1", expires_in: 43200 });
-    const { expiresAt } = await exchangeBotToken(db.client, "xoxb-long-lived");
-    expect(slack.exchange).toHaveBeenCalledWith({ client_id: "client-1", client_secret: "secret-1", token: "xoxb-long-lived" });
-    expect(expiresAt.getTime()).toBe(NOW + 43200_000);
-    expect(db.state.row).toMatchObject({ access: "xoxe.xoxb-1", refresh: "xoxe-refresh-1" });
-  });
-
-  it("fails if Slack doesn't return a rotating token, and says so plainly if it can't be stored (the exchange can't be repeated)", async () => {
-    slack.exchange.mockResolvedValue({ ok: false });
-    await expect(exchangeBotToken(db.client, "xoxb-long-lived")).rejects.toThrow("did not return a rotating token");
-
-    slack.exchange.mockResolvedValue({ ok: true, access_token: "a", refresh_token: "r", expires_in: 1 });
-    db.state.saveFailures = 1;
-    await expect(exchangeBotToken(db.client, "xoxb-long-lived")).rejects.toThrow("can't be repeated");
-  });
 
   it("reports whether a rotating token is stored and when it expires, never the token", async () => {
     await expect(botTokenStatus(db.client)).resolves.toBeNull();

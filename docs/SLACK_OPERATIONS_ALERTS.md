@@ -24,7 +24,7 @@ member notification flow still finishes without throwing an alert-delivery error
 
 1. Add Billie Bot to `#hub-alerts` (or confirm it is already a member). The app's bot token
    needs channel access; member DM test mode does not redirect these staff alerts.
-2. Confirm production has `SLACK_BOT_TOKEN`, `ALERTS_EMAIL` and `RESEND_API_KEY`.
+2. Confirm the bot has a stored token (`pnpm slack:bot-token status`) and production has `ALERTS_EMAIL` and `RESEND_API_KEY`.
 3. In a production-safe test, cause one failed notification DM and one ambiguous member
    match. Verify the corresponding server log, Sentry event and `#hub-alerts` post.
 4. Separately test the email fallback with a controlled Slack posting failure.
