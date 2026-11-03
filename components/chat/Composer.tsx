@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { prepareChatUploads, saveChatDraft, sendChatMessage } from "@/app/(member)/chat/actions";
 import MessageBox, { type MessageBoxHandle } from "@/components/chat/MessageBox";
+import { messageFeatures } from "@/lib/chat/message-features";
 import { fromEditableText } from "@/lib/chat/render";
 import { DRAFT_SAVE_DELAY_MS, fromDraftBody, toDraftBody } from "@/lib/chat/drafts";
 import PendingAttachments from "@/components/chat/PendingAttachments";
@@ -238,6 +239,9 @@ export default function Composer({
     abortRef.current?.abort();
   };
 
+  // Whether the toolbar or a shortcut formatted anything in the message being written (for what is recorded when it is sent).
+  const formatted = useRef({ toolbar: false, shortcut: false });
+
   const send = async () => {
     const typed = text.trim();
     if ((!typed && attached.length === 0 && stored.length === 0) || sending || staging.length > 0) return;
@@ -260,6 +264,15 @@ export default function Composer({
     const tempId = `${PENDING_ID_PREFIX}${crypto.randomUUID()}`;
     if (early) emitListEvent({ kind: "add", channelId, threadRootId, view: optimisticView({ id: tempId, body: shownBody, viewer: viewer! }) });
 
+    track("chat_message_composed", {
+      where: threadRootId ? "reply" : "message",
+      files: uploads.length,
+      files_removed: 0,
+      ...messageFeatures(body),
+      used_toolbar: formatted.current.toolbar,
+      used_shortcut: formatted.current.shortcut,
+    });
+    formatted.current = { toolbar: false, shortcut: false };
     const result = await sendChatMessage(channelId, body, threadRootId, uploads).catch(() => ({ ok: false as const, error: "Something went wrong. Try again." }));
     setSending(false);
     setSentBytes([]);
@@ -303,6 +316,9 @@ export default function Composer({
           id={`composer-${threadRootId ?? channelId}`}
           channelId={channelId}
           boxRef={boxRef}
+          onFormat={(via) => {
+            formatted.current[via] = true;
+          }}
           tokens={mentionTokens}
           value={text}
           rows={2}

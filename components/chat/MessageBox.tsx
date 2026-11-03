@@ -131,6 +131,7 @@ export default function MessageBox({
   className = "",
   toolbar = true,
   customEmoji,
+  onFormat,
 }: {
   channelId: string;
   value: string;
@@ -138,6 +139,8 @@ export default function MessageBox({
   /** Shown name to Slack markup for each person or channel picked; the owner reads it when sending. */
   tokens: MutableRefObject<Map<string, string>>;
   boxRef?: MutableRefObject<MessageBoxHandle | null>;
+  /** A format was applied from the toolbar or a keyboard shortcut (typing `*word*` or `> ` is not reported): the owner notes it for what it records about the message. */
+  onFormat?: (via: "toolbar" | "shortcut") => void;
   onKeyDown?: (e: BoxKeyEvent) => void;
   onPaste?: (e: BoxPasteEvent) => void;
   /** Shown while the box is empty, and its name for assistive technology unless `aria-label` says otherwise. */
@@ -161,9 +164,9 @@ export default function MessageBox({
   const latest = useRef("");
   // Custom emoji picked in this box, so text put back into it later (after a failed send) shows their images again.
   const known = useRef(new Map<string, CustomEmoji>());
-  const live = useRef({ onValueChange, onKeyDown, onPaste, customEmoji });
+  const live = useRef({ onValueChange, onKeyDown, onPaste, customEmoji, onFormat });
   useEffect(() => {
-    live.current = { onValueChange, onKeyDown, onPaste, customEmoji };
+    live.current = { onValueChange, onKeyDown, onPaste, customEmoji, onFormat };
   });
   const editorRef = useRef<Editor | null>(null);
   const lookup = useMemo<EmojiLookup>(
@@ -368,7 +371,10 @@ export default function MessageBox({
       if (event.isComposing) return false;
       const shortcut = toolbar ? shortcutFormat(e) : null;
       // The editor applies its own shortcuts; this only records them.
-      if (shortcut) track("chat_format_applied", { kind: shortcut, via: "shortcut" });
+      if (shortcut) {
+        track("chat_format_applied", { kind: shortcut, via: "shortcut" });
+        live.current.onFormat?.("shortcut");
+      }
       // Enter sends, in a list too (as in Slack set to send on Enter); Shift+Enter in a list starts the next item (or, on an empty
       // item, steps out of the list). In a code block Enter is a new line, and Ctrl/Cmd+Enter sends from anywhere.
       const modified = event.metaKey || event.ctrlKey;
@@ -414,7 +420,10 @@ export default function MessageBox({
 
   return (
     <div className="relative">
-      {toolbar && editor && <FormatToolbar editor={editor} onFormat={(kind) => track("chat_format_applied", { kind, via: "toolbar" })} />}
+      {toolbar && editor && <FormatToolbar editor={editor} onFormat={(kind) => {
+          track("chat_format_applied", { kind, via: "toolbar" });
+          onFormat?.("toolbar");
+        }} />}
       <div className={`relative ${CONTENT_STYLES} ${jumbo ? JUMBO_STYLES : ""}`} style={editor ? undefined : { minHeight: `${rows * 1.25 + 1}rem` }}>
         <EditorContent editor={editor} />
         {empty && placeholder && (

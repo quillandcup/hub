@@ -22,7 +22,7 @@ import { FACEBOOK_BASE_URL, X_BASE_URL, parseBioInput, parseFacebookInput, parse
 import { normalizeTopics } from "@/lib/ask-me-about";
 import { SUPPORT_EMAIL } from "@/lib/config";
 
-import { withAction } from "@/lib/analytics/server";
+import { actionOutcome, withAction } from "@/lib/analytics/server";
 /**
  * Member self-service for the public profile shown on /members/[id].
  *
@@ -518,11 +518,14 @@ async function updateInstagramHandleImpl(input: string): Promise<UpdateProfileRe
 
 // Usage analytics: each action records whether it worked (lib/analytics/server.ts).
 export async function setRosterVisibility(...args: Parameters<typeof setRosterVisibilityImpl>): ReturnType<typeof setRosterVisibilityImpl> {
-  return withAction("profile_saved", () => setRosterVisibilityImpl(...args));
+  return withAction("profile_saved", () => setRosterVisibilityImpl(...args), (result) => ({ ...actionOutcome(result), detail: "roster" }));
 }
 
 export async function updateProfileDetails(...args: Parameters<typeof updateProfileDetailsImpl>): ReturnType<typeof updateProfileDetailsImpl> {
-  return withAction("profile_saved", () => updateProfileDetailsImpl(...args));
+  // What the member filled in (never what they wrote): bio, Facebook, X.
+  const [input] = args;
+  const filled = [input?.bio?.trim() && "bio", input?.facebook?.trim() && "fb", input?.x?.trim() && "x"].filter(Boolean).join(",");
+  return withAction("profile_saved", () => updateProfileDetailsImpl(...args), (result) => ({ ...actionOutcome(result), detail: filled || "empty" }));
 }
 
 export async function updateAskMeAbout(...args: Parameters<typeof updateAskMeAboutImpl>): ReturnType<typeof updateAskMeAboutImpl> {

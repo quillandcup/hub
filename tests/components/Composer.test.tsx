@@ -6,6 +6,8 @@ import "@testing-library/jest-dom/vitest";
 
 const refresh = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
+const track = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/analytics/client", () => ({ track }));
 const uploadWithProgress = vi.fn();
 import { CHAT_UPLOAD_CONCURRENCY } from "@/lib/chat/upload-pool";
 vi.mock("@/lib/chat/upload-progress", async (orig) => ({ ...(await orig<typeof import("@/lib/chat/upload-progress")>()), uploadWithProgress: (...a: unknown[]) => uploadWithProgress(...a) }));
@@ -32,6 +34,7 @@ beforeEach(() => {
   vi.mocked(saveChatDraft).mockReset();
   vi.mocked(saveChatDraft).mockResolvedValue(undefined);
   uploadWithProgress.mockReset();
+  track.mockClear();
 });
 
 describe("Composer", () => {
@@ -91,6 +94,34 @@ describe("Composer", () => {
     render(<Composer channelId="c1" threadRootId="root-1" placeholder="Reply…" />);
     await typeInto(await messageBox(), "yes{Enter}");
     await waitFor(() => expect(sendChatMessage).toHaveBeenCalledWith("c1", "yes", "root-1", []));
+  });
+
+  it("records what a sent message contains, not its text, and where it went", async () => {
+    vi.mocked(sendChatMessage).mockResolvedValue({ ok: true, id: "m2" });
+    render(<Composer channelId="c1" threadRootId="root-1" placeholder="Reply…" />);
+    await typeInto(await messageBox(), "so *bold*{Enter}");
+    await waitFor(() => expect(sendChatMessage).toHaveBeenCalled());
+    const composed = track.mock.calls.filter(([name]) => name === "chat_message_composed");
+    expect(composed).toEqual([
+      ["chat_message_composed", expect.objectContaining({ where: "reply", files: 0, files_removed: 0, bold: true, underline: false, list_depth: 0, lines: 1, mentions: 0, used_toolbar: false, used_shortcut: false })],
+    ]);
+    expect(JSON.stringify(composed)).not.toContain("so ");
+  });
+
+  it("says a new message is a message, and notes a format applied from the keyboard", async () => {
+    vi.mocked(sendChatMessage).mockResolvedValue({ ok: true, id: "m3" });
+    render(<Composer channelId="c1" placeholder="Message #hosts" />);
+    const box = await messageBox();
+    await typeInto(box, "{Control>}b{/Control}");
+    await typeInto(box, "loud{Enter}");
+    await waitFor(() => expect(sendChatMessage).toHaveBeenCalled());
+    expect(track).toHaveBeenCalledWith("chat_message_composed", expect.objectContaining({ where: "message", used_shortcut: true, used_toolbar: false }));
+  });
+
+  it("records nothing about a message that was not sent (blank)", async () => {
+    render(<Composer channelId="c1" placeholder="Message #hosts" />);
+    await typeInto(await messageBox(), "{Enter}");
+    expect(track.mock.calls.filter(([name]) => name === "chat_message_composed")).toEqual([]);
   });
 
   it("keeps the text and says why when the post is refused", async () => {

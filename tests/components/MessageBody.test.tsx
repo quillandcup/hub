@@ -88,6 +88,25 @@ describe("MessageBody", () => {
     off();
   });
 
+  it("records an edit with its contents and how many files it took off and put on, never the text", async () => {
+    const { track } = await import("@/lib/analytics/client");
+    vi.mocked(track).mockClear();
+    vi.mocked(editChatMessage).mockResolvedValue({ ok: true });
+    mount();
+
+    fire("edit");
+    const box = await messageBox("Edit message");
+    await boxUser().clear(box);
+    await typeInto(box, "now *bold*{Enter}");
+
+    await waitFor(() => expect(editChatMessage).toHaveBeenCalled());
+    expect(track).toHaveBeenCalledWith(
+      "chat_message_composed",
+      expect.objectContaining({ where: "edit", files: 0, files_removed: 0, bold: true, lines: 1, used_toolbar: false, used_shortcut: false })
+    );
+    expect(JSON.stringify(vi.mocked(track).mock.calls)).not.toContain("now ");
+  });
+
   it("ignores a second save while one is still going", async () => {
     vi.mocked(editChatMessage).mockReturnValue(new Promise(() => {}));
     mount();

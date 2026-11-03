@@ -7,6 +7,7 @@ import { uploadStagedFiles } from "@/lib/chat/upload-client";
 import { MAX_CHAT_FILES, MAX_CHAT_FILE_BYTES, type StagedUpload } from "@/lib/chat/staging";
 import { chatFileUrl, isInlineImage } from "@/lib/chat/files";
 import { track } from "@/lib/analytics/client";
+import { messageFeatures } from "@/lib/chat/message-features";
 import { fromEditableText, toEditableText, type EditableText } from "@/lib/chat/render";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
@@ -79,6 +80,9 @@ export default function MessageBody({
     if (!pokeChat(channelId)) router.refresh();
   };
 
+  // Whether the toolbar or a shortcut formatted anything while this message was edited.
+  const formatted = useRef({ toolbar: false, shortcut: false });
+
   const save = async () => {
     const typed = draft.trim();
     if (busy) return;
@@ -104,6 +108,15 @@ export default function MessageBody({
       if (!uploaded.ok) return failed(uploaded.error);
       uploads = uploaded.uploads;
     }
+    track("chat_message_composed", {
+      where: "edit",
+      files: uploads.length,
+      files_removed: removed.length,
+      ...messageFeatures(next),
+      used_toolbar: formatted.current.toolbar,
+      used_shortcut: formatted.current.shortcut,
+    });
+    formatted.current = { toolbar: false, shortcut: false };
     const result = await (uploads.length > 0 ? editChatMessage(message.id, next, uploads) : editChatMessage(message.id, next)).catch(() => ({ ok: false as const, error: "Something went wrong. Try again." }));
     setBusy(false);
     if (!result.ok) return setError(result.error);
@@ -161,6 +174,9 @@ export default function MessageBody({
           channelId={channelId}
           boxRef={boxRef}
           aria-label="Edit message"
+          onFormat={(via) => {
+            formatted.current[via] = true;
+          }}
           customEmoji={ctx.customEmoji}
           tokens={shownTokens}
           autoFocus
