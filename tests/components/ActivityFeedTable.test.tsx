@@ -106,3 +106,20 @@ describe("ActivityFeedTable note rows", () => {
     expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
   });
 });
+
+describe("ActivityFeedTable source links", () => {
+  it("links a check-in to its prickle, beside the sentence and without opening anything", () => {
+    renderTable([emailRow({ source: "prickle_checkins", event_type: "prickle_checkin", title: "Checked in", entity_type: "prickle", entity_id: "prkl_AAAAAAAAAAA1", data: null })]);
+    expect(screen.getByRole("link", { name: /Open the prickle/ })).toHaveAttribute("href", "/admin/prickles/prkl_AAAAAAAAAAA1");
+  });
+
+  it("links a feedback entry to that member's feedback, and keeps the link outside the opened detail", () => {
+    renderTable([emailRow({ source: "feedback", event_type: "feedback_submitted", title: "Sent feedback: bug", entity_type: "feedback", entity_id: "b9f3a6c2-0000-4000-8000-000000000001", description: "More", data: null })]);
+    expect(screen.getByRole("link", { name: /See their feedback/ })).toHaveAttribute("href", "/admin/feedback?member=mbr_AAAAAAAAAAA1");
+  });
+
+  it("shows no source link on a row without a page", () => {
+    renderTable([emailRow({ source: "slack", event_type: "slack_message", title: "Posted", data: null })]);
+    expect(screen.queryByRole("link", { name: /→/ })).toBeNull();
+  });
+});

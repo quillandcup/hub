@@ -95,3 +95,21 @@ describe('FeedbackClient sudo-as-reporter', () => {
     expect(screen.queryByRole('button', { name: 'Sudo as reporter' })).not.toBeInTheDocument()
   })
 })
+
+describe('FeedbackClient for one member', () => {
+  it('asks for that member only, and says so with a way back', async () => {
+    render(<FeedbackClient memberId="mbr_AAAAAAAAAAA1" />)
+    await waitFor(() => expect(screen.getByText('Something is broken')).toBeInTheDocument())
+    expect(String((global.fetch as any).mock.calls[0][0])).toContain('member=mbr_AAAAAAAAAAA1')
+    expect(screen.getByText(/Showing one member's feedback/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: "Show everyone's" })).toHaveAttribute('href', '/admin/feedback')
+    expect(screen.getByRole('link', { name: 'open the member' })).toHaveAttribute('href', '/admin/members/mbr_AAAAAAAAAAA1')
+  })
+
+  it('asks for everyone, with no note, otherwise', async () => {
+    render(<FeedbackClient />)
+    await waitFor(() => expect(screen.getByText('Something is broken')).toBeInTheDocument())
+    expect(String((global.fetch as any).mock.calls[0][0])).not.toContain('member=')
+    expect(screen.queryByText(/Showing one member's feedback/)).toBeNull()
+  })
+})

@@ -48,7 +48,7 @@ export interface AdminWorkQueueRepository {
 
   // --- feedback ---
   /** One page of feedback (optionally one status), newest first, with the sender, and the total that match. `page` counts from 0. */
-  feedbackPage(options: { status?: string; page: number; pageSize: number }): Promise<FeedbackPage>;
+  feedbackPage(options: { status?: string; memberId?: string; page: number; pageSize: number }): Promise<FeedbackPage>;
   /** Saves a submission and returns it. */
   addFeedback(feedback: NewFeedback): Promise<FeedbackRow>;
   /** Changes a submission's status or admin notes (nothing happens when there is none). */
@@ -102,7 +102,7 @@ export class SupabaseAdminWorkQueueRepository implements AdminWorkQueueRepositor
     if (error) throw new Error(error.message);
   }
 
-  async feedbackPage({ status, page, pageSize }: { status?: string; page: number; pageSize: number }) {
+  async feedbackPage({ status, memberId, page, pageSize }: { status?: string; memberId?: string; page: number; pageSize: number }) {
     let query = this.db
       .from("feedback")
       .select(FEEDBACK_WITH_MEMBER, { count: "exact" })
@@ -110,6 +110,7 @@ export class SupabaseAdminWorkQueueRepository implements AdminWorkQueueRepositor
       .order("id")
       .range(page * pageSize, page * pageSize + pageSize - 1);
     if (status) query = query.eq("status", status);
+    if (memberId) query = query.eq("member_id", memberId);
     const { data, error, count } = await query;
     if (error) throw new Error(error.message);
     const rows = (data ?? []).map((r) => ({
@@ -173,11 +174,12 @@ export class InMemoryAdminWorkQueueRepository implements AdminWorkQueueRepositor
     this.data.dismissedDuplicateGroups = this.data.dismissedDuplicateGroups.filter((g) => g.group_key !== groupKey);
   }
 
-  async feedbackPage({ status, page, pageSize }: { status?: string; page: number; pageSize: number }) {
+  async feedbackPage({ status, memberId, page, pageSize }: { status?: string; memberId?: string; page: number; pageSize: number }) {
     // Newest first; rows saved in the same millisecond keep the later one first (the database's timestamps do not tie).
     const matching = this.data.feedback
       .map((row, order) => ({ row, order }))
       .filter(({ row }) => !status || row.status === status)
+      .filter(({ row }) => !memberId || row.member_id === memberId)
       .sort((a, b) => compareText(b.row.created_at, a.row.created_at) || b.order - a.order)
       .map(({ row }) => row);
     const rows = matching.slice(page * pageSize, page * pageSize + pageSize).map((f) => {
