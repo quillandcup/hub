@@ -18,6 +18,7 @@ import {
   useFakeSupabase,
   type FakeTables,
 } from "@/tests/helpers/server-page";
+import { effectiveMemberHasFeature } from "@/lib/features.server";
 import type { HostedPrickleRecord } from "@/lib/hosting-stats";
 import type { HostedScheduleSlot } from "@/lib/prickle-schedule";
 
@@ -103,6 +104,7 @@ beforeEach(() => {
   resetServerPageMocks();
   signInAs(MEMBER_USER, MEMBER_IDENTITY);
   useFakeSupabase(tables());
+  vi.mocked(effectiveMemberHasFeature).mockImplementation(async () => false);
   vi.mocked(fetchHostedPrickleRecords).mockResolvedValue([]);
   vi.mocked(getMemberHostingSchedule).mockResolvedValue([]);
   vi.mocked(getProfileWriting).mockResolvedValue({ projects: [], goals: [] });
@@ -188,6 +190,41 @@ describe("member profile page: header", () => {
   it("omits the last-prickle line for a member who has never attended", async () => {
     await renderServerPage(MemberProfilePage, params);
     expect(screen.queryByText(/^Last prickle/)).not.toBeInTheDocument();
+  });
+});
+
+describe("member profile page: Message button", () => {
+  const withFeatures = (...keys: string[]) => vi.mocked(effectiveMemberHasFeature).mockImplementation(async (key) => keys.includes(key));
+  const button = () => screen.queryByRole("button", { name: "Message" });
+
+  it("is there with chat, posting and either Hub direct messages or the Slack DM bridge", async () => {
+    withFeatures("chat", "chat_posting", "chat_dms");
+    await renderServerPage(MemberProfilePage, params);
+    expect(button()).toBeInTheDocument();
+    document.body.innerHTML = "";
+
+    withFeatures("chat", "chat_posting", "slack_dm_bridge");
+    await renderServerPage(MemberProfilePage, params);
+    expect(button()).toBeInTheDocument();
+  });
+
+  it("is missing without chat, posting or a direct message feature, on your own profile and in sudo", async () => {
+    for (const keys of [["chat", "chat_posting"], ["chat_posting", "chat_dms"], ["chat", "chat_dms"]]) {
+      withFeatures(...keys);
+      await renderServerPage(MemberProfilePage, params);
+      expect(button()).not.toBeInTheDocument();
+      document.body.innerHTML = "";
+    }
+
+    withFeatures("chat", "chat_posting", "chat_dms");
+    signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, memberId: PROFILE_ID });
+    await renderServerPage(MemberProfilePage, params);
+    expect(button()).not.toBeInTheDocument();
+    document.body.innerHTML = "";
+
+    signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
+    await renderServerPage(MemberProfilePage, params);
+    expect(button()).not.toBeInTheDocument();
   });
 });
 

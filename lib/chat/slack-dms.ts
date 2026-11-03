@@ -74,7 +74,7 @@ export async function pullMemberDms(service: SupabaseClient, memberId: string): 
       // Slackbot's "DM" is Slack's own, and a deactivated person's can't change.
       if (!im.user || im.user === "USLACKBOT" || im.is_user_deleted) continue;
       try {
-        result.messages += await pullOneDm(service, repos, slack, { memberId, selfSlackId: connection.slackUserId, im });
+        result.messages += (await pullOneDm(service, repos, slack, { memberId, selfSlackId: connection.slackUserId, im })).fetched;
         result.conversations += 1;
       } catch (error) {
         if (isDeadTokenError(error) || isRateLimited(error) || errorCode(error) === "missing_scope") throw error;
@@ -94,7 +94,7 @@ async function pullOneDm(
   repos: ReturnType<typeof createRepos>,
   slack: WebClient,
   opts: { memberId: string; selfSlackId: string; im: SlackIm }
-): Promise<number> {
+): Promise<{ chatChannelId: string | null; fetched: number }> {
   const { memberId, selfSlackId, im } = opts;
   const otherSlackId = im.user as string;
   const now = new Date(clock.now()).toISOString();
@@ -125,7 +125,7 @@ async function pullOneDm(
   const { data: projected, error } = await service.rpc("project_slack_dm", { p_channel_id: im.id, p_members: people });
   if (error) throw new Error(error.message);
   const chatChannelId = (projected as { channel?: string | null } | null)?.channel;
-  if (!chatChannelId) return 0;
+  if (!chatChannelId) return { chatChannelId: null, fetched: 0 };
 
   // Everything newer than what the chat already has; the first pull goes back as far as Slack serves.
   const newest = await repos.chat.newestSlackTs(chatChannelId, now).catch(() => null);
@@ -165,5 +165,44 @@ async function pullOneDm(
     }
   };
   await Promise.all(Array.from({ length: Math.min(PROJECT_CONCURRENCY, queue.length) }, worker));
-  return fresh.length;
+  return { chatChannelId, fetched: fresh.length };
+}
+
+export type OpenDmResult =
+  | { ok: true; channelId: string }
+  | { ok: false; reason: "not_production" | "not_connected" | "unknown_person" | "slack_refused" };
+
+/**
+ * The member's Slack DM with another member, opened with the member's own token (`conversations.open` is
+ * find-or-create: an existing DM comes back as it is) and brought into the chat with what Slack has of it,
+ * so the conversation can be opened and written in at once. The other person must be known by their Slack
+ * id (a member who connected Slack, or one the matching has linked). Nothing is sent to anyone. Does
+ * nothing off production, like every Slack call of the real workspace.
+ */
+export async function openSlackDm(service: SupabaseClient, memberId: string, otherMemberId: string): Promise<OpenDmResult> {
+  if (!chatSlackWritesEnabled()) return { ok: false, reason: "not_production" };
+  const status = await getSlackConnectionStatus(service, memberId);
+  if (!status.connected || !status.hasDmScopes || !status.slackUserId) return { ok: false, reason: "not_connected" };
+  const connection = await getSlackUserToken(service, memberId);
+  if (!connection) return { ok: false, reason: "not_connected" };
+
+  const repos = createRepos(service);
+  const otherSlackId = (await repos.chat.slackUserIdsByMember([otherMemberId])).get(otherMemberId);
+  if (!otherSlackId) return { ok: false, reason: "unknown_person" };
+
+  const slack = new WebClient(connection.token, { rejectRateLimitedCalls: true, retryConfig: { retries: 0 } });
+  try {
+    const opened = await slack.conversations.open({ users: otherSlackId, return_im: true });
+    const im = opened.channel as SlackIm | undefined;
+    if (!im?.id) return { ok: false, reason: "slack_refused" };
+    const { chatChannelId } = await pullOneDm(service, repos, slack, { memberId, selfSlackId: connection.slackUserId, im: { ...im, user: otherSlackId } });
+    return chatChannelId ? { ok: true, channelId: chatChannelId } : { ok: false, reason: "slack_refused" };
+  } catch (error) {
+    if (isDeadTokenError(error)) {
+      await service.rpc("slack_connection_revoke", { p_member: memberId });
+      return { ok: false, reason: "not_connected" };
+    }
+    console.error("openSlackDm failed for member %s:", memberId, error);
+    return { ok: false, reason: "slack_refused" };
+  }
 }

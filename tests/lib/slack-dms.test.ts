@@ -8,13 +8,14 @@ const m = vi.hoisted(() => ({
   claimed: true,
   list: vi.fn(),
   history: vi.fn(),
+  open: vi.fn(),
   rpc: vi.fn(),
   dataset: null as unknown,
 }));
 
 vi.mock("@slack/web-api", () => ({
   WebClient: class {
-    conversations = { list: m.list, history: m.history };
+    conversations = { list: m.list, history: m.history, open: m.open };
   },
 }));
 vi.mock("@/lib/chat/slack-post", () => ({ chatSlackWritesEnabled: () => m.writes }));
@@ -28,7 +29,7 @@ vi.mock("@/lib/data/repos", async () => {
   return { ...actual, createRepos: () => actual.createInMemoryRepos(m.dataset as never) };
 });
 
-import { pullMemberDms, SLACK_DM_PULL_INTERVAL_SECONDS } from "@/lib/chat/slack-dms";
+import { openSlackDm, pullMemberDms, SLACK_DM_PULL_INTERVAL_SECONDS } from "@/lib/chat/slack-dms";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 
 const service = { rpc: (...args: unknown[]) => m.rpc(...args) } as never;
@@ -45,6 +46,7 @@ beforeEach(() => {
   m.dataset = new InMemoryDataset({ chatSlackAuthors: [{ slack_user_id: "UGALE", member_id: GALE }] });
   m.list.mockReset().mockResolvedValue({ channels: [{ id: "D1", user: "UGALE", created: 1_700_000_000 }] });
   m.history.mockReset().mockResolvedValue({ messages: [], has_more: false });
+  m.open.mockReset().mockResolvedValue({ ok: true, channel: { id: "D1" } });
   m.rpc.mockReset().mockImplementation(async (name: string) => {
     if (name === "chat_claim_slack_dm_pull") return { data: m.claimed, error: null };
     if (name === "project_slack_dm") return { data: { channel: CHAT }, error: null };
@@ -155,5 +157,46 @@ describe("pullMemberDms", () => {
       .mockResolvedValueOnce({ messages: [{ ts: "1762170000.000200", user: "UGALE", text: "b" }], has_more: false });
     await expect(pullMemberDms(service, MEMBER)).resolves.toEqual({ conversations: 1, messages: 2 });
     expect(m.history).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: "c2" }));
+  });
+});
+
+describe("openSlackDm", () => {
+  useFakeClock(() => Date.parse("2026-11-03T12:00:00Z"));
+
+  it("opens the member's DM with the other person using the member's own token, and brings it into the chat", async () => {
+    m.history.mockResolvedValue({ messages: [{ ts: "1762170000.000100", user: "UGALE", text: "hi" }], has_more: false });
+    await expect(openSlackDm(service, MEMBER, GALE)).resolves.toEqual({ ok: true, channelId: CHAT });
+    expect(m.open).toHaveBeenCalledWith({ users: "UGALE", return_im: true });
+    expect(rpcCalls("project_slack_dm")[0][1]).toEqual({ p_channel_id: "D1", p_members: { USELF: MEMBER, UGALE: GALE } });
+    expect((m.dataset as InMemoryDataset).slackMessages).toHaveLength(1);
+    expect(rpcCalls("chat_claim_slack_dm_pull")).toHaveLength(0); // opening a DM isn't throttled
+  });
+
+  it("does nothing off production, without the DM scopes or a token, or for a person with no known Slack id", async () => {
+    m.writes = false;
+    await expect(openSlackDm(service, MEMBER, GALE)).resolves.toEqual({ ok: false, reason: "not_production" });
+    m.writes = true;
+    m.status = { connected: true, hasDmScopes: false, slackUserId: "USELF" };
+    await expect(openSlackDm(service, MEMBER, GALE)).resolves.toEqual({ ok: false, reason: "not_connected" });
+    m.status = { connected: true, hasDmScopes: true, slackUserId: "USELF" };
+    m.token = null;
+    await expect(openSlackDm(service, MEMBER, GALE)).resolves.toEqual({ ok: false, reason: "not_connected" });
+    m.token = { token: "xoxp-test", slackUserId: "USELF" };
+    await expect(openSlackDm(service, MEMBER, "mbr_AAAAAAAAAAH1")).resolves.toEqual({ ok: false, reason: "unknown_person" });
+    expect(m.open).not.toHaveBeenCalled();
+  });
+
+  it("revokes a connection Slack no longer honours, and reports Slack refusing or failing", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    m.open.mockRejectedValueOnce({ data: { error: "token_revoked" } });
+    await expect(openSlackDm(service, MEMBER, GALE)).resolves.toEqual({ ok: false, reason: "not_connected" });
+    expect(rpcCalls("slack_connection_revoke")).toHaveLength(1);
+    m.open.mockRejectedValueOnce(new Error("boom"));
+    await expect(openSlackDm(service, MEMBER, GALE)).resolves.toEqual({ ok: false, reason: "slack_refused" });
+    m.open.mockResolvedValueOnce({ ok: true, channel: {} });
+    await expect(openSlackDm(service, MEMBER, GALE)).resolves.toEqual({ ok: false, reason: "slack_refused" });
+    m.rpc.mockImplementation(async (name: string) => (name === "project_slack_dm" ? { data: { channel: null }, error: null } : { data: true, error: null }));
+    await expect(openSlackDm(service, MEMBER, GALE)).resolves.toEqual({ ok: false, reason: "slack_refused" });
+    error.mockRestore();
   });
 });
