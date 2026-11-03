@@ -40,7 +40,11 @@ function Harness({
       }}
       tokens={tokensRef}
       boxRef={handle}
-      onKeyDown={(e) => keyed.push(e.key)}
+      // As the real owners (Composer, MessageBody) do: Enter without Shift is theirs (send or save), so the editor must not also act on it.
+      onKeyDown={(e) => {
+        keyed.push(e.key);
+        if (e.key === "Enter" && !e.shiftKey) e.preventDefault();
+      }}
       {...props}
     />
   );
@@ -355,11 +359,11 @@ describe("MessageBox: formatting", () => {
 
     cleanup();
     const listed = await mount();
-    await typeInto(listed, "- one{Enter}two{Enter}{Enter}after", user);
+    await typeInto(listed, "- one{Shift>}{Enter}{/Shift}two{Shift>}{Enter}{/Shift}{Shift>}{Enter}{/Shift}after", user);
     expect(latest).toBe("• one\n• two\nafter");
   });
 
-  it("starts a line on Shift+Enter, a list item on Enter inside a list, and sends on Ctrl+Enter from anywhere", async () => {
+  it("starts a line on Shift+Enter, the next item on Shift+Enter in a list, and sends on Enter even there", async () => {
     const box = await mount();
     const user = boxUser();
     await typeInto(box, "one{Shift>}{Enter}{/Shift}two", user);
@@ -368,8 +372,25 @@ describe("MessageBox: formatting", () => {
     cleanup();
     keyed = [];
     const list = await mount({ initial: "• a" });
-    await typeInto(list, "{Enter}b", user);
+    await typeInto(list, "{Shift>}{Enter}{/Shift}b", user);
     expect(latest).toBe("• a\n• b");
+    // Shift+Enter was the editor's, so the owner never saw an Enter to send on; a plain Enter in the list is the owner's.
+    expect(keyed).not.toContain("Enter");
+    await user.keyboard("{Enter}");
+    expect(keyed).toContain("Enter");
+    expect(latest).toBe("• a\n• b");
+
+    // Shift+Enter on an empty item steps out of the list.
+    await user.keyboard("{Shift>}{Enter}{/Shift}{Shift>}{Enter}{/Shift}");
+    expect(latest).toBe("• a\n• b\n");
+  });
+
+  it("makes Enter in a code block a new line, and sends from there with Ctrl+Enter", async () => {
+    const box = await mount({ initial: "```\nlet a\n```" });
+    const user = boxUser();
+    await caretToEnd(box);
+    await user.keyboard("{Enter}x");
+    expect(latest).toBe("```\nlet a\nx\n```");
     expect(keyed).not.toContain("Enter");
     await user.keyboard("{Control>}{Enter}{/Control}");
     expect(keyed).toContain("Enter");
@@ -415,6 +436,23 @@ describe("MessageBox: formatting", () => {
     await startOf("cc");
     await user.keyboard("{Backspace}");
     expect(latest).toBe("• a\n  • bb\ncc");
+  });
+
+  it("brings the items under one with it when it is backed out (deliberately unlike Slack, whose flat lists leave them with a gap)", async () => {
+    const box = await mount({ initial: "1. top\n  1. mid\n    1. deep" });
+    const node = [...box.querySelectorAll("p")].find((p) => p.textContent === "mid")!.firstChild as Text;
+    const range = document.createRange();
+    range.setStart(node, 0);
+    range.collapse(true);
+    box.focus();
+    window.getSelection()!.removeAllRanges();
+    window.getSelection()!.addRange(range);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+    });
+    await boxUser().keyboard("{Backspace}");
+    // "deep" followed "mid" up a level (two spaces, not four), where Slack would leave it at its own indent under "2. mid".
+    expect(latest).toBe("1. top\n2. mid\n  1. deep");
   });
 
   it("marks each list with its depth (for the marker Slack uses at that level) and won't nest a sixth level", async () => {
