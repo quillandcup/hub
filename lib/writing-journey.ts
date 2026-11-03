@@ -1,7 +1,7 @@
 import type { ProjectPhase } from "@/lib/writing-projects";
 
 /**
- * Spark to Shelf: the stages a book goes through at Quill & Cup and the offer at each (the same map
+ * Journey: the stages a book goes through at Quill & Cup and the offer at each (the same map
  * as docs/pipeline-map.html). A project's position is derived from its status, never stored. `on_hold`
  * and `hibernating` are not positions: they pause or end a project at any stage.
  */

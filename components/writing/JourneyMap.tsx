@@ -51,7 +51,7 @@ const STAGE_STYLE: Record<JourneyOffer, string> = {
 };
 
 /**
- * Spark to Shelf as a diagram: stages joined by arrows (live, hire-a-pro and roadmap drawn
+ * Journey as a diagram: stages joined by arrows (live, hire-a-pro and roadmap drawn
  * differently), with the member's projects at the stage their status puts them. A fixed-size canvas
  * that scrolls sideways on narrow screens; the stages are a real list so screen readers get them in order.
  */
@@ -126,7 +126,10 @@ export default function JourneyMap({ projects }: { projects: JourneyProject[] })
                       ))}
                     </ul>
                   ) : (
-                    <p className="mt-1 line-clamp-3 text-[11px] leading-snug text-slate-600 dark:text-slate-400">{stage.description}</p>
+                    <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-slate-600 dark:text-slate-400">{stage.description}</p>
+                  )}
+                  {stage.phases.length > 0 && (
+                    <p className="mt-1 text-[10px] text-slate-500">Status: {stage.phases.map((p) => PHASE_LABELS[p]).join(" · ")}</p>
                   )}
                 </li>
               );
@@ -138,6 +141,7 @@ export default function JourneyMap({ projects }: { projects: JourneyProject[] })
         <li>Solid: live at Quill &amp; Cup</li>
         <li>Dotted: hire a pro outside Quill &amp; Cup</li>
         <li>Dashed: on the roadmap</li>
+        <li>On hold and Hibernating projects are listed under Paused</li>
         <li>Community is with you the whole way</li>
       </ul>
 
