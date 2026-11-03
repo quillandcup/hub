@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { consumeSlackSignIn } from "@/lib/slack-sign-in";
+import { logSlackLinkOpened } from "@/lib/signin-log";
 import { rememberSignInFailure, rememberSignInMethod } from "@/lib/signin-method";
 import { finishSlackSignIn, refreshHomeForDeadToken } from "./finish";
 
@@ -21,6 +22,7 @@ export async function GET(request: NextRequest) {
 
   const isNavigation =
     request.headers.get("sec-fetch-mode") === "navigate" && request.headers.get("sec-fetch-dest") === "document";
+  logSlackLinkOpened(request.headers, isNavigation);
   if (!isNavigation) {
     const continueUrl = new URL("/auth/slack/continue", origin);
     if (token) continueUrl.searchParams.set("token", token);

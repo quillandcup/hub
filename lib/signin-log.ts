@@ -36,3 +36,23 @@ export function logSignIn(outcome: SignInOutcome, error?: { code?: string | null
   if (error?.status) line.status = error.status;
   console.log(`signin: ${JSON.stringify(line)}`);
 }
+
+/**
+ * TEMPORARY diagnostic (docs/TODO.md, "Remove the temporary /auth/slack browser log line"): what a
+ * Slack sign-in link was opened with, to see whether Slack's in-app browser on iOS passes the
+ * navigation check and whether its user agent differs from Safari's. A raw user agent is a
+ * fingerprint, so this is removed once answered. Never the token.
+ */
+export function logSlackLinkOpened(headers: Pick<Headers, "get">, isNavigation: boolean) {
+  const header = (name: string) => headers.get(name) ?? undefined;
+  console.log(
+    `signin: ${JSON.stringify({
+      outcome: "slack_link_opened",
+      navigation: isNavigation,
+      sec_fetch_mode: header("sec-fetch-mode"),
+      sec_fetch_dest: header("sec-fetch-dest"),
+      sec_fetch_site: header("sec-fetch-site"),
+      user_agent: header("user-agent")?.slice(0, 300),
+    })}`
+  );
+}
