@@ -157,6 +157,17 @@ export function defineMemberProfileContract(name: string, setup: () => MemberPro
         expect(await repo.slackUserConnectedByOther("U_CONTRACT_NOBODY", id(bo))).toBe(false);
       });
 
+      it("lists the members whose working connection has every scope asked for", async () => {
+        const repo = ctx.repo();
+        await ctx.seedSlackConnection(id(ada), "U_CONTRACT_A", { scopes: ["im:history", "im:read", "chat:write"] });
+        await ctx.seedSlackConnection(id(bo), "U_CONTRACT_B", { scopes: ["im:history"] });
+        await ctx.seedSlackConnection(id(cy), "U_CONTRACT_C", { scopes: ["im:history", "im:read"], revoked: true });
+
+        expect(await repo.memberIdsWithSlackScopes(["im:history", "im:read"])).toEqual([id(ada)]);
+        expect([...(await repo.memberIdsWithSlackScopes(["im:history"]))].sort()).toEqual([id(ada), id(bo)].sort());
+        expect(await repo.memberIdsWithSlackScopes(["files:read"])).toEqual([]);
+      });
+
       it("maps every connected Slack user to its member, revoked connections included", async () => {
         const repo = ctx.repo();
         await ctx.seedSlackConnection(id(ada), "U_CONTRACT_A");

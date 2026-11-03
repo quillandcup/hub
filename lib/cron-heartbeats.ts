@@ -56,6 +56,13 @@ export const CRON_HEARTBEATS = {
     envVar: "CHECKLY_HEARTBEAT_RECONCILE_SLACK",
     ...daily,
   },
+  "reconcile-slack-dms": {
+    name: "Cron: Slack DM reconciliation (daily 04:15 UTC)",
+    path: "/api/reconcile/slack-dms",
+    scheduler: "vercel",
+    envVar: "CHECKLY_HEARTBEAT_RECONCILE_SLACK_DMS",
+    ...daily,
+  },
   "reconcile-members": {
     name: "Cron: member reconciliation (daily 03:00 UTC)",
     path: "/api/reconcile/members",
