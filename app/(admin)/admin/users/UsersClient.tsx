@@ -15,7 +15,7 @@ import { describeStoredDevice, type DeviceInfo } from "@/lib/device-label";
 import { formatDateInZone } from "@/lib/formatters";
 import { useTimeZone } from "@/components/Timezone";
 
-type Role = "admin" | "assistant" | "member";
+type Role = "admin" | "assistant" | "community_manager" | "member";
 type StaffRole = "owner" | "staff" | "contractor";
 
 interface MemberRecord {
@@ -78,12 +78,14 @@ function formatSessionRange(start: string, end: string): string {
 const ROLE_LABELS: Record<Role, string> = {
   admin: "Admin",
   assistant: "Assistant",
+  community_manager: "Community Manager",
   member: "Member",
 };
 
 const ROLE_COLORS: Record<Role, string> = {
   admin: "bg-mist-100 text-mist-800 dark:bg-mist-900/30 dark:text-mist-300",
   assistant: "bg-plum-100 text-plum-800 dark:bg-plum-900/30 dark:text-plum-300",
+  community_manager: "bg-plum-100 text-plum-800 dark:bg-plum-900/30 dark:text-plum-300",
   member: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300",
 };
 
@@ -101,7 +103,7 @@ const STAFF_ROLE_COLORS: Record<StaffRole, string> = {
 
 type SortColumn = "email" | "role" | "profiles" | "features" | "created";
 
-const ROLE_ORDER: Record<Role, number> = { admin: 0, assistant: 1, member: 2 };
+const ROLE_ORDER: Record<Role, number> = { admin: 0, assistant: 1, community_manager: 2, member: 3 };
 
 function getSortValue(user: AppUser, column: SortColumn): SortValue {
   switch (column) {
@@ -498,6 +500,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                           >
                             <option value="admin">Admin</option>
                             <option value="assistant">Assistant</option>
+                            <option value="community_manager">Community Manager</option>
                             <option value="member">Member</option>
                           </select>
                         ) : (

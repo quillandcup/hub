@@ -9,7 +9,7 @@ import LiveRefresh from "@/components/LiveRefresh";
 import LivePoll from "@/components/LivePoll";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { computeHostStatus } from "@/lib/hosting-stats";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requireStaffPage } from "@/lib/admin-auth";
 import { orgWeek } from "@/lib/org-week";
 import { formatDateOnly } from "@/lib/formatters";
 import { clock } from "@/lib/clock";
@@ -27,7 +27,7 @@ export default async function CalendarPage({
 }: {
   searchParams: Promise<{ week?: string }>;
 }) {
-  await requireAdminPage();
+  await requireStaffPage();
   const supabase = await createClient();
 
   // Await searchParams in Next.js 15

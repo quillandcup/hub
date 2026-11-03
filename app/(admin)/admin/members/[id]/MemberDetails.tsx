@@ -72,6 +72,8 @@ interface MemberDetailsProps {
   }[];
   nameAliases: NameAliasRow[];
   emailAliases: EmailAliasRow[];
+  /** A community manager's view: no write controls and no Identity tab (emails, aliases, the legal name's editor). */
+  readOnly?: boolean;
 }
 
 type Tab = MemberTabId;
@@ -98,6 +100,7 @@ export default function MemberDetails({
   awards,
   nameAliases,
   emailAliases,
+  readOnly = false,
 }: MemberDetailsProps) {
   const timeZone = useTimeZone();
   const [activeTab, setActiveTabState] = useState<Tab>(initialTab);
@@ -128,8 +131,8 @@ export default function MemberDetails({
     { id: "overview", label: MEMBER_TAB_LABELS.overview },
     { id: "attendance", label: `${MEMBER_TAB_LABELS.attendance} (${distinctPrickleCount})` },
     { id: "slack", label: `${MEMBER_TAB_LABELS.slack} (${slackSummary.total})` },
-    { id: "activity", label: MEMBER_TAB_LABELS.activity },
-    { id: "identity", label: MEMBER_TAB_LABELS.identity },
+    ...(readOnly ? [] : [{ id: "activity" as const, label: MEMBER_TAB_LABELS.activity }]),
+    ...(readOnly ? [] : [{ id: "identity" as const, label: MEMBER_TAB_LABELS.identity }]),
   ];
 
   return (
@@ -239,7 +242,7 @@ export default function MemberDetails({
           </div>
           </div>
 
-          <LatestNoteCard memberId={member.id} note={latestNote} timeZone={timeZone} />
+          <LatestNoteCard memberId={member.id} note={latestNote} timeZone={timeZone} readOnly={readOnly} />
 
           <MemberTimelinePanel
             memberId={member.id}
@@ -247,6 +250,7 @@ export default function MemberDetails({
             membershipHistory={membershipHistory}
             programOverrides={programOverrides}
             statusOverrides={statusOverrides}
+            readOnly={readOnly}
           />
 
           <MemberBadgesPanel
@@ -255,6 +259,7 @@ export default function MemberDetails({
             eventSlugs={eventSlugs}
             awardableBadgeTypes={awardableBadgeTypes}
             awards={awards}
+            readOnly={readOnly}
           />
         </div>
       )}
@@ -292,7 +297,7 @@ export default function MemberDetails({
                 Open in the central log
               </Link>
             </p>
-            <MemberNoteForm memberId={member.id} />
+            {!readOnly && <MemberNoteForm memberId={member.id} />}
             <ActivityFilters variant="member" filters={activityFilters} basePath={`/admin/members/${member.id}/activity`} />
             {!activityFeed ? (
               <p role="alert" className="text-sm text-red-700 dark:text-red-400">
@@ -301,7 +306,7 @@ export default function MemberDetails({
             ) : activityFeed.total === 0 ? (
               <p className="text-sm text-slate-600 dark:text-slate-400">Nothing in this window. Try a longer range or other filters.</p>
             ) : (
-              <ActivityFeedTable {...activityFeed} filters={activityFilters} hideAbout noteControls={{ memberId: member.id, currentUserId, editMinutes: noteEditMinutes }} />
+              <ActivityFeedTable {...activityFeed} filters={activityFilters} hideAbout noteControls={readOnly ? undefined : { memberId: member.id, currentUserId, editMinutes: noteEditMinutes }} />
             )}
           </div>
         )}

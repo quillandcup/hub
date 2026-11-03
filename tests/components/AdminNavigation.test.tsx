@@ -12,7 +12,7 @@ vi.mock("@/app/(member)/settings/actions", () => ({ updateNavMode: (mode: string
 
 describe("AdminNavigation", () => {
   it("is unmasked in Session Replay, so recordings show which page was opened", () => {
-    render(<AdminNavigation enabledFeatures={[]} />);
+    render(<AdminNavigation role="admin" enabledFeatures={[]} />);
     const sidebar = screen.getByRole("complementary", { name: "Sidebar navigation" });
     expect(sidebar.querySelector("nav")).toHaveAttribute("data-sentry-unmask");
   });
@@ -21,7 +21,7 @@ describe("AdminNavigation", () => {
     render(
       <>
         <MobileMenuButton />
-        <AdminNavigation enabledFeatures={[]} />
+        <AdminNavigation role="admin" enabledFeatures={[]} />
       </>
     );
     // The drawer is aria-hidden until opened, so its close button isn't in the accessibility tree.
@@ -39,7 +39,7 @@ describe("AdminNavigation drawer and keyboard focus", () => {
     render(
       <>
         <MobileMenuButton />
-        <AdminNavigation enabledFeatures={[]} />
+        <AdminNavigation role="admin" enabledFeatures={[]} />
       </>
     );
     const drawer = () => document.querySelector("aside.fixed") as HTMLElement;
@@ -57,7 +57,7 @@ describe("AdminNavigation sidebar mode", () => {
 
   it("is pinned open by default and cycles to auto-hide, closed and back, saving each choice", async () => {
     updateNavMode.mockClear();
-    render(<AdminNavigation enabledFeatures={[]} />);
+    render(<AdminNavigation role="admin" enabledFeatures={[]} />);
     expect(sidebar()).toHaveClass("w-64");
 
     await userEvent.click(screen.getByRole("button", { name: /^Sidebar/ }));
@@ -79,12 +79,12 @@ describe("AdminNavigation sidebar mode", () => {
   });
 
   it("starts in the saved mode", () => {
-    render(<AdminNavigation enabledFeatures={[]} navMode="auto" />);
+    render(<AdminNavigation role="admin" enabledFeatures={[]} navMode="auto" />);
     expect(sidebar()).toHaveAttribute("data-auto-hide", "true");
   });
 
   it("keeps folded sections folded in auto-hide, with the same rows at rest and open", () => {
-    render(<AdminNavigation enabledFeatures={[]} navMode="auto" />);
+    render(<AdminNavigation role="admin" enabledFeatures={[]} navMode="auto" />);
     const folds = () => Array.from(sidebar().querySelectorAll("details"));
     const rows = () => sidebar().querySelectorAll("summary, h2, li").length;
 
@@ -100,5 +100,23 @@ describe("AdminNavigation sidebar mode", () => {
     expect(rows()).toBe(atRest);
     expect(folds().every((d) => !d.open)).toBe(true);
     expect(folds()[0].querySelector("summary > span:last-child")).toHaveClass("opacity-100");
+  });
+
+  it("shows a community manager only the pages they may open, and an admin all of them", () => {
+    const { unmount } = render(<AdminNavigation role="community_manager" enabledFeatures={[]} />);
+    const hrefs = within(screen.getByRole("complementary", { name: "Sidebar navigation" }))
+      .getAllByRole("link")
+      .map((a) => a.getAttribute("href"));
+    expect(hrefs).toEqual(expect.arrayContaining(["/admin/at-risk", "/admin/members", "/admin/stats", "/admin/calendar"]));
+    expect(hrefs).not.toContain("/admin/users");
+    expect(hrefs).not.toContain("/admin/activity");
+    expect(hrefs).not.toContain("/admin/outreach");
+    unmount();
+
+    render(<AdminNavigation role="admin" enabledFeatures={[]} />);
+    const adminHrefs = within(screen.getByRole("complementary", { name: "Sidebar navigation" }))
+      .getAllByRole("link")
+      .map((a) => a.getAttribute("href"));
+    expect(adminHrefs).toContain("/admin/users");
   });
 });

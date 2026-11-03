@@ -38,7 +38,8 @@ vi.mock("@/components/UserMenu", () => ({
 vi.mock("@/components/FeedbackWidget", () => ({ default: () => null }));
 vi.mock("@/components/SignOutButton", () => ({ default: () => <button>Sign Out</button> }));
 
-import { requireAdminAction, requireAdminPage } from "@/lib/admin-auth";
+import { requireAdminAction, requireAdminPage, requireStaffPage } from "@/lib/admin-auth";
+import { isCommunityManagerPath } from "@/lib/staff-access";
 import AdminLayout from "@/app/(admin)/layout";
 import AdminWheelOfWonderPage from "@/app/(admin)/admin/wheel-of-wonder/page";
 import StreaksPage from "@/app/(member)/streaks/page";
@@ -46,7 +47,8 @@ import NoAccessPage from "@/app/no-access/page";
 import { dismissGroup, undismissGroup } from "@/app/(admin)/admin/hygiene/merge-fix/actions";
 import { SUPPORT_EMAIL } from "@/lib/config"
 
-const ROLES: Record<string, string> = { [ADMIN_USER.id]: "admin", [MEMBER_USER.id]: "member" };
+const CM_USER = { id: "user-community-manager", email: "cm@example.test" };
+const ROLES: Record<string, string> = { [ADMIN_USER.id]: "admin", [MEMBER_USER.id]: "member", [CM_USER.id]: "community_manager" };
 const userProfiles = (q: FakeQuery) => {
   const id = q.calls.find((c) => c.method === "eq" && c.args[0] === "id")?.args[1] as string;
   return { data: ROLES[id] ? [{ role: ROLES[id] }] : [] };
@@ -93,7 +95,45 @@ describe("requireAdminPage", () => {
   });
 });
 
+describe("requireStaffPage", () => {
+  it("returns an admin with their role", async () => {
+    signInAs(ADMIN_USER, null);
+    await expect(requireStaffPage()).resolves.toEqual({ ...ADMIN_USER, role: "admin" });
+  });
+
+  it("returns a community manager with their role", async () => {
+    signInAs(CM_USER, null);
+    await expect(requireStaffPage()).resolves.toEqual({ ...CM_USER, role: "community_manager" });
+  });
+
+  it("keeps a community manager out of requireAdminPage and requireAdminAction", async () => {
+    signInAs(CM_USER, null);
+    await expectRedirect(guardedPage, undefined, "/no-access");
+    await expect(requireAdminAction()).resolves.toEqual({ ok: false, error: "Not authorized" });
+  });
+
+  it("sends a signed-out visitor to /login, and a member or a user with no profile to /no-access", async () => {
+    const staffPage = async () => {
+      await requireStaffPage();
+      return null;
+    };
+    signInAs(null);
+    await expectRedirect(staffPage, undefined, "/login");
+    signInAs(MEMBER_USER, null);
+    await expectRedirect(staffPage, undefined, "/no-access");
+    signInAs({ id: "user-no-profile", email: "nobody@example.test" }, null);
+    await expectRedirect(staffPage, undefined, "/no-access");
+  });
+});
+
 describe("admin layout", () => {
+  it("renders the shell for a community manager, without the admin-only menu", async () => {
+    signInAs(CM_USER, null);
+    await renderServerPage(AdminLayout, layoutProps);
+    expect(screen.getByTestId("admin-nav")).toBeInTheDocument();
+    expect(screen.getByText("admin page body")).toBeInTheDocument();
+  });
+
   it("renders the admin shell and page for an admin", async () => {
     signInAs(ADMIN_USER, null);
     await renderServerPage(AdminLayout, layoutProps);
@@ -219,7 +259,11 @@ const adminFiles = (fs.readdirSync(adminRoot, { recursive: true }) as string[]).
 );
 const read = (file: string) => fs.readFileSync(path.join(repoRoot, file), "utf8");
 
-describe("every admin page calls requireAdminPage()", () => {
+// The route a page file serves: "app/(admin)/admin/members/[id]/slack/page.tsx" → "/admin/members/x/slack".
+const routeOf = (file: string) =>
+  file.replace("app/(admin)", "").replace(/\/page\.tsx$/, "").replace(/\[[^\]]+\]/g, "x") || "/";
+
+describe("every admin page calls requireAdminPage(), or requireStaffPage() when a community manager may open it", () => {
   // Layouts don't re-run on client navigation and don't stop a page segment from rendering.
   const pages = adminFiles.filter((f) => f.endsWith("page.tsx"));
 
@@ -228,7 +272,10 @@ describe("every admin page calls requireAdminPage()", () => {
   });
 
   it.each(pages)("%s", (file) => {
-    expect(read(file)).toMatch(/await requireAdminPage\(\)/);
+    // Admin-only unless lib/staff-access.ts lists the route: a page can't open to a community manager
+    // without the allowlist (proxy and sidebar) agreeing, nor be listed there without its page check.
+    const open = isCommunityManagerPath(routeOf(file));
+    expect(read(file)).toMatch(open ? /await requireStaffPage\(\)/ : /await requireAdminPage\(\)/);
   });
 });
 

@@ -7,7 +7,7 @@ import { createInMemoryRepos } from "@/lib/data/repos";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
-vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: vi.fn(async () => undefined) }));
+vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: vi.fn(async () => undefined), requireStaffPage: vi.fn(async () => ({ id: "admin", email: "a@example.test", role: "admin" })) }));
 vi.mock("@/lib/timezone", () => ({ getUserTimezonePreference: vi.fn(async () => "UTC") }));
 let repos = createInMemoryRepos();
 vi.mock("@/lib/data/repos", async () => ({

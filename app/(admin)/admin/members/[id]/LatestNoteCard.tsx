@@ -14,7 +14,7 @@ export interface LatestNote {
  * which is the Activity Log tab narrowed to notes over the longest range. With no notes it links to the tab,
  * where the add box is.
  */
-export default function LatestNoteCard({ memberId, note, timeZone }: { memberId: string; note: LatestNote | null; timeZone: string }) {
+export default function LatestNoteCard({ memberId, note, timeZone, readOnly = false }: { memberId: string; note: LatestNote | null; timeZone: string; readOnly?: boolean }) {
   const activity = `/admin/members/${memberId}/activity`;
   return (
     <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
@@ -24,7 +24,7 @@ export default function LatestNoteCard({ memberId, note, timeZone }: { memberId:
           href={note ? `${activity}${feedSearch({ kinds: ["note"], days: 365 }, MEMBER_DEFAULTS)}` : activity}
           className="text-sm text-plum-600 hover:text-plum-700 dark:text-plum-400 dark:hover:text-plum-300 hover:underline"
         >
-          {note ? "See all notes" : "Add the first note"} →
+          {note ? "See all notes" : readOnly ? "Open the activity log" : "Add the first note"} →
         </Link>
       </div>
       {note ? (

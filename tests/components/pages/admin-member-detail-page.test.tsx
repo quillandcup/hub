@@ -54,6 +54,8 @@ vi.mock("@/app/(admin)/admin/members/[id]/MemberDetails", () => ({
   ),
 }));
 vi.mock("@/app/(admin)/admin/members/[id]/MergeButton", () => ({ default: () => null }));
+const staff = vi.hoisted(() => ({ role: "admin" }));
+vi.mock("@/lib/admin-auth", () => ({ requireStaffPage: vi.fn(async () => ({ id: "admin", email: "a@example.test", role: staff.role })) }));
 vi.mock("@/app/actions/sudo", () => ({ startSudo: vi.fn() }));
 vi.mock("@/lib/timezone", () => ({ getUserTimezonePreference: vi.fn(async () => "UTC") }));
 vi.mock("@/lib/badges", () => ({ getMemberBadges: vi.fn(async () => []) }));
@@ -70,6 +72,7 @@ function memberTables(extra: FakeTables = {}): FakeTables {
 }
 
 beforeEach(() => {
+  staff.role = "admin";
   resetServerPageMocks();
   signInAs(ADMIN_USER);
   serviceTables = {
@@ -77,6 +80,23 @@ beforeEach(() => {
     "bronze.slack_users": { data: [{ user_id: "U1", display_name: "Fern", real_name: "Fern Quillsby", name: "fern" }] },
     "bronze.slack_channels": { data: [{ channel_id: "C1", name: "hub-feedback" }] },
   };
+});
+
+describe("MemberDetailPage controls", () => {
+  it("gives an admin Sudo As and Remove member", async () => {
+    useFakeSupabase(memberTables());
+    await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "overview" as const });
+    expect(screen.getByRole("button", { name: "Sudo As" })).toBeInTheDocument();
+  });
+
+  it("gives a community manager the profile without Sudo As, Merge, Split or the Remove panel", async () => {
+    staff.role = "community_manager";
+    useFakeSupabase(memberTables());
+    await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "overview" as const });
+    expect(screen.getByRole("heading", { name: "Moss Bramble" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Sudo As" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/remove member/i)).not.toBeInTheDocument();
+  });
 });
 
 describe("MemberDetailPage", () => {

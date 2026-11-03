@@ -709,6 +709,9 @@ Statement timeouts (57014) kept hitting unrelated queries in production: the adm
 
 ## Security & Access Control
 
+### Community manager: narrower billing reads, Activity Log, and the write page
+The community manager role (`lib/staff-access.ts`) reads Kajabi and Stripe Bronze tables whole (raw payloads, every customer) because Resubscriptions and the membership timeline read them that way; a view or SQL function returning only what those two need would narrow it. Their member profile hides the Activity Log tab because `get_activity_feed` / `count_activity_feed` are gated by `is_admin()` and also return audit rows about admins and sudo; a filtered variant (notes on others, their own activity) would let them have it. The Calendar View still links to admin-only hygiene pages. Deferred to ship the read-only role first. Still to build: the Outreach / Work Queue page for at-risk members they can write to (needs `requireStaffAction()` beside `requireAdminAction()` and write policies). Start at `supabase/migrations/20270430000500_community_manager_role.sql` and `lib/admin-auth.ts`.
+
 ### Stale private-channel memberships in the chat mirror _(Resolved 2026-11-02)_
 
 A production check (2026-11-02) found 9 active `chat_channel_members` rows in private channels, for 2 members, with no active Slack membership behind them in `bronze.slack_channel_members`. A member with such a row still saw that private channel in the Hub (`chat_visible_channel_ids()` trusts the row). Two causes: (1) the Slack webhook updated Bronze when someone left but skipped the chat projection (`lib/processing/trigger.ts`), so the Hub kept the row until the next full run; (2) `project_slack_chat_channels` only upserted rows Bronze still lists, so a row whose Slack account stopped matching the member was never closed.

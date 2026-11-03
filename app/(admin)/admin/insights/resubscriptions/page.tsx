@@ -6,7 +6,7 @@ import Link from "next/link";
 import ResubscriptionsChart from "./ResubscriptionsChart";
 import { fetchResubscriptionsData } from "@/lib/resubscription-data";
 import ResubscribingMembersTable from "./ResubscribingMembersTable";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requireStaffPage } from "@/lib/admin-auth";
 import { createRepos } from "@/lib/data/repos";
 
 export const maxDuration = 60;
@@ -21,7 +21,7 @@ function pct(num: number, denom: number): string {
 }
 
 export default async function ResubscriptionsPage() {
-  await requireAdminPage();
+  await requireStaffPage();
   const supabase = await createClient();
   const user = await getCurrentUser();
   if (!user) redirect("/login");

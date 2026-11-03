@@ -14,7 +14,7 @@ import AliasSearchForm from "@/app/(admin)/admin/hygiene/unmatched-zoom/AliasSea
 import { getScheduleSlot } from "@/lib/scheduled-prickle-stats";
 import { prickleTitle } from "@/lib/domain/prickle";
 import { computeHostStatus } from "@/lib/hosting-stats";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requireStaffPage } from "@/lib/admin-auth";
 import TestCheckinDMs from "./TestCheckinDMs";
 import ShowInEvents from "./ShowInEvents";
 import { updatePrickle } from "./actions";
@@ -51,7 +51,8 @@ export default async function AdminPrickleDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireAdminPage();
+  // A community manager reads the prickle: none of the controls that change it or send DMs.
+  const readOnly = (await requireStaffPage()).role !== "admin";
   const { id } = await params;
   const supabase = await createClient();
 
@@ -201,9 +202,9 @@ export default async function AdminPrickleDetailPage({
             userTimezonePreference={userTimezone}
             memberBasePath="/admin/members"
             showMemberEmails={true}
-            insightsSlotUrl={insightsSlotUrl}
+            insightsSlotUrl={readOnly ? undefined : insightsSlotUrl}
             edit={
-              prickle.calendarEventId
+              prickle.calendarEventId && !readOnly
                 ? {
                     types: calendarTypes,
                     members: members.map((m) => ({ id: m.id, name: m.name, displayName: m.displayName, email: m.email })),
@@ -218,15 +219,15 @@ export default async function AdminPrickleDetailPage({
                 : undefined
             }
           />
-          {eventsEnabled && prickle.calendarEventId && (
+          {!readOnly && eventsEnabled && prickle.calendarEventId && (
             <ShowInEvents
               calendarEventId={prickle.calendarEventId}
               initial={eventFollowing ? { id: eventFollowing.id, slug: eventFollowing.slug, hidden: eventFollowing.hidden } : null}
             />
           )}
-          <TestCheckinDMs prickleId={prickle.id} />
-          <IgnoredZoomNames prickleId={prickle.id} items={ignoredHere} />
-          {unmatchedZoomAttendees.length > 0 && (
+          {!readOnly && <TestCheckinDMs prickleId={prickle.id} />}
+          {!readOnly && <IgnoredZoomNames prickleId={prickle.id} items={ignoredHere} />}
+          {!readOnly && unmatchedZoomAttendees.length > 0 && (
             <AliasSearchForm
               unmatchedAttendees={unmatchedZoomAttendees}
               allMembers={members}

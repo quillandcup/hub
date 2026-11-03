@@ -43,6 +43,8 @@ interface MemberTimelinePanelProps {
   membershipHistory: any[];
   programOverrides?: ProgramOverrideRow[];
   statusOverrides?: StatusOverrideRow[];
+  /** Show the timeline without the controls that change it (a community manager's view). */
+  readOnly?: boolean;
 }
 
 function todayDateOnly(): string {
@@ -70,6 +72,7 @@ export default function MemberTimelinePanel({
   membershipHistory,
   programOverrides = [],
   statusOverrides = [],
+  readOnly = false,
 }: MemberTimelinePanelProps) {
   const router = useRouter();
   const [showForm, setShowForm] = useState(false);
@@ -216,7 +219,7 @@ export default function MemberTimelinePanel({
     <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
       <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
         <h2 className="text-xl font-bold">Membership Timeline</h2>
-        {!currentHiatus && !showForm && (
+        {!readOnly && !currentHiatus && !showForm && (
           <button
             onClick={() => setShowForm(true)}
             className="px-3 py-1.5 text-sm font-medium bg-plum-600 hover:bg-plum-700 text-white rounded-lg transition-colors"
@@ -421,7 +424,7 @@ export default function MemberTimelinePanel({
                         <span className="text-xs text-slate-600 dark:text-slate-400">
                           {durationText(segment.startDate, segment.endDate)}
                         </span>
-                        {isCurrent && returnPromptId !== hiatus.id && (
+                        {!readOnly && isCurrent && returnPromptId !== hiatus.id && (
                           <button
                             onClick={() => openReturnPrompt(hiatus.id)}
                             disabled={busyId === hiatus.id}
@@ -430,23 +433,27 @@ export default function MemberTimelinePanel({
                             {endDateOnly ? "Return Early" : "End Now"}
                           </button>
                         )}
-                        <button
-                          onClick={() => {
-                            const row = hiatusHistory.find((h) => h.id === hiatus.id);
-                            if (row) openEdit(row);
-                          }}
-                          disabled={busyId === hiatus.id}
-                          className="text-xs text-slate-600 dark:text-slate-400 hover:underline disabled:opacity-50"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(hiatus.id)}
-                          disabled={busyId === hiatus.id}
-                          className="text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
-                        >
-                          Delete
-                        </button>
+                        {!readOnly && (
+                          <>
+                            <button
+                              onClick={() => {
+                                const row = hiatusHistory.find((h) => h.id === hiatus.id);
+                                if (row) openEdit(row);
+                              }}
+                              disabled={busyId === hiatus.id}
+                              className="text-xs text-slate-600 dark:text-slate-400 hover:underline disabled:opacity-50"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDelete(hiatus.id)}
+                              disabled={busyId === hiatus.id}
+                              className="text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
+                            >
+                              Delete
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                     {returnPromptId === hiatus.id && (
