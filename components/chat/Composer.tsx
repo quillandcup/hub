@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { prepareChatUploads, sendChatMessage } from "@/app/(member)/chat/actions";
-import MentionTextarea from "@/components/chat/MentionTextarea";
+import MessageBox, { type MessageBoxHandle } from "@/components/chat/MessageBox";
 import { fromEditableText } from "@/lib/chat/render";
 import PendingAttachments from "@/components/chat/PendingAttachments";
 import { useFileDrop } from "@/components/chat/useFileDrop";
@@ -59,7 +59,7 @@ export default function Composer({
   const [sentBytes, setSentBytes] = useState<number[]>([]);
   const abortRef = useRef<AbortController | null>(null);
   useEffect(() => () => abortRef.current?.abort(), []);
-  const boxRef = useRef<HTMLTextAreaElement | null>(null);
+  const boxRef = useRef<MessageBoxHandle | null>(null);
   // People and channels picked in the box (shown name to Slack markup), turned into markup when sending.
   const mentionTokens = useRef(new Map<string, string>());
   const pickerRef = useRef<HTMLInputElement>(null);
@@ -191,14 +191,11 @@ export default function Composer({
           {dropLabel}
         </div>
       )}
-      <label className="sr-only" htmlFor={`composer-${threadRootId ?? channelId}`}>
-        {placeholder}
-      </label>
       <div className="rounded-lg border border-slate-300 bg-white focus-within:border-plum-500 dark:border-slate-700 dark:bg-slate-900">
-        <MentionTextarea
+        <MessageBox
           id={`composer-${threadRootId ?? channelId}`}
           channelId={channelId}
-          textareaRef={boxRef}
+          boxRef={boxRef}
           tokens={mentionTokens}
           value={text}
           rows={2}
@@ -206,7 +203,7 @@ export default function Composer({
           placeholder={placeholder}
           onValueChange={setText}
           onPaste={(e) => {
-            const pasted = [...e.clipboardData.files];
+            const pasted = [...(e.clipboardData?.files ?? [])];
             if (pasted.length === 0) return;
             e.preventDefault();
             attach(pasted, "paste");

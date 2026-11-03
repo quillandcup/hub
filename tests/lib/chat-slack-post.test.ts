@@ -86,8 +86,15 @@ describe("escapeForSlack / hubMessageMetadata", () => {
   it("escapes the three characters mrkdwn treats as syntax, so plain Hub text can't mention or link", () => {
     expect(escapeForSlack("<!channel> a & b")).toBe("&lt;!channel&gt; a &amp; b");
     // A mention or channel the member picked stays a real one; every other angle-bracket form is text.
-    expect(escapeForSlack("hi <@U123ABC> in <#C0GEN1> <!here> <https://x.test|link> <@lower>")).toBe(
-      "hi <@U123ABC> in <#C0GEN1> &lt;!here&gt; &lt;https://x.test|link&gt; &lt;@lower&gt;"
+    expect(escapeForSlack("hi <@U123ABC> in <#C0GEN1> <!here> <@lower> <b>")).toBe("hi <@U123ABC> in <#C0GEN1> &lt;!here&gt; &lt;@lower&gt; &lt;b&gt;");
+  });
+
+  it("keeps a web or mail link the member made (its label too), escapes its &, and turns any other kind of link into text", () => {
+    expect(escapeForSlack("see <https://x.test/a?b=1&c=2|the doc> and <http://y.test> and <mailto:a@x.test|mail>")).toBe(
+      "see <https://x.test/a?b=1&amp;c=2|the doc> and <http://y.test> and <mailto:a@x.test|mail>"
+    );
+    expect(escapeForSlack("<javascript:alert(1)|click> <https://x.test|a|b> <https://x.test|a<b>")).toBe(
+      "&lt;javascript:alert(1)|click&gt; &lt;https://x.test|a|b&gt; &lt;https://x.test|a&lt;b&gt;"
     );
   });
 

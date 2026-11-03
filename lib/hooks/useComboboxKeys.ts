@@ -1,5 +1,8 @@
 import { useId, useState, type KeyboardEvent, type MouseEvent } from "react";
 
+/** What the list needs of a key press: React's keyboard event satisfies it, and so does a wrapped native one (an editor's). */
+export type ComboboxKeyEvent = Pick<KeyboardEvent, "key" | "preventDefault" | "stopPropagation"> & { nativeEvent: { isComposing: boolean } };
+
 /**
  * Keyboard and ARIA wiring for any list that pops up under a text box (the WAI-ARIA combobox pattern), so every
  * one of them behaves the same: ArrowDown/ArrowUp move through the options (wrapping), Enter picks the
@@ -40,7 +43,7 @@ export function useComboboxKeys({
     setHighlight({ index: typeof next === "function" ? next(activeIndex) : next, options });
 
   /** Handles the key if it is the list's; returns whether it did, so the box's owner can have the rest. */
-  const handleKey = (e: KeyboardEvent<HTMLElement>): boolean => {
+  const handleKey = (e: ComboboxKeyEvent): boolean => {
     if (e.nativeEvent.isComposing) return false;
     // Escape is the owner's to act on even with nothing listed (clearing the search); the other keys need options.
     if (e.key === "Escape") {

@@ -9,4 +9,11 @@ if (typeof document !== 'undefined') {
   afterEach(() => {
     cleanup()
   })
+
+  // The message box's editor (ProseMirror) measures the page to place the caret; jsdom has no layout, so it gets
+  // zero-sized answers instead of a missing function.
+  const rect = { x: 0, y: 0, width: 0, height: 0, top: 0, left: 0, right: 0, bottom: 0, toJSON: () => ({}) }
+  Range.prototype.getBoundingClientRect = () => rect as DOMRect
+  Range.prototype.getClientRects = () => ({ length: 0, item: () => null, [Symbol.iterator]: [][Symbol.iterator] }) as unknown as DOMRectList
+  document.elementFromPoint = () => null
 }

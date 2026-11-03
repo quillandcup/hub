@@ -14,7 +14,7 @@ export function loadCatalog(): Promise<StandardEntry[]> {
 }
 
 /** One `:name` choice: the shortcode and what to draw for it (a Unicode emoji or a custom image). */
-export type EmojiChoice = { name: string; emoji: CustomEmoji };
+export type EmojiChoice = { name: string; emoji: CustomEmoji; /** A standard emoji: picked as its character. A custom one (or an alias of one) is picked as an emoji named `name`. */ standard?: boolean };
 
 export const MAX_EMOJI_CHOICES = 6;
 
@@ -25,7 +25,7 @@ export const MAX_EMOJI_CHOICES = 6;
 export function emojiChoices(query: string, standard: StandardEntry[], custom: EmojiChoice[]): EmojiChoice[] {
   const q = query.trim().toLowerCase();
   if (!q) return [];
-  const std = searchStandard(standard, q).map((e): EmojiChoice => ({ name: e.name, emoji: { text: e.unicode } }));
+  const std = searchStandard(standard, q).map((e): EmojiChoice => ({ name: e.name, emoji: { text: e.unicode }, standard: true }));
   const taken = new Set<string>();
   const out: EmojiChoice[] = [];
   const add = (list: EmojiChoice[]) => {
