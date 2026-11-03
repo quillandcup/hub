@@ -41,7 +41,7 @@ describe("rememberSignInMethod", () => {
 
 describe("readSignInMethod", () => {
   it("finds the method among other cookies", () => {
-    expect(readSignInMethod(`a=1; ${SIGNIN_METHOD_COOKIE}=slack_button; b=2`)).toBe("slack_button");
+    expect(readSignInMethod(`a=1; ${SIGNIN_METHOD_COOKIE}=slack_link; b=2`)).toBe("slack_link");
   });
 
   it.each(["", "a=1", `${SIGNIN_METHOD_COOKIE}=bogus`, `${SIGNIN_METHOD_COOKIE}=`])("ignores %j", (cookie) => {
@@ -58,7 +58,7 @@ describe("rememberSignInFailure", () => {
   it("starts a count for the first failure of a kind", async () => {
     get.mockReturnValue(undefined);
     await rememberSignInFailure("code_refused");
-    expect(set).toHaveBeenCalledWith(SIGNIN_FAILURE_COOKIE, "code_refused:1", expect.objectContaining({ path: "/", maxAge: 86400 }));
+    expect(set).toHaveBeenCalledWith(SIGNIN_FAILURE_COOKIE, "code_refused:1", expect.objectContaining({ path: "/", maxAge: 604800 }));
   });
 
   it("adds to what is already there, keeping other kinds", async () => {

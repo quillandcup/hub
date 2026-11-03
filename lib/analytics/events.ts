@@ -161,7 +161,7 @@ export const EVENTS = {
   notification_opened: { kind: text(40), channel: text(20) },
 
   /**
-   * A member signed in, and how (lib/signin-method.ts: `email_link`, `email_code`, `slack_button`, `slack_pasted_link`,
+   * A member signed in, and how (lib/signin-method.ts: `email_link`, `email_code`, `slack_link`,
    * `slack_continue`, `slack_code`). Recorded by the browser on the first page after sign-in, if
    * tracking is allowed. Failed sign-ins are not events: they happen before there is a member (see
    * docs/ANALYTICS.md, "Sign-in").
