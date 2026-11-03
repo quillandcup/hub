@@ -20,6 +20,13 @@ import ShowInEvents from "./ShowInEvents";
 import { updatePrickle } from "./actions";
 import { loadEventDecision } from "@/lib/prickle-event-decisions";
 import { getUserFeaturePreviews } from "@/lib/features.server";
+import { getServiceRepos } from "@/lib/data/server";
+import { loadLiveAttendance } from "@/lib/live-attendance";
+import LivePoll from "@/components/LivePoll";
+
+const LIVE_POLL_MS = 30_000;
+/** Prickles this close are the neighbours the short-stay rule looks at. */
+const NEIGHBOUR_MS = 3 * 60 * 60 * 1000;
 
 const getPrickle = cache(async (id: string) => {
   const supabase = await createClient();
@@ -72,6 +79,37 @@ export default async function AdminPrickleDetailPage({
   const attendeeList = await createRepos(supabase).attendance.attendeesOf(id, { includeEmail: true });
   const attendanceRecords = attendeeList.map(attendeeRow);
 
+  // While it runs (or just after), the import has nothing yet: add who the join/leave webhooks put in the room,
+  // for members the import doesn't have. A failed read leaves the imported attendance, as before.
+  const now = new Date();
+  const running = new Date(prickle.startTime) <= now && new Date(prickle.endTime) > now;
+  const identities = await createRepos(supabase).members.identities();
+  try {
+    const neighbours = await createRepos(supabase).prickles.startingBetween({
+      from: new Date(new Date(prickle.startTime).getTime() - NEIGHBOUR_MS).toISOString(),
+      to: new Date(new Date(prickle.endTime).getTime() + NEIGHBOUR_MS).toISOString(),
+    });
+    const windows = [...neighbours.filter((p) => p.id !== prickle.id), prickle];
+    const live = (await loadLiveAttendance(getServiceRepos(), windows, now)).get(prickle.id) ?? [];
+    const imported = new Set(attendanceRecords.map((a) => a.member_id));
+    const byId = new Map(identities.map((m) => [m.id, m]));
+    live.forEach((a, i) => {
+      const m = byId.get(a.memberId);
+      if (imported.has(a.memberId) || !m) return;
+      attendanceRecords.push({
+        id: `live-${i}`,
+        join_time: a.joinTime,
+        leave_time: a.leaveTime,
+        confidence_score: "live",
+        member_id: a.memberId,
+        members: { id: m.id, name: m.name, display_name: m.displayName, email: m.email },
+      } as (typeof attendanceRecords)[number]);
+    });
+    attendanceRecords.sort((a, b) => a.join_time.localeCompare(b.join_time));
+  } catch (error) {
+    console.error("Live attendance for the admin prickle page failed:", error);
+  }
+
   const hostId = prickle.host?.id;
   let hostMissing = false;
   let hostLate = false;
@@ -88,7 +126,7 @@ export default async function AdminPrickleDetailPage({
 
   const [zoomResult, membersResult, aliasesResult, ignoredResult, ignoredHereResult, staffResult] = await Promise.all([
     createRepos(supabase).zoom.attendeeNamesOverlapping(prickle.startTime, prickle.endTime),
-    createRepos(supabase).members.identities(),
+    Promise.resolve(identities),
     createRepos(supabase).aliases.nameAliases(),
     createRepos(supabase).zoom.ignoredNames(),
     createRepos(supabase).zoom.ignoredAppearancesOf(prickle.id),
@@ -151,6 +189,8 @@ export default async function AdminPrickleDetailPage({
         </div>
       </header>
 
+      {/* Participant events are service role only, so Realtime can't announce them: while it runs, re-read now and then. */}
+      {running && <LivePoll everyMs={LIVE_POLL_MS} />}
       <main className="container mx-auto px-6 py-8">
         <div className="max-w-4xl mx-auto space-y-6">
           <PrickleDetails
