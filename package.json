@@ -64,6 +64,7 @@
     "mux:config:push": "dotenv -e .env.prod -e .env.shared -- tsx scripts/mux-config.ts push",
     "mux:config:diff:dev": "dotenv -e .env.local -- tsx scripts/mux-config.ts diff --dev",
     "mux:config:push:dev": "dotenv -e .env.local -- tsx scripts/mux-config.ts push --dev",
+    "page-speed": "dotenv -e .env.prod -e .env.shared -- tsx scripts/page-speed.ts",
     "vercel:config:diff": "dotenv -e .env.prod -e .env.shared -- tsx scripts/vercel-config.ts diff",
     "vercel:config:push": "dotenv -e .env.prod -e .env.shared -- tsx scripts/vercel-config.ts push",
     "quarantine:remove": "xattr -r -d com.apple.quarantine node_modules",
