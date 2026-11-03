@@ -11,7 +11,17 @@ import { environment } from "@/lib/config";
  * Same hand-off as notification attribution (lib/notifications/attribution.ts).
  */
 
-import { SIGNIN_METHOD_COOKIE, SIGNIN_METHOD_MAX_AGE_SECONDS, type SignInMethod } from "@/lib/signin-method-client";
+import {
+  SIGNIN_FAILURE_COOKIE,
+  SIGNIN_FAILURE_MAX_AGE_SECONDS,
+  SIGNIN_METHOD_COOKIE,
+  SIGNIN_METHOD_MAX_AGE_SECONDS,
+  addSignInFailure,
+  parseSignInFailures,
+  serializeSignInFailures,
+  type SignInFailureReason,
+  type SignInMethod,
+} from "@/lib/signin-method-client";
 
 /**
  * The methods are SIGNIN_METHODS (lib/signin-method-client.ts): `email_link` is the one-click link in
@@ -28,6 +38,25 @@ export async function rememberSignInMethod(method: SignInMethod): Promise<void> 
     (await cookies()).set(SIGNIN_METHOD_COOKIE, method, {
       path: "/",
       maxAge: SIGNIN_METHOD_MAX_AGE_SECONDS,
+      sameSite: "lax",
+      secure: environment !== "development",
+    });
+  } catch {
+    // Measuring must never get in the way of signing in.
+  }
+}
+
+/**
+ * Server: note a failed sign-in attempt in the visitor's browser (a count per reason, for a day), to
+ * be reported as `signin_failed` once they do sign in. Never throws.
+ */
+export async function rememberSignInFailure(reason: SignInFailureReason): Promise<void> {
+  try {
+    const store = await cookies();
+    const current = parseSignInFailures(store.get(SIGNIN_FAILURE_COOKIE)?.value);
+    store.set(SIGNIN_FAILURE_COOKIE, serializeSignInFailures(addSignInFailure(current, reason)), {
+      path: "/",
+      maxAge: SIGNIN_FAILURE_MAX_AGE_SECONDS,
       sameSite: "lax",
       secure: environment !== "development",
     });

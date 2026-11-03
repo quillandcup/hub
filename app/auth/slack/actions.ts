@@ -7,7 +7,7 @@ import { consumeSlackSignIn, slackCodeRateLimits } from "@/lib/slack-sign-in";
 import { clientIpFrom, hitRateLimits } from "@/lib/rate-limit";
 import { actionOrigin, finishSlackSignIn, refreshHomeForDeadToken } from "./finish";
 import { createRepos } from "@/lib/data/repos";
-import { rememberSignInMethod } from "@/lib/signin-method";
+import { rememberSignInFailure, rememberSignInMethod } from "@/lib/signin-method";
 
 /**
  * "Continue to Hedgie Hub" on /auth/slack/continue: the fallback for button clicks that didn't
@@ -21,6 +21,7 @@ export async function completeSlackSignIn(formData: FormData): Promise<void> {
   const slackUserId = await consumeSlackSignIn(service, { token });
   if (!slackUserId) {
     const refreshed = await refreshHomeForDeadToken(service, token, origin);
+    await rememberSignInFailure("slack_link_expired");
     redirect(`/auth/slack/continue?error=expired${refreshed ? "&refreshed=1" : ""}`);
   }
 
@@ -53,6 +54,7 @@ export async function signInWithSlackCode(_prev: SlackCodeState | null, formData
 
   const slackUserId = await consumeSlackSignIn(service, { code });
   if (!slackUserId) {
+    await rememberSignInFailure("slack_code_refused");
     return {
       error:
         "That code didn't work. It may have expired or already been used. Open the Hedgie Hub app in Slack for a fresh one.",

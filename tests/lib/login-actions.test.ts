@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { verifyOtp, redirect, takeNextPath, logSignIn, rememberSignInMethod } = vi.hoisted(() => ({
+const { verifyOtp, redirect, takeNextPath, logSignIn, rememberSignInMethod, rememberSignInFailure } = vi.hoisted(() => ({
+  rememberSignInFailure: vi.fn(),
   rememberSignInMethod: vi.fn(),
   logSignIn: vi.fn(),
   verifyOtp: vi.fn(),
@@ -14,7 +15,7 @@ vi.mock("next/navigation", () => ({ redirect }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ auth: { verifyOtp } }) }));
 vi.mock("@/lib/next-path-cookie", () => ({ takeNextPath }));
 vi.mock("@/lib/signin-log", () => ({ logSignIn }));
-vi.mock("@/lib/signin-method", () => ({ rememberSignInMethod }));
+vi.mock("@/lib/signin-method", () => ({ rememberSignInMethod, rememberSignInFailure }));
 
 import { verifyEmailCode } from "@/app/login/actions";
 
@@ -23,6 +24,7 @@ beforeEach(() => {
   redirect.mockClear();
   logSignIn.mockClear();
   rememberSignInMethod.mockClear();
+  rememberSignInFailure.mockClear();
   takeNextPath.mockReset().mockResolvedValue("/courses");
 });
 
@@ -33,6 +35,7 @@ describe("verifyEmailCode", () => {
     expect(result.error).toMatch(/digits only/);
     expect(verifyOtp).not.toHaveBeenCalled();
     expect(logSignIn).toHaveBeenCalledWith("code_malformed");
+    expect(rememberSignInFailure).toHaveBeenCalledWith("code_malformed");
   });
 
   it("verifies the code (spaces removed, email lowercased) and goes to the remembered page", async () => {
@@ -54,5 +57,6 @@ describe("verifyEmailCode", () => {
     expect(logSignIn).toHaveBeenCalledWith("code_refused", expect.objectContaining({ message: "Token has expired or is invalid" }));
     expect(redirect).not.toHaveBeenCalled();
     expect(rememberSignInMethod).not.toHaveBeenCalled();
+    expect(rememberSignInFailure).toHaveBeenCalledWith("code_refused");
   });
 });

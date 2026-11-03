@@ -31,6 +31,7 @@ afterEach(() => {
 describe("AnalyticsEvents: how the member signed in", () => {
   afterEach(() => {
     document.cookie = "hub_signin_method=; path=/; max-age=0";
+    document.cookie = "hub_signin_failures=; path=/; max-age=0";
   });
 
   it("records signed_in with the method once, and removes the cookie", async () => {
@@ -48,6 +49,24 @@ describe("AnalyticsEvents: how the member signed in", () => {
     document.cookie = "hub_signin_method=bogus; path=/";
     render(<AnalyticsEvents needsConsent={false} />);
     expect((await sent()).some((e) => e.event === "signed_in")).toBe(false);
+  });
+
+  it("records the failed attempts that came before, one event per kind, and removes the cookie", async () => {
+    document.cookie = `hub_signin_failures=${encodeURIComponent("link_other_browser:1,code_refused:2")}; path=/`;
+    render(<AnalyticsEvents needsConsent={false} />);
+
+    const failed = (await sent()).filter((e) => e.event === "signin_failed");
+    expect(failed.map((e) => e.properties)).toEqual([
+      { reason: "link_other_browser", count: 1 },
+      { reason: "code_refused", count: 2 },
+    ]);
+    expect(document.cookie).not.toContain("hub_signin_failures");
+  });
+
+  it("ignores failure kinds that are not ours", async () => {
+    document.cookie = `hub_signin_failures=${encodeURIComponent("bogus:3")}; path=/`;
+    render(<AnalyticsEvents needsConsent={false} />);
+    expect((await sent()).some((e) => e.event === "signin_failed")).toBe(false);
   });
 
   it("drops it, never holds it, when the visitor declined tracking", async () => {
