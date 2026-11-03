@@ -246,7 +246,7 @@ export default function EmojiPicker({
   const section = (id: TabId, label: string, names: string[], via: "recent" | "browse") =>
     names.length > 0 && (
       <section key={id} data-section={id} aria-label={label}>
-        <h3 className="sticky top-0 z-10 bg-white px-1 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-900 dark:text-slate-400">{label}</h3>
+        <h3 className="sticky top-0 z-10 -mx-2 bg-white/90 px-3 py-1 text-xs font-semibold text-slate-600 backdrop-blur dark:bg-slate-900/90 dark:text-slate-400">{label}</h3>
         <div role="group" aria-label={label}>
           {chunks(names).map((chunk, i) => (
             <div
