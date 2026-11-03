@@ -25,6 +25,8 @@ vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.
 vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.sudoModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+const preview = vi.hoisted(() => ({ role: null as string | null }));
+vi.mock("@/lib/staff-preview.server", () => ({ getStaffPreviewRole: async () => preview.role }));
 
 vi.mock("@/lib/features.server", () => ({
   getUserFeaturePreviews: vi.fn(async () => []),
@@ -63,6 +65,7 @@ const guardedPage = async () => {
 };
 
 beforeEach(() => {
+  preview.role = null;
   resetServerPageMocks();
   useFakeSupabase({ user_profiles: userProfiles });
 });
@@ -98,12 +101,26 @@ describe("requireAdminPage", () => {
 describe("requireStaffPage", () => {
   it("returns an admin with their role", async () => {
     signInAs(ADMIN_USER, null);
-    await expect(requireStaffPage()).resolves.toEqual({ ...ADMIN_USER, role: "admin" });
+    await expect(requireStaffPage()).resolves.toEqual({ ...ADMIN_USER, role: "admin", realRole: "admin" });
   });
 
   it("returns a community manager with their role", async () => {
     signInAs(CM_USER, null);
-    await expect(requireStaffPage()).resolves.toEqual({ ...CM_USER, role: "community_manager" });
+    await expect(requireStaffPage()).resolves.toEqual({ ...CM_USER, role: "community_manager", realRole: "community_manager" });
+  });
+
+  it("treats an admin previewing the role as a community manager, and refuses admin pages and actions", async () => {
+    preview.role = "community_manager";
+    signInAs(ADMIN_USER, null);
+    await expect(requireStaffPage()).resolves.toEqual({ ...ADMIN_USER, role: "community_manager", realRole: "admin" });
+    await expectRedirect(guardedPage, undefined, "/admin/at-risk");
+    await expect(requireAdminAction()).resolves.toEqual({ ok: false, error: "Not authorized" });
+  });
+
+  it("leaves a real community manager as themselves even with the cookie set", async () => {
+    preview.role = "community_manager";
+    signInAs(CM_USER, null);
+    await expect(requireStaffPage()).resolves.toMatchObject({ role: "community_manager", realRole: "community_manager" });
   });
 
   it("keeps a community manager out of requireAdminPage and requireAdminAction", async () => {
@@ -127,6 +144,20 @@ describe("requireStaffPage", () => {
 });
 
 describe("admin layout", () => {
+  it("shows the preview banner to an admin previewing the role, and not otherwise", async () => {
+    preview.role = "community_manager";
+    signInAs(ADMIN_USER, null);
+    await renderServerPage(AdminLayout, layoutProps);
+    expect(screen.getByText(/Previewing as/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Exit preview" })).toBeInTheDocument();
+  });
+
+  it("shows no preview banner to an admin who isn't previewing", async () => {
+    signInAs(ADMIN_USER, null);
+    await renderServerPage(AdminLayout, layoutProps);
+    expect(screen.queryByText(/Previewing as/)).not.toBeInTheDocument();
+  });
+
   it("renders the shell for a community manager, without the admin-only menu", async () => {
     signInAs(CM_USER, null);
     await renderServerPage(AdminLayout, layoutProps);

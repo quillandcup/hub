@@ -1,4 +1,5 @@
 import { requireStaffPage } from "@/lib/admin-auth";
+import RolePreviewBanner from "@/components/RolePreviewBanner";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { getUserFeaturePreviews } from "@/lib/features.server";
 import type { FeatureKey } from "@/lib/features";
@@ -24,6 +25,8 @@ export default async function AdminLayout({
   // because layouts don't re-run on client navigation -- see lib/admin-auth.ts.
   const user = await requireStaffPage();
   const isAdmin = user.role === "admin";
+  // A real admin looking at the area as a lower role (lib/staff-preview.ts).
+  const previewing = user.role !== user.realRole;
 
   // A failed read leaves the page default.
   const profile = await createRepos(await createClient()).profiles.byId(user.id).catch(() => null);
@@ -38,9 +41,10 @@ export default async function AdminLayout({
     <div className="relative flex h-dvh overflow-hidden bg-canvas dark:bg-slate-950">
       <AdminNavigation role={user.role} enabledFeatures={enabledFeatures} navMode={isNavMode(profile?.nav_mode) ? profile.nav_mode : null} />
       <div className="flex flex-col flex-1 min-w-0">
+        {previewing && <div className="z-40 flex-shrink-0"><RolePreviewBanner roleLabel="Community Manager" /></div>}
         <WithInAppNotifications identity={identity}>
           <AppHeader resultsPath={isAdmin ? "/admin/search" : "/search"} isAdmin={isAdmin}>
-            <UserMenu userEmail={user.email || "User"} isAdmin={isAdmin} />
+            <UserMenu userEmail={user.email || "User"} isAdmin={isAdmin} canPreviewRole={isAdmin} />
           </AppHeader>
           <TimezoneProvider zone={timeZone}>
             <main className="flex-1 overflow-auto">

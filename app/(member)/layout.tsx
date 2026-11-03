@@ -91,6 +91,7 @@ export default async function MemberLayout({
               userEmail={effectiveIdentity.memberDisplayName ?? effectiveIdentity.memberName}
               memberId={effectiveIdentity.memberId}
               isAdmin={isAdmin}
+              canPreviewRole={isAdmin}
               isSudo={effectiveIdentity.isSudo}
               canStartOnboarding={showOnboarding}
             />

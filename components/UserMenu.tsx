@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { startOnboarding } from '@/app/actions/onboarding'
 import SignOutButton from './SignOutButton'
 import SudoModal from './SudoModal'
+import { startRolePreview } from '@/app/actions/staff-preview'
 
 interface UserMenuProps {
   userEmail: string
@@ -13,6 +14,8 @@ interface UserMenuProps {
   isSudo?: boolean
   /** Show "Take the tour" (not during sudo). */
   canStartOnboarding?: boolean
+  /** Show "Preview as Community Manager" (a real admin, not during sudo or a preview). */
+  canPreviewRole?: boolean
 }
 
 export default function UserMenu({
@@ -21,6 +24,7 @@ export default function UserMenu({
   isAdmin = false,
   isSudo = false,
   canStartOnboarding = false,
+  canPreviewRole = false,
 }: UserMenuProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [isStartingTour, startTourTransition] = useTransition()
@@ -124,6 +128,18 @@ export default function UserMenu({
               >
                 Sudo As...
               </button>
+            )}
+
+            {canPreviewRole && !isSudo && (
+              <form action={startRolePreview.bind(null, 'community_manager')}>
+                <button
+                  type="submit"
+                  data-track="user-menu-role-preview"
+                  className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                >
+                  Preview as Community Manager
+                </button>
+              </form>
             )}
 
             <SignOutButton onSignOut={() => setIsOpen(false)} />

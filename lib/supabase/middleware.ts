@@ -4,7 +4,8 @@ import { SupabaseAccessEventRepository } from '@/lib/data/access-events'
 import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from '@/lib/with-timeout'
 import { getAppRoleFromAccessToken, getSessionIdFromAccessToken } from '@/lib/supabase/session-claims'
 import { ADMIN_NO_ACCESS_PATH, isAdminPath } from '@/lib/admin-paths'
-import { mayOpenAdminPath } from '@/lib/staff-access'
+import { COMMUNITY_MANAGER_HOME, mayOpenAdminPath } from '@/lib/staff-access'
+import { effectiveStaffRole, STAFF_PREVIEW_COOKIE } from '@/lib/staff-preview'
 import { SUDO_COOKIE_NAME, actingAsHeaderValue } from '@/lib/sudo-cookie'
 import { PAGE_VIEW_PATH } from '@/lib/page-views'
 import { NEXT_PATH_COOKIE, NEXT_PATH_COOKIE_MAX_AGE_SECONDS, safeNextPath } from '@/lib/safe-next'
@@ -193,9 +194,13 @@ export async function updateSession(request: NextRequest) {
     // (auth.jwt_expiry), which is fine for a pre-filter: requireAdminPage()
     // re-reads user_profiles. Sudo doesn't matter: the sudo cookie only
     // changes the *effective member*, not the signed-in user.
-    if (!mayOpenAdminPath(roleClaim, pathname)) {
+    // An admin previewing a lower role is checked as that role (lib/staff-preview.ts), but sent to its home
+    // instead of /no-access, which has no way out of the preview.
+    const checkedAs = effectiveStaffRole(roleClaim, request.cookies.get(STAFF_PREVIEW_COOKIE)?.value)
+    const previewing = roleClaim === 'admin' && checkedAs !== 'admin'
+    if (!mayOpenAdminPath(checkedAs, pathname)) {
       const url = request.nextUrl.clone()
-      url.pathname = ADMIN_NO_ACCESS_PATH
+      url.pathname = previewing ? COMMUNITY_MANAGER_HOME : ADMIN_NO_ACCESS_PATH
       url.search = ''
       const redirectResponse = NextResponse.redirect(url)
       // Keep any session cookies getUser() just refreshed.

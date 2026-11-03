@@ -174,6 +174,32 @@ describe("proxy admin guard", () => {
   });
 });
 
+describe("proxy community manager and role preview", () => {
+  it.each(["/admin", "/admin/at-risk", "/admin/members/m1", "/admin/prickles/p1"])("lets a community manager claim through to %s", async (path) => {
+    signIn(MEMBER, "community_manager");
+    expect(await redirectedTo(path)).toBeNull();
+  });
+
+  it.each(["/admin/users", "/admin/members/network", "/admin/members/m1/identity", "/admin/activity"])("sends a community manager on %s to /no-access", async (path) => {
+    signIn(MEMBER, "community_manager");
+    expect(await redirectedTo(path)).toBe("/no-access");
+  });
+
+  it("checks an admin previewing the role as that role, and sends them to its home, not /no-access", async () => {
+    signIn(ADMIN, "admin");
+    const preview = { staff_preview_role: "community_manager" };
+    expect(await redirectedTo("/admin/at-risk", preview)).toBeNull();
+    expect(await redirectedTo("/admin/users", preview)).toBe("/admin/at-risk");
+  });
+
+  it("ignores the preview cookie for anyone who isn't an admin, and an unknown preview value for an admin", async () => {
+    signIn(MEMBER, "member");
+    expect(await redirectedTo("/admin/at-risk", { staff_preview_role: "community_manager" })).toBe("/no-access");
+    signIn(ADMIN, "admin");
+    expect(await redirectedTo("/admin/users", { staff_preview_role: "owner" })).toBeNull();
+  });
+});
+
 describe("remembering where a signed-out visitor was headed", () => {
   it("stores the requested path in an httpOnly cookie and sends them to a bare /login", async () => {
     const res = await proxy(request("/prickles/42?tab=notes"));
