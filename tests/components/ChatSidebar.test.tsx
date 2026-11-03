@@ -5,7 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChannelSummary } from "@/lib/chat/load";
 
 let pathname = "/chat";
-vi.mock("next/navigation", () => ({ usePathname: () => pathname }));
+const refresh = vi.hoisted(() => vi.fn());
+vi.mock("next/navigation", () => ({ usePathname: () => pathname, useRouter: () => ({ refresh }) }));
 
 // Shows what the sidebar asked the router to prefetch.
 vi.mock("next/link", () => ({
@@ -64,6 +65,7 @@ beforeEach(() => {
   pathname = "/chat";
   subscribe.mockClear();
   loadCounts.mockReset();
+  refresh.mockReset();
   syncRead.mockReset();
   syncRead.mockResolvedValue(null);
 });
@@ -244,6 +246,51 @@ describe("ChatSidebar", () => {
 
       rerender(<ChatSidebar channels={CHANNELS} unread={{ "1": 5 }} selfMemberId={ME} />);
       expect(screen.getByRole("link", { name: /^#general\s*5\s*unread$/ })).toBeInTheDocument();
+    });
+
+    describe("a message in a conversation the list doesn't have", () => {
+      // A Slack DM that has just come in: the layout doesn't re-run on client navigation, so the list is fetched again.
+      const settle = () =>
+        act(async () => {
+          await vi.advanceTimersByTimeAsync(600);
+        });
+      beforeEach(() => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] }));
+      afterEach(() => vi.useRealTimers());
+
+      it("asks the server for the list once, however many messages arrive", async () => {
+        render(<ChatSidebar channels={CHANNELS} selfMemberId={ME} />);
+        await flush();
+        onInsert(insert({ channel_id: "new-dm" }));
+        onInsert(insert({ channel_id: "new-dm" }));
+        onInsert(insert({ channel_id: "new-dm", author_member_id: ME }));
+        expect(refresh).not.toHaveBeenCalled(); // a burst waits a moment
+        await settle();
+        expect(refresh).toHaveBeenCalledTimes(1);
+        onInsert(insert({ channel_id: "new-dm" }));
+        await settle();
+        expect(refresh).toHaveBeenCalledTimes(1);
+      });
+
+      it("does not for a conversation on the list (joined or not), a reply, or a deleted message", async () => {
+        render(<ChatSidebar channels={[...CHANNELS, channel("5", "#not-joined", { joined: false })]} selfMemberId={ME} />);
+        await flush();
+        onInsert(insert({ channel_id: "1" }));
+        onInsert(insert({ channel_id: "5" }));
+        onInsert(insert({ channel_id: "3" }));
+        onInsert(insert({ channel_id: "new-dm", deleted_at: "2026-10-10T00:00:00Z" }));
+        await settle();
+        expect(refresh).not.toHaveBeenCalled();
+      });
+
+      it("asks again for another new conversation", async () => {
+        render(<ChatSidebar channels={CHANNELS} selfMemberId={ME} />);
+        await flush();
+        onInsert(insert({ channel_id: "new-dm" }));
+        await settle();
+        onInsert(insert({ channel_id: "another-dm" }));
+        await settle();
+        expect(refresh).toHaveBeenCalledTimes(2);
+      });
     });
 
     describe("a message deleted after it was counted", () => {
