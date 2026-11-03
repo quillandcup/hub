@@ -142,6 +142,34 @@ describe("freezing images", () => {
     expect(emoji.getAttribute("src")).not.toContain("javascript:");
   });
 
+  it("keeps an emoji whose host blocks reading its frame (no CORS) as it is, not a broken image", async () => {
+    mockMotion(false);
+    localStorage.setItem(ANIMATIONS_STORAGE_KEY, "reduce");
+    // A host without CORS headers: the probe image fails to load.
+    class BlockedImage {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      crossOrigin = "";
+      set src(_v: string) {
+        queueMicrotask(() => this.onerror?.());
+      }
+    }
+    vi.stubGlobal("Image", BlockedImage);
+    try {
+      document.body.innerHTML = '<img id="e" src="https://x.test/party.gif" alt=":party:"><img id="p" src="/api/chat/files/m/F1" data-animated alt="p">';
+      render(<AnimationsController />);
+      const emoji = document.getElementById("e") as HTMLImageElement;
+      const attachment = document.getElementById("p") as HTMLImageElement;
+      await waitFor(() => expect(emoji.hasAttribute("data-unfreezable")).toBe(true));
+      expect(emoji.getAttribute("src")).toBe("https://x.test/party.gif");
+      expect(emoji.hasAttribute("data-frozen-src")).toBe(false);
+      // An attachment keeps its tile over a blank frame.
+      await waitFor(() => expect(attachment.getAttribute("src")).toMatch(/^data:image\/gif/));
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("leaves ordinary images alone", () => {
     mockMotion(false);
     localStorage.setItem(ANIMATIONS_STORAGE_KEY, "reduce");

@@ -7,10 +7,12 @@ import { ANIMATIONS_STORAGE_KEY, animationsAllowed, looksAnimated } from "@/lib/
 export const ANIMATIONS_CHANGED_EVENT = "hub-animations-changed";
 
 const FROZEN = "data-frozen-src";
+/** An emoji whose host sends no CORS headers (Slack's CDN): its frame can't be read, so it stays as it is. */
+const UNFREEZABLE = "data-unfreezable";
 
 /** Replace a moving image with its first frame; when the browser won't let us read it, with its alt text. */
 function freeze(img: HTMLImageElement) {
-  if (img.hasAttribute(FROZEN) || img.hasAttribute("data-playing")) return;
+  if (img.hasAttribute(FROZEN) || img.hasAttribute(UNFREEZABLE) || img.hasAttribute("data-playing")) return;
   const original = img.currentSrc || img.src;
   if (!original || !(img.hasAttribute("data-animated") || looksAnimated(original))) return;
   img.setAttribute(FROZEN, original);
@@ -29,7 +31,7 @@ function freeze(img: HTMLImageElement) {
       hide(img);
     }
   };
-  // A host without CORS headers can't be drawn: show the alt text (":name:") instead of a moving image.
+  // A host without CORS headers can't be drawn: an attachment keeps its tile over a blank frame, an emoji is left alone.
   probe.onerror = () => {
     if (img.getAttribute(FROZEN) === original) hide(img);
   };
@@ -39,9 +41,13 @@ function freeze(img: HTMLImageElement) {
 const BLANK = "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
 
 function hide(img: HTMLImageElement) {
-  // An attachment keeps its tile (and its play button) over a blank frame; an emoji falls back to its alt text.
+  // An attachment keeps its tile (and its play button) over a blank frame. An emoji keeps its real image: removing
+  // the source left a broken-image icon, and a moving emoji is better than a missing one.
   if (img.hasAttribute("data-animated")) img.src = BLANK;
-  else img.removeAttribute("src");
+  else {
+    img.removeAttribute(FROZEN);
+    img.setAttribute(UNFREEZABLE, "");
+  }
 }
 
 function thaw(img: HTMLImageElement) {
@@ -90,6 +96,7 @@ export function AnimationsController() {
             const img = r.target;
             if (img.getAttribute(FROZEN) !== img.src && !img.src.startsWith("data:")) {
               img.removeAttribute(FROZEN);
+              img.removeAttribute(UNFREEZABLE);
               freeze(img);
             }
           }
