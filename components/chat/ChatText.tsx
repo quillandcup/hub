@@ -54,7 +54,7 @@ function renderInline(nodes: Inline[], ctx: ChatTextContext): ReactNode[] {
         return <s key={i}>{renderInline(n.c, ctx)}</s>;
       case "code":
         return (
-          <code key={i} className="px-1 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 font-mono text-[0.9em] text-red-600 dark:text-red-400">
+          <code key={i} className="px-1 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 font-mono text-[0.9em] text-red-700 dark:text-red-400">
             {n.v}
           </code>
         );
@@ -114,7 +114,7 @@ function renderBlock(block: Block, i: number, ctx: ChatTextContext): ReactNode {
   switch (block.t) {
     case "code":
       return (
-        <pre key={i} className="my-1 overflow-x-auto rounded bg-slate-100 dark:bg-slate-800 p-2 text-sm">
+        <pre key={i} className="my-1 overflow-x-auto rounded border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 p-2 font-mono text-sm">
           <code>{block.v}</code>
         </pre>
       );
