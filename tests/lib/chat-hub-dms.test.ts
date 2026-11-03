@@ -12,6 +12,7 @@ const m = vi.hoisted(() => ({
   connected: vi.fn(),
   afterCallbacks: [] as (() => Promise<void> | void)[],
   bridged: false,
+  openDm: vi.fn(),
 }));
 
 vi.mock("next/server", () => ({ after: (cb: () => Promise<void> | void) => void m.afterCallbacks.push(cb) }));
@@ -48,6 +49,7 @@ vi.mock("@/lib/chat/slack-post", () => ({ sendChatMessageToSlack: m.sendToSlack 
 vi.mock("@/lib/chat/slack-react", () => ({ syncReactionToSlack: m.syncReaction }));
 vi.mock("@/lib/chat/slack-edit", () => ({ updateChatMessageInSlack: m.slackUpdate, deleteChatMessageInSlack: m.slackDelete, deleteChatFileInSlack: vi.fn() }));
 vi.mock("@/lib/chat/load", () => ({}));
+vi.mock("@/lib/chat/slack-dms", () => ({ openSlackDm: m.openDm, pullMemberDms: vi.fn() }));
 vi.mock("@/lib/chat/file-cleanup", () => ({ removeChatFileBytes: vi.fn() }));
 
 import { deleteChatMessage, editChatMessage, retryChatMessage, sendChatMessage, toggleChatReaction } from "@/app/(member)/chat/actions";
@@ -66,7 +68,9 @@ beforeEach(() => {
   m.afterCallbacks.length = 0;
   m.getCurrentUser.mockResolvedValue({ id: "auth-1", email: "fern@example.test" });
   m.getEffectiveIdentity.mockResolvedValue({ memberId: "member-fern", isSudo: false });
-  m.hasFeature.mockReset().mockResolvedValue(true);
+  // Everything on except the Slack DM bridge, which has its own tests below.
+  m.hasFeature.mockReset().mockImplementation(async (key: string) => key !== "slack_dm_bridge");
+  m.openDm.mockReset();
   m.rpc.mockReset();
   for (const fn of [m.sendToSlack, m.syncReaction, m.slackUpdate, m.slackDelete]) fn.mockReset();
   m.slackUpdate.mockResolvedValue({ ok: true });
@@ -82,11 +86,11 @@ describe("startDirectMessage", () => {
   });
 
   it("is closed without the direct message preview, chat posting or in sudo", async () => {
-    m.hasFeature.mockImplementation(async (key: string) => key !== "chat_dms");
+    m.hasFeature.mockImplementation(async (key: string) => key !== "chat_dms" && key !== "slack_dm_bridge");
     await expect(startDirectMessage(GALE)).resolves.toMatchObject({ ok: false, error: expect.stringContaining("available") });
-    m.hasFeature.mockImplementation(async (key: string) => key !== "chat_posting");
+    m.hasFeature.mockImplementation(async (key: string) => key !== "chat_posting" && key !== "slack_dm_bridge");
     await expect(startDirectMessage(GALE)).resolves.toMatchObject({ ok: false });
-    m.hasFeature.mockResolvedValue(true);
+    m.hasFeature.mockImplementation(async (key: string) => key !== "slack_dm_bridge");
     m.getEffectiveIdentity.mockResolvedValue({ memberId: "member-fern", isSudo: true });
     await expect(startDirectMessage(GALE)).resolves.toMatchObject({ ok: false });
     expect(m.rpc).not.toHaveBeenCalled();
@@ -107,6 +111,46 @@ describe("startDirectMessage", () => {
     await expect(startDirectMessage(GALE)).resolves.toEqual({ ok: false, error: "Something went wrong. Try again." });
     expect(log).toHaveBeenCalled();
     log.mockRestore();
+  });
+});
+
+describe("startDirectMessage with the Slack DM bridge on", () => {
+  beforeEach(() => m.hasFeature.mockResolvedValue(true));
+
+  it("opens their Slack DM with their own token instead of making a Hub-only one", async () => {
+    m.openDm.mockResolvedValue({ ok: true, channelId: CHANNEL });
+    await expect(startDirectMessage(GALE)).resolves.toEqual({ ok: true, channelId: CHANNEL });
+    expect(m.openDm).toHaveBeenCalledWith({ service: true }, "member-fern", GALE);
+    expect(m.rpc).not.toHaveBeenCalled();
+  });
+
+  it("works without the Hub DM preview, and not at all without posting or in sudo", async () => {
+    m.openDm.mockResolvedValue({ ok: true, channelId: CHANNEL });
+    m.hasFeature.mockImplementation(async (key: string) => key !== "chat_dms");
+    await expect(startDirectMessage(GALE)).resolves.toMatchObject({ ok: true });
+    m.hasFeature.mockImplementation(async (key: string) => key !== "chat_posting");
+    await expect(startDirectMessage(GALE)).resolves.toMatchObject({ ok: false });
+    m.hasFeature.mockResolvedValue(true);
+    m.getEffectiveIdentity.mockResolvedValue({ memberId: "member-fern", isSudo: true });
+    await expect(startDirectMessage(GALE)).resolves.toMatchObject({ ok: false });
+    expect(m.openDm).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["not_connected", /Reconnect Slack/],
+    ["unknown_person", /haven't connected Slack/],
+    ["slack_refused", /wouldn't open/],
+    ["not_production", /live Hub/],
+  ])("says what to do when Slack can't open it (%s)", async (reason, text) => {
+    m.openDm.mockResolvedValue({ ok: false, reason });
+    await expect(startDirectMessage(GALE)).resolves.toEqual({ ok: false, error: expect.stringMatching(text) });
+  });
+
+  it("still refuses yourself and a bad id", async () => {
+    m.getEffectiveIdentity.mockResolvedValue({ memberId: GALE, isSudo: false });
+    await expect(startDirectMessage(GALE)).resolves.toEqual({ ok: false, error: "You can't message that person." });
+    await expect(startDirectMessage("nope")).resolves.toMatchObject({ ok: false });
+    expect(m.openDm).not.toHaveBeenCalled();
   });
 });
 

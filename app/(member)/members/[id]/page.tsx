@@ -123,9 +123,10 @@ export default async function MemberProfilePage({
   const canMessage =
     member.id !== effectiveIdentity.memberId &&
     !effectiveIdentity.isSudo &&
-    (await Promise.all(
-      (["chat", "chat_posting", "chat_dms"] as const).map((key) => effectiveMemberHasFeature(key, effectiveIdentity, ownFeatures))
-    )).every(Boolean)
+    (await effectiveMemberHasFeature("chat", effectiveIdentity, ownFeatures)) &&
+    (await effectiveMemberHasFeature("chat_posting", effectiveIdentity, ownFeatures)) &&
+    ((await effectiveMemberHasFeature("slack_dm_bridge", effectiveIdentity, ownFeatures)) ||
+      (await effectiveMemberHasFeature("chat_dms", effectiveIdentity, ownFeatures)))
 
   // No fallback to joined_at (Kajabi contact creation) — a lead who never
   // had a real subscription has no first_joined_at, and isn't a member, so
