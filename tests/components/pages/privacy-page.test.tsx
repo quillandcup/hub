@@ -150,17 +150,18 @@ describe("/privacy page", () => {
     expect(chat.queryByText(/only where they could see the original/)).not.toBeInTheDocument();
     expect(chat.getByText(/we will record who looked, why and when/)).toBeInTheDocument();
     expect(chat.getByText("Break-glass access")).toBeInTheDocument();
-    // One-on-one Slack DMs: what is read and kept, who sees it, the people you message, and how to object.
-    expect(chat.getByText(/^One-on-one Slack DMs, when the DM bridge is on for you or for the person you message/)).toBeInTheDocument();
-    expect(chat.getByText(/^One-on-one Slack DMs, when it is on for neither of you/)).toBeInTheDocument();
-    expect(chat.getByText(/the Hub reads their one-on-one DMs when they open chat, as new/)).toBeInTheDocument();
-    expect(chat.getByText(/they can read the text only through break-glass access/)).toBeInTheDocument();
-    expect(chat.getByText(/your side of that conversation is read and kept through their connection/)).toBeInTheDocument();
-    expect(chat.getByText(/switch it off for you and remove what we have kept of your DMs/)).toBeInTheDocument();
-    expect(chat.getAllByRole("link", { name: SUPPORT_EMAIL }).length).toBeGreaterThan(0);
-    // The old "not yet" wording is gone.
+    // One-on-one Slack DMs: what is kept, who sees it, and that there is no separate switch (no objection promise).
+    expect(chat.getByText(/^One-on-one Slack DMs, as they reach the Hub/)).toBeInTheDocument();
+    expect(chat.getByText(/the Hub brings yours into chat with your own Slack connection/)).toBeInTheDocument();
+    expect(chat.getByText(/Slack only shows about 90 days of history/)).toBeInTheDocument();
+    expect(chat.getByText(/they can read the\s+text only through break-glass access/)).toBeInTheDocument();
+    expect(chat.getByText(/There is no separate switch for DMs/)).toBeInTheDocument();
+    expect(chat.getByText(/closes Hub chat for you until you reconnect/)).toBeInTheDocument();
+    // What was promised before and isn't any more.
+    expect(chat.queryByText(/switch it off for you and remove what we have kept/)).not.toBeInTheDocument();
+    expect(chat.queryByText(/through their connection/)).not.toBeInTheDocument();
+    expect(chat.queryByText(/older than a year/)).not.toBeInTheDocument();
     expect(chat.queryByText(/isn't happening yet/)).not.toBeInTheDocument();
-    expect(chat.queryByText(/None reach it yet/)).not.toBeInTheDocument();
     // Staff can use Billie Bot for some operations (membership changes fall back to it), so the page doesn't claim the Hub acts *only* as the member.
     expect(chat.queryByText(/and only as you/)).not.toBeInTheDocument();
     expect(chat.getByText("Viewing the Hub as you")).toBeInTheDocument();
