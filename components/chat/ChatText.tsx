@@ -114,7 +114,7 @@ function renderBlock(block: Block, i: number, ctx: ChatTextContext): ReactNode {
   switch (block.t) {
     case "code":
       return (
-        <pre key={i} className="my-1 overflow-x-auto rounded bg-slate-100 dark:bg-slate-800 p-2 text-sm">
+        <pre key={i} className="my-1 overflow-x-auto rounded border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 p-2 font-mono text-sm">
           <code>{block.v}</code>
         </pre>
       );
