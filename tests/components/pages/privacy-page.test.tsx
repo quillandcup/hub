@@ -120,6 +120,8 @@ describe("/privacy page", () => {
     for (const link of collect.getAllByRole("link", { name: "see below" })) expect(link).toHaveAttribute("href", "#choices");
     expect(collect.getByText(/we record where you stopped|Where you stopped, which parts you watched/i)).toBeInTheDocument();
     expect(collect.getByText(/The IP address your connection comes from/)).toBeInTheDocument();
+    expect(collect.getByText("The emails we send you")).toBeInTheDocument();
+    expect(collect.getByText(/whether it was opened or a link in it clicked/)).toBeInTheDocument();
     // The pointer to the chat section sits in the Chat row itself.
     const chatRow = collect.getByText("Chat", { selector: "td" }).closest("tr")!;
     expect(within(chatRow).getByText(/Chat is covered in/)).toBeInTheDocument();

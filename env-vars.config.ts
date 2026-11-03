@@ -575,9 +575,17 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     name: "RESEND_API_KEY",
     group: "Email (Resend)",
     description:
-      "Resend API key (sending access). The app sends member notification emails with it (lib/email.ts). The same key is Supabase Auth's SMTP password: the config push (`pnpm config:push` locally, and CI's push-migrations job on every push to main) reads it via config.toml's env(RESEND_API_KEY), and CI refuses to push config without it, since the push would otherwise overwrite production's SMTP password.",
+      "Resend API key (full access: the nightly import lists sent emails with it, /api/reconcile/email; a sending-only key cannot). The app sends member notification emails with it (lib/email.ts). The same key is Supabase Auth's SMTP password: the config push (`pnpm config:push` locally, and CI's push-migrations job on every push to main) reads it via config.toml's env(RESEND_API_KEY), and CI refuses to push config without it, since the push would otherwise overwrite production's SMTP password.",
     type: "secret",
     destinations: [...vercelAllEnvs, { kind: "github" }],
+  },
+  {
+    name: "RESEND_WEBHOOK_SECRET",
+    group: "Email (Resend)",
+    description:
+      "Signing secret (`whsec_...`) of the Resend webhook that posts to /api/webhooks/resend (Resend dashboard -> Webhooks), which verifies every request with it (lib/email-events.ts). Without it a deployed build rejects every webhook. The webhook should send sent, delivered, delivery delayed, bounced, complained, opened, clicked and failed events. The nightly import (/api/reconcile/email) also lists emails with RESEND_API_KEY, which therefore needs full access, not sending access only.",
+    type: "secret",
+    destinations: vercelAllEnvs,
   },
   {
     name: "EMAIL_UNSUBSCRIBE_SECRET",

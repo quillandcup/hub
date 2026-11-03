@@ -39,6 +39,25 @@ describe("sendEmail", () => {
     ]);
   });
 
+  it("sends tags as Resend's name and value pairs, replacing characters Resend does not allow", async () => {
+    const sent = captureSends();
+    await sendEmail({ ...message, tags: { kind: "prickle_checkin", member: "mbr_7Kx2mQ9dFh3N", note: "a b.c" } });
+
+    expect(sent[0].tags).toEqual([
+      { name: "kind", value: "prickle_checkin" },
+      { name: "member", value: "mbr_7Kx2mQ9dFh3N" },
+      { name: "note", value: "a_b_c" },
+    ]);
+  });
+
+  it("leaves the member tag off in test mode, since the email goes to the dev address and must not reach a member's timeline", async () => {
+    vi.stubEnv("EMAIL_TEST_MODE", "true");
+    const sent = captureSends();
+    await sendEmail({ ...message, tags: { kind: "welcome", member: "mbr_7Kx2mQ9dFh3N" } });
+
+    expect(sent[0].tags).toEqual([{ name: "kind", value: "welcome" }]);
+  });
+
   it("redirects to EMAIL_DEV_ADDRESS in test mode, saying who it was for", async () => {
     vi.stubEnv("EMAIL_TEST_MODE", "true");
     const sent = captureSends();

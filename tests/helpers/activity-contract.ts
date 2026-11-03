@@ -41,6 +41,18 @@ export function defineActivityContract(name: string, setup: () => ActivityContra
       expect(await ctx.repo().relatedIdsWritten("writing_progress", [related])).toEqual(new Set());
     });
 
+    it("removes what a source wrote for several related ids at once, and only that source's", async () => {
+      const [a, b, keep] = [ctx.unique("many1"), ctx.unique("many2"), ctx.unique("many3")];
+      for (const related of [a, b, keep]) await ctx.repo().record(activity(0, { relatedId: related }));
+      await ctx.repo().record(activity(0, { relatedId: a, source: "some_other_source" }));
+
+      await ctx.repo().removeForMany("writing_progress", [a, b, "nope"]);
+      await ctx.repo().removeForMany("writing_progress", []);
+
+      expect(await ctx.repo().relatedIdsWritten("writing_progress", [a, b, keep])).toEqual(new Set([keep]));
+      expect(await ctx.repo().relatedIdsWritten("some_other_source", [a])).toEqual(new Set([a]));
+    });
+
     it("keeps one row per login session and one per member, type and related id for courses; a repeat is a no-op", async () => {
       const session = ctx.unique("session");
       const login = activity(0, { type: "hedgie_hub_login", category: "engagement", source: "access_events", relatedId: session });

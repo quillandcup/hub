@@ -264,6 +264,17 @@ export function dataObject(data: unknown): Record<string, unknown> | null {
   return data !== null && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : null;
 }
 
+const RESEND_EMAIL_URL = /^https:\/\/resend\.com\/emails\/[A-Za-z0-9_-]+$/;
+
+/**
+ * Where an email activity's email can be read at Resend (`data.resend_url`, written by lib/email-events.ts), or null.
+ * Only a resend.com email address is ever returned, so a link in stored data can't send an admin elsewhere.
+ */
+export function emailLinkOf(data: ActivityFeedRow["data"]): string | null {
+  const url = data?.resend_url;
+  return typeof url === "string" && RESEND_EMAIL_URL.test(url) ? url : null;
+}
+
 export function reactionName(row: ReactionRow): string | null {
   if ((row.activity_type ?? row.event_type) !== "slack_reaction") return null;
   const fromData = dataObject(row.data)?.reaction;
