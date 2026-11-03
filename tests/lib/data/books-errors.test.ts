@@ -21,7 +21,7 @@ describe("SupabaseBookRepository database errors", () => {
     ["shelf", () => repo.shelf()],
     ["ofMember", () => repo.ofMember("mbr_AAAAAAAAAAA1")],
     ["mine", () => repo.mine("mbr_AAAAAAAAAAA1")],
-    ["add", () => repo.add({ member_id: "mbr_AAAAAAAAAAA1", title: "T", cover_url: "c", purchase_url: "p", published_date: "2026-01-01" })],
+    ["add", () => repo.add({ member_id: "mbr_AAAAAAAAAAA1", title: "T", cover_url: "c", editions: [{ format: "print", purchase_url: "p", price: null }], published_date: "2026-01-01" })],
     ["update", () => repo.update(id, { title: "T" })],
     ["remove", () => repo.remove(id)],
     ["coverAssetIdOf", () => repo.coverAssetIdOf(id)],
@@ -36,7 +36,7 @@ describe("SupabaseBookRepository database errors", () => {
 
   it("add reports a taken project as BookExistsError, carrying the database's message", async () => {
     const taken = new SupabaseBookRepository(failingDb({ message: "duplicate key value", code: "23505" }));
-    const error = await taken.add({ member_id: "mbr_AAAAAAAAAAA1", title: "T", cover_url: "c", purchase_url: "p", published_date: "2026-01-01", project_id: "wprj_AAAAAAAAAAA1" }).catch((e) => e);
+    const error = await taken.add({ member_id: "mbr_AAAAAAAAAAA1", title: "T", cover_url: "c", editions: [{ format: "print", purchase_url: "p", price: null }], published_date: "2026-01-01", project_id: "wprj_AAAAAAAAAAA1" }).catch((e) => e);
     expect(error).toBeInstanceOf(BookExistsError);
     expect(error.message).toBe("duplicate key value");
   });

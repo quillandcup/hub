@@ -44,6 +44,15 @@ defineBookContract("SupabaseBookRepository", () => {
       const label = `${RUN}-cover-${++counter}`;
       return (await media.add({ storage_path: `originals/${label}.png`, mime_type: "image/png", width, height, bytes: 1234, sha256: label, title: label })).id;
     },
+    legacyBook: async (memberId, title) => {
+      const { data, error } = await db
+        .from("member_books")
+        .insert({ member_id: memberId, title, cover_url: "https://example.com/cover.png", published_date: "2026-01-01", format: "ebook", purchase_url: "https://example.com/legacy", price: 3.5 })
+        .select("id")
+        .single();
+      if (error) throw new Error(error.message);
+      return data.id;
+    },
     project: async (memberId) => {
       const { data, error } = await db.from("writing_projects").insert({ member_id: memberId, title: `Project ${RUN}`, phase: "drafting" }).select("id").single();
       if (error) throw new Error(error.message);

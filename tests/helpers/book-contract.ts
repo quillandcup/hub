@@ -13,6 +13,8 @@ export type BookContractContext = {
   coverAsset: (width: number, height: number) => Promise<string>;
   /** A writing project of this member, for a book to be published from. */
   project: (memberId: string) => Promise<string>;
+  /** A book as the code before editions saved it: only the old format, link and price columns set, no editions. Returns its id. */
+  legacyBook: (memberId: string, title: string) => Promise<string>;
 };
 
 /** Behavior every `BookRepository` must have; run against the in-memory twin (unit) and Supabase (db). */
@@ -23,12 +25,15 @@ export function defineBookContract(name: string, setup: () => BookContractContex
       ctx = setup();
     });
 
+    const PRINT = { format: "print", purchase_url: "https://example.com/buy", price: null } as const;
+    const EBOOK = { format: "ebook", purchase_url: "https://example.com/ebook", price: 4.99 } as const;
+
     const book = (memberId: string, title: string, extra: Partial<NewBook> = {}): NewBook => ({
       member_id: memberId,
       title,
       cover_url: "https://example.com/cover.png",
-      purchase_url: "https://example.com/buy",
       published_date: "2026-03-05",
+      editions: [PRINT],
       ...extra,
     });
 
@@ -38,9 +43,9 @@ export function defineBookContract(name: string, setup: () => BookContractContex
       const id = await ctx.repo().add(book(m1.id, title, { description: "A tale." }));
       expect(id).toMatch(/^book_[1-9A-HJ-NP-Za-km-z]{12}$/);
 
-      expect(await ctx.repo().ofMember(m1.id)).toEqual([{ id, title, cover_url: "https://example.com/cover.png", purchase_url: "https://example.com/buy", published_date: "2026-03-05" }]);
+      expect(await ctx.repo().ofMember(m1.id)).toEqual([{ id, title, cover_url: "https://example.com/cover.png", published_date: "2026-03-05", editions: [PRINT] }]);
       expect(await ctx.repo().mine(m1.id)).toEqual([
-        { id, title, description: "A tale.", cover_url: "https://example.com/cover.png", purchase_url: "https://example.com/buy", published_date: "2026-03-05", price: null, genres: [], format: "print", project_id: null, pen_name: null, cover_asset: null },
+        { id, title, description: "A tale.", cover_url: "https://example.com/cover.png", published_date: "2026-03-05", editions: [PRINT], genres: [], project_id: null, pen_name: null, cover_asset: null },
       ]);
       const onShelf = (await ctx.repo().shelf()).find((b) => b.id === id);
       expect(onShelf).toEqual({
@@ -49,22 +54,22 @@ export function defineBookContract(name: string, setup: () => BookContractContex
         title,
         description: "A tale.",
         cover_url: "https://example.com/cover.png",
-        purchase_url: "https://example.com/buy",
         published_date: "2026-03-05",
-        price: null,
+        editions: [PRINT],
         genres: [],
-        format: "print",
         pen_name: null,
         author: { name: m1.name, display_name: m1.displayName },
       });
     });
 
-    it("keeps the pen name, price, genres and format, and the library image behind the cover with its size", async () => {
+    it("keeps the pen name, genres and both editions, print first, and the library image behind the cover with its size", async () => {
       const [m1] = await ctx.members();
       const asset = await ctx.coverAsset(1600, 2560);
-      const id = await ctx.repo().add(book(m1.id, ctx.unique("Full"), { pen_name: "A. E. Byron", price: 17.99, genres: ["Fantasy", "Cozy Mystery"], format: "ebook", cover_asset_id: asset }));
+      const id = await ctx.repo().add(book(m1.id, ctx.unique("Full"), { pen_name: "A. E. Byron", genres: ["Fantasy", "Cozy Mystery"], editions: [EBOOK, { ...PRINT, price: 17.99 }], cover_asset_id: asset }));
       const mine = (await ctx.repo().mine(m1.id)).find((b) => b.id === id);
-      expect(mine).toMatchObject({ pen_name: "A. E. Byron", price: 17.99, genres: ["Fantasy", "Cozy Mystery"], format: "ebook", cover_asset: { id: asset, width: 1600, height: 2560 } });
+      expect(mine).toMatchObject({ pen_name: "A. E. Byron", genres: ["Fantasy", "Cozy Mystery"], editions: [{ ...PRINT, price: 17.99 }, EBOOK], cover_asset: { id: asset, width: 1600, height: 2560 } });
+      expect((await ctx.repo().shelf()).find((b) => b.id === id)?.editions).toEqual([{ ...PRINT, price: 17.99 }, EBOOK]);
+      expect((await ctx.repo().ofMember(m1.id)).find((b) => b.id === id)?.editions).toEqual([{ ...PRINT, price: 17.99 }, EBOOK]);
     });
 
     it("lists a member's books newest published first, the id breaking ties, and not another member's", async () => {
@@ -99,7 +104,11 @@ export function defineBookContract(name: string, setup: () => BookContractContex
 
     it("throws on a book the database refuses", async () => {
       const [m1] = await ctx.members();
-      await expect(ctx.repo().add(book(m1.id, ctx.unique("Bad format"), { format: "audio" }))).rejects.toThrow();
+      const audio = { format: "audio", purchase_url: "https://example.com/a", price: null } as unknown as NewBook["editions"][number];
+      await expect(ctx.repo().add(book(m1.id, ctx.unique("Bad format"), { editions: [audio] }))).rejects.toThrow();
+      await expect(ctx.repo().add(book(m1.id, ctx.unique("Two prints"), { editions: [PRINT, { ...PRINT, purchase_url: "https://example.com/other" }] }))).rejects.toThrow();
+      await expect(ctx.repo().add(book(m1.id, ctx.unique("No link"), { editions: [{ ...PRINT, purchase_url: " " }] }))).rejects.toThrow();
+      await expect(ctx.repo().add(book(m1.id, ctx.unique("Negative price"), { editions: [{ ...PRINT, price: -1 }] }))).rejects.toThrow();
       await expect(ctx.repo().add(book("mbr_ZZZZZZZZZZZZ", ctx.unique("No member")))).rejects.toThrow();
     });
 
@@ -107,9 +116,33 @@ export function defineBookContract(name: string, setup: () => BookContractContex
       const [m1] = await ctx.members();
       const id = await ctx.repo().add(book(m1.id, ctx.unique("Before")));
       const asset = await ctx.coverAsset(800, 1200);
-      expect(await ctx.repo().update(id, { title: "After", price: 9.5, cover_asset_id: asset, cover_url: "/api/media/x/book_cover_shelf" })).toBe(true);
-      expect((await ctx.repo().mine(m1.id)).find((b) => b.id === id)).toMatchObject({ title: "After", price: 9.5, cover_url: "/api/media/x/book_cover_shelf", cover_asset: { id: asset } });
+      expect(await ctx.repo().update(id, { title: "After", editions: [{ ...PRINT, price: 9.5 }, EBOOK], cover_asset_id: asset, cover_url: "/api/media/x/book_cover_shelf" })).toBe(true);
+      expect((await ctx.repo().mine(m1.id)).find((b) => b.id === id)).toMatchObject({ title: "After", editions: [{ ...PRINT, price: 9.5 }, EBOOK], cover_url: "/api/media/x/book_cover_shelf", cover_asset: { id: asset } });
       expect(await ctx.repo().update("book_ZZZZZZZZZZZZ", { title: "Nope" })).toBe(false);
+    });
+
+    it("reads a book saved before editions existed through its old format, link and price", async () => {
+      const [m1] = await ctx.members();
+      const id = await ctx.legacyBook(m1.id, ctx.unique("Legacy"));
+      const legacy = { format: "ebook", purchase_url: "https://example.com/legacy", price: 3.5 } as const;
+      expect((await ctx.repo().mine(m1.id)).find((b) => b.id === id)?.editions).toEqual([legacy]);
+      expect((await ctx.repo().shelf()).find((b) => b.id === id)?.editions).toEqual([legacy]);
+      expect((await ctx.repo().ofMember(m1.id)).find((b) => b.id === id)?.editions).toEqual([legacy]);
+      // The first save moves it onto editions.
+      expect(await ctx.repo().update(id, { editions: [PRINT, { ...legacy }] })).toBe(true);
+      expect((await ctx.repo().mine(m1.id)).find((b) => b.id === id)?.editions).toEqual([PRINT, legacy]);
+    });
+
+    it("changes the editions as a whole and leaves them alone when a patch doesn't name them", async () => {
+      const [m1] = await ctx.members();
+      const id = await ctx.repo().add(book(m1.id, ctx.unique("Editions"), { editions: [PRINT, EBOOK] }));
+      const editionsOf = async () => (await ctx.repo().mine(m1.id)).find((b) => b.id === id)?.editions;
+      expect(await ctx.repo().update(id, { title: "Renamed" })).toBe(true);
+      expect(await editionsOf()).toEqual([PRINT, EBOOK]);
+      expect(await ctx.repo().update(id, { editions: [EBOOK] })).toBe(true);
+      expect(await editionsOf()).toEqual([EBOOK]);
+      await expect(ctx.repo().update(id, { editions: [EBOOK, EBOOK] })).rejects.toThrow();
+      expect(await editionsOf()).toEqual([EBOOK]);
     });
 
     it("soft deletes: the book leaves every list and count but its cover can still be read, and it can't be changed or deleted again", async () => {

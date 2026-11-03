@@ -72,8 +72,7 @@ const VALID_INPUT: BookInput = {
   publishedDate: "2026-03-15",
   description: "  A tale.  ",
   coverUrl: "https://example.com/cover.jpg",
-  purchaseUrl: "https://example.com/buy",
-  format: "print",
+  editions: [{ format: "print", purchaseUrl: "https://example.com/buy", price: null }],
 };
 
 const LIBRARY_COVER = "/api/media/media_AAAAAAAAAAA1/book_cover_shelf";
@@ -127,11 +126,12 @@ describe("getMyBooks", () => {
       title: "My Book",
       description: "A tale.",
       cover_url: "https://example.com/cover.jpg",
-      purchase_url: "https://example.com/buy",
       published_date: "2026-03-15",
-      price: 17.99,
+      editions: [
+        { format: "ebook", purchase_url: "https://example.com/ebook", price: 4.99 },
+        { format: "print", purchase_url: "https://example.com/buy", price: 17.99 },
+      ],
       genres: ["Fantasy"],
-      format: "ebook",
       project_id: "project-1",
     });
     shelve({ id: "book-gone", deleted_at: "2026-04-01T00:00:00Z" }); // a book the member deleted stays in the table but never comes back here
@@ -143,11 +143,12 @@ describe("getMyBooks", () => {
         title: "My Book",
         description: "A tale.",
         coverUrl: "https://example.com/cover.jpg",
-        purchaseUrl: "https://example.com/buy",
         publishedDate: "2026-03-15",
-        price: 17.99,
+        editions: [
+          { format: "print", purchaseUrl: "https://example.com/buy", price: 17.99 },
+          { format: "ebook", purchaseUrl: "https://example.com/ebook", price: 4.99 },
+        ],
         genres: ["Fantasy"],
-        format: "ebook",
         penName: null,
         projectId: "project-1",
         coverAsset: null,
@@ -178,8 +179,11 @@ describe("addBook", () => {
     [{ title: "   " }, "Title is required"],
     [{ publishedDate: "" }, "Publication date is required"],
     [{ coverUrl: "" }, "Cover image is required"],
-    [{ purchaseUrl: "" }, "Where to buy it is required"],
-    [{ purchaseUrl: "javascript:alert(1)" }, "Enter a valid link (starting with https://) for where to buy it"],
+    [{ editions: [] }, "Add at least one way to buy it, print or ebook"],
+    [{ editions: [{ format: "print" as const, purchaseUrl: "" }] }, "Where to buy the print edition is required"],
+    [{ editions: [{ format: "ebook" as const, purchaseUrl: "javascript:alert(1)" }] }, "Enter a valid link (starting with https://) for where to buy the ebook edition"],
+    [{ editions: [{ format: "print" as const, purchaseUrl: "https://example.com/a" }, { format: "print" as const, purchaseUrl: "https://example.com/b" }] }, "Only one print edition per book"],
+    [{ editions: [{ format: "print" as const, purchaseUrl: "https://example.com/a", price: -1 }] }, "The print price must be zero or more"],
   ])("rejects an invalid input %j before touching the database", async (change, message) => {
     expect(await addBook({ ...VALID_INPUT, ...change })).toEqual({ error: message });
     expect(data.memberBooks).toEqual([]);
@@ -194,11 +198,9 @@ describe("addBook", () => {
         description: "A tale.",
         cover_url: "https://example.com/cover.jpg",
         cover_asset_id: null,
-        purchase_url: "https://example.com/buy",
+        editions: [{ format: "print", purchase_url: "https://example.com/buy", price: null }],
         published_date: "2026-03-15",
-        price: null,
         genres: [],
-        format: "print",
         pen_name: null,
       }),
     ]);
@@ -211,6 +213,24 @@ describe("addBook", () => {
       memberName: "Member One",
       purchaseUrl: "https://example.com/buy",
     });
+  });
+
+  it("saves a print and an ebook edition on one book, each with its own link and price", async () => {
+    const input: BookInput = {
+      ...VALID_INPUT,
+      editions: [
+        { format: "ebook", purchaseUrl: "  https://example.com/ebook  ", price: 4.99 },
+        { format: "print", purchaseUrl: "https://example.com/buy", price: 17.99 },
+      ],
+    };
+    expect(await addBook(input)).toEqual({ success: true });
+    expect(data.memberBooks).toHaveLength(1);
+    expect((await getMyBooks())[0].editions).toEqual([
+      { format: "print", purchaseUrl: "https://example.com/buy", price: 17.99 },
+      { format: "ebook", purchaseUrl: "https://example.com/ebook", price: 4.99 },
+    ]);
+    // The old single-edition columns follow the first (print) edition until nothing reads them.
+    expect(data.memberBooks[0]).toMatchObject({ format: "print", purchase_url: "https://example.com/buy", price: 17.99 });
   });
 
   it("scopes the insert to the sudo'd member, not the real admin, while sudo'd", async () => {
@@ -259,7 +279,7 @@ describe("updateBook", () => {
   it("updates the row and revalidates on success", async () => {
     shelve();
     expect(await updateBook("book-1", VALID_INPUT)).toEqual({ success: true });
-    expect(book("book-1")).toMatchObject({ title: "My Book", purchase_url: "https://example.com/buy" });
+    expect(book("book-1")).toMatchObject({ title: "My Book", purchase_url: "https://example.com/buy", editions: [{ format: "print", purchase_url: "https://example.com/buy", price: null }] });
     expect(revalidatePath).toHaveBeenCalledWith("/bookshelf");
     expect(revalidatePath).toHaveBeenCalledWith("/projects", "layout");
     expect(revalidatePath).toHaveBeenCalledWith("/members/member-1");

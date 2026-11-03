@@ -31,8 +31,7 @@ const BOOK = {
   title: "My Novel",
   publishedDate: "2026-03-15",
   coverUrl: "https://example.com/cover.jpg",
-  purchaseUrl: "https://example.com/buy",
-  format: "print" as const,
+  editions: [{ format: "print" as const, purchaseUrl: "https://example.com/buy", price: null }],
 };
 
 let data: InMemoryDataset;

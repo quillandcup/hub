@@ -28,8 +28,7 @@ describe("book genres", () => {
       title: "T",
       publishedDate: "2026-01-01",
       coverUrl: bookCoverUrlFor("media_AAAAAAAAAAA1"),
-      purchaseUrl: "https://example.com/buy",
-      format: "print" as const,
+      editions: [{ format: "print" as const, purchaseUrl: "https://example.com/buy", price: null }],
     };
     expect(validateBookInput(input)).toBeNull();
     expect(validateBookInput({ ...input, genres: ["a", "b", "c", "d", "e", "f"] })).toMatch(/at most 5/);

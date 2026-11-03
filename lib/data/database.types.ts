@@ -3625,6 +3625,7 @@ export type Database = {
           created_at: string
           deleted_at: string | null
           description: string | null
+          editions: Json
           format: string
           genres: string[]
           genres_search: string | null
@@ -3657,6 +3658,7 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           description?: string | null
+          editions?: Json
           format?: string
           genres?: string[]
           genres_search?: string | null
@@ -3675,6 +3677,7 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           description?: string | null
+          editions?: Json
           format?: string
           genres?: string[]
           genres_search?: string | null
@@ -7366,6 +7369,7 @@ export type Database = {
         Args: { topics: string[] }
         Returns: boolean
       }
+      valid_book_editions: { Args: { editions: Json }; Returns: boolean }
       valid_book_genres: { Args: { genres: string[] }; Returns: boolean }
     }
     Enums: {

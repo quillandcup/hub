@@ -69,11 +69,9 @@ function book(overrides: Partial<MyBookRow>): MyBookRow {
     title: "Untitled",
     description: null,
     coverUrl: null,
-    purchaseUrl: null,
     publishedDate: "2025-06-15",
-    price: null,
+    editions: [{ format: "ebook", purchaseUrl: "https://example.com/buy", price: null }],
     genres: [],
-    format: "ebook",
     projectId: null,
     ...overrides,
   } as MyBookRow;

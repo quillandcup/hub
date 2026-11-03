@@ -12,11 +12,9 @@ function book(id: string, genres: string[]): ShelfBook {
     title: `Title ${id}`,
     description: null,
     coverUrl: "https://example.com/c.jpg",
-    purchaseUrl: "https://example.com/b",
     publishedDate: "2026-03-15",
-    price: null,
+    editions: [{ format: "print", purchaseUrl: "https://example.com/b", price: null }],
     genres,
-    format: "print",
   };
 }
 
@@ -65,5 +63,22 @@ describe("BookshelfClient genre filter", () => {
   it("shows no filter when no book has a genre", () => {
     render(<BookshelfClient shelf={[book("three", [])]} />);
     expect(screen.queryByRole("group", { name: "Filter by genre / tropes" })).not.toBeInTheDocument();
+  });
+});
+
+describe("BookshelfClient editions", () => {
+  it("shows one card per book with a link for each edition, and the title opening the first", () => {
+    const both: ShelfBook = {
+      ...book("both", []),
+      title: "Both Ways",
+      editions: [
+        { format: "ebook", purchaseUrl: "https://example.com/ebook", price: 4.99 },
+        { format: "print", purchaseUrl: "https://example.com/print", price: 17.99 },
+      ],
+    };
+    render(<BookshelfClient shelf={[both]} />);
+    expect(screen.getAllByText("Both Ways")).toHaveLength(1);
+    expect(screen.getByRole("link", { name: "Print $17.99" })).toHaveAttribute("href", "https://example.com/print");
+    expect(screen.getByRole("link", { name: "Ebook $4.99" })).toHaveAttribute("href", "https://example.com/ebook");
   });
 });
