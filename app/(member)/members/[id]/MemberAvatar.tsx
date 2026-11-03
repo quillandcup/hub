@@ -38,6 +38,8 @@ export default function MemberAvatar({ name, photoUrl, size = 56 }: MemberAvatar
         alt={name}
         width={size}
         height={size}
+        loading="lazy"
+        decoding="async"
         className="rounded-full object-cover flex-shrink-0"
         style={{ width: size, height: size }}
         onError={() => setImgFailed(true)}
