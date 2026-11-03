@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 
@@ -106,6 +106,62 @@ describe("Composer", () => {
       ["chat_message_composed", expect.objectContaining({ where: "reply", files: 0, files_removed: 0, bold: true, underline: false, list_depth: 0, lines: 1, mentions: 0, used_toolbar: false, used_shortcut: false })],
     ]);
     expect(JSON.stringify(composed)).not.toContain("so ");
+  });
+
+  describe("how a format got in", () => {
+    const formatEvents = () => track.mock.calls.filter(([name]) => name === "chat_format_applied").map(([, props]) => props);
+
+    it("notes typed markers as typed: `*bold*`", async () => {
+      vi.mocked(sendChatMessage).mockResolvedValue({ ok: true, id: "m5" });
+      render(<Composer channelId="c1" placeholder="Message #hosts" />);
+      const box = await messageBox();
+      await typeInto(box, "so *loud*{Enter}");
+      expect(formatEvents()).toContainEqual({ kind: "bold", via: "typed" });
+      await waitFor(() => expect(sendChatMessage).toHaveBeenCalled());
+      expect(track).toHaveBeenCalledWith("chat_message_composed", expect.objectContaining({ bold: true, used_typed: true, used_toolbar: false, used_shortcut: false, used_paste: false, used_tab: false }));
+    });
+
+    it("notes a quote typed with `> ` at the start of a line as typed", async () => {
+      render(<Composer channelId="c1" placeholder="Message #hosts" />);
+      await typeInto(await messageBox(), "> quoted");
+      expect(formatEvents()).toContainEqual({ kind: "quote", via: "typed" });
+    });
+
+    it("notes Tab and Shift+Tab in a list as nesting, and a bullet typed as typed", async () => {
+      render(<Composer channelId="c1" placeholder="Message #hosts" />);
+      const box = await messageBox();
+      await typeInto(box, "- one{Shift>}{Enter}{/Shift}two{Tab}");
+      expect(formatEvents()).toContainEqual({ kind: "bullets", via: "typed" });
+      expect(track).toHaveBeenCalledWith("chat_list_indented", { direction: "in" });
+      await typeInto(box, "{Shift>}{Tab}{/Shift}");
+      expect(track).toHaveBeenCalledWith("chat_list_indented", { direction: "out" });
+    });
+
+    it("does not count Tab outside a list, or plain typing, as a format", async () => {
+      render(<Composer channelId="c1" placeholder="Message #hosts" />);
+      await typeInto(await messageBox(), "just words and a 2*3 sum");
+      expect(formatEvents()).toEqual([]);
+      expect(track.mock.calls.filter(([name]) => name === "chat_list_indented")).toEqual([]);
+    });
+
+    it("notes formatted text pasted in as pasted, and plain text as nothing", async () => {
+      vi.mocked(sendChatMessage).mockResolvedValue({ ok: true, id: "m6" });
+      render(<Composer channelId="c1" placeholder="Message #hosts" />);
+      const box = await messageBox();
+      const paste = (html: string, text: string) => {
+        const e = new Event("paste", { bubbles: true, cancelable: true }) as Event & { clipboardData?: unknown };
+        e.clipboardData = { files: [], types: ["text/html", "text/plain"], getData: (type: string) => (type === "text/html" ? html : type === "text/plain" ? text : "") };
+        act(() => void box.dispatchEvent(e));
+      };
+      await typeInto(box, "hi ");
+      paste("<p>plain</p>", "plain");
+      expect(formatEvents()).toEqual([]);
+      paste("<p>some <strong>bold</strong> and <u>underlined</u></p>", "some bold and underlined");
+      expect(formatEvents()).toEqual(expect.arrayContaining([{ kind: "bold", via: "paste" }, { kind: "underline", via: "paste" }]));
+            await typeInto(box, "{Enter}");
+      await waitFor(() => expect(sendChatMessage).toHaveBeenCalled());
+      expect(track).toHaveBeenCalledWith("chat_message_composed", expect.objectContaining({ used_paste: true, used_typed: false, used_tab: false }));
+    });
   });
 
   it("says a new message is a message, and notes a format applied from the keyboard", async () => {

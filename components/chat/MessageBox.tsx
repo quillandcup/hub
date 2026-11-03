@@ -13,7 +13,7 @@ import type { CustomEmoji } from "@/lib/chat/emoji";
 import { emojiChoices, loadCatalog, type EmojiChoice } from "@/lib/chat/emoji-suggest";
 import { convertEmoticonBefore } from "@/lib/chat/emoticons";
 import { applyPastedMentions, pastedNameCandidates } from "@/lib/chat/paste-mentions";
-import { shortcutFormat } from "@/lib/chat/format-text";
+import { formatsFromSteps, formatsInSlice, shortcutFormat, type FormatVia } from "@/lib/chat/format-text";
 import { docIsEmojiOnly, docToMrkdwn, mrkdwnToDoc, type EmojiLookup, type RichNode } from "@/lib/chat/rich-text";
 import { useComboboxKeys } from "@/lib/hooks/useComboboxKeys";
 
@@ -139,8 +139,8 @@ export default function MessageBox({
   /** Shown name to Slack markup for each person or channel picked; the owner reads it when sending. */
   tokens: MutableRefObject<Map<string, string>>;
   boxRef?: MutableRefObject<MessageBoxHandle | null>;
-  /** A format was applied from the toolbar or a keyboard shortcut (typing `*word*` or `> ` is not reported): the owner notes it for what it records about the message. */
-  onFormat?: (via: "toolbar" | "shortcut") => void;
+  /** A format got into the message from the toolbar, a shortcut, typed markers (`*word*`, `> `), a paste or Tab nesting: the owner notes it for what it records about the message. */
+  onFormat?: (via: FormatVia) => void;
   onKeyDown?: (e: BoxKeyEvent) => void;
   onPaste?: (e: BoxPasteEvent) => void;
   /** Shown while the box is empty, and its name for assistive technology unless `aria-label` says otherwise. */
@@ -256,15 +256,28 @@ export default function MessageBox({
       },
       handleKeyDown: (view, event) => keyDownRef.current(event),
       handleTextInput: (view, from, to, text) => convertEmoticon(view, from, to, text),
-      handlePaste: (view, event) => {
+      handlePaste: (view, event, slice) => {
         live.current.onPaste?.({ clipboardData: event.clipboardData, preventDefault: () => event.preventDefault() });
         if (event.defaultPrevented) return true;
+        // Formatted text pasted in (from a web page, a document, another message): which formats came with it.
+        for (const kind of formatsInSlice(slice.toJSON())) {
+          track("chat_format_applied", { kind, via: "paste" });
+          live.current.onFormat?.("paste");
+        }
         const pasted = event.clipboardData?.getData("text/plain") ?? "";
         if (!pasted.includes("@") || PASTED_ADDRESS.test(pasted) || pastedNameCandidates(pasted).length === 0) return false;
         event.preventDefault();
         void pasteMentionsRef.current(pasted, view.state.selection.from, view.state.selection.to);
         return true;
       },
+    },
+    // Typed markers (`*bold*`, `> `, `- `, `1. `, a backtick) are the editor's input rules: it flags their transactions.
+    onTransaction: ({ transaction }) => {
+      if (!transaction.getMeta("inputRule")) return;
+      for (const kind of formatsFromSteps(transaction.steps.map((step) => step.toJSON()))) {
+        track("chat_format_applied", { kind, via: "typed" });
+        live.current.onFormat?.("typed");
+      }
     },
     onUpdate: ({ editor: ed }) => handleUpdate(ed),
     onSelectionUpdate: ({ editor: ed }) => look(ed),
@@ -369,6 +382,11 @@ export default function MessageBox({
       const e = boxKeyEvent(event);
       if (combobox.handleKey(e)) return true;
       if (event.isComposing) return false;
+      // Tab and Shift+Tab nest a list item deeper or bring it back out (the editor does it; this only records it).
+      if (event.key === "Tab" && !event.metaKey && !event.ctrlKey && !event.altKey && editor?.isActive("listItem")) {
+        track("chat_list_indented", { direction: event.shiftKey ? "out" : "in" });
+        live.current.onFormat?.("tab");
+      }
       const shortcut = toolbar ? shortcutFormat(e) : null;
       // The editor applies its own shortcuts; this only records them.
       if (shortcut) {
