@@ -18,7 +18,8 @@ const MAX_DAYS = 90;
  * Needs a RESEND_API_KEY with full access: a sending-only key cannot list emails, and the run fails with
  * Resend's answer rather than importing nothing.
  *
- * Scheduled daily at 03:45 UTC via Vercel Cron (GET).
+ * Scheduled daily at 03:45 UTC via Vercel Cron (GET). It pings its Checkly heartbeat when one is configured;
+ * none is, for now (lib/cron-heartbeats.ts, `unmonitored`).
  */
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin(request);

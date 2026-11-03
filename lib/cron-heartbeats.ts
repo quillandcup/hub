@@ -20,6 +20,11 @@ export interface CronHeartbeat {
   readonly scheduler: "vercel" | "pg_cron";
   /** Env var holding the Checkly ping URL. */
   readonly envVar: string;
+  /**
+   * Set (to the reason) when the job has no Checkly monitor: `checkly deploy` skips it, but the route still pings
+   * if the env var is set, so turning the monitor back on is deleting this line and deploying the checks.
+   */
+  readonly unmonitored?: string;
   readonly period: number;
   readonly periodUnit: TimeUnit;
   readonly grace: number;
@@ -70,6 +75,9 @@ export const CRON_HEARTBEATS = {
     path: "/api/reconcile/email",
     scheduler: "vercel",
     envVar: "CHECKLY_HEARTBEAT_RECONCILE_EMAIL",
+    // The Hobby plan allows 10 uptime monitors and the 9 heartbeats and the site's uptime check use all of
+    // them (checked 2026-11-03: a deploy with this one failed with "Uptime Monitors limit").
+    unmonitored: "Checkly plan limit of 10 uptime monitors reached",
     ...daily,
   },
   "reconcile-retention": {
@@ -118,6 +126,9 @@ export type CronHeartbeatJob = keyof typeof CRON_HEARTBEATS;
  * Tells Checkly the job ran. Never throws: a monitoring hiccup must not fail the job itself
  * (a missed ping just shows up as an alert, which is the safe direction).
  */
+/** The heartbeats that get a Checkly monitor: every one except those marked `unmonitored`. */
+export const MONITORED_HEARTBEATS = Object.entries<CronHeartbeat>(CRON_HEARTBEATS).filter(([, heartbeat]) => heartbeat.unmonitored === undefined);
+
 export async function pingCronHeartbeat(job: CronHeartbeatJob): Promise<void> {
   const url = process.env[CRON_HEARTBEATS[job].envVar];
   if (!url) return;
