@@ -162,7 +162,7 @@ export const SITE_PAGES: SitePage[] = [
   admin({ title: "Prickle Types", href: "/admin/data/prickle-types", section: "System", nav: { icon: "🏷️" } }),
   admin({ title: "Member Overrides", href: "/admin/member-overrides", section: "System", nav: { icon: "🎁" }, feature: "member_overrides" }),
   admin({ title: "Prickle Zoom Link", href: "/admin/prickle-join", section: "Accountability", nav: { icon: "🔗" }, keywords: ["zoom", "passcode", "password", "join link", "room"] }),
-  admin({ title: "Segments", href: "/admin/segments", section: "Developer", nav: { icon: "🧩" } }),
+  admin({ title: "Previews", href: "/admin/previews", section: "Developer", nav: { icon: "🧩" }, keywords: ["segments", "feature flags", "rollout"] }),
   admin({ title: "Feedback", href: "/admin/feedback", section: "Developer", nav: { icon: "💬" } }),
   admin({ title: "Test Notifications", href: "/admin/notifications", section: "Developer", nav: { icon: "🔔" }, keywords: ["send test", "slack", "email", "push", "in-app", "reminders"] }),
 

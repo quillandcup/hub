@@ -18,7 +18,7 @@ vi.mock("@/lib/data/repos", async () => ({
   createRepos: () => repos,
 }));
 // Client components show what the pages hand them.
-vi.mock("@/app/(admin)/admin/segments/SegmentsClient", () => ({
+vi.mock("@/app/(admin)/admin/previews/PreviewsClient", () => ({
   default: ({ allMembers }: { allMembers: unknown[] }) => <pre data-testid="segments">{JSON.stringify(allMembers)}</pre>,
 }));
 vi.mock("@/app/(admin)/admin/hygiene/ambiguous-names/AmbiguousNamesResolver", () => ({
@@ -31,7 +31,7 @@ vi.mock("@/app/(admin)/admin/hygiene/merge-fix/MergeFixClient", () => ({
   ),
 }));
 
-import SegmentsPage from "@/app/(admin)/admin/segments/page";
+import PreviewsPage from "@/app/(admin)/admin/previews/page";
 import MergeFixPage from "@/app/(admin)/admin/hygiene/merge-fix/page";
 import MissingMemberDataPage from "@/app/(admin)/admin/hygiene/missing-member-data/page";
 import AmbiguousNamesPage from "@/app/(admin)/admin/hygiene/ambiguous-names/page";
@@ -46,10 +46,10 @@ beforeEach(() => {
   repos = createInMemoryRepos(new InMemoryDataset({ members: [ADA, FERN, BEA] }));
 });
 
-describe("segments page", () => {
+describe("previews page", () => {
   it("hands the picker every member by name and display name, with only the fields it shows", async () => {
 
-    await renderServerPage(SegmentsPage, {});
+    await renderServerPage(PreviewsPage, {});
 
     const shown = JSON.parse(screen.getByTestId("segments").textContent!);
     expect(shown.map((m: { name: string }) => m.name)).toEqual(["Ada Example", "Bea Example", "Fern Example"]);

@@ -140,4 +140,4 @@ Events sent while an admin views as a member (sudo) are stored with `sudo = true
 
 ## Experiments with few members
 
-Feature flags and segments (`lib/features.server.ts`, `/admin/segments`) already decide who sees what. With a few hundred members, only large effects are detectable, so: test big changes, compare each member to themselves (a week on, a week off), write the decision rule down before looking, and read individual sessions as well as counts. Logging a `flag_exposed` event when a flag changes what someone sees is the natural next step.
+Feature flags and segments (`lib/features.server.ts`, `/admin/previews`) already decide who sees what. With a few hundred members, only large effects are detectable, so: test big changes, compare each member to themselves (a week on, a week off), write the decision rule down before looking, and read individual sessions as well as counts. Logging a `flag_exposed` event when a flag changes what someone sees is the natural next step.

@@ -1162,6 +1162,10 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 ## UI Enhancements
 
+### Retire the per-user feature checkboxes on Users, and the `/admin/segments` redirect _(Needs Scheduling)_
+
+Segments became the Previews page (`/admin/previews`), which also turns a flag on or off per person (`PATCH /api/admin/users/[id]` with `features`). The Users page still edits the same previews in its row editor, on purpose, for a transition period. Once Previews is the habit, drop the Feature Flags column and checkboxes from `app/(admin)/admin/users/UsersClient.tsx`, and delete the redirect at `app/(admin)/admin/segments/page.tsx` (plus its `EXCLUDED` line in `tests/lib/site-pages.test.ts`) when no old links remain. Also open: the Previews page lists people from `/api/admin/users`, which loads every account; if that gets slow, give Previews its own search endpoint.
+
 ### Pasted mentions: open a profile on click _(Needs Scheduling)_
 
 Pasting `@Full Name` into the chat box now becomes a real mention (`lib/chat/paste-mentions.ts`, `MessageBox`). Slack also opens a small profile card/modal when you click such a mention in the box; skipped for now since the box shows plain text. Start in `components/chat/MessageBox.tsx` (a mention could now be an editor node, like the custom emoji one); mentions in sent messages already have `MemberHoverCard`.
