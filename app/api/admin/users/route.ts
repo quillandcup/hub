@@ -1,7 +1,8 @@
 import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
-import { createClient as createServiceClient, SupabaseClient, type User } from "@supabase/supabase-js";
+import { createClient as createServiceClient, SupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { listAllAuthUsers } from "@/lib/auth-provisioning";
 import type { Database } from "@/lib/data/database.types";
 
 function getServiceClient() {
@@ -17,18 +18,6 @@ function getServiceClient() {
 // full table both to resolve every user's linked member and to let the
 // frontend offer every unlinked member as a link target. Paginate to avoid
 // silently truncating to the first 1000 rows.
-// Supabase Auth's listUsers is paged too (the page size is capped), so walk every page.
-async function fetchAllAuthUsers(supabase: SupabaseClient) {
-  const PER_PAGE = 1000;
-  const users: User[] = [];
-  for (let page = 1; ; page++) {
-    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: PER_PAGE });
-    if (error) return { users, error };
-    users.push(...data.users);
-    if (data.users.length < PER_PAGE) return { users, error: null };
-  }
-}
-
 async function fetchAllMembers(supabase: SupabaseClient) {
   const members = await createRepos(supabase).members.list();
   return members.map((m) => ({ id: m.id, name: m.name, displayName: m.displayName, email: m.email, user_id: m.userId }));
@@ -42,22 +31,35 @@ export async function GET(request: NextRequest) {
   const supabase = getServiceClient();
 
   const [
-    { users: authUsers, error: listError },
+    authUsers,
     profiles,
     previews,
     allStaff,
     allMembers,
+    nameAliases,
+    emailAliases,
   ] = await Promise.all([
-    fetchAllAuthUsers(supabase),
+    listAllAuthUsers(supabase.auth.admin).catch((error: Error) => error),
     createRepos(supabase).profiles.all(),
     createRepos(supabase).featureFlags.allPreviews(),
     createRepos(supabase).staff.all(),
     fetchAllMembers(supabase),
+    createRepos(supabase).aliases.nameAliases({ activeOnly: true }),
+    createRepos(supabase).aliases.emailOwners(),
   ]);
 
-  if (listError) {
-    return NextResponse.json({ error: listError.message }, { status: 500 });
+  if (authUsers instanceof Error) {
+    return NextResponse.json({ error: authUsers.message }, { status: 500 });
   }
+
+  // What a member is also known by (Zoom/Slack names, extra emails), so the page's search finds them by it.
+  const aliasesByMember = new Map<string, string[]>();
+  const addAlias = (memberId: string, alias: string) => {
+    if (!aliasesByMember.has(memberId)) aliasesByMember.set(memberId, []);
+    aliasesByMember.get(memberId)!.push(alias);
+  };
+  for (const a of nameAliases) addAlias(a.member_id, a.alias);
+  for (const a of emailAliases) addAlias(a.member_id, a.alias_email);
 
   const profileMap = new Map(profiles.map((p) => [p.id, p]));
   const featureMap = new Map<string, string[]>();
@@ -84,6 +86,7 @@ export async function GET(request: NextRequest) {
       memberId: member?.id ?? null,
       memberName: member?.name ?? null,
       memberDisplayName: member?.displayName ?? null,
+      aliases: member ? (aliasesByMember.get(member.id) ?? []) : [],
       pending: !u.email_confirmed_at,
       // A ban (banned_until in the future) stops sign-in and token refresh; it is how access is held back or removed.
       bannedUntil: u.banned_until && new Date(u.banned_until).getTime() > Date.now() ? u.banned_until : null,

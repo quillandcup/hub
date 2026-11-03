@@ -38,6 +38,8 @@ interface AppUser {
   memberId: string | null;
   memberName: string | null;
   memberDisplayName: string | null;
+  /** Other names and emails the linked member is known by. */
+  aliases: string[];
   pending: boolean;
   bannedUntil: string | null;
 }
@@ -125,7 +127,7 @@ function profileName(user: AppUser): string | null {
 }
 
 function matchesSearch(user: AppUser, term: string): boolean {
-  return [user.email, user.memberName, user.memberDisplayName, user.staffName].some((v) => v?.toLowerCase().includes(term));
+  return [user.email, user.memberName, user.memberDisplayName, user.staffName, ...user.aliases].some((v) => v?.toLowerCase().includes(term));
 }
 
 const ROLE_ORDER: Record<Role, number> = { admin: 0, assistant: 1, community_manager: 2, member: 3 };

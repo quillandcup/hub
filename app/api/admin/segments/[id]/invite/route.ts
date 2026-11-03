@@ -1,3 +1,4 @@
+import { listAllAuthUsers } from "@/lib/auth-provisioning";
 import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
@@ -50,9 +51,13 @@ export async function POST(
   // GoTrue's admin listUsers doesn't support filtering by email, so pull the
   // full user list once (mirrors the pattern in GET /api/admin/users) and
   // match in memory rather than doing a per-email round trip.
-  const { data: listData, error: listError } = await supabase.auth.admin.listUsers({ perPage: 1000 });
-  if (listError) return NextResponse.json({ error: listError.message }, { status: 500 });
-  const existingEmails = new Set((listData?.users ?? []).map((u) => (u.email ?? "").toLowerCase()));
+  let authUsers;
+  try {
+    authUsers = await listAllAuthUsers(supabase.auth.admin);
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not list users" }, { status: 500 });
+  }
+  const existingEmails = new Set(authUsers.map((u) => (u.email ?? "").toLowerCase()));
 
   const results: InviteResult[] = [];
 
