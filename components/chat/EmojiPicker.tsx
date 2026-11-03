@@ -136,8 +136,10 @@ export default function EmojiPicker({
     setQuery("");
     // After the browse view is back, scroll to the section.
     requestAnimationFrame(() => {
-      const section = scroller.current?.querySelector(`[data-section="${id}"]`);
-      if (section instanceof HTMLElement) scroller.current!.scrollTop = section.offsetTop - scroller.current!.offsetTop;
+      const box = scroller.current;
+      const section = box?.querySelector(`[data-section="${id}"]`);
+      // Measured against the scroller's own top: offsetTop minus the scroller's offset left a tab's section a header-height short, so a tab seemed to do nothing.
+      if (box && section instanceof HTMLElement) box.scrollTop += section.getBoundingClientRect().top - box.getBoundingClientRect().top;
     });
   };
 
