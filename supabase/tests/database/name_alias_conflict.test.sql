@@ -5,7 +5,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(17);
+SELECT plan(19);
 
 INSERT INTO public.members (id, name, email, joined_at, status) VALUES
   ('mbr_AAAAAAAAnc01', 'Nia Conflict', 'nc-nia@example.test', now(), 'active'),
@@ -20,6 +20,9 @@ SELECT is(public.name_alias_key('李雷'), '李雷', 'key: a name with no Latin 
 
 SELECT is((SELECT kind FROM public.name_alias_conflict('mbr_AAAAAAAAnc01', 'Brand New Name')), NULL, 'a free name has no conflict');
 SELECT is((SELECT kind FROM public.name_alias_conflict('mbr_AAAAAAAAnc01', 'nia  on zoom')), 'own', 'the same alias with other case and spacing is already yours');
+INSERT INTO public.member_name_aliases (member_id, alias, source, active) VALUES ('mbr_AAAAAAAAnc02', 'Omar W.', 'admin', true);
+SELECT is((SELECT kind FROM public.name_alias_conflict('mbr_AAAAAAAAnc01', 'Omar W')), 'other_alias', 'a trailing period is not a different alias: "Omar W" is taken by "Omar W."');
+SELECT is((SELECT kind FROM public.name_alias_conflict('mbr_AAAAAAAAnc02', 'omar w')), 'own', 'and for the holder it is already on their list');
 SELECT is((SELECT kind FROM public.name_alias_conflict('mbr_AAAAAAAAnc01', 'Old Nia Name.')), 'own_inactive', 'yours but switched off');
 SELECT is((SELECT kind FROM public.name_alias_conflict('mbr_AAAAAAAAnc01', 'OMAR the writer')), 'other_alias', 'another member''s alias, other case');
 SELECT is((SELECT kind FROM public.name_alias_conflict('mbr_AAAAAAAAnc01', 'Omar Conflict')), 'other_name', 'another member''s real name, even a cancelled member''s');
