@@ -5,7 +5,7 @@ const text = (v: string) => ({ t: "text", v });
 
 describe("parseInline", () => {
   it("leaves plain text alone and decodes Slack's escapes", () => {
-    expect(parseInline("tea &amp; biscuits &lt;3")).toEqual([text("tea & biscuits <3")]);
+    expect(parseInline("tea &amp; biscuits &lt;3")).toEqual([text("tea & biscuits "), text("❤️")]);
   });
 
   it("reads *bold*, _italic_ and ~strike~, nested", () => {

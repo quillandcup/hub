@@ -9,9 +9,13 @@ import { track } from "@/lib/analytics/client";
 import { useComboboxKeys } from "@/lib/hooks/useComboboxKeys";
 import { isEmojiOnly } from "@/lib/chat/emoji-only";
 import { applyFormat, shortcutFormat, type FormatKind } from "@/lib/chat/format-text";
+import { convertEmoticonBefore } from "@/lib/chat/emoticons";
+import { applyPastedMentions, pastedNameCandidates } from "@/lib/chat/paste-mentions";
 import { emojiChoices, loadCatalog, type EmojiChoice } from "@/lib/chat/emoji-suggest";
 
 const SUGGEST_DELAY_MS = 120;
+/** The box grows with its text up to this height, then scrolls. */
+export const MAX_BOX_HEIGHT_PX = 240;
 
 type Trigger = "@" | "#" | ":";
 type Open = { trigger: Trigger; query: string; start: number };
@@ -96,6 +100,29 @@ export default function MentionTextarea({
     }
   });
 
+  // Grow with the text (and shrink back when it is cleared), up to a limit.
+  useLayoutEffect(() => {
+    const el = inner.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const wanted = el.scrollHeight;
+    if (wanted > 0) el.style.height = `${Math.min(wanted, MAX_BOX_HEIGHT_PX)}px`;
+    el.style.overflowY = wanted > MAX_BOX_HEIGHT_PX ? "auto" : "hidden";
+  }, [value]);
+
+  /** Pasted `@Full Name`s that are exactly one known person become real mentions, as in Slack. */
+  const pasteMentions = async (pasted: string, start: number, end: number) => {
+    const found = await Promise.all(pastedNameCandidates(pasted).map((name) => suggestMentions(channelId, "@", name).catch(() => [])));
+    const people = found
+      .flat()
+      .filter((p) => p.label.startsWith("@") && (!tokens.current.has(p.label) || tokens.current.get(p.label) === p.token))
+      .filter((p, i, all) => all.findIndex((q) => q.token === p.token) === i);
+    const { text, picked } = applyPastedMentions(pasted, people);
+    for (const [label, token] of picked) tokens.current.set(label, token);
+    pendingSelection.current = { start: start + text.length, end: start + text.length };
+    onValueChange(`${value.slice(0, start)}${text}${value.slice(end)}`);
+  };
+
   const look = (text: string, caret: number) => {
     const found = triggerBefore(text, caret);
     if (!found) {
@@ -176,9 +203,26 @@ export default function MentionTextarea({
         aria-autocomplete={aria["aria-autocomplete"]}
         aria-controls={showing ? aria["aria-controls"] : undefined}
         aria-activedescendant={aria["aria-activedescendant"]}
+        onPaste={(e) => {
+          rest.onPaste?.(e);
+          const pasted = e.clipboardData.getData("text/plain");
+          if (e.defaultPrevented || !pasted.includes("@") || pastedNameCandidates(pasted).length === 0) return;
+          e.preventDefault();
+          void pasteMentions(pasted, e.currentTarget.selectionStart, e.currentTarget.selectionEnd);
+        }}
         onChange={(e) => {
-          onValueChange(e.target.value);
-          look(e.target.value, e.target.selectionStart ?? e.target.value.length);
+          let next = e.target.value;
+          let caret = e.target.selectionStart ?? next.length;
+          // Typing a space or punctuation after an emoticon turns it into its emoji, like Slack.
+          const typing = !(e.nativeEvent as InputEvent).inputType?.startsWith("delete");
+          const converted = typing ? convertEmoticonBefore(next, caret) : null;
+          if (converted) {
+            next = converted.value;
+            caret = converted.caret;
+            pendingSelection.current = { start: caret, end: caret };
+          }
+          onValueChange(next);
+          look(next, caret);
         }}
         onClick={(e) => look(e.currentTarget.value, e.currentTarget.selectionStart ?? 0)}
         onBlur={() => setOpen(null)}

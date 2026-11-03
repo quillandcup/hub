@@ -23,6 +23,10 @@ export type Block =
   | { t: "quote"; c: Inline[] }
   | { t: "code"; v: string };
 
+import { EMOTICONS, EMOTICON_IN_TEXT } from "@/lib/chat/emoticons";
+import { unicodeEmoji } from "@/lib/chat/emoji";
+import { toneOf, tonedUnicode } from "@/lib/chat/skin-tone";
+
 const SAFE_HREF = /^(https?:\/\/|mailto:)/i;
 
 export function decodeEntities(s: string): string {
@@ -35,6 +39,7 @@ const PATTERNS: { re: RegExp; build: (m: RegExpExecArray) => Inline }[] = [
   { re: /<([^<>]+)>/, build: (m) => angle(m[1]) },
   { re: /`([^`\n]+)`/, build: (m) => ({ t: "code", v: decodeEntities(m[1]) }) },
   { re: /:([a-z0-9_+-]+)(?:::skin-tone-\d)?:/i, build: (m) => ({ t: "emoji", name: m[1].toLowerCase() }) },
+  { re: EMOTICON_IN_TEXT, build: (m) => ({ t: "text", v: EMOTICONS[m[1]] }) },
   { re: /(?<![\w*])\*(?!\s)([^*\n]+?)(?<!\s)\*(?![\w*])/, build: (m) => ({ t: "bold", c: parseInline(m[1]) }) },
   { re: /(?<![\w_])_(?!\s)([^_\n]+?)(?<!\s)_(?![\w_])/, build: (m) => ({ t: "italic", c: parseInline(m[1]) }) },
   { re: /(?<![\w~])~(?!\s)([^~\n]+?)(?<!\s)~(?![\w~])/, build: (m) => ({ t: "strike", c: parseInline(m[1]) }) },
@@ -147,7 +152,7 @@ export interface EditableText {
  */
 export function toEditableText(
   body: string,
-  names: { userNames: Record<string, string>; channelNames: Record<string, string> },
+  names: { userNames: Record<string, string>; channelNames: Record<string, string>; customEmoji?: Record<string, unknown> },
   opts: { plain?: boolean } = {}
 ): EditableText {
   const tokens = new Map<string, string>();
@@ -161,7 +166,15 @@ export function toEditableText(
   };
   // A message written in the Hub is plain text that only carries mention and channel tokens: nothing else is
   // Slack markup, so nothing else is turned into a name or decoded.
-  const text = body.replace(/<([^<>]+)>/g, (whole, inner: string) => {
+  // A standard emoji's :shortcode: is shown as the emoji itself (what picking one writes); a custom one, or code, stays as typed.
+  const withEmoji = body.replace(/```[\s\S]*?```|`[^`\n]*`|<[^<>]*>|:([a-z0-9_+-]+)(?:::skin-tone-(\d))?:/gi, (whole, name?: string) => {
+    if (!name || name.toLowerCase() in (names.customEmoji ?? {})) return whole;
+    const unicode = unicodeEmoji(name);
+    if (!unicode) return whole;
+    const tone = toneOf(whole.slice(1, -1));
+    return tone ? tonedUnicode(unicode, tone) : unicode;
+  });
+  const text = withEmoji.replace(/<([^<>]+)>/g, (whole, inner: string) => {
     const [target, label] = [inner.split("|")[0], inner.includes("|") ? inner.slice(inner.indexOf("|") + 1) : undefined];
     if (/^@[A-Z0-9]+$/.test(target)) return shown(`@${names.userNames[target.slice(1)] ?? label ?? "someone"}`, whole);
     if (/^#[A-Z0-9]+$/.test(target)) return shown(`#${names.channelNames[target.slice(1)] ?? label ?? "channel"}`, whole);
