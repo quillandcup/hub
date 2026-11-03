@@ -2,6 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import MessageBox, { type MessageBoxHandle } from "@/components/chat/MessageBox";
+import PendingAttachments from "@/components/chat/PendingAttachments";
+import { uploadStagedFiles } from "@/lib/chat/upload-client";
+import { MAX_CHAT_FILES, MAX_CHAT_FILE_BYTES, type StagedUpload } from "@/lib/chat/staging";
+import { chatFileUrl, isInlineImage } from "@/lib/chat/files";
+import { track } from "@/lib/analytics/client";
 import { fromEditableText, toEditableText, type EditableText } from "@/lib/chat/render";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
@@ -9,7 +14,7 @@ import Modal from "@/components/Modal";
 import MemberAvatar from "@/app/(member)/members/[id]/MemberAvatar";
 import { formatChatTime } from "@/lib/chat/format";
 import ChatText, { type ChatTextContext } from "@/components/chat/ChatText";
-import { deleteChatMessage, editChatMessage } from "@/app/(member)/chat/actions";
+import { deleteChatFile, deleteChatMessage, editChatMessage } from "@/app/(member)/chat/actions";
 import { isPendingId, MESSAGE_CHANGE_EVENT, pokeChat } from "@/lib/chat/list-events";
 import type { ChatMessageView } from "@/lib/chat/load";
 
@@ -35,8 +40,10 @@ export default function MessageBody({
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Shown when files are pasted or dropped on the edit box: Slack can't add files to an edited message.
-  const [filesNote, setFilesNote] = useState(false);
+  // Files added in the edit box (uploaded on Save), and the message's own files taken off (removed on Save).
+  const [added, setAdded] = useState<File[]>([]);
+  const [removed, setRemoved] = useState<string[]>([]);
+  const pickerRef = useRef<HTMLInputElement>(null);
   // What the member just saved (or deleted), shown until the server's copy catches up.
   const [saved, setSaved] = useState<{ from: string; text: string } | null>(null);
   const [deleted, setDeleted] = useState(false);
@@ -53,7 +60,8 @@ export default function MessageBody({
       const d = (e as CustomEvent<{ messageId: string; what: "edit" | "delete" }>).detail;
       if (d?.messageId !== message.id) return;
       setError(null);
-      setFilesNote(false);
+      setAdded([]);
+      setRemoved([]);
       if (d.what === "edit") {
         // People and channels are shown by name. A message written in Slack is all Slack markup (links, entities);
         // one written in the Hub is plain text with just those tokens.
@@ -77,10 +85,26 @@ export default function MessageBody({
     // Like Slack: saving an emptied edit asks to delete the message.
     if (!typed) return setMode("confirm-delete");
     const next = fromEditableText(typed, shownTokens.current, { plain: message.fromHub });
-    if (next === text) return setMode("view");
+    if (next === text && added.length === 0 && removed.length === 0) return setMode("view");
     setBusy(true);
     setError(null);
-    const result = await editChatMessage(message.id, next).catch(() => ({ ok: false as const, error: "Something went wrong. Try again." }));
+    const failed = (reason: string) => {
+      setBusy(false);
+      setError(reason);
+    };
+    // Files taken off go first, then the new ones are uploaded to the member's staging folder and the edit attaches them.
+    for (const fileId of removed) {
+      const gone = await deleteChatFile(message.id, fileId).catch(() => ({ ok: false as const, error: "Something went wrong. Try again." }));
+      if (!gone.ok) return failed(gone.error);
+      setRemoved((current) => current.filter((id) => id !== fileId));
+    }
+    let uploads: StagedUpload[] = [];
+    if (added.length > 0) {
+      const uploaded = await uploadStagedFiles(added, new AbortController().signal);
+      if (!uploaded.ok) return failed(uploaded.error);
+      uploads = uploaded.uploads;
+    }
+    const result = await (uploads.length > 0 ? editChatMessage(message.id, next, uploads) : editChatMessage(message.id, next)).catch(() => ({ ok: false as const, error: "Something went wrong. Try again." }));
     setBusy(false);
     if (!result.ok) return setError(result.error);
     setSaved({ from: message.body, text: next });
@@ -105,6 +129,17 @@ export default function MessageBody({
     catchUp();
   };
 
+  const keptFiles = message.files.filter((f) => !removed.includes(f.id));
+  const attach = (incoming: File[], via: "picker" | "paste" | "drop") => {
+    if (incoming.length === 0) return;
+    const tooBig = incoming.find((f) => f.size > MAX_CHAT_FILE_BYTES);
+    if (tooBig) return setError(`${tooBig.name} is over ${MAX_CHAT_FILE_BYTES / (1024 * 1024)} MB.`);
+    if (keptFiles.length + added.length + incoming.length > MAX_CHAT_FILES) return setError(`A message can have up to ${MAX_CHAT_FILES} files.`);
+    setError(null);
+    setAdded((current) => [...current, ...incoming]);
+    track("chat_files_added_to_edit", { via, count: incoming.length });
+  };
+
   if (deleted) return null;
 
   if (mode === "edit") {
@@ -118,7 +153,7 @@ export default function MessageBody({
         onDrop={(e) => {
           if (!e.dataTransfer?.types?.includes("Files")) return;
           e.preventDefault();
-          setFilesNote(true);
+          attach([...e.dataTransfer.files], "drop");
         }}
       >
         <MessageBox
@@ -136,7 +171,7 @@ export default function MessageBody({
           onPaste={(e) => {
             if ((e.clipboardData?.files?.length ?? 0) === 0) return;
             e.preventDefault();
-            setFilesNote(true);
+            attach([...e.clipboardData!.files], "paste");
           }}
           onKeyDown={(e) => {
             if (e.key === "Escape") {
@@ -149,7 +184,39 @@ export default function MessageBody({
           }}
           className="w-full resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
         />
+        {(keptFiles.length > 0 || added.length > 0) && (
+          <div className="rounded-lg border border-slate-300 dark:border-slate-700">
+            <PendingAttachments
+              files={added}
+              kept={keptFiles.map((f) => ({ name: f.name ?? "file", size: f.size ?? 0, url: isInlineImage(f) ? `${window.location.origin}${chatFileUrl(message.id, f.id)}` : null }))}
+              disabled={busy}
+              onRemove={(i) => setAdded((current) => current.filter((_, j) => j !== i))}
+              onRemoveKept={(i) => setRemoved((current) => [...current, keptFiles[i].id])}
+            />
+          </div>
+        )}
         <div className="mt-1 flex items-center gap-2 text-xs">
+          <input
+            ref={pickerRef}
+            type="file"
+            multiple
+            hidden
+            aria-label="Attach files"
+            onChange={(e) => {
+              attach([...e.target.files!], "picker");
+              e.target.value = "";
+            }}
+          />
+          <button
+            type="button"
+            aria-label="Attach files"
+            title="Attach files"
+            disabled={busy}
+            onClick={() => pickerRef.current?.click()}
+            className="rounded-md px-1.5 py-1 hover:bg-slate-100 disabled:opacity-50 dark:hover:bg-slate-800"
+          >
+            📎
+          </button>
           <button
             type="button"
             disabled={busy}
@@ -171,7 +238,6 @@ export default function MessageBody({
           </button>
           <span className="text-slate-500 dark:text-slate-400">Enter to save, Esc to cancel</span>
         </div>
-        {filesNote && <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Files can&apos;t be added while editing. Send them in a new message.</p>}
         {error && (
           <p role="alert" className="mt-1 text-xs text-red-600 dark:text-red-400">
             {error}

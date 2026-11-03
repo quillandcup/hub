@@ -8,10 +8,13 @@ import type { ChatMessageView } from "@/lib/chat/load";
 
 const refresh = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
-vi.mock("@/app/(member)/chat/actions", () => ({ editChatMessage: vi.fn(), deleteChatMessage: vi.fn() }));
+vi.mock("@/app/(member)/chat/actions", () => ({ editChatMessage: vi.fn(), deleteChatMessage: vi.fn(), deleteChatFile: vi.fn() }));
+vi.mock("@/lib/chat/upload-client", () => ({ uploadStagedFiles: vi.fn() }));
+vi.mock("@/lib/analytics/client", () => ({ track: vi.fn() }));
+import { uploadStagedFiles } from "@/lib/chat/upload-client";
 vi.mock("@/app/(member)/chat/mention-actions", () => ({ suggestMentions: vi.fn() }));
 import { suggestMentions } from "@/app/(member)/chat/mention-actions";
-import { deleteChatMessage, editChatMessage } from "@/app/(member)/chat/actions";
+import { deleteChatFile, deleteChatMessage, editChatMessage } from "@/app/(member)/chat/actions";
 import MessageBody from "@/components/chat/MessageBody";
 import { messageBox, typeInto, boxUser } from "../helpers/message-box";
 import { MESSAGE_CHANGE_EVENT, onPoke, optimisticView } from "@/lib/chat/list-events";
@@ -32,6 +35,8 @@ const fire = (what: "edit" | "delete", messageId = "m1") =>
 
 beforeEach(() => {
   cleanup();
+  URL.createObjectURL = vi.fn(() => "blob:preview");
+  URL.revokeObjectURL = vi.fn();
   refresh.mockReset();
   vi.mocked(editChatMessage).mockReset();
   vi.mocked(suggestMentions).mockReset();
@@ -172,28 +177,83 @@ describe("MessageBody", () => {
     }
   });
 
-  it("doesn't take files pasted or dropped on the edit box, and says why, keeping the typed text", async () => {
-    mount();
-    fire("edit");
-    const box = await messageBox("Edit message");
-    await typeInto(box, " more");
-    const file = new File(["x"], "a.png", { type: "image/png" });
-    const paste = new Event("paste", { bubbles: true, cancelable: true }) as Event & { clipboardData?: unknown };
-    paste.clipboardData = { files: [file], getData: () => "", types: ["Files"] };
-    act(() => void box.dispatchEvent(paste));
-    expect(paste.defaultPrevented).toBe(true);
-    expect(await screen.findByText("Files can't be added while editing. Send them in a new message.")).toBeInTheDocument();
-    expect(box.textContent).toBe("first draft more");
+  describe("files in the edit box", () => {
+    const png = new File(["x"], "a.png", { type: "image/png" });
+    const paste = (box: HTMLElement, files: File[]) => {
+      const e = new Event("paste", { bubbles: true, cancelable: true }) as Event & { clipboardData?: unknown };
+      e.clipboardData = { files, getData: () => "", types: ["Files"] };
+      act(() => void box.dispatchEvent(e));
+      return e;
+    };
+    const withFiles = () => ({ ...mine(), files: [{ id: "F1", name: "old.png", mimetype: "image/png", size: 10, width: null, height: null }] });
 
-    cleanup();
-    mount();
-    fire("edit");
-    const box2 = await messageBox("Edit message");
-    const drop = new Event("drop", { bubbles: true, cancelable: true }) as Event & { dataTransfer?: unknown };
-    drop.dataTransfer = { types: ["Files"], files: [file] };
-    act(() => void box2.dispatchEvent(drop));
-    expect(drop.defaultPrevented).toBe(true);
-    expect(screen.getByText(/Files can't be added while editing/)).toBeInTheDocument();
+    beforeEach(() => {
+      vi.mocked(uploadStagedFiles).mockReset();
+      vi.mocked(uploadStagedFiles).mockResolvedValue({ ok: true, uploads: [{ path: "staging/x/a.png", name: "a.png", mimetype: "image/png", size: 1 }] });
+      vi.mocked(deleteChatFile).mockReset();
+      vi.mocked(deleteChatFile).mockResolvedValue({ ok: true });
+    });
+
+    it("shows the message's files as tiles, adds pasted, dropped and picked files beside them, and uploads them on Save", async () => {
+      vi.mocked(editChatMessage).mockResolvedValue({ ok: true });
+      mount(withFiles());
+      fire("edit");
+      const box = await messageBox("Edit message");
+      expect(screen.getByRole("button", { name: "Preview old.png" })).toBeInTheDocument();
+
+      const pasted = paste(box, [png]);
+      expect(pasted.defaultPrevented).toBe(true);
+      expect(await screen.findByRole("button", { name: "Preview a.png" })).toBeInTheDocument();
+      expect(box.textContent).toBe("first draft");
+
+      const drop = new Event("drop", { bubbles: true, cancelable: true }) as Event & { dataTransfer?: unknown };
+      drop.dataTransfer = { types: ["Files"], files: [new File(["y"], "b.txt", { type: "text/plain" })] };
+      act(() => void box.dispatchEvent(drop));
+      expect(await screen.findByText("b.txt")).toBeInTheDocument();
+
+      await userEvent.upload(screen.getByLabelText("Attach files", { selector: "input" }), new File(["z"], "c.txt", { type: "text/plain" }));
+      expect(await screen.findByText("c.txt")).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: "Save" }));
+      await waitFor(() => expect(editChatMessage).toHaveBeenCalledWith("m1", "first draft", [expect.objectContaining({ name: "a.png" })]));
+      expect(vi.mocked(uploadStagedFiles).mock.calls[0][0].map((f) => f.name)).toEqual(["a.png", "b.txt", "c.txt"]);
+    });
+
+    it("saves files added to a message whose text didn't change, and takes a removed file of the message off on Save", async () => {
+      vi.mocked(editChatMessage).mockResolvedValue({ ok: true });
+      mount(withFiles());
+      fire("edit");
+      const box = await messageBox("Edit message");
+      paste(box, [png]);
+      await screen.findByRole("button", { name: "Preview a.png" });
+      await userEvent.click(screen.getByRole("button", { name: "Remove old.png" }));
+      expect(screen.queryByRole("button", { name: "Preview old.png" })).not.toBeInTheDocument();
+      expect(deleteChatFile).not.toHaveBeenCalled();
+      await userEvent.click(screen.getByRole("button", { name: "Save" }));
+      await waitFor(() => expect(deleteChatFile).toHaveBeenCalledWith("m1", "F1"));
+      await waitFor(() => expect(editChatMessage).toHaveBeenCalledTimes(1));
+    });
+
+    it("keeps the box open with the reason when the upload fails", async () => {
+      vi.mocked(uploadStagedFiles).mockResolvedValue({ ok: false, error: "Couldn't upload a.png. Try again." });
+      mount();
+      fire("edit");
+      paste(await messageBox("Edit message"), [png]);
+      await screen.findByRole("button", { name: "Preview a.png" });
+      await userEvent.click(screen.getByRole("button", { name: "Save" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't upload a.png");
+      expect(editChatMessage).not.toHaveBeenCalled();
+      expect(screen.getByRole("textbox", { name: "Edit message" })).toBeInTheDocument();
+    });
+
+    it("refuses a file that is too big", async () => {
+      mount();
+      fire("edit");
+      const big = new File(["x"], "big.bin");
+      Object.defineProperty(big, "size", { value: 10 * 1024 * 1024 * 1024 });
+      paste(await messageBox("Edit message"), [big]);
+      expect(await screen.findByRole("alert")).toHaveTextContent("big.bin is over");
+    });
   });
 
   it("falls back to a page refresh when no live conversation is open", async () => {

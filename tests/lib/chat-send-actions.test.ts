@@ -52,6 +52,7 @@ vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => m.serv
 vi.mock("@/lib/chat/slack-post", () => ({ sendChatMessageToSlack: m.sendToSlack }));
 vi.mock("@/lib/chat/slack-react", () => ({ syncReactionToSlack: m.syncReaction }));
 vi.mock("@/lib/chat/slack-edit", () => ({ updateChatMessageInSlack: m.slackUpdate, deleteChatMessageInSlack: m.slackDelete, deleteChatFileInSlack: m.slackFileDelete }));
+vi.mock("@/lib/chat/slack-upload", () => ({ keepCopies: vi.fn() }));
 vi.mock("@/lib/chat/load", () => ({}));
 vi.mock("@/lib/chat/file-cleanup", () => ({ removeChatFileBytes: m.removeBytes }));
 
@@ -313,6 +314,41 @@ describe("editChatMessage", () => {
     m.getEffectiveIdentity.mockResolvedValue({ memberId: "member-fern", isSudo: true });
     await expect(editChatMessage(MESSAGE, "new")).resolves.toMatchObject({ ok: false });
     expect(m.slackUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe("editChatMessage with files", () => {
+  const added = { path: STAGED, name: "cat.gif", mimetype: "image/gif", size: 1234 };
+  const withBucket = () =>
+    m.serviceClient.mockReturnValue({
+      storage: { from: () => ({ list: async () => ({ data: [{ name: "cat.gif", metadata: { size: 1234 } }] }), download: async () => ({ data: new Blob(["gif"]) }) }) },
+    });
+
+  it("hands the staged bytes to Slack with the edit, then lists the files Slack gave on the Hub message", async () => {
+    withBucket();
+    m.rpc.mockResolvedValue({ data: null, error: null });
+    m.slackUpdate.mockResolvedValue({ ok: true, fileIds: ["FNEW"] });
+
+    await expect(editChatMessage(MESSAGE, "with a cat", [added])).resolves.toEqual({ ok: true });
+
+    const slackArgs = m.slackUpdate.mock.calls[0][1];
+    expect(slackArgs.addFiles.uploads).toEqual([{ file: expect.any(Buffer), filename: "cat.gif" }]);
+    expect(m.rpc).toHaveBeenCalledWith("chat_edit_message", { p_message_id: MESSAGE, p_body: "with a cat" });
+    expect(m.rpc).toHaveBeenCalledWith("chat_add_message_files", { p_message_id: MESSAGE, p_files: [{ id: "FNEW", name: "cat.gif", mimetype: "image/gif", size: 1234 }] });
+  });
+
+  it("refuses staged files that aren't the member's own, and touches neither Slack nor the Hub", async () => {
+    withBucket();
+    await expect(editChatMessage(MESSAGE, "x", [{ ...added, path: `staging/2026-10-22/someone-else-11111111-2222-4333-8444-555555555555/cat.gif` }])).resolves.toMatchObject({ ok: false });
+    expect(m.slackUpdate).not.toHaveBeenCalled();
+    expect(m.rpc).not.toHaveBeenCalled();
+  });
+
+  it("doesn't list files in the Hub when Slack refuses the edit", async () => {
+    withBucket();
+    m.slackUpdate.mockResolvedValue({ ok: false, error: "Slack didn't take the files. Try again in a moment." });
+    await expect(editChatMessage(MESSAGE, "x", [added])).resolves.toMatchObject({ ok: false });
+    expect(m.rpc).not.toHaveBeenCalled();
   });
 });
 

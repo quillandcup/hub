@@ -6606,6 +6606,10 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      chat_add_message_files: {
+        Args: { p_files: Json; p_message_id: string }
+        Returns: undefined
+      }
       chat_apply_slack_read: {
         Args: { p_channel_id: string; p_member: string; p_slack_ts: string }
         Returns: undefined
