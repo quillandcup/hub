@@ -27,6 +27,13 @@ export const appConfig = {
    */
   orgTimezone: "America/New_York",
 
+  /**
+   * How long after writing a staff note its author can still correct it (minutes), for typos and
+   * quick rewrites. The Hub passes it to the database function that does the edit
+   * (`edit_member_admin_note`), which SQL can't read from here. The timeline shows "edited".
+   */
+  adminNoteEditMinutes: 15,
+
   /** Support address shown to members (settings, /no-access, the auth email footer). */
   supportEmail: "support@quillandcup.com",
 

@@ -56,7 +56,7 @@ const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]
     [["startLessonVideoUpload", "course_lesson_video_upload_started"], ["refreshLessonVideo", "course_lesson_video_refreshed"], ["setLessonThumbnailFromVideo", "course_lesson_thumbnail_from_frame"], ["removeLessonVideo", "course_lesson_video_removed"]],
   ],
   [() => import("@/app/(admin)/admin/members/[id]/removal-actions"), "app/(admin)/admin/members/[id]/removal-actions.ts", [["removeMember", "member_removed"]]],
-  [() => import("@/app/(admin)/admin/members/[id]/notes-actions"), "app/(admin)/admin/members/[id]/notes-actions.ts", [["addMemberNote", "admin_note_added"], ["deleteMemberNote", "admin_note_deleted"]]],
+  [() => import("@/app/(admin)/admin/members/[id]/notes-actions"), "app/(admin)/admin/members/[id]/notes-actions.ts", [["addMemberNote", "admin_note_added"], ["editMemberNote", "admin_note_edited"], ["deleteMemberNote", "admin_note_deleted"]]],
   [
     () => import("@/app/(admin)/admin/courses/lesson-file-actions"),
     "app/(admin)/admin/courses/lesson-file-actions.ts",

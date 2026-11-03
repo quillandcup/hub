@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { MAX_ADMIN_NOTE_LENGTH, type AdminNoteRepository } from "@/lib/data/admin-notes";
 
 export type AdminNoteContractContext = {
@@ -9,6 +9,12 @@ export type AdminNoteContractContext = {
   userId: string;
   /** A member id nothing has. */
   missingMemberId: string;
+  /**
+   * A repository that runs `edit` as this auth user (`userId` for the author, another id for someone else).
+   * Only where the caller can be chosen: the real database tells `edit` apart through the signed-in user's
+   * JWT, which supabase/tests/database/member_admin_notes.test.sql covers, so that run leaves this out.
+   */
+  editAs?: (userId: string) => AdminNoteRepository;
   /** Removes every note stored for the two members. */
   clear: () => Promise<void>;
 };
@@ -63,6 +69,48 @@ export function defineAdminNoteContract(name: string, setup: () => AdminNoteCont
       await expect(repo.add(ctx.members[0], "x".repeat(MAX_ADMIN_NOTE_LENGTH + 1), null)).rejects.toThrow();
       await expect(repo.add(ctx.missingMemberId, "hello", null)).rejects.toThrow();
       expect(await repo.list(ctx.members[0])).toEqual([]);
+    });
+
+    describe("edit", () => {
+      afterEach(() => vi.useRealTimers());
+      const other = "00000000-0000-4000-8000-0000000000ff";
+
+      it("lets the author correct a note inside the window, and marks it edited", async (t) => {
+        if (!ctx.editAs) return t.skip();
+        const note = await ctx.repo().add(ctx.members[0], "Sent an Instgram DM", ctx.userId);
+        expect(await ctx.editAs(ctx.userId).edit(note.id, "  Sent an Instagram DM ", 15)).toBe(true);
+        const [edited] = await ctx.repo().list(ctx.members[0]);
+        expect(edited).toMatchObject({ id: note.id, body: "Sent an Instagram DM", createdAt: note.createdAt });
+        expect(edited.editedAt).not.toBeNull();
+      });
+
+      it("refuses anyone but the author", async (t) => {
+        if (!ctx.editAs) return t.skip();
+        const note = await ctx.repo().add(ctx.members[0], "mine", ctx.userId);
+        expect(await ctx.editAs(other).edit(note.id, "hijacked", 15)).toBe(false);
+        expect((await ctx.repo().list(ctx.members[0]))[0]).toMatchObject({ body: "mine", editedAt: null });
+      });
+
+      it("refuses once the window has passed, and for a deleted note", async (t) => {
+        if (!ctx.editAs) return t.skip();
+        vi.useFakeTimers({ toFake: ["Date"] });
+        const note = await ctx.repo().add(ctx.members[0], "old", ctx.userId);
+        const gone = await ctx.repo().add(ctx.members[0], "gone", ctx.userId);
+        await ctx.repo().remove(ctx.members[0], gone.id);
+        expect(await ctx.editAs(ctx.userId).edit(gone.id, "back", 15)).toBe(false);
+        vi.setSystemTime(Date.now() + 16 * 60_000);
+        expect(await ctx.editAs(ctx.userId).edit(note.id, "late", 15)).toBe(false);
+        vi.setSystemTime(Date.now() - 10 * 60_000);
+        expect(await ctx.editAs(ctx.userId).edit(note.id, "in time", 15)).toBe(true);
+      });
+
+      it("refuses blank text and a non-positive window", async (t) => {
+        if (!ctx.editAs) return t.skip();
+        const note = await ctx.repo().add(ctx.members[0], "keep", ctx.userId);
+        await expect(ctx.editAs(ctx.userId).edit(note.id, "  ", 15)).rejects.toThrow();
+        await expect(ctx.editAs(ctx.userId).edit(note.id, "x", 0)).rejects.toThrow();
+        expect((await ctx.repo().list(ctx.members[0]))[0].body).toBe("keep");
+      });
     });
   });
 }

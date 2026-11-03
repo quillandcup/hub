@@ -95,6 +95,7 @@ export const OUTCOME_ACTIONS = [
   // Members
   "member_removed",
   "admin_note_added",
+  "admin_note_edited",
   "admin_note_deleted",
   // Members' own work: edits, deletes and settings
   "project_details_saved",

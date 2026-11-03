@@ -53,6 +53,9 @@ export const deployment = {
  */
 export const ORG_TIMEZONE = appConfig.orgTimezone;
 
+/** Minutes after writing a staff note during which its author can edit it (app.config.ts `adminNoteEditMinutes`). */
+export const ADMIN_NOTE_EDIT_MINUTES: number = appConfig.adminNoteEditMinutes;
+
 /** Where members are told to email for help. */
 export const SUPPORT_EMAIL = appConfig.supportEmail;
 

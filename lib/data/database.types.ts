@@ -3419,6 +3419,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           deleted_at: string | null
+          edited_at: string | null
           id: string
           member_id: string
         }
@@ -3427,6 +3428,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
+          edited_at?: string | null
           id?: string
           member_id: string
         }
@@ -3435,6 +3437,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
+          edited_at?: string | null
           id?: string
           member_id?: string
         }
@@ -6843,6 +6846,10 @@ export type Database = {
       duplicate_course_module: {
         Args: { p_module_id: string }
         Returns: string
+      }
+      edit_member_admin_note: {
+        Args: { p_body: string; p_note_id: string; p_window_minutes: number }
+        Returns: boolean
       }
       find_pending_invite: {
         Args: { p_email: string }

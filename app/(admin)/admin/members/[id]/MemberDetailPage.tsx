@@ -15,9 +15,7 @@ import MemberDetails, { type MemberView } from "./MemberDetails";
 import MergeButton from "./MergeButton";
 import SplitButton from "./SplitButton";
 import RemoveMemberPanel from "./RemoveMemberPanel";
-import MemberNotesPanel from "./MemberNotesPanel";
-import { ORG_TIMEZONE } from "@/lib/config";
-import { isValidTimeZone } from "@/lib/time-zone";
+import { ADMIN_NOTE_EDIT_MINUTES } from "@/lib/config";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { startSudo } from "@/app/actions/sudo";
 import { fetchMembershipHistory } from "@/lib/kajabi/membership-history";
@@ -229,17 +227,6 @@ export default async function MemberDetailPage({
     eventSlug: a.eventSlug,
   }));
 
-  // Staff notes, with who wrote each (an author's auth user id maps to their member record, when they have one).
-  const adminNotes = await createRepos(supabase).adminNotes.list(id);
-  const authorMemberIds = await createRepos(supabase).members.idsByUserId([...new Set(adminNotes.flatMap((n) => (n.createdBy ? [n.createdBy] : [])))]);
-  const authors = new Map((await createRepos(supabase).members.byIds([...new Set(authorMemberIds.values())])).map((m) => [m.id, getMemberDisplayName({ name: m.name, display_name: m.displayName })]));
-  const noteViews = adminNotes.map((n) => ({
-    id: n.id,
-    body: n.body,
-    createdAt: n.createdAt,
-    authorName: (n.createdBy && authors.get(authorMemberIds.get(n.createdBy) ?? "")) || null,
-  }));
-
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
@@ -357,6 +344,8 @@ export default async function MemberDetailPage({
           hiatusHistory={hiatusHistory || []}
           activityFeed={activityFeed}
           activityFilters={activityFilters}
+          currentUserId={user?.id ?? null}
+          noteEditMinutes={ADMIN_NOTE_EDIT_MINUTES}
           slackSummary={slackSummary}
           slackPage={{
             rows: await withReactionEmoji(await withMentionNames(slackPage.rows)),
@@ -378,7 +367,6 @@ export default async function MemberDetailPage({
           nameAliases={nameAliasRows ?? []}
           emailAliases={emailAliases ?? []}
         />
-        <MemberNotesPanel memberId={member.id} notes={noteViews} timeZone={isValidTimeZone(userTimezone) ? userTimezone : ORG_TIMEZONE} />
         <RemoveMemberPanel member={{ id: member.id, name: member.name, removed: member.email.endsWith("@removed.invalid") }} />
       </main>
     </div>

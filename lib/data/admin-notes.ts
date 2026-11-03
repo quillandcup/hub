@@ -12,28 +12,39 @@ export interface AdminNote {
   body: string;
   createdBy: string | null;
   createdAt: string;
+  /** When the author last corrected it, or null if never. */
+  editedAt: string | null;
 }
 
 type NoteRow = Row<"member_admin_notes">;
-const COLUMNS = "id, member_id, body, created_by, created_at";
+const COLUMNS = "id, member_id, body, created_by, created_at, edited_at";
 
-const toNote = (row: Pick<NoteRow, "id" | "member_id" | "body" | "created_by" | "created_at">): AdminNote => ({
+const toNote = (row: Pick<NoteRow, "id" | "member_id" | "body" | "created_by" | "created_at" | "edited_at">): AdminNote => ({
   id: row.id,
   memberId: row.member_id,
   body: row.body,
   createdBy: row.created_by,
   createdAt: row.created_at,
+  editedAt: row.edited_at,
 });
 
 /**
  * Timestamped staff notes about a member (`member_admin_notes`). Admin only (RLS), never shown to the
- * member. Written once and not edited; a mistaken note is soft deleted. Methods throw on a database error.
+ * member. The timeline (`get_activity_feed`) is where they are read; `list` is the plain read. A note can be
+ * corrected by its author for a short while (`edit`); after that, or when it is wrong, it is soft deleted.
+ * Methods throw on a database error.
  */
 export interface AdminNoteRepository {
   /** Adds a note. The text is trimmed; blank text or text over `MAX_ADMIN_NOTE_LENGTH` throws. */
   add(memberId: string, body: string, createdBy: string | null): Promise<AdminNote>;
   /** A member's live notes, newest first. Paginated. */
   list(memberId: string): Promise<AdminNote[]>;
+  /**
+   * Corrects a note's text (and marks it edited): only its author, only while it is live and less than
+   * `windowMinutes` old. False when nothing matched. The database decides who the author is (the signed-in
+   * user), so this must run on the author's own client.
+   */
+  edit(noteId: string, body: string, windowMinutes: number): Promise<boolean>;
   /** Soft deletes one of the member's notes. False when there is no such live note on that member. */
   remove(memberId: string, noteId: string): Promise<boolean>;
 }
@@ -73,6 +84,12 @@ export class SupabaseAdminNoteRepository implements AdminNoteRepository {
     return rows.map(toNote);
   }
 
+  async edit(noteId: string, body: string, windowMinutes: number) {
+    const { data, error } = await this.db.rpc("edit_member_admin_note", { p_note_id: noteId, p_body: checked(body), p_window_minutes: windowMinutes });
+    if (error) throw new Error(error.message);
+    return data === true;
+  }
+
   async remove(memberId: string, noteId: string) {
     const { data, error } = await this.db
       .from("member_admin_notes")
@@ -88,7 +105,8 @@ export class SupabaseAdminNoteRepository implements AdminNoteRepository {
 
 /** In-memory twin over an `InMemoryDataset`. */
 export class InMemoryAdminNoteRepository implements AdminNoteRepository {
-  constructor(private readonly data: InMemoryDataset) {}
+  /** `actingUserId` is who `edit` runs as (what `auth.uid()` is for the Supabase class). */
+  constructor(private readonly data: InMemoryDataset, private readonly actingUserId: string | null = null) {}
 
   async add(memberId: string, body: string, createdBy: string | null) {
     const text = checked(body);
@@ -99,6 +117,7 @@ export class InMemoryAdminNoteRepository implements AdminNoteRepository {
       body: text,
       created_by: createdBy,
       created_at: new Date().toISOString(),
+      edited_at: null,
       deleted_at: null,
     };
     this.data.adminNotes.push(row);
@@ -110,6 +129,17 @@ export class InMemoryAdminNoteRepository implements AdminNoteRepository {
       .filter((n) => n.member_id === memberId && n.deleted_at === null)
       .sort((a, b) => (a.created_at === b.created_at ? (a.id < b.id ? -1 : 1) : a.created_at < b.created_at ? 1 : -1))
       .map(toNote);
+  }
+
+  async edit(noteId: string, body: string, windowMinutes: number) {
+    const text = checked(body);
+    if (windowMinutes <= 0) throw new Error("The edit window must be positive");
+    const row = this.data.adminNotes.find((n) => n.id === noteId);
+    if (!row || row.deleted_at !== null || this.actingUserId === null || row.created_by !== this.actingUserId) return false;
+    if (Date.parse(row.created_at) <= Date.now() - windowMinutes * 60_000) return false;
+    row.body = text;
+    row.edited_at = new Date().toISOString();
+    return true;
   }
 
   async remove(memberId: string, noteId: string) {

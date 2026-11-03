@@ -86,6 +86,7 @@ describe("parseFeedFilters", () => {
       sudoOnly: true,
       days: 30,
     });
+    expect(parseFeedFilters({ view: "all", kinds: "note" }).kinds).toEqual(["note"]);
     expect(parseFeedFilters({ days: "9999", sudo: "yes" })).toMatchObject({ days: 7, sudoOnly: false });
   });
 
@@ -157,6 +158,10 @@ describe("emailLinkOf", () => {
 });
 
 describe("describeRow", () => {
+  it("calls a staff note 'added a note'", () => {
+    expect(describeRow(row({ kind: "note", event_type: "note", title: "Note", description: "Sent a DM" }))).toBe("added a note");
+  });
+
   it("names the changed fields of an update", () => {
     const r = row({ data: { status: { old: "lead", new: "active" }, name: { old: "A", new: "B" } } });
     expect(describeRow(r)).toBe("changed prickle type “B” — status, name");

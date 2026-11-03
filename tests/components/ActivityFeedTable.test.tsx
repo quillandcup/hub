@@ -66,3 +66,43 @@ describe("ActivityFeedTable email rows", () => {
     expect(document.querySelector("details")).toBeNull();
   });
 });
+
+describe("ActivityFeedTable note rows", () => {
+  const note = emailRow({
+    event_id: "note:mnote_AAAAAAAAAAA1",
+    kind: "note",
+    actor_kind: "staff",
+    actor_user_id: "00000000-0000-4000-8000-000000000001",
+    actor_label: "Ania Example",
+    event_type: "note",
+    title: "Note",
+    description: "Sent an Instagram DM\nNo reply yet",
+    source: "member_admin_notes",
+    data: { note_id: "mnote_AAAAAAAAAAA1", edited_at: null },
+  });
+
+  it("shows the note's text in the row without opening anything, between other rows", () => {
+    renderTable([emailRow(), note]);
+    expect(screen.getByText(/Sent an Instagram DM/)).toBeInTheDocument();
+    expect(screen.getByText(/No reply yet/)).toBeInTheDocument();
+    expect(screen.getByText("added a note")).toBeInTheDocument();
+    expect(screen.getByText("Ania Example")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
+  });
+
+  it("gives the note Edit and Delete only where the member page passes controls", () => {
+    render(
+      <ActivityFeedTable
+        rows={[note]}
+        total={1}
+        page={1}
+        pageSize={50}
+        filters={MEMBER_DEFAULTS as never}
+        hideAbout
+        noteControls={{ memberId: "mbr_AAAAAAAAAAA1", currentUserId: "someone-else", editMinutes: 15 }}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+  });
+});
