@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useState } from "react";
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
 vi.mock("@/lib/analytics/client", () => ({ track: vi.fn() }));
@@ -10,6 +10,7 @@ vi.mock("@/app/(member)/chat/mention-actions", () => ({ suggestMentions: vi.fn()
 import { suggestCustomEmoji, suggestMentions } from "@/app/(member)/chat/mention-actions";
 import MessageBox, { MAX_BOX_HEIGHT_PX, type MessageBoxHandle } from "@/components/chat/MessageBox";
 import { linkAddress } from "@/components/chat/FormatToolbar";
+import { messageToClipboard } from "@/lib/chat/clipboard";
 import { boxUser, caretToEnd, flushEditor, messageBox, typeInto } from "../helpers/message-box";
 
 const ANIA = { label: "@Ania Ray", token: "<@U1>", photoUrl: null };
@@ -512,6 +513,19 @@ describe("MessageBox: conveniences", () => {
       expect(box.querySelector("blockquote")).toHaveTextContent("onetwo");
       expect(box.lastElementChild?.tagName).toBe("BLOCKQUOTE");
     });
+  });
+
+  it("keeps the formatting of what \"Copy message\" put on the clipboard when it is pasted back, with no HTML showing", async () => {
+    const box = await mount();
+    await caretToEnd(box);
+    // Exactly what "Copy message" puts on the clipboard for this message.
+    const { text, html } = messageToClipboard("can this <u>underline</u> and *bold* too?\n> said", { userNames: {}, channelNames: {} });
+    const data = { types: ["text/html", "text/plain"], files: [], items: [], getData: (t: string) => (t === "text/html" ? html : t === "text/plain" ? text : "") };
+    await act(async () => void fireEvent.paste(box, { clipboardData: data }));
+    await waitFor(() => expect(box.querySelector("u")).toHaveTextContent("underline"));
+    expect(box.querySelector("strong")).toHaveTextContent("bold");
+    expect(box.querySelector("blockquote")).toHaveTextContent("said");
+    expect(box.textContent).not.toMatch(/<\/?(u|strong|p)>/);
   });
 
   it("turns pasted full names into mentions and leaves unknown ones as text", async () => {
