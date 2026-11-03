@@ -54,7 +54,7 @@ function renderInline(nodes: Inline[], ctx: ChatTextContext): ReactNode[] {
         return <s key={i}>{renderInline(n.c, ctx)}</s>;
       case "code":
         return (
-          <code key={i} className="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[0.9em]">
+          <code key={i} className="px-1 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 font-mono text-[0.9em] text-red-600 dark:text-red-400">
             {n.v}
           </code>
         );
