@@ -1,3 +1,4 @@
+import { bodyToBlocks, hasUnderline } from "@/lib/chat/rich-blocks";
 import { WebClient } from "@slack/web-api";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { clock } from "@/lib/clock";
@@ -86,11 +87,13 @@ export async function sendChatFilesToSlack(ctx: FileSendContext): Promise<"sent"
       uploads.push({ file: buffer, filename: f.name ?? "file" });
     }
 
+    // The text that goes with the files is the comment, which is mrkdwn and so has no underline. Slack takes rich-text
+    // blocks instead of a comment (and ignores them when there is one), so a message with an underline goes that way.
     const upload = (token: string, comment: string) =>
       new WebClient(token).filesUploadV2({
         channel_id: slackChannelId,
         thread_ts: ctx.threadTs,
-        initial_comment: comment || undefined,
+        ...(hasUnderline(ctx.body) ? { blocks: bodyToBlocks(ctx.body, { plain: true }) } : { initial_comment: comment || undefined }),
         file_uploads: uploads,
       });
 

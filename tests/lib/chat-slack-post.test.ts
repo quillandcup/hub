@@ -323,15 +323,6 @@ describe("sendChatMessageToSlack with files", () => {
     );
   });
 
-  it("drops an underline from the text that goes with files (the upload takes only text), but keeps escaping the rest", async () => {
-    sendFiles.mockResolvedValue("sent");
-    sendFiles.mockClear();
-    dataset.chatMessageContents = [{ message_id: ID, body: "see <u>this</u> <b>", files: [{ id: "pending-1", name: "cat.gif", mimetype: "image/gif", staged: "staging/x/y/cat.gif" }] }];
-    await sendChatMessageToSlack(supabase as never, ID);
-    const { escape } = sendFiles.mock.calls[0][0] as { escape: (t: string) => string };
-    expect(escape("see <u>this</u> <b>")).toBe("see this &lt;b&gt;");
-  });
-
   it("still fails a message with neither text nor files", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     sendFiles.mockClear();

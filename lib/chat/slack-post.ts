@@ -90,8 +90,7 @@ export async function sendChatMessageToSlack(supabase: SupabaseClient, messageId
       files,
       connection,
       authorMemberId,
-      // Slack's file upload takes only text for the comment, so an underline can't go with files.
-      escape: (text: string) => escapeForSlack(stripUnderline(text)),
+      escape: escapeForSlack,
       fail: fail as (reason: string, error?: unknown) => Promise<"failed">,
     });
   }
