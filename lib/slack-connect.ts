@@ -20,7 +20,7 @@ import { withRefreshLease } from "@/lib/slack-token-refresh";
  * Slack's marker when they read in the Hub (conversations.mark takes the write scopes).
  * More (leaving channels) comes with invite/kick.
  */
-export const SLACK_USER_SCOPES = [
+export const SLACK_READ_SYNC_SCOPES = [
   "chat:write",
   "reactions:write",
   "channels:read",
@@ -33,8 +33,22 @@ export const SLACK_USER_SCOPES = [
   "files:write",
 ];
 
-/** Whether a stored connection predates read sync and needs to be reconnected to share read state. */
-export const hasReadSyncScopes = (scopes: string[]): boolean => SLACK_USER_SCOPES.every((s) => scopes.includes(s));
+/**
+ * Asked for ahead of Hub direct messages through Slack, so members reconnect once now instead of again when it
+ * ships. Nothing uses them yet: the Hub reads no direct messages (the `/privacy` page says so), and the app
+ * subscribes to no user events. They let it list and read the member's own DMs (`im:read`, `im:history`,
+ * `mpim:history`), open and post in them (`im:write`), and copy files shared there (`files:read`).
+ */
+export const SLACK_DM_SCOPES = ["im:read", "im:history", "im:write", "mpim:history", "files:read"];
+
+/** Everything the Hub asks the member to approve. */
+export const SLACK_USER_SCOPES = [...SLACK_READ_SYNC_SCOPES, ...SLACK_DM_SCOPES];
+
+/** Whether a stored connection predates read sync and needs to be reconnected to share read state. Chat is gated on this. */
+export const hasReadSyncScopes = (scopes: string[]): boolean => SLACK_READ_SYNC_SCOPES.every((s) => scopes.includes(s));
+
+/** Whether a stored connection has the direct message scopes. Nothing is gated on it: it only decides who is asked to reconnect. */
+export const hasDmScopes = (scopes: string[]): boolean => SLACK_DM_SCOPES.every((s) => scopes.includes(s));
 
 /** Registered as a redirect URL in slack-app-manifest.yml; Slack requires an exact match. */
 export const SLACK_REDIRECT_PATH = "/api/oauth/slack/callback";
@@ -178,6 +192,8 @@ export interface SlackConnectionStatus {
   connectedAt: string | null;
   /** Connected with every scope read sync needs; false for a connection made before it existed. */
   sharesReadState: boolean;
+  /** Connected with the direct message scopes too (`SLACK_DM_SCOPES`); false for a connection made before they were asked for. */
+  hasDmScopes: boolean;
   /** Had a connection that Slack stopped honouring (revoked by us when its token died), so it needs reconnecting rather than connecting. */
   revoked: boolean;
 }
@@ -191,6 +207,7 @@ export async function getSlackConnectionStatus(service: SupabaseClient, memberId
     slackUserId: connected ? data!.slack_user_id : null,
     connectedAt: connected ? data!.connected_at : null,
     sharesReadState: connected && hasReadSyncScopes((data!.scopes as string[] | null) ?? []),
+    hasDmScopes: connected && hasDmScopes((data!.scopes as string[] | null) ?? []),
     revoked: Boolean(data?.revoked_at),
   };
 }
