@@ -125,10 +125,12 @@ export default function BookshelfClient({ shelf }: BookshelfClientProps) {
                   </Link>{" "}
                   · {formatDate(book.publishedDate)}
                 </p>
-                <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
+                <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
                   <BookEditionLinks editions={book.editions} track="bookshelf-open-edition" />
-                  {book.genres.length > 0 && <span>· {book.genres.join(", ")}</span>}
                 </p>
+                {book.genres.length > 0 && (
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">{book.genres.join(", ")}</p>
+                )}
                 {book.description && (
                   <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 line-clamp-3">
                     {book.description}

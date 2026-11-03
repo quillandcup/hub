@@ -281,10 +281,12 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
             >
               {project.book.title}
             </a>
-            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
               <BookEditionLinks editions={project.book.editions} track="project-buy-book-edition" />
-              {project.book.genres.length > 0 && <span>· {project.book.genres.join(", ")}</span>}
             </p>
+            {project.book.genres.length > 0 && (
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">{project.book.genres.join(", ")}</p>
+            )}
             <p className="text-xs mt-2">
               <Link data-track="project-view-on-the-bookshelf" href="/bookshelf" className="text-plum-600 hover:text-plum-700 dark:text-plum-400">
                 View on the Book Shelf

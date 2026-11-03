@@ -80,6 +80,24 @@ describe("ProjectDetailClient published book", () => {
     expect(screen.queryByTestId("project-totals")).not.toBeInTheDocument();
   });
 
+  it("shows each edition as a link, and the genres on a line of their own", () => {
+    const withEditions = {
+      ...project,
+      book: {
+        ...(project as unknown as { book: object }).book,
+        genres: ["Fantasy", "Cozy Mystery"],
+        editions: [
+          { format: "ebook", purchaseUrl: "https://example.com/ebook", price: 4.99 },
+          { format: "print", purchaseUrl: "https://example.com/print", price: 17.99 },
+        ],
+      },
+    } as unknown as WritingProjectRow;
+    render(<ProjectDetailClient project={withEditions} entries={[]} archivedGoals={[]} />);
+    expect(screen.getByRole("link", { name: "Print $17.99" })).toHaveAttribute("href", "https://example.com/print");
+    expect(screen.getByRole("link", { name: "Ebook $4.99" })).toHaveAttribute("href", "https://example.com/ebook");
+    expect(screen.getByText("Fantasy, Cozy Mystery", { selector: "p" }).textContent).toBe("Fantasy, Cozy Mystery");
+  });
+
   it("links to the Book Shelf page", () => {
     render(<ProjectDetailClient project={project} entries={[]} archivedGoals={[]} />);
     expect(screen.getByRole("link", { name: "View on the Book Shelf" })).toHaveAttribute("href", "/bookshelf");
