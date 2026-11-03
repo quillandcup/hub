@@ -34,7 +34,7 @@ export default function SlackSignIn({ slackHomeUrl }: { slackHomeUrl: string }) 
       // document navigation on purpose: /auth/slack is a route handler that signs in only on a
       // real navigation (Sec-Fetch-Mode: navigate), which router.push() wouldn't be.
       // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-      window.location.assign(`/auth/slack?token=${encodeURIComponent(credential.token)}&via=paste`);
+      window.location.assign(`/auth/slack?token=${encodeURIComponent(credential.token)}`);
       return true;
     }
     flushSync(() => setValue(formatSlackSignInCode(credential.code)));

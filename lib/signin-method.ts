@@ -25,9 +25,9 @@ import {
 
 /**
  * The methods are SIGNIN_METHODS (lib/signin-method-client.ts): `email_link` is the one-click link in
- * the sign-in email, `email_code` the code from it typed on /login, `slack_button` the Slack app's
- * "Open Hedgie Hub" button or a link tapped in Slack, `slack_pasted_link` a link copied from Slack and
- * pasted on /login,
+ * the sign-in email, `email_code` the code from it typed on /login, `slack_link` a Slack sign-in link
+ * opened in any browser (the app's "Open Hedgie Hub" button, a link tapped in Slack, "Open in browser" on
+ * iOS, or one pasted into the sign-in page's box or the address bar: it is one route, so they can't be told apart),
  * `slack_continue` the Continue page shown when a click didn't look like a plain browser navigation,
  * and `slack_code` the code from Slack typed on /login.
  */
@@ -47,7 +47,7 @@ export async function rememberSignInMethod(method: SignInMethod): Promise<void> 
 }
 
 /**
- * Server: note a failed sign-in attempt in the visitor's browser (a count per reason, for a day), to
+ * Server: note a failed sign-in attempt in the visitor's browser (a count per reason, for a week), to
  * be reported as `signin_failed` once they do sign in. Never throws.
  */
 export async function rememberSignInFailure(reason: SignInFailureReason): Promise<void> {

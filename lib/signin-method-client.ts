@@ -6,7 +6,7 @@
 export const SIGNIN_METHOD_COOKIE = "hub_signin_method";
 export const SIGNIN_METHOD_MAX_AGE_SECONDS = 5 * 60;
 
-export const SIGNIN_METHODS = ["email_link", "email_code", "slack_button", "slack_pasted_link", "slack_continue", "slack_code"] as const;
+export const SIGNIN_METHODS = ["email_link", "email_code", "slack_link", "slack_continue", "slack_code"] as const;
 export type SignInMethod = (typeof SIGNIN_METHODS)[number];
 
 export function isSignInMethod(value: unknown): value is SignInMethod {
@@ -41,7 +41,8 @@ export function clearSignInMethod(): void {
  * Slack code was wrong, expired or used.
  */
 export const SIGNIN_FAILURE_COOKIE = "hub_signin_failures";
-export const SIGNIN_FAILURE_MAX_AGE_SECONDS = 24 * 60 * 60;
+/** A week: someone who needs help (support, a day away) can still be counted when they finally get in. */
+export const SIGNIN_FAILURE_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 export const SIGNIN_FAILURE_REASONS = [
   "link_other_browser",
   "link_refused",
