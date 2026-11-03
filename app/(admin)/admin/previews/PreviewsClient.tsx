@@ -6,10 +6,26 @@ import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
 import RecordHistoryButton from "@/components/RecordHistoryButton";
+import EntitySearch from "@/components/EntitySearch";
 import MultiMemberSearch from "@/components/MultiMemberSearch";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { formatDateInZone } from "@/lib/formatters";
 import { useTimeZone } from "@/components/Timezone";
+
+interface PreviewUser {
+  id: string;
+  email: string;
+  memberName: string | null;
+  memberDisplayName: string | null;
+  staffName: string | null;
+  features: string[];
+}
+
+/** What a user is called in this page: the name they go by, else their email. */
+function userLabel(u: PreviewUser): string {
+  if (u.memberName) return getMemberDisplayName({ name: u.memberName, display_name: u.memberDisplayName });
+  return u.staffName ?? u.email;
+}
 
 interface Segment {
   id: string;
@@ -70,7 +86,7 @@ function getSortValue(segment: Segment, column: SortColumn): SortValue {
   }
 }
 
-export default function SegmentsClient({ allMembers }: { allMembers: SegmentMember[] }) {
+export default function PreviewsClient({ allMembers }: { allMembers: SegmentMember[] }) {
   const timeZone = useTimeZone();
   const [segments, setSegments] = useState<Segment[]>([]);
   const table = useDataTable<Segment, SortColumn>({
@@ -97,6 +113,7 @@ export default function SegmentsClient({ allMembers }: { allMembers: SegmentMemb
 
   const [flags, setFlags] = useState<FlagRow[]>([]);
   const [flagsLoading, setFlagsLoading] = useState(true);
+  const [previewUsers, setPreviewUsers] = useState<PreviewUser[]>([]);
   const [attachSegmentByKey, setAttachSegmentByKey] = useState<Record<string, string>>({});
 
   const fetchSegments = useCallback(async () => {
@@ -125,10 +142,38 @@ export default function SegmentsClient({ allMembers }: { allMembers: SegmentMemb
     }
   }, []);
 
+  const fetchPreviewUsers = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/users");
+      const data = await res.json();
+      if (res.ok) setPreviewUsers(data.users);
+    } catch {
+      // The per-person lists stay empty; segments and global switches still work.
+    }
+  }, []);
+
   useEffect(() => {
     fetchSegments();
     fetchFlags();
-  }, [fetchSegments, fetchFlags]);
+    fetchPreviewUsers();
+  }, [fetchSegments, fetchFlags, fetchPreviewUsers]);
+
+  /** Turns one flag on or off for one person, keeping their other previews. */
+  async function setUserFlag(user: PreviewUser, key: string, enabled: boolean) {
+    const features = enabled ? [...user.features.filter((k) => k !== key), key] : user.features.filter((k) => k !== key);
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ features }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update preview");
+      setPreviewUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, features } : u)));
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Failed to update preview");
+    }
+  }
 
   async function createSegment(e: React.FormEvent) {
     e.preventDefault();
@@ -294,9 +339,9 @@ export default function SegmentsClient({ allMembers }: { allMembers: SegmentMemb
     <div className="container mx-auto px-6 py-8">
       <div className="mb-6 flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Segments</h1>
+          <h1 className="text-2xl font-bold">Previews</h1>
           <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-            Manually-curated member groups for phased rollouts — bulk invites and targeted feature flags
+            Roll features out to everyone, a segment, or individual people — and curate the segments and bulk invites behind them
           </p>
         </div>
         <RecordHistoryButton
@@ -460,6 +505,39 @@ export default function SegmentsClient({ allMembers }: { allMembers: SegmentMemb
                   >
                     Attach
                   </button>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {previewUsers
+                    .filter((u) => u.features.includes(f.key))
+                    .map((u) => (
+                      <span
+                        key={u.id}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                        title={u.email}
+                      >
+                        {userLabel(u)}
+                        <button
+                          onClick={() => setUserFlag(u, f.key, false)}
+                          className="hover:text-green-900 dark:hover:text-green-100"
+                          aria-label={`Turn ${f.name} off for ${userLabel(u)}`}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  <EntitySearch
+                    items={previewUsers
+                      .filter((u) => !u.features.includes(f.key))
+                      .map((u) => ({ id: u.id, name: userLabel(u), detail: u.email }))}
+                    selectedId={null}
+                    onSelect={(item) => {
+                      const user = previewUsers.find((u) => u.id === item?.id);
+                      if (user) setUserFlag(user, f.key, true);
+                    }}
+                    placeholder="Add person..."
+                    ariaLabel={`Turn ${f.name} on for a person`}
+                    className="w-56"
+                  />
                 </div>
               </div>
             ))}

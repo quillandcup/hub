@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { summarizePages } from "@/lib/activity-feed";
 import RecordHistoryButton from "@/components/RecordHistoryButton";
 import Link from "next/link";
@@ -14,6 +14,7 @@ import { ORG_TIMEZONE } from "@/lib/config";
 import { describeStoredDevice, type DeviceInfo } from "@/lib/device-label";
 import { formatDateInZone } from "@/lib/formatters";
 import { useTimeZone } from "@/components/Timezone";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 
 type Role = "admin" | "assistant" | "community_manager" | "member";
 type StaffRole = "owner" | "staff" | "contractor";
@@ -36,6 +37,7 @@ interface AppUser {
   staffRole: StaffRole | null;
   memberId: string | null;
   memberName: string | null;
+  memberDisplayName: string | null;
   pending: boolean;
   bannedUntil: string | null;
 }
@@ -101,18 +103,39 @@ const STAFF_ROLE_COLORS: Record<StaffRole, string> = {
   contractor: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
 };
 
-type SortColumn = "email" | "role" | "profiles" | "features" | "created";
+type SortColumn = "profiles" | "role" | "features" | "created";
+
+type Audience = "all" | "members" | "staff";
+
+const AUDIENCES: { key: Audience; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "members", label: "Members" },
+  { key: "staff", label: "Staff" },
+];
+
+/** Staff: anyone with a staff record or a role above member. Everyone else is a member. */
+function isStaffUser(user: AppUser): boolean {
+  return user.staffId !== null || user.role !== "member";
+}
+
+/** The name a person is known by: their member display name, else the staff name; null when nothing is linked. */
+function profileName(user: AppUser): string | null {
+  if (user.memberName) return getMemberDisplayName({ name: user.memberName, display_name: user.memberDisplayName });
+  return user.staffName;
+}
+
+function matchesSearch(user: AppUser, term: string): boolean {
+  return [user.email, user.memberName, user.memberDisplayName, user.staffName].some((v) => v?.toLowerCase().includes(term));
+}
 
 const ROLE_ORDER: Record<Role, number> = { admin: 0, assistant: 1, community_manager: 2, member: 3 };
 
 function getSortValue(user: AppUser, column: SortColumn): SortValue {
   switch (column) {
-    case "email":
-      return user.email.toLowerCase();
     case "role":
       return ROLE_ORDER[user.role];
     case "profiles":
-      return (user.staffName ?? user.memberName)?.toLowerCase() ?? null;
+      return (profileName(user) ?? user.email).toLowerCase();
     case "features":
       return user.features.length;
     case "created":
@@ -124,8 +147,21 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
   const timeZone = useTimeZone();
   const [users, setUsers] = useState<AppUser[]>([]);
   const [allMembers, setAllMembers] = useState<MemberRecord[]>([]);
+  const [audience, setAudience] = useState<Audience>("all");
+  const [search, setSearch] = useState("");
+  const audienceCounts = useMemo(() => {
+    const staff = users.filter(isStaffUser).length;
+    return { all: users.length, staff, members: users.length - staff };
+  }, [users]);
+  const visibleUsers = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return users.filter(
+      (u) =>
+        (audience === "all" || (audience === "staff") === isStaffUser(u)) && (!term || matchesSearch(u, term)),
+    );
+  }, [users, audience, search]);
   const table = useDataTable<AppUser, SortColumn>({
-    rows: users,
+    rows: visibleUsers,
     getSortValue,
     defaultSort: null,
   });
@@ -419,8 +455,37 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">
           <h2 className="text-xl font-bold">
-            {loading ? "Loading..." : `All Users (${users.length})`}
+            {loading
+              ? "Loading..."
+              : `${audience === "all" ? "All Users" : audience === "staff" ? "Staff" : "Members"} (${visibleUsers.length})`}
           </h2>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <div role="group" aria-label="Show" className="inline-flex gap-1">
+              {AUDIENCES.map((a) => (
+                <button
+                  key={a.key}
+                  type="button"
+                  aria-pressed={audience === a.key}
+                  onClick={() => setAudience(a.key)}
+                  className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                    audience === a.key
+                      ? "bg-plum-600 text-white"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                  }`}
+                >
+                  {a.label} <span className="opacity-75">{audienceCounts[a.key]}</span>
+                </button>
+              ))}
+            </div>
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name or email..."
+              aria-label="Search users"
+              className="flex-1 min-w-48 px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm"
+            />
+          </div>
         </div>
 
         {error && (
@@ -433,22 +498,16 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
               <thead className="bg-slate-50 dark:bg-slate-800">
                 <tr>
                   <SortableTh
-                    label="Email"
-                    active={sortColumn === "email"}
+                    label="Linked Profiles"
+                    active={sortColumn === "profiles"}
                     direction={sortDirection}
-                    onClick={() => handleSort("email")}
+                    onClick={() => handleSort("profiles")}
                   />
                   <SortableTh
                     label="Role"
                     active={sortColumn === "role"}
                     direction={sortDirection}
                     onClick={() => handleSort("role")}
-                  />
-                  <SortableTh
-                    label="Linked Profiles"
-                    active={sortColumn === "profiles"}
-                    direction={sortDirection}
-                    onClick={() => handleSort("profiles")}
                   />
                   <SortableTh
                     label="Feature Flags"
@@ -476,11 +535,52 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                   return (
                     <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                       <td className="px-6 py-4">
-                        <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                        {isEditing ? (
+                          <div className="flex flex-col gap-2">
+                            <div>
+                              <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">Member</label>
+                              <MemberSearch
+                                members={memberOptions}
+                                selectedMemberId={editMemberId}
+                                selectedMemberName={user.memberId === editMemberId ? user.memberName : undefined}
+                                onSelect={(m) => setEditMemberId(m?.id ?? null)}
+                                placeholder="Search by name or email..."
+                              />
+                            </div>
+                            {user.staffName && (
+                              <p className="text-xs text-slate-600 dark:text-slate-400">
+                                Staff role ({user.staffRole ? STAFF_ROLE_LABELS[user.staffRole] : ""}) is set on the staff record, not here.
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex flex-col gap-1">
+                            <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                              {profileName(user) ?? (
+                                <span className="text-slate-500 dark:text-slate-400">No linked profile</span>
+                              )}
+                            </div>
+                            {user.staffName ? (
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${STAFF_ROLE_COLORS[user.staffRole!]}`}>
+                                {user.staffName} · {STAFF_ROLE_LABELS[user.staffRole!]}
+                              </span>
+                            ) : null}
+                            {user.staffId && (
+                              <RecordHistoryButton entityType="staff" entityId={user.staffId} label={`${user.staffName}'s staff record`} />
+                            )}
+                            {user.memberId ? (
+                              <a
+                                href={`/admin/members/${user.memberId}`}
+                                className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300 hover:underline"
+                              >
+                                Member: {user.memberName}
+                              </a>
+                            ) : null}
+                          </div>
+                        )}
+                        <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                           {user.email}
-                          {isCurrentUser && (
-                            <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">(you)</span>
-                          )}
+                          {isCurrentUser && <span className="ml-2 text-slate-500 dark:text-slate-400">(you)</span>}
                           {user.bannedUntil && (
                             <span
                               className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
@@ -507,49 +607,6 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${ROLE_COLORS[user.role]}`}>
                             {ROLE_LABELS[user.role]}
                           </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        {isEditing ? (
-                          <div className="flex flex-col gap-2">
-                            <div>
-                              <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">Member</label>
-                              <MemberSearch
-                                members={memberOptions}
-                                selectedMemberId={editMemberId}
-                                selectedMemberName={user.memberId === editMemberId ? user.memberName : undefined}
-                                onSelect={(m) => setEditMemberId(m?.id ?? null)}
-                                placeholder="Search by name or email..."
-                              />
-                            </div>
-                            {user.staffName && (
-                              <p className="text-xs text-slate-600 dark:text-slate-400">
-                                Staff role ({user.staffRole ? STAFF_ROLE_LABELS[user.staffRole] : ""}) is set on the staff record, not here.
-                              </p>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="flex flex-col gap-1">
-                            {user.staffName ? (
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${STAFF_ROLE_COLORS[user.staffRole!]}`}>
-                                {user.staffName} · {STAFF_ROLE_LABELS[user.staffRole!]}
-                              </span>
-                            ) : null}
-                            {user.staffId && (
-                              <RecordHistoryButton entityType="staff" entityId={user.staffId} label={`${user.staffName}'s staff record`} />
-                            )}
-                            {user.memberId ? (
-                              <a
-                                href={`/admin/members/${user.memberId}`}
-                                className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300 hover:underline"
-                              >
-                                Member: {user.memberName}
-                              </a>
-                            ) : null}
-                            {!user.staffName && !user.memberId && (
-                              <span className="text-xs text-slate-500 dark:text-slate-400">None</span>
-                            )}
-                          </div>
                         )}
                       </td>
                       <td className="px-6 py-4">
