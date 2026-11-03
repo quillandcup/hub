@@ -47,6 +47,13 @@ select:not([multiple]):not([size]) {
 /* "Allow animations" off (Settings > Preferences, or the device's reduce-motion): no keyframe
    animation or transition; a spinner or skeleton just sits still. GIFs are frozen by
    components/AnimationsController. */
+/* A moving custom emoji with no still (see components/EmojiImage): its :name: text stands in for it. */
+html[data-animations="off"] img[data-no-still] {
+  display: none;
+}
+html[data-animations="off"] [data-emoji-fallback] {
+  display: inline;
+}
 html[data-animations="off"] *,
 html[data-animations="off"] *::before,
 html[data-animations="off"] *::after {
