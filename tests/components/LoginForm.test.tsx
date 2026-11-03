@@ -115,21 +115,58 @@ describe('LoginForm', () => {
   })
 
   describe('signing in with the emailed code', () => {
-    it('offers the code only after a link was sent', async () => {
+    it('folds the code box away until a link was sent or it is asked for', async () => {
       render(<LoginForm slackHomeUrl={null} />)
-      expect(screen.queryByLabelText(/Enter the code from the email/)).not.toBeInTheDocument()
+      expect(screen.queryByLabelText(/Sign-in code/)).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Have a code?' })).toBeInTheDocument()
 
       await userEvent.type(screen.getByLabelText('Email address'), 'member@example.com')
       await userEvent.click(screen.getByRole('button', { name: 'Send Magic Link' }))
 
-      expect(await screen.findByLabelText(/Enter the code from the email/)).toBeInTheDocument()
+      expect(await screen.findByLabelText(/Sign-in code/)).toBeInTheDocument()
+    })
+
+    it('opens the code box from "Have a code?"', async () => {
+      render(<LoginForm slackHomeUrl={null} />)
+      await userEvent.click(screen.getByRole('button', { name: 'Have a code?' }))
+      expect(screen.getByLabelText(/Sign-in code/)).toBeInTheDocument()
+    })
+
+    it('signs in at once with an email code pasted when the address is already filled in', async () => {
+      verifyEmailCode.mockResolvedValue({ error: "That code didn't work." })
+      render(<LoginForm slackHomeUrl={null} codeMode />)
+      await userEvent.type(screen.getByLabelText('Email address'), 'member@example.com')
+
+      await userEvent.click(screen.getByLabelText(/Sign-in code/))
+      await userEvent.paste('87654321')
+
+      await screen.findByText("That code didn't work.")
+      expect(verifyEmailCode).toHaveBeenCalledWith('member@example.com', '87654321')
+    })
+
+    it('asks for the email address first when a code is entered without one', async () => {
+      render(<LoginForm slackHomeUrl={null} codeMode />)
+      await userEvent.type(screen.getByLabelText(/Sign-in code/), '12345678')
+      await userEvent.click(screen.getByRole('button', { name: 'Sign in with code' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(/Enter your email address above first/)
+      expect(verifyEmailCode).not.toHaveBeenCalled()
+    })
+
+    it('says so when what was entered is not a code', async () => {
+      render(<LoginForm slackHomeUrl={null} codeMode />)
+      await userEvent.type(screen.getByLabelText(/Sign-in code/), 'hello')
+      await userEvent.click(screen.getByRole('button', { name: 'Sign in with code' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(/doesn't look like a sign-in code/)
+      expect(verifyEmailCode).not.toHaveBeenCalled()
     })
 
     it('sends the typed email and code, and shows the error when it is refused', async () => {
       verifyEmailCode.mockResolvedValue({ error: "That code didn't work." })
       await submit('member@example.com')
 
-      await userEvent.type(await screen.findByLabelText(/Enter the code from the email/), '12345678')
+      await userEvent.type(await screen.findByLabelText(/Sign-in code/), '12345678')
       await userEvent.click(screen.getByRole('button', { name: 'Sign in with code' }))
 
       expect(await screen.findByText("That code didn't work.")).toBeInTheDocument()
@@ -139,12 +176,12 @@ describe('LoginForm', () => {
 
   it('shows the code field from the start for someone arriving from an email that carries a code', async () => {
     render(<LoginForm slackHomeUrl={null} codeMode />)
-    expect(screen.getByLabelText(/Enter the code from the email/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/Sign-in code/)).toBeInTheDocument()
 
     verifyEmailCode.mockResolvedValue({ error: "That code didn't work." })
     await userEvent.type(screen.getByLabelText('Email address'), 'member@example.com')
     // typing the address must not hide the code field
-    await userEvent.type(screen.getByLabelText(/Enter the code from the email/), '87654321')
+    await userEvent.type(screen.getByLabelText(/Sign-in code/), '87654321')
     await userEvent.click(screen.getByRole('button', { name: 'Sign in with code' }))
 
     await screen.findByText("That code didn't work.")
@@ -167,11 +204,10 @@ describe('LoginForm', () => {
     render(<LoginForm slackHomeUrl={null} />)
 
     expect(screen.queryByRole('link', { name: 'Open Hedgie Hub in Slack' })).not.toBeInTheDocument()
-    expect(screen.queryByLabelText(/paste the sign-in link or code from Slack/)).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Paste from Slack' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/From the email, or from Slack/)).not.toBeInTheDocument()
   })
 
-  describe('pasting from Slack', () => {
+  describe('the code box takes Slack\'s link and code too', () => {
     const TOKEN = 'x'.repeat(43)
     let assign: ReturnType<typeof vi.fn>
 
@@ -180,13 +216,18 @@ describe('LoginForm', () => {
       Object.defineProperty(window, 'location', { configurable: true, value: { ...window.location, assign } })
     })
 
+    // The box is folded away until asked for; open it the way a member would.
+    async function openCodeBox() {
+      await userEvent.click(screen.getByRole('button', { name: 'Have a code?' }))
+    }
     function codeInput() {
-      return screen.getByLabelText(/paste the sign-in link or code/i)
+      return screen.getByLabelText(/Sign-in code/)
     }
 
     it('submits a typed code as soon as it is complete, with no extra click', async () => {
       signInWithSlackCode.mockResolvedValue({ error: "That code didn't work." })
       render(<LoginForm slackHomeUrl={SLACK_HOME} />)
+      await openCodeBox()
 
       await userEvent.type(codeInput(), 'abcde-12345')
 
@@ -198,6 +239,7 @@ describe('LoginForm', () => {
     it('submits a pasted code immediately', async () => {
       signInWithSlackCode.mockResolvedValue({ error: 'nope' })
       render(<LoginForm slackHomeUrl={SLACK_HOME} />)
+      await openCodeBox()
 
       await userEvent.click(codeInput())
       await userEvent.paste('Or enter this code on the sign-in page: `ABCDE-12345`')
@@ -208,6 +250,7 @@ describe('LoginForm', () => {
 
     it('follows a pasted sign-in link on our own site, whatever host it was copied from', async () => {
       render(<LoginForm slackHomeUrl={SLACK_HOME} />)
+      await openCodeBox()
 
       await userEvent.click(codeInput())
       await userEvent.paste(`https://evil.example/auth/slack?token=${TOKEN}`)
@@ -216,28 +259,30 @@ describe('LoginForm', () => {
       expect(signInWithSlackCode).not.toHaveBeenCalled()
     })
 
-    it('"Paste from Slack" reads the clipboard and signs in', async () => {
+    it('"Paste" reads a Slack link from the clipboard and signs in', async () => {
       render(<LoginForm slackHomeUrl={SLACK_HOME} />)
+      await openCodeBox()
       Object.defineProperty(navigator, 'clipboard', {
         configurable: true,
         value: { readText: vi.fn().mockResolvedValue(`https://hub.quillandcup.com/auth/slack?token=${TOKEN}`) },
       })
 
-      await userEvent.click(screen.getByRole('button', { name: 'Paste from Slack' }))
+      await userEvent.click(screen.getByRole('button', { name: 'Paste a code or link' }))
 
       expect(assign).toHaveBeenCalledWith(`/auth/slack?token=${TOKEN}`)
     })
 
-    it('"Paste from Slack" explains an empty or unrelated clipboard', async () => {
+    it('"Paste" explains an empty or unrelated clipboard', async () => {
       render(<LoginForm slackHomeUrl={SLACK_HOME} />)
+      await openCodeBox()
       Object.defineProperty(navigator, 'clipboard', {
         configurable: true,
         value: { readText: vi.fn().mockResolvedValue('shopping list') },
       })
 
-      await userEvent.click(screen.getByRole('button', { name: 'Paste from Slack' }))
+      await userEvent.click(screen.getByRole('button', { name: 'Paste a code or link' }))
 
-      expect(await screen.findByRole('alert')).toHaveTextContent(/no Hedgie Hub link or code on your clipboard/)
+      expect(await screen.findByRole('alert')).toHaveTextContent(/no sign-in code or link on your clipboard/)
       expect(assign).not.toHaveBeenCalled()
     })
   })

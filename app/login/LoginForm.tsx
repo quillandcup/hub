@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
-import { resendPendingInvite, verifyEmailCode } from "./actions";
+import { resendPendingInvite } from "./actions";
+import CodeEntry from "./CodeEntry";
 import SlackSignIn from "./SlackSignIn";
 
 const LAST_EMAIL_KEY = "hedgiehub:lastEmail";
@@ -34,9 +35,6 @@ export default function LoginForm({
     callbackFailed ? { type: "error", text: CALLBACK_FAILED_TEXT } : null
   );
   const [linkSent, setLinkSent] = useState(false);
-  const [code, setCode] = useState("");
-  const [codeError, setCodeError] = useState<string | null>(null);
-  const [verifying, setVerifying] = useState(false);
 
   const supabase = createClient();
 
@@ -60,7 +58,6 @@ export default function LoginForm({
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setEmail(value);
-    if (!codeMode) setLinkSent(false);
     try {
       window.localStorage.setItem(LAST_EMAIL_KEY, value);
     } catch {
@@ -110,8 +107,6 @@ export default function LoginForm({
         text: "Check your email for the magic link!",
       });
       setLinkSent(true);
-      setCode("");
-      setCodeError(null);
     } catch (error: any) {
       setMessage({
         type: "error",
@@ -119,19 +114,6 @@ export default function LoginForm({
       });
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleCode = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setVerifying(true);
-    setCodeError(null);
-    try {
-      // Redirects on success, so only a failure comes back.
-      const result = await verifyEmailCode(email, code);
-      if (result?.error) setCodeError(result.error);
-    } finally {
-      setVerifying(false);
     }
   };
 
@@ -185,31 +167,6 @@ export default function LoginForm({
             </button>
           </form>
 
-          {(linkSent || codeMode) && (
-            <form onSubmit={handleCode} className="mt-6 space-y-3">
-              <label htmlFor="code" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                Link not opening here? Enter the code from the email
-              </label>
-              <input
-                id="code"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="12345678"
-                className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 tracking-widest focus:outline-none focus:ring-2 focus:ring-plum-500"
-              />
-              {codeError && <p className="text-sm text-red-700 dark:text-red-300">{codeError}</p>}
-              <button
-                type="submit"
-                disabled={verifying || code.trim() === ""}
-                className="w-full px-6 py-3 border border-plum-600 text-plum-700 dark:text-plum-300 hover:bg-plum-50 dark:hover:bg-slate-800 disabled:opacity-50 font-semibold rounded-lg transition-colors"
-              >
-                {verifying ? "Checking..." : "Sign in with code"}
-              </button>
-            </form>
-          )}
-
           {/* Shown only once SLACK_TEAM_ID and SLACK_APP_ID are set, i.e. the Slack app is live. */}
           {slackHomeUrl && (
             <div className="mt-6">
@@ -221,6 +178,10 @@ export default function LoginForm({
               <SlackSignIn slackHomeUrl={slackHomeUrl} />
             </div>
           )}
+
+          <div className="mt-6">
+            <CodeEntry email={email} open={linkSent || codeMode || callbackFailed} fromSlack={slackHomeUrl !== null} />
+          </div>
         </div>
       </div>
     </div>
