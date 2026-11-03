@@ -85,7 +85,7 @@ export default function ActivityFilters(props: ActivityFiltersProps) {
         <span className="mx-2 h-5 w-px bg-slate-300 dark:bg-slate-700" aria-hidden />
         {FEED_DAY_OPTIONS.map((d) => (
           <Link key={d} href={href({ days: d })} className={pill(filters.days === d)}>
-            {d === 1 ? "24h" : `${d}d`}
+            {d === 1 ? "24h" : d === 365 ? "1y" : `${d}d`}
           </Link>
         ))}
         <span className="mx-2 h-5 w-px bg-slate-300 dark:bg-slate-700" aria-hidden />

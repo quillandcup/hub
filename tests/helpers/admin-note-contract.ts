@@ -47,6 +47,18 @@ export function defineAdminNoteContract(name: string, setup: () => AdminNoteCont
       expect((await repo.list(ctx.members[1])).map((n) => n.body)).toEqual(["someone else"]);
     });
 
+    it("finds the newest live note, or null", async () => {
+      const repo = ctx.repo();
+      expect(await repo.latest(ctx.members[0])).toBeNull();
+      await repo.add(ctx.members[0], "first", null);
+      await new Promise((r) => setTimeout(r, 5));
+      const second = await repo.add(ctx.members[0], "second", null);
+      await repo.add(ctx.members[1], "someone else", null);
+      expect(await repo.latest(ctx.members[0])).toEqual(second);
+      await repo.remove(ctx.members[0], second.id);
+      expect((await repo.latest(ctx.members[0]))?.body).toBe("first");
+    });
+
     it("soft deletes a note: gone from the list, and a second delete finds nothing", async () => {
       const repo = ctx.repo();
       const keep = await repo.add(ctx.members[0], "keep", null);

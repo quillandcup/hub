@@ -227,6 +227,14 @@ export default async function MemberDetailPage({
     eventSlug: a.eventSlug,
   }));
 
+  // The newest staff note for the Overview, with who wrote it (an author's auth user id maps to their member record, when they have one).
+  const newestNote = await createRepos(supabase).adminNotes.latest(id);
+  const noteAuthorMemberId = newestNote?.createdBy ? (await createRepos(supabase).members.idsByUserId([newestNote.createdBy])).get(newestNote.createdBy) : undefined;
+  const noteAuthor = noteAuthorMemberId ? (await createRepos(supabase).members.byIds([noteAuthorMemberId]))[0] : undefined;
+  const latestNote = newestNote
+    ? { body: newestNote.body, createdAt: newestNote.createdAt, authorName: noteAuthor ? getMemberDisplayName({ name: noteAuthor.name, display_name: noteAuthor.displayName }) : null }
+    : null;
+
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
@@ -346,6 +354,7 @@ export default async function MemberDetailPage({
           activityFilters={activityFilters}
           currentUserId={user?.id ?? null}
           noteEditMinutes={ADMIN_NOTE_EDIT_MINUTES}
+          latestNote={latestNote}
           slackSummary={slackSummary}
           slackPage={{
             rows: await withReactionEmoji(await withMentionNames(slackPage.rows)),

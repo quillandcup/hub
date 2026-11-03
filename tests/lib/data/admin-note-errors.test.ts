@@ -6,8 +6,9 @@ import { SupabaseAdminNoteRepository } from "@/lib/data/admin-notes";
 function dbAnswering(answer: { data: unknown; error: { message: string } | null }): { db: Db; rpcCalls: [string, unknown][] } {
   const rpcCalls: [string, unknown][] = [];
   const chain: Record<string, unknown> = {};
-  for (const m of ["select", "insert", "update", "eq", "is", "order", "range"]) chain[m] = () => chain;
+  for (const m of ["select", "insert", "update", "eq", "is", "order", "range", "limit"]) chain[m] = () => chain;
   chain.single = async () => answer;
+  chain.maybeSingle = async () => answer;
   chain.then = (resolve: (v: unknown) => unknown) => resolve(answer);
   const db = {
     from: () => chain,
@@ -36,6 +37,7 @@ describe("SupabaseAdminNoteRepository", () => {
   it.each([
     ["add", (r: SupabaseAdminNoteRepository) => r.add("mbr_AAAAAAAAAAA1", "x", null)],
     ["list", (r: SupabaseAdminNoteRepository) => r.list("mbr_AAAAAAAAAAA1")],
+    ["latest", (r: SupabaseAdminNoteRepository) => r.latest("mbr_AAAAAAAAAAA1")],
     ["edit", (r: SupabaseAdminNoteRepository) => r.edit("mnote_AAAAAAAAAAA1", "x", 15)],
     ["remove", (r: SupabaseAdminNoteRepository) => r.remove("mbr_AAAAAAAAAAA1", "mnote_AAAAAAAAAAA1")],
   ])("%s throws the database's error", async (_name, run) => {

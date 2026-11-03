@@ -39,6 +39,8 @@ export interface AdminNoteRepository {
   add(memberId: string, body: string, createdBy: string | null): Promise<AdminNote>;
   /** A member's live notes, newest first. Paginated. */
   list(memberId: string): Promise<AdminNote[]>;
+  /** The member's newest live note, or null when they have none. */
+  latest(memberId: string): Promise<AdminNote | null>;
   /**
    * Corrects a note's text (and marks it edited): only its author, only while it is live and less than
    * `windowMinutes` old. False when nothing matched. The database decides who the author is (the signed-in
@@ -82,6 +84,20 @@ export class SupabaseAdminNoteRepository implements AdminNoteRepository {
           .range(from, to),
     );
     return rows.map(toNote);
+  }
+
+  async latest(memberId: string) {
+    const { data, error } = await this.db
+      .from("member_admin_notes")
+      .select(COLUMNS)
+      .eq("member_id", memberId)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .order("id")
+      .limit(1)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data ? toNote(data) : null;
   }
 
   async edit(noteId: string, body: string, windowMinutes: number) {
@@ -129,6 +145,10 @@ export class InMemoryAdminNoteRepository implements AdminNoteRepository {
       .filter((n) => n.member_id === memberId && n.deleted_at === null)
       .sort((a, b) => (a.created_at === b.created_at ? (a.id < b.id ? -1 : 1) : a.created_at < b.created_at ? 1 : -1))
       .map(toNote);
+  }
+
+  async latest(memberId: string) {
+    return (await this.list(memberId))[0] ?? null;
   }
 
   async edit(noteId: string, body: string, windowMinutes: number) {
