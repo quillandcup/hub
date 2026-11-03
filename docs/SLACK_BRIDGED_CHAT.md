@@ -235,6 +235,16 @@ Reading in one place clears the unread in the other, for members who connected S
 - **Scopes.** The user scopes gain `channels:read`, `groups:read`, `mpim:read` (see `last_read`) and `channels:write`, `groups:write`, `mpim:write` (what `conversations.mark` requires; it is broad, but the token is the member's own and the Hub only calls `conversations.mark`/`info`). Pushing the manifest needs "Reinstall to Workspace"; connections made earlier lack the scopes, Slack answers `missing_scope`, which is ignored, and Settings offers "Reconnect Slack" (`hasReadSyncScopes`).
 - **Not covered.** Members who haven't connected Slack keep a Hub-only marker; thread read state (the Hub counts top-level messages only); Slack 1:1 DMs (not bridged); a Slack-side read shows in the Hub at the next focus/open, not instantly, and there is no scheduled refresh for members who never come back to the Hub.
 
+## Drafts (2026-11-02)
+
+Unsent text is kept per member per place, so leaving a conversation, closing the tab or an expired session doesn't lose it. `chat_drafts` has one row per `(member, conversation)` and one per `(member, thread)` (two partial unique indexes, since a NULL thread can't sit in a plain constraint); author-only RLS with no admin branch, like `member_notes`, and the app neither reads nor writes it in sudo. `ChatDraftRepository.save` updates, then inserts when nothing was there (an upsert can't target a partial index); blank text clears.
+
+- **Saving.** `Composer` saves 800 ms after the last keystroke, when the box unmounts and when the tab is hidden, through the `saveChatDraft` action (a no-op without posting, in sudo, or for bad ids; errors are logged, never shown, since the text is still in the box). The body is stored as Slack markup with each mention labelled (`<@U1|Ania Ray>`, `lib/chat/drafts.ts`), so it is shown by name again with no lookup and sent without the label.
+- **Restoring.** The conversation page reads the conversation's and the open thread's draft and passes them as `initialDraft`; boxes are keyed by conversation and thread so each opens with its own.
+- **Sending.** `sendChatMessage` clears the draft for the place it posted to, on the server, so a draft never outlives its message even if the browser closes mid-send.
+- **Listing.** The chat layout reads the member's drafts for the sidebar's "Drafts" section (each opens its conversation, or the thread). It is read when the layout renders, so it refreshes after a send or a reload, not live.
+- **Not bridged to Slack.** Slack has no public API for drafts (its client's internal `drafts.*` calls need a browser session token), so a draft started in Slack doesn't show in the Hub and the reverse. See `docs/TODO.md`, "Chat Drafts, Synced With Slack".
+
 ## Hub direct messages (2026-11-02, behind the `chat_dms` feature)
 
 A member starts a direct message from another member's profile ("Message"); `chat_find_or_create_dm` (`supabase/migrations/20270421000000_chat_hub_dms.sql`) finds the pair's conversation or creates it. It is a `chat_channels` row with `kind = 'dm'`, `bridge_mode = 'app_only'`, `visibility = 'private'` and `restricted` (staff see that it exists, never the text), with both people as members. `dm_key` (the two member ids, sorted) is unique, so a pair has one DM however it is opened and a race creates it once.

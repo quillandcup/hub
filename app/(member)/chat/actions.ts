@@ -35,6 +35,25 @@ import { withAction } from "@/lib/analytics/server";
 import { chatCaller, postingCaller } from "@/lib/chat/caller";
 import { isHubOnlyMessage } from "@/lib/chat/hub-only";
 /**
+ * Saves what the signed-in member has typed and not sent in a conversation's box (or a thread's reply
+ * box, with `threadRootId`) so it is there when they come back; blank text removes the draft. Quietly
+ * does nothing without posting (they could not send it) or in sudo (read-only), and for ids that are
+ * not ours. Only stored, never sent anywhere: Slack's own drafts have no public API.
+ */
+export async function saveChatDraft(channelId: string, threadRootId: string | null, body: string): Promise<void> {
+  if (!isId(channelId, "chn") || (threadRootId !== null && !isId(threadRootId, "msg")) || typeof body !== "string") return;
+  const caller = await postingCaller();
+  if (!caller) return;
+  const supabase = await createClient();
+  try {
+    await createRepos(supabase).chatDrafts.save(caller.identity.memberId, { channelId, threadRootId }, body);
+  } catch (e) {
+    // A conversation they can no longer see, or a database hiccup: the text stays in the box, so say nothing to the member.
+    console.error("chat draft save failed:", e instanceof Error ? e.message : e);
+  }
+}
+
+/**
  * The signed-in member has seen a conversation through `through` (the time of the newest message
  * they had on screen): moves their own read marker forward (the `chat_mark_read` function can only
  * touch the caller's row, in a conversation they are in, and never backward or past now). `through`
@@ -319,6 +338,8 @@ async function sendChatMessageImpl(channelId: string, body: string, threadRootId
   // (pending), so return now and send after the response: the page shows it at once, and flips it to
   // sent through Realtime when Slack has it. A failure marks it failed (Retry) and the nightly run retries.
   const messageId = data as string;
+  // What was written is sent, so it is no longer a draft (the box also stops saving it as it clears).
+  await createRepos(supabase).chatDrafts.clear(caller.identity.memberId, { channelId, threadRootId: threadRootId ?? null }).catch((e) => console.error("chat draft clear failed:", e));
   if (hubOnly) return { ok: true, id: messageId };
   after(async () => {
     try {

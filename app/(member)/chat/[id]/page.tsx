@@ -126,7 +126,17 @@ export default async function ChatChannelPage({
     if (thread && !thread[0]) notFound();
     return { page, root: thread?.[0] ?? null, threadPage: thread?.[1] ?? null };
   };
-  const [{ page, root, threadPage }, preferredZone, people, readMarker, channels, memberCard, postingOn] = await Promise.all([
+  // The member's unsent text for this conversation's box and the open thread's. Not in sudo (their drafts are not the viewed member's).
+  const draftsQuery = async () => {
+    if (sudoHidden || identity.isSudo) return { conversation: null, thread: null };
+    const repo = createRepos(supabase).chatDrafts;
+    const [conversation, thread] = await Promise.all([
+      repo.get(identity.memberId, { channelId: channel.id, threadRootId: null }),
+      threadId ? repo.get(identity.memberId, { channelId: channel.id, threadRootId: threadId }) : Promise.resolve(null),
+    ]);
+    return { conversation: conversation?.body ?? null, thread: thread?.body ?? null };
+  };
+  const [{ page, root, threadPage }, preferredZone, people, readMarker, channels, memberCard, postingOn, drafts] = await Promise.all([
     timer.time("messages", messagesQuery()),
     // Times are in the reader's zone; "browser" means not detected yet, so the organization's.
     timer.time("timezone", getUserTimezonePreference()),
@@ -135,6 +145,8 @@ export default async function ChatChannelPage({
     timer.time("channels", loadChatChannelsForRender(identity.memberId, identity.isSudo)),
     profileId && !threadId && !sudoHidden ? loadMemberCard(createRepos(supabase), profileId) : Promise.resolve(null),
     timer.time("posting", postingQuery()),
+    // A failed read just means no draft is put back.
+    timer.time("drafts", draftsQuery().catch(() => ({ conversation: null, thread: null }))),
   ]);
   timer.mark("parallel");
   const timeZone = isValidTimeZone(preferredZone) ? preferredZone : ORG_TIMEZONE;
@@ -221,7 +233,7 @@ export default async function ChatChannelPage({
           )}
         </div>
         {canPost && (
-          <Composer channelId={channel.id} placeholder={`Message ${channel.label}`} viewer={viewer} showSent={!before} dropTargetIds={["chat-conversation", "chat-profile-panel"]} />
+          <Composer key={channel.id} channelId={channel.id} initialDraft={drafts.conversation} saveDrafts={!identity.isSudo} placeholder={`Message ${channel.label}`} viewer={viewer} showSent={!before} dropTargetIds={["chat-conversation", "chat-profile-panel"]} />
         )}
         {postingOn && !channel.joined && channel.kind === "channel" && channel.visibility === "public" && (
           <JoinPrompt channelId={channel.id} channelLabel={channel.label} />
@@ -248,7 +260,7 @@ export default async function ChatChannelPage({
             timeZone={timeZone}
           />
           {canPost && rootView.syncStatus === null && (
-            <Composer channelId={channel.id} threadRootId={rootView.id} placeholder="Reply…" viewer={viewer} showSent dropTargetIds={["chat-thread-panel"]} />
+            <Composer key={rootView.id} channelId={channel.id} threadRootId={rootView.id} initialDraft={drafts.thread} saveDrafts={!identity.isSudo} placeholder="Reply…" viewer={viewer} showSent dropTargetIds={["chat-thread-panel"]} />
           )}
         </SidePanel>
       )}

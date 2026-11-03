@@ -10,6 +10,7 @@ import { InMemoryNotificationRepository, SupabaseNotificationRepository, type No
 import { InMemoryPrickleRepository, SupabasePrickleRepository, type PrickleRepository } from "./prickles";
 import { InMemoryMemberDirectoryRepository, SupabaseMemberDirectoryRepository, type MemberDirectoryRepository } from "./member-directory";
 import { InMemoryChatRepository, SupabaseChatRepository, type ChatRepository } from "./chat";
+import { InMemoryChatDraftRepository, SupabaseChatDraftRepository, type ChatDraftRepository } from "./chat-drafts";
 import { InMemorySlackUserRepository, SupabaseSlackUserRepository, type SlackUserRepository } from "./slack-users";
 import { InMemorySlackWorkspaceRepository, SupabaseSlackWorkspaceRepository, type SlackWorkspaceRepository } from "./slack-workspace";
 import { InMemorySlackMessageRepository, SupabaseSlackMessageRepository, type SlackMessageRepository } from "./slack-messages";
@@ -78,6 +79,7 @@ export interface Repos {
   zoom: ZoomRepository;
   programs: ProgramRepository;
   chat: ChatRepository;
+  chatDrafts: ChatDraftRepository;
   kajabiCourses: KajabiCourseRepository;
   billing: BillingRepository;
   memberStatus: MemberStatusRepository;
@@ -130,6 +132,7 @@ export function createRepos(db: Db): Repos {
     zoom: new SupabaseZoomRepository(db),
     programs: new SupabaseProgramRepository(db),
     chat: new SupabaseChatRepository(db),
+    chatDrafts: new SupabaseChatDraftRepository(db),
     kajabiCourses: new SupabaseKajabiCourseRepository(db),
     billing: new SupabaseBillingRepository(db),
     memberStatus: new SupabaseMemberStatusRepository(db),
@@ -183,6 +186,7 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     zoom: new InMemoryZoomRepository(dataset),
     programs: new InMemoryProgramRepository(dataset),
     chat: new InMemoryChatRepository(dataset),
+    chatDrafts: new InMemoryChatDraftRepository(dataset),
     kajabiCourses: new InMemoryKajabiCourseRepository(dataset),
     billing: new InMemoryBillingRepository(dataset),
     memberStatus: new InMemoryMemberStatusRepository(dataset),

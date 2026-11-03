@@ -98,6 +98,8 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   chat_channel_members: [],
   chat_messages: [],
   chat_message_contents: [],
+  // Members' unsent chat text (ChatDraftRepository, lib/data/chat-drafts.ts): every query is in the repository.
+  chat_drafts: [],
   chat_reactions: [],
   chat_slack_authors: [],
   chat_gap_fills: [],
