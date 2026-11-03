@@ -37,6 +37,13 @@ describe("ChatText", () => {
     expect(wrapper(":nosuchemoji:")).not.toHaveClass("text-[2rem]");
   });
 
+  it("draws <u>…</u> as underlined text, around other formatting", () => {
+    const { container } = render(<ChatText body="a <u>under *bold*</u> b" ctx={ctx} />);
+    const u = container.querySelector("u")!;
+    expect(u).toHaveTextContent("under bold");
+    expect(u.querySelector("strong")).toHaveTextContent("bold");
+  });
+
   it("shows custom emoji as images, over a standard emoji of the same name", () => {
     render(<ChatText body=":hedgehog: hi" ctx={ctx} />);
     expect(screen.getByAltText(":hedgehog:")).toHaveAttribute("src", "https://emoji.example.test/hedgehog.png");

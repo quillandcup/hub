@@ -3,7 +3,8 @@ import { isEmojiOnly } from "@/lib/chat/emoji-only";
 /**
  * The message box shows styled text (bold, lists, quotes, links, emoji images) but its owners hand text around as
  * Slack mrkdwn, the format a Hub message is stored and sent in: `*bold*`, `_italic_`, `~strike~`, backticks, fences,
- * `> quote`, `• ` and `1. ` lines, `<https://x|label>` links and `:name:` emoji. These two functions are the bridge
+ * `> quote`, `• ` and `1. ` lines, `<https://x|label>` links, `:name:` emoji and `<u>underline</u>` (our own marker: Slack's
+ * mrkdwn has no underline, so a message that has one is sent as rich-text blocks, lib/chat/rich-blocks.ts). These two functions are the bridge
  * between the editor's document (ProseMirror JSON) and that text. Pure and free of the editor library, so the round
  * trip can be tested on its own.
  */
@@ -20,8 +21,8 @@ export type RichNode = {
 export type EmojiLookup = (name: string) => { url: string } | { text: string } | null;
 
 // Outermost first. Code can't hold other marks, and a link's label is plain text, so both sit innermost.
-const MARK_ORDER = ["bold", "italic", "strike", "code", "link"] as const;
-const MARKERS: Record<string, string> = { bold: "*", italic: "_", strike: "~", code: "`" };
+const MARK_ORDER = ["underline", "bold", "italic", "strike", "code", "link"] as const;
+const MARKERS: Record<string, [string, string]> = { underline: ["<u>", "</u>"], bold: ["*", "*"], italic: ["_", "_"], strike: ["~", "~"], code: ["`", "`"] };
 
 const hasMark = (n: RichNode, type: string) => n.marks?.some((m) => m.type === type) ?? false;
 const markKey = (n: RichNode, type: string) => JSON.stringify(n.marks?.find((m) => m.type === type)?.attrs ?? null);
@@ -63,7 +64,8 @@ function inline(nodes: RichNode[], order: readonly string[]): string {
       const label = inner.replace(/[<>|]/g, "").trim();
       const [, lead, , trail] = /^(\s*)([\s\S]*?)(\s*)$/.exec(inner)!;
       out += href && label ? `${lead}<${href}${label === href ? "" : `|${label}`}>${trail}` : inner;
-    } else out += hug(inner, MARKERS[mark], MARKERS[mark]);
+    } else if (mark === "underline") out += inner ? `${MARKERS[mark][0]}${inner}${MARKERS[mark][1]}` : inner;
+    else out += hug(inner, MARKERS[mark][0], MARKERS[mark][1]);
     i = j;
   }
   return out;
@@ -116,6 +118,7 @@ function matchers(lookup?: EmojiLookup): Matcher[] {
       return m && nodes ? { index: m.index, length: m[0].length, nodes } : null;
     };
   return [
+    regex(/<u>([^\n]+?)<\/u>/, (m) => withMark(parseInline(m[1], lookup), "underline")),
     regex(/`([^`\n]+)`/, (m) => [text(m[1], [{ type: "code" }])]),
     regex(/<((?:https?:\/\/|mailto:)[^\s<>|]+)(?:\|([^<>]*))?>/, (m) => [text(m[2] || m[1].replace(/^mailto:/i, ""), [{ type: "link", attrs: { href: m[1] } }])]),
     regex(/:([a-z0-9_+-]+):/i, (m) => {

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useEditorState, type Editor } from "@tiptap/react";
-import { Bold, Code, Italic, Link as LinkIcon, List, ListOrdered, Quote, SquareCode, Strikethrough, type LucideIcon } from "lucide-react";
+import { Bold, Code, Italic, Link as LinkIcon, List, ListOrdered, Quote, SquareCode, Strikethrough, Underline, type LucideIcon } from "lucide-react";
 import type { FormatKind } from "@/lib/chat/format-text";
 
 /** An address typed in the link box as a link address: `https://` added when it has no scheme, only web and mail addresses. */
@@ -21,6 +21,7 @@ export function linkAddress(typed: string): string | null {
 const BUTTONS: { kind: FormatKind; label: string; hint?: string; Icon: LucideIcon; group: number }[] = [
   { kind: "bold", label: "Bold", hint: "Ctrl+B", Icon: Bold, group: 0 },
   { kind: "italic", label: "Italic", hint: "Ctrl+I", Icon: Italic, group: 0 },
+  { kind: "underline", label: "Underline", hint: "Ctrl+U", Icon: Underline, group: 0 },
   { kind: "strike", label: "Strikethrough", hint: "Ctrl+Shift+X", Icon: Strikethrough, group: 0 },
   { kind: "link", label: "Link", Icon: LinkIcon, group: 1 },
   { kind: "numbers", label: "Numbered list", Icon: ListOrdered, group: 2 },
@@ -43,6 +44,7 @@ export default function FormatToolbar({ editor, onFormat }: { editor: Editor; on
     selector: ({ editor: e }) => ({
       bold: e.isActive("bold"),
       italic: e.isActive("italic"),
+      underline: e.isActive("underline"),
       strike: e.isActive("strike"),
       link: e.isActive("link"),
       bullets: e.isActive("bulletList"),
@@ -58,6 +60,7 @@ export default function FormatToolbar({ editor, onFormat }: { editor: Editor; on
     const chain = editor.chain().focus();
     if (kind === "bold") chain.toggleBold().run();
     else if (kind === "italic") chain.toggleItalic().run();
+    else if (kind === "underline") chain.toggleUnderline().run();
     else if (kind === "strike") chain.toggleStrike().run();
     else if (kind === "bullets") chain.toggleBulletList().run();
     else if (kind === "numbers") chain.toggleOrderedList().run();

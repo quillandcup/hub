@@ -125,6 +125,34 @@ describe("sendChatMessageToSlack", () => {
     expect(stateOf(ID)).toMatchObject({ slack_ts: "1700000000.000100", slack_sync_status: "sent", posted_via: "user_token" });
   });
 
+  it("posts a message with an underline as rich-text blocks, with its text minus the underline as the fallback", async () => {
+    dataset.chatMessageContents![0].body = "Hello <u>there</u> & *you*";
+    await sendChatMessageToSlack(supabase as never, ID);
+    const [args] = postMessage.mock.calls[0];
+    expect(args.text).toBe("Hello there &amp; *you*");
+    expect(args.blocks).toEqual([
+      {
+        type: "rich_text",
+        elements: [
+          {
+            type: "rich_text_section",
+            elements: [
+              { type: "text", text: "Hello " },
+              { type: "text", text: "there", style: { underline: true } },
+              { type: "text", text: " & " },
+              { type: "text", text: "you", style: { bold: true } },
+            ],
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("sends no blocks for a message without an underline", async () => {
+    await sendChatMessageToSlack(supabase as never, ID);
+    expect(postMessage.mock.calls[0][0]).not.toHaveProperty("blocks");
+  });
+
   it("replies in the root's thread", async () => {
     stateOf(ID)!.thread_root_id = ROOT_ID;
     await sendChatMessageToSlack(supabase as never, ID);
@@ -293,6 +321,15 @@ describe("sendChatMessageToSlack with files", () => {
         files: [expect.objectContaining({ id: "pending-1", staged: "staging/x/y/cat.gif" })],
       })
     );
+  });
+
+  it("drops an underline from the text that goes with files (the upload takes only text), but keeps escaping the rest", async () => {
+    sendFiles.mockResolvedValue("sent");
+    sendFiles.mockClear();
+    dataset.chatMessageContents = [{ message_id: ID, body: "see <u>this</u> <b>", files: [{ id: "pending-1", name: "cat.gif", mimetype: "image/gif", staged: "staging/x/y/cat.gif" }] }];
+    await sendChatMessageToSlack(supabase as never, ID);
+    const { escape } = sendFiles.mock.calls[0][0] as { escape: (t: string) => string };
+    expect(escape("see <u>this</u> <b>")).toBe("see this &lt;b&gt;");
   });
 
   it("still fails a message with neither text nor files", async () => {

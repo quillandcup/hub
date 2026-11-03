@@ -83,14 +83,14 @@ const maxLengthExtension = (limit: number) =>
 
 /**
  * What the message box edits: paragraphs, bold, italic, strikethrough, code, code blocks, quotes, lists and links.
- * Only what Slack's text format can say; no headings, rules or underline (that needs rich-text blocks).
+ * Only what a Slack message can say; no headings or rules. Underline is here too, but Slack's mrkdwn has none, so a message
+ * with one is sent as rich-text blocks (lib/chat/rich-blocks.ts).
  */
 export function messageBoxExtensions(maxLength?: number): Extensions {
   return [
     StarterKit.configure({
       heading: false,
       horizontalRule: false,
-      underline: false,
       trailingNode: false,
       // A typed or pasted address becomes a link, and pasting one over selected text links that text.
       link: { openOnClick: false, autolink: true, linkOnPaste: true, protocols: ["mailto"], defaultProtocol: "https" },
