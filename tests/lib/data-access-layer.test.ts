@@ -169,6 +169,7 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   dismissed_duplicate_groups: [],
   feedback: [],
   member_ask_me_about: [],
+  member_admin_notes: [],
   member_awards: [],
   member_notes: [],
   member_onboarding: [],
