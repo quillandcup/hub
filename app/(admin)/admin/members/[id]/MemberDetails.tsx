@@ -14,6 +14,7 @@ import MemberTimelinePanel from "./MemberTimelinePanel";
 import type { SlackSummary } from "@/lib/data/activities";
 import MemberSlackActivityPanel, { type SlackPageData } from "./MemberSlackActivityPanel";
 import ActivityFeedTable from "@/app/(admin)/admin/activity/ActivityFeedTable";
+import MemberNoteForm from "./MemberNoteForm";
 import ActivityFilters from "@/app/(admin)/admin/activity/ActivityFilters";
 import { feedSearch, type FeedFilters, type FeedPage } from "@/lib/activity-feed";
 import MemberBadgesPanel from "./MemberBadgesPanel";
@@ -44,6 +45,9 @@ interface MemberDetailsProps {
   activityFeed: FeedPage | null;
   /** The filters that feed was fetched with (parsed from the tab's URL). */
   activityFilters: FeedFilters;
+  /** The signed-in admin, and how long they can edit a note they wrote: the timeline shows Edit only on their own recent notes. */
+  currentUserId: string | null;
+  noteEditMinutes: number;
   userTimezonePreference?: string; // User's timezone preference from profile
   membershipHistory: any[];
   programOverrides?: { id: string; starts_at: string; expires_at: string | null; reason: string | null }[];
@@ -78,6 +82,8 @@ export default function MemberDetails({
   slackSummary,
   activityFeed,
   activityFilters,
+  currentUserId,
+  noteEditMinutes,
   userTimezonePreference = "browser",
   membershipHistory,
   programOverrides = [],
@@ -280,6 +286,7 @@ export default function MemberDetails({
                 Open in the central log
               </Link>
             </p>
+            <MemberNoteForm memberId={member.id} />
             <ActivityFilters variant="member" filters={activityFilters} basePath={`/admin/members/${member.id}/activity`} />
             {!activityFeed ? (
               <p role="alert" className="text-sm text-red-700 dark:text-red-400">
@@ -288,7 +295,7 @@ export default function MemberDetails({
             ) : activityFeed.total === 0 ? (
               <p className="text-sm text-slate-600 dark:text-slate-400">Nothing in this window. Try a longer range or other filters.</p>
             ) : (
-              <ActivityFeedTable {...activityFeed} filters={activityFilters} hideAbout />
+              <ActivityFeedTable {...activityFeed} filters={activityFilters} hideAbout noteControls={{ memberId: member.id, currentUserId, editMinutes: noteEditMinutes }} />
             )}
           </div>
         )}

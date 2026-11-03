@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAdminAction } from "@/lib/admin-auth";
 import { withAction } from "@/lib/analytics/server";
+import { ADMIN_NOTE_EDIT_MINUTES } from "@/lib/config";
 import { MAX_ADMIN_NOTE_LENGTH } from "@/lib/data/admin-notes";
 import { getRepos } from "@/lib/data/server";
 import { isId } from "@/lib/ids";
@@ -19,6 +20,24 @@ async function addNoteImpl(userId: string, memberId: string, body: string): Prom
   } catch (error) {
     console.error("[admin-notes] add failed:", error instanceof Error ? error.message : error);
     return { error: "Couldn't save the note." };
+  }
+  revalidatePath(`/admin/members/${memberId}`, "layout");
+  return { success: true };
+}
+
+async function editNoteImpl(memberId: string, noteId: string, body: string): Promise<NoteActionResult> {
+  if (!isId(memberId, "mbr")) return { error: "Member not found." };
+  const text = body.trim();
+  if (text === "") return { error: "Write something first." };
+  if (text.length > MAX_ADMIN_NOTE_LENGTH) return { error: `A note can be at most ${MAX_ADMIN_NOTE_LENGTH} characters.` };
+  try {
+    // The database checks the author (the signed-in user), that the note is live and that it is inside the window.
+    if (!(await (await getRepos()).adminNotes.edit(noteId, text, ADMIN_NOTE_EDIT_MINUTES))) {
+      return { error: `Only the author can edit a note, and only in the first ${ADMIN_NOTE_EDIT_MINUTES} minutes.` };
+    }
+  } catch (error) {
+    console.error("[admin-notes] edit failed:", error instanceof Error ? error.message : error);
+    return { error: "Couldn't save the change." };
   }
   revalidatePath(`/admin/members/${memberId}`, "layout");
   return { success: true };
@@ -41,6 +60,13 @@ export async function addMemberNote(memberId: string, body: string): Promise<Not
   const auth = await requireAdminAction();
   if (!auth.ok) return { error: auth.error };
   return withAction("admin_note_added", () => addNoteImpl(auth.user.id, memberId, body), (r) => ({ ok: "success" in r }));
+}
+
+/** Corrects a staff note's text: its author only, and only in the first few minutes (`ADMIN_NOTE_EDIT_MINUTES`). Staff only. */
+export async function editMemberNote(memberId: string, noteId: string, body: string): Promise<NoteActionResult> {
+  const auth = await requireAdminAction();
+  if (!auth.ok) return { error: auth.error };
+  return withAction("admin_note_edited", () => editNoteImpl(memberId, noteId, body), (r) => ({ ok: "success" in r }));
 }
 
 /** Removes a note from a member's profile (kept in the database, hidden everywhere). Staff only. */

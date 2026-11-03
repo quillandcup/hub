@@ -12,13 +12,14 @@ import { getMemberDisplayName } from "@/lib/member-display-name";
  * docs/ACTIVITY_AND_AUDIT_LOG.md). The function enforces admin-only itself.
  */
 
-export type FeedKind = "audit" | "activity" | "session";
-export const FEED_KINDS: readonly FeedKind[] = ["audit", "activity", "session"];
+export type FeedKind = "audit" | "activity" | "session" | "note";
+export const FEED_KINDS: readonly FeedKind[] = ["audit", "activity", "session", "note"];
 
 export const FEED_KIND_LABELS: Record<FeedKind, string> = {
   audit: "Changes",
   activity: "Member activity",
   session: "Page visits",
+  note: "Notes",
 };
 
 export interface ActivityFeedRow {
@@ -454,6 +455,7 @@ export function describeRow(row: ActivityFeedRow): string {
         : "";
     return `${verb} ${entity}${name ? ` “${name}”` : ""}${suffix}`;
   }
+  if (row.kind === "note") return "added a note";
   if (row.kind === "session") {
     const pages = Array.isArray(row.data?.pages) ? (row.data.pages as string[]) : [];
     if (pages.length === 0) return "was active (no page views)";

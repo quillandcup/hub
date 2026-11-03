@@ -12,6 +12,7 @@ defineAdminNoteContract("InMemoryAdminNoteRepository", () => {
     repo: () => new InMemoryAdminNoteRepository(data),
     members,
     userId: "00000000-0000-4000-8000-000000000001",
+    editAs: (userId) => new InMemoryAdminNoteRepository(data, userId),
     missingMemberId: "mbr_ZZZZZZZZZZZ9",
     clear: async () => {
       data.adminNotes = [];

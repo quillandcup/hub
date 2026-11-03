@@ -7,6 +7,7 @@ import { DataTablePager } from "@/components/DataTablePager";
 import { useServerDataTable } from "@/lib/hooks/useDataTable";
 import { formatDateTime } from "@/lib/formatters";
 import { useTimeZone } from "@/components/Timezone";
+import NoteEntry, { type NoteControls } from "./NoteEntry";
 import {
   actorDisplay,
   changedFields,
@@ -105,6 +106,7 @@ export default function ActivityFeedTable({
   pageSize,
   filters,
   hideAbout = false,
+  noteControls,
 }: {
   rows: ActivityFeedRow[];
   total: number;
@@ -113,6 +115,8 @@ export default function ActivityFeedTable({
   filters: FeedFilters;
   /** Drop the About column, where every row is about the same member (their own page). */
   hideAbout?: boolean;
+  /** On a member's own page: lets the note rows be edited (their author, for a while) and deleted. */
+  noteControls?: NoteControls;
 }) {
   const timeZone = useTimeZone();
   // Newest first is the only order; there are no sortable columns.
@@ -163,7 +167,9 @@ export default function ActivityFeedTable({
                     )}
                   </td>
                   <td className="py-2 pr-4 text-slate-700 dark:text-slate-300">
-                    {hasDetail(row) ? (
+                    {row.kind === "note" ? (
+                      <NoteEntry row={row} controls={noteControls} />
+                    ) : hasDetail(row) ? (
                       <details>
                         <summary className="cursor-pointer"><Summary row={row} /></summary>
                         {row.kind === "audit" && <ChangeTable row={row} />}
