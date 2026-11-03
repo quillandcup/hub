@@ -21,7 +21,7 @@ export function defineChatDraftContract(name: string, setup: () => ChatDraftCont
     });
 
     it("saves a draft and reads it back", async () => {
-      await ctx.repo().save(ctx.members[0], ctx.places.conversation, "half a thought");
+      await ctx.repo().save(ctx.members[0], ctx.places.conversation, { body: "half a thought" });
       expect(await ctx.repo().get(ctx.members[0], ctx.places.conversation)).toMatchObject({ ...ctx.places.conversation, body: "half a thought" });
     });
 
@@ -30,54 +30,79 @@ export function defineChatDraftContract(name: string, setup: () => ChatDraftCont
     });
 
     it("keeps one draft per place: saving again replaces the text", async () => {
-      await ctx.repo().save(ctx.members[0], ctx.places.conversation, "first");
-      await ctx.repo().save(ctx.members[0], ctx.places.conversation, "second");
+      await ctx.repo().save(ctx.members[0], ctx.places.conversation, { body: "first" });
+      await ctx.repo().save(ctx.members[0], ctx.places.conversation, { body: "second" });
       expect((await ctx.repo().list(ctx.members[0])).map((d) => d.body)).toEqual(["second"]);
     });
 
     it("keeps a conversation's draft apart from its thread's and from another conversation's", async () => {
-      await ctx.repo().save(ctx.members[0], ctx.places.conversation, "in the channel");
-      await ctx.repo().save(ctx.members[0], ctx.places.thread, "in the thread");
-      await ctx.repo().save(ctx.members[0], ctx.places.other, "elsewhere");
+      await ctx.repo().save(ctx.members[0], ctx.places.conversation, { body: "in the channel" });
+      await ctx.repo().save(ctx.members[0], ctx.places.thread, { body: "in the thread" });
+      await ctx.repo().save(ctx.members[0], ctx.places.other, { body: "elsewhere" });
       expect((await ctx.repo().get(ctx.members[0], ctx.places.conversation))?.body).toBe("in the channel");
       expect((await ctx.repo().get(ctx.members[0], ctx.places.thread))?.body).toBe("in the thread");
       expect((await ctx.repo().get(ctx.members[0], ctx.places.other))?.body).toBe("elsewhere");
     });
 
     it("keeps each member's draft their own", async () => {
-      await ctx.repo().save(ctx.members[0], ctx.places.conversation, "mine");
-      await ctx.repo().save(ctx.members[1], ctx.places.conversation, "theirs");
+      await ctx.repo().save(ctx.members[0], ctx.places.conversation, { body: "mine" });
+      await ctx.repo().save(ctx.members[1], ctx.places.conversation, { body: "theirs" });
       expect((await ctx.repo().get(ctx.members[0], ctx.places.conversation))?.body).toBe("mine");
       expect(await ctx.repo().list(ctx.members[1])).toHaveLength(1);
     });
 
     it("treats blank text as no draft, clearing an earlier one", async () => {
-      await ctx.repo().save(ctx.members[0], ctx.places.conversation, "something");
-      await ctx.repo().save(ctx.members[0], ctx.places.conversation, "  \n ");
+      await ctx.repo().save(ctx.members[0], ctx.places.conversation, { body: "something" });
+      await ctx.repo().save(ctx.members[0], ctx.places.conversation, { body: "  \n " });
       expect(await ctx.repo().get(ctx.members[0], ctx.places.conversation)).toBeNull();
-      await ctx.repo().save(ctx.members[0], ctx.places.conversation, "  \n ");
+      await ctx.repo().save(ctx.members[0], ctx.places.conversation, { body: "  \n " });
       expect(await ctx.repo().list(ctx.members[0])).toEqual([]);
     });
 
     it("clears one place and leaves the others", async () => {
-      await ctx.repo().save(ctx.members[0], ctx.places.conversation, "a");
-      await ctx.repo().save(ctx.members[0], ctx.places.thread, "b");
+      await ctx.repo().save(ctx.members[0], ctx.places.conversation, { body: "a" });
+      await ctx.repo().save(ctx.members[0], ctx.places.thread, { body: "b" });
       await ctx.repo().clear(ctx.members[0], ctx.places.conversation);
       await ctx.repo().clear(ctx.members[0], ctx.places.other);
       expect((await ctx.repo().list(ctx.members[0])).map((d) => d.body)).toEqual(["b"]);
     });
 
     it("lists the most recently edited draft first", async () => {
-      await ctx.repo().save(ctx.members[0], ctx.places.conversation, "older");
-      await ctx.repo().save(ctx.members[0], ctx.places.thread, "newer");
+      await ctx.repo().save(ctx.members[0], ctx.places.conversation, { body: "older" });
+      await ctx.repo().save(ctx.members[0], ctx.places.thread, { body: "newer" });
       expect((await ctx.repo().list(ctx.members[0])).map((d) => d.body)).toEqual(["newer", "older"]);
-      await ctx.repo().save(ctx.members[0], ctx.places.conversation, "older, edited");
+      await ctx.repo().save(ctx.members[0], ctx.places.conversation, { body: "older, edited" });
       expect((await ctx.repo().list(ctx.members[0])).map((d) => d.body)).toEqual(["older, edited", "newer"]);
     });
 
     it("cuts text past the limit instead of refusing it", async () => {
-      await ctx.repo().save(ctx.members[0], ctx.places.conversation, "x".repeat(MAX_DRAFT_LENGTH + 50));
+      await ctx.repo().save(ctx.members[0], ctx.places.conversation, { body: "x".repeat(MAX_DRAFT_LENGTH + 50) });
       expect((await ctx.repo().get(ctx.members[0], ctx.places.conversation))?.body).toHaveLength(MAX_DRAFT_LENGTH);
+    });
+
+    const file = (n: number) => ({ path: `staging/2026-11-02/mbr_x-${n}/note-${n}.txt`, name: `note-${n}.txt`, mimetype: "text/plain", size: 10 * n });
+
+    it("keeps the files attached to a draft with its text", async () => {
+      await ctx.repo().save(ctx.members[0], ctx.places.conversation, { body: "see attached", files: [file(1), file(2)] });
+      expect(await ctx.repo().get(ctx.members[0], ctx.places.conversation)).toMatchObject({ body: "see attached", files: [file(1), file(2)] });
+      await ctx.repo().save(ctx.members[0], ctx.places.conversation, { body: "see attached", files: [file(2)] });
+      expect((await ctx.repo().get(ctx.members[0], ctx.places.conversation))?.files).toEqual([file(2)]);
+    });
+
+    it("keeps a draft of files only, and clears one with neither text nor files", async () => {
+      await ctx.repo().save(ctx.members[0], ctx.places.conversation, { body: "  ", files: [file(1)] });
+      expect(await ctx.repo().get(ctx.members[0], ctx.places.conversation)).toMatchObject({ files: [file(1)] });
+      await ctx.repo().save(ctx.members[0], ctx.places.conversation, { body: " ", files: [] });
+      expect(await ctx.repo().get(ctx.members[0], ctx.places.conversation)).toBeNull();
+    });
+
+    it("lists the staged paths of every member's drafts", async () => {
+      await ctx.repo().save(ctx.members[0], ctx.places.conversation, { body: "a", files: [file(1)] });
+      await ctx.repo().save(ctx.members[1], ctx.places.thread, { body: "b", files: [file(2)] });
+      await ctx.repo().save(ctx.members[1], ctx.places.other, { body: "no files" });
+      const paths = await ctx.repo().stagedPaths();
+      expect(paths.has(file(1).path)).toBe(true);
+      expect(paths.has(file(2).path)).toBe(true);
     });
   });
 }

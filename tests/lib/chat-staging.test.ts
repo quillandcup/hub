@@ -34,4 +34,17 @@ describe("purgeStagedChatFiles", () => {
     expect(await purgeStagedChatFiles(storage as never, Date.UTC(2026, 9, 22))).toBe(2);
     expect(remove).toHaveBeenCalledWith(["staging/2026-10-10/m-1/a.png", "staging/2026-10-10/m-1/b.png"]);
   });
+
+  it("leaves the files a draft still lists", async () => {
+    const tree: Record<string, { name: string }[]> = {
+      staging: [{ name: "2026-10-10" }],
+      "staging/2026-10-10": [{ name: "m-1" }],
+      "staging/2026-10-10/m-1": [{ name: "a.png" }, { name: "b.png" }],
+    };
+    const remove = vi.fn(async () => ({ error: null }));
+    const storage = { storage: { from: () => ({ list: async (path: string) => ({ data: tree[path] ?? [] }), remove }) } };
+
+    expect(await purgeStagedChatFiles(storage as never, Date.UTC(2026, 9, 22), new Set(["staging/2026-10-10/m-1/a.png"]))).toBe(1);
+    expect(remove).toHaveBeenCalledWith(["staging/2026-10-10/m-1/b.png"]);
+  });
 });

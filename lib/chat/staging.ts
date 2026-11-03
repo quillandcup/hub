@@ -36,8 +36,11 @@ export function isOwnStagingPath(memberId: string, path: string): boolean {
   return new RegExp(`^${STAGING_PREFIX}/\\d{4}-\\d{2}-\\d{2}/${escaped}-[0-9a-f-]{36}/[A-Za-z0-9._-]+$`).test(path);
 }
 
-/** Delete staged files older than STAGING_KEEP_DAYS (nightly chat run). Returns how many it removed. */
-export async function purgeStagedChatFiles(storage: SupabaseClient, nowMs: number): Promise<number> {
+/**
+ * Delete staged files older than STAGING_KEEP_DAYS (nightly chat run), except the `keep` paths (the ones
+ * a draft still lists). Returns how many it removed.
+ */
+export async function purgeStagedChatFiles(storage: SupabaseClient, nowMs: number, keep: ReadonlySet<string> = new Set()): Promise<number> {
   const bucket = storage.storage.from(SLACK_FILES_BUCKET);
   const cutoff = new Date(nowMs - STAGING_KEEP_DAYS * 86_400_000).toISOString().slice(0, 10);
   const { data: days } = await bucket.list(STAGING_PREFIX, { limit: 1000 });
@@ -48,7 +51,10 @@ export async function purgeStagedChatFiles(storage: SupabaseClient, nowMs: numbe
     const paths: string[] = [];
     for (const folder of folders ?? []) {
       const { data: files } = await bucket.list(`${STAGING_PREFIX}/${day.name}/${folder.name}`, { limit: 100 });
-      for (const f of files ?? []) paths.push(`${STAGING_PREFIX}/${day.name}/${folder.name}/${f.name}`);
+      for (const f of files ?? []) {
+        const path = `${STAGING_PREFIX}/${day.name}/${folder.name}/${f.name}`;
+        if (!keep.has(path)) paths.push(path);
+      }
     }
     if (paths.length > 0) {
       const { error } = await bucket.remove(paths);

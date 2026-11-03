@@ -1981,6 +1981,7 @@ export type Database = {
           body: string
           channel_id: string
           created_at: string
+          files: Json
           id: string
           member_id: string
           thread_root_id: string | null
@@ -1990,6 +1991,7 @@ export type Database = {
           body: string
           channel_id: string
           created_at?: string
+          files?: Json
           id?: string
           member_id: string
           thread_root_id?: string | null
@@ -1999,6 +2001,7 @@ export type Database = {
           body?: string
           channel_id?: string
           created_at?: string
+          files?: Json
           id?: string
           member_id?: string
           thread_root_id?: string | null

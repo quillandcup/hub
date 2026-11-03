@@ -189,6 +189,8 @@ export interface SidebarDraft {
   channelId: string;
   threadRootId: string | null;
   body: string;
+  /** Files attached to the draft. */
+  fileCount?: number;
 }
 
 /** The member's unsent messages, newest first (as the server lists them), each opening where it was written. Nothing when there are none. */
@@ -216,7 +218,9 @@ function DraftsSection({ drafts, channels, pathname }: { drafts: SidebarDraft[];
                   {label}
                   {d.threadRootId && <span className="text-slate-600 dark:text-slate-400"> · thread</span>}
                 </span>
-                <span className="block truncate text-xs text-slate-600 dark:text-slate-400">{mentionsToPlainText(d.body, { userNames: {}, channelNames: {} })}</span>
+                <span className="block truncate text-xs text-slate-600 dark:text-slate-400">
+                  {[mentionsToPlainText(d.body, { userNames: {}, channelNames: {} }), d.fileCount ? `${d.fileCount === 1 ? "1 file" : `${d.fileCount} files`}` : ""].filter(Boolean).join(" · ")}
+                </span>
               </Link>
             </li>
           );

@@ -8,7 +8,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(8);
+SELECT plan(11);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000e1a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'drafts-alice@example.test'),
@@ -26,6 +26,9 @@ INSERT INTO public.members (id, name, email, joined_at, status, user_id) VALUES
 
 INSERT INTO public.chat_channels (id, kind, visibility, bridge_mode, name) VALUES
   ('chn_AAAAAAAAe1C1', 'channel', 'public', 'app_only', 'drafts-test');
+INSERT INTO public.chat_channels (id, kind, visibility, bridge_mode, name) VALUES
+  ('chn_AAAAAAAAe1C2', 'channel', 'public', 'app_only', 'drafts-test-2'),
+  ('chn_AAAAAAAAe1C3', 'channel', 'public', 'app_only', 'drafts-test-3');
 INSERT INTO public.chat_messages (id, channel_id, origin, created_at) VALUES
   ('msg_AAAAAAAAe1M1', 'chn_AAAAAAAAe1C1', 'app', now());
 
@@ -54,6 +57,23 @@ EXCEPTION WHEN unique_violation THEN
   INSERT INTO result VALUES ('second_thread_draft', 'true'::jsonb);
 END $$;
 
+-- A draft may be files only, but not empty, and not more than ten files or a non-list.
+INSERT INTO public.chat_drafts (member_id, channel_id, body, files) VALUES
+  ('mbr_AAAAAAAAe1A1', 'chn_AAAAAAAAe1C2', ' ', '[{"path": "staging/x/y", "name": "y", "mimetype": "text/plain", "size": 1}]');
+INSERT INTO result VALUES ('files_only_draft', 'true'::jsonb);
+DO $$ BEGIN
+  INSERT INTO public.chat_drafts (member_id, channel_id, body, files) VALUES ('mbr_AAAAAAAAe1A1', 'chn_AAAAAAAAe1C3', '  ', '[]');
+  INSERT INTO result VALUES ('empty_draft', 'false'::jsonb);
+EXCEPTION WHEN check_violation THEN
+  INSERT INTO result VALUES ('empty_draft', 'true'::jsonb);
+END $$;
+DO $$ BEGIN
+  INSERT INTO public.chat_drafts (member_id, channel_id, body, files) VALUES ('mbr_AAAAAAAAe1A1', 'chn_AAAAAAAAe1C3', 'x', '{"not": "a list"}');
+  INSERT INTO result VALUES ('files_not_a_list', 'false'::jsonb);
+EXCEPTION WHEN check_violation THEN
+  INSERT INTO result VALUES ('files_not_a_list', 'true'::jsonb);
+END $$;
+
 -- Bob sees none of Alice's, can't change or delete them, and can't save one as her.
 SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000e1a2", "email": "drafts-bob@example.test", "role": "authenticated"}', true);
 INSERT INTO result SELECT 'bob_sees', to_jsonb(count(*)) FROM public.chat_drafts;
@@ -74,6 +94,9 @@ RESET ROLE;
 SELECT is((SELECT value FROM result WHERE label = 'alice_sees'), '2'::jsonb, 'the author sees her two drafts');
 SELECT is((SELECT value FROM result WHERE label = 'second_conversation_draft'), 'true'::jsonb, 'a second draft for the conversation is refused');
 SELECT is((SELECT value FROM result WHERE label = 'second_thread_draft'), 'true'::jsonb, 'a second draft for the thread is refused');
+SELECT is((SELECT value FROM result WHERE label = 'files_only_draft'), 'true'::jsonb, 'a draft of files only is kept');
+SELECT is((SELECT value FROM result WHERE label = 'empty_draft'), 'true'::jsonb, 'a draft with no text and no files is refused');
+SELECT is((SELECT value FROM result WHERE label = 'files_not_a_list'), 'true'::jsonb, 'files must be a list');
 SELECT is((SELECT value FROM result WHERE label = 'bob_sees'), '0'::jsonb, 'another member sees none');
 SELECT is((SELECT value FROM result WHERE label = 'bob_updates'), '0'::jsonb, 'another member can''t change one');
 SELECT is((SELECT value FROM result WHERE label = 'bob_deletes'), '0'::jsonb, 'another member can''t delete one');
