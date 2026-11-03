@@ -390,6 +390,32 @@ describe("MessageBox: formatting", () => {
     expect(latest).toBe("• x <u>u</u>\n  • y\n    1. z");
   });
 
+  it("Backspace at the start of a list item brings it out one level, and out of the list from the first level, like Slack", async () => {
+    const box = await mount({ initial: "• a\n  • bb\n    • cc" });
+    const user = boxUser();
+    const startOf = async (text: string) => {
+      const node = [...box.querySelectorAll("p")].find((p) => p.textContent === text)!.firstChild as Text;
+      const range = document.createRange();
+      range.setStart(node, 0);
+      range.collapse(true);
+      box.focus();
+      window.getSelection()!.removeAllRanges();
+      window.getSelection()!.addRange(range);
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 10));
+      });
+    };
+    await startOf("cc");
+    await user.keyboard("{Backspace}");
+    expect(latest).toBe("• a\n  • bb\n  • cc");
+    await startOf("cc");
+    await user.keyboard("{Backspace}");
+    expect(latest).toBe("• a\n  • bb\n• cc");
+    await startOf("cc");
+    await user.keyboard("{Backspace}");
+    expect(latest).toBe("• a\n  • bb\ncc");
+  });
+
   it("marks each list with its depth (for the marker Slack uses at that level) and won't nest a sixth level", async () => {
     const five = "• 0\n  • 1\n    • 2\n      • 3\n        • 4\n        • 5";
     const box = await mount({ initial: five });
