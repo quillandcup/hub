@@ -31,6 +31,8 @@ vi.mock("@/lib/data/repos", async () => ({
   createRepos: () => repos.current,
 }));
 
+const { reportRefused } = vi.hoisted(() => ({ reportRefused: vi.fn() }));
+vi.mock("@/lib/chat/blocks-refused", () => ({ reportRefusedBlocks: (...args: unknown[]) => reportRefused(...args) }));
 const { sendFiles } = vi.hoisted(() => ({ sendFiles: vi.fn() }));
 vi.mock("@/lib/chat/slack-upload", () => ({ sendChatFilesToSlack: sendFiles }));
 
@@ -163,6 +165,7 @@ describe("sendChatMessageToSlack", () => {
 
   it("sends the message as plain text when Slack refuses the blocks, instead of failing it; other errors still fail it", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
+    reportRefused.mockClear();
     dataset.chatMessageContents![0].body = "• a\n• b";
     postMessage.mockRejectedValueOnce({ data: { error: "invalid_blocks" } });
     await expect(sendChatMessageToSlack(supabase as never, ID)).resolves.toBe("sent");
@@ -170,6 +173,9 @@ describe("sendChatMessageToSlack", () => {
     expect(postMessage.mock.calls[0][0]).toHaveProperty("blocks");
     expect(postMessage.mock.calls[1][0]).not.toHaveProperty("blocks");
     expect(postMessage.mock.calls[1][0].text).toBe("• a\n• b");
+    // We are told, with the message and Slack's error.
+    expect(reportRefused).toHaveBeenCalledTimes(1);
+    expect(reportRefused).toHaveBeenCalledWith(expect.anything(), "post", ID, { data: { error: "invalid_blocks" } });
 
     // A message with no blocks has nothing to fall back from.
     postMessage.mockReset();
@@ -178,6 +184,7 @@ describe("sendChatMessageToSlack", () => {
     postMessage.mockRejectedValueOnce({ data: { error: "invalid_blocks" } });
     await expect(sendChatMessageToSlack(supabase as never, ID)).resolves.toBe("failed");
     expect(postMessage).toHaveBeenCalledTimes(1);
+    expect(reportRefused).toHaveBeenCalledTimes(1);
   });
 
   it("sends no blocks for a message without an underline", async () => {

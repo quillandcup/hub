@@ -4,6 +4,7 @@ import { createRepos } from "@/lib/data/repos";
 import type { Db } from "@/lib/data/db";
 import { chatSlackWritesEnabled, escapeForSlack, hubMessageMetadata } from "@/lib/chat/slack-post";
 import { bodyToBlocks, isInvalidBlocks, needsBlocks, stripUnderline } from "@/lib/chat/rich-blocks";
+import { reportRefusedBlocks } from "@/lib/chat/blocks-refused";
 import { getSlackUserToken, isDeadTokenError } from "@/lib/slack-connect";
 
 /**
@@ -80,6 +81,7 @@ export async function updateChatMessageInSlack(
       // Slack refusing the blocks must not lose the edit: it goes as plain text instead.
       if (!withBlocks || !isInvalidBlocks(error)) throw error;
       console.error("updateChatMessageInSlack: Slack refused the blocks for message %s, sending the edit as text", opts.messageId);
+      await reportRefusedBlocks(createRepos(supabase as unknown as Db), "edit", opts.messageId, error);
       result = await update(false);
     }
     return result.ok ? { ok: true } : { ok: false, error: "Slack didn't take the edit. Try again in a moment." };

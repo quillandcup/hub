@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useFakeClock } from "@/tests/helpers/fake-clock";
 
+const { reportRefused } = vi.hoisted(() => ({ reportRefused: vi.fn() }));
+vi.mock("@/lib/chat/blocks-refused", () => ({ reportRefusedBlocks: (...args: unknown[]) => reportRefused(...args) }));
 const { uploadV2, filesInfo, tokensUsed } = vi.hoisted(() => ({ uploadV2: vi.fn(), filesInfo: vi.fn(), tokensUsed: [] as (string | undefined)[] }));
 vi.mock("@slack/web-api", () => ({
   WebClient: vi.fn(function (token?: string) {
@@ -103,6 +105,7 @@ describe("sendChatFilesToSlack", () => {
 
   it("sends a message with a list and files as blocks, and falls back to a plain comment (underline dropped) when Slack refuses them", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
+    reportRefused.mockClear();
     await sendChatFilesToSlack(ctx({ body: "• a\n• <u>b</u>" }));
     const [first] = uploadV2.mock.calls[0];
     expect(first).not.toHaveProperty("initial_comment");
@@ -114,6 +117,8 @@ describe("sendChatFilesToSlack", () => {
     expect(uploadV2).toHaveBeenCalledTimes(2);
     expect(uploadV2.mock.calls[1][0]).toMatchObject({ initial_comment: "• a\n• b" });
     expect(uploadV2.mock.calls[1][0]).not.toHaveProperty("blocks");
+    expect(reportRefused).toHaveBeenCalledTimes(1);
+    expect(reportRefused).toHaveBeenCalledWith(expect.anything(), "upload", "m1", { data: { error: "invalid_blocks" } });
   });
 
   it("sends files with no text as no comment and no blocks", async () => {
