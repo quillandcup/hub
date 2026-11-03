@@ -238,6 +238,37 @@ export function defineEventContract(name: string, setup: () => EventContractCont
         ]);
       });
 
+      it("records how an attendee got in, changing only the fields given", async () => {
+        const ids = await ctx.seed([{ key: "e", title: "Comped guests", startsAt: "2097-03-01T09:00:00Z" }]);
+        const ada = await ctx.member({ name: "Ada Example", displayName: null, email: "ada@example.com" });
+        const bo = await ctx.member({ name: "Bo Example", displayName: null, email: "bo@example.com" });
+        await ctx.attend(ids.e, ada, "2097-01-01T00:00:00Z");
+        await ctx.attend(ids.e, bo, "2097-01-02T00:00:00Z");
+        const ticketOf = async (memberId: string) => {
+          const a = (await ctx.repo().attendeesOf(ids.e)).find((x) => x.member_id === memberId)!;
+          return [a.ticket_source, a.ticket_note];
+        };
+
+        expect(await ticketOf(ada)).toEqual([null, null]);
+        expect(await ctx.repo().setAttendeeTicket(ids.e, ada, { source: "comped", note: "covered by staff" })).toBe(true);
+        expect(await ticketOf(ada)).toEqual(["comped", "covered by staff"]);
+        expect(await ticketOf(bo)).toEqual([null, null]);
+
+        await ctx.repo().setAttendeeTicket(ids.e, ada, { source: "gifted" });
+        expect(await ticketOf(ada)).toEqual(["gifted", "covered by staff"]);
+
+        await ctx.repo().setAttendeeTicket(ids.e, ada, { source: null, note: null });
+        expect(await ticketOf(ada)).toEqual([null, null]);
+      });
+
+      it("says so when the member is not an attendee of the event", async () => {
+        const ids = await ctx.seed([{ key: "e", title: "No guests", startsAt: "2097-03-01T09:00:00Z" }]);
+        const ada = await ctx.member({ name: "Ada Example", displayName: null, email: "ada@example.com" });
+
+        expect(await ctx.repo().setAttendeeTicket(ids.e, ada, { source: "comped" })).toBe(false);
+        expect(await ctx.repo().setAttendeeTicket(NONE, ada, { source: "comped" })).toBe(false);
+      });
+
       it("deleting an event takes its photos and attendees with it", async () => {
         const ids = await ctx.seed([{ key: "e", title: "Going away", startsAt: "2097-03-01T09:00:00Z" }]);
         const ada = await ctx.member({ name: "Ada Example", displayName: null, email: "ada@example.com" });

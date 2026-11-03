@@ -1,4 +1,5 @@
 import { ORG_TIMEZONE } from "@/lib/config";
+import type { TicketInput, TicketSource } from "@/lib/event-tickets";
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
 import type { Db, Insert, Row, Update } from "./db";
 import type { InMemoryDataset } from "./in-memory";
@@ -181,6 +182,8 @@ export interface EventRepository {
   photoPaths(eventId: string): Promise<string[]>;
   /** An event's attendees with the member's names, in the order they were added. */
   attendeesOf(eventId: string): Promise<EventAttendeeEntry[]>;
+  /** Records how an attendee got in; only the fields given change, null clears one. False when the member isn't an attendee of the event. */
+  setAttendeeTicket(eventId: string, memberId: string, ticket: TicketInput): Promise<boolean>;
   /** For each given calendar event that has an event, whether it is shown to members or hidden. Chunked. */
   visibilityByCalendarEvent(calendarEventIds: string[]): Promise<Map<string, "shown" | "hidden">>;
 }
@@ -306,6 +309,9 @@ export type EventWithPhotoCount = EventDetail & { photo_count: number };
 export interface EventAttendeeEntry {
   id: string;
   member_id: string;
+  /** How they got in; null when not recorded. */
+  ticket_source: TicketSource | null;
+  ticket_note: string | null;
   member: { name: string; display_name: string | null; email: string } | null;
 }
 
@@ -610,18 +616,32 @@ export class SupabaseEventRepository implements EventRepository {
   }
 
   async attendeesOf(eventId: string) {
-    type Embedded = { id: string; member_id: string; members: EventAttendeeEntry["member"] };
+    type Embedded = { id: string; member_id: string; ticket_source: string | null; ticket_note: string | null; members: EventAttendeeEntry["member"] };
     const rows = await fetchAllRows<Embedded>(
       (from, to) =>
         this.db
           .from("event_attendees")
-          .select("id, member_id, members(name, display_name, email)")
+          .select("id, member_id, ticket_source, ticket_note, members(name, display_name, email)")
           .eq("event_id", eventId)
           .order("created_at", { ascending: true })
           .order("id")
           .range(from, to)
     );
-    return rows.map((r) => ({ id: r.id, member_id: r.member_id, member: r.members }));
+    return rows.map((r) => ({ id: r.id, member_id: r.member_id, ticket_source: r.ticket_source as TicketSource | null, /* the column's CHECK allows only these */ ticket_note: r.ticket_note, member: r.members }));
+  }
+
+  async setAttendeeTicket(eventId: string, memberId: string, ticket: TicketInput) {
+    const { data, error } = await this.db
+      .from("event_attendees")
+      .update({
+        ...(ticket.source !== undefined && { ticket_source: ticket.source }),
+        ...(ticket.note !== undefined && { ticket_note: ticket.note }),
+      })
+      .eq("event_id", eventId)
+      .eq("member_id", memberId)
+      .select("id");
+    if (error) throw new Error(error.message);
+    return (data ?? []).length > 0;
   }
 
   async visibilityByCalendarEvent(calendarEventIds: string[]) {
@@ -886,12 +906,24 @@ export class InMemoryEventRepository implements EventRepository {
 
   async attendeesOf(eventId: string) {
     return this.data.eventAttendees
-      .flatMap((a) => (a.event_id === eventId && a.member_id ? [{ id: a.id ?? "", member_id: a.member_id, created_at: a.created_at ?? "" }] : []))
+      .flatMap((a) =>
+        a.event_id === eventId && a.member_id
+          ? [{ id: a.id ?? "", member_id: a.member_id, created_at: a.created_at ?? "", ticket_source: (a.ticket_source ?? null) as TicketSource | null, ticket_note: a.ticket_note ?? null }]
+          : []
+      )
       .sort((a, b) => (a.created_at !== b.created_at ? (a.created_at < b.created_at ? -1 : 1) : a.id < b.id ? -1 : 1))
       .map((a) => {
         const m = this.data.members.find((x) => x.id === a.member_id);
-        return { id: a.id, member_id: a.member_id, member: m ? { name: m.name, display_name: m.displayName ?? null, email: m.email ?? "" } : null };
+        return { id: a.id, member_id: a.member_id, ticket_source: a.ticket_source, ticket_note: a.ticket_note, member: m ? { name: m.name, display_name: m.displayName ?? null, email: m.email ?? "" } : null };
       });
+  }
+
+  async setAttendeeTicket(eventId: string, memberId: string, ticket: TicketInput) {
+    const row = this.data.eventAttendees.find((a) => a.event_id === eventId && a.member_id === memberId);
+    if (!row) return false;
+    if (ticket.source !== undefined) row.ticket_source = ticket.source;
+    if (ticket.note !== undefined) row.ticket_note = ticket.note;
+    return true;
   }
 
   async visibilityByCalendarEvent(calendarEventIds: string[]) {

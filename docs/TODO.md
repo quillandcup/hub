@@ -1027,6 +1027,18 @@ Two possible definitions:
 1. **First joiner** — member with the earliest `join_time` in `attendance` for a given PUP
 2. **Most frequent caller** — member who initiates the most PUPs (may need Zoom host data or a `called_by` field on prickles)
 
+### Retreat attendees: use the ticket source _(Needs Scheduling)_
+`event_attendees.ticket_source` (purchased, comped, gifted, donated) and `ticket_note` now record how an attendee got in; every existing row is still NULL. A comped or gifted ticket leaves no Kajabi purchase, which is how a summer 2026 attendee was missed and went without the badge.
+
+**Still open:**
+- Backfill the older retreats from the organizers' notes (comped, gifted and donated tickets for the 2024 and 2025 virtual retreats were missing from the roster when compared in prod). Do it by hand in the admin event page once the organizers confirm which retreat each ticket was for; no member names in a migration or script.
+- A roster check that lists Kajabi purchasers of a retreat who are not attendees, and attendees with no purchase and no ticket source, so a gap shows up before a member asks.
+- Show the source on the badge recipients page and in the member's admin profile if staff want it there.
+
+**Why deferred:** the column and the admin controls were the part that stops the problem recurring; the backfill needs answers from the people who ran the retreats.
+
+---
+
 ### Awards & Competition Tracking
 Track external competitions (awards, contests, anthologies, showcases) that members submit their writing projects to. Members currently share these informally in the `#hedgie-classifieds` Slack channel; no structured tracking existed before Phase 1 below.
 

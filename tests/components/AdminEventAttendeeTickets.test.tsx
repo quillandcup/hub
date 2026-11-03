@@ -1,0 +1,135 @@
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import "@testing-library/jest-dom/vitest";
+
+vi.mock("next/link", () => ({
+  default: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>,
+}));
+vi.mock("@/components/MemberSearch", () => ({
+  default: ({ onSelect }: { onSelect: (m: { id: string; name: string; email: string }) => void }) => (
+    <button type="button" onClick={() => onSelect({ id: "mbr_AAAAAAAAAAA2", name: "Bo Example", email: "bo@example.com" })}>
+      pick member
+    </button>
+  ),
+}));
+
+import EventDetailClient from "@/app/(admin)/admin/events/[slug]/EventDetailClient";
+
+const EVENT = {
+  id: "evt_AAAAAAAAAAA1",
+  slug: "summer-retreat",
+  title: "Summer Retreat",
+  event_type: "virtual_retreat",
+  location: null,
+  starts_at: "2097-05-01",
+  ends_at: "2097-05-01",
+  focus: null,
+  description: null,
+  agenda: null,
+  results: null,
+  google_photos_album_url: null,
+  announced_publicly: false,
+  guests_allowed: false,
+  registration: "none",
+  capacity: null,
+  selection: "first_come",
+  speakers: null,
+  host_name: null,
+  start_time: "2097-05-01T04:00:00Z",
+  end_time: "2097-05-02T04:00:00Z",
+  deleted_at: null,
+};
+
+const ADA = {
+  id: "a1",
+  memberId: "mbr_AAAAAAAAAAA1",
+  memberName: "Ada Example",
+  memberEmail: "ada@example.com",
+  ticketSource: "comped",
+  ticketNote: "covered by staff",
+};
+
+let writes: { url: string; method: string; body: unknown }[];
+
+beforeEach(() => {
+  writes = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method) writes.push({ url, method: init.method, body: init.body ? JSON.parse(String(init.body)) : undefined });
+      if (url === "/api/members") return { ok: true, json: async () => ({ members: [] }) } as Response;
+      return {
+        ok: true,
+        json: async () => ({ event: EVENT, prickleId: "prkl_AAAAAAAAAAA1", hubSession: false, photos: [], badgeType: null, attendees: [ADA] }),
+      } as Response;
+    }),
+  );
+});
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
+
+describe("how an attendee got in", () => {
+  it("shows each attendee's ticket source and note", async () => {
+    render(<EventDetailClient eventId={EVENT.id} />);
+
+    expect(await screen.findByLabelText("How Ada Example got in")).toHaveValue("comped");
+    expect(screen.getByText("covered by staff")).toBeInTheDocument();
+  });
+
+  it("changes the source of an attendee without touching the note", async () => {
+    render(<EventDetailClient eventId={EVENT.id} />);
+
+    await userEvent.selectOptions(await screen.findByLabelText("How Ada Example got in"), "gifted");
+
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]).toEqual({ url: `/api/admin/events/${EVENT.id}/attendees/${ADA.memberId}`, method: "PATCH", body: { ticketSource: "gifted" } });
+  });
+
+  it("clears the source when set back to not recorded", async () => {
+    render(<EventDetailClient eventId={EVENT.id} />);
+
+    await userEvent.selectOptions(await screen.findByLabelText("How Ada Example got in"), "");
+
+    await waitFor(() => expect(writes[0]?.body).toEqual({ ticketSource: null }));
+  });
+
+  it("sends the ticket with a new attendee", async () => {
+    render(<EventDetailClient eventId={EVENT.id} />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "pick member" }));
+    await userEvent.selectOptions(screen.getByLabelText("How they got in"), "donated");
+    await userEvent.type(screen.getByLabelText("Ticket note"), "from the pool");
+    await userEvent.click(screen.getByRole("button", { name: "Add attendee" }));
+
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]).toEqual({
+      url: `/api/admin/events/${EVENT.id}/attendees`,
+      method: "POST",
+      body: { memberId: "mbr_AAAAAAAAAAA2", ticketSource: "donated", ticketNote: "from the pool" },
+    });
+  });
+
+  it("adds an attendee with no ticket fields when none were chosen", async () => {
+    render(<EventDetailClient eventId={EVENT.id} />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "pick member" }));
+    await userEvent.click(screen.getByRole("button", { name: "Add attendee" }));
+
+    await waitFor(() => expect(writes[0]?.body).toEqual({ memberId: "mbr_AAAAAAAAAAA2" }));
+  });
+
+  it("shows the error when updating the ticket fails", async () => {
+    render(<EventDetailClient eventId={EVENT.id} />);
+    const select = await screen.findByLabelText("How Ada Example got in");
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, json: async () => ({ error: "Not an attendee of this event" }) }) as Response));
+
+    await userEvent.selectOptions(select, "donated");
+
+    expect(await screen.findByText("Not an attendee of this event")).toBeInTheDocument();
+  });
+});

@@ -56,6 +56,8 @@ export async function GET(
   const attendeeRows = attendees.map((a) => ({
     id: a.id,
     memberId: a.member_id,
+    ticketSource: a.ticket_source,
+    ticketNote: a.ticket_note,
     memberName: a.member ? getMemberDisplayName(a.member) : "Unknown",
     memberRealName: a.member && getMemberDisplayName(a.member) !== a.member.name ? a.member.name : undefined,
     memberEmail: a.member?.email ?? "",

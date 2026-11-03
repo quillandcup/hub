@@ -5,6 +5,7 @@ import Link from "next/link";
 import { track } from "@/lib/analytics/client";
 import PhotoLightbox from "@/components/PhotoLightbox";
 import MemberSearch from "@/components/MemberSearch";
+import { TICKET_NOTE_MAX_LENGTH, TICKET_SOURCES, TICKET_SOURCE_LABELS, isTicketSource, type TicketSource } from "@/lib/event-tickets";
 import EventDetailsCard, { type EventData, type EventForm, type EventOverrides } from "./EventDetailsCard";
 
 interface Photo {
@@ -27,6 +28,8 @@ interface Attendee {
   memberName: string;
   memberRealName?: string;
   memberEmail: string;
+  ticketSource: TicketSource | null;
+  ticketNote: string | null;
 }
 
 interface BadgeTypeLink {
@@ -58,6 +61,8 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
   const [addingMember, setAddingMember] = useState<Member | null>(null);
   const [addingAttendee, setAddingAttendee] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [addingTicketSource, setAddingTicketSource] = useState<TicketSource | "">("");
+  const [addingTicketNote, setAddingTicketNote] = useState("");
 
   useEffect(() => {
     fetch("/api/members")
@@ -100,16 +105,40 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
       const response = await fetch(`/api/admin/events/${eventId}/attendees`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ memberId: addingMember.id }),
+        body: JSON.stringify({
+          memberId: addingMember.id,
+          ...(addingTicketSource && { ticketSource: addingTicketSource }),
+          ...(addingTicketNote.trim() && { ticketNote: addingTicketNote }),
+        }),
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Failed to add attendee");
       setAddingMember(null);
+      setAddingTicketSource("");
+      setAddingTicketNote("");
       await fetchData();
     } catch (err: any) {
       setError(err.message);
     } finally {
       setAddingAttendee(false);
+    }
+  };
+
+  const handleTicketSource = async (memberId: string, value: string) => {
+    setError(null);
+    try {
+      const response = await fetch(`/api/admin/events/${eventId}/attendees/${memberId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticketSource: isTicketSource(value) ? value : null }),
+      });
+      if (!response.ok) {
+        const body = await response.json();
+        throw new Error(body.error || "Failed to update the ticket");
+      }
+      await fetchData();
+    } catch (err: any) {
+      setError(err.message);
     }
   };
 
@@ -237,8 +266,8 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
           </p>
         )}
 
-        <form onSubmit={handleAddAttendee} className="flex items-start gap-2 mb-4">
-          <div className="flex-1 max-w-sm">
+        <form onSubmit={handleAddAttendee} className="flex flex-wrap items-start gap-2 mb-4">
+          <div className="flex-1 min-w-[16rem] max-w-sm">
             <MemberSearch
               members={allMembers}
               selectedMemberId={addingMember?.id ?? null}
@@ -246,6 +275,28 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
               placeholder="Search by name or email..."
             />
           </div>
+          <select
+            aria-label="How they got in"
+            value={addingTicketSource}
+            onChange={(e) => setAddingTicketSource(e.target.value as TicketSource | "")}
+            className="px-2 py-1.5 border border-gray-300 dark:border-slate-700 rounded text-sm bg-white dark:bg-slate-900"
+          >
+            <option value="">Ticket: not recorded</option>
+            {TICKET_SOURCES.map((source) => (
+              <option key={source} value={source}>
+                {TICKET_SOURCE_LABELS[source]}
+              </option>
+            ))}
+          </select>
+          <input
+            type="text"
+            aria-label="Ticket note"
+            value={addingTicketNote}
+            onChange={(e) => setAddingTicketNote(e.target.value)}
+            maxLength={TICKET_NOTE_MAX_LENGTH}
+            placeholder="Note (who gifted it, why comped)"
+            className="px-2 py-1.5 border border-gray-300 dark:border-slate-700 rounded text-sm bg-white dark:bg-slate-900 w-64"
+          />
           <button
             type="submit"
             disabled={addingAttendee || !addingMember}
@@ -271,7 +322,24 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                   {attendee.memberRealName && (
                     <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">{attendee.memberRealName}</span>
                   )}
+                  {attendee.ticketNote && (
+                    <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">{attendee.ticketNote}</span>
+                  )}
                 </span>
+                <span className="flex items-center gap-3">
+                <select
+                  aria-label={`How ${attendee.memberName} got in`}
+                  value={attendee.ticketSource ?? ""}
+                  onChange={(e) => handleTicketSource(attendee.memberId, e.target.value)}
+                  className="px-1 py-0.5 border border-gray-300 dark:border-slate-700 rounded text-xs bg-white dark:bg-slate-900"
+                >
+                  <option value="">Not recorded</option>
+                  {TICKET_SOURCES.map((source) => (
+                    <option key={source} value={source}>
+                      {TICKET_SOURCE_LABELS[source]}
+                    </option>
+                  ))}
+                </select>
                 <button
                   onClick={() => handleRemoveAttendee(attendee.memberId)}
                   disabled={removingId === attendee.memberId}
@@ -279,6 +347,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                 >
                   {removingId === attendee.memberId ? "Removing..." : "Remove"}
                 </button>
+                </span>
               </li>
             ))}
           </ul>
