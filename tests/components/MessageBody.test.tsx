@@ -153,6 +153,49 @@ describe("MessageBody", () => {
     await waitFor(() => expect(editChatMessage).toHaveBeenCalledWith("m1", "a < b & <@U1> <@U2>"));
   });
 
+  it("shows a quote in the edit box as a quote and saves it back as one, for a message written in Slack or the Hub", async () => {
+    vi.mocked(editChatMessage).mockResolvedValue({ ok: true });
+    for (const [fromHub, body, saved] of [
+      [false, "&gt; Test - can only send in slack", "> Test - can only send in slack and a &amp; b"],
+      [true, "&gt; Test - can only send in slack", "> Test - can only send in slack and a & b"],
+      [true, "> Test - can only send in slack", "> Test - can only send in slack and a & b"],
+    ] as const) {
+      cleanup();
+      vi.mocked(editChatMessage).mockClear();
+      mount({ ...mine({ fromHub }), body });
+      fire("edit");
+      const box = await messageBox("Edit message");
+      expect(box.querySelector("blockquote")).not.toBeNull();
+      expect(box.textContent).toBe("Test - can only send in slack");
+      await typeInto(box, " and a & b{Enter}");
+      await waitFor(() => expect(editChatMessage).toHaveBeenCalledWith("m1", saved));
+    }
+  });
+
+  it("doesn't take files pasted or dropped on the edit box, and says why, keeping the typed text", async () => {
+    mount();
+    fire("edit");
+    const box = await messageBox("Edit message");
+    await typeInto(box, " more");
+    const file = new File(["x"], "a.png", { type: "image/png" });
+    const paste = new Event("paste", { bubbles: true, cancelable: true }) as Event & { clipboardData?: unknown };
+    paste.clipboardData = { files: [file], getData: () => "", types: ["Files"] };
+    act(() => void box.dispatchEvent(paste));
+    expect(paste.defaultPrevented).toBe(true);
+    expect(await screen.findByText("Files can't be added while editing. Send them in a new message.")).toBeInTheDocument();
+    expect(box.textContent).toBe("first draft more");
+
+    cleanup();
+    mount();
+    fire("edit");
+    const box2 = await messageBox("Edit message");
+    const drop = new Event("drop", { bubbles: true, cancelable: true }) as Event & { dataTransfer?: unknown };
+    drop.dataTransfer = { types: ["Files"], files: [file] };
+    act(() => void box2.dispatchEvent(drop));
+    expect(drop.defaultPrevented).toBe(true);
+    expect(screen.getByText(/Files can't be added while editing/)).toBeInTheDocument();
+  });
+
   it("falls back to a page refresh when no live conversation is open", async () => {
     vi.mocked(editChatMessage).mockResolvedValue({ ok: true });
     mount();

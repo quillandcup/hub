@@ -284,12 +284,15 @@ export function toEditableText(
     if (/^(https?:|mailto:)/i.test(target)) return shown(label ?? decodeEntities(target), whole);
     return shown(whole, whole);
   });
-  return { text: opts.plain ? text : decodeEntities(text), tokens };
+  // Even in a Hub message, a line that starts with `&gt; ` is a quote (it is drawn as one), so the box shows it as one.
+  return { text: opts.plain ? text.replace(/^&gt;(?= |$)/gm, ">") : decodeEntities(text), tokens };
 }
 
 /** The reverse of `toEditableText`: escape what was typed for Slack (not for `plain`), then put each shown name back as its markup. */
 export function fromEditableText(typed: string, tokens: Map<string, string>, opts: { plain?: boolean } = {}): string {
-  const escape = (s: string) => (opts.plain ? s : s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"));
+  // A `>` that starts a line is a quote and Slack reads it only unescaped (`&gt; ` there is a literal ">"), as in `escapeForSlack`.
+  const escape = (s: string) =>
+    opts.plain ? s : s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, (_m, at: number, all: string) => (at === 0 || all[at - 1] === "\n" ? ">" : "&gt;"));
   let out = escape(typed);
   // Longest first, so "@Sam Lee" isn't half-replaced by "@Sam".
   for (const [shown, token] of [...tokens].sort((a, b) => b[0].length - a[0].length)) {
