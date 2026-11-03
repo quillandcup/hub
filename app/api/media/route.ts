@@ -4,6 +4,8 @@ import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { MEDIA_BUCKET, storeImage, titleFromFileName } from "@/lib/media/library";
 import { normalizeTags } from "@/lib/data/media";
+import { withAction } from "@/lib/analytics/server";
+import { responseOutcome } from "@/lib/analytics/outcome";
 
 /** Staff browse the shared library: `?q=` (title or tag), `?tag=`, `?limit=`, `?offset=`. */
 export async function GET(request: NextRequest) {
@@ -34,7 +36,7 @@ export async function GET(request: NextRequest) {
  * after uploading it to the signed URL from `POST /api/media/uploads`. The same bytes twice answer 200 with
  * the existing asset; a new one is 201.
  */
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   const auth = await requireAdmin(request);
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -78,4 +80,9 @@ export async function POST(request: NextRequest) {
     console.error("Error storing media:", error);
     return NextResponse.json({ error: "Upload failed, try again" }, { status: 500 });
   }
+}
+
+// Usage analytics: each action records whether it worked (lib/analytics/server.ts).
+export async function POST(...args: Parameters<typeof handlePost>): Promise<Response> {
+  return withAction("media_asset_uploaded", async () => (await handlePost(...args)) as Response, responseOutcome);
 }

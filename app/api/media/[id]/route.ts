@@ -4,6 +4,8 @@ import { requireAdmin } from "@/lib/supabase/api-auth";
 import { isId } from "@/lib/ids";
 import { parseLookEdit } from "@/lib/media/edit";
 import type { MediaAssetEdit } from "@/lib/data/media";
+import { withAction } from "@/lib/analytics/server";
+import { responseOutcome } from "@/lib/analytics/outcome";
 
 /** Staff read one asset (a deleted one too) and where it is used. */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -24,7 +26,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 /** Staff change an asset's title, alt text, tags, focal point, public flag or how a preset fits it. */
-export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+async function handlePatch(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAdmin(request);
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -63,7 +65,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 }
 
 /** Staff remove an asset from the library, unless something still shows it (409, with the list). The files stay until they are swept (docs/TODO.md). */
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+async function handleDelete(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAdmin(request);
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -81,4 +83,13 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     console.error("Error removing media:", error);
     return NextResponse.json({ error: "Failed to remove" }, { status: 500 });
   }
+}
+
+// Usage analytics: each action records whether it worked (lib/analytics/server.ts).
+export async function PATCH(...args: Parameters<typeof handlePatch>): Promise<Response> {
+  return withAction("media_asset_edited", async () => (await handlePatch(...args)) as Response, responseOutcome);
+}
+
+export async function DELETE(...args: Parameters<typeof handleDelete>): Promise<Response> {
+  return withAction("media_asset_deleted", async () => (await handleDelete(...args)) as Response, responseOutcome);
 }

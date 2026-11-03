@@ -105,7 +105,10 @@ export default function MessageBody({
     let uploads: StagedUpload[] = [];
     if (added.length > 0) {
       const uploaded = await uploadStagedFiles(added, new AbortController().signal);
-      if (!uploaded.ok) return failed(uploaded.error);
+      if (!uploaded.ok) {
+        track("chat_upload_failed", { where: "edit", stage: "upload", count: added.length });
+        return failed(uploaded.error);
+      }
       uploads = uploaded.uploads;
     }
     track("chat_message_composed", {

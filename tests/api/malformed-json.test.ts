@@ -25,9 +25,11 @@ function guardedHandlers(): Array<{ url: string; method: string }> {
   for (const file of routeFiles(API_DIR)) {
     const source = readFileSync(file, 'utf8')
     const url = '/api/' + path.relative(API_DIR, path.dirname(file)).split(path.sep).map((s) => (s.startsWith('[') ? DUMMY_ID : s)).join('/')
-    const parts = source.split(/^export (?:async )?function /m).slice(1)
+    // Every top-level function, exported or not: a handler wrapped for its outcome (lib/analytics/outcome.ts) is a
+    // private `handlePost` behind an exported `POST`, and the body that answers 400 is in the private one.
+    const parts = source.split(/^(?:export )?(?:async )?function /m).slice(1)
     for (const part of parts) {
-      const method = /^(GET|POST|PUT|PATCH|DELETE)\b/.exec(part)?.[1]
+      const method = /^(GET|POST|PUT|PATCH|DELETE)\b/.exec(part)?.[1] ?? /^handle(Get|Post|Put|Patch|Delete)\b/.exec(part)?.[1]?.toUpperCase()
       if (method && part.includes('Invalid JSON body')) found.push({ url, method })
     }
   }

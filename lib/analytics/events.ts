@@ -134,6 +134,9 @@ export const EVENTS = {
     via: oneOf("toolbar", "shortcut"),
   },
 
+  /** Files for a chat message could not be uploaded (components/chat/Composer.tsx, MessageBody.tsx): `stage` is asking for the upload links (`prepare`: the server refused, or the request failed) or sending the files to storage (`upload`); `count` how many files. Cancelling is `chat_upload_cancelled`, not this. */
+  chat_upload_failed: { where: oneOf("message", "edit"), stage: oneOf("prepare", "upload"), count: int() },
+
   /**
    * A message was sent or an edit saved (components/chat/Composer.tsx, MessageBody.tsx): what it contains, as flags and counts, never
    * its text (lib/chat/message-features.ts). `where` is a new message, a thread reply or an edit; `files` the files sent or added and

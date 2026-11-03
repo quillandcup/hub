@@ -121,6 +121,16 @@ export const OUTCOME_ACTIONS = [
   "push_resumed",
   "push_device_removed",
   "instagram_handle_saved",
+  // Routes: submissions, uploads and imports
+  "feedback_submitted",
+  "feature_preview_changed",
+  "trackbear_imported",
+  "book_cover_uploaded",
+  "book_cover_edited",
+  "media_asset_uploaded",
+  "media_asset_edited",
+  "media_asset_deleted",
+  "media_asset_copied_from_event",
   "big_sister_note_saved",
 ] as const;
 

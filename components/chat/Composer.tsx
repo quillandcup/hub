@@ -159,6 +159,7 @@ export default function Composer({
     const prepared = await prepareChatUploads(list.map((f) => ({ name: f.name || "file", size: f.size }))).catch(() => null);
     if (controller.signal.aborted) return null;
     if (!prepared?.ok) {
+      track("chat_upload_failed", { where: "message", stage: "prepare", count: list.length });
       setError(prepared?.error ?? "Couldn't start the upload. Try again.");
       return null;
     }
@@ -182,7 +183,10 @@ export default function Composer({
       controller.signal,
     );
     if (!outcome.ok) {
-      if (!outcome.aborted && outcome.error !== "aborted") setError(`Couldn't upload ${list[outcome.index].name}. Try again.`);
+      if (!outcome.aborted && outcome.error !== "aborted") {
+        track("chat_upload_failed", { where: "message", stage: "upload", count: list.length });
+        setError(`Couldn't upload ${list[outcome.index].name}. Try again.`);
+      }
       return null;
     }
     return outcome.results;

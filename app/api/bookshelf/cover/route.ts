@@ -6,6 +6,8 @@ import { getEffectiveIdentity } from "@/lib/sudo";
 import { createRepos } from "@/lib/data/repos";
 import { BOOK_COVER_MAX_BYTES, bookCoverUrlFor } from "@/lib/bookCover";
 import { storeImage, titleFromFileName } from "@/lib/media/library";
+import { withAction } from "@/lib/analytics/server";
+import { responseOutcome } from "@/lib/analytics/outcome";
 
 /** A member's own images, newest first, for choosing a cover again: `?q=` (title or tag), `?limit=`, `?offset=`. */
 export async function GET(request: NextRequest) {
@@ -29,7 +31,7 @@ export async function GET(request: NextRequest) {
  * The Bookshelf size and the Amazon ebook cover are made from it when asked for. Answers the URL the cover
  * is shown at, the asset (for the Amazon download) and its size.
  */
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   const supabase = await createClient();
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
@@ -67,4 +69,9 @@ export async function POST(request: NextRequest) {
     console.error("Book cover upload failed:", error);
     return NextResponse.json({ error: "Upload failed, try again" }, { status: 500 });
   }
+}
+
+// Usage analytics: each action records whether it worked (lib/analytics/server.ts).
+export async function POST(...args: Parameters<typeof handlePost>): Promise<Response> {
+  return withAction("book_cover_uploaded", async () => (await handlePost(...args)) as Response, responseOutcome);
 }

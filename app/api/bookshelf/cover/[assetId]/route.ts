@@ -5,6 +5,8 @@ import { isId } from "@/lib/ids";
 import { parseLookEdit } from "@/lib/media/edit";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { createClient } from "@/lib/supabase/server";
+import { withAction } from "@/lib/analytics/server";
+import { responseOutcome } from "@/lib/analytics/outcome";
 
 /** The member and their own image, or the response to give instead. Someone else's image is a plain 404. */
 async function ownAsset(assetId: string) {
@@ -27,7 +29,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 }
 
 /** A member changes how their own cover is framed: its focal point and how a picture of another shape fits. Nothing else about it. */
-export async function PATCH(request: NextRequest, { params }: { params: Promise<{ assetId: string }> }) {
+async function handlePatch(request: NextRequest, { params }: { params: Promise<{ assetId: string }> }) {
   const body = await request.json().catch(() => undefined);
   if (body === undefined || typeof body !== "object" || body === null) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   const found = await ownAsset((await params).assetId);
@@ -41,4 +43,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     console.error("Error editing a member's cover:", error);
     return NextResponse.json({ error: "Failed to save" }, { status: 500 });
   }
+}
+
+// Usage analytics: each action records whether it worked (lib/analytics/server.ts).
+export async function PATCH(...args: Parameters<typeof handlePatch>): Promise<Response> {
+  return withAction("book_cover_edited", async () => (await handlePatch(...args)) as Response, responseOutcome);
 }

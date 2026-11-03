@@ -3,6 +3,8 @@ import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { storeImage } from "@/lib/media/library";
+import { withAction } from "@/lib/analytics/server";
+import { responseOutcome } from "@/lib/analytics/outcome";
 
 /**
  * Staff use a photo from an event's gallery (the `event-photos` bucket, imported from Google Photos) as an image
@@ -10,7 +12,7 @@ import { storeImage } from "@/lib/media/library";
  * untouched, and the copy is remembered by its source (`event_photo`, `<event id>/<photo id>`): asking again
  * answers 200 with the same asset, a new one is 201.
  */
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   const auth = await requireAdmin(request);
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -49,4 +51,9 @@ export async function POST(request: NextRequest) {
     console.error("Error copying an event photo into the library:", error);
     return NextResponse.json({ error: "Couldn't use that photo, try again" }, { status: 500 });
   }
+}
+
+// Usage analytics: each action records whether it worked (lib/analytics/server.ts).
+export async function POST(...args: Parameters<typeof handlePost>): Promise<Response> {
+  return withAction("media_asset_copied_from_event", async () => (await handlePost(...args)) as Response, responseOutcome);
 }

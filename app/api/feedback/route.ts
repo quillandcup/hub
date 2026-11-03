@@ -4,9 +4,12 @@ import { WebClient } from "@slack/web-api";
 import { createClient } from "@/lib/supabase/server";
 import { createRepos } from "@/lib/data/repos";
 import { getCurrentUser } from "@/lib/auth";
+import { clock } from "@/lib/clock";
 import { getEffectiveIdentity, type EffectiveIdentity } from "@/lib/sudo";
 import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from "@/lib/with-timeout";
 import { getSlackBotToken } from "@/lib/slack-bot-token";
+import { withAction } from "@/lib/analytics/server";
+import { responseOutcome } from "@/lib/analytics/outcome";
 
 const FEEDBACK_TYPES = ["bug", "data", "idea"] as const;
 type FeedbackType = (typeof FEEDBACK_TYPES)[number];
@@ -17,7 +20,7 @@ const TYPE_LABELS: Record<FeedbackType, string> = {
   idea: "💡 Idea",
 };
 
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   const supabase = await createClient();
   let user;
   try {
@@ -83,6 +86,29 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Failed to save feedback" }, { status: 500 });
   }
 
+  // On the member's timeline (their Activity Log), so staff reading feedback can see what they did just before it.
+  // Best effort, like the other activity signals: it never fails a submission that was already saved. Only the
+  // type and the feedback's id are kept here; the message is in the feedback itself.
+  if (effectiveIdentity?.memberId) {
+    try {
+      await createRepos(supabase).activities.record({
+        memberId: effectiveIdentity.memberId,
+        type: "feedback_submitted",
+        category: "communication",
+        title: `Sent feedback: ${TYPE_LABELS[feedbackType as FeedbackType].replace(/^\S+ /, "").toLowerCase()}`,
+        relatedId: row.id,
+        engagementValue: 0,
+        occurredAt: new Date(clock.now()).toISOString(),
+        source: "feedback",
+        actorKind: effectiveIdentity.isSudo ? "staff" : "member",
+        actorUserId: effectiveIdentity.isSudo ? user.id : null,
+        data: { feedback_type: feedbackType },
+      });
+    } catch (activityError) {
+      console.error("Feedback activity not recorded:", activityError);
+    }
+  }
+
   // Runs after the response is sent, but keeps the function instance alive
   // until it settles — a plain unawaited call risks the instance freezing
   // mid-request on Vercel, silently dropping the Slack notification.
@@ -133,4 +159,9 @@ async function notifySlack(params: {
   } else {
     await slack.chat.postMessage({ channel, text: `${text}\n_(no screenshot captured)_`, unfurl_links: false, unfurl_media: false });
   }
+}
+
+// Usage analytics: each action records whether it worked (lib/analytics/server.ts).
+export async function POST(...args: Parameters<typeof handlePost>): Promise<Response> {
+  return withAction("feedback_submitted", async () => (await handlePost(...args)) as Response, responseOutcome);
 }
