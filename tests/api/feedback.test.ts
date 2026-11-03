@@ -131,4 +131,48 @@ describe('POST /api/feedback', () => {
     expect(insertedRow.member_id).toBe('member-1')
     expect(insertedRow.is_sudo).toBe(true)
   })
+
+  it('puts the submission on the member timeline, with the feedback type and id but not the message', async () => {
+    const supabase = makeSupabaseMock(
+      { id: 'u1', email: 'a@b.com' },
+      { data: { id: 'f3', user_id: 'u1' }, error: null }
+    )
+    vi.mocked(createClient).mockResolvedValue(supabase as any)
+    vi.mocked(getEffectiveIdentity).mockResolvedValue({ memberId: 'member-1', memberName: 'Alice', memberEmail: 'alice@x.com', isSudo: false })
+
+    const res = await POST(makeFormRequest({ message: 'my private words', feedback_type: 'idea', page_url: 'http://x/y' }))
+    expect(res.status).toBe(200)
+
+    const tableApi = supabase.from.mock.results[0].value
+    const activity = tableApi.insert.mock.calls.map((c: any[]) => c[0]).find((row: any) => row?.activity_type === 'feedback_submitted')
+    expect(activity).toMatchObject({ member_id: 'member-1', activity_type: 'feedback_submitted', source: 'feedback', related_id: 'f3', actor_kind: 'member' })
+    expect(activity.title).toBe('Sent feedback: idea')
+    expect(JSON.stringify(activity)).not.toContain('my private words')
+  })
+
+  it('records a sudo submission as staff acting for the member', async () => {
+    const supabase = makeSupabaseMock(
+      { id: 'admin-1', email: 'admin@x.com' },
+      { data: { id: 'f4', user_id: 'admin-1' }, error: null }
+    )
+    vi.mocked(createClient).mockResolvedValue(supabase as any)
+    vi.mocked(getEffectiveIdentity).mockResolvedValue({ memberId: 'member-1', memberName: 'Alice', memberEmail: 'alice@x.com', isSudo: true })
+
+    await POST(makeFormRequest({ message: 'typo', feedback_type: 'bug', page_url: 'http://x/y' }))
+
+    const tableApi = supabase.from.mock.results[0].value
+    const activity = tableApi.insert.mock.calls.map((c: any[]) => c[0]).find((row: any) => row?.activity_type === 'feedback_submitted')
+    expect(activity).toMatchObject({ actor_kind: 'staff', actor_user_id: 'admin-1' })
+  })
+
+  it('leaves no timeline entry for an admin without a member record, and still saves the feedback', async () => {
+    const supabase = makeSupabaseMock({ id: 'admin-2', email: 'admin2@x.com' }, { data: { id: 'f5', user_id: 'admin-2' }, error: null })
+    vi.mocked(createClient).mockResolvedValue(supabase as any)
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(null)
+
+    const res = await POST(makeFormRequest({ message: 'hi', feedback_type: 'idea', page_url: 'http://x/y' }))
+    expect(res.status).toBe(200)
+    const tableApi = supabase.from.mock.results[0].value
+    expect(tableApi.insert.mock.calls.some((c: any[]) => c[0]?.activity_type === 'feedback_submitted')).toBe(false)
+  })
 })

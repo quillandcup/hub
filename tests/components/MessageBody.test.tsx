@@ -276,6 +276,8 @@ describe("MessageBody", () => {
       await screen.findByRole("button", { name: "Preview a.png" });
       await userEvent.click(screen.getByRole("button", { name: "Save" }));
       expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't upload a.png");
+      const { track } = await import("@/lib/analytics/client");
+      expect(track).toHaveBeenCalledWith("chat_upload_failed", { where: "edit", stage: "upload", count: 1 });
       expect(editChatMessage).not.toHaveBeenCalled();
       expect(screen.getByRole("textbox", { name: "Edit message" })).toBeInTheDocument();
     });

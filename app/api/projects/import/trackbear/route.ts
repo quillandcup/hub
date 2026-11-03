@@ -8,6 +8,7 @@ import { createRepos } from "@/lib/data/repos";
 import { runTrackbearImport } from "@/lib/trackbear-import-runner";
 import { makeTrackbearCoverCopier } from "@/lib/trackbear-cover";
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import { withAction } from "@/lib/analytics/server";
 
 export const maxDuration = 300; // 5 minutes (max for Hobby tier)
 
@@ -20,7 +21,7 @@ const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
  * trackbear-progress-data.json inside it) into their writing projects. Safe to repeat: rows
  * already imported are skipped, so re-uploading a newer export brings over only what's new.
  */
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest, onCounts?: (counts: string) => void) {
   const supabase = await createClient();
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
@@ -51,6 +52,8 @@ export async function POST(request: NextRequest) {
       makeTrackbearCoverCopier(createRepos(supabase).media, createServiceRoleClient().storage)
     );
     console.log("TrackBear import:", effectiveIdentity.memberId, JSON.stringify(result.created));
+    // What came over, for the usage record: counts only.
+    onCounts?.(`p${result.created.projects} e${result.created.entries} g${result.created.goals}`);
 
     revalidatePath("/projects", "layout");
     revalidatePath("/dashboard");
@@ -66,4 +69,14 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+// Usage analytics: each action records whether it worked (lib/analytics/server.ts).
+export async function POST(request: NextRequest): Promise<Response> {
+  let counts: string | undefined;
+  return withAction(
+    "trackbear_imported",
+    async () => (await handlePost(request, (c) => (counts = c))) as Response,
+    (response) => (response.status < 400 ? { ok: true, detail: counts } : { ok: false, detail: String(response.status) })
+  );
 }

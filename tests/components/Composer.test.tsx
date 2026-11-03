@@ -336,6 +336,7 @@ describe("Composer attachments", () => {
     await attach(cat());
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't upload cat.gif");
+    expect(track).toHaveBeenCalledWith("chat_upload_failed", { where: "message", stage: "upload", count: 1 });
     expect(sendChatMessage).not.toHaveBeenCalled();
     expect(screen.getByRole("list", { name: "Attached files" })).toBeInTheDocument();
   });
@@ -346,6 +347,7 @@ describe("Composer attachments", () => {
     await attach(cat());
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Attach up to 10 files");
+    expect(track).toHaveBeenCalledWith("chat_upload_failed", { where: "message", stage: "prepare", count: 1 });
   });
 });
 
