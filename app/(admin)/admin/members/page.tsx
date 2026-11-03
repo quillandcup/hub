@@ -15,6 +15,7 @@ import {
 } from "@/lib/admin-members-paging";
 import { parsePageParam, parsePageSizeParam, parseSortParams } from "@/lib/pagination";
 import { requireStaffPage } from "@/lib/admin-auth";
+import { staffCan } from "@/lib/staff-access";
 
 export const metadata: Metadata = {
   title: "Member Analytics",
@@ -27,7 +28,7 @@ export default async function MembersPage({
 }: {
   searchParams: SearchParams;
 }) {
-  const readOnly = (await requireStaffPage()).role !== "admin";
+  const canBulkMerge = staffCan((await requireStaffPage()).role, "members.bulk_merge");
   const supabase = await createClient();
   const params = await searchParams;
 
@@ -84,7 +85,7 @@ export default async function MembersPage({
           </div>
 
           {/* Table */}
-          <PagedMembersTable members={members as MemberRow[]} total={total} page={page} pageSize={pageSize} readOnly={readOnly} />
+          <PagedMembersTable members={members as MemberRow[]} total={total} page={page} pageSize={pageSize} readOnly={!canBulkMerge} />
 
           {members.length === 0 && (
             <div className="p-12 text-center text-slate-600 dark:text-slate-400">

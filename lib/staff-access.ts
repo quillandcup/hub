@@ -11,6 +11,51 @@
  */
 export const COMMUNITY_MANAGER_ROLE = "community_manager";
 
+/**
+ * Controls and views inside the pages a community manager opens, each opt-in. An admin has every
+ * feature; a community manager has only those in `COMMUNITY_MANAGER_FEATURES`, which starts empty,
+ * so a new control is hidden from them until a feature is added there on purpose. UI only: the
+ * server (requireAdminAction, RLS) refuses what the role may not do whatever the page renders.
+ */
+export const STAFF_FEATURES = [
+  "member.sudo",
+  "member.merge",
+  "member.split",
+  "member.remove",
+  "member.notes_write",
+  "member.timeline_edit",
+  "member.badges_edit",
+  "member.identity_tab",
+  "member.activity_tab",
+  "member.billing_links",
+  "member.record_history",
+  "member.push_devices",
+  "member.status_overrides",
+  "member.alias_admin",
+  "members.bulk_merge",
+  "prickle.edit",
+  "prickle.show_in_events",
+  "prickle.test_dms",
+  "prickle.ignore_names",
+  "prickle.alias_form",
+  "prickle.insights_link",
+] as const;
+export type StaffFeature = (typeof STAFF_FEATURES)[number];
+
+/** What a community manager may see or do beyond reading the page. Add a feature here to grant it. */
+export const COMMUNITY_MANAGER_FEATURES: readonly StaffFeature[] = [];
+
+/** The features this role has: all for an admin, the list above for a community manager, none otherwise. */
+export function staffFeaturesFor(role: string | null | undefined): readonly StaffFeature[] {
+  if (role === "admin") return STAFF_FEATURES;
+  if (role === COMMUNITY_MANAGER_ROLE) return COMMUNITY_MANAGER_FEATURES;
+  return [];
+}
+
+export function staffCan(role: string | null | undefined, feature: StaffFeature): boolean {
+  return staffFeaturesFor(role).includes(feature);
+}
+
 /** Where a community manager lands when they open the admin area. */
 export const COMMUNITY_MANAGER_HOME = "/admin/at-risk";
 

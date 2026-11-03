@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COMMUNITY_MANAGER_HOME, COMMUNITY_MANAGER_ROLE, isCommunityManagerPath, mayOpenAdminPath } from "@/lib/staff-access";
+import { COMMUNITY_MANAGER_FEATURES, COMMUNITY_MANAGER_HOME, COMMUNITY_MANAGER_ROLE, STAFF_FEATURES, isCommunityManagerPath, mayOpenAdminPath, staffCan, staffFeaturesFor } from "@/lib/staff-access";
 import { SITE_PAGES } from "@/lib/site-pages";
 
 describe("isCommunityManagerPath", () => {
@@ -65,5 +65,21 @@ describe("the sidebar and the allowlist agree", () => {
 
   it("starts a community manager on a page they may open", () => {
     expect(isCommunityManagerPath(COMMUNITY_MANAGER_HOME)).toBe(true);
+  });
+});
+
+describe("staff features are opt-in", () => {
+  it("gives an admin every feature", () => {
+    expect(staffFeaturesFor("admin")).toEqual(STAFF_FEATURES);
+    expect(staffCan("admin", "member.sudo")).toBe(true);
+  });
+
+  it("gives a community manager only what is listed, which is nothing yet", () => {
+    expect(COMMUNITY_MANAGER_FEATURES).toEqual([]);
+    for (const feature of STAFF_FEATURES) expect(staffCan(COMMUNITY_MANAGER_ROLE, feature), feature).toBe(COMMUNITY_MANAGER_FEATURES.includes(feature));
+  });
+
+  it.each(["member", "assistant", null, undefined, ""])("gives the role %s nothing", (role) => {
+    expect(staffFeaturesFor(role)).toEqual([]);
   });
 });

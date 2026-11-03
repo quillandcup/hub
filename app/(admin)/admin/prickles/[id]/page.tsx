@@ -15,6 +15,7 @@ import { getScheduleSlot } from "@/lib/scheduled-prickle-stats";
 import { prickleTitle } from "@/lib/domain/prickle";
 import { computeHostStatus } from "@/lib/hosting-stats";
 import { requireStaffPage } from "@/lib/admin-auth";
+import { staffCan, type StaffFeature } from "@/lib/staff-access";
 import TestCheckinDMs from "./TestCheckinDMs";
 import ShowInEvents from "./ShowInEvents";
 import { updatePrickle } from "./actions";
@@ -51,8 +52,9 @@ export default async function AdminPrickleDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  // A community manager reads the prickle: none of the controls that change it or send DMs.
-  const readOnly = (await requireStaffPage()).role !== "admin";
+  // Every control is a staff feature a community manager has only if granted (lib/staff-access.ts).
+  const role = (await requireStaffPage()).role;
+  const can = (feature: StaffFeature) => staffCan(role, feature);
   const { id } = await params;
   const supabase = await createClient();
 
@@ -202,9 +204,9 @@ export default async function AdminPrickleDetailPage({
             userTimezonePreference={userTimezone}
             memberBasePath="/admin/members"
             showMemberEmails={true}
-            insightsSlotUrl={readOnly ? undefined : insightsSlotUrl}
+            insightsSlotUrl={can("prickle.insights_link") ? insightsSlotUrl : undefined}
             edit={
-              prickle.calendarEventId && !readOnly
+              prickle.calendarEventId && can("prickle.edit")
                 ? {
                     types: calendarTypes,
                     members: members.map((m) => ({ id: m.id, name: m.name, displayName: m.displayName, email: m.email })),
@@ -219,15 +221,15 @@ export default async function AdminPrickleDetailPage({
                 : undefined
             }
           />
-          {!readOnly && eventsEnabled && prickle.calendarEventId && (
+          {can("prickle.show_in_events") && eventsEnabled && prickle.calendarEventId && (
             <ShowInEvents
               calendarEventId={prickle.calendarEventId}
               initial={eventFollowing ? { id: eventFollowing.id, slug: eventFollowing.slug, hidden: eventFollowing.hidden } : null}
             />
           )}
-          {!readOnly && <TestCheckinDMs prickleId={prickle.id} />}
-          {!readOnly && <IgnoredZoomNames prickleId={prickle.id} items={ignoredHere} />}
-          {!readOnly && unmatchedZoomAttendees.length > 0 && (
+          {can("prickle.test_dms") && <TestCheckinDMs prickleId={prickle.id} />}
+          {can("prickle.ignore_names") && <IgnoredZoomNames prickleId={prickle.id} items={ignoredHere} />}
+          {can("prickle.alias_form") && unmatchedZoomAttendees.length > 0 && (
             <AliasSearchForm
               unmatchedAttendees={unmatchedZoomAttendees}
               allMembers={members}

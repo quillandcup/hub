@@ -2,6 +2,7 @@
 import type { ReactNode } from 'react'
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+import { STAFF_FEATURES } from '@/lib/staff-access'
 import MemberDetails, { type MemberView } from '@/app/(admin)/admin/members/[id]/MemberDetails'
 
 vi.mock('next/link', () => ({
@@ -21,6 +22,7 @@ function renderDetails(status: string, stats: Partial<MemberView> = { metrics: {
   render(
     <MemberDetails
       initialTab="overview"
+      features={STAFF_FEATURES}
       member={{
         id: 'mbr_1',
         name: 'Test Member',
