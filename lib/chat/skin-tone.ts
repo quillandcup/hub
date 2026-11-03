@@ -56,3 +56,48 @@ export function writeTone(tone: number | null): void {
     // A convenience only.
   }
 }
+
+/** The shape of a reaction chip (see ReactionSummary in load.ts, which this mirrors). */
+export interface ChipReaction {
+  emoji: string;
+  count: number;
+  mine: boolean;
+  reactors?: string[];
+}
+
+/** Reactions with the same emoji and different skin tones, shown as one chip like Slack's. */
+export interface ReactionGroup {
+  /** The emoji without a tone: the chip shows this. */
+  emoji: string;
+  /** Everyone who reacted with any tone. */
+  count: number;
+  mine: boolean;
+  /** Each tone actually used, for the hover card's "X reacted with :clap::skin-tone-3:". */
+  variants: ChipReaction[];
+  /** Pressing the chip: the viewer's own variant to take back, else the one to add. */
+  toggleWith: string;
+}
+
+/**
+ * One group per base emoji, in order of the biggest count. Pressing a group takes back the viewer's
+ * own variant when there is one; otherwise it adds the base emoji, or, when the emoji has tone
+ * variants in use, the viewer's chosen skin tone (`tone`, null for the default).
+ */
+export function groupReactions(reactions: ChipReaction[], tone: number | null): ReactionGroup[] {
+  const groups = new Map<string, ReactionGroup>();
+  for (const r of reactions) {
+    const base = baseName(r.emoji);
+    const g = groups.get(base) ?? { emoji: base, count: 0, mine: false, variants: [], toggleWith: base };
+    g.count += r.count;
+    g.variants.push(r);
+    if (r.mine && !g.mine) {
+      g.mine = true;
+      g.toggleWith = r.emoji;
+    }
+    groups.set(base, g);
+  }
+  for (const g of groups.values()) {
+    if (!g.mine && g.variants.some((v) => toneOf(v.emoji) !== null)) g.toggleWith = withTone(g.emoji, tone);
+  }
+  return [...groups.values()].sort((a, b) => b.count - a.count);
+}

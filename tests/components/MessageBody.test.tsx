@@ -43,9 +43,9 @@ describe("MessageBody", () => {
     mount();
     expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
     fire("delete", "other");
-    expect(screen.queryByText(/Delete this message\?/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Are you sure you want to delete this message\?/)).not.toBeInTheDocument();
     fire("delete");
-    expect(screen.getByText(/Delete this message\?/)).toBeInTheDocument();
+    expect(screen.getByText(/Are you sure you want to delete this message\?/)).toBeInTheDocument();
 
     for (const [message, canEdit] of [
       [mine({ mine: false }), true], // someone else's
@@ -180,8 +180,10 @@ describe("MessageBody", () => {
     vi.mocked(deleteChatMessage).mockResolvedValue({ ok: true });
     mount();
     fire("delete");
-    expect(screen.getByText(/Delete this message\?/)).toBeInTheDocument();
+    expect(screen.getByText(/Are you sure you want to delete this message\?/)).toBeInTheDocument();
     expect(deleteChatMessage).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Delete message" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete" })).toHaveFocus();
 
     await userEvent.click(screen.getByRole("button", { name: "Delete" }));
     await waitFor(() => expect(deleteChatMessage).toHaveBeenCalledWith("m1"));
@@ -189,10 +191,21 @@ describe("MessageBody", () => {
     expect(screen.queryByText("first draft")).not.toBeInTheDocument();
   });
 
-  it("keeps the message when 'Keep' is chosen or Slack won't delete it", async () => {
+  it("closes the delete dialog with Escape or the X, deleting nothing", async () => {
     mount();
     fire("delete");
-    await userEvent.click(screen.getByRole("button", { name: "Keep" }));
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fire("delete");
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(deleteChatMessage).not.toHaveBeenCalled();
+  });
+
+  it("keeps the message when Cancel is chosen or Slack won't delete it", async () => {
+    mount();
+    fire("delete");
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.getByText("first draft")).toBeInTheDocument();
 
     vi.mocked(deleteChatMessage).mockResolvedValue({ ok: false, error: "Slack won't let this message be deleted." });

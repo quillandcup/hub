@@ -25,6 +25,13 @@ describe("MessageActions reactions", () => {
     expect(screen.queryByLabelText("Search emoji")).not.toBeInTheDocument();
   });
 
+  it("shows no tone row at the top of the picker; the skin tone is chosen at the bottom", async () => {
+    render(<MessageActions {...props} canReact />);
+    await userEvent.click(screen.getByRole("button", { name: "Add reaction…" }));
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Skin Tone" })).toBeInTheDocument();
+  });
+
   it("closes the picker with Escape", async () => {
     render(<MessageActions {...props} canReact />);
     await userEvent.click(screen.getByRole("button", { name: "Add reaction…" }));
@@ -34,6 +41,21 @@ describe("MessageActions reactions", () => {
 });
 
 describe("MessageActions menu", () => {
+  it("draws the more menu in the body, above the button when there is no room below", async () => {
+    const spy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      if (this.getAttribute("aria-label") === "More actions" && this.tagName === "BUTTON")
+        return { top: 700, bottom: 730, left: 900, right: 930, width: 30, height: 30 } as DOMRect;
+      return { top: 0, bottom: 150, left: 0, right: 192, width: 192, height: 150 } as DOMRect;
+    });
+    Object.defineProperty(window, "innerHeight", { value: 760, configurable: true });
+    render(<MessageActions {...props} />);
+    await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+    const menu = screen.getByRole("menu");
+    expect(menu.parentElement).toBe(document.body);
+    expect(menu.style.top).toBe("546px");
+    spy.mockRestore();
+  });
+
   it("puts Edit and Delete in the more menu for the author, telling MessageBody by event", async () => {
     const seen: unknown[] = [];
     const on = (e: Event) => seen.push((e as CustomEvent).detail);

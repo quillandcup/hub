@@ -102,3 +102,37 @@ describe("custom emoji in a chip", () => {
     expect(img).toHaveAttribute("data-still", "https://cdn.test/a.still.png");
   });
 });
+
+describe("ReactionBar skin tones", () => {
+  const CLAPS = [
+    { emoji: "clap::skin-tone-3", count: 2, mine: false, reactors: ["Ada Example", "Bo Example"] },
+    { emoji: "clap", count: 1, mine: false, reactors: ["Cy Example"] },
+    { emoji: "clap::skin-tone-5", count: 1, mine: true, reactors: [] },
+  ];
+
+  it("groups the tones of one emoji into a single chip with the summed count and a line per variant", () => {
+    render(<ReactionBar channelId="c1" messageId="m1" reactions={CLAPS} custom={{}} canReact />);
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+    expect(screen.getByRole("button")).toHaveTextContent("4");
+    expect(screen.getByText("Ada Example and Bo Example reacted with :clap::skin-tone-3:")).toBeInTheDocument();
+    expect(screen.getByText("Cy Example reacted with :clap:")).toBeInTheDocument();
+  });
+
+  it("takes back the viewer's own variant when pressed", async () => {
+    vi.mocked(toggleChatReaction).mockResolvedValue({ ok: true, active: false });
+    render(<ReactionBar channelId="c1" messageId="m1" reactions={CLAPS} custom={{}} canReact />);
+    await userEvent.click(screen.getByRole("button"));
+    expect(toggleChatReaction).toHaveBeenCalledWith("m1", "clap::skin-tone-5");
+  });
+
+  it("adds the viewer's chosen tone when they have no variant yet, and the plain emoji when none is toned", async () => {
+    vi.mocked(toggleChatReaction).mockResolvedValue({ ok: true, active: true });
+    localStorage.setItem("chat-skin-tone", "2");
+    render(<ReactionBar channelId="c1" messageId="m1" reactions={[{ emoji: "clap::skin-tone-3", count: 1, mine: false }, { emoji: "eyes", count: 1, mine: false }]} custom={{}} canReact />);
+    await userEvent.click(screen.getByRole("button", { name: /👏/ }));
+    expect(toggleChatReaction).toHaveBeenLastCalledWith("m1", "clap::skin-tone-2");
+    await userEvent.click(screen.getByRole("button", { name: /👀/ }));
+    expect(toggleChatReaction).toHaveBeenLastCalledWith("m1", "eyes");
+    localStorage.clear();
+  });
+});
