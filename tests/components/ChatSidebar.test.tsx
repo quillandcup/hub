@@ -407,6 +407,21 @@ describe("ChatSidebar drafts", () => {
     expect(second).toHaveTextContent("general · threada reply");
   });
 
+  it("says how many files a draft keeps, with or without text", () => {
+    render(
+      <ChatSidebar
+        channels={CHANNELS}
+        drafts={[
+          { channelId: "2", threadRootId: null, body: "hello", fileCount: 2 },
+          { channelId: "1", threadRootId: null, body: "", fileCount: 1 },
+        ]}
+      />,
+    );
+    const [first, second] = within(screen.getByRole("heading", { name: "Drafts" }).parentElement!).getAllByRole("link");
+    expect(first).toHaveTextContent("writing-sprintshello · 2 files");
+    expect(second).toHaveTextContent("general1 file");
+  });
+
   it("shows no Drafts heading without drafts, or when their conversation is not in the list", () => {
     const { rerender } = render(<ChatSidebar channels={CHANNELS} />);
     expect(screen.queryByRole("heading", { name: "Drafts" })).toBeNull();

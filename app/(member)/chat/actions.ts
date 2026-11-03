@@ -14,6 +14,8 @@ import { removeChatFileBytes } from "@/lib/chat/file-cleanup";
 import { deleteChatFileInSlack, deleteChatMessageInSlack, updateChatMessageInSlack } from "@/lib/chat/slack-edit";
 import { getSlackConnectionStatus } from "@/lib/slack-connect";
 import { isId } from "@/lib/ids";
+import { ownDraftFiles } from "@/lib/chat/draft-files";
+import type { DraftFile } from "@/lib/data/chat-drafts";
 import { PENDING_FILE_PREFIX } from "@/lib/chat/files";
 import { MAX_CHAT_FILES, MAX_CHAT_FILE_BYTES, isOwnStagingPath, newStagingPath, type StagedUpload } from "@/lib/chat/staging";
 import { SLACK_FILES_BUCKET } from "@/lib/slack-capture";
@@ -35,18 +37,30 @@ import { withAction } from "@/lib/analytics/server";
 import { chatCaller, postingCaller } from "@/lib/chat/caller";
 import { isHubOnlyMessage } from "@/lib/chat/hub-only";
 /**
- * Saves what the signed-in member has typed and not sent in a conversation's box (or a thread's reply
- * box, with `threadRootId`) so it is there when they come back; blank text removes the draft. Quietly
+ * Saves what the signed-in member has typed and attached and not sent in a conversation's box (or a thread's reply
+ * box, with `threadRootId`) so it is there when they come back; blank text with no files removes the draft.
+ * The files are already uploaded to the member's staging folder; only their own paths are kept. Quietly
  * does nothing without posting (they could not send it) or in sudo (read-only), and for ids that are
  * not ours. Only stored, never sent anywhere: Slack's own drafts have no public API.
  */
-export async function saveChatDraft(channelId: string, threadRootId: string | null, body: string): Promise<void> {
+export async function saveChatDraft(channelId: string, threadRootId: string | null, body: string, files: DraftFile[] = []): Promise<void> {
   if (!isId(channelId, "chn") || (threadRootId !== null && !isId(threadRootId, "msg")) || typeof body !== "string") return;
   const caller = await postingCaller();
   if (!caller) return;
-  const supabase = await createClient();
+  const memberId = caller.identity.memberId;
+  const place = { channelId, threadRootId };
+  const kept = ownDraftFiles(memberId, files, MAX_CHAT_FILES);
   try {
-    await createRepos(supabase).chatDrafts.save(caller.identity.memberId, { channelId, threadRootId }, body);
+    const drafts = createRepos(await createClient()).chatDrafts;
+    const before = await drafts.get(memberId, place);
+    await drafts.save(memberId, place, { body, files: kept });
+    // A file taken out of the draft is gone for good: remove its staged bytes (a failure is left to the nightly staging purge).
+    const still = new Set(kept.map((f) => f.path));
+    const removed = (before?.files ?? []).map((f) => f.path).filter((path) => !still.has(path) && isOwnStagingPath(memberId, path));
+    if (removed.length > 0) {
+      const { error } = await createServiceRoleClient().storage.from(SLACK_FILES_BUCKET).remove(removed);
+      if (error) console.error("removing a draft's staged files failed:", error.message);
+    }
   } catch (e) {
     // A conversation they can no longer see, or a database hiccup: the text stays in the box, so say nothing to the member.
     console.error("chat draft save failed:", e instanceof Error ? e.message : e);

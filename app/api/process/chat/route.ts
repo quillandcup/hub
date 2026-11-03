@@ -103,8 +103,8 @@ export async function POST(request: NextRequest) {
       return { sent: 0, failed: 0, expired: 0 };
     });
 
-    // Attachments nobody sent.
-    const purgedStaged = await purgeStagedChatFiles(supabase, clock.now()).catch((error) => {
+    // Attachments nobody sent, except the ones a draft still lists (if the drafts can't be read, nothing is purged).
+    const purgedStaged = await createRepos(supabase).chatDrafts.stagedPaths().then((keep) => purgeStagedChatFiles(supabase, clock.now(), keep)).catch((error) => {
       console.error("Error purging staged chat files:", error);
       return 0;
     });

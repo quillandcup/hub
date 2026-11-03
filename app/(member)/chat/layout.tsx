@@ -27,7 +27,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   return (
     <div className="@container h-full min-h-0 overflow-hidden">
       <div className="flex h-full min-h-0 flex-col @split:flex-row">
-        <ChatSidebar channels={channels} unread={unread} drafts={drafts.map((d) => ({ channelId: d.channelId, threadRootId: d.threadRootId, body: d.body }))} selfMemberId={identity.isSudo ? null : identity.memberId} />
+        <ChatSidebar channels={channels} unread={unread} drafts={drafts.map((d) => ({ channelId: d.channelId, threadRootId: d.threadRootId, body: d.body, fileCount: d.files.length }))} selfMemberId={identity.isSudo ? null : identity.memberId} />
         <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain">{children}</div>
       </div>
     </div>

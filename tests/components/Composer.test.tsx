@@ -403,12 +403,12 @@ describe("Composer drafts", () => {
   it("saves what is typed, in the conversation and, with a root, in the thread", async () => {
     render(<Composer channelId="c1" placeholder="Message #hosts" saveDrafts />);
     await typeInto(await messageBox(), "half a thought");
-    await waitFor(() => expect(saveChatDraft).toHaveBeenLastCalledWith("c1", null, "half a thought"));
+    await waitFor(() => expect(saveChatDraft).toHaveBeenLastCalledWith("c1", null, "half a thought", []));
     cleanup();
     vi.mocked(saveChatDraft).mockClear();
     render(<Composer channelId="c1" threadRootId="root-1" placeholder="Reply…" saveDrafts />);
     await typeInto(await messageBox(), "a reply");
-    await waitFor(() => expect(saveChatDraft).toHaveBeenLastCalledWith("c1", "root-1", "a reply"));
+    await waitFor(() => expect(saveChatDraft).toHaveBeenLastCalledWith("c1", "root-1", "a reply", []));
   });
 
   it("saves a picked mention as labelled markup", async () => {
@@ -417,14 +417,14 @@ describe("Composer drafts", () => {
     const box = await messageBox();
     await typeInto(box, "ping @ani");
     await userEvent.click(await screen.findByRole("option", { name: /Ania Ray/ }));
-    await waitFor(() => expect(saveChatDraft).toHaveBeenLastCalledWith("c1", null, "ping <@U1|Ania Ray> "));
+    await waitFor(() => expect(saveChatDraft).toHaveBeenLastCalledWith("c1", null, "ping <@U1|Ania Ray> ", []));
   });
 
   it("removes the draft when the box is emptied", async () => {
     render(<Composer channelId="c1" placeholder="Message #hosts" initialDraft="old text" saveDrafts />);
     const box = await messageBox();
     await userEvent.clear(box);
-    await waitFor(() => expect(saveChatDraft).toHaveBeenLastCalledWith("c1", null, ""));
+    await waitFor(() => expect(saveChatDraft).toHaveBeenLastCalledWith("c1", null, "", []));
   });
 
   it("does not save an unchanged draft", async () => {
@@ -445,7 +445,7 @@ describe("Composer drafts", () => {
     const { unmount } = render(<Composer channelId="c1" placeholder="Message #hosts" saveDrafts />);
     await typeInto(await messageBox(), "leaving now");
     unmount();
-    expect(saveChatDraft).toHaveBeenCalledWith("c1", null, "leaving now");
+    expect(saveChatDraft).toHaveBeenCalledWith("c1", null, "leaving now", []);
   });
 
   it("saves nothing after it is sent: the server clears the draft with the message", async () => {
@@ -456,5 +456,73 @@ describe("Composer drafts", () => {
     await new Promise((r) => setTimeout(r, 20));
     const sentAt = vi.mocked(sendChatMessage).mock.invocationCallOrder[0];
     expect(vi.mocked(saveChatDraft).mock.invocationCallOrder.filter((order) => order > sentAt)).toEqual([]);
+  });
+});
+
+describe("Composer draft files", () => {
+  const staged = (name: string, mimetype = "image/gif") => ({ path: `staging/2026-11-02/mbr_x-1/${name}`, name, mimetype, size: 3 });
+  const cat = () => new File(["gif"], "cat.gif", { type: "image/gif" });
+  const attach = (...files: File[]) => userEvent.upload(screen.getByLabelText("Attach files", { selector: "input" }), files);
+
+  it("shows a draft's files when the box opens, previews and all, and sends them with the message", async () => {
+    vi.mocked(sendChatMessage).mockResolvedValue({ ok: true, id: "m1" });
+    const files = [{ ...staged("cat.gif"), url: "https://storage.example/cat.gif?token=t" }, { ...staged("notes.pdf", "application/pdf"), url: null }];
+    render(<Composer channelId="c1" placeholder="Message #hosts" initialDraft="look" initialDraftFiles={files} saveDrafts />);
+    expect(screen.getByRole("button", { name: "Preview cat.gif" })).toBeInTheDocument();
+    expect(screen.getByText("notes.pdf")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(sendChatMessage).toHaveBeenCalledWith("c1", "look", undefined, [staged("cat.gif"), staged("notes.pdf", "application/pdf")]));
+    expect(prepareChatUploads).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByRole("list", { name: "Attached files" })).not.toBeInTheDocument());
+  });
+
+  it("uploads a file as soon as it is attached and saves the draft with it, then sends without uploading again", async () => {
+    vi.mocked(prepareChatUploads).mockResolvedValue({ ok: true, uploads: [{ path: staged("cat.gif").path, token: "tok" }] });
+    uploadWithProgress.mockResolvedValue({ ok: true });
+    vi.mocked(sendChatMessage).mockResolvedValue({ ok: true, id: "m1" });
+    render(<Composer channelId="c1" placeholder="Message #hosts" saveDrafts />);
+    await attach(cat());
+
+    await waitFor(() => expect(saveChatDraft).toHaveBeenLastCalledWith("c1", null, "", [staged("cat.gif")]));
+    expect(screen.getByRole("button", { name: "Preview cat.gif" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(sendChatMessage).toHaveBeenCalledWith("c1", "", undefined, [staged("cat.gif")]));
+    expect(uploadWithProgress).toHaveBeenCalledTimes(1);
+    expect(prepareChatUploads).toHaveBeenCalledTimes(1);
+  });
+
+  it("holds Send while a file is still uploading", async () => {
+    vi.mocked(prepareChatUploads).mockResolvedValue({ ok: true, uploads: [{ path: staged("cat.gif").path, token: "tok" }] });
+    let finish!: (r: { ok: true }) => void;
+    uploadWithProgress.mockImplementationOnce(() => new Promise((r) => (finish = r)));
+    render(<Composer channelId="c1" placeholder="Message #hosts" saveDrafts />);
+    await typeInto(await messageBox(), "hi");
+    await attach(cat());
+    await waitFor(() => expect(screen.getByRole("progressbar", { name: "Uploading cat.gif" })).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+    finish({ ok: true });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeEnabled());
+  });
+
+  it("leaves a file attached, to upload when sending, if the early upload fails", async () => {
+    vi.mocked(prepareChatUploads).mockResolvedValue({ ok: true, uploads: [{ path: staged("cat.gif").path, token: "tok" }] });
+    uploadWithProgress.mockResolvedValueOnce({ ok: false, reason: "network" });
+    render(<Composer channelId="c1" placeholder="Message #hosts" saveDrafts />);
+    await attach(cat());
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't upload cat.gif");
+    expect(screen.getByRole("button", { name: "Preview cat.gif" })).toBeInTheDocument();
+    expect(saveChatDraft).not.toHaveBeenCalled();
+  });
+
+  it("saves the draft without a file that is taken out", async () => {
+    render(<Composer channelId="c1" placeholder="Message #hosts" initialDraft="note" initialDraftFiles={[{ ...staged("cat.gif"), url: null }, { ...staged("b.gif"), url: null }]} saveDrafts />);
+    await userEvent.click(screen.getByRole("button", { name: "Remove cat.gif" }));
+    await waitFor(() => expect(saveChatDraft).toHaveBeenLastCalledWith("c1", null, "note", [staged("b.gif")]));
+  });
+
+  it("keeps a draft that is only files", async () => {
+    render(<Composer channelId="c1" placeholder="Message #hosts" initialDraftFiles={[{ ...staged("cat.gif"), url: null }]} saveDrafts />);
+    expect(screen.getByRole("button", { name: "Send" })).toBeEnabled();
+    expect((await messageBox()).textContent).toBe("");
   });
 });

@@ -7,6 +7,7 @@ import MessageBox, { type MessageBoxHandle } from "@/components/chat/MessageBox"
 import { fromEditableText } from "@/lib/chat/render";
 import { DRAFT_SAVE_DELAY_MS, fromDraftBody, toDraftBody } from "@/lib/chat/drafts";
 import PendingAttachments from "@/components/chat/PendingAttachments";
+import type { DraftFileView } from "@/lib/chat/draft-files";
 import { useFileDrop } from "@/components/chat/useFileDrop";
 import { track } from "@/lib/analytics/client";
 import { MAX_CHAT_FILES, MAX_CHAT_FILE_BYTES, type StagedUpload } from "@/lib/chat/staging";
@@ -31,7 +32,8 @@ import { PENDING_ID_PREFIX, emitListEvent, optimisticView, pokeChat } from "@/li
  *
  * Drafts: what is typed and not sent is saved a moment after the last keystroke (and when the box is
  * left or the tab is hidden) and comes back as `initialDraft` the next time the box opens, so leaving
- * a conversation or an expired session loses nothing. Files aren't part of a draft. Sending clears it.
+ * a conversation or an expired session loses nothing. With drafts on, attached files upload at once
+ * (the draft lists their staged copies) and come back with the draft, previews and all. Sending clears it.
  */
 export default function Composer({
   channelId,
@@ -41,6 +43,7 @@ export default function Composer({
   showSent = true,
   dropTargetIds = [],
   initialDraft = null,
+  initialDraftFiles = [],
   saveDrafts = false,
 }: {
   channelId: string;
@@ -58,15 +61,32 @@ export default function Composer({
   dropTargetIds?: string[];
   /** The saved draft for this box (Slack markup, see `lib/chat/drafts.ts`), put back in it when it opens. */
   initialDraft?: string | null;
+  /** The draft's files (already uploaded), with a link to preview each image. */
+  initialDraftFiles?: DraftFileView[];
   /** Save what is typed as a draft. Off where it can't be (sudo is read-only). */
   saveDrafts?: boolean;
 }) {
   const router = useRouter();
-  const [restored] = useState(() => (initialDraft ? fromDraftBody(initialDraft) : null));
+  const [restored] = useState(() => (initialDraft || initialDraftFiles.length > 0 ? { ...fromDraftBody(initialDraft ?? ""), hadFiles: initialDraftFiles.length > 0 } : null));
   const [text, setText] = useState(restored?.text ?? "");
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [attached, setAttached] = useState<File[]>([]);
+  /** Files already uploaded to the member's staging folder (a draft's, or ones uploaded as they were attached). */
+  const [stored, setStored] = useState<DraftFileView[]>(initialDraftFiles);
+  /** Files being uploaded as they are attached, and the bytes sent so far for each. */
+  const [staging, setStaging] = useState<File[]>([]);
+  const [stagedBytes, setStagedBytes] = useState<Map<File, number>>(new Map());
+  /** Preview links made here for staged files (revoked when the box goes). */
+  const previewUrls = useRef<string[]>([]);
+  const stagingAbort = useRef<AbortController | null>(null);
+  useEffect(
+    () => () => {
+      stagingAbort.current?.abort();
+      previewUrls.current.forEach((u) => URL.revokeObjectURL(u));
+    },
+    [],
+  );
   /** Bytes sent so far for each attached file while sending. */
   const [sentBytes, setSentBytes] = useState<number[]>([]);
   const abortRef = useRef<AbortController | null>(null);
@@ -75,23 +95,28 @@ export default function Composer({
   // People and channels picked in the box (shown name to Slack markup), turned into markup when sending.
   const mentionTokens = useRef(restored?.tokens ?? new Map<string, string>());
   const pickerRef = useRef<HTMLInputElement>(null);
-  const early = Boolean(viewer) && showSent && attached.length === 0;
+  const early = Boolean(viewer) && showSent && attached.length === 0 && stored.length === 0;
 
   // The draft: what the server has stored (as Slack markup, "" for none), and a way for the timer, unmount and
   // tab-hide paths to save what is in the box now.
-  const savedDraft = useRef(initialDraft ?? "");
+  const draftKey = (body: string, files: { path: string }[]) => JSON.stringify([body, files.map((f) => f.path)]);
+  const savedDraft = useRef(draftKey(initialDraft ?? "", initialDraftFiles));
   const textRef = useRef(text);
+  const storedRef = useRef(stored);
   const saveDraftNow = useCallback(() => {
     if (!saveDrafts) return;
     const typed = textRef.current;
     const body = typed.trim() === "" ? "" : toDraftBody(typed, mentionTokens.current);
-    if (body === savedDraft.current) return;
-    savedDraft.current = body;
-    void saveChatDraft(channelId, threadRootId ?? null, body).catch(() => {});
+    const files = storedRef.current.map(({ path, name, mimetype, size }) => ({ path, name, mimetype, size }));
+    const key = draftKey(body, files);
+    if (key === savedDraft.current) return;
+    savedDraft.current = key;
+    void saveChatDraft(channelId, threadRootId ?? null, body, files).catch(() => {});
   }, [saveDrafts, channelId, threadRootId]);
   const latestSaveDraft = useRef(saveDraftNow);
   useEffect(() => {
     textRef.current = text;
+    storedRef.current = stored;
     latestSaveDraft.current = saveDraftNow;
   });
   useEffect(() => {
@@ -102,7 +127,7 @@ export default function Composer({
   useEffect(() => {
     const timer = setTimeout(saveDraftNow, DRAFT_SAVE_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [text, saveDraftNow]);
+  }, [text, stored, saveDraftNow]);
   useEffect(() => {
     const flush = () => {
       if (document.visibilityState === "hidden") latestSaveDraft.current();
@@ -115,44 +140,29 @@ export default function Composer({
   }, []);
 
   const formRef = useRef<HTMLFormElement>(null);
-  const attach = (incoming: File[], via: "picker" | "paste" | "drop" = "picker") => {
-    if (incoming.length === 0) return;
-    const tooBig = incoming.find((f) => f.size > MAX_CHAT_FILE_BYTES);
-    if (tooBig) return setError(`${tooBig.name} is over ${MAX_CHAT_FILE_BYTES / (1024 * 1024)} MB.`);
-    if (attached.length + incoming.length > MAX_CHAT_FILES) return setError(`Attach up to ${MAX_CHAT_FILES} files at a time.`);
-    setError(null);
-    setAttached((current) => [...current, ...incoming]);
-    track("chat_files_attached", { via, count: incoming.length });
-  };
-
-  // Files dropped anywhere on the conversation column, or on the thread panel this box is in.
-  const latestAttach = useRef(attach);
-  useEffect(() => {
-    latestAttach.current = attach;
-  });
-  const onDrop = useCallback((files: File[]) => latestAttach.current(files, "drop"), []);
-  const { dragging, rect } = useFileDrop(() => dropTargetIds.map((id) => document.getElementById(id)), onDrop, !sending);
   const totalBytes = attached.reduce((n, f) => n + f.size, 0);
   const totalSent = sentBytes.reduce((n, v) => n + v, 0);
-  const fractions = attached.map((f, i) => (f.size === 0 ? 1 : Math.min(1, (sentBytes[i] ?? 0) / f.size)));
+  // A ring over each file being sent, or being uploaded as it was attached.
+  const fractions = attached.map((f, i) => {
+    const sent = sending ? (sentBytes[i] ?? 0) : staging.includes(f) ? (stagedBytes.get(f) ?? 0) : null;
+    return sent === null ? null : f.size === 0 ? 1 : Math.min(1, sent / f.size);
+  });
   const dropLabel = threadRootId ? "Upload to thread" : `Upload to ${placeholder.replace(/^Message /, "")}`;
 
-  /** Upload the attachments to the member's staging folder; null (with the error shown) if any fails. */
-  const uploadAttachments = async (): Promise<StagedUpload[] | null> => {
-    const controller = new AbortController();
-    abortRef.current = controller;
-    const prepared = await prepareChatUploads(attached.map((f) => ({ name: f.name || "file", size: f.size }))).catch(() => null);
+  /**
+   * Upload files to the member's staging folder: several at once, results in the order given. The first
+   * failure aborts the rest and gives null (with the error shown), the files staying where they are to
+   * retry. Staged files left behind are swept by the staging cleanup (lib/chat/staging.ts).
+   */
+  const uploadFiles = async (list: File[], controller: AbortController, onProgress: (file: File, i: number, loaded: number) => void): Promise<StagedUpload[] | null> => {
+    const prepared = await prepareChatUploads(list.map((f) => ({ name: f.name || "file", size: f.size }))).catch(() => null);
     if (controller.signal.aborted) return null;
     if (!prepared?.ok) {
       setError(prepared?.error ?? "Couldn't start the upload. Try again.");
       return null;
     }
-    setSentBytes(attached.map(() => 0));
-    // Several at once; results keep the order the files were attached in. The first failure aborts the
-    // rest, nothing is sent and the files stay attached to retry. Staged files left behind are swept by
-    // the staging cleanup (lib/chat/staging.ts).
     const outcome = await runPool(
-      attached,
+      list,
       CHAT_UPLOAD_CONCURRENCY,
       async (file, i, signal) => {
         const { path, token } = prepared.uploads[i];
@@ -163,7 +173,7 @@ export default function Composer({
           contentType,
           apiKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
           signal,
-          onProgress: (loaded) => setSentBytes((current) => current.map((v, j) => (j === i ? loaded : v))),
+          onProgress: (loaded) => onProgress(file, i, loaded),
         });
         if (!result.ok) return { ok: false as const, error: result.reason };
         return { ok: true as const, value: { path, name: file.name || "file", mimetype: contentType, size: file.size } };
@@ -171,11 +181,56 @@ export default function Composer({
       controller.signal,
     );
     if (!outcome.ok) {
-      if (!outcome.aborted && outcome.error !== "aborted") setError(`Couldn't upload ${attached[outcome.index].name}. Try again.`);
+      if (!outcome.aborted && outcome.error !== "aborted") setError(`Couldn't upload ${list[outcome.index].name}. Try again.`);
       return null;
     }
     return outcome.results;
   };
+
+  /** Upload the attachments for a send; null (with the error shown) if any fails. */
+  const uploadAttachments = async (): Promise<StagedUpload[] | null> => {
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setSentBytes(attached.map(() => 0));
+    return uploadFiles(attached, controller, (_file, i, loaded) => setSentBytes((current) => current.map((v, j) => (j === i ? loaded : v))));
+  };
+
+  /** Upload newly attached files right away; the ones that make it move from "attached" to the draft's files. A failure leaves them attached to be uploaded when sending. */
+  const stage = async (incoming: File[]) => {
+    const controller = (stagingAbort.current ??= new AbortController());
+    setStaging((current) => [...current, ...incoming]);
+    const done = await uploadFiles(incoming, controller, (file, _i, loaded) => setStagedBytes((current) => new Map(current).set(file, loaded)));
+    setStaging((current) => current.filter((f) => !incoming.includes(f)));
+    if (!done || controller.signal.aborted) return;
+    const views = done.map((u, i) => {
+      const preview = incoming[i].type.startsWith("image/") ? URL.createObjectURL(incoming[i]) : null;
+      if (preview) previewUrls.current.push(preview);
+      return { ...u, url: preview };
+    });
+    setAttached((current) => current.filter((f) => !incoming.includes(f)));
+    setStored((current) => [...current, ...views]);
+  };
+
+  const attach = (incoming: File[], via: "picker" | "paste" | "drop" = "picker") => {
+    if (incoming.length === 0) return;
+    const tooBig = incoming.find((f) => f.size > MAX_CHAT_FILE_BYTES);
+    if (tooBig) return setError(`${tooBig.name} is over ${MAX_CHAT_FILE_BYTES / (1024 * 1024)} MB.`);
+    if (attached.length + stored.length + incoming.length > MAX_CHAT_FILES) return setError(`Attach up to ${MAX_CHAT_FILES} files at a time.`);
+    setError(null);
+    setAttached((current) => [...current, ...incoming]);
+    track("chat_files_attached", { via, count: incoming.length });
+    // With drafts on they upload now, so they are part of the draft.
+    if (saveDrafts) void stage(incoming);
+  };
+
+  // Files dropped anywhere on the conversation column, or on the thread panel this box is in.
+  const latestAttach = useRef(attach);
+  useEffect(() => {
+    latestAttach.current = attach;
+  });
+  const onDrop = useCallback((files: File[]) => latestAttach.current(files, "drop"), []);
+
+  const { dragging, rect } = useFileDrop(() => dropTargetIds.map((id) => document.getElementById(id)), onDrop, !sending);
 
   /** Stop an upload in progress: nothing is sent, the files stay attached and the box is editable again. */
   const cancelUpload = () => {
@@ -185,21 +240,21 @@ export default function Composer({
 
   const send = async () => {
     const typed = text.trim();
-    if ((!typed && attached.length === 0) || sending) return;
+    if ((!typed && attached.length === 0 && stored.length === 0) || sending || staging.length > 0) return;
     const body = fromEditableText(typed, mentionTokens.current, { plain: true });
     // The message shown while it sends can't look the names up, so it carries them (`<@U1|Ania Ray>`).
     const labelled = new Map([...mentionTokens.current].map(([shown, token]) => [shown, token.replace(/>$/, `|${shown.slice(1)}>`)]));
     const shownBody = fromEditableText(typed, labelled, { plain: true });
     setError(null);
     setSending(true);
-    let uploads: StagedUpload[] = [];
+    let uploads: StagedUpload[] = stored.map(({ path, name, mimetype, size }) => ({ path, name, mimetype, size }));
     if (attached.length > 0) {
       const staged = await uploadAttachments();
       if (!staged) {
         setSentBytes([]);
         return setSending(false);
       }
-      uploads = staged;
+      uploads = [...uploads, ...staged];
     }
     setText("");
     const tempId = `${PENDING_ID_PREFIX}${crypto.randomUUID()}`;
@@ -215,9 +270,10 @@ export default function Composer({
       return;
     }
     setAttached([]);
+    setStored([]);
     mentionTokens.current = new Map();
     // The server cleared the draft when it took the message.
-    savedDraft.current = "";
+    savedDraft.current = draftKey("", []);
     if (early) emitListEvent({ kind: "swap", channelId, threadRootId, tempId, view: optimisticView({ id: result.id, body: shownBody, viewer: viewer! }) });
     // Bring the conversation up to date: just its newest messages when it is open here, else the page.
     if (!pokeChat(channelId)) router.refresh();
@@ -268,7 +324,16 @@ export default function Composer({
           }}
           className="block w-full resize-none rounded-t-lg border-0 bg-transparent px-3 py-2 text-sm focus:outline-none"
         />
-        {attached.length > 0 && <PendingAttachments files={attached} progress={sending ? fractions : undefined} disabled={sending} onRemove={(i) => setAttached((current) => current.filter((_, j) => j !== i))} />}
+        {(attached.length > 0 || stored.length > 0) && (
+          <PendingAttachments
+            files={attached}
+            kept={stored}
+            progress={sending || staging.length > 0 ? fractions : undefined}
+            disabled={sending}
+            onRemove={(i) => setAttached((current) => current.filter((_, j) => j !== i))}
+            onRemoveKept={(i) => setStored((current) => current.filter((_, j) => j !== i))}
+          />
+        )}
         <div className="flex items-center justify-between gap-2 px-2 py-1.5">
           <input
             ref={pickerRef}
@@ -295,7 +360,7 @@ export default function Composer({
           <button
             type="submit"
             data-track="chat-composer-send"
-            disabled={sending || (text.trim() === "" && attached.length === 0)}
+            disabled={sending || staging.length > 0 || (text.trim() === "" && attached.length === 0 && stored.length === 0)}
             className="shrink-0 rounded-lg bg-plum-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-plum-700 disabled:opacity-50"
           >
             {sending ? "Sending…" : "Send"}

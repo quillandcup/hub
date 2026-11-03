@@ -71,3 +71,38 @@ describe("PendingAttachments upload progress", () => {
     expect(screen.getByRole("progressbar", { name: "Uploading notes.pdf" })).toHaveAttribute("aria-valuenow", "0");
   });
 });
+
+describe("PendingAttachments kept files", () => {
+  it("lists kept files before the others, previews a kept image from its link, and removes from the right list", async () => {
+    const onRemove = vi.fn();
+    const onRemoveKept = vi.fn();
+    render(
+      <PendingAttachments
+        files={[new File(["b"], "new.pdf", { type: "application/pdf" })]}
+        kept={[
+          { name: "kept.png", size: 5, url: "https://storage.example/kept.png?token=t" },
+          { name: "kept.pdf", size: 5, url: null },
+          { name: "bad.png", size: 5, url: "javascript:alert(1)" },
+        ]}
+        onRemove={onRemove}
+        onRemoveKept={onRemoveKept}
+      />,
+    );
+    expect(screen.getAllByRole("button", { name: /^Remove / }).map((b) => b.getAttribute("aria-label"))).toEqual(["Remove kept.png", "Remove kept.pdf", "Remove bad.png", "Remove new.pdf"]);
+    // A link that isn't http(s) or blob is never loaded as an image.
+    expect(screen.queryByRole("button", { name: "Preview bad.png" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Preview kept.png" }));
+    expect(screen.getByRole("img")).toHaveAttribute("src", "https://storage.example/kept.png?token=t");
+    await userEvent.keyboard("{Escape}");
+    await userEvent.click(screen.getByRole("button", { name: "Remove kept.pdf" }));
+    expect(onRemoveKept).toHaveBeenCalledWith(1);
+    await userEvent.click(screen.getByRole("button", { name: "Remove new.pdf" }));
+    expect(onRemove).toHaveBeenCalledWith(0);
+  });
+
+  it("draws no ring over a file given null progress", () => {
+    render(<PendingAttachments files={[new File(["a"], "a.pdf"), new File(["b"], "b.pdf")]} progress={[null, 0.25]} onRemove={vi.fn()} />);
+    expect(screen.queryByRole("progressbar", { name: "Uploading a.pdf" })).not.toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "Uploading b.pdf" })).toHaveAttribute("aria-valuenow", "25");
+  });
+});

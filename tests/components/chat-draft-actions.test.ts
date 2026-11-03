@@ -8,7 +8,8 @@ vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.
 vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.sudoModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
 vi.mock("next/server", () => ({ after: () => {} }));
-vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({ service: true }) }));
+const serviceStorage = vi.hoisted(() => ({ remove: async (_paths: string[]): Promise<{ error: { message: string } | null }> => ({ error: null }) }));
+vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({ service: true, storage: { from: () => ({ remove: (paths: string[]) => serviceStorage.remove(paths) }) } }) }));
 vi.mock("@/lib/chat/slack-post", () => ({ sendChatMessageToSlack: vi.fn() }));
 vi.mock("@/lib/slack-connect", () => ({ getSlackConnectionStatus: async () => ({ connected: true }) }));
 vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: vi.fn(async () => []), effectiveMemberHasFeature: async () => true }));
@@ -73,5 +74,50 @@ describe("sending clears the draft", () => {
     await saveChatDraft(CHANNEL, ROOT, "stays");
     expect(await sendChatMessage(CHANNEL, "going out")).toMatchObject({ ok: true });
     expect((await drafts()).map((d) => d.body)).toEqual(["stays"]);
+  });
+});
+
+describe("saveChatDraft with files", () => {
+  const removed: string[][] = [];
+  const own = (n: number) => `staging/2026-11-02/${me}-0000000${n}-0000-4000-8000-000000000000/f${n}.txt`;
+  const file = (n: number) => ({ path: own(n), name: `f${n}.txt`, mimetype: "text/plain", size: 5 });
+
+  beforeEach(() => {
+    removed.length = 0;
+    serviceStorage.remove = async (paths: string[]) => {
+      removed.push(paths);
+      return { error: null };
+    };
+  });
+
+  it("keeps the member's own staged files with the draft, and drops any other path", async () => {
+    await saveChatDraft(CHANNEL, null, "", [file(1), { ...file(2), path: "staging/2026-11-02/mbr_someoneElse-00000000-0000-4000-8000-000000000000/x.txt" }, { path: "../../etc", name: "x", mimetype: "x", size: 1 }]);
+    expect(await drafts()).toMatchObject([{ body: "", files: [file(1)] }]);
+  });
+
+  it("removes the bytes of a file taken out of the draft, and keeps the others", async () => {
+    await saveChatDraft(CHANNEL, null, "a", [file(1), file(2)]);
+    await saveChatDraft(CHANNEL, null, "a", [file(2)]);
+    expect(removed).toEqual([[own(1)]]);
+    await saveChatDraft(CHANNEL, null, "", []);
+    expect(removed).toEqual([[own(1)], [own(2)]]);
+    expect(await drafts()).toEqual([]);
+  });
+
+  it("does not remove anything when sending clears the draft (the send reads the staged files)", async () => {
+    await saveChatDraft(CHANNEL, null, "going out", [file(1)]);
+    expect(await sendChatMessage(CHANNEL, "going out", undefined, [])).toMatchObject({ ok: true });
+    expect(await drafts()).toEqual([]);
+    expect(removed).toEqual([]);
+  });
+
+  it("logs a failed byte removal and still keeps the draft saved", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    serviceStorage.remove = async () => ({ error: { message: "storage down" } });
+    await saveChatDraft(CHANNEL, null, "a", [file(1)]);
+    await saveChatDraft(CHANNEL, null, "a", []);
+    expect(error).toHaveBeenCalledWith("removing a draft's staged files failed:", "storage down");
+    expect(await drafts()).toMatchObject([{ body: "a", files: [] }]);
+    error.mockRestore();
   });
 });
