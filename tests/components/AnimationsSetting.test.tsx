@@ -142,7 +142,7 @@ describe("freezing images", () => {
     expect(emoji.getAttribute("src")).not.toContain("javascript:");
   });
 
-  it("keeps an emoji whose host blocks reading its frame (no CORS) as it is, not a broken image", async () => {
+  it("hides an image whose host blocks reading its frame (no CORS) instead of letting it move, and restores it when animations are back", async () => {
     mockMotion(false);
     localStorage.setItem(ANIMATIONS_STORAGE_KEY, "reduce");
     // A host without CORS headers: the probe image fails to load.
@@ -160,11 +160,14 @@ describe("freezing images", () => {
       render(<AnimationsController />);
       const emoji = document.getElementById("e") as HTMLImageElement;
       const attachment = document.getElementById("p") as HTMLImageElement;
-      await waitFor(() => expect(emoji.hasAttribute("data-unfreezable")).toBe(true));
+      await waitFor(() => expect(emoji.style.display).toBe("none"));
       expect(emoji.getAttribute("src")).toBe("https://x.test/party.gif");
-      expect(emoji.hasAttribute("data-frozen-src")).toBe(false);
       // An attachment keeps its tile over a blank frame.
       await waitFor(() => expect(attachment.getAttribute("src")).toMatch(/^data:image\/gif/));
+
+      localStorage.setItem(ANIMATIONS_STORAGE_KEY, "allow");
+      window.dispatchEvent(new Event("hub-animations-changed"));
+      await waitFor(() => expect(emoji.style.display).toBe(""));
     } finally {
       vi.unstubAllGlobals();
     }
@@ -186,6 +189,17 @@ describe("freezing images", () => {
     localStorage.setItem(ANIMATIONS_STORAGE_KEY, "allow");
     window.dispatchEvent(new Event("hub-animations-changed"));
     await waitFor(() => expect(emoji.getAttribute("src")).toBe("https://cdn.test/abc.png"));
+  });
+
+  it("leaves an emoji marked as having no still to the page's CSS", async () => {
+    mockMotion(false);
+    localStorage.setItem(ANIMATIONS_STORAGE_KEY, "reduce");
+    document.body.innerHTML = '<img id="e" src="https://slack.test/p.gif" data-no-still alt=":p:">';
+    render(<AnimationsController />);
+    await new Promise((r) => setTimeout(r, 0));
+    const emoji = document.getElementById("e") as HTMLImageElement;
+    expect(emoji.getAttribute("src")).toBe("https://slack.test/p.gif");
+    expect(emoji.hasAttribute("data-frozen-src")).toBe(false);
   });
 
   it("ignores a still that is not an http(s) address", () => {

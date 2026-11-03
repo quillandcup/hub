@@ -1189,7 +1189,7 @@ The chat sidebar lists only the conversations a member is in. Public channels th
 
 ### Admin Slack reaction emoji still come from Slack's CDN _(Needs Scheduling)_
 
-Custom emoji in chat are served from our own `slack-emoji` bucket, with a still first frame for animated ones (`lib/chat/emoji-copy.ts`, filled by the emoji sync). The reaction emoji on the admin activity rows (`lib/slack-reaction-emoji.ts`, `components/ReactionEmoji.tsx`) resolve their own image from `bronze.slack_custom_emoji.image_url`, so they still load from Slack's CDN and, with Animations off, stay animated because that host can't be read for a still. Deferred because it is an admin-only view. Start by resolving through `slackWorkspace.emojiByNames` (`image_path`, `still_path`) and giving `ReactionEmoji` a `data-still`.
+Custom emoji in chat are served from our own `slack-emoji` bucket, with a still first frame for animated ones (`lib/chat/emoji-copy.ts`, filled by the emoji sync). The reaction emoji on the admin activity rows (`lib/slack-reaction-emoji.ts`, `components/ReactionEmoji.tsx`) resolve their own image from `bronze.slack_custom_emoji.image_url`, so they still load from Slack's CDN and have no still: with Animations off a moving one shows its `:name:` text instead (`components/EmojiImage.tsx`). Deferred because it is an admin-only view. Start by resolving through `slackWorkspace.emojiByNames` (`image_path`, `still_path`) and giving `ReactionEmoji` a `data-still`.
 
 ### Shared `SubmitButton` that disables itself while its action is pending _(Needs Scheduling)_
 

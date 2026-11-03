@@ -47,7 +47,8 @@ describe("member Slack tab reactions", () => {
       />
     );
     expect(screen.getAllByRole("img", { name: ":yes-party:" }).length).toBeGreaterThan(0);
-    expect(screen.queryByText(":yes-party:")).toBeNull();
+    // The shortcode text is only the hidden stand-in the page shows when Animations are off.
+    expect(screen.queryAllByText(":yes-party:").filter((el) => !el.hasAttribute("hidden"))).toEqual([]);
     expect(screen.getAllByText("🚀").length).toBeGreaterThan(0);
   });
 });

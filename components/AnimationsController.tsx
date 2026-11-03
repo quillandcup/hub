@@ -7,8 +7,6 @@ import { ANIMATIONS_STORAGE_KEY, animationsAllowed, looksAnimated } from "@/lib/
 export const ANIMATIONS_CHANGED_EVENT = "hub-animations-changed";
 
 const FROZEN = "data-frozen-src";
-/** An emoji whose host sends no CORS headers (Slack's CDN): its frame can't be read, so it stays as it is. */
-const UNFREEZABLE = "data-unfreezable";
 
 /** DOM text as an http(s) address, or null: an attribute is never trusted to be a safe src (no javascript: or data: schemes). */
 function httpAddress(text: string | null): string | null {
@@ -23,7 +21,7 @@ function httpAddress(text: string | null): string | null {
 
 /** Replace a moving image with its first frame; when the browser won't let us read it, with its alt text. */
 function freeze(img: HTMLImageElement) {
-  if (img.hasAttribute(FROZEN) || img.hasAttribute(UNFREEZABLE) || img.hasAttribute("data-playing")) return;
+  if (img.hasAttribute(FROZEN) || img.hasAttribute("data-no-still") || img.hasAttribute("data-playing")) return;
   const original = img.currentSrc || img.src;
   if (!original || !(img.hasAttribute("data-animated") || img.hasAttribute("data-still") || looksAnimated(original))) return;
   img.setAttribute(FROZEN, original);
@@ -49,7 +47,7 @@ function freeze(img: HTMLImageElement) {
       hide(img);
     }
   };
-  // A host without CORS headers can't be drawn: an attachment keeps its tile over a blank frame, an emoji is left alone.
+  // A host without CORS headers can't be drawn: an attachment keeps its tile over a blank frame; anything else is not shown.
   probe.onerror = () => {
     if (img.getAttribute(FROZEN) === original) hide(img);
   };
@@ -59,19 +57,16 @@ function freeze(img: HTMLImageElement) {
 const BLANK = "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
 
 function hide(img: HTMLImageElement) {
-  // An attachment keeps its tile (and its play button) over a blank frame. An emoji keeps its real image: removing
-  // the source left a broken-image icon, and a moving emoji is better than a missing one.
+  // An attachment keeps its tile (and its play button) over a blank frame; any other image is hidden until animations are allowed again.
   if (img.hasAttribute("data-animated")) img.src = BLANK;
-  else {
-    img.removeAttribute(FROZEN);
-    img.setAttribute(UNFREEZABLE, "");
-  }
+  else img.style.display = "none";
 }
 
 function thaw(img: HTMLImageElement) {
   const original = img.getAttribute(FROZEN);
   if (!original) return;
   img.removeAttribute(FROZEN);
+  img.style.removeProperty("display");
   // The attribute is DOM text: only restore a plain http(s) address, never a javascript: or other scheme.
   const address = httpAddress(original);
   if (address) img.src = address;
@@ -114,7 +109,6 @@ export function AnimationsController() {
             const img = r.target;
             if (img.getAttribute(FROZEN) !== img.src && !img.src.startsWith("data:") && img.src !== httpAddress(img.getAttribute("data-still"))) {
               img.removeAttribute(FROZEN);
-              img.removeAttribute(UNFREEZABLE);
               freeze(img);
             }
           }
