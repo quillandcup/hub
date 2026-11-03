@@ -41,7 +41,7 @@ describe("SlackConnectPanel", () => {
   it("asks a connection without the direct message permissions to reconnect, and says the Hub doesn't read them", () => {
     render(<SlackConnectPanel connected sharesReadState hasDmScopes={false} />);
     expect(screen.getByRole("link", { name: "Reconnect Slack" })).toHaveAttribute("href", "/api/oauth/slack/start");
-    expect(screen.getByText(/the Hub doesn't read them today/)).toBeInTheDocument();
+    expect(screen.getByText(/the Hub doesn't use it yet/)).toBeInTheDocument();
     cleanup();
 
     render(<SlackConnectPanel connected sharesReadState hasDmScopes />);

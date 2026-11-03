@@ -20,7 +20,7 @@ describe("SlackConnectPrompt", () => {
     ["connect", /needs your Slack account/, "Connect Slack"],
     ["reconnect", /connection stopped working/, "Reconnect Slack"],
     ["update", /reconnect Slack once/, "Reconnect Slack"],
-    ["permissions", /permissions it will need for direct messages/, "Reconnect Slack"],
+    ["permissions", /bring Slack direct messages into Hub chat/, "Reconnect Slack"],
   ] as const)("for %s says why chat is closed and offers the way back", (need, text, action) => {
     render(<SlackConnectPrompt need={need} />);
     expect(screen.getByRole("status", { name: "Slack connection" })).toHaveTextContent(text);
