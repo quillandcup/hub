@@ -81,4 +81,12 @@ describe("BookshelfClient editions", () => {
     expect(screen.getByRole("link", { name: "Print $17.99" })).toHaveAttribute("href", "https://example.com/print");
     expect(screen.getByRole("link", { name: "Ebook $4.99" })).toHaveAttribute("href", "https://example.com/ebook");
   });
+
+  it("puts the genres on their own line, so a wrapped line never starts with a separator", () => {
+    const withGenres: ShelfBook = { ...book("genres", ["Romance", "Cozy Mystery"]), title: "Genre Line" };
+    render(<BookshelfClient shelf={[withGenres]} />);
+    const line = screen.getByText("Romance, Cozy Mystery", { selector: "p" });
+    expect(line.textContent).toBe("Romance, Cozy Mystery");
+    expect(line.querySelector("a")).toBeNull();
+  });
 });
