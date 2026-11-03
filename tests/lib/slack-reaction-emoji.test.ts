@@ -32,6 +32,13 @@ describe("withReactionEmoji", () => {
     expect(customEmojiFor).toHaveBeenCalledWith(["yes-party", "tada"]);
   });
 
+  it("passes our stored copy and its still through, so the admin rows can stand still with Animations off", async () => {
+    const copy = { url: "https://cdn.test/slack-emoji/a.gif", still: "https://cdn.test/slack-emoji/a.still.png", stored: true };
+    customEmojiFor.mockResolvedValue({ dance: copy });
+    const [row] = await withReactionEmoji<ReactionRow>([{ activity_type: "slack_reaction", data: { reaction: "dance" } }]);
+    expect(dataObject(row.data)?.reaction_emoji).toEqual(copy);
+  });
+
   it("uses a custom alias that points at a standard emoji", async () => {
     customEmojiFor.mockResolvedValue({ party: { text: "🥳" } });
     const [row] = await withReactionEmoji<ReactionRow>([{ event_type: "slack_reaction", title: "Reacted :party:" }]);

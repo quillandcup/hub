@@ -14,6 +14,9 @@ describe("ReactionEmoji", () => {
   it("shows a custom emoji as its image, a standard one as text, and an unknown one as :name:", () => {
     const { rerender } = render(<ReactionEmoji name="yes-party" emoji={{ url: "https://emoji.example.test/p.gif" }} />);
     expect(screen.getByRole("img", { name: ":yes-party:" })).toHaveAttribute("src", "https://emoji.example.test/p.gif");
+    // Our copy brings its still for Animations off.
+    rerender(<ReactionEmoji name="yes-party" emoji={{ url: "https://cdn.test/slack-emoji/p.gif", still: "https://cdn.test/slack-emoji/p.still.png", stored: true }} />);
+    expect(screen.getByRole("img", { name: ":yes-party:" })).toHaveAttribute("data-still", "https://cdn.test/slack-emoji/p.still.png");
     rerender(<ReactionEmoji name="tada" emoji={{ text: "🎉" }} />);
     expect(screen.getByText("🎉")).toBeInTheDocument();
     rerender(<ReactionEmoji name="mystery" />);
