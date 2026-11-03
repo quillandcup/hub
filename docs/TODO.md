@@ -109,6 +109,10 @@ Rule (CLAUDE.md, "Nothing through webhooks alone"): nightly reconciliation is th
 - Zoom, Google Calendar, Kajabi: equivalent "fetch since the newest record we have" paths, triggered on demand (webhook gaps, admin button, page views).
 - Record each gap-fill (source, scope, rows recovered) and surface it on `/admin/data-health`. A fill that recovers many rows means the webhook was down. Checkly can't see this: it monitors endpoints and heartbeats, not processed requests or logs. (Slack's are at `/admin/data-health/gap-fills`; the other sources record into the same table when they get their fills.)
 
+### Admin Calendar Live Attendance: Push Instead of Polling _(Needs Scheduling)_
+
+The admin calendar adds live Zoom presence (`lib/live-attendance.ts`) to a running prickle's count and re-reads every 30 seconds while one runs (`components/LivePoll.tsx`). It polls because `bronze.zoom_participant_events` is service role only and not in the Realtime publication, so `LiveRefresh` (postgres_changes, RLS) can't see it. Worth doing once 30 seconds of lag or the extra renders matter: have the Zoom webhook send a content-free Realtime Broadcast after `recordParticipantEvent`, with an authorization rule limiting subscribers to admins, and let the calendar `router.refresh()` on it. Don't open the table to admins for this: it holds participant names, emails and raw payloads.
+
 ### Secondary Zoom Rooms _(Needs Scoping)_
 We have a couple of secondary Zoom links/rooms that aren't imported. The Zoom import (`lib/zoom/client.ts`) reads one host's meetings (`ZOOM_USER_EMAIL`), and everything downstream assumes prickles run in that host's room, one meeting at a time. Checked against prod on 2026-10-03: all 417 imported meetings in the last 60 days had the same `host_id`, and only 1 pair of them overlapped in time. The main room's meeting id also changes roughly monthly.
 

@@ -6,12 +6,17 @@ import Link from "next/link";
 import CalendarWeekView from "@/components/CalendarWeekView";
 import CalendarKeyboardNav from "@/components/CalendarKeyboardNav";
 import LiveRefresh from "@/components/LiveRefresh";
+import LivePoll from "@/components/LivePoll";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { computeHostStatus } from "@/lib/hosting-stats";
 import { requireAdminPage } from "@/lib/admin-auth";
 import { orgWeek } from "@/lib/org-week";
 import { formatDateOnly } from "@/lib/formatters";
 import { clock } from "@/lib/clock";
+import { getServiceRepos } from "@/lib/data/server";
+import { loadLiveAttendance, type LiveAttendee } from "@/lib/live-attendance";
+
+const LIVE_POLL_MS = 30_000;
 
 export const metadata: Metadata = {
   title: "Prickle Calendar",
@@ -41,6 +46,15 @@ export default async function CalendarPage({
     attendanceByPrickle.set(link.prickleId, [...(attendanceByPrickle.get(link.prickleId) ?? []), link]);
   }
 
+  // Prickles in progress (or just ended) aren't imported yet: add who the join/leave webhooks put in the room.
+  // A failed read just leaves the imported attendance, as before.
+  const nowDate = new Date(clock.now());
+  const liveAttendance = await loadLiveAttendance(getServiceRepos(), prickles, nowDate).catch((error) => {
+    console.error("Live attendance for the admin calendar failed:", error);
+    return new Map<string, LiveAttendee[]>();
+  });
+  const anyRunning = prickles.some((p) => new Date(p.startTime) <= nowDate && new Date(p.endTime) > nowDate);
+
   // Zoom attendance is imported after the fact. If a meeting at or after a prickle's start is
   // already in, that prickle's data is in too, so 0 attendees means nobody came.
   const latestMeetingStart = await repos.zoom.latestMeetingStart().catch(() => null); // a failed read shows as no data, as before
@@ -57,7 +71,9 @@ export default async function CalendarPage({
 
   // Transform the data to include attendance count and host attendance status
   const pricklesWithCount = prickles.map((prickle) => {
-    const attendance = attendanceByPrickle.get(prickle.id) ?? [];
+    const live = liveAttendance.get(prickle.id) ?? [];
+    const attendance = [...(attendanceByPrickle.get(prickle.id) ?? []), ...live];
+    const running = new Date(prickle.startTime) <= nowDate && new Date(prickle.endTime) > nowDate;
     const hostId = prickle.hostId;
     let hostMissing = false;
     let hostLate = false;
@@ -82,6 +98,7 @@ export default async function CalendarPage({
       attendance_count: new Set(attendance.map((a) => a.memberId)).size,
       host_missing: hostMissing,
       host_late: hostLate,
+      live: running,
       in_events: prickle.calendarEventId ? eventByCalendarEvent.get(prickle.calendarEventId) : undefined,
     };
   });
@@ -137,6 +154,8 @@ export default async function CalendarPage({
         table="prickles"
         within={{ column: "start_time", from: week.startInstant.toISOString(), to: week.endInstant.toISOString() }}
       />
+      {/* Participant events are service role only, so Realtime can't announce them: while a prickle runs, re-read now and then. */}
+      {anyRunning && <LivePoll everyMs={LIVE_POLL_MS} />}
       <CalendarKeyboardNav
         prevHref={`/admin/calendar?week=${prevWeekParam}`}
         nextHref={`/admin/calendar?week=${nextWeekParam}`}
