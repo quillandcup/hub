@@ -492,7 +492,7 @@ async function createProjectImpl(
   return { success: true, id };
 }
 
-export async function updateProjectDetails(
+async function updateProjectDetailsImpl(
   projectId: string,
   fields: { title: string; description: string }
 ): Promise<{ success: true } | { error: string }> {
@@ -517,7 +517,7 @@ export async function updateProjectDetails(
 /** Sets or clears (coverUrl: null) a project's pre-publish cover. The upload itself happens via
  * /api/bookshelf/cover (the same route/bucket/spec member_books covers use); this just saves the
  * resulting URL, same upload-then-save-URL split BookFormModal already uses. */
-export async function updateProjectCover(
+async function updateProjectCoverImpl(
   projectId: string,
   coverUrl: string | null
 ): Promise<{ success: true } | { error: string }> {
@@ -545,7 +545,7 @@ export async function updateProjectCover(
 
 /** Replaces a project's starting balances -- how much the member already had before tracking
  * here, per measure. A measure omitted or set to 0/blank clears its row entirely. */
-export async function setStartingBalances(
+async function setStartingBalancesImpl(
   projectId: string,
   balances: Partial<Record<Exclude<WritingMeasure, "prickles">, number>>
 ): Promise<{ success: true } | { error: string }> {
@@ -576,7 +576,7 @@ export async function setStartingBalances(
   return { success: true };
 }
 
-export async function toggleProjectVisibility(
+async function toggleProjectVisibilityImpl(
   projectId: string,
   showOnProfile: boolean
 ): Promise<{ success: true } | { error: string }> {
@@ -624,7 +624,7 @@ async function deleteProjectImpl(projectId: string): Promise<{ success: true } |
  * excluded here -- it can only be reached via publishProject, which links a Bookshelf entry in
  * the same step (see the comment there).
  */
-export async function updateProjectPhase(
+async function updateProjectPhaseImpl(
   projectId: string,
   phase: (typeof MANUALLY_SETTABLE_PHASES)[number]
 ): Promise<{ success: true } | { error: string }> {
@@ -831,7 +831,7 @@ export type UpdateEntryInput = Partial<
   prickleId?: string | null;
 };
 
-export async function updateEntry(
+async function updateEntryImpl(
   entryId: string,
   patch: UpdateEntryInput
 ): Promise<{ success: true } | { error: string }> {
@@ -878,7 +878,7 @@ export async function updateEntry(
   return { success: true };
 }
 
-export async function deleteEntry(entryId: string): Promise<{ success: true } | { error: string }> {
+async function deleteEntryImpl(entryId: string): Promise<{ success: true } | { error: string }> {
   const ctx = await requireIdentity();
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
@@ -1185,7 +1185,7 @@ export type UpdateGoalInput = Partial<
   >
 >;
 
-export async function updateGoal(
+async function updateGoalImpl(
   goalId: string,
   patch: UpdateGoalInput
 ): Promise<{ success: true } | { error: string }> {
@@ -1227,7 +1227,7 @@ export async function updateGoal(
   return { success: true };
 }
 
-export async function deleteGoal(goalId: string): Promise<{ success: true } | { error: string }> {
+async function deleteGoalImpl(goalId: string): Promise<{ success: true } | { error: string }> {
   const ctx = await requireIdentity();
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
@@ -1256,7 +1256,7 @@ export async function deleteGoal(goalId: string): Promise<{ success: true } | { 
  * (hard delete, for genuine mistakes), this preserves the goal and its final computed
  * streak/progress forever, just removed from the active lists.
  */
-export async function archiveGoal(goalId: string): Promise<{ success: true } | { error: string }> {
+async function archiveGoalImpl(goalId: string): Promise<{ success: true } | { error: string }> {
   const ctx = await requireIdentity();
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
@@ -1297,7 +1297,7 @@ export async function getArchivedGoals(projectId: string): Promise<GoalRow[]> {
   return ((goalRows ?? []) as unknown as RawGoal[]).map((g) => buildGoalRow(g, entryRows, now, attendance, startingBalances));
 }
 
-export async function toggleGoalStar(
+async function toggleGoalStarImpl(
   goalId: string,
   isStarred: boolean
 ): Promise<{ success: true } | { error: string }> {
@@ -1316,7 +1316,7 @@ export async function toggleGoalStar(
   return { success: true };
 }
 
-export async function toggleGoalVisibility(
+async function toggleGoalVisibilityImpl(
   goalId: string,
   showOnProfile: boolean
 ): Promise<{ success: true } | { error: string }> {
@@ -1486,4 +1486,52 @@ export async function createGoal(...args: Parameters<typeof createGoalImpl>): Re
 
 export async function dismissUnloggedPrickle(...args: Parameters<typeof dismissUnloggedPrickleImpl>): ReturnType<typeof dismissUnloggedPrickleImpl> {
   return withAction("unlogged_prickle_dismissed", () => dismissUnloggedPrickleImpl(...args));
+}
+
+export async function updateProjectDetails(...args: Parameters<typeof updateProjectDetailsImpl>): ReturnType<typeof updateProjectDetailsImpl> {
+  return withAction("project_details_saved", () => updateProjectDetailsImpl(...args));
+}
+
+export async function updateProjectCover(...args: Parameters<typeof updateProjectCoverImpl>): ReturnType<typeof updateProjectCoverImpl> {
+  return withAction("project_cover_changed", () => updateProjectCoverImpl(...args));
+}
+
+export async function setStartingBalances(...args: Parameters<typeof setStartingBalancesImpl>): ReturnType<typeof setStartingBalancesImpl> {
+  return withAction("starting_balances_saved", () => setStartingBalancesImpl(...args));
+}
+
+export async function toggleProjectVisibility(...args: Parameters<typeof toggleProjectVisibilityImpl>): ReturnType<typeof toggleProjectVisibilityImpl> {
+  return withAction("project_visibility_changed", () => toggleProjectVisibilityImpl(...args));
+}
+
+export async function updateProjectPhase(...args: Parameters<typeof updateProjectPhaseImpl>): ReturnType<typeof updateProjectPhaseImpl> {
+  return withAction("project_phase_changed", () => updateProjectPhaseImpl(...args));
+}
+
+export async function updateEntry(...args: Parameters<typeof updateEntryImpl>): ReturnType<typeof updateEntryImpl> {
+  return withAction("progress_entry_edited", () => updateEntryImpl(...args));
+}
+
+export async function deleteEntry(...args: Parameters<typeof deleteEntryImpl>): ReturnType<typeof deleteEntryImpl> {
+  return withAction("progress_entry_deleted", () => deleteEntryImpl(...args));
+}
+
+export async function updateGoal(...args: Parameters<typeof updateGoalImpl>): ReturnType<typeof updateGoalImpl> {
+  return withAction("goal_edited", () => updateGoalImpl(...args));
+}
+
+export async function deleteGoal(...args: Parameters<typeof deleteGoalImpl>): ReturnType<typeof deleteGoalImpl> {
+  return withAction("goal_deleted", () => deleteGoalImpl(...args));
+}
+
+export async function archiveGoal(...args: Parameters<typeof archiveGoalImpl>): ReturnType<typeof archiveGoalImpl> {
+  return withAction("goal_archived", () => archiveGoalImpl(...args));
+}
+
+export async function toggleGoalStar(...args: Parameters<typeof toggleGoalStarImpl>): ReturnType<typeof toggleGoalStarImpl> {
+  return withAction("goal_star_toggled", () => toggleGoalStarImpl(...args));
+}
+
+export async function toggleGoalVisibility(...args: Parameters<typeof toggleGoalVisibilityImpl>): ReturnType<typeof toggleGoalVisibilityImpl> {
+  return withAction("goal_visibility_changed", () => toggleGoalVisibilityImpl(...args));
 }

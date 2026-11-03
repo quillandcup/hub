@@ -136,7 +136,7 @@ async function addBookImpl(input: BookInput): Promise<{ success: true } | { erro
   return { success: true };
 }
 
-export async function updateBook(
+async function updateBookImpl(
   bookId: string,
   input: BookInput
 ): Promise<{ success: true } | { error: string }> {
@@ -185,7 +185,7 @@ export async function updateBook(
   return { success: true };
 }
 
-export async function deleteBook(bookId: string): Promise<{ success: true } | { error: string }> {
+async function deleteBookImpl(bookId: string): Promise<{ success: true } | { error: string }> {
   const ctx = await requireIdentity();
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
@@ -214,4 +214,12 @@ export async function getMyPenNameOptions(): Promise<PenNameOptions | null> {
 // Usage analytics: each action records whether it worked (lib/analytics/server.ts).
 export async function addBook(...args: Parameters<typeof addBookImpl>): ReturnType<typeof addBookImpl> {
   return withAction("book_added", () => addBookImpl(...args));
+}
+
+export async function updateBook(...args: Parameters<typeof updateBookImpl>): ReturnType<typeof updateBookImpl> {
+  return withAction("book_edited", () => updateBookImpl(...args));
+}
+
+export async function deleteBook(...args: Parameters<typeof deleteBookImpl>): ReturnType<typeof deleteBookImpl> {
+  return withAction("book_deleted", () => deleteBookImpl(...args));
 }

@@ -94,6 +94,31 @@ export const OUTCOME_ACTIONS = [
   "onboarding_step_marked",
   // Members
   "member_removed",
+  // Members' own work: edits, deletes and settings
+  "project_details_saved",
+  "project_cover_changed",
+  "starting_balances_saved",
+  "project_visibility_changed",
+  "project_phase_changed",
+  "progress_entry_edited",
+  "progress_entry_deleted",
+  "goal_edited",
+  "goal_deleted",
+  "goal_archived",
+  "goal_star_toggled",
+  "goal_visibility_changed",
+  "book_edited",
+  "book_deleted",
+  "award_edited",
+  "award_deleted",
+  "chat_message_retried",
+  "lesson_progress_cleared",
+  "calendar_item_removed",
+  "push_paused",
+  "push_resumed",
+  "push_device_removed",
+  "instagram_handle_saved",
+  "big_sister_note_saved",
 ] as const;
 
 export type OutcomeAction = (typeof OUTCOME_ACTIONS)[number];

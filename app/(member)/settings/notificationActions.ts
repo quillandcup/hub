@@ -181,7 +181,7 @@ async function removePushSubscriptionImpl(endpoint: string): Promise<{ success: 
 }
 
 /** Pause this browser while signed out; keep its consent for the same account's next sign-in. */
-export async function pausePushSubscription(endpoint: string): Promise<{ success: true; memberId: string } | { error: string }> {
+async function pausePushSubscriptionImpl(endpoint: string): Promise<{ success: true; memberId: string } | { error: string }> {
   const user = await getCurrentUser();
   if (!user) return { error: "Not authenticated" };
   // Sign-out is about the real account, including while an admin is browsing in sudo.
@@ -198,7 +198,7 @@ export async function pausePushSubscription(endpoint: string): Promise<{ success
 }
 
 /** Resume only this member's existing consent. Never transfer another account's device or undo an opt-out. */
-export async function resumePushSubscription(
+async function resumePushSubscriptionImpl(
   previousEndpoint: string,
   subscription: PushSubscriptionInput
 ): Promise<{ success: true } | { error: string }> {
@@ -260,7 +260,7 @@ export async function listPushDevices(currentEndpoint: string | null): Promise<P
 }
 
 /** Stop sending to one of the member's devices from another (a lost phone). The device's own browser subscription lapses on its next 404/410. */
-export async function removePushDevice(id: string): Promise<{ success: true } | { error: string }> {
+async function removePushDeviceImpl(id: string): Promise<{ success: true } | { error: string }> {
   const user = await getCurrentUser();
   if (!user) return { error: "Not authenticated" };
   const identity = await getEffectiveIdentity(user);
@@ -314,4 +314,16 @@ export async function savePushSubscription(...args: Parameters<typeof savePushSu
 
 export async function removePushSubscription(...args: Parameters<typeof removePushSubscriptionImpl>): ReturnType<typeof removePushSubscriptionImpl> {
   return withAction("push_disabled", () => removePushSubscriptionImpl(...args));
+}
+
+export async function pausePushSubscription(...args: Parameters<typeof pausePushSubscriptionImpl>): ReturnType<typeof pausePushSubscriptionImpl> {
+  return withAction("push_paused", () => pausePushSubscriptionImpl(...args));
+}
+
+export async function resumePushSubscription(...args: Parameters<typeof resumePushSubscriptionImpl>): ReturnType<typeof resumePushSubscriptionImpl> {
+  return withAction("push_resumed", () => resumePushSubscriptionImpl(...args));
+}
+
+export async function removePushDevice(...args: Parameters<typeof removePushDeviceImpl>): ReturnType<typeof removePushDeviceImpl> {
+  return withAction("push_device_removed", () => removePushDeviceImpl(...args));
 }

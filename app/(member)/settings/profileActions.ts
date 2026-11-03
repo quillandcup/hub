@@ -426,7 +426,7 @@ async function updateAskMeAboutImpl(input: string[]): Promise<UpdateProfileResul
   return { success: true, syncPending: false };
 }
 
-export async function updateInstagramHandle(input: string): Promise<UpdateProfileResult> {
+async function updateInstagramHandleImpl(input: string): Promise<UpdateProfileResult> {
   const ctx = await requireIdentity();
   if ("error" in ctx) return ctx;
   const { service, effectiveIdentity } = ctx;
@@ -527,4 +527,8 @@ export async function updateProfileDetails(...args: Parameters<typeof updateProf
 
 export async function updateAskMeAbout(...args: Parameters<typeof updateAskMeAboutImpl>): ReturnType<typeof updateAskMeAboutImpl> {
   return withAction("ask_me_about_saved", () => updateAskMeAboutImpl(...args));
+}
+
+export async function updateInstagramHandle(...args: Parameters<typeof updateInstagramHandleImpl>): ReturnType<typeof updateInstagramHandleImpl> {
+  return withAction("instagram_handle_saved", () => updateInstagramHandleImpl(...args));
 }

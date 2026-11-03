@@ -231,7 +231,7 @@ async function addEventToMyCalendarImpl(eventId: string): Promise<ItemResult> {
 }
 
 /** Remove one of the acting member's added items (RLS scopes the delete to their own rows). */
-export async function removeMyCalendarItem(itemId: string): Promise<ItemResult> {
+async function removeMyCalendarItemImpl(itemId: string): Promise<ItemResult> {
   const memberId = await effectiveMemberId();
   if (!memberId) return { error: "Not signed in" };
   const supabase = await createClient();
@@ -256,4 +256,8 @@ export async function addEventToMyCalendar(...args: Parameters<typeof addEventTo
 
 export async function regenerateMyCalendarFeedToken(...args: Parameters<typeof regenerateMyCalendarFeedTokenImpl>): ReturnType<typeof regenerateMyCalendarFeedTokenImpl> {
   return withAction("calendar_feed_regenerated", () => regenerateMyCalendarFeedTokenImpl(...args));
+}
+
+export async function removeMyCalendarItem(...args: Parameters<typeof removeMyCalendarItemImpl>): ReturnType<typeof removeMyCalendarItemImpl> {
+  return withAction("calendar_item_removed", () => removeMyCalendarItemImpl(...args));
 }
