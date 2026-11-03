@@ -65,6 +65,14 @@ describe("PrickleDetails attendees", () => {
     expect(screen.getByText("No attendance records for this Prickle")).toBeInTheDocument();
   });
 
+  it("lists someone still in the room (a live row has no leave time) without a duration", () => {
+    renderDetails({ hasStarted: true, attendanceRecords: [{ ...record, id: "live-0", leave_time: null }] });
+    expect(screen.getByRole("heading", { name: "Attendees (1)" })).toBeInTheDocument();
+    expect(screen.getByText("Fern Quillsby")).toBeInTheDocument();
+    expect(screen.getByText("In the room")).toBeInTheDocument();
+    expect(screen.getByText("—")).toBeInTheDocument();
+  });
+
   it("lists attendees as before", () => {
     renderDetails({ hasStarted: true, attendanceRecords: [record] });
     expect(screen.getByRole("heading", { name: "Attendees (1)" })).toBeInTheDocument();

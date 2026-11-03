@@ -51,6 +51,7 @@ function getSortValue(record: any, column: SortColumn): SortValue {
     case "leave":
       return record.leave_time;
     case "duration":
+      if (!record.leave_time) return null;
       return (new Date(record.leave_time).getTime() - new Date(record.join_time).getTime()) / 60000;
   }
 }
@@ -285,8 +286,9 @@ export default function PrickleDetails({
                 {table.rows.map((record: any) => {
                   const member = record.members;
                   const joinTime = new Date(record.join_time);
-                  const leaveTime = new Date(record.leave_time);
-                  const attendDuration = Math.round((leaveTime.getTime() - joinTime.getTime()) / 60000);
+                  // A live row (from the room, before the import) has no leave time while they're still there.
+                  const leaveTime = record.leave_time ? new Date(record.leave_time) : null;
+                  const attendDuration = leaveTime ? Math.round((leaveTime.getTime() - joinTime.getTime()) / 60000) : null;
 
                   return (
                     <tr key={record.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
@@ -304,10 +306,10 @@ export default function PrickleDetails({
                         {formatTime(joinTime)}
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
-                        {formatTime(leaveTime)}
+                        {leaveTime ? formatTime(leaveTime) : "In the room"}
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
-                        {attendDuration} min
+                        {attendDuration === null ? "—" : `${attendDuration} min`}
                       </td>
                     </tr>
                   );

@@ -59,14 +59,14 @@ describe("loadLiveAttendance", () => {
       new Date(t("11:30"))
     );
     expect(live.get(running.id)).toEqual([
-      { memberId: "mbr_AAAAAAAAAAA1", joinTime: iso("11:05") },
-      { memberId: "mbr_AAAAAAAAAAA2", joinTime: iso("11:10") },
+      { memberId: "mbr_AAAAAAAAAAA1", joinTime: iso("11:05"), leaveTime: null },
+      { memberId: "mbr_AAAAAAAAAAA2", joinTime: iso("11:10"), leaveTime: iso("11:20") },
     ]);
   });
 
   it("dates someone who was already in the room from the prickle's start", async () => {
     const live = await loadLiveAttendance(repos([ev("1", "d1", "Ada Example", "joined", "10:50")]), [running], new Date(t("11:30")));
-    expect(live.get(running.id)).toEqual([{ memberId: "mbr_AAAAAAAAAAA1", joinTime: iso("11:00") }]);
+    expect(live.get(running.id)).toEqual([{ memberId: "mbr_AAAAAAAAAAA1", joinTime: iso("11:00"), leaveTime: null }]);
   });
 
   it("leaves out guests who are not members", async () => {

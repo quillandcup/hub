@@ -32,10 +32,11 @@ vi.mock("@/lib/data/repos", async () => ({
 }));
 // The children show what the pages hand them.
 vi.mock("@/components/PrickleDetails", () => ({
-  default: ({ prickle, hostMissing, hostLate, hasStarted, insightsSlotUrl, edit }: { prickle: { id: string }; hostMissing: boolean; hostLate: boolean; hasStarted?: boolean; insightsSlotUrl?: string; edit?: { types: { id: string }[]; members: { id: string }[]; overridden: object } }) => (
-    <pre data-testid="details">{JSON.stringify({ id: prickle.id, hostMissing, hostLate, hasStarted, insightsSlotUrl, edit: edit && { types: edit.types.map((t) => t.id), members: edit.members.length, overridden: edit.overridden, canSave: typeof edit === "object" } })}</pre>
+  default: ({ prickle, attendanceRecords, hostMissing, hostLate, hasStarted, insightsSlotUrl, edit }: { prickle: { id: string }; attendanceRecords?: { members: { name: string }; leave_time: string | null }[]; hostMissing: boolean; hostLate: boolean; hasStarted?: boolean; insightsSlotUrl?: string; edit?: { types: { id: string }[]; members: { id: string }[]; overridden: object } }) => (
+    <pre data-testid="details">{JSON.stringify({ id: prickle.id, attendance: attendanceRecords?.map((r) => [r.members.name, r.leave_time]), hostMissing, hostLate, hasStarted, insightsSlotUrl, edit: edit && { types: edit.types.map((t) => t.id), members: edit.members.length, overridden: edit.overridden, canSave: typeof edit === "object" } })}</pre>
   ),
 }));
+vi.mock("@/components/LivePoll", () => ({ default: ({ everyMs }: { everyMs: number }) => <div data-testid="live-poll">{everyMs}</div> }));
 vi.mock("@/components/ReturnToTab", () => ({ ReturnToTabLink: ({ children }: { children: React.ReactNode }) => <a>{children}</a> }));
 vi.mock("@/components/writing/PrickleCheckLinks", () => ({ default: () => <div data-testid="check-links" /> }));
 vi.mock("@/app/(member)/my-prickles/AddToCalendar", () => ({
@@ -119,6 +120,50 @@ describe("member prickle page", () => {
 describe("admin prickle page", () => {
   beforeEach(() => {
     signInAs(ADMIN_USER);
+  });
+
+  describe("while it runs", () => {
+    const at = (minutes: number) => new Date(Date.now() + minutes * 60_000).toISOString();
+    const running = () => prickle({ startTime: at(-30), endTime: at(30) });
+    const event = (id: string, key: string, name: string, event: string, time: string) => ({
+      id, meeting_uuid: "mtg-1", meeting_id: null, host_id: "host-1", participant_key: key, participant_name: name,
+      participant_email: null, event, event_time: time, leave_reason: null, raw_payload: {}, received_at: time,
+    });
+    const meeting = {
+      id: "z1", meeting_id: "z1", meeting_uuid: "z1", topic: "Prickle", start_time: at(-30), end_time: null, duration_minutes: null,
+      host_email: null, host_name: null, participant_count: null, imported_at: null, updated_at: null, data: { host_id: "host-1" },
+    };
+    const world = (attendance: object[] = []) =>
+      dataset([running()], attendance, [], [], {
+        members: [HOST, { id: "mbr_AAAAAAAAAAA2", name: "Ada Example", email: "ada@example.test" }] as never,
+        zoomMeetings: [meeting] as never,
+        zoomParticipantEvents: [event("1", "d1", "Ada Example", "joined", at(-10))] as never,
+      });
+
+    it("lists who the webhooks put in the room, still there, and keeps polling", async () => {
+      repos = world();
+
+      await renderServerPage(AdminPrickleDetailPage, memberProps);
+
+      expect(JSON.parse(screen.getByTestId("details").textContent!).attendance).toEqual([["Ada Example", null]]);
+      expect(screen.getByTestId("live-poll")).toHaveTextContent("30000");
+    });
+
+    it("prefers the imported record of a member who is in both", async () => {
+      repos = world([{ id: "att_1", memberId: "mbr_AAAAAAAAAAA2", prickleId: "prkl_AAAAAAAAAAA1", joinTime: at(-25), leaveTime: at(-5) }]);
+
+      await renderServerPage(AdminPrickleDetailPage, memberProps);
+
+      expect(JSON.parse(screen.getByTestId("details").textContent!).attendance).toEqual([["Ada Example", expect.any(String)]]);
+    });
+  });
+
+  it("does not poll a prickle that is over", async () => {
+    repos = dataset([prickle({ startTime: "2020-03-03T15:00:00Z", endTime: "2020-03-03T16:00:00Z" })]);
+
+    await renderServerPage(AdminPrickleDetailPage, memberProps);
+
+    expect(screen.queryByTestId("live-poll")).not.toBeInTheDocument();
   });
 
   it("shows the prickle with its host punctuality and the test-DM tools", async () => {

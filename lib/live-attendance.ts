@@ -5,6 +5,8 @@ import { loadPresenceByMember, staysOf, toWindow, type PresenceRepos } from "@/l
 export interface LiveAttendee {
   memberId: string;
   joinTime: string;
+  /** When they left, or null while they are still in the room. */
+  leaveTime: string | null;
 }
 
 /**
@@ -34,7 +36,7 @@ export async function loadLiveAttendance(
         const window = recent.find((w) => w.id === stay.prickleId);
         if (!window || !stay.counts) continue;
         const joinedAt = Math.max(interval.join, window.start);
-        result.set(stay.prickleId, [...(result.get(stay.prickleId) ?? []), { memberId, joinTime: new Date(joinedAt).toISOString() }]);
+        result.set(stay.prickleId, [...(result.get(stay.prickleId) ?? []), { memberId, joinTime: new Date(joinedAt).toISOString(), leaveTime: interval.leave === null ? null : new Date(interval.leave).toISOString() }]);
       }
     }
   }
