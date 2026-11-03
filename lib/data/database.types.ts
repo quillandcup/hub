@@ -1976,6 +1976,58 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_drafts: {
+        Row: {
+          body: string
+          channel_id: string
+          created_at: string
+          id: string
+          member_id: string
+          thread_root_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          channel_id: string
+          created_at?: string
+          id?: string
+          member_id: string
+          thread_root_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          channel_id?: string
+          created_at?: string
+          id?: string
+          member_id?: string
+          thread_root_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_drafts_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "chat_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_drafts_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_drafts_thread_root_id_fkey"
+            columns: ["thread_root_id"]
+            isOneToOne: false
+            referencedRelation: "chat_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chat_gap_fills: {
         Row: {
           error: string | null

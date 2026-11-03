@@ -116,6 +116,9 @@ export const EVENTS = {
   /** Files were added to the chat composer (components/chat/Composer.tsx): `via` is how, `count` how many. */
   chat_files_attached: { via: oneOf("picker", "paste", "drop"), count: int() },
 
+  /** A saved draft was put back in a chat message box when it opened (components/chat/Composer.tsx): `thread` whether it is a thread's reply box. */
+  chat_draft_restored: { thread: bool() },
+
   /** A member cancelled the upload of a message's files while sending (components/chat/Composer.tsx): `count` files were attached. */
   chat_upload_cancelled: { count: int() },
 

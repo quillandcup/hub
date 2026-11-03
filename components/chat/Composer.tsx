@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { prepareChatUploads, sendChatMessage } from "@/app/(member)/chat/actions";
+import { prepareChatUploads, saveChatDraft, sendChatMessage } from "@/app/(member)/chat/actions";
 import MessageBox, { type MessageBoxHandle } from "@/components/chat/MessageBox";
 import { fromEditableText } from "@/lib/chat/render";
+import { DRAFT_SAVE_DELAY_MS, fromDraftBody, toDraftBody } from "@/lib/chat/drafts";
 import PendingAttachments from "@/components/chat/PendingAttachments";
 import { useFileDrop } from "@/components/chat/useFileDrop";
 import { track } from "@/lib/analytics/client";
@@ -27,6 +28,10 @@ import { PENDING_ID_PREFIX, emitListEvent, optimisticView, pokeChat } from "@/li
  * Files: the paperclip, pasting an image or dropping files adds attachments. They go straight from
  * the browser to private storage (a server action can't take a big body), then the message is sent
  * with them. A message with files isn't shown early: it waits for its uploads.
+ *
+ * Drafts: what is typed and not sent is saved a moment after the last keystroke (and when the box is
+ * left or the tab is hidden) and comes back as `initialDraft` the next time the box opens, so leaving
+ * a conversation or an expired session loses nothing. Files aren't part of a draft. Sending clears it.
  */
 export default function Composer({
   channelId,
@@ -35,6 +40,8 @@ export default function Composer({
   viewer,
   showSent = true,
   dropTargetIds = [],
+  initialDraft = null,
+  saveDrafts = false,
 }: {
   channelId: string;
   threadRootId?: string;
@@ -49,9 +56,14 @@ export default function Composer({
    * skipped. Without any, dropping does nothing.
    */
   dropTargetIds?: string[];
+  /** The saved draft for this box (Slack markup, see `lib/chat/drafts.ts`), put back in it when it opens. */
+  initialDraft?: string | null;
+  /** Save what is typed as a draft. Off where it can't be (sudo is read-only). */
+  saveDrafts?: boolean;
 }) {
   const router = useRouter();
-  const [text, setText] = useState("");
+  const [restored] = useState(() => (initialDraft ? fromDraftBody(initialDraft) : null));
+  const [text, setText] = useState(restored?.text ?? "");
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [attached, setAttached] = useState<File[]>([]);
@@ -61,9 +73,46 @@ export default function Composer({
   useEffect(() => () => abortRef.current?.abort(), []);
   const boxRef = useRef<MessageBoxHandle | null>(null);
   // People and channels picked in the box (shown name to Slack markup), turned into markup when sending.
-  const mentionTokens = useRef(new Map<string, string>());
+  const mentionTokens = useRef(restored?.tokens ?? new Map<string, string>());
   const pickerRef = useRef<HTMLInputElement>(null);
   const early = Boolean(viewer) && showSent && attached.length === 0;
+
+  // The draft: what the server has stored (as Slack markup, "" for none), and a way for the timer, unmount and
+  // tab-hide paths to save what is in the box now.
+  const savedDraft = useRef(initialDraft ?? "");
+  const textRef = useRef(text);
+  const saveDraftNow = useCallback(() => {
+    if (!saveDrafts) return;
+    const typed = textRef.current;
+    const body = typed.trim() === "" ? "" : toDraftBody(typed, mentionTokens.current);
+    if (body === savedDraft.current) return;
+    savedDraft.current = body;
+    void saveChatDraft(channelId, threadRootId ?? null, body).catch(() => {});
+  }, [saveDrafts, channelId, threadRootId]);
+  const latestSaveDraft = useRef(saveDraftNow);
+  useEffect(() => {
+    textRef.current = text;
+    latestSaveDraft.current = saveDraftNow;
+  });
+  useEffect(() => {
+    if (restored) track("chat_draft_restored", { thread: threadRootId !== undefined });
+    // Once, when the box opens with a draft.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    const timer = setTimeout(saveDraftNow, DRAFT_SAVE_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [text, saveDraftNow]);
+  useEffect(() => {
+    const flush = () => {
+      if (document.visibilityState === "hidden") latestSaveDraft.current();
+    };
+    document.addEventListener("visibilitychange", flush);
+    return () => {
+      document.removeEventListener("visibilitychange", flush);
+      latestSaveDraft.current();
+    };
+  }, []);
 
   const formRef = useRef<HTMLFormElement>(null);
   const attach = (incoming: File[], via: "picker" | "paste" | "drop" = "picker") => {
@@ -167,6 +216,8 @@ export default function Composer({
     }
     setAttached([]);
     mentionTokens.current = new Map();
+    // The server cleared the draft when it took the message.
+    savedDraft.current = "";
     if (early) emitListEvent({ kind: "swap", channelId, threadRootId, tempId, view: optimisticView({ id: result.id, body: shownBody, viewer: viewer! }) });
     // Bring the conversation up to date: just its newest messages when it is open here, else the page.
     if (!pokeChat(channelId)) router.refresh();

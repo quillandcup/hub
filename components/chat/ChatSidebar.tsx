@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { authenticateRealtime } from "@/lib/chat/live";
 import { loadUnreadCounts, type ChannelSummary } from "@/lib/chat/load";
 import { LAST_CHAT_COOKIE } from "@/lib/chat/last-channel";
+import { mentionsToPlainText } from "@/lib/chat/render";
 import { syncChatReadFromSlack } from "@/app/(member)/chat/actions";
 
 /** A badge reads 99+ beyond that; the server stops counting at 100. */
@@ -183,6 +184,48 @@ function Section({
   );
 }
 
+/** A conversation's (or one thread's) unsent text, for the sidebar's Drafts list. `body` is Slack markup. */
+export interface SidebarDraft {
+  channelId: string;
+  threadRootId: string | null;
+  body: string;
+}
+
+/** The member's unsent messages, newest first (as the server lists them), each opening where it was written. Nothing when there are none. */
+function DraftsSection({ drafts, channels, pathname }: { drafts: SidebarDraft[]; channels: ChannelSummary[]; pathname: string }) {
+  const byId = new Map(channels.map((c) => [c.id, c]));
+  const shown = drafts.filter((d) => byId.has(d.channelId));
+  if (shown.length === 0) return null;
+  return (
+    <div className="mb-4">
+      <h2 className="mb-1 px-3 text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">Drafts</h2>
+      <ul className="space-y-0.5">
+        {shown.map((d) => {
+          const channel = byId.get(d.channelId)!;
+          const href = `/chat/${d.channelId}${d.threadRootId ? `?thread=${d.threadRootId}` : ""}`;
+          const label = channel.kind === "channel" ? channel.label.replace(/^#/, "") : channel.label;
+          return (
+            <li key={`${d.channelId}:${d.threadRootId ?? ""}`}>
+              <Link
+                href={href}
+                data-track="chat-sidebar-draft"
+                aria-current={pathname === `/chat/${d.channelId}` && !d.threadRootId ? "page" : undefined}
+                className="block rounded-lg px-3 py-1.5 text-sm text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                <span className="block truncate">
+                  {label}
+                  {d.threadRootId && <span className="text-slate-600 dark:text-slate-400"> · thread</span>}
+                </span>
+                <span className="block truncate text-xs text-slate-600 dark:text-slate-400">{mentionsToPlainText(d.body, { userNames: {}, channelNames: {} })}</span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 /**
  * The unread map the sidebar shows. It starts from what the server counted for this page, adds a
  * message as it arrives in a conversation that isn't open (over Realtime, which applies the
@@ -301,8 +344,11 @@ export default function ChatSidebar({
   channels,
   unread = {},
   selfMemberId = null,
+  drafts = [],
 }: {
   channels: ChannelSummary[];
+  /** Unsent text per conversation or thread, as of the page load (the layout re-runs when a message is sent). */
+  drafts?: SidebarDraft[];
   /** Unread top-level messages per conversation, as of the page load. */
   unread?: Record<string, number>;
   /** Whose messages don't count as unread; null in sudo (read-only, no counts). */
@@ -357,6 +403,7 @@ export default function ChatSidebar({
           className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm"
         />
       </div>
+      <DraftsSection drafts={drafts} channels={channels} pathname={pathname} />
       <Section
         title="Channels"
         channels={mine.filter((c) => c.kind === "channel")}

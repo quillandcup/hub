@@ -386,3 +386,31 @@ describe("ChatSidebar privacy link", () => {
     expect(screen.getByRole("link", { name: "Who can see this?" })).toHaveAttribute("href", "/privacy");
   });
 });
+
+describe("ChatSidebar drafts", () => {
+  it("lists unsent messages, each opening where it was written, with mentions shown by name", () => {
+    render(
+      <ChatSidebar
+        channels={CHANNELS}
+        drafts={[
+          { channelId: "2", threadRootId: null, body: "hello <@U1|Ania Ray>" },
+          { channelId: "1", threadRootId: "msg_AAAAAAAAAAA1", body: "a reply" },
+        ]}
+      />,
+    );
+    const heading = screen.getByRole("heading", { name: "Drafts" });
+    const section = within(heading.parentElement!);
+    const [first, second] = section.getAllByRole("link");
+    expect(first).toHaveAttribute("href", "/chat/2");
+    expect(first).toHaveTextContent("writing-sprintshello @Ania Ray");
+    expect(second).toHaveAttribute("href", "/chat/1?thread=msg_AAAAAAAAAAA1");
+    expect(second).toHaveTextContent("general · threada reply");
+  });
+
+  it("shows no Drafts heading without drafts, or when their conversation is not in the list", () => {
+    const { rerender } = render(<ChatSidebar channels={CHANNELS} />);
+    expect(screen.queryByRole("heading", { name: "Drafts" })).toBeNull();
+    rerender(<ChatSidebar channels={CHANNELS} drafts={[{ channelId: "gone", threadRootId: null, body: "x" }]} />);
+    expect(screen.queryByRole("heading", { name: "Drafts" })).toBeNull();
+  });
+});

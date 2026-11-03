@@ -9,10 +9,12 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 const uploadWithProgress = vi.fn();
 import { CHAT_UPLOAD_CONCURRENCY } from "@/lib/chat/upload-pool";
 vi.mock("@/lib/chat/upload-progress", async (orig) => ({ ...(await orig<typeof import("@/lib/chat/upload-progress")>()), uploadWithProgress: (...a: unknown[]) => uploadWithProgress(...a) }));
-vi.mock("@/app/(member)/chat/actions", () => ({ sendChatMessage: vi.fn(), retryChatMessage: vi.fn(), prepareChatUploads: vi.fn() }));
+vi.mock("@/app/(member)/chat/actions", () => ({ sendChatMessage: vi.fn(), retryChatMessage: vi.fn(), prepareChatUploads: vi.fn(), saveChatDraft: vi.fn() }));
+// The draft timer without the real wait.
+vi.mock("@/lib/chat/drafts", async (orig) => ({ ...(await orig<typeof import("@/lib/chat/drafts")>()), DRAFT_SAVE_DELAY_MS: 1 }));
 vi.mock("@/app/(member)/chat/mention-actions", () => ({ suggestMentions: vi.fn() }));
 import { suggestMentions } from "@/app/(member)/chat/mention-actions";
-import { prepareChatUploads, retryChatMessage, sendChatMessage } from "@/app/(member)/chat/actions";
+import { prepareChatUploads, retryChatMessage, saveChatDraft, sendChatMessage } from "@/app/(member)/chat/actions";
 import Composer from "@/components/chat/Composer";
 import { messageBox, typeInto, boxUser } from "../helpers/message-box";
 import RetryButton from "@/components/chat/RetryButton";
@@ -27,6 +29,8 @@ beforeEach(() => {
   vi.mocked(suggestMentions).mockResolvedValue([]);
   vi.mocked(retryChatMessage).mockReset();
   vi.mocked(prepareChatUploads).mockReset();
+  vi.mocked(saveChatDraft).mockReset();
+  vi.mocked(saveChatDraft).mockResolvedValue(undefined);
   uploadWithProgress.mockReset();
 });
 
@@ -383,5 +387,74 @@ describe("RetryButton", () => {
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Slack didn't take it");
     expect(refresh).not.toHaveBeenCalled();
+  });
+});
+
+describe("Composer drafts", () => {
+  it("puts a saved draft back, mentions by name, and sends them as the markup without the label", async () => {
+    vi.mocked(sendChatMessage).mockResolvedValue({ ok: true, id: "m1" });
+    render(<Composer channelId="c1" placeholder="Message #hosts" initialDraft="hi <@U1|Ania Ray> there" saveDrafts />);
+    const box = await messageBox();
+    expect(box.textContent).toBe("hi @Ania Ray there");
+    await typeInto(box, "{Enter}");
+    await waitFor(() => expect(sendChatMessage).toHaveBeenCalledWith("c1", "hi <@U1> there", undefined, []));
+  });
+
+  it("saves what is typed, in the conversation and, with a root, in the thread", async () => {
+    render(<Composer channelId="c1" placeholder="Message #hosts" saveDrafts />);
+    await typeInto(await messageBox(), "half a thought");
+    await waitFor(() => expect(saveChatDraft).toHaveBeenLastCalledWith("c1", null, "half a thought"));
+    cleanup();
+    vi.mocked(saveChatDraft).mockClear();
+    render(<Composer channelId="c1" threadRootId="root-1" placeholder="Reply…" saveDrafts />);
+    await typeInto(await messageBox(), "a reply");
+    await waitFor(() => expect(saveChatDraft).toHaveBeenLastCalledWith("c1", "root-1", "a reply"));
+  });
+
+  it("saves a picked mention as labelled markup", async () => {
+    vi.mocked(suggestMentions).mockResolvedValue([{ label: "@Ania Ray", token: "<@U1>", photoUrl: null }]);
+    render(<Composer channelId="c1" placeholder="Message #hosts" saveDrafts />);
+    const box = await messageBox();
+    await typeInto(box, "ping @ani");
+    await userEvent.click(await screen.findByRole("option", { name: /Ania Ray/ }));
+    await waitFor(() => expect(saveChatDraft).toHaveBeenLastCalledWith("c1", null, "ping <@U1|Ania Ray> "));
+  });
+
+  it("removes the draft when the box is emptied", async () => {
+    render(<Composer channelId="c1" placeholder="Message #hosts" initialDraft="old text" saveDrafts />);
+    const box = await messageBox();
+    await userEvent.clear(box);
+    await waitFor(() => expect(saveChatDraft).toHaveBeenLastCalledWith("c1", null, ""));
+  });
+
+  it("does not save an unchanged draft", async () => {
+    render(<Composer channelId="c1" placeholder="Message #hosts" initialDraft="same" saveDrafts />);
+    await messageBox();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(saveChatDraft).not.toHaveBeenCalled();
+  });
+
+  it("saves nothing where drafts are off (sudo is read-only)", async () => {
+    render(<Composer channelId="c1" placeholder="Message #hosts" />);
+    await typeInto(await messageBox(), "private");
+    await new Promise((r) => setTimeout(r, 20));
+    expect(saveChatDraft).not.toHaveBeenCalled();
+  });
+
+  it("saves what is typed when the box is left before the timer", async () => {
+    const { unmount } = render(<Composer channelId="c1" placeholder="Message #hosts" saveDrafts />);
+    await typeInto(await messageBox(), "leaving now");
+    unmount();
+    expect(saveChatDraft).toHaveBeenCalledWith("c1", null, "leaving now");
+  });
+
+  it("saves nothing after it is sent: the server clears the draft with the message", async () => {
+    vi.mocked(sendChatMessage).mockResolvedValue({ ok: true, id: "m1" });
+    render(<Composer channelId="c1" placeholder="Message #hosts" saveDrafts />);
+    await typeInto(await messageBox(), "sent text{Enter}");
+    await waitFor(() => expect(sendChatMessage).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 20));
+    const sentAt = vi.mocked(sendChatMessage).mock.invocationCallOrder[0];
+    expect(vi.mocked(saveChatDraft).mock.invocationCallOrder.filter((order) => order > sentAt)).toEqual([]);
   });
 });

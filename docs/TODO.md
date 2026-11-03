@@ -6,7 +6,7 @@ Reviewed 2026-10-21: completed items removed, duplicates merged. Sections below 
 
 **Member-facing**
 1. Roll browser notifications out past their flag (`browser_notifications`); in-app is already on for everyone.
-2. Chat drafts, synced with the Slack bridge (see Messaging).
+2. Chat drafts: done in the Hub; syncing with Slack's drafts is blocked on Slack (see Messaging).
 3. Save Find a Prickle's answers as a check-in.
 
 **Admin-facing (operations, incl. churn reduction)**
@@ -945,8 +945,10 @@ The Hub marks a conversation read only when the reader leaves it (`components/ch
 ### Move The Remaining List Popups Onto `useComboboxKeys` _(Needs Scheduling)_
 `lib/hooks/useComboboxKeys.ts` is the one place for Arrow/Enter/Tab/Escape handling and the ARIA wiring of a list under a text box (`EntitySearch` and the message box's suggestions use it). `components/search/SearchPalette.tsx` (rows with their own Enter actions and a modal Escape) and the emoji picker's cell grid (`components/chat/EmojiPicker.tsx`, a 2-D grid with Home/End and row-aware arrows) still hand-roll theirs. The palette likely fits the hook with a per-row action; the grid needs a grid variant. Deferred to keep the formatting change focused; check `MultiEntitySearch`/`MultiSelectSearch` and other pickers for hand-written key handling at the same time.
 
-### Chat Drafts, Synced With Slack _(Needs Scoping)_
-Save unsent message text per conversation (and per thread) in Hub chat, so leaving a channel or an expired session doesn't lose it. Slack keeps drafts too; sync both ways with the Slack bridge (`docs/SLACK_BRIDGED_CHAT.md`) so a draft started in Slack shows as unsent in the Hub and the reverse, and show "Drafts" in the chat list. Check which Slack API exposes drafts (and whether the bot or a member token is needed) before designing. Related: session expiry mid-form under "Return To".
+### Chat Drafts, Synced With Slack _(Hub done; Slack sync blocked)_
+**Resolved (Hub):** unsent text is saved per conversation and per thread as the member types (`chat_drafts`, `ChatDraftRepository` in `lib/data/chat-drafts.ts`, `saveChatDraft` in `app/(member)/chat/actions.ts`, autosave in `components/chat/Composer.tsx`), put back when the box opens, cleared when the message is sent, and listed under "Drafts" in the chat sidebar. Mentions are stored as labelled Slack markup (`lib/chat/drafts.ts`). Not in sudo. Files are not part of a draft.
+
+**Still open:** syncing with Slack's own drafts. Checked 2026-11-02: Slack has no documented Web API for drafts. `drafts.list`/`drafts.create` exist only as the Slack client's internal endpoints, which take a browser session token (`xoxc` plus a cookie), not the bot or member OAuth tokens the Hub holds, so using them would mean storing members' session credentials. Worth revisiting only if Slack publishes a drafts API (watch the changelog); then a draft would be pushed from `saveChatDraft` (for connected members, production only, like `lib/chat/slack-read.ts`) and pulled on focus like the read marker. **Also open:** the Drafts list is read when the chat layout renders, so it refreshes on a reload or after a send, not while typing; Realtime on `chat_drafts` (own rows) would make it live.
 
 ### Chat Message Menu: Edit/Delete And The Rest _(Needs Scheduling)_
 **Resolved:** Edit message and Delete message are in the ⋮ menu of `components/chat/MessageActions.tsx` for the viewer's own Hub message (since #325). The menu tells `MessageBody` by a `MESSAGE_CHANGE_EVENT` (`lib/chat/list-events.ts`), which keeps the view/edit/confirm-delete state and its own gating (`changeable`); no inline Edit/Delete buttons remain. Covered in `tests/components/MessageActions.test.tsx` and `MessageBody.test.tsx`.

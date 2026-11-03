@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { createClient } from "@/lib/supabase/server";
 import { requireChat } from "@/lib/chat/access";
 import { loadUnreadCounts } from "@/lib/chat/load";
@@ -16,15 +17,17 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   const supabase = await createClient();
   // Unread counts follow the signed-in member's read markers, which are not the viewed member's in
   // sudo (read-only), so sudo shows none.
-  const [channels, unread] = await Promise.all([
+  const [channels, unread, drafts] = await Promise.all([
     loadChatChannelsForRender(identity.memberId, identity.isSudo),
     identity.isSudo ? Promise.resolve({}) : loadUnreadCounts(supabase),
+    // Unsent text, for the sidebar's Drafts list; a failed read just shows none. Not in sudo (not the viewed member's).
+    identity.isSudo ? Promise.resolve([]) : createRepos(supabase).chatDrafts.list(identity.memberId).catch(() => []),
   ]);
 
   return (
     <div className="@container h-full min-h-0 overflow-hidden">
       <div className="flex h-full min-h-0 flex-col @split:flex-row">
-        <ChatSidebar channels={channels} unread={unread} selfMemberId={identity.isSudo ? null : identity.memberId} />
+        <ChatSidebar channels={channels} unread={unread} drafts={drafts.map((d) => ({ channelId: d.channelId, threadRootId: d.threadRootId, body: d.body }))} selfMemberId={identity.isSudo ? null : identity.memberId} />
         <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain">{children}</div>
       </div>
     </div>
