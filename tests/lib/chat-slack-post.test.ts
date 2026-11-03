@@ -91,6 +91,10 @@ describe("escapeForSlack / hubMessageMetadata", () => {
     );
   });
 
+  it("leaves a > that starts a line (a quote) and the formatting markers alone, and escapes any other >", () => {
+    expect(escapeForSlack("> quoted *bold* `a < b`\n> again\n1 > 0 &")).toBe("> quoted *bold* `a &lt; b`\n> again\n1 &gt; 0 &amp;");
+  });
+
   it("marks a post with our message id", () => {
     expect(hubMessageMetadata("m1")).toEqual({ event_type: "hub_message", event_payload: { app_message_id: "m1" } });
   });

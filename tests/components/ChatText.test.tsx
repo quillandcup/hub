@@ -24,6 +24,19 @@ afterEach(() => {
 });
 
 describe("ChatText", () => {
+  it("draws a message of only emoji large, but not one with text or a shortcode it can't draw", () => {
+    const wrapper = (body: string) => {
+      const { container } = render(<ChatText body={body} ctx={ctx} />);
+      const el = container.firstElementChild as HTMLElement;
+      cleanup();
+      return el;
+    };
+    expect(wrapper("\u{1F64F}")).toHaveClass("text-[2rem]");
+    expect(wrapper(":hedgehog: :hog:")).toHaveClass("text-[2rem]");
+    expect(wrapper("\u{1F64F} do it")).not.toHaveClass("text-[2rem]");
+    expect(wrapper(":nosuchemoji:")).not.toHaveClass("text-[2rem]");
+  });
+
   it("shows custom emoji as images, over a standard emoji of the same name", () => {
     render(<ChatText body=":hedgehog: hi" ctx={ctx} />);
     expect(screen.getByAltText(":hedgehog:")).toHaveAttribute("src", "https://emoji.example.test/hedgehog.png");

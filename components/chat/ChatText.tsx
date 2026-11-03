@@ -1,7 +1,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import MemberHoverCard from "@/components/member/MemberHoverCard";
-import { parseSlackText, type Block, type Inline } from "@/lib/chat/render";
+import { isEmojiOnly } from "@/lib/chat/emoji-only";
+import { emojiNamesIn, parseSlackText, type Block, type Inline } from "@/lib/chat/render";
 import { unicodeEmoji, type CustomEmoji } from "@/lib/chat/emoji";
 import { baseName, toneOf, tonedUnicode } from "@/lib/chat/skin-tone";
 
@@ -163,5 +164,7 @@ function renderBlocks(blocks: Block[], ctx: ChatTextContext): ReactNode[] {
 
 /** A message body as rendered Slack text. */
 export default function ChatText({ body, ctx }: { body: string; ctx: ChatTextContext }) {
-  return <div className="break-words">{renderBlocks(parseSlackText(body), ctx)}</div>;
+  // A message of only emoji is drawn large, as in Slack; a shortcode the chat can't draw would show as big letters, so it doesn't count.
+  const jumbo = isEmojiOnly(body, { shortcodes: true }) && emojiNamesIn(body).every((n) => n in ctx.customEmoji || unicodeEmoji(n));
+  return <div className={jumbo ? "break-words text-[2rem] leading-tight" : "break-words"}>{renderBlocks(parseSlackText(body), ctx)}</div>;
 }

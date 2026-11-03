@@ -168,8 +168,76 @@ describe("MentionTextarea", () => {
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
 
+  describe("formatting", () => {
+    const select = (from: number, to: number) => {
+      box().focus();
+      box().setSelectionRange(from, to);
+    };
+
+    it("wraps the selected text from the toolbar, keeps it selected and reports it", async () => {
+      render(<Harness initial="say hello now" />);
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      select(4, 9);
+      await user.click(screen.getByRole("button", { name: "Bold" }));
+      expect(box()).toHaveValue("say *hello* now");
+      expect(box().value.slice(box().selectionStart, box().selectionEnd)).toBe("hello");
+      expect(track).toHaveBeenCalledWith("chat_format_applied", { kind: "bold", via: "toolbar" });
+
+      await user.click(screen.getByRole("button", { name: "Bold" }));
+      expect(box()).toHaveValue("say hello now");
+    });
+
+    it("has a button for each format, writing its markers", async () => {
+      render(<Harness initial="one" />);
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const expected: [string, string][] = [
+        ["Italic", "_one_"],
+        ["Strikethrough", "~one~"],
+        ["Code", "`one`"],
+        ["Quote", "> one"],
+        ["Bulleted list", "• one"],
+        ["Numbered list", "1. one"],
+        ["Code block", "```\none\n```"],
+      ];
+      for (const [name, text] of expected) {
+        await user.clear(box());
+        await user.type(box(), "one");
+        select(0, 3);
+        await user.click(screen.getByRole("button", { name }));
+        expect(box(), name).toHaveValue(text);
+      }
+    });
+
+    it("formats with Ctrl+B, Ctrl+I and Ctrl+Shift+X without passing the key on", async () => {
+      render(<Harness initial="word" />);
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      select(0, 4);
+      await user.keyboard("{Control>}b{/Control}");
+      expect(box()).toHaveValue("*word*");
+      await user.keyboard("{Control>}i{/Control}");
+      expect(box()).toHaveValue("*_word_*");
+      await user.keyboard("{Control>}{Shift>}x{/Shift}{/Control}");
+      expect(box()).toHaveValue("*_~word~_*");
+      expect(track).toHaveBeenCalledWith("chat_format_applied", { kind: "strike", via: "shortcut" });
+      expect(keyed).not.toContain("b");
+    });
+
+    it("can be left out, and writes the text large while it is only emoji", async () => {
+      const { unmount } = render(<Harness initial={"\u{1F64F}"} />);
+      expect(box().style.fontSize).toBe("2rem");
+      unmount();
+      render(<Harness initial={"\u{1F64F} do it"} />);
+      expect(box().style.fontSize).toBe("");
+      cleanup();
+      render(
+        <MentionTextarea channelId="c1" aria-label="Message" value="" onValueChange={() => {}} tokens={tokensRef} toolbar={false} />
+      );
+      expect(screen.queryByRole("toolbar")).not.toBeInTheDocument();
+    });
+  });
+
   describe("emoji after a colon", () => {
-    it("offers matching emoji after :pr, writes the picked :shortcode: and never asks for people", async () => {
+    it("offers matching emoji after :pr, writes the emoji itself and never asks for people", async () => {
       render(<Harness />);
       const user = await type("thanks :pray");
       const list = await screen.findByRole("listbox", { name: "Emoji" });
@@ -180,7 +248,7 @@ describe("MentionTextarea", () => {
       expect(suggestCustomEmoji).toHaveBeenLastCalledWith("pray");
 
       await user.keyboard("{ArrowDown}{ArrowUp}{Enter}");
-      expect(box()).toHaveValue("thanks :pray: ");
+      expect(box()).toHaveValue("thanks \u{1F64F} ");
       expect(track).toHaveBeenCalledWith("chat_emoji_suggestion_picked", { custom: false, via: "keyboard" });
       expect(keyed).not.toContain("Enter");
       expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
@@ -229,7 +297,7 @@ describe("MentionTextarea", () => {
         await vi.advanceTimersByTimeAsync(200);
       });
       await user.keyboard("{Tab}");
-      expect(box()).toHaveValue("see :tada:  now");
+      expect(box()).toHaveValue("see \u{1F389}  now");
     });
   });
 });

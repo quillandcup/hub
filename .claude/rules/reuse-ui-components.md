@@ -7,6 +7,7 @@ Before building UI, look in `components/` for what already does the job, and use
 - Dates: `DatePicker`. Wrap a native or third-party control in our own component the first time it's used, so it can be swapped in one place.
 - Tables: `SortableTh` for sorting (date columns must sort by value, not by text) and `DataTablePager` for pagination. Don't hand-roll sorting or paging in a page.
 - Tabbed pages: `Tabs`, with the path-based routing in `CLAUDE.md`.
+- Any list that pops up under a text box (a dropdown of matches, `@`/`#`/`:` suggestions): `useComboboxKeys` (`lib/hooks/useComboboxKeys.ts`) owns Arrow Up/Down (wrapping), Enter, optionally Tab, Escape, the IME guard and the ARIA wiring, so every list answers the same keys. Never write that key handling by hand. `EntitySearch` and `MentionTextarea` use it; `SearchPalette` and the emoji picker grid still have their own (see `docs/TODO.md`, "Move the remaining list popups onto `useComboboxKeys`").
 
 **Rules of thumb**
 - Needing a variant (a selectable row, a different empty state) means adding a prop to the shared component, not copying it.

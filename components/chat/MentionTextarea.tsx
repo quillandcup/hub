@@ -1,10 +1,14 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useRef, useState, type MutableRefObject, type TextareaHTMLAttributes } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type MutableRefObject, type TextareaHTMLAttributes } from "react";
 import MemberAvatar from "@/app/(member)/members/[id]/MemberAvatar";
 import { suggestCustomEmoji, suggestMentions, type MentionSuggestion } from "@/app/(member)/chat/mention-actions";
 import { Emoji } from "@/components/chat/ChatText";
+import FormatToolbar from "@/components/chat/FormatToolbar";
 import { track } from "@/lib/analytics/client";
+import { useComboboxKeys } from "@/lib/hooks/useComboboxKeys";
+import { isEmojiOnly } from "@/lib/chat/emoji-only";
+import { applyFormat, shortcutFormat, type FormatKind } from "@/lib/chat/format-text";
 import { emojiChoices, loadCatalog, type EmojiChoice } from "@/lib/chat/emoji-suggest";
 
 const SUGGEST_DELAY_MS = 120;
@@ -27,9 +31,10 @@ function triggerBefore(value: string, caret: number): Open | null {
 /**
  * A message box that offers people (`@`), channels (`#`) and emoji (`:pray`) as they are typed, like Slack's. Picking one writes
  * its name into the text (`@Ania Ray`) and remembers what Slack needs for it in `tokens` (shown name to `<@U…>`),
- * which the owner turns the text back into Slack's markup with on send (`fromEditableText`). Arrow keys move
- * through the choices, Enter or Tab picks, Escape closes; an emoji is written as its `:shortcode: `, which Slack and the
- * chat both draw; while choices are showing those keys are the box's,
+ * which the owner turns the text back into Slack's markup with on send (`fromEditableText`). The choices' keys
+ * (arrows, Enter or Tab, Escape) are the shared `useComboboxKeys`; an emoji is written as the character itself (a custom one as its `:shortcode: `), which
+ * Slack and the chat both draw. A toolbar over the box (and Ctrl/Cmd+B, +I, +Shift+X) writes formatting markers
+ * (`*bold*`, `_italic_`, `~strike~`, code, a quote, lists) into the text, which Slack and the chat read as formatting; while choices are showing those keys are the box's,
  * otherwise `onKeyDown` gets them (send on Enter, cancel on Escape).
  */
 export default function MentionTextarea({
@@ -39,6 +44,7 @@ export default function MentionTextarea({
   tokens,
   textareaRef,
   onKeyDown,
+  toolbar = true,
   ...rest
 }: {
   channelId: string;
@@ -47,15 +53,15 @@ export default function MentionTextarea({
   /** Shown name to Slack markup for each person or channel picked; the owner reads it when sending. */
   tokens: MutableRefObject<Map<string, string>>;
   textareaRef?: MutableRefObject<HTMLTextAreaElement | null>;
+  /** Show the formatting buttons over the box (on by default). */
+  toolbar?: boolean;
 } & Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "value" | "onChange">) {
-  const listId = useId();
   const inner = useRef<HTMLTextAreaElement | null>(null);
   const [open, setOpen] = useState<Open | null>(null);
   const [choices, setChoices] = useState<MentionSuggestion[]>([]);
   const [emoji, setEmoji] = useState<EmojiChoice[]>([]);
-  const [active, setActive] = useState(0);
   const latest = useRef("");
-  const pendingCaret = useRef<number | null>(null);
+  const pendingSelection = useRef<{ start: number; end: number } | null>(null);
 
   const setRef = (el: HTMLTextAreaElement | null) => {
     inner.current = el;
@@ -72,23 +78,21 @@ export default function MentionTextarea({
         const [standard, custom] = await Promise.all([loadCatalog().catch(() => []), suggestCustomEmoji(open.query).catch(() => [])]);
         if (latest.current !== key) return;
         setEmoji(emojiChoices(open.query, standard, custom));
-        setActive(0);
         return;
       }
       const found = await suggestMentions(channelId, open.trigger, open.query).catch(() => []);
       // An answer to something typed since is stale.
       if (latest.current !== key) return;
       setChoices(found);
-      setActive(0);
     }, SUGGEST_DELAY_MS);
     return () => clearTimeout(timer);
   }, [open, channelId]);
 
   // After a pick the text changes; put the caret behind the inserted name once it has.
   useLayoutEffect(() => {
-    if (pendingCaret.current !== null && inner.current) {
-      inner.current.setSelectionRange(pendingCaret.current, pendingCaret.current);
-      pendingCaret.current = null;
+    if (pendingSelection.current && inner.current) {
+      inner.current.setSelectionRange(pendingSelection.current.start, pendingSelection.current.end);
+      pendingSelection.current = null;
     }
   });
 
@@ -115,7 +119,7 @@ export default function MentionTextarea({
     for (let n = 2; tokens.current.has(shown) && tokens.current.get(shown) !== choice.token; n++) shown = `${base} (${n})`;
     tokens.current.set(shown, choice.token);
     const next = `${value.slice(0, open.start)}${shown} ${value.slice(caret)}`;
-    pendingCaret.current = open.start + shown.length + 1;
+    pendingSelection.current = { start: open.start + shown.length + 1, end: open.start + shown.length + 1 };
     onValueChange(next);
     setOpen(null);
     setChoices([]);
@@ -125,25 +129,53 @@ export default function MentionTextarea({
     if (!open || !inner.current) return;
     track("chat_emoji_suggestion_picked", { custom: "url" in choice.emoji, via });
     const caret = inner.current.selectionStart ?? value.length;
-    const shown = `:${choice.name}: `;
-    pendingCaret.current = open.start + shown.length;
+    // The emoji itself when there is one; a custom emoji has no character, so its :shortcode: stands in.
+    const shown = `${"text" in choice.emoji ? choice.emoji.text : `:${choice.name}:`} `;
+    pendingSelection.current = { start: open.start + shown.length, end: open.start + shown.length };
     onValueChange(`${value.slice(0, open.start)}${shown}${value.slice(caret)}`);
     setOpen(null);
     setEmoji([]);
   };
 
-  const count = open?.trigger === ":" ? emoji.length : choices.length;
-  const showing = open !== null && count > 0;
+  const items: unknown[] = open?.trigger === ":" ? emoji : choices;
+  const showing = open !== null && items.length > 0;
+  const combobox = useComboboxKeys({
+    count: showing ? items.length : 0,
+    options: items,
+    preselect: true,
+    pickOnTab: true,
+    onPick: (i) => (open?.trigger === ":" ? pickEmoji(emoji[i], "keyboard") : pick(choices[i])),
+    onEscape: () => {
+      if (!open) return false;
+      setOpen(null);
+      return true;
+    },
+  });
+  const aria = combobox.inputProps(showing);
+
+  const format = (kind: FormatKind) => {
+    const el = inner.current;
+    if (!el) return;
+    const edit = applyFormat(value, el.selectionStart ?? value.length, el.selectionEnd ?? value.length, kind);
+    pendingSelection.current = { start: edit.start, end: edit.end };
+    onValueChange(edit.value);
+    setOpen(null);
+    el.focus();
+    track("chat_format_applied", { kind, via: "toolbar" });
+  };
 
   return (
     <div className="relative">
+      {toolbar && <FormatToolbar onFormat={format} />}
       <textarea
         {...rest}
+        // Only emoji so far: large, like the message will be.
+        style={isEmojiOnly(value) ? { ...rest.style, fontSize: "2rem", lineHeight: 1.2 } : rest.style}
         ref={setRef}
         value={value}
-        aria-autocomplete="list"
-        aria-controls={showing ? listId : undefined}
-        aria-activedescendant={showing ? `${listId}-${active}` : undefined}
+        aria-autocomplete={aria["aria-autocomplete"]}
+        aria-controls={showing ? aria["aria-controls"] : undefined}
+        aria-activedescendant={aria["aria-activedescendant"]}
         onChange={(e) => {
           onValueChange(e.target.value);
           look(e.target.value, e.target.selectionStart ?? e.target.value.length);
@@ -151,47 +183,36 @@ export default function MentionTextarea({
         onClick={(e) => look(e.currentTarget.value, e.currentTarget.selectionStart ?? 0)}
         onBlur={() => setOpen(null)}
         onKeyDown={(e) => {
-          if (showing && !e.nativeEvent.isComposing) {
-            if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-              e.preventDefault();
-              setActive((i) => (i + (e.key === "ArrowDown" ? 1 : count - 1)) % count);
-              return;
-            }
-            if (e.key === "Enter" || e.key === "Tab") {
-              e.preventDefault();
-              if (open?.trigger === ":") pickEmoji(emoji[active], "keyboard");
-              else pick(choices[active]);
-              return;
-            }
-            if (e.key === "Escape") {
-              e.preventDefault();
-              setOpen(null);
-              return;
-            }
+          if (combobox.handleKey(e)) return;
+          const shortcut = !e.nativeEvent.isComposing && toolbar ? shortcutFormat(e) : null;
+          if (shortcut) {
+            e.preventDefault();
+            const el = e.currentTarget;
+            const edit = applyFormat(value, el.selectionStart, el.selectionEnd, shortcut);
+            pendingSelection.current = { start: edit.start, end: edit.end };
+            onValueChange(edit.value);
+            track("chat_format_applied", { kind: shortcut, via: "shortcut" });
+            return;
           }
           onKeyDown?.(e);
         }}
       />
       {showing && open && (
         <ul
-          id={listId}
-          role="listbox"
+          {...combobox.listboxProps}
           aria-label={open.trigger === "@" ? "People" : open.trigger === "#" ? "Channels" : "Emoji"}
           className="absolute bottom-full left-0 z-30 mb-1 max-h-56 w-72 max-w-full overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-lg dark:border-slate-700 dark:bg-slate-900"
         >
           {(open.trigger === ":" ? emoji.map((e) => ({ key: e.name, label: `:${e.name}:`, onPick: () => pickEmoji(e, "pointer"), lead: <Emoji name={e.name} custom={{ [e.name]: e.emoji }} /> })) : choices.map((c) => ({ key: c.token, label: c.label, onPick: () => pick(c), lead: open.trigger === "@" ? <MemberAvatar name={c.label.slice(1)} photoUrl={c.photoUrl} size={20} /> : null }))).map((c, i) => (
             <li
               key={c.key}
-              id={`${listId}-${i}`}
-              role="option"
-              aria-selected={i === active}
+              {...combobox.optionProps(i)}
               // mousedown, not click: the box would lose focus (and close the list) before a click lands.
               onMouseDown={(e) => {
                 e.preventDefault();
                 c.onPick();
               }}
-              onMouseEnter={() => setActive(i)}
-              className={`flex cursor-pointer items-center gap-2 px-3 py-1.5 ${i === active ? "bg-plum-50 dark:bg-slate-800" : ""}`}
+              className={`flex cursor-pointer items-center gap-2 px-3 py-1.5 ${i === combobox.activeIndex ? "bg-plum-50 dark:bg-slate-800" : ""}`}
             >
               {c.lead}
               <span className="truncate">{c.label}</span>
