@@ -5,7 +5,7 @@ import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { takeNextPath } from "@/lib/next-path-cookie";
 import { logSignIn } from "@/lib/signin-log";
-import { rememberSignInMethod } from "@/lib/signin-method";
+import { rememberSignInFailure, rememberSignInMethod } from "@/lib/signin-method";
 import type { Database } from "@/lib/data/database.types";
 
 // Don't re-send more often than this, so the public login form can't be used to flood an
@@ -63,6 +63,7 @@ export async function verifyEmailCode(email: string, code: string): Promise<Emai
   const token = code.replace(/\s+/g, "");
   if (!email?.trim() || !/^\d{6,8}$/.test(token)) {
     logSignIn("code_malformed");
+    await rememberSignInFailure("code_malformed");
     return { error: "Enter the code from the email, digits only." };
   }
 
@@ -70,6 +71,7 @@ export async function verifyEmailCode(email: string, code: string): Promise<Emai
   const { error } = await supabase.auth.verifyOtp({ email: email.trim().toLowerCase(), token, type: "email" });
   if (error) {
     logSignIn("code_refused", error);
+    await rememberSignInFailure("code_refused");
     return { error: "That code didn't work. It may have expired or been replaced by a newer email. Request a new link." };
   }
   logSignIn("code_ok");

@@ -8,7 +8,13 @@ import { flush, setTrackingEnabled, track, trackWhenEnabled } from "@/lib/analyt
 import { readAttribution, stripAttribution } from "@/lib/notifications/attribution";
 import { useEventsAllowed } from "@/lib/analytics/use-events-allowed";
 import { templateRoute } from "@/lib/analytics/route";
-import { clearSignInMethod, readSignInMethod } from "@/lib/signin-method-client";
+import {
+  SIGNIN_FAILURE_REASONS,
+  clearSignInFailures,
+  clearSignInMethod,
+  readSignInFailures,
+  readSignInMethod,
+} from "@/lib/signin-method-client";
 
 /**
  * Turns on usage tracking (lib/analytics/client.ts) for a signed-in visitor once consent allows
@@ -55,6 +61,17 @@ export function AnalyticsEvents({ needsConsent, optedOut = false }: { needsConse
     if (!method) return;
     clearSignInMethod();
     return trackWhenEnabled("signed_in", { method });
+  }, []);
+
+  // Failed attempts this member ran into before getting in (lib/signin-method-client.ts): one event per
+  // kind with how many times, then the cookie goes. Same rule: wait for tracking, drop if it never starts.
+  useEffect(() => {
+    const failures = readSignInFailures(document.cookie);
+    const reasons = SIGNIN_FAILURE_REASONS.filter((r) => failures[r]);
+    if (reasons.length === 0) return;
+    clearSignInFailures();
+    const cancels = reasons.map((reason) => trackWhenEnabled("signin_failed", { reason, count: failures[reason]! }));
+    return () => cancels.forEach((cancel) => cancel());
   }, []);
 
   useEffect(() => {

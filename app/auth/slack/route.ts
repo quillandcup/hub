@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { consumeSlackSignIn } from "@/lib/slack-sign-in";
-import { rememberSignInMethod } from "@/lib/signin-method";
+import { rememberSignInFailure, rememberSignInMethod } from "@/lib/signin-method";
 import { finishSlackSignIn, refreshHomeForDeadToken } from "./finish";
 
 /**
@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
   if (!slackUserId) {
     const refreshed = await refreshHomeForDeadToken(service, token, origin);
     console.warn("slack-sign-in: dead sign-in link clicked (Home tab refreshed: %s)", refreshed);
+    await rememberSignInFailure("slack_link_expired");
     return NextResponse.redirect(new URL(`/auth/slack/continue?error=expired${refreshed ? "&refreshed=1" : ""}`, origin), 303);
   }
 

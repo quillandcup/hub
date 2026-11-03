@@ -13,7 +13,7 @@
  */
 
 import { OUTCOME_ACTIONS } from "@/lib/analytics/actions";
-import { SIGNIN_METHODS } from "@/lib/signin-method-client";
+import { SIGNIN_FAILURE_REASONS, SIGNIN_METHODS } from "@/lib/signin-method-client";
 
 type Spec =
   | { kind: "bool"; optional?: boolean }
@@ -167,6 +167,15 @@ export const EVENTS = {
    * docs/ANALYTICS.md, "Sign-in").
    */
   signed_in: { method: oneOf(...SIGNIN_METHODS) },
+
+  /**
+   * Before this member signed in, they ran into `count` failed attempts of one kind
+   * (lib/signin-method-client.ts SIGNIN_FAILURE_REASONS: a link opened in another browser, a refused
+   * or expired link or code, a Slack link or code that didn't work). Carried in a cookie by the
+   * browser and recorded by the first page after they get in, so it only exists for people who did
+   * sign in; people who never got in are in the server logs (lib/signin-log.ts).
+   */
+  signin_failed: { reason: oneOf(...SIGNIN_FAILURE_REASONS), count: int(20) },
 
   // On air light (components/LiveRoomIndicator.tsx). `live` is whether anyone was at the table.
   onair_popover_opened: { live: bool(), room_size: int() },

@@ -31,7 +31,8 @@ vi.mock('next/navigation', () => ({
   },
 }))
 
-const { afterTasks, nextPath, clientIp, signInMethods } = vi.hoisted(() => ({
+const { afterTasks, nextPath, clientIp, signInMethods, signInFailures } = vi.hoisted(() => ({
+  signInFailures: [] as string[],
   signInMethods: [] as string[],
   afterTasks: [] as Promise<unknown>[],
   nextPath: { value: '/' },
@@ -47,7 +48,10 @@ vi.mock('next/headers', () => ({
   headers: async () => new Headers({ origin: 'http://localhost:3000', 'x-forwarded-for': `${clientIp.value}, 10.0.0.1` }),
 }))
 vi.mock('@/lib/next-path-cookie', () => ({ takeNextPath: async () => nextPath.value }))
-vi.mock('@/lib/signin-method', () => ({ rememberSignInMethod: async (m: string) => void signInMethods.push(m) }))
+vi.mock('@/lib/signin-method', () => ({
+  rememberSignInMethod: async (m: string) => void signInMethods.push(m),
+  rememberSignInFailure: async (r: string) => void signInFailures.push(r),
+}))
 
 import {
   resolveHubUserForSlackUser,
@@ -167,6 +171,7 @@ describe('Slack sign-in', () => {
 
   beforeEach(async () => {
     signInMethods.length = 0
+    signInFailures.length = 0
     vi.clearAllMocks()
     afterTasks.length = 0
     nextPath.value = '/'
@@ -450,6 +455,8 @@ describe('Slack sign-in', () => {
 
       const res = await buttonGET(buttonRequest(tokenOf(issued.url), true))
       expect(res.headers.get('location')).toBe(`${ORIGIN}/auth/slack/continue?error=expired&refreshed=1`)
+      expect(signInFailures).toEqual(['slack_link_expired'])
+      expect(signInMethods).toEqual([])
       await Promise.all(afterTasks)
       expect(slackViewsPublish).toHaveBeenCalledWith(expect.objectContaining({ user_id: slack.member }))
     })
@@ -488,6 +495,7 @@ describe('Slack sign-in', () => {
       const result = await signInWithSlackCode(null, codeForm('ZZZZZ-ZZZZZ'))
       expect(result.error).toMatch(/didn't work/)
       expect(signInMethods).toEqual([])
+      expect(signInFailures).toEqual(['slack_code_refused'])
     })
 
     it('stops an IP after 10 attempts in the window, even with a valid code, but not other IPs', async () => {
