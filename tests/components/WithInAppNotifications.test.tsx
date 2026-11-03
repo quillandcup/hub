@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
+import { Suspense } from "react";
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import type { InAppNotificationRow } from "@/lib/data/notifications";
@@ -46,15 +47,17 @@ describe("WithInAppNotifications", () => {
     repos = createInMemoryRepos(
       new InMemoryDataset({ inAppNotifications: [note("n1", "member-1"), note("n2", "member-1"), note("n3", "member-1"), note("theirs", "member-2")] })
     );
-    render(await WithInAppNotifications({ identity: IDENTITY, children: header }));
+    await act(async () => {
+      render(<Suspense fallback={null}>{WithInAppNotifications({ identity: IDENTITY, children: header })}</Suspense>);
+    });
 
-    expect(screen.getByRole("button", { name: "Notifications, 3 unread" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Notifications, 3 unread" })).toBeInTheDocument();
   });
 
   it("shows no bell for an admin with no member record, and still renders the page", async () => {
     repos = createInMemoryRepos();
     const unread = vi.spyOn(repos.notifications, "inAppCount");
-    render(await WithInAppNotifications({ identity: null, children: <>{header}<p>the page</p></> }));
+    render(WithInAppNotifications({ identity: null, children: <>{header}<p>the page</p></> }));
 
     expect(screen.queryByRole("button", { name: /Notifications/ })).not.toBeInTheDocument();
     expect(screen.getByText("the page")).toBeInTheDocument();

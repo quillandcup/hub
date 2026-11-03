@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { createContext, use, useCallback, useContext, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { externalLinkProps } from "@/lib/notification-links";
 import {
@@ -49,8 +49,14 @@ export function useInAppNotifications(): InAppState {
   return state;
 }
 
-export function InAppNotificationsProvider({ initial, children }: { initial: BellState; children: React.ReactNode }) {
-  const [bell, setBell] = useState(initial);
+// A promise that crossed from the server is React's thenable, not necessarily a native Promise.
+function isBellState(value: BellState | Promise<BellState>): value is BellState {
+  return typeof (value as Promise<BellState>).then !== "function";
+}
+
+export function InAppNotificationsProvider({ initial, children }: { initial: BellState | Promise<BellState>; children: React.ReactNode }) {
+  // The layout sends a promise so the page isn't held back by these lookups; suspends until it arrives.
+  const [bell, setBell] = useState(isBellState(initial) ? initial : use(initial));
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
