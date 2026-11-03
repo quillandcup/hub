@@ -29,6 +29,7 @@ describe("emoticons in messages", () => {
   it("ignores URLs, times and code spans", () => {
     expect(parseInline("see http://x.com at 10:30")).toEqual([{ t: "text", v: "see http://x.com at 10:30" }]);
     expect(parseInline("`:)`")).toEqual([{ t: "code", v: ":)" }]);
+    expect(parseInline("a:) ok")).toEqual([{ t: "text", v: "a:) ok" }]);
   });
 });
 

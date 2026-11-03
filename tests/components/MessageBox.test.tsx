@@ -464,6 +464,18 @@ describe("MessageBox: conveniences", () => {
     expect(box.getAttribute("style")).toContain("overflow-y: auto");
   });
 
+  it("grows with its text: a floor from rows, a cap, and never a fixed height, even after a long paste", async () => {
+    const box = await mount();
+    const style = () => box.getAttribute("style") ?? "";
+    expect(style()).toMatch(/min-height: \d/);
+    expect(style()).not.toMatch(/(^|;)\s*height:/);
+    await caretToEnd(box);
+    await boxUser().paste(Array.from({ length: 30 }, (_, i) => `line ${i}`).join("\n"));
+    await waitFor(() => expect(box.querySelectorAll("p").length).toBeGreaterThan(20));
+    expect(style()).not.toMatch(/(^|;)\s*height:/);
+    expect(style()).toContain(`max-height: ${MAX_BOX_HEIGHT_PX}px`);
+  });
+
   it("turns pasted full names into mentions and leaves unknown ones as text", async () => {
     vi.mocked(suggestMentions).mockImplementation(async (_c, _t, q) => (q === "Ania Ray" ? [ANIA] : []));
     const box = await mount();
