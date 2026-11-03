@@ -28,7 +28,7 @@ export function Emoji({ name, custom }: { name: string; custom: Record<string, C
   const tone = toneOf(name);
   const c = custom[key];
   if (c && "url" in c) {
-    return <EmojiImage name={key} url={c.url} still={c.still} />;
+    return <EmojiImage name={key} url={c.url} still={c.still} stored={c.stored} />;
   }
   const text = c?.text ?? unicodeEmoji(key);
   return <span title={`:${key}:`}>{text ? (tone && !c ? tonedUnicode(text, tone) : text) : `:${name}:`}</span>;

@@ -7,7 +7,7 @@ import type { ReactionEmojiValue } from "@/lib/slack-reaction-emoji";
  */
 export default function ReactionEmoji({ name, emoji }: { name: string; emoji?: ReactionEmojiValue | null }) {
   if (emoji && "url" in emoji) {
-    return <EmojiImage name={name} url={emoji.url} still={"still" in emoji ? emoji.still : undefined} />;
+    return <EmojiImage name={name} url={emoji.url} still={"still" in emoji ? emoji.still : undefined} stored={"stored" in emoji ? emoji.stored : undefined} />;
   }
   if (emoji && "text" in emoji) return <span title={`:${name}:`}>{emoji.text}</span>;
   return <span>:{name}:</span>;

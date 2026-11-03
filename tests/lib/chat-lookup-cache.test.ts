@@ -82,8 +82,8 @@ describe("cached chat lookups", () => {
       { name: "new", image_url: "https://slack.test/new.gif", alias_for: null, image_path: null, still_path: null },
     ];
     expect(await customEmojiFor(["dance", "flat", "new"])).toEqual({
-      dance: { url: "https://cdn.test/slack-emoji/abc.gif", still: "https://cdn.test/slack-emoji/abc.still.png" },
-      flat: { url: "https://cdn.test/slack-emoji/def.png" },
+      dance: { url: "https://cdn.test/slack-emoji/abc.gif", stored: true, still: "https://cdn.test/slack-emoji/abc.still.png" },
+      flat: { url: "https://cdn.test/slack-emoji/def.png", stored: true },
       new: { url: "https://slack.test/new.gif" },
     });
   });
