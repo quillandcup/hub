@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { prepareChatUploads, saveChatDraft, sendChatMessage } from "@/app/(member)/chat/actions";
 import MessageBox, { type MessageBoxHandle } from "@/components/chat/MessageBox";
 import { messageFeatures } from "@/lib/chat/message-features";
+import { NO_FORMATS, type FormatVia } from "@/lib/chat/format-text";
 import { fromEditableText } from "@/lib/chat/render";
 import { DRAFT_SAVE_DELAY_MS, fromDraftBody, toDraftBody } from "@/lib/chat/drafts";
 import PendingAttachments from "@/components/chat/PendingAttachments";
@@ -244,7 +245,7 @@ export default function Composer({
   };
 
   // Whether the toolbar or a shortcut formatted anything in the message being written (for what is recorded when it is sent).
-  const formatted = useRef({ toolbar: false, shortcut: false });
+  const formatted = useRef<Record<FormatVia, boolean>>({ ...NO_FORMATS });
 
   const send = async () => {
     const typed = text.trim();
@@ -275,8 +276,11 @@ export default function Composer({
       ...messageFeatures(body),
       used_toolbar: formatted.current.toolbar,
       used_shortcut: formatted.current.shortcut,
+      used_typed: formatted.current.typed,
+      used_paste: formatted.current.paste,
+      used_tab: formatted.current.tab,
     });
-    formatted.current = { toolbar: false, shortcut: false };
+    formatted.current = { ...NO_FORMATS };
     const result = await sendChatMessage(channelId, body, threadRootId, uploads).catch(() => ({ ok: false as const, error: "Something went wrong. Try again." }));
     setSending(false);
     setSentBytes([]);

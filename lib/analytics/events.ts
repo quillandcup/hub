@@ -131,8 +131,11 @@ export const EVENTS = {
   /** A format was applied in a message box (components/chat/MessageBox.tsx): which one, and from the toolbar or a keyboard shortcut. */
   chat_format_applied: {
     kind: oneOf("bold", "italic", "underline", "strike", "link", "code", "codeblock", "quote", "bullets", "numbers"),
-    via: oneOf("toolbar", "shortcut"),
+    via: oneOf("toolbar", "shortcut", "typed", "paste"),
   },
+
+  /** A list item was nested or un-nested with Tab or Shift+Tab in a message box (components/chat/MessageBox.tsx): `in` is a deeper level, `out` a shallower one. */
+  chat_list_indented: { direction: oneOf("in", "out") },
 
   /** Files for a chat message could not be uploaded (components/chat/Composer.tsx, MessageBody.tsx): `stage` is asking for the upload links (`prepare`: the server refused, or the request failed) or sending the files to storage (`upload`); `count` how many files. Cancelling is `chat_upload_cancelled`, not this. */
   chat_upload_failed: { where: oneOf("message", "edit"), stage: oneOf("prepare", "upload"), count: int() },
@@ -140,8 +143,8 @@ export const EVENTS = {
   /**
    * A message was sent or an edit saved (components/chat/Composer.tsx, MessageBody.tsx): what it contains, as flags and counts, never
    * its text (lib/chat/message-features.ts). `where` is a new message, a thread reply or an edit; `files` the files sent or added and
-   * `files_removed` those taken off in an edit; `list_depth` 0 for no list, 2 and up nested; `used_toolbar` and `used_shortcut` whether
-   * the toolbar or a shortcut applied any format while writing it, so a format present with neither was typed (`*bold*`, `> `) or pasted.
+   * `files_removed` those taken off in an edit; `list_depth` 0 for no list, 2 and up nested; `used_toolbar`, `used_shortcut`, `used_typed` (typed markers such as `*bold*`, `> `, `- `),
+   * `used_paste` (formatted text pasted) and `used_tab` (Tab or Shift+Tab in a list) how formatting got in while writing it.
    */
   chat_message_composed: {
     where: oneOf("message", "reply", "edit"),
@@ -162,6 +165,9 @@ export const EVENTS = {
     mentions: int(),
     used_toolbar: bool(),
     used_shortcut: bool(),
+    used_typed: bool(),
+    used_paste: bool(),
+    used_tab: bool(),
   },
 
   /** An emoji was picked from the `:name` suggestions in a message box (components/chat/MessageBox.tsx): `custom` whether it was a workspace emoji, `via` the keyboard or the pointer. */

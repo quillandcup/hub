@@ -8,6 +8,7 @@ import { MAX_CHAT_FILES, MAX_CHAT_FILE_BYTES, type StagedUpload } from "@/lib/ch
 import { chatFileUrl, isInlineImage } from "@/lib/chat/files";
 import { track } from "@/lib/analytics/client";
 import { messageFeatures } from "@/lib/chat/message-features";
+import { NO_FORMATS, type FormatVia } from "@/lib/chat/format-text";
 import { fromEditableText, toEditableText, type EditableText } from "@/lib/chat/render";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
@@ -81,7 +82,7 @@ export default function MessageBody({
   };
 
   // Whether the toolbar or a shortcut formatted anything while this message was edited.
-  const formatted = useRef({ toolbar: false, shortcut: false });
+  const formatted = useRef<Record<FormatVia, boolean>>({ ...NO_FORMATS });
 
   const save = async () => {
     const typed = draft.trim();
@@ -118,8 +119,11 @@ export default function MessageBody({
       ...messageFeatures(next),
       used_toolbar: formatted.current.toolbar,
       used_shortcut: formatted.current.shortcut,
+      used_typed: formatted.current.typed,
+      used_paste: formatted.current.paste,
+      used_tab: formatted.current.tab,
     });
-    formatted.current = { toolbar: false, shortcut: false };
+    formatted.current = { ...NO_FORMATS };
     const result = await (uploads.length > 0 ? editChatMessage(message.id, next, uploads) : editChatMessage(message.id, next)).catch(() => ({ ok: false as const, error: "Something went wrong. Try again." }));
     setBusy(false);
     if (!result.ok) return setError(result.error);
