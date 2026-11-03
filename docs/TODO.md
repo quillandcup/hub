@@ -89,6 +89,9 @@ Some people who attend prickles have no Kajabi footprint at all (not a member, t
 
 ## Data Import
 
+### Manual-run buttons for the nightly jobs that have none
+The import page (`/admin/data/import`) has forms for the Kajabi, Stripe, calendar, Slack and Zoom imports and reprocess buttons for members, calendar prickles and Zoom attendance, which run the same logic as the nightly `/api/reconcile/*` jobs for those sources. No button calls a `/api/reconcile/*` route, and four nightly jobs have no equivalent at all: the Resend email import (`/api/reconcile/email`, which also does the backfill with `?days=`), the login activity mirror (`/logins`), the media sweep (`/media`) and the retention job (`/retention`). Today they run only from the cron, or by an admin opening the URL. Deferred because the page is organized by source, not by job; start by adding a small "Nightly jobs" section to `app/(admin)/admin/data/import/page.tsx` with one `ProcessButton` per job (`ManualReprocessingSection.tsx` has the component), the email one with a days field.
+
 ### Silver Change Propagation in the Processing DAG
 - **Where:** `lib/processing/trigger.ts` (`SILVER_DEPENDENCIES`, `getProcessingOrder`, `triggerReprocessing`)
 - **Today:** a Bronze/Local change selects the Silver steps that read that table, and Silver→Silver edges only order the selected steps ("if both run, members and calendar before attendance"). Since 2026-09-29, an edge no longer pulls in an unselected upstream step (it used to, so every Slack webhook event rebuilt all members).

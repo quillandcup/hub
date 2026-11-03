@@ -9,6 +9,7 @@ Hedgie Hub supports real-time webhooks from external systems:
 - **Google Calendar** - Push notifications when calendar events change
 - **Zoom** - Events when meetings start/end or participants join/leave
 - **Slack** - Events when messages are posted or reactions are added
+- **Resend** - Events when an email is sent, delivered, opened, clicked, bounced... (the member timeline; `docs/EMAIL_TIMELINE.md`)
 
 Each webhook handler:
 1. Verifies the webhook source (signature or channel token; see Security below)
@@ -27,6 +28,7 @@ Set these in Vercel dashboard → Settings → Environment Variables → Product
 - `ZOOM_WEBHOOK_SECRET_TOKEN` - From Zoom app webhook settings
 - `SLACK_SIGNING_SECRET` - From Slack app basic information page
 - `GOOGLE_CALENDAR_WEBHOOK_TOKEN` - Generate with `openssl rand -hex 32`
+- `RESEND_WEBHOOK_SECRET` - The `whsec_...` signing secret Resend shows for the webhook (see Resend Webhooks below)
 
 **DO NOT** add these to `.env.local` or commit them to git. They are production-only secrets.
 
@@ -165,6 +167,45 @@ Slack sends notifications for:
 - `reaction_removed` - Emoji reaction removed from message
 
 See: [Slack Events API](https://api.slack.com/apis/connections/events-api)
+
+## Resend Webhooks
+
+Resend reports what happened to each email (sent, delivered, opened, clicked, bounced, marked as spam, failed) to `/api/webhooks/resend`. The route verifies the signature, stores the event in `bronze.resend_events` and rebuilds that email's rows on the member's timeline. The nightly `/api/reconcile/email` pull is the safety net. Design: `docs/EMAIL_TIMELINE.md`.
+
+### Setup
+
+1. **The API key needs Full access.** Resend has only two permissions: Full access and Sending access. The nightly pull and the backfill list emails, which a Sending-access key cannot do. In Resend -> API keys, open the key `RESEND_API_KEY` holds and change its permission: the key's value stays the same, so nothing needs re-syncing. (The same key is Supabase Auth's SMTP password and lives in Vercel and GitHub, so a full-access key there can also delete domains and keys; see `docs/TODO.md`, "Email timeline: what is left", for a separate key.)
+2. **Add the webhook.** Resend -> Webhooks -> Add Webhook.
+   - URL: `<APP_URL>/api/webhooks/resend` (production: `https://hub.quillandcup.com/api/webhooks/resend`). It must be public HTTPS, so a webhook only ever points at one deployment: production.
+   - Events: `email.sent`, `email.delivered`, `email.delivery_delayed`, `email.bounced`, `email.complained`, `email.failed`, `email.opened`, `email.clicked`. Other events are acknowledged and ignored. `email.received` (replies) is not used yet.
+3. **Copy the signing secret** (`whsec_...`, on the webhook's page in Resend) into the env files as `RESEND_WEBHOOK_SECRET`: `.env.shared` if every environment uses the same one, otherwise `.env.prod` (`docs/ENV_MANAGEMENT.md`). Then `pnpm env:sync --only=RESEND_WEBHOOK_SECRET`. It is a production secret: never in git or a PR.
+4. **Opens and clicks are optional.** They exist only if tracking is on for the sending domain: Resend -> Domains -> the domain -> Tracking (a tracking subdomain with its own CNAME). Without it the timeline shows sends, deliveries and bounces. Turning it on rewrites every link in mail from that domain, sign-in emails included (`docs/TODO.md`, "Email Routing on Separate Subdomains").
+5. **Backfill** what Resend already holds: open `/api/reconcile/email?days=90` while signed in as an admin (or call it with the cron secret). It recovers the send and final state of each email in that window (up to 90 days), not opens and clicks, which Resend's list doesn't keep.
+
+### Testing
+
+- Send yourself a real email from production: Admin -> Test Notifications (`/admin/notifications`), email channel. It goes to your own address with your member tag, so it lands on your own **Activity Log** within seconds, and again as it is opened or clicked (if tracking is on). Outside production, email goes to `EMAIL_DEV_ADDRESS` with no member tag on purpose, so it never reaches a timeline.
+- In Resend, the webhook's page lists each delivery and the status code the route answered.
+- Read-only check of what arrived (production, with `supabase db query --linked`; see `.claude/rules/verify-against-prod.md`): `select event_type, occurred_at from bronze.resend_events order by occurred_at desc limit 10`. Don't paste addresses or subjects anywhere public.
+
+### Webhook Events
+
+| Resend event | Stored as | On the timeline |
+|---|---|---|
+| `email.sent` | `bronze.resend_events` | `email_sent` ("Email sent: subject") |
+| `email.delivered` | same | folded into the sent row (`data.delivered_at`) |
+| `email.opened` | same | `email_opened`, one row per email with a count |
+| `email.clicked` | same, link without its query string | `email_clicked`, one row per click |
+| `email.bounced`, `email.complained` | same | `email_bounced`, `email_complained` |
+| `email.failed`, `email.delivery_delayed` | same | `email_failed` |
+
+### Troubleshooting
+
+- **401 from the route**: the secret doesn't match (not synced, or rotated in Resend and not here), the request is more than 5 minutes old, or a deployed build has no `RESEND_WEBHOOK_SECRET` at all (which rejects everything on purpose).
+- **200 with `stored: false`**: the event type isn't one we keep.
+- **Events in Bronze but nothing on the timeline**: the recipient matched no member (their address isn't a member's, and the email had no member tag). The events are kept and projected on the next run after the member exists.
+- **500**: a database error; Resend retries, and the retry is a no-op for what was already stored.
+- **The nightly import fails**: see the Vercel logs for `/api/reconcile/email`. A 401 or 403 from Resend's list endpoint means `RESEND_API_KEY` is still Sending access. It has no Checkly heartbeat for now (`lib/cron-heartbeats.ts`, `unmonitored`).
 
 ## Local Testing with a tunnel
 

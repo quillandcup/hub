@@ -42,11 +42,9 @@ A clicked link can carry a one-time sign-in token. `stripLinkSecrets` removes th
 
 ## Setting it up
 
-1. Resend → Webhooks → add `https://<app url>/api/webhooks/resend` for: `email.sent`, `email.delivered`, `email.delivery_delayed`, `email.bounced`, `email.complained`, `email.failed`, `email.opened`, `email.clicked`. Put its signing secret (`whsec_...`) in `.env.shared` (or `.env.preview` and `.env.prod`) as `RESEND_WEBHOOK_SECRET` and `pnpm env:sync --only=RESEND_WEBHOOK_SECRET`.
-2. Make sure `RESEND_API_KEY` has full access (the nightly pull lists emails).
-3. Opens and clicks only exist if **tracking is on for the sending domain** (Resend → Domains → Tracking: a per-domain setting that rewrites links through a tracking subdomain, which needs a CNAME). See `docs/TODO.md`, "Email Routing on Separate Subdomains". Without it the timeline shows sends, deliveries and bounces.
-4. Checkly: the nightly import has **no heartbeat monitor** for now: the Hobby plan allows 10 uptime monitors and all 10 are used, so `reconcile-email` is marked `unmonitored` in `lib/cron-heartbeats.ts`. A failing import (for example a sending-only API key) is visible in the Vercel logs only. When there is room, delete that line, deploy the checks, copy the new heartbeat's ping URL into `.env.prod` as `CHECKLY_HEARTBEAT_RECONCILE_EMAIL` and `pnpm env:sync`.
-5. Backfill what Resend already holds: `GET /api/reconcile/email?days=90` as an admin.
+Step by step, with testing and troubleshooting: `docs/WEBHOOK_SETUP.md`, "Resend Webhooks". In short: `RESEND_API_KEY` must be **Full access** (the nightly pull lists emails; Resend has only Full and Sending access, and the permission of an existing key can be changed in place), add the webhook in Resend for the events listed there, put its signing secret in the env files as `RESEND_WEBHOOK_SECRET` and `pnpm env:sync --only=RESEND_WEBHOOK_SECRET`, turn tracking on for the sending domain if you want opens and clicks, then backfill with `/api/reconcile/email?days=90` as an admin.
+
+The nightly import has **no heartbeat monitor** for now: the Hobby plan allows 10 uptime monitors and all 10 are used, so `reconcile-email` is marked `unmonitored` in `lib/cron-heartbeats.ts`. A failing import (for example a sending-only API key) shows only in the Vercel logs. When there is room, delete that line, deploy the checks, copy the new heartbeat's ping URL into `.env.prod` as `CHECKLY_HEARTBEAT_RECONCILE_EMAIL` and `pnpm env:sync`.
 
 ## Not built yet
 
