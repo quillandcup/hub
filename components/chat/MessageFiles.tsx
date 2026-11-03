@@ -58,7 +58,7 @@ function ImageTile({
   };
 
   return (
-    <div className="group relative shrink-0 rounded-lg border border-slate-200 dark:border-slate-700" data-testid="message-image">
+    <div className="group relative max-w-full shrink-0 rounded-lg border border-slate-200 dark:border-slate-700" data-testid="message-image">
       {/* Animations off: the picture itself plays and pauses (Expand is in the toolbar); otherwise it enlarges. */}
       <button
         type="button"

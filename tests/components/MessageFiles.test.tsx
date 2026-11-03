@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -43,6 +43,14 @@ describe("MessageFiles attachments", () => {
   beforeEach(() => {
     deleteChatFile.mockReset();
     vi.restoreAllMocks();
+  });
+
+  it("keeps a big picture inside the pane: the tile and the image are capped at the pane's width and the image keeps its ratio", () => {
+    render(<MessageFiles messageId="m1" files={parseChatFiles([{ id: "F1", name: "wide.png", mimetype: "image/png", original_w: 2400, original_h: 800 }])} />);
+    const tile = screen.getByTestId("message-image");
+    expect(tile).toHaveClass("max-w-full");
+    const img = within(tile).getByRole("img");
+    expect(img).toHaveClass("max-w-full", "h-auto", "w-auto");
   });
 
   it("shows a count header that collapses and expands the files", async () => {
