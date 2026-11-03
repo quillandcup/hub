@@ -237,6 +237,52 @@ describe('Slack import: group DMs, membership, emoji and files', () => {
     })
   })
 
+  describe('the chat mirror follows membership events at once', () => {
+    const memberId = `mbr_Capture${suffix}`.slice(0, 16)
+    const hubRow = async (chatChannelId: string) => {
+      const { data } = await supabase.from('chat_channel_members').select('left_at, source').eq('channel_id', chatChannelId).eq('member_id', memberId).maybeSingle()
+      return data
+    }
+
+    it('closes a member who leaves, brings them back on a join, and ignores unmatched users and unbridged channels', async () => {
+      await supabase.from('members').insert({ id: memberId, email: `capture-${suffix}@example.com`, name: 'Capture Tester', joined_at: '2022-01-01', status: 'active' })
+      const { data: chatChannel } = await supabase
+        .from('chat_channels').insert({ kind: 'channel', slack_channel_id: channelId, visibility: 'private', name: `capture-${suffix}` }).select('id').single()
+      await supabase.from('chat_slack_authors').insert({ slack_user_id: alice, member_id: memberId })
+      try {
+        const chatId = chatChannel!.id as string
+        await supabase.from('chat_channel_members').insert({ channel_id: chatId, member_id: memberId, source: 'slack', joined_at: '2026-10-01T00:00:00Z' })
+
+        await applySlackMembershipEvent(supabase, { type: 'member_left_channel', channel: channelId, user: alice })
+        expect((await hubRow(chatId))?.left_at).not.toBeNull()
+
+        // A redelivered leave keeps the first leave time.
+        const first = (await hubRow(chatId))?.left_at
+        fake.clock.advance(60_000)
+        await applySlackMembershipEvent(supabase, { type: 'member_left_channel', channel: channelId, user: alice })
+        expect((await hubRow(chatId))?.left_at).toBe(first)
+
+        await applySlackMembershipEvent(supabase, { type: 'member_joined_channel', channel: channelId, user: alice })
+        expect((await hubRow(chatId))?.left_at).toBeNull()
+
+        // A Slack user matched to nobody, and a conversation the Hub doesn't bridge, change nothing.
+        await applySlackMembershipEvent(supabase, { type: 'member_joined_channel', channel: channelId, user: bob })
+        await applySlackMembershipEvent(supabase, { type: 'member_left_channel', channel: groupDmId, user: alice })
+        const { data: rows } = await supabase.from('chat_channel_members').select('member_id').eq('channel_id', chatId)
+        expect(rows).toEqual([{ member_id: memberId }])
+
+        // A bridge turned off for the channel: the projection skips it, and so does this.
+        await supabase.from('chat_channels').update({ bridge_disabled: true }).eq('id', chatId)
+        await applySlackMembershipEvent(supabase, { type: 'member_left_channel', channel: channelId, user: alice })
+        expect((await hubRow(chatId))?.left_at).toBeNull()
+      } finally {
+        await supabase.from('chat_channels').delete().eq('slack_channel_id', channelId)
+        await supabase.from('chat_slack_authors').delete().eq('slack_user_id', alice)
+        await supabase.from('members').delete().eq('id', memberId)
+      }
+    })
+  })
+
   describe('custom emoji', () => {
     it('stores images and aliases, and re-importing changes nothing', async () => {
       const body = await runImport()
