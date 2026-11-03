@@ -70,6 +70,17 @@ describe("planCheckinDMs", () => {
   });
 });
 
+describe("checkinMessage for a member who joined a running prickle", () => {
+  it("says they are in it instead of that it starts in 20 minutes, and still expires at the end", () => {
+    const message = checkinMessage({ ...P1 }, null, { running: true });
+    expect(message.text).toBe("You're in Progress Prickle. Check in: how are you feeling, and what do you need from it?");
+    expect(JSON.stringify(message.slackBlocks)).toContain("You're in *Progress Prickle*.");
+    expect(JSON.stringify(message.slackBlocks)).not.toContain("20 minutes");
+    expect(message.timeSensitiveUntil).toBe(P1.endTime);
+    expect(checkinMessage({ ...P1 }, null).text).toContain("in ~20 min");
+  });
+});
+
 describe("checkoutMessage tip", () => {
   const prickle = { id: "p1", typeName: "Progress Prickle", startTime: P1.startTime, endTime: P1.endTime };
 
