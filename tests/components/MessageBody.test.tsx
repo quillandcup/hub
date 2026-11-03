@@ -234,6 +234,21 @@ describe("MessageBody", () => {
       await waitFor(() => expect(editChatMessage).toHaveBeenCalledTimes(1));
     });
 
+    it("takes a pending file off before saving, and the paperclip opens the file picker", async () => {
+      mount();
+      fire("edit");
+      await messageBox("Edit message");
+      const click = vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => {});
+      await userEvent.click(screen.getByRole("button", { name: "Attach files" }));
+      expect(click).toHaveBeenCalled();
+      click.mockRestore();
+      paste(await messageBox("Edit message"), [png]);
+      await userEvent.click(await screen.findByRole("button", { name: "Remove a.png" }));
+      expect(screen.queryByRole("button", { name: "Preview a.png" })).not.toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: "Save" }));
+      expect(uploadStagedFiles).not.toHaveBeenCalled();
+    });
+
     it("keeps the box open with the reason when the upload fails", async () => {
       vi.mocked(uploadStagedFiles).mockResolvedValue({ ok: false, error: "Couldn't upload a.png. Try again." });
       mount();

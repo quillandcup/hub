@@ -15,7 +15,9 @@ const m = vi.hoisted(() => ({
   slackReactionRows: [] as { id: string }[],
   retryRow: null as Record<string, unknown> | null,
   retryUnreadable: false,
+  slackChannel: null as string | null,
   connected: vi.fn(),
+  keepCopies: vi.fn(),
   serviceClient: vi.fn(),
 }));
 
@@ -41,7 +43,7 @@ vi.mock("@/lib/data/repos", async () => {
   return {
     ...actual,
     createRepos: () => {
-      const repos = actual.createInMemoryRepos(new InMemoryDataset({ chatMessages: m.retryRow ? [{ id: MESSAGE, channel_id: CHANNEL, ...m.retryRow }] : [] }));
+      const repos = actual.createInMemoryRepos(new InMemoryDataset({ chatChannels: m.slackChannel ? [{ id: CHANNEL, slack_channel_id: m.slackChannel } as never] : [], chatMessages: m.retryRow ? [{ id: MESSAGE, channel_id: CHANNEL, ...m.retryRow }] : [] }));
       if (m.retryUnreadable) repos.chat.retryState = async () => { throw new Error("db down"); };
       return repos;
     },
@@ -52,7 +54,7 @@ vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => m.serv
 vi.mock("@/lib/chat/slack-post", () => ({ sendChatMessageToSlack: m.sendToSlack }));
 vi.mock("@/lib/chat/slack-react", () => ({ syncReactionToSlack: m.syncReaction }));
 vi.mock("@/lib/chat/slack-edit", () => ({ updateChatMessageInSlack: m.slackUpdate, deleteChatMessageInSlack: m.slackDelete, deleteChatFileInSlack: m.slackFileDelete }));
-vi.mock("@/lib/chat/slack-upload", () => ({ keepCopies: vi.fn() }));
+vi.mock("@/lib/chat/slack-upload", () => ({ keepCopies: m.keepCopies }));
 vi.mock("@/lib/chat/load", () => ({}));
 vi.mock("@/lib/chat/file-cleanup", () => ({ removeChatFileBytes: m.removeBytes }));
 
@@ -335,6 +337,17 @@ describe("editChatMessage with files", () => {
     expect(slackArgs.addFiles.uploads).toEqual([{ file: expect.any(Buffer), filename: "cat.gif" }]);
     expect(m.rpc).toHaveBeenCalledWith("chat_edit_message", { p_message_id: MESSAGE, p_body: "with a cat" });
     expect(m.rpc).toHaveBeenCalledWith("chat_add_message_files", { p_message_id: MESSAGE, p_files: [{ id: "FNEW", name: "cat.gif", mimetype: "image/gif", size: 1234 }] });
+  });
+
+  it("keeps the uploaded bytes as the permanent copies once the message is known in Slack", async () => {
+    withBucket();
+    m.slackChannel = "C_HOSTS";
+    m.retryRow = { author_member_id: "member-fern", origin: "app", slack_sync_status: "sent", slack_ts: "1700000000.000100" };
+    m.rpc.mockResolvedValue({ data: null, error: null });
+    m.slackUpdate.mockResolvedValue({ ok: true, fileIds: ["FNEW"] });
+    await editChatMessage(MESSAGE, "with a cat", [added]);
+    expect(m.keepCopies).toHaveBeenCalledWith({ storage: expect.anything() }, [expect.objectContaining({ id: "FNEW" })], [expect.objectContaining({ staged: STAGED })], expect.any(Map), "C_HOSTS", "1700000000.000100");
+    m.slackChannel = null;
   });
 
   it("refuses staged files that aren't the member's own, and touches neither Slack nor the Hub", async () => {
