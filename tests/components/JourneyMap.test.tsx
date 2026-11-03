@@ -35,6 +35,19 @@ describe("JourneyMap", () => {
     expect(screen.getByRole("link", { name: "Book Three · On hold" })).toBeInTheDocument();
   });
 
+  it("tags each stage with the statuses that put a project there", () => {
+    render(<JourneyMap projects={[]} />);
+    const stage = (title: string) => screen.getByRole("heading", { name: new RegExp(title) }).closest("li")!;
+    expect(stage("Draft")).toHaveTextContent("Status: Planning · Outlining · Drafting");
+    expect(stage("Self-Edit")).toHaveTextContent("Status: Revising");
+    expect(stage("Developmental edit")).toHaveTextContent("Status: Developmental edit");
+    expect(stage("Beta readers")).toHaveTextContent("Status: Beta readers");
+    expect(stage("Line & copy edit")).toHaveTextContent("Status: Line & copy edit");
+    expect(stage("ARC readers")).toHaveTextContent("Status: Complete");
+    expect(stage("Launch")).toHaveTextContent("Status: Published");
+    expect(stage("Self-Publish")).not.toHaveTextContent("Status:");
+  });
+
   it("has no Paused section when nothing is paused", () => {
     render(<JourneyMap projects={[]} />);
     expect(screen.queryByRole("heading", { name: "Paused" })).toBeNull();

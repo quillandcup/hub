@@ -89,7 +89,7 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
   },
   {
     key: 'writing_journey',
-    name: 'Spark to Shelf',
+    name: 'Journey',
     description: 'The Journey tab in My Writing: the stages a book goes through at Quill & Cup (draft, edits, beta readers, publishing) with the Quill & Cup offer at each, and where each of your projects is on it',
   },
   {
