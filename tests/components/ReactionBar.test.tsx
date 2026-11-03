@@ -92,3 +92,13 @@ describe("reactorsSentence", () => {
     expect(reactorsSentence({ emoji: "eyes", count: 0, mine: false })).toBe(" reacted with :eyes:");
   });
 });
+
+describe("custom emoji in a chip", () => {
+  it("carries its still, so Animations off can show it", () => {
+    const custom = { party: { url: "https://cdn.test/a.gif", still: "https://cdn.test/a.still.png" } };
+    render(<ReactionBar channelId="c1" messageId="m1" reactions={[{ emoji: "party", count: 2, mine: false }]} custom={custom} canReact={false} />);
+    const [img] = screen.getAllByRole("img", { name: ":party:" });
+    expect(img).toHaveAttribute("src", "https://cdn.test/a.gif");
+    expect(img).toHaveAttribute("data-still", "https://cdn.test/a.still.png");
+  });
+});

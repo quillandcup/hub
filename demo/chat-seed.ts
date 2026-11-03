@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { COMMUNITY } from "@/lib/data/profiles/community";
+import { storeEmojiImage } from "@/lib/chat/emoji-copy";
+import { SLACK_EMOJI_BUCKET } from "@/lib/chat/emoji-url";
 import { SLACK_FILES_BUCKET } from "@/lib/slack-capture";
 import { animatedGif, bouncingDisc, DISC_PALETTE } from "./gif";
 
@@ -190,12 +192,11 @@ export const DEMO_CHANNELS: DemoChannel[] = [
 ];
 
 const DEMO_GIF_PATH = "demo/party-disc.gif";
-const EMOJI_BUCKET = "demo-emoji";
 
 /**
  * The two animated images: the attachment goes in the private slack-files bucket where the chat's file route
- * reads it (its `slack_files` row says it is already copied, so no Slack is needed), and the emoji in a public
- * bucket, which is what a workspace's emoji CDN is to the browser (a cross-origin image served with CORS).
+ * reads it (its `slack_files` row says it is already copied, so no Slack is needed), and the emoji as the sync
+ * stores one: in the public emoji bucket with a still of its first frame.
  */
 async function seedAnimatedAssets(admin: SupabaseClient, supabaseUrl: string) {
   const gif = animatedGif(DEMO_GIF.size, DISC_PALETTE, bouncingDisc(DEMO_GIF.size), 300);
@@ -204,15 +205,16 @@ async function seedAnimatedAssets(admin: SupabaseClient, supabaseUrl: string) {
   const attachment = await admin.storage.from(SLACK_FILES_BUCKET).upload(DEMO_GIF_PATH, gif, options);
   if (attachment.error) throw new Error(`slack-files upload: ${attachment.error.message}`);
 
-  const created = await admin.storage.createBucket(EMOJI_BUCKET, { public: true });
-  if (created.error && !/already exists/i.test(created.error.message)) throw new Error(`${EMOJI_BUCKET} bucket: ${created.error.message}`);
-  const emoji = await admin.storage.from(EMOJI_BUCKET).upload(`${DEMO_ANIMATED_EMOJI}.gif`, gif, options);
-  if (emoji.error) throw new Error(`${EMOJI_BUCKET} upload: ${emoji.error.message}`);
-
+  // The same path a synced emoji takes: our copy in the emoji bucket, with a still of the first frame.
+  const { imagePath, stillPath } = await storeEmojiImage(admin, gif);
+  const url = `${supabaseUrl}/storage/v1/object/public/${SLACK_EMOJI_BUCKET}`;
   const { error } = await admin
     .schema("bronze")
     .from("slack_custom_emoji")
-    .upsert({ name: DEMO_ANIMATED_EMOJI, image_url: `${supabaseUrl}/storage/v1/object/public/${EMOJI_BUCKET}/${DEMO_ANIMATED_EMOJI}.gif`, deleted_at: null }, { onConflict: "name" });
+    .upsert(
+      { name: DEMO_ANIMATED_EMOJI, image_url: `${url}/${imagePath}`, image_path: imagePath, still_path: stillPath, copied_from_url: `${url}/${imagePath}`, deleted_at: null },
+      { onConflict: "name" }
+    );
   if (error) throw new Error(`slack_custom_emoji: ${error.message}`);
 }
 

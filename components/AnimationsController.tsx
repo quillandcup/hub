@@ -14,8 +14,15 @@ const UNFREEZABLE = "data-unfreezable";
 function freeze(img: HTMLImageElement) {
   if (img.hasAttribute(FROZEN) || img.hasAttribute(UNFREEZABLE) || img.hasAttribute("data-playing")) return;
   const original = img.currentSrc || img.src;
-  if (!original || !(img.hasAttribute("data-animated") || looksAnimated(original))) return;
+  if (!original || !(img.hasAttribute("data-animated") || img.hasAttribute("data-still") || looksAnimated(original))) return;
   img.setAttribute(FROZEN, original);
+
+  // An image that comes with its own still (a custom emoji copied into our storage) just swaps to it: no drawing, no CORS.
+  const still = img.getAttribute("data-still");
+  if (still) {
+    img.src = still;
+    return;
+  }
 
   const probe = new Image();
   probe.crossOrigin = "anonymous";
@@ -94,7 +101,8 @@ export function AnimationsController() {
           } else if (r.type === "attributes" && r.target instanceof HTMLImageElement) {
             // React reusing an <img> for another source: freeze the new one.
             const img = r.target;
-            if (img.getAttribute(FROZEN) !== img.src && !img.src.startsWith("data:")) {
+            const still = img.getAttribute("data-still");
+            if (img.getAttribute(FROZEN) !== img.src && !img.src.startsWith("data:") && !(still && img.src === new URL(still, window.location.href).href)) {
               img.removeAttribute(FROZEN);
               img.removeAttribute(UNFREEZABLE);
               freeze(img);

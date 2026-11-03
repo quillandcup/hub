@@ -29,7 +29,7 @@ export function Emoji({ name, custom }: { name: string; custom: Record<string, C
     // Lazy: a picker lists thousands of custom emoji and only the ones scrolled near should load.
     // eslint-disable-next-line @next/next/no-img-element -- small remote Slack emoji images; no sizing to optimise
     // suppressHydrationWarning: with animations off, AnimationsController may swap src for a still before React hydrates this image.
-    return <img suppressHydrationWarning src={c.url} alt={`:${key}:`} title={`:${key}:`} loading="lazy" decoding="async" className="inline-block h-[1.25em] w-[1.25em] align-text-bottom" />;
+    return <img suppressHydrationWarning src={c.url} data-still={c.still} alt={`:${key}:`} title={`:${key}:`} loading="lazy" decoding="async" className="inline-block h-[1.25em] w-[1.25em] align-text-bottom" />;
   }
   const text = c?.text ?? unicodeEmoji(key);
   return <span title={`:${key}:`}>{text ? (tone && !c ? tonedUnicode(text, tone) : text) : `:${name}:`}</span>;

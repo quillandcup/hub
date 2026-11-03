@@ -8,6 +8,9 @@ import { demoChannelId } from "../video/slack-stand-in";
  * themselves, not just the setting.
  */
 const STILL = /^data:image\/png/;
+// A custom emoji is served from our own storage with a still PNG stored beside it (the emoji sync makes it).
+const EMOJI_STILL = /\/slack-emoji\/[0-9a-f]+\.still\.png$/;
+const EMOJI_MOVING = /\/slack-emoji\/[0-9a-f]+\.gif$/;
 
 test("with animations off a GIF waits for play and an animated emoji is a still", async ({ page, signInAs }, testInfo) => {
   await signInAs("member");
@@ -25,7 +28,7 @@ test("with animations off a GIF waits for play and an animated emoji is a still"
 
   // The animated emoji in the reactions is a still too, with no play button of its own.
   const emoji = page.getByRole("img", { name: ":party_disc:" }).first();
-  await expect(emoji).toHaveAttribute("src", STILL);
+  await expect(emoji).toHaveAttribute("src", EMOJI_STILL);
   await expect(page.getByRole("button", { name: /play :party_disc:/i })).toHaveCount(0);
   await shot(page, testInfo, "paused");
 
@@ -72,7 +75,7 @@ test("with animations off a GIF waits for play and an animated emoji is a still"
   });
   await expect(page.locator("html")).toHaveAttribute("data-animations", "on");
   await expect(gif).toHaveAttribute("src", /\/api\/chat\/files\//);
-  await expect(emoji).toHaveAttribute("src", /party_disc\.gif$/);
+  await expect(emoji).toHaveAttribute("src", EMOJI_MOVING);
   await expect(page.getByRole("button", { name: /play party-disc\.gif/i })).toHaveCount(0);
   await shot(page, testInfo, "animations-on");
 });

@@ -68,6 +68,8 @@ vi.mock('@slack/web-api', () => ({
   },
 }))
 
+// The emoji images are not real addresses; copying them is tested in tests/lib/emoji-copy.test.ts.
+vi.mock('@/lib/chat/emoji-copy', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/chat/emoji-copy')>()), copyEmojiImages: vi.fn(async () => ({ copied: 0, failed: 0 })) }))
 vi.mock('@/lib/supabase/api-auth', () => ({ requireAdmin: vi.fn() }))
 vi.mock('@/lib/processing/trigger', () => ({ triggerReprocessing: vi.fn(async () => ({ processed: [] })) }))
 vi.mock('@/lib/supabase/service', async () => {

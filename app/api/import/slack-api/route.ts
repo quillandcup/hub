@@ -1,3 +1,4 @@
+import { copyEmojiImages } from "@/lib/chat/emoji-copy";
 import { invalidateChatLookups } from "@/lib/chat/invalidate-lookups";
 import { createRepos } from "@/lib/data/repos";
 import { WebClient } from '@slack/web-api';
@@ -227,9 +228,14 @@ export async function POST(request: NextRequest) {
       return syncChannelMembers(supabase, slack, channels, importTimestamp);
     });
     if (membership) console.log(`  Members: ${membership.members} across ${membership.channelsSynced} channels (${membership.left} left, ${membership.channelsFailed} channels failed); history: ${memberNotices.length} join/leave notices, ${membership.eventsInferred} inferred`);
-    const emoji = await capture('custom emoji', () => syncCustomEmoji(supabase, slack, importTimestamp));
+    // Then our own copy of each image (and a still of an animated one): chat serves emoji from our storage, not Slack's CDN.
+    const emoji = await capture('custom emoji', async () => {
+      const synced = await syncCustomEmoji(supabase, slack, importTimestamp);
+      const copies = await copyEmojiImages(supabase);
+      return { ...synced, copied: copies.copied, copyFailed: copies.failed };
+    });
     invalidateChatLookups();
-    if (emoji && !emoji.skipped) console.log(`  Custom emoji: ${emoji.emoji} (${emoji.removed} removed)`);
+    if (emoji && !emoji.skipped) console.log(`  Custom emoji: ${emoji.emoji} (${emoji.removed} removed, ${emoji.copied} copied, ${emoji.copyFailed} not copied)`);
 
     // Detect date range from imported messages
     let dateRange = null;
