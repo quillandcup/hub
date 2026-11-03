@@ -16,8 +16,8 @@ export const HIATUS_BAN = "876000h";
 export type AuthUserLite = { id: string; email?: string | null; banned_until?: string | null };
 
 /** The slice of `supabase.auth.admin` used here (the real client satisfies it). */
-export interface AdminAuthApi {
-  listUsers(params: { page: number; perPage: number }): Promise<{ data: { users: AuthUserLite[] } | null; error: { message: string } | null }>;
+export interface AdminAuthApi<U extends AuthUserLite = AuthUserLite> {
+  listUsers(params: { page: number; perPage: number }): Promise<{ data: { users: U[] } | null; error: { message: string } | null }>;
   createUser(attrs: { email: string; email_confirm: boolean; ban_duration?: string }): Promise<{ data: { user: AuthUserLite | null } | null; error: { message: string } | null }>;
   updateUserById(id: string, attrs: { ban_duration?: string; app_metadata?: Record<string, unknown> }): Promise<{ data: unknown; error: { message: string } | null }>;
 }
@@ -46,8 +46,8 @@ export type ReleaseReport = { considered: number; released: number; /** Still ba
 const PER_PAGE = 1000;
 
 /** Every auth user, paginated past the 1000-per-page limit. */
-export async function listAllAuthUsers(auth: AdminAuthApi): Promise<AuthUserLite[]> {
-  const all: AuthUserLite[] = [];
+export async function listAllAuthUsers<U extends AuthUserLite = AuthUserLite>(auth: AdminAuthApi<U>): Promise<U[]> {
+  const all: U[] = [];
   for (let page = 1; ; page++) {
     const { data, error } = await auth.listUsers({ page, perPage: PER_PAGE });
     if (error) throw new Error(`listUsers failed: ${error.message}`);
