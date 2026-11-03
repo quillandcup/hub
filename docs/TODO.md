@@ -1201,10 +1201,6 @@ Pasting `@Full Name` into the chat box now becomes a real mention (`lib/chat/pas
 The chat sidebar lists only the conversations a member is in. Public channels they could join are in a small panel behind the icon in the Channels heading (`BrowseChannels` in `components/chat/ChatSidebar.tsx`), and archived channels are in neither (the sidebar's Archived section was removed). A full page, like Slack's channel directory, would hold what the panel can't: archived channels, filters (channel type, joined or not), member counts and a longer search. Deferred because the panel covers finding a channel to join for now; start from `loadChatChannels` (`lib/chat/load.ts`), which already returns archived channels and a `joined` flag. Slack's "+" (create a channel) and the heading's ellipsis menu are also not built.
 
 
-### Admin Slack reaction emoji still come from Slack's CDN _(Needs Scheduling)_
-
-Custom emoji in chat are served from our own `slack-emoji` bucket, with a still first frame for animated ones (`lib/chat/emoji-copy.ts`, filled by the emoji sync). The reaction emoji on the admin activity rows (`lib/slack-reaction-emoji.ts`, `components/ReactionEmoji.tsx`) resolve their own image from `bronze.slack_custom_emoji.image_url`, so they still load from Slack's CDN and have no still: with Animations off a moving one shows its `:name:` text instead (`components/EmojiImage.tsx`). Deferred because it is an admin-only view. Start by resolving through `slackWorkspace.emojiByNames` (`image_path`, `still_path`) and giving `ReactionEmoji` a `data-still`.
-
 ### Shared `SubmitButton` that disables itself while its action is pending _(Needs Scheduling)_
 
 There is no shared way to stop a double submit. Found while reviewing the event-log design (`docs/EVENT_LOG.md`, "Correlation"): a very fast double click can send an action twice and, for analytics, overwrite the correlation cookie before the first request reads it. Counts when checked: 58 files render a `<form>`, 19 use `useTransition`, none use `useFormStatus`, and `components/` has no submit-button component, so each form handles pending state (or doesn't) on its own.
