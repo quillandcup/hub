@@ -50,3 +50,7 @@ CREATE POLICY "Members delete own drafts" ON public.chat_drafts
 REVOKE ALL ON public.chat_drafts FROM anon;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.chat_drafts TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.chat_drafts TO service_role;
+
+-- Erasing a member removes their drafts (the member_data_handling test requires a decision per member foreign key).
+INSERT INTO public.member_data_handling (table_name, column_name, action, why) VALUES
+  ('chat_drafts', 'member_id', 'delete', 'their unsent chat text');
