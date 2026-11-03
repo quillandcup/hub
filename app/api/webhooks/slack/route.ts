@@ -16,6 +16,8 @@ import {
   slackMemberNoticeEvent,
 } from "@/lib/slack-capture";
 import { isBeyondSlackHistory } from "@/lib/slack-deletions";
+import { decideDmEvent, isSlackDmChannelId } from "@/lib/chat/slack-dm-events";
+import { pullMemberDms } from "@/lib/chat/slack-dms";
 import { clock } from "@/lib/clock";
 import { removeChatFileBytes } from "@/lib/chat/file-cleanup";
 import { isId } from "@/lib/ids";
@@ -91,7 +93,21 @@ export async function POST(request: NextRequest) {
       if (payload.event?.type === "app_home_opened") {
         await publishHomeTab(payload.event, new URL(request.url).origin);
       } else {
-        await processSlackEvent(payload.event);
+        // A DM message delivered on behalf of a member (user_events) is kept only for members the Slack DM
+        // bridge covers; everything else goes as it always has.
+        const decision = await decideDmEvent(createServiceRoleClient(), payload);
+        if (decision.kind === "pull") {
+          const { memberId } = decision;
+          after(async () => {
+            try {
+              await pullMemberDms(createServiceRoleClient(), memberId, { force: true });
+            } catch (error) {
+              console.error("pullMemberDms threw for %s:", memberId, error);
+            }
+          });
+        } else if (decision.kind !== "drop") {
+          await processSlackEvent(payload.event);
+        }
       }
     }
 
@@ -412,7 +428,8 @@ function triggerSlackProcessing(channelId: string, messageTs: string, opts: { th
       // The event refers to something the chat doesn't have: fetch it from Slack now (and its thread
       // root, if it is a reply to one we lack) instead of waiting for the nightly import. Recorded in
       // chat_gap_fills; a burst of events for one message is one fetch.
-      if (opts.fillGaps !== false) {
+      // (Not for a DM: the bot can't fetch from one. A missed DM message is the member's own pull's to find.)
+      if (opts.fillGaps !== false && !isSlackDmChannelId(channelId)) {
         const filled = projected
           ? opts.threadTs && opts.threadTs !== messageTs
             ? await fillThreadIfRootMissing(service, { channelId, threadTs: opts.threadTs, source: "webhook" })
