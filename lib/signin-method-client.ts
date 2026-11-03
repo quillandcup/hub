@@ -6,7 +6,7 @@
 export const SIGNIN_METHOD_COOKIE = "hub_signin_method";
 export const SIGNIN_METHOD_MAX_AGE_SECONDS = 5 * 60;
 
-export const SIGNIN_METHODS = ["email_link", "email_code", "slack_link", "slack_continue", "slack_code"] as const;
+export const SIGNIN_METHODS = ["email_link", "email_code", "slack_button", "slack_pasted_link", "slack_continue", "slack_code"] as const;
 export type SignInMethod = (typeof SIGNIN_METHODS)[number];
 
 export function isSignInMethod(value: unknown): value is SignInMethod {

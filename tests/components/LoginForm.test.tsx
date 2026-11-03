@@ -212,7 +212,7 @@ describe('LoginForm', () => {
       await userEvent.click(codeInput())
       await userEvent.paste(`https://evil.example/auth/slack?token=${TOKEN}`)
 
-      expect(assign).toHaveBeenCalledWith(`/auth/slack?token=${TOKEN}`)
+      expect(assign).toHaveBeenCalledWith(`/auth/slack?token=${TOKEN}&via=paste`)
       expect(signInWithSlackCode).not.toHaveBeenCalled()
     })
 
@@ -225,7 +225,7 @@ describe('LoginForm', () => {
 
       await userEvent.click(screen.getByRole('button', { name: 'Paste from Slack' }))
 
-      expect(assign).toHaveBeenCalledWith(`/auth/slack?token=${TOKEN}`)
+      expect(assign).toHaveBeenCalledWith(`/auth/slack?token=${TOKEN}&via=paste`)
     })
 
     it('"Paste from Slack" explains an empty or unrelated clipboard', async () => {

@@ -100,9 +100,9 @@ function tokenOf(url: string) {
   return new URL(url).searchParams.get('token')!
 }
 
-function buttonRequest(token: string, navigation: boolean) {
+function buttonRequest(token: string, navigation: boolean, extra = '') {
   const headers: Record<string, string> = navigation ? { 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' } : {}
-  return new NextRequest(`${ORIGIN}/auth/slack?token=${encodeURIComponent(token)}`, { headers })
+  return new NextRequest(`${ORIGIN}/auth/slack?token=${encodeURIComponent(token)}${extra}`, { headers })
 }
 
 function codeForm(code: string) {
@@ -405,11 +405,28 @@ describe('Slack sign-in', () => {
       expect(res.status).toBe(303)
       expect(res.headers.get('location')).toBe(`${ORIGIN}/prickles/123`)
       expect(await signedInUserId()).toBe(memberUserId)
-      expect(signInMethods).toEqual(['slack_link'])
+      expect(signInMethods).toEqual(['slack_button'])
 
       // A fresh button goes into their Home tab for next time.
       await Promise.all(afterTasks)
       expect(slackViewsPublish).toHaveBeenCalledWith(expect.objectContaining({ user_id: slack.member }))
+    })
+
+    it('records a link pasted on the sign-in page (via=paste) as its own method', async () => {
+      await bindMember()
+      const issued = await issueSlackSignIn(supabase, { slackUserId: slack.member, origin: ORIGIN })
+
+      const res = await buttonGET(buttonRequest(tokenOf(issued.url), true, '&via=paste'))
+      expect(res.status).toBe(303)
+      expect(signInMethods).toEqual(['slack_pasted_link'])
+    })
+
+    it('treats any other via value as the plain button', async () => {
+      await bindMember()
+      const issued = await issueSlackSignIn(supabase, { slackUserId: slack.member, origin: ORIGIN })
+
+      await buttonGET(buttonRequest(tokenOf(issued.url), true, '&via=something-else'))
+      expect(signInMethods).toEqual(['slack_button'])
     })
 
     it('does not spend the token for a non-navigation fetch, sending it to Continue instead', async () => {
