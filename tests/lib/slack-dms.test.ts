@@ -37,8 +37,6 @@ const GALE = "mbr_AAAAAAAAAAG1";
 const CHAT = "chn_AAAAAAAAAAC1";
 const rpcCalls = (name: string) => m.rpc.mock.calls.filter(([n]) => n === name);
 
-useFakeClock(() => Date.parse("2026-11-03T12:00:00Z"));
-
 beforeEach(() => {
   m.writes = true;
   m.status = { connected: true, hasDmScopes: true, slackUserId: "USELF" };
@@ -55,6 +53,8 @@ beforeEach(() => {
 });
 
 describe("pullMemberDms", () => {
+  useFakeClock(() => Date.parse("2026-11-03T12:00:00Z"));
+
   it("lists the member's DMs with their own token and stores the conversation, its two people and its messages", async () => {
     m.history.mockResolvedValue({
       messages: [
