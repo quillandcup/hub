@@ -9,12 +9,12 @@
 
 export type Inline =
   | { t: "text"; v: string }
-  | { t: "bold" | "italic" | "strike"; c: Inline[] }
+  | { t: "bold" | "italic" | "strike" | "underline"; c: Inline[] }
   | { t: "code"; v: string }
   | { t: "link"; href: string; label: string }
   | { t: "user"; id: string }
   | { t: "channel"; id: string; label: string | null }
-  | { t: "special"; v: string }
+  | { t: "special"; v: string; /** What follows the `!` in `<!here>` or `<!subteam^S1|@team>`, for sending it back. */ raw?: string }
   | { t: "emoji"; name: string };
 
 export type Block =
@@ -36,6 +36,8 @@ export function decodeEntities(s: string): string {
 // Each pattern is tried at every position; the earliest match wins (ties go to the earlier pattern).
 // Emphasis needs word boundaries on the outside and no padding spaces inside, as in Slack.
 const PATTERNS: { re: RegExp; build: (m: RegExpExecArray) => Inline }[] = [
+  // Underline is our own marker (Slack's mrkdwn has none; a message with one is sent as rich-text blocks), before the <...> rule.
+  { re: /<u>([^\n]+?)<\/u>/, build: (m) => ({ t: "underline", c: parseInline(m[1]) }) },
   { re: /<([^<>]+)>/, build: (m) => angle(m[1]) },
   { re: /`([^`\n]+)`/, build: (m) => ({ t: "code", v: decodeEntities(m[1]) }) },
   { re: /(?<!\w):([a-z0-9_+-]+)(?:::skin-tone-\d)?:(?!\w)/i, build: (m) => ({ t: "emoji", name: m[1].toLowerCase() }) },
@@ -53,8 +55,8 @@ function angle(body: string): Inline {
   if (target.startsWith("!")) {
     const word = target.slice(1);
     if (word.startsWith("date")) return { t: "text", v: decodeEntities(label ?? "") };
-    if (word.startsWith("subteam")) return { t: "special", v: label ? decodeEntities(label) : "@group" };
-    return { t: "special", v: `@${word}` };
+    if (word.startsWith("subteam")) return { t: "special", v: label ? decodeEntities(label) : "@group", raw: target.slice(1) };
+    return { t: "special", v: `@${word}`, raw: word };
   }
   const href = decodeEntities(target);
   if (SAFE_HREF.test(href)) return { t: "link", href, label: decodeEntities(label || target.replace(/^mailto:/i, "")) };
@@ -134,6 +136,7 @@ export function emojiNamesIn(text: string): string[] {
 /** A body as one-line plain text for places that can't render chips (search hit titles): mentions and channel links become names. */
 export function mentionsToPlainText(text: string, names: { userNames: Record<string, string>; channelNames: Record<string, string> }): string {
   return text
+    .replace(/<\/?u>/g, "")
     .replace(/<@([A-Z0-9]+)(?:\|([^>]*))?>/g, (_, id: string, label?: string) => `@${names.userNames[id] ?? label ?? "someone"}`)
     .replace(/<#([A-Z0-9]+)(?:\|([^>]*))?>/g, (_, id: string, label?: string) => `#${names.channelNames[id] ?? label ?? "channel"}`);
 }

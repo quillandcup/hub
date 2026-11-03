@@ -41,13 +41,13 @@ describe("parseInline", () => {
       text(" in "),
       { t: "channel", id: "C456", label: "general" },
       text(" "),
-      { t: "special", v: "@here" },
+      { t: "special", v: "@here", raw: "here" },
       text(" "),
       { t: "emoji", name: "tada" },
     ]);
     expect(parseInline(":thumbsup::skin-tone-2:")).toEqual([{ t: "emoji", name: "thumbsup" }]);
     expect(parseInline("<!subteam^S1|@editors> <!date^1700000000^{date}|Nov 14>")).toEqual([
-      { t: "special", v: "@editors" },
+      { t: "special", v: "@editors", raw: "subteam^S1" },
       text(" "),
       text("Nov 14"),
     ]);
@@ -106,6 +106,9 @@ describe("mentionsToPlainText", () => {
   const names = { userNames: { U1: "Fern" }, channelNames: { C1: "general" } };
   it("replaces user mentions and channel links with names", () => {
     expect(mentionsToPlainText("<@U1> see <#C1|channel>", names)).toBe("@Fern see #general");
+  });
+  it("leaves out underline markers, which a title or snippet can't draw", () => {
+    expect(mentionsToPlainText("see <u>this</u> <@U1>", names)).toBe("see this @Fern");
   });
   it("falls back to the label, then a generic word, for unknown ids", () => {
     expect(mentionsToPlainText("<@U9|moss> <@U8> <#C9|ideas> <#C8>", names)).toBe("@moss @someone #ideas #channel");

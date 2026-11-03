@@ -127,7 +127,7 @@ export const EVENTS = {
 
   /** A format was applied in a message box (components/chat/MessageBox.tsx): which one, and from the toolbar or a keyboard shortcut. */
   chat_format_applied: {
-    kind: oneOf("bold", "italic", "strike", "link", "code", "codeblock", "quote", "bullets", "numbers"),
+    kind: oneOf("bold", "italic", "underline", "strike", "link", "code", "codeblock", "quote", "bullets", "numbers"),
     via: oneOf("toolbar", "shortcut"),
   },
 

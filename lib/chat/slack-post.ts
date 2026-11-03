@@ -6,6 +6,8 @@ import type { Db } from "@/lib/data/db";
 import { isProduction } from "@/lib/config";
 import { getSlackUserToken, isDeadTokenError } from "@/lib/slack-connect";
 import { parseChatFiles } from "@/lib/chat/files";
+import { escapeForSlack } from "@/lib/chat/slack-escape";
+import { bodyToBlocks, hasUnderline, stripUnderline } from "@/lib/chat/rich-blocks";
 import { sendChatFilesToSlack } from "@/lib/chat/slack-upload";
 
 /**
@@ -15,21 +17,7 @@ import { sendChatFilesToSlack } from "@/lib/chat/slack-upload";
  * ts Slack returns. Service role.
  */
 
-/**
- * Hub text is plain; Slack's mrkdwn treats these three characters as syntax. The one markup a Hub message
- * carries is a mention or channel the member picked (`<@U123>`, `<#C123>`), kept so Slack makes it a real one,
- * and the formatting markers they typed or applied (`*bold*`, backticks, a leading `> `), which are not escaped, and
- * a web or mail link (`<https://x|label>`); anything else in angle brackets, `<!channel>` included, is escaped like the rest.
- */
-export function escapeForSlack(text: string): string {
-  // A `>` that starts a line is a quote, which Slack only reads unescaped; no other markup can start with one.
-  return text.replace(/<(@[A-Z0-9]+|#[A-Z0-9]+)>|<((?:https?:\/\/|mailto:)[^\s<>|]+(?:\|[^<>|]*)?)>|(^>)|[&<>]/gm, (match, token?: string, link?: string, quote?: string) => {
-    if (token || quote) return match;
-    // A web or mail link the member made with the toolbar (or typed): `<address|label>`. Its own `&` is still escaped.
-    if (link) return `<${link.replace(/&/g, "&amp;")}>`;
-    return match === "&" ? "&amp;" : match === "<" ? "&lt;" : "&gt;";
-  });
-}
+export { escapeForSlack } from "@/lib/chat/slack-escape";
 
 /** Marks our own posts, so Slack's event for one is recognised as ours (chat_adopt_posted_message). */
 export function hubMessageMetadata(messageId: string) {
@@ -102,7 +90,8 @@ export async function sendChatMessageToSlack(supabase: SupabaseClient, messageId
       files,
       connection,
       authorMemberId,
-      escape: escapeForSlack,
+      // Slack's file upload takes only text for the comment, so an underline can't go with files.
+      escape: (text: string) => escapeForSlack(stripUnderline(text)),
       fail: fail as (reason: string, error?: unknown) => Promise<"failed">,
     });
   }
@@ -113,7 +102,9 @@ export async function sendChatMessageToSlack(supabase: SupabaseClient, messageId
   try {
     result = await new WebClient(connection.token).chat.postMessage({
       channel: slackChannelId,
-      text: escapeForSlack(body),
+      // An underline has no mrkdwn, so a message with one goes as rich-text blocks (its text, without the underline, is the fallback).
+      text: escapeForSlack(stripUnderline(body)),
+      ...(hasUnderline(body) ? { blocks: bodyToBlocks(body, { plain: true }) } : {}),
       thread_ts: threadTs,
       unfurl_links: false,
       unfurl_media: false,

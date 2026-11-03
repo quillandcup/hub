@@ -20,6 +20,11 @@ describe("docToMrkdwn", () => {
     );
   });
 
+  it("writes an underline as <u>…</u>, outermost, with its spaces inside it", () => {
+    expect(docToMrkdwn(doc(p(t("a "), t("under ", "underline"), t("both", "underline", "bold"), t(" b"))))).toBe("a <u>under *both*</u> b");
+    expect(docToMrkdwn(doc(p(t("x", "underline", "italic"))))).toBe("<u>_x_</u>");
+  });
+
   it("keeps the markers against the words, with the spaces outside", () => {
     expect(docToMrkdwn(doc(p(t("a"), t(" spaced ", "bold"), t("b"))))).toBe("a *spaced* b");
     expect(docToMrkdwn(doc(p(t("  ", "bold"))))).toBe("  ");
@@ -75,6 +80,12 @@ describe("mrkdwnToDoc", () => {
     ]);
   });
 
+  it("reads <u>…</u> as an underline mark, around other marks and inside them", () => {
+    expect(mrkdwnToDoc("a <u>b *c*</u> *<u>d</u>* <u>unclosed").content).toEqual([
+      p(t("a "), t("b ", "underline"), t("c", "bold", "underline"), t(" "), t("d", "underline", "bold"), t(" <u>unclosed")),
+    ]);
+  });
+
   it("keeps code free of other marks, and reads emphasis inside emphasis", () => {
     expect(mrkdwnToDoc("*`x`*").content).toEqual([p(t("x", "code"))]);
   });
@@ -104,6 +115,7 @@ describe("round trip", () => {
     "plain words",
     "a *bold* _it_ ~gone~ `code` here",
     "*_both_* and <https://x.test|a link> and <https://x.test>",
+    "plain <u>under line</u> and <u>_both_</u> and <u>*<https://x.test|link>*</u>",
     "> quoted line\n> another",
     "• one\n• two\n1. first\n2. second",
     "```\nlet a = 1\nlet b = 2\n```",

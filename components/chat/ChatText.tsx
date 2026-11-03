@@ -51,6 +51,8 @@ function renderInline(nodes: Inline[], ctx: ChatTextContext): ReactNode[] {
         return <em key={i}>{renderInline(n.c, ctx)}</em>;
       case "strike":
         return <s key={i}>{renderInline(n.c, ctx)}</s>;
+      case "underline":
+        return <u key={i}>{renderInline(n.c, ctx)}</u>;
       case "code":
         return (
           <code key={i} className="px-1 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 font-mono text-[0.9em] text-red-700 dark:text-red-400">

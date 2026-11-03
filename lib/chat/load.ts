@@ -1,5 +1,6 @@
 import type { StageTimer } from "@/lib/chat/timing";
 import { emojiNamesIn, mentionedChannelIds, mentionedUserIds } from "@/lib/chat/render";
+import { blocksToBody } from "@/lib/chat/rich-blocks";
 import { customEmojiFor, slackAuthorIdsByTs, slackChannelNames, slackUserHubNames, slackUserMemberIds, slackUserNames, slackUserPhotos } from "@/lib/chat/names";
 import type { CustomEmoji } from "@/lib/chat/emoji";
 import type { ChatTextContext } from "@/components/chat/ChatText";
@@ -232,7 +233,7 @@ export interface MessageRow {
   system_subtype?: string | null;
   /** The outbox state of a message written in the Hub; null for Slack-origin rows. */
   slack_sync_status?: "pending" | "sent" | "failed" | null;
-  chat_message_contents: { body: string; files?: unknown } | { body: string; files?: unknown }[] | null;
+  chat_message_contents: { body: string; files?: unknown; blocks?: unknown } | { body: string; files?: unknown; blocks?: unknown }[] | null;
 }
 
 /** The message reads here have always shown an empty list rather than an error page when the database fails: keep that. */
@@ -354,7 +355,16 @@ export function chatTextContext(rendered: Omit<ChatMessages, "views">, channels:
 const contentOf = (row: MessageRow) =>
   Array.isArray(row.chat_message_contents) ? row.chat_message_contents[0] : row.chat_message_contents;
 
-const bodyOf = (row: MessageRow): string | null => contentOf(row)?.body ?? null;
+/**
+ * What the message says. Slack's own text, unless its rich-text blocks have an underline (which mrkdwn can't say): then
+ * the body is rebuilt from the blocks (lib/chat/rich-blocks.ts), kept the way the message was written (a Hub message
+ * unescaped, a Slack one in Slack's escapes).
+ */
+const bodyOf = (row: MessageRow): string | null => {
+  const content = contentOf(row);
+  if (!content) return null;
+  return blocksToBody(content.blocks, { plain: row.origin === "app" }) ?? content.body;
+};
 
 interface ReplyAuthor {
   memberId: string | null;

@@ -42,6 +42,23 @@ function reposWith(over: ConstructorParameters<typeof InMemoryDataset>[0] = {}) 
 const reaction = (n: number, r: { member_id: string | null; slack_user_id: string | null }) => ({ id: `rct_AAAAAAAAAAA${n}`, message_id: "m1", emoji: "tada", ...r });
 
 describe("buildMessageViews", () => {
+  it("shows a message whose blocks have an underline from the blocks (a Hub message's body unescaped, a Slack one's escaped), and every other message from its text", async () => {
+    const blocks = [{ type: "rich_text", elements: [{ type: "rich_text_section", elements: [{ type: "text", text: "a < b ", style: { underline: true } }, { type: "text", text: "c" }] }] }];
+    const plainBlocks = [{ type: "rich_text", elements: [{ type: "rich_text_section", elements: [{ type: "text", text: "no underline", style: { bold: true } }] }] }];
+    const out = await buildMessageViews(
+      reposWith(),
+      { slackChannelId: null },
+      [
+        row("m1", { origin: "app", chat_message_contents: { body: "a < b c", blocks } }),
+        row("m2", { origin: "slack", chat_message_contents: { body: "a &lt; b c", blocks } }),
+        row("m3", { origin: "slack", chat_message_contents: { body: "kept text", blocks: plainBlocks } }),
+        row("m4", { origin: "app", chat_message_contents: { body: "kept too", blocks: null } }),
+      ],
+      FERN
+    );
+    expect(out.views.map((v) => v.body)).toEqual(["<u>a < b </u>c", "<u>a &lt; b </u>c", "kept text", "kept too"]);
+  });
+
   it("looks up Hub names only for people named in notices, and returns them for the page's text context", async () => {
     names.hubAsked.length = 0;
     names.hubNames = { U1: "Cody Ray" };

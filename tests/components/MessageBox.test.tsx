@@ -302,6 +302,29 @@ describe("MessageBox: formatting", () => {
     }
   });
 
+  it("underlines from the toolbar and with Ctrl+U, written as <u>…</u>, and toggles it off", async () => {
+    const box = await mount({ initial: "see this" });
+    const user = boxUser();
+    await selectAll(box);
+    await user.click(screen.getByRole("button", { name: "Underline" }));
+    expect(latest).toBe("<u>see this</u>");
+    expect(box.querySelector("u")).toHaveTextContent("see this");
+    expect(screen.getByRole("button", { name: "Underline" })).toHaveAttribute("aria-pressed", "true");
+    expect(track).toHaveBeenCalledWith("chat_format_applied", { kind: "underline", via: "toolbar" });
+    await user.keyboard("{Control>}u{/Control}");
+    expect(latest).toBe("see this");
+    await user.keyboard("{Control>}u{/Control}");
+    expect(latest).toBe("<u>see this</u>");
+    expect(track).toHaveBeenCalledWith("chat_format_applied", { kind: "underline", via: "shortcut" });
+  });
+
+  it("shows an underline already in the text, and takes it up from a message being edited", async () => {
+    const box = await mount({ initial: "a <u>b</u> c" });
+    expect(box.querySelector("u")).toHaveTextContent("b");
+    expect(box.textContent).toBe("a b c");
+    expect(latest).toBe("a <u>b</u> c");
+  });
+
   it("formats with Ctrl+B, Ctrl+I and Ctrl+Shift+X, and records the shortcut", async () => {
     const box = await mount({ initial: "word" });
     const user = boxUser();

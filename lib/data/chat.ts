@@ -37,7 +37,8 @@ export interface ChatMessageRow {
   has_files: boolean;
   system_subtype: string | null;
   slack_sync_status: "pending" | "sent" | "failed" | null;
-  chat_message_contents: { body: string; files: unknown } | null;
+  /** `blocks` is Slack's rich-text blocks, read only for what mrkdwn can't say (an underline). */
+  chat_message_contents: { body: string; files: unknown; blocks?: unknown } | null;
 }
 
 /** A search hit's message: the columns the search results show, plus where it sits in its conversation. */
@@ -89,7 +90,7 @@ export interface ChatReactionRow {
 }
 
 const MESSAGE_COLUMNS =
-  "id, author_member_id, slack_ts, origin, created_at, edited_at, deleted_at, reply_count, last_reply_at, has_files, system_subtype, slack_sync_status, chat_message_contents(body, files)";
+  "id, author_member_id, slack_ts, origin, created_at, edited_at, deleted_at, reply_count, last_reply_at, has_files, system_subtype, slack_sync_status, chat_message_contents(body, files, blocks)";
 const SEARCH_MESSAGE_COLUMNS =
   "id, channel_id, thread_root_id, author_member_id, slack_ts, created_at, edited_at, deleted_at, reply_count, last_reply_at, has_files, chat_message_contents(body, files)";
 /** The API returns at most this many rows per request (1000 in production), however many match. */
@@ -856,7 +857,7 @@ export class InMemoryChatRepository implements ChatRepository {
       has_files: m.has_files ?? false,
       system_subtype: m.system_subtype ?? null,
       slack_sync_status: (m.slack_sync_status ?? null) as ChatMessageRow["slack_sync_status"],
-      chat_message_contents: c ? { body: c.body ?? "", files: c.files ?? null } : null,
+      chat_message_contents: c ? { body: c.body ?? "", files: c.files ?? null, blocks: c.blocks ?? null } : null,
     };
   }
 

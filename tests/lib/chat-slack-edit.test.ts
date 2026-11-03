@@ -79,9 +79,51 @@ describe("updateChatMessageInSlack", () => {
   it("edits a message posted as the member with the member's own token, escaping the text and keeping our metadata", async () => {
     await expect(updateChatMessageInSlack(service, EDIT)).resolves.toEqual({ ok: true });
     expect(update).toHaveBeenCalledWith(
-      { channel: "C_HOSTS", ts: "1700000000.000100", text: "fixed &lt;typo&gt; &amp; more", metadata: hubMessageMetadata("m1") },
+      { channel: "C_HOSTS", ts: "1700000000.000100", text: "fixed &lt;typo&gt; &amp; more", blocks: [], metadata: hubMessageMetadata("m1") },
       "xoxp-fern"
     );
+  });
+
+  it("sends a Hub message with an underline as rich-text blocks, with its text minus the underline as the fallback", async () => {
+    await updateChatMessageInSlack(service, { ...EDIT, body: "fixed <u>this</u> & *that*" });
+    expect(update).toHaveBeenCalledWith(
+      {
+        channel: "C_HOSTS",
+        ts: "1700000000.000100",
+        text: "fixed this &amp; *that*",
+        blocks: [
+          {
+            type: "rich_text",
+            elements: [
+              {
+                type: "rich_text_section",
+                elements: [
+                  { type: "text", text: "fixed " },
+                  { type: "text", text: "this", style: { underline: true } },
+                  { type: "text", text: " & " },
+                  { type: "text", text: "that", style: { bold: true } },
+                ],
+              },
+            ],
+          },
+        ],
+        metadata: hubMessageMetadata("m1"),
+      },
+      "xoxp-fern"
+    );
+  });
+
+  it("sends a Slack-written message with an underline as rich-text blocks read from its Slack text (escapes and all)", async () => {
+    row = { ...ROW, origin: "slack", posted_via: null };
+    await updateChatMessageInSlack(service, { ...EDIT, body: "a &lt; b <u>u</u> <@U1>" });
+    const [args] = update.mock.calls[0];
+    expect(args.text).toBe("a &lt; b u <@U1>");
+    expect(args.blocks[0].elements[0].elements).toEqual([
+      { type: "text", text: "a < b " },
+      { type: "text", text: "u", style: { underline: true } },
+      { type: "text", text: " " },
+      { type: "user", user_id: "U1" },
+    ]);
   });
 
   it.each([
