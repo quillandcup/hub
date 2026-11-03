@@ -15,8 +15,9 @@ import { SIGNIN_METHOD_COOKIE, SIGNIN_METHOD_MAX_AGE_SECONDS, type SignInMethod 
 
 /**
  * The methods are SIGNIN_METHODS (lib/signin-method-client.ts): `email_link` is the one-click link in
- * the sign-in email, `email_code` the code from it typed on /login, `slack_link` the Slack app's
- * "Open Hedgie Hub" button or a copied sign-in link (one route; they can't be told apart),
+ * the sign-in email, `email_code` the code from it typed on /login, `slack_button` the Slack app's
+ * "Open Hedgie Hub" button or a link tapped in Slack, `slack_pasted_link` a link copied from Slack and
+ * pasted on /login,
  * `slack_continue` the Continue page shown when a click didn't look like a plain browser navigation,
  * and `slack_code` the code from Slack typed on /login.
  */

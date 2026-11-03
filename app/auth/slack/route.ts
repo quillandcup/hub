@@ -39,6 +39,8 @@ export async function GET(request: NextRequest) {
   if (!result.ok) {
     return NextResponse.redirect(new URL(`/auth/slack/continue?error=${result.error}`, origin), 303);
   }
-  await rememberSignInMethod("slack_link");
+  // `via=paste` is added by the sign-in page (app/login/SlackSignIn.tsx) when a member pastes a link
+  // copied from Slack; everything else reaching this route is the app's button or a link tapped in Slack.
+  await rememberSignInMethod(url.searchParams.get("via") === "paste" ? "slack_pasted_link" : "slack_button");
   return NextResponse.redirect(new URL(result.next, origin), 303);
 }

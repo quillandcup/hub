@@ -31,7 +31,7 @@ describe("rememberSignInMethod", () => {
 
 describe("readSignInMethod", () => {
   it("finds the method among other cookies", () => {
-    expect(readSignInMethod(`a=1; ${SIGNIN_METHOD_COOKIE}=slack_link; b=2`)).toBe("slack_link");
+    expect(readSignInMethod(`a=1; ${SIGNIN_METHOD_COOKIE}=slack_button; b=2`)).toBe("slack_button");
   });
 
   it.each(["", "a=1", `${SIGNIN_METHOD_COOKIE}=bogus`, `${SIGNIN_METHOD_COOKIE}=`])("ignores %j", (cookie) => {
