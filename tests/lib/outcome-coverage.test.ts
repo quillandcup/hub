@@ -71,7 +71,8 @@ function actions() {
   const found: { file: string; name: string; wired: boolean }[] = [];
   for (const full of walk(path.join(root, "app"))) {
     const source = fs.readFileSync(full, "utf8");
-    if (!/^\s*(?:\/\/[^\n]*\n|\/\*[\s\S]*?\*\/\s*)*["']use server["']/.test(source)) continue;
+    // The directive is a line of its own near the top, after any header comment.
+    if (!source.split("\n").slice(0, 40).some((line) => /^["']use server["'];?$/.test(line.trim()))) continue;
     const file = path.relative(root, full);
     for (const part of source.split(/\n(?=export async function |async function |export const |const |function )/)) {
       const match = /^export async function (\w+)\(/.exec(part);
