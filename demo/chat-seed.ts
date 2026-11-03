@@ -162,6 +162,11 @@ export const DEMO_CHANNELS: DemoChannel[] = [
         reactions: [{ emoji: "ear", by: [who("regular1"), who("mabel")] }],
         replies: [{ by: who("regular1"), minutesAfter: 22, body: "every single time (poet problems). your ear catches what your eyes forgive 💫" }],
       },
+      {
+        by: who("host"),
+        hoursAgo: 3,
+        body: "my revision trick: search the draft for `suddenly` and `very`, then cut them. a bigger one is to paste the opening line here:\n```\nIt was a dark and stormy night.\n```\nand ask what the reader wants to know next",
+      },
     ],
   },
   {
