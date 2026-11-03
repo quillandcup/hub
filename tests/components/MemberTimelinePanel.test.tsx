@@ -95,4 +95,21 @@ describe("MemberTimelinePanel", () => {
     // concurrent program did.
     expect(screen.getAllByText("active")).toHaveLength(3);
   });
+
+  it("shows Edit and Delete on a hiatus, and none of the controls when read-only", () => {
+    const props = {
+      memberId: "m1",
+      hiatusHistory: [{ id: "h1", start_date: "2026-07-21", end_date: "2026-10-19", reason: null, notes: null }],
+      membershipHistory: [],
+    };
+    const { unmount } = render(<MemberTimelinePanel {...props} />);
+    expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
+    unmount();
+
+    render(<MemberTimelinePanel {...props} readOnly />);
+    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start Hiatus" })).not.toBeInTheDocument();
+  });
 });

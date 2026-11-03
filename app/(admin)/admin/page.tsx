@@ -3,7 +3,9 @@ import { getMemberDisplayName } from "@/lib/member-display-name";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import DashboardCharts from "./DashboardCharts";
-import { requireAdminPage } from "@/lib/admin-auth";
+import { redirect } from "next/navigation";
+import { requireStaffPage } from "@/lib/admin-auth";
+import { COMMUNITY_MANAGER_HOME } from "@/lib/staff-access";
 import { createRepos } from "@/lib/data/repos";
 import { isAtRisk, summarizeAttendance } from "@/lib/domain/attendance";
 
@@ -12,7 +14,8 @@ export const metadata: Metadata = {
 };
 
 export default async function DashboardPage() {
-  await requireAdminPage();
+  // The admin dashboard is admin-only; a community manager's first page is the At-Risk list.
+  if ((await requireStaffPage()).role !== "admin") redirect(COMMUNITY_MANAGER_HOME);
   const supabase = await createClient();
 
   // Fetch dashboard metrics

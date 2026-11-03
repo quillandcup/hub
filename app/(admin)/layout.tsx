@@ -1,4 +1,4 @@
-import { requireAdminPage } from "@/lib/admin-auth";
+import { requireStaffPage } from "@/lib/admin-auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { getUserFeaturePreviews } from "@/lib/features.server";
 import type { FeatureKey } from "@/lib/features";
@@ -18,11 +18,12 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Secure admin check (redirects signed-out → /login, non-admins → /dashboard).
-  // proxy.ts pre-filters /admin optimistically, and each admin page repeats
-  // this call because layouts don't re-run on client navigation -- see
-  // lib/admin-auth.ts.
-  const user = await requireAdminPage();
+  // Secure staff check (redirects signed-out → /login, anyone but an admin or community manager
+  // → /no-access). proxy.ts pre-filters /admin optimistically, and each admin page repeats its own
+  // check (requireAdminPage, or requireStaffPage on the pages a community manager may open)
+  // because layouts don't re-run on client navigation -- see lib/admin-auth.ts.
+  const user = await requireStaffPage();
+  const isAdmin = user.role === "admin";
 
   // A failed read leaves the page default.
   const profile = await createRepos(await createClient()).profiles.byId(user.id).catch(() => null);
@@ -35,11 +36,11 @@ export default async function AdminLayout({
 
   return (
     <div className="relative flex h-dvh overflow-hidden bg-canvas dark:bg-slate-950">
-      <AdminNavigation enabledFeatures={enabledFeatures} navMode={isNavMode(profile?.nav_mode) ? profile.nav_mode : null} />
+      <AdminNavigation role={user.role} enabledFeatures={enabledFeatures} navMode={isNavMode(profile?.nav_mode) ? profile.nav_mode : null} />
       <div className="flex flex-col flex-1 min-w-0">
         <WithInAppNotifications identity={identity}>
-          <AppHeader resultsPath="/admin/search" isAdmin={true}>
-            <UserMenu userEmail={user.email || "User"} isAdmin={true} />
+          <AppHeader resultsPath={isAdmin ? "/admin/search" : "/search"} isAdmin={isAdmin}>
+            <UserMenu userEmail={user.email || "User"} isAdmin={isAdmin} />
           </AppHeader>
           <TimezoneProvider zone={timeZone}>
             <main className="flex-1 overflow-auto">

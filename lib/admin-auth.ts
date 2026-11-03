@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createRepos } from "@/lib/data/repos";
 import { getCurrentUser, type AuthUser } from "@/lib/auth";
 import { ADMIN_NO_ACCESS_PATH } from "@/lib/admin-paths";
+import { COMMUNITY_MANAGER_ROLE } from "@/lib/staff-access";
 
 /**
  * Secure admin check for admin-area server components (the Data Access Layer
@@ -37,6 +38,27 @@ export const requireAdminPage = cache(async (): Promise<AuthUser> => {
   if (!(await createRepos(supabase).profiles.isAdmin(user.id))) redirect(ADMIN_NO_ACCESS_PATH);
 
   return user;
+});
+
+export type StaffRole = "admin" | typeof COMMUNITY_MANAGER_ROLE;
+export type StaffUser = AuthUser & { role: StaffRole };
+
+/**
+ * Secure check for an admin page a community manager may also open (the read-only pages in
+ * lib/staff-access.ts), and for the admin layout. Same redirects as requireAdminPage(); returns
+ * the user with the role that let them in. Reads `user_profiles.role`, never the token claim.
+ *
+ * A page that calls this must show a community manager no write control: its server actions keep
+ * `requireAdminAction()`, which refuses them.
+ */
+export const requireStaffPage = cache(async (): Promise<StaffUser> => {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+
+  const profile = await createRepos(await createClient()).profiles.byId(user.id).catch(() => null);
+  if (profile?.role !== "admin" && profile?.role !== COMMUNITY_MANAGER_ROLE) redirect(ADMIN_NO_ACCESS_PATH);
+
+  return { ...user, role: profile.role };
 });
 
 export type AdminActionAuth =

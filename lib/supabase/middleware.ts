@@ -4,6 +4,7 @@ import { SupabaseAccessEventRepository } from '@/lib/data/access-events'
 import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from '@/lib/with-timeout'
 import { getAppRoleFromAccessToken, getSessionIdFromAccessToken } from '@/lib/supabase/session-claims'
 import { ADMIN_NO_ACCESS_PATH, isAdminPath } from '@/lib/admin-paths'
+import { mayOpenAdminPath } from '@/lib/staff-access'
 import { SUDO_COOKIE_NAME, actingAsHeaderValue } from '@/lib/sudo-cookie'
 import { PAGE_VIEW_PATH } from '@/lib/page-views'
 import { NEXT_PATH_COOKIE, NEXT_PATH_COOKIE_MAX_AGE_SECONDS, safeNextPath } from '@/lib/safe-next'
@@ -61,7 +62,7 @@ export async function updateSession(request: NextRequest) {
   let user = null
   let sessionId: string | null = null
   // The role the custom access token hook put in the token (see
-  // getAppRoleFromAccessToken); anything but "admin" is not an admin here.
+  // getAppRoleFromAccessToken); only admin and community_manager open any admin path (lib/staff-access.ts).
   let roleClaim: string | null | undefined = undefined
   let authCheckTimedOut = false
   try {
@@ -192,7 +193,7 @@ export async function updateSession(request: NextRequest) {
     // (auth.jwt_expiry), which is fine for a pre-filter: requireAdminPage()
     // re-reads user_profiles. Sudo doesn't matter: the sudo cookie only
     // changes the *effective member*, not the signed-in user.
-    if (roleClaim !== 'admin') {
+    if (!mayOpenAdminPath(roleClaim, pathname)) {
       const url = request.nextUrl.clone()
       url.pathname = ADMIN_NO_ACCESS_PATH
       url.search = ''

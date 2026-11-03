@@ -19,7 +19,7 @@ vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.
 vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.sudoModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
-vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: vi.fn(async () => undefined) }));
+vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: vi.fn(async () => undefined), requireStaffPage: vi.fn(async () => ({ id: "admin", email: "a@example.test", role: "admin" })) }));
 vi.mock("@/lib/timezone", () => ({ getUserTimezonePreference: vi.fn(async () => "America/New_York") }));
 vi.mock("@/app/(member)/my-prickles/calendar-feed-actions", () => ({ getMyCalendarItems: vi.fn(async () => []) }));
 vi.mock("@/app/(member)/projects/actions", () => ({ getMyEntriesForPrickle: vi.fn(async () => []) }));

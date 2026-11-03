@@ -8,6 +8,8 @@ import { withMentionNames } from "@/lib/chat/names";
 import { withReactionEmoji } from "@/lib/slack-reaction-emoji";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
+import { requireStaffPage } from "@/lib/admin-auth";
+import { staffFeaturesFor, type StaffFeature } from "@/lib/staff-access";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
@@ -53,7 +55,9 @@ export function memberTabMetadata(tab: MemberTabId) {
 /**
  * Admin member detail, rendered by /admin/members/<id> (Overview) and each
  * /admin/members/<id>/<tab> route with that tab open. Every tab's data loads here, so switching
- * tabs is instant. Callers have already run requireAdminPage().
+ * tabs is instant. Callers have already run requireStaffPage() (or requireAdminPage() for an admin-only tab).
+ * A community manager sees the profile read-only: no sudo, merge, split, remove, notes, billing links or
+ * override reasons, and no push devices (each a staff feature, `can()` below).
  */
 export default async function MemberDetailPage({
   id,
@@ -67,6 +71,9 @@ export default async function MemberDetailPage({
 }) {
   const supabase = await createClient();
 
+  const role = (await requireStaffPage()).role;
+  const features = staffFeaturesFor(role);
+  const can = (feature: StaffFeature) => features.includes(feature);
   const user = await getCurrentUser();
 
   if (!user) {
@@ -82,9 +89,11 @@ export default async function MemberDetailPage({
 
   // Devices this member gets Browser notifications on (the table holds push credentials, so service
   // role, after the admin check the callers ran). Only the labels leave this function.
-  const pushDeviceLabels = await loadPushDevices(createServiceRoleClient(), id)
-    .then((devices) => devices.map((d) => describeDevice(d.userAgent)))
-    .catch(() => []);
+  const pushDeviceLabels = !can("member.push_devices")
+    ? []
+    : await loadPushDevices(createServiceRoleClient(), id)
+        .then((devices) => devices.map((d) => describeDevice(d.userAgent)))
+        .catch(() => []);
 
   // Fetch all attendance records for this member with prickle details
   const attendance = (await traced("member page: attendance", () => createRepos(supabase).attendance.forMemberWithPrickles(id), { memberId: id })).map(attendedPrickleRow);
@@ -275,11 +284,12 @@ export default async function MemberDetailPage({
                       />
                     </svg>
                     <div className="opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto absolute left-0 top-6 w-64 p-3 bg-slate-900 dark:bg-slate-700 text-white text-xs rounded shadow-lg z-10 transition-opacity duration-200 before:content-[''] before:absolute before:left-0 before:bottom-full before:w-full before:h-6">
-                      Aliases help match Zoom names to people. <Link href="/admin/data/aliases" className="underline hover:text-plum-300">Manage aliases →</Link>
+                      Aliases help match Zoom names to people.{can("member.alias_admin") && <> <Link href="/admin/data/aliases" className="underline hover:text-plum-300">Manage aliases →</Link></>}
                     </div>
                   </div>
                 </div>
               )}
+              {can("member.sudo") && (
               <form action={startSudo.bind(null, member.id, undefined)}>
                 <button
                   type="submit"
@@ -288,15 +298,18 @@ export default async function MemberDetailPage({
                   Sudo As
                 </button>
               </form>
-              <MergeButton member={{ id: member.id, name: member.name, email: member.email }} />
-              <SplitButton
-                member={{ id: member.id, name: member.name, email: member.email }}
-                nameAliases={nameAliasRows ?? []}
-                emailAliases={emailAliases ?? []}
-              />
+              )}
+              {can("member.merge") && <MergeButton member={{ id: member.id, name: member.name, email: member.email }} />}
+              {can("member.split") && (
+                <SplitButton
+                  member={{ id: member.id, name: member.name, email: member.email }}
+                  nameAliases={nameAliasRows ?? []}
+                  emailAliases={emailAliases ?? []}
+                />
+              )}
             </div>
             <div className="mt-1 flex flex-col gap-1">
-              {(member.kajabiId || member.stripeCustomerId) && (
+              {can("member.billing_links") && (member.kajabiId || member.stripeCustomerId) && (
                 <div className="flex items-center gap-3 text-xs">
                   {member.kajabiId && (
                     <a
@@ -331,9 +344,9 @@ export default async function MemberDetailPage({
               )}
             </div>
           </div>
-          <div className="absolute top-4 right-6">
+          {can("member.record_history") && <div className="absolute top-4 right-6">
             <RecordHistoryButton entityType="member" entityId={member.id} includeMemberRows label={getMemberDisplayName({ name: member.name, display_name: member.displayName })} />
-          </div>
+          </div>}
         </div>
       </header>
 
@@ -367,16 +380,17 @@ export default async function MemberDetailPage({
           }}
           userTimezonePreference={userTimezone}
           membershipHistory={membershipHistory}
-          programOverrides={programOverrides}
-          statusOverrides={statusOverrides}
+          programOverrides={can("member.status_overrides") ? programOverrides : []}
+          statusOverrides={can("member.status_overrides") ? statusOverrides : []}
           earnedBadges={earnedBadges}
           eventSlugs={eventSlugs}
           awardableBadgeTypes={awardableBadgeTypes}
           awards={awards}
           nameAliases={nameAliasRows ?? []}
           emailAliases={emailAliases ?? []}
+          features={features}
         />
-        <RemoveMemberPanel member={{ id: member.id, name: member.name, removed: member.email.endsWith("@removed.invalid") }} />
+        {can("member.remove") && <RemoveMemberPanel member={{ id: member.id, name: member.name, removed: member.email.endsWith("@removed.invalid") }} />}
       </main>
     </div>
   );

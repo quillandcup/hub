@@ -31,6 +31,8 @@ interface MemberBadgesPanelProps {
   eventSlugs?: Record<string, string>;
   awardableBadgeTypes: AwardableBadgeType[];
   awards: RawAward[];
+  /** Show the badges without the controls that award or revoke them (a community manager's view). */
+  readOnly?: boolean;
 }
 
 export default function MemberBadgesPanel({
@@ -39,6 +41,7 @@ export default function MemberBadgesPanel({
   eventSlugs = {},
   awardableBadgeTypes,
   awards,
+  readOnly = false,
 }: MemberBadgesPanelProps) {
   const router = useRouter();
   const [badgeTypeId, setBadgeTypeId] = useState(awardableBadgeTypes[0]?.id ?? "");
@@ -115,7 +118,7 @@ export default function MemberBadgesPanel({
         </div>
       )}
 
-      {awardableBadgeTypes.length > 0 && (
+      {!readOnly && awardableBadgeTypes.length > 0 && (
         <form onSubmit={handleAward} className="flex flex-wrap items-end gap-3 mb-6" aria-label="Award badge">
           <div>
             <label className="text-xs text-slate-600 dark:text-slate-400 block mb-1" htmlFor="badge-award-type">
@@ -192,7 +195,7 @@ export default function MemberBadgesPanel({
                   >
                     via {award.eventTitle ?? "event"}
                   </Link>
-                ) : (
+                ) : readOnly ? null : (
                   <button
                     onClick={() => handleRevoke(award.id)}
                     disabled={revokingId === award.id}

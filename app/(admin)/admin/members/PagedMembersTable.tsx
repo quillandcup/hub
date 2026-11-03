@@ -12,11 +12,13 @@ export default function PagedMembersTable({
   total,
   page,
   pageSize,
+  readOnly = false,
 }: {
   members: MemberRow[];
   total: number;
   page: number;
   pageSize: number;
+  readOnly?: boolean;
 }) {
   const table = useServerDataTable<MemberRow, MemberSortColumn>({
     rows: members,
@@ -33,6 +35,7 @@ export default function PagedMembersTable({
       key={members.map((m) => m.id).join(",")}
       members={members}
       table={table}
+      readOnly={readOnly}
     />
   );
 }

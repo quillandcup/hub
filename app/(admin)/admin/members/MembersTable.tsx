@@ -36,6 +36,8 @@ interface MembersTableProps {
   // the page the query already sorted and ranged. Without it the table sorts
   // and auto-paginates `members` in memory.
   table?: DataTable<MemberRow, SortColumn>;
+  /** A community manager's view: no row selection, so no bulk merge. */
+  readOnly?: boolean;
 }
 
 
@@ -80,7 +82,7 @@ function getSortValue(member: MemberRow, column: SortColumn): string | number {
   }
 }
 
-export default function MembersTable({ members, table: serverTable }: MembersTableProps) {
+export default function MembersTable({ members, table: serverTable, readOnly = false }: MembersTableProps) {
   const timeZone = useTimeZone();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
@@ -147,7 +149,7 @@ export default function MembersTable({ members, table: serverTable }: MembersTab
         <table className="w-full">
           <thead className="bg-slate-50 dark:bg-slate-800">
             <tr>
-              <th className="px-4 py-3 w-10">
+              {!readOnly && <th className="px-4 py-3 w-10">
                 <input
                   type="checkbox"
                   checked={allSelected}
@@ -158,7 +160,7 @@ export default function MembersTable({ members, table: serverTable }: MembersTab
                   className="accent-plum-600 cursor-pointer"
                   aria-label="Select all"
                 />
-              </th>
+              </th>}
               <SortableTh
                 label="Name"
                 active={sortColumn === "name"}
@@ -215,7 +217,7 @@ export default function MembersTable({ members, table: serverTable }: MembersTab
                 key={member.id}
                 className={`hover:bg-slate-50 dark:hover:bg-slate-800 ${selectedIds.has(member.id) ? "bg-plum-50 dark:bg-plum-950/20" : ""}`}
               >
-                <td className="px-4 py-4 w-10">
+                {!readOnly && <td className="px-4 py-4 w-10">
                   <input
                     type="checkbox"
                     checked={selectedIds.has(member.id)}
@@ -223,7 +225,7 @@ export default function MembersTable({ members, table: serverTable }: MembersTab
                     className="accent-plum-600 cursor-pointer"
                     aria-label={`Select ${getMemberDisplayName(member)}`}
                   />
-                </td>
+                </td>}
                 <td className="px-6 py-4 whitespace-nowrap">
                   <Link
                     href={`/admin/members/${member.id}`}

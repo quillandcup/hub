@@ -7004,6 +7004,7 @@ export type Database = {
       }
       has_course_access: { Args: { p_course_id: string }; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
+      is_community_manager: { Args: never; Returns: boolean }
       is_prickle_schedule_month_locked: {
         Args: { target_month: string }
         Returns: boolean

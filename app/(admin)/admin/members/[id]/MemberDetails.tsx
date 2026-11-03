@@ -24,6 +24,7 @@ import type { EarnedBadge } from "@/lib/badges";
 import { formatDateInZone } from "@/lib/formatters";
 import { useTimeZone } from "@/components/Timezone";
 import type { AdminMember } from "@/lib/data/members";
+import type { StaffFeature } from "@/lib/staff-access";
 
 /** The member as the page shows them: the admin view plus the engagement numbers computed for this page. */
 export type MemberView = AdminMember & {
@@ -72,6 +73,8 @@ interface MemberDetailsProps {
   }[];
   nameAliases: NameAliasRow[];
   emailAliases: EmailAliasRow[];
+  /** What the viewer may see or do beyond reading (lib/staff-access.ts): everything else is hidden. */
+  features: readonly StaffFeature[];
 }
 
 type Tab = MemberTabId;
@@ -98,7 +101,9 @@ export default function MemberDetails({
   awards,
   nameAliases,
   emailAliases,
+  features,
 }: MemberDetailsProps) {
+  const can = (feature: StaffFeature) => features.includes(feature);
   const timeZone = useTimeZone();
   const [activeTab, setActiveTabState] = useState<Tab>(initialTab);
   // Keep the tab in the URL path so a reload, or Back from a prickle/detail page, returns to it.
@@ -128,8 +133,8 @@ export default function MemberDetails({
     { id: "overview", label: MEMBER_TAB_LABELS.overview },
     { id: "attendance", label: `${MEMBER_TAB_LABELS.attendance} (${distinctPrickleCount})` },
     { id: "slack", label: `${MEMBER_TAB_LABELS.slack} (${slackSummary.total})` },
-    { id: "activity", label: MEMBER_TAB_LABELS.activity },
-    { id: "identity", label: MEMBER_TAB_LABELS.identity },
+    ...(!can("member.activity_tab") ? [] : [{ id: "activity" as const, label: MEMBER_TAB_LABELS.activity }]),
+    ...(!can("member.identity_tab") ? [] : [{ id: "identity" as const, label: MEMBER_TAB_LABELS.identity }]),
   ];
 
   return (
@@ -239,7 +244,7 @@ export default function MemberDetails({
           </div>
           </div>
 
-          <LatestNoteCard memberId={member.id} note={latestNote} timeZone={timeZone} />
+          <LatestNoteCard memberId={member.id} note={latestNote} timeZone={timeZone} readOnly={!can("member.notes_write")} />
 
           <MemberTimelinePanel
             memberId={member.id}
@@ -247,6 +252,7 @@ export default function MemberDetails({
             membershipHistory={membershipHistory}
             programOverrides={programOverrides}
             statusOverrides={statusOverrides}
+            readOnly={!can("member.timeline_edit")}
           />
 
           <MemberBadgesPanel
@@ -255,6 +261,7 @@ export default function MemberDetails({
             eventSlugs={eventSlugs}
             awardableBadgeTypes={awardableBadgeTypes}
             awards={awards}
+            readOnly={!can("member.badges_edit")}
           />
         </div>
       )}
@@ -292,7 +299,7 @@ export default function MemberDetails({
                 Open in the central log
               </Link>
             </p>
-            <MemberNoteForm memberId={member.id} />
+            {can("member.notes_write") && <MemberNoteForm memberId={member.id} />}
             <ActivityFilters variant="member" filters={activityFilters} basePath={`/admin/members/${member.id}/activity`} />
             {!activityFeed ? (
               <p role="alert" className="text-sm text-red-700 dark:text-red-400">
@@ -301,7 +308,7 @@ export default function MemberDetails({
             ) : activityFeed.total === 0 ? (
               <p className="text-sm text-slate-600 dark:text-slate-400">Nothing in this window. Try a longer range or other filters.</p>
             ) : (
-              <ActivityFeedTable {...activityFeed} filters={activityFilters} hideAbout noteControls={{ memberId: member.id, currentUserId, editMinutes: noteEditMinutes }} />
+              <ActivityFeedTable {...activityFeed} filters={activityFilters} hideAbout noteControls={!can("member.notes_write") ? undefined : { memberId: member.id, currentUserId, editMinutes: noteEditMinutes }} />
             )}
           </div>
         )}
