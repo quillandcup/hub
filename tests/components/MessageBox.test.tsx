@@ -477,6 +477,25 @@ describe("linkAddress", () => {
   });
 });
 
+describe("MessageBox: placeholder", () => {
+  it("is not drawn over an empty quote that typing > and a space starts", async () => {
+    render(<MessageBox channelId="c1" aria-label="Message" value="" onValueChange={() => {}} tokens={tokensRef} placeholder="Say something" />);
+    const box = await messageBox("Message");
+    await boxUser().type(box, "> ");
+    await waitFor(() => expect(box.querySelector("blockquote")).not.toBeNull());
+    expect(screen.queryByText("Say something")).not.toBeInTheDocument();
+  });
+
+  it("stays while the box has focus and is empty, until something is typed", async () => {
+    render(<MessageBox channelId="c1" aria-label="Message" value="" onValueChange={() => {}} tokens={tokensRef} placeholder="Say something" />);
+    const box = await messageBox("Message");
+    await boxUser().click(box);
+    expect(screen.getByText("Say something")).toBeInTheDocument();
+    await boxUser().type(box, "hi");
+    await waitFor(() => expect(screen.queryByText("Say something")).not.toBeInTheDocument());
+  });
+});
+
 describe("MessageBox: the text and the editor stay one", () => {
   it("shows text put in from outside, with its formatting, and takes it away again", async () => {
     function Outside() {

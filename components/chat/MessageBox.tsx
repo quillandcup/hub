@@ -368,7 +368,15 @@ export default function MessageBox({
     else dom.removeAttribute("aria-activedescendant");
   });
 
-  const empty = useEditorState({ editor, selector: ({ editor: e }) => e?.isEmpty ?? true });
+  const empty = useEditorState({
+    editor,
+    selector: ({ editor: e }) => {
+      if (!e) return true;
+      // An empty quote, list or code block counts as empty to the editor, but it has a mark of its own on screen: the placeholder only goes on a plain empty line.
+      const { doc } = e.state;
+      return doc.childCount === 1 && doc.firstChild?.type.name === "paragraph" && doc.firstChild.content.size === 0;
+    },
+  });
   const jumbo = useEditorState({ editor, selector: ({ editor: e }) => (e ? docIsEmojiOnly(e.getJSON() as RichNode) : false) });
 
   return (
