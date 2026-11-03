@@ -98,12 +98,19 @@ function scrubPayload(payload: Record<string, unknown>): Json {
   return { ...payload, data: { ...data, click: { ...click, link: stripLinkSecrets(click.link) } } } as Json;
 }
 
+/** "Name <a@b>" reduces to "a@b"; plain string searching, since a pattern over uncontrolled text can backtrack badly. */
+function addressOf(item: string): string {
+  const open = item.lastIndexOf("<");
+  const close = open === -1 ? -1 : item.indexOf(">", open);
+  return close > open + 1 ? item.slice(open + 1, close) : item;
+}
+
 /** `to` as a list of lower-cased addresses, whether Resend sent an array or one string; "Name <a@b>" reduces to "a@b". */
 function recipientsOf(value: unknown): string[] {
   const list = Array.isArray(value) ? value : typeof value === "string" ? [value] : [];
   return list
     .filter((item): item is string => typeof item === "string")
-    .map((item) => (item.match(/<([^>]+)>/)?.[1] ?? item).trim().toLowerCase())
+    .map((item) => addressOf(item).trim().toLowerCase())
     .filter(Boolean);
 }
 

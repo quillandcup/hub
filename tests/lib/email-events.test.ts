@@ -123,6 +123,14 @@ describe("toResendEvent", () => {
     expect(event?.tags).toEqual({ kind: "welcome" });
   });
 
+  it("reads recipients quickly and sensibly whatever the text, including piles of angle brackets", () => {
+    const hostile = `${"<=".repeat(50_000)}`;
+    const started = Date.now();
+    const event = toResendEvent(payload("email.sent", { to: [hostile, "<>", "Bo <Bo@Example.com>"] }), "msg_6");
+    expect(Date.now() - started).toBeLessThan(1000);
+    expect(event?.recipients).toEqual([hostile, "<>", "bo@example.com"]);
+  });
+
   it("takes a click's own timestamp, and keeps the link without its query string anywhere, the raw payload included", () => {
     const click = { link: "https://hub.example.com/login?token=secret#x", timestamp: "2097-01-01T11:00:00.000Z", ipAddress: "1.2.3.4" };
     const event = toResendEvent(payload("email.clicked", { click }), "msg_2");
