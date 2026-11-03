@@ -7,6 +7,7 @@ import { consumeSlackSignIn, slackCodeRateLimits } from "@/lib/slack-sign-in";
 import { clientIpFrom, hitRateLimits } from "@/lib/rate-limit";
 import { actionOrigin, finishSlackSignIn, refreshHomeForDeadToken } from "./finish";
 import { createRepos } from "@/lib/data/repos";
+import { rememberSignInMethod } from "@/lib/signin-method";
 
 /**
  * "Continue to Hedgie Hub" on /auth/slack/continue: the fallback for button clicks that didn't
@@ -25,6 +26,7 @@ export async function completeSlackSignIn(formData: FormData): Promise<void> {
 
   const result = await finishSlackSignIn(service, slackUserId, origin);
   if (!result.ok) redirect(`/auth/slack/continue?error=${result.error}`);
+  await rememberSignInMethod("slack_continue");
   redirect(result.next);
 }
 
@@ -66,5 +68,6 @@ export async function signInWithSlackCode(_prev: SlackCodeState | null, formData
           : "Something went wrong signing you in. Please try again.",
     };
   }
+  await rememberSignInMethod("slack_code");
   redirect(result.next);
 }

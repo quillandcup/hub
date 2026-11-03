@@ -31,7 +31,8 @@ vi.mock('next/navigation', () => ({
   },
 }))
 
-const { afterTasks, nextPath, clientIp } = vi.hoisted(() => ({
+const { afterTasks, nextPath, clientIp, signInMethods } = vi.hoisted(() => ({
+  signInMethods: [] as string[],
   afterTasks: [] as Promise<unknown>[],
   nextPath: { value: '/' },
   clientIp: { value: '198.51.100.1' },
@@ -46,6 +47,7 @@ vi.mock('next/headers', () => ({
   headers: async () => new Headers({ origin: 'http://localhost:3000', 'x-forwarded-for': `${clientIp.value}, 10.0.0.1` }),
 }))
 vi.mock('@/lib/next-path-cookie', () => ({ takeNextPath: async () => nextPath.value }))
+vi.mock('@/lib/signin-method', () => ({ rememberSignInMethod: async (m: string) => void signInMethods.push(m) }))
 
 import {
   resolveHubUserForSlackUser,
@@ -164,6 +166,7 @@ describe('Slack sign-in', () => {
   })
 
   beforeEach(async () => {
+    signInMethods.length = 0
     vi.clearAllMocks()
     afterTasks.length = 0
     nextPath.value = '/'
@@ -402,6 +405,7 @@ describe('Slack sign-in', () => {
       expect(res.status).toBe(303)
       expect(res.headers.get('location')).toBe(`${ORIGIN}/prickles/123`)
       expect(await signedInUserId()).toBe(memberUserId)
+      expect(signInMethods).toEqual(['slack_link'])
 
       // A fresh button goes into their Home tab for next time.
       await Promise.all(afterTasks)
@@ -419,6 +423,7 @@ describe('Slack sign-in', () => {
       fd.set('token', tokenOf(issued.url))
       expect(await redirectOf(completeSlackSignIn(fd))).toBe('/')
       expect(await signedInUserId()).toBe(memberUserId)
+      expect(signInMethods).toEqual(['slack_continue'])
     })
 
     it('on a used link, refreshes their Home tab and says so', async () => {
@@ -459,11 +464,13 @@ describe('Slack sign-in', () => {
 
       expect(await redirectOf(signInWithSlackCode(null, codeForm(formatSlackSignInCode(issued.code))))).toBe('/writing')
       expect(await signedInUserId()).toBe(memberUserId)
+      expect(signInMethods).toEqual(['slack_code'])
     })
 
-    it('explains a bad code', async () => {
+    it('explains a bad code, and records no sign-in', async () => {
       const result = await signInWithSlackCode(null, codeForm('ZZZZZ-ZZZZZ'))
       expect(result.error).toMatch(/didn't work/)
+      expect(signInMethods).toEqual([])
     })
 
     it('stops an IP after 10 attempts in the window, even with a valid code, but not other IPs', async () => {

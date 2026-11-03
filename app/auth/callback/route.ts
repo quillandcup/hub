@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { safeNextPath } from '@/lib/safe-next'
 import { takeNextPath } from '@/lib/next-path-cookie'
 import { callbackOutcome, logSignIn } from '@/lib/signin-log'
+import { rememberSignInMethod } from '@/lib/signin-method'
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
@@ -15,6 +16,7 @@ export async function GET(request: Request) {
       // Only ever a same-origin path: `${origin}${next}` with an unchecked `next` like
       // "@evil.com" would have been an open redirect.
       const next = safeNextPath(searchParams.get('next')) ?? (await takeNextPath())
+      await rememberSignInMethod('email_link')
       return NextResponse.redirect(`${origin}${next}`)
     }
     logSignIn(callbackOutcome(error), error)

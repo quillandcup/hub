@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { consumeSlackSignIn } from "@/lib/slack-sign-in";
+import { rememberSignInMethod } from "@/lib/signin-method";
 import { finishSlackSignIn, refreshHomeForDeadToken } from "./finish";
 
 /**
@@ -38,5 +39,6 @@ export async function GET(request: NextRequest) {
   if (!result.ok) {
     return NextResponse.redirect(new URL(`/auth/slack/continue?error=${result.error}`, origin), 303);
   }
+  await rememberSignInMethod("slack_link");
   return NextResponse.redirect(new URL(result.next, origin), 303);
 }

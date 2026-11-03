@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { exchange, takeNextPath, logSignIn } = vi.hoisted(() => ({
+const { exchange, takeNextPath, logSignIn, rememberSignInMethod } = vi.hoisted(() => ({
+  rememberSignInMethod: vi.fn(),
   exchange: vi.fn(),
   takeNextPath: vi.fn(),
   logSignIn: vi.fn(),
 }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ auth: { exchangeCodeForSession: exchange } }) }));
 vi.mock("@/lib/next-path-cookie", () => ({ takeNextPath }));
+vi.mock("@/lib/signin-method", () => ({ rememberSignInMethod }));
 vi.mock("@/lib/signin-log", async () => ({ ...(await vi.importActual<typeof import("@/lib/signin-log")>("@/lib/signin-log")), logSignIn }));
 
 import { GET } from "@/app/auth/callback/route";
@@ -17,6 +19,7 @@ beforeEach(() => {
   exchange.mockReset().mockResolvedValue({ error: null });
   takeNextPath.mockReset().mockResolvedValue("/dashboard");
   logSignIn.mockClear();
+  rememberSignInMethod.mockClear();
 });
 
 describe("GET /auth/callback", () => {
@@ -24,12 +27,14 @@ describe("GET /auth/callback", () => {
     const res = await call("?code=abc");
     expect(res.headers.get("location")).toBe("https://hub.example.test/dashboard");
     expect(logSignIn).not.toHaveBeenCalled();
+    expect(rememberSignInMethod).toHaveBeenCalledWith("email_link");
   });
 
   it("logs and returns to /login when there is no code", async () => {
     const res = await call("");
     expect(res.headers.get("location")).toBe("https://hub.example.test/login?error=auth_callback_failed");
     expect(logSignIn).toHaveBeenCalledWith("callback_no_code");
+    expect(rememberSignInMethod).not.toHaveBeenCalled();
   });
 
   it("logs the other-browser case when the PKCE verifier is missing", async () => {

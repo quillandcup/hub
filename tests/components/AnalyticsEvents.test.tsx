@@ -28,6 +28,36 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe("AnalyticsEvents: how the member signed in", () => {
+  afterEach(() => {
+    document.cookie = "hub_signin_method=; path=/; max-age=0";
+  });
+
+  it("records signed_in with the method once, and removes the cookie", async () => {
+    document.cookie = "hub_signin_method=email_code; path=/";
+    render(<AnalyticsEvents needsConsent={false} />);
+
+    const events = await sent();
+    expect(events.filter((e) => e.event === "signed_in")).toEqual([
+      expect.objectContaining({ event: "signed_in", properties: { method: "email_code" } }),
+    ]);
+    expect(document.cookie).not.toContain("hub_signin_method");
+  });
+
+  it("records nothing for a value that is not one of our methods", async () => {
+    document.cookie = "hub_signin_method=bogus; path=/";
+    render(<AnalyticsEvents needsConsent={false} />);
+    expect((await sent()).some((e) => e.event === "signed_in")).toBe(false);
+  });
+
+  it("drops it, never holds it, when the visitor declined tracking", async () => {
+    document.cookie = "hub_signin_method=slack_code; path=/";
+    localStorage.setItem(CONSENT_STORAGE_KEY, "denied");
+    render(<AnalyticsEvents needsConsent={true} />);
+    expect(await sent()).toEqual([]);
+  });
+});
+
 describe("AnalyticsEvents", () => {
   it("reports page views where consent isn't required, with the route as a template", async () => {
     mockPathname = "/members/42";

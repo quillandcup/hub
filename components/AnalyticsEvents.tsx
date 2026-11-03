@@ -8,6 +8,7 @@ import { flush, setTrackingEnabled, track, trackWhenEnabled } from "@/lib/analyt
 import { readAttribution, stripAttribution } from "@/lib/notifications/attribution";
 import { useEventsAllowed } from "@/lib/analytics/use-events-allowed";
 import { templateRoute } from "@/lib/analytics/route";
+import { clearSignInMethod, readSignInMethod } from "@/lib/signin-method-client";
 
 /**
  * Turns on usage tracking (lib/analytics/client.ts) for a signed-in visitor once consent allows
@@ -45,6 +46,15 @@ export function AnalyticsEvents({ needsConsent, optedOut = false }: { needsConse
     const { pathname: path, search, hash } = window.location;
     window.history.replaceState(window.history.state, "", path + stripAttribution(search) + hash);
     return trackWhenEnabled("notification_opened", attribution);
+  }, []);
+
+  // Just signed in (lib/signin-method.ts): record how, once, and remove the cookie. Like the
+  // attribution above, it waits for tracking and is dropped, never held, if tracking never starts.
+  useEffect(() => {
+    const method = readSignInMethod(document.cookie);
+    if (!method) return;
+    clearSignInMethod();
+    return trackWhenEnabled("signed_in", { method });
   }, []);
 
   useEffect(() => {
