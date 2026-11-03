@@ -61,6 +61,7 @@ vi.mock("@/lib/timezone", () => ({ getUserTimezonePreference: vi.fn(async () => 
 vi.mock("@/lib/badges", () => ({ getMemberBadges: vi.fn(async () => []) }));
 vi.mock("@/lib/kajabi/membership-history", () => ({ fetchMembershipHistory: vi.fn(async () => []) }));
 vi.mock("@/lib/channels/web-push", () => ({ loadPushDevices: vi.fn(async () => []) }));
+import { loadPushDevices } from "@/lib/channels/web-push";
 
 import { getMemberBadges } from "@/lib/badges";
 import MemberDetailPage, { memberTabMetadata } from "@/app/(admin)/admin/members/[id]/MemberDetailPage";
@@ -87,6 +88,18 @@ describe("MemberDetailPage controls", () => {
     useFakeSupabase(memberTables());
     await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "overview" as const });
     expect(screen.getByRole("button", { name: "Sudo As" })).toBeInTheDocument();
+  });
+
+  it("tells an admin which devices get browser notifications, and a community manager nothing about them", async () => {
+    vi.mocked(loadPushDevices).mockResolvedValue([{ userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15" }] as never);
+    useFakeSupabase(memberTables());
+    await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "overview" as const });
+    expect(screen.getByText(/Browser notifications on 1 device/)).toBeInTheDocument();
+
+    staff.role = "community_manager";
+    await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "overview" as const });
+    expect(screen.queryAllByText(/Browser notifications on/)).toHaveLength(1);
+    vi.mocked(loadPushDevices).mockResolvedValue([]);
   });
 
   it("gives a community manager the profile without Sudo As, Merge, Split or the Remove panel", async () => {
