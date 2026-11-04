@@ -5,6 +5,7 @@ import {
   JOURNEY_CANVAS,
   JOURNEY_OFFER_LABELS,
   JOURNEY_STAGES,
+  type JourneyStage,
   STAGE_HEIGHT,
   STAGE_WIDTH,
   journeyStageForPhase,
@@ -18,36 +19,66 @@ export interface JourneyProject {
   phase: ProjectPhase;
 }
 
-/** Arrows between stages, by the canvas coordinates the stages sit at (JOURNEY_STAGES). */
-const EDGES: { d: string; kind: JourneyOffer | "bff" | "loop" }[] = [
-  { d: "M73,250 C120,235 150,235 177,250", kind: "live" },
-  { d: "M383,250 C420,250 420,232 457,232", kind: "live" },
-  { d: "M383,250 C420,250 420,360 457,360", kind: "external" },
-  { d: "M663,360 L737,360", kind: "roadmap" },
-  { d: "M943,360 L1017,360", kind: "external" },
-  { d: "M1223,360 L1297,360", kind: "roadmap" },
-  { d: "M1503,232 C1550,232 1550,105 1577,105", kind: "live" },
-  { d: "M1503,232 C1555,232 1555,395 1577,395", kind: "live" },
-  { d: "M1503,360 C1530,360 1530,105 1577,105", kind: "roadmap" },
-  { d: "M1503,360 C1535,360 1535,395 1577,395", kind: "roadmap" },
-  { d: "M1783,105 C1820,105 1820,250 1857,250", kind: "roadmap" },
-  { d: "M1783,395 C1820,395 1820,250 1857,250", kind: "roadmap" },
-  { d: "M2063,250 L2137,250", kind: "roadmap" },
-  { d: "M1960,189 L1960,166", kind: "loop" },
-  { d: "M1960,311 L1960,334", kind: "loop" },
-  { d: "M260,111 C245,135 235,155 245,188", kind: "bff" },
-  { d: "M340,111 C400,110 440,150 480,184", kind: "bff" },
+const stageById = (id: string) => JOURNEY_STAGES.find((s) => s.id === id)!;
+const left = (s: JourneyStage) => s.x - (s.width ?? STAGE_WIDTH) / 2;
+const right = (s: JourneyStage) => s.x + (s.width ?? STAGE_WIDTH) / 2;
+const curve = (from: JourneyStage, to: JourneyStage, y1 = from.y, y2 = to.y) => {
+  const mid = (right(from) + left(to)) / 2;
+  return `M${right(from)},${y1} C${mid},${y1} ${mid},${y2} ${left(to)},${y2}`;
+};
+
+/** The hire-a-pro swimlane, in order: the stages without a bar, a box or the publishing fork before it. */
+const ROW_IDS = [
+  "first-read-through",
+  "revision-1",
+  "developmental-edit",
+  "revision-2",
+  "beta-readers",
+  "revision-3",
+  "line-copy-edit",
+  "final-read-through",
+  "final-beta-read",
 ];
 
-const EDGE_STYLE: Record<(typeof EDGES)[number]["kind"], { className: string; dash?: string }> = {
+/** Arrows between stages, from the canvas coordinates the stages sit at (JOURNEY_STAGES). */
+function buildEdges(): { d: string; kind: JourneyOffer | "bff" | "loop" }[] {
+  const draft = stageById("draft");
+  const bar = stageById("self-edit");
+  const row = ROW_IDS.map(stageById);
+  const pubs = [stageById("self-publish"), stageById("query-submit")];
+  const arc = stageById("arc-readers");
+  const launch = stageById("launch");
+  const arcHalf = STAGE_HEIGHT / 2;
+  return [
+    { d: "M73,250 C120,235 150,235 177,250", kind: "live" },
+    { d: curve(draft, bar), kind: "live" },
+    { d: curve(draft, row[0]), kind: "own" },
+    ...row.slice(1).map((to, i) => ({ d: `M${right(row[i])},${to.y} L${left(to)},${to.y}`, kind: to.offerStatus })),
+    ...pubs.flatMap((pub) => [
+      { d: curve(bar, pub), kind: "live" as const },
+      { d: curve(row[row.length - 1], pub), kind: "roadmap" as const },
+      { d: curve(pub, launch), kind: "roadmap" as const },
+    ]),
+    { d: `M${arc.x},${arc.y - arcHalf - 1} L${arc.x},${pubs[0].y + arcHalf + 2}`, kind: "loop" },
+    { d: `M${arc.x},${arc.y + arcHalf + 1} L${arc.x},${pubs[1].y - arcHalf - 2}`, kind: "loop" },
+    { d: `M${right(arc)},${arc.y} L${left(launch)},${launch.y}`, kind: "roadmap" },
+    { d: "M260,111 C245,135 235,155 245,188", kind: "bff" },
+    { d: "M340,111 C400,110 440,130 480,164", kind: "bff" },
+  ];
+}
+const EDGES = buildEdges();
+
+const EDGE_STYLE: Record<JourneyOffer | "bff" | "loop", { className: string; dash?: string }> = {
   live: { className: "stroke-plum-600 dark:stroke-plum-400" },
   external: { className: "stroke-slate-500 dark:stroke-slate-400", dash: "2 6" },
+  own: { className: "stroke-slate-500 dark:stroke-slate-400" },
   roadmap: { className: "stroke-emerald-600 dark:stroke-emerald-400", dash: "7 5" },
   loop: { className: "stroke-emerald-600 dark:stroke-emerald-400", dash: "7 5" },
   bff: { className: "stroke-amber-600 dark:stroke-amber-400", dash: "3 4" },
 };
 
 const STAGE_STYLE: Record<JourneyOffer, string> = {
+  own: "border-slate-400 bg-white dark:bg-slate-900",
   live: "border-plum-500 bg-white dark:bg-slate-900",
   external: "border-dotted border-slate-400 bg-white dark:bg-slate-900",
   roadmap: "border-dashed border-emerald-600/70 bg-white/70 dark:bg-slate-900/70",
@@ -106,11 +137,42 @@ export default function JourneyMap({ projects }: { projects: JourneyProject[] })
           <ol>
             {JOURNEY_STAGES.map((stage) => {
               const here = projects.filter((p) => stage.phases.includes(p.phase));
+              const statuses = stage.coversPhases ?? stage.phases;
+              const chips = here.length > 0 && (
+                <ul className="mt-1 flex flex-wrap gap-1">
+                  {here.map((p) => (
+                    <li key={p.id}>
+                      <Link href={`/projects/${p.id}`} className="inline-block rounded-full bg-plum-100 dark:bg-plum-900/40 px-2 py-0.5 text-xs text-plum-800 dark:text-plum-200 hover:underline">
+                        {p.title}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              );
+              const box = { left: stage.x, top: stage.y, width: stage.width ?? STAGE_WIDTH, height: stage.height ?? STAGE_HEIGHT };
+              if (stage.kind === "group") {
+                return (
+                  <li
+                    key={stage.id}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 rounded-xl border-2 border-dashed border-emerald-600/70 p-2"
+                    style={box}
+                  >
+                    <div className="flex items-baseline justify-between gap-2">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-[10px] uppercase tracking-wide text-slate-500">{stage.step}</span>
+                        <h2 className="text-sm font-semibold leading-tight">{stage.title}</h2>
+                      </div>
+                      <span className="whitespace-nowrap text-[10px] text-slate-500">Status: {statuses.map((p) => PHASE_LABELS[p]).join(" · ")}</span>
+                    </div>
+                    {here.length > 0 && <div className="absolute inset-x-2 bottom-1">{chips}</div>}
+                  </li>
+                );
+              }
               return (
                 <li
                   key={stage.id}
                   className={`absolute -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border-2 p-3 ${STAGE_STYLE[stage.offerStatus]}`}
-                  style={{ left: stage.x, top: stage.y, width: stage.width ?? STAGE_WIDTH, height: stage.height ?? STAGE_HEIGHT }}
+                  style={box}
                 >
                   <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-slate-500">
                     <span>{stage.step}</span>
@@ -118,21 +180,9 @@ export default function JourneyMap({ projects }: { projects: JourneyProject[] })
                   </div>
                   <h2 className="text-sm font-semibold leading-tight">{stage.title}</h2>
                   <p className="text-xs font-medium text-plum-700 dark:text-plum-400">{stage.offer}</p>
-                  {here.length > 0 ? (
-                    <ul className="mt-1 flex flex-wrap gap-1">
-                      {here.map((p) => (
-                        <li key={p.id}>
-                          <Link href={`/projects/${p.id}`} className="inline-block rounded-full bg-plum-100 dark:bg-plum-900/40 px-2 py-0.5 text-xs text-plum-800 dark:text-plum-200 hover:underline">
-                            {p.title}
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-slate-600 dark:text-slate-400">{stage.description}</p>
-                  )}
-                  {stage.phases.length > 0 && (
-                    <p className="mt-1 text-[10px] text-slate-500">Status: {stage.phases.map((p) => PHASE_LABELS[p]).join(" · ")}</p>
+                  {chips || <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-slate-600 dark:text-slate-400">{stage.description}</p>}
+                  {statuses.length > 0 && (
+                    <p className="mt-1 text-[10px] text-slate-500">Status: {statuses.map((p) => PHASE_LABELS[p]).join(" · ")}</p>
                   )}
                 </li>
               );
@@ -143,6 +193,7 @@ export default function JourneyMap({ projects }: { projects: JourneyProject[] })
       <ul className="flex flex-wrap gap-4 text-xs text-slate-600 dark:text-slate-400">
         <li>Solid: live at Quill &amp; Cup</li>
         <li>Dotted: hire a pro outside Quill &amp; Cup</li>
+        <li>Plain: your own work</li>
         <li>Dashed: on the roadmap</li>
         <li>On hold and Hibernating projects are listed under Paused</li>
         <li>Community is with you the whole way</li>
