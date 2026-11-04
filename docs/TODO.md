@@ -1084,6 +1084,11 @@ Decisions so far:
 
 ## Analytics & Matching
 
+### Name matching: a first-name-only Zoom name can land on the wrong member _(Needs Scheduling)_
+`matchAttendeeToMember` (`lib/member-matching.ts`, rule 4) matches a one-word name such as a Zoom display name by comparing it with members' *legal* first names, and takes the match when exactly one member has that first name. A member who goes by a different first name than their legal one (their Zoom name is the name they use, the legal name differs) and has no alias for it yet is attributed to whichever other member happens to have that legal first name. It happened in the live room ("who is in the prickle now"): a member who signs in under their chosen first name showed as another member until they added the alias themselves. Nothing marks the match as a guess, so attendance and the live room trust it.
+
+**Why deferred:** the fix changes what existing names match (the rule is what makes plain first names work for everyone else), so it needs a look at prod first: which members' attendance rests on rule 4 alone, and how many would become unmatched. **Where to start:** have rule 4 also consider the display name (`display_name`) and prefer an alias or display-name match over a legal first name, or return `ambiguous` when the name is a first name of one member and a display first name of another; or report rule-4-only matches on a hygiene page (`/admin/hygiene/name-matching`) so a missing alias is found before it misattributes. Check `lib/live-room.ts` and `/api/process/attendance`, which both call the matcher. Test in `tests/lib/member-matching.test.ts` with two fake members, one whose legal first name equals the other's chosen one.
+
 ### Alias key: accented letters _(Needs Scheduling)_
 The key aliases are compared by (`aliasKey` in `lib/member-matching.ts` and `public.name_alias_key`, kept in step) keeps only `a-z` and `0-9`, so an accented letter is dropped: `José` becomes `jos`, which also equals `Jos`. Unlikely to cause a wrong match today (prod had no such collisions when the key was last checked), but two different names can share a key, and a non-Latin name with some Latin letters is reduced to those letters.
 
