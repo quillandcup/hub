@@ -56,6 +56,9 @@ vi.mock("@videojs/react/media/mux-video", () => ({
     return <video data-testid="video" />;
   },
 }));
+vi.mock("@videojs/react/extensions/mux-data", () => ({
+  MuxData: (props: Record<string, unknown>) => <div data-testid="mux-data" data-props={JSON.stringify(props)} />,
+}));
 vi.mock("@videojs/react/video/skin.css", () => ({}));
 
 import LessonPlayer from "@/components/courses/LessonPlayer";
@@ -848,5 +851,64 @@ describe("LessonPlayer reports what happened to the video", () => {
     unmount();
     fire(media, "playing");
     expect(track.mock.calls.filter(([name]) => name === "course_video_played")).toEqual([]);
+  });
+});
+
+describe("LessonPlayer Mux Data", () => {
+  const renderWith = (muxData?: { needsConsent: boolean; optedOut: boolean } | null) =>
+    render(<LessonPlayer title="Your writing space" playbackId="pb-1" tokens={tokens} lessonId="les_AAAAAAAAAAA1" muxData={muxData} />);
+  const monitor = () => screen.queryByTestId("mux-data");
+
+  beforeEach(() => localStorage.clear());
+
+  it("is off without the flag (no consent facts from the page)", () => {
+    renderWith(undefined);
+    expect(monitor()).toBeNull();
+    renderWith(null);
+    expect(monitor()).toBeNull();
+  });
+
+  it("waits for the banner's Accept where consent is needed, and follows a later answer", () => {
+    renderWith({ needsConsent: true, optedOut: false });
+    expect(monitor()).toBeNull();
+    act(() => {
+      localStorage.setItem("ga-consent", "granted");
+      window.dispatchEvent(new Event("hub-consent-change"));
+    });
+    expect(monitor()).not.toBeNull();
+    act(() => {
+      localStorage.setItem("ga-consent", "denied");
+      window.dispatchEvent(new Event("hub-consent-change"));
+    });
+    expect(monitor()).toBeNull();
+  });
+
+  it("is off when the member left themselves out of statistics, even with consent", () => {
+    localStorage.setItem("ga-consent", "granted");
+    renderWith({ needsConsent: true, optedOut: true });
+    expect(monitor()).toBeNull();
+  });
+
+  it("tells the staff alert the view was measured, only when it was", () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 204 })));
+    const alertBody = () => JSON.parse(vi.mocked(fetch).mock.calls.find(([url]) => url === "/api/client-errors")![1]!.body as string);
+    const media = Object.assign((player.media = fakeMedia()), { error: { code: 4 } });
+    const { unmount } = renderWith({ needsConsent: false, optedOut: false });
+    act(() => void media.dispatchEvent(new Event("error")));
+    expect(alertBody().playback.muxData).toBe(true);
+    unmount();
+
+    vi.mocked(fetch).mockClear();
+    renderWith(null);
+    act(() => void media.dispatchEvent(new Event("error")));
+    expect(alertBody().playback).not.toHaveProperty("muxData");
+    vi.unstubAllGlobals();
+  });
+
+  it("is on with the flag where no consent is needed, anonymous: no cookies, no viewer id, only the lesson title", () => {
+    renderWith({ needsConsent: false, optedOut: false });
+    const props = JSON.parse(monitor()!.getAttribute("data-props")!);
+    expect(props).toEqual({ disableCookies: true, metadata: { video_title: "Your writing space", player_name: "Hub lesson player" }, playerSoftwareName: "mux-video" });
+    expect(JSON.stringify(props)).not.toMatch(/viewer|user|email|member/i);
   });
 });

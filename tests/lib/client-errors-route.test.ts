@@ -46,6 +46,9 @@ describe("POST /api/client-errors", () => {
       playback: { code: 2, lessonId: "les_esQojgSTH2XD", playbackId: "AbCdEf1234567890", restricted: true, status: 403, detail: "manifestLoadError" },
     }));
 
+    await post({ path: "/courses/x/lessons/y", kind: "video", message: "m", playback: { code: 2, muxData: true } });
+    expect(sendOperationsAlert).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ playback: { code: 2, muxData: true } }));
+
     await post({
       path: "/courses/x/lessons/y",
       kind: "video",

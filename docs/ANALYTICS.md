@@ -94,6 +94,10 @@ A click on "Save" says someone tried. `action_completed` says whether it worked:
 - The `Notifications: sent and opened` table shows each kind and channel's sends, opens and open rate. Opens are counted in the same window as sends, so read short windows with care.
 - Events carry `source`: `client` (the browser), `server` (an outcome, in a visit), `system` (the app on its own). The browser's batch endpoint refuses `server` and `system` events (`SERVER_ONLY_EVENTS`), so a member can't forge them.
 
+## Mux Data (playback quality) is consent-gated
+
+The course player can report playback quality to Mux Data (`mux_data` flag, `docs/MUX_CONFIG.md`, "Mux Data"). Unlike the course viewing data below, it goes to a third party and carries the viewer's **IP address and user agent** (Mux derives location, browser and device from them), so it follows the usage-statistics rule above: it starts only where the banner's Accept is given when one is needed, and never when the member has left themselves out of statistics. It is anonymous by construction (no viewer id, name, email or member id; cookies off), and sends the lesson title and Mux's playback id. It is never started in sudo. The `/privacy` page lists it under "How well course videos play" and among the services.
+
 ## Course viewing data is not analytics events
 
 What the lesson player records (`video_watch_segments`: the playhead for resume, each stretch watched, a "viewed" marker per player session with the browser's user agent) is stored as **first-party course data**, in its own tables, written by `/api/courses/watch`. It does **not** go through the consent-gated event pipeline above, so it is not lost when a member in the EU, EEA or UK hasn't accepted the banner, and a member's views are attributed to them by name for staff (`/admin/courses/<id>/stats`). That was a deliberate choice (2026-10-20): the membership is paid, signed in, and about 90% US, and the course stats are core to running the course.

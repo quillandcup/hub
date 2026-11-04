@@ -234,12 +234,15 @@ importers:
       '@vercel/speed-insights':
         specifier: ^2.0.0
         version: 2.0.0(next@16.4.2(@babel/core@7.29.7(supports-color@8.1.1))(@opentelemetry/api@1.9.1)(@types/node@22.19.17)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
+      '@videojs/mux-data':
+        specifier: 10.1.0
+        version: 10.1.0(react@19.3.1)
       '@videojs/mux-video':
         specifier: ^10.1.0
         version: 10.1.0
       '@videojs/react':
         specifier: ^10.1.0
-        version: 10.1.0(@videojs/hlsjs-video@10.1.0)(@videojs/mux-video@10.1.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        version: 10.1.0(@videojs/hlsjs-video@10.1.0)(@videojs/mux-data@10.1.0(react@19.3.1))(@videojs/mux-video@10.1.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       bowser:
         specifier: ^2.15.0
         version: 2.15.0
@@ -3135,6 +3138,9 @@ packages:
   '@videojs/media@10.1.0':
     resolution: {integrity: sha512-Ene6V7Es+Wddcj/Pzy+7+SbZq5H6M3L3ZdhwWHtoP6AULVt096Pn/PJl4L4W1Vypx9xxRP//ZftVv52eu5clww==}
 
+  '@videojs/mux-data@10.1.0':
+    resolution: {integrity: sha512-S0DZ9sVakjuhhdBeUiKmOz7BWXVKkuGPHRjOpOj+qys265Rmu4LE+s/bMve8SKbjJS9vGwW0kakrZqrTTMurkw==}
+
   '@videojs/mux-video@10.1.0':
     resolution: {integrity: sha512-i9YTNWt44r+0zdZJDBRW6+8jrs1J6iaNXPgp67vlepxWLKJ/vHGJ4HiBBLqoRbDMuS6hGB7Ybimd+7kWtuGvxg==}
 
@@ -5862,6 +5868,9 @@ packages:
   mute-stream@3.0.0:
     resolution: {integrity: sha512-dkEJPVvun4FryqBmZ5KhDo0K9iDXAwn08tMLDinNdRBNPcYEDiWYysLcc6k3mjTMlbP9KyylvRpd4wFtwrT9rw==}
     engines: {node: ^20.17.0 || >=22.9.0}
+
+  mux-embed@5.17.10:
+    resolution: {integrity: sha512-i+eaoezVxIEliYGWPsjQztrWbA8A3Rzwqhwv1WGuRrl2npx85jFYJV5y+cjh7FASPOjT+7zJTYCJfxmcbgM7Hg==}
 
   mz@2.7.0:
     resolution: {integrity: sha512-z81GNO7nnYMEhrGh9LeymoE4+Yr0Wn5McHIZMK5cfQCl+NDX08sCZgUc9/6MHni9IWuFLm1Z3HTCXu2z9fN62Q==}
@@ -10112,6 +10121,16 @@ snapshots:
     dependencies:
       '@videojs/utils': 10.1.0
 
+  '@videojs/mux-data@10.1.0(react@19.3.1)':
+    dependencies:
+      '@videojs/core': 10.1.0(react@19.3.1)
+      '@videojs/media': 10.1.0
+      '@videojs/utils': 10.1.0
+      mux-embed: 5.17.10
+    transitivePeerDependencies:
+      - '@videojs/element'
+      - react
+
   '@videojs/mux-video@10.1.0':
     dependencies:
       '@videojs/hlsjs-video': 10.1.0
@@ -10125,7 +10144,7 @@ snapshots:
       '@videojs/spf': 10.1.0
       '@videojs/utils': 10.1.0
 
-  '@videojs/react@10.1.0(@videojs/hlsjs-video@10.1.0)(@videojs/mux-video@10.1.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
+  '@videojs/react@10.1.0(@videojs/hlsjs-video@10.1.0)(@videojs/mux-data@10.1.0(react@19.3.1))(@videojs/mux-video@10.1.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
       '@videojs/core': 10.1.0(react@19.3.1)
       '@videojs/media': 10.1.0
@@ -10138,6 +10157,7 @@ snapshots:
       react-dom: 19.3.1(react@19.3.1)
     optionalDependencies:
       '@videojs/hlsjs-video': 10.1.0
+      '@videojs/mux-data': 10.1.0(react@19.3.1)
       '@videojs/mux-video': 10.1.0
     transitivePeerDependencies:
       - '@videojs/element'
@@ -13289,6 +13309,8 @@ snapshots:
       - '@types/node'
 
   mute-stream@3.0.0: {}
+
+  mux-embed@5.17.10: {}
 
   mz@2.7.0:
     dependencies:

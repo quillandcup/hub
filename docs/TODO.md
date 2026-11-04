@@ -549,6 +549,7 @@ production:
 - **Read the production webhook.** Listing webhooks needs a System-permission token (`MUX_SYSTEM_TOKEN_ID/SECRET` in `.env.prod`), so the first diff couldn't confirm the webhook; the restriction part was compared with the app token.
 - **Webhook delivery check.** The nightly check can't prove Mux reaches us; that needs a throwaway asset created in the environment each run (a few cents a month) and polling the `videos` row, or a Mux "send test event" if one appears in the API.
 - **Signing keys** are created by hand (the private half is shown once); `/system/v1/signing-keys` could list them for a drift check.
+- **Mux Data on the other players, and an admin link.** Only the member lesson player reports to Mux Data (`mux_data` flag, `docs/MUX_CONFIG.md`). The admin lesson builder's player, the webinar archive and any other `MuxVideo` could add `MuxDataMonitor` the same way (with the same consent rule). The staff alert only links the Mux dashboard's root; a deep link to the environment's Errors page would need the environment id, which isn't kept anywhere. Also unverified until the owner checks it: that views of the production lessons appear in the production environment without an `envKey`; if they don't, add a non-secret `NEXT_PUBLIC_` env var for the key (`.claude/rules/new-env-var.md`).
 
 ### Google Calendar push channel: create and renew it _(follow-ups)_
 

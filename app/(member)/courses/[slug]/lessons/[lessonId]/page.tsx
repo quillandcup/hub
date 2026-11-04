@@ -6,6 +6,7 @@ import { loadLessonView } from "@/lib/courses/member";
 import { lessonContext, lessonSection, nextModuleLesson, type OutlineLesson } from "@/lib/courses/outline";
 import { createMuxClient, signPlaybackTokens } from "@/lib/mux";
 import { restrictionIdForViewer } from "@/lib/mux-restriction.server";
+import { muxDataConsentFor } from "@/lib/mux-data.server";
 import { startSeconds } from "@/lib/courses/watch";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { courseTitle, lessonTitles } from "@/lib/courses/page-title";
@@ -113,6 +114,7 @@ export default async function LessonPage({
   if (video) {
     const restrictionId = video.status === "ready" && video.playbackId ? await restrictionIdForViewer(caller.userId, caller.identity) : null;
     const tokens = video.status === "ready" && video.playbackId ? await mintTokens(video.playbackId, restrictionId) : null;
+    const muxData = tokens ? await muxDataConsentFor(caller.userId, caller.identity) : null;
     player =
       tokens && video.playbackId ? (
         <LessonPlayer
@@ -122,6 +124,7 @@ export default async function LessonPage({
           playbackId={video.playbackId}
           tokens={tokens}
           restricted={restrictionId !== null}
+          muxData={muxData}
           posterUrl={lesson.thumbnail_url}
           lessonId={lesson.id}
           resumeSeconds={startSeconds(query?.t, resumeSeconds)}

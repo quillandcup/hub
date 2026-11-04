@@ -88,6 +88,7 @@
     "@tiptap/starter-kit": "^3.32.2",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
+    "@videojs/mux-data": "10.1.0",
     "@videojs/mux-video": "^10.1.0",
     "@videojs/react": "^10.1.0",
     "bowser": "^2.15.0",

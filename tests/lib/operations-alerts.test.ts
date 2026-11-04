@@ -174,7 +174,13 @@ describe("production operations alerts", () => {
     });
     const text = postMessage.mock.calls[0][0].text;
     expect(text).toContain("media error 2 (network), hls.js: manifestLoadError, HTTP 403, link with the referrer restriction, lesson les_AAAAAAAAAAA1, playback id pb123");
-    expect(text).not.toContain("Mux dashboard");
+    expect(text).not.toContain("Mux Data");
+  });
+
+  it("points at Mux Data's errors only when that view was measured", async () => {
+    const { repos } = allowing();
+    await sendOperationsAlert(repos, { type: "video_failed", what: "playback", route: "/courses/[slug]/lessons/[id]", playback: { code: 2, muxData: true } });
+    expect(postMessage.mock.calls[0][0].text).toContain("<https://dashboard.mux.com|Mux Data> (Errors)");
   });
 
   it("alerts a playback failure per lesson route, with the untrusted detail trimmed and escaped", async () => {
