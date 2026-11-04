@@ -42,7 +42,7 @@ describe("closeAnsweredCheckinDms", () => {
 
     const result = await closeAnsweredCheckinDms(repos, slack, { since: SINCE });
 
-    expect(result).toEqual({ finished: 1, open: 1, closed: 1, failed: 0 });
+    expect(result).toEqual({ finished: 1, open: 1, closed: 1, failed: 0, notOpen: { noSlackAccount: 0, skippedOrSubmitted: 0, notInHistory: 0 } });
     expect(update).toHaveBeenCalledTimes(1);
     expect(update).toHaveBeenCalledWith(expect.objectContaining({ channel: "D1", ts: "1.1", text: "✅ Checked in. Thanks!" }));
   });
@@ -66,9 +66,23 @@ describe("closeAnsweredCheckinDms", () => {
     expect(result).toMatchObject({ open: 1, closed: 0, failed: 1 });
   });
 
+  it("says where a finished check-in with no open DM went", async () => {
+    const { repos, slack } = world([dm("2.2", "checkin", "p2")]);
+    await repos.prickleActivity.dismiss("checkin", "m1", "p1");
+
+    const result = await closeAnsweredCheckinDms(repos, slack, { since: SINCE, dryRun: true });
+
+    expect(result).toMatchObject({ finished: 1, open: 0, notOpen: { skippedOrSubmitted: 1, noSlackAccount: 0, notInHistory: 0 } });
+  });
+
+  it("counts a finished check-in missing from the DM history", async () => {
+    const { repos, slack } = world([]);
+    expect(await closeAnsweredCheckinDms(repos, slack, { since: SINCE, dryRun: true })).toMatchObject({ notOpen: { notInHistory: 1 } });
+  });
+
   it("does nothing when no prickle started in the window", async () => {
     const { repos, slack } = world([]);
 
-    expect(await closeAnsweredCheckinDms(repos, slack, { since: new Date() })).toEqual({ finished: 0, open: 0, closed: 0, failed: 0 });
+    expect(await closeAnsweredCheckinDms(repos, slack, { since: new Date() })).toEqual({ finished: 0, open: 0, closed: 0, failed: 0, notOpen: { noSlackAccount: 0, skippedOrSubmitted: 0, notInHistory: 0 } });
   });
 });

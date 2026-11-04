@@ -37,7 +37,7 @@ async function main() {
   const repos = createRepos(createClient<Database>(url, key));
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
   const result = await closeAnsweredCheckinDms(repos, new WebClient(token), { since, dryRun: !apply });
-  console.log(apply ? "Applied:" : "Dry run:", result);
+  console.log(apply ? "Applied:" : "Dry run:", JSON.stringify(result));
 }
 
 main().catch((error) => {
