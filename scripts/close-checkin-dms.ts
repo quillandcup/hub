@@ -28,9 +28,13 @@ if (unknown || !Number.isInteger(days) || days < 1) {
 async function main() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    console.error("NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are not set. Run it where .env.prod and .env.shared exist (the main checkout; a worktree has no copy), through the package script.");
+    process.exit(1);
+  }
   const token = await getSlackBotToken();
-  if (!url || !key || !token) {
-    console.error("NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY and the Slack bot token must be set (run through the package script).");
+  if (!token) {
+    console.error("No Slack bot token found (SLACK_BOT_TOKEN, or the stored one: lib/slack-bot-token.ts).");
     process.exit(1);
   }
 
