@@ -180,7 +180,7 @@ async function handleSubmit(payload: any, half: CheckinHalfKind, prickleId: stri
   const messageTs = payload.message?.ts as string | undefined;
   const token = await getSlackBotToken();
   if (channelId && messageTs && token) {
-    await new WebClient(token).chat.update({ channel: channelId, ts: messageTs, ...closedDmBlocks(half) });
+    await new WebClient(token).chat.update({ channel: channelId, ts: messageTs, ...closedDmBlocks(half, prickleId) });
   }
 }
 

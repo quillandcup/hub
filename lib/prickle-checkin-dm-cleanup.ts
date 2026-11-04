@@ -75,7 +75,7 @@ export async function closeAnsweredCheckinDms(
         result.open++;
         if (dryRun) continue;
         try {
-          await slack.chat.update({ channel, ts: message.ts, ...closedDmBlocks(half) });
+          await slack.chat.update({ channel, ts: message.ts, ...closedDmBlocks(half, found_[0].slice(half.length + 1)) });
           result.closed++;
         } catch (error) {
           result.failed++;

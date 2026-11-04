@@ -507,9 +507,12 @@ describe("submitting a check-in or check-out", () => {
     expect(parseSubmit({ action_id: "prickle_dismiss", value: "checkin:p1" })).toBeNull();
   });
 
-  it("closes to a one-line thank-you for the half", () => {
-    expect(closedDmBlocks("checkin").text).toBe("✅ Checked in. Thanks!");
-    expect(closedDmBlocks("checkout").blocks).toEqual([{ type: "section", text: { type: "mrkdwn", text: "✅ Checked out. Thanks!" } }]);
+  it("closes to a thank-you with a link back to the check-in or check-out", () => {
+    const inn = closedDmBlocks("checkin", "p1");
+    expect(inn.text).toBe("✅ Checked in. Thanks!");
+    expect(inn.blocks[0].text.text).toContain("/my-prickles/history?checkin=p1|Edit your check-in>");
+    expect(closedDmBlocks("checkout", "p2").blocks[0].text.text).toContain("✅ Checked out. Thanks! <");
+    expect(closedDmBlocks("checkout", "p2").blocks[0].text.text).toContain("checkout=p2|Edit your check-out>");
   });
 });
 
