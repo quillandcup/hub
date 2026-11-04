@@ -31,7 +31,7 @@ defineMediaContract("SupabaseMediaRepository", () => ({
   bookShowing: async (assetId, ownerMemberId, title, publishedOn) => {
     const { data, error } = await db
       .from("member_books")
-      .insert({ member_id: ownerMemberId, title, cover_url: `/api/media/${assetId}/book_cover_shelf`, cover_asset_id: assetId, purchase_url: "https://example.com/buy", published_date: publishedOn })
+      .insert({ member_id: ownerMemberId, title, cover_url: `/api/media/${assetId}/book_cover_shelf`, cover_asset_id: assetId, published_date: publishedOn })
       .select("id")
       .single();
     if (error) throw new Error(error.message);

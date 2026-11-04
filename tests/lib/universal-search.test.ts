@@ -54,7 +54,7 @@ describe("universalSearch (local database)", () => {
     const books = seeded(
       await supabase
         .from("member_books")
-        .insert({ member_id: hostId, title: `${token} Chronicles`, description: "dragons", cover_url: "https://example.com/cover.png", purchase_url: "https://example.com/buy", published_date: "2026-03-05" })
+        .insert({ member_id: hostId, title: `${token} Chronicles`, description: "dragons", cover_url: "https://example.com/cover.png", published_date: "2026-03-05" })
         .select("id")
     );
     made.books.push(...books.map((b) => b.id));
@@ -63,7 +63,7 @@ describe("universalSearch (local database)", () => {
     const deletedBooks = seeded(
       await supabase
         .from("member_books")
-        .insert({ member_id: hostId, title: `${token} Retired Chronicles`, description: "dragons", cover_url: "https://example.com/cover.png", purchase_url: "https://example.com/buy", published_date: "2026-03-06", deleted_at: deletedAt })
+        .insert({ member_id: hostId, title: `${token} Retired Chronicles`, description: "dragons", cover_url: "https://example.com/cover.png", published_date: "2026-03-06", deleted_at: deletedAt })
         .select("id")
     );
     made.books.push(...deletedBooks.map((b) => b.id));

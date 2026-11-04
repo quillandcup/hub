@@ -28,9 +28,9 @@ INSERT INTO public.members (id, name, email, joined_at, status, user_id) VALUES
 INSERT INTO public.writing_projects (id, member_id, title, show_on_profile) VALUES
   ('prj_AAAAAAAAd111', 'mbr_AAAAAAAAd1A1', 'Shown project', true);
 
-INSERT INTO public.member_books (id, member_id, title, cover_url, purchase_url, published_date, project_id, deleted_at) VALUES
-  ('book_AAAAAAAAd111', 'mbr_AAAAAAAAd1A1', 'Live book', 'https://example.test/c.jpg', 'https://example.test/b', '2026-01-01', NULL, NULL),
-  ('book_AAAAAAAAd112', 'mbr_AAAAAAAAd1A1', 'Deleted book', 'https://example.test/c.jpg', 'https://example.test/b', '2026-01-02', 'prj_AAAAAAAAd111', now());
+INSERT INTO public.member_books (id, member_id, title, cover_url, published_date, project_id, deleted_at) VALUES
+  ('book_AAAAAAAAd111', 'mbr_AAAAAAAAd1A1', 'Live book', 'https://example.test/c.jpg', '2026-01-01', NULL, NULL),
+  ('book_AAAAAAAAd112', 'mbr_AAAAAAAAd1A1', 'Deleted book', 'https://example.test/c.jpg', '2026-01-02', 'prj_AAAAAAAAd111', now());
 INSERT INTO public.member_awards (id, member_id, award_name, work_title, award_date, deleted_at) VALUES
   ('00000000-0000-4000-a000-00000000d2a1', 'mbr_AAAAAAAAd1A1', 'Live award', 'Live book', '2026-01-01', NULL),
   ('00000000-0000-4000-a000-00000000d2a2', 'mbr_AAAAAAAAd1A1', 'Deleted award', 'Live book', '2026-01-02', now());
@@ -84,12 +84,12 @@ SELECT is((SELECT value FROM result WHERE label = 'bob_awards_after'), '0'::json
 
 -- One book per project: the deleted one on prj_...d111 doesn't block a new one, a second live one does.
 SELECT lives_ok(
-  $$INSERT INTO public.member_books (member_id, title, cover_url, purchase_url, published_date, project_id)
-    VALUES ('mbr_AAAAAAAAd1A1', 'Republished', 'https://example.test/c.jpg', 'https://example.test/b', '2026-02-01', 'prj_AAAAAAAAd111')$$,
+  $$INSERT INTO public.member_books (member_id, title, cover_url, published_date, project_id)
+    VALUES ('mbr_AAAAAAAAd1A1', 'Republished', 'https://example.test/c.jpg', '2026-02-01', 'prj_AAAAAAAAd111')$$,
   'a deleted book does not block publishing the project again');
 SELECT throws_ok(
-  $$INSERT INTO public.member_books (member_id, title, cover_url, purchase_url, published_date, project_id)
-    VALUES ('mbr_AAAAAAAAd1A1', 'Twice', 'https://example.test/c.jpg', 'https://example.test/b', '2026-02-02', 'prj_AAAAAAAAd111')$$,
+  $$INSERT INTO public.member_books (member_id, title, cover_url, published_date, project_id)
+    VALUES ('mbr_AAAAAAAAd1A1', 'Twice', 'https://example.test/c.jpg', '2026-02-02', 'prj_AAAAAAAAd111')$$,
   '23505', NULL, 'a second live book for the same project is still refused');
 
 -- The profile's writing section leaves out the deleted goal and entry.

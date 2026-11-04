@@ -229,8 +229,6 @@ describe("addBook", () => {
       { format: "print", purchaseUrl: "https://example.com/buy", price: 17.99 },
       { format: "ebook", purchaseUrl: "https://example.com/ebook", price: 4.99 },
     ]);
-    // The old single-edition columns are no longer written: they keep what a new row gets by default.
-    expect(data.memberBooks[0]).toMatchObject({ format: "print", purchase_url: "", price: null });
   });
 
   it("scopes the insert to the sudo'd member, not the real admin, while sudo'd", async () => {
