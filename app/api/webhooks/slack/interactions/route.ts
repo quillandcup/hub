@@ -4,6 +4,8 @@ import { verifySlackSignature } from "@/lib/slack-signature";
 import {
   parseCheckinAnswer,
   parseDismiss,
+  parseSubmit,
+  closedDmBlocks,
   dismissCheckinHalf,
   type CheckinHalfKind,
   parseQuickLogAnswer,
@@ -80,6 +82,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ received: true });
   }
 
+  const submission = parseSubmit(action);
+  if (submission) {
+    try {
+      await handleSubmit(payload, submission.half, submission.prickleId);
+    } catch (error) {
+      console.error("Error handling prickle check-in submit:", error);
+    }
+    return NextResponse.json({ received: true });
+  }
+
   const dismissal = parseDismiss(action);
   if (dismissal) {
     try {
@@ -145,6 +157,30 @@ async function handleCheckinAnswer(payload: any, answer: CheckinAnswer) {
   const token = await getSlackBotToken();
   if (channelId && messageTs && blocks && token) {
     await new WebClient(token).chat.update({ channel: channelId, ts: messageTs, text: payload.message?.text ?? "", blocks });
+  }
+}
+
+/**
+ * "Submit" in a DM: the answers already saved as they were picked, so this only closes the offer
+ * everywhere (like a skip, which keeps what was answered) and collapses the message to a thank-you.
+ */
+async function handleSubmit(payload: any, half: CheckinHalfKind, prickleId: string) {
+  const slackUserId = payload.user?.id as string | undefined;
+  if (!slackUserId) return;
+  const supabase = createServiceRoleClient();
+  const memberId = await resolveMemberIdForSlackUser(createRepos(supabase), slackUserId);
+  if (!memberId) {
+    console.error("prickle_submit: no member matched for Slack user", slackUserId);
+    return;
+  }
+  const error = await dismissCheckinHalf(createRepos(supabase), half, memberId, prickleId);
+  if (error) return;
+
+  const channelId = payload.channel?.id as string | undefined;
+  const messageTs = payload.message?.ts as string | undefined;
+  const token = await getSlackBotToken();
+  if (channelId && messageTs && token) {
+    await new WebClient(token).chat.update({ channel: channelId, ts: messageTs, ...closedDmBlocks(half) });
   }
 }
 

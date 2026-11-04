@@ -6,6 +6,12 @@ check-out modal, Log Progress, Find a Prickle) or in the Slack DMs. Code: `lib/p
 (inputs). Table: `prickle_checkins`, reshaped by migration `20261220000000`. When and where the
 offers and messages appear (timings, channels, who gets what): `CHECKIN_DELIVERY.md`.
 
+Slack DMs save every answer as it is picked, and end with **Submit** (closes the offer everywhere,
+like a skip, but keeps the answers, and collapses the message to "Checked in. Thanks!") and **Skip**.
+DMs sent before Submit existed are collapsed by `pnpm checkin-dms:close` (dry run by default,
+`--apply` to write; `lib/prickle-checkin-dm-cleanup.ts`) for every check-in already answered on the
+site. The DM log keeps no message timestamps, so it reads each member's DM history.
+
 ## Start from the decisions
 
 Every question has to feed a decision someone actually makes. A question that doesn't just adds

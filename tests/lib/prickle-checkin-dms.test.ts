@@ -4,6 +4,8 @@ import {
   buildCheckinBlocks,
   buildCheckoutBlocks,
   parseDismiss,
+  parseSubmit,
+  closedDmBlocks,
   dismissCheckout,
   dismissCheckin,
   buildQuickLogBlocks,
@@ -327,7 +329,8 @@ describe("buildCheckoutBlocks", () => {
     expect(picked(blocks[5])).toEqual(["2"]);
     expect(blocks[6].accessory.initial_option).toBeUndefined();
     expect(blocks[7].label.text).toContain("during Monday Progress Prickle with Jenn P?");
-    expect(blocks[8].elements[0]).toMatchObject({ action_id: "prickle_dismiss", value: "checkout:p1" });
+    expect(blocks[8].elements[0]).toMatchObject({ action_id: "prickle_submit", style: "primary", value: "checkout:p1" });
+    expect(blocks[8].elements[1]).toMatchObject({ action_id: "prickle_dismiss", value: "checkout:p1" });
     expect(blocks[9].elements[0].text).toContain("/my-prickles/history?checkout=p1|check-out for this prickle>");
   });
 
@@ -495,6 +498,21 @@ describe("in-app notifications", () => {
   });
 });
 
+describe("submitting a check-in or check-out", () => {
+  it("reads the half and prickle off a Submit button, and nothing else", () => {
+    expect(parseSubmit({ action_id: "prickle_submit", value: "checkin:p1" })).toEqual({ half: "checkin", prickleId: "p1" });
+    expect(parseSubmit({ action_id: "prickle_submit", value: "checkout:p2" })).toEqual({ half: "checkout", prickleId: "p2" });
+    expect(parseSubmit({ action_id: "prickle_submit", value: "other:p1" })).toBeNull();
+    expect(parseSubmit({ action_id: "prickle_submit" })).toBeNull();
+    expect(parseSubmit({ action_id: "prickle_dismiss", value: "checkin:p1" })).toBeNull();
+  });
+
+  it("closes to a one-line thank-you for the half", () => {
+    expect(closedDmBlocks("checkin").text).toBe("✅ Checked in. Thanks!");
+    expect(closedDmBlocks("checkout").blocks).toEqual([{ type: "section", text: { type: "mrkdwn", text: "✅ Checked out. Thanks!" } }]);
+  });
+});
+
 describe("dismissing a check-in or check-out", () => {
   it("reads the half and prickle off a Skip button, and nothing else", () => {
     expect(parseDismiss({ action_id: "prickle_dismiss", value: "checkout:p1" })).toEqual({ half: "checkout", prickleId: "p1" });
@@ -504,11 +522,11 @@ describe("dismissing a check-in or check-out", () => {
     expect(parseDismiss({ action_id: "prickle_dismiss" })).toBeNull();
   });
 
-  it("puts a Skip button in both DMs", () => {
+  it("puts Submit and Skip buttons in both DMs", () => {
     const out = buildCheckoutBlocks("p1", "Progress Prickle", null, []);
     const inn = buildCheckinBlocks("p1", "Progress Prickle", null);
-    expect(out.find((b) => b.block_id === "prickle_dismiss:checkout:p1").elements[0].text.text).toBe("Skip check-out");
-    expect(inn.find((b) => b.block_id === "prickle_dismiss:checkin:p1").elements[0].text.text).toBe("Skip check-in");
+    expect(out.find((b) => b.block_id === "prickle_dismiss:checkout:p1").elements.map((e: any) => e.text.text)).toEqual(["Submit", "Skip check-out"]);
+    expect(inn.find((b) => b.block_id === "prickle_dismiss:checkin:p1").elements.map((e: any) => e.text.text)).toEqual(["Submit", "Skip check-in"]);
   });
 
   it.each([
