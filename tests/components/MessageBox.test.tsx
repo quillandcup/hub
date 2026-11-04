@@ -659,6 +659,15 @@ describe("MessageBox: placeholder", () => {
   });
 });
 
+describe("MessageBox: placeholder with text it opens with", () => {
+  it("is not drawn behind text the box starts with (a restored draft), before anything is typed", async () => {
+    render(<MessageBox channelId="c1" aria-label="Message" value="a draft" onValueChange={() => {}} tokens={tokensRef} placeholder="Say something" />);
+    const box = await messageBox("Message");
+    await waitFor(() => expect(box.textContent).toBe("a draft"));
+    expect(screen.queryByText("Say something")).not.toBeInTheDocument();
+  });
+});
+
 describe("MessageBox: the text and the editor stay one", () => {
   it("shows text put in from outside, with its formatting, and takes it away again", async () => {
     function Outside() {
