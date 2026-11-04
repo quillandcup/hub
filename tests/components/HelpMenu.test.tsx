@@ -20,6 +20,15 @@ describe("HelpMenu", () => {
     expect(screen.getByRole("menuitem", { name: "Send feedback" })).toBeInTheDocument();
   });
 
+  it("links to What's new and closes the menu when it is chosen", async () => {
+    render(<HelpMenu />);
+    await userEvent.click(screen.getByRole("button", { name: "Help" }));
+    const link = screen.getByRole("menuitem", { name: "What's new" });
+    expect(link).toHaveAttribute("href", "/changelog");
+    await userEvent.click(link);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
   it("closes on Escape and on an outside click", async () => {
     render(<HelpMenu />);
     await userEvent.click(screen.getByRole("button", { name: "Help" }));

@@ -7,6 +7,7 @@ import {
   changelogSince,
   findChangelogEntry,
   isChangelogImagePath,
+  isChangelogSlug,
   listChangelog,
   renderChangelogMarkdown,
   validateChangelog,
@@ -58,6 +59,11 @@ describe("paths and lookups", () => {
   it("finds an entry by slug or null", () => {
     expect(findChangelogEntry("a-thing", [entry({})])?.title).toBe("A thing");
     expect(findChangelogEntry("nope", [entry({})])).toBeNull();
+  });
+
+  it("tells a slug from anything else", () => {
+    expect(isChangelogSlug("a-thing-2")).toBe(true);
+    expect(isChangelogSlug("A_thing")).toBe(false);
   });
 
   it("accepts only an entry's own screenshots", () => {

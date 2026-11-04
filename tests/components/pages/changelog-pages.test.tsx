@@ -8,7 +8,7 @@ vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.
 vi.mock("@/components/changelog/ChangelogEntryViewed", () => ({ default: () => null }));
 
 import ChangelogPage from "@/app/(member)/changelog/page";
-import ChangelogEntryPage from "@/app/(member)/changelog/[slug]/page";
+import ChangelogEntryPage, { generateMetadata, generateStaticParams } from "@/app/(member)/changelog/[slug]/page";
 import { CHANGELOG_ENTRIES } from "@/lib/changelog/entries";
 
 const USER = { id: "user-1", email: "member1@example.com" };
@@ -41,5 +41,12 @@ describe("changelog pages", () => {
   it("404s on an unknown slug", async () => {
     signInAs(USER, null);
     await expect(ChangelogEntryPage({ params: Promise.resolve({ slug: "nope" }), searchParams: Promise.resolve({}) })).rejects.toThrow("404");
+  });
+
+  it("prerenders one page per entry and titles it", async () => {
+    expect(generateStaticParams()).toEqual(CHANGELOG_ENTRIES.map((e) => ({ slug: e.slug })));
+    const e = CHANGELOG_ENTRIES[0];
+    expect(await generateMetadata({ params: Promise.resolve({ slug: e.slug }), searchParams: Promise.resolve({}) })).toEqual({ title: `${e.title} · What's new` });
+    expect(await generateMetadata({ params: Promise.resolve({ slug: "nope" }), searchParams: Promise.resolve({}) })).toEqual({ title: "What's new" });
   });
 });
