@@ -13,8 +13,6 @@ export type BookContractContext = {
   coverAsset: (width: number, height: number) => Promise<string>;
   /** A writing project of this member, for a book to be published from. */
   project: (memberId: string) => Promise<string>;
-  /** A book as the code before editions saved it: only the old format, link and price columns set, no editions. Returns its id. */
-  legacyBook: (memberId: string, title: string) => Promise<string>;
 };
 
 /** Behavior every `BookRepository` must have; run against the in-memory twin (unit) and Supabase (db). */
@@ -119,18 +117,6 @@ export function defineBookContract(name: string, setup: () => BookContractContex
       expect(await ctx.repo().update(id, { title: "After", editions: [{ ...PRINT, price: 9.5 }, EBOOK], cover_asset_id: asset, cover_url: "/api/media/x/book_cover_shelf" })).toBe(true);
       expect((await ctx.repo().mine(m1.id)).find((b) => b.id === id)).toMatchObject({ title: "After", editions: [{ ...PRINT, price: 9.5 }, EBOOK], cover_url: "/api/media/x/book_cover_shelf", cover_asset: { id: asset } });
       expect(await ctx.repo().update("book_ZZZZZZZZZZZZ", { title: "Nope" })).toBe(false);
-    });
-
-    it("reads a book saved before editions existed through its old format, link and price", async () => {
-      const [m1] = await ctx.members();
-      const id = await ctx.legacyBook(m1.id, ctx.unique("Legacy"));
-      const legacy = { format: "ebook", purchase_url: "https://example.com/legacy", price: 3.5 } as const;
-      expect((await ctx.repo().mine(m1.id)).find((b) => b.id === id)?.editions).toEqual([legacy]);
-      expect((await ctx.repo().shelf()).find((b) => b.id === id)?.editions).toEqual([legacy]);
-      expect((await ctx.repo().ofMember(m1.id)).find((b) => b.id === id)?.editions).toEqual([legacy]);
-      // The first save moves it onto editions.
-      expect(await ctx.repo().update(id, { editions: [PRINT, { ...legacy }] })).toBe(true);
-      expect((await ctx.repo().mine(m1.id)).find((b) => b.id === id)?.editions).toEqual([PRINT, legacy]);
     });
 
     it("changes the editions as a whole and leaves them alone when a patch doesn't name them", async () => {

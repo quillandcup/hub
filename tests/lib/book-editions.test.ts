@@ -1,39 +1,33 @@
 import { describe, expect, it } from "vitest";
-import { cleanEditions, editionColumns, editionsError, editionsSummary, rowEditions, sortEditions } from "@/lib/book-editions";
+import { cleanEditions, editionsError, editionsSummary, rowEditions, sortEditions, storedEditions } from "@/lib/book-editions";
 
 const PRINT = { format: "print" as const, purchase_url: "https://example.com/print", price: 17.99 };
 const EBOOK = { format: "ebook" as const, purchase_url: "https://example.com/ebook", price: null };
-const LEGACY = { format: "ebook", purchase_url: "https://example.com/old", price: 3 };
 
 describe("rowEditions", () => {
   it("reads the stored editions, print first", () => {
-    expect(rowEditions([EBOOK, PRINT], LEGACY)).toEqual([PRINT, EBOOK]);
+    expect(rowEditions([EBOOK, PRINT])).toEqual([PRINT, EBOOK]);
   });
 
-  it("falls back to the old columns for a book saved before editions existed", () => {
-    expect(rowEditions([], LEGACY)).toEqual([{ format: "ebook", purchase_url: "https://example.com/old", price: 3 }]);
-    expect(rowEditions(null, LEGACY)).toHaveLength(1);
-  });
-
-  it("has no edition when there is nothing stored and no old link", () => {
-    expect(rowEditions([], { format: "print", purchase_url: "", price: null })).toEqual([]);
-    expect(rowEditions([], { format: "audio", purchase_url: "https://example.com/a", price: null })).toEqual([]);
+  it("has no editions for an empty or missing value", () => {
+    expect(rowEditions([])).toEqual([]);
+    expect(rowEditions(null)).toEqual([]);
   });
 
   it("skips entries that aren't editions, and reads a missing price as null", () => {
-    expect(rowEditions([null, 3, [], { format: "audio", purchase_url: "x" }, { format: "print" }, { format: "print", purchase_url: "https://example.com/p" }], LEGACY)).toEqual([
+    expect(rowEditions([null, 3, [], { format: "audio", purchase_url: "x" }, { format: "print" }, { format: "print", purchase_url: "https://example.com/p" }])).toEqual([
       { format: "print", purchase_url: "https://example.com/p", price: null },
     ]);
   });
 });
 
-describe("editionColumns", () => {
-  it("stores the editions and copies the first one into the old columns", () => {
-    expect(editionColumns([EBOOK, PRINT])).toEqual({ editions: [PRINT, EBOOK], format: "print", purchase_url: PRINT.purchase_url, price: 17.99 });
+describe("storedEditions", () => {
+  it("writes the editions print first", () => {
+    expect(storedEditions([EBOOK, PRINT])).toEqual([PRINT, EBOOK]);
   });
 
-  it("writes harmless old columns for no editions", () => {
-    expect(editionColumns([])).toEqual({ editions: [], format: "print", purchase_url: "", price: null });
+  it("writes an empty list for no editions", () => {
+    expect(storedEditions([])).toEqual([]);
   });
 });
 

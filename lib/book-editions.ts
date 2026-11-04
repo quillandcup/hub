@@ -26,24 +26,16 @@ export interface BookEditionInput {
   price?: number | null;
 }
 
-/** The old single-edition columns, which stay until nothing reads them (see the editions migration). */
-export type LegacyEdition = { format: string; purchase_url: string; price: number | null };
-
 const isFormat = (value: unknown): value is BookFormat => (BOOK_FORMATS as readonly unknown[]).includes(value);
 
-/** The editions a row carries, print before ebook. A book saved before editions existed has none stored, so its old columns are its one edition. */
-export function rowEditions(stored: Json, legacy: LegacyEdition): BookEdition[] {
+/** The editions a row carries, print before ebook. */
+export function rowEditions(stored: Json): BookEdition[] {
   const parsed: BookEdition[] = [];
   for (const item of Array.isArray(stored) ? stored : []) {
     if (item === null || typeof item !== "object" || Array.isArray(item)) continue;
     const { format, purchase_url, price } = item;
     if (!isFormat(format) || typeof purchase_url !== "string") continue;
     parsed.push({ format, purchase_url, price: typeof price === "number" ? price : null });
-  }
-  if (parsed.length === 0) {
-    return legacy.purchase_url && isFormat(legacy.format)
-      ? [{ format: legacy.format, purchase_url: legacy.purchase_url, price: legacy.price }]
-      : [];
   }
   return sortEditions(parsed);
 }
@@ -57,16 +49,9 @@ export function cleanEditions(editions: readonly BookEditionInput[]): BookEditio
   return editions.map((e) => ({ format: e.format, purchase_url: safeUrl(e.purchaseUrl.trim())!, price: e.price ?? null }));
 }
 
-/** The columns the stored editions are written to, one JSON value and the old single-edition columns (the first edition). */
-export function editionColumns(editions: readonly BookEdition[]): { editions: Json; format: string; purchase_url: string; price: number | null } {
-  const sorted = sortEditions(editions);
-  const first = sorted[0];
-  return {
-    editions: sorted.map((e) => ({ format: e.format, purchase_url: e.purchase_url, price: e.price })),
-    format: first?.format ?? "print",
-    purchase_url: first?.purchase_url ?? "",
-    price: first?.price ?? null,
-  };
+/** The editions as written to `member_books.editions`, print first. */
+export function storedEditions(editions: readonly BookEdition[]): Json {
+  return sortEditions(editions).map((e) => ({ format: e.format, purchase_url: e.purchase_url, price: e.price }));
 }
 
 /** Why a set of editions can't be saved, or null. */

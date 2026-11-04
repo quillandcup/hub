@@ -3674,7 +3674,7 @@ export type Database = {
           price?: number | null
           project_id?: string | null
           published_date: string
-          purchase_url: string
+          purchase_url?: string
           title: string
         }
         Update: {

@@ -2,12 +2,12 @@ import { randomInt } from "node:crypto";
 import { fetchAllRows } from "@/lib/supabase/paginate";
 import type { Db, Insert, Row, Update } from "./db";
 import type { InMemoryDataset } from "./in-memory";
-import { BOOK_FORMATS, editionColumns, rowEditions, type BookEdition } from "@/lib/book-editions";
+import { BOOK_FORMATS, rowEditions, storedEditions, type BookEdition } from "@/lib/book-editions";
 
 /** A book on a member's bookshelf (`member_books`). A deleted one keeps its row, with `deleted_at` set. */
 // `book_member` in the generated row is the author function, not a column.
 export type BookRow = Omit<Row<"member_books">, "book_member">;
-// The editions are written through `editions`; the old single-edition columns follow the first one (see `editionColumns`).
+// The editions are written through `editions`; the old `format`, `purchase_url` and `price` columns are no longer read or written.
 type EditionColumns = "editions" | "format" | "purchase_url" | "price";
 export type NewBook = Omit<Insert<"member_books">, EditionColumns> & { editions: BookEdition[] };
 export type BookPatch = Omit<Update<"member_books">, EditionColumns> & { editions?: BookEdition[] };
@@ -65,19 +65,15 @@ function one<T>(embed: T | T[] | null | undefined): T | null {
   return (Array.isArray(embed) ? embed[0] : embed) ?? null;
 }
 
-/** The columns a read selects to build a book's editions: the stored ones and the old single-edition columns they fall back to. */
-const EDITION_FIELDS = "editions, format, purchase_url, price";
+type WithStoredEditions = { editions: Row<"member_books">["editions"] };
 
-type WithEditionColumns = { editions: Row<"member_books">["editions"]; format: string; purchase_url: string; price: number | null };
-
-/** The row without the edition columns, and its editions. */
-function withEditions<T extends WithEditionColumns>(row: T) {
-  const { editions, format, purchase_url, price, ...rest } = row;
-  return { ...rest, editions: rowEditions(editions, { format, purchase_url, price }) };
+/** The row with its stored editions read into `BookEdition`s. */
+function withEditions<T extends WithStoredEditions>(row: T) {
+  return { ...row, editions: rowEditions(row.editions) };
 }
 
-/** The columns an insert or update writes for these editions. */
-const editionPatch = (editions: BookEdition[] | undefined) => (editions ? editionColumns(editions) : {});
+/** The column an insert or update writes for these editions. */
+const editionPatch = (editions: BookEdition[] | undefined) => (editions ? { editions: storedEditions(editions) } : {});
 
 /**
  * Members' bookshelves (`member_books`). Local data: the table is the source of truth, not reprocessed.
@@ -117,12 +113,12 @@ export class SupabaseBookRepository implements BookRepository {
   constructor(private readonly db: Db) {}
 
   async shelf() {
-    type Raw = Omit<ShelfBook, "author" | "editions"> & WithEditionColumns & { author: ShelfBook["author"] | ShelfBook["author"][] };
+    type Raw = Omit<ShelfBook, "author" | "editions"> & WithStoredEditions & { author: ShelfBook["author"] | ShelfBook["author"][] };
     const rows = await fetchAllRows<Raw>(
       (from, to) =>
         this.db
           .from("member_books")
-          .select(`id, member_id, title, description, cover_url, published_date, genres, pen_name, ${EDITION_FIELDS}, author:book_member(name, display_name)`)
+          .select(`id, member_id, title, description, cover_url, published_date, genres, pen_name, editions, author:book_member(name, display_name)`)
           .is("deleted_at", null)
           .order("published_date", { ascending: false })
           .order("id")
@@ -134,7 +130,7 @@ export class SupabaseBookRepository implements BookRepository {
   async ofMember(memberId: string) {
     const { data, error } = await this.db
       .from("member_books")
-      .select(`id, title, cover_url, published_date, ${EDITION_FIELDS}`)
+      .select(`id, title, cover_url, published_date, editions`)
       .eq("member_id", memberId)
       .is("deleted_at", null)
       .order("published_date", { ascending: false })
@@ -146,7 +142,7 @@ export class SupabaseBookRepository implements BookRepository {
   async mine(memberId: string) {
     const { data, error } = await this.db
       .from("member_books")
-      .select(`id, title, description, cover_url, published_date, genres, project_id, pen_name, ${EDITION_FIELDS}, cover_asset:media_assets(id, width, height)`)
+      .select(`id, title, description, cover_url, published_date, genres, project_id, pen_name, editions, cover_asset:media_assets(id, width, height)`)
       .eq("member_id", memberId)
       .is("deleted_at", null)
       .order("published_date", { ascending: false })
@@ -156,7 +152,7 @@ export class SupabaseBookRepository implements BookRepository {
   }
 
   async add({ editions, ...book }: NewBook) {
-    const { data, error } = await this.db.from("member_books").insert({ ...book, ...editionColumns(editions) }).select("id").single();
+    const { data, error } = await this.db.from("member_books").insert({ ...book, ...editionPatch(editions) }).select("id").single();
     if (error) {
       if (error.code === "23505") throw new BookExistsError(error.message);
       throw new Error(error.message);
@@ -263,7 +259,7 @@ export class InMemoryBookRepository implements BookRepository {
   }
 
   private editionsOf(b: BookRow) {
-    return rowEditions(b.editions, b);
+    return rowEditions(b.editions);
   }
 
   private author(memberId: string) {
@@ -330,7 +326,7 @@ export class InMemoryBookRepository implements BookRepository {
     if (!this.author(book.member_id)) throw new Error("violates foreign key constraint on member_id");
     this.assertEditions(editions);
     if (book.project_id && this.live().some((b) => b.project_id === book.project_id)) throw new BookExistsError();
-    const row = bookRow({ ...book, ...editionColumns(editions), id: book.id ?? newBookId(), cover_asset_id: book.cover_asset_id ?? null, created_at: new Date().toISOString() } as BookSeed);
+    const row = bookRow({ ...book, ...editionPatch(editions), id: book.id ?? newBookId(), cover_asset_id: book.cover_asset_id ?? null, created_at: new Date().toISOString() } as BookSeed);
     this.data.memberBooks.push(row);
     return row.id;
   }
