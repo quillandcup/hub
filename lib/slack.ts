@@ -49,6 +49,28 @@ export async function sendSlackDM(params: SendSlackDMParams): Promise<void> {
 }
 
 
+/** Slack mrkdwn writes `&`, `<` and `>` as entities; text we send is escaped so a title like "Q&A <beta>" shows as typed. */
+export function escapeSlackText(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/**
+ * Posts to a shared channel (not a DM, not staff-only): the weekly changelog digest. Outside production
+ * (SLACK_TEST_MODE, see isSlackTestMode) nothing is posted, only logged, so a local or preview run never
+ * writes to a real channel. No link previews. Throws when Slack refuses, so the caller can give its claim back.
+ */
+export async function postToSlackChannel(params: { channel: string; text: string; blocks?: any[] }): Promise<boolean> {
+  if (isSlackTestMode()) {
+    console.log("[slack] test mode: not posting to channel", JSON.stringify({ channel: params.channel, text: params.text }));
+    return false;
+  }
+  const token = await getSlackBotToken();
+  if (!token) throw new Error("No Slack bot token is configured");
+  const slack = new WebClient(token);
+  await slack.chat.postMessage({ channel: params.channel, text: params.text, blocks: params.blocks, unfurl_links: false, unfurl_media: false });
+  return true;
+}
+
 export interface NotifyStaffNewBookParams {
   title: string;
   memberId: string;

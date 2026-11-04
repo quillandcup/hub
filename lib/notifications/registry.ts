@@ -87,6 +87,14 @@ export const NOTIFICATION_KINDS = [
     defaultChannels: ["slack", "in_app", "web_push"],
     feature: "big_sisters",
   },
+  {
+    id: "changelog_digest",
+    category: "Product updates",
+    label: "What's new in the Hub",
+    description:
+      "A weekly roundup of what we've added and fixed in the Hub, sent only in weeks when there is something new. The full list is on the What's new page.",
+    defaultChannels: ["slack", "in_app"],
+  },
 ] as const satisfies readonly NotificationKindDef[];
 
 export type NotificationKindId = (typeof NOTIFICATION_KINDS)[number]["id"];
