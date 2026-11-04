@@ -606,6 +606,18 @@ describe("MessageBox: conveniences", () => {
     expect(box.textContent).not.toMatch(/<\/?(u|strong|p)>/);
   });
 
+  it("pastes a copied nested ordered list as nested lists, not a flat bullet list", async () => {
+    const box = await mount();
+    await caretToEnd(box);
+    const { text, html } = messageToClipboard("1. <u>underline</u>\n  a. nested\n  b. *plain*\n  c. more\n    i. deep dark", { userNames: {}, channelNames: {} });
+    const data = { types: ["text/html", "text/plain"], files: [], items: [], getData: (t: string) => (t === "text/html" ? html : t === "text/plain" ? text : "") };
+    await act(async () => void fireEvent.paste(box, { clipboardData: data }));
+    await waitFor(() => expect(box.querySelector("ol > li > ol > li > ol > li")).toHaveTextContent("deep dark"));
+    expect(box.querySelector("ul")).toBeNull();
+    expect(box.querySelectorAll("ol ol > li").length).toBe(4);
+    expect(box.querySelector("ol > li > p > u")).toHaveTextContent("underline");
+  });
+
   it("turns pasted full names into mentions and leaves unknown ones as text", async () => {
     vi.mocked(suggestMentions).mockImplementation(async (_c, _t, q) => (q === "Ania Ray" ? [ANIA] : []));
     const box = await mount();
