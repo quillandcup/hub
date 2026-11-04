@@ -385,15 +385,17 @@ describe("MessageBox: formatting", () => {
     expect(latest).toBe("• a\n• b\n");
   });
 
-  it("makes Enter in a code block a new line, and sends from there with Ctrl+Enter", async () => {
+  it("sends on Enter in a code block too (Slack's default), with Shift+Enter for a new line of code", async () => {
     const box = await mount({ initial: "```\nlet a\n```" });
     const user = boxUser();
     await caretToEnd(box);
-    await user.keyboard("{Enter}x");
+    await user.keyboard("{Shift>}{Enter}{/Shift}x");
     expect(latest).toBe("```\nlet a\nx\n```");
+    // Shift+Enter was the editor's: the owner was never asked to send.
     expect(keyed).not.toContain("Enter");
-    await user.keyboard("{Control>}{Enter}{/Control}");
+    await user.keyboard("{Enter}");
     expect(keyed).toContain("Enter");
+    expect(latest).toBe("```\nlet a\nx\n```");
   });
 
   it("nests a list item with Tab and brings it back with Shift+Tab, written as indented lines, and shows nested lists from text", async () => {

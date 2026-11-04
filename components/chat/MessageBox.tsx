@@ -111,8 +111,8 @@ const JUMBO_STYLES = "[&_.ProseMirror]:!text-[2rem] [&_.ProseMirror]:!leading-ti
  * A toolbar over the box (and Ctrl/Cmd+B, +I, +Shift+X) formats the selection; typing `*word*`, a `> `, `- ` or `1. `
  * does too, and pasting an address over selected text links it.
  *
- * Enter and Escape go to the owner's `onKeyDown` (send on Enter, cancel on Escape), except that Enter inside a code block
- * is the editor's (a new line) unless Ctrl/Cmd is held, and Shift+Enter inside a list starts the next item.
+ * Enter and Escape go to the owner's `onKeyDown` (send on Enter, cancel on Escape), in a list and a code block too; Shift+Enter
+ * is the new line there (the next item in a list, a new line of code in a code block).
  */
 export default function MessageBox({
   channelId,
@@ -393,10 +393,16 @@ export default function MessageBox({
         track("chat_format_applied", { kind: shortcut, via: "shortcut" });
         live.current.onFormat?.("shortcut");
       }
-      // Enter sends, in a list too (as in Slack set to send on Enter); Shift+Enter in a list starts the next item (or, on an empty
-      // item, steps out of the list). In a code block Enter is a new line, and Ctrl/Cmd+Enter sends from anywhere.
+      // Enter sends, in a list and a code block too (Slack's defaults as far as we know: "send the message" on Enter, and its
+      // "when typing code with ```, Enter should not send" left unchecked). Shift+Enter is the new line: in a list the next item (or,
+      // on an empty item, a step out of the list), in a code block a new line of code. Ctrl/Cmd+Enter sends from anywhere.
       const modified = event.metaKey || event.ctrlKey;
-      if (event.key === "Enter" && event.shiftKey && !modified && editor?.isActive("listItem") && !editor.isActive("codeBlock")) {
+      if (event.key === "Enter" && event.shiftKey && !modified && editor?.isActive("codeBlock")) {
+        event.preventDefault();
+        editor.commands.newlineInCode();
+        return true;
+      }
+      if (event.key === "Enter" && event.shiftKey && !modified && editor?.isActive("listItem")) {
         event.preventDefault();
         // What the list's own Enter does: split the item, or on an empty one step out of the list.
         editor
@@ -406,7 +412,6 @@ export default function MessageBox({
           .run();
         return true;
       }
-      if (event.key === "Enter" && !modified && editor?.isActive("codeBlock")) return false;
       if (event.key === "Backspace" && !event.shiftKey && !event.metaKey && !event.ctrlKey && editor && leaveQuoteFromEmptyLine(editor)) return true;
       live.current.onKeyDown?.(e);
       return event.defaultPrevented;
