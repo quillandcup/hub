@@ -1019,6 +1019,10 @@ Changelog entries can show screenshots (`public/changelog/<slug>/`, `docs/CHANGE
 
 `/api/internal/changelog-digest` (weekly) has its heartbeat switched off (`unmonitored` in `lib/cron-heartbeats.ts`) for the same reason as `/api/reconcile/email`: the plan's 10 uptime monitors are used. Remove that line once a monitor is free (see "Monitor the nightly import" in the email timeline notes for the steps).
 
+### db tests that read the whole members table unpaginated _(Needs Scheduling)_
+
+`tests/member-matching.test.ts` and `tests/api/reprocessability/orphaned-meetings-idempotency.test.ts` load members with a bare `.select('id, name, email')`, which PostgREST caps at 1000 rows. The shared test database grows as the suites run, so when it nears 1000 members the test's own member can fall outside the first 1000 and the match comes back null ("expected null not to be null", "expected +0 to be 1"). It surfaced on a PR whose only change was a new db test that briefly added two members (the same suites passed on `main` just before), which fits that cause but was not proven; the PR's test was changed to reuse existing members. Deferred because it needs a look at how many members the suites leave behind. Start by paginating those two reads with `fetchAllRows` (`lib/supabase/paginate.ts`) or filtering to the test's own rows, and check which suites leak members.
+
 ## Slack Bot Channel Access
 
 ### Auto-invite Billie Bot into private channels using a personal Slack token
