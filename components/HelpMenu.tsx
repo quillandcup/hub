@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import FeedbackWidget from "@/components/FeedbackWidget";
 
-/** The help button in the top bar, beside the notification bell: a question mark in a circle that opens a menu with Hedgie Help (the articles) and Send feedback (the feedback form). */
+/** The help button in the top bar, beside the notification bell: a question mark in a circle that opens a menu with Hedgie Help (the articles), What's new (the changelog) and Send feedback (the feedback form). */
 export default function HelpMenu() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -57,6 +57,9 @@ export default function HelpMenu() {
           >
             <Link href="/help" role="menuitem" data-track="help-menu-help" onClick={() => setMenuOpen(false)} className={item}>
               Hedgie Help
+            </Link>
+            <Link href="/changelog" role="menuitem" data-track="help-menu-changelog" onClick={() => setMenuOpen(false)} className={item}>
+              What&apos;s new
             </Link>
             <div className="my-1 border-t border-slate-200 dark:border-slate-700" />
             <button

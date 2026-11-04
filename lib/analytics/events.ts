@@ -243,6 +243,9 @@ export const EVENTS = {
   /** A help article (help/<slug>.md) was opened. `slug` is the file name, chosen by us, never typed by a member. */
   help_article_viewed: { slug: text(60) },
 
+  /** A changelog entry (lib/changelog/entries.ts) was opened. `slug` is chosen by us, never typed by a member. */
+  changelog_entry_viewed: { slug: text(60) },
+
   // The media library picker (components/media/MediaPicker.tsx). `surface` is where it was opened,
   // named by us; a title, tag, file name or search text never goes in.
   media_picker_opened: { surface: oneOf("event_cover", "admin_library", "book_cover", "lesson_thumbnail") },
