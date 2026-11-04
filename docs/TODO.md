@@ -1590,9 +1590,6 @@ Deliberately not done:
 
 Next steps, in order: (1) the TTFB gap above; (2) cache the global reads (feature flags and their segment links, prickle types) with `unstable_cache`; (3) narrow the ranking's attendance history; (4) rerun the same load test (script idea: mint a session with the admin API for a test member, three concurrency steps, sample `pg_stat_activity` every few seconds) and compare. Not worth doing: raising `default_pool_size` alone.
 
-### The storefront book import adds one edition per book
-`scripts/import-storefront-books.ts` takes one format, link and price per spec entry and skips a title already on the member's shelf, so an ebook for a book the member already has in print is skipped, not added as a second edition. Make the spec take an `editions` list, and add a missing edition to a book already on the shelf (`BookRepository.update` with the merged editions).
-
 ### Link the holder's name in the "already an alias" error
 Adding an alias that another member holds says `"AJ" is already an alias for <name>. Move it from there first.` (`lib/name-alias-conflict.ts`) as plain text, so the admin has to search for the holder. Deferred as a nit: the message is a string the identity page shows as is. Return the holder's id with the conflict and render the name as a link to `/admin/members/<id>` where the message is shown.
 
