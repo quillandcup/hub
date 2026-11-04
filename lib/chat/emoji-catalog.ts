@@ -42,7 +42,7 @@ export type StandardEntry = {
   tonable: boolean;
 };
 
-type RawEmoji = { hexcode: string; emoji: string; label: string; tags?: string[]; group?: number; tone?: unknown; skins?: unknown[] };
+type RawEmoji = { hexcode: string; emoji: string; label: string; tags?: string[]; group?: number; tone?: unknown; skins?: { tone?: unknown }[] };
 
 /** Standard emoji that have a Slack shortcode; skin-tone variants are left out (the base emoji is listed). */
 export function buildCatalog(data: RawEmoji[], shortcodes: Record<string, string | string[]>): StandardEntry[] {
@@ -56,7 +56,8 @@ export function buildCatalog(data: RawEmoji[], shortcodes: Record<string, string
       name: names[0],
       unicode: e.emoji,
       category,
-      tonable: (e.skins?.length ?? 0) > 0,
+      // A single-person emoji with tone variants in emojibase's `skins` (people with two tones, like a handshake, are not toned).
+      tonable: (e.skins ?? []).some((s) => typeof s.tone === "number"),
       keywords: [...names.slice(1), e.label, ...(e.tags ?? [])].join(" ").toLowerCase(),
     });
   }

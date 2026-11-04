@@ -10,6 +10,7 @@ import FormatToolbar from "@/components/chat/FormatToolbar";
 import { messageBoxExtensions } from "@/components/chat/message-box-extensions";
 import { track } from "@/lib/analytics/client";
 import type { CustomEmoji } from "@/lib/chat/emoji";
+import { readTone } from "@/lib/chat/skin-tone";
 import { emojiChoices, loadCatalog, type EmojiChoice } from "@/lib/chat/emoji-suggest";
 import { convertEmoticonBefore } from "@/lib/chat/emoticons";
 import { applyPastedMentions, pastedNameCandidates } from "@/lib/chat/paste-mentions";
@@ -315,7 +316,7 @@ export default function MessageBox({
         // Standard emoji are matched here (their data loads on first use); custom ones come from the server.
         const [standard, custom] = await Promise.all([loadCatalog().catch(() => []), suggestCustomEmoji(open.query).catch(() => [])]);
         if (latest.current !== key) return;
-        setEmoji(emojiChoices(open.query, standard, custom));
+        setEmoji(emojiChoices(open.query, standard, custom, readTone()));
         return;
       }
       const found = await suggestMentions(channelId, open.trigger, open.query).catch(() => []);
