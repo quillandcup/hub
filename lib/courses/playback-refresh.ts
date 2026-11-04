@@ -11,12 +11,21 @@ export const TOKEN_REFRESH_AFTER_MS = 50 * 60 * 1000;
 export const MEDIA_ERR_NETWORK = 2;
 
 /**
+ * A request for the playlist or a segment failed. Natively that is MediaError 2, but the hls.js player raises a
+ * MediaError with code 0 ("A network error (status 0) occurred while loading level"), carrying hls.js's own word
+ * for what failed (`levelLoadError`, `manifestLoadError`, `fragLoadError`, `...LoadTimeOut`) as the detail.
+ */
+function isNetworkFailure({ code, detail }: { code: number; detail?: string | null }): boolean {
+  return code === MEDIA_ERR_NETWORK || (code === 0 && /Load(Error|TimeOut)$/.test(detail ?? ""));
+}
+
+/**
  * Whether to fetch fresh links and reload the video once: a network error, not already retried, and either the
  * page has been open past the point links expire or the server said the link was refused (401/403). When the page
  * can't say when its links were minted (`mintedAt` null), any network error is worth the one retry.
  */
-export function shouldRefreshToken(input: { code: number; status?: number | null; mintedAt: number | null; now: number; alreadyRetried: boolean }): boolean {
-  if (input.alreadyRetried || input.code !== MEDIA_ERR_NETWORK) return false;
+export function shouldRefreshToken(input: { code: number; status?: number | null; detail?: string | null; mintedAt: number | null; now: number; alreadyRetried: boolean }): boolean {
+  if (input.alreadyRetried || !isNetworkFailure(input)) return false;
   if (input.mintedAt === null) return true;
   if (input.status === 401 || input.status === 403) return true;
   return input.now - input.mintedAt >= TOKEN_REFRESH_AFTER_MS;
