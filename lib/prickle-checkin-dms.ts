@@ -426,20 +426,41 @@ export type { CheckinHalfKind };
 
 const HALF_LABEL: Record<CheckinHalfKind, string> = { checkin: "check-in", checkout: "check-out" };
 
-/** A DM's "Skip check-in" / "Skip check-out" button; the half and prickle ride in the block id and value. */
+/** A DM's "Submit" and "Skip check-in" / "Skip check-out" buttons; the half and prickle ride in the block id and value. */
 function dismissBlock(half: CheckinHalfKind, prickleId: string): any {
+  const value = `${half}:${prickleId}`;
   return {
     type: "actions",
     block_id: `prickle_dismiss:${half}:${prickleId}`,
-    elements: [{ type: "button", action_id: DISMISS_ACTION_ID, text: plain(`Skip ${HALF_LABEL[half]}`), value: `${half}:${prickleId}` }],
+    elements: [
+      { type: "button", action_id: SUBMIT_ACTION_ID, style: "primary", text: plain("Submit"), value },
+      { type: "button", action_id: DISMISS_ACTION_ID, text: plain(`Skip ${HALF_LABEL[half]}`), value },
+    ],
   };
+}
+
+export const SUBMIT_ACTION_ID = "prickle_submit";
+
+/** What a closed DM says in place of its questions, once it was submitted or its check-in was finished elsewhere. */
+export function closedDmBlocks(half: CheckinHalfKind): { text: string; blocks: any[] } {
+  const text = `✅ ${half === "checkin" ? "Checked in" : "Checked out"}. Thanks!`;
+  return { text, blocks: [{ type: "section", text: { type: "mrkdwn", text } }] };
+}
+
+/** The half and prickle a Submit button press is about, or null if the action isn't one. */
+export function parseSubmit(action: any): { half: CheckinHalfKind; prickleId: string } | null {
+  return action?.action_id === SUBMIT_ACTION_ID ? parseHalfValue(action.value) : null;
+}
+
+function parseHalfValue(value: unknown): { half: CheckinHalfKind; prickleId: string } | null {
+  if (typeof value !== "string") return null;
+  const [half, prickleId] = value.split(":");
+  return (half === "checkin" || half === "checkout") && prickleId ? { half, prickleId } : null;
 }
 
 /** The half and prickle a dismiss button press is about, or null if the action isn't one. */
 export function parseDismiss(action: any): { half: CheckinHalfKind; prickleId: string } | null {
-  if (action?.action_id !== DISMISS_ACTION_ID || typeof action.value !== "string") return null;
-  const [half, prickleId] = action.value.split(":");
-  return (half === "checkin" || half === "checkout") && prickleId ? { half, prickleId } : null;
+  return action?.action_id === DISMISS_ACTION_ID ? parseHalfValue(action.value) : null;
 }
 
 /**

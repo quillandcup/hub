@@ -54,6 +54,7 @@
     "slack:manifest:diff": "dotenv -e .env.prod -e .env.shared -- tsx scripts/slack-manifest.ts diff",
     "slack:manifest:push": "dotenv -e .env.prod -e .env.shared -- tsx scripts/slack-manifest.ts push",
     "auth:precreate": "dotenv -e .env.prod -e .env.shared -- tsx scripts/precreate-auth-users.ts",
+    "checkin-dms:close": "dotenv -e .env.prod -e .env.shared -- tsx scripts/close-checkin-dms.ts",
     "launch:email": "dotenv -e .env.prod -e .env.shared -- tsx scripts/send-launch-emails.ts",
     "slack:bot-token": "dotenv -e .env.prod -e .env.shared -- tsx scripts/slack-bot-token.ts",
     "sentry:config:diff": "dotenv -e .env.prod -e .env.shared -- tsx scripts/sentry-config.ts diff",
