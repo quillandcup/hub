@@ -53,6 +53,14 @@ describe("MessageFiles attachments", () => {
     expect(img).toHaveClass("max-w-full", "h-auto", "w-auto");
   });
 
+  it("lays several pictures out in a wrapping row, each at its own height, so none runs off the pane", () => {
+    render(<MessageFiles messageId="m1" files={files} />);
+    const row = screen.getByTestId("message-images");
+    expect(row).toHaveClass("flex-wrap", "items-start");
+    expect(row).not.toHaveClass("overflow-x-auto");
+    for (const tile of within(row).getAllByTestId("message-image")) expect(tile).toHaveClass("max-w-full");
+  });
+
   it("shows a count header that collapses and expands the files", async () => {
     render(<MessageFiles messageId="m1" files={files} />);
     const toggle = screen.getByRole("button", { name: /2 attachments/ });

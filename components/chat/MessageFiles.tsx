@@ -58,7 +58,7 @@ function ImageTile({
   };
 
   return (
-    <div className="group relative max-w-full shrink-0 rounded-lg border border-slate-200 dark:border-slate-700" data-testid="message-image">
+    <div className="group relative max-w-full rounded-lg border border-slate-200 dark:border-slate-700" data-testid="message-image">
       {/* Animations off: the picture itself plays and pauses (Expand is in the toolbar); otherwise it enlarges. */}
       <button
         type="button"
@@ -182,7 +182,7 @@ export default function MessageFiles({ messageId, files, canDelete = false }: { 
       {open && (
         <>
           {images.length > 0 && (
-            <div className="flex flex-row gap-2 overflow-x-auto pb-1">
+            <div data-testid="message-images" className="flex flex-row flex-wrap items-start gap-2">
               {images.map((f) => (
                 <ImageTile key={f.id} messageId={messageId} file={f} canDelete={canDelete} onDelete={remove} onOpen={() => setEnlarged(images.indexOf(f))} />
               ))}
