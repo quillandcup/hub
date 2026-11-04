@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
@@ -22,18 +23,25 @@ export async function POST(
   const { id } = await params;
   const supabase = getServiceClient();
 
-  const { data: userData, error: getError } = await supabase.auth.admin.getUserById(id);
-  if (getError || !userData?.user?.email) {
-    return NextResponse.json({ error: getError?.message ?? "User not found" }, { status: 404 });
+  const authUsers = createRepos(supabase).authUsers;
+  let user;
+  try {
+    user = await authUsers.byId(id);
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "User not found" }, { status: 404 });
+  }
+  if (!user?.email) {
+    return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
-  if (userData.user.email_confirmed_at) {
+  if (user.confirmed) {
     return NextResponse.json({ error: "User has already accepted their invite" }, { status: 400 });
   }
 
-  const { error } = await supabase.auth.admin.inviteUserByEmail(userData.user.email);
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+  try {
+    await authUsers.invite(user.email);
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to resend invite" }, { status: 400 });
   }
 
   return NextResponse.json({ success: true });

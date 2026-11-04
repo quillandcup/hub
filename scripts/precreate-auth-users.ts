@@ -13,7 +13,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { createRepos } from "@/lib/data/repos";
 import type { Database } from "@/lib/data/database.types";
-import { provisionAuthUsers, releaseAuthUsers, type AdminAuthApi } from "@/lib/auth-provisioning";
+import { provisionAuthUsers, releaseAuthUsers } from "@/lib/auth-provisioning";
 
 const args = process.argv.slice(2);
 const apply = args.includes("--apply");
@@ -44,12 +44,11 @@ if (!url || !key) {
 async function main() {
   const db = createClient<Database>(url!, key!, { auth: { autoRefreshToken: false, persistSession: false } });
   const repos = createRepos(db);
-  const auth = db.auth.admin as unknown as AdminAuthApi;
   const write = apply && command !== "plan";
   console.log(`Target: ${new URL(url!).host}`);
   console.log(`Mode: ${command}${write ? " --apply (WRITES)" : " (dry run, nothing is written)"}`);
-  if (command === "release") console.log(JSON.stringify(await releaseAuthUsers(auth, repos, { apply: write, limit }), null, 2));
-  else console.log(JSON.stringify(await provisionAuthUsers(auth, repos, { apply: write, limit }), null, 2));
+  if (command === "release") console.log(JSON.stringify(await releaseAuthUsers(repos, { apply: write, limit }), null, 2));
+  else console.log(JSON.stringify(await provisionAuthUsers(repos, { apply: write, limit }), null, 2));
   if (command !== "plan" && !apply) console.log("Dry run only. Add --apply to write.");
 }
 

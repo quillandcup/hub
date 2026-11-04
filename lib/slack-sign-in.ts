@@ -288,11 +288,10 @@ export async function signInSlackUser(
   if (resolution.status !== "ok") return { ok: false, reason: "unavailable" };
   if (resolution.admin) console.info("slack-sign-in: admin %s signing in from Slack (%s)", resolution.userId, slackUserId);
 
-  const { data: link, error: linkError } = await service.auth.admin.generateLink({
-    type: "magiclink",
-    email: resolution.email,
-  });
-  if (linkError || !link?.properties?.hashed_token) {
+  let hashedToken: string;
+  try {
+    ({ hashedToken } = await createRepos(service).authUsers.generateMagicLink(resolution.userId));
+  } catch (linkError) {
     console.error("slack-sign-in: generateLink failed for %s:", resolution.userId, linkError);
     return { ok: false, reason: "failed" };
   }
@@ -301,7 +300,7 @@ export async function signInSlackUser(
   // so invited members who have never signed in work too (see tests/api/slack-sign-in.test.ts).
   const { error: verifyError } = await sessionClient.auth.verifyOtp({
     type: "email",
-    token_hash: link.properties.hashed_token,
+    token_hash: hashedToken,
   });
   if (verifyError) {
     console.error("slack-sign-in: verifyOtp failed for %s:", resolution.userId, verifyError);

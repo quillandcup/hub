@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
+import { createRepos } from "@/lib/data/repos";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { takeNextPath } from "@/lib/next-path-cookie";
 import { logSignIn } from "@/lib/signin-log";
@@ -41,8 +42,9 @@ export async function resendPendingInvite(email: string): Promise<{ invited: boo
     return { invited: true };
   }
 
-  const { error: inviteError } = await supabase.auth.admin.inviteUserByEmail(email.trim().toLowerCase());
-  if (inviteError) {
+  try {
+    await createRepos(supabase).authUsers.invite(email.trim().toLowerCase());
+  } catch (inviteError) {
     console.error("Re-sending invite from login failed:", inviteError);
     return { invited: false };
   }

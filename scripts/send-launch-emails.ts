@@ -19,7 +19,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createRepos } from "@/lib/data/repos";
 import type { Database } from "@/lib/data/database.types";
 import { sendEmail } from "@/lib/email";
-import { LAUNCH_EMAIL_SUBJECT, renderLaunchEmail, sendLaunchEmails, type LaunchAuthApi } from "@/lib/launch-email";
+import { LAUNCH_EMAIL_SUBJECT, renderLaunchEmail, sendLaunchEmails } from "@/lib/launch-email";
 
 const args = process.argv.slice(2);
 const apply = args.includes("--apply");
@@ -74,9 +74,8 @@ async function main() {
   if (apply) process.env.EMAIL_TEST_MODE = "false";
 
   const db = createClient<Database>(url!, key!, { auth: { autoRefreshToken: false, persistSession: false } });
-  const auth = db.auth.admin as unknown as LaunchAuthApi;
   console.log(`Mode: ${apply ? "--apply (SENDS REAL EMAIL)" : "plan (dry run, nothing is sent)"}`);
-  const report = await sendLaunchEmails(auth, createRepos(db).members, (mail) => sendEmail({ ...mail, tags: { kind: "launch" } }), {
+  const report = await sendLaunchEmails(createRepos(db), (mail) => sendEmail({ ...mail, tags: { kind: "launch" } }), {
     apply,
     limit,
     onlyEmail,

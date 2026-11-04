@@ -73,10 +73,10 @@ export async function DELETE(
   }
 
   const supabase = getServiceClient();
-  const { error } = await supabase.auth.admin.deleteUser(id);
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  try {
+    await createRepos(supabase).authUsers.delete(id);
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to delete user" }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });
