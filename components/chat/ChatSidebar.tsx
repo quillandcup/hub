@@ -8,6 +8,7 @@ import { authenticateRealtime } from "@/lib/chat/live";
 import { loadUnreadCounts, type ChannelSummary } from "@/lib/chat/load";
 import { LAST_CHAT_COOKIE } from "@/lib/chat/last-channel";
 import { mentionsToPlainText } from "@/lib/chat/render";
+import { subscribeDraftChanges } from "@/lib/chat/draft-events";
 import { syncChatReadFromSlack } from "@/app/(member)/chat/actions";
 
 /** A badge reads 99+ beyond that; the server stops counting at 100. */
@@ -233,6 +234,34 @@ function DraftsSection({ drafts, channels, pathname }: { drafts: SidebarDraft[];
 }
 
 /**
+ * The drafts the sidebar lists. They start from what the server read for this page and follow the
+ * message boxes as drafts are typed, emptied or sent (the layout doesn't re-run on client navigation),
+ * newest edit first; they start over from the server's list whenever that changes, as after a refresh.
+ */
+function useDrafts(fromServer: SidebarDraft[]): SidebarDraft[] {
+  const signature = JSON.stringify(fromServer);
+  const [seen, setSeen] = useState(signature);
+  const [drafts, setDrafts] = useState(fromServer);
+  if (signature !== seen) {
+    setSeen(signature);
+    setDrafts(fromServer);
+  }
+  useEffect(
+    () =>
+      subscribeDraftChanges((change) => {
+        const same = (d: SidebarDraft) => d.channelId === change.channelId && d.threadRootId === change.threadRootId;
+        setDrafts((current) => {
+          const rest = current.filter((d) => !same(d));
+          const gone = change.body.trim() === "" && change.fileCount === 0;
+          return gone ? rest : [{ channelId: change.channelId, threadRootId: change.threadRootId, body: change.body, fileCount: change.fileCount }, ...rest];
+        });
+      }),
+    [],
+  );
+  return drafts;
+}
+
+/**
  * The unread map the sidebar shows. It starts from what the server counted for this page, adds a
  * message as it arrives in a conversation that isn't open (over Realtime, which applies the
  * member's RLS), and zeroes a conversation once it is opened (the page marks it read). It starts
@@ -379,6 +408,7 @@ export default function ChatSidebar({
   const pathname = usePathname();
   const activeId = pathname.startsWith("/chat/") ? pathname.split("/")[2] : null;
   const counts = useUnreadCounts(unread, activeId, selfMemberId, channels);
+  const liveDrafts = useDrafts(drafts);
   // Remember the open conversation so /chat can reopen it (a year; read by chat/page.tsx).
   useEffect(() => {
     if (activeId && channels.some((c) => c.id === activeId)) {
@@ -425,7 +455,7 @@ export default function ChatSidebar({
           className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm"
         />
       </div>
-      <DraftsSection drafts={drafts} channels={channels} pathname={pathname} />
+      <DraftsSection drafts={liveDrafts} channels={channels} pathname={pathname} />
       <Section
         title="Channels"
         channels={mine.filter((c) => c.kind === "channel")}

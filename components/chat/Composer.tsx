@@ -8,6 +8,7 @@ import { messageFeatures } from "@/lib/chat/message-features";
 import { NO_FORMATS, type FormatVia } from "@/lib/chat/format-text";
 import { fromEditableText } from "@/lib/chat/render";
 import { DRAFT_SAVE_DELAY_MS, fromDraftBody, toDraftBody } from "@/lib/chat/drafts";
+import { emitDraftChange } from "@/lib/chat/draft-events";
 import PendingAttachments from "@/components/chat/PendingAttachments";
 import type { DraftFileView } from "@/lib/chat/draft-files";
 import { useFileDrop } from "@/components/chat/useFileDrop";
@@ -113,6 +114,7 @@ export default function Composer({
     const key = draftKey(body, files);
     if (key === savedDraft.current) return;
     savedDraft.current = key;
+    emitDraftChange({ channelId, threadRootId: threadRootId ?? null, body, fileCount: files.length });
     void saveChatDraft(channelId, threadRootId ?? null, body, files).catch(() => {});
   }, [saveDrafts, channelId, threadRootId]);
   const latestSaveDraft = useRef(saveDraftNow);
@@ -295,6 +297,7 @@ export default function Composer({
     mentionTokens.current = new Map();
     // The server cleared the draft when it took the message.
     savedDraft.current = draftKey("", []);
+    if (saveDrafts) emitDraftChange({ channelId, threadRootId: threadRootId ?? null, body: "", fileCount: 0 });
     if (early) emitListEvent({ kind: "swap", channelId, threadRootId, tempId, view: optimisticView({ id: result.id, body: shownBody, viewer: viewer! }) });
     // Bring the conversation up to date: just its newest messages when it is open here, else the page.
     if (!pokeChat(channelId)) router.refresh();
