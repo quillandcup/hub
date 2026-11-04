@@ -171,6 +171,8 @@ export interface PrickleRepository {
   hostlessCalendarCountsByType(): Promise<Map<string, number>>;
   /** Calendar prickles of this type with no host, newest first, at most `limit`. */
   hostlessCalendarOfType(typeId: string, limit: number): Promise<PrickleDetail[]>;
+  /** Every calendar prickle with a type and no host, newest first. Paginated past 1000. */
+  hostlessCalendar(): Promise<PrickleDetail[]>;
   /** Calendar prickles that overlap the window (start before `to`, end after `from`; both exclusive, ISO), oldest first. Lean: no type or host joined. */
   calendarOverlapping(window: { from: string; to: string }): Promise<Pick<Prickle, "id" | "typeId" | "startTime" | "endTime">[]>;
   /** The prickles whose Zoom meeting is one of these, newest first. */
@@ -545,6 +547,22 @@ export class SupabasePrickleRepository implements PrickleRepository {
       .limit(limit);
     if (error) throw new Error(error.message);
     return ((data ?? [])).map(toDetail);
+  }
+
+  async hostlessCalendar(): Promise<PrickleDetail[]> {
+    const rows = await fetchAllRows<DetailRow>(
+      (from, to) =>
+        this.db
+          .from("prickles")
+          .select(DETAIL_SELECT)
+          .eq("source", "calendar")
+          .is("host", null)
+          .not("type_id", "is", null)
+          .order("start_time", { ascending: false })
+          .order("id", { ascending: false })
+          .range(from, to),
+    );
+    return rows.map(toDetail);
   }
 
   async calendarOverlapping({ from, to }: { from: string; to: string }) {
@@ -961,6 +979,13 @@ export class InMemoryPrickleRepository implements PrickleRepository {
       .filter((p) => p.source === "calendar" && p.hostId === null && p.typeId === typeId)
       .sort((a, b) => -byStartThenId(a, b))
       .slice(0, limit)
+      .map((p) => this.detail(p));
+  }
+
+  async hostlessCalendar() {
+    return this.data.prickles
+      .filter((p) => p.source === "calendar" && p.hostId === null && p.typeId !== null)
+      .sort((a, b) => -byStartThenId(a, b))
       .map((p) => this.detail(p));
   }
 

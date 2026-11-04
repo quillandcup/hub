@@ -4,12 +4,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import MemberSearch from "@/components/MemberSearch";
-import { formatDateTimeRange } from "@/lib/formatters";
+import { formatDateTime, formatDateTimeRange } from "@/lib/formatters";
 import { useTimeZone } from "@/components/Timezone";
 import { UNHOSTED_LIST_LIMIT, type MissingHostsData } from "@/lib/missing-hosts";
 import { assignHostToUnhostedPrickles, getUnhostedPrickles, setDefaultHosts, setRequiresHost, type UnhostedPrickle } from "./actions";
 
-export default function MissingHostsClient({ stats, coverage, members }: MissingHostsData) {
+export default function MissingHostsClient({ stats, coverage, groups, members }: MissingHostsData) {
   const timeZone = useTimeZone();
   const router = useRouter();
   // A default host is someone who hosts now, so only active members; crediting past prickles takes anyone.
@@ -263,6 +263,43 @@ export default function MissingHostsClient({ stats, coverage, members }: Missing
             </div>
           )}
 
+          {/* By calendar entry: one row per title, so an unmatched name shows once */}
+          {groups.length > 0 && (
+            <div className="bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-lg p-6">
+              <h2 className="text-xl font-semibold mb-1 dark:text-slate-100">By calendar entry</h2>
+              <p className="text-sm text-gray-600 dark:text-slate-400 mb-4">
+                The same prickles grouped by the title on the Google Calendar. A name that is not matched to a member (a missing alias, say) shows once with how many prickles it leaves without a host.
+              </p>
+              <div className="space-y-2">
+                {groups.map((g) => (
+                  <details key={g.summary.toLowerCase()} className="p-3 bg-gray-50 dark:bg-slate-700/50 border dark:border-slate-600/50 rounded-lg">
+                    <summary className="cursor-pointer flex items-center justify-between gap-4">
+                      <span className="font-medium dark:text-slate-100">{g.summary || "(no title)"}</span>
+                      <span className="text-sm text-gray-600 dark:text-slate-400 whitespace-nowrap">
+                        {g.count} prickle{g.count === 1 ? "" : "s"} · {g.typeNames.join(", ")}
+                      </span>
+                    </summary>
+                    <div className="mt-3 space-y-2 text-sm text-gray-700 dark:text-slate-300">
+                      <p>
+                        {formatDateTime(g.oldestStart, timeZone)} to {formatDateTime(g.newestStart, timeZone)}
+                        {g.creators.length > 0 && <> · created by {g.creators.join(", ")}</>}
+                      </p>
+                      {g.description && <p className="whitespace-pre-wrap text-gray-600 dark:text-slate-400">{g.description}</p>}
+                      <div className="flex flex-wrap gap-2">
+                        {g.prickles.map((p) => (
+                          <Link key={p.id} href={`/admin/prickles/${p.id}`} className="underline hover:text-plum-500">
+                            {formatDateTime(p.startTime, timeZone)}
+                          </Link>
+                        ))}
+                        {g.count > g.prickles.length && <span className="text-gray-500 dark:text-slate-400">and {g.count - g.prickles.length} more</span>}
+                      </div>
+                    </div>
+                  </details>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Detail View */}
           {selectedType && (
             <div className="bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-lg p-6">
@@ -320,6 +357,9 @@ export default function MissingHostsClient({ stats, coverage, members }: Missing
                     <p className="font-medium dark:text-slate-100">
                       {prickle.title || prickle.typeName}
                     </p>
+                    {prickle.rawSummary && (
+                      <p className="text-sm text-plum-600 dark:text-plum-400">Calendar: {prickle.rawSummary}</p>
+                    )}
                     <p className="text-sm text-gray-600 dark:text-slate-400">
                       {formatDateTimeRange(prickle.startTime, prickle.endTime, timeZone)}
                     </p>

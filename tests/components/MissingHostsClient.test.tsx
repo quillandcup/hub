@@ -32,6 +32,9 @@ const data: MissingHostsData = {
     { typeId: "t2", typeName: "Chat", requiresHost: false, missingCount: 3, defaultHostId: null, defaultHostName: null },
   ],
   coverage: { total: 20, requiresHost: { withHost: 6, withoutHost: 4 }, optionalHost: { withHost: 7, withoutHost: 3 } },
+  groups: [
+    { summary: "Prickle w/Ada", count: 6, typeNames: ["Sprint"], requiresHost: true, creators: ["Fern Example"], description: null, newestStart: "2026-11-03T23:00:00Z", oldestStart: "2026-10-06T22:00:00Z", prickles: [{ id: "prkl_AAAAAAAAAAA1", startTime: "2026-11-03T23:00:00Z" }] },
+  ],
   members: [
     { id: "mbr_AAAAAAAAAAA1", name: "Ada Example", displayName: null, email: "ada@example.test", status: "active" },
     { id: "mbr_AAAAAAAAAAA3", name: "Gale Example", displayName: "Gail", email: "gale@example.test", status: "cancelled" },
