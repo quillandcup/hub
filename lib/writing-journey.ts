@@ -31,16 +31,23 @@ export interface JourneyStage {
 }
 
 /** The diagram's size; stages are placed by their centre and are STAGE_WIDTH x STAGE_HEIGHT. */
-export const JOURNEY_CANVAS = { width: 3500, height: 580 };
+export const JOURNEY_CANVAS = { width: 2680, height: 580 };
 export const STAGE_WIDTH = 206;
 export const STAGE_HEIGHT = 120;
 
-/** The hire-a-pro swimlane, left to right: x of the first stage and the step between them. */
-const ROW_X0 = 560;
-const ROW_DX = 250;
+/** The hire-a-pro swimlane, left to right: the left edge of the first stage, the gap between stages and each stage's width (the writer's own steps are narrow chips). */
+const ROW_LEFT = 457;
+const ROW_GAP = 36;
+export const COMPACT_STAGE_WIDTH = 112;
+const ROW_WIDTHS = [112, 112, 172, 112, 172, 112, 172, 112, 172];
 const ROW_Y = 400;
+const COMPACT_HEIGHT = 104;
+const ROW_RIGHT = ROW_LEFT + ROW_WIDTHS.reduce((a, b) => a + b, 0) + ROW_GAP * (ROW_WIDTHS.length - 1);
 
-const row = (i: number) => ({ x: ROW_X0 + ROW_DX * i, y: ROW_Y });
+const row = (i: number) => {
+  const before = ROW_WIDTHS.slice(0, i).reduce((a, b) => a + b, 0) + ROW_GAP * i;
+  return { x: ROW_LEFT + before + ROW_WIDTHS[i] / 2, y: ROW_Y, width: ROW_WIDTHS[i], height: ROW_WIDTHS[i] <= COMPACT_STAGE_WIDTH ? COMPACT_HEIGHT : STAGE_HEIGHT };
+};
 
 export const JOURNEY_STAGES: JourneyStage[] = [
   {
@@ -64,9 +71,9 @@ export const JOURNEY_STAGES: JourneyStage[] = [
     phases: [],
     coversPhases: ["first_read_through", "revising", "developmental_edit", "beta_readers", "line_copy_edit", "final_read_through", "final_beta_read"],
     kind: "bar",
-    x: (ROW_X0 + ROW_X0 + ROW_DX * 8) / 2,
+    x: (ROW_LEFT + ROW_RIGHT) / 2,
     y: 230,
-    width: ROW_DX * 8 + STAGE_WIDTH,
+    width: ROW_RIGHT - ROW_LEFT,
     height: 132,
   },
   {
@@ -168,7 +175,7 @@ export const JOURNEY_STAGES: JourneyStage[] = [
     offerStatus: "roadmap",
     phases: ["publishing", "complete"],
     kind: "group",
-    x: 3000,
+    x: 2198,
     y: 290,
     width: 290,
     height: 500,
@@ -181,7 +188,7 @@ export const JOURNEY_STAGES: JourneyStage[] = [
     description: "Formatting, covers and launch mechanics.",
     offerStatus: "roadmap",
     phases: [],
-    x: 3000,
+    x: 2198,
     y: 140,
   },
   {
@@ -192,7 +199,7 @@ export const JOURNEY_STAGES: JourneyStage[] = [
     description: "Query letters, comp titles and agent research.",
     offerStatus: "roadmap",
     phases: [],
-    x: 3000,
+    x: 2198,
     y: 440,
   },
   {
@@ -203,7 +210,7 @@ export const JOURNEY_STAGES: JourneyStage[] = [
     description: "Early copies, with feedback folding back in.",
     offerStatus: "roadmap",
     phases: [],
-    x: 3000,
+    x: 2198,
     y: 290,
   },
   {
@@ -214,7 +221,7 @@ export const JOURNEY_STAGES: JourneyStage[] = [
     description: "The shelf, the storefront, and the next spark.",
     offerStatus: "roadmap",
     phases: ["published"],
-    x: 3280,
+    x: 2506,
     y: 290,
   },
 ];

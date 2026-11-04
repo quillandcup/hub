@@ -7,6 +7,7 @@ import {
   JOURNEY_STAGES,
   type JourneyStage,
   STAGE_HEIGHT,
+  COMPACT_STAGE_WIDTH,
   STAGE_WIDTH,
   journeyStageForPhase,
   type JourneyOffer,
@@ -138,6 +139,7 @@ export default function JourneyMap({ projects }: { projects: JourneyProject[] })
             {JOURNEY_STAGES.map((stage) => {
               const here = projects.filter((p) => stage.phases.includes(p.phase));
               const statuses = stage.coversPhases ?? stage.phases;
+              const compact = (stage.width ?? STAGE_WIDTH) <= COMPACT_STAGE_WIDTH;
               const chips = here.length > 0 && (
                 <ul className="mt-1 flex flex-wrap gap-1">
                   {here.map((p) => (
@@ -171,16 +173,16 @@ export default function JourneyMap({ projects }: { projects: JourneyProject[] })
               return (
                 <li
                   key={stage.id}
-                  className={`absolute -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border-2 p-3 ${STAGE_STYLE[stage.offerStatus]}`}
+                  className={`absolute -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border-2 ${compact ? "p-2" : "p-3"} ${STAGE_STYLE[stage.offerStatus]}`}
                   style={box}
                 >
                   <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-slate-500">
                     <span>{stage.step}</span>
-                    <span>{JOURNEY_OFFER_LABELS[stage.offerStatus]}</span>
+                    {!compact && <span>{JOURNEY_OFFER_LABELS[stage.offerStatus]}</span>}
                   </div>
                   <h2 className="text-sm font-semibold leading-tight">{stage.title}</h2>
-                  <p className="text-xs font-medium text-plum-700 dark:text-plum-400">{stage.offer}</p>
-                  {chips || <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-slate-600 dark:text-slate-400">{stage.description}</p>}
+                  {!compact && <p className="text-xs font-medium text-plum-700 dark:text-plum-400">{stage.offer}</p>}
+                  {chips || (!compact && <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-slate-600 dark:text-slate-400">{stage.description}</p>)}
                   {statuses.length > 0 && (
                     <p className="mt-1 text-[10px] text-slate-500">Status: {statuses.map((p) => PHASE_LABELS[p]).join(" · ")}</p>
                   )}

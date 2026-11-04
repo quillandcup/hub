@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import JourneyMap from "@/components/writing/JourneyMap";
-import { JOURNEY_STAGES, STAGE_HEIGHT, STAGE_WIDTH, journeyStageForPhase } from "@/lib/writing-journey";
+import { COMPACT_STAGE_WIDTH, JOURNEY_STAGES, STAGE_HEIGHT, STAGE_WIDTH, journeyStageForPhase } from "@/lib/writing-journey";
 import { PROJECT_PHASES } from "@/lib/writing-projects";
 
 const stageOf = (title: string) => screen.getByRole("heading", { name: new RegExp(`^${title}$`) }).closest("li")!;
@@ -84,10 +84,10 @@ describe("JourneyMap", () => {
     const academy = JOURNEY_STAGES.find((s) => s.offer === "Self-Editing Academy")!;
     const row = JOURNEY_STAGES.filter((s) => s.y === 400);
     for (const stage of row) {
-      expect(academy.x - academy.width! / 2).toBeLessThanOrEqual(stage.x - STAGE_WIDTH / 2);
-      expect(academy.x + academy.width! / 2).toBeGreaterThanOrEqual(stage.x + STAGE_WIDTH / 2);
+      expect(academy.x - academy.width! / 2).toBeLessThanOrEqual(stage.x - (stage.width ?? STAGE_WIDTH) / 2);
+      expect(academy.x + academy.width! / 2).toBeGreaterThanOrEqual(stage.x + (stage.width ?? STAGE_WIDTH) / 2);
     }
-    expect(academy.y + academy.height! / 2).toBeLessThan(400 - STAGE_HEIGHT / 2);
+    for (const stage of row) expect(academy.y + academy.height! / 2).toBeLessThan(stage.y - stage.height! / 2);
     expect(stageOf("Self-Edit")).toHaveTextContent(
       "Status: First read-through · Revising · Developmental edit · Beta readers · Line & copy edit · Final read-through · Final beta read"
     );
@@ -101,6 +101,15 @@ describe("JourneyMap", () => {
       expect(box.y - box.height! / 2).toBeLessThan(s.y - STAGE_HEIGHT / 2);
       expect(box.y + box.height! / 2).toBeGreaterThan(s.y + STAGE_HEIGHT / 2);
     }
+  });
+
+  it("keeps the writer's own steps narrow, so the swimlane stays compact", () => {
+    const row = JOURNEY_STAGES.filter((s) => s.y === 400);
+    const own = row.filter((s) => s.offerStatus === "own");
+    expect(own).toHaveLength(5);
+    for (const stage of own) expect(stage.width).toBeLessThanOrEqual(COMPACT_STAGE_WIDTH);
+    const span = Math.max(...row.map((s) => s.x + s.width! / 2)) - Math.min(...row.map((s) => s.x - s.width! / 2));
+    expect(span).toBeLessThan(1700);
   });
 
   it("has no Paused section when nothing is paused", () => {
