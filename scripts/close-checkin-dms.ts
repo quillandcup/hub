@@ -25,15 +25,22 @@ if (unknown || !Number.isInteger(days) || days < 1) {
   process.exit(1);
 }
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const token = await getSlackBotToken();
-if (!url || !key || !token) {
-  console.error("NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY and the Slack bot token must be set (run through the package script).");
-  process.exit(1);
+async function main() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const token = await getSlackBotToken();
+  if (!url || !key || !token) {
+    console.error("NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY and the Slack bot token must be set (run through the package script).");
+    process.exit(1);
+  }
+
+  const repos = createRepos(createClient<Database>(url, key));
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const result = await closeAnsweredCheckinDms(repos, new WebClient(token), { since, dryRun: !apply });
+  console.log(apply ? "Applied:" : "Dry run:", result);
 }
 
-const repos = createRepos(createClient<Database>(url, key));
-const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-const result = await closeAnsweredCheckinDms(repos, new WebClient(token), { since, dryRun: !apply });
-console.log(apply ? "Applied:" : "Dry run:", result);
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
