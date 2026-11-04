@@ -65,7 +65,6 @@ export default function EmojiPicker({
     const own = readRecents().filter((name) => baseName(name) in custom || unicodeEmoji(baseName(name)));
     return own.length ? own : DEFAULT_FREQUENT;
   });
-  const usingDefaults = recents === DEFAULT_FREQUENT;
   const [active, setActive] = useState<TabId>("recent");
   const [tone, setTone] = useState<number | null>(readTone);
   const [pickingTone, setPickingTone] = useState(false);
@@ -144,6 +143,12 @@ export default function EmojiPicker({
     onPick(name);
   };
 
+  // Frequently used follows the chosen tone too, so picks made in two tones are one entry.
+  const shownRecents = useMemo(
+    () => [...new Set(recents.map((n) => (tonable.has(baseName(n)) && !(baseName(n) in custom) ? withTone(baseName(n), tone) : n)))],
+    [recents, tonable, custom, tone]
+  );
+
   const toneSample = tone ? tonedUnicode("\u{1F44D}", tone) : "\u{1F44D}";
 
   // Where a section starts inside the scroller's content, from rects (offsetTop depends on the offset parent).
@@ -180,10 +185,10 @@ export default function EmojiPicker({
   const cell = (name: string, via: "recent" | "browse" | "search", where: string) => {
     const id = `${where}:${name}`;
     firstCell ??= id;
-    // A chosen tone applies to standard emoji that have tone variants (not custom ones or recents, which keep what was picked).
-    // The seed row (nothing picked yet) is the exception: it follows the chosen tone, so the thumbs-up shows in it.
-    const seeded = via === "recent" && usingDefaults;
-    const shown = (via !== "recent" || seeded) && tonable.has(name) && !(name in custom) ? withTone(name, tone) : name;
+    // A chosen tone applies everywhere to standard emoji that have tone variants (the grid, search, Frequently used),
+    // as in Slack; custom emoji have none.
+    const base = baseName(name);
+    const shown = tonable.has(base) && !(base in custom) ? withTone(base, tone) : name;
     return (
       <button
         key={id}
@@ -349,7 +354,7 @@ export default function EmojiPicker({
           )
         ) : (
           <>
-            {section("recent", "Frequently used", recents, "recent")}
+            {section("recent", "Frequently used", shownRecents, "recent")}
             {!catalog && <p className="p-2 text-sm text-slate-600 dark:text-slate-400">Loading…</p>}
             {CATEGORIES.map((c) =>
               section(
