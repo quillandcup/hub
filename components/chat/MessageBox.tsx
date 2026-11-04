@@ -444,7 +444,8 @@ export default function MessageBox({
         }} />}
       <div className={`relative ${CONTENT_STYLES} ${jumbo ? JUMBO_STYLES : ""}`} style={editor ? undefined : { minHeight: `${rows * 1.25 + 1}rem` }}>
         <EditorContent editor={editor} />
-        {empty && placeholder && (
+        {/* `empty` is read from the editor and can lag when it opens with content (a restored draft), so `value` has to agree. */}
+        {empty && value.trim() === "" && placeholder && (
           // Drawn where the owner's padding puts the text (px-3 py-2).
           <span aria-hidden="true" className="pointer-events-none absolute left-3 top-2 text-sm text-slate-500 dark:text-slate-400">
             {placeholder}
