@@ -127,8 +127,8 @@ export interface SlackMessageRepository {
   markMessagesDeleted(channelId: string, messageTs: string[], at: string): Promise<void>;
   /** Soft-deletes one reaction (if it is live). */
   markReactionRemoved(key: ReactionKey, at: string): Promise<void>;
-  /** Live messages that happened from `from` to `to` inclusive: where they are in their thread, no content. By channel then timestamp. */
-  storedMessagesBetween(from: string, to: string): Promise<StoredSlackMessageRef[]>;
+  /** Live messages that happened from `from` to `to` inclusive: where they are in their thread, no content. By channel then timestamp. Only one channel's when `channelId` is given. */
+  storedMessagesBetween(from: string, to: string, channelId?: string): Promise<StoredSlackMessageRef[]>;
   /** The live reactions on these messages of one channel. Chunked. */
   liveReactionsOn(channelId: string, messageTs: string[]): Promise<ReactionKey[]>;
   /** Of these message timestamps in one channel, the ones we have stored (deleted or not). Chunked. */
@@ -271,18 +271,19 @@ export class SupabaseSlackMessageRepository implements SlackMessageRepository {
     );
   }
 
-  async storedMessagesBetween(from: string, to: string) {
-    return fetchAllRows<StoredSlackMessageRef>((first, last) =>
-      this.bronze
-          .from("slack_messages")
-          .select("channel_id, message_ts, thread_ts, occurred_at")
-          .gte("occurred_at", from)
-          .lte("occurred_at", to)
-          .is("deleted_at", null)
-          .order("channel_id")
-          .order("message_ts")
-          .range(first, last)
-    );
+  async storedMessagesBetween(from: string, to: string, channelId?: string) {
+    return fetchAllRows<StoredSlackMessageRef>((first, last) => {
+      const query = this.bronze
+        .from("slack_messages")
+        .select("channel_id, message_ts, thread_ts, occurred_at")
+        .gte("occurred_at", from)
+        .lte("occurred_at", to)
+        .is("deleted_at", null);
+      return (channelId === undefined ? query : query.eq("channel_id", channelId))
+        .order("channel_id")
+        .order("message_ts")
+        .range(first, last);
+    });
   }
 
   async liveReactionsOn(channelId: string, messageTs: string[]) {
@@ -490,9 +491,9 @@ export class InMemorySlackMessageRepository implements SlackMessageRepository {
     }
   }
 
-  async storedMessagesBetween(from: string, to: string) {
+  async storedMessagesBetween(from: string, to: string, channelId?: string) {
     return this.data.slackMessages
-      .filter((m) => !m.deleted_at && m.occurred_at >= from && m.occurred_at <= to)
+      .filter((m) => !m.deleted_at && m.occurred_at >= from && m.occurred_at <= to && (channelId === undefined || m.channel_id === channelId))
       .map((m) => ({ channel_id: m.channel_id, message_ts: m.message_ts, thread_ts: m.thread_ts ?? null, occurred_at: m.occurred_at }))
       .sort(byKeyThenId((m) => m.channel_id, (m) => m.message_ts));
   }

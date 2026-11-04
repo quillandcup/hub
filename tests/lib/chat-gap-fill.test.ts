@@ -297,6 +297,17 @@ describe("fillThreadIfRootMissing", () => {
 });
 
 describe("catchUpChannel", () => {
+  it("stores a 1:1 DM's messages as type im, which keeps their text out of the activity rebuild, and a channel's as its own type", async () => {
+    world.channel = { name: null, kind: "dm", visibility: "private", bridge_disabled: false };
+    await catchUpChannel(fakeService(answer), { channelId: "C1", source: "open", slack: slackStub({ history: [slackMessage("201.0")] }) });
+    expect(upserted(fakeService(answer), "slack_messages")!.map((m) => [m.channel_type, m.channel_name])).toEqual([["im", ""]]);
+
+    written = { messages: [], reactions: [] };
+    world.channel = { ...CHANNEL };
+    await catchUpChannel(fakeService(answer), { channelId: "C1", source: "open", slack: slackStub({ history: [slackMessage("202.0")] }) });
+    expect(upserted(fakeService(answer), "slack_messages")!.map((m) => m.channel_type)).toEqual(["private_channel"]);
+  });
+
   it("fetches what is newer than the newest message we have, and the replies of threads among it", async () => {
     world.newestBronzeTs = "200.5";
     const slack = slackStub({

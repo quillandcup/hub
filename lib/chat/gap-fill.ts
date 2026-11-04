@@ -58,7 +58,7 @@ const CATCH_UP_LOOKBACK_SECONDS = 6 * 60 * 60;
 const FIRST_CATCH_UP_WINDOW_SECONDS = 24 * 60 * 60;
 const PROJECT_CONCURRENCY = 10;
 
-interface MirroredChannel {
+export interface MirroredChannel {
   name: string;
   type: string;
 }
@@ -71,6 +71,8 @@ async function mirroredChannel(service: SupabaseClient, slackChannelId: string):
     return null;
   });
   if (!data || data.bridge_disabled) return null;
+  // A 1:1 DM is typed 'im': the activity rebuild keeps the text of those out of member_activities.
+  if (data.kind === "dm") return { name: "", type: "im" };
   const isMpim = data.kind === "group_dm";
   return { name: data.name ?? "", type: slackChannelType({ is_private: data.visibility === "private", is_mpim: isMpim }) };
 }
@@ -116,7 +118,7 @@ type SlackMsg = Record<string, any>;
  * Store what Slack returned: Bronze first (idempotent upserts, like the import), then the chat
  * projection for every message touched. Returns how many messages and reactions were new to us.
  */
-async function storeAndProject(
+export async function storeAndProject(
   service: SupabaseClient,
   slackChannelId: string,
   channel: MirroredChannel,
@@ -193,7 +195,7 @@ async function run(
 }
 
 /** Every reply of one thread, root first (conversations.replies), up to a cap. */
-async function fetchThread(slack: WebClient, slackChannelId: string, threadTs: string): Promise<SlackMsg[]> {
+export async function fetchThread(slack: WebClient, slackChannelId: string, threadTs: string): Promise<SlackMsg[]> {
   const out: SlackMsg[] = [];
   let cursor: string | undefined;
   do {
@@ -205,7 +207,7 @@ async function fetchThread(slack: WebClient, slackChannelId: string, threadTs: s
 }
 
 /** Live replies already stored per thread root (by root ts), to tell which threads Slack is ahead on. */
-async function storedReplyCounts(service: SupabaseClient, slackChannelId: string, rootTs: string[]): Promise<Map<string, number>> {
+export async function storedReplyCounts(service: SupabaseClient, slackChannelId: string, rootTs: string[]): Promise<Map<string, number>> {
   const counts = new Map<string, number>();
   if (rootTs.length === 0) return counts;
   for (const row of await createRepos(service).slackMessages.threadMessages(slackChannelId, rootTs)) {
