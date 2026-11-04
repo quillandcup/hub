@@ -19,6 +19,15 @@ describe("shouldRefreshToken", () => {
     expect(shouldRefreshToken({ ...base, mintedAt: null, now: 5 })).toBe(true);
   });
 
+  it("retries hls.js's own load failures, which arrive as code 0 (a paused tab opened after the link expired)", () => {
+    for (const detail of ["levelLoadError", "manifestLoadError", "fragLoadError", "levelLoadTimeOut"]) {
+      expect(shouldRefreshToken({ ...base, code: 0, detail })).toBe(true);
+    }
+    expect(shouldRefreshToken({ ...base, code: 0, detail: "levelLoadError", now: base.now - 1 })).toBe(false);
+    expect(shouldRefreshToken({ ...base, code: 0 })).toBe(false);
+    expect(shouldRefreshToken({ ...base, code: 0, detail: "bufferAppendError" })).toBe(false);
+  });
+
   it("never retries twice, or an error that isn't a network error", () => {
     expect(shouldRefreshToken({ ...base, alreadyRetried: true })).toBe(false);
     expect(shouldRefreshToken({ ...base, code: 4 })).toBe(false);

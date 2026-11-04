@@ -98,7 +98,7 @@ function PlaybackReporter({
     const onError = () => {
       if (failed || refreshing) return;
       const info = describePlaybackError(el.error);
-      const retry = shouldRefreshToken({ code: info.code, status: info.status, mintedAt, now: Date.now(), alreadyRetried: retried });
+      const retry = shouldRefreshToken({ code: info.code, status: info.status, detail: info.detail, mintedAt, now: Date.now(), alreadyRetried: retried });
       if (!retry || !refreshTokens) return report(info);
       // An expired link looks like a network error: fetch fresh ones and load them, once, before bothering anyone.
       retried = true;
