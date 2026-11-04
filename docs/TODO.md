@@ -1754,9 +1754,8 @@ Show each member, on their own writing project, a visual of where they sit in th
 
 **How `writing_projects.phase` maps to the pipeline (resolved; see `lib/writing-journey.ts`):** each status puts a project at one stage, and a stage can have no status (the publishing fork).
 - `planning`/`outlining`/`drafting` → Draft (The Ready Writer)
-- `revising` → the Self-Editing Academy, drawn as one bar over Developmental edit, Beta readers (round 1), Line & copy edit and Beta readers (round 2). A member on the hired-pro path sits at the stage itself
-- `developmental_edit`, `beta_readers`, `line_copy_edit`, `final_beta_read` → their own stages
-- `complete` → both publishing forks (Self-Publish, Query & Submit), before either resolves
+- `first_read_through`, `revising`, `developmental_edit`, `beta_readers`, `line_copy_edit`, `final_read_through`, `final_beta_read` → the stages of the hire-a-pro swimlane (First read-through, Revision, Developmental edit, Revision, Beta readers, Revision, Line & copy edit, Final read-through, Final beta read). The Self-Editing Academy is a bar over all of them and lists all those statuses. `revising` is shown at the first Revision only, since the three share the status
+- `publishing` and `complete` → the Publishing box (Self-Publish, ARC readers, Query & Submit). `complete` stays there until what it means next to `publishing` and `published` is settled
 - `published` → Launch & Sell
 - `on_hold`/`hibernating` → not pipeline positions; pause/exit flags that apply at any stage
 - **Why a status can't say which path a project is on** (the Self-Editing Academy or a hired professional; see "Journey: tell the two edit paths apart" below): `phase` answers "how far along is the manuscript" (member-set from a simple dropdown); the pipeline answers "which program or vendor are you using," which has forks (DIY vs. hired, self-publish vs. query) a linear enum can't represent without conflating progress with vendor choice. Disambiguating which node a `revising` project is actually on belongs to program-enrollment data — the `member_products` table already planned above under Kajabi Data Expansion — once it exists, not a bigger phase list.
