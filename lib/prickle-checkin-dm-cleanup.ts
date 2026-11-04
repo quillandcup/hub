@@ -17,6 +17,8 @@ export interface CloseDmsResult {
   open: number;
   closed: number;
   failed: number;
+  /** Where the finished halves without an open DM went, so the gap between `finished` and `open` can be read. */
+  notOpen: { noSlackAccount: number; skippedOrSubmitted: number; notInHistory: number };
 }
 
 /**
@@ -32,7 +34,7 @@ export async function closeAnsweredCheckinDms(
   slack: Pick<WebClient, "conversations" | "chat">,
   { since, dryRun = false }: { since: Date; dryRun?: boolean }
 ): Promise<CloseDmsResult> {
-  const result: CloseDmsResult = { finished: 0, open: 0, closed: 0, failed: 0 };
+  const result: CloseDmsResult = { finished: 0, open: 0, closed: 0, failed: 0, notOpen: { noSlackAccount: 0, skippedOrSubmitted: 0, notInHistory: 0 } };
   const prickles = await repos.prickles.startingBetween({ from: since.toISOString(), to: new Date().toISOString() });
   const prickleIds = prickles.map((p) => p.id);
   if (prickleIds.length === 0) return result;
@@ -51,23 +53,29 @@ export async function closeAnsweredCheckinDms(
     }
   }
 
+  const dismissed = new Map<CheckinHalfKind, Set<string>>();
+  for (const { half } of HALVES) dismissed.set(half, await repos.prickleActivity.dismissedPairs(half, prickleIds));
+
   const slackIds = await resolveSlackUserIds(repos, [...finishedByMember.keys()]);
   for (const [memberId, finished] of finishedByMember) {
+    const found = new Set<string>();
     const slackUserId = slackIds.get(memberId);
-    if (!slackUserId) continue;
     try {
+      if (!slackUserId) continue;
       const opened = await slack.conversations.open({ users: slackUserId });
       const channel = opened.channel?.id;
       if (!channel) continue;
       const history = await slack.conversations.history({ channel, oldest: String(Math.floor(since.getTime() / 1000)), limit: 200 });
       for (const message of history.messages ?? []) {
         const blocks = (message.blocks ?? []) as { block_id?: string }[];
-        const half = HALVES.map((h) => h.half).find((h) => blocks.some((b) => finished.has(blockKey(b.block_id, h))));
+        const found_ = HALVES.flatMap((h) => blocks.map((b) => blockKey(b.block_id, h.half)).filter((k) => finished.has(k)));
+        const half = found_[0]?.split(":")[0] as CheckinHalfKind | undefined;
         if (!half || !message.ts) continue;
+        found.add(found_[0]);
         result.open++;
         if (dryRun) continue;
         try {
-          await slack.chat.update({ channel, ts: message.ts, ...closedDmBlocks(half) });
+          await slack.chat.update({ channel, ts: message.ts, ...closedDmBlocks(half, found_[0].slice(half.length + 1)) });
           result.closed++;
         } catch (error) {
           result.failed++;
@@ -77,6 +85,13 @@ export async function closeAnsweredCheckinDms(
     } catch (error) {
       result.failed++;
       console.error("close checkin DM: reading the member's DMs failed", { memberId, error });
+    }
+    for (const key of finished) {
+      if (found.has(key)) continue;
+      const [half, prickleId] = key.split(":") as [CheckinHalfKind, string];
+      if (!slackUserId) result.notOpen.noSlackAccount++;
+      else if (dismissed.get(half)?.has(`${memberId}:${prickleId}`)) result.notOpen.skippedOrSubmitted++;
+      else result.notOpen.notInHistory++;
     }
   }
   return result;

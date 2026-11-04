@@ -441,10 +441,14 @@ function dismissBlock(half: CheckinHalfKind, prickleId: string): any {
 
 export const SUBMIT_ACTION_ID = "prickle_submit";
 
-/** What a closed DM says in place of its questions, once it was submitted or its check-in was finished elsewhere. */
-export function closedDmBlocks(half: CheckinHalfKind): { text: string; blocks: any[] } {
+/**
+ * What a closed DM says in place of its questions, once it was submitted or its check-in was
+ * finished elsewhere: a thank-you and the link to change the answers on the site.
+ */
+export function closedDmBlocks(half: CheckinHalfKind, prickleId: string): { text: string; blocks: any[] } {
   const text = `✅ ${half === "checkin" ? "Checked in" : "Checked out"}. Thanks!`;
-  return { text, blocks: [{ type: "section", text: { type: "mrkdwn", text } }] };
+  const edit = `<${APP_URL}${checkinHref(prickleId, half)}|Edit your ${HALF_LABEL[half]}>`;
+  return { text, blocks: [{ type: "section", text: { type: "mrkdwn", text: `${text} ${edit}` } }] };
 }
 
 /** The half and prickle a Submit button press is about, or null if the action isn't one. */
