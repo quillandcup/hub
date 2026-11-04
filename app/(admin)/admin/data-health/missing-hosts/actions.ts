@@ -10,7 +10,7 @@ import { saveEventDecision } from "@/lib/prickle-event-decisions";
 
 const PAGE = "/admin/data-health/missing-hosts";
 
-export type UnhostedPrickle = { id: string; title: string | null; startTime: string; endTime: string; typeName: string };
+export type UnhostedPrickle = { id: string; title: string | null; /** The calendar entry's own title (what the host is matched against), when it has one. */ rawSummary: string | null; startTime: string; endTime: string; typeName: string };
 
 /** Flip whether a prickle type needs a host. */
 export async function setRequiresHost(typeId: string, requiresHost: boolean): Promise<{ error?: string }> {
@@ -62,8 +62,11 @@ export async function getUnhostedPrickles(typeId: string): Promise<{ error: stri
   if (!auth.ok) return { error: auth.error };
 
   try {
-    const found = await createRepos(auth.supabase).prickles.hostlessCalendarOfType(typeId, UNHOSTED_LIST_LIMIT);
-    return { prickles: found.map((p) => ({ id: p.id, title: p.title, startTime: p.startTime, endTime: p.endTime, typeName: p.type?.name ?? "Prickle" })) };
+    const repos = createRepos(auth.supabase);
+    const found = await repos.prickles.hostlessCalendarOfType(typeId, UNHOSTED_LIST_LIMIT);
+    const events = await repos.calendarEvents.byIds(found.map((p) => p.calendarEventId).filter((id): id is string => !!id));
+    const summaryOf = new Map(events.map((e) => [e.id, e.summary?.trim() || null]));
+    return { prickles: found.map((p) => ({ id: p.id, title: p.title, rawSummary: (p.calendarEventId && summaryOf.get(p.calendarEventId)) || null, startTime: p.startTime, endTime: p.endTime, typeName: p.type?.name ?? "Prickle" })) };
   } catch (err) {
     console.error("Error loading unhosted prickles:", err);
     return { error: (err as Error).message };

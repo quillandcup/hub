@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
-import { loadMissingHosts } from "@/lib/missing-hosts";
+import { groupByCalendarEntry, loadMissingHosts } from "@/lib/missing-hosts";
 
 const type = (id: string, name: string, requiresHost: boolean, defaultHostId: string | null = null) => ({
   id, name, normalizedName: name.toLowerCase(), purpose: "writing", requiresHost, soloTaskFriendly: false, listedInEvents: false, announcedPublicly: false, guestsAllowed: false, defaultHostId,
@@ -69,5 +69,38 @@ describe("loadMissingHosts", () => {
     const { stats } = await loadMissingHosts(withDisplayHost);
 
     expect(stats[0]).toMatchObject({ defaultHostName: "Fernie" });
+  });
+});
+
+describe("groupByCalendarEntry", () => {
+  const detail = (id: string, calendarEventId: string | null, startTime: string, typeName = "Sprint", normalizedName = typeName.toLowerCase()) =>
+    ({
+      id, typeId: "t1", hostId: null, title: null, source: "calendar", calendarEventId, startTime, endTime: startTime,
+      type: { ...type("t1", typeName, true), normalizedName }, host: null,
+    }) as unknown as Parameters<typeof groupByCalendarEntry>[0][number];
+  const event = (id: string, summary: string | null, creator = "Ada Example", description: string | null = null) => ({ id, summary, description, creator_name: creator });
+
+  it("groups prickles by the calendar entry's title, ignoring case and spacing, and counts them", () => {
+    const groups = groupByCalendarEntry(
+      [detail("p3", "e3", "2026-11-03T23:00:00Z"), detail("p2", "e2", "2026-10-27T23:00:00Z"), detail("p1", "e1", "2026-10-20T23:00:00Z")],
+      [event("e1", "Prickle w/AJ", "Ada Example", "Hosted by AJ"), event("e2", " prickle w/aj "), event("e3", "Prickle w/AJ", "Fern Example")],
+    );
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({ summary: "Prickle w/AJ", count: 3, newestStart: "2026-11-03T23:00:00Z", oldestStart: "2026-10-20T23:00:00Z", creators: ["Ada Example", "Fern Example"] });
+    expect(groups[0].prickles.map((p) => p.id)).toEqual(["p3", "p2", "p1"]);
+  });
+
+  it("lists the biggest groups first, caps the links, keeps prickles without an entry and skips events", () => {
+    const many = Array.from({ length: 7 }, (_, i) => detail(`m${i}`, "e1", `2026-10-${20 + i}T23:00:00Z`));
+    const groups = groupByCalendarEntry(
+      [detail("x", "e2", "2026-10-01T00:00:00Z", "Chat"), detail("y", "e3", "2026-10-01T00:00:00Z", "Event"), detail("z", null, "2026-10-01T00:00:00Z"), ...many],
+      [event("e1", "Sprint with Ada"), event("e2", "Chat time"), event("e3", "Party")],
+    );
+
+    expect(groups.map((g) => g.summary)).toEqual(["Sprint with Ada", "", "Chat time"]);
+    expect(groups[0].count).toBe(7);
+    expect(groups[0].prickles).toHaveLength(5);
+    expect(groups.some((g) => g.summary === "Party")).toBe(false);
   });
 });

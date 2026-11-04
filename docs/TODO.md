@@ -1569,6 +1569,9 @@ A book now carries its editions in `member_books.editions` (one per format, each
 ### The storefront book import adds one edition per book
 `scripts/import-storefront-books.ts` takes one format, link and price per spec entry and skips a title already on the member's shelf, so an ebook for a book the member already has in print is skipped, not added as a second edition. Make the spec take an `editions` list, and add a missing edition to a book already on the shelf (`BookRepository.update` with the merged editions).
 
+### Link the holder's name in the "already an alias" error
+Adding an alias that another member holds says `"AJ" is already an alias for <name>. Move it from there first.` (`lib/name-alias-conflict.ts`) as plain text, so the admin has to search for the holder. Deferred as a nit: the message is a string the identity page shows as is. Return the holder's id with the conflict and render the name as a link to `/admin/members/<id>` where the message is shown.
+
 ## Internationalization
 
 ### Secondary Time Zone: Remaining Displays

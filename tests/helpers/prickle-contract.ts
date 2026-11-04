@@ -648,5 +648,23 @@ export function definePrickleContract(name: string, setup: () => PrickleContract
       expect(listed.indexOf(newest)).toBeLessThan(listed.indexOf(oldest));
       expect((await ctx.repo().hostlessCalendarOfType(ctx.types[0].id, 1)).map((p) => p.id)).toHaveLength(1);
     });
+
+    it("lists every typed calendar prickle with no host, newest first", async () => {
+      const [older, withHost, newer, noType, otherSource] = await ctx.seed([
+        { type: 0, start: at(160) },
+        { type: 0, host: 0, start: at(161) },
+        { type: 1, start: at(162) },
+        { start: at(163) },
+        { type: 0, start: at(164), source: "sheets" },
+      ]);
+
+      const listed = (await ctx.repo().hostlessCalendar()).map((p) => p.id);
+
+      expect(listed).toEqual(expect.arrayContaining([older, newer]));
+      expect(listed).not.toContain(withHost);
+      expect(listed).not.toContain(noType);
+      expect(listed).not.toContain(otherSource);
+      expect(listed.indexOf(newer)).toBeLessThan(listed.indexOf(older));
+    });
   });
 }

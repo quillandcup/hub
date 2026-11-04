@@ -46,10 +46,19 @@ describe("missing hosts actions", () => {
 
     expect(result).toEqual({
       prickles: [
-        { id: "p2", title: null, startTime: "2026-10-08T15:00:00Z", endTime: "2026-10-08T15:00:00Z", typeName: "Sprint" },
-        { id: "p1", title: null, startTime: "2026-10-01T15:00:00Z", endTime: "2026-10-01T15:00:00Z", typeName: "Sprint" },
+        { id: "p2", title: null, rawSummary: null, startTime: "2026-10-08T15:00:00Z", endTime: "2026-10-08T15:00:00Z", typeName: "Sprint" },
+        { id: "p1", title: null, rawSummary: null, startTime: "2026-10-01T15:00:00Z", endTime: "2026-10-01T15:00:00Z", typeName: "Sprint" },
       ],
     });
+  });
+
+  it("shows the calendar entry's own title beside each unhosted prickle", async () => {
+    dataset.prickles.find((p) => p.id === "p1")!.calendarEventId = "cal_1";
+    dataset.calendarEvents.push({ id: "cal_1", summary: " Prickle w/AJ ", google_event_id: "g1", start_time: "2026-10-01T15:00:00Z", end_time: "2026-10-01T16:00:00Z", raw_data: {} } as (typeof dataset.calendarEvents)[number]);
+
+    const result = await getUnhostedPrickles(SPRINT.id);
+
+    expect(result).toMatchObject({ prickles: [{ id: "p2", rawSummary: null }, { id: "p1", rawSummary: "Prickle w/AJ" }] });
   });
 
   it("refuses non-admins", async () => {
