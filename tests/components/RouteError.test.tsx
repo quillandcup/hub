@@ -38,6 +38,22 @@ describe("RouteError", () => {
     expect(body).toEqual({ path: window.location.pathname, message: "Error: client boom" });
   });
 
+  it.each(["Error in input stream", "Load failed", "Failed to fetch"])(
+    "keeps a cut-off request (%s) in Sentry but doesn't alert the channel",
+    (message) => {
+      const error = new TypeError(message);
+      render(<RouteError error={error} retry={() => {}} />);
+      expect(captureException).toHaveBeenCalledWith(error);
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    }
+  );
+
+  it("still alerts on a TypeError that is a real bug", () => {
+    render(<RouteError error={new TypeError("Cannot read properties of undefined")} retry={() => {}} />);
+    expect(fetchMock).toHaveBeenCalledWith("/api/client-errors", expect.objectContaining({ method: "POST" }));
+  });
+
   it("still shows the page when the report can't be sent", () => {
     fetchMock.mockRejectedValueOnce(new Error("offline"));
     render(<RouteError error={new Error("client boom")} retry={() => {}} />);

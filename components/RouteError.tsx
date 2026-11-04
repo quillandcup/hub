@@ -9,10 +9,20 @@ import { SUPPORT_EMAIL } from "@/lib/config";
  * `digest` (the real error is in the Vercel logs under that digest and in Sentry as the `digest` tag, see lib/request-error.ts), so it
  * is shown for staff to quote; an error raised in the browser has none and is reported from here.
  */
+/**
+ * The browser's own words for a request that was cut off (flaky connection, tab put to sleep, navigating away mid-load):
+ * Safari says "Error in input stream" or "Load failed", Chrome "Failed to fetch", Firefox "NetworkError...". Not a bug in
+ * the page, so it still goes to Sentry but doesn't page #hub-alerts.
+ */
+export function isTransientNetworkError(error: Error): boolean {
+  return error.name === "TypeError" && /^(Error in input stream|Load failed|Failed to fetch|NetworkError)/i.test(error.message);
+}
+
 export default function RouteError({ error, retry }: { error: Error & { digest?: string }; retry: () => void }) {
   useEffect(() => {
     if (error.digest) return;
     Sentry.captureException(error);
+    if (isTransientNetworkError(error)) return;
     // Nobody watches Sentry: tell #hub-alerts through the app (a server error is alerted from the server).
     fetch("/api/client-errors", {
       method: "POST",
