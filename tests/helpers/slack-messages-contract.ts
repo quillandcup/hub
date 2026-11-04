@@ -235,6 +235,18 @@ export function defineSlackMessageContract(name: string, setup: () => SlackMessa
       expect(Object.keys(rows[0]).sort()).toEqual(["channel_id", "message_ts", "occurred_at", "thread_ts"]);
     });
 
+    it("lists only one channel's live messages when asked for one", async () => {
+      const [channel, other, user] = [ctx.unique("c"), ctx.unique("o"), ctx.unique("u")];
+      const mine = message(channel, user, 45);
+      const theirs = message(other, user, 45);
+      await ctx.seed({ messages: [mine, theirs] });
+
+      const rows = await ctx.repo().storedMessagesBetween(DAY(45), DAY(45), channel);
+
+      expect(rows.map((r) => [r.channel_id, r.message_ts])).toEqual([[channel, mine.message_ts]]);
+      expect((await ctx.repo().storedMessagesBetween(DAY(45), DAY(45))).filter((r) => [channel, other].includes(r.channel_id))).toHaveLength(2);
+    });
+
     it("lists the live reactions on some messages of a channel, in chunks", async () => {
       const [channel, other, user] = [ctx.unique("c"), ctx.unique("o"), ctx.unique("u")];
       const onTarget = Array.from({ length: 130 }, () => reaction(channel, user, 44, { reaction: "tada" }));

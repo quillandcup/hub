@@ -10,13 +10,14 @@ const m = vi.hoisted(() => ({
   list: vi.fn(),
   history: vi.fn(),
   open: vi.fn(),
+  replies: vi.fn(),
   rpc: vi.fn(),
   dataset: null as unknown,
 }));
 
 vi.mock("@slack/web-api", () => ({
   WebClient: class {
-    conversations = { list: m.list, history: m.history, open: m.open };
+    conversations = { list: m.list, history: m.history, open: m.open, replies: m.replies };
   },
 }));
 vi.mock("@/lib/chat/slack-post", () => ({ chatSlackWritesEnabled: () => m.writes }));
@@ -51,6 +52,7 @@ beforeEach(() => {
   m.dataset = new InMemoryDataset({ chatSlackAuthors: [{ slack_user_id: "UGALE", member_id: GALE }] });
   m.list.mockReset().mockResolvedValue({ channels: [{ id: "D1", user: "UGALE", created: 1_700_000_000 }] });
   m.history.mockReset().mockResolvedValue({ messages: [], has_more: false });
+  m.replies.mockReset().mockResolvedValue({ messages: [], has_more: false });
   m.open.mockReset().mockResolvedValue({ ok: true, channel: { id: "D1" } });
   m.rpc.mockReset().mockImplementation(async (name: string) => {
     if (name === "chat_claim_slack_dm_pull") return { data: m.claimed, error: null };
@@ -85,7 +87,7 @@ describe("pullMemberDms", () => {
     ]);
     // Into the chat: the conversation with both people, then each message oldest first.
     expect(rpcCalls("project_slack_dm")[0][1]).toEqual({ p_channel_id: "D1", p_members: { USELF: MEMBER, UGALE: GALE } });
-    expect(rpcCalls("project_slack_chat_message").map(([, args]) => args.p_message_ts)).toEqual([
+    expect(rpcCalls("project_slack_chat_message").map(([, args]) => args.p_message_ts).sort()).toEqual([
       "1762170000.000100",
       "1762170000.000200",
       "1762170000.000300",
@@ -170,6 +172,99 @@ describe("pullMemberDms", () => {
   });
 });
 
+describe("what a pull keeps up with: replies, reactions, edits and deletions", () => {
+  useFakeClock(() => Date.parse("2026-11-03T12:00:00Z"));
+  const NOW_S = Math.floor(Date.parse("2026-11-03T12:00:00Z") / 1000);
+  const ts = (secondsAgo: number, micro = "000100") => `${NOW_S - secondsAgo}.${micro}`;
+  const stored = (message_ts: string, extra: Record<string, unknown> = {}) =>
+    ({ channel_id: "D1", message_ts, user_id: "UGALE", text: "old text", message_type: "message", occurred_at: new Date(Number(message_ts.split(".")[0]) * 1000).toISOString(), channel_type: "im", raw_payload: {}, imported_at: "2026-11-03T00:00:00Z", ...extra }) as never;
+  const ds = () => m.dataset as InstanceType<typeof InMemoryDataset>;
+
+  it("stores every message and reply as a DM (so the activity rebuild keeps their text out)", async () => {
+    const root = ts(3600);
+    m.history.mockResolvedValue({ messages: [{ ts: root, user: "UGALE", text: "root", thread_ts: root, reply_count: 2 }], has_more: false });
+    m.replies.mockResolvedValue({ messages: [{ ts: root, user: "UGALE", text: "root", thread_ts: root }, { ts: ts(3000), user: "USELF", text: "r1", thread_ts: root }, { ts: ts(2000), user: "UGALE", text: "r2", thread_ts: root }], has_more: false });
+    await pullMemberDms(service, MEMBER);
+    expect(ds().slackMessages.map((r) => r.channel_type)).toEqual(["im", "im", "im"]);
+    expect(m.replies).toHaveBeenCalledWith(expect.objectContaining({ channel: "D1", ts: root }));
+    expect(rpcCalls("project_slack_chat_message")).toHaveLength(3);
+  });
+
+  it("fetches a thread's replies only when Slack has more than the Hub", async () => {
+    const root = ts(3600);
+    ds().slackMessages.push(stored(root, { thread_ts: root }), stored(ts(3000), { thread_ts: root }));
+    m.history.mockResolvedValue({ messages: [{ ts: root, user: "UGALE", text: "root", thread_ts: root, reply_count: 1 }], has_more: false });
+    await pullMemberDms(service, MEMBER);
+    expect(m.replies).not.toHaveBeenCalled();
+    m.history.mockResolvedValue({ messages: [{ ts: root, user: "UGALE", text: "root", thread_ts: root, reply_count: 2 }], has_more: false });
+    await pullMemberDms(service, MEMBER, { force: true });
+    expect(m.replies).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps reactions, and takes back one Slack no longer lists", async () => {
+    const t = ts(3600);
+    ds().slackMessages.push(stored(t));
+    ds().slackReactions.push({ channel_id: "D1", message_ts: t, user_id: "USELF", reaction: "tada", occurred_at: "2026-11-03T10:30:00Z", deleted_at: null, raw_payload: {} } as never);
+    m.history.mockResolvedValue({ messages: [{ ts: t, user: "UGALE", text: "hi", reactions: [{ name: "heart", users: ["UGALE", "USELF"], count: 2 }] }], has_more: false });
+    await pullMemberDms(service, MEMBER);
+    const live = ds().slackReactions.filter((r) => !r.deleted_at).map((r) => `${r.reaction}:${r.user_id}`).sort();
+    expect(live).toEqual(["heart:UGALE", "heart:USELF"]);
+    expect(ds().slackReactions.find((r) => r.reaction === "tada")?.deleted_at).toEqual(expect.any(String));
+  });
+
+  it("updates an edited message", async () => {
+    const t = ts(3600);
+    ds().slackMessages.push(stored(t));
+    m.history.mockResolvedValue({ messages: [{ ts: t, user: "UGALE", text: "new text", edited: { user: "UGALE", ts: String(NOW_S - 60) } }], has_more: false });
+    await pullMemberDms(service, MEMBER);
+    expect(ds().slackMessages.find((r) => r.message_ts === t)).toMatchObject({ text: "new text", edited_at: expect.any(String) });
+  });
+
+  it("re-reads a day back when opened and a week back for the nightly run, never earlier than the newest message", async () => {
+    ds().chatMessages.push({ id: "msg_AAAAAAAAAAD1", channel_id: CHAT, slack_ts: ts(3600), created_at: "2026-11-03T11:00:00Z" } as never);
+    await pullMemberDms(service, MEMBER);
+    expect(m.history).toHaveBeenLastCalledWith(expect.objectContaining({ oldest: String(NOW_S - 86400) }));
+    await pullMemberDms(service, MEMBER, { force: true, lookbackDays: 7 });
+    expect(m.history).toHaveBeenLastCalledWith(expect.objectContaining({ oldest: String(NOW_S - 7 * 86400) }));
+    // A newest message older than the lookback is the bound, as Slack wrote it.
+    ds().chatMessages.push({ id: "msg_AAAAAAAAAAD2", channel_id: CHAT, slack_ts: "1762170000.000200", created_at: "2026-11-03T11:30:00Z" } as never);
+    ds().chatMessages.splice(0, 1);
+    await pullMemberDms(service, MEMBER, { force: true });
+    expect(m.history).toHaveBeenLastCalledWith(expect.objectContaining({ oldest: "1762170000.000200" }));
+  });
+
+  describe("deleted messages", () => {
+    const seed = () => {
+      ds().chatMessages.push({ id: "msg_AAAAAAAAAAD1", channel_id: CHAT, slack_ts: ts(600), created_at: "2026-11-03T11:50:00Z" } as never);
+      ds().slackMessages.push(stored(ts(7200, "000100")), stored(ts(7000, "000200")));
+    };
+
+    it("marks a message in the window that Slack no longer returns as deleted, and updates the chat", async () => {
+      seed();
+      m.history.mockResolvedValue({ messages: [{ ts: ts(7200, "000100"), user: "UGALE", text: "still here" }], has_more: false });
+      await pullMemberDms(service, MEMBER);
+      expect(ds().slackMessages.find((r) => r.message_ts === ts(7000, "000200"))?.deleted_at).toEqual(expect.any(String));
+      expect(ds().slackMessages.find((r) => r.message_ts === ts(7200, "000100"))?.deleted_at ?? null).toBeNull();
+      expect(rpcCalls("project_slack_chat_message").map(([, a]) => a.p_message_ts)).toContain(ts(7000, "000200"));
+    });
+
+    it("judges nothing when the window wasn't fetched completely", async () => {
+      seed();
+      m.history.mockResolvedValue({ messages: [], has_more: true, response_metadata: { next_cursor: "more" } });
+      await pullMemberDms(service, MEMBER);
+      expect(ds().slackMessages.filter((r) => r.deleted_at)).toHaveLength(0);
+    });
+
+    it("believes a sudden mass disappearance no more than the import does", async () => {
+      ds().chatMessages.push({ id: "msg_AAAAAAAAAAD1", channel_id: CHAT, slack_ts: ts(600), created_at: "2026-11-03T11:50:00Z" } as never);
+      for (let i = 0; i < 12; i++) ds().slackMessages.push(stored(ts(7200 - i, "000100")));
+      m.history.mockResolvedValue({ messages: [], has_more: false });
+      await pullMemberDms(service, MEMBER);
+      expect(ds().slackMessages.filter((r) => r.deleted_at)).toHaveLength(0);
+    });
+  });
+});
+
 describe("openSlackDm", () => {
   useFakeClock(() => Date.parse("2026-11-03T12:00:00Z"));
 
@@ -231,7 +326,8 @@ describe("pullDmsForCoveredMembers", () => {
     m.history.mockResolvedValue({ messages: [{ ts: "1762170000.000100", user: "UX", text: "hi" }], has_more: false });
     const result = await pullDmsForCoveredMembers(service, { deadline: later() });
     // The member without every scope and the revoked connection are left out; the other two are pulled (each with a token mock).
-    expect(result).toEqual({ members: 2, conversations: 2, messages: 2, deferred: 0, errors: [] });
+    // Both pull the same Slack channel, so its one message is stored once.
+    expect(result).toEqual({ members: 2, conversations: 2, messages: 1, deferred: 0, errors: [] });
     expect(rpcCalls("chat_claim_slack_dm_pull").map(([, args]) => args.p_min_seconds)).toEqual([0, 0]);
   });
 

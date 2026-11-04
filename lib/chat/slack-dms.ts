@@ -3,7 +3,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createRepos } from "@/lib/data/repos";
 import { chatSlackWritesEnabled } from "@/lib/chat/slack-post";
 import { getSlackConnectionStatus, getSlackUserToken, isDeadTokenError, SLACK_DM_SCOPES } from "@/lib/slack-connect";
-import { isKeptSlackMessage, slackMessageText, slackMessageUserId, slackTsToIso } from "@/lib/slack-messages";
+import { fetchThread, storedReplyCounts, storeAndProject } from "@/lib/chat/gap-fill";
+import { projectChatMessage } from "@/lib/chat-projection";
+import { deletionInferenceWindow, isSuspiciousDeletionCount, messagesMissingFromSlack, slackThreadKey } from "@/lib/slack-deletions";
 import { clock } from "@/lib/clock";
 import { membersWithFeatureForOutreach } from "@/lib/features.server";
 
@@ -23,9 +25,11 @@ const FIRST_PULL_DAYS = 90;
 const PAGE_SIZE = 200;
 /** Pages of history per DM per pull: 2,000 messages. A busier DM catches up over the next pulls (oldest first). */
 const MAX_PAGES = 10;
-/** Messages projected into the chat at once, and in total per pull; the full projection (/api/process/chat) covers the rest. */
-const PROJECT_CONCURRENCY = 5;
-const MAX_PROJECTED = 500;
+/** Threads whose replies are fetched per DM per pull; the next pull continues. */
+const MAX_THREADS = 30;
+/** How far back a pull re-reads a DM besides what is new (reactions, edits, replies, deletions): when a member opens chat, and for the nightly run. */
+const OPEN_LOOKBACK_DAYS = 1;
+const NIGHTLY_LOOKBACK_DAYS = 7;
 
 export interface DmPullResult {
   conversations: number;
@@ -36,6 +40,8 @@ export interface DmPullResult {
 
 const errorCode = (error: unknown): string | undefined => (error as { data?: { error?: string } } | null)?.data?.error;
 const isRateLimited = (error: unknown): boolean => (error as { code?: string } | null)?.code === "slack_webapi_rate_limited_error";
+
+type SlackMessage = Record<string, any>;
 
 interface SlackIm {
   id: string;
@@ -52,7 +58,7 @@ interface SlackIm {
  * (the next one retries); one DM failing is logged and the others go on. `force` skips the interval (a live event
  * named a DM the chat hasn't seen).
  */
-export async function pullMemberDms(service: SupabaseClient, memberId: string, opts: { force?: boolean } = {}): Promise<DmPullResult | null> {
+export async function pullMemberDms(service: SupabaseClient, memberId: string, opts: { force?: boolean; lookbackDays?: number } = {}): Promise<DmPullResult | null> {
   if (!chatSlackWritesEnabled()) return null;
   const status = await getSlackConnectionStatus(service, memberId);
   if (!status.connected || !status.hasDmScopes || !status.slackUserId) return null;
@@ -78,7 +84,7 @@ export async function pullMemberDms(service: SupabaseClient, memberId: string, o
       // Slackbot's "DM" is Slack's own, and a deactivated person's can't change.
       if (!im.user || im.user === "USLACKBOT" || im.is_user_deleted) continue;
       try {
-        result.messages += (await pullOneDm(service, repos, slack, { memberId, selfSlackId: connection.slackUserId, im })).fetched;
+        result.messages += (await pullOneDm(service, repos, slack, { memberId, selfSlackId: connection.slackUserId, im, lookbackSeconds: (opts.lookbackDays ?? OPEN_LOOKBACK_DAYS) * 86400 })).fetched;
         result.conversations += 1;
       } catch (error) {
         if (isDeadTokenError(error) || isRateLimited(error) || errorCode(error) === "missing_scope") throw error;
@@ -103,7 +109,7 @@ async function pullOneDm(
   service: SupabaseClient,
   repos: ReturnType<typeof createRepos>,
   slack: WebClient,
-  opts: { memberId: string; selfSlackId: string; im: SlackIm }
+  opts: { memberId: string; selfSlackId: string; im: SlackIm; lookbackSeconds: number }
 ): Promise<{ chatChannelId: string | null; fetched: number }> {
   const { memberId, selfSlackId, im } = opts;
   const otherSlackId = im.user as string;
@@ -137,45 +143,61 @@ async function pullOneDm(
   const chatChannelId = (projected as { channel?: string | null } | null)?.channel;
   if (!chatChannelId) return { chatChannelId: null, fetched: 0 };
 
-  // Everything newer than what the chat already has; the first pull goes back as far as Slack serves.
+  // From the newest message the chat has, or `lookbackSeconds` back if that is further (an older message can gain
+  // a reaction, an edit or a reply, or be deleted); the first pull goes back as far as Slack serves.
+  const nowSeconds = Math.floor(clock.now() / 1000);
   const newest = await repos.chat.newestSlackTs(chatChannelId, now).catch(() => null);
-  const oldest = newest ?? String(Math.floor(clock.now() / 1000) - FIRST_PULL_DAYS * 86400);
-  const fresh: { ts: string }[] = [];
+  const lookbackFloor = nowSeconds - opts.lookbackSeconds;
+  // The newest message's own ts when it is the older bound (kept as Slack wrote it: a float would round its microseconds).
+  const oldest = newest ? (Number(newest) <= lookbackFloor ? newest : String(lookbackFloor)) : String(nowSeconds - FIRST_PULL_DAYS * 86400);
+  const oldestSeconds = Number(oldest);
+  const topLevel: SlackMessage[] = [];
   let cursor: string | undefined;
+  let complete = false;
   for (let page = 0; page < MAX_PAGES; page++) {
     const history = await slack.conversations.history({ channel: im.id, oldest, limit: PAGE_SIZE, cursor, inclusive: false });
-    const messages = ((history.messages ?? []) as Record<string, any>[]).filter((m) => typeof m.ts === "string" && isKeptSlackMessage(m));
-    await repos.slackMessages.upsertMessages(
-      messages.map((m) => ({
-        channel_id: im.id,
-        message_ts: m.ts,
-        user_id: slackMessageUserId(m),
-        text: slackMessageText(m),
-        message_type: m.subtype || "message",
-        thread_ts: m.thread_ts || null,
-        occurred_at: slackTsToIso(m.ts),
-        files: m.files ?? null,
-        has_files: Array.isArray(m.files) && m.files.length > 0,
-        channel_type: "im",
-        raw_payload: m as never,
-      }))
-    );
-    fresh.push(...messages.map((m) => ({ ts: m.ts as string })));
+    topLevel.push(...((history.messages ?? []) as SlackMessage[]).filter((m) => typeof m.ts === "string"));
     cursor = history.response_metadata?.next_cursor || undefined;
-    if (!history.has_more || !cursor) break;
+    if (!history.has_more || !cursor) {
+      complete = true;
+      break;
+    }
   }
 
-  // Into the chat, oldest first so a thread's root is there before its replies.
-  const toProject = fresh.sort((a, b) => Number(a.ts) - Number(b.ts)).slice(0, MAX_PROJECTED);
-  const queue = [...toProject];
-  const worker = async () => {
-    for (let item = queue.shift(); item; item = queue.shift()) {
-      const { error: projectError } = await service.rpc("project_slack_chat_message", { p_channel_id: im.id, p_message_ts: item.ts });
-      if (projectError) console.error("project_slack_chat_message failed for a DM message:", projectError.message);
+  // Replies of the threads Slack has more of than we do (history returns only each thread's first message).
+  const roots = topLevel.filter((m) => (m.reply_count ?? 0) > 0);
+  const storedReplies = await storedReplyCounts(service, im.id, roots.map((m) => m.ts as string));
+  const behind = roots.filter((m) => (storedReplies.get(m.ts as string) ?? 0) < (m.reply_count ?? 0)).slice(0, MAX_THREADS);
+  const replies: SlackMessage[] = [];
+  const repliesByThread = new Map<string, Set<string>>();
+  for (const root of behind) {
+    const thread = await fetchThread(slack, im.id, root.ts as string);
+    const others = thread.filter((m) => m.ts !== root.ts);
+    replies.push(...others);
+    repliesByThread.set(slackThreadKey(im.id, root.ts as string), new Set(others.map((m) => m.ts as string)));
+  }
+
+  // Bronze (messages, reactions, taken-back reactions), then the chat, exactly as a channel's gap-fill does.
+  const stored = await storeAndProject(service, im.id, { name: "", type: "im" }, [...topLevel, ...replies]);
+
+  // A message in the window that Slack no longer returns was deleted there: only where the whole window was
+  // fetched, and by the import's rules (never because it aged out of Slack's history; not a sudden mass disappearance).
+  const window = complete ? deletionInferenceWindow(oldestSeconds, nowSeconds, clock.now()) : null;
+  if (window) {
+    const inWindow = await repos.slackMessages.storedMessagesBetween(window.from, window.to, im.id);
+    const seen = { topLevelByChannel: new Map([[im.id, new Set(topLevel.map((m) => m.ts as string))]]), repliesByThread };
+    const nothingSeen = {
+      topLevelByChannel: new Map([[im.id, new Set<string>()]]),
+      repliesByThread: new Map([...repliesByThread.keys()].map((key) => [key, new Set<string>()])),
+    };
+    const judged = messagesMissingFromSlack(inWindow, nothingSeen, window).length;
+    const missing = messagesMissingFromSlack(inWindow, seen, window);
+    if (missing.length > 0 && !isSuspiciousDeletionCount(missing.length, judged)) {
+      await repos.slackMessages.markMessagesDeleted(im.id, missing.map((m) => m.message_ts), now);
+      await Promise.all(missing.map((m) => projectChatMessage(service, im.id, m.message_ts)));
     }
-  };
-  await Promise.all(Array.from({ length: Math.min(PROJECT_CONCURRENCY, queue.length) }, worker));
-  return { chatChannelId, fetched: fresh.length };
+  }
+  return { chatChannelId, fetched: stored.messages };
 }
 
 export type OpenDmResult =
@@ -205,7 +227,7 @@ export async function openSlackDm(service: SupabaseClient, memberId: string, oth
     const opened = await slack.conversations.open({ users: otherSlackId, return_im: true });
     const im = opened.channel as SlackIm | undefined;
     if (!im?.id) return { ok: false, reason: "slack_refused" };
-    const { chatChannelId } = await pullOneDm(service, repos, slack, { memberId, selfSlackId: connection.slackUserId, im: { ...im, user: otherSlackId } });
+    const { chatChannelId } = await pullOneDm(service, repos, slack, { memberId, selfSlackId: connection.slackUserId, im: { ...im, user: otherSlackId }, lookbackSeconds: OPEN_LOOKBACK_DAYS * 86400 });
     return chatChannelId ? { ok: true, channelId: chatChannelId } : { ok: false, reason: "slack_refused" };
   } catch (error) {
     if (isDeadTokenError(error)) {
@@ -244,7 +266,7 @@ export async function pullDmsForCoveredMembers(service: SupabaseClient, opts: { 
       break;
     }
     try {
-      const pulled = await pullMemberDms(service, memberId, { force: true });
+      const pulled = await pullMemberDms(service, memberId, { force: true, lookbackDays: NIGHTLY_LOOKBACK_DAYS });
       if (!pulled) continue;
       result.conversations += pulled.conversations;
       result.messages += pulled.messages;
