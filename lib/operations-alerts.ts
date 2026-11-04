@@ -28,6 +28,8 @@ export interface PlaybackFailure {
   restricted?: boolean;
   status?: number;
   detail?: string;
+  /** Mux Data was monitoring this view, so its Errors page has the failure too. */
+  muxData?: boolean;
 }
 
 const MEDIA_ERROR_NAMES: Record<number, string> = { 0: "unknown", 1: "aborted", 2: "network", 3: "decode", 4: "source not supported", 5: "encrypted" };
@@ -86,7 +88,7 @@ function alertDetails(alert: OperationsAlert): { bucket: string; title: string; 
       webhook_upload: "Mux told us an upload finished, but the Hub could not record it, so that video will stay in preparing. Mux retries for a while; if it keeps failing, check the Vercel logs for \"Failed to record Mux upload\".",
       webhook_asset: "Mux told us a video is ready (or failed), but the Hub could not record it, so a lesson may keep saying the video is being prepared. Mux retries for a while; if it keeps failing, check the Vercel logs for \"Failed to record Mux asset update\".",
       asset_errored: "Mux could not prepare a course video (asset errored). The lesson tells members \"We've been told\"; re-upload the video, or look at the asset in the Mux dashboard.",
-      playback: `A course video failed to play in a member's browser${alert.route ? ` on ${alert.route}` : ""}${alert.playback ? `: ${playbackSummary(alert.playback)}` : ""}. An expired link is retried once before this alert, so this failed with a fresh link or could not be retried. Try the lesson yourself.`,
+      playback: `A course video failed to play in a member's browser${alert.route ? ` on ${alert.route}` : ""}${alert.playback ? `: ${playbackSummary(alert.playback)}` : ""}. An expired link is retried once before this alert, so this failed with a fresh link or could not be retried.${alert.playback?.muxData ? " This view was measured: see <https://dashboard.mux.com|Mux Data> (Errors) for what the player saw." : ""} Try the lesson yourself.`,
     }[alert.what];
     return {
       bucket: `operations_alert:video_failed:${alert.what}${alert.route ? `:${alert.route}` : ""}`,

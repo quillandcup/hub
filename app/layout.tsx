@@ -18,6 +18,7 @@ import { isAnalyticsOptedOut } from "@/lib/analytics/opt-out";
 import { initialUserIdCommand } from "@/lib/analytics-identity";
 import { analyticsUserId } from "@/lib/analytics-user";
 import { countryNeedsConsent } from "@/lib/gdpr-countries";
+import { eventsNeedConsent as eventsNeedConsentFor } from "@/lib/analytics/consent";
 import { DEFAULT_TITLE, TITLE_TEMPLATE } from "@/lib/page-title";
 import appConfig from "@/app.config";
 import { APP_URL } from "@/lib/config";
@@ -75,7 +76,7 @@ export default async function RootLayout({
   // Usage events (lib/analytics) are for signed-in members and follow the same consent rule as GA.
   // Outside production there is no banner to ask with, so they are on for development.
   const signedIn = user !== null;
-  const eventsNeedConsent = needsConsent && process.env.NODE_ENV === "production";
+  const eventsNeedConsent = eventsNeedConsentFor(headersList.get("x-vercel-ip-country"));
 
   return (
     <html lang="en" className={displayFont.variable} suppressHydrationWarning>

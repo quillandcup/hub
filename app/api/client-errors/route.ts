@@ -23,6 +23,7 @@ function parsePlaybackFailure(value: unknown): PlaybackFailure | undefined {
     restricted: typeof v.restricted === "boolean" ? v.restricted : undefined,
     status: int(v.status, 100, 599),
     detail: typeof v.detail === "string" && /^[A-Za-z]{1,40}$/.test(v.detail) ? v.detail : undefined,
+    muxData: v.muxData === true ? true : undefined,
   };
 }
 

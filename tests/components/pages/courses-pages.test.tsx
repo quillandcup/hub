@@ -26,9 +26,11 @@ const signPlaybackTokens = vi.fn();
 vi.mock("@/lib/mux", () => ({ createMuxClient: () => ({}), signPlaybackTokens: (...a: unknown[]) => signPlaybackTokens(...a) }));
 const restrictionIdForViewer = vi.fn();
 vi.mock("@/lib/mux-restriction.server", () => ({ restrictionIdForViewer: (...a: unknown[]) => restrictionIdForViewer(...a) }));
+const muxDataConsentFor = vi.fn();
+vi.mock("@/lib/mux-data.server", () => ({ muxDataConsentFor: (...a: unknown[]) => muxDataConsentFor(...a) }));
 vi.mock("@/components/courses/LessonPlayer", () => ({
-  default: ({ playbackId, posterUrl, lessonId, resumeSeconds, trackProgress }: { playbackId: string; posterUrl?: string | null; lessonId?: string; resumeSeconds?: number; trackProgress?: boolean }) => (
-    <div data-testid="player" data-poster={posterUrl ?? ""} data-lesson={lessonId} data-resume={resumeSeconds} data-tracking={String(trackProgress)}>
+  default: ({ playbackId, posterUrl, lessonId, resumeSeconds, trackProgress, muxData }: { playbackId: string; posterUrl?: string | null; lessonId?: string; resumeSeconds?: number; trackProgress?: boolean; muxData?: unknown }) => (
+    <div data-testid="player" data-poster={posterUrl ?? ""} data-lesson={lessonId} data-resume={resumeSeconds} data-tracking={String(trackProgress)} data-mux-data={JSON.stringify(muxData ?? null)}>
       {playbackId}
     </div>
   ),
@@ -66,6 +68,8 @@ beforeEach(() => {
   signPlaybackTokens.mockReset();
   restrictionIdForViewer.mockReset();
   restrictionIdForViewer.mockResolvedValue(null);
+  muxDataConsentFor.mockReset();
+  muxDataConsentFor.mockResolvedValue(null);
   caller.identity.isSudo = false;
   caller.scope.isAdminActing = false;
 });
@@ -665,6 +669,19 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
 
     expect(restrictionIdForViewer).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ memberId: expect.any(String) }));
     expect(signPlaybackTokens).toHaveBeenCalledWith({}, "pb-1", undefined, "res-1");
+  });
+
+  it("gives the player Mux Data's consent facts only when the viewer has it on, asking for the effective viewer", async () => {
+    signPlaybackTokens.mockResolvedValue({ playback: "p", poster: "t", storyboard: "s" });
+    loadLessonView.mockResolvedValue(ok({ video: { status: "ready", playbackId: "pb-1" } }));
+    await renderServerPage(LessonPage, params());
+    expect(screen.getByTestId("player")).toHaveAttribute("data-mux-data", "null");
+    cleanup();
+
+    muxDataConsentFor.mockResolvedValue({ needsConsent: true, optedOut: false });
+    await renderServerPage(LessonPage, params());
+    expect(screen.getByTestId("player")).toHaveAttribute("data-mux-data", JSON.stringify({ needsConsent: true, optedOut: false }));
+    expect(muxDataConsentFor).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ memberId: expect.any(String) }));
   });
 
   it("gives the player the lesson's own thumbnail as its poster", async () => {

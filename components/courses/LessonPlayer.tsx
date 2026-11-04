@@ -6,6 +6,9 @@ import { VideoPlayer, VideoSkin } from "@videojs/react/video";
 import { MuxVideo } from "@videojs/react/media/mux-video";
 import "@videojs/react/video/skin.css";
 import { track } from "@/lib/analytics/client";
+import { MuxData } from "@videojs/react/extensions/mux-data";
+import { useEventsAllowed } from "@/lib/analytics/use-events-allowed";
+import { muxDataMetadata, type MuxDataConsent } from "@/lib/mux-data";
 import { courseImageUrl } from "@/lib/courses/image-urls";
 import { describePlaybackError, shouldRefreshToken, type PlaybackErrorInfo } from "@/lib/courses/playback-refresh";
 import { MAX_SEGMENTS_PER_BATCH, RESUME_MAX_FRACTION, type WatchSegmentInput } from "@/lib/courses/watch";
@@ -27,6 +30,7 @@ function PlaybackReporter({
   lessonId,
   playbackId,
   restricted,
+  muxDataOn,
   mintedAt,
   refreshTokens,
 }: {
@@ -34,6 +38,8 @@ function PlaybackReporter({
   lessonId?: string;
   playbackId: string;
   restricted?: boolean;
+  /** Mux Data is monitoring this view, so its errors page has the failure too (the alert says so). */
+  muxDataOn: boolean;
   /** When the page's links were minted (the page's own load time). */
   mintedAt: number;
   /** Fetches fresh links and loads them into the player; false when it couldn't. Without it there is no retry. */
@@ -42,8 +48,10 @@ function PlaybackReporter({
   const media = useMedia();
   // Read when reporting, not a reason to start over: loading fresh links changes it, and the retry state must survive that.
   const restrictedRef = useRef(restricted);
+  const muxDataRef = useRef(muxDataOn);
   useEffect(() => {
     restrictedRef.current = restricted;
+    muxDataRef.current = muxDataOn;
   });
   useEffect(() => {
     if (!media) return;
@@ -82,7 +90,7 @@ function PlaybackReporter({
           path: window.location.pathname,
           kind: "video",
           message: `Playback error, code ${code}`,
-          playback: { code, lessonId, playbackId, restricted, status, detail },
+          playback: { code, lessonId, playbackId, restricted, status, detail, ...(muxDataRef.current ? { muxData: true } : {}) },
         }),
         keepalive: true,
       }).catch(() => {});
@@ -132,7 +140,17 @@ function PlaybackReporter({
   return null;
 }
 
-const RATE_KEY = "course-player:playback-rate";
+/**
+ * Sends how the video plays (start time, buffering, errors) to Mux Data. That includes the viewer's IP address and
+ * browser, so the player renders this only where usage statistics are allowed (`muxDataOn` in LessonPlayer).
+ * Anonymous: no viewer id, no cookies. Renders nothing.
+ */
+function MuxDataMonitor({ title }: { title: string }) {
+  const metadata = useMemo(() => muxDataMetadata(title), [title]);
+  return <MuxData disableCookies metadata={metadata} playerSoftwareName="mux-video" />;
+}
+
+const RATE_KEY ="course-player:playback-rate";
 const CAPTIONS_KEY = "course-player:captions";
 
 // Restores the saved speed once, then saves every later change. (Stored per browser for now; per member is still to do.)
@@ -448,6 +466,7 @@ export default function LessonPlayer({
   playbackId,
   tokens: initialTokens,
   restricted,
+  muxData,
   posterUrl,
   lessonId,
   resumeSeconds = 0,
@@ -459,6 +478,8 @@ export default function LessonPlayer({
   tokens: PlaybackTokens;
   /** Whether the video token carries the referrer restriction (recorded with a playback error). */
   restricted?: boolean;
+  /** Present when Mux Data is on for this viewer (the `mux_data` flag); the player still waits for consent. Absent: no Mux Data. */
+  muxData?: MuxDataConsent | null;
   /** The lesson's thumbnail; only http(s) is used. */
   posterUrl?: string | null;
   lessonId?: string;
@@ -470,6 +491,10 @@ export default function LessonPlayer({
   onTime?: (seconds: number) => void;
 }) {
   const poster = courseImageUrl(posterUrl);
+  // Mux Data collects the viewer's IP address and browser, so it follows the usage-statistics consent (the banner's
+  // Accept where one is needed, never after "Leave me out of statistics"), the same rule as usage events.
+  const statsAllowed = useEventsAllowed(muxData?.needsConsent ?? true, muxData?.optedOut ?? true);
+  const muxDataOn = Boolean(muxData) && statsAllowed;
   const [tokens, setTokens] = useState(initialTokens);
   const [mintedAt] = useState(() => Date.now());
   const [isRestricted, setRestricted] = useState(restricted);
@@ -504,6 +529,7 @@ export default function LessonPlayer({
             lessonId={lessonId}
             playbackId={playbackId}
             restricted={isRestricted}
+            muxDataOn={muxDataOn}
             mintedAt={mintedAt}
             refreshTokens={refreshTokens}
           />
@@ -511,6 +537,7 @@ export default function LessonPlayer({
           {onTime && <ReportTime onTime={onTime} />}
           {trackProgress && lessonId && <WatchTracker lessonId={lessonId} />}
           <BigPlayButton />
+          {muxDataOn && <MuxDataMonitor title={title} />}
           <MuxVideo
             source={{
               playbackId,

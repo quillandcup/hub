@@ -180,6 +180,11 @@ export default async function PrivacyPage() {
               why="To pick up where you left off, and to learn which lessons work."
             />
             <CollectRow
+              what="How well course videos play"
+              detail="Only if usage statistics are on: how long a video took to start, buffering, errors and how long it played, with your IP address, browser and device, sent to our video provider's quality measurement. It carries no name, email or account id and sets no cookie."
+              why="To find and fix videos that stall or fail."
+            />
+            <CollectRow
               what="Notifications"
               detail="A record of each notification we send you, and whether you have read it in the Hub. Turning usage statistics off does not change that. If usage statistics are on, also which notification a visit came from."
               why="To send you what you ask for, and so the bell and banners stay right."
@@ -383,7 +388,7 @@ export default async function PrivacyPage() {
           <li>Our database provider, our sign-in and auth provider, and our hosting provider (which also counts visits and page speed).</li>
           <li>Our monitoring providers, for errors and performance.</li>
           <li>Our email provider, and your browser&apos;s push service if you turn on browser notifications.</li>
-          <li>Our video hosting provider, for course videos.</li>
+          <li>Our video hosting provider, for course videos, and, only if usage statistics are on, for measuring how well they play.</li>
           <li>Our payment and course providers (Stripe and Kajabi), for your membership and billing.</li>
           <li>Zoom, where live prickles happen, and how we know who joined and for how long.</li>
           <li>Slack, for chat and notifications.</li>
@@ -444,7 +449,7 @@ export default async function PrivacyPage() {
           type into search, forms or messages, and we take care that the button and link names it records are the app&apos;s own,
           such as &ldquo;Save&rdquo; or &ldquo;Log progress&rdquo;, not people&apos;s names or email addresses. If usage statistics are on, we also record a small share of visits as screen recordings, with text and form fields masked. Recordings made when something breaks are separate: they continue if you leave statistics off, because we can&apos;t fix a bug we can&apos;t see. Our host, Vercel,
           also counts visits and page speed in aggregate, as totals with no individual profile, and that count is not part of
-          this switch. We use Google Analytics only where you have allowed it. After {RETENTION.usageMonths} months the
+          this switch. We use Google Analytics only where you have allowed it. The same switch and banner decide whether our video provider measures how well course videos play on your device (start time, buffering, errors). After {RETENTION.usageMonths} months the
           individual records are removed and only anonymous totals remain (for example &ldquo;this page was opened 300 times in
           March&rdquo;), which is how we see trends over several years.
         </Detail>
