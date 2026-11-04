@@ -316,7 +316,10 @@ describe("Supabase Auth admin API", () => {
   it("is only used through AuthUserRepository", () => {
     const direct: string[] = [];
     for (const file of authFiles) {
-      const sf = ts.createSourceFile(file, fs.readFileSync(path.join(root, file), "utf8"), ts.ScriptTarget.Latest, true);
+      const source = fs.readFileSync(path.join(root, file), "utf8");
+      // Parsing every file is slow under coverage; only a file that can contain `.auth.admin` (even split over lines) is parsed.
+      if (!/\bauth\s*\.\s*admin\b/.test(source)) continue;
+      const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
       const visit = (node: ts.Node) => {
         if (ts.isPropertyAccessExpression(node) && node.name.text === "admin" && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "auth") {
           direct.push(file);
