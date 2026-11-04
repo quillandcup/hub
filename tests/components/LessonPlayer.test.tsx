@@ -702,10 +702,136 @@ describe("LessonPlayer reports what happened to the video", () => {
     render(<LessonPlayer title="T" playbackId="pb-1" tokens={tokens} />);
     fire(media, "error");
     fire(media, "error");
-    expect(track.mock.calls.filter(([name]) => name === "course_video_error")).toEqual([["course_video_error", { code: 4 }]]);
+    expect(track.mock.calls.filter(([name]) => name === "course_video_error")).toEqual([["course_video_error", { code: 4, playback_id: "pb-1" }]]);
     const alerts = fetchMock.mock.calls.filter(([url]) => url === "/api/client-errors");
     expect(alerts).toHaveLength(1);
-    expect(JSON.parse(alerts[0][1]!.body as string)).toEqual({ path: window.location.pathname, kind: "video", message: "Playback error, code 4" });
+    expect(JSON.parse(alerts[0][1]!.body as string)).toEqual({
+      path: window.location.pathname,
+      kind: "video",
+      message: "Playback error, code 4",
+      playback: { code: 4, playbackId: "pb-1" },
+    });
+  });
+
+  it("records what failed: the lesson, the playback id, the restriction, hls.js's detail and the HTTP status (never the token)", () => {
+    const error = { code: 4, context: "manifestLoadError", message: "https://stream.example/pb-1.m3u8?token=tok-play", data: { response: { code: 403 } } };
+    const media = Object.assign((player.media = fakeMedia()), { error });
+    render(<LessonPlayer title="T" playbackId="pb-1" tokens={tokens} lessonId="les_AAAAAAAAAAA1" restricted />);
+    fire(media, "error");
+    expect(track).toHaveBeenCalledWith("course_video_error", {
+      code: 4,
+      lesson_id: "les_AAAAAAAAAAA1",
+      playback_id: "pb-1",
+      restricted: true,
+      status: 403,
+      detail: "manifestLoadError",
+    });
+    const sentBody = fetchMock.mock.calls.find(([url]) => url === "/api/client-errors")![1]!.body as string;
+    expect(JSON.parse(sentBody).playback).toEqual({ code: 4, lessonId: "les_AAAAAAAAAAA1", playbackId: "pb-1", restricted: true, status: 403, detail: "manifestLoadError" });
+    expect(JSON.stringify(track.mock.calls) + sentBody).not.toContain("tok-play");
+  });
+
+  describe("an expired link", () => {
+    const fresh = { playback: "new-play", poster: "new-poster", storyboard: "new-board" };
+    const refreshResponse = () => new Response(JSON.stringify({ tokens: fresh, restricted: true }), { status: 200 });
+    const lessonUi = () => <LessonPlayer title="T" playbackId="pb-1" tokens={tokens} lessonId="les_AAAAAAAAAAA1" restricted={false} />;
+    const alerts = () => fetchMock.mock.calls.filter(([url]) => url === "/api/client-errors");
+    const settle = () => act(async () => void (await new Promise((r) => setTimeout(r, 0))));
+
+    afterEach(() => vi.useRealTimers());
+
+    it("fetches fresh links once for a network error on an old page, reloads, and sends no alert when it plays", async () => {
+      const t0 = Date.now();
+      const nowSpy = vi.spyOn(Date, "now").mockReturnValue(t0);
+      const media = Object.assign((player.media = fakeMedia({ paused: false, currentTime: 42 })), { error: { code: 2 } });
+      render(lessonUi());
+      nowSpy.mockReturnValue(t0 + 61 * 60_000);
+      fetchMock.mockResolvedValueOnce(refreshResponse());
+      fire(media, "error");
+      await settle();
+
+      const refresh = fetchMock.mock.calls.find(([url]) => url === "/api/courses/playback-tokens")!;
+      expect(JSON.parse(refresh[1]!.body as string)).toEqual({ lessonId: "les_AAAAAAAAAAA1" });
+      expect(player.muxSource).toMatchObject({ playback: { token: "new-play" }, storyboard: { token: "new-board" } });
+
+      media.currentTime = 0;
+      const playSpy = vi.fn(async () => {});
+      Object.assign(media, { play: playSpy });
+      fire(media, "canplay");
+      expect(media.currentTime).toBe(42);
+      expect(playSpy).toHaveBeenCalled();
+      expect(track).toHaveBeenCalledWith("course_video_token_refreshed", { minutes_open: 61 });
+      expect(track.mock.calls.filter(([name]) => name === "course_video_error")).toEqual([]);
+      expect(alerts()).toHaveLength(0);
+      nowSpy.mockRestore();
+    });
+
+    it("alerts once when the retry fails too, and never retries a second time", async () => {
+      const t0 = Date.now();
+      const nowSpy = vi.spyOn(Date, "now").mockReturnValue(t0);
+      const media = Object.assign((player.media = fakeMedia()), { error: { code: 2, context: "manifestLoadError" } });
+      render(lessonUi());
+      nowSpy.mockReturnValue(t0 + 90 * 60_000);
+      fetchMock.mockResolvedValueOnce(refreshResponse());
+      fire(media, "error");
+      await settle();
+      fire(media, "error");
+      fire(media, "error");
+
+      expect(fetchMock.mock.calls.filter(([url]) => url === "/api/courses/playback-tokens")).toHaveLength(1);
+      expect(track.mock.calls.filter(([name]) => name === "course_video_error")).toHaveLength(1);
+      expect(alerts()).toHaveLength(1);
+      nowSpy.mockRestore();
+    });
+
+    it("alerts straight away when fresh links can't be fetched", async () => {
+      const t0 = Date.now();
+      const nowSpy = vi.spyOn(Date, "now").mockReturnValue(t0);
+      const media = Object.assign((player.media = fakeMedia()), { error: { code: 2 } });
+      render(lessonUi());
+      nowSpy.mockReturnValue(t0 + 90 * 60_000);
+      fetchMock.mockResolvedValueOnce(new Response("{}", { status: 404 }));
+      fire(media, "error");
+      await settle();
+      expect(alerts()).toHaveLength(1);
+      expect(track.mock.calls.filter(([name]) => name === "course_video_error")).toHaveLength(1);
+      nowSpy.mockRestore();
+    });
+
+    it("alerts straight away when the answer isn't usable links", async () => {
+      const t0 = Date.now();
+      const nowSpy = vi.spyOn(Date, "now").mockReturnValue(t0);
+      const media = Object.assign((player.media = fakeMedia()), { error: { code: 2 } });
+      render(lessonUi());
+      nowSpy.mockReturnValue(t0 + 90 * 60_000);
+      fetchMock.mockResolvedValueOnce(new Response("not json", { status: 200 }));
+      fire(media, "error");
+      await settle();
+      expect(alerts()).toHaveLength(1);
+      nowSpy.mockRestore();
+    });
+
+    it("alerts straight away when the request for fresh links throws", async () => {
+      const t0 = Date.now();
+      const nowSpy = vi.spyOn(Date, "now").mockReturnValue(t0);
+      const media = Object.assign((player.media = fakeMedia()), { error: { code: 2 } });
+      render(lessonUi());
+      nowSpy.mockReturnValue(t0 + 90 * 60_000);
+      fetchMock.mockRejectedValueOnce(new Error("offline"));
+      fire(media, "error");
+      await settle();
+      expect(alerts()).toHaveLength(1);
+      nowSpy.mockRestore();
+    });
+
+    it("doesn't retry a network error on a fresh page", async () => {
+      const media = Object.assign((player.media = fakeMedia()), { error: { code: 2 } });
+      render(lessonUi());
+      fire(media, "error");
+      await settle();
+      expect(fetchMock.mock.calls.filter(([url]) => url === "/api/courses/playback-tokens")).toHaveLength(0);
+      expect(alerts()).toHaveLength(1);
+    });
   });
 
   it("reports code 0 when the browser gives none, and survives a failed report", () => {
@@ -713,7 +839,7 @@ describe("LessonPlayer reports what happened to the video", () => {
     const media = (player.media = fakeMedia());
     render(<LessonPlayer title="T" playbackId="pb-1" tokens={tokens} />);
     expect(() => fire(media, "error")).not.toThrow();
-    expect(track).toHaveBeenCalledWith("course_video_error", { code: 0 });
+    expect(track).toHaveBeenCalledWith("course_video_error", { code: 0, playback_id: "pb-1" });
   });
 
   it("stops listening when the player goes away", () => {

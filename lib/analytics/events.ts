@@ -110,8 +110,25 @@ export const EVENTS = {
   /** The lesson's video started playing, once per page view (components/courses/LessonPlayer.tsx): `resumed` is whether it picked up from a saved position. */
   course_video_played: { resumed: bool() },
 
-  /** The lesson's video failed to play in the member's browser (components/courses/LessonPlayer.tsx): `code` is the browser's media error (1 aborted, 2 network, 3 decode, 4 source not supported; 0 unknown). Also alerts staff. */
-  course_video_error: { code: int(10) },
+  /**
+   * The lesson's video failed to play in the member's browser (components/courses/LessonPlayer.tsx), after the one retry
+   * with a fresh link (course_video_token_refreshed) if that applied. `code` is the browser's media error (1 aborted, 2 network,
+   * 3 decode, 4 source not supported; 0 unknown). The rest says what failed: `lesson_id` and `playback_id` (Mux's signed playback id,
+   * useless without a token; the token itself is never recorded), `restricted` whether the token carried the referrer restriction,
+   * `status` the HTTP status of the failed request (hls.js only), `detail` hls.js's error detail word (`manifestLoadError`).
+   * Also alerts staff.
+   */
+  course_video_error: {
+    code: int(10),
+    lesson_id: optional(text(24)),
+    playback_id: optional(text(60)),
+    restricted: optional(bool()),
+    status: optional(int(599)),
+    detail: optional(text(40)),
+  },
+
+  /** A lesson's video hit a network error with a playback link that had probably expired, a fresh link was fetched and the video played (components/courses/LessonPlayer.tsx): `minutes_open` is how long the page had been open. No alert. */
+  course_video_token_refreshed: { minutes_open: int(10_000) },
 
   /** Files were added to the chat composer (components/chat/Composer.tsx): `via` is how, `count` how many. */
   chat_files_attached: { via: oneOf("picker", "paste", "drop"), count: int() },

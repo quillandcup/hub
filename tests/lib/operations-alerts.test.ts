@@ -164,6 +164,19 @@ describe("production operations alerts", () => {
     expect(postMessage.mock.calls[2][0].text).toContain("could not prepare a course video");
   });
 
+  it("says what a playback failure was: the error, status, restriction, lesson and playback id", async () => {
+    const { repos } = allowing();
+    await sendOperationsAlert(repos, {
+      type: "video_failed",
+      what: "playback",
+      route: "/courses/[slug]/lessons/[id]",
+      playback: { code: 2, detail: "manifestLoadError", status: 403, restricted: true, lessonId: "les_AAAAAAAAAAA1", playbackId: "pb123" },
+    });
+    const text = postMessage.mock.calls[0][0].text;
+    expect(text).toContain("media error 2 (network), hls.js: manifestLoadError, HTTP 403, link with the referrer restriction, lesson les_AAAAAAAAAAA1, playback id pb123");
+    expect(text).not.toContain("Mux dashboard");
+  });
+
   it("alerts a playback failure per lesson route, with the untrusted detail trimmed and escaped", async () => {
     const { repos, hit } = allowing();
     await sendOperationsAlert(repos, { type: "video_failed", what: "playback", route: "/courses/[slug]/lessons/[id]", detail: `code <4> & ${"x".repeat(500)}` });

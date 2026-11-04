@@ -1,9 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { templateRoute } from "@/lib/analytics/route";
-import { sendOperationsAlert } from "@/lib/operations-alerts";
+import { isId } from "@/lib/ids";
+import { sendOperationsAlert, type PlaybackFailure } from "@/lib/operations-alerts";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { createRepos } from "@/lib/data/repos";
+
+/**
+ * What the player said about a playback failure, keeping only values of the expected shape: a lesson id, a Mux playback id
+ * (letters and digits), a bare hls.js word, numbers and a boolean. Anything else is dropped, so nothing free-form (or a token) reaches Slack.
+ */
+function parsePlaybackFailure(value: unknown): PlaybackFailure | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  const v = value as Record<string, unknown>;
+  const int = (n: unknown, min: number, max: number) => (typeof n === "number" && Number.isInteger(n) && n >= min && n <= max ? n : undefined);
+  const code = int(v.code, 0, 100);
+  if (code === undefined) return undefined;
+  return {
+    code,
+    lessonId: typeof v.lessonId === "string" && isId(v.lessonId, "les") ? v.lessonId : undefined,
+    playbackId: typeof v.playbackId === "string" && /^[A-Za-z0-9]{10,60}$/.test(v.playbackId) ? v.playbackId : undefined,
+    restricted: typeof v.restricted === "boolean" ? v.restricted : undefined,
+    status: int(v.status, 100, 599),
+    detail: typeof v.detail === "string" && /^[A-Za-z]{1,40}$/.test(v.detail) ? v.detail : undefined,
+  };
+}
 
 /**
  * A page crashed in the browser (components/RouteError.tsx). A server error is alerted from the server,
@@ -22,7 +43,7 @@ export async function POST(request: NextRequest) {
 
   const repos = createRepos(createServiceRoleClient());
   // A course video that failed to play is reported the same way, as its own kind.
-  if (body.kind === "video") await sendOperationsAlert(repos, { type: "video_failed", what: "playback", route, detail: body.message });
+  if (body.kind === "video") await sendOperationsAlert(repos, { type: "video_failed", what: "playback", route, detail: body.message, playback: parsePlaybackFailure(body.playback) });
   else await sendOperationsAlert(repos, { type: "client_crash", route, message: body.message });
   return new NextResponse(null, { status: 204 });
 }

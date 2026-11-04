@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { selectPlayback, selectPlaybackRate, selectSource, selectTime, useCaptionsOptions, useMedia, usePlayer } from "@videojs/react";
 import { VideoPlayer, VideoSkin } from "@videojs/react/video";
 import { MuxVideo } from "@videojs/react/media/mux-video";
 import "@videojs/react/video/skin.css";
 import { track } from "@/lib/analytics/client";
 import { courseImageUrl } from "@/lib/courses/image-urls";
+import { describePlaybackError, shouldRefreshToken, type PlaybackErrorInfo } from "@/lib/courses/playback-refresh";
 import { MAX_SEGMENTS_PER_BATCH, RESUME_MAX_FRACTION, type WatchSegmentInput } from "@/lib/courses/watch";
 import { AUTO_COMPLETE_FRACTION, useLessonCompletion } from "./LessonCompletion";
 
@@ -21,37 +22,113 @@ export interface PlaybackTokens {
  * event for the course funnel and as an alert to staff (/api/client-errors), since a member who can't watch
  * rarely says so. Renders nothing.
  */
-function PlaybackReporter({ resumed }: { resumed: boolean }) {
+function PlaybackReporter({
+  resumed,
+  lessonId,
+  playbackId,
+  restricted,
+  mintedAt,
+  refreshTokens,
+}: {
+  resumed: boolean;
+  lessonId?: string;
+  playbackId: string;
+  restricted?: boolean;
+  /** When the page's links were minted (the page's own load time). */
+  mintedAt: number;
+  /** Fetches fresh links and loads them into the player; false when it couldn't. Without it there is no retry. */
+  refreshTokens?: () => Promise<boolean>;
+}) {
   const media = useMedia();
+  // Read when reporting, not a reason to start over: loading fresh links changes it, and the retry state must survive that.
+  const restrictedRef = useRef(restricted);
+  useEffect(() => {
+    restrictedRef.current = restricted;
+  });
   useEffect(() => {
     if (!media) return;
     const el = media as unknown as HTMLMediaElement;
     let played = false;
     let failed = false;
+    let retried = false;
+    let refreshing = false;
+    let cancelled = false;
+    // Set once fresh links are loaded: where to pick up, and whether it was playing.
+    let afterRetry: { resumeAt: number; wasPlaying: boolean } | null = null;
+
     const onPlaying = () => {
       if (played) return;
       played = true;
       track("course_video_played", { resumed });
     };
-    const onError = () => {
+    // Said once per page view. The event carries what failed (never the link, which is a credential); the alert goes through /api/client-errors.
+    const report = (info: PlaybackErrorInfo) => {
       if (failed) return;
       failed = true;
-      const code = el.error?.code ?? 0;
-      track("course_video_error", { code });
+      const { code, status, detail } = info;
+      const restricted = restrictedRef.current;
+      track("course_video_error", {
+        code,
+        ...(lessonId ? { lesson_id: lessonId } : {}),
+        playback_id: playbackId,
+        ...(restricted === undefined ? {} : { restricted }),
+        ...(status === undefined ? {} : { status }),
+        ...(detail === undefined ? {} : { detail }),
+      });
       fetch("/api/client-errors", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: window.location.pathname, kind: "video", message: `Playback error, code ${code}` }),
+        body: JSON.stringify({
+          path: window.location.pathname,
+          kind: "video",
+          message: `Playback error, code ${code}`,
+          playback: { code, lessonId, playbackId, restricted, status, detail },
+        }),
         keepalive: true,
       }).catch(() => {});
     };
+    const onError = () => {
+      if (failed || refreshing) return;
+      const info = describePlaybackError(el.error);
+      const retry = shouldRefreshToken({ code: info.code, status: info.status, mintedAt, now: Date.now(), alreadyRetried: retried });
+      if (!retry || !refreshTokens) return report(info);
+      // An expired link looks like a network error: fetch fresh ones and load them, once, before bothering anyone.
+      retried = true;
+      refreshing = true;
+      const resumeAt = el.currentTime || 0;
+      const wasPlaying = !el.paused;
+      refreshTokens().then(
+        (ok) => {
+          refreshing = false;
+          if (cancelled) return;
+          if (ok) afterRetry = { resumeAt, wasPlaying };
+          else report(info);
+        },
+        () => {
+          refreshing = false;
+          if (!cancelled) report(info);
+        },
+      );
+    };
+    // The retried source loaded: pick up where it stopped, and say the fresh link fixed it.
+    const onCanPlay = () => {
+      if (!afterRetry) return;
+      const { resumeAt, wasPlaying } = afterRetry;
+      afterRetry = null;
+      if (resumeAt > 0) seekMedia(el, resumeAt);
+      if (wasPlaying) void Promise.resolve(el.play?.()).catch(() => {});
+      track("course_video_token_refreshed", { minutes_open: Math.round((Date.now() - mintedAt) / 60_000) });
+    };
     el.addEventListener("playing", onPlaying);
     el.addEventListener("error", onError);
+    el.addEventListener("canplay", onCanPlay);
     return () => {
+      cancelled = true;
       el.removeEventListener("playing", onPlaying);
       el.removeEventListener("error", onError);
+      el.removeEventListener("canplay", onCanPlay);
     };
-  }, [media, resumed]);
+  }, [media, resumed, lessonId, playbackId, mintedAt, refreshTokens]);
   return null;
 }
 
@@ -369,7 +446,8 @@ const SKIN_THEME = {
 export default function LessonPlayer({
   title,
   playbackId,
-  tokens,
+  tokens: initialTokens,
+  restricted,
   posterUrl,
   lessonId,
   resumeSeconds = 0,
@@ -379,6 +457,8 @@ export default function LessonPlayer({
   title: string;
   playbackId: string;
   tokens: PlaybackTokens;
+  /** Whether the video token carries the referrer restriction (recorded with a playback error). */
+  restricted?: boolean;
   /** The lesson's thumbnail; only http(s) is used. */
   posterUrl?: string | null;
   lessonId?: string;
@@ -390,6 +470,28 @@ export default function LessonPlayer({
   onTime?: (seconds: number) => void;
 }) {
   const poster = courseImageUrl(posterUrl);
+  const [tokens, setTokens] = useState(initialTokens);
+  const [mintedAt] = useState(() => Date.now());
+  const [isRestricted, setRestricted] = useState(restricted);
+  // Fresh links for a tab left open past their hour; the player reloads when the source changes.
+  const refreshTokens = useMemo(() => {
+    if (!lessonId) return undefined;
+    return async () => {
+      const response = await fetch("/api/courses/playback-tokens", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lessonId }),
+        cache: "no-store",
+      });
+      if (!response.ok) return false;
+      const data = (await response.json().catch(() => null)) as { tokens?: PlaybackTokens; restricted?: boolean } | null;
+      const t = data?.tokens;
+      if (!t || typeof t.playback !== "string" || typeof t.poster !== "string" || typeof t.storyboard !== "string") return false;
+      setTokens(t);
+      if (typeof data?.restricted === "boolean") setRestricted(data.restricted);
+      return true;
+    };
+  }, [lessonId]);
   return (
     <div role="group" aria-label={title} className="[&_.media-title]:hidden">
       <VideoPlayer title={title} poster={poster ?? undefined}>
@@ -397,7 +499,14 @@ export default function LessonPlayer({
           <RememberSpeed />
           <RememberCaptions />
           <AutoCompleteAtWatchedMark />
-          <PlaybackReporter resumed={resumeSeconds > 0} />
+          <PlaybackReporter
+            resumed={resumeSeconds > 0}
+            lessonId={lessonId}
+            playbackId={playbackId}
+            restricted={isRestricted}
+            mintedAt={mintedAt}
+            refreshTokens={refreshTokens}
+          />
           <ResumePosition seconds={resumeSeconds} />
           {onTime && <ReportTime onTime={onTime} />}
           {trackProgress && lessonId && <WatchTracker lessonId={lessonId} />}
