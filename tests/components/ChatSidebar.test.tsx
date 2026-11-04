@@ -476,3 +476,28 @@ describe("ChatSidebar drafts", () => {
     expect(screen.queryByRole("heading", { name: "Drafts" })).toBeNull();
   });
 });
+
+describe("ChatSidebar drafts follow the message boxes", () => {
+  const draftLinks = () => within(screen.getByRole("heading", { name: "Drafts" }).parentElement!).getAllByRole("link");
+
+  it("adds a draft as it is typed, moves an edited one to the top, and drops one that is emptied", async () => {
+    const { emitDraftChange } = await import("@/lib/chat/draft-events");
+    render(<ChatSidebar channels={CHANNELS} drafts={[{ channelId: "2", threadRootId: null, body: "old" }]} />);
+    act(() => emitDraftChange({ channelId: "1", threadRootId: "msg_AAAAAAAAAAA1", body: "reply", fileCount: 0 }));
+    expect(draftLinks().map((a) => a.getAttribute("href"))).toEqual(["/chat/1?thread=msg_AAAAAAAAAAA1", "/chat/2"]);
+    act(() => emitDraftChange({ channelId: "2", threadRootId: null, body: "old, edited", fileCount: 1 }));
+    expect(draftLinks().map((a) => a.textContent)).toEqual(["writing-sprintsold, edited · 1 file", "general · threadreply"]);
+    act(() => emitDraftChange({ channelId: "2", threadRootId: null, body: " ", fileCount: 0 }));
+    act(() => emitDraftChange({ channelId: "1", threadRootId: "msg_AAAAAAAAAAA1", body: "", fileCount: 0 }));
+    expect(screen.queryByRole("heading", { name: "Drafts" })).toBeNull();
+  });
+
+  it("starts over from the server's list when that changes", async () => {
+    const { emitDraftChange } = await import("@/lib/chat/draft-events");
+    const { rerender } = render(<ChatSidebar channels={CHANNELS} drafts={[]} />);
+    act(() => emitDraftChange({ channelId: "1", threadRootId: null, body: "typed", fileCount: 0 }));
+    expect(draftLinks()).toHaveLength(1);
+    rerender(<ChatSidebar channels={CHANNELS} drafts={[{ channelId: "2", threadRootId: null, body: "from the server" }]} />);
+    expect(draftLinks().map((a) => a.getAttribute("href"))).toEqual(["/chat/2"]);
+  });
+});

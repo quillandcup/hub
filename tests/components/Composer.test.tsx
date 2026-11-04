@@ -614,4 +614,17 @@ describe("Composer draft files", () => {
     expect(screen.getByRole("button", { name: "Send" })).toBeEnabled();
     expect((await messageBox()).textContent).toBe("");
   });
+
+  it("tells the sidebar's Drafts list as the draft is typed, and when it is sent", async () => {
+    const { subscribeDraftChanges } = await import("@/lib/chat/draft-events");
+    const changes: unknown[] = [];
+    const off = subscribeDraftChanges((c) => changes.push(c));
+    vi.mocked(sendChatMessage).mockResolvedValue({ ok: true, id: "m1" });
+    render(<Composer channelId="c1" threadRootId="root-1" placeholder="Reply…" saveDrafts />);
+    await typeInto(await messageBox(), "hello");
+    await waitFor(() => expect(changes).toContainEqual({ channelId: "c1", threadRootId: "root-1", body: "hello", fileCount: 0 }));
+    await typeInto(await messageBox(), "{Enter}");
+    await waitFor(() => expect(changes.at(-1)).toEqual({ channelId: "c1", threadRootId: "root-1", body: "", fileCount: 0 }));
+    off();
+  });
 });
