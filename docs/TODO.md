@@ -1568,9 +1568,6 @@ Deliberately not done:
 
 Next steps, in order: (1) measure the Suspense step above; (2) cache the global reads (feature flags and their segment links, prickle types) with `unstable_cache`; (3) narrow the ranking's attendance history; (4) rerun the same load test (script idea: mint a session with the admin API for a test member, three concurrency steps, sample `pg_stat_activity` every few seconds) and compare. Not worth doing: raising `default_pool_size` alone.
 
-### Drop the old single-edition columns from `member_books`
-**Resolved:** `member_books.editions` replaced `format`, `purchase_url` and `price` (#967), and the app stopped reading and writing them (`purchase_url` got a default so inserts can omit it). **Still open:** the migration that drops `format`, `purchase_url` and `price` and `member_books_format_check`, once the deploy that stopped using them is live (`supabase migration list --linked`). It needs the user's explicit approval for the squawk ignores, per `CLAUDE.md`, "Migrations: expand, then contract"; the tests that insert those columns (`remove_member_data`, `soft_delete_member_resources`, `media_assets` pgTAP files, `tests/api/**`) need them removed in the same PR.
-
 ### The storefront book import adds one edition per book
 `scripts/import-storefront-books.ts` takes one format, link and price per spec entry and skips a title already on the member's shelf, so an ebook for a book the member already has in print is skipped, not added as a second edition. Make the spec take an `editions` list, and add a missing edition to a book already on the shelf (`BookRepository.update` with the merged editions).
 

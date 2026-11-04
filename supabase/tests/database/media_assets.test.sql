@@ -86,9 +86,9 @@ INSERT INTO public.media_assets (id, storage_path, mime_type, width, height, byt
   ('media_MediaTestBk1', 'originals/mbr_MediaTestBo2/bk-1.png', 'image/png', 10, 10, 1, 'bk-sha-1', 'Bob book cover', 'mbr_MediaTestBo2', NULL),
   ('media_MediaTestPj1', 'originals/mbr_MediaTestBo2/bk-2.png', 'image/png', 10, 10, 1, 'bk-sha-2', 'Bob project cover', 'mbr_MediaTestBo2', NULL),
   ('media_MediaTestBk3', 'originals/mbr_MediaTestBo2/bk-3.png', 'image/png', 10, 10, 1, 'bk-sha-3', 'Bob deleted book cover', 'mbr_MediaTestBo2', now());
-INSERT INTO public.member_books (member_id, title, cover_url, cover_asset_id, purchase_url, published_date) VALUES
-  ('mbr_MediaTestBo2', 'Bob book', '/api/media/media_MediaTestBk1/book_cover_shelf', 'media_MediaTestBk1', 'https://example.com/buy', '2026-01-01'),
-  ('mbr_MediaTestBo2', 'Bob deleted-cover book', '/api/media/media_MediaTestBk3/book_cover_shelf', 'media_MediaTestBk3', 'https://example.com/buy', '2026-01-02');
+INSERT INTO public.member_books (member_id, title, cover_url, cover_asset_id, published_date) VALUES
+  ('mbr_MediaTestBo2', 'Bob book', '/api/media/media_MediaTestBk1/book_cover_shelf', 'media_MediaTestBk1', '2026-01-01'),
+  ('mbr_MediaTestBo2', 'Bob deleted-cover book', '/api/media/media_MediaTestBk3/book_cover_shelf', 'media_MediaTestBk3', '2026-01-02');
 INSERT INTO public.writing_projects (member_id, title, phase, cover_asset_id) VALUES
   ('mbr_MediaTestBo2', 'Bob project', 'drafting', 'media_MediaTestPj1');
 

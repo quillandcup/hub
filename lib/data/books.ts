@@ -7,10 +7,9 @@ import { BOOK_FORMATS, rowEditions, storedEditions, type BookEdition } from "@/l
 /** A book on a member's bookshelf (`member_books`). A deleted one keeps its row, with `deleted_at` set. */
 // `book_member` in the generated row is the author function, not a column.
 export type BookRow = Omit<Row<"member_books">, "book_member">;
-// The editions are written through `editions`; the old `format`, `purchase_url` and `price` columns are no longer read or written.
-type EditionColumns = "editions" | "format" | "purchase_url" | "price";
-export type NewBook = Omit<Insert<"member_books">, EditionColumns> & { editions: BookEdition[] };
-export type BookPatch = Omit<Update<"member_books">, EditionColumns> & { editions?: BookEdition[] };
+// The editions go in as `BookEdition`s; the column holds them as JSON (`storedEditions`).
+export type NewBook = Omit<Insert<"member_books">, "editions"> & { editions: BookEdition[] };
+export type BookPatch = Omit<Update<"member_books">, "editions"> & { editions?: BookEdition[] };
 
 /** What the bookshelf page shows for a book: the book, and its author's names (null when the member is gone). */
 export type ShelfBook = Pick<BookRow, "id" | "member_id" | "title" | "description" | "cover_url" | "published_date" | "genres" | "pen_name"> & {
@@ -236,12 +235,9 @@ export function bookRow(seed: BookSeed): BookRow {
   return {
     description: null,
     cover_url: "",
-    purchase_url: "",
-    price: null,
     editions: [],
     genres: [],
     genres_search: null,
-    format: "print",
     project_id: null,
     pen_name: null,
     deleted_at: null,

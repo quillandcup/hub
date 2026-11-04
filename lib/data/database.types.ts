@@ -3632,16 +3632,13 @@ export type Database = {
           deleted_at: string | null
           description: string | null
           editions: Json
-          format: string
           genres: string[]
           genres_search: string | null
           id: string
           member_id: string
           pen_name: string | null
-          price: number | null
           project_id: string | null
           published_date: string
-          purchase_url: string
           title: string
           book_member: {
             bio: string | null
@@ -3665,16 +3662,13 @@ export type Database = {
           deleted_at?: string | null
           description?: string | null
           editions?: Json
-          format?: string
           genres?: string[]
           genres_search?: string | null
           id?: string
           member_id: string
           pen_name?: string | null
-          price?: number | null
           project_id?: string | null
           published_date: string
-          purchase_url?: string
           title: string
         }
         Update: {
@@ -3684,16 +3678,13 @@ export type Database = {
           deleted_at?: string | null
           description?: string | null
           editions?: Json
-          format?: string
           genres?: string[]
           genres_search?: string | null
           id?: string
           member_id?: string
           pen_name?: string | null
-          price?: number | null
           project_id?: string | null
           published_date?: string
-          purchase_url?: string
           title?: string
         }
         Relationships: [

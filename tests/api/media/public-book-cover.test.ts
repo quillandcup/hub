@@ -50,7 +50,7 @@ beforeAll(async () => {
   await addAsset("book", 1);
   await addAsset("project", 2);
   await addAsset("unused", 3);
-  const book = await db.from("member_books").insert({ member_id: memberId, title: `Book ${RUN}`, cover_url: "x", cover_asset_id: assets.book.id, purchase_url: "https://example.com/b", published_date: "2026-01-01" }).select("id").single();
+  const book = await db.from("member_books").insert({ member_id: memberId, title: `Book ${RUN}`, cover_url: "x", cover_asset_id: assets.book.id, published_date: "2026-01-01" }).select("id").single();
   if (book.error) throw new Error(book.error.message);
   bookIds.push(book.data.id);
   const project = await db.from("writing_projects").insert({ member_id: memberId, title: `Project ${RUN}`, phase: "drafting", cover_asset_id: assets.project.id }).select("id").single();

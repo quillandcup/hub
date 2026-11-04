@@ -19,7 +19,6 @@ describe("published book counts (local database)", () => {
     member_id: memberId,
     title,
     cover_url: "https://example.com/cover.png",
-    purchase_url: "https://example.com/buy",
     published_date: "2026-03-05",
     deleted_at: deletedAt,
   });

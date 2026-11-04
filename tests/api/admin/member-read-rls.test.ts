@@ -129,7 +129,6 @@ describe('member-readable data (RLS)', () => {
       member_id: otherId,
       title: `MR RLS Book ${ts}`,
       cover_url: 'https://example.com/c.jpg',
-      purchase_url: 'https://example.com/b',
       published_date: '2025-01-01',
     })
     if (bookError) throw bookError

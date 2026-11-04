@@ -29,9 +29,9 @@ INSERT INTO public.members (id, name, display_name, email, bio, joined_at, statu
 -- Ada's things.
 INSERT INTO public.writing_projects (member_id, title) VALUES ('mbr_RMVAAAAAAAA1', 'Moon Garden');
 INSERT INTO public.calendar_feed_tokens (member_id, token) VALUES ('mbr_RMVAAAAAAAA1', 'abcdef0123456789abcdef0123456701');
-INSERT INTO public.member_books (id, member_id, title, cover_url, format, published_date, purchase_url) VALUES
-  ('book_RMVAAAAAAA1', 'mbr_RMVAAAAAAAA1', 'Kept Book', 'https://example.test/c1.png', 'ebook', '2026-01-01', 'https://example.test/b1'),
-  ('book_RMVAAAAAAA2', 'mbr_RMVAAAAAAAA1', 'Deleted Book', 'https://example.test/c2.png', 'ebook', '2026-01-01', 'https://example.test/b2');
+INSERT INTO public.member_books (id, member_id, title, cover_url, published_date) VALUES
+  ('book_RMVAAAAAAA1', 'mbr_RMVAAAAAAAA1', 'Kept Book', 'https://example.test/c1.png', '2026-01-01'),
+  ('book_RMVAAAAAAA2', 'mbr_RMVAAAAAAAA1', 'Deleted Book', 'https://example.test/c2.png', '2026-01-01');
 UPDATE public.member_books SET deleted_at = now() WHERE id = 'book_RMVAAAAAAA2';
 INSERT INTO public.member_awards (member_id, award_name, work_title, award_date, book_id) VALUES
   ('mbr_RMVAAAAAAAA1', 'Best Poem', 'Kept Book', '2026-02-01', 'book_RMVAAAAAAA1');
@@ -43,8 +43,8 @@ INSERT INTO public.mentorships (mentor_member_id, new_member_id, kind, started_o
 INSERT INTO public.feedback (user_id, member_id, page_url, feedback_type, message, user_agent, screenshot_path) VALUES
   ('00000000-0000-4000-a000-00000000e101', 'mbr_RMVAAAAAAAA1', '/dashboard', 'idea', 'Please add dark mode', 'Mozilla/5.0 (Example)', '00000000-0000-4000-a000-00000000e101/shot.png');
 -- Bea's book (removed without keeping public work).
-INSERT INTO public.member_books (id, member_id, title, cover_url, format, published_date, purchase_url) VALUES
-  ('book_RMVAAAAAAA3', 'mbr_RMVAAAAAAAA2', 'Bea Book', 'https://example.test/c3.png', 'ebook', '2026-01-01', 'https://example.test/b3');
+INSERT INTO public.member_books (id, member_id, title, cover_url, published_date) VALUES
+  ('book_RMVAAAAAAA3', 'mbr_RMVAAAAAAAA2', 'Bea Book', 'https://example.test/c3.png', '2026-01-01');
 -- An entry about another record that names Ada.
 INSERT INTO public.audit_log (actor_kind, entity_type, entity_id, action, changes, entity_label) VALUES
   ('staff', 'prickle_type', 'rmv-pt', 'update', '{"notes": {"old": null, "new": "Ada Example asked, remove-ada@example.test"}}', 'Ada Example''s favourite');

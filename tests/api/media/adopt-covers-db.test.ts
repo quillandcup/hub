@@ -35,7 +35,7 @@ beforeAll(async () => {
   const member = await raw.from("members").insert({ name: `Legacy Cover Author ${RUN}`, email: `legacy-${RUN}@example.com`, joined_at: "2026-01-01", status: "active" }).select("id").single();
   if (member.error) throw new Error(member.error.message);
   memberId = member.data.id;
-  const book = await raw.from("member_books").insert({ member_id: memberId, title: `Legacy Book ${RUN}`, cover_url: BOOK_LINK, purchase_url: "https://example.com/buy", published_date: "2026-01-01" }).select("id").single();
+  const book = await raw.from("member_books").insert({ member_id: memberId, title: `Legacy Book ${RUN}`, cover_url: BOOK_LINK, published_date: "2026-01-01" }).select("id").single();
   if (book.error) throw new Error(book.error.message);
   bookId = book.data.id;
   const project = await raw.from("writing_projects").insert({ member_id: memberId, title: `Legacy Project ${RUN}`, phase: "drafting", cover_url: PROJECT_LINK }).select("id").single();
