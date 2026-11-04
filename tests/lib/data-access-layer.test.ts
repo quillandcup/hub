@@ -299,3 +299,32 @@ describe("data access layer census", () => {
     expect(Object.keys(VARIABLE_TABLE_FILES).filter((f) => !variable.has(f)), "no longer builds a variable-table query: remove from VARIABLE_TABLE_FILES").toEqual([]);
   });
 });
+
+/**
+ * Supabase Auth's admin API (`<client>.auth.admin`: list, create, invite, ban, delete, sign-in links) is not a table, so the
+ * `.from()` census cannot see it. Its accounts have a repository too (AuthUserRepository), which pages the listing past the
+ * admin API's 1000 per page (a route that called listUsers itself silently dropped everyone after the first thousand) and has
+ * an in-memory twin. Outside lib/data/, use `repos.authUsers`. `scripts/` is checked as well, since the launch scripts
+ * used to talk to the admin API directly.
+ */
+describe("Supabase Auth admin API", () => {
+  const authFiles = ["app", "lib", "components", "scripts"]
+    .flatMap((dir) => sourceFiles(path.join(root, dir)))
+    .map((file) => path.relative(root, file))
+    .filter((file) => !file.startsWith("lib/data/"));
+
+  it("is only used through AuthUserRepository", () => {
+    const direct: string[] = [];
+    for (const file of authFiles) {
+      const sf = ts.createSourceFile(file, fs.readFileSync(path.join(root, file), "utf8"), ts.ScriptTarget.Latest, true);
+      const visit = (node: ts.Node) => {
+        if (ts.isPropertyAccessExpression(node) && node.name.text === "admin" && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "auth") {
+          direct.push(file);
+        }
+        ts.forEachChild(node, visit);
+      };
+      visit(sf);
+    }
+    expect([...new Set(direct)].sort(), "use repos.authUsers (lib/data/auth-users.ts) instead of <client>.auth.admin").toEqual([]);
+  });
+});

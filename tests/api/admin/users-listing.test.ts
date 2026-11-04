@@ -1,13 +1,8 @@
-import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest'
+import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest'
 import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
 import { apiFetch } from '../../helpers/api-fetch'
 
-// The real pager, except where a test makes it fail.
-vi.mock('@/lib/auth-provisioning', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/auth-provisioning')>('@/lib/auth-provisioning')
-  return { ...actual, listAllAuthUsers: vi.fn(actual.listAllAuthUsers) }
-})
-import { listAllAuthUsers } from '@/lib/auth-provisioning'
+import { SupabaseAuthUserRepository } from '@/lib/data/auth-users'
 
 /**
  * GET /api/admin/users: the aliases of a user's linked member (what the Users search matches on),
@@ -54,6 +49,8 @@ describe('Admin users and invite: aliases and the auth-user listing', () => {
     await supabase.auth.admin.deleteUser(authUserId).catch(() => {})
   })
 
+  afterEach(() => vi.restoreAllMocks())
+
   it('GET gives each user the name and email aliases of their linked member', async () => {
     const res = await apiFetch(`${base}/api/admin/users`, { headers: getTestAuthHeaders() })
     expect(res.ok).toBe(true)
@@ -66,7 +63,7 @@ describe('Admin users and invite: aliases and the auth-user listing', () => {
   })
 
   it('GET answers 500 with the reason when the auth users cannot be listed', async () => {
-    vi.mocked(listAllAuthUsers).mockRejectedValueOnce(new Error('listUsers failed: boom'))
+    vi.spyOn(SupabaseAuthUserRepository.prototype, 'all').mockRejectedValueOnce(new Error('listUsers failed: boom'))
     const res = await apiFetch(`${base}/api/admin/users`, { headers: getTestAuthHeaders() })
     expect(res.status).toBe(500)
     expect((await res.json()).error).toBe('listUsers failed: boom')
@@ -74,7 +71,7 @@ describe('Admin users and invite: aliases and the auth-user listing', () => {
 
   it('invite answers 500, inviting no one, when the auth users cannot be listed', async () => {
     await supabase.from('segment_members').insert({ segment_id: segmentId, member_id: memberId })
-    vi.mocked(listAllAuthUsers).mockRejectedValueOnce(new Error('listUsers failed: boom'))
+    vi.spyOn(SupabaseAuthUserRepository.prototype, 'all').mockRejectedValueOnce(new Error('listUsers failed: boom'))
     const res = await apiFetch(`${base}/api/admin/segments/${segmentId}/invite`, { method: 'POST', headers: getTestAuthHeaders() })
     expect(res.status).toBe(500)
     expect((await res.json()).error).toBe('listUsers failed: boom')

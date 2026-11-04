@@ -1,21 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const countLive = vi.fn(async () => 2);
-vi.mock("@/lib/data/repos", () => ({ createRepos: () => ({ books: { countLive } }) }));
+const deleteUser = vi.fn();
+vi.mock("@/lib/data/repos", () => ({ createRepos: () => ({ books: { countLive }, authUsers: { delete: deleteUser } }) }));
 
 import { previewMemberRemoval, removeMemberOnRequest } from "@/lib/member-removal";
 
 const rpc = vi.fn();
-const deleteUser = vi.fn();
 const remove = vi.fn();
 const from = vi.fn(() => ({ remove }));
-const db = { rpc, auth: { admin: { deleteUser } }, storage: { from } } as never;
+const db = { rpc, storage: { from } } as never;
 
 const reportRow = (table: string, action: string, count: number) => ({ table_name: table, column_name: "member_id", action, why: "why", row_count: count });
 
 beforeEach(() => {
   vi.clearAllMocks();
-  deleteUser.mockResolvedValue({ error: null });
+  deleteUser.mockResolvedValue(undefined);
   remove.mockResolvedValue({ error: null });
 });
 
@@ -67,7 +67,7 @@ describe("removeMemberOnRequest", () => {
 
   it("says what did not finish once the database part has committed", async () => {
     rpc.mockResolvedValue({ data: removed, error: null });
-    deleteUser.mockResolvedValue({ error: { message: "auth down" } });
+    deleteUser.mockRejectedValue(new Error("auth down"));
     remove.mockResolvedValue({ error: { message: "storage down" } });
     const result = await removeMemberOnRequest(db, "mbr_AAAAAAAAAAA1", false);
     expect(result.ok && result.leftovers).toHaveLength(3);

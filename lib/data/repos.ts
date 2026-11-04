@@ -49,6 +49,7 @@ import { InMemorySegmentRepository, SupabaseSegmentRepository, type SegmentRepos
 import { InMemoryFeatureFlagRepository, SupabaseFeatureFlagRepository, type FeatureFlagRepository } from "./feature-flags";
 import { InMemorySlackSignInRepository, SupabaseSlackSignInRepository, type SlackSignInRepository } from "./slack-sign-in";
 import { InMemoryAnalyticsEventRepository, SupabaseAnalyticsEventRepository, type AnalyticsEventRepository } from "./analytics-events";
+import { InMemoryAuthUserRepository, SupabaseAuthUserRepository, type AuthUserRepository } from "./auth-users";
 import { InMemoryRateLimitRepository, SupabaseRateLimitRepository, type RateLimitRepository } from "./rate-limit";
 
 /**
@@ -107,6 +108,8 @@ export interface Repos {
   slackSignIn: SlackSignInRepository;
   analyticsEvents: AnalyticsEventRepository;
   rateLimit: RateLimitRepository;
+  /** Supabase Auth accounts. Service role only: the admin API refuses a user client. */
+  authUsers: AuthUserRepository;
 }
 
 /** Repositories over one client. Which privilege they run with is the client's: user-scoped (RLS) or service role. */
@@ -162,6 +165,7 @@ export function createRepos(db: Db): Repos {
     slackSignIn: new SupabaseSlackSignInRepository(db),
     analyticsEvents: new SupabaseAnalyticsEventRepository(db),
     rateLimit: new SupabaseRateLimitRepository(db),
+    authUsers: new SupabaseAuthUserRepository(db),
   };
 }
 
@@ -218,5 +222,6 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     slackSignIn: new InMemorySlackSignInRepository(dataset),
     analyticsEvents: new InMemoryAnalyticsEventRepository(dataset),
     rateLimit: new InMemoryRateLimitRepository(dataset),
+    authUsers: new InMemoryAuthUserRepository(dataset),
   };
 }

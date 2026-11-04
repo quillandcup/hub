@@ -4,8 +4,8 @@ import { LaunchEmail } from "@/emails/launch/LaunchEmail";
 import { clock } from "@/lib/clock";
 import { APP_URL } from "@/lib/config";
 import { getMemberDisplayName } from "@/lib/member-display-name";
+import type { AuthUser, AuthUserRepository } from "@/lib/data/auth-users";
 import type { MemberRepository } from "@/lib/data/members";
-import { listAllAuthUsers, type AdminAuthApi, type AuthUserLite } from "@/lib/auth-provisioning";
 
 /**
  * The launch-day "Hedgie Hub is open" email, sent in batches. For each active member whose account
@@ -21,14 +21,6 @@ import { listAllAuthUsers, type AdminAuthApi, type AuthUserLite } from "@/lib/au
 export const LAUNCH_SENT_MARK = "launch_email_sent_at";
 export const LAUNCH_EMAIL_SUBJECT = "Hedgie Hub is open: sign in with your code";
 export const LAUNCH_SIGN_IN_URL = `${APP_URL}/login?mode=code`;
-
-export type LaunchAuthApi = AdminAuthApi & {
-  generateLink(params: { type: "magiclink"; email: string }): Promise<{
-    data: { properties: { email_otp?: string } | null } | null;
-    error: { message: string } | null;
-  }>;
-};
-export type LaunchUser = AuthUserLite & { last_sign_in_at?: string | null; app_metadata?: Record<string, unknown> | null };
 
 export type LaunchSend = (mail: { to: string; subject: string; html: string; text: string }) => Promise<void>;
 
@@ -73,18 +65,17 @@ export async function renderLaunchEmail(code: string) {
 const norm = (email: string | null | undefined) => (email ?? "").trim().toLowerCase();
 
 export async function sendLaunchEmails(
-  auth: LaunchAuthApi,
-  members: Pick<MemberRepository, "list">,
+  repos: { authUsers: AuthUserRepository; members: Pick<MemberRepository, "list"> },
   send: LaunchSend,
   options: LaunchOptions
 ): Promise<LaunchReport> {
   const { batchSize = 20, pauseMs = 60_000 } = options;
   const only = options.onlyEmail ? options.onlyEmail.trim().toLowerCase() : null;
   const now = (options.now ?? new Date()).getTime();
-  const [active, users] = await Promise.all([members.list({ status: "active" }), listAllAuthUsers(auth)]);
-  const byId = new Map<string, LaunchUser>();
-  const byEmail = new Map<string, LaunchUser>();
-  for (const u of users as LaunchUser[]) {
+  const [active, users] = await Promise.all([repos.members.list({ status: "active" }), repos.authUsers.all()]);
+  const byId = new Map<string, AuthUser>();
+  const byEmail = new Map<string, AuthUser>();
+  for (const u of users) {
     byId.set(u.id, u);
     if (norm(u.email)) byEmail.set(norm(u.email), u);
   }
@@ -106,15 +97,15 @@ export async function sendLaunchEmails(
       report.noAuthUser++;
       continue;
     }
-    if (user.app_metadata?.[LAUNCH_SENT_MARK]) {
+    if (user.appMetadata[LAUNCH_SENT_MARK]) {
       report.alreadySent++;
       continue;
     }
-    if (user.last_sign_in_at) {
+    if (user.lastSignInAt) {
       report.alreadySignedIn++;
       continue;
     }
-    if (user.banned_until && new Date(user.banned_until).getTime() > now) {
+    if (user.bannedUntil && new Date(user.bannedUntil).getTime() > now) {
       report.stillBanned++;
       continue;
     }
@@ -132,9 +123,10 @@ export async function sendLaunchEmails(
       await clock.sleep(pauseMs);
       sentInBatch = 0;
     }
-    const { data, error } = await auth.generateLink({ type: "magiclink", email: user.email });
-    const code = data?.properties?.email_otp;
-    if (error || !code) {
+    let code: string;
+    try {
+      ({ code } = await repos.authUsers.generateMagicLink(user.id));
+    } catch {
       report.failed++;
       report.failedMemberIds.push(member.id);
       continue;
@@ -149,8 +141,9 @@ export async function sendLaunchEmails(
       console.error("launch email: send failed, stopping:", e instanceof Error ? e.message : e);
       break;
     }
-    const { error: markError } = await auth.updateUserById(user.id, { app_metadata: { [LAUNCH_SENT_MARK]: new Date(now).toISOString() } });
-    if (markError) {
+    try {
+      await repos.authUsers.mergeAppMetadata(user.id, { [LAUNCH_SENT_MARK]: new Date(now).toISOString() });
+    } catch {
       report.failed++;
       report.failedMemberIds.push(member.id);
       continue;

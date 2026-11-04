@@ -1,3 +1,4 @@
+import type { AuthUser, AuthUserRepository } from "@/lib/data/auth-users";
 import type { MemberRepository } from "@/lib/data/members";
 import type { ProfileRepository } from "@/lib/data/profiles";
 
@@ -9,20 +10,11 @@ import type { ProfileRepository } from "@/lib/data/profiles";
  */
 
 /** Active members are banned for this long (about a year) until released. */
-export const ACTIVE_HOLD_BAN = "8760h";
+export const ACTIVE_HOLD_BAN = "8760h" as const;
 /** Members on hiatus have no access: banned for about a hundred years, and the release step never touches them. */
-export const HIATUS_BAN = "876000h";
+export const HIATUS_BAN = "876000h" as const;
 
-export type AuthUserLite = { id: string; email?: string | null; banned_until?: string | null };
-
-/** The slice of `supabase.auth.admin` used here (the real client satisfies it). */
-export interface AdminAuthApi<U extends AuthUserLite = AuthUserLite> {
-  listUsers(params: { page: number; perPage: number }): Promise<{ data: { users: U[] } | null; error: { message: string } | null }>;
-  createUser(attrs: { email: string; email_confirm: boolean; ban_duration?: string }): Promise<{ data: { user: AuthUserLite | null } | null; error: { message: string } | null }>;
-  updateUserById(id: string, attrs: { ban_duration?: string; app_metadata?: Record<string, unknown> }): Promise<{ data: unknown; error: { message: string } | null }>;
-}
-
-export type ProvisioningRepos = { members: MemberRepository; profiles: ProfileRepository };
+export type ProvisioningRepos = { members: MemberRepository; profiles: ProfileRepository; authUsers: AuthUserRepository };
 
 export type ProvisionReport = {
   /** Members considered (active or on hiatus). */
@@ -43,31 +35,17 @@ export type ProvisionReport = {
 
 export type ReleaseReport = { considered: number; released: number; /** Still banned because `limit` was reached; the next run releases them. */ deferred: number; alreadyOpen: number; noAuthUser: number; failed: number; failedMemberIds: string[] };
 
-const PER_PAGE = 1000;
-
-/** Every auth user, paginated past the 1000-per-page limit. */
-export async function listAllAuthUsers<U extends AuthUserLite = AuthUserLite>(auth: AdminAuthApi<U>): Promise<U[]> {
-  const all: U[] = [];
-  for (let page = 1; ; page++) {
-    const { data, error } = await auth.listUsers({ page, perPage: PER_PAGE });
-    if (error) throw new Error(`listUsers failed: ${error.message}`);
-    const users = data?.users ?? [];
-    all.push(...users);
-    if (users.length < PER_PAGE) return all;
-  }
-}
-
 const norm = (email: string | null | undefined) => (email ?? "").trim().toLowerCase();
 
-async function loadContext(auth: AdminAuthApi, repos: ProvisioningRepos) {
+async function loadContext(repos: ProvisioningRepos) {
   const [active, hiatus, users, adminIds] = await Promise.all([
     repos.members.list({ status: "active" }),
     repos.members.list({ status: "on_hiatus" }),
-    listAllAuthUsers(auth),
+    repos.authUsers.all(),
     repos.profiles.adminIds(),
   ]);
-  const byEmail = new Map<string, AuthUserLite>();
-  const byId = new Map<string, AuthUserLite>();
+  const byEmail = new Map<string, AuthUser>();
+  const byId = new Map<string, AuthUser>();
   for (const u of users) {
     byId.set(u.id, u);
     if (norm(u.email)) byEmail.set(norm(u.email), u);
@@ -76,8 +54,8 @@ async function loadContext(auth: AdminAuthApi, repos: ProvisioningRepos) {
 }
 
 /** Creates the missing auth users (banned) and links members to existing ones. Idempotent; sends no email. */
-export async function provisionAuthUsers(auth: AdminAuthApi, repos: ProvisioningRepos, options: { apply: boolean; limit?: number }): Promise<ProvisionReport> {
-  const { active, hiatus, byEmail, byId, adminIds } = await loadContext(auth, repos);
+export async function provisionAuthUsers(repos: ProvisioningRepos, options: { apply: boolean; limit?: number }): Promise<ProvisionReport> {
+  const { active, hiatus, byEmail, byId, adminIds } = await loadContext(repos);
   const report: ProvisionReport = { considered: 0, created: 0, deferred: 0, createdBanned: 0, alreadyExisted: 0, linked: 0, unbannedStaff: 0, skipped: 0, failed: 0, failedMemberIds: [] };
   const fail = (id: string) => {
     report.failed++;
@@ -119,9 +97,10 @@ export async function provisionAuthUsers(auth: AdminAuthApi, repos: Provisioning
       else report.unbannedStaff++;
       continue;
     }
-    const { data, error } = await auth.createUser({ email, email_confirm: true, ...(ban ? { ban_duration: ban } : {}) });
-    const user = data?.user;
-    if (error || !user) {
+    let user: AuthUser;
+    try {
+      user = await repos.authUsers.create({ email, banDuration: ban });
+    } catch {
       fail(member.id);
       continue;
     }
@@ -141,13 +120,13 @@ export async function provisionAuthUsers(auth: AdminAuthApi, repos: Provisioning
   return report;
 }
 
-function byByEmail(map: Map<string, AuthUserLite>, email: string) {
+function byByEmail(map: Map<string, AuthUser>, email: string) {
   return map.get(email);
 }
 
 /** Clears the ban of active members' auth users. Members on hiatus are never touched. Idempotent. */
-export async function releaseAuthUsers(auth: AdminAuthApi, repos: ProvisioningRepos, options: { apply: boolean; limit?: number; now?: Date }): Promise<ReleaseReport> {
-  const { active, byEmail, byId } = await loadContext(auth, repos);
+export async function releaseAuthUsers(repos: ProvisioningRepos, options: { apply: boolean; limit?: number; now?: Date }): Promise<ReleaseReport> {
+  const { active, byEmail, byId } = await loadContext(repos);
   const now = (options.now ?? new Date()).getTime();
   const report: ReleaseReport = { considered: 0, released: 0, deferred: 0, alreadyOpen: 0, noAuthUser: 0, failed: 0, failedMemberIds: [] };
   for (const member of active) {
@@ -158,7 +137,7 @@ export async function releaseAuthUsers(auth: AdminAuthApi, repos: ProvisioningRe
       report.noAuthUser++;
       continue;
     }
-    const banned = !!user.banned_until && new Date(user.banned_until).getTime() > now;
+    const banned = !!user.bannedUntil && new Date(user.bannedUntil).getTime() > now;
     if (!banned) {
       report.alreadyOpen++;
       continue;
@@ -168,8 +147,9 @@ export async function releaseAuthUsers(auth: AdminAuthApi, repos: ProvisioningRe
       continue;
     }
     if (options.apply) {
-      const { error } = await auth.updateUserById(user.id, { ban_duration: "none" });
-      if (error) {
+      try {
+        await repos.authUsers.setBan(user.id, "none");
+      } catch {
         report.failed++;
         report.failedMemberIds.push(member.id);
         continue;

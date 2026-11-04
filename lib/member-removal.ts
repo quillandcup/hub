@@ -61,8 +61,11 @@ export async function removeMemberOnRequest(db: Db, memberId: string, keepPublic
   const leftovers: string[] = [];
 
   if (result.auth_user_id) {
-    const { error: userError } = await db.auth.admin.deleteUser(result.auth_user_id);
-    if (userError) leftovers.push(`Their sign-in account was not deleted (${userError.message}). Delete it from Authentication in Supabase.`);
+    try {
+      await createRepos(db).authUsers.delete(result.auth_user_id);
+    } catch (userError) {
+      leftovers.push(`Their sign-in account was not deleted (${userError instanceof Error ? userError.message : userError}). Delete it from Authentication in Supabase.`);
+    }
   }
 
   const files: [string, string[]][] = [

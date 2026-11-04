@@ -1,4 +1,3 @@
-import { listAllAuthUsers } from "@/lib/auth-provisioning";
 import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
@@ -53,7 +52,7 @@ export async function POST(
   // match in memory rather than doing a per-email round trip.
   let authUsers;
   try {
-    authUsers = await listAllAuthUsers(supabase.auth.admin);
+    authUsers = await repos.authUsers.all();
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not list users" }, { status: 500 });
   }
@@ -68,15 +67,17 @@ export async function POST(
       continue;
     }
 
-    const { data, error } = await supabase.auth.admin.inviteUserByEmail(email);
-    if (error) {
-      results.push({ email, status: "failed", error: error.message });
+    let invited;
+    try {
+      invited = await repos.authUsers.invite(email);
+    } catch (error) {
+      results.push({ email, status: "failed", error: error instanceof Error ? error.message : "Invite failed" });
       continue;
     }
 
     // Best-effort link, matching POST /api/admin/users — only sets it if
     // the member doesn't already have a linked auth user.
-    await repos.members.linkAuthUser(member.id, data.user.id, { onlyIfUnlinked: true }).catch(() => {});
+    await repos.members.linkAuthUser(member.id, invited.id, { onlyIfUnlinked: true }).catch(() => {});
 
     results.push({ email, status: "invited" });
   }

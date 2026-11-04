@@ -2,7 +2,6 @@ import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createClient as createServiceClient, SupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
-import { listAllAuthUsers } from "@/lib/auth-provisioning";
 import type { Database } from "@/lib/data/database.types";
 
 function getServiceClient() {
@@ -39,7 +38,7 @@ export async function GET(request: NextRequest) {
     nameAliases,
     emailAliases,
   ] = await Promise.all([
-    listAllAuthUsers(supabase.auth.admin).catch((error: Error) => error),
+    createRepos(supabase).authUsers.all().catch((error: Error) => error),
     createRepos(supabase).profiles.all(),
     createRepos(supabase).featureFlags.allPreviews(),
     createRepos(supabase).staff.all(),
@@ -79,7 +78,7 @@ export async function GET(request: NextRequest) {
       email: u.email ?? "",
       role: profile?.role ?? "member",
       features: featureMap.get(u.id) ?? [],
-      createdAt: u.created_at,
+      createdAt: u.createdAt,
       staffId: staff?.id ?? null,
       staffName: staff?.name ?? null,
       staffRole: staff?.role ?? null,
@@ -87,9 +86,9 @@ export async function GET(request: NextRequest) {
       memberName: member?.name ?? null,
       memberDisplayName: member?.displayName ?? null,
       aliases: member ? (aliasesByMember.get(member.id) ?? []) : [],
-      pending: !u.email_confirmed_at,
-      // A ban (banned_until in the future) stops sign-in and token refresh; it is how access is held back or removed.
-      bannedUntil: u.banned_until && new Date(u.banned_until).getTime() > Date.now() ? u.banned_until : null,
+      pending: !u.confirmed,
+      // A ban (bannedUntil in the future) stops sign-in and token refresh; it is how access is held back or removed.
+      bannedUntil: u.bannedUntil && new Date(u.bannedUntil).getTime() > Date.now() ? u.bannedUntil : null,
     };
   });
 
@@ -111,10 +110,12 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = getServiceClient();
-  const { data, error } = await supabase.auth.admin.inviteUserByEmail(email.trim().toLowerCase());
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+  const repos = createRepos(supabase);
+  let invited;
+  try {
+    invited = await repos.authUsers.invite(email.trim().toLowerCase());
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to invite user" }, { status: 400 });
   }
 
   // Link this new auth user to any existing member with a matching email —
@@ -122,9 +123,9 @@ export async function POST(request: NextRequest) {
   // (app/api/process/members) or manual admin linking, leaving it null for
   // an ordinary invited member indefinitely. Best-effort: a missing member
   // row (e.g. inviting a staff-only email) is not an error here.
-  if (data.user.email) {
-    await createRepos(supabase).members.linkAuthUserByEmail(data.user.email, data.user.id).catch(() => {});
+  if (invited.email) {
+    await repos.members.linkAuthUserByEmail(invited.email, invited.id).catch(() => {});
   }
 
-  return NextResponse.json({ user: { id: data.user.id, email: data.user.email } });
+  return NextResponse.json({ user: { id: invited.id, email: invited.email } });
 }
