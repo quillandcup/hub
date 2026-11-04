@@ -142,8 +142,9 @@ export function messageBoxExtensions(maxLength?: number): Extensions {
       heading: false,
       horizontalRule: false,
       trailingNode: false,
+      // (mailto: is one of linkify's own schemes; registering it again after linkify has run, as a second editor would, logs a warning.)
       // A typed or pasted address becomes a link, and pasting one over selected text links that text.
-      link: { openOnClick: false, autolink: true, linkOnPaste: true, protocols: ["mailto"], defaultProtocol: "https" },
+      link: { openOnClick: false, autolink: true, linkOnPaste: true, defaultProtocol: "https" },
     }),
     EmojiNode,
     SlackMarkdownRules,
