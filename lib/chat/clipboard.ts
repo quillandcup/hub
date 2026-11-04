@@ -1,5 +1,5 @@
 import { unicodeEmoji } from "@/lib/chat/emoji";
-import { parseSlackText, type Block, type Inline } from "@/lib/chat/render";
+import { listMarker, parseSlackText, type Block, type Inline } from "@/lib/chat/render";
 
 /**
  * A message as it goes on the clipboard from "Copy message": plain text a person can read (people and channels by name,
@@ -60,30 +60,52 @@ function htmlInline(nodes: Inline[], names: Names): string {
     .join("");
 }
 
+type Item = Extract<Block, { t: "bullet" }>;
+
+/** A run of list items as nested `<ul>`/`<ol>`, numbered levels typed 1, a, i as Slack draws them. */
+function listHtml(items: Item[], names: Names): string {
+  const open: string[] = [];
+  let html = "";
+  for (const it of items) {
+    const tag = it.n === undefined ? "ul" : "ol";
+    while (open.length > it.indent + 1) html += `</li></${open.pop()}>`;
+    if (open.length === it.indent + 1 && open[open.length - 1] !== tag) html += `</li></${open.pop()}>`;
+    else if (open.length === it.indent + 1) html += "</li>";
+    while (open.length < it.indent + 1) {
+      const level = open.length;
+      const last = level === it.indent;
+      const t = last ? tag : "ul";
+      const attrs = t === "ol" ? ` type="${["1", "a", "i"][level % 3]}"${it.n && it.n > 1 ? ` start="${it.n}"` : ""}` : "";
+      html += `<${t}${attrs}>`;
+      open.push(t);
+      if (!last) html += "<li>";
+    }
+    html += `<li>${htmlInline(it.c, names)}`;
+  }
+  while (open.length) html += `</li></${open.pop()}>`;
+  return html;
+}
+
 export function messageToClipboard(body: string, names: Names): { text: string; html: string } {
   const blocks: Block[] = parseSlackText(body);
   const text = blocks
     .map((b) => {
       if (b.t === "code") return b.v;
       const line = plainInline(b.c, names);
-      return b.t === "bullet" ? `• ${line}` : b.t === "quote" ? `> ${line}` : line;
+      return b.t === "bullet" ? `${"  ".repeat(b.indent)}${listMarker(b)} ${line}` : b.t === "quote" ? `> ${line}` : line;
     })
     .join("\n");
   let html = "";
-  let list = false;
-  for (const b of blocks) {
-    if (list && b.t !== "bullet") {
-      html += "</ul>";
-      list = false;
-    }
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i];
     if (b.t === "bullet") {
-      if (!list) html += "<ul>";
-      list = true;
-      html += `<li>${htmlInline(b.c, names)}</li>`;
+      const run: Item[] = [];
+      for (; i < blocks.length && blocks[i].t === "bullet"; i++) run.push(blocks[i] as Item);
+      i--;
+      html += listHtml(run, names);
     } else if (b.t === "quote") html += `<blockquote>${htmlInline(b.c, names)}</blockquote>`;
     else if (b.t === "code") html += `<pre><code>${escapeHtml(b.v)}</code></pre>`;
     else html += `<p>${htmlInline(b.c, names)}</p>`;
   }
-  if (list) html += "</ul>";
   return { text, html };
 }
