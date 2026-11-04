@@ -2,23 +2,28 @@ import { ORG_TIMEZONE } from "@/lib/config";
 
 const TZ = ORG_TIMEZONE;
 
+// Built once: `toLocaleString(locale, options)` builds a new Intl.DateTimeFormat on every call, which
+// made the Slack engagement page (a few calls for each of ~50k rows) run past its 60s limit.
+const hourFormat = new Intl.DateTimeFormat("en-US", { hour: "numeric", hour12: false, timeZone: TZ })
+const dateFormat = new Intl.DateTimeFormat("en-CA", { timeZone: TZ })
+const longWeekdayFormat = new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: TZ })
+const shortWeekdayFormat = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: TZ })
+
 export function etHour(iso: string): number {
-  const h = parseInt(
-    new Date(iso).toLocaleString("en-US", { hour: "numeric", hour12: false, timeZone: TZ })
-  )
+  const h = parseInt(hourFormat.format(new Date(iso)))
   return h === 24 ? 0 : h
 }
 
 export function etDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-CA", { timeZone: TZ })
+  return dateFormat.format(new Date(iso))
 }
 
 export function etDow(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", { weekday: "long", timeZone: TZ })
+  return longWeekdayFormat.format(new Date(iso))
 }
 
 export function etIsWeekday(iso: string): boolean {
-  const d = new Date(iso).toLocaleDateString("en-US", { weekday: "short", timeZone: TZ })
+  const d = shortWeekdayFormat.format(new Date(iso))
   return d !== "Sat" && d !== "Sun"
 }
 
