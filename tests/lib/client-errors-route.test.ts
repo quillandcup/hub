@@ -35,6 +35,31 @@ describe("POST /api/client-errors", () => {
     });
   });
 
+  it("passes on what the player said about a video failure, keeping only values of the expected shape", async () => {
+    await post({
+      path: "/courses/ready-writer/lessons/les_esQojgSTH2XD",
+      kind: "video",
+      message: "Playback error, code 2",
+      playback: { code: 2, lessonId: "les_esQojgSTH2XD", playbackId: "AbCdEf1234567890", restricted: true, status: 403, detail: "manifestLoadError" },
+    });
+    expect(sendOperationsAlert).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({
+      playback: { code: 2, lessonId: "les_esQojgSTH2XD", playbackId: "AbCdEf1234567890", restricted: true, status: 403, detail: "manifestLoadError" },
+    }));
+
+    await post({
+      path: "/courses/x/lessons/y",
+      kind: "video",
+      message: "m",
+      playback: { code: 2, lessonId: "not an id", playbackId: "https://x/?token=abc", restricted: "yes", status: 20, detail: "<b>hi</b>" },
+    });
+    expect(sendOperationsAlert).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ playback: { code: 2 } }));
+
+    await post({ path: "/courses/x/lessons/y", kind: "video", message: "m", playback: { code: "2" } });
+    expect(sendOperationsAlert).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ playback: undefined }));
+    await post({ path: "/courses/x/lessons/y", kind: "video", message: "m", playback: "nope" });
+    expect(sendOperationsAlert).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ playback: undefined }));
+  });
+
   it("refuses anyone not signed in", async () => {
     getCurrentUser.mockResolvedValue(null);
     expect((await post({ path: "/x", message: "m" })).status).toBe(401);

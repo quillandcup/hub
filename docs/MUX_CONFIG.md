@@ -25,6 +25,8 @@ The webhook address is `<APP_URL>/api/webhooks/mux` (`APP_URL` is `appUrl` in `a
 
 Otherwise the tokens are exactly what they were before. Thumbnail and storyboard tokens never carry the claim: Mux supports it on every token type, but the stream is what we protect, and images are what a wrong domain list would break most confusingly. Only the member lesson page passes the id; the admin lesson builder's player stays unrestricted. The nightly Checkly stream check uses a separate Mux environment with no restriction and tokens from `__checks__/mux-token.ts`, so it is unaffected and needs no change now. If you ever want it to prove enforcement, that environment needs its own restriction and the check's token needs the same claim.
 
+Tokens last 1 hour. A lesson tab open longer gets fresh ones from `POST /api/courses/playback-tokens` (applying the same flag and id rule above) when the player hits a network error; `course_video_error` and the staff alert record whether the failing token carried the restriction (`restricted`), which is how to tell a wrong domain list (403 from Mux on a restricted link) from an expired link.
+
 **Rollout, in order**
 
 1. Production: put `MUX_PLAYBACK_RESTRICTION_ID=<id>` in `.env.prod`, then `pnpm env:sync --only=MUX_PLAYBACK_RESTRICTION_ID --target=production`. Preview: the Local Dev environment's id in `.env.preview`, `pnpm env:sync --only=MUX_PLAYBACK_RESTRICTION_ID --target=preview` (see "The Local Dev environment" below).

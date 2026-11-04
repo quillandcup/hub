@@ -111,7 +111,8 @@ export default async function LessonPage({
 
   let player: React.ReactNode = null;
   if (video) {
-    const tokens = video.status === "ready" && video.playbackId ? await mintTokens(video.playbackId, await restrictionIdForViewer(caller.userId, caller.identity)) : null;
+    const restrictionId = video.status === "ready" && video.playbackId ? await restrictionIdForViewer(caller.userId, caller.identity) : null;
+    const tokens = video.status === "ready" && video.playbackId ? await mintTokens(video.playbackId, restrictionId) : null;
     player =
       tokens && video.playbackId ? (
         <LessonPlayer
@@ -120,6 +121,7 @@ export default async function LessonPage({
           title={lesson.title}
           playbackId={video.playbackId}
           tokens={tokens}
+          restricted={restrictionId !== null}
           posterUrl={lesson.thumbnail_url}
           lessonId={lesson.id}
           resumeSeconds={startSeconds(query?.t, resumeSeconds)}

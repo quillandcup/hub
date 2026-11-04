@@ -11,7 +11,7 @@ export type OperationsAlert =
   | { type: "slack_dm_failed"; notificationKind: string; memberId: string }
   | { type: "section_failed"; section: string; code?: string; ms: number }
   | { type: "client_crash"; route: string; message: string }
-  | { type: "video_failed"; what: VideoFailure; route?: string; detail?: string }
+  | { type: "video_failed"; what: VideoFailure; route?: string; detail?: string; playback?: PlaybackFailure }
   | { type: "cron_partial_failure"; job: string; problems: string[] }
   | { type: "slack_bot_token_failed"; problem: "refresh_failed" | "not_stored" | "expired"; detail?: string }
   | { type: "slack_blocks_refused"; where: "post" | "edit" | "upload" }
@@ -19,6 +19,29 @@ export type OperationsAlert =
 
 /** Where the course video path broke: Mux's webhook couldn't be recorded, Mux couldn't prepare a video, or a member's player errored. */
 export type VideoFailure = "webhook_upload" | "webhook_asset" | "asset_errored" | "playback";
+
+/** What a member's player said about a playback failure (validated by /api/client-errors). Never the playback token. */
+export interface PlaybackFailure {
+  code: number;
+  lessonId?: string;
+  playbackId?: string;
+  restricted?: boolean;
+  status?: number;
+  detail?: string;
+}
+
+const MEDIA_ERROR_NAMES: Record<number, string> = { 0: "unknown", 1: "aborted", 2: "network", 3: "decode", 4: "source not supported", 5: "encrypted" };
+
+/** One line saying what failed, from the player's own report (every value already checked to be a word, an id or a number). */
+function playbackSummary(p: PlaybackFailure): string {
+  const parts = [`media error ${p.code} (${MEDIA_ERROR_NAMES[p.code] ?? "other"})`];
+  if (p.detail) parts.push(`hls.js: ${p.detail}`);
+  if (p.status) parts.push(`HTTP ${p.status}`);
+  if (p.restricted !== undefined) parts.push(p.restricted ? "link with the referrer restriction" : "link without the restriction");
+  if (p.lessonId) parts.push(`lesson ${p.lessonId}`);
+  if (p.playbackId) parts.push(`playback id ${p.playbackId}`);
+  return parts.join(", ");
+}
 
 const ALERT_WINDOW_SECONDS = 10 * 60;
 
@@ -63,7 +86,7 @@ function alertDetails(alert: OperationsAlert): { bucket: string; title: string; 
       webhook_upload: "Mux told us an upload finished, but the Hub could not record it, so that video will stay in preparing. Mux retries for a while; if it keeps failing, check the Vercel logs for \"Failed to record Mux upload\".",
       webhook_asset: "Mux told us a video is ready (or failed), but the Hub could not record it, so a lesson may keep saying the video is being prepared. Mux retries for a while; if it keeps failing, check the Vercel logs for \"Failed to record Mux asset update\".",
       asset_errored: "Mux could not prepare a course video (asset errored). The lesson tells members \"We've been told\"; re-upload the video, or look at the asset in the Mux dashboard.",
-      playback: `A course video failed to play in a member's browser${alert.route ? ` on ${alert.route}` : ""}. Signed playback, an expired token or Mux itself may be the cause; try the lesson yourself and look at the Mux dashboard's errors.`,
+      playback: `A course video failed to play in a member's browser${alert.route ? ` on ${alert.route}` : ""}${alert.playback ? `: ${playbackSummary(alert.playback)}` : ""}. An expired link is retried once before this alert, so this failed with a fresh link or could not be retried. Try the lesson yourself.`,
     }[alert.what];
     return {
       bucket: `operations_alert:video_failed:${alert.what}${alert.route ? `:${alert.route}` : ""}`,
