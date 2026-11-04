@@ -19,11 +19,6 @@ defineBookContract("InMemoryBookRepository", () => {
       const label = `cover-${++n}`;
       return (await media.add({ storage_path: `originals/${label}.png`, mime_type: "image/png", width, height, bytes: 1234, sha256: label, title: label })).id;
     },
-    legacyBook: async (memberId, title) => {
-      const id = `book_${String(++n).padStart(12, "L")}`;
-      data.memberBooks.push({ id, member_id: memberId, title, published_date: "2026-01-01", cover_asset_id: null, format: "ebook", purchase_url: "https://example.com/legacy", price: 3.5 });
-      return id;
-    },
     project: async () => `wprj_${String(++n).padStart(12, "A")}`,
   };
 });
