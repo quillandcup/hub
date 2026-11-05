@@ -193,6 +193,31 @@ describe("describeRow", () => {
     expect(describeRow(row({ ...base, event_type: "delete" }))).toBe("removed Moss Bramble as an attendee of “Autumn Retreat”");
   });
 
+  it("says a feature switch in plain words: on or off for everyone, and which segment or preview", () => {
+    const flag = { entity_type: "feature_flag", description: "chat" };
+    expect(describeRow(row({ ...flag, event_type: "update", data: { enabled_globally: { old: false, new: true } } }))).toBe("turned “Chat” on for everyone");
+    expect(describeRow(row({ ...flag, event_type: "update", data: { enabled_globally: { old: true, new: false } } }))).toBe("turned “Chat” off for everyone");
+    // A feature without a friendly name shows its key, spaced out.
+    expect(describeRow(row({ entity_type: "feature_flag", description: "some_new_thing", event_type: "update", data: { enabled_globally: { old: false, new: true } } }))).toBe(
+      "turned “some new thing” on for everyone",
+    );
+    expect(describeRow(row({ ...flag, event_type: "insert", data: { enabled_globally: { old: null, new: false } } }))).toBe("added the “Chat” feature");
+    expect(describeRow(row({ ...flag, event_type: "insert", data: { enabled_globally: { old: null, new: true } } }))).toBe("added the “Chat” feature, on for everyone");
+    expect(describeRow(row({ ...flag, event_type: "delete" }))).toBe("removed the “Chat” feature");
+    // Some other column changed: the generic wording, which still says what.
+    expect(describeRow(row({ ...flag, event_type: "update", data: { updated_at: { old: "a", new: "b" } } }))).toBe("changed feature “chat” — updated at");
+
+    const link = { entity_type: "feature_flag_segment", description: "chat · Founding Hedgies" };
+    expect(describeRow(row({ ...link, event_type: "insert" }))).toBe("gave the “Founding Hedgies” segment the “Chat” feature");
+    expect(describeRow(row({ ...link, event_type: "delete" }))).toBe("took the “Chat” feature away from the “Founding Hedgies” segment");
+    expect(describeRow(row({ entity_type: "feature_flag_segment", description: "chat", event_type: "insert" }))).toBe("gave a segment the “Chat” feature");
+    expect(describeRow(row({ ...link, event_type: "update", data: { x: { old: 1, new: 2 } } }))).toContain("changed feature flag segment");
+
+    const preview = { entity_type: "user_feature_preview", description: "chat" };
+    expect(describeRow(row({ ...preview, event_type: "insert" }))).toBe("turned on the “Chat” preview");
+    expect(describeRow(row({ ...preview, event_type: "delete" }))).toBe("turned off the “Chat” preview");
+  });
+
   it("summarizes sessions and activities", () => {
     expect(describeRow(row({ kind: "session", data: { pages: ["/a", "/b"] } }))).toBe("visited 2 pages (A ×1, B ×1)");
     expect(describeRow(row({ kind: "session", data: { pages: ["/a"] } }))).toBe("visited 1 page");
