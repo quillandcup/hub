@@ -2,7 +2,7 @@
 
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { useWithSecondaryTime } from "@/components/SecondaryTimezone";
-import { useEffect } from "react";
+import { Fragment, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { SortableTh } from "@/components/SortableTh";
@@ -163,8 +163,8 @@ export default function AttendanceListTable({
               const records = byDate.get(dateKey) || [];
               const isActive = dateKey === activeListDateKey;
               return (
-                <>
-                  <tr key={`header-${dateKey}`} id={`list-date-${dateKey.replace(/\//g, "-")}`}>
+                <Fragment key={dateKey}>
+                  <tr id={`list-date-${dateKey.replace(/\//g, "-")}`}>
                     <td
                       colSpan={columnCount}
                       className={`px-6 py-2 text-sm font-semibold border-t-2 ${
@@ -222,7 +222,7 @@ export default function AttendanceListTable({
                       </tr>
                     );
                   })}
-                </>
+                </Fragment>
               );
             })}
           </tbody>
