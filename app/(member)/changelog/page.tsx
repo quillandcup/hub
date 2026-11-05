@@ -17,9 +17,9 @@ export default async function ChangelogPage() {
     <div className="max-w-3xl mx-auto p-6">
       <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100 font-serif">What&apos;s new</h1>
       <p className="mt-1 text-slate-600 dark:text-slate-400">
-        What we&apos;ve added and fixed in the Hedgie Hub. Choose how you hear about updates in{" "}
+        What is new and better in the Hedgie Hub. Want a short weekly note about it, or none at all? Choose in{" "}
         <Link href="/settings/notifications" className="text-plum-700 dark:text-plum-300 underline">
-          Settings → Notifications
+          Notifications in Settings
         </Link>
         .
       </p>
