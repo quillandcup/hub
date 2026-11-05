@@ -4,6 +4,7 @@ import { triggerReprocessing } from "@/lib/processing/trigger";
 import { NextRequest, NextResponse } from "next/server";
 import { asJson } from "@/lib/data/json";
 import { createRepos } from "@/lib/data/repos";
+import { importReprocessRange } from "@/lib/processing/attendance";
 
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request);
@@ -110,10 +111,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Trigger downstream Silver layer processing
-    const from = new Date(fromDate);
-    const to = new Date(toDate);
+    // fromDate and toDate are days when they carry no time: the end day is covered whole.
+    const { from, to } = importReprocessRange(fromDate, toDate);
 
-    console.log(`Triggering reprocessing for zoom_attendees and zoom_meetings (${fromDate} to ${toDate})`);
+    console.log(`Triggering reprocessing for zoom_attendees and zoom_meetings (${fromDate} to ${toDate}: ${from.toISOString()} to ${to.toISOString()})`);
 
     const attendeesResult = await triggerReprocessing('zoom_attendees', 'bronze', {
       dateRange: { from, to }

@@ -58,6 +58,19 @@ These rules determine how a Zoom meeting gets split when it overlaps with calend
 
 ---
 
+## A run reads meetings whole
+
+`/api/process/attendance` is asked for a date range, but everything above (a meeting's start and
+end, the scheduled prickles it sits between, the PUPs and the attendance written for them) comes
+from the whole meeting. A range that cuts a meeting, such as a date that stops at midnight UTC
+(19:00 Eastern in winter) or a window around one changed calendar event, used to show the run only
+some of the people and no prickle starting after the cut, so it built a different PUP (one covering
+the whole meeting, under a new id) from the one a full run builds. So the run first reads every
+meeting that overlaps the range, whole, and widens the range until no meeting reaches outside it
+(`loadWholeMeetings`); the widened range is what it loads calendar prickles for and what it
+replaces. A date-only `toDate` ("2026-11-04") names that whole UTC day, in the import
+(`importReprocessRange`) as in the attendance route. Test: `tests/api/reprocessability/whole-meeting-scope.test.ts`.
+
 ## PUP Attendance Filtering (15-minute threshold)
 
 **Purpose**: Prevent double-counting people who show up early/late for scheduled prickles as also attending adjacent PUPs.

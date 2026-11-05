@@ -3,15 +3,17 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { CHANGELOG_CATEGORIES } from "@/lib/changelog/entries";
-import { changelogEntryPath, listProductChangelog } from "@/lib/changelog";
+import { changelogEntryPath, filterByCategory, listProductChangelog, parseCategoryFilter } from "@/lib/changelog";
 
 export const metadata: Metadata = { title: "What's new" };
 
-export default async function ChangelogPage() {
+export default async function ChangelogPage({ searchParams }: PageProps<"/changelog">) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const entries = listProductChangelog();
+  const show = parseCategoryFilter((await searchParams).show);
+  const entries = filterByCategory(listProductChangelog(), show);
+  const filters = [{ label: "All", value: null, href: "/changelog" }, ...Object.entries(CHANGELOG_CATEGORIES).map(([value, label]) => ({ label, value, href: `/changelog?show=${value}` }))];
 
   return (
     <div className="max-w-3xl mx-auto p-6">
@@ -24,8 +26,26 @@ export default async function ChangelogPage() {
         .
       </p>
 
+      <nav aria-label="Show" className="mt-6 flex flex-wrap gap-2">
+        {filters.map((f) => (
+          <Link
+            key={f.label}
+            href={f.href}
+            data-track="changelog-filter"
+            aria-current={f.value === show ? "true" : undefined}
+            className={
+              f.value === show
+                ? "rounded-full bg-plum-700 px-4 py-1.5 text-sm font-medium text-white"
+                : "rounded-full border border-slate-300 bg-white px-4 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+            }
+          >
+            {f.label}
+          </Link>
+        ))}
+      </nav>
+
       {entries.length === 0 ? (
-        <p className="mt-8 text-slate-600 dark:text-slate-400">Nothing yet.</p>
+        <p className="mt-8 text-slate-600 dark:text-slate-400">Nothing here yet.</p>
       ) : (
         <ul className="mt-8 space-y-6">
           {entries.map((e) => (

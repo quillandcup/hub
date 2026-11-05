@@ -73,6 +73,12 @@ export interface ZoomRepository {
    * the key the attendance run groups by). Each row is listed once. Keys with nobody are left out.
    */
   attendeesInSessions(sessionKeys: string[]): Promise<Map<string, { name: string; email: string | null }[]>>;
+  /**
+   * Every attendee row of these sessions (the same key: a meeting's uuid, or its id for rows with no
+   * uuid), whatever the time: a session is read whole, so a run that sees part of a meeting can
+   * still compute its real start and end. Earliest join first.
+   */
+  attendeesOfSessions(sessionKeys: string[]): Promise<ZoomAttendeeRow[]>;
   /** Adds attendee rows, or updates the ones with the same (meeting uuid, name, join time). Written in chunks. */
   upsertAttendees(rows: NewZoomAttendee[]): Promise<void>;
 
@@ -233,6 +239,26 @@ export class SupabaseZoomRepository implements ZoomRepository {
       }
     }
     return result;
+  }
+
+  async attendeesOfSessions(sessionKeys: string[]) {
+    const result: ZoomAttendeeRow[] = [];
+    const seen = new Set<string>();
+    for (const part of chunk([...new Set(sessionKeys)], SESSION_CHUNK)) {
+      // The attendance run groups by meeting_uuid, falling back to meeting_id; look up both.
+      for (const column of ["meeting_uuid", "meeting_id"] as const) {
+        const rows = await fetchAllRows<ZoomAttendeeRow>(
+          (a, b) => this.attendees.select("*").in(column, part).order("id").range(a, b)
+        );
+        for (const r of rows) {
+          const key = r.meeting_uuid || r.meeting_id;
+          if (!part.includes(key) || seen.has(r.id)) continue;
+          seen.add(r.id);
+          result.push(r);
+        }
+      }
+    }
+    return result.sort((a, b) => (a.join_time < b.join_time ? -1 : a.join_time > b.join_time ? 1 : a.id < b.id ? -1 : 1));
   }
 
   async upsertAttendees(rows: NewZoomAttendee[]) {
@@ -468,6 +494,14 @@ export class InMemoryZoomRepository implements ZoomRepository {
       result.set(key, [...(result.get(key) ?? []), { name: a.name, email: a.email }]);
     }
     return result;
+  }
+
+  async attendeesOfSessions(sessionKeys: string[]) {
+    const wanted = new Set(sessionKeys);
+    return this.data.zoomAttendees
+      .filter((a) => wanted.has(a.meeting_uuid || a.meeting_id))
+      .sort((a, b) => (a.join_time < b.join_time ? -1 : a.join_time > b.join_time ? 1 : a.id < b.id ? -1 : 1))
+      .map((a) => ({ ...a }));
   }
 
   async upsertAttendees(rows: NewZoomAttendee[]) {
