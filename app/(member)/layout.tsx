@@ -18,6 +18,7 @@ import AppHeader from '@/components/AppHeader'
 import WithInAppNotifications from '@/components/WithInAppNotifications'
 import SudoBanner from '@/components/SudoBanner'
 import AnnouncementStack, { ANNOUNCEMENT_PRIORITY } from '@/components/announcements/AnnouncementStack'
+import AppUpdatedBar from '@/components/announcements/AppUpdatedBar'
 import { InstallAppPrompt } from '@/components/InstallAppPrompt'
 import { TimezoneInitializer } from '@/components/TimezoneInitializer'
 import { SecondaryTimezoneProvider } from '@/components/SecondaryTimezone'
@@ -152,6 +153,7 @@ function Bars({ extras, identity }: { extras: Extras; identity: EffectiveIdentit
             <SudoBanner memberName={identity.memberDisplayName ?? identity.memberName} memberEmail={identity.memberEmail} />
           ),
         },
+        { id: 'app-updated', priority: ANNOUNCEMENT_PRIORITY.appUpdated, element: <AppUpdatedBar /> },
         { id: 'install-app', priority: ANNOUNCEMENT_PRIORITY.installApp, element: showInstallPrompt && <InstallAppPrompt /> },
         {
           id: 'slack-connect',
