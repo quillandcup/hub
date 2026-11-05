@@ -63,7 +63,7 @@ describe("planTrackbearImport", () => {
         externalId: P1,
         title: "The Hedgehog's Journey",
         description: "A cozy fantasy.",
-        phase: "on_hold",
+        phase: "hibernating",
         showOnProfile: true,
         createdAt: "2025-01-02T10:00:00.000Z",
         coverFilename: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.webp",
@@ -185,7 +185,7 @@ describe("planTrackbearImport", () => {
     const tally = data.tallies[0];
     const entryId = trackbearExternalId(tally.uuid);
     const target = trackbearExternalId(data.targets[0].uuid);
-    const matchingProject: ExistingProjectDetails = { title: "The Hedgehog's Journey", description: "A cozy fantasy.", phase: "on_hold", showOnProfile: true, deleted: false };
+    const matchingProject: ExistingProjectDetails = { title: "The Hedgehog's Journey", description: "A cozy fantasy.", phase: "hibernating", showOnProfile: true, deleted: false };
     const matchingEntry = { projectId: "hub-p1", entryDate: "2025-01-05", measure: "words", mode: "delta", amount: 1500, note: "Great session", tags: ["drafting", "sprint"], deleted: false };
 
     function existingWith(overrides: Partial<ExistingImports>): ExistingImports {
@@ -221,7 +221,7 @@ describe("planTrackbearImport", () => {
         })
       );
       expect(p.projectUpdates).toEqual([
-        { externalId: P1, title: "The Hedgehog's Journey", description: "A cozy fantasy.", phase: "on_hold", showOnProfile: true },
+        { externalId: P1, title: "The Hedgehog's Journey", description: "A cozy fantasy.", phase: "hibernating", showOnProfile: true },
       ]);
       expect(p.startingBalanceUpdates).toEqual([
         { projectExternalId: P1, measure: "words", amount: 12000 },
@@ -233,7 +233,7 @@ describe("planTrackbearImport", () => {
       const odd = makeTrackbearData();
       odd.projects[0].phase = "limbo";
       const p = planTrackbearImport(odd, existingWith({ projectDetails: new Map([[P1, { ...matchingProject, title: "Renamed" }]]) }));
-      expect(p.projectUpdates[0]).toMatchObject({ externalId: P1, phase: "on_hold" });
+      expect(p.projectUpdates[0]).toMatchObject({ externalId: P1, phase: "hibernating" });
       expect(p.issues.filter((i) => i.kind === "project" && /phase/.test(i.detail))).toEqual([]);
     });
 

@@ -67,7 +67,7 @@ describe("TrackBear import idempotency", () => {
     expect(project).toMatchObject({
       title: "The Hedgehog's Journey",
       description: "A cozy fantasy.",
-      phase: "on_hold",
+      phase: "hibernating",
       show_on_profile: true,
       cover_url: "https://example.test/covers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.webp.jpg",
     });

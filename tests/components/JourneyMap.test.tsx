@@ -8,14 +8,14 @@ import { PROJECT_PHASES } from "@/lib/writing-projects";
 const stageOf = (title: string) => screen.getByRole("heading", { name: new RegExp(`^${title}$`) }).closest("li")!;
 
 describe("journeyStageForPhase", () => {
-  it("places every status except on hold and hibernating at exactly one stage", () => {
+  it("places every status except hibernating at exactly one stage", () => {
     for (const phase of PROJECT_PHASES) {
       const stages = JOURNEY_STAGES.filter((s) => s.phases.includes(phase));
-      expect(stages).toHaveLength(phase === "on_hold" || phase === "hibernating" ? 0 : 1);
+      expect(stages).toHaveLength(phase === "hibernating" ? 0 : 1);
     }
     expect(journeyStageForPhase("beta_readers")?.title).toBe("Beta readers");
     expect(journeyStageForPhase("revising")?.id).toBe("revision-1");
-    expect(journeyStageForPhase("on_hold")).toBeNull();
+    expect(journeyStageForPhase("hibernating")).toBeNull();
   });
 
   it("walks the hire-a-pro row in the order a manuscript goes through it", () => {
@@ -41,7 +41,7 @@ describe("JourneyMap", () => {
         projects={[
           { id: "wprj_AAAAAAAAAAA1", title: "Book One", phase: "line_copy_edit" },
           { id: "wprj_AAAAAAAAAAA2", title: "Book Two", phase: "drafting" },
-          { id: "wprj_AAAAAAAAAAA3", title: "Book Three", phase: "on_hold" },
+          { id: "wprj_AAAAAAAAAAA3", title: "Book Three", phase: "hibernating" },
           { id: "wprj_AAAAAAAAAAA4", title: "Book Four", phase: "complete" },
         ]}
       />
@@ -51,7 +51,7 @@ describe("JourneyMap", () => {
     expect(within(stageOf("Publishing")).getByRole("link", { name: "Book Four" })).toBeInTheDocument();
     expect(within(stageOf("Beta readers")).queryByRole("link")).toBeNull();
     expect(screen.getByRole("heading", { name: "Paused" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Book Three · On hold" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Book Three · Hibernating" })).toBeInTheDocument();
   });
 
   it("tags each stage with the statuses that put a project there", () => {

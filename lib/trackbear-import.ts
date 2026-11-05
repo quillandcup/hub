@@ -94,7 +94,7 @@ export const TRACKBEAR_PHASE_MAP: Record<string, ProjectPhase> = {
   outlining: "outlining",
   drafting: "drafting",
   revising: "revising",
-  "on hold": "on_hold",
+  "on hold": "hibernating",
   finished: "complete",
   abandoned: "hibernating",
 };
