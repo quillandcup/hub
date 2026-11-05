@@ -374,10 +374,15 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "new",
     title: "See who is coming to upcoming prickles",
+    image: {
+      src: "/changelog/whos-coming-to-prickles/01-whos-coming.webp",
+      alt: "An upcoming prickle's page with a Who's coming card listing the host and a member who added it to their calendar.",
+    },
     summary:
       "An upcoming prickle now shows who is planning to be there, and you can choose not to be listed.",
     body: [
       "On a prickle that has not started, the page shows Who's coming: the host, plus members who committed to it or added it to their calendar. It is a friendly sign of who is planning to join, not a reservation.",
+      "![The Who's coming card on an upcoming prickle](/changelog/whos-coming-to-prickles/01-whos-coming.webp)",
       "Prefer not to be listed? Turn it off under Settings, Profile. You will still see yourself, marked as hidden from others. A prickle nobody has joined yet says to stay tuned instead of showing a zero.",
     ].join("\n\n"),
   },
@@ -387,10 +392,15 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "improved",
     title: "Add a prickle to your calendar from the Upcoming list",
+    image: {
+      src: "/changelog/add-to-calendar-from-upcoming/01-upcoming-calendar-icon.webp",
+      alt: "The Upcoming tab of My Prickles, a list of prickles with a small calendar icon at the right of each one.",
+    },
     summary:
       "Each prickle in My Prickles, Upcoming has a calendar icon, so you no longer have to open it first.",
     body: [
       "The icon opens the same menu as the prickle page: just this one, or every week. A prickle you host or committed to shows why it is already on your calendar. Find it in [My Prickles](/my-prickles).",
+      "![The Upcoming list with a calendar icon beside each prickle](/changelog/add-to-calendar-from-upcoming/01-upcoming-calendar-icon.webp)",
     ].join("\n\n"),
   },
   {
@@ -482,10 +492,15 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "new",
     title: "On air light",
+    image: {
+      src: "/changelog/on-air-light/01-on-air-popover.webp",
+      alt: "The grey Off air light in the header opened to a card saying nobody is at the table, with a button to start a Pop-Up Prickle on Zoom, the meeting ID and the passcode.",
+    },
     summary:
       "A light in the header shows when the prickle room has people in it and how to join.",
     body: [
       "When people are at the table, a red On air light blinks beside the bell with a count. Click it to see the prickle and its host, who is in the room, and the Zoom link with meeting ID and passcode. When the room is empty the light is grey, and the same link is offered as a way to start a pop-up prickle.",
+      "![The grey Off air light opened to a card with a button to start a Pop-Up Prickle on Zoom](/changelog/on-air-light/01-on-air-popover.webp)",
     ].join("\n\n"),
   },
   {
