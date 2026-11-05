@@ -1,4 +1,6 @@
-import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import sharp from "sharp";
 import path from "node:path";
 import type { ChangelogEntry } from "@/lib/changelog/entries";
 import { CHANGELOG_ENTRIES } from "@/lib/changelog/entries";
@@ -12,6 +14,19 @@ import { isChangelogSlug } from "@/lib/changelog";
 
 /** The one project a changelog screenshot is taken on: desktop, light. */
 export const CAPTURE_PROJECT = "desktop-light";
+
+/**
+ * What a committed screenshot looks like: WebP, at most this wide. A 1440 px PNG of the app is 100 KB or more and the
+ * repo keeps every version forever; at this size and quality it is a fraction of that and still reads clearly in the
+ * list, the digest, the Slack post and on a phone.
+ */
+export const SCREENSHOT_MAX_WIDTH = 1200;
+export const SCREENSHOT_QUALITY = 80;
+
+/** PNG bytes to the committed form: WebP, never upscaled, no wider than SCREENSHOT_MAX_WIDTH. */
+export async function toCommittedScreenshot(png: Buffer): Promise<Buffer> {
+  return sharp(png).resize({ width: SCREENSHOT_MAX_WIDTH, withoutEnlargement: true }).webp({ quality: SCREENSHOT_QUALITY }).toBuffer();
+}
 
 /** The tag every changelog scene carries, so the scheduled help-screenshots run can leave them out. */
 export const CHANGELOG_SCENE_TAG = "@changelog";
@@ -66,14 +81,19 @@ export type CaptureResult = { ok: true; copied: string[]; target: string } | { o
 
 /**
  * Captures an entry's screenshots: clears the earlier capture folder (so a screenshot a scene no longer takes can't be
- * copied from an old run), runs the scene through `run` (the Playwright command; its exit status), and copies the PNGs it
- * took into public/changelog/<slug>/, replacing only the PNGs of an earlier capture. Nothing is copied when the scene fails.
+ * copied from an old run), runs the scene through `run` (the Playwright command; its exit status), and writes the PNGs it
+ * took into public/changelog/<slug>/ as WebP (`convert`, resized and compressed), replacing only the images of an earlier
+ * capture. Nothing is written when the scene fails.
  */
-export function captureEntry(
+export async function captureEntry(
   slug: string,
   run: (args: string[]) => number,
-  { entries = CHANGELOG_ENTRIES, root = process.cwd() }: { entries?: readonly ChangelogEntry[]; root?: string } = {},
-): CaptureResult {
+  {
+    entries = CHANGELOG_ENTRIES,
+    root = process.cwd(),
+    convert = toCommittedScreenshot,
+  }: { entries?: readonly ChangelogEntry[]; root?: string; convert?: (png: Buffer) => Promise<Buffer> } = {},
+): Promise<CaptureResult> {
   const problem = captureProblem(slug, entries, root);
   if (problem) return { ok: false, error: problem };
 
@@ -87,7 +107,12 @@ export function captureEntry(
 
   const target = publicDir(slug, root);
   mkdirSync(target, { recursive: true });
-  for (const f of readdirSync(target)) if (f.endsWith(".png")) rmSync(path.join(target, f));
-  for (const f of images) copyFileSync(path.join(from, f), path.join(target, f));
-  return { ok: true, copied: images, target };
+  for (const f of readdirSync(target)) if (/\.(png|webp)$/.test(f)) rmSync(path.join(target, f));
+  const copied: string[] = [];
+  for (const f of images) {
+    const name = f.replace(/\.png$/, ".webp");
+    writeFileSync(path.join(target, name), await convert(await readFile(path.join(from, f))));
+    copied.push(name);
+  }
+  return { ok: true, copied, target };
 }

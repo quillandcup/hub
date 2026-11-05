@@ -56,9 +56,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "See what's new and fixed in the Hub, right here in the Hub. Choose how you hear about updates in Settings → Notifications.",
     body: [
       "Every improvement and fix you might notice now gets a short write-up here, newest first, with screenshots where they help.",
-      "![The What's new page in the Hub](/changelog/whats-new-changelog/01-whats-new-list.png)",
+      "![The What's new page in the Hub](/changelog/whats-new-changelog/01-whats-new-list.webp)",
       "You can find it any time under the **?** menu in the top bar.",
     ].join("\n\n"),
-    image: { src: "/changelog/whats-new-changelog/01-whats-new-list.png", alt: "The What's new page in the Hub, listing the latest update" },
+    image: { src: "/changelog/whats-new-changelog/01-whats-new-list.webp", alt: "The What's new page in the Hub, listing the latest update" },
   },
 ];

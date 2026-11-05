@@ -1,9 +1,10 @@
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import sharp from "sharp";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { CHANGELOG_ENTRIES, type ChangelogEntry } from "@/lib/changelog/entries";
-import { CAPTURE_PROJECT, captureDir, captureEntry, playwrightArgs, captureProblem, capturedImages, entryImagePaths, missingImageFiles, publicDir, sceneFile } from "@/lib/changelog/capture";
+import { CAPTURE_PROJECT, SCREENSHOT_MAX_WIDTH, captureDir, captureEntry, playwrightArgs, toCommittedScreenshot, captureProblem, capturedImages, entryImagePaths, missingImageFiles, publicDir, sceneFile } from "@/lib/changelog/capture";
 
 const entry = (over: Partial<ChangelogEntry> = {}): ChangelogEntry => ({
   slug: "a-thing",
@@ -82,9 +83,14 @@ describe("the committed entries", () => {
 
 describe("captureEntry", () => {
   const e = entry();
+  const fakeConvert = async (png: Buffer) => Buffer.from(`webp:${png.toString()}`);
   const sceneThatTakes = (...files: string[]) => (args: string[]) => {
     expect(args).toEqual(playwrightArgs("a-thing"));
-    for (const f of files) touch(captureDir("a-thing"), f);
+    for (const f of files) {
+      const file = path.join(root, captureDir("a-thing"), f);
+      mkdirSync(path.dirname(file), { recursive: true });
+      writeFileSync(file, f);
+    }
     return 0;
   };
 
@@ -94,29 +100,53 @@ describe("captureEntry", () => {
     ]);
   });
 
-  it("refuses without running when the entry or its scene is missing", () => {
+  it("refuses without running when the entry or its scene is missing", async () => {
     let ran = false;
     const run = () => ((ran = true), 0);
-    expect(captureEntry("a-thing", run, { entries: [e], root })).toEqual({ ok: false, error: expect.stringContaining("No scene at") });
-    expect(captureEntry("nope", run, { entries: [e], root })).toEqual({ ok: false, error: expect.stringContaining("No changelog entry") });
+    expect(await captureEntry("a-thing", run, { entries: [e], root })).toEqual({ ok: false, error: expect.stringContaining("No scene at") });
+    expect(await captureEntry("nope", run, { entries: [e], root })).toEqual({ ok: false, error: expect.stringContaining("No changelog entry") });
     expect(ran).toBe(false);
   });
 
-  it("copies the screenshots the scene took, replacing an earlier capture's PNGs but not other files", () => {
+  it("writes the screenshots the scene took as WebP, replacing an earlier capture's images but not other files", async () => {
     touch(sceneFile("a-thing"));
     touch("public", "changelog", "a-thing", "old.png");
+    touch("public", "changelog", "a-thing", "older.webp");
     touch("public", "changelog", "a-thing", "notes.txt");
     touch("demo", "out", "a-thing", CAPTURE_PROJECT, "stale.png"); // from an earlier run: cleared before this one
-    const result = captureEntry("a-thing", sceneThatTakes("01-first.png", "02-second.png", "01-first.findings.json"), { entries: [e], root });
-    expect(result).toEqual({ ok: true, copied: ["01-first.png", "02-second.png"], target: publicDir("a-thing", root) });
-    expect(readdirSync(publicDir("a-thing", root)).sort()).toEqual(["01-first.png", "02-second.png", "notes.txt"]);
+    const result = await captureEntry("a-thing", sceneThatTakes("01-first.png", "02-second.png", "01-first.findings.json"), { entries: [e], root, convert: fakeConvert });
+    expect(result).toEqual({ ok: true, copied: ["01-first.webp", "02-second.webp"], target: publicDir("a-thing", root) });
+    expect(readdirSync(publicDir("a-thing", root)).sort()).toEqual(["01-first.webp", "02-second.webp", "notes.txt"]);
+    expect(readFileSync(path.join(publicDir("a-thing", root), "01-first.webp"), "utf8")).toBe("webp:01-first.png");
   });
 
-  it("copies nothing when the scene fails or takes no screenshots", () => {
+  it("writes nothing when the scene fails or takes no screenshots", async () => {
     touch(sceneFile("a-thing"));
-    touch("public", "changelog", "a-thing", "keep.png");
-    expect(captureEntry("a-thing", () => 1, { entries: [e], root })).toEqual({ ok: false, error: expect.stringContaining("exit 1") });
-    expect(captureEntry("a-thing", () => 0, { entries: [e], root })).toEqual({ ok: false, error: expect.stringContaining("no screenshots") });
-    expect(readdirSync(publicDir("a-thing", root))).toEqual(["keep.png"]);
+    touch("public", "changelog", "a-thing", "keep.webp");
+    expect(await captureEntry("a-thing", () => 1, { entries: [e], root })).toEqual({ ok: false, error: expect.stringContaining("exit 1") });
+    expect(await captureEntry("a-thing", () => 0, { entries: [e], root })).toEqual({ ok: false, error: expect.stringContaining("no screenshots") });
+    expect(readdirSync(publicDir("a-thing", root))).toEqual(["keep.webp"]);
+  });
+});
+
+describe("toCommittedScreenshot", () => {
+  const png = (width: number, height: number) =>
+    sharp({ create: { width, height, channels: 3, background: { r: 200, g: 120, b: 160 } } })
+      .composite([{ input: { create: { width: Math.floor(width / 2), height: Math.floor(height / 2), channels: 3, background: { r: 20, g: 20, b: 60 } } }, top: 10, left: 10 }])
+      .png()
+      .toBuffer();
+
+  it("makes a WebP no wider than the limit, much smaller than the PNG, keeping the proportions", async () => {
+    const source = await png(2400, 1200);
+    const out = await toCommittedScreenshot(source);
+    const meta = await sharp(out).metadata();
+    expect(meta.format).toBe("webp");
+    expect([meta.width, meta.height]).toEqual([SCREENSHOT_MAX_WIDTH, 600]);
+    expect(out.length).toBeLessThan(source.length);
+  });
+
+  it("never enlarges a small screenshot", async () => {
+    const meta = await sharp(await toCommittedScreenshot(await png(800, 500))).metadata();
+    expect([meta.format, meta.width, meta.height]).toEqual(["webp", 800, 500]);
   });
 });
