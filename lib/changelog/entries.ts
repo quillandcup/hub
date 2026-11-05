@@ -363,8 +363,10 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Search everything from the header",
     summary:
       "Search the Hub from the header to find members, prickles, events, pages and each settings section, with filters you can type.",
+    image: { src: "/changelog/universal-search/01-search-results.webp", alt: "The search box open over the dashboard with the letters will typed, listing a matching member under Members." },
     body: [
       "Press the search box in the header (or Cmd or Ctrl K) to find members, prickles, events, pages and each section of Settings. Filters such as from: narrow results to one person, and you can limit by kind or by how recent something is. The filter bar is one compact row that wraps on a small screen instead of scrolling sideways.",
+      "![The search box open over the dashboard with the letters will typed, listing a matching member under Members.](/changelog/universal-search/01-search-results.webp)",
       "Recent searches can be removed with the x. On phones the search fills the screen, and a full results page is at /search.",
     ].join("\n\n"),
   },
@@ -837,8 +839,10 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "A help menu in the top bar",
     summary:
       "The help icon is now a menu with Hedgie Help and Send feedback.",
+    image: { src: "/changelog/help-menu/01-help-menu.webp", alt: "The help menu open in the top bar, listing Hedgie Help, What's new and Send feedback." },
     body: [
       "Hedgie Help is at [/help](/help). Send feedback opens the feedback form in a panel, replacing the floating button.",
+      "![The help menu open in the top bar, listing Hedgie Help, What's new and Send feedback.](/changelog/help-menu/01-help-menu.webp)",
     ].join("\n\n"),
   },
   {
@@ -849,8 +853,10 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Continue watching on your dashboard",
     summary:
       "If you are partway through a course lesson, your dashboard shows a card that takes you straight back to it.",
+    image: { src: "/changelog/dashboard-continue-watching/01-continue-watching.webp", alt: "The dashboard with a Continue watching card showing a lesson, its course and a progress bar." },
     body: [
       "The card shows the lesson, the course, a progress bar and a link to the lesson. It appears only when you have a lesson in progress or a started course with a next lesson waiting.",
+      "![The dashboard with a Continue watching card showing a lesson, its course and a progress bar.](/changelog/dashboard-continue-watching/01-continue-watching.webp)",
     ].join("\n\n"),
   },
   {
