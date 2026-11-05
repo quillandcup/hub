@@ -4,6 +4,7 @@ import type { BadgeLevel, BadgeType, MemberBadge } from "./badges";
 import type { EmailAliasRow, NameAliasRow } from "./aliases";
 import type { PushSubscriptionRow } from "./push-subscriptions";
 import type { ReminderLogRow } from "./reminder-log";
+import type { NotificationLogRow } from "./notification-log";
 import type { ProspectSeed } from "./prospects";
 import type { InAppNotificationRow, NotificationPreference } from "./notifications";
 import type { EventAttendeeRow, EventPhotoRow, EventRow } from "./events";
@@ -115,6 +116,8 @@ export class InMemoryDataset implements PeopleTables {
   emailAliases: EmailAliasRow[];
   pushSubscriptions: PushSubscriptionRow[];
   reminderLog: ReminderLogRow[];
+  /** What the app sent members and shared places (`notification_log`). */
+  notificationLog: NotificationLogRow[];
   /** Instagram prospects found for outreach (`outreach_prospects`). */
   prospects: ProspectSeed[];
   badgeTypes: BadgeType[];
@@ -279,7 +282,7 @@ export class InMemoryDataset implements PeopleTables {
 
   constructor(
     init: Partial<
-      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "hubSessions" | "pushSubscriptions" | "reminderLog" | "prospects" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "slackChannels" | "ignoredSlackUsers" | "restrictedSlackChannels" | "slackChannelMembers" | "slackMemberEvents" | "slackCustomEmoji" | "slackMessages" | "slackReactions" | "slackFiles" | "zoomAttendees" | "zoomMeetings" | "ignoredZoomNames" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages" | "kajabiCourses" | "kajabiModules" | "kajabiLessons" | "kajabiLessonFiles" | "kajabiCourseOffers" | "kajabiProductProgress" | "kajabiLessonProgress" | "kajabiLessonComments" | "kajabiContacts" | "kajabiCustomers" | "kajabiPurchases" | "kajabiOffers" | "stripeCustomers" | "stripeProducts" | "stripeSubscriptions" | "kajabiMembers" | "subscriptionHistory" | "memberHiatuses" | "memberStatusOverrides" | "memberJoinDateOverrides" | "memberProfileOverrides" | "prickleCommitments" | "prickleCheckins" | "checkinDismissals" | "checkoutDismissals" | "calendarFeedTokens" | "calendarFeedItems" | "calendarSyncStates" | "courses" | "courseModules" | "courseLessons" | "courseLessonFiles" | "videos" | "videoTextTracks" | "lessonProgress" | "courseAccess" | "courseAccessGrants" | "videoWatchSegments" | "ignoredZoomAppearances" | "zoomParticipantEvents" | "resendEvents" | "ambiguousZoomNames" | "memberMetrics" | "memberEngagement" | "hostVibes" | "scheduleLocks" | "checkinDmLog" | "wheelMatches" | "accessEvents" | "chatDrafts" | "adminNotes" | "joinSettings" | "segments" | "segmentMembers" | "featureFlags" | "featureFlagSegments" | "userFeaturePreviews" | "slackIdentities" | "slackSignInTokens" | "analyticsEvents" | "calendarWatchChannels" | "authUsers">
+      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "hubSessions" | "pushSubscriptions" | "reminderLog" | "notificationLog" | "prospects" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "slackChannels" | "ignoredSlackUsers" | "restrictedSlackChannels" | "slackChannelMembers" | "slackMemberEvents" | "slackCustomEmoji" | "slackMessages" | "slackReactions" | "slackFiles" | "zoomAttendees" | "zoomMeetings" | "ignoredZoomNames" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages" | "kajabiCourses" | "kajabiModules" | "kajabiLessons" | "kajabiLessonFiles" | "kajabiCourseOffers" | "kajabiProductProgress" | "kajabiLessonProgress" | "kajabiLessonComments" | "kajabiContacts" | "kajabiCustomers" | "kajabiPurchases" | "kajabiOffers" | "stripeCustomers" | "stripeProducts" | "stripeSubscriptions" | "kajabiMembers" | "subscriptionHistory" | "memberHiatuses" | "memberStatusOverrides" | "memberJoinDateOverrides" | "memberProfileOverrides" | "prickleCommitments" | "prickleCheckins" | "checkinDismissals" | "checkoutDismissals" | "calendarFeedTokens" | "calendarFeedItems" | "calendarSyncStates" | "courses" | "courseModules" | "courseLessons" | "courseLessonFiles" | "videos" | "videoTextTracks" | "lessonProgress" | "courseAccess" | "courseAccessGrants" | "videoWatchSegments" | "ignoredZoomAppearances" | "zoomParticipantEvents" | "resendEvents" | "ambiguousZoomNames" | "memberMetrics" | "memberEngagement" | "hostVibes" | "scheduleLocks" | "checkinDmLog" | "wheelMatches" | "accessEvents" | "chatDrafts" | "adminNotes" | "joinSettings" | "segments" | "segmentMembers" | "featureFlags" | "featureFlagSegments" | "userFeaturePreviews" | "slackIdentities" | "slackSignInTokens" | "analyticsEvents" | "calendarWatchChannels" | "authUsers">
 
     > &
       Partial<PeopleTables> = {},
@@ -308,6 +311,7 @@ export class InMemoryDataset implements PeopleTables {
     this.emailAliases = (init.emailAliases ?? []).map((row) => ({ ...row }));
     this.pushSubscriptions = (init.pushSubscriptions ?? []).map((row) => ({ ...row }));
     this.reminderLog = (init.reminderLog ?? []).map((row) => ({ ...row }));
+    this.notificationLog = (init.notificationLog ?? []).map((row) => ({ ...row }));
     this.prospects = (init.prospects ?? []).map((row) => ({ ...row }));
     this.badgeTypes = (init.badgeTypes ?? []).map((row) => ({ ...row }));
     this.badgeLevels = (init.badgeLevels ?? []).map((row) => ({ ...row }));

@@ -5,6 +5,7 @@ import { InMemoryMemberRepository, SupabaseMemberRepository, type MemberReposito
 import { InMemoryBadgeRepository, SupabaseBadgeRepository, type BadgeRepository } from "./badges";
 import { InMemoryAliasRepository, SupabaseAliasRepository, type AliasRepository } from "./aliases";
 import { InMemoryPushSubscriptionRepository, SupabasePushSubscriptionRepository, type PushSubscriptionRepository } from "./push-subscriptions";
+import { InMemoryNotificationLogRepository, SupabaseNotificationLogRepository, type NotificationLogRepository } from "./notification-log";
 import { InMemoryReminderLogRepository, SupabaseReminderLogRepository, type ReminderLogRepository } from "./reminder-log";
 import { InMemoryNotificationRepository, SupabaseNotificationRepository, type NotificationRepository } from "./notifications";
 import { InMemoryPrickleRepository, SupabasePrickleRepository, type PrickleRepository } from "./prickles";
@@ -65,6 +66,7 @@ export interface Repos {
   badges: BadgeRepository;
   pushSubscriptions: PushSubscriptionRepository;
   reminderLog: ReminderLogRepository;
+  notificationLog: NotificationLogRepository;
   aliases: AliasRepository;
   writing: WritingRepository;
   events: EventRepository;
@@ -122,6 +124,7 @@ export function createRepos(db: Db): Repos {
     badges: new SupabaseBadgeRepository(db),
     pushSubscriptions: new SupabasePushSubscriptionRepository(db),
     reminderLog: new SupabaseReminderLogRepository(db),
+    notificationLog: new SupabaseNotificationLogRepository(db),
     aliases: new SupabaseAliasRepository(db),
     writing: new SupabaseWritingRepository(db),
     events: new SupabaseEventRepository(db),
@@ -179,6 +182,7 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     badges: new InMemoryBadgeRepository(dataset),
     pushSubscriptions: new InMemoryPushSubscriptionRepository(dataset),
     reminderLog: new InMemoryReminderLogRepository(dataset),
+    notificationLog: new InMemoryNotificationLogRepository(dataset),
     aliases: new InMemoryAliasRepository(dataset),
     writing: new InMemoryWritingRepository(dataset),
     events: new InMemoryEventRepository(dataset),

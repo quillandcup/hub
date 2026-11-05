@@ -4528,6 +4528,44 @@ export type Database = {
           },
         ]
       }
+      notification_log: {
+        Row: {
+          dedup_key: string
+          id: string
+          kind: string
+          member_id: string | null
+          place: string | null
+          recipient: string | null
+          sent_at: string
+        }
+        Insert: {
+          dedup_key: string
+          id?: string
+          kind: string
+          member_id?: string | null
+          place?: string | null
+          recipient?: string | null
+          sent_at?: string
+        }
+        Update: {
+          dedup_key?: string
+          id?: string
+          kind?: string
+          member_id?: string | null
+          place?: string | null
+          recipient?: string | null
+          sent_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_log_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notification_preferences: {
         Row: {
           channel: string

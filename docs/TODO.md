@@ -1007,6 +1007,22 @@ Pages and routes pull every row of a large table into the server (paginated 1000
 ### Client failures right after a server action: "Error in input stream" (Firefox) and "Load failed" (Safari) on /projects _(Needs Scheduling)_
 Sentry HUB-T (Firefox on Windows) and HUB-5 and HUB-D (Mobile Safari) are a TypeError raised within about 50 ms of a successful (200) server-action POST on `/projects` and `/projects/<id>` (saving a goal, deleting a goal, adding a project), or inside a burst of `_rsc` page prefetches (shown with status undefined, i.e. cancelled). They are not slow requests or tabs left asleep. #1004 briefly hid them from #hub-alerts as "a dropped connection"; that was wrong and was reverted. **Why deferred:** not reproduced; the cause is not known. **Where to start:** the project actions' `revalidatePath(..., "layout")` makes the response carry every tab of the page; try the same action in Firefox on a slow connection with the network tab open, check whether the response body is cut off (HTTP/2 reset, `Content-Length`, compression), and compare with Next's `staleTimes` and `clientTraceMetadata` experiments in `next.config.ts`.
 
+### Move the per-kind send logs onto `notification_log` _(Needs Scheduling)_
+
+`notification_log` (`NotificationLogRepository`, `lib/data/notification-log.ts`) is the one log of what the app sent, keyed by recipient (a member or a shared place), kind and a dedup key; the changelog digest is its first user. Two older logs still do the same job per feature: `member_reminder_log` (intro and prickle reminders, which also use its `sent_at` history for backoff, `lib/member-reminders.ts`) and `prickle_checkin_dm_log` (check-in and check-out DMs, `lib/prickle-checkin-dms.ts`). Deferred because moving them rewrites live senders and needs the expand-then-contract steps (backfill the rows into `notification_log`, switch the readers and writers, then drop the old tables with the user's approval of each drop). Start with `prickle_checkin_dm_log`, whose claim is the same shape; the reminders also need a "when was the last one sent" read added to the repository.
+
+### Changelog screenshots from the demo scenes _(Needs Scheduling)_
+
+Changelog entries can show screenshots (`public/changelog/<slug>/`, `docs/CHANGELOG_PROCESS.md`), but they are taken by hand today. The plan: one Playwright scene per entry in `demo/scenes/changelog/<slug>.spec.ts`, run on the fictional demo community, and a `pnpm changelog:capture <slug>` that runs only that scene on desktop light and copies the PNGs into the entry's folder to be reviewed and committed (frozen at ship time, unlike the help screenshots, which are regenerated per build; a public folder is what Slack and email need). Also have the validator fail an entry whose image file is missing. Start from `demo/scenes/` and `docs/DEMO_AND_HELP.md`.
+
+### Checkly heartbeat for the changelog digest _(Needs Scheduling)_
+
+`/api/internal/changelog-digest` (weekly) has its heartbeat switched off (`unmonitored` in `lib/cron-heartbeats.ts`) for the same reason as `/api/reconcile/email`: the plan's 10 uptime monitors are used. Remove that line once a monitor is free (see "Monitor the nightly import" in the email timeline notes for the steps).
+
+### db tests that read the whole members table unpaginated _(Needs Scheduling)_
+
+`tests/member-matching.test.ts` and `tests/api/reprocessability/orphaned-meetings-idempotency.test.ts` load members with a bare `.select('id, name, email')`, which PostgREST caps at 1000 rows. The shared test database grows as the suites run, so when it nears 1000 members the test's own member can fall outside the first 1000 and the match comes back null ("expected null not to be null", "expected +0 to be 1"). It surfaced on a PR whose only change was a new db test that briefly added two members (the same suites passed on `main` just before), which fits that cause but was not proven; the PR's test was changed to reuse existing members. Deferred because it needs a look at how many members the suites leave behind. Start by paginating those two reads with `fetchAllRows` (`lib/supabase/paginate.ts`) or filtering to the test's own rows, and check which suites leak members.
+
 ## Slack Bot Channel Access
 
 ### Auto-invite Billie Bot into private channels using a personal Slack token

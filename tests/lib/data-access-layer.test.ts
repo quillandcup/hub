@@ -31,6 +31,8 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   member_badges: [],
   push_subscriptions: [],
   member_reminder_log: [],
+  // The one log of what the app sent (NotificationLogRepository): every query is in the repository.
+  notification_log: [],
   // Instagram prospects (ProspectRepository).
   outreach_prospects: [],
   // Writing (WritingRepository): the dashboard, onboarding, check-in, Slack quick log and CSV export are

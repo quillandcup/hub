@@ -56,6 +56,11 @@ export const appConfig = {
     alertsChannelId: "C0CA91G8LGH", // #hub-alerts
     /** The same channel by name, for the Checkly Slack app (__checks__/alert-channels.ts), which takes names. */
     alertsChannelName: "#hub-alerts",
+    /**
+     * Where the weekly "What's new" digest is also posted (#announcements, open to all members): an excerpt of the
+     * new changelog entries with a link to /changelog. Leave empty to post nowhere.
+     */
+    changelogChannelId: "C01PGFFQGQ0",
   },
 
   /**

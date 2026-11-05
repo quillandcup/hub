@@ -87,6 +87,17 @@ export const CRON_HEARTBEATS = {
     unmonitored: "Checkly plan limit of 10 uptime monitors reached",
     ...daily,
   },
+  "changelog-digest": {
+    name: "Cron: What's new digest (weekly, Tuesday 14:00 UTC)",
+    path: "/api/internal/changelog-digest",
+    scheduler: "vercel",
+    envVar: "CHECKLY_HEARTBEAT_CHANGELOG_DIGEST",
+    unmonitored: "Checkly plan limit of 10 uptime monitors reached",
+    period: 7,
+    periodUnit: "days",
+    grace: 1,
+    graceUnit: "days",
+  },
   "reconcile-retention": {
     name: "Cron: raw network details retention (daily 04:00 UTC)",
     path: "/api/reconcile/retention",
