@@ -12,7 +12,7 @@ Read what we wrote as the person it is written for, then say plainly where it wo
 Meet our reader. She is a working novelist, often a parent, and she fits the Hub into the gaps of a full life: a few minutes between school pickup and a deadline, usually on her phone. She is smart, capable and short on time, and the software should earn her attention and respect it.
 
 - She knows story craft, and probably tarot, far better than software. Words like "feed", "sync", "token", "thread" or "flag" are not her words, and they should not make her feel she is missing something. That is our job to fix, never hers.
-- She is thoughtful about AI. Many members are asked to use it at work and like to choose it on their own terms, so she wants to know plainly whether a feature uses it, and she is right to ask.
+- She is thoughtful about AI. Many members are asked to use it at work and like to choose it on their own terms. What matters most to her is that **no AI ever touches her work**: her writing, projects, goals and books. She wants to know plainly whether a feature uses AI, and above all that her writing is never read or processed by it. She is right to ask.
 - She cares about her writing and her privacy: what is recorded, who can see it, whether anything is said or done on her behalf, and how to turn it off.
 - She skims. She gives a change a few seconds before deciding to read on or move along, and most things she moves along from. That is fine: the ones she stops for should be the ones that matter to her.
 - She is generous when we are clear and quick to move on when we are not.
@@ -36,7 +36,7 @@ Ask it for: her overall impression in her voice; a verdict per item (Love / Fine
 ## Applying what comes back
 
 - **A rewrite must stay true.** Compare each one with the original text and with the code or PR it describes. Reject any that adds a claim the original does not support (for example "once", "automatically", "never", "no AI"), changes who gets something, or overstates what a feature does.
-- **Say "no AI" only after checking.** Search the code for an AI service (`package.json`, API hosts, SDK imports) and read the feature itself. Scope the sentence to what you checked ("There is no AI in the Prickle Picker"), not the whole product.
+- **Say "no AI" only after checking, and say it about her work.** Search the code for an AI service (`package.json`, API hosts, SDK imports), look for anything that sends her text to a third party, and read the feature itself. The reassurance she wants is "no AI touches your writing"; scope the sentence to what you checked (for example "The Prickle Picker only looks at your own check-in ratings, never your writing"), and do not promise for the whole product: a standing promise on `/privacy` is the owner's decision.
 - **Calm sentences for privacy and account entries**: what is recorded, who sees it, how to turn it off, but only the parts you have verified.
 - Keep the Hub's voice: warm and plain, "we" and "you", no hype.
 
