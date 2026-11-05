@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -225,7 +225,8 @@ describe("MessageList linked message", () => {
     render(<MessageList channelId="c1" views={[view(1)]} ctx={CTX} olderBefore="2026-10-01T00:00:00.000Z" />);
     await screen.findByText("the one");
     expect(loadOlderChat).toHaveBeenCalledTimes(2);
-    expect(scrollIntoViewTop).toHaveBeenCalled();
+    // The scroll runs in an effect after the message renders: wait for it instead of racing it (flaky on a loaded CI runner).
+    await waitFor(() => expect(scrollIntoViewTop).toHaveBeenCalled());
     scrollIntoViewTop.mockRestore();
     window.location.hash = "";
   });
