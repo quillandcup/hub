@@ -10,6 +10,7 @@ vi.mock("@/components/changelog/ChangelogEntryViewed", () => ({ default: () => n
 import ChangelogPage from "@/app/(member)/changelog/page";
 import ChangelogEntryPage, { generateMetadata, generateStaticParams } from "@/app/(member)/changelog/[slug]/page";
 import { CHANGELOG_ENTRIES } from "@/lib/changelog/entries";
+import { listProductChangelog } from "@/lib/changelog";
 
 const USER = { id: "user-1", email: "member1@example.com" };
 
@@ -26,16 +27,25 @@ describe("changelog pages", () => {
   it("lists every entry with a link to its page", async () => {
     signInAs(USER, null);
     await renderServerPage(ChangelogPage, {});
+    // A link per product entry (by its address, since titles can repeat words); engineering entries have no page, so no link.
+    const hrefs = screen.getAllByRole("link").map((a) => a.getAttribute("href"));
     for (const e of CHANGELOG_ENTRIES) {
-      expect(screen.getByRole("link", { name: new RegExp(e.title) })).toHaveAttribute("href", `/changelog/${e.slug}`);
+      expect(hrefs.includes(`/changelog/${e.slug}`), e.slug).toBe(e.audience === "product");
     }
   });
 
   it("shows one entry", async () => {
     signInAs(USER, null);
-    const e = CHANGELOG_ENTRIES[0];
+    const e = listProductChangelog()[0];
     await renderServerPage(ChangelogEntryPage, { params: Promise.resolve({ slug: e.slug }), searchParams: Promise.resolve({}) });
     expect(screen.getByRole("heading", { name: e.title })).toBeInTheDocument();
+  });
+
+  it("gives an engineering entry no page", async () => {
+    signInAs(USER, null);
+    const eng = CHANGELOG_ENTRIES.find((e) => e.audience === "engineering");
+    if (!eng) return; // none committed yet
+    await expect(ChangelogEntryPage({ params: Promise.resolve({ slug: eng.slug }), searchParams: Promise.resolve({}) })).rejects.toThrow("404");
   });
 
   it("404s on an unknown slug", async () => {
@@ -44,8 +54,8 @@ describe("changelog pages", () => {
   });
 
   it("prerenders one page per entry and titles it", async () => {
-    expect(generateStaticParams()).toEqual(CHANGELOG_ENTRIES.map((e) => ({ slug: e.slug })));
-    const e = CHANGELOG_ENTRIES[0];
+    expect(generateStaticParams()).toEqual(listProductChangelog().map((e) => ({ slug: e.slug })));
+    const e = listProductChangelog()[0];
     expect(await generateMetadata({ params: Promise.resolve({ slug: e.slug }), searchParams: Promise.resolve({}) })).toEqual({ title: `${e.title} · What's new` });
     expect(await generateMetadata({ params: Promise.resolve({ slug: "nope" }), searchParams: Promise.resolve({}) })).toEqual({ title: "What's new" });
   });
