@@ -27,13 +27,13 @@ Every entry has an `audience`:
 
 ## Screenshots
 
-An entry's screenshots are **frozen at ship time**: taken once from the demo community, committed, and left alone (the help screenshots, by contrast, are regenerated per build). They live in `public/changelog/<slug>/`, so Slack and email can fetch them, and are referenced as `/changelog/<slug>/<file>.png` in `body` (and in `image` for the one shown on the list, in the digest and in the Slack post). The repo and that folder are public: sample data only, never a real member's name, photo or message. Images must live in the entry's own folder, and every one an entry shows must exist (`tests/lib/changelog.test.ts`).
+An entry's screenshots are **frozen at ship time**: taken once from the demo community, committed, and left alone (the help screenshots, by contrast, are regenerated per build). They live in `public/changelog/<slug>/`, so Slack and email can fetch them, and are referenced as `/changelog/<slug>/<file>.webp` in `body` (and in `image` for the one shown on the list, in the digest and in the Slack post). The repo and that folder are public: sample data only, never a real member's name, photo or message. Images must live in the entry's own folder, and every one an entry shows must exist (`tests/lib/changelog.test.ts`).
 
 To take them:
 
 1. Add the entry to `lib/changelog/entries.ts` (a `product` one).
 2. Write a scene at `demo/scenes/changelog/<slug>.spec.ts`, tagged `@changelog` in its test title, that signs in as a demo persona, drives the feature and calls `shot()` (see `whats-new-changelog.spec.ts`). Like every scene it also runs the page checks (accessibility, overflow, console), so it doubles as a test of the feature: the first run on this page found a contrast bug.
-3. With the demo stack up (`pnpm demo:stack up`), the demo app running (`pnpm demo:app`; another port with `DEMO_APP_URL`) and the community seeded (`pnpm demo:seed`), run `pnpm changelog:capture <slug>`. It runs that scene on desktop light and copies the PNGs into `public/changelog/<slug>/`.
+3. With the demo stack up (`pnpm demo:stack up`), the demo app running (`pnpm demo:app`; another port with `DEMO_APP_URL`) and the community seeded (`pnpm demo:seed`), run `pnpm changelog:capture <slug>`. It runs that scene on desktop light and writes the screenshots into `public/changelog/<slug>/` as **WebP, at most 1200 px wide** (about a quarter of the PNG: the repo keeps every version of every image forever, so they are kept small). Reference them as `.webp`.
 4. Open every image and check it shows no real data, delete the ones the entry doesn't use, then reference them from the entry and commit them.
 
 `@changelog` scenes are left out of the scheduled help-screenshots run (`--grep-invert "@published|@changelog"`), which tracks the current UI: a scene for an old entry may stop matching the app, and that is fine, it is the record of how the screenshots were taken.
