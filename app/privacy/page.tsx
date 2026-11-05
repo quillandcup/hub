@@ -92,7 +92,7 @@ export default async function PrivacyPage() {
             channels, group DMs and your one-on-one Slack DMs are open to them only through break-glass access.
           </li>
           <li>
-            The Hub brings your one-on-one Slack DMs into Hub chat as we roll it out to every member, and keeps them. See
+            The Hub brings your one-on-one Slack DMs into Hub Chat as we roll it out to every member, and keeps them. See
             &ldquo;Your one-on-one Slack DMs&rdquo; below.
           </li>
           <li>
@@ -282,7 +282,7 @@ export default async function PrivacyPage() {
         </Detail>
 
         <Detail title="Connecting your Slack account">
-          Hub chat needs your Slack account connected. That lets the Hub act as you in Slack: post your messages and
+          Hub Chat needs your Slack account connected. That lets the Hub act as you in Slack: post your messages and
           reactions, edit and delete the ones you wrote, join and leave channels, add people to a channel, and mark
           conversations read. Slack also lists permission to read and send your direct messages. The Hub uses that only for
           the DM bridge below, and only for members it is switched on for. Apart from that the Hub does nothing in Slack you
@@ -305,7 +305,7 @@ export default async function PrivacyPage() {
           <br />
           <br />
           <strong>Stopping it.</strong> There is no separate switch for DMs. Disconnecting Slack in Settings stops the Hub
-          reading your DMs, and closes Hub chat for you until you reconnect. What the Hub has already kept stays until you ask
+          reading your DMs, and closes Hub Chat for you until you reconnect. What the Hub has already kept stays until you ask
           us to close your account and remove it.
         </Detail>
 
