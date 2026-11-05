@@ -144,7 +144,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "Before a prickle you get a short message asking how you are feeling coming in, and afterwards one asking how it went. Each links to the check-in or check-out itself.",
       "Choose which messages you get, and whether they come by Slack or in the Hub, under Notifications in Settings (/settings/notifications). Check-out is available on the prickle page once the prickle starts.",
       "The Slack bot is now named Billie Bot (Hedgie Hub), so searching for hub finds it.",
+      "![Prickle check-ins and check-outs in Notifications settings](/changelog/check-in-and-check-out-dms/01-check-in-settings.webp)",
     ].join("\n\n"),
+    image: { src: "/changelog/check-in-and-check-out-dms/01-check-in-settings.webp", alt: "Settings, Notifications, with the Prickle check-ins and Prickle check-outs rows and their channel toggles" },
   },
   {
     slug: "getting-started-tour",
@@ -228,7 +230,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "You can now choose email for any kind of Hub message, and every email has an unsubscribe link.",
     body: [
       "Under Notifications in Settings (/settings/notifications), turn on email for the messages you want. Email is off until you choose it. Each email has a link to stop that kind of message.",
+      "![Notifications settings with an email toggle on each kind of message](/changelog/email-notifications/01-notification-settings.webp)",
     ].join("\n\n"),
+    image: { src: "/changelog/email-notifications/01-notification-settings.webp", alt: "Settings, Notifications, with a Slack, in-Hub and email toggle on each kind of message" },
   },
   {
     slug: "hub-chat-first-look",
@@ -1049,7 +1053,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "Gentle reminders to say hello or plan a prickle are now available to every member. Choose where they arrive, or turn them off.",
     body: [
       "Choose which channels they come on, or turn them off, under [Notifications](/settings/notifications). Prickle reminders are off until you turn them on, except in your first 90 days.",
+      "![Notifications settings, with the introduction and prickle reminders](/changelog/reminders-for-everyone/01-reminder-settings.webp)",
     ].join("\n\n"),
+    image: { src: "/changelog/reminders-for-everyone/01-reminder-settings.webp", alt: "Settings, Notifications, listing the introduction and prickle reminders with a Slack, in-Hub and email toggle on each" },
   },
   {
     slug: "courses-open-to-everyone",
@@ -1109,7 +1115,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "In Settings, Preferences, choose whether the Hub follows your device, always shows animations, or tones them down. With motion reduced, animated emoji stay still.",
     body: [
       "Find it in [Settings](/settings), under Preferences. System follows your device. With animations reduced, interface motion stops, animated emoji show a still, and GIF attachments in chat play and pause when you click them. The choice is saved on this device, like the theme.",
+      "![The Animations choice in Settings, Preferences](/changelog/allow-animations/01-animations-setting.webp)",
     ].join("\n\n"),
+    image: { src: "/changelog/allow-animations/01-animations-setting.webp", alt: "Settings, Preferences, showing the Animations choice set to System" },
   },
   {
     slug: "check-in-and-check-out",
