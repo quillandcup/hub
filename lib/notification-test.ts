@@ -8,7 +8,7 @@ import { NOTIFICATION_SETTINGS_PATH } from "@/lib/notifications/notify";
 import { joinAt, loadPrickleJoinSettings } from "@/lib/prickle-join";
 import { APP_URL } from "@/lib/config";
 import { digestMessage } from "@/lib/changelog/digest";
-import { listChangelog } from "@/lib/changelog";
+import { listProductChangelog } from "@/lib/changelog";
 import type { NotificationKindId } from "@/lib/notifications/registry";
 
 type TestSendRepos = Repos;
@@ -74,7 +74,7 @@ export async function sampleMessages(
     case "prickle_nudge":
       return [mark(prickleNudgeMessage("first"))];
     case "changelog_digest":
-      return [mark(digestMessage(listChangelog().slice(0, 1)))];
+      return [mark(digestMessage(listProductChangelog().slice(0, 1)))];
     case "big_sister_match":
       return [mark(bigSisterMessageForNewMember("Marlow", "sample")), mark(bigSisterMessageForMentor("Marlow", "Linden", "sample"))];
   }

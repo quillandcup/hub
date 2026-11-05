@@ -1,4 +1,4 @@
-import { CHANGELOG_CATEGORIES, CHANGELOG_ENTRIES, type ChangelogEntry } from "@/lib/changelog/entries";
+import { CHANGELOG_AUDIENCES, CHANGELOG_CATEGORIES, CHANGELOG_ENTRIES, type ChangelogEntry } from "@/lib/changelog/entries";
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -13,7 +13,7 @@ export function changelogEntryPath(slug: string): string | null {
   return match ? `/changelog/${match[0]}` : null;
 }
 
-/** Newest first; entries of the same day keep the order they were written in (later in the file is newer). */
+/** Every entry, product and engineering, newest first; entries of the same day keep the order they were written in (later in the file is newer). */
 export function listChangelog(entries: readonly ChangelogEntry[] = CHANGELOG_ENTRIES): ChangelogEntry[] {
   return entries
     .map((entry, index) => ({ entry, index }))
@@ -21,13 +21,19 @@ export function listChangelog(entries: readonly ChangelogEntry[] = CHANGELOG_ENT
     .map(({ entry }) => entry);
 }
 
-export function findChangelogEntry(slug: string, entries: readonly ChangelogEntry[] = CHANGELOG_ENTRIES): ChangelogEntry | null {
-  return entries.find((e) => e.slug === slug) ?? null;
+/** What members see (the pages, the digest, the announcements post): the product entries, newest first. Engineering entries live only in CHANGELOG.md. */
+export function listProductChangelog(entries: readonly ChangelogEntry[] = CHANGELOG_ENTRIES): ChangelogEntry[] {
+  return listChangelog(entries).filter((e) => e.audience === "product");
 }
 
-/** Entries that shipped after `since` (a YYYY-MM-DD day, exclusive); all of them when null. Newest first. */
+/** A product entry by slug, or null: an engineering entry has no page, so its slug is a 404 like any unknown one. */
+export function findChangelogEntry(slug: string, entries: readonly ChangelogEntry[] = CHANGELOG_ENTRIES): ChangelogEntry | null {
+  return entries.find((e) => e.slug === slug && e.audience === "product") ?? null;
+}
+
+/** Product entries that shipped after `since` (a YYYY-MM-DD day, exclusive); all of them when null. Newest first. */
 export function changelogSince(since: string | null, entries: readonly ChangelogEntry[] = CHANGELOG_ENTRIES): ChangelogEntry[] {
-  return listChangelog(entries).filter((e) => since === null || e.date > since);
+  return listProductChangelog(entries).filter((e) => since === null || e.date > since);
 }
 
 /** Whether an image path belongs to the entry's own folder in public/changelog/, with no way to climb out of it. */
@@ -46,20 +52,26 @@ export function validateChangelog(entries: readonly ChangelogEntry[] = CHANGELOG
     seen.add(e.slug);
     if (!DATE.test(e.date) || Number.isNaN(Date.parse(e.date))) problems.push(`${where}: date must be YYYY-MM-DD`);
     if (!(e.category in CHANGELOG_CATEGORIES)) problems.push(`${where}: unknown category`);
+    if (!(e.audience in CHANGELOG_AUDIENCES)) problems.push(`${where}: unknown audience`);
+    // An engineering entry has no page, digest or post to show a screenshot in.
+    if (e.audience === "engineering" && (e.image || /!\[[^\]]*\]\(/.test(e.body))) problems.push(`${where}: an engineering entry has no screenshots`);
     if (!e.title.trim()) problems.push(`${where}: empty title`);
     if (!e.summary.trim()) problems.push(`${where}: empty summary`);
     if (/[*_`#\[\]]/.test(e.summary)) problems.push(`${where}: summary is plain text, no markdown`);
     if (!e.body.trim()) problems.push(`${where}: empty body`);
     if (e.image && !isChangelogImagePath(e.slug, e.image.src)) problems.push(`${where}: image must be /changelog/${e.slug}/<file>`);
     if (e.image && !e.image.alt.trim()) problems.push(`${where}: image needs alt text`);
-    for (const m of e.body.matchAll(/!\[[^\]]*\]\(([^)]*)\)/g)) {
+    if (e.audience === "product") for (const m of e.body.matchAll(/!\[[^\]]*\]\(([^)]*)\)/g)) {
       if (!isChangelogImagePath(e.slug, m[1])) problems.push(`${where}: body image ${m[1]} must be /changelog/${e.slug}/<file>`);
     }
   }
   return problems;
 }
 
-/** The text of CHANGELOG.md, generated from the entries (`pnpm changelog:generate`). */
+/**
+ * The text of CHANGELOG.md, generated from the entries (`pnpm changelog:generate`): every entry, product and
+ * engineering. Engineering entries are tagged and carry their body, since this file is the only place they appear.
+ */
 export function renderChangelogMarkdown(entries: readonly ChangelogEntry[] = CHANGELOG_ENTRIES): string {
   const lines = [
     "# Changelog",
@@ -69,7 +81,9 @@ export function renderChangelogMarkdown(entries: readonly ChangelogEntry[] = CHA
     "What's new and fixed in the Hedgie Hub, newest first.",
   ];
   for (const e of listChangelog(entries)) {
-    lines.push("", `## ${e.date} · ${CHANGELOG_CATEGORIES[e.category]}: ${e.title}`, "", e.summary);
+    const audience = e.audience === "engineering" ? ` · ${CHANGELOG_AUDIENCES.engineering}` : "";
+    lines.push("", `## ${e.date}${audience} · ${CHANGELOG_CATEGORIES[e.category]}: ${e.title}`, "", e.summary);
+    if (e.audience === "engineering") lines.push("", e.body.trim());
   }
   return lines.join("\n") + "\n";
 }

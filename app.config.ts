@@ -64,6 +64,13 @@ export const appConfig = {
   },
 
   /**
+   * The first day (YYYY-MM-DD, Eastern) a changelog entry can go out in the weekly digest and the announcements post.
+   * Entries dated before it (the backfilled history) are on the What's new page and in CHANGELOG.md but are never
+   * notified, so turning the digest on does not send members the past.
+   */
+  changelogDigestStartsOn: "2026-11-04",
+
+  /**
    * First day we have prickle attendance for (YYYY-MM-DD). A member who joined before it may have
    * attended plenty that we can't see, so reminders never call a prickle their "first".
    */

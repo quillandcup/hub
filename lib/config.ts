@@ -74,6 +74,9 @@ export const SLACK_ALERTS_CHANNEL_ID = appConfig.slack.alertsChannelId;
 /** Channel the weekly changelog digest is posted to, or "" for none (app.config.ts `slack.changelogChannelId`). */
 export const SLACK_CHANGELOG_CHANNEL_ID: string = appConfig.slack.changelogChannelId;
 
+/** First day (YYYY-MM-DD) a changelog entry can be notified in the digest or the channel post (app.config.ts `changelogDigestStartsOn`). */
+export const CHANGELOG_DIGEST_STARTS_ON: string = appConfig.changelogDigestStartsOn;
+
 /** First day (YYYY-MM-DD) prickle attendance is recorded from. */
 export const ATTENDANCE_DATA_STARTS_ON = appConfig.attendanceDataStartsOn;
 

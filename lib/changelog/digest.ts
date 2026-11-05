@@ -1,8 +1,8 @@
-import { APP_URL, ORG_TIMEZONE, SLACK_CHANGELOG_CHANNEL_ID } from "@/lib/config";
+import { APP_URL, CHANGELOG_DIGEST_STARTS_ON, ORG_TIMEZONE, SLACK_CHANGELOG_CHANNEL_ID } from "@/lib/config";
 import type { OutboundMessage } from "@/lib/channels";
 import { slackBlocks } from "@/lib/channels/slack";
 import { CHANGELOG_ENTRIES, type ChangelogEntry } from "@/lib/changelog/entries";
-import { changelogEntryPath, listChangelog } from "@/lib/changelog";
+import { changelogEntryPath, listProductChangelog } from "@/lib/changelog";
 import type { Repos } from "@/lib/data/repos";
 import { chunk } from "@/lib/supabase/paginate";
 import { createNotifier } from "@/lib/notifications/notify";
@@ -30,10 +30,18 @@ function orgDay(now: Date): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: ORG_TIMEZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 }
 
-/** Entries recent enough to be sent (newest first). */
-export function digestCandidates(now: Date, entries: readonly ChangelogEntry[] = CHANGELOG_ENTRIES): ChangelogEntry[] {
-  const cutoff = new Date(Date.parse(orgDay(now)) - DIGEST_WINDOW_DAYS * DAY_MS).toISOString().slice(0, 10);
-  return listChangelog(entries).filter((e) => e.date >= cutoff);
+/**
+ * Entries that can be sent now (newest first): product entries (engineering ones never leave CHANGELOG.md) from the last
+ * DIGEST_WINDOW_DAYS days and no earlier than `startsOn`, so backfilled history is never notified.
+ */
+export function digestCandidates(
+  now: Date,
+  entries: readonly ChangelogEntry[] = CHANGELOG_ENTRIES,
+  startsOn: string = CHANGELOG_DIGEST_STARTS_ON,
+): ChangelogEntry[] {
+  const windowStart = new Date(Date.parse(orgDay(now)) - DIGEST_WINDOW_DAYS * DAY_MS).toISOString().slice(0, 10);
+  const cutoff = windowStart > startsOn ? windowStart : startsOn;
+  return listProductChangelog(entries).filter((e) => e.date >= cutoff);
 }
 
 const entryUrl = (e: ChangelogEntry) => `${APP_URL}${changelogEntryPath(e.slug)}`;
