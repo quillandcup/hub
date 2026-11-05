@@ -171,6 +171,24 @@ export function defineZoomContract(name: string, setup: () => ZoomContractContex
       expect((await ctx.repo().attendeesInSessions([])).size).toBe(0);
     });
 
+    it("reads a session whole: every row of it at any hour, earliest join first, each row once, by uuid or by meeting id", async () => {
+      const [ada, bea, cy, dee] = [ctx.unique("ada"), ctx.unique("bea"), ctx.unique("cy"), ctx.unique("dee")];
+      const [m1, m2, legacyId] = [ctx.unique("m1"), ctx.unique("m2"), ctx.unique("legacy")];
+      await ctx.repo().upsertAttendees([
+        stay(bea, m1, 14, 12), // joined late, listed last
+        stay(ada, m1, 14, 9, { meeting_id: m2 }), // found by uuid and by meeting id, listed once, under its uuid
+        stay(cy, null, 14, 10, { meeting_id: legacyId }),
+        stay(dee, m2, 14, 9),
+      ]);
+
+      const rows = await ctx.repo().attendeesOfSessions([m1, legacyId, ctx.unique("empty")]);
+
+      expect(rows.map((r) => r.name)).toEqual([ada, cy, bea]);
+      expect(rows.find((r) => r.name === bea)).toMatchObject({ meeting_uuid: m1, join_time: expect.any(String), leave_time: expect.any(String) });
+      expect(rows.some((r) => r.name === dee)).toBe(false);
+      expect(await ctx.repo().attendeesOfSessions([])).toEqual([]);
+    });
+
     it("keeps meetings, finds the latest start, and replaces a meeting with the same uuid", async () => {
       const uuid = ctx.unique("meeting");
       const start = at(20, 15);

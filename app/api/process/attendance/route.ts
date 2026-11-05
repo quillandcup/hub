@@ -5,6 +5,7 @@ import { matchAttendeeToMember, type MatchResult, type MemberEmailAlias } from "
 import {
   chunkAttendanceWrites,
   filterTrivialPups,
+  loadWholeMeetings,
   reprocessAttendanceRange,
   trackAmbiguousZoomName,
   type AttendanceInput,
@@ -197,12 +198,24 @@ export async function POST(request: NextRequest) {
 
     console.log(`Date normalization: from ${fromDate} -> ${fromDateTime}, to ${toDate} -> ${toDateTime}`);
 
-    // Get all zoom attendees that overlap the date range (paginated — table has large historical data)
-    // Use overlap logic (start < rangeEnd AND end > rangeStart) to catch attendees
-    // whose sessions span across date boundaries
-    const zoomAttendees = await createRepos(supabase).zoom.attendeesOverlapping(fromDateTime, toDateTime);
+    // Every attendee of every meeting that overlaps the date range (paginated — table has large
+    // historical data), and the range widened to cover those meetings whole. A meeting is processed
+    // whole or not at all: a Pop-Up Prickle's start and end, the calendar prickles it sits between and
+    // the attendance written for it all come from the whole meeting, so a range that cuts one
+    // (a date that stops at midnight UTC, a window around one changed calendar event) would build a
+    // different Pop-Up Prickle -- under a new id -- from the one a full run builds. The widened
+    // range (runFrom, runTo) is used for everything below that reads or deletes by range.
+    const { from: runFrom, to: runTo, attendees: zoomAttendees } = await loadWholeMeetings(
+      createRepos(supabase).zoom,
+      { from: fromDateTime, to: toDateTime }
+    );
 
-    console.log(`Found ${zoomAttendees.length} zoom attendees in range`);
+    console.log(
+      `Found ${zoomAttendees.length} zoom attendees in range` +
+        (runFrom !== new Date(fromDateTime).toISOString() || runTo !== new Date(toDateTime).toISOString()
+          ? `, widened to ${runFrom} -> ${runTo} to take in whole meetings`
+          : "")
+    );
 
     if (zoomAttendees.length === 0) {
       // Still call the atomic procedure to DELETE any orphaned PUPs/attendance in this range
@@ -231,8 +244,8 @@ export async function POST(request: NextRequest) {
 
     // Load reference data upfront for in-memory matching (performance optimization)
     // Note: Load ALL calendar prickles that OVERLAP with date range (not just contained within)
-    // A prickle overlaps if: prickle.start_time < toDate AND prickle.end_time > fromDate
-    const allPrickles = (await createRepos(supabase).prickles.calendarOverlapping({ from: fromDateTime, to: toDateTime })).map((p) => ({
+    // A prickle overlaps if: prickle.start_time < runTo AND prickle.end_time > runFrom
+    const allPrickles = (await createRepos(supabase).prickles.calendarOverlapping({ from: runFrom, to: runTo })).map((p) => ({
       id: p.id,
       start_time: p.startTime,
       end_time: p.endTime,
@@ -505,8 +518,8 @@ export async function POST(request: NextRequest) {
       ...pupsToCreate.map((p) => ({ start: p.start_time, end: p.end_time })),
     ];
     const writeChunks = chunkAttendanceWrites(
-      fromDateTime,
-      toDateTime,
+      runFrom,
+      runTo,
       busy,
       pupsToCreate,
       attendanceToUpsert,
