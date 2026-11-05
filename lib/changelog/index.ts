@@ -1,4 +1,4 @@
-import { CHANGELOG_AUDIENCES, CHANGELOG_CATEGORIES, CHANGELOG_ENTRIES, type ChangelogEntry } from "@/lib/changelog/entries";
+import { CHANGELOG_AUDIENCES, CHANGELOG_CATEGORIES, CHANGELOG_ENTRIES, type ChangelogCategory, type ChangelogEntry } from "@/lib/changelog/entries";
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -24,6 +24,17 @@ export function listChangelog(entries: readonly ChangelogEntry[] = CHANGELOG_ENT
 /** What members see (the pages, the digest, the announcements post): the product entries, newest first. Engineering entries live only in CHANGELOG.md. */
 export function listProductChangelog(entries: readonly ChangelogEntry[] = CHANGELOG_ENTRIES): ChangelogEntry[] {
   return listChangelog(entries).filter((e) => e.audience === "product");
+}
+
+/** The `?show=` filter on the What's new page: one category, or null (everything) for no value or one that is not a category. */
+export function parseCategoryFilter(value: string | string[] | undefined): ChangelogCategory | null {
+  const one = Array.isArray(value) ? value[0] : value;
+  return one !== undefined && Object.hasOwn(CHANGELOG_CATEGORIES, one) ? (one as ChangelogCategory) : null;
+}
+
+/** Entries of one category, or all of them for null. */
+export function filterByCategory(entries: readonly ChangelogEntry[], category: ChangelogCategory | null): ChangelogEntry[] {
+  return category ? entries.filter((e) => e.category === category) : [...entries];
 }
 
 /** A product entry by slug, or null: an engineering entry has no page, so its slug is a 404 like any unknown one. */

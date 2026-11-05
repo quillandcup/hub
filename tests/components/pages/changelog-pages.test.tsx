@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import { expectRedirect, renderServerPage, resetServerPageMocks, signInAs } from "@/tests/helpers/server-page";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
@@ -21,17 +21,42 @@ describe("changelog pages", () => {
 
   it("sends a signed-out visitor to login", async () => {
     signInAs(null, null);
-    await expectRedirect(ChangelogPage, {}, "/login");
+    await expectRedirect(ChangelogPage, { params: Promise.resolve({}), searchParams: Promise.resolve({}) }, "/login");
   });
 
   it("lists every entry with a link to its page", async () => {
     signInAs(USER, null);
-    await renderServerPage(ChangelogPage, {});
+    await renderServerPage(ChangelogPage, { params: Promise.resolve({}), searchParams: Promise.resolve({}) });
     // A link per product entry (by its address, since titles can repeat words); engineering entries have no page, so no link.
     const hrefs = screen.getAllByRole("link").map((a) => a.getAttribute("href"));
     for (const e of CHANGELOG_ENTRIES) {
       expect(hrefs.includes(`/changelog/${e.slug}`), e.slug).toBe(e.audience === "product");
     }
+  });
+
+  const entryLinks = () => screen.getAllByRole("link").map((a) => a.getAttribute("href") ?? "").filter((h) => h.startsWith("/changelog/") && !h.includes("?"));
+
+  it("filters by New, Improved or Fixed with links you can share, and marks the one that is on", async () => {
+    signInAs(USER, null);
+    await renderServerPage(ChangelogPage, { params: Promise.resolve({}), searchParams: Promise.resolve({ show: "fixed" }) });
+    const nav = screen.getByRole("navigation", { name: "Show" });
+    expect(within(nav).getAllByRole("link").map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
+      ["All", "/changelog"],
+      ["New", "/changelog?show=new"],
+      ["Improved", "/changelog?show=improved"],
+      ["Fixed", "/changelog?show=fixed"],
+    ]);
+    expect(within(nav).getByRole("link", { name: "Fixed" })).toHaveAttribute("aria-current", "true");
+    expect(within(nav).getByRole("link", { name: "All" })).not.toHaveAttribute("aria-current");
+    const fixed = listProductChangelog().filter((e) => e.category === "fixed").map((e) => `/changelog/${e.slug}`);
+    expect(entryLinks().sort()).toEqual(fixed.sort());
+  });
+
+  it("shows everything for no filter or one that is not a category", async () => {
+    signInAs(USER, null);
+    await renderServerPage(ChangelogPage, { params: Promise.resolve({}), searchParams: Promise.resolve({ show: "everything" }) });
+    expect(entryLinks()).toHaveLength(listProductChangelog().length);
+    expect(within(screen.getByRole("navigation", { name: "Show" })).getByRole("link", { name: "All" })).toHaveAttribute("aria-current", "true");
   });
 
   it("shows one entry", async () => {

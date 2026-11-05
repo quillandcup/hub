@@ -5,11 +5,13 @@ import { CHANGELOG_ENTRIES, type ChangelogEntry } from "@/lib/changelog/entries"
 import {
   changelogEntryPath,
   changelogSince,
+  filterByCategory,
   findChangelogEntry,
   isChangelogImagePath,
   isChangelogSlug,
   listChangelog,
   listProductChangelog,
+  parseCategoryFilter,
   renderChangelogMarkdown,
   validateChangelog,
 } from "@/lib/changelog";
@@ -128,5 +130,20 @@ describe("audiences", () => {
     ]).join("\n");
     expect(problems).toContain("unknown audience");
     expect(problems.match(/no screenshots/g)).toHaveLength(2);
+  });
+});
+
+describe("the category filter", () => {
+  const entries = [entry({ slug: "n", category: "new" }), entry({ slug: "i", category: "improved" }), entry({ slug: "f", category: "fixed" })];
+
+  it("reads a category from the query, and anything else as no filter", () => {
+    expect(parseCategoryFilter("new")).toBe("new");
+    expect(parseCategoryFilter(["fixed", "new"])).toBe("fixed");
+    for (const bad of [undefined, "", "all", "toString", "__proto__", "NEW"]) expect(parseCategoryFilter(bad as string | undefined)).toBeNull();
+  });
+
+  it("keeps one category, or everything for null", () => {
+    expect(filterByCategory(entries, "improved").map((e) => e.slug)).toEqual(["i"]);
+    expect(filterByCategory(entries, null).map((e) => e.slug)).toEqual(["n", "i", "f"]);
   });
 });
