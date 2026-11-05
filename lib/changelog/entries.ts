@@ -484,7 +484,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Hover cards for members",
     summary:
       "Point at a member's name or photo in chat or on Streaks to see their profile at a glance.",
+    image: { src: "/changelog/member-hover-card/01-hover-card.webp", alt: "Pointing at a member's name on Streaks opens a small card with her photo, name and a View profile button." },
     body: [
+      "![Pointing at a member's name on Streaks opens a small card with her photo, name and a View profile button.](/changelog/member-hover-card/01-hover-card.webp)",
       "The card shows their photo and name, when they became a Hedgie, up to three Ask me about topics and social links, with Message and View profile buttons. It also opens from the keyboard. On [Streaks](/streaks), sister names now link to profiles.",
     ].join("\n\n"),
   },
@@ -534,7 +536,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Hedgie Help",
     summary:
       "Hedgie Help has articles on joining a prickle, planning your month, becoming a host, starting a pop-up prickle and running a prickle.",
+    image: { src: "/changelog/member-help-articles/01-help-index.webp", alt: "The Hedgie Help page listing five articles, from How to join a prickle to Run a prickle." },
     body: [
+      "![The Hedgie Help page listing five articles, from How to join a prickle to Run a prickle.](/changelog/member-help-articles/01-help-index.webp)",
       "Open [Hedgie Help](/help) from the question mark in the top bar beside the bell. It is also in the search. Each article walks through the real screens.",
     ].join("\n\n"),
   },
