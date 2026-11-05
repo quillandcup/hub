@@ -1024,9 +1024,15 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Hub chat is now open to every member",
     summary:
       "Everyone can now read Slack conversations in the Hub and write there. Link your Slack account in Settings if you want your messages to appear under your own name.",
+    image: {
+      src: "/changelog/chat-open-to-everyone/01-conversation.webp",
+      alt: "The chat page showing a channel with threads and reactions",
+    },
     body: [
       "Chat is in the sidebar under Community. You see the conversations you are in and the public channels, with threads and reactions, and you can post and reply from the Hub.",
+      "![The chat page showing a channel with threads and reactions](/changelog/chat-open-to-everyone/01-conversation.webp)",
       "To have your messages appear in Slack under your own name, connect your Slack account under Settings, Account.",
+      "![The chat message box with its formatting toolbar and a quote being written](/changelog/chat-open-to-everyone/02-message-box.webp)",
     ].join("\n\n"),
   },
   {
@@ -1059,7 +1065,12 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Courses are now open to every member",
     summary:
       "Everyone can now watch the courses they have access to right in the Hub.",
-    body: ["Find them under [Courses](/courses). You see the courses you have access to, with your progress."].join("\n\n"),
+    image: {
+      src: "/changelog/courses-open-to-everyone/01-courses-list.webp",
+      alt: "The Courses page with three course cards, one showing progress",
+    },
+    body: ["Find them under [Courses](/courses). You see the courses you have access to, with your progress.",
+      "![The Courses page with course cards and progress](/changelog/courses-open-to-everyone/01-courses-list.webp)"].join("\n\n"),
   },
   {
     slug: "sign-in-with-an-emailed-code",
