@@ -8,6 +8,8 @@ What's new and fixed in the Hedgie Hub, for members. One source, three readers.
 - **Digest:** a weekly "What's new" notification (kind `changelog_digest`, "News about the Hub" in Settings → Notifications), so each member chooses Slack, in-app, email or browser push. `/api/internal/changelog-digest` runs Tuesdays 14:00 UTC from `vercel.json` (`lib/changelog/digest.ts`).
 - **Announcements channel:** the same run posts the new entries (excerpt, screenshot, link to `/changelog`) to the channel in `app.config.ts` (`slack.changelogChannelId`). That is a shared-room post, a direct Slack post like the Wheel of Wonder intro, not a notifier send. It is open to every member, so an entry's text must be fit for all of them. Outside production nothing is posted (`SLACK_TEST_MODE`); it is logged.
 
+**Writing guidance for people and agents** lives in `.claude/rules/changelog-writing.md`, and `.claude/skills/member-reader-review` reviews copy as a busy member would read it (run it before publishing a batch of entries).
+
 ## Two audiences
 
 Every entry has an `audience`:
