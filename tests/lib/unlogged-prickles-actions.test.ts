@@ -114,6 +114,16 @@ describe("getUnloggedRecentPrickles", () => {
 
     expect(result.map((p) => p.id).sort()).toEqual(["p-checked-in", "p-open"]);
   });
+
+  it("leaves out a Pop-Up Prickle the member attended: check-outs are paused for them", async () => {
+    const recent = new Date(Date.now() - 2 * 3600_000).toISOString();
+    const calendar = attended("p-calendar", recent);
+    const popUp = attended("p-pup", recent);
+    repos = attendedDataset([calendar, { ...popUp, prickle: { ...popUp.prickle, source: "zoom" } }]);
+    useClient();
+
+    expect((await getUnloggedRecentPrickles()).map((p) => p.id)).toEqual(["p-calendar"]);
+  });
 });
 
 describe("getUnloggedRecentPrickles from live presence", () => {
@@ -168,6 +178,14 @@ describe("getUnloggedRecentPrickles from live presence", () => {
     useClient();
 
     expect((await getUnloggedRecentPrickles()).map((p) => p.id)).toEqual(["p-here"]);
+  });
+
+  it("leaves out a Pop-Up Prickle the member was in the room for", async () => {
+    const popUp = { ...sprint("p-pup", 3, 2), source: "zoom" };
+    repos = world([popUp, sprint("p-calendar", 3, 2)], [event("1", "joined", 2.9), event("2", "left", 2.1)]);
+    useClient();
+
+    expect((await getUnloggedRecentPrickles()).map((p) => p.id)).toEqual(["p-calendar"]);
   });
 
   it("reads presence with the service role, since the member's own access can't see the participant events", async () => {

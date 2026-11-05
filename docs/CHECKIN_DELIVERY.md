@@ -19,6 +19,18 @@ without a dedup row, so turning it back on before the window ends still sends on
 channel system: `docs/TODO.md`, "Channels, Notifications & Messaging", and `CLAUDE.md`, "Member
 Notifications".
 
+## Pop-Up Prickles are paused
+
+Pop-Up Prickles (source `zoom`, created by the attendance processing from a Zoom room) get no
+check-in or check-out for now: not the DMs (`app/api/internal/prickle-checkins/route.ts`), not the
+dashboard's "How did it go?" card (`getUnloggedRecentPrickles`, `recentPresentPrickles`). One
+predicate, `offersCheckins` in `lib/prickle-checkins.ts`, decides it for all of them. The
+dashboard pills and the search palette never offered one: a Pop-Up Prickle's row does not exist
+until its room has been processed, after it ended. The reasons and the plan to bring them back
+are in `docs/TODO.md`, "Check-ins and check-outs for Pop-Up Prickles". Where the tables below say
+a check-out is sent "from imported attendance as the backstop" or "within minutes" by presence,
+that describes scheduled prickles.
+
 ## Who is "tied" to a prickle
 
 The offers on the Dashboard and in search need a **tie** between the member and the prickle

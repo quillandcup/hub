@@ -291,6 +291,16 @@ describe("prickle check-in route", () => {
     expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 0, checkouts: 0 });
   });
 
+  it("sends no check-out for a Pop-Up Prickle: they are paused until the check-ins are reworked", async () => {
+    // The same recently ended writing prickle with imported attendance, but a Pop-Up Prickle (source "zoom").
+    reset([{ ...PRICKLE, source: "zoom", startTime: new Date(Date.now() - 70 * 60 * 1000).toISOString(), endTime: new Date(Date.now() - 10 * 60 * 1000).toISOString() }]);
+    dataset.attendance.push({ id: "a1", prickleId: "p1", memberId: "m1", joinTime: "2026-10-05T11:00:00.000Z", leaveTime: "2026-10-05T12:00:00.000Z" });
+    setup([goalRow("g1", "m1", "proj1", "words")]);
+
+    expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 0, checkouts: 0 });
+    expect(sendSlackDM).not.toHaveBeenCalled();
+  });
+
   it("rejects a request without the cron secret", async () => {
     setup([goalRow("g1", "m1", "proj1", "words")]);
     const res = await POST(new NextRequest("http://localhost/api/internal/prickle-checkins", { method: "POST" }));
