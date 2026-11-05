@@ -231,20 +231,6 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     ].join("\n\n"),
   },
   {
-    slug: "hub-chat-first-look",
-    date: "2026-10-10",
-    audience: "product",
-    category: "new",
-    title: "Hub chat, a first look",
-    summary:
-      "Read our Slack channels in the Hub, post and react from there, and optionally connect your Slack account so your messages go out as you.",
-    body: [
-      "Chat at /chat shows the Slack channels you are in, plus public ones, with a pinned channel list, unread counts, a New messages line, a side panel for the person you are reading and a phone layout. Conversations update live.",
-      "You can write messages and replies in the Hub and they appear in Slack. By default Billie Bot posts them with your name and photo. If you connect your Slack account under Account in Settings, they go out as you.",
-      "You can react to messages too. Reactions made from the Hub show in Slack only if you have connected your Slack account.",
-    ].join("\n\n"),
-  },
-  {
     slug: "notification-framework",
     date: "2026-10-03",
     audience: "engineering",
@@ -316,33 +302,6 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "Row-level security gates content separately from channel metadata. Posts from the Hub go to Slack through an outbox with retries, and are credited to their author in activity and Wheel of Wonder. See docs/SLACK_BRIDGED_CHAT.md and the Hub chat product entry.",
     ].join("\n\n"),
   },
-{
-    slug: "chat-sends-as-you",
-    date: "2026-10-11",
-    audience: "product",
-    category: "new",
-    title: "Hub chat can send as you",
-    summary:
-      "Connect your Slack account in Settings and the messages and reactions you send from Hub chat show up in Slack as you.",
-    body: [
-      "Connect your Slack account under Settings, Account. After that, what you post or react with in Hub chat appears in Slack under your own name instead of through our bot. You can disconnect at any time from the same place.",
-      "A message that Slack has not accepted after a few retries is marked as failed, so you can see it did not go through.",
-    ].join("\n\n"),
-  },
-  {
-    slug: "chat-live-updates",
-    date: "2026-10-12",
-    audience: "product",
-    category: "improved",
-    title: "Chat feels faster and stays current",
-    summary:
-      "A message you send shows up the moment you press Send, and open conversations and threads update without reloading.",
-    body: [
-      "- Your message appears right away, then is confirmed once Slack has it.",
-      "- Slack reactions on messages show up at once, and a reaction you take back in Slack goes away here too.",
-      "- An open conversation or thread picks up new messages by itself.",
-    ].join("\n"),
-  },
   {
     slug: "instagram-and-profile-links",
     date: "2026-10-12",
@@ -409,20 +368,6 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     ].join("\n"),
   },
   {
-    slug: "gentle-reminders",
-    date: "2026-10-15",
-    audience: "product",
-    category: "new",
-    title: "Gentle reminders to say hello and to plan a prickle",
-    summary:
-      "New members get a nudge to say hello in the intro channel, and other members with nothing planned can get a reminder to put a prickle on their calendar. You choose whether and where they arrive.",
-    body: [
-      "- Introduction reminders go to members in their first 90 days who have not yet said hello in the intro channel.",
-      "- Prickle reminders go to members with nothing on their calendar and no recent prickle. They are off until you turn them on under Settings, Notifications, and they come less often the longer they go unanswered.",
-      "Both follow the channels you choose in [Notifications](/settings/notifications). They reached every member on 1 November.",
-    ].join("\n\n"),
-  },
-  {
     slug: "start-a-new-streak-nudge",
     date: "2026-10-15",
     audience: "product",
@@ -459,22 +404,6 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     body: [
       "Instead of hunting for the link, you get a Join button with the passcode in the check-in window and in the Slack check-in message, and each prickle in your personal calendar feed has the link, meeting ID and passcode in its description. This is for the main prickle room.",
     ].join("\n\n"),
-  },
-  {
-    slug: "courses-in-the-hub",
-    date: "2026-10-19",
-    audience: "product",
-    category: "new",
-    title: "Courses in the Hub",
-    summary:
-      "Watch the lessons of courses you have access to right in the Hub, mark them complete and pick up where you left off.",
-    body: [
-      "Find them under [Courses](/courses). You see the courses you have access to, with your progress, an outline by module and a lesson page with the video, its text and downloadable files.",
-      "- A lesson completes by itself when you have watched about 90 percent, or you can press Mark complete under the video. A card then points you to the next lesson.",
-      "- The Hub remembers where you stopped and resumes from there.",
-      "- Course pages have a hero image, a progress sidebar and lesson thumbnails. Course names above a lesson link back to the course and to each module.",
-      "- A course you pre-ordered shows its launch date and opens on that day.",
-    ].join("\n"),
   },
   {
     slug: "on-air-light",
@@ -525,62 +454,6 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     body: [
       "We fixed the preview image for shared Hub links so it appears and is not cropped. Slack on iPhone also no longer shows a stray ampersand code in the preview.",
     ].join("\n\n"),
-  },
-  {
-    slug: "course-pages-and-calendar-polish",
-    date: "2026-10-20",
-    audience: "product",
-    category: "improved",
-    title: "Course cards, module pages and a clearer today",
-    summary:
-      "Courses show as cards with cover images, each module has its own page, and today stands out more on calendars in light mode.",
-    body: [
-      "- The Courses page is a grid of cards with cover images.",
-      "- Browser tab titles name the course, module and lesson.",
-      "- In light mode, the today column on calendars is easier to see.",
-    ].join("\n"),
-  },
-  {
-    slug: "chat-edit-and-delete",
-    date: "2026-10-21",
-    audience: "product",
-    category: "new",
-    title: "Edit and delete your chat messages",
-    summary:
-      "You can edit or delete a message you wrote in Hub chat, and the change reaches Slack too.",
-    body: [
-      "Edit and Delete are on your own messages. An edit is saved in Slack first and then here, so the two always agree, and a deleted message leaves a short note where it was. Later changes also let you edit messages you wrote in Slack itself once you have connected Slack.",
-    ].join("\n\n"),
-  },
-  {
-    slug: "chat-files-and-emoji",
-    date: "2026-10-22",
-    audience: "product",
-    category: "improved",
-    title: "Chat: files, images and a full emoji picker",
-    summary:
-      "Chat now shows images and files under messages, lets you send files to Slack, and has a full emoji picker with skin tones.",
-    body: [
-      "- Images and GIFs show inline and open full size when clicked. Other files show as download chips with name and size.",
-      "- Attach files with the paperclip, by pasting an image, or by dragging them onto the composer, the chat or a thread, with upload progress and a cancel. They reach Slack too.",
-      "- Download all on a message with several files gives you one zip.",
-      "- The emoji picker has search, categories, custom emoji and a skin tone choice, and works with the keyboard. Hover a reaction to see who reacted.",
-    ].join("\n"),
-  },
-  {
-    slug: "chat-days-notices-and-people",
-    date: "2026-10-22",
-    audience: "product",
-    category: "improved",
-    title: "Chat: day markers, Slack notices and adding people",
-    summary:
-      "Chat marks each day, shows times in your time zone, shows notices like channel renames, and lets you add people to a conversation.",
-    body: [
-      "- A marker between days sticks to the top while you read that day, and times follow your time zone setting.",
-      "- Notices Slack posts itself, such as a channel rename or a topic change, show as quiet lines.",
-      "- Copy link on a message gives a link that opens right on that message.",
-      "- A conversation's members page lets you join or leave a public channel and add people. Only staff can remove someone else.",
-    ].join("\n"),
   },
   {
     slug: "member-hover-card",
@@ -657,20 +530,6 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     ].join("\n\n"),
   },
   {
-    slug: "chat-mentions-and-slack-edits",
-    date: "2026-10-24",
-    audience: "product",
-    category: "improved",
-    title: "Chat: mention people and channels, edit Slack-written messages",
-    summary:
-      "Type the at sign or the hash sign in chat to pick people and channels, and edit or delete messages you wrote in Slack once you have connected Slack.",
-    body: [
-      "- Type @ to see people in the conversation, keep typing to search every active member. Type # to pick a channel.",
-      "- Edit or delete a message you wrote in Slack, if you have connected Slack.",
-      "- Joins, adds and leaves show as quiet lines, and the browser tab names the conversation.",
-    ].join("\n"),
-  },
-  {
     slug: "week-calendars-on-phones",
     date: "2026-10-24",
     audience: "product",
@@ -680,6 +539,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "On a phone you can now scroll sideways to Thursday through Saturday on week calendars instead of having them cut off.",
     body: [
       "This fixes All Prickles, My Attendance and the host request form. We also made secondary text easier to read, using darker or lighter greys that meet contrast guidelines in both light and dark mode, and made the closed mobile menu skip keyboard focus.",
+      "In light mode, today's column is also easier to see.",
     ].join("\n\n"),
   },
   {
@@ -778,7 +638,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "pnpm types:gen regenerates lib/data/database.types.ts and pnpm types:check runs in CI.",
     ].join("\n\n"),
   },
-{
+  {
     slug: "navigation-reorganized",
     date: "2026-10-25",
     audience: "product",
@@ -789,31 +649,6 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     body: [
       "Chat, Wheel of Wonder and Big Sisters stay under Community. Members, Book Shelf and Events moved to a new Explore group. My Writing and My Prickles are now Writing and Prickles in the sidebar and search (their page headings are unchanged).",
       "The member area also has a small footer with links to Privacy and Contact us.",
-    ].join("\n\n"),
-  },
-  {
-    slug: "chat-posts-as-you",
-    date: "2026-10-25",
-    audience: "product",
-    category: "improved",
-    title: "Chat in the Hub can post under your own name",
-    summary:
-      "If you link your Slack account in Settings, what you write in Hub chat appears in Slack under your name. If it is not linked, chat asks you to link it before you can post.",
-    body: [
-      "If your Slack account is not connected, or its connection has stopped working, chat asks you to connect it again in Settings before you can post.",
-    ].join("\n\n"),
-  },
-  {
-    slug: "events-page",
-    date: "2026-10-28",
-    audience: "product",
-    category: "new",
-    title: "A better Events page",
-    summary:
-      "Events leads with what is coming up, with a picture on each card and a month-at-a-glance list that shows the time of day.",
-    body: [
-      "At [/events](/events), upcoming special events and educational sessions sit on top as picture cards. Below them, pick this month, next month or the one after to see everything by day, with times shown in your own time zone. Titles are tidied up.",
-      "Past events have their own page at [/events/past](/events/past), a month at a time.",
     ].join("\n\n"),
   },
   {
@@ -842,18 +677,6 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     ].join("\n\n"),
   },
   {
-    slug: "dashboard-continue-watching",
-    date: "2026-10-27",
-    audience: "product",
-    category: "new",
-    title: "Continue watching on your dashboard",
-    summary:
-      "If you are partway through a course lesson, your dashboard shows a card that takes you straight back to it.",
-    body: [
-      "The card shows the lesson, the course, a progress bar and a link to the lesson. It appears only when you have a lesson in progress or a started course with a next lesson waiting.",
-    ].join("\n\n"),
-  },
-  {
     slug: "media-library-and-book-covers",
     date: "2026-10-29",
     audience: "product",
@@ -876,18 +699,6 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "Genres on the book form are tags, the Book Shelf can be filtered by genre, and search finds books by genre.",
     body: [
       "Add up to five genres or tropes per book. On the [Book Shelf](/bookshelf), genre chips with counts narrow the list, and clicking one again clears it.",
-    ].join("\n\n"),
-  },
-  {
-    slug: "public-lesson-previews",
-    date: "2026-10-30",
-    audience: "product",
-    category: "improved",
-    title: "Shared lesson links show a preview",
-    summary:
-      "A course lesson link shared with someone who is signed out shows its title, a short teaser and a thumbnail, with a way to sign in.",
-    body: [
-      "This is what you see when a lesson link unfurls in Slack or a message. The video and the full text stay behind sign-in.",
     ].join("\n\n"),
   },
   {
@@ -1021,12 +832,17 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-11-01",
     audience: "product",
     category: "new",
-    title: "Hub chat is now open to every member",
+    title: "Hub chat is open to every member",
     summary:
-      "Everyone can now read Slack conversations in the Hub and write there. Link your Slack account in Settings if you want your messages to appear under your own name.",
+      "Read and join our Slack conversations from the Hub, reply in threads, react, share files and format your messages. What you write here appears in Slack too.",
     body: [
-      "Chat is in the sidebar under Community. You see the conversations you are in and the public channels, with threads and reactions, and you can post and reply from the Hub.",
-      "To have your messages appear in Slack under your own name, connect your Slack account under Settings, Account.",
+      "Chat is in the sidebar under Community. It lists the conversations you are in first, with a Browse channels button for the public channels you could join, and a lock on private ones. Conversations, threads and reactions update on their own.",
+      "- Write messages and replies in the Hub and they appear in Slack. By default Billie Bot, our Slack helper, posts them with your name and photo. Connect your Slack account under Account in Settings and they go out as you; you can disconnect at any time from the same place.",
+      "- A message that Slack has not accepted after a few retries is marked as failed, so you can see it did not go through.",
+      "- Edit or delete your own messages, and the change reaches Slack too.",
+      "- Attach files with the paperclip, paste an image or drag it in. Images show right in the conversation, and they reach Slack too.",
+      "- Pick from a full emoji picker, mention people with @ and channels with #, and format your message with bold, italics, lists and more. Unsent text is kept as a draft for each conversation.",
+      "- Each day has a marker, times follow your time zone, and Copy link on a message gives a link that opens right on it.",
     ].join("\n\n"),
   },
   {
@@ -1034,21 +850,25 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-11-01",
     audience: "product",
     category: "new",
-    title: "Events is now open to every member",
+    title: "Events is open to every member",
     summary:
-      "Everyone can now see what is coming up, with a picture on each event and a month-at-a-glance list.",
-    body: ["Find it under Events in the sidebar, with past events at /events/past."].join("\n\n"),
+      "See what is coming up, with a picture on each event and a month-at-a-glance list that shows the time of day.",
+    body: [
+      "At [/events](/events), upcoming special events and educational sessions sit on top as picture cards. Below them, pick this month, next month or the one after to see everything by day, with times shown in your own time zone.",
+      "Past events have their own page at [/events/past](/events/past), a month at a time.",
+    ].join("\n\n"),
   },
   {
     slug: "reminders-for-everyone",
     date: "2026-11-01",
     audience: "product",
     category: "new",
-    title: "Gentle reminders are now available to every member",
+    title: "Gentle reminders are on for every member",
     summary:
-      "Gentle reminders to say hello or plan a prickle are now available to every member. Choose where they arrive, or turn them off.",
+      "Newcomers get a nudge to say hello in the intro channel, and anyone with nothing planned can get a reminder to put a prickle on their calendar. You choose where they arrive, or turn them off.",
     body: [
-      "Choose which channels they come on, or turn them off, under [Notifications](/settings/notifications). Prickle reminders are off until you turn them on, except in your first 90 days.",
+      "- Introduction reminders go to members in their first 90 days who have not yet said hello in the intro channel.\n- Prickle reminders go to members with nothing on their calendar and no recent prickle. They are off until you turn them on, except in your first 90 days, and they come less often the longer they go unanswered.",
+      "Choose which channels they come on, or turn them off, under [Notifications](/settings/notifications).",
     ].join("\n\n"),
   },
   {
@@ -1056,10 +876,16 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-11-02",
     audience: "product",
     category: "new",
-    title: "Courses are now open to every member",
+    title: "Courses are open to every member",
     summary:
-      "Everyone can now watch the courses they have access to right in the Hub.",
-    body: ["Find them under [Courses](/courses). You see the courses you have access to, with your progress."].join("\n\n"),
+      "Watch the lessons of the courses you have access to right in the Hub, mark them complete and pick up where you left off.",
+    body: [
+      "Find them under [Courses](/courses): cards with cover images and your progress, a page for each module, and lesson pages with the video, its text and downloadable files.",
+      "- A lesson completes by itself when you have watched about 90 percent, or you can press Mark complete under the video. A card then points you to the next lesson.",
+      "- The Hub remembers where you stopped, and your dashboard has a Continue watching card that takes you straight back to it.",
+      "- A course you pre-ordered shows its launch date and opens on that day.",
+      "- A course or lesson link shared with someone who is not signed in shows a preview with its title, a short teaser and a cover. The video and full text stay behind sign-in.",
+    ].join("\n\n"),
   },
   {
     slug: "sign-in-with-an-emailed-code",
@@ -1072,31 +898,6 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     body: [
       "Go to [/login](/login), enter your email and the code from the sign-in email. The code also works if the link opens in a different browser than the one you asked from, such as a phone's mail app.",
       "If you ask for a link twice within a minute, the page now tells you one was just sent and to check your inbox.",
-    ].join("\n\n"),
-  },
-  {
-    slug: "chat-rich-text",
-    date: "2026-11-02",
-    audience: "product",
-    category: "improved",
-    title: "Bold, italics and lists in chat",
-    summary:
-      "The chat box now lets you format your messages with bold, italics, lists and more, and keeps unsent messages as drafts.",
-    body: [
-      "There is a formatting toolbar and the usual shortcuts. Type :name to pick an emoji from a list. Formatting reaches Slack as real formatting, including lists and underline.",
-      "Unsent text is saved as a draft for each conversation and thread, and a Drafts section in the sidebar takes you back to it. Editing a message lets you add or remove files, and saving an emptied edit asks whether to delete the message. Hover an @mention of a member to see their card. Copy message copies readable text and keeps formatting when you paste it into the chat box.",
-    ].join("\n\n"),
-  },
-  {
-    slug: "chat-sidebar-conversations-first",
-    date: "2026-11-02",
-    audience: "product",
-    category: "improved",
-    title: "Your conversations come first in the chat sidebar",
-    summary:
-      "The chat sidebar lists the conversations you are in, with a Browse channels button for the public channels you could join.",
-    body: [
-      "Private channels show a lock instead of a #, like Slack.",
     ].join("\n\n"),
   },
   {
@@ -1122,18 +923,6 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     body: [
       "Check-in now stays open until the prickle ends, and it is offered if you are in the prickle's Zoom room even without a commitment or a calendar item. The check-out message comes 5 to 10 minutes before a prickle ends, so you can check out before you leave for your next thing.",
       "You no longer need a writing goal to be asked to check in or check out. Without a goal you get the usual questions, plus a short tip about setting one.",
-    ].join("\n\n"),
-  },
-  {
-    slug: "course-pages-previews-and-lists",
-    date: "2026-11-02",
-    audience: "product",
-    category: "improved",
-    title: "Course links preview, and course pages fit phones",
-    summary:
-      "A course link shared with someone who is not signed in shows a preview, and the lesson and module pages show one back link on narrow screens.",
-    body: [
-      "A course link unfurls with the course title, a short teaser and its cover. If you have no courses yet, the Courses page points you to The Ready Writer's waitlist.",
     ].join("\n\n"),
   },
   {
