@@ -1,5 +1,6 @@
 import type { Db } from "@/lib/data/db";
 import { asJson } from "@/lib/data/json";
+import type { ZoomAttendeeRow, ZoomRepository } from "@/lib/data/zoom";
 
 const MIN_PUP_DURATION_MS = 5 * 60 * 1000;
 const MIN_PUP_ATTENDEES = 2;
@@ -53,6 +54,78 @@ export async function reprocessAttendanceRange(
     new_attendance_data: asJson(range.attendance),
   });
   if (error) throw error;
+}
+
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * The instants to reprocess for an import asked for `fromDate` to `toDate`. A date alone
+ * ("2026-11-04") names a whole UTC day, so a date-only `toDate` ends at the start of the next day
+ * (the attendance route reads a date-only `toDate` the same way). Taken as the day's first
+ * instant it left a same-day import with a zero-width range, which saw only the people in the
+ * room at midnight UTC (19:00 Eastern in winter) and no prickle starting after it. Anything
+ * with a time in it is that instant.
+ */
+export function importReprocessRange(fromDate: string, toDate: string): { from: Date; to: Date } {
+  const from = new Date(fromDate);
+  const to = new Date(toDate);
+  if (DATE_ONLY.test(toDate)) to.setUTCDate(to.getUTCDate() + 1);
+  return { from, to };
+}
+
+/** The key the attendance run groups a Zoom row by: its meeting's uuid, else its meeting id. */
+export const sessionKey = (a: Pick<ZoomAttendeeRow, "meeting_uuid" | "meeting_id">): string => a.meeting_uuid || a.meeting_id;
+
+/** How far a run's range may be widened to take in whole meetings; a row that asks for more is bad data, not a meeting. */
+const MAX_WIDENING_MS = 3 * 24 * 60 * 60 * 1000;
+const MAX_WIDENING_ROUNDS = 10;
+
+/**
+ * The attendees of every meeting that overlaps [from, to), whole, and the range widened to cover
+ * them. A run is asked for a date range, but a Pop-Up Prickle's start and end, the scheduled
+ * prickles it sits between and the attendance written for it all come from the whole meeting:
+ * a range that ends mid-meeting (a date that stops at midnight UTC, a window around one changed
+ * calendar event) used to show the run only some of the people, and no prickle starting after it, so it
+ * built a different Pop-Up Prickle (under a new id) from the one a full run builds. Widening
+ * repeats until no meeting overlapping the range reaches outside it, so the range can be used
+ * for everything else the run reads and deletes. Nothing overlaps: the range comes back as asked.
+ */
+export async function loadWholeMeetings(
+  zoom: Pick<ZoomRepository, "attendeesOverlapping" | "attendeesOfSessions">,
+  range: { from: string; to: string }
+): Promise<{ from: string; to: string; attendees: ZoomAttendeeRow[] }> {
+  const askedFrom = new Date(range.from).getTime();
+  const askedTo = new Date(range.to).getTime();
+  let from = askedFrom;
+  let to = askedTo;
+  for (let round = 0; round < MAX_WIDENING_ROUNDS; round++) {
+    const visible = await zoom.attendeesOverlapping(new Date(from).toISOString(), new Date(to).toISOString());
+    if (visible.length === 0) return { from: new Date(from).toISOString(), to: new Date(to).toISOString(), attendees: [] };
+
+    // Only a meeting with a row near an edge of the range can have rows outside it (a meeting's rows
+    // are hours apart, the margin is days), so a long range reads just its edges' meetings again.
+    const edgeKeys = new Set(
+      visible
+        .filter((a) => new Date(a.join_time).getTime() < from + MAX_WIDENING_MS || new Date(a.leave_time).getTime() > to - MAX_WIDENING_MS)
+        .map(sessionKey)
+    );
+    const whole = edgeKeys.size > 0 ? await zoom.attendeesOfSessions([...edgeKeys]) : [];
+    const byId = new Map([...visible, ...whole].map((a) => [a.id, a]));
+    const attendees = [...byId.values()].sort((a, b) => (a.join_time < b.join_time ? -1 : a.join_time > b.join_time ? 1 : a.id < b.id ? -1 : 1));
+    let nextFrom = from;
+    let nextTo = to;
+    for (const a of attendees) {
+      nextFrom = Math.min(nextFrom, new Date(a.join_time).getTime());
+      nextTo = Math.max(nextTo, new Date(a.leave_time).getTime());
+    }
+    if (nextFrom === from && nextTo === to) return { from: new Date(from).toISOString(), to: new Date(to).toISOString(), attendees };
+    if (askedFrom - nextFrom > MAX_WIDENING_MS || nextTo - askedTo > MAX_WIDENING_MS) {
+      throw new Error(`Zoom meetings overlapping ${range.from} to ${range.to} reach more than 3 days outside it (${new Date(nextFrom).toISOString()} to ${new Date(nextTo).toISOString()}); check their join and leave times`);
+    }
+    from = nextFrom;
+    to = nextTo;
+  }
+  throw new Error(`Zoom meetings overlapping ${range.from} to ${range.to} still reached outside the range after ${MAX_WIDENING_ROUNDS} widenings`);
 }
 
 /** Remember that a Zoom name matched several members (`count` replaces its occurrences, so reprocessing doesn't inflate it). Throws on a database error. */
