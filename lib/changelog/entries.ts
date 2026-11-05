@@ -925,7 +925,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "A button in the header lets you keep the side menu open, tuck it away until you point at it, or close it. The Hub remembers your choice.",
     body: [
       "In auto-hide the sidebar rests as a slim icon rail and opens over the page when you hover or focus it, so the page does not shift. Until you choose, the sidebar auto-hides on chat and stays open elsewhere.",
+      "![The Dashboard with the side menu auto-hidden as a slim icon rail](/changelog/sidebar-modes/01-auto-hide-rail.webp)",
     ].join("\n\n"),
+    image: { src: "/changelog/sidebar-modes/01-auto-hide-rail.webp", alt: "The Dashboard with the side menu tucked away as a slim rail of icons" },
   },
   {
     slug: "descriptions-keep-formatting",
