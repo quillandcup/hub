@@ -19,8 +19,19 @@ export const CHANGELOG_DIGEST_KIND = "changelog_digest" as const;
  */
 export const DIGEST_WINDOW_DAYS = 30;
 
-/** At most this many entries in one message; the rest are a click away on /changelog. */
-const MAX_ENTRIES_PER_MESSAGE = 5;
+/** At most this many entries in one message (a busy reader skims three, and mutes five); the rest are a tap away on /changelog. */
+const MAX_ENTRIES_PER_MESSAGE = 3;
+
+/** What a reader cares about first: something new she can do, then an improvement, then a fix. */
+const CATEGORY_RANK: Record<ChangelogEntry["category"], number> = { new: 0, improved: 1, fixed: 2 };
+
+/** Most valuable first (new, improved, fixed), keeping the date order (newest first) within each. */
+export function rankByBenefit(entries: readonly ChangelogEntry[]): ChangelogEntry[] {
+  return entries.map((e, i) => ({ e, i })).sort((a, b) => CATEGORY_RANK[a.e.category] - CATEGORY_RANK[b.e.category] || a.i - b.i).map(({ e }) => e);
+}
+
+/** A message of only fixes is noise: it waits for the next entry that gives the reader something new. */
+export const worthSending = (entries: readonly ChangelogEntry[]): boolean => entries.some((e) => e.category !== "fixed");
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const BATCH = 10;
@@ -49,7 +60,8 @@ const imageUrl = (e: ChangelogEntry) => (e.image ? `${APP_URL}${e.image.src}` : 
 
 /** The message for a member: one entry reads as that entry, several as a roundup that links to the list. */
 export function digestMessage(entries: readonly ChangelogEntry[]): OutboundMessage {
-  const shown = entries.slice(0, MAX_ENTRIES_PER_MESSAGE);
+  const ranked = rankByBenefit(entries);
+  const shown = ranked.slice(0, MAX_ENTRIES_PER_MESSAGE);
   const single = shown.length === 1;
   const text = single ? shown[0].summary : shown.map((e) => `${e.title}: ${e.summary}`).join(" ");
   const blocks = shown.flatMap((e) => {
@@ -59,7 +71,7 @@ export function digestMessage(entries: readonly ChangelogEntry[]): OutboundMessa
       ...(image ? [{ type: "image", image_url: image, alt_text: e.image!.alt }] : []),
     ];
   });
-  const more = entries.length - shown.length;
+  const more = ranked.length - shown.length;
   // The Slack adapter ignores `url` when it is given blocks, so the link into the Hub is in them.
   const link = single
     ? `<${entryUrl(shown[0])}|Read more>`
@@ -117,7 +129,8 @@ export async function sendChangelogDigest(
   const result: DigestResult = { sent: 0, dryRun: 0 };
   const sendTo = async (memberId: string) => {
     const unsent = candidates.filter((e) => !alreadySent.get(memberId)?.has(e.slug));
-    if (unsent.length === 0) return;
+    // Nothing, or only fixes: no claim, so the fixes go out with the next entry that has something new.
+    if (!worthSending(unsent)) return;
     const message = digestMessage(unsent);
     if (!live.has(memberId)) {
       const channels = notifier.channelsFor(memberId);
@@ -180,7 +193,7 @@ export async function postChangelogToChannel(
   const to = { place: `slack:${channelId}` };
   const sent = (await repos.notificationLog.sentKeys(CHANGELOG_DIGEST_KIND, [to])).get(to.place);
   const unsent = digestCandidates(now, entries).filter((e) => !sent?.has(e.slug));
-  if (unsent.length === 0) return { posted: 0, dryRun: 0 };
+  if (!worthSending(unsent)) return { posted: 0, dryRun: 0 };
 
   const { text, blocks } = channelPost(unsent);
   if (!live) {

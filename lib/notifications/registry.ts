@@ -89,10 +89,10 @@ export const NOTIFICATION_KINDS = [
   },
   {
     id: "changelog_digest",
-    category: "Product updates",
+    category: "News about the Hub",
     label: "What's new in the Hub",
     description:
-      "A weekly roundup of what we've added and fixed in the Hub, sent only in weeks when there is something new. The full list is on the What's new page.",
+      "A short note, at most once a week, when we have added or improved something. Nothing is sent in quiet weeks. The full list is on the What's new page.",
     defaultChannels: ["slack", "in_app"],
   },
 ] as const satisfies readonly NotificationKindDef[];

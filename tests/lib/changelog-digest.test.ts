@@ -29,7 +29,7 @@ vi.mock("@/lib/slack-matching", () => ({
     new Map(members.filter((m) => !notInSlack.has(m.id)).map((m) => [`U-${m.id}`, m.id])),
 }));
 
-const { CHANGELOG_DIGEST_KIND, channelPost, digestCandidates, digestMessage, postChangelogToChannel, sendChangelogDigest } = await import("@/lib/changelog/digest");
+const { CHANGELOG_DIGEST_KIND, channelPost, digestCandidates, digestMessage, postChangelogToChannel, rankByBenefit, sendChangelogDigest, worthSending } = await import("@/lib/changelog/digest");
 
 const NOW = new Date("2026-11-10T14:00:00Z");
 
@@ -104,9 +104,25 @@ describe("digestMessage", () => {
     expect(blocks).toContain("See what's new");
   });
 
-  it("shows five and counts the rest", () => {
-    const many = Array.from({ length: 7 }, (_, i) => entry({ slug: `e-${i}`, title: `E${i}` }));
-    expect(JSON.stringify(digestMessage(many).slackBlocks)).toContain("2 more on the What's new page");
+  it("shows three, most valuable first (new, improved, fixed), and counts the rest", () => {
+    const many = [
+      entry({ slug: "fix-a", title: "FixA", category: "fixed", date: "2026-11-09" }),
+      entry({ slug: "imp-a", title: "ImpA", category: "improved", date: "2026-11-08" }),
+      entry({ slug: "new-a", title: "NewA", category: "new", date: "2026-11-07" }),
+      entry({ slug: "new-b", title: "NewB", category: "new", date: "2026-11-06" }),
+      entry({ slug: "fix-b", title: "FixB", category: "fixed", date: "2026-11-05" }),
+    ];
+    expect(rankByBenefit(many).map((e) => e.slug)).toEqual(["new-a", "new-b", "imp-a", "fix-a", "fix-b"]);
+    const blocks = JSON.stringify(digestMessage(many).slackBlocks);
+    for (const shown of ["NewA", "NewB", "ImpA"]) expect(blocks).toContain(shown);
+    for (const hidden of ["FixA", "FixB"]) expect(blocks).not.toContain(hidden);
+    expect(blocks).toContain("2 more on the What's new page");
+  });
+
+  it("only sends when something is new or improved, not for a week of fixes alone", () => {
+    expect(worthSending([entry({ category: "fixed" }), entry({ slug: "b", category: "fixed" })])).toBe(false);
+    expect(worthSending([entry({ category: "fixed" }), entry({ slug: "b", category: "improved" })])).toBe(true);
+    expect(worthSending([])).toBe(false);
   });
 });
 
@@ -167,6 +183,17 @@ describe("sendChangelogDigest", () => {
     expect(log.mock.calls.some((c) => String(c[0]).includes("DRY RUN") && String(c[1]).includes('"memberId":"m1"'))).toBe(true);
   });
 
+  it("sends nothing for a week of only fixes, and claims nothing, so they ride along with the next real entry", async () => {
+    const fix = entry({ slug: "just-a-fix", category: "fixed", date: "2026-11-09" });
+    expect(await sendChangelogDigest(repos, NOW, { entries: [fix] })).toEqual({ sent: 0, dryRun: 0 });
+    expect(sendSlackDM).not.toHaveBeenCalled();
+    expect(dataset.notificationLog).toEqual([]);
+    // The next week brings something new: the fix goes with it.
+    const next = entry({ slug: "a-real-one", category: "new", date: "2026-11-10" });
+    expect(await sendChangelogDigest(repos, NOW, { entries: [fix, next] })).toEqual({ sent: 2, dryRun: 0 });
+    expect(dataset.notificationLog.map((r) => r.dedupKey).sort()).toEqual(["a-real-one", "a-real-one", "just-a-fix", "just-a-fix"]);
+  });
+
   it("does nothing without members", async () => {
     setup({ members: [] });
     expect(await sendChangelogDigest(repos, NOW, { entries: [first] })).toEqual({ sent: 0, dryRun: 0 });
@@ -212,6 +239,12 @@ describe("postChangelogToChannel", () => {
 
   it("posts nowhere without a channel", async () => {
     expect(await postChangelogToChannel(repos, NOW, { ...options, channelId: "", live: true })).toEqual({ posted: 0, dryRun: 0 });
+    expect(postToSlackChannel).not.toHaveBeenCalled();
+  });
+
+  it("posts nothing for fixes alone", async () => {
+    const fix = entry({ slug: "just-a-fix", category: "fixed", date: "2026-11-09" });
+    expect(await postChangelogToChannel(repos, NOW, { entries: [fix], channelId: "C-ANN", live: true })).toEqual({ posted: 0, dryRun: 0 });
     expect(postToSlackChannel).not.toHaveBeenCalled();
   });
 
