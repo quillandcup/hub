@@ -322,8 +322,10 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Search everything from the header",
     summary:
       "Search the Hub from the header to find members, prickles, events, pages and each settings section, with filters you can type.",
+    image: { src: "/changelog/universal-search/01-search-results.webp", alt: "The search box open over the dashboard with the letters will typed, listing a matching member under Members." },
     body: [
       "Press the search box in the header (or Cmd or Ctrl K) to find members, prickles, events, pages and each section of Settings. Filters such as from: narrow results to one person, and you can limit by kind or by how recent something is. The filter bar is one compact row that wraps on a small screen instead of scrolling sideways.",
+      "![The search box open over the dashboard with the letters will typed, listing a matching member under Members.](/changelog/universal-search/01-search-results.webp)",
       "Recent searches can be removed with the x. On phones the search fills the screen, and a full results page is at /search.",
     ].join("\n\n"),
   },
@@ -333,10 +335,15 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "new",
     title: "See who is coming to upcoming prickles",
+    image: {
+      src: "/changelog/whos-coming-to-prickles/01-whos-coming.webp",
+      alt: "An upcoming prickle's page with a Who's coming card listing the host and a member who added it to their calendar.",
+    },
     summary:
       "An upcoming prickle now shows who is planning to be there, and you can choose not to be listed.",
     body: [
       "On a prickle that has not started, the page shows Who's coming: the host, plus members who committed to it or added it to their calendar. It is a friendly sign of who is planning to join, not a reservation.",
+      "![The Who's coming card on an upcoming prickle](/changelog/whos-coming-to-prickles/01-whos-coming.webp)",
       "Prefer not to be listed? Turn it off under Settings, Profile. You will still see yourself, marked as hidden from others. A prickle nobody has joined yet says to stay tuned instead of showing a zero.",
     ].join("\n\n"),
   },
@@ -346,10 +353,15 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "improved",
     title: "Add a prickle to your calendar from the Upcoming list",
+    image: {
+      src: "/changelog/add-to-calendar-from-upcoming/01-upcoming-calendar-icon.webp",
+      alt: "The Upcoming tab of My Prickles, a list of prickles with a small calendar icon at the right of each one.",
+    },
     summary:
       "Each prickle in My Prickles, Upcoming has a calendar icon, so you no longer have to open it first.",
     body: [
       "The icon opens the same menu as the prickle page: just this one, or every week. A prickle you host or committed to shows why it is already on your calendar. Find it in [My Prickles](/my-prickles).",
+      "![The Upcoming list with a calendar icon beside each prickle](/changelog/add-to-calendar-from-upcoming/01-upcoming-calendar-icon.webp)",
     ].join("\n\n"),
   },
   {
@@ -411,10 +423,15 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "new",
     title: "On air light",
+    image: {
+      src: "/changelog/on-air-light/01-on-air-popover.webp",
+      alt: "The grey Off air light in the header opened to a card saying nobody is at the table, with a button to start a Pop-Up Prickle on Zoom, the meeting ID and the passcode.",
+    },
     summary:
       "A light in the header shows when the prickle room has people in it and how to join.",
     body: [
       "When people are at the table, a red On air light blinks beside the bell with a count. Click it to see the prickle and its host, who is in the room, and the Zoom link with meeting ID and passcode. When the room is empty the light is grey, and the same link is offered as a way to start a pop-up prickle.",
+      "![The grey Off air light opened to a card with a button to start a Pop-Up Prickle on Zoom](/changelog/on-air-light/01-on-air-popover.webp)",
     ].join("\n\n"),
   },
   {
@@ -672,8 +689,10 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "A help menu in the top bar",
     summary:
       "The help icon is now a menu with Hedgie Help and Send feedback.",
+    image: { src: "/changelog/help-menu/01-help-menu.webp", alt: "The help menu open in the top bar, listing Hedgie Help, What's new and Send feedback." },
     body: [
       "Hedgie Help is at [/help](/help). Send feedback opens the feedback form in a panel, replacing the floating button.",
+      "![The help menu open in the top bar, listing Hedgie Help, What's new and Send feedback.](/changelog/help-menu/01-help-menu.webp)",
     ].join("\n\n"),
   },
   {
@@ -835,14 +854,20 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Hub chat is open to every member",
     summary:
       "Read and join our Slack conversations from the Hub, reply in threads, react, share files and format your messages. What you write here appears in Slack too.",
+    image: {
+      src: "/changelog/chat-open-to-everyone/01-conversation.webp",
+      alt: "The chat page showing a channel with threads and reactions",
+    },
     body: [
       "Chat is in the sidebar under Community. It lists the conversations you are in first, with a Browse channels button for the public channels you could join, and a lock on private ones. Conversations, threads and reactions update on their own.",
+      "![The chat page showing a channel with threads and reactions](/changelog/chat-open-to-everyone/01-conversation.webp)",
       "- Write messages and replies in the Hub and they appear in Slack. By default Billie Bot, our Slack helper, posts them with your name and photo. Connect your Slack account under Account in Settings and they go out as you; you can disconnect at any time from the same place.",
       "- A message that Slack has not accepted after a few retries is marked as failed, so you can see it did not go through.",
       "- Edit or delete your own messages, and the change reaches Slack too.",
       "- Attach files with the paperclip, paste an image or drag it in. Images show right in the conversation, and they reach Slack too.",
       "- Pick from a full emoji picker, mention people with @ and channels with #, and format your message with bold, italics, lists and more. Unsent text is kept as a draft for each conversation.",
       "- Each day has a marker, times follow your time zone, and Copy link on a message gives a link that opens right on it.",
+      "![The chat message box with its formatting toolbar and a quote being written](/changelog/chat-open-to-everyone/02-message-box.webp)",
     ].join("\n\n"),
   },
   {
@@ -879,10 +904,16 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Courses are open to every member",
     summary:
       "Watch the lessons of the courses you have access to right in the Hub, mark them complete and pick up where you left off.",
+    image: {
+      src: "/changelog/courses-open-to-everyone/01-courses-list.webp",
+      alt: "The Courses page with three course cards, one showing progress",
+    },
     body: [
       "Find them under [Courses](/courses): cards with cover images and your progress, a page for each module, and lesson pages with the video, its text and downloadable files.",
+      "![The Courses page with course cards and progress](/changelog/courses-open-to-everyone/01-courses-list.webp)",
       "- A lesson completes by itself when you have watched about 90 percent, or you can press Mark complete under the video. A card then points you to the next lesson.",
       "- The Hub remembers where you stopped, and your dashboard has a Continue watching card that takes you straight back to it.",
+      "![The dashboard with a Continue watching card showing a lesson, its course and a progress bar.](/changelog/courses-open-to-everyone/02-continue-watching.webp)",
       "- A course you pre-ordered shows its launch date and opens on that day.",
       "- A course or lesson link shared with someone who is not signed in shows a preview with its title, a short teaser and a cover. The video and full text stay behind sign-in.",
     ].join("\n\n"),
