@@ -32,7 +32,7 @@ One-on-one Slack DMs can be pulled into chat for the members a feature flag cove
 
 It has live delivery of new messages, a nightly pull, and a way to start a Slack DM from a profile's Message button. The feature is off for everyone as of this entry. /privacy describes what is read and kept, and the choice is to disconnect Slack. It becomes a product entry when it is on for everyone.
 
-## 2026-11-03 · Fixed: Small fixes and polish
+## 2026-11-03 · Fixed: Fixes to chat, course videos, check-in messages and sign-in
 
 Fixes to chat, course videos, Slack check-in messages and the sign-in page.
 
@@ -52,37 +52,37 @@ Members can start a Hub-only direct message from a profile's Message button, swi
 
 These conversations stay in the Hub and nothing goes to Slack. They are private and restricted, so staff can see that one exists but not its text. The chat_dms feature decides who can start one. It becomes a product entry when it is on for everyone.
 
-## 2026-11-02 · Fixed: Your calendar feed shows events at their time
+## 2026-11-02 · Fixed: Events on your calendar show at the right time
 
-One-day events you added to your subscribed calendar now appear at their start and end time instead of as all-day entries.
+One-day events you add to your own calendar now show their real start and end time instead of sitting all day. Longer events, like retreats, stay all day.
 
 ## 2026-11-02 · Improved: Course links preview, and course pages fit phones
 
-A course link shared with someone who is signed out shows a preview, and the lesson and module pages show one back link on narrow screens.
+A course link shared with someone who is not signed in shows a preview, and the lesson and module pages show one back link on narrow screens.
 
-## 2026-11-02 · Improved: Check-in and check-out are easier to reach
+## 2026-11-02 · Improved: Check in or out at any time during a prickle
 
-You can check in at any point while a prickle is running, and a running prickle on your upcoming list offers Check out beside Check in.
+You can check in until a prickle ends, and the running prickle in your list now has a Check out button. You get a check-out message a few minutes before the end, and you do not need a writing goal to use either.
 
-## 2026-11-02 · New: An Allow animations setting
+## 2026-11-02 · New: Turn down moving images and motion
 
-Choose System, Allow or Reduce for animations in Settings. With animations reduced, moving images and emoji show a still.
+In Settings, Preferences, choose whether the Hub follows your device, always shows animations, or tones them down. With motion reduced, animated emoji stay still.
 
 ## 2026-11-02 · Improved: Your conversations come first in the chat sidebar
 
 The chat sidebar lists the conversations you are in, with a Browse channels button for the public channels you could join.
 
-## 2026-11-02 · Improved: The chat box writes like Slack
+## 2026-11-02 · Improved: Bold, italics and lists in chat
 
-The chat box shows your formatting as you write it, with bold, italic, underline, strikethrough, code, quotes, links and nested or numbered lists.
+The chat box now lets you format your messages with bold, italics, lists and more, and keeps unsent messages as drafts.
 
 ## 2026-11-02 · New: Sign in with a code from your email
 
-The sign-in email now carries a one-time code that works from any device.
+Your sign-in email now includes a one-time code you can type in, so signing in works even if the link opens in the wrong app.
 
-## 2026-11-02 · New: Courses are open to every member
+## 2026-11-02 · New: Courses are now open to every member
 
-Watch the lessons of courses you have access to right in the Hub, mark them complete and pick up where you left off.
+Everyone can now watch the courses they have access to right in the Hub.
 
 ## 2026-11-01 · Engineering · Improved: Faster CI and repository-based tests
 
@@ -90,17 +90,17 @@ Lint and type checks overlap with tests, and many tests use the in-memory reposi
 
 The notifier, channels, reminders and check-in messages now take repositories instead of database clients, and 176 PostgREST casts were removed by typing the boundary once. pnpm seed:local loads a typed seed profile into the local database.
 
-## 2026-11-01 · New: Gentle reminders are on for every member
+## 2026-11-01 · New: Gentle reminders are now available to every member
 
-Newcomers get a nudge to say hello in the intro channel, and members with nothing planned can get a reminder to put a prickle on their calendar.
+Gentle reminders to say hello or plan a prickle are now available to every member. Choose where they arrive, or turn them off.
 
-## 2026-11-01 · New: Events is open to every member
+## 2026-11-01 · New: Events is now open to every member
 
-See what is coming up, with a picture on each event and a month-at-a-glance list that shows the time of day.
+Everyone can now see what is coming up, with a picture on each event and a month-at-a-glance list.
 
-## 2026-11-01 · New: Hub chat is open to every member
+## 2026-11-01 · New: Hub chat is now open to every member
 
-Read our Slack channels in the Hub, post and react from there, and optionally connect your Slack account so your messages go out as you.
+Everyone can now read Slack conversations in the Hub and write there. Link your Slack account in Settings if you want your messages to appear under your own name.
 
 ## 2026-10-31 · Engineering · Improved: More tables behind repositories, and migration safety
 
@@ -114,7 +114,7 @@ Staff can create and edit a course in the Hub, add, rename, duplicate, delete an
 
 This is staff-only and not visible to members yet. Reorders write a single audit entry with the order before and after. Courses are read and written through CourseRepository and CourseProgressRepository.
 
-## 2026-10-31 · Fixed: Small fixes and polish
+## 2026-10-31 · Fixed: Cleaner event names, a working past-events page and tabs that refresh
 
 Cleaner event names, a past-events page that works, and tabs left open across an update reload themselves.
 
@@ -140,15 +140,15 @@ Section failure alerts link to the error search. Video playback has a nightly en
 
 ## 2026-10-30 · Improved: A clearer privacy page, and a switch for usage statistics
 
-The privacy page opens with a short summary, answers questions in groups, and can be read without signing in. A switch lets you stop sharing usage statistics.
+The privacy page opens with a short summary and can be read without signing in. A switch lets you stop the Hub recording how you use it, and removes what was already recorded about you.
 
 ## 2026-10-30 · Fixed: Prickle and event descriptions keep their formatting
 
 Descriptions imported from the calendar now keep bold, italic, links, bullet lists, paragraph breaks and dividing lines instead of running together.
 
-## 2026-10-30 · New: Choose how the sidebar behaves
+## 2026-10-30 · New: Choose how the side menu behaves
 
-A button in the header cycles the sidebar between pinned open, auto-hide as an icon rail, and closed, and remembers your choice.
+A button in the header lets you keep the side menu open, tuck it away until you point at it, or close it. The Hub remembers your choice.
 
 ## 2026-10-30 · Improved: Shared lesson links show a preview
 
@@ -156,7 +156,7 @@ A course lesson link shared with someone who is signed out shows its title, a sh
 
 ## 2026-10-29 · New: Book covers at any size, from your own images
 
-Upload a book cover at any size, pick it again from your own images and adjust its crop. We make the Amazon-size version for you.
+Upload a book cover at any size, pick it again from your own images and adjust its crop. We also offer a download in the size Amazon asks for, when your image is large enough.
 
 ## 2026-10-28 · Engineering · Improved: Google Calendar syncs from push notifications
 
@@ -176,13 +176,13 @@ If you are partway through a course lesson, your dashboard shows a card that tak
 
 The help icon is now a menu with Hedgie Help and Send feedback.
 
-## 2026-10-27 · Improved: Search finds nicknames and guest speakers
+## 2026-10-27 · Improved: Search finds the names people go by
 
-Member search now matches the other names a member goes by, prickle search matches guest speakers, and hosts and attendees show the name people go by.
+Searching for a member also finds other names they go by, prickle search finds guest speakers, and hosts and attendees show the name people go by.
 
-## 2026-10-25 · Improved: Chat posts as you, not as a bot
+## 2026-10-25 · Improved: Chat in the Hub can post under your own name
 
-Messages and files you post in chat now go out under your own connected Slack account.
+If you link your Slack account in Settings, what you write in Hub chat appears in Slack under your name. If it is not linked, chat asks you to link it before you can post.
 
 ## 2026-10-25 · Improved: Clearer navigation and a footer
 
@@ -278,7 +278,7 @@ A Hub link shared in Slack and elsewhere now shows a single centered picture ins
 
 ## 2026-10-20 · Improved: Connect Slack in Getting started
 
-Getting started has a Connect Slack step, and connecting also keeps what you have read in sync between the Hub and Slack.
+Getting started has a Connect Slack step. Once connected, reading a conversation in Slack or in the Hub marks it as read in both places.
 
 ## 2026-10-20 · New: Choose your display name
 
@@ -312,7 +312,7 @@ The sad broken-heart badge on upcoming prickles is now a seedling that invites y
 
 ## 2026-10-15 · New: Gentle reminders to say hello and to plan a prickle
 
-Newcomers get a nudge to say hello in the intro channel, and members with nothing planned can get a reminder to put a prickle on their calendar.
+New members get a nudge to say hello in the intro channel, and other members with nothing planned can get a reminder to put a prickle on their calendar. You choose whether and where they arrive.
 
 ## 2026-10-15 · Improved: Getting started: steps for newcomers
 
@@ -374,7 +374,7 @@ Admin changes and member actions are recorded in one audit log with readable row
 
 The Activity Log page is admin only. The audit log records the net effect of a transaction rather than every intermediate write, and has a Hide system toggle. See docs/ACTIVITY_AND_AUDIT_LOG.md.
 
-## 2026-10-05 · Fixed: Small fixes and polish
+## 2026-10-05 · Fixed: Fractions, check-out links and simpler check-in options
 
 Fractional amounts, check-out links and a lighter set of check-in options.
 
@@ -388,7 +388,7 @@ Automatic messages go through one framework with per-kind, per-channel settings 
 
 Each kind of message is registered in lib/notifications/registry.ts and sent through createNotifier in lib/notifications/notify.ts, which honors member opt-outs. Delivery adapters live in lib/channels/ (Slack, then in-app and email). A message can be marked time sensitive until a given time, and each channel decides what that means. Admin Test Notifications sends every kind on every channel. Related product entries: check-in and check-out messages, notifications inside the Hub, and email notifications.
 
-## 2026-10-03 · Fixed: Small fixes and polish
+## 2026-10-03 · Fixed: Fixes to sign-in, notification settings and the dashboard
 
 A handful of fixes to sign-in, notification settings and the dashboard.
 
@@ -400,9 +400,9 @@ A bell in the header and a notifications inbox keep your check-ins and other mes
 
 A checklist walks new members through setting up their details, introducing themselves, setting a writing goal and finding a prickle.
 
-## 2026-10-03 · New: Check-in and check-out reminders from Billie Bot
+## 2026-10-03 · New: Slack reminders to check in before a prickle and check out after
 
-Billie Bot now asks how you are feeling shortly before a prickle and how it went afterwards, and you choose where those messages arrive.
+Billie Bot, our Slack helper, messages you shortly before a prickle to ask how you are feeling, and afterwards to ask how it went. You choose whether you get these, and where.
 
 ## 2026-10-02 · Engineering · Improved: Slack app manifest pushed from CI
 
@@ -420,9 +420,9 @@ Values that are the same everywhere live in app.config.ts and are read through l
 
 When you log progress you can say which prickle it was during, and your dashboard reminds you about writing prickles you have not logged.
 
-## 2026-10-02 · New: Prickle check-ins and a Prickle Picker that learns from them
+## 2026-10-02 · New: Say how you feel before and after a prickle
 
-Say how you feel and what you need before a prickle and how it went afterwards. The Prickle Picker uses your answers to suggest prickles that suit you.
+Tell us how you are feeling and what you need before a prickle, and how it went afterwards. The Prickle Picker can use your answers to suggest prickles.
 
 ## 2026-09-29 · New: Sign in to the Hub from Slack
 

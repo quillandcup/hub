@@ -108,12 +108,13 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-10-02",
     audience: "product",
     category: "new",
-    title: "Prickle check-ins and a Prickle Picker that learns from them",
+    title: "Say how you feel before and after a prickle",
     summary:
-      "Say how you feel and what you need before a prickle and how it went afterwards. The Prickle Picker uses your answers to suggest prickles that suit you.",
+      "Tell us how you are feeling and what you need before a prickle, and how it went afterwards. The Prickle Picker can use your answers to suggest prickles.",
     body: [
       "Every prickle page has a Check in card. Pick up to two feelings for how you are coming in and one thing you need, such as momentum, deep focus, accountability, company or a push to get unstuck. Once the prickle has started you can also rate how it went and how you feel now. Every question is optional, and only you and the Hub admins can see your answers.",
       "The Prickle Picker now starts with How are you feeling? Your answer suggests a mood and the picks follow. Once you have rated at least two similar sessions, it also favors the kinds of prickle you rated higher than your usual.",
+      "There is no AI in the Prickle Picker. The part that gets personal only looks at your own past ratings of similar sessions.",
     ].join("\n\n"),
   },
   {
@@ -136,9 +137,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-10-03",
     audience: "product",
     category: "new",
-    title: "Check-in and check-out reminders from Billie Bot",
+    title: "Slack reminders to check in before a prickle and check out after",
     summary:
-      "Billie Bot now asks how you are feeling shortly before a prickle and how it went afterwards, and you choose where those messages arrive.",
+      "Billie Bot, our Slack helper, messages you shortly before a prickle to ask how you are feeling, and afterwards to ask how it went. You choose whether you get these, and where.",
     body: [
       "Before a prickle you get a short message asking how you are feeling coming in, and afterwards one asking how it went. Each links to the check-in or check-out itself.",
       "Choose which messages you get, and whether they come by Slack or in the Hub, under Notifications in Settings (/settings/notifications). Check-out is available on the prickle page once the prickle starts.",
@@ -176,7 +177,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-10-03",
     audience: "product",
     category: "fixed",
-    title: "Small fixes and polish",
+    title: "Fixes to sign-in, notification settings and the dashboard",
     summary:
       "A handful of fixes to sign-in, notification settings and the dashboard.",
     body: [
@@ -207,7 +208,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-10-05",
     audience: "product",
     category: "fixed",
-    title: "Small fixes and polish",
+    title: "Fractions, check-out links and simpler check-in options",
     summary:
       "Fractional amounts, check-out links and a lighter set of check-in options.",
     body: [
@@ -414,7 +415,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Gentle reminders to say hello and to plan a prickle",
     summary:
-      "Newcomers get a nudge to say hello in the intro channel, and members with nothing planned can get a reminder to put a prickle on their calendar.",
+      "New members get a nudge to say hello in the intro channel, and other members with nothing planned can get a reminder to put a prickle on their calendar. You choose whether and where they arrive.",
     body: [
       "- Introduction reminders go to members in their first 90 days who have not yet said hello in the intro channel.",
       "- Prickle reminders go to members with nothing on their calendar and no recent prickle. They are off until you turn them on under Settings, Notifications, and they come less often the longer they go unanswered.",
@@ -507,7 +508,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "improved",
     title: "Connect Slack in Getting started",
     summary:
-      "Getting started has a Connect Slack step, and connecting also keeps what you have read in sync between the Hub and Slack.",
+      "Getting started has a Connect Slack step. Once connected, reading a conversation in Slack or in the Hub marks it as read in both places.",
     body: [
       "Connecting Slack (Settings, Account) lets Hub chat send as you. Once connected, reading a conversation in one place clears it as unread in the other. Connecting also makes Open Hedgie Hub in Slack find your account even if your Slack email differs from your Hub email.",
       "A tour you already finished reopens to show only the steps added since.",
@@ -795,9 +796,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-10-25",
     audience: "product",
     category: "improved",
-    title: "Chat posts as you, not as a bot",
+    title: "Chat in the Hub can post under your own name",
     summary:
-      "Messages and files you post in chat now go out under your own connected Slack account.",
+      "If you link your Slack account in Settings, what you write in Hub chat appears in Slack under your name. If it is not linked, chat asks you to link it before you can post.",
     body: [
       "If your Slack account is not connected, or its connection has stopped working, chat asks you to connect it again in Settings before you can post.",
     ].join("\n\n"),
@@ -820,9 +821,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-10-27",
     audience: "product",
     category: "improved",
-    title: "Search finds nicknames and guest speakers",
+    title: "Search finds the names people go by",
     summary:
-      "Member search now matches the other names a member goes by, prickle search matches guest speakers, and hosts and attendees show the name people go by.",
+      "Searching for a member also finds other names they go by, prickle search finds guest speakers, and hosts and attendees show the name people go by.",
     body: [
       "When a result matches a nickname, a small line under it says so. Hosts and attendees on prickle pages, the attendance calendar, calendar feed titles and the Events page now show each person's display name instead of their legal name.",
       "Members can no longer turn their own alternate names on or off in Settings. Those names are how attendance gets matched to you, so switching one off could lose matches. Staff can still do it for you.",
@@ -859,7 +860,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Book covers at any size, from your own images",
     summary:
-      "Upload a book cover at any size, pick it again from your own images and adjust its crop. We make the Amazon-size version for you.",
+      "Upload a book cover at any size, pick it again from your own images and adjust its crop. We also offer a download in the size Amazon asks for, when your image is large enough.",
     body: [
       "The book form has one Choose cover button with a tab of your own images and an upload tab. JPEG, PNG, WebP, GIF, AVIF and iPhone HEIC photos all work, up to 4 MB. The exact-size rule is gone.",
       "Under the cover you will see a download link for the size Amazon wants, or what is missing if the image is too small. Older covers keep working but have no Amazon version until you upload them again.",
@@ -894,9 +895,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-10-30",
     audience: "product",
     category: "new",
-    title: "Choose how the sidebar behaves",
+    title: "Choose how the side menu behaves",
     summary:
-      "A button in the header cycles the sidebar between pinned open, auto-hide as an icon rail, and closed, and remembers your choice.",
+      "A button in the header lets you keep the side menu open, tuck it away until you point at it, or close it. The Hub remembers your choice.",
     body: [
       "In auto-hide the sidebar rests as a slim icon rail and opens over the page when you hover or focus it, so the page does not shift. Until you choose, the sidebar auto-hides on chat and stays open elsewhere.",
     ].join("\n\n"),
@@ -920,7 +921,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "improved",
     title: "A clearer privacy page, and a switch for usage statistics",
     summary:
-      "The privacy page opens with a short summary, answers questions in groups, and can be read without signing in. A switch lets you stop sharing usage statistics.",
+      "The privacy page opens with a short summary and can be read without signing in. A switch lets you stop the Hub recording how you use it, and removes what was already recorded about you.",
     body: [
       "[/privacy](/privacy) now covers what we collect, who can see it, chat and messages, how long we keep things, your choices and the services we use.",
       "Turn off Share usage statistics and the Hub stops recording your usage and removes the usage events already stored under your account. Error recordings, used to fix crashes, continue.",
@@ -938,6 +939,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "On My Writing, projects that are complete, published or abandoned move to a collapsed Past projects section. They still open as usual, and changing a status moves them back.",
       "Delete is in the project's Edit details. Its goals and entries go with it, and a book published from it stays on the shelf. Deleted items are kept until you ask us to remove them, as [/privacy](/privacy) explains.",
       "A goal whose end date passed before its target now moves to Past goals on the project page and leaves the project list, the dashboard and your profile.",
+      "Deleting a project hides it. We keep a copy until you ask us to remove it.",
     ].join("\n\n"),
   },
   {
@@ -945,7 +947,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-10-31",
     audience: "product",
     category: "fixed",
-    title: "Small fixes and polish",
+    title: "Cleaner event names, a working past-events page and tabs that refresh",
     summary:
       "Cleaner event names, a past-events page that works, and tabs left open across an update reload themselves.",
     body: [
@@ -1019,9 +1021,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-11-01",
     audience: "product",
     category: "new",
-    title: "Hub chat is open to every member",
+    title: "Hub chat is now open to every member",
     summary:
-      "Read our Slack channels in the Hub, post and react from there, and optionally connect your Slack account so your messages go out as you.",
+      "Everyone can now read Slack conversations in the Hub and write there. Link your Slack account in Settings if you want your messages to appear under your own name.",
     body: [
       "Chat is in the sidebar under Community. You see the conversations you are in and the public channels, with threads and reactions, and you can post and reply from the Hub.",
       "To have your messages appear in Slack under your own name, connect your Slack account under Settings, Account.",
@@ -1032,9 +1034,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-11-01",
     audience: "product",
     category: "new",
-    title: "Events is open to every member",
+    title: "Events is now open to every member",
     summary:
-      "See what is coming up, with a picture on each event and a month-at-a-glance list that shows the time of day.",
+      "Everyone can now see what is coming up, with a picture on each event and a month-at-a-glance list.",
     body: ["Find it under Events in the sidebar, with past events at /events/past."].join("\n\n"),
   },
   {
@@ -1042,9 +1044,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-11-01",
     audience: "product",
     category: "new",
-    title: "Gentle reminders are on for every member",
+    title: "Gentle reminders are now available to every member",
     summary:
-      "Newcomers get a nudge to say hello in the intro channel, and members with nothing planned can get a reminder to put a prickle on their calendar.",
+      "Gentle reminders to say hello or plan a prickle are now available to every member. Choose where they arrive, or turn them off.",
     body: [
       "Choose which channels they come on, or turn them off, under [Notifications](/settings/notifications). Prickle reminders are off until you turn them on, except in your first 90 days.",
     ].join("\n\n"),
@@ -1054,9 +1056,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-11-02",
     audience: "product",
     category: "new",
-    title: "Courses are open to every member",
+    title: "Courses are now open to every member",
     summary:
-      "Watch the lessons of courses you have access to right in the Hub, mark them complete and pick up where you left off.",
+      "Everyone can now watch the courses they have access to right in the Hub.",
     body: ["Find them under [Courses](/courses). You see the courses you have access to, with your progress."].join("\n\n"),
   },
   {
@@ -1066,7 +1068,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Sign in with a code from your email",
     summary:
-      "The sign-in email now carries a one-time code that works from any device.",
+      "Your sign-in email now includes a one-time code you can type in, so signing in works even if the link opens in the wrong app.",
     body: [
       "Go to [/login](/login), enter your email and the code from the sign-in email. The code also works if the link opens in a different browser than the one you asked from, such as a phone's mail app.",
       "If you ask for a link twice within a minute, the page now tells you one was just sent and to check your inbox.",
@@ -1077,9 +1079,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-11-02",
     audience: "product",
     category: "improved",
-    title: "The chat box writes like Slack",
+    title: "Bold, italics and lists in chat",
     summary:
-      "The chat box shows your formatting as you write it, with bold, italic, underline, strikethrough, code, quotes, links and nested or numbered lists.",
+      "The chat box now lets you format your messages with bold, italics, lists and more, and keeps unsent messages as drafts.",
     body: [
       "There is a formatting toolbar and the usual shortcuts. Type :name to pick an emoji from a list. Formatting reaches Slack as real formatting, including lists and underline.",
       "Unsent text is saved as a draft for each conversation and thread, and a Drafts section in the sidebar takes you back to it. Editing a message lets you add or remove files, and saving an emptied edit asks whether to delete the message. Hover an @mention of a member to see their card. Copy message copies readable text and keeps formatting when you paste it into the chat box.",
@@ -1102,9 +1104,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-11-02",
     audience: "product",
     category: "new",
-    title: "An Allow animations setting",
+    title: "Turn down moving images and motion",
     summary:
-      "Choose System, Allow or Reduce for animations in Settings. With animations reduced, moving images and emoji show a still.",
+      "In Settings, Preferences, choose whether the Hub follows your device, always shows animations, or tones them down. With motion reduced, animated emoji stay still.",
     body: [
       "Find it in [Settings](/settings), under Preferences. System follows your device. With animations reduced, interface motion stops, animated emoji show a still, and GIF attachments in chat play and pause when you click them. The choice is saved on this device, like the theme.",
     ].join("\n\n"),
@@ -1114,9 +1116,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-11-02",
     audience: "product",
     category: "improved",
-    title: "Check-in and check-out are easier to reach",
+    title: "Check in or out at any time during a prickle",
     summary:
-      "You can check in at any point while a prickle is running, and a running prickle on your upcoming list offers Check out beside Check in.",
+      "You can check in until a prickle ends, and the running prickle in your list now has a Check out button. You get a check-out message a few minutes before the end, and you do not need a writing goal to use either.",
     body: [
       "Check-in now stays open until the prickle ends, and it is offered if you are in the prickle's Zoom room even without a commitment or a calendar item. The check-out message comes 5 to 10 minutes before a prickle ends, so you can check out before you leave for your next thing.",
       "You no longer need a writing goal to be asked to check in or check out. Without a goal you get the usual questions, plus a short tip about setting one.",
@@ -1129,7 +1131,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "improved",
     title: "Course links preview, and course pages fit phones",
     summary:
-      "A course link shared with someone who is signed out shows a preview, and the lesson and module pages show one back link on narrow screens.",
+      "A course link shared with someone who is not signed in shows a preview, and the lesson and module pages show one back link on narrow screens.",
     body: [
       "A course link unfurls with the course title, a short teaser and its cover. If you have no courses yet, the Courses page points you to The Ready Writer's waitlist.",
     ].join("\n\n"),
@@ -1139,9 +1141,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-11-02",
     audience: "product",
     category: "fixed",
-    title: "Your calendar feed shows events at their time",
+    title: "Events on your calendar show at the right time",
     summary:
-      "One-day events you added to your subscribed calendar now appear at their start and end time instead of as all-day entries.",
+      "One-day events you add to your own calendar now show their real start and end time instead of sitting all day. Longer events, like retreats, stay all day.",
     body: [
       "Multi-day events, such as retreats, stay all-day. The search button in the header is also a steady square on phones instead of a clipped sliver.",
     ].join("\n\n"),
@@ -1163,7 +1165,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-11-03",
     audience: "product",
     category: "fixed",
-    title: "Small fixes and polish",
+    title: "Fixes to chat, course videos, check-in messages and sign-in",
     summary:
       "Fixes to chat, course videos, Slack check-in messages and the sign-in page.",
     body: [
