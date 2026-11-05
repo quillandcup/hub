@@ -33,6 +33,10 @@ ALTER TABLE public.notification_log ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.notification_log FROM anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.notification_log TO service_role;
 
+-- Erasing a member removes what we recorded sending them (the member_data_handling test requires a decision per member foreign key).
+INSERT INTO public.member_data_handling (table_name, column_name, action, why) VALUES
+  ('notification_log', 'member_id', 'delete', 'notifications sent to them');
+
 -- The weekly digest starts in dry run: the flag says who gets it for real (an admin's own preview first, then a
 -- segment, then everyone); for everyone else the job only logs what it would have sent.
 INSERT INTO feature_flags (feature_key, enabled_globally)
