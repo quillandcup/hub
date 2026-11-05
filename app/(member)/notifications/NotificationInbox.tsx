@@ -128,7 +128,7 @@ export default function NotificationInbox({
                 : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
             }`}
           >
-            {f.label} <span className="opacity-70">({counts[f.value]})</span>
+            {f.label} <span>({counts[f.value]})</span>
           </button>
         ))}
         <label className="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-400">
@@ -228,7 +228,7 @@ export default function NotificationInbox({
                       </td>
                     )}
                     <td className="px-2 py-3">
-                      {!n.read && <span aria-label="Unread" className="block h-2 w-2 rounded-full bg-plum-600" />}
+                      {!n.read && <span role="img" aria-label="Unread" className="block h-2 w-2 rounded-full bg-plum-600" />}
                     </td>
                     <td className="px-6 py-3">
                       {n.url ? (

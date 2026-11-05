@@ -76,7 +76,7 @@ export default async function PrivacyPage() {
       <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">
         What the Hub collects about you, who can see it, how long we keep it and what you can do about it.
       </p>
-      <p className="text-sm text-slate-500 dark:text-slate-500 mb-6">
+      <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
         Effective <time dateTime={PRIVACY_EFFECTIVE}>{PRIVACY_EFFECTIVE}</time>.
       </p>
 
@@ -481,7 +481,7 @@ export default async function PrivacyPage() {
 }
 
 /** Smaller than a section's heading and in capitals, so the two levels can't be mistaken for each other. */
-const SUBHEADING = "pt-2 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400";
+const SUBHEADING = "pt-2 text-sm font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400";
 
 function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
   return (
