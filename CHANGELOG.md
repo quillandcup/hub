@@ -56,10 +56,6 @@ These conversations stay in the Hub and nothing goes to Slack. They are private 
 
 One-day events you add to your own calendar now show their real start and end time instead of sitting all day. Longer events, like retreats, stay all day.
 
-## 2026-11-02 · Improved: Course links preview, and course pages fit phones
-
-A course link shared with someone who is not signed in shows a preview, and the lesson and module pages show one back link on narrow screens.
-
 ## 2026-11-02 · Improved: Check in or out at any time during a prickle
 
 You can check in until a prickle ends, and the running prickle in your list now has a Check out button. You get a check-out message a few minutes before the end, and you do not need a writing goal to use either.
@@ -68,21 +64,13 @@ You can check in until a prickle ends, and the running prickle in your list now 
 
 In Settings, Preferences, choose whether the Hub follows your device, always shows animations, or tones them down. With motion reduced, animated emoji stay still.
 
-## 2026-11-02 · Improved: Your conversations come first in the chat sidebar
-
-The chat sidebar lists the conversations you are in, with a Browse channels button for the public channels you could join.
-
-## 2026-11-02 · Improved: Bold, italics and lists in chat
-
-The chat box now lets you format your messages with bold, italics, lists and more, and keeps unsent messages as drafts.
-
 ## 2026-11-02 · New: Sign in with a code from your email
 
 Your sign-in email now includes a one-time code you can type in, so signing in works even if the link opens in the wrong app.
 
-## 2026-11-02 · New: Courses are now open to every member
+## 2026-11-02 · New: Courses are open to every member
 
-Everyone can now watch the courses they have access to right in the Hub.
+Watch the lessons of the courses you have access to right in the Hub, mark them complete and pick up where you left off.
 
 ## 2026-11-01 · Engineering · Improved: Faster CI and repository-based tests
 
@@ -90,17 +78,17 @@ Lint and type checks overlap with tests, and many tests use the in-memory reposi
 
 The notifier, channels, reminders and check-in messages now take repositories instead of database clients, and 176 PostgREST casts were removed by typing the boundary once. pnpm seed:local loads a typed seed profile into the local database.
 
-## 2026-11-01 · New: Gentle reminders are now available to every member
+## 2026-11-01 · New: Gentle reminders are on for every member
 
-Gentle reminders to say hello or plan a prickle are now available to every member. Choose where they arrive, or turn them off.
+Newcomers get a nudge to say hello in the intro channel, and anyone with nothing planned can get a reminder to put a prickle on their calendar. You choose where they arrive, or turn them off.
 
-## 2026-11-01 · New: Events is now open to every member
+## 2026-11-01 · New: Events is open to every member
 
-Everyone can now see what is coming up, with a picture on each event and a month-at-a-glance list.
+See what is coming up, with a picture on each event and a month-at-a-glance list that shows the time of day.
 
-## 2026-11-01 · New: Hub chat is now open to every member
+## 2026-11-01 · New: Hub chat is open to every member
 
-Everyone can now read Slack conversations in the Hub and write there. Link your Slack account in Settings if you want your messages to appear under your own name.
+Read and join our Slack conversations from the Hub, reply in threads, react, share files and format your messages. What you write here appears in Slack too.
 
 ## 2026-10-31 · Engineering · Improved: More tables behind repositories, and migration safety
 
@@ -150,10 +138,6 @@ Descriptions imported from the calendar now keep bold, italic, links, bullet lis
 
 A button in the header lets you keep the side menu open, tuck it away until you point at it, or close it. The Hub remembers your choice.
 
-## 2026-10-30 · Improved: Shared lesson links show a preview
-
-A course lesson link shared with someone who is signed out shows its title, a short teaser and a thumbnail, with a way to sign in.
-
 ## 2026-10-29 · New: Book covers at any size, from your own images
 
 Upload a book cover at any size, pick it again from your own images and adjust its crop. We also offer a download in the size Amazon asks for, when your image is large enough.
@@ -164,14 +148,6 @@ The calendar sync opens and renews its push channel on its own and syncs only wh
 
 Deletions outside the watched window are caught, and the admin calendar refreshes itself when the sync changes prickles. See CalendarSyncStateRepository in lib/data/calendar-sync-state.ts.
 
-## 2026-10-28 · New: A better Events page
-
-Events leads with what is coming up, with a picture on each card and a month-at-a-glance list that shows the time of day.
-
-## 2026-10-27 · New: Continue watching on your dashboard
-
-If you are partway through a course lesson, your dashboard shows a card that takes you straight back to it.
-
 ## 2026-10-27 · Improved: A help menu in the top bar
 
 The help icon is now a menu with Hedgie Help and Send feedback.
@@ -179,10 +155,6 @@ The help icon is now a menu with Hedgie Help and Send feedback.
 ## 2026-10-27 · Improved: Search finds the names people go by
 
 Searching for a member also finds other names they go by, prickle search finds guest speakers, and hosts and attendees show the name people go by.
-
-## 2026-10-25 · Improved: Chat in the Hub can post under your own name
-
-If you link your Slack account in Settings, what you write in Hub chat appears in Slack under your name. If it is not linked, chat asks you to link it before you can post.
 
 ## 2026-10-25 · Improved: Clearer navigation and a footer
 
@@ -197,10 +169,6 @@ pnpm types:gen regenerates lib/data/database.types.ts and pnpm types:check runs 
 ## 2026-10-24 · Fixed: Week calendars scroll on phones
 
 On a phone you can now scroll sideways to Thursday through Saturday on week calendars instead of having them cut off.
-
-## 2026-10-24 · Improved: Chat: mention people and channels, edit Slack-written messages
-
-Type the at sign or the hash sign in chat to pick people and channels, and edit or delete messages you wrote in Slack once you have connected Slack.
 
 ## 2026-10-24 · Improved: Getting started asks for your Zoom name
 
@@ -244,33 +212,17 @@ Settings has an option to show a second time zone, such as Eastern, beside the p
 
 Point at a member's name or photo in chat or on Streaks to see their profile at a glance.
 
-## 2026-10-22 · Improved: Chat: day markers, Slack notices and adding people
-
-Chat marks each day, shows times in your time zone, shows notices like channel renames, and lets you add people to a conversation.
-
-## 2026-10-22 · Improved: Chat: files, images and a full emoji picker
-
-Chat now shows images and files under messages, lets you send files to Slack, and has a full emoji picker with skin tones.
-
 ## 2026-10-21 · Engineering · Improved: pnpm, auto-merge, docs-only skips and container queries
 
 The repo moved to pnpm, new PRs auto-merge on green, docs-only changes skip tests and deploy, and layouts use named container queries.
 
 Named container sizes live in tailwind.config.ts. A production tag marks what is deployed. Migration order is checked in pre-commit and CI.
 
-## 2026-10-21 · New: Edit and delete your chat messages
-
-You can edit or delete a message you wrote in Hub chat, and the change reaches Slack too.
-
 ## 2026-10-20 · Engineering · New: Usage analytics with a tracking plan
 
 Only declared events are stored, with funnels and a usage explorer for admins.
 
 Events are declared in lib/analytics/events.ts and funnels in lib/analytics/funnels.ts. Members can leave usage statistics from /privacy. See docs/ANALYTICS.md.
-
-## 2026-10-20 · Improved: Course cards, module pages and a clearer today
-
-Courses show as cards with cover images, each module has its own page, and today stands out more on calendars in light mode.
 
 ## 2026-10-20 · Fixed: Cleaner previews for Hub links
 
@@ -287,10 +239,6 @@ Settings now says which name the community sees, and you can pick one of your pe
 ## 2026-10-19 · New: On air light
 
 A light in the header shows when the prickle room has people in it and how to join.
-
-## 2026-10-19 · New: Courses in the Hub
-
-Watch the lessons of courses you have access to right in the Hub, mark them complete and pick up where you left off.
 
 ## 2026-10-18 · Improved: Join details for the prickle room
 
@@ -309,10 +257,6 @@ New members would get a big sister for their first 30 days, with staff choosing 
 ## 2026-10-15 · Improved: A kinder nudge when a streak lapses
 
 The sad broken-heart badge on upcoming prickles is now a seedling that invites you to start a new streak.
-
-## 2026-10-15 · New: Gentle reminders to say hello and to plan a prickle
-
-New members get a nudge to say hello in the intro channel, and other members with nothing planned can get a reminder to put a prickle on their calendar. You choose whether and where they arrive.
 
 ## 2026-10-15 · Improved: Getting started: steps for newcomers
 
@@ -339,18 +283,6 @@ v8 coverage with area floors; API tests call route handlers in-process; a requir
 ## 2026-10-12 · Improved: Instagram on your profile
 
 The Instagram field in Settings is now a link like Facebook and X, and it shows the handle your profile really links to.
-
-## 2026-10-12 · Improved: Chat feels faster and stays current
-
-A message you send shows up the moment you press Send, and open conversations and threads update without reloading.
-
-## 2026-10-11 · New: Hub chat can send as you
-
-Connect your Slack account in Settings and the messages and reactions you send from Hub chat show up in Slack as you.
-
-## 2026-10-10 · New: Hub chat, a first look
-
-Read our Slack channels in the Hub, post and react from there, and optionally connect your Slack account so your messages go out as you.
 
 ## 2026-10-10 · New: Get notifications by email
 
