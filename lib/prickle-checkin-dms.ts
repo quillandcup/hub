@@ -31,6 +31,7 @@ import {
   INTENTION_MET_QUESTION,
   isEmptyCheckin,
   NEEDS,
+  offersCheckins,
   PLEASANTNESS,
   PLEASANTNESS_QUESTION,
   validateCheckin,
@@ -660,7 +661,7 @@ export async function recentPresentPrickles(
 ): Promise<PrickleDetail[]> {
   const since = now.getTime() - CHECKOUT_LOOKBACK_MS;
   const recent = await repos.prickles.startingBetween({ from: new Date(since).toISOString(), to: now.toISOString() });
-  const ended = recent.filter((p) => p.type?.purpose === "writing" && new Date(p.endTime).getTime() <= now.getTime());
+  const ended = recent.filter((p) => offersCheckins(p) && new Date(p.endTime).getTime() <= now.getTime());
   if (ended.length === 0) return [];
   const intervals = (await loadPresenceByMember(presenceRepos, new Date(since - PRESENCE_LOOKBEHIND_MS), now)).get(memberId) ?? [];
   // Counted the way the attendance processing counts a stay (a lingering tail of the prickle

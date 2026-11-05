@@ -9,7 +9,6 @@ import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import { EnvironmentIndicator } from "@/components/EnvironmentIndicator";
-import { StaleTabReload } from "@/components/StaleTabReload";
 import { AnimationsController } from "@/components/AnimationsController";
 import { ConsentBanner } from "@/components/ConsentBanner";
 import { AnalyticsIdentity } from "@/components/AnalyticsIdentity";
@@ -90,7 +89,6 @@ export default async function RootLayout({
         >
           <EnvironmentIndicator />
           <AnimationsController />
-          <StaleTabReload />
           {children}
         </ThemeProvider>
         <SessionReplay needsConsent={eventsNeedConsent} optedOut={optedOut} />

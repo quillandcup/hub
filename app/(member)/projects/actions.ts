@@ -36,7 +36,7 @@ import { computePrickleStreaks, seriesKeyFor } from "@/lib/streaks";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { DAY_NAMES, formatScheduleLabel, getMonthStart, getNextMonthStart } from "@/lib/prickle-schedules";
 import { ORG_TIMEZONE } from "@/lib/config";
-import { checkoutAnswered } from "@/lib/prickle-checkins";
+import { checkoutAnswered, offersCheckins } from "@/lib/prickle-checkins";
 import {
   formatPrickleLabel,
   localDateOf,
@@ -1009,8 +1009,11 @@ export async function getUnloggedRecentPrickles(): Promise<PrickleOption[]> {
     viewerTimeZone(),
   ]);
 
+  // Pop-Up Prickles are paused (offersCheckins); `present` is already filtered, the attendance is not.
+  const attended = attendance.filter((a) => a.prickle && offersCheckins(a.prickle));
+
   // Linked to an entry, dismissed from this prompt, or checked out of: nothing left to ask about.
-  const attendedIds = [...attendance.map((a) => a.prickleId), ...present.map((p) => p.id)];
+  const attendedIds = [...attended.map((a) => a.prickleId), ...present.map((p) => p.id)];
   const checkins = await repos.prickleActivity.checkinsAmong(effectiveIdentity.memberId, attendedIds);
   const checkedOutIds = [...checkins].filter(([, c]) => checkoutAnswered(c)).map(([prickleId]) => prickleId);
   const linkedIds = new Set([
@@ -1019,7 +1022,7 @@ export async function getUnloggedRecentPrickles(): Promise<PrickleOption[]> {
     ...checkedOutIds,
   ]);
   const byId = new Map<string, PrickleOption>();
-  for (const p of [...attendance.map((a) => a.prickle), ...present]) {
+  for (const p of [...attended.map((a) => a.prickle), ...present]) {
     if (!p || linkedIds.has(p.id) || byId.has(p.id)) continue;
     const label = formatPrickleLabel(
       { startTime: p.startTime, typeName: p.type?.name ?? null, hostName: p.host ? getMemberDisplayName({ name: p.host.name, display_name: p.host.displayName }) : null },

@@ -8,6 +8,7 @@ import { withCronHeartbeat } from "@/lib/cron-heartbeats";
 import { prickleTitle } from "@/lib/domain/prickle";
 import { createRepos, type Repos } from "@/lib/data/repos";
 import type { PrickleDetail, PrickleType } from "@/lib/data/prickles";
+import { offersCheckins } from "@/lib/prickle-checkins";
 import {
   checkinAnswered,
   checkinMessage,
@@ -94,9 +95,9 @@ async function loadRecentPrickles(repos: RouteRepos, now: number): Promise<{ wri
   };
 }
 
-/** The prickles whose type is for writing (only those get check-ins and check-outs), with the type known. */
+/** The prickles that get check-ins and check-outs (writing prickles, not Pop-Up Prickles: offersCheckins), with the type known. */
 function writingPrickles(prickles: PrickleDetail[]) {
-  return prickles.filter((p): p is PrickleDetail & { type: PrickleType } => p.type?.purpose === "writing");
+  return prickles.filter((p): p is PrickleDetail & { type: PrickleType } => p.type !== null && offersCheckins(p));
 }
 
 /** A member who joined a running prickle that has no check-in for them yet (see sendDropInCheckins). */

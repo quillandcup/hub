@@ -1,5 +1,7 @@
 import { requireStaffPage } from "@/lib/admin-auth";
 import RolePreviewBanner from "@/components/RolePreviewBanner";
+import AnnouncementStack, { ANNOUNCEMENT_PRIORITY } from "@/components/announcements/AnnouncementStack";
+import AppUpdatedBar from "@/components/announcements/AppUpdatedBar";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { getUserFeaturePreviews } from "@/lib/features.server";
 import type { FeatureKey } from "@/lib/features";
@@ -41,7 +43,13 @@ export default async function AdminLayout({
     <div className="relative flex h-dvh overflow-hidden bg-canvas dark:bg-slate-950">
       <AdminNavigation role={user.role} enabledFeatures={enabledFeatures} navMode={isNavMode(profile?.nav_mode) ? profile.nav_mode : null} />
       <div className="flex flex-col flex-1 min-w-0">
-        {previewing && <div className="z-40 flex-shrink-0"><RolePreviewBanner roleLabel="Community Manager" /></div>}
+        <AnnouncementStack
+          items={[
+            { id: "app-updated", priority: ANNOUNCEMENT_PRIORITY.appUpdated, element: <AppUpdatedBar /> },
+            // Not an AnnouncementBar yet; it keeps its own look, just placed with the rest.
+            { id: "role-preview", priority: ANNOUNCEMENT_PRIORITY.sudo, element: previewing && <RolePreviewBanner roleLabel="Community Manager" /> },
+          ]}
+        />
         <WithInAppNotifications identity={identity}>
           <AppHeader resultsPath={isAdmin ? "/admin/search" : "/search"} isAdmin={isAdmin}>
             <UserMenu userEmail={user.email || "User"} isAdmin={isAdmin} canPreviewRole={isAdmin} />
