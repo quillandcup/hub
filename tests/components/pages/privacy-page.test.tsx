@@ -91,6 +91,12 @@ describe("/privacy page", () => {
     }
   });
 
+  it("uses the readable muted colour (slate-600), never slate-500, which fails contrast on the page background", async () => {
+    await renderServerPage(PrivacyPage, {});
+    expect(document.querySelector("time")?.parentElement).toHaveClass("text-slate-600");
+    expect(document.querySelectorAll(".text-slate-500, .dark\\:text-slate-500").length).toBe(0);
+  });
+
   it("orders the sections so the one with the actions comes last, and the contents list follows the same order", async () => {
     await renderServerPage(PrivacyPage, {});
     const ids = [...document.querySelectorAll("section[id]")].map((el) => el.id);
