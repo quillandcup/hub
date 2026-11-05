@@ -9,7 +9,8 @@
 //   tsx scripts/vercel-config.ts push   apply the file to the live project
 //
 // Only the sections the file declares are managed. Today that is tracing.sampling, which a
-// push REPLACES wholesale: rules added in the dashboard but missing from the file are removed.
+// push REPLACES wholesale (rules added in the dashboard but missing from the file are removed), and
+// skewProtection.maxAgeSeconds (the project's Skew Protection maximum age).
 //
 // The tracing endpoint (/v1/drains/tracing/config) is the one the `vercel traces config` CLI
 // uses; it isn't in the public REST reference, but unlike the CLI it accepts a 0% rate.
@@ -18,8 +19,8 @@
 
 import { readFileSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
+import { PROJECT_CONFIG_FILE as CONFIG_FILE, skewMaxAgeSeconds } from "./skew-protection-config";
 
-const CONFIG_FILE = "vercel-project-config.yml";
 const API = "https://api.vercel.com";
 const RULE_LIMIT = 10;
 const ENVIRONMENTS = ["production", "preview", "any"] as const;
@@ -136,26 +137,65 @@ function printDiff(live: Rule[], local: Rule[]): number {
   return changes;
 }
 
+/** The project's Skew Protection maximum age in seconds, as the live project has it (null when it has none set). */
+async function projectSkewMaxAge(method: "GET" | "PATCH", seconds?: number): Promise<number | null> {
+  const query = new URLSearchParams({ teamId: requireEnv("VERCEL_ORG_ID") });
+  const res = await fetch(`${API}/v9/projects/${encodeURIComponent(requireEnv("VERCEL_PROJECT_ID"))}?${query}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${requireEnv("VERCEL_TOKEN")}`,
+      ...(method === "PATCH" ? { "Content-Type": "application/json" } : {}),
+    },
+    body: method === "PATCH" ? JSON.stringify({ skewProtectionMaxAge: seconds }) : undefined,
+  });
+  if (!res.ok) fail(`${method} project skew protection: HTTP ${res.status} ${await res.text()}`);
+  const project = (await res.json()) as { skewProtectionMaxAge?: number | null };
+  return project.skewProtectionMaxAge ?? null;
+}
+
+/** Prints whether the live maximum age matches the file; true when it differs. */
+function printSkewDiff(live: number | null, local: number): boolean {
+  if (live === local) {
+    console.log("No differences.");
+    return false;
+  }
+  console.log(`~ skewProtection.maxAgeSeconds ${live ?? "(not set)"} -> ${local}`);
+  return true;
+}
+
 async function main(): Promise<void> {
   const mode = process.argv[2];
   if (mode !== "diff" && mode !== "push") fail("usage: vercel-config.ts diff|push");
 
-  const local = parseRules(parseYaml(readFileSync(CONFIG_FILE, "utf8")));
+  const raw = parseYaml(readFileSync(CONFIG_FILE, "utf8"));
+  const local = parseRules(raw);
+  const localSkew = skewMaxAgeSeconds(raw);
   const live = liveRules(await tracingConfig("GET"));
+  const liveSkew = await projectSkewMaxAge("GET");
 
   console.log(`${CONFIG_FILE} tracing.sampling vs the live Vercel project:`);
   const changes = printDiff(live, local);
-  if (mode === "diff" || changes === 0) return;
+  console.log(`${CONFIG_FILE} skewProtection vs the live Vercel project:`);
+  const skewChanged = printSkewDiff(liveSkew, localSkew);
+  if (mode === "diff") return;
 
-  await tracingConfig("PUT", {
-    enabled: local.length > 0,
-    ...(local.length > 0 ? { sampling: local.map(toApiRule) } : {}),
-  });
+  if (changes > 0) {
+    await tracingConfig("PUT", {
+      enabled: local.length > 0,
+      ...(local.length > 0 ? { sampling: local.map(toApiRule) } : {}),
+    });
 
-  // Read back: a rule the API silently normalised or dropped must not look like a success.
-  const after = liveRules(await tracingConfig("GET"));
-  if (printDiff(after, local) > 0) fail("The live rules still differ from the file after the push");
-  console.log("✓ Vercel tracing sampling rules updated");
+    // Read back: a rule the API silently normalised or dropped must not look like a success.
+    const after = liveRules(await tracingConfig("GET"));
+    if (printDiff(after, local) > 0) fail("The live rules still differ from the file after the push");
+    console.log("✓ Vercel tracing sampling rules updated");
+  }
+
+  if (skewChanged) {
+    const after = await projectSkewMaxAge("PATCH", localSkew);
+    if (after !== localSkew) fail(`The live Skew Protection maximum age is ${after ?? "(not set)"} after the push, not ${localSkew}`);
+    console.log("✓ Vercel Skew Protection maximum age updated");
+  }
 }
 
 main().catch((err) => fail(err instanceof Error ? err.message : String(err)));
