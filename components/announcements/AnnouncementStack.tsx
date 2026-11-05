@@ -7,6 +7,8 @@ import type { ReactNode } from "react";
 export const ANNOUNCEMENT_PRIORITY = {
   /** Sudo: you are acting as someone else. Critical, never dismissible. */
   sudo: 100,
+  /** This tab runs an old build of the Hub (a deploy happened while it was open). */
+  appUpdated: 90,
   /** Install the app (iOS push needs it). */
   installApp: 50,
   /** Connect Slack for chat. */
