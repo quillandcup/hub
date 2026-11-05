@@ -5,6 +5,7 @@ import { withMentionNames } from "@/lib/chat/names";
 import { createRepos } from "@/lib/data/repos";
 import { throwIfDbError } from "@/lib/db-error";
 import { getMemberDisplayName } from "@/lib/member-display-name";
+import { FEATURE_PREVIEWS } from "@/lib/features";
 
 /**
  * The central activity log: audit_log rows, member_activities rows and page
@@ -337,6 +338,7 @@ const ENTITY_LABELS: Record<string, string> = {
   member_ask_me_about: "“Ask me about” topics",
   restricted_slack_channel: "restricted Slack channel",
   segment_member: "segment membership",
+  feature_flag: "feature",
   feature_flag_segment: "feature flag segment",
   user_feature_preview: "feature preview",
   event_attendee: "event attendee",
@@ -361,9 +363,45 @@ function recordName(row: ActivityFeedRow): string | null {
   return null;
 }
 
+/** A feature's name as staff know it ("Chat", "Send prickle reminders"), else its key with the underscores out. */
+function featureName(key: string): string {
+  return `“${FEATURE_PREVIEWS.find((f) => f.key === key)?.name ?? key.replace(/_/g, " ")}”`;
+}
+
+/**
+ * Feature switches in plain words (the trigger labels them with the feature key, and a segment link with "key · segment").
+ * A flag flip is "turned “Chat” on for everyone", a segment link says which segment got the feature, and a member's own
+ * preview is "turned on the “Chat” preview".
+ */
+function featurePhrase(row: ActivityFeedRow, fields: Record<string, { old: unknown; new: unknown }>): string | null {
+  const label = row.description ?? row.entity_id ?? "";
+  if (row.entity_type === "feature_flag") {
+    const feature = featureName(label);
+    if (row.event_type === "insert") return `added the ${feature} feature${fields.enabled_globally?.new === true ? ", on for everyone" : ""}`;
+    if (row.event_type === "delete") return `removed the ${feature} feature`;
+    if (fields.enabled_globally) return `turned ${feature} ${fields.enabled_globally.new ? "on" : "off"} for everyone`;
+    return null;
+  }
+  if (row.entity_type === "feature_flag_segment") {
+    const [key, segment] = label.split(" · ");
+    const feature = featureName(key);
+    const who = segment ? `the “${segment}” segment` : "a segment";
+    if (row.event_type === "insert") return `gave ${who} the ${feature} feature`;
+    if (row.event_type === "delete") return `took the ${feature} feature away from ${who}`;
+    return null;
+  }
+  if (row.entity_type === "user_feature_preview") {
+    if (row.event_type === "insert") return `turned on the ${featureName(label)} preview`;
+    if (row.event_type === "delete") return `turned off the ${featureName(label)} preview`;
+  }
+  return null;
+}
+
 /** Phrases for events that read better than "changed calendar link — first fetched at". */
 function specialAuditPhrase(row: ActivityFeedRow): string | null {
   const fields = Object.fromEntries(changedFields(row.data));
+  const feature = featurePhrase(row, fields);
+  if (feature) return feature;
   if (row.entity_type === "event_attendee" && row.event_type !== "update") {
     const who = row.member_name ?? "a member";
     const event = row.description ? ` “${formatValue(row.description)}”` : "";
