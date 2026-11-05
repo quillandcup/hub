@@ -23,7 +23,8 @@ Every entry has an `audience`:
 - `summary`: one or two plain sentences, no markdown (it is the excerpt in the list, digests and Slack). Say what the member can now do.
 - `body`: markdown. Link Hub pages as `/path`.
 - `slug`: the permalink. Never change it after publishing.
-- Dates are the Eastern day it shipped.
+- Dates are the Eastern day it shipped. **A feature behind a feature flag ships the day the flag goes on for everyone**, not the day its code merged: write the entry then (and an engineering entry for the code, if useful). Find that moment in the audit log, read-only: `supabase db query --linked "select entity_id, occurred_at at time zone 'America/New_York', changes from audit_log where entity_type = 'feature_flag' order by occurred_at"` (`enabled_globally` going true). A flag that is off for everyone is not a product update yet.
+- **Milestones are not entries.** A demo, a launch day or a "special reveal" has no version to bump, so it does not go in the changelog; write entries for what members can do.
 
 ## Screenshots
 

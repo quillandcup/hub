@@ -325,7 +325,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "Connect your Slack account in Settings and the messages and reactions you send from Hub chat show up in Slack as you.",
     body: [
       "Connect your Slack account under Settings, Account. After that, what you post or react with in Hub chat appears in Slack under your own name instead of through our bot. You can disconnect at any time from the same place.",
-      "A message that Slack has not accepted after a few retries is marked as failed, so you can see it did not go through. Chat is rolling out to everyone gradually.",
+      "A message that Slack has not accepted after a few retries is marked as failed, so you can see it did not go through.",
     ].join("\n\n"),
   },
   {
@@ -418,7 +418,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     body: [
       "- Introduction reminders go to members in their first 90 days who have not yet said hello in the intro channel.",
       "- Prickle reminders go to members with nothing on their calendar and no recent prickle. They are off until you turn them on under Settings, Notifications, and they come less often the longer they go unanswered.",
-      "Both follow the channels you choose in [Notifications](/settings/notifications). These began reaching members gradually after this date.",
+      "Both follow the channels you choose in [Notifications](/settings/notifications). They reached every member on 1 November.",
     ].join("\n\n"),
   },
   {
@@ -473,7 +473,6 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "- The Hub remembers where you stopped and resumes from there.",
       "- Course pages have a hero image, a progress sidebar and lesson thumbnails. Course names above a lesson link back to the course and to each module.",
       "- A course you pre-ordered shows its launch date and opens on that day.",
-      "Courses are rolling out gradually.",
     ].join("\n"),
   },
   {
@@ -1014,6 +1013,51 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     body: [
       "The device type is parsed once when a visit is recorded and kept, along with the approximate place. Usage rollups are built from now; nothing reaches 13 months until late 2027. Session Replay for ordinary visits follows consent and the usage-statistics switch, while error-only recording stays on. This backs the promises on [/privacy](/privacy).",
     ].join("\n\n"),
+  },
+  {
+    slug: "chat-open-to-everyone",
+    date: "2026-11-01",
+    audience: "product",
+    category: "new",
+    title: "Hub chat is open to every member",
+    summary:
+      "Read our Slack channels in the Hub, post and react from there, and optionally connect your Slack account so your messages go out as you.",
+    body: [
+      "Chat is in the sidebar under Community. You see the conversations you are in and the public channels, with threads and reactions, and you can post and reply from the Hub.",
+      "To have your messages appear in Slack under your own name, connect your Slack account under Settings, Account.",
+    ].join("\n\n"),
+  },
+  {
+    slug: "events-open-to-everyone",
+    date: "2026-11-01",
+    audience: "product",
+    category: "new",
+    title: "Events is open to every member",
+    summary:
+      "See what is coming up, with a picture on each event and a month-at-a-glance list that shows the time of day.",
+    body: ["Find it under Events in the sidebar, with past events at /events/past."].join("\n\n"),
+  },
+  {
+    slug: "reminders-for-everyone",
+    date: "2026-11-01",
+    audience: "product",
+    category: "new",
+    title: "Gentle reminders are on for every member",
+    summary:
+      "Newcomers get a nudge to say hello in the intro channel, and members with nothing planned can get a reminder to put a prickle on their calendar.",
+    body: [
+      "Choose which channels they come on, or turn them off, under [Notifications](/settings/notifications). Prickle reminders are off until you turn them on, except in your first 90 days.",
+    ].join("\n\n"),
+  },
+  {
+    slug: "courses-open-to-everyone",
+    date: "2026-11-02",
+    audience: "product",
+    category: "new",
+    title: "Courses are open to every member",
+    summary:
+      "Watch the lessons of courses you have access to right in the Hub, mark them complete and pick up where you left off.",
+    body: ["Find them under [Courses](/courses). You see the courses you have access to, with your progress."].join("\n\n"),
   },
   {
     slug: "sign-in-with-an-emailed-code",

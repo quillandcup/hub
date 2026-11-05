@@ -68,11 +68,27 @@ The chat box shows your formatting as you write it, with bold, italic, underline
 
 The sign-in email now carries a one-time code that works from any device.
 
+## 2026-11-02 · New: Courses are open to every member
+
+Watch the lessons of courses you have access to right in the Hub, mark them complete and pick up where you left off.
+
 ## 2026-11-01 · Engineering · Improved: Faster CI and repository-based tests
 
 Lint and type checks overlap with tests, and many tests use the in-memory repositories instead of faked database calls.
 
 The notifier, channels, reminders and check-in messages now take repositories instead of database clients, and 176 PostgREST casts were removed by typing the boundary once. pnpm seed:local loads a typed seed profile into the local database.
+
+## 2026-11-01 · New: Gentle reminders are on for every member
+
+Newcomers get a nudge to say hello in the intro channel, and members with nothing planned can get a reminder to put a prickle on their calendar.
+
+## 2026-11-01 · New: Events is open to every member
+
+See what is coming up, with a picture on each event and a month-at-a-glance list that shows the time of day.
+
+## 2026-11-01 · New: Hub chat is open to every member
+
+Read our Slack channels in the Hub, post and react from there, and optionally connect your Slack account so your messages go out as you.
 
 ## 2026-10-31 · Engineering · Improved: More tables behind repositories, and migration safety
 
