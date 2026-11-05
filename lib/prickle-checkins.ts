@@ -362,6 +362,18 @@ export function checkoutAnswered(saved: CheckinInput | null): boolean {
   return !!saved && saved.intentionMet !== null && saved.pleasantAfter !== null && saved.energyAfter !== null;
 }
 
+/**
+ * Whether a prickle gets check-ins and check-outs: a writing prickle that is not a Pop-Up Prickle
+ * (source "zoom"). Pop-Up Prickles are paused until the check-ins are reworked: their rows only
+ * exist once processing has covered their room, often hours after it ended, and are rebuilt under
+ * a new id when processing reruns, which loses saved answers and sends the same check-out again
+ * (docs/TODO.md, "Check-ins and check-outs for Pop-Up Prickles"). Every sender and every offer
+ * (the DMs, the dashboard's "How did it go?" card) asks this, so they can't drift.
+ */
+export function offersCheckins(prickle: { source: string; type?: { purpose: string } | null }): boolean {
+  return prickle.type?.purpose === "writing" && prickle.source !== "zoom";
+}
+
 /** The prickle_checkins columns holding the answers, for selects. */
 export const CHECKIN_COLUMNS =
   "pleasant_before, energy_before, emotion_before, need, intention_met, pleasant_after, energy_after, emotion_after";

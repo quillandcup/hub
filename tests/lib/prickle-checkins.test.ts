@@ -9,6 +9,7 @@ import {
   EMOTION_SUGGESTIONS,
   EMOTION_WHEEL,
   LEGACY_FEELING_TO_EMOTION,
+  offersCheckins,
   searchEmotions,
   EMPTY_CHECKIN,
   ENERGY,
@@ -274,5 +275,24 @@ describe("prefill links", () => {
   it("drops invalid values", () => {
     expect(parseCheckinPrefill({ pleasant: "9", energy: "x", emotion: "hangry", need: "snacks" })).toBeNull();
     expect(parseCheckinPrefill({ pleasant: "3", energy: "2.5" })).toEqual({ ...EMPTY_CHECKIN, pleasantBefore: 3 });
+  });
+});
+
+describe("offersCheckins", () => {
+  const writing = { purpose: "writing" };
+
+  it("offers check-ins for a writing prickle from the calendar, and for other non-Pop-Up sources", () => {
+    expect(offersCheckins({ source: "calendar", type: writing })).toBe(true);
+    expect(offersCheckins({ source: "hub", type: writing })).toBe(true);
+  });
+
+  it("does not offer them for a Pop-Up Prickle (source zoom), even though its type is for writing", () => {
+    expect(offersCheckins({ source: "zoom", type: writing })).toBe(false);
+  });
+
+  it("does not offer them for a prickle that isn't for writing, or has no type", () => {
+    expect(offersCheckins({ source: "calendar", type: { purpose: "social" } })).toBe(false);
+    expect(offersCheckins({ source: "calendar", type: null })).toBe(false);
+    expect(offersCheckins({ source: "calendar" })).toBe(false);
   });
 });
