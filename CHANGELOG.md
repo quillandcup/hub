@@ -64,9 +64,9 @@ The chat sidebar lists the conversations you are in, with a Browse channels butt
 
 The chat box shows your formatting as you write it, with bold, italic, underline, strikethrough, code, quotes, links and nested or numbered lists.
 
-## 2026-11-02 · New: The Hedgie Hub is open to all members
+## 2026-11-02 · New: Sign in with a code from your email
 
-Members can now sign in to the Hub, and the sign-in email carries a one-time code that works from any device.
+The sign-in email now carries a one-time code that works from any device.
 
 ## 2026-11-01 · Engineering · Improved: Faster CI and repository-based tests
 
@@ -396,10 +396,6 @@ When you log progress you can say which prickle it was during, and your dashboar
 
 Say how you feel and what you need before a prickle and how it went afterwards. The Prickle Picker uses your answers to suggest prickles that suit you.
 
-## 2026-10-02 · New: Pitch prickle demo
-
-We showed the Hedgie Hub in the Pitch prickle.
-
 ## 2026-09-29 · New: Sign in to the Hub from Slack
 
 Open the Hedgie Hub straight from Slack, without waiting for an email link.
@@ -411,10 +407,6 @@ Goals can have a title and description, and you choose whether each shows on you
 ## 2026-09-28 · New: Member directory, Ask me about topics and private notes
 
 Search the Hedgies in the new Members page, share what you love to talk about on your profile, and jot private notes about people you meet.
-
-## 2026-09-28 · New: Founding Hedgies demo
-
-We demoed the Hedgie Hub to our founding Hedgies.
 
 ## 2026-09-27 · New: Your prickles in your own calendar, and commitments across several slots
 

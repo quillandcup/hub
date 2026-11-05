@@ -47,16 +47,6 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
-    slug: "founding-hedgies-demo",
-    date: "2026-09-28",
-    audience: "product",
-    category: "new",
-    title: "Founding Hedgies demo",
-    summary:
-      "We demoed the Hedgie Hub to our founding Hedgies.",
-    body: ["We demoed the Hub to our founding Hedgies."].join("\n\n"),
-  },
-  {
     slug: "personal-calendar-feed-and-commitments",
     date: "2026-09-27",
     audience: "product",
@@ -111,18 +101,6 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "Billie Bot's Home tab in Slack, and its /hub command, give you an Open Hedgie Hub button that signs you in. Each link works once and lasts about an hour.",
       "Slack on iPhone opens links in its own browser, so you can also ask for a link to copy and open in Safari, or paste the code on the login page.",
       "Sign-in links sent by email now stay valid for 24 hours, and an invited person who asks for a link gets the invite again.",
-    ].join("\n\n"),
-  },
-  {
-    slug: "pitch-prickle-demo",
-    date: "2026-10-02",
-    audience: "product",
-    category: "new",
-    title: "Pitch prickle demo",
-    summary:
-      "We showed the Hedgie Hub in the Pitch prickle.",
-    body: [
-      "We showed the Hub in a Pitch prickle.",
     ].join("\n\n"),
   },
   {
@@ -1038,15 +1016,15 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     ].join("\n\n"),
   },
   {
-    slug: "general-availability",
+    slug: "sign-in-with-an-emailed-code",
     date: "2026-11-02",
     audience: "product",
     category: "new",
-    title: "The Hedgie Hub is open to all members",
+    title: "Sign in with a code from your email",
     summary:
-      "Members can now sign in to the Hub, and the sign-in email carries a one-time code that works from any device.",
+      "The sign-in email now carries a one-time code that works from any device.",
     body: [
-      "Members received an email saying the Hub is open, with their own sign-in code. Go to [/login](/login), enter your email and the code. A code from the sign-in email also works if the link opens in a different browser than the one you asked from, such as a phone's mail app.",
+      "Go to [/login](/login), enter your email and the code from the sign-in email. The code also works if the link opens in a different browser than the one you asked from, such as a phone's mail app.",
       "If you ask for a link twice within a minute, the page now tells you one was just sent and to check your inbox.",
     ].join("\n\n"),
   },
