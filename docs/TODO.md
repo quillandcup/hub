@@ -1011,9 +1011,8 @@ Sentry HUB-T (Firefox on Windows) and HUB-5 and HUB-D (Mobile Safari) are a Type
 
 `notification_log` (`NotificationLogRepository`, `lib/data/notification-log.ts`) is the one log of what the app sent, keyed by recipient (a member or a shared place), kind and a dedup key; the changelog digest is its first user. Two older logs still do the same job per feature: `member_reminder_log` (intro and prickle reminders, which also use its `sent_at` history for backoff, `lib/member-reminders.ts`) and `prickle_checkin_dm_log` (check-in and check-out DMs, `lib/prickle-checkin-dms.ts`). Deferred because moving them rewrites live senders and needs the expand-then-contract steps (backfill the rows into `notification_log`, switch the readers and writers, then drop the old tables with the user's approval of each drop). Start with `prickle_checkin_dm_log`, whose claim is the same shape; the reminders also need a "when was the last one sent" read added to the repository.
 
-### Changelog screenshots from the demo scenes _(Needs Scheduling)_
-
-Changelog entries can show screenshots (`public/changelog/<slug>/`, `docs/CHANGELOG_PROCESS.md`), but they are taken by hand today. The plan: one Playwright scene per entry in `demo/scenes/changelog/<slug>.spec.ts`, run on the fictional demo community, and a `pnpm changelog:capture <slug>` that runs only that scene on desktop light and copies the PNGs into the entry's folder to be reviewed and committed (frozen at ship time, unlike the help screenshots, which are regenerated per build; a public folder is what Slack and email need). Also have the validator fail an entry whose image file is missing. Start from `demo/scenes/` and `docs/DEMO_AND_HELP.md`.
+### Changelog screenshots from the demo scenes
+**Resolved:** `pnpm changelog:capture <slug>` runs an entry's demo scene (`demo/scenes/changelog/<slug>.spec.ts`, tagged `@changelog`) on desktop light and copies the screenshots into `public/changelog/<slug>/`; the validator fails an entry whose image file is missing; the scheduled help-screenshots run skips `@changelog` scenes. See `docs/CHANGELOG_PROCESS.md`, "Screenshots". **Still open:** scenes for the entries after the first one are written as each entry ships; the capture needs the demo stack and app running by hand, so it is not part of CI.
 
 ### Checkly heartbeat for the changelog digest _(Needs Scheduling)_
 

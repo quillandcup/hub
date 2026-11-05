@@ -3,14 +3,14 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { CHANGELOG_CATEGORIES } from "@/lib/changelog/entries";
-import { findChangelogEntry, listChangelog } from "@/lib/changelog";
+import { findChangelogEntry, listProductChangelog } from "@/lib/changelog";
 import ChangelogMarkdown from "@/components/changelog/ChangelogMarkdown";
 import ChangelogEntryViewed from "@/components/changelog/ChangelogEntryViewed";
 
 export const dynamicParams = false;
 
 export function generateStaticParams() {
-  return listChangelog().map((e) => ({ slug: e.slug }));
+  return listProductChangelog().map((e) => ({ slug: e.slug }));
 }
 
 export async function generateMetadata({ params }: PageProps<"/changelog/[slug]">): Promise<Metadata> {
@@ -33,7 +33,7 @@ export default async function ChangelogEntryPage({ params }: PageProps<"/changel
       <Link href="/changelog" className="text-sm text-plum-700 dark:text-plum-300 hover:underline">
         ← What&apos;s new
       </Link>
-      <p className="mt-4 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+      <p className="mt-4 text-xs font-medium uppercase tracking-wide text-slate-600 dark:text-slate-400">
         {CHANGELOG_CATEGORIES[entry.category]} · <time dateTime={entry.date}>{entry.date}</time>
       </p>
       <h1 className="mt-1 text-3xl font-bold text-slate-900 dark:text-slate-100 font-serif">{entry.title}</h1>

@@ -33,6 +33,7 @@
     "demo:reading:sheet": "tsx demo/video/reading-sheet.ts",
     "demo:reading:split": "tsx demo/video/split-reading.ts",
     "demo:capture": "playwright test --config demo/playwright.config.ts",
+    "changelog:capture": "tsx scripts/changelog-capture.ts",
     "changelog:generate": "tsx scripts/generate-changelog.ts",
     "check:migrations": "tsx scripts/check-migration-order.ts",
     "branches:prune": "tsx scripts/prune-branches.ts",

@@ -14,6 +14,14 @@ vi.mock("@/lib/slack", async () => ({
   postToSlackChannel: (p: any) => postToSlackChannel(p),
 }));
 vi.mock("@/lib/email", () => ({ sendEmail: vi.fn(async () => {}) }));
+// The window logic is under test here, not the real start day (app.config.ts changelogDigestStartsOn), so move it far back.
+vi.mock("@/lib/config", async () => ({ ...(await vi.importActual<typeof import("@/lib/config")>("@/lib/config")), CHANGELOG_DIGEST_STARTS_ON: "2026-01-01" }));
+// The in-app channel builds its own repositories over the service-role client: the same in-memory ones here.
+vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => repos,
+}));
 
 const notInSlack = new Set<string>();
 vi.mock("@/lib/slack-matching", () => ({
@@ -28,6 +36,7 @@ const NOW = new Date("2026-11-10T14:00:00Z");
 const entry = (over: Partial<ChangelogEntry>): ChangelogEntry => ({
   slug: "a-thing",
   date: "2026-11-05",
+  audience: "product",
   category: "new",
   title: "A thing",
   summary: "It does a thing.",
@@ -60,6 +69,20 @@ describe("digestCandidates", () => {
     const old = entry({ slug: "old", date: "2026-10-01" });
     expect(digestCandidates(NOW, [old, first, second]).map((e) => e.slug)).toEqual(["second", "first"]);
     expect(digestCandidates(new Date("2026-12-04T14:00:00Z"), [first, second]).map((e) => e.slug)).toEqual(["second"]);
+  });
+});
+
+describe("digestCandidates: who and what is never notified", () => {
+  it("leaves out engineering entries, which live only in CHANGELOG.md", () => {
+    const eng = entry({ slug: "eng", date: "2026-11-09", audience: "engineering" });
+    expect(digestCandidates(NOW, [first, eng]).map((e) => e.slug)).toEqual(["first"]);
+  });
+
+  it("never reaches before the configured start day, so backfilled history is not sent", () => {
+    const history = entry({ slug: "history", date: "2026-10-20" });
+    // Inside the 30-day window, but before the start day.
+    expect(digestCandidates(NOW, [history, first, second], "2026-11-04").map((e) => e.slug)).toEqual(["second"]);
+    expect(digestCandidates(NOW, [history, first, second], "2026-10-01").map((e) => e.slug)).toEqual(["second", "first", "history"]);
   });
 });
 

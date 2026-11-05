@@ -198,10 +198,11 @@ jobs:
 
       # Every scene at every size, light and dark, with the page checks. `@published` scenes read screenshots
       # from the bucket, which this output is what fills, so they run locally against a published stack and are
-      # skipped here.
+      # skipped here. `@changelog` scenes are the recipe for a changelog entry's frozen screenshots (run on demand
+      # with `pnpm changelog:capture <slug>`); this run tracks the current UI, so it leaves them out.
       - name: Capture the scenes
         if: steps.run.outputs.capture == 'true'
-        run: pnpm demo:capture --grep-invert @published
+        run: pnpm demo:capture --grep-invert "@published|@changelog"
         env:
           DEMO_APP_URL: http://localhost:3000
 

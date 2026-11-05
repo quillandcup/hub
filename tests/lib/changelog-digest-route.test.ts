@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos, type Repos } from "@/lib/data/repos";
 import { CHANGELOG_ENTRIES } from "@/lib/changelog/entries";
+import { listProductChangelog } from "@/lib/changelog";
 
 // The weekly route on the in-memory repositories, with auth, Slack and the heartbeat faked.
 const requireAdmin = vi.fn();
@@ -29,10 +30,11 @@ vi.mock("@/lib/data/repos", async () => ({
 }));
 
 const { GET } = await import("@/app/api/internal/changelog-digest/route");
+const { digestCandidates } = await import("@/lib/changelog/digest");
 
 const request = () => new NextRequest("http://localhost/api/internal/changelog-digest");
 const flag = (enabled: boolean) => ({ feature_key: "changelog_digest", enabled_globally: enabled, created_at: "2026-11-01T00:00:00Z", updated_at: "2026-11-01T00:00:00Z" });
-const latest = CHANGELOG_ENTRIES.map((e) => e.date).sort().at(-1)!;
+const latest = listProductChangelog(CHANGELOG_ENTRIES)[0].date;
 
 function setup(featureFlags: ReturnType<typeof flag>[]) {
   dataset = new InMemoryDataset({ members: [{ id: "m1", name: "Member One", firstJoinedAt: "2024-01-01", userId: null }], featureFlags });
@@ -73,7 +75,7 @@ describe("GET /api/internal/changelog-digest", () => {
     setup([flag(true)]);
     const body = await (await GET(request())).json();
     expect(body.members).toEqual({ sent: 1, dryRun: 0 });
-    expect(body.channel.posted).toBe(CHANGELOG_ENTRIES.filter((e) => e.date >= "1970-01-01").length);
+    expect(body.channel.posted).toBe(digestCandidates(new Date(`${latest}T16:00:00Z`)).length);
     expect(sendSlackDM).toHaveBeenCalledTimes(1);
     expect(postToSlackChannel).toHaveBeenCalledTimes(1);
 

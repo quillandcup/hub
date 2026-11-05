@@ -3,7 +3,7 @@
  * (and listed in docs/TODO.md to fix), so a run fails only on a NEW one. Run it after a capture with
  * `DEMO_CHECKS=report` (so nothing fails first), review the diff, and commit it:
  *
- *   DEMO_CHECKS=report pnpm demo:capture --grep-invert @published && pnpm demo:baseline
+ *   DEMO_CHECKS=report pnpm demo:capture --grep-invert "@published|@changelog" && pnpm demo:baseline
  *
  * Fixing a problem and re-running this shrinks the file; it should only ever grow with a reason.
  */

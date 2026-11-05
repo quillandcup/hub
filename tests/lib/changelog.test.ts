@@ -9,6 +9,7 @@ import {
   isChangelogImagePath,
   isChangelogSlug,
   listChangelog,
+  listProductChangelog,
   renderChangelogMarkdown,
   validateChangelog,
 } from "@/lib/changelog";
@@ -16,6 +17,7 @@ import {
 const entry = (over: Partial<ChangelogEntry>): ChangelogEntry => ({
   slug: "a-thing",
   date: "2026-11-01",
+  audience: "product",
   category: "new",
   title: "A thing",
   summary: "It does a thing.",
@@ -92,5 +94,39 @@ describe("validateChangelog", () => {
     expect(
       validateChangelog([entry({ body: "![the page](/changelog/a-thing/page.png)", image: { src: "/changelog/a-thing/page.png", alt: "The page" } })]),
     ).toEqual([]);
+  });
+});
+
+describe("audiences", () => {
+  const product = entry({ slug: "product-one", date: "2026-11-02" });
+  const eng = entry({ slug: "eng-one", date: "2026-11-03", audience: "engineering", title: "Repository pattern", summary: "Queries moved behind repositories.", body: "Every table has one interface and two implementations." });
+
+  it("lists only product entries for members, and everything for CHANGELOG.md", () => {
+    expect(listProductChangelog([product, eng]).map((e) => e.slug)).toEqual(["product-one"]);
+    expect(listChangelog([product, eng]).map((e) => e.slug)).toEqual(["eng-one", "product-one"]);
+    expect(changelogSince(null, [product, eng]).map((e) => e.slug)).toEqual(["product-one"]);
+  });
+
+  it("gives an engineering entry no page: its slug finds nothing", () => {
+    expect(findChangelogEntry("eng-one", [product, eng])).toBeNull();
+    expect(findChangelogEntry("product-one", [product, eng])?.title).toBe("A thing");
+  });
+
+  it("writes engineering entries into CHANGELOG.md with a tag and their body, and product ones without", () => {
+    const md = renderChangelogMarkdown([product, eng]);
+    expect(md).toContain("## 2026-11-03 · Engineering · New: Repository pattern");
+    expect(md).toContain("Every table has one interface and two implementations.");
+    expect(md).toContain("## 2026-11-02 · New: A thing");
+    expect(md).not.toContain("More about the thing.");
+  });
+
+  it("refuses an unknown audience and screenshots on an engineering entry", () => {
+    const problems = validateChangelog([
+      entry({ slug: "a", audience: "staff" as never }),
+      entry({ slug: "b", audience: "engineering", body: "![x](/changelog/b/x.png)" }),
+      entry({ slug: "c", audience: "engineering", image: { src: "/changelog/c/x.png", alt: "x" } }),
+    ]).join("\n");
+    expect(problems).toContain("unknown audience");
+    expect(problems.match(/no screenshots/g)).toHaveLength(2);
   });
 });
