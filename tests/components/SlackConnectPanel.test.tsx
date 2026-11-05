@@ -25,7 +25,7 @@ describe("SlackConnectPanel", () => {
   it("offers to connect, and says what changes", () => {
     render(<SlackConnectPanel connected={false} />);
     expect(screen.getByRole("link", { name: "Connect Slack" })).toHaveAttribute("href", "/api/oauth/slack/start");
-    expect(screen.getByText(/Hub chat needs your Slack account/)).toBeInTheDocument();
+    expect(screen.getByText(/Hub Chat needs your Slack account/)).toBeInTheDocument();
   });
 
   it("asks a connection made before read sync to reconnect, and says read state is shared once it has", () => {
