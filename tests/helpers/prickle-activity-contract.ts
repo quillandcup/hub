@@ -174,6 +174,22 @@ export function definePrickleActivityContract(name: string, setup: () => Prickle
         expect(await repo.checkinOf(m1, p0.id)).toEqual(BEFORE);
       });
 
+      it("lists each member's most named feelings, before and after, and leaves cleared check-ins out", async () => {
+        const [p0, p1, p2] = ctx.prickles;
+        const repo = ctx.repo();
+        await repo.saveCheckin(m1, p0.id, answers({ emotionBefore: "sleepy", emotionAfter: "content" }), "web");
+        await repo.saveCheckin(m1, p1.id, answers({ emotionBefore: "content" }), "web");
+        await repo.saveCheckin(m1, p2.id, answers({ emotionBefore: "mad" }), "web");
+        await repo.saveCheckin(m2, p0.id, answers({ emotionBefore: "proud" }), "slack");
+        expect(await repo.frequentEmotions([m1, m2], 8)).toEqual(
+          new Map([[m1, ["content", "mad", "sleepy"]], [m2, ["proud"]]])
+        );
+        expect((await repo.frequentEmotions([m1], 2)).get(m1)).toEqual(["content", "mad"]);
+        await repo.saveCheckin(m1, p2.id, EMPTY_CHECKIN, "web"); // cleared: no longer counts
+        expect((await repo.frequentEmotions([m1], 8)).get(m1)).toEqual(["content", "sleepy"]);
+        expect(await repo.frequentEmotions([], 8)).toEqual(new Map());
+      });
+
       it("lists the check-ins the member rated, with the type and host of their prickle", async () => {
         const [p0, p1, p2] = ctx.prickles;
         const repo = ctx.repo();

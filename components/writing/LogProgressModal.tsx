@@ -12,7 +12,7 @@ const LOGGABLE_MEASURES = WRITING_MEASURES.filter((m) => m !== "prickles");
 import { getPricklesOnDate, logProgress, updateEntry, type EntryRow } from "@/app/(member)/projects/actions";
 import { defaultPrickleId, type PrickleOption } from "@/lib/prickle-writing";
 import { getCheckinForLogging, saveCheckin } from "@/app/(member)/prickles/checkin-actions";
-import { checkinHref, EMPTY_CHECKIN, halfOf, type CheckinInput } from "@/lib/prickle-checkins";
+import { checkinHref, EMPTY_CHECKIN, halfOf, type CheckinInput, type Emotion } from "@/lib/prickle-checkins";
 import { CheckinHalfFields } from "@/components/writing/CheckinFields";
 
 type Checkout = Partial<CheckinInput>;
@@ -88,17 +88,19 @@ export default function LogProgressModal({
   const [savedCheckout, setSavedCheckout] = useState<Checkout>(checkoutOf(null));
   const [checkoutDraft, setCheckoutDraft] = useState<Checkout>(checkoutOf(null));
   const [canCheckIn, setCanCheckIn] = useState(false);
+  const [frequentEmotions, setFrequentEmotions] = useState<Emotion[]>([]);
 
   useEffect(() => {
     // No reset needed when the prickle is cleared or changes: the section only shows once
     // checkinFor matches the current choice.
     if (!isOpen || !prickleChoice) return;
     let cancelled = false;
-    getCheckinForLogging(prickleChoice).then(({ checkin, canEdit }) => {
+    getCheckinForLogging(prickleChoice).then(({ checkin, canEdit, frequentEmotions: usual }) => {
       if (cancelled) return;
       setSavedCheckout(checkoutOf(checkin));
       setCheckoutDraft(checkoutOf(checkin));
       setCanCheckIn(canEdit);
+      setFrequentEmotions(usual);
       setCheckinFor(prickleChoice);
     });
     return () => {
@@ -347,7 +349,12 @@ export default function LogProgressModal({
                 Edit check-in ↗
               </Link>
             </div>
-            <CheckinHalfFields half="checkout" value={{ ...EMPTY_CHECKIN, ...checkoutDraft }} onChange={updateCheckout} />
+            <CheckinHalfFields
+              half="checkout"
+              value={{ ...EMPTY_CHECKIN, ...checkoutDraft }}
+              onChange={updateCheckout}
+              frequentEmotions={frequentEmotions}
+            />
           </section>
         )}
 

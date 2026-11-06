@@ -49,7 +49,7 @@ beforeEach(() => {
   vi.mocked(getPricklesOnDate).mockReset().mockResolvedValue([ATTENDED, OTHER]);
   vi.mocked(logProgress).mockReset().mockResolvedValue({ success: true, id: "entry-1" });
   vi.mocked(updateEntry).mockReset().mockResolvedValue({ success: true });
-  vi.mocked(getCheckinForLogging).mockReset().mockResolvedValue({ checkin: null, canEdit: true });
+  vi.mocked(getCheckinForLogging).mockReset().mockResolvedValue({ checkin: null, canEdit: true, frequentEmotions: [] });
   vi.mocked(saveCheckin).mockReset().mockResolvedValue({ success: true });
 });
 
@@ -193,6 +193,7 @@ describe("LogProgressModal check-out", () => {
     vi.mocked(getCheckinForLogging).mockResolvedValue({
       checkin: { ...EMPTY_CHECKIN, pleasantBefore: 2, energyBefore: 2, need: "company" },
       canEdit: true,
+      frequentEmotions: [],
     });
     const user = userEvent.setup();
     renderForPrickle();
@@ -203,6 +204,7 @@ describe("LogProgressModal check-out", () => {
     vi.mocked(getCheckinForLogging).mockResolvedValue({
       checkin: { ...EMPTY_CHECKIN, pleasantBefore: 1, energyBefore: 2, need: "momentum" },
       canEdit: true,
+      frequentEmotions: [],
     });
     await fillAmountAndSubmit(user, "Log progress");
 
@@ -223,6 +225,7 @@ describe("LogProgressModal check-out", () => {
     vi.mocked(getCheckinForLogging).mockResolvedValue({
       checkin: { ...EMPTY_CHECKIN, intentionMet: 2, energyAfter: 1 },
       canEdit: true,
+      frequentEmotions: [],
     });
     renderForPrickle();
     expect(await option(INTENTION_MET_QUESTION, "A little")).toHaveAttribute("aria-pressed", "true");
@@ -258,7 +261,7 @@ describe("LogProgressModal check-out", () => {
     expect(screen.queryByRole("group", { name: INTENTION_MET_QUESTION })).not.toBeInTheDocument();
     unmount();
 
-    vi.mocked(getCheckinForLogging).mockResolvedValue({ checkin: null, canEdit: false });
+    vi.mocked(getCheckinForLogging).mockResolvedValue({ checkin: null, canEdit: false, frequentEmotions: [] });
     renderForPrickle();
     await waitFor(() => expect(getCheckinForLogging).toHaveBeenCalled());
     expect(screen.queryByRole("group", { name: INTENTION_MET_QUESTION })).not.toBeInTheDocument();

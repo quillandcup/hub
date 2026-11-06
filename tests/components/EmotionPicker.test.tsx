@@ -22,6 +22,28 @@ function Harness({ initial = null, onChange = vi.fn() }: { initial?: Emotion | n
 const ring = (name: string | RegExp) => within(screen.getByRole("group", { name }));
 const chip = (name: string | RegExp, label: string) => ring(name).getByRole("button", { name: label });
 
+describe("EmotionPicker usual feelings", () => {
+  it("offers the member's usual feelings as one tap, and a second tap steps back to the core", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<EmotionPicker value="sleepy" onChange={onChange} frequent={["sleepy", "content", "sad"]} />);
+
+    expect(ring("Frequently used").getAllByRole("button").map((b) => b.textContent)).toEqual(["Sleepy", "Content", "Sad"]);
+    await user.click(chip("Frequently used", "Content"));
+    await user.click(chip("Frequently used", "Sleepy"));
+    await user.click(render(<EmotionPicker value="sad" onChange={onChange} frequent={["sad"]} />).container.querySelector("[aria-label='Frequently used'] button") as HTMLElement);
+    expect(onChange.mock.calls.map((c) => c[0])).toEqual(["content", "sad", null]);
+  });
+
+  it("shows no such row without usual feelings or when read only", () => {
+    const { unmount } = render(<EmotionPicker value={null} onChange={vi.fn()} />);
+    expect(screen.queryByRole("group", { name: "Frequently used" })).not.toBeInTheDocument();
+    unmount();
+    render(<EmotionPicker value={null} onChange={vi.fn()} readOnly frequent={["content"]} />);
+    expect(screen.queryByRole("group", { name: "Frequently used" })).not.toBeInTheDocument();
+  });
+});
+
 describe("EmotionPicker", () => {
   it("drills from a core to its feelings, each middle-ring word paired with the outer-ring word beside it", async () => {
     const user = userEvent.setup();
