@@ -272,6 +272,34 @@ describe("MemberIdentityPanel", () => {
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
 
+  it("makes another email primary after confirming, and offers it only for active emails", async () => {
+    const fetchMock = okFetch({ member: { email: "old@example.com" } });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValue(true);
+    renderWithEmails();
+    expect(screen.queryByRole("button", { name: "Make zoom@example.com the primary email" })).not.toBeInTheDocument();
+
+    const button = screen.getByRole("button", { name: "Make old@example.com the primary email" });
+    await userEvent.click(button);
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining("old@example.com"));
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    await userEvent.click(button);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ email: "old@example.com" });
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+    expect(screen.getByDisplayValue("old@example.com")).toBeInTheDocument();
+  });
+
+  it("shows why making an email primary was refused", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, json: async () => ({ error: "That email already has a sign-in account. Merge or remove it first." }) }));
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderWithEmails();
+
+    await userEvent.click(screen.getByRole("button", { name: "Make old@example.com the primary email" }));
+    expect(await screen.findByText(/already has a sign-in account/)).toBeInTheDocument();
+    expect(screen.getByDisplayValue("erica@example.com")).toBeInTheDocument();
+  });
+
   it("deactivates and reactivates other emails", async () => {
     const fetchMock = okFetch();
     renderWithEmails();

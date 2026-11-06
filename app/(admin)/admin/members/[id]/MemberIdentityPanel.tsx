@@ -68,6 +68,7 @@ export default function MemberIdentityPanel({
   const [emailAliasInput, setEmailAliasInput] = useState("");
   const [addingEmailAlias, setAddingEmailAlias] = useState(false);
   const [togglingEmailAliasId, setTogglingEmailAliasId] = useState<string | null>(null);
+  const [makingPrimaryId, setMakingPrimaryId] = useState<string | null>(null);
   const [reactivatingNameAliasId, setReactivatingNameAliasId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [conflictingMemberId, setConflictingMemberId] = useState<string | null>(null);
@@ -100,6 +101,22 @@ export default function MemberIdentityPanel({
       setError(err.message);
     } finally {
       setSavingEmail(false);
+    }
+  }
+
+  /** The same change as typing the address into the Email box: sign-in, Kajabi and the member move, the old email stays as an alias. */
+  async function handleMakePrimary(alias: EmailAliasRow) {
+    if (!window.confirm(`Make ${alias.alias_email} the primary email? ${name} will sign in with it, and Kajabi is updated.`)) return;
+    setMakingPrimaryId(alias.id);
+    setError(null);
+    try {
+      const data = await patchMember({ email: alias.alias_email });
+      setEmailInput(data.member?.email ?? alias.alias_email);
+      router.refresh();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setMakingPrimaryId(null);
     }
   }
 
@@ -226,8 +243,8 @@ export default function MemberIdentityPanel({
         <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Email</h3>
         <p className="text-xs text-slate-600 dark:text-slate-400 mb-3">
           {hasKajabiId
-            ? "Changing this updates the address they sign in with and the contact's email in Kajabi. The old email is kept as an alias."
-            : "This member has no linked Kajabi contact, so Kajabi is untouched. Changing this updates the address they sign in with. The old email is kept as an alias."}
+            ? "Changing this updates the address they sign in with and the contact's email in Kajabi, and emails the old and new address. The old email is kept as an alias."
+            : "This member has no linked Kajabi contact, so Kajabi is untouched. Changing this updates the address they sign in with and emails the old and new address. The old email is kept as an alias."}
         </p>
         <form onSubmit={handleSaveEmail} className="flex gap-2 max-w-md mb-4">
           <input
@@ -266,15 +283,28 @@ export default function MemberIdentityPanel({
                     {!alias.active && " · inactive"}
                   </span>
                 </span>
-                <button
-                  type="button"
-                  onClick={() => handleToggleEmailAlias(alias)}
-                  disabled={togglingEmailAliasId === alias.id}
-                  aria-label={`${alias.active ? "Deactivate" : "Reactivate"} ${alias.alias_email}`}
-                  className="text-xs text-slate-600 dark:text-slate-400 hover:text-plum-700 dark:hover:text-plum-300 disabled:opacity-50 shrink-0"
-                >
-                  {alias.active ? "Deactivate" : "Reactivate"}
-                </button>
+                <span className="flex items-center gap-3 shrink-0">
+                  {alias.active && (
+                    <button
+                      type="button"
+                      onClick={() => handleMakePrimary(alias)}
+                      disabled={makingPrimaryId === alias.id}
+                      aria-label={`Make ${alias.alias_email} the primary email`}
+                      className="text-xs text-plum-700 dark:text-plum-300 hover:underline disabled:opacity-50"
+                    >
+                      Make primary
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleToggleEmailAlias(alias)}
+                    disabled={togglingEmailAliasId === alias.id}
+                    aria-label={`${alias.active ? "Deactivate" : "Reactivate"} ${alias.alias_email}`}
+                    className="text-xs text-slate-600 dark:text-slate-400 hover:text-plum-700 dark:hover:text-plum-300 disabled:opacity-50"
+                  >
+                    {alias.active ? "Deactivate" : "Reactivate"}
+                  </button>
+                </span>
               </li>
             ))}
           </ul>
