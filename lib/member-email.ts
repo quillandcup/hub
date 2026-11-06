@@ -102,7 +102,12 @@ export async function changePrimaryEmail({
       await kajabi.updateContact(member.kajabiId, { email: address });
     } catch (err) {
       await restoreAccount();
-      return { ok: false, status: 502, error: err instanceof Error ? err.message : "Couldn't update the email in Kajabi" };
+      const message = err instanceof Error ? err.message : "";
+      // Kajabi keeps emails unique: another contact (often an old duplicate with no member) has the address.
+      if (/already taken/i.test(message)) {
+        return { ok: false, status: 409, error: "Kajabi already has a different contact with that email. Merge or delete that contact in Kajabi first, then try again." };
+      }
+      return { ok: false, status: 502, error: message || "Couldn't update the email in Kajabi" };
     }
 
     try {

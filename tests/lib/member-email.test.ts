@@ -96,6 +96,19 @@ describe("changePrimaryEmail", () => {
     expect((await repos.members.byId(ME))!.email).toBe("old@example.com");
   });
 
+  it("explains that Kajabi already has another contact with the address, and changes nothing", async () => {
+    updateContact.mockRejectedValue(new Error('Kajabi API error (422): {"errors":[{"status":"422","detail":"Email is already taken"}]}'));
+    const result = await changePrimaryEmail({ repos, service: db, member: me({ kajabiId: "kaj1" }), address: "new@example.com" });
+
+    expect(result).toEqual({
+      ok: false,
+      status: 409,
+      error: "Kajabi already has a different contact with that email. Merge or delete that contact in Kajabi first, then try again.",
+    });
+    expect((await repos.authUsers.byId(USER))!.email).toBe("old@example.com");
+    expect((await repos.members.byId(ME))!.email).toBe("old@example.com");
+  });
+
   it("patches Bronze directly when the refresh fails after Kajabi changed", async () => {
     refreshBronze.mockRejectedValue(new Error("refresh failed"));
     const patch = vi.spyOn(repos.billing, "setKajabiContactEmail").mockResolvedValue(undefined);
