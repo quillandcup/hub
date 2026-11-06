@@ -470,8 +470,10 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Choose your display name",
     summary:
       "Settings now says which name the community sees, and you can pick one of your pen names or write your own as your display name.",
+    image: { src: "/changelog/display-name-and-identity/01-identity-settings.webp", alt: "The Identity tab in Settings with Real Name, Display Name, Pen Names and Email Aliases sections." },
     body: [
       "On [Identity](/settings/identity) the sections now run Real Name, Display Name, Pen Names, Email Aliases and Birthday. Your Real Name is for your account and records. Your Display Name is what other members see.",
+      "![The Identity tab in Settings with Real Name, Display Name, Pen Names and Email Aliases sections.](/changelog/display-name-and-identity/01-identity-settings.webp)",
       "Choose a pen name from the list or Write your own. A name already used by another member is refused. Each section is its own stop in Getting started.",
     ].join("\n\n"),
   },
