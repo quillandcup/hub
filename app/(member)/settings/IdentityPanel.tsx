@@ -259,6 +259,7 @@ export function IdentityPanel() {
             <input
               type="text"
               value={nameInput}
+              aria-label="Real Name"
               onChange={(e) => setNameInput(e.target.value)}
               className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm"
               maxLength={200}
@@ -285,6 +286,7 @@ export function IdentityPanel() {
         <select
           value={customDisplayName !== null ? WRITE_OWN : (data.displayName ?? "")}
           data-track="settings-identity-display-name"
+          aria-label="Display Name"
           onChange={(e) => handleDisplayNameChange(e.target.value)}
           disabled={savingDisplayName}
           className="w-full max-w-md px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm disabled:opacity-50"
@@ -415,7 +417,7 @@ export function IdentityPanel() {
           Month and day only — no year needed. Used to celebrate your hedgie birthday with you.
         </p>
         <form onSubmit={handleSaveBirthday} className="flex gap-2 max-w-md">
-          <select data-track="settings-identity-birthday-month"
+          <select data-track="settings-identity-birthday-month" aria-label="Birthday month"
             value={birthdayMonth}
             onChange={(e) => {
               setBirthdayMonth(e.target.value);
@@ -430,7 +432,7 @@ export function IdentityPanel() {
               </option>
             ))}
           </select>
-          <select data-track="settings-identity-birthday-day"
+          <select data-track="settings-identity-birthday-day" aria-label="Birthday day"
             value={birthdayDay}
             onChange={(e) => setBirthdayDay(e.target.value)}
             disabled={!birthdayMonth}
