@@ -132,6 +132,28 @@ describe("changing the primary email", () => {
     expect(body.emailAliases.map((a: any) => a.alias_email)).toEqual([email("amy")]);
   });
 
+  it("changes the address they sign in with, and leaves everything as it was when that address has an account", async () => {
+    const m = await createMember("sia", false);
+    const created = await supabase.auth.admin.createUser({ email: email("sia"), email_confirm: true });
+    const taken = await supabase.auth.admin.createUser({ email: email("sia-taken"), email_confirm: true });
+    try {
+      await supabase.from("members").update({ user_id: created.data.user!.id }).eq("id", m.id);
+
+      const refused = await patch(m.id, { email: email("sia-taken") });
+      expect(refused.status).toBe(409);
+      expect(await memberEmail(m.id)).toBe(email("sia"));
+      expect((await supabase.auth.admin.getUserById(created.data.user!.id)).data.user!.email).toBe(email("sia"));
+
+      const { status } = await patch(m.id, { email: email("sia-new") });
+      expect(status).toBe(200);
+      expect((await supabase.auth.admin.getUserById(created.data.user!.id)).data.user!.email).toBe(email("sia-new"));
+      expect(await memberEmail(m.id)).toBe(email("sia-new"));
+    } finally {
+      await supabase.from("members").update({ user_id: null }).eq("id", m.id);
+      for (const u of [created.data.user, taken.data.user]) if (u) await supabase.auth.admin.deleteUser(u.id);
+    }
+  });
+
   it("survives a members reprocess (the Kajabi email isn't put back)", async () => {
     const m = await createMember("bea");
     await patch(m.id, { email: email("bea-new") });

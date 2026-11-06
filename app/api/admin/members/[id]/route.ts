@@ -1,14 +1,12 @@
 import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createKajabiClient } from "@/lib/kajabi/client";
-import { refreshKajabiContactInBronze } from "@/lib/kajabi/contact-refresh";
+import { changePrimaryEmail, findEmailOwner, normalizeEmail, type EmailOwner } from "@/lib/member-email";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { triggerReprocessing } from "@/lib/processing/trigger";
 import { adminNameAliasConflictMessage, findNameAliasConflict } from "@/lib/name-alias-conflict";
 import { NextRequest, NextResponse, after } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
  * PATCH /api/admin/members/[id]
@@ -47,7 +45,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const found = await createRepos(supabase).members.byId(id);
   if (!found) return NextResponse.json({ error: "Member not found" }, { status: 404 });
-  const member: MemberRow = { id: found.id, name: found.name, email: found.email, kajabi_id: found.kajabiId };
+  const member: MemberRow = { id: found.id, name: found.name, email: found.email, kajabi_id: found.kajabiId, user_id: found.userId };
 
   if (typeof name === "string") {
     const trimmed = name.trim();
@@ -126,7 +124,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   if (typeof email === "string") {
-    const result = await changePrimaryEmail(supabase, member, email);
+    const result = await changeEmail(supabase, member, email);
     if (result) return result;
   }
 
@@ -171,27 +169,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   return NextResponse.json({ member: updatedMember, aliases, emailAliases });
 }
 
-type MemberRow = { id: string; name: string; email: string; kajabi_id: string | null };
+type MemberRow = { id: string; name: string; email: string; kajabi_id: string | null; user_id: string | null };
 
-function normalizeEmail(input: string): string | NextResponse {
-  const normalized = input.trim().toLowerCase();
-  if (!EMAIL_RE.test(normalized)) return NextResponse.json({ error: "Enter a valid email address" }, { status: 400 });
-  return normalized;
+function emailError(input: string): NextResponse | string {
+  const normalized = normalizeEmail(input);
+  return normalized ?? NextResponse.json({ error: "Enter a valid email address" }, { status: 400 });
 }
 
-/**
- * Another member who already has this address, as their email or an alias.
- * Two members sharing an address is a duplicate to merge, not something to
- * paper over with an alias.
- */
-async function findEmailOwner(supabase: SupabaseClient, memberId: string, address: string) {
-  const [holder, alias] = await Promise.all([createRepos(supabase).members.byEmail(address), createRepos(supabase).aliases.findEmail(address)]);
-  if (holder && holder.id !== memberId) return { memberId: holder.id, as: "email" as const };
-  if (alias && alias.memberId !== memberId) return { memberId: alias.memberId, as: "alias" as const };
-  return null;
-}
-
-function conflictResponse(owner: { memberId: string; as: "email" | "alias" }) {
+function conflictResponse(owner: EmailOwner) {
   return NextResponse.json(
     {
       error:
@@ -205,61 +190,26 @@ function conflictResponse(owner: { memberId: string; as: "email" | "alias" }) {
 }
 
 /**
- * Change the member's primary email. With a Kajabi contact, Kajabi goes first
- * (the next reprocess would otherwise put the Kajabi email back), then Bronze,
- * so a reprocess before the next full Kajabi import agrees, then the member.
- * The old email stays on as an alias, so history filed under it still matches.
+ * Change the member's primary email and the address they sign in with
+ * (`lib/member-email.ts`: Kajabi goes first, then Bronze, so a reprocess keeps it).
  */
-async function changePrimaryEmail(supabase: SupabaseClient, member: MemberRow, input: string) {
-  const address = normalizeEmail(input);
+async function changeEmail(supabase: SupabaseClient, member: MemberRow, input: string) {
+  const address = emailError(input);
   if (address instanceof NextResponse) return address;
-  if (address === member.email.toLowerCase()) return null;
 
-  const owner = await findEmailOwner(supabase, member.id, address);
-  if (owner) return conflictResponse(owner);
-
-  if (member.kajabi_id) {
-    const kajabi = createKajabiClient();
-    try {
-      await kajabi.updateContact(member.kajabi_id, { email: address });
-    } catch (err) {
-      return NextResponse.json(
-        { error: err instanceof Error ? err.message : "Couldn't update the email in Kajabi" },
-        { status: 502 }
-      );
-    }
-
-    const service = createServiceRoleClient();
-    try {
-      await refreshKajabiContactInBronze(service, kajabi, member.kajabi_id);
-    } catch (err) {
-      // Kajabi has the new email; make Bronze agree without the round trip.
-      console.error("[admin] Kajabi contact refresh failed after email change, patching Bronze:", err);
-      try {
-        await createRepos(service).billing.setKajabiContactEmail(member.kajabi_id, address);
-      } catch (bronzeError) {
-        console.error("[admin] Bronze email patch failed:", bronzeError);
-      }
-    }
+  const result = await changePrimaryEmail({
+    repos: createRepos(supabase),
+    service: createServiceRoleClient(),
+    member: { id: member.id, email: member.email, kajabiId: member.kajabi_id, userId: member.user_id },
+    address,
+  });
+  if (!result.ok) {
+    return NextResponse.json(
+      { error: result.error, ...(result.conflictingMemberId ? { conflictingMemberId: result.conflictingMemberId } : {}) },
+      { status: result.status }
+    );
   }
-
-  try {
-    const changed = await createRepos(supabase).members.setEmail(member.id, address);
-    if (!changed.ok) {
-      return NextResponse.json({ error: "Another member already has that email." }, { status: 409 });
-    }
-  } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
-  }
-
-  // The new address may have been an alias of this member; it's the email now.
-  try {
-    const aliases = createRepos(supabase).aliases;
-    await aliases.removeEmailOf(member.id, address);
-    await aliases.upsertEmail(member.id, member.email.toLowerCase(), "manual", true);
-  } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
-  }
+  if (!result.changed) return null;
 
   member.email = address;
   scheduleAliasReprocess();
@@ -267,13 +217,13 @@ async function changePrimaryEmail(supabase: SupabaseClient, member: MemberRow, i
 }
 
 async function addEmailAlias(supabase: SupabaseClient, member: MemberRow, input: string) {
-  const address = normalizeEmail(input);
+  const address = emailError(input);
   if (address instanceof NextResponse) return address;
   if (address === member.email.toLowerCase()) {
     return NextResponse.json({ error: "That's already this member's email" }, { status: 400 });
   }
 
-  const owner = await findEmailOwner(supabase, member.id, address);
+  const owner = await findEmailOwner(createRepos(supabase), member.id, address);
   if (owner) return conflictResponse(owner);
 
   try {
