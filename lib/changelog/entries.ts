@@ -1304,7 +1304,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Member directory, Ask me about topics and private notes",
     summary:
       "Search the Hedgies in the new Members page, share what you love to talk about on your profile, and jot private notes about people you meet.",
+    image: { src: "/changelog/member-directory-and-profile-notes/01-members-directory.webp", alt: "The Members page with a search box above a grid of member cards, each with a photo, name and bio." },
     body: [
+      "![The Members page with a search box above a grid of member cards, each with a photo, name and bio.](/changelog/member-directory-and-profile-notes/01-members-directory.webp)",
       "The /members page lists current Hedgies with their bio, Ask me about topics and the writing projects they chose to show on their profile. Search matches names, bios, projects, topics and your own notes, and clicking a topic searches for it.",
       "Add your own Ask me about topics under Profile in Settings (/settings/profile).",
       "On someone else's profile you now have a My notes card for things you want to remember. Only you can see your notes.",
