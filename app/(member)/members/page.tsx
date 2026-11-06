@@ -64,6 +64,12 @@ export default async function MemberDirectoryPage({
     ? new Map<string, string>()
     : await createRepos(supabase).memberProfile.notesBy(effectiveIdentity.memberId)
 
+  // Alternate names, by the same rule as the top-bar search (active aliases of directory members).
+  const aliasesByMember = new Map<string, string[]>()
+  for (const { memberId, alias } of await createRepos(supabase).directory.activeAliases()) {
+    aliasesByMember.set(memberId, [...(aliasesByMember.get(memberId) ?? []), alias])
+  }
+
   const entries: DirectoryEntry[] = rows
     .map((row) => ({
       id: row.id,
@@ -73,6 +79,7 @@ export default async function MemberDirectoryPage({
       firstJoinedAt: row.first_joined_at,
       projects: row.projects ?? [],
       topics: row.topics ?? [],
+      aliases: aliasesByMember.get(row.id) ?? [],
       myNote: notesBySubject.get(row.id) ?? null,
     }))
     .sort((a, b) => a.displayName.localeCompare(b.displayName, "en", { sensitivity: "base" }))
