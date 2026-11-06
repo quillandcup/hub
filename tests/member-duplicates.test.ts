@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { detectDuplicates } from '@/lib/member-duplicates'
+import { detectDuplicates, withDuplicateAliases } from '@/lib/member-duplicates'
+import { InMemoryDataset } from '@/lib/data/in-memory'
+import { createInMemoryRepos } from '@/lib/data/repos'
 
 function member(id: string, name: string, email: string, status = 'active') {
   return { id, name, email, status }
@@ -194,5 +196,69 @@ describe('detectDuplicates', () => {
       expect(groups[0].members[0]).toMatchObject({ id: '1', name: 'Alice Smith', status: 'active' })
       expect(groups[0].members[1]).toMatchObject({ id: '2', name: 'Alice Smith', status: 'on_hiatus' })
     })
+  })
+})
+
+describe('detectDuplicates with aliases', () => {
+  it("flags two members when one's other email is the other's email, as a high-confidence match", () => {
+    const groups = detectDuplicates([
+      { ...member('1', 'Alice Smith', 'alice@new.example.com'), emailAliases: ['alice@old.example.com'] },
+      member('2', 'A. Smythe', 'ALICE@old.example.com'),
+      member('3', 'Carol Lee', 'carol@example.com'),
+    ])
+
+    expect(groups).toHaveLength(1)
+    expect(groups[0]).toMatchObject({ reason: 'Email matches an alias', confidence: 'high' })
+    expect(groups[0].members.map((m) => m.id).sort()).toEqual(['1', '2'])
+  })
+
+  it('does not flag a member against themselves, or two members who only have different aliases', () => {
+    const groups = detectDuplicates([
+      { ...member('1', 'Alice Smith', 'alice@example.com'), emailAliases: ['alice@example.com', 'alice@old.example.com'], nameAliases: ['Alice Smith', 'Allie'], displayName: 'Allie' },
+      { ...member('2', 'Bob Jones', 'bob@example.com'), emailAliases: ['bob@old.example.com'], nameAliases: ['Bobby'] },
+    ])
+
+    expect(groups).toEqual([])
+  })
+
+  it("flags a member whose name is another member's pen name or alias as a medium-confidence match", () => {
+    const viaDisplayName = detectDuplicates([
+      member('1', 'Penny Quill', 'penny@example.com'),
+      { ...member('2', 'Ada Lovelace', 'ada@example.com'), displayName: 'penny  quill' },
+    ])
+    expect(viaDisplayName).toHaveLength(1)
+    expect(viaDisplayName[0]).toMatchObject({ reason: 'Name matches a pen name or alias', confidence: 'medium' })
+
+    const viaAlias = detectDuplicates([
+      member('1', 'Ada L', 'ada1@example.com'),
+      { ...member('2', 'Ada Lovelace', 'ada2@example.com'), nameAliases: ['Ada L'] },
+    ])
+    expect(viaAlias.map((g) => g.reason)).toEqual(['Name matches a pen name or alias'])
+  })
+
+  it('keeps a plain exact match worded as before, and reports a pair once even when several signals agree', () => {
+    const both = detectDuplicates([
+      { ...member('1', 'Alice Smith', 'alice@example.com'), emailAliases: ['shared@example.com'] },
+      { ...member('2', 'Alice Smith', 'shared@example.com') },
+    ])
+    expect(both.map((g) => `${g.reason}|${g.confidence}`)).toEqual(['Email matches an alias|high'])
+
+    expect(detectDuplicates([member('1', 'Alice Smith', 'a@example.com'), member('2', 'Alice Smith', 'b@example.com')]).map((g) => g.reason)).toEqual(['Same name'])
+  })
+})
+
+describe('withDuplicateAliases', () => {
+  it("adds each member's active email and name aliases, and leaves the inactive ones out", async () => {
+    const repos = createInMemoryRepos(new InMemoryDataset({ members: [{ id: 'mbr_AAAAAAAAAAA1', name: 'Ada Example', email: 'ada@example.com' }, { id: 'mbr_AAAAAAAAAAA2', name: 'Grace Example', email: 'grace@example.com' }] }))
+    await repos.aliases.addEmail('mbr_AAAAAAAAAAA1', 'ada.old@example.com', 'manual')
+    await repos.aliases.addEmail('mbr_AAAAAAAAAAA1', 'ada.off@example.com', 'manual')
+    const off = (await repos.aliases.emailsOf('mbr_AAAAAAAAAAA1')).find((a) => a.alias_email === 'ada.off@example.com')!
+    await repos.aliases.setEmailActive('mbr_AAAAAAAAAAA1', off.id, false)
+    await repos.aliases.addName('mbr_AAAAAAAAAAA1', 'Ada L', 'member')
+
+    const result = await withDuplicateAliases(repos, [member('mbr_AAAAAAAAAAA1', 'Ada Example', 'ada@example.com'), member('mbr_AAAAAAAAAAA2', 'Grace Example', 'grace@example.com')])
+
+    expect(result[0]).toMatchObject({ emailAliases: ['ada.old@example.com'], nameAliases: ['Ada L'] })
+    expect(result[1]).toMatchObject({ emailAliases: [], nameAliases: [] })
   })
 })
