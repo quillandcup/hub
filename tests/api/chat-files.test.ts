@@ -37,6 +37,8 @@ const setContent = (files: unknown[] | null, slack: { ts: string | null; channel
   );
 };
 let download: { data: Blob | null; error: { message: string } | null };
+/** The bucket paths the route read, in order. */
+let downloaded: string[] = [];
 
 const call = (messageId: string, fileId: string) =>
   GET(new NextRequest("http://localhost/api/chat/files/x"), { params: Promise.resolve({ messageId, fileId }) });
@@ -45,8 +47,9 @@ beforeEach(() => {
   vi.mocked(getCurrentUser).mockResolvedValue({ id: "user-1", email: "member@example.com" });
   setContent(FILES);
   download = { data: new Blob(["bytes"]), error: null };
+  downloaded = [];
   vi.mocked(createClient).mockResolvedValue({} as never);
-  vi.mocked(createServiceRoleClient).mockReturnValue({ storage: { from: () => ({ download: async () => download }) } } as never);
+  vi.mocked(createServiceRoleClient).mockReturnValue({ storage: { from: () => ({ download: async (path: string) => (downloaded.push(path), download) }) } } as never);
   vi.mocked(ensureSlackFileCopied).mockReset().mockResolvedValue({ ok: true, path: "F_IMG/hedgie.gif", mimetype: "image/gif" });
 });
 
@@ -84,6 +87,28 @@ describe("GET /api/chat/files/[messageId]/[fileId]", () => {
 
     setContent([{ id: "pending-1", name: "new.png", mimetype: "image/png" }], null);
     expect((await call(MESSAGE, "pending-1")).status).toBe(404);
+  });
+
+  it("serves a file Slack doesn't have yet (just sent from the Hub) from the staged bytes, and prefers Slack's copy once there is one", async () => {
+    const staged = "staging/2026-11-04/m-1/shot.png";
+    setContent([{ id: "F_NEW", name: "shot.png", mimetype: "image/png", staged }]);
+    vi.mocked(ensureSlackFileCopied).mockResolvedValue({ ok: false, reason: "file_not_found" });
+    const res = await call(MESSAGE, "F_NEW");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("image/png");
+    expect(downloaded).toEqual([staged]);
+
+    // Slack has it now: its copy is what is served, even though the entry still has the staged path.
+    vi.mocked(ensureSlackFileCopied).mockResolvedValue({ ok: true, path: "F_NEW/shot.png", mimetype: "image/png" });
+    expect((await call(MESSAGE, "F_NEW")).status).toBe(200);
+    expect(downloaded).toEqual([staged, "F_NEW/shot.png"]);
+
+    // No staged path and no copy: still nothing to serve.
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    setContent([{ id: "F_NEW", name: "shot.png", mimetype: "image/png" }]);
+    vi.mocked(ensureSlackFileCopied).mockResolvedValue({ ok: false, reason: "file_not_found" });
+    expect((await call(MESSAGE, "F_NEW")).status).toBe(404);
+    log.mockRestore();
   });
 
   it("answers 404 when the caller can't read the message (RLS returns nothing) or the file isn't on it", async () => {

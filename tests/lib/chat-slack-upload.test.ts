@@ -222,6 +222,11 @@ describe("sendChatFilesToSlack", () => {
     const first = ctx();
     expect(await sendChatFilesToSlack(first)).toBe("sent");
     expect(rpc).not.toHaveBeenCalledWith("chat_mark_message_sent", expect.anything());
+    // The staged paths stay on the entries, so the chat serves the pictures from them until Slack has the files.
+    expect(dataset.chatMessageContents[0].files).toEqual([
+      { id: "F1", name: "cat.gif", mimetype: "image/gif", size: 3, width: null, height: null, staged: "staging/2026-10-22/m-1/cat.gif" },
+      { id: "F2", name: "notes.pdf", mimetype: "application/pdf", size: 3, width: null, height: null, staged: "staging/2026-10-22/m-1/notes.pdf" },
+    ]);
 
     // The retry: ids are real now, so nothing is uploaded; it only looks for the ts again.
     uploadV2.mockClear();

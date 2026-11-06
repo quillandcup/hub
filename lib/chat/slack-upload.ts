@@ -144,6 +144,16 @@ export async function sendChatFilesToSlack(ctx: FileSendContext): Promise<"sent"
   if (!ts) {
     // Uploaded but not found yet: leave it pending. Slack's own event links it by file id, and a retry only looks again.
     console.error("no Slack ts yet for the files of message %s", messageId);
+    // For a couple of seconds Slack answers "not found" for a file it was just sent, and the chat's picture would be asked of
+    // Slack and fail. The bytes are still in staging, so the message keeps their path and the file route serves them from there
+    // until Slack's own event brings the file (docs/TODO.md, "A File Just Sent From The Hub").
+    if (bytes.size > 0) {
+      try {
+        await chat.setMessageFiles(messageId, asJson(ctx.files.map((f, i) => ({ ...f, staged: files[i]?.staged ?? null }))));
+      } catch (storeError) {
+        console.error("keeping the staged paths of message %s failed:", messageId, (storeError as Error).message);
+      }
+    }
     return "sent";
   }
 
