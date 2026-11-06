@@ -1712,6 +1712,8 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     body: [
       "When people are at the table, a red On air light blinks beside the bell with a count. Click it to see the prickle and its host, who is in the room, and the Zoom link with meeting ID and passcode. When the room is empty the light is grey, and the same link is offered as a way to start a pop-up prickle.",
       "![The red On air light with 5 Hedgies at the table, opened to the prickle, who is in the room and the Zoom link](/changelog/on-air-light/01-on-air-popover.webp)",
+      "A grey Off air light means nobody is at the table, and its button starts a pop-up prickle.",
+      "![The grey Off air light opened to a card saying nobody is at the table, with a Start a PUP on Zoom button, the meeting ID and the passcode](/changelog/on-air-light/02-off-air-popover.webp)",
     ].join("\n\n"),
   },
   {
