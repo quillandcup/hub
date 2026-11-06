@@ -13,6 +13,7 @@ import type { CustomEmoji } from "@/lib/chat/emoji";
 import { readTone } from "@/lib/chat/skin-tone";
 import { emojiChoices, loadCatalog, type EmojiChoice } from "@/lib/chat/emoji-suggest";
 import { convertEmoticonBefore } from "@/lib/chat/emoticons";
+import { smartReplacement } from "@/lib/chat/smart-typography";
 import { applyPastedMentions, pastedNameCandidates } from "@/lib/chat/paste-mentions";
 import { formatsFromSteps, formatsInSlice, shortcutFormat, type FormatVia } from "@/lib/chat/format-text";
 import { docIsEmojiOnly, docToMrkdwn, mrkdwnToDoc, type EmojiLookup, type RichNode } from "@/lib/chat/rich-text";
@@ -202,18 +203,29 @@ export default function MessageBox({
     look(ed);
   };
 
-  /** Typing a space or punctuation after an emoticon (`:)`, `<3`) turns it into its emoji, like Slack. */
-  const convertEmoticon = (view: EditorView, from: number, to: number, text: string): boolean => {
+  /**
+   * What typing does to text as it goes in, like Slack's: a space or punctuation after an emoticon (`:)`, `<3`) turns it into its
+   * emoji, and the smart quotes and symbols turn `"` and `'` curly, `--` into an em-dash, `...` into an ellipsis and `->` and `<-`
+   * into arrows. Neither applies in code (a code block, or text marked as code).
+   */
+  const convertTyped = (view: EditorView, from: number, to: number, text: string): boolean => {
     if (text.length !== 1) return false;
     const $from = view.state.doc.resolve(from);
-    if (!$from.parent.isTextblock || $from.parent.type.name === "codeBlock" || $from.marks().some((m) => m.type.name === "code")) return false;
-    const prefix = `${$from.parent.textBetween(0, $from.parentOffset, undefined, "\uFFFC")}${text}`;
+    const marks = view.state.storedMarks ?? $from.marks();
+    if (!$from.parent.isTextblock || $from.parent.type.name === "codeBlock" || marks.some((m) => m.type.name === "code")) return false;
+    const before = $from.parent.textBetween(0, $from.parentOffset, undefined, "\uFFFC");
+    const prefix = `${before}${text}`;
     const converted = convertEmoticonBefore(prefix, prefix.length);
-    if (!converted) return false;
-    // The emoticon starts where the two texts first differ; what follows is the emoji and the character just typed.
-    let index = 0;
-    while (prefix[index] === converted.value[index]) index++;
-    view.dispatch(view.state.tr.insertText(converted.value.slice(index), $from.start() + index, to));
+    if (converted) {
+      // The emoticon starts where the two texts first differ; what follows is the emoji and the character just typed.
+      let index = 0;
+      while (prefix[index] === converted.value[index]) index++;
+      view.dispatch(view.state.tr.insertText(converted.value.slice(index), $from.start() + index, to));
+      return true;
+    }
+    const smart = smartReplacement(before, text);
+    if (!smart) return false;
+    view.dispatch(view.state.tr.insertText(smart.insert, from - smart.remove, to));
     return true;
   };
 
@@ -256,7 +268,7 @@ export default function MessageBox({
         style: `min-height: ${rows * 1.25 + 1}rem; max-height: ${MAX_BOX_HEIGHT_PX}px; overflow-y: auto`,
       },
       handleKeyDown: (view, event) => keyDownRef.current(event),
-      handleTextInput: (view, from, to, text) => convertEmoticon(view, from, to, text),
+      handleTextInput: (view, from, to, text) => convertTyped(view, from, to, text),
       handlePaste: (view, event, slice) => {
         live.current.onPaste?.({ clipboardData: event.clipboardData, preventDefault: () => event.preventDefault() });
         if (event.defaultPrevented) return true;
