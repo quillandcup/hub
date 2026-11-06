@@ -1,6 +1,7 @@
 import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createKajabiClient } from "@/lib/kajabi/client";
+import { sendPrimaryEmailChangedNotice } from "@/lib/email-change-notice";
 import { changePrimaryEmail, findEmailOwner, normalizeEmail, type EmailOwner } from "@/lib/member-email";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { triggerReprocessing } from "@/lib/processing/trigger";
@@ -211,8 +212,11 @@ async function changeEmail(supabase: SupabaseClient, member: MemberRow, input: s
   }
   if (!result.changed) return null;
 
+  const previous = member.email;
   member.email = address;
   scheduleAliasReprocess();
+  // Never silent: both addresses are told, after the response.
+  after(() => sendPrimaryEmailChangedNotice(member.id, previous, address));
   return null;
 }
 

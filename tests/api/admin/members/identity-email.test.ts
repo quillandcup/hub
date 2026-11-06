@@ -28,6 +28,9 @@ vi.mock("next/server", async (importOriginal) => {
   return { ...actual, after: (fn: () => unknown) => afterCallbacks.push(fn) };
 });
 
+const sendEmailMock = vi.fn();
+vi.mock("@/lib/email", () => ({ sendEmail: (...args: unknown[]) => sendEmailMock(...args) }));
+
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { PATCH } from "@/app/api/admin/members/[id]/route";
 import { POST as processMembers } from "@/app/api/process/members/route";
@@ -152,6 +155,35 @@ describe("changing the primary email", () => {
       await supabase.from("members").update({ user_id: null }).eq("id", m.id);
       for (const u of [created.data.user, taken.data.user]) if (u) await supabase.auth.admin.deleteUser(u.id);
     }
+  });
+
+  it("tells both the new and the old address, after the response, and a failed email never undoes the change", async () => {
+    const m = await createMember("ned", false);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    sendEmailMock.mockRejectedValueOnce(new Error("Resend is down")).mockResolvedValue(undefined);
+
+    const { status } = await patch(m.id, { email: email("ned-new") });
+    expect(status).toBe(200);
+    expect(sendEmailMock).not.toHaveBeenCalled();
+
+    await Promise.all(afterCallbacks.map((fn) => fn()));
+
+    const sent = sendEmailMock.mock.calls.map(([mail]) => mail);
+    expect(sent.map((mail) => mail.to).sort()).toEqual([email("ned"), email("ned-new")].sort());
+    expect(sent[0]).toMatchObject({ tags: { kind: "email_changed", member: m.id } });
+    expect(await memberEmail(m.id)).toBe(email("ned-new"));
+  });
+
+  it("sends nothing when the email isn't changing or the change is refused", async () => {
+    const m = await createMember("oli", false);
+    await createMember("pam", false);
+
+    await patch(m.id, { email: email("oli") });
+    const refused = await patch(m.id, { email: email("pam") });
+    expect(refused.status).toBe(409);
+    await Promise.all(afterCallbacks.map((fn) => fn()));
+
+    expect(sendEmailMock).not.toHaveBeenCalled();
   });
 
   it("survives a members reprocess (the Kajabi email isn't put back)", async () => {
