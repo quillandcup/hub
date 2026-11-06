@@ -13,6 +13,7 @@ const NOW = new Date("2026-09-26T12:00:00Z") // Sat Sep 26, 8am EDT
 function upcoming(id: string, startTime: string, opts: Partial<UpcomingPrickle> = {}): UpcomingPrickle {
   return {
     id,
+    source: "calendar",
     typeId: "t1",
     typeName: "Writing",
     startTime,

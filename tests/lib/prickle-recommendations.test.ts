@@ -25,6 +25,7 @@ function upcoming(
 ): UpcomingPrickle {
   return {
     id,
+    source: "calendar",
     typeId: "t1",
     typeName: "Writing",
     startTime,

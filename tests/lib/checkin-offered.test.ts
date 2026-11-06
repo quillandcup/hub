@@ -33,6 +33,12 @@ describe("checkinOffered", () => {
     expect(checkinOffered(at(-HOUR), TIED, NOW)).toBe(false);
   });
 
+  it("is never offered for a Pop-Up Prickle, tie or not: check-ins are paused for them", () => {
+    expect(checkinOffered({ ...running, source: "zoom" }, TIED, NOW)).toBe(false);
+    expect(checkinOffered({ ...running, source: "zoom" }, [{ kind: "present", tooltip: [] }], NOW)).toBe(false);
+    expect(checkinOffered({ ...running, source: "calendar" }, TIED, NOW)).toBe(true);
+  });
+
   it("needs a personal tie, and being in the room is one", () => {
     expect(checkinOffered(running, [{ kind: "streak", tooltip: [] }], NOW)).toBe(false);
     expect(checkinOffered(running, [{ kind: "present", tooltip: [] }], NOW)).toBe(true);
@@ -79,7 +85,7 @@ describe("markPresent", () => {
       })
     );
   const ranked = (id: string, reasons: HighlightReason[] = [], times = running): RankedPrickle => ({
-    prickle: { id, typeId: "t1", typeName: "Writing", hostId: null, hostName: null, dayOfWeek: "Monday", startHour: 7, seriesKey: id, ...times },
+    prickle: { id, source: "calendar", typeId: "t1", typeName: "Writing", hostId: null, hostName: null, dayOfWeek: "Monday", startHour: 7, seriesKey: id, ...times },
     reasons,
     priority: PRIORITY.none,
     sortValue: 0,
@@ -155,6 +161,22 @@ describe("markPresent", () => {
 });
 
 describe("getCheckinPrickles", () => {
+  it("offers a running prickle the member hosts, but not a Pop-Up Prickle", async () => {
+    const writing = { id: "t1", name: "Writing", normalizedName: "writing", purpose: "writing", requiresHost: false, soloTaskFriendly: false, listedInEvents: false, announcedPublicly: false, guestsAllowed: false };
+    const prickle = (id: string, source: string) => ({ id, typeId: "t1", hostId: "mbr_AAAAAAAAAAA1", title: null, startTime: iso("11:00"), endTime: iso("12:00"), source, calendarEventId: null });
+    const repos = createInMemoryRepos(
+      new InMemoryDataset({
+        members: [{ id: "mbr_AAAAAAAAAAA1", name: "Ada Writer", email: "ada@example.test" }],
+        prickleTypes: [writing],
+        prickles: [prickle("p-calendar", "calendar"), prickle("p-pop-up", "zoom")],
+      })
+    );
+
+    const offered = await getCheckinPrickles(repos, "mbr_AAAAAAAAAAA1", "UTC", NOW);
+
+    expect(offered.map((r) => r.prickle.id)).toEqual(["p-calendar"]);
+  });
+
   it("looks back far enough to find a prickle that is running", async () => {
     const repos = createInMemoryRepos();
     const spy = vi.spyOn(repos.prickles, "startingBetween");

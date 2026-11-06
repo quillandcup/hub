@@ -95,6 +95,7 @@ describe("computeCommitmentSignals", () => {
 function upcoming(id: string, startTime: string, opts: Partial<UpcomingPrickle> = {}): UpcomingPrickle {
   return {
     id,
+    source: "calendar",
     typeId: "t1",
     typeName: "Writing",
     startTime,
