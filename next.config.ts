@@ -3,6 +3,7 @@ import path from "path";
 import { withSentryConfig } from "@sentry/nextjs/config";
 import appConfig from "./app.config";
 import { helpImagesVersion } from "./scripts/help-images-version";
+import { readSkewMaxAgeSeconds } from "./scripts/skew-protection-config";
 
 // Preview deployments have intermittently hung indefinitely (~45 min, then
 // force-errored with no diagnostic output) during Next.js's "checking
@@ -27,7 +28,13 @@ const isPreview = process.env.VERCEL_ENV === "preview";
 const nextConfig: NextConfig = {
   // Pairs this build with the help screenshot set captured from the same source (scripts/help-images-version.ts).
   // Derived from git at build time, not configuration: "local" outside CI.
-  env: { HELP_IMAGES_VERSION: helpImagesVersion() },
+  env: {
+    HELP_IMAGES_VERSION: helpImagesVersion(),
+    // When this build was made, and how long Vercel keeps serving a deployment to the tabs opened on it (vercel-project-config.yml,
+    // applied by scripts/vercel-config.ts): the page can tell when its own deployment is about to stop being served (lib/skew-deadline.ts).
+    BUILD_TIME: new Date().toISOString(),
+    SKEW_PROTECTION_MAX_AGE_SECONDS: String(readSkewMaxAgeSeconds()),
+  },
   outputFileTracingRoot: path.join(__dirname),
   distDir: process.env.NEXT_DIST_DIR ?? ".next",
   typescript: {

@@ -3,6 +3,15 @@
 # changes this file or the script; `pnpm vercel:config:diff` is the read-only preview).
 # See docs/VERCEL_CONFIG.md.
 
+# Skew Protection (https://vercel.com/docs/skew-protection): how long, counted from a deployment's creation,
+# a tab opened on it keeps being served by it after newer deployments go live. Past it, the tab's requests
+# land on the live deployment, and a server action it sends is refused (Sentry HUB-6). Vercel's default is
+# one day; it can't exceed the project's Deployment Retention (30 days for production). next.config.ts reads
+# the same number, so the app warns a tab shortly before its deployment stops being served
+# (components/announcements/AppUpdatedBar.tsx).
+skewProtection:
+  maxAgeSeconds: 604800 # 7 days
+
 # Always-on tracing (https://vercel.com/docs/tracing/always-on-tracing).
 # Vercel uses the FIRST matching rule, so list the specific ones first. A request that
 # matches no rule isn't traced, so there is deliberately no Preview rule. The list REPLACES

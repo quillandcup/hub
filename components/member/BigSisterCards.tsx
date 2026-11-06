@@ -10,7 +10,7 @@ function day(dateOnly: string): string {
 }
 
 // TODO(docs/TODO.md "Big Sisters: message in the Hub"): replace this Slack link with a Hub DM once
-// Hub chat can start one.
+// Hub Chat can start one.
 function Person({
   partner,
   slackLink,

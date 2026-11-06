@@ -197,7 +197,7 @@ export default function JourneyMap({ projects }: { projects: JourneyProject[] })
         <li>Dotted: hire a pro outside Quill &amp; Cup</li>
         <li>Plain: your own work</li>
         <li>Dashed: on the roadmap</li>
-        <li>On hold and Hibernating projects are listed under Paused</li>
+        <li>Hibernating projects are listed under Paused</li>
         <li>Community is with you the whole way</li>
       </ul>
 

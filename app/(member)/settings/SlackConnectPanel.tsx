@@ -20,9 +20,9 @@ const FLASH: Record<string, { ok: boolean; text: string }> = {
 };
 
 /**
- * "Connect your Slack account" (Settings → Account, for everyone once the Slack app is configured). Hub chat
+ * "Connect your Slack account" (Settings → Account, for everyone once the Slack app is configured). Hub Chat
  * requires it: the Hub posts your messages and reactions to Slack as you, with your own token, and has no
- * fallback; without a connection chat stays closed. Connected with the read scopes, what you read in Hub chat
+ * fallback; without a connection chat stays closed. Connected with the read scopes, what you read in Hub Chat
  * and in Slack is read in both; a connection from before that asks to reconnect. Links to the privacy page
  * (who can read what you write) when it is on for the member.
  */
@@ -53,7 +53,7 @@ export default function SlackConnectPanel({
       {connected ? (
         <>
           <p className="text-sm text-slate-600 dark:text-slate-400">
-            Your Slack account is connected. Messages and reactions you send in Hub chat appear in Slack as you
+            Your Slack account is connected. Messages and reactions you send in Hub Chat appear in Slack as you
             {sharesReadState ? ", and what you read in one place is marked read in the other." : "."}
           </p>
           {!sharesReadState && (
@@ -66,7 +66,7 @@ export default function SlackConnectPanel({
           )}
           {sharesReadState && !hasDmScopes && (
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-              Slack direct messages are coming to Hub chat. Reconnect Slack once now, or you won&apos;t be able to message
+              Slack direct messages are coming to Hub Chat. Reconnect Slack once now, or you won&apos;t be able to message
               people in the Hub when they arrive. Slack will list permission to read and send your direct messages; the Hub
               uses it only for the DM bridge, which we switch on member by member (see Privacy).
               {" "}
@@ -100,7 +100,7 @@ export default function SlackConnectPanel({
       ) : (
         <>
           <p className="text-sm text-slate-600 dark:text-slate-400">
-            Hub chat needs your Slack account. Connect it and your messages and reactions appear in Slack as you, and what you
+            Hub Chat needs your Slack account. Connect it and your messages and reactions appear in Slack as you, and what you
             read in one place is marked read in the other. You can disconnect any time, but chat stays closed until you reconnect.
           </p>
           {/* A full navigation: this goes to Slack and comes back through the callback route. */}

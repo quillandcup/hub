@@ -7,7 +7,7 @@
 /**
  * Notices Slack posts itself when someone changes a channel ("Ania renamed the channel from X to Y") or
  * joins or leaves it ("Ania has joined the channel").
- * Kept so the Hub chat shows them, but they are not something a member wrote: activity, engagement
+ * Kept so the Hub Chat shows them, but they are not something a member wrote: activity, engagement
  * and the Wheel of Wonder leave them out. The same list is in chat_messages' system_subtype trigger
  * (20261203000000_chat_system_messages.sql).
  */

@@ -14,7 +14,7 @@ export interface ChatTextContext {
   userMembers: Record<string, string>;
   /** Slack user id -> Hub name, for the people named in notices; otherwise `userNames` is what a mention shows. */
   hubNames?: Record<string, string>;
-  /** Slack channel id -> Hub chat channel id, for <#C123> links to channels we mirror. */
+  /** Slack channel id -> Hub Chat channel id, for <#C123> links to channels we mirror. */
   channelIds: Record<string, string>;
   /** Slack channel id -> channel name; the text's own label is often just "channel". */
   channelNames: Record<string, string>;

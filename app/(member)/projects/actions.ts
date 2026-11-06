@@ -620,7 +620,7 @@ async function deleteProjectImpl(projectId: string): Promise<{ success: true } |
 }
 
 /**
- * Manual phase change (Planning/Drafting/Revising/On hold/Complete/Hibernating). 'published' is
+ * Manual phase change (Planning/Drafting/Revising/Complete/Hibernating). 'published' is
  * excluded here -- it can only be reached via publishProject, which links a Bookshelf entry in
  * the same step (see the comment there).
  */

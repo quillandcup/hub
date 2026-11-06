@@ -51,6 +51,14 @@ beforeEach(() => {
 });
 
 describe("NotificationInbox", () => {
+  it("labels the unread dot with a role that allows an aria-label, and keeps the filter counts at full strength", () => {
+    renderInbox();
+    const dots = screen.getAllByRole("img", { name: "Unread" });
+    expect(dots).toHaveLength(2);
+    const count = screen.getByRole("button", { name: /^All \(3\)/ }).querySelector("span");
+    expect(count).not.toHaveClass("opacity-70");
+  });
+
   it("marks one notification unread from its row, and read again", async () => {
     const user = userEvent.setup();
     renderInbox();

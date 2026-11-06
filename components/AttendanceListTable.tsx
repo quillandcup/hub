@@ -164,7 +164,7 @@ export default function AttendanceListTable({
               const isActive = dateKey === activeListDateKey;
               return (
                 <Fragment key={dateKey}>
-                  <tr id={`list-date-${dateKey.replace(/\//g, "-")}`}>
+                  <tr key={`header-${dateKey}`} id={`list-date-${dateKey.replace(/\//g, "-")}`}>
                     <td
                       colSpan={columnCount}
                       className={`px-6 py-2 text-sm font-semibold border-t-2 ${

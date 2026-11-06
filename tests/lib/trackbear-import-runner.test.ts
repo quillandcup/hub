@@ -53,7 +53,7 @@ describe("runTrackbearImport", () => {
     expect(again.created).toEqual({ projects: 0, entries: 0, goals: 0, startingBalances: 0, covers: 0 });
     expect(again.updated).toEqual({ projects: 1, entries: 1, goals: 1, startingBalances: 2 });
     expect(balances().map((b) => [b.measure, b.amount]).sort()).toEqual([["time_minutes", 90], ["words", 12000]]);
-    expect(project).toMatchObject({ title: "The Hedgehog's Journey", phase: "on_hold" });
+    expect(project).toMatchObject({ title: "The Hedgehog's Journey", phase: "hibernating" });
     expect(goal).toMatchObject({ title: "Finish draft", target_amount: expect.any(Number), is_starred: true });
     expect(goal.target_amount).not.toBe(1);
     expect(goal.end_date).not.toBe("2026-03-13");

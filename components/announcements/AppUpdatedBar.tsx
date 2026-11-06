@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { isNearSkewDeadline } from "@/lib/skew-deadline";
 import AnnouncementBar from "./AnnouncementBar";
 
-/** Past this, a tab is outside the deployment's Skew Protection window (the project's `skewProtectionMaxAge`, 12 hours), so it may be running an old build. */
-export const AWAY_AFTER_MS = 12 * 60 * 60 * 1000;
+/** How often a tab left in front re-checks its age; a tab brought back to the front checks at once. */
+export const CHECK_EVERY_MS = 10 * 60 * 1000;
 
 /** Next's error for an action the running deployment doesn't have: a tab left open across a deploy (the server answers it with a 409). */
 export function isStaleActionError(reason: unknown): boolean {
@@ -12,39 +13,39 @@ export function isStaleActionError(reason: unknown): boolean {
   return e?.name === "UnrecognizedActionError" || (typeof e?.message === "string" && e.message.includes("was not found on the server"));
 }
 
-type Why = "action" | "away";
+type Why = "action" | "old";
 
 /**
- * A tab left open across a deploy still runs the old page. Vercel keeps an old tab's requests on its own
- * deployment for 12 hours; after that, the first button it presses calls a server action the live deployment
- * doesn't know, and Next refuses it (UnrecognizedActionError), so the click did nothing. Say so and offer
- * the reload, rather than reloading under the member, who may have typed something.
+ * A tab left open across deploys still runs the old page. Vercel keeps answering it from its own deployment for the
+ * Skew Protection maximum age (vercel-project-config.yml), counted from that deployment's creation; after that the
+ * first button it presses calls a server action the live deployment doesn't know, Next refuses it
+ * (UnrecognizedActionError) and the click does nothing.
  *
- * Shown when an action fails that way, and when a tab comes back to the front after 12 hours or more in the
- * background (before anything is pressed; a deploy in between is likely, not certain, so it says "may").
- * A bar of AnnouncementStack, so it stacks with the others.
+ * So the bar speaks twice. Shortly before the deadline (lib/skew-deadline.ts) it asks the member to reload when they
+ * are done and to submit their work first, while submitting still works. If an action is refused anyway it says so,
+ * as the last resort: what they typed is still on the page, but nothing sends until they reload. It never reloads on
+ * its own, which would throw away what they typed. A bar of AnnouncementStack, so it stacks with the others.
  */
 export default function AppUpdatedBar() {
   const [why, setWhy] = useState<Why | null>(null);
 
   useEffect(() => {
-    let hiddenAt: number | null = document.visibilityState === "hidden" ? Date.now() : null;
+    const check = () => {
+      // A failed action is the stronger message: don't replace it.
+      if (isNearSkewDeadline(Date.now(), process.env.BUILD_TIME, process.env.SKEW_PROTECTION_MAX_AGE_SECONDS)) setWhy((current) => current ?? "old");
+    };
     const onRejection = (event: PromiseRejectionEvent) => {
       if (isStaleActionError(event.reason)) setWhy("action");
     };
     const onVisibility = () => {
-      if (document.visibilityState === "hidden") {
-        hiddenAt = Date.now();
-        return;
-      }
-      const away = hiddenAt === null ? 0 : Date.now() - hiddenAt;
-      hiddenAt = null;
-      // A failed action is the stronger message: don't replace it.
-      if (away >= AWAY_AFTER_MS) setWhy((current) => current ?? "away");
+      if (document.visibilityState === "visible") check();
     };
+    check();
+    const timer = window.setInterval(check, CHECK_EVERY_MS);
     window.addEventListener("unhandledrejection", onRejection);
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
+      window.clearInterval(timer);
       window.removeEventListener("unhandledrejection", onRejection);
       document.removeEventListener("visibilitychange", onVisibility);
     };
@@ -54,11 +55,11 @@ export default function AppUpdatedBar() {
   const action = { label: "Reload", track: "app_updated_reload", onClick: () => window.location.reload() };
   return why === "action" ? (
     <AnnouncementBar tone="info" action={action}>
-      That didn&apos;t go through because the Hub was updated. Reload, then try again.
+      That didn&apos;t go through because the Hub was updated. What you typed is still on this page. Copy anything you want to keep, then reload and try again.
     </AnnouncementBar>
   ) : (
-    <AnnouncementBar tone="info" action={action} dismiss={{ dismissKey: "app-updated-away", scope: "session", label: "Not now", track: "app_updated_dismiss" }}>
-      The Hub may have been updated while this tab was in the background. Reload to get the latest.
+    <AnnouncementBar tone="info" action={action} dismiss={{ dismissKey: "app-updated-old", scope: "session", label: "Not now", track: "app_updated_dismiss" }}>
+      The Hub has likely been updated since you opened this page. Reload when you&apos;ve finished what you&apos;re doing, and submit any work first.
     </AnnouncementBar>
   );
 }

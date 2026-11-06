@@ -50,7 +50,7 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
   {
     key: 'chat_posting',
     name: 'Chat posting',
-    description: 'Write messages and thread replies in Hub chat; they appear in Slack too, posted by Billie Bot under your name and photo. Needs Chat',
+    description: 'Write messages and thread replies in Hub Chat; they appear in Slack too, posted by Billie Bot under your name and photo. Needs Chat',
   },
   {
     key: 'chat_dms',
@@ -60,7 +60,7 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
   {
     key: 'slack_dm_bridge',
     name: 'Slack DM bridge',
-    description: 'Brings your one-on-one Slack direct messages into Hub chat, read with your own Slack token (reconnect Slack first so it has the direct message permissions). They are restricted like private channels: only you and the other person, and staff only through break-glass access. Read-only for now. Needs Chat',
+    description: 'Brings your one-on-one Slack direct messages into Hub Chat, read with your own Slack token (reconnect Slack first so it has the direct message permissions). They are restricted like private channels: only you and the other person, and staff only through break-glass access. Read-only for now. Needs Chat',
   },
   {
     key: 'big_sisters',

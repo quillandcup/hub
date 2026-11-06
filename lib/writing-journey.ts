@@ -1,8 +1,8 @@
 import type { ProjectPhase } from "@/lib/writing-projects";
 
 /**
- * Journey: the stages a book goes through at Quill & Cup and the offer at each. A project's position is derived from its status, never stored. `on_hold`
- * and `hibernating` are not positions: they pause or end a project at any stage.
+ * Journey: the stages a book goes through at Quill & Cup and the offer at each. A project's position is derived from its status, never stored. `hibernating`
+ * is not a position: it pauses or ends a project at any stage.
  */
 export type JourneyOffer = "live" | "external" | "roadmap" | "own";
 
@@ -229,7 +229,7 @@ export const JOURNEY_STAGES: JourneyStage[] = [
 /** BFF (Best Feedback Friends) supports Draft and Self-Edit; it isn't a stage a project is at. */
 export const JOURNEY_BFF = { title: "BFF", subtitle: "Best Feedback Friends", description: "Critique partners trading chapters through Draft and Self-Edit.", x: 300, y: 66, width: 190, height: 90 };
 
-/** The stage a project in `phase` is at, or null when the status isn't a position (on hold, hibernating). */
+/** The stage a project in `phase` is at, or null when the status isn't a position (hibernating). */
 export function journeyStageForPhase(phase: string): JourneyStage | null {
   return JOURNEY_STAGES.find((s) => (s.phases as string[]).includes(phase)) ?? null;
 }

@@ -91,6 +91,12 @@ describe("/privacy page", () => {
     }
   });
 
+  it("uses the readable muted colour (slate-600), never slate-500, which fails contrast on the page background", async () => {
+    await renderServerPage(PrivacyPage, {});
+    expect(document.querySelector("time")?.parentElement).toHaveClass("text-slate-600");
+    expect(document.querySelectorAll(".text-slate-500, .dark\\:text-slate-500").length).toBe(0);
+  });
+
   it("orders the sections so the one with the actions comes last, and the contents list follows the same order", async () => {
     await renderServerPage(PrivacyPage, {});
     const ids = [...document.querySelectorAll("section[id]")].map((el) => el.id);
@@ -156,7 +162,7 @@ describe("/privacy page", () => {
     expect(chat.getByText(/Slack only shows about 90 days of history/)).toBeInTheDocument();
     expect(chat.getByText(/they can read the\s+text only through break-glass access/)).toBeInTheDocument();
     expect(chat.getByText(/There is no separate switch for DMs/)).toBeInTheDocument();
-    expect(chat.getByText(/closes Hub chat for you until you reconnect/)).toBeInTheDocument();
+    expect(chat.getByText(/closes Hub Chat for you until you reconnect/)).toBeInTheDocument();
     // What was promised before and isn't any more.
     expect(chat.queryByText(/switch it off for you and remove what we have kept/)).not.toBeInTheDocument();
     expect(chat.queryByText(/through their connection/)).not.toBeInTheDocument();
