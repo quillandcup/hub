@@ -10,7 +10,7 @@ import { linkPreviewPage } from "../../mockups/rest-frames";
 test("a Hub link shared in Slack @changelog", async ({ page, request }, testInfo) => {
   const html = await (await request.get("/login")).text();
   const tag = (property: string) => html.match(new RegExp(`<meta property="${property}" content="([^"]*)"`))?.[1];
-  const decode = (s: string) => s.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#x27;/g, "'");
+  const decode = (s: string) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/&amp;/g, "&");
   const title = tag("og:title");
   const description = tag("og:description");
   const imageUrl = tag("og:image");
