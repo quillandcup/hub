@@ -21,56 +21,59 @@ const { confirmEmailFromToken } = await import("@/app/verify-email/actions");
 
 const ME = "mbr_AAAAAAAAAAA1";
 const ADDRESS = "ada.old@example.com";
-const fake = useFakeClock();
-let aliasId: string;
-let token: string;
-const renderFor = (t: string | undefined) => renderServerPage(VerifyEmailPage, { searchParams: Promise.resolve({ t }) });
-const form = (t: string) => {
-  const f = new FormData();
-  f.set("token", t);
-  return f;
-};
+describe("verify-email", () => {
+  const fake = useFakeClock();
 
-beforeEach(async () => {
-  process.env.EMAIL_UNSUBSCRIBE_SECRET = "test-secret";
-  revalidatePath.mockClear();
-  repos = createInMemoryRepos(new InMemoryDataset({ members: [{ id: ME, name: "Ada Example", email: "ada@example.com" }] }));
-  await repos.aliases.addEmail(ME, ADDRESS, "manual");
-  aliasId = (await repos.aliases.findEmail(ADDRESS))!.id;
-  token = signVerificationToken(aliasId, ADDRESS);
-});
+  let aliasId: string;
+  let token: string;
+  const renderFor = (t: string | undefined) => renderServerPage(VerifyEmailPage, { searchParams: Promise.resolve({ t }) });
+  const form = (t: string) => {
+    const f = new FormData();
+    f.set("token", t);
+    return f;
+  };
 
-describe("/verify-email page", () => {
-  it("asks for the button without confirming anything by being viewed", async () => {
-    await renderFor(token);
-
-    expect(screen.getByRole("heading")).toHaveTextContent("Is this your email address?");
-    expect(screen.getByText(ADDRESS)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Confirm this address" })).toBeInTheDocument();
-    expect((await repos.aliases.emailById(aliasId))!.verifiedAt).toBeNull();
+  beforeEach(async () => {
+    process.env.EMAIL_UNSUBSCRIBE_SECRET = "test-secret";
+    revalidatePath.mockClear();
+    repos = createInMemoryRepos(new InMemoryDataset({ members: [{ id: ME, name: "Ada Example", email: "ada@example.com" }] }));
+    await repos.aliases.addEmail(ME, ADDRESS, "manual");
+    aliasId = (await repos.aliases.findEmail(ADDRESS))!.id;
+    token = signVerificationToken(aliasId, ADDRESS);
   });
 
-  it("confirms with the button, then shows the address as confirmed", async () => {
-    await confirmEmailFromToken(form(token));
-    expect(revalidatePath).toHaveBeenCalledWith("/verify-email");
-    expect((await repos.aliases.emailById(aliasId))!.verifiedAt).not.toBeNull();
+  describe("/verify-email page", () => {
+    it("asks for the button without confirming anything by being viewed", async () => {
+      await renderFor(token);
 
-    await renderFor(token);
-    expect(screen.getByRole("heading")).toHaveTextContent(`${ADDRESS} is confirmed`);
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
-  });
+      expect(screen.getByRole("heading")).toHaveTextContent("Is this your email address?");
+      expect(screen.getByText(ADDRESS)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Confirm this address" })).toBeInTheDocument();
+      expect((await repos.aliases.emailById(aliasId))!.verifiedAt).toBeNull();
+    });
 
-  it("explains a link that is cut off, forged or expired, and a bad token confirms nothing", async () => {
-    await renderFor("nope");
-    expect(screen.getByRole("heading")).toHaveTextContent("This link doesn't work");
+    it("confirms with the button, then shows the address as confirmed", async () => {
+      await confirmEmailFromToken(form(token));
+      expect(revalidatePath).toHaveBeenCalledWith("/verify-email");
+      expect((await repos.aliases.emailById(aliasId))!.verifiedAt).not.toBeNull();
 
-    await confirmEmailFromToken(form("nope"));
-    expect((await repos.aliases.emailById(aliasId))!.verifiedAt).toBeNull();
-  });
+      await renderFor(token);
+      expect(screen.getByRole("heading")).toHaveTextContent(`${ADDRESS} is confirmed`);
+      expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    });
 
-  it("says a link has expired", async () => {
-    fake.clock.advance(8 * 24 * 3_600_000);
-    await renderFor(token);
-    expect(screen.getByRole("heading")).toHaveTextContent("This link has expired");
+    it("explains a link that is cut off, forged or expired, and a bad token confirms nothing", async () => {
+      await renderFor("nope");
+      expect(screen.getByRole("heading")).toHaveTextContent("This link doesn't work");
+
+      await confirmEmailFromToken(form("nope"));
+      expect((await repos.aliases.emailById(aliasId))!.verifiedAt).toBeNull();
+    });
+
+    it("says a link has expired", async () => {
+      fake.clock.advance(8 * 24 * 3_600_000);
+      await renderFor(token);
+      expect(screen.getByRole("heading")).toHaveTextContent("This link has expired");
+    });
   });
 });
