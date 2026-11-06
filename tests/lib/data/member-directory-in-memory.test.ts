@@ -7,6 +7,9 @@ defineMemberDirectoryContract("InMemoryMemberDirectoryRepository", () => {
   let n = 0;
   return {
     repo: () => new InMemoryMemberDirectoryRepository(data),
+    addAlias: async (memberId, alias, active) => {
+      data.nameAliases.push({ id: `alias_${++n}`, member_id: memberId, alias, source: "zoom", active });
+    },
     unique: (label) => `${label} ${++n}`,
     seed: async (people) => {
       const ids: Record<string, string> = {};

@@ -2394,4 +2394,16 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "Screenshots are taken from the demo scenes: `pnpm changelog:capture <slug>` runs an `@changelog` scene and writes small WebP files into `public/changelog/<slug>/`.",
     ].join("\n\n"),
   },
+  {
+    slug: "members-search-alternate-names",
+    date: "2026-11-06",
+    audience: "product",
+    category: "improved",
+    title: "The Members page finds the names people go by",
+    summary:
+      "Search on the Members page now also finds a member by a nickname or pen name, and says so with a line under their name.",
+    body: [
+      "Type a nickname or pen name in the Members search and the member shows up, with a small line under their name that says also known as and the name you typed. It uses the same names as the search in the top bar, so the two always agree about who a name belongs to.",
+    ].join("\n\n"),
+  },
 ];

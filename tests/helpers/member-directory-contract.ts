@@ -7,6 +7,8 @@ export type DirectoryContractContext = {
   repo: () => MemberDirectoryRepository;
   /** Replaces the members this context created with these (a member's directory row follows it); returns each one's id by key. */
   seed: (people: SeedPerson[]) => Promise<Record<string, string>>;
+  /** Gives a seeded member an alternate name; `active: false` is one switched off. */
+  addAlias: (memberId: string, alias: string, active: boolean) => Promise<void>;
   /** A string no other run has used, to keep names unique across a shared database. */
   unique: (label: string) => string;
 };
@@ -34,6 +36,24 @@ export function defineMemberDirectoryContract(name: string, setup: () => Directo
       const both = await ctx.repo().byIds([ids.a, ids.b, ids.a, NONE]);
       expect(both.map((m) => m.id).sort()).toEqual([ids.a, ids.b].sort());
       expect(await ctx.repo().byIds([])).toEqual([]);
+    });
+
+    it("lists the active alternate names of members in the directory, and none that are switched off", async () => {
+      const tag = ctx.unique("Aliased");
+      const ids = await ctx.seed([
+        { key: "a", name: `${tag} Julia` },
+        { key: "b", name: `${tag} Willa` },
+      ]);
+      await ctx.addAlias(ids.a, `${tag} Jules`, true);
+      await ctx.addAlias(ids.a, `${tag} Jewel`, true);
+      await ctx.addAlias(ids.b, `${tag} Willow`, false);
+
+      const ours = (await ctx.repo().activeAliases()).filter((a) => [ids.a, ids.b].includes(a.memberId));
+
+      expect(ours).toEqual([
+        { memberId: ids.a, alias: `${tag} Jewel` },
+        { memberId: ids.a, alias: `${tag} Jules` },
+      ]);
     });
 
     it("lists everyone by name", async () => {
