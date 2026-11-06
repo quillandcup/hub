@@ -141,11 +141,13 @@ export async function updateSession(request: NextRequest) {
 
   // Public routes — no auth required
   // /privacy is the public privacy policy.
-  // /unsubscribe is authorized by the signed token in its link (lib/email-unsubscribe.ts).
+  // /unsubscribe and /verify-email are authorized by the signed token in their link
+  // (lib/email-unsubscribe.ts, lib/email-verification.ts).
   // API routes handle their own auth via requireAdmin/createApiAuth
   const isPublic =
     pathname === '/login' ||
     pathname === '/unsubscribe' ||
+    pathname === '/verify-email' ||
     pathname === '/privacy' ||
     pathname.startsWith('/auth/') ||
     pathname.startsWith('/api/')

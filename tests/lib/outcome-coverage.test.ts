@@ -56,6 +56,7 @@ const NOT_TRACKED: Record<string, string> = {
   "app/login/actions.ts::resendPendingInvite": "before sign-in; see completeSlackSignIn",
   "app/privacy/actions.ts::setAnalyticsOptOut": "choosing not to be recorded must not be recorded",
   "app/unsubscribe/actions.ts::setEmailFromToken": "a public page opened from an email, with no signed-in member",
+  "app/verify-email/actions.ts::confirmEmailFromToken": "a public page opened from an email, with no signed-in member",
 };
 
 const READ_ONLY = /^(get|load|suggest|search|list|find|fetch|preview)[A-Z]/;

@@ -82,7 +82,8 @@ export const OUTCOME_ACTIONS = [
   "birthday_saved",
   "name_alias_added",
   "email_alias_added",
-  "email_change_requested",
+  "email_verification_sent",
+  "email_made_primary",
   "slack_disconnected",
   // Outreach
   "prospects_imported",

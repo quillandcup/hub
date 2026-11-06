@@ -3794,6 +3794,8 @@ export type Database = {
           id: string
           member_id: string
           source: string
+          verification_sent_at: string | null
+          verified_at: string | null
         }
         Insert: {
           active?: boolean
@@ -3803,6 +3805,8 @@ export type Database = {
           id?: string
           member_id: string
           source: string
+          verification_sent_at?: string | null
+          verified_at?: string | null
         }
         Update: {
           active?: boolean
@@ -3812,6 +3816,8 @@ export type Database = {
           id?: string
           member_id?: string
           source?: string
+          verification_sent_at?: string | null
+          verified_at?: string | null
         }
         Relationships: [
           {

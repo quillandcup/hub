@@ -14,7 +14,8 @@ vi.mock('@/app/(member)/settings/identityActions', () => ({
   setCustomDisplayName: vi.fn(),
   addNameAlias: vi.fn(),
   addEmailAlias: vi.fn(),
-  requestEmailChange: vi.fn(),
+  resendEmailVerification: vi.fn(),
+  makeEmailPrimary: vi.fn(),
 }))
 
 const baseSettings = {
@@ -133,8 +134,8 @@ describe('IdentityPanel', () => {
         { id: 'n2', alias: 'Old Zoom Name', source: 'zoom', active: false, createdAt: '2026-01-01' },
       ],
       emailAliases: [
-        { id: 'e1', aliasEmail: 'ada.old@example.com', source: 'auto_detected', active: true, createdAt: '2026-01-01' },
-        { id: 'e2', aliasEmail: 'ada.zoom@example.com', source: 'zoom', active: false, createdAt: '2026-01-01' },
+        { id: 'e1', aliasEmail: 'ada.old@example.com', source: 'auto_detected', active: true, createdAt: '2026-01-01', verifiedAt: null },
+        { id: 'e2', aliasEmail: 'ada.zoom@example.com', source: 'zoom', active: false, createdAt: '2026-01-01', verifiedAt: null },
       ],
     })
 
@@ -147,26 +148,56 @@ describe('IdentityPanel', () => {
     expect(screen.queryByRole('button', { name: /deactivate|reactivate/i })).not.toBeInTheDocument()
   })
 
-  it('asks for confirmation when the primary email is changed, and shows a refusal', async () => {
-    vi.mocked(identityActions.getIdentitySettings).mockResolvedValue(baseSettings)
-    vi.mocked(identityActions.requestEmailChange)
-      .mockResolvedValueOnce({ error: 'That email is already in use.' })
-      .mockResolvedValueOnce({ success: true, sentTo: 'ada.new@example.com' })
+  it('offers to send a link to an unconfirmed address and to make a confirmed one primary', async () => {
+    vi.mocked(identityActions.getIdentitySettings).mockResolvedValue({
+      ...baseSettings,
+      emailAliases: [
+        { id: 'e1', aliasEmail: 'ada.new@example.com', source: 'manual', active: true, createdAt: '2026-01-02', verifiedAt: null },
+        { id: 'e2', aliasEmail: 'ada.old@example.com', source: 'manual', active: true, createdAt: '2026-01-01', verifiedAt: '2026-01-03' },
+        { id: 'e3', aliasEmail: 'ada.off@example.com', source: 'zoom', active: false, createdAt: '2026-01-01', verifiedAt: null },
+      ],
+    })
+    vi.mocked(identityActions.resendEmailVerification).mockResolvedValue({ success: true })
+    vi.mocked(identityActions.makeEmailPrimary)
+      .mockResolvedValueOnce({ error: 'Confirm that email first: open the link we sent to it.' })
+      .mockResolvedValueOnce({ success: true })
 
     render(<IdentityPanel />)
     await waitFor(() => expect(screen.getByDisplayValue('Ada Lovelace')).toBeInTheDocument())
-
-    const input = screen.getByLabelText('New primary email')
     const user = userEvent.setup()
-    await user.type(input, 'taken@example.com')
-    await user.click(screen.getByRole('button', { name: 'Change' }))
-    expect(await screen.findByText('That email is already in use.')).toBeInTheDocument()
-    expect(identityActions.requestEmailChange).toHaveBeenCalledWith('taken@example.com')
 
-    await user.clear(input)
+    // A turned-off address has no controls.
+    expect(screen.getAllByRole('button', { name: /make .* my primary email|confirmation link/i })).toHaveLength(2)
+
+    await user.click(screen.getByRole('button', { name: 'Send ada.new@example.com a confirmation link' }))
+    expect(identityActions.resendEmailVerification).toHaveBeenCalledWith('e1')
+    expect(await screen.findByText(/Sent\. Open the link in that email/)).toBeInTheDocument()
+
+    const makePrimary = screen.getByRole('button', { name: 'Make ada.old@example.com my primary email' })
+    await user.click(makePrimary)
+    expect(await screen.findByText('Confirm that email first: open the link we sent to it.')).toBeInTheDocument()
+    await user.click(makePrimary)
+    expect(identityActions.makeEmailPrimary).toHaveBeenCalledWith('e2')
+    expect(await screen.findByText(/Your primary email is changed/)).toBeInTheDocument()
+  })
+
+  it('says whether the confirmation link went out when an email address is added', async () => {
+    vi.mocked(identityActions.getIdentitySettings).mockResolvedValue(baseSettings)
+    vi.mocked(identityActions.addEmailAlias)
+      .mockResolvedValueOnce({ success: true, verificationSent: true })
+      .mockResolvedValueOnce({ success: true, verificationSent: false })
+
+    render(<IdentityPanel />)
+    await waitFor(() => expect(screen.getByDisplayValue('Ada Lovelace')).toBeInTheDocument())
+    const user = userEvent.setup()
+    const input = screen.getByPlaceholderText('another-email@example.com')
+
     await user.type(input, 'ada.new@example.com')
-    await user.click(screen.getByRole('button', { name: 'Change' }))
-    expect(await screen.findByText(/confirmation link to ada\.new@example\.com/)).toBeInTheDocument()
-    expect(input).toHaveValue('')
+    await user.click(within(input.closest('form')!).getByRole('button', { name: 'Add' }))
+    expect(await screen.findByText(/We sent it a link/)).toBeInTheDocument()
+
+    await user.type(input, 'ada.newer@example.com')
+    await user.click(within(input.closest('form')!).getByRole('button', { name: 'Add' }))
+    expect(await screen.findByText(/couldn't send the confirmation link/)).toBeInTheDocument()
   })
 })

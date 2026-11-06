@@ -17,7 +17,7 @@ vi.mock("@/lib/kajabi/client", () => ({ createKajabiClient: () => ({ updateConta
 const refreshBronze = vi.fn();
 vi.mock("@/lib/kajabi/contact-refresh", () => ({ refreshKajabiContactInBronze: (...args: unknown[]) => refreshBronze(...args) }));
 
-import { applyConfirmedEmailChange, changePrimaryEmail, normalizeEmail, PENDING_EMAIL_KEY } from "@/lib/member-email";
+import { changePrimaryEmail, normalizeEmail } from "@/lib/member-email";
 
 const db = {} as never;
 const ME = "mbr_AAAAAAAAAAA1";
@@ -113,67 +113,5 @@ describe("changePrimaryEmail", () => {
     expect(result).toEqual({ ok: true, changed: true });
     expect(updateContact).not.toHaveBeenCalled();
     expect((await repos.authUsers.byId(USER))!.email).toBe("old@example.com");
-  });
-});
-
-describe("applyConfirmedEmailChange", () => {
-  const confirm = (pending: string, accountEmail = pending) => {
-    dataset.authUsers[0] = authUser(USER, accountEmail, { [PENDING_EMAIL_KEY]: pending });
-  };
-
-  it("finishes a change the member asked for once the account has the new address, and clears the marker", async () => {
-    confirm("new@example.com");
-
-    expect(await applyConfirmedEmailChange(db, USER)).toBe("new@example.com");
-
-    expect((await repos.members.byId(ME))!.email).toBe("new@example.com");
-    expect(updateContact).toHaveBeenCalledWith("kaj1", { email: "new@example.com" });
-    expect((await repos.authUsers.byId(USER))!.appMetadata).not.toHaveProperty(PENDING_EMAIL_KEY);
-    expect(await applyConfirmedEmailChange(db, USER)).toBeNull();
-  });
-
-  it("waits while the link hasn't been opened (the account still has the old address)", async () => {
-    confirm("new@example.com", "old@example.com");
-
-    expect(await applyConfirmedEmailChange(db, USER)).toBeNull();
-    expect((await repos.members.byId(ME))!.email).toBe("old@example.com");
-    expect((await repos.authUsers.byId(USER))!.appMetadata).toHaveProperty(PENDING_EMAIL_KEY);
-  });
-
-  it("ignores a difference nobody asked for (Kajabi changed the member's email, the account has the old one)", async () => {
-    dataset.members[0].email = "kajabi-new@example.com";
-    expect(await applyConfirmedEmailChange(db, USER)).toBeNull();
-    expect((await repos.members.byId(ME))!.email).toBe("kajabi-new@example.com");
-  });
-
-  it("returns the sign-in to the member's email when someone took the address meanwhile", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    confirm("taken@example.com");
-
-    expect(await applyConfirmedEmailChange(db, USER)).toBeNull();
-
-    const account = (await repos.authUsers.byId(USER))!;
-    expect(account.email).toBe("old@example.com");
-    expect(account.appMetadata).not.toHaveProperty(PENDING_EMAIL_KEY);
-  });
-
-  it("keeps the marker to retry when Kajabi is down", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    updateContact.mockRejectedValue(new Error("Kajabi is down"));
-    confirm("new@example.com");
-
-    expect(await applyConfirmedEmailChange(db, USER)).toBeNull();
-    expect((await repos.authUsers.byId(USER))!.appMetadata).toHaveProperty(PENDING_EMAIL_KEY);
-
-    updateContact.mockResolvedValue(undefined);
-    expect(await applyConfirmedEmailChange(db, USER)).toBe("new@example.com");
-  });
-
-  it("drops the marker when the account isn't linked to a member", async () => {
-    confirm("new@example.com");
-    dataset.members[0].userId = null;
-
-    expect(await applyConfirmedEmailChange(db, USER)).toBeNull();
-    expect((await repos.authUsers.byId(USER))!.appMetadata).not.toHaveProperty(PENDING_EMAIL_KEY);
   });
 });

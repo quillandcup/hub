@@ -9,7 +9,8 @@ import {
   setCustomDisplayName,
   addNameAlias,
   addEmailAlias,
-  requestEmailChange,
+  resendEmailVerification,
+  makeEmailPrimary,
   type IdentitySettings,
 } from "./identityActions";
 import { SUPPORT_EMAIL } from "@/lib/config";
@@ -43,11 +44,14 @@ function AliasChip({
   source,
   active,
   isDisplayName,
+  actions,
 }: {
   label: string;
   isDisplayName?: boolean;
   source: string;
   active: boolean;
+  /** Controls beside the label (an email alias's confirm and make-primary buttons). */
+  actions?: React.ReactNode;
 }) {
   return (
     <div
@@ -68,9 +72,13 @@ function AliasChip({
           </span>
         )}
       </div>
+      {actions}
     </div>
   );
 }
+
+const ROW_BUTTON =
+  "text-xs px-2 py-1 rounded border border-plum-300 dark:border-plum-700 text-plum-700 dark:text-plum-300 hover:bg-plum-50 dark:hover:bg-plum-900/30 disabled:opacity-50 disabled:cursor-not-allowed";
 
 export function IdentityPanel() {
   const [data, setData] = useState<IdentitySettings | null>(null);
@@ -87,8 +95,7 @@ export function IdentityPanel() {
   const [addingNameAlias, setAddingNameAlias] = useState(false);
   const [emailAliasInput, setEmailAliasInput] = useState("");
   const [addingEmailAlias, setAddingEmailAlias] = useState(false);
-  const [primaryEmailInput, setPrimaryEmailInput] = useState("");
-  const [requestingEmailChange, setRequestingEmailChange] = useState(false);
+  const [busyEmailAliasId, setBusyEmailAliasId] = useState<string | null>(null);
   const [savingDisplayName, setSavingDisplayName] = useState(false);
   const [customDisplayName, setCustomDisplayNameInput] = useState<string | null>(null);
 
@@ -209,26 +216,32 @@ export function IdentityPanel() {
       setError(result.error);
     } else {
       setEmailAliasInput("");
-      setMessage("Email added.");
+      setMessage(
+        result.verificationSent
+          ? "Email added. We sent it a link: open it to confirm the address is yours."
+          : "Email added, but we couldn't send the confirmation link. Use Send link below."
+      );
       await load();
     }
     setAddingEmailAlias(false);
   }
 
-  async function handleRequestEmailChange(e: FormEvent) {
-    e.preventDefault();
-    if (!primaryEmailInput.trim()) return;
-    setRequestingEmailChange(true);
+  async function handleEmailAliasAction(aliasId: string, action: "resend" | "primary") {
+    setBusyEmailAliasId(aliasId);
     setError(null);
     setMessage(null);
-    const result = await requestEmailChange(primaryEmailInput);
+    const result = await (action === "resend" ? resendEmailVerification(aliasId) : makeEmailPrimary(aliasId));
     if ("error" in result) {
       setError(result.error);
     } else {
-      setPrimaryEmailInput("");
-      setMessage(`We sent a confirmation link to ${result.sentTo}. Your email changes once you open it; until then, keep signing in with ${data?.primaryEmail}.`);
+      setMessage(
+        action === "resend"
+          ? "Sent. Open the link in that email to confirm the address."
+          : "Your primary email is changed. Use it the next time you sign in."
+      );
+      await load();
     }
-    setRequestingEmailChange(false);
+    setBusyEmailAliasId(null);
   }
 
   if (loading) {
@@ -390,43 +403,17 @@ export function IdentityPanel() {
         </form>
       </div>
 
-      {/* Primary email */}
-      <div>
-        <h3 id="identity-primary-email" className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Primary Email</h3>
-        <p className="text-xs text-slate-600 dark:text-slate-400 mb-3">
-          The address you sign in with and we write to: <span className="font-medium">{data.primaryEmail}</span>. To switch,
-          enter the new one and open the confirmation link we send. Your current address stays on as an alias.
-        </p>
-        <form onSubmit={handleRequestEmailChange} className="flex gap-2 max-w-md">
-          <input
-            type="email"
-            aria-label="New primary email"
-            value={primaryEmailInput}
-            onChange={(e) => setPrimaryEmailInput(e.target.value)}
-            placeholder="new-email@example.com"
-            className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm"
-          />
-          <button
-            type="submit"
-            data-track="settings-identity-change-email"
-            disabled={requestingEmailChange || !primaryEmailInput.trim()}
-            className="px-4 py-2 bg-plum-600 text-white text-sm rounded-md hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {requestingEmailChange ? "Sending…" : "Change"}
-          </button>
-        </form>
-      </div>
-
-      {/* Email aliases */}
+      {/* Email addresses: the primary one and the aliases */}
       <div data-tour="identity-emails">
-        <h3 id="identity-email-aliases" className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Email Aliases</h3>
+        <h3 id="identity-email-aliases" className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Email Addresses</h3>
         <p className="text-xs text-slate-600 dark:text-slate-400 mb-3">
-          Other email addresses that should also count as you (e.g. an old Kajabi or Slack email). Your
-          primary email is <span className="font-medium">{data.primaryEmail}</span>.
+          Your primary email is <span className="font-medium">{data.primaryEmail}</span>: the address you sign in with and
+          we write to. Add another address (an old Kajabi or Slack email, say) and it counts as you too. Open the link we
+          send to confirm it&apos;s yours, then make it your primary email.
         </p>
-        <div className="flex flex-wrap gap-2 mb-3">
+        <div className="flex flex-col items-start gap-2 mb-3">
           {data.emailAliases.length === 0 && (
-            <p className="text-sm text-slate-600 dark:text-slate-400">No email aliases on file yet.</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400">No other email addresses on file yet.</p>
           )}
           {data.emailAliases.map((alias) => (
             <AliasChip
@@ -434,6 +421,41 @@ export function IdentityPanel() {
               label={alias.aliasEmail}
               source={alias.source}
               active={alias.active}
+              actions={
+                alias.active && (
+                  <span className="flex items-center gap-2 pl-2 border-l border-slate-200 dark:border-slate-700">
+                    {alias.verifiedAt ? (
+                      <>
+                        <span className="text-xs text-green-700 dark:text-green-400">Confirmed</span>
+                        <button
+                          type="button"
+                          data-track="settings-identity-make-email-primary"
+                          disabled={busyEmailAliasId === alias.id}
+                          onClick={() => handleEmailAliasAction(alias.id, "primary")}
+                          aria-label={`Make ${alias.aliasEmail} my primary email`}
+                          className={ROW_BUTTON}
+                        >
+                          Make primary
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">Not confirmed</span>
+                        <button
+                          type="button"
+                          data-track="settings-identity-resend-email-verification"
+                          disabled={busyEmailAliasId === alias.id}
+                          onClick={() => handleEmailAliasAction(alias.id, "resend")}
+                          aria-label={`Send ${alias.aliasEmail} a confirmation link`}
+                          className={ROW_BUTTON}
+                        >
+                          Send link
+                        </button>
+                      </>
+                    )}
+                  </span>
+                )
+              }
             />
           ))}
         </div>
@@ -442,7 +464,7 @@ export function IdentityPanel() {
             type="email"
             value={emailAliasInput}
             onChange={(e) => setEmailAliasInput(e.target.value)}
-            placeholder="old-email@example.com"
+            placeholder="another-email@example.com"
             className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm"
           />
           <button

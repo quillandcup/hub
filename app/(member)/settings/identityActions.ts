@@ -8,9 +8,10 @@ import { getEffectiveIdentity } from "@/lib/sudo";
 import { triggerReprocessing } from "@/lib/processing/trigger";
 import { createKajabiClient } from "@/lib/kajabi/client";
 import { revalidatePath } from "next/cache";
-import { APP_URL, SUPPORT_EMAIL } from "@/lib/config";
+import { SUPPORT_EMAIL } from "@/lib/config";
 import { createServiceRoleClient } from "@/lib/supabase/service";
-import { applyConfirmedEmailChange, findEmailOwner, normalizeEmail, PENDING_EMAIL_KEY } from "@/lib/member-email";
+import { changePrimaryEmail, normalizeEmail } from "@/lib/member-email";
+import { sendVerificationEmail } from "@/lib/email-verification";
 import { createRepos } from "@/lib/data/repos";
 
 import { withAction } from "@/lib/analytics/server";
@@ -28,6 +29,8 @@ export interface EmailAliasRow {
   source: string;
   active: boolean;
   createdAt: string | null;
+  /** Set once they opened the link we sent to this address; only then can it become the primary email. */
+  verifiedAt: string | null;
 }
 
 export interface IdentitySettings {
@@ -71,20 +74,6 @@ export async function getIdentitySettings(): Promise<IdentitySettings | { error:
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
 
-  // They may have just confirmed a new email from the link we sent; show it as the primary one.
-  if (!effectiveIdentity.isSudo) {
-    const user = await getCurrentUser();
-    if (user) {
-      try {
-        if (await applyConfirmedEmailChange(createServiceRoleClient(), user.id)) {
-          after(() => triggerReprocessing("member_email_aliases", "local"));
-        }
-      } catch (err) {
-        console.error("[identity] Applying a confirmed email change failed:", err);
-      }
-    }
-  }
-
   const [memberResult, nameAliasResult, emailAliasResult, attendanceCount] = await Promise.all([
     createRepos(supabase).members.profile(effectiveIdentity.memberId),
     createRepos(supabase).aliases.namesOf(effectiveIdentity.memberId),
@@ -105,6 +94,7 @@ export async function getIdentitySettings(): Promise<IdentitySettings | { error:
       source: row.source,
       active: row.active,
       createdAt: row.createdAt,
+      verifiedAt: row.verifiedAt,
     })),
     hasAttendanceHistory: attendanceCount > 0,
     nameChangeLocked: memberResult?.selfServiceNameChangedAt != null,
@@ -269,7 +259,7 @@ async function addNameAliasImpl(alias: string): Promise<{ success: true } | { er
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-async function addEmailAliasImpl(email: string): Promise<{ success: true } | { error: string }> {
+async function addEmailAliasImpl(email: string): Promise<{ success: true; verificationSent: boolean } | { error: string }> {
   const ctx = await requireIdentity();
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
@@ -295,56 +285,65 @@ async function addEmailAliasImpl(email: string): Promise<{ success: true } | { e
 
   after(() => triggerReprocessing("member_email_aliases", "local"));
 
+  // Prove the address is theirs, so it can become the primary email. The alias already counts for matching.
+  const created = await createRepos(supabase).aliases.findEmail(trimmed);
+  const verification = created
+    ? await sendVerificationEmail(createRepos(createServiceRoleClient()), effectiveIdentity.memberId, created.id)
+    : ({ ok: false, error: "Couldn't send the email." } as const);
+
   revalidatePath("/settings", "layout");
-  return { success: true };
+  return { success: true, verificationSent: verification.ok };
+}
+
+/** Sends the link again, to an address of theirs that isn't confirmed yet. */
+async function resendEmailVerificationImpl(aliasId: string): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { effectiveIdentity } = ctx;
+  // In sudo this is an admin looking at a member: nothing is sent to the member's addresses on their behalf.
+  if (effectiveIdentity.isSudo) return { error: "Switch back to your own account to do this." };
+
+  const sent = await sendVerificationEmail(createRepos(createServiceRoleClient()), effectiveIdentity.memberId, aliasId);
+  return sent.ok ? { success: true } : { error: sent.error };
 }
 
 /**
- * Starts switching the primary email: Supabase mails a confirmation link to the new address (and,
- * with double confirmation on, to the current one). Nothing changes until it is clicked; then
- * `applyConfirmedEmailChange` moves the member, Kajabi and the sign-in together.
+ * Switches the primary email (and the address they sign in with) to one of their own confirmed
+ * addresses. The old primary stays on as a confirmed alias. `lib/member-email.ts` does the moving.
  */
-async function requestEmailChangeImpl(email: string): Promise<{ success: true; sentTo: string } | { error: string }> {
+async function makeEmailPrimaryImpl(aliasId: string): Promise<{ success: true } | { error: string }> {
   const ctx = await requireIdentity();
   if ("error" in ctx) return ctx;
-  const { supabase, effectiveIdentity } = ctx;
+  const { effectiveIdentity } = ctx;
+  // In sudo the signed-in account is the admin's, and the member's email is theirs to change.
+  if (effectiveIdentity.isSudo) return { error: "Switch back to your own account to do this." };
 
-  // In sudo the signed-in account is the admin's: it must never be pointed at the member's new address.
-  if (effectiveIdentity.isSudo) return { error: "Switch back to your own account to change the email." };
+  // Service role from here: the checks below are the authorization, and the alias writes need it (verification is server-only).
+  const service = createServiceRoleClient();
+  const repos = createRepos(service);
+  const [alias, member] = await Promise.all([repos.aliases.emailById(aliasId), repos.members.byId(effectiveIdentity.memberId)]);
+  if (!alias || alias.memberId !== effectiveIdentity.memberId || !member) return { error: "That email isn't on your account." };
+  if (!alias.verifiedAt) return { error: "Confirm that email first: open the link we sent to it." };
+  if (!alias.active) return { error: "That email is turned off. Ask support to turn it back on." };
 
-  const user = await getCurrentUser();
-  if (!user) return { error: "Not authenticated" };
+  const address = normalizeEmail(alias.aliasEmail);
+  if (!address) return { error: "That isn't a valid email address." };
 
-  const address = normalizeEmail(email);
-  if (!address) return { error: "Enter a valid email address" };
-  if (address === effectiveIdentity.memberEmail.toLowerCase()) return { error: "That's already your primary email" };
+  const result = await changePrimaryEmail({
+    repos,
+    service,
+    member: { id: member.id, email: member.email, kajabiId: member.kajabiId, userId: member.userId },
+    address,
+  });
+  if (!result.ok) return { error: result.status === 409 ? `That email can't be used right now. Email ${SUPPORT_EMAIL} for help.` : result.error };
 
-  const repos = createRepos(supabase);
-  const owner = await findEmailOwner(repos, effectiveIdentity.memberId, address);
-  // Not saying whose it is: members can't see each other's emails.
-  if (owner) return { error: `That email is already in use. Email ${SUPPORT_EMAIL} if it's yours.` };
-
-  try {
-    await createRepos(createServiceRoleClient()).authUsers.mergeAppMetadata(user.id, { [PENDING_EMAIL_KEY]: address });
-  } catch (err) {
-    console.error("[identity] Couldn't remember the pending email change:", err);
-    return { error: "Couldn't start the email change. Try again." };
-  }
-
-  const { error } = await supabase.auth.updateUser({ email: address }, { emailRedirectTo: `${APP_URL}/auth/callback?next=/settings/identity` });
-  if (error) {
-    return { error: error.code === "email_exists" ? `That email is already in use. Email ${SUPPORT_EMAIL} if it's yours.` : error.message };
-  }
-
+  after(() => triggerReprocessing("member_email_aliases", "local"));
   revalidatePath("/settings", "layout");
-  return { success: true, sentTo: address };
+  revalidatePath(`/members/${effectiveIdentity.memberId}`);
+  return { success: true };
 }
 
 // Usage analytics: each action records whether it worked (lib/analytics/server.ts).
-export async function requestEmailChange(...args: Parameters<typeof requestEmailChangeImpl>): ReturnType<typeof requestEmailChangeImpl> {
-  return withAction("email_change_requested", () => requestEmailChangeImpl(...args));
-}
-
 export async function updateRealName(...args: Parameters<typeof updateRealNameImpl>): ReturnType<typeof updateRealNameImpl> {
   return withAction("real_name_changed", () => updateRealNameImpl(...args));
 }
@@ -355,6 +354,14 @@ export async function setCustomDisplayName(...args: Parameters<typeof setCustomD
 
 export async function updateBirthday(...args: Parameters<typeof updateBirthdayImpl>): ReturnType<typeof updateBirthdayImpl> {
   return withAction("birthday_saved", () => updateBirthdayImpl(...args));
+}
+
+export async function resendEmailVerification(...args: Parameters<typeof resendEmailVerificationImpl>): ReturnType<typeof resendEmailVerificationImpl> {
+  return withAction("email_verification_sent", () => resendEmailVerificationImpl(...args));
+}
+
+export async function makeEmailPrimary(...args: Parameters<typeof makeEmailPrimaryImpl>): ReturnType<typeof makeEmailPrimaryImpl> {
+  return withAction("email_made_primary", () => makeEmailPrimaryImpl(...args));
 }
 
 export async function addEmailAlias(...args: Parameters<typeof addEmailAliasImpl>): ReturnType<typeof addEmailAliasImpl> {

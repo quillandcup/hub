@@ -31,8 +31,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   { tab: "identity", id: "identity-display-name", title: "Display name", keywords: ["name", "pen name", "shown"] },
   { tab: "identity", id: "identity-birthday", title: "Birthday", keywords: ["birth", "date", "hedgie birthday"] },
   { tab: "identity", id: "identity-pen-names", title: "Pen names and Zoom/Slack names", keywords: ["pen name", "alias", "aliases", "zoom name", "slack name", "display name", "other names"] },
-  { tab: "identity", id: "identity-primary-email", title: "Primary email", keywords: ["email", "change email", "sign in", "login", "new email address"] },
-  { tab: "identity", id: "identity-email-aliases", title: "Email aliases", keywords: ["email", "other email addresses", "old email", "kajabi"] },
+  { tab: "identity", id: "identity-email-aliases", title: "Email addresses", keywords: ["email", "primary email", "change email", "new email", "sign in", "login", "other email addresses", "old email", "kajabi", "alias", "confirm email"] },
 
   { tab: "preferences", id: "theme", title: "Theme", keywords: ["dark mode", "light mode", "appearance", "color"] },
   { tab: "preferences", id: "timezone", title: "Time zone", keywords: ["timezone", "clock", "local time"] },

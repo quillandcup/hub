@@ -45,7 +45,7 @@ export interface AuthUserRepository {
   invite(email: string): Promise<AuthUser>;
   /** Bans the account for `duration`, or lifts its ban with `"none"`. */
   setBan(id: string, duration: BanDuration): Promise<void>;
-  /** Adds these keys to the account's `app_metadata`, keeping the others; a key set to null is removed. */
+  /** Adds these keys to the account's `app_metadata`, keeping the others. */
   mergeAppMetadata(id: string, metadata: Record<string, unknown>): Promise<void>;
   /**
    * Changes the address they sign in with, already confirmed (no email goes out): the caller has verified it.
@@ -230,9 +230,7 @@ export class InMemoryAuthUserRepository implements AuthUserRepository {
 
   async mergeAppMetadata(id: string, metadata: Record<string, unknown>): Promise<void> {
     const user = this.find(id);
-    const merged = { ...user.appMetadata, ...metadata };
-    for (const key of Object.keys(merged)) if (merged[key] === null) delete merged[key];
-    user.appMetadata = merged;
+    user.appMetadata = { ...user.appMetadata, ...metadata };
   }
 
   async setEmail(id: string, email: string): Promise<void> {
