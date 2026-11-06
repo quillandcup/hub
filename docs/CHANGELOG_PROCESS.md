@@ -21,6 +21,7 @@ Every entry has an `audience`:
 
 ## Writing an entry
 
+- `major: true` marks a significant new capability (Hub Chat, Courses), not one more improvement: it is badged on the What's new pages, first in the weekly digest and the announcements post, and marked in `CHANGELOG.md`. It is a separate dimension from `category` (a major feature is also "new"), product entries only, and rare on purpose.
 - `category`: `new`, `improved` or `fixed`. Only things a member would notice; skip refactors and internal tooling.
 - `summary`: one or two plain sentences, no markdown (it is the excerpt in the list, digests and Slack). Say what the member can now do.
 - `body`: markdown. Link Hub pages as `/path`.

@@ -147,3 +147,13 @@ describe("the category filter", () => {
     expect(filterByCategory(entries, null).map((e) => e.slug)).toEqual(["n", "i", "f"]);
   });
 });
+
+describe("major entries", () => {
+  it("are labelled in CHANGELOG.md, and only a product entry can be major", () => {
+    const major = entry({ slug: "big", major: true, title: "A big thing" });
+    expect(renderChangelogMarkdown([major, entry({ slug: "small" })])).toContain("## 2026-11-01 · Major · New: A big thing");
+    expect(renderChangelogMarkdown([entry({ slug: "small" })])).not.toContain("Major");
+    expect(validateChangelog([major])).toEqual([]);
+    expect(validateChangelog([entry({ slug: "eng", audience: "engineering", major: true })]).join("\n")).toContain("only a product entry can be major");
+  });
+});

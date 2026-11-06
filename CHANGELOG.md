@@ -76,9 +76,9 @@ In Settings, Preferences, choose whether the Hub follows your device, always sho
 
 Your sign-in email now includes a one-time code you can type in, so signing in works even if the link opens in the wrong app.
 
-## 2026-11-02 · New: Courses are open to every member
+## 2026-11-02 · Major · New: Courses in the Hub
 
-Watch the lessons of the courses you have access to right in the Hub, mark them complete and pick up where you left off.
+Watch your course lessons right in the Hub, mark them complete and pick up where you left off.
 
 ## 2026-11-01 · Engineering · Improved: Faster CI and repository-based tests
 
@@ -86,15 +86,15 @@ Lint and type checks overlap with tests, and many tests use the in-memory reposi
 
 The notifier, channels, reminders and check-in messages now take repositories instead of database clients, and 176 PostgREST casts were removed by typing the boundary once. pnpm seed:local loads a typed seed profile into the local database.
 
-## 2026-11-01 · New: Gentle reminders are on for every member
+## 2026-11-01 · New: Gentle reminders to say hello and to plan a prickle
 
 Newcomers get a nudge to say hello in the intro channel, and anyone with nothing planned can get a reminder to put a prickle on their calendar. You choose where they arrive, or turn them off.
 
-## 2026-11-01 · New: Events is open to every member
+## 2026-11-01 · New: Events in the Hub
 
 See what is coming up, with a picture on each event and a month-at-a-glance list that shows the time of day.
 
-## 2026-11-01 · New: Hub Chat is open to every member
+## 2026-11-01 · Major · New: Hub Chat: our Slack conversations, in the Hub
 
 Read and join our Slack conversations from the Hub, reply in threads, react, share files and format your messages. What you write here appears in Slack too.
 

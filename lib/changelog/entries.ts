@@ -36,6 +36,12 @@ export interface ChangelogEntry {
   date: string;
   audience: ChangelogAudience;
   category: ChangelogCategory;
+  /**
+   * A significant new capability (Hub Chat, Courses), as opposed to one more improvement: badged "Major" on the What's new
+   * pages, first in the weekly digest and the announcements post, and marked in CHANGELOG.md. A separate dimension from
+   * `category` (a major feature is also "new"), so it stays rare on purpose. Product entries only.
+   */
+  major?: boolean;
   title: string;
   /** One or two plain sentences (no markdown): the excerpt in the list, the digest and the Slack post. */
   summary: string;
@@ -2178,7 +2184,8 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-11-01",
     audience: "product",
     category: "new",
-    title: "Hub Chat is open to every member",
+    major: true,
+    title: "Hub Chat: our Slack conversations, in the Hub",
     summary:
       "Read and join our Slack conversations from the Hub, reply in threads, react, share files and format your messages. What you write here appears in Slack too.",
     image: {
@@ -2186,6 +2193,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       alt: "The chat page showing a channel with threads and reactions",
     },
     body: [
+      "Hub Chat brings our Slack conversations into the Hub, and it is now open to every member.",
       "Chat is in the sidebar under Community. It lists the conversations you are in first, with a Browse channels button for the public channels you could join, and a lock on private ones. Conversations, threads and reactions update on their own.",
       "![The chat page showing a channel with threads and reactions](/changelog/chat-open-to-everyone/01-conversation.webp)",
       "- Write messages and replies in the Hub and they appear in Slack. By default Billie Bot, our Slack helper, posts them with your name and photo. Connect your Slack account under Account in Settings and they go out as you; you can disconnect at any time from the same place.",
@@ -2202,11 +2210,12 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-11-01",
     audience: "product",
     category: "new",
-    title: "Events is open to every member",
+    title: "Events in the Hub",
     image: { src: "/changelog/events-open-to-everyone/01-events.webp", alt: "The Events page: special events and educational sessions as picture cards, with November at a glance below." },
     summary:
       "See what is coming up, with a picture on each event and a month-at-a-glance list that shows the time of day.",
     body: [
+      "Events are now open to every member in the Hub.",
       "![The Events page: special events and educational sessions as picture cards, with November at a glance below.](/changelog/events-open-to-everyone/01-events.webp)",
       "At [/events](/events), upcoming special events and educational sessions sit on top as picture cards. Below them, pick this month, next month or the one after to see everything by day, with times shown in your own time zone.",
       "Past events have their own page at [/events/past](/events/past), a month at a time.",
@@ -2217,7 +2226,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-11-01",
     audience: "product",
     category: "new",
-    title: "Gentle reminders are on for every member",
+    title: "Gentle reminders to say hello and to plan a prickle",
     summary:
       "Newcomers get a nudge to say hello in the intro channel, and anyone with nothing planned can get a reminder to put a prickle on their calendar. You choose where they arrive, or turn them off.",
     body: [
@@ -2232,14 +2241,16 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-11-02",
     audience: "product",
     category: "new",
-    title: "Courses are open to every member",
+    major: true,
+    title: "Courses in the Hub",
     summary:
-      "Watch the lessons of the courses you have access to right in the Hub, mark them complete and pick up where you left off.",
+      "Watch your course lessons right in the Hub, mark them complete and pick up where you left off.",
     image: {
       src: "/changelog/courses-open-to-everyone/01-courses-list.webp",
       alt: "The Courses page with three course cards, one showing progress",
     },
     body: [
+      "Courses now live in the Hub, and they are open to every member.",
       "Find them under [Courses](/courses): cards with cover images and your progress, a page for each module, and lesson pages with the video, its text and downloadable files.",
       "![The Courses page with course cards and progress](/changelog/courses-open-to-everyone/01-courses-list.webp)",
       "- A lesson completes by itself when you have watched about 90 percent, or you can press Mark complete under the video. A card then points you to the next lesson.",

@@ -64,6 +64,7 @@ export function validateChangelog(entries: readonly ChangelogEntry[] = CHANGELOG
     if (!DATE.test(e.date) || Number.isNaN(Date.parse(e.date))) problems.push(`${where}: date must be YYYY-MM-DD`);
     if (!(e.category in CHANGELOG_CATEGORIES)) problems.push(`${where}: unknown category`);
     if (!(e.audience in CHANGELOG_AUDIENCES)) problems.push(`${where}: unknown audience`);
+    if (e.major && e.audience !== "product") problems.push(`${where}: only a product entry can be major`);
     // An engineering entry has no page, digest or post to show a screenshot in.
     if (e.audience === "engineering" && (e.image || /!\[[^\]]*\]\(/.test(e.body))) problems.push(`${where}: an engineering entry has no screenshots`);
     if (!e.title.trim()) problems.push(`${where}: empty title`);
@@ -93,7 +94,8 @@ export function renderChangelogMarkdown(entries: readonly ChangelogEntry[] = CHA
   ];
   for (const e of listChangelog(entries)) {
     const audience = e.audience === "engineering" ? ` · ${CHANGELOG_AUDIENCES.engineering}` : "";
-    lines.push("", `## ${e.date}${audience} · ${CHANGELOG_CATEGORIES[e.category]}: ${e.title}`, "", e.summary);
+    const major = e.major ? " · Major" : "";
+    lines.push("", `## ${e.date}${audience}${major} · ${CHANGELOG_CATEGORIES[e.category]}: ${e.title}`, "", e.summary);
     if (e.audience === "engineering") lines.push("", e.body.trim());
   }
   return lines.join("\n") + "\n";
