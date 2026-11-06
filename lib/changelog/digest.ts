@@ -25,9 +25,10 @@ const MAX_ENTRIES_PER_MESSAGE = 3;
 /** What a reader cares about first: something new she can do, then an improvement, then a fix. */
 const CATEGORY_RANK: Record<ChangelogEntry["category"], number> = { new: 0, improved: 1, fixed: 2 };
 
-/** Most valuable first (new, improved, fixed), keeping the date order (newest first) within each. */
+/** Most valuable first: major entries, then new, improved and fixed, keeping the date order (newest first) within each. */
 export function rankByBenefit(entries: readonly ChangelogEntry[]): ChangelogEntry[] {
-  return entries.map((e, i) => ({ e, i })).sort((a, b) => CATEGORY_RANK[a.e.category] - CATEGORY_RANK[b.e.category] || a.i - b.i).map(({ e }) => e);
+  const rank = (e: ChangelogEntry) => (e.major ? -1 : CATEGORY_RANK[e.category]);
+  return entries.map((e, i) => ({ e, i })).sort((a, b) => rank(a.e) - rank(b.e) || a.i - b.i).map(({ e }) => e);
 }
 
 /** A message of only fixes is noise: it waits for the next entry that gives the reader something new. */

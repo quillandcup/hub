@@ -59,6 +59,27 @@ describe("changelog pages", () => {
     expect(within(screen.getByRole("navigation", { name: "Show" })).getByRole("link", { name: "All" })).toHaveAttribute("aria-current", "true");
   });
 
+  it("badges a major entry on the list and on its own page, and no other", async () => {
+    signInAs(USER, null);
+    await renderServerPage(ChangelogPage, { params: Promise.resolve({}), searchParams: Promise.resolve({}) });
+    const majors = listProductChangelog().filter((e) => e.major);
+    expect(majors.length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Major")).toHaveLength(majors.length);
+  });
+
+  it("badges a major entry's own page, and not a minor one's", async () => {
+    signInAs(USER, null);
+    const product = listProductChangelog();
+    const major = product.find((e) => e.major)!;
+    const minor = product.find((e) => !e.major)!;
+    const props = (slug: string) => ({ params: Promise.resolve({ slug }), searchParams: Promise.resolve({}) });
+    const first = await renderServerPage(ChangelogEntryPage, props(major.slug));
+    expect(screen.getByText("Major")).toBeInTheDocument();
+    first.unmount();
+    await renderServerPage(ChangelogEntryPage, props(minor.slug));
+    expect(screen.queryByText("Major")).not.toBeInTheDocument();
+  });
+
   it("shows one entry", async () => {
     signInAs(USER, null);
     const e = listProductChangelog()[0];

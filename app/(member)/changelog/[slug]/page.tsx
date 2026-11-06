@@ -35,6 +35,7 @@ export default async function ChangelogEntryPage({ params }: PageProps<"/changel
       </Link>
       <p className="mt-4 text-xs font-medium uppercase tracking-wide text-slate-600 dark:text-slate-400">
         {CHANGELOG_CATEGORIES[entry.category]} · <time dateTime={entry.date}>{entry.date}</time>
+        {entry.major && (<span className="ml-2 rounded-full bg-plum-700 px-2 py-0.5 text-xs font-semibold normal-case tracking-normal text-white">Major</span>)}
       </p>
       <h1 className="mt-1 text-3xl font-bold text-slate-900 dark:text-slate-100 font-serif">{entry.title}</h1>
       <div className="mt-6">

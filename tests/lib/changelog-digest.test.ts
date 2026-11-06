@@ -119,6 +119,15 @@ describe("digestMessage", () => {
     expect(blocks).toContain("2 more on the What's new page");
   });
 
+  it("puts a major entry first, whatever its date or category", () => {
+    const entries = [
+      entry({ slug: "new-recent", title: "NewRecent", category: "new", date: "2026-11-09" }),
+      entry({ slug: "big-older", title: "BigOlder", category: "improved", major: true, date: "2026-11-05" }),
+      entry({ slug: "fix", title: "Fix", category: "fixed", date: "2026-11-09" }),
+    ];
+    expect(rankByBenefit(entries).map((e) => e.slug)).toEqual(["big-older", "new-recent", "fix"]);
+  });
+
   it("only sends when something is new or improved, not for a week of fixes alone", () => {
     expect(worthSending([entry({ category: "fixed" }), entry({ slug: "b", category: "fixed" })])).toBe(false);
     expect(worthSending([entry({ category: "fixed" }), entry({ slug: "b", category: "improved" })])).toBe(true);

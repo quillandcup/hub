@@ -56,6 +56,7 @@ export default async function ChangelogPage({ searchParams }: PageProps<"/change
               >
                 <span className="text-xs font-medium uppercase tracking-wide text-slate-600 dark:text-slate-400">
                   {CHANGELOG_CATEGORIES[e.category]} · <time dateTime={e.date}>{e.date}</time>
+                  {e.major && (<span className="ml-2 rounded-full bg-plum-700 px-2 py-0.5 text-xs font-semibold normal-case tracking-normal text-white">Major</span>)}
                 </span>
                 <span className="mt-1 block text-lg font-semibold text-slate-900 dark:text-slate-100">{e.title}</span>
                 <span className="mt-1 block text-sm text-slate-600 dark:text-slate-400">{e.summary}</span>
