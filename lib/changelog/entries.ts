@@ -2417,7 +2417,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "The Members page finds the names people go by",
     summary:
       "Search on the Members page now also finds a member by a nickname or pen name, and says so with a line under their name.",
+    image: { src: "/changelog/members-search-alternate-names/01-members-search-alias.webp", alt: "The Members page with Jules typed in the search box, showing Julia Sample with the line also known as Jules Sample." },
     body: [
+      "![The Members page with Jules typed in the search box, showing Julia Sample with the line also known as Jules Sample.](/changelog/members-search-alternate-names/01-members-search-alias.webp)",
       "Type a nickname or pen name in the Members search and the member shows up, with a small line under their name that says also known as and the name you typed. It uses the same names as the search in the top bar, so the two always agree about who a name belongs to.",
     ].join("\n\n"),
   },
