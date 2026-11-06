@@ -7,6 +7,9 @@ export type DirectoryRow = Row<"member_directory">;
 
 const ID_CHUNK = 100;
 
+/** One alternate name (nickname, pen name) a directory member goes by. */
+export type DirectoryAlias = { memberId: string; alias: string };
+
 /** `%` and `_` are wildcards in a LIKE; the person typing meant the letters. */
 const literalLike = (text: string) => `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 
@@ -30,6 +33,11 @@ export interface MemberDirectoryRepository {
   matching(typed: string, limit: number): Promise<DirectoryRow[]>;
   /** The ids of {@link matching}, for "from this person" filters. */
   idsMatching(typed: string, limit: number): Promise<string[]>;
+  /**
+   * Every alternate name members meant to be found by: the active aliases of directory members, the same rule as the
+   * top-bar search (`search_member_aliases`). Paginated; the caller shows them only as "also known as" and in search.
+   */
+  activeAliases(): Promise<DirectoryAlias[]>;
   /**
    * Members matching every word: each word in the name, display name or bio, or the member among
    * that word's `alsoIds` (e.g. those whose alias matched). By name, one page.
@@ -79,6 +87,13 @@ export class SupabaseMemberDirectoryRepository implements MemberDirectoryReposit
 
   async idsMatching(typed: string, limit: number) {
     return (await this.matching(typed, limit)).map((m) => m.id);
+  }
+
+  async activeAliases() {
+    const rows = await fetchAllRows<{ member_id: string; alias: string }>((from, to) =>
+      this.db.rpc("member_directory_aliases").range(from, to),
+    );
+    return rows.map((r) => ({ memberId: r.member_id, alias: r.alias }));
   }
 
   async searchWords(words: { text: string; alsoIds: string[] }[], { offset, limit }: { offset: number; limit: number }) {
@@ -139,6 +154,14 @@ export class InMemoryMemberDirectoryRepository implements MemberDirectoryReposit
 
   async idsMatching(typed: string, limit: number) {
     return (await this.matching(typed, limit)).map((m) => m.id);
+  }
+
+  async activeAliases() {
+    const inDirectory = new Set(this.data.members.map((m) => m.id));
+    return this.data.nameAliases
+      .filter((a) => a.active && inDirectory.has(a.member_id))
+      .map((a) => ({ memberId: a.member_id, alias: a.alias }))
+      .sort((a, b) => (a.memberId < b.memberId ? -1 : a.memberId > b.memberId ? 1 : a.alias < b.alias ? -1 : a.alias > b.alias ? 1 : 0));
   }
 
   async searchWords(words: { text: string; alsoIds: string[] }[], { offset, limit }: { offset: number; limit: number }) {

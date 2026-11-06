@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react"
 import Link from "next/link"
 import MemberAvatar from "./[id]/MemberAvatar"
-import { filterDirectory, type DirectoryEntry } from "@/lib/member-directory"
+import { directoryMatchHint, filterDirectory, type DirectoryEntry } from "@/lib/member-directory"
 
 /** Keep the search in the URL (?q=) so it survives reloads and "Ask me about" chips can link here. */
 function syncQueryToUrl(query: string) {
@@ -85,6 +85,11 @@ export default function MemberDirectory({
                     </span>
                   )}
                 </div>
+
+                {(() => {
+                  const hint = directoryMatchHint(entry, query)
+                  return hint ? <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{hint}</p> : null
+                })()}
 
                 {entry.projects.length > 0 && (
                   <p className="text-sm text-slate-600 dark:text-slate-300 mt-0.5">

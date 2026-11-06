@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { filterDirectory, type DirectoryEntry } from "@/lib/member-directory";
+import { directoryMatchHint, filterDirectory, type DirectoryEntry } from "@/lib/member-directory";
 import { MAX_TOPICS, MAX_TOPIC_LENGTH, normalizeTopics, splitTopicInput } from "@/lib/ask-me-about";
 
 function entry(overrides: Partial<DirectoryEntry>): DirectoryEntry {
@@ -11,6 +11,7 @@ function entry(overrides: Partial<DirectoryEntry>): DirectoryEntry {
     firstJoinedAt: null,
     projects: [],
     topics: [],
+    aliases: [],
     myNote: null,
     ...overrides,
   };
@@ -55,5 +56,22 @@ describe("ask-me-about topics", () => {
     expect(normalizeTopics(["x".repeat(MAX_TOPIC_LENGTH + 1)])).toHaveProperty("error");
     expect(normalizeTopics(Array.from({ length: MAX_TOPICS + 1 }, (_, i) => `t${i}`))).toHaveProperty("error");
     expect(normalizeTopics(Array.from({ length: MAX_TOPICS }, (_, i) => `t${i}`))).not.toHaveProperty("error");
+  });
+});
+
+describe("alternate names", () => {
+  const JULIA = entry({ id: "julia", displayName: "Julia Sample", aliases: ["Jules Sample"], bio: "Writes fantasy" });
+
+  it("finds a member by an alternate name", () => {
+    expect(filterDirectory([ZOE, JULIA], "jules")).toEqual([JULIA]);
+    expect(filterDirectory([ZOE, JULIA], "julia fantasy")).toEqual([JULIA]);
+  });
+
+  it("says 'also known as' only when the alternate name is why it matched", () => {
+    expect(directoryMatchHint(JULIA, "jules")).toBe("also known as “Jules Sample”");
+    expect(directoryMatchHint(JULIA, "julia")).toBeNull();
+    expect(directoryMatchHint(JULIA, "fantasy jules")).toBe("also known as “Jules Sample”");
+    expect(directoryMatchHint(JULIA, "")).toBeNull();
+    expect(directoryMatchHint(ZOE, "zoe")).toBeNull();
   });
 });

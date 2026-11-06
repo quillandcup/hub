@@ -1649,10 +1649,15 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "improved",
     title: "A kinder nudge when a streak lapses",
+    image: {
+      src: "/changelog/start-a-new-streak-nudge/01-seedling-badge.webp",
+      alt: "Upcoming prickles with a seedling badge on a Plot or Plan Prickle, its tooltip reading Start a new streak: you hit 2 weeks in a row here, beat your best.",
+    },
     summary:
       "The sad broken-heart badge on upcoming prickles is now a seedling that invites you to start a new streak.",
     body: [
       "Where a prickle used to show a broken heart for a streak you had lost, it now shows a seedling and says how many weeks in a row you reached there, with a nudge to beat your best.",
+      "![A seedling badge on an upcoming Plot or Plan Prickle, with its tooltip about your 2 weeks in a row](/changelog/start-a-new-streak-nudge/01-seedling-badge.webp)",
     ].join("\n\n"),
   },
   {
@@ -1681,10 +1686,15 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "improved",
     title: "Join details for the prickle room",
+    image: {
+      src: "/changelog/zoom-meeting-id/02-join-details.webp",
+      alt: "The check-in window after checking in, saying Checked in, with the meeting ID, the passcode and a Join the prickle button.",
+    },
     summary:
       "The check-in window, the Slack check-in message and your calendar feed now carry the prickle room's Zoom link, meeting ID and passcode.",
     body: [
       "Instead of hunting for the link, you get a Join button with the passcode in the check-in window and in the Slack check-in message, and each prickle in your personal calendar feed has the link, meeting ID and passcode in its description. This is for the main prickle room.",
+      "![The check-in window after checking in, with the meeting ID, passcode and a Join the prickle button](/changelog/zoom-meeting-id/02-join-details.webp)",
     ].join("\n\n"),
   },
   {
@@ -1695,13 +1705,13 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "On air light",
     image: {
       src: "/changelog/on-air-light/01-on-air-popover.webp",
-      alt: "The grey Off air light in the header opened to a card saying nobody is at the table, with a button to start a Pop-Up Prickle on Zoom, the meeting ID and the passcode.",
+      alt: "The red On air light in the header with 5 Hedgies at the table, opened to a card with the running prickle, its host, who is in the room, a Join on Zoom button, the meeting ID and the passcode.",
     },
     summary:
       "A light in the header shows when the prickle room has people in it and how to join.",
     body: [
       "When people are at the table, a red On air light blinks beside the bell with a count. Click it to see the prickle and its host, who is in the room, and the Zoom link with meeting ID and passcode. When the room is empty the light is grey, and the same link is offered as a way to start a pop-up prickle.",
-      "![The grey Off air light opened to a card with a button to start a Pop-Up Prickle on Zoom](/changelog/on-air-light/01-on-air-popover.webp)",
+      "![The red On air light with 5 Hedgies at the table, opened to the prickle, who is in the room and the Zoom link](/changelog/on-air-light/01-on-air-popover.webp)",
     ].join("\n\n"),
   },
   {
@@ -2272,11 +2282,16 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "improved",
     title: "Check in or out at any time during a prickle",
+    image: {
+      src: "/changelog/check-in-and-check-out/01-running-prickle-check-out.webp",
+      alt: "The Upcoming list in My Prickles with the running Progress Prickle showing both a Check in and a Check out button beside it.",
+    },
     summary:
       "You can check in until a prickle ends, and the running prickle in your list now has a Check out button. You get a check-out message a few minutes before the end, and you do not need a writing goal to use either.",
     body: [
       "Check-in now stays open until the prickle ends, and it is offered if you are in the prickle's Zoom room even without a commitment or a calendar item. The check-out message comes 5 to 10 minutes before a prickle ends, so you can check out before you leave for your next thing.",
       "You no longer need a writing goal to be asked to check in or check out. Without a goal you get the usual questions, plus a short tip about setting one.",
+      "![A running prickle in the Upcoming list with Check in and Check out buttons](/changelog/check-in-and-check-out/01-running-prickle-check-out.webp)",
     ].join("\n\n"),
   },
   {
@@ -2408,6 +2423,18 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "The weekly digest is the `changelog_digest` notification kind, sent by `/api/internal/changelog-digest` from Vercel Cron (Tuesdays 14:00 UTC) behind the `changelog_digest` feature flag, so it starts in dry run. Each member gets the entries from the last 30 days they have not had, as one message on the channels they chose, and nothing dated before `changelogDigestStartsOn` in `app.config.ts` is ever sent.",
       "`notification_log` is one log of what the app sent, for every kind: a row per recipient (a member, or a shared place such as a Slack channel), kind and dedup key. A send is claimed before it is made and released when nothing was delivered, so a retry or an overlapping run never sends twice. `NotificationLogRepository` has an in-memory twin and one contract suite run against both.",
       "Screenshots are taken from the demo scenes: `pnpm changelog:capture <slug>` runs an `@changelog` scene and writes small WebP files into `public/changelog/<slug>/`.",
+    ].join("\n\n"),
+  },
+  {
+    slug: "members-search-alternate-names",
+    date: "2026-11-06",
+    audience: "product",
+    category: "improved",
+    title: "The Members page finds the names people go by",
+    summary:
+      "Search on the Members page now also finds a member by a nickname or pen name, and says so with a line under their name.",
+    body: [
+      "Type a nickname or pen name in the Members search and the member shows up, with a small line under their name that says also known as and the name you typed. It uses the same names as the search in the top bar, so the two always agree about who a name belongs to.",
     ].join("\n\n"),
   },
 ];

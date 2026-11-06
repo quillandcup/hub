@@ -112,6 +112,15 @@ describe("member directory page", () => {
     expect(notesQuery?.calls).toContainEqual({ method: "eq", args: ["author_member_id", MEMBER_IDENTITY.memberId] });
   });
 
+  it("finds a member by an alternate name and says so on the card", async () => {
+    useFakeSupabase(tables({ "rpc:member_directory_aliases": { data: [{ member_id: "m-pat", alias: "Patty Q." }] } }));
+    await renderServerPage(MemberDirectoryPage, props("patty"));
+
+    const item = screen.getByRole("listitem");
+    expect(within(item).getByRole("link", { name: "Pat Quill" })).toBeInTheDocument();
+    expect(within(item).getByText("also known as “Patty Q.”")).toBeInTheDocument();
+  });
+
   it("doesn't load notes in sudo mode", async () => {
     signInAs(ADMIN_USER, { ...MEMBER_IDENTITY, isSudo: true });
     const supabase = useFakeSupabase(tables());

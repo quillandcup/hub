@@ -22,6 +22,7 @@ import { loadDemoEnv } from "./env";
 import { ATTENDANCE_RATE, DEMO_JOIN, DEMO_PASSWORD, FILLER_MEMBERS, PERSONAS, demoEvents } from "./personas";
 import { DEMO_TOPIC_PREFIX, attendanceRows } from "./attendance";
 import { eventCalendarRows, seedEventDetails, seedEventsFlag, seedKajabiContact, withFormattedDescription } from "./rest-seed";
+import { addLivePrickleToCalendar, liveCalendarEvent, seedLiveRoom, withLapsedStreak } from "./live-seed";
 import { seedChat } from "./chat-seed";
 import { seedCourses } from "./courses-seed";
 import { seedAliases, seedBooks, seedGuestSpeaker, seedNewcomerTour, seedProfileLinks, seedWritingGoals } from "./member-content-seed";
@@ -183,6 +184,8 @@ export async function seed(now: Date = new Date()) {
       raw_data: { demo: true },
     };
   });
+  // The prickle running right now (see live-seed.ts): changes on every run, so it stays out of the weekly pattern.
+  events.push(liveCalendarEvent(now));
   // The weekly prickles (one with a formatted description) and the invented Events items, which get no attendance.
   const eventItems = eventCalendarRows(now, orgDate);
   const weeklyRows = withFormattedDescription(events.map((e) => ({ ...e, description: null as string | null })), now);
@@ -222,7 +225,9 @@ export async function seed(now: Date = new Date()) {
   const zoom = admin.schema("bronze").from("zoom_attendees");
   const { error: clearError } = await zoom.delete().like("topic", `${DEMO_TOPIC_PREFIX}%`);
   if (clearError) throw new Error(`zoom_attendees clear: ${clearError.message}`);
-  const rows = attendanceRows(slots, people, now, DEMO_JOIN.meetingId.replace(/\s/g, ""));
+  const demoMember = PERSONAS.find((p) => p.key === "member");
+  const generated = attendanceRows(slots, people, now, DEMO_JOIN.meetingId.replace(/\s/g, ""));
+  const rows = demoMember ? withLapsedStreak(generated, slots, demoMember, now) : generated;
   for (let i = 0; i < rows.length; i += 500) {
     const { error } = await admin.schema("bronze").from("zoom_attendees").insert(rows.slice(i, i + 500));
     if (error) throw new Error(`zoom_attendees: ${error.message}`);
@@ -233,6 +238,9 @@ export async function seed(now: Date = new Date()) {
     body: JSON.stringify({ fromDate: orgDate(-30, now), toDate: orgDate(1, now) }),
   });
   if (!attendance.ok) throw new Error(`/api/process/attendance ${attendance.status}: ${await attendance.text()}`);
+  // Live states: the room is lit, and the running prickle is on the demo member's calendar so check-in is offered.
+  await seedLiveRoom(admin, now);
+  if (memberId) await addLivePrickleToCalendar(admin, memberId);
   console.log(`Attendance: ${rows.length} Zoom rows processed`, await attendance.json());
 }
 

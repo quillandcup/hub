@@ -20,6 +20,10 @@ afterAll(clear);
 
 defineMemberDirectoryContract("SupabaseMemberDirectoryRepository", () => ({
   repo: () => new SupabaseMemberDirectoryRepository(db),
+  addAlias: async (memberId, alias, active) => {
+    const { error } = await db.from("member_name_aliases").insert({ member_id: memberId, alias, source: "zoom", active });
+    if (error) throw new Error(error.message);
+  },
   unique: (label) => `${label} ${RUN} ${++counter}`,
   seed: async (people) => {
     await clear();

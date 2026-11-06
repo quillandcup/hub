@@ -7071,6 +7071,13 @@ export type Database = {
           why: string
         }[]
       }
+      member_directory_aliases: {
+        Args: never
+        Returns: {
+          alias: string
+          member_id: string
+        }[]
+      }
       member_interaction_pairs: {
         Args: { p_include_private: boolean; p_since: string }
         Returns: {

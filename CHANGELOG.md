@@ -4,6 +4,10 @@
 
 What's new and fixed in the Hedgie Hub, newest first.
 
+## 2026-11-06 · Improved: The Members page finds the names people go by
+
+Search on the Members page now also finds a member by a nickname or pen name, and says so with a line under their name.
+
 ## 2026-11-04 · Engineering · New: Changelog system, weekly digest and one notification log
 
 Changelog entries live in one typed file that feeds the What's new pages, CHANGELOG.md, the weekly digest and the announcements post.
