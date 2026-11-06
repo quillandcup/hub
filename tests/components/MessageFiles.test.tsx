@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { deleteChatFile } = vi.hoisted(() => ({ deleteChatFile: vi.fn() }));
 vi.mock("@/app/(member)/chat/actions", () => ({ deleteChatFile }));
-import MessageFiles from "@/components/chat/MessageFiles";
+import MessageFiles, { IMAGE_RETRY_DELAYS_MS } from "@/components/chat/MessageFiles";
 import { chatFileUrl, formatFileSize, parseChatFiles } from "@/lib/chat/files";
 
 describe("MessageFiles", () => {
@@ -27,6 +27,43 @@ describe("MessageFiles", () => {
     // SVG can carry script, so it is a download, not an <img> on our pages.
     expect(screen.queryByRole("img", { name: "logo.svg" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /logo\.svg/ })).toBeInTheDocument();
+  });
+
+  describe("a picture that fails to load (Slack hasn't got a file it was just sent)", () => {
+    beforeEach(() => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] }));
+    afterEach(() => vi.useRealTimers());
+    const picture = () => render(<MessageFiles messageId="m1" files={parseChatFiles([{ id: "F1", name: "shot.png", mimetype: "image/png" }])} />);
+
+    it("is asked for again after each wait, at a new address, and given up on after the last", () => {
+      picture();
+      const img = () => screen.getByRole("img", { name: "shot.png" });
+      expect(img()).toHaveAttribute("src", chatFileUrl("m1", "F1"));
+
+      IMAGE_RETRY_DELAYS_MS.forEach((wait, i) => {
+        act(() => void fireEvent.error(img()));
+        // Not yet: it waits first.
+        expect(img()).toHaveAttribute("src", i === 0 ? chatFileUrl("m1", "F1") : `${chatFileUrl("m1", "F1")}?retry=${i}`);
+        act(() => void vi.advanceTimersByTime(wait));
+        expect(img()).toHaveAttribute("src", `${chatFileUrl("m1", "F1")}?retry=${i + 1}`);
+      });
+
+      // After the last wait it stays as it is: nothing is scheduled.
+      act(() => void fireEvent.error(img()));
+      expect(vi.getTimerCount()).toBe(0);
+      expect(img()).toHaveAttribute("src", `${chatFileUrl("m1", "F1")}?retry=${IMAGE_RETRY_DELAYS_MS.length}`);
+    });
+
+    it("stops asking when the message goes away, and doesn't ask for a picture that loaded", () => {
+      const { unmount } = picture();
+      act(() => void fireEvent.error(screen.getByRole("img", { name: "shot.png" })));
+      expect(vi.getTimerCount()).toBe(1);
+      unmount();
+      expect(vi.getTimerCount()).toBe(0);
+
+      picture();
+      act(() => void vi.advanceTimersByTime(60_000));
+      expect(screen.getByRole("img", { name: "shot.png" })).toHaveAttribute("src", chatFileUrl("m1", "F1"));
+    });
   });
 
   it("renders nothing without files", () => {

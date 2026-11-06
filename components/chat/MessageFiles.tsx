@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { deleteChatFile } from "@/app/(member)/chat/actions";
 import { track } from "@/lib/analytics/client";
 import { useAnimationsOff } from "@/components/AnimationsController";
@@ -8,6 +8,13 @@ import ImageLightbox from "@/components/ImageLightbox";
 import { chatFileUrl, chatZipUrl, formatFileSize, isInlineImage, type ChatFile } from "@/lib/chat/files";
 
 const iconBtn = "inline-flex h-6 w-6 items-center justify-center rounded text-sm text-white hover:bg-white/20";
+
+/**
+ * A picture that fails to load is asked for again after each of these waits (then given up on). A file just sent to Slack is not
+ * there for a couple of seconds: Slack answers "not found" for it, and our copy is made when its own event arrives, so the
+ * message's first request for the image fails and would otherwise stay broken until the page is reloaded.
+ */
+export const IMAGE_RETRY_DELAYS_MS = [1500, 3000, 6000, 12000];
 
 function triggerDownload(href: string, name: string | null) {
   const a = document.createElement("a");
@@ -33,6 +40,20 @@ function ImageTile({
 }) {
   const [menu, setMenu] = useState(false);
   const [playing, setPlaying] = useState(false);
+  // How many times the picture has been asked for again after failing to load.
+  const [retries, setRetries] = useState(0);
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (retryTimer.current) clearTimeout(retryTimer.current);
+    },
+    []
+  );
+  const onImageError = () => {
+    const wait = IMAGE_RETRY_DELAYS_MS[retries];
+    if (wait === undefined) return;
+    retryTimer.current = setTimeout(() => setRetries((n) => n + 1), wait);
+  };
   const animationsOff = useAnimationsOff();
   const moves = /gif|webp/i.test(file.mimetype ?? "");
   const stills = animationsOff && moves;
@@ -72,7 +93,9 @@ function ImageTile({
         {/* suppressHydrationWarning: with animations off, AnimationsController may swap src for a still before React hydrates this image */}
         <img
           suppressHydrationWarning
-          src={url}
+          // A new address each time, so the browser asks again instead of reusing the failed answer.
+          src={retries === 0 ? url : `${url}?retry=${retries}`}
+          onError={onImageError}
           alt={file.name ?? "Image"}
           width={file.width ?? undefined}
           height={file.height ?? undefined}
