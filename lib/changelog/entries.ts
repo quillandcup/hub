@@ -1142,10 +1142,14 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "new",
     title: "A dashboard that shows what is coming up",
+    image: {
+      src: "/changelog/hub-welcome-dashboard/01-dashboard.webp",
+      alt: "The dashboard with a welcome, a Continue watching card, a How did it go? card and the first upcoming prickles.",
+    },
     summary:
       "Open the Hub and see the prickles coming up in your next seven days, plus the writing goals you have starred.",
     body:
-      "Your dashboard greets you by name and lists the next few prickles, with a link to find more when the week is empty. Star a writing goal on its project page and it shows here too, so your progress is one glance away.\n\nTimes are shown in your own time zone.\n\n[Open your dashboard](/dashboard)",
+      "Your dashboard greets you by name and lists the next few prickles, with a link to find more when the week is empty. Star a writing goal on its project page and it shows here too, so your progress is one glance away.\n\nTimes are shown in your own time zone.\n\n[Open your dashboard](/dashboard)\n\n![The dashboard with a welcome, a Continue watching card, a How did it go? card and the first upcoming prickles.](/changelog/hub-welcome-dashboard/01-dashboard.webp)",
   },
   {
     slug: "browse-and-find-prickles",
@@ -1153,10 +1157,14 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "new",
     title: "Browse every prickle, or let the Hub help you find one",
+    image: {
+      src: "/changelog/browse-and-find-prickles/01-all-prickles.webp",
+      alt: "The All Prickles tab listing the weekly schedule by day with kind, host and typical turnout.",
+    },
     summary:
       "My Prickles has tabs for what is coming up, every prickle on the schedule, and a short guide that helps you pick a prickle that suits you.",
     body:
-      "In [My Prickles](/my-prickles) you can:\n\n- see the prickles coming up\n- browse All Prickles on the schedule, as a calendar or a table\n- use Find a Prickle to answer a few questions and get a suggestion\n- open any prickle to see what it is and who hosts it",
+      "In [My Prickles](/my-prickles) you can:\n\n- see the prickles coming up\n- browse All Prickles on the schedule, as a calendar or a table\n- use Find a Prickle to answer a few questions and get a suggestion\n- open any prickle to see what it is and who hosts it\n\n![The All Prickles tab listing the weekly schedule by day with kind, host and typical turnout.](/changelog/browse-and-find-prickles/01-all-prickles.webp)",
   },
   {
     slug: "attendance-history",
@@ -1164,10 +1172,14 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "new",
     title: "Your attendance history",
+    image: {
+      src: "/changelog/attendance-history/01-attendance-month.webp",
+      alt: "My Attendance in the month view, with the prickles attended shown on their days.",
+    },
     summary:
       "Look back at the prickles you have attended, month by month on a calendar or as a list you can sort.",
     body:
-      "The Attendance History tab in [My Prickles](/my-prickles/history) shows each prickle you joined, with its date and time. Switch between a month calendar and a list, and open any prickle for details.",
+      "The Attendance History tab in [My Prickles](/my-prickles/history) shows each prickle you joined, with its date and time. Switch between a month calendar and a list, and open any prickle for details.\n\n![My Attendance in the month view, with the prickles attended shown on their days.](/changelog/attendance-history/01-attendance-month.webp)",
   },
   {
     slug: "streaks-page",
@@ -1175,10 +1187,14 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "new",
     title: "Streaks: celebrate showing up week after week",
+    image: {
+      src: "/changelog/streaks-page/01-streaks.webp",
+      alt: "The Streaks page with an attendance streak, prickle streaks and streaks with other members.",
+    },
     summary:
       "See how many weeks in a row you have joined a prickle, your best run so far, and the streaks you keep with a particular prickle or with another Hedgie.",
     body:
-      "[Streaks](/streaks) shows three things:\n\n- your attendance streak, current and best, counted in weeks\n- Prickle Streaks, for attending the same prickle week after week\n- Sister Streaks, for showing up alongside the same Hedgie\n\nMiss a week and the streak starts again, so the page nudges you when it is time to begin a new one.",
+      "[Streaks](/streaks) shows three things:\n\n- your attendance streak, current and best, counted in weeks\n- Prickle Streaks, for attending the same prickle week after week\n- Sister Streaks, for showing up alongside the same Hedgie\n\nMiss a week and the streak starts again, so the page nudges you when it is time to begin a new one.\n\n![The Streaks page with an attendance streak, prickle streaks and streaks with other members.](/changelog/streaks-page/01-streaks.webp)",
   },
   {
     slug: "hosting-prickles",
@@ -1186,10 +1202,14 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "new",
     title: "Host prickles and plan your hosting month",
+    image: {
+      src: "/changelog/hosting-prickles/01-hosting.webp",
+      alt: "The Hosting tab with hosting stats and a Request to host button.",
+    },
     summary:
       "If you host prickles, a Hosting tab lets you plan which weekly prickle times you take and see how your hosting is going.",
     body:
-      "Hosts get a Hosting tab in [My Prickles](/my-prickles/hosting) with their schedule for the month and their hosting numbers. Hosts can also add a short note about the feel of their prickles in Settings, and a Hedgie's profile shows the prickles they host.",
+      "Hosts get a Hosting tab in [My Prickles](/my-prickles/hosting) with their schedule for the month and their hosting numbers. Hosts can also add a short note about the feel of their prickles in Settings, and a Hedgie's profile shows the prickles they host.\n\n![The Hosting tab with hosting stats and a Request to host button.](/changelog/hosting-prickles/01-hosting.webp)",
   },
   {
     slug: "my-writing-projects",
@@ -1197,10 +1217,14 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "new",
     title: "My Writing: projects, goals and progress",
+    image: {
+      src: "/changelog/my-writing-projects/01-projects.webp",
+      alt: "My Writing with project cards showing word counts and goal progress bars.",
+    },
     summary:
       "Keep your projects in one place, set goals, log how much you wrote, and watch your progress on charts.",
     body:
-      "In [My Writing](/projects) you can:\n\n- add a project and set goals for it\n- log your progress, by day, with a note\n- see charts of how the project is going\n- star a goal to show it on your dashboard\n- bring in progress you have been tracking in TrackBear\n\nEverything on this page is what you enter yourself.",
+      "In [My Writing](/projects) you can:\n\n- add a project and set goals for it\n- log your progress, by day, with a note\n- see charts of how the project is going\n- star a goal to show it on your dashboard\n- bring in progress you have been tracking in TrackBear\n\nEverything on this page is what you enter yourself.\n\n![My Writing with project cards showing word counts and goal progress bars.](/changelog/my-writing-projects/01-projects.webp)",
   },
   {
     slug: "books-and-awards",
@@ -1219,10 +1243,14 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "new",
     title: "Wheel of Wonder: meet a Hedgie who is here right now",
+    image: {
+      src: "/changelog/wheel-of-wonder/01-wheel-of-wonder.webp",
+      alt: "The Wheel of Wonder with its empty wheel and a Spin the Wheel button.",
+    },
     summary:
       "Give the wheel a spin and it picks a Hedgie who is online right now, leaning toward people who could use a new connection.",
     body:
-      "Spin the [Wheel of Wonder](/wheel-of-wonder) when you would like some company. It shows who it picked and a conversation starter, and the page keeps a running count of the new connections the community has made.",
+      "Spin the [Wheel of Wonder](/wheel-of-wonder) when you would like some company. It shows who it picked and a conversation starter, and the page keeps a running count of the new connections the community has made.\n\n![The Wheel of Wonder with its empty wheel and a Spin the Wheel button.](/changelog/wheel-of-wonder/01-wheel-of-wonder.webp)",
   },
   {
     slug: "settings-and-profile",
@@ -1230,10 +1258,14 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "new",
     title: "Settings: your profile, names, time zone and look",
+    image: {
+      src: "/changelog/settings-and-profile/01-identity.webp",
+      alt: "Settings, Identity with the Real Name, Display Name and pen names fields.",
+    },
     summary:
       "Make your profile yours, choose a light or dark look, set your time zone and manage where you are signed in.",
     body:
-      "[Settings](/settings) has these tabs:\n\n- Account, with your email and the places you are signed in, and a button to sign out of the others\n- Profile, with your bio and links to Instagram, Facebook and X\n- Identity, with your name, birthday and the other names you are known by\n- Preferences, with a light, dark or automatic look and your time zone",
+      "[Settings](/settings) has these tabs:\n\n- Account, with your email and the places you are signed in, and a button to sign out of the others\n- Profile, with your bio and links to Instagram, Facebook and X\n- Identity, with your name, birthday and the other names you are known by\n- Preferences, with a light, dark or automatic look and your time zone\n\n![Settings, Identity with the Real Name, Display Name and pen names fields.](/changelog/settings-and-profile/01-identity.webp)",
   },
   {
     slug: "personal-calendar-feed-and-commitments",
