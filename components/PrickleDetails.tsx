@@ -14,7 +14,7 @@ import type { PrickleRoster, RosterReason } from "@/lib/prickle-roster";
 import type { PrickleDetail } from "@/lib/domain/prickle";
 import { REASON_ICON } from "@/components/ReasonBadges";
 import PrickleDescription from "@/components/PrickleDescription";
-import { stripEventTag } from "@/lib/calendar-events";
+import { stripEventTag } from "@/lib/event-tag";
 import PrickleEditForm, { type PrickleEditConfig } from "@/components/PrickleEditForm";
 
 /** The same icons the prickle lists use (ReasonBadges), here worded for what another member did. */

@@ -3,42 +3,19 @@ import type { Database } from "@/lib/data/database.types";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { prickleEventKind } from "@/lib/events-filter";
 import { createRepos } from "@/lib/data/repos";
+import { stripEventTag } from "@/lib/event-tag";
 import { normalizePrickleType, parsePrickleFromSummary, plainTextDescription, typeIdByAlias } from "@/lib/prickle-types";
+
+export { hasEventTag, stripEventTag } from "@/lib/event-tag";
 
 // An event stands on exactly one prickle (events.prickle_id); a calendar item shown in Events is the
 // prickle made from it. Nothing is copied onto the event: title, description, location and times are
 // read from the prickle, and an admin's edits live on the prickle (and in unmatched_calendar_events,
 // which the calendar process applies on every run).
 
-/** The tag that, in a Google Calendar event's description, shows the event in Events: "#event". */
-const EVENT_TAG = /(^|[\s>(])#event\b/gi;
-
-/** Whether the description carries the #event tag. "#events" and "#eventful" don't count. */
-export function hasEventTag(description: string | null | undefined): boolean {
-  if (!description) return false;
-  EVENT_TAG.lastIndex = 0;
-  return EVENT_TAG.test(description);
-}
-
 /** A calendar description (Google's HTML or plain text) as markdown with the #event tag taken out (it is an instruction, not something to show). */
 export function descriptionWithoutEventTag(description: string | null | undefined): string | null {
   return stripEventTag(plainTextDescription(description));
-}
-
-/**
- * Markdown that is already converted (a prickle's description) with the #event tag taken out. It must not go
- * through the HTML conversion again: that would escape the markdown (`\*with\*`, `\[link\]`).
- */
-export function stripEventTag(markdown: string | null | undefined): string | null {
-  const plain = markdown?.trim();
-  if (!plain) return null;
-  const cleaned = plain
-    .replace(EVENT_TAG, "$1")
-    .replace(/[ \t]{2,}/g, " ")
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-  return cleaned || null;
 }
 
 /** The Bronze calendar event columns an event's prickle is made from. */
