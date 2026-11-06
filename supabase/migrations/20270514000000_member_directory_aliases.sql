@@ -1,6 +1,8 @@
 -- The Members page filters in the browser, so it needs every active alias of a directory member, not the ones
 -- containing a typed term (search_member_aliases). Same rule as that function: active aliases of members in the
 -- directory, signed-in users only; members can't read each other's aliases directly (RLS), so this runs as owner.
+set lock_timeout = '5s';
+
 CREATE OR REPLACE FUNCTION public.member_directory_aliases()
 RETURNS TABLE (member_id text, alias text)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ''
