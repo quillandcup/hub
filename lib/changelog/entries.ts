@@ -935,6 +935,10 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "improved",
     title: "Link your writing progress to the prickle you wrote in",
+    image: {
+      src: "/changelog/link-writing-to-prickles/01-log-progress.webp",
+      alt: "The Log Progress window with a During which prickle? picker beneath the project, measure and date.",
+    },
     summary:
       "When you log progress you can say which prickle it was during, and your dashboard reminds you about writing prickles you have not logged.",
     body: [
@@ -942,6 +946,8 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "- A prickle page shows Your writing in this prickle, and project pages show which prickle an entry was written during.",
       "- If you have a writing project, your dashboard has a What did you write? card listing recent prickles with nothing logged. Log from it, or use the x to dismiss one you would rather skip.",
       "- Fixed: an evening prickle no longer defaults the entry to the next day.",
+      "",
+      "![The Log Progress window with a During which prickle? picker beneath the project, measure and date.](/changelog/link-writing-to-prickles/01-log-progress.webp)",
     ].join("\n"),
   },
   {
