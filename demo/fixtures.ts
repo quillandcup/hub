@@ -83,7 +83,7 @@ export async function shot(page: Page, testInfo: TestInfo, name: string, options
   // changes attributes the server rendered, and the console then logs "a tree hydrated but some attributes of the server
   // rendered HTML didn't match": a false alarm the harness caused (it looked like an app bug on /members for days). Let the
   // page settle first. Best effort and capped: member pages poll, so the network may never go fully quiet.
-  await page.waitForLoadState("networkidle", { timeout: 4000 }).catch(() => {});
+  await page.waitForLoadState("networkidle", { timeout: 2000 }).catch(() => {});
   const n = (counters.get(testInfo) ?? 0) + 1;
   counters.set(testInfo, n);
   const scene = path.basename(testInfo.file).replace(/\.spec\.ts$/, "");
