@@ -7,7 +7,7 @@ import MemberAvatar from "@/app/(member)/members/[id]/MemberAvatar";
 import { suggestCustomEmoji, suggestMentions, type MentionSuggestion } from "@/app/(member)/chat/mention-actions";
 import { Emoji } from "@/components/chat/ChatText";
 import FormatToolbar from "@/components/chat/FormatToolbar";
-import { messageBoxExtensions } from "@/components/chat/message-box-extensions";
+import { messageBoxExtensions, undoConversionKey, type Conversion } from "@/components/chat/message-box-extensions";
 import { track } from "@/lib/analytics/client";
 import type { CustomEmoji } from "@/lib/chat/emoji";
 import { readTone } from "@/lib/chat/skin-tone";
@@ -220,12 +220,18 @@ export default function MessageBox({
       // The emoticon starts where the two texts first differ; what follows is the emoji and the character just typed.
       let index = 0;
       while (prefix[index] === converted.value[index]) index++;
-      view.dispatch(view.state.tr.insertText(converted.value.slice(index), $from.start() + index, to));
+      const start = $from.start() + index;
+      const insert = converted.value.slice(index);
+      // Remembered, so Ctrl/Cmd+Z puts back what was typed (the emoticon and the character after it) and nothing more.
+      const conversion: Conversion = { kind: "text", from: start, to: start + insert.length, original: prefix.slice(index) };
+      view.dispatch(view.state.tr.insertText(insert, start, to).setMeta(undoConversionKey, conversion));
       return true;
     }
     const smart = smartReplacement(before, text);
     if (!smart) return false;
-    view.dispatch(view.state.tr.insertText(smart.insert, from - smart.remove, to));
+    const start = from - smart.remove;
+    const conversion: Conversion = { kind: "text", from: start, to: start + smart.insert.length, original: `${before.slice(before.length - smart.remove)}${text}` };
+    view.dispatch(view.state.tr.insertText(smart.insert, start, to).setMeta(undoConversionKey, conversion));
     return true;
   };
 

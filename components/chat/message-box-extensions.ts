@@ -1,6 +1,7 @@
 import { Extension, Node, markInputRule, type Extensions } from "@tiptap/react";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { AddMarkStep } from "@tiptap/pm/transform";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { MAX_LIST_INDENT } from "@/lib/chat/render";
 import StarterKit from "@tiptap/starter-kit";
@@ -95,6 +96,61 @@ const listDepth = (node: PMNode): number => {
   return deepest + (LISTS.has(node.type.name) ? 1 : 0);
 };
 
+/** What the box changed on its own just now, which Ctrl/Cmd+Z takes back (and only that): see `UndoConversion`. */
+export type Conversion =
+  // Typing turned `original` into what is now between `from` and `to` (a curly quote, an em-dash, an emoji).
+  | { kind: "text"; from: number; to: number; original: string }
+  // Typing a space after an address made the text between `from` and `to` a link.
+  | { kind: "link"; from: number; to: number };
+
+/** Dispatch a transaction with this meta set to a `Conversion` to make it the one Ctrl/Cmd+Z undoes next. */
+export const undoConversionKey = new PluginKey<Conversion | null>("undoConversion");
+
+/**
+ * Ctrl/Cmd+Z right after the box converted something as you typed (`--` to an em-dash, a quote to a curly one, `:)` to its emoji, an
+ * address to a link) takes back only that: the text goes back to what was typed, or the link comes off the word and the word stays.
+ * The editor's own undo would take back everything typed in the same half second, because it groups quick typing. Once anything
+ * else is typed, or the caret moves, it is the editor's own undo again.
+ */
+const UndoConversion = Extension.create({
+  name: "undoConversion",
+  // Before the editor's own undo, which also listens for this key.
+  priority: 1000,
+  addProseMirrorPlugins() {
+    return [
+      new Plugin<Conversion | null>({
+        key: undoConversionKey,
+        state: {
+          init: () => null,
+          apply(tr, value) {
+            const set = tr.getMeta(undoConversionKey) as Conversion | null | undefined;
+            if (set !== undefined) return set;
+            // The editor adds a link mark to an address by appending a transaction to the one that typed the space after it.
+            if (tr.getMeta("appendedTransaction")) {
+              const link = tr.steps.filter((step): step is AddMarkStep => step instanceof AddMarkStep && step.mark.type.name === "link").pop();
+              return link ? { kind: "link", from: link.from, to: link.to } : value;
+            }
+            return tr.docChanged || tr.selectionSet ? null : value;
+          },
+        },
+        props: {
+          handleKeyDown(view, event) {
+            if (event.key.toLowerCase() !== "z" || event.shiftKey || event.altKey || !(event.metaKey || event.ctrlKey)) return false;
+            const conversion = undoConversionKey.getState(view.state);
+            if (!conversion) return false;
+            const { tr, schema } = view.state;
+            if (conversion.kind === "text") tr.insertText(conversion.original, conversion.from, conversion.to);
+            else tr.removeMark(conversion.from, conversion.to, schema.marks.link);
+            view.dispatch(tr.setMeta(undoConversionKey, null));
+            event.preventDefault();
+            return true;
+          },
+        },
+      }),
+    ];
+  },
+});
+
 /**
  * A deliberate difference from Slack: our lists are nested (an item's deeper items belong to it), where Slack's are flat (every
  * item has its own indent, and changing one never moves another). So when you back an item out with Backspace, or lift it, the
@@ -150,6 +206,7 @@ export function messageBoxExtensions(maxLength?: number): Extensions {
     SlackMarkdownRules,
     SlackShortcuts,
     ListDepth,
+    UndoConversion,
     ...(maxLength === undefined ? [] : [maxLengthExtension(maxLength)]),
   ];
 }
