@@ -176,6 +176,32 @@ export function defineAliasContract(name: string, setup: () => AliasContractCont
       expect((await ctx.repo().emailsOf(a))[0].active).toBe(false);
     });
 
+    it("verifies an email alias only for the address it still has, finds it by id, and rate limits the verification email", async () => {
+      const [a, b] = ctx.memberIds;
+      const address = `${ctx.unique("verify").replace(/\s+/g, "-").toLowerCase()}@example.test`;
+      await ctx.seed({});
+      expect(await ctx.repo().addEmail(a, address, "manual")).toBe(true);
+      const [alias] = await ctx.repo().emailsOf(a);
+      expect(alias.verifiedAt).toBeNull();
+      expect(await ctx.repo().emailById(alias.id)).toEqual({ id: alias.id, memberId: a, aliasEmail: address, active: true, verifiedAt: null, verificationSentAt: null });
+      expect(await ctx.repo().emailById("00000000-0000-4000-8000-000000000000")).toBeNull();
+
+      expect(await ctx.repo().claimVerificationSend(alias.id, 60_000)).toBe(true);
+      expect(await ctx.repo().claimVerificationSend(alias.id, 60_000)).toBe(false);
+      expect(await ctx.repo().claimVerificationSend(alias.id, -60_000)).toBe(true);
+      expect((await ctx.repo().emailById(alias.id))!.verificationSentAt).not.toBeNull();
+
+      expect(await ctx.repo().markEmailVerified(alias.id, `other-${address}`)).toBe(false);
+      expect((await ctx.repo().emailById(alias.id))!.verifiedAt).toBeNull();
+      expect(await ctx.repo().markEmailVerified(alias.id, address)).toBe(true);
+      expect((await ctx.repo().emailsOf(a))[0].verifiedAt).not.toBeNull();
+      expect((await ctx.repo().emailsOf(b))).toEqual([]);
+
+      const swapped = `swapped-${address}`;
+      await ctx.repo().upsertEmail(a, swapped, "manual", true, true);
+      expect((await ctx.repo().emailsOf(a)).find((e) => e.alias_email === swapped)!.verifiedAt).not.toBeNull();
+    });
+
     it("finds the member behind the one active email alias with an address, whatever its case", async () => {
       const [a] = ctx.memberIds;
       const email = (label: string) => `${ctx.unique(label).replace(/\s+/g, "-").toLowerCase()}@example.test`;

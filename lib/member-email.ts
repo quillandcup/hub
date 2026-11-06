@@ -11,9 +11,6 @@ export function normalizeEmail(input: string): string | null {
   return EMAIL_RE.test(normalized) ? normalized : null;
 }
 
-/** The `app_metadata` key that remembers a member-requested change until its confirmation link is clicked. */
-export const PENDING_EMAIL_KEY = "pending_member_email";
-
 export type EmailOwner = { memberId: string; as: "email" | "alias" };
 
 /**
@@ -129,51 +126,12 @@ export async function changePrimaryEmail({
     }
     // The new address may have been an alias of this member; it's the email now.
     await repos.aliases.removeEmailOf(member.id, address);
-    await repos.aliases.upsertEmail(member.id, previous, "manual", true);
+    // The address they had was their primary email, so it counts as confirmed (service role: the database ignores `verified` from a session).
+    await serviceRepos.aliases.upsertEmail(member.id, previous, "manual", true, true);
   } catch (err) {
     await restoreAccount();
     return { ok: false, status: 500, error: (err as Error).message };
   }
 
   return { ok: true, changed: true };
-}
-
-/**
- * Finishes a member-requested change once they have confirmed the new address: the sign-in account
- * has it, so move the member, Kajabi and the aliases to match. Only acts on a change the member asked
- * for (`PENDING_EMAIL_KEY`), never on any difference between the account and the member, since a
- * Kajabi reprocess legitimately changes `members.email` without touching the account. Safe to call on
- * every sign-in and settings load; returns the new address when it moved the member, else null.
- */
-export async function applyConfirmedEmailChange(service: Db, userId: string): Promise<string | null> {
-  const repos = createRepos(service);
-  const account = await repos.authUsers.byId(userId);
-  const pending = account?.appMetadata[PENDING_EMAIL_KEY];
-  if (!account || typeof pending !== "string" || account.email !== pending) return null;
-
-  const member = await repos.members.byUserId(userId);
-  if (!member) {
-    await repos.authUsers.mergeAppMetadata(userId, { [PENDING_EMAIL_KEY]: null });
-    return null;
-  }
-
-  const result = await changePrimaryEmail({
-    repos,
-    service,
-    member: { id: member.id, email: member.email, kajabiId: member.kajabiId, userId },
-    address: pending,
-  });
-  if (result.ok) {
-    await repos.authUsers.mergeAppMetadata(userId, { [PENDING_EMAIL_KEY]: null });
-    return result.changed ? pending : null;
-  }
-
-  console.error(`[member-email] Couldn't apply a confirmed email change (${result.status}): ${result.error}`);
-  if (result.status === 409) {
-    // Someone else took the address while the link was open: sign-in goes back to the member's email.
-    await repos.authUsers.setEmail(userId, member.email);
-    await repos.authUsers.mergeAppMetadata(userId, { [PENDING_EMAIL_KEY]: null });
-  }
-  // Otherwise (Kajabi down) the marker stays and the next sign-in or settings load tries again.
-  return null;
 }

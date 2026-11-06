@@ -5,6 +5,9 @@ vi.mock("@/lib/auth", () => ({ getCurrentUser: vi.fn() }));
 vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/kajabi/client", () => ({ createKajabiClient: vi.fn() }));
+vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
+const sendVerificationEmail = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/email-verification", () => ({ sendVerificationEmail }));
 
 const afterCallbacks: Array<() => unknown> = [];
 vi.mock("next/server", () => ({
@@ -56,6 +59,7 @@ function makeClient(result: (table: string, op: string) => { data?: unknown; err
 beforeEach(() => {
   vi.clearAllMocks();
   afterCallbacks.length = 0;
+  sendVerificationEmail.mockResolvedValue({ ok: true });
   vi.mocked(getCurrentUser).mockResolvedValue({ id: "user-1", email: "login@example.com" } as any);
   vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY as any);
 });
@@ -65,7 +69,7 @@ describe("addEmailAlias", () => {
     const { client, calls } = makeClient();
     vi.mocked(createClient).mockResolvedValue(client);
 
-    expect(await addEmailAlias("  Old.Me@Example.com ")).toEqual({ success: true });
+    expect(await addEmailAlias("  Old.Me@Example.com ")).toEqual({ success: true, verificationSent: false }); // the fake client finds no row to send a link for
 
     const insert = calls.find((c) => c.table === "member_email_aliases" && c.op === "insert");
     expect(insert?.payload).toEqual({ member_id: "member-1", alias_email: "old.me@example.com", source: "manual" });

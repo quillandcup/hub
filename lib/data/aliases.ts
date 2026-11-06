@@ -1,4 +1,5 @@
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
+import { clock } from "@/lib/clock";
 import { escapeLike } from "./query";
 import type { Db, Insert } from "./db";
 import type { InMemoryDataset } from "./in-memory";
@@ -26,6 +27,16 @@ export interface MemberNameAlias {
   createdAt: string;
 }
 
+/** One email alias by id, with what verification needs to know. */
+export interface EmailAliasDetail {
+  id: string;
+  memberId: string;
+  aliasEmail: string;
+  active: boolean;
+  verifiedAt: string | null;
+  verificationSentAt: string | null;
+}
+
 /** Ids per `.in(...)` write or lookup, so the request URL stays under the length limit. */
 const ID_CHUNK = 100;
 
@@ -44,6 +55,8 @@ export interface MemberEmailAliasEntry {
   source: string;
   active: boolean;
   createdAt: string;
+  /** When the member opened the link we sent to this address, or null. Only a verified alias can become the primary email. */
+  verifiedAt: string | null;
 }
 
 /**
@@ -91,6 +104,15 @@ export interface AliasRepository {
   addEmail(memberId: string, email: string, source: string): Promise<boolean>;
   /** Turns the member's own email alias on or off; false when the id isn't theirs. */
   setEmailActive(memberId: string, id: string, active: boolean): Promise<boolean>;
+  /** One email alias by id, or null. */
+  emailById(id: string): Promise<EmailAliasDetail | null>;
+  /**
+   * Marks the alias verified, provided it still has this address (a changed address needs its own
+   * verification); false when the id or address doesn't match. Server writes only: the database ignores it from a member's session.
+   */
+  markEmailVerified(id: string, address: string): Promise<boolean>;
+  /** Claims the right to send a verification email: true (and notes the time) unless one went out less than `minGapMs` ago. One conditional update, so two clicks send one. */
+  claimVerificationSend(id: string, minGapMs: number): Promise<boolean>;
   /** Deletes the member's alias with this exact address, if they have it. */
   removeEmailOf(memberId: string, address: string): Promise<void>;
 
@@ -114,8 +136,8 @@ export interface AliasRepository {
   removeEmails(ids: string[]): Promise<void>;
   /** Gives the member this name alias, taking it over if another member had it. */
   upsertName(memberId: string, alias: string, source: string): Promise<void>;
-  /** Gives the member this email alias, taking it over if another member had it (the database fills in the canonical email). With `active`, also switches it on or off. */
-  upsertEmail(memberId: string, email: string, source: string, active?: boolean): Promise<void>;
+  /** Gives the member this email alias, taking it over if another member had it (the database fills in the canonical email). With `active`, also switches it on or off; with `verified` (service role only), marks it verified. */
+  upsertEmail(memberId: string, email: string, source: string, active?: boolean, verified?: boolean): Promise<void>;
 }
 
 
@@ -249,12 +271,43 @@ export class SupabaseAliasRepository implements AliasRepository {
   async emailsOf(memberId: string): Promise<MemberEmailAliasEntry[]> {
     const { data, error } = await this.db
       .from("member_email_aliases")
-      .select("id, alias_email, source, active, created_at")
+      .select("id, alias_email, source, active, created_at, verified_at")
       .eq("member_id", memberId)
       .order("created_at", { ascending: false })
       .order("id", { ascending: false });
     if (error) throw new Error(error.message);
-    return (data ?? []).map((r) => ({ id: r.id, alias_email: r.alias_email, source: r.source, active: r.active, createdAt: r.created_at ?? "" }));
+    return (data ?? []).map((r) => ({ id: r.id, alias_email: r.alias_email, source: r.source, active: r.active, createdAt: r.created_at ?? "", verifiedAt: r.verified_at }));
+  }
+
+  async emailById(id: string): Promise<EmailAliasDetail | null> {
+    const { data, error } = await this.db.from("member_email_aliases").select("id, member_id, alias_email, active, verified_at, verification_sent_at").eq("id", id).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data
+      ? { id: data.id, memberId: data.member_id, aliasEmail: data.alias_email, active: data.active, verifiedAt: data.verified_at, verificationSentAt: data.verification_sent_at }
+      : null;
+  }
+
+  async markEmailVerified(id: string, address: string): Promise<boolean> {
+    const { data, error } = await this.db
+      .from("member_email_aliases")
+      .update({ verified_at: new Date(clock.now()).toISOString() })
+      .eq("id", id)
+      .eq("alias_email", address)
+      .select("id");
+    if (error) throw new Error(error.message);
+    return (data?.length ?? 0) > 0;
+  }
+
+  async claimVerificationSend(id: string, minGapMs: number): Promise<boolean> {
+    const now = clock.now();
+    const { data, error } = await this.db
+      .from("member_email_aliases")
+      .update({ verification_sent_at: new Date(now).toISOString() })
+      .eq("id", id)
+      .or(`verification_sent_at.is.null,verification_sent_at.lt.${new Date(now - minGapMs).toISOString()}`)
+      .select("id");
+    if (error) throw new Error(error.message);
+    return (data?.length ?? 0) > 0;
   }
 
   async addEmail(memberId: string, email: string, source: string): Promise<boolean> {
@@ -341,17 +394,17 @@ export class SupabaseAliasRepository implements AliasRepository {
     if (error) throw new Error(error.message);
   }
 
-  async upsertEmail(memberId: string, email: string, source: string, active?: boolean) {
+  async upsertEmail(memberId: string, email: string, source: string, active?: boolean, verified?: boolean) {
     const { error } = await this.db
       .from("member_email_aliases")
-      .upsert({ member_id: memberId, alias_email: email, source, ...(active === undefined ? {} : { active }) } as Insert<"member_email_aliases">, { onConflict: "alias_email" }); // canonical_email: the trigger
+      .upsert({ member_id: memberId, alias_email: email, source, ...(active === undefined ? {} : { active }), ...(verified ? { verified_at: new Date(clock.now()).toISOString() } : {}) } as Insert<"member_email_aliases">, { onConflict: "alias_email" }); // canonical_email: the trigger
     if (error) throw new Error(error.message);
   }
 }
 
 /** The stored rows the twin keeps; the scans return the matcher shapes. */
 export type NameAliasRow = MemberAlias & { id: string; active: boolean; createdAt?: string };
-export type EmailAliasRow = MemberEmailAlias & { id: string; memberId: string; active: boolean; source?: string; createdAt?: string };
+export type EmailAliasRow = MemberEmailAlias & { id: string; memberId: string; active: boolean; source?: string; createdAt?: string; verifiedAt?: string | null; verificationSentAt?: string | null };
 
 /** In-memory twin over an `InMemoryDataset`. */
 export class InMemoryAliasRepository implements AliasRepository {
@@ -451,7 +504,7 @@ export class InMemoryAliasRepository implements AliasRepository {
   async emailsOf(memberId: string) {
     return this.data.emailAliases
       .filter((a) => a.memberId === memberId)
-      .map((a) => ({ id: a.id, alias_email: a.alias_email, source: a.source ?? "manual", active: a.active, createdAt: a.createdAt ?? new Date(0).toISOString() }))
+      .map((a) => ({ id: a.id, alias_email: a.alias_email, source: a.source ?? "manual", active: a.active, createdAt: a.createdAt ?? new Date(0).toISOString(), verifiedAt: a.verifiedAt ?? null }))
       .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : a.id < b.id ? 1 : -1));
   }
 
@@ -468,6 +521,27 @@ export class InMemoryAliasRepository implements AliasRepository {
       source,
       createdAt: new Date(Math.max(Date.now(), latest + 1)).toISOString(),
     });
+    return true;
+  }
+
+  async emailById(id: string) {
+    const a = this.data.emailAliases.find((r) => r.id === id);
+    return a ? { id: a.id, memberId: a.memberId, aliasEmail: a.alias_email, active: a.active, verifiedAt: a.verifiedAt ?? null, verificationSentAt: a.verificationSentAt ?? null } : null;
+  }
+
+  async markEmailVerified(id: string, address: string) {
+    const row = this.data.emailAliases.find((a) => a.id === id && a.alias_email === address);
+    if (!row) return false;
+    row.verifiedAt = new Date(clock.now()).toISOString();
+    return true;
+  }
+
+  async claimVerificationSend(id: string, minGapMs: number) {
+    const row = this.data.emailAliases.find((a) => a.id === id);
+    if (!row) return false;
+    const now = clock.now();
+    if (row.verificationSentAt && Date.parse(row.verificationSentAt) >= now - minGapMs) return false;
+    row.verificationSentAt = new Date(now).toISOString();
     return true;
   }
 
@@ -527,14 +601,16 @@ export class InMemoryAliasRepository implements AliasRepository {
     else this.data.nameAliases.push({ id: `nal_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`, member_id: memberId, alias, source, active: true });
   }
 
-  async upsertEmail(memberId: string, email: string, source: string, active?: boolean) {
+  async upsertEmail(memberId: string, email: string, source: string, active?: boolean, verified?: boolean) {
     const existing = this.data.emailAliases.find((a) => a.alias_email === email);
+    const verifiedAt = verified ? new Date(clock.now()).toISOString() : undefined;
     if (existing) {
       this.refile(existing, memberId);
       if (active !== undefined) existing.active = active;
+      if (verifiedAt) existing.verifiedAt = verifiedAt;
       return;
     }
-    this.data.emailAliases.push({ id: `eal_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`, memberId, alias_email: email, canonical_email: this.primaryEmail(memberId), active: active ?? true, source });
+    this.data.emailAliases.push({ id: `eal_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`, memberId, alias_email: email, canonical_email: this.primaryEmail(memberId), active: active ?? true, source, verifiedAt: verifiedAt ?? null });
   }
 
   /** An email alias is canonicalized to its member's primary email (a database trigger), so moving it re-derives that. */

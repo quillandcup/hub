@@ -8,12 +8,6 @@ const { exchange, takeNextPath, logSignIn, rememberSignInMethod, rememberSignInF
   logSignIn: vi.fn(),
 }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ auth: { exchangeCodeForSession: exchange } }) }));
-const { applyConfirmedEmailChange } = vi.hoisted(() => ({ applyConfirmedEmailChange: vi.fn() }));
-vi.mock("@/lib/member-email", () => ({ applyConfirmedEmailChange }));
-vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
-const afterCallbacks: Array<() => unknown> = [];
-vi.mock("next/server", async (importOriginal) => ({ ...(await importOriginal<typeof import("next/server")>()), after: (fn: () => unknown) => afterCallbacks.push(fn) }));
-vi.mock("@/lib/processing/trigger", () => ({ triggerReprocessing: vi.fn() }));
 vi.mock("@/lib/next-path-cookie", () => ({ takeNextPath }));
 vi.mock("@/lib/signin-method", () => ({ rememberSignInMethod, rememberSignInFailure }));
 vi.mock("@/lib/signin-log", async () => ({ ...(await vi.importActual<typeof import("@/lib/signin-log")>("@/lib/signin-log")), logSignIn }));
@@ -23,9 +17,7 @@ import { GET } from "@/app/auth/callback/route";
 const call = (qs: string) => GET(new Request(`https://hub.example.test/auth/callback${qs}`));
 
 beforeEach(() => {
-  exchange.mockReset().mockResolvedValue({ data: { user: { id: "user-1" } }, error: null });
-  applyConfirmedEmailChange.mockReset().mockResolvedValue(null);
-  afterCallbacks.length = 0;
+  exchange.mockReset().mockResolvedValue({ error: null });
   takeNextPath.mockReset().mockResolvedValue("/dashboard");
   logSignIn.mockClear();
   rememberSignInMethod.mockClear();
@@ -39,20 +31,6 @@ describe("GET /auth/callback", () => {
     expect(logSignIn).not.toHaveBeenCalled();
     expect(rememberSignInMethod).toHaveBeenCalledWith("email_link");
     expect(rememberSignInFailure).not.toHaveBeenCalled();
-  });
-
-  it("finishes a confirmed email change and reprocesses aliases, and a failure never blocks sign-in", async () => {
-    applyConfirmedEmailChange.mockResolvedValueOnce("new@example.com");
-    const res = await call("?code=abc");
-    expect(applyConfirmedEmailChange).toHaveBeenCalledWith({}, "user-1");
-    expect(afterCallbacks).toHaveLength(1);
-    expect(res.headers.get("location")).toBe("https://hub.example.test/dashboard");
-
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    applyConfirmedEmailChange.mockRejectedValueOnce(new Error("boom"));
-    const failed = await call("?code=abc");
-    expect(failed.headers.get("location")).toBe("https://hub.example.test/dashboard");
-    expect(afterCallbacks).toHaveLength(1);
   });
 
   it("logs and returns to /login when there is no code", async () => {

@@ -82,15 +82,6 @@ export function defineAuthUserContract(name: string, setup: () => AuthUserContra
       expect((await ctx.repo().byId(user.id))!.appMetadata).toMatchObject({ first: "a", second: "b" });
     });
 
-    it("removes an app metadata key set to null and keeps the others", async () => {
-      const user = await create("meta-null");
-      await ctx.repo().mergeAppMetadata(user.id, { keep: "a", drop: "b" });
-      await ctx.repo().mergeAppMetadata(user.id, { drop: null });
-      const metadata = (await ctx.repo().byId(user.id))!.appMetadata;
-      expect(metadata).toMatchObject({ keep: "a" });
-      expect(metadata).not.toHaveProperty("drop");
-    });
-
     it("changes the sign-in email, refuses one another account has, and fails for an unknown id", async () => {
       const user = await create("set-email");
       const other = await create("set-email-other");
