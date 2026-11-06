@@ -7,6 +7,8 @@ import {
   parseSubmit,
   closedDmBlocks,
   dismissCheckinHalf,
+  goneDmBlocks,
+  PRICKLE_GONE,
   type CheckinHalfKind,
   parseQuickLogAnswer,
   QUICK_LOG_ACTION_ID,
@@ -148,6 +150,7 @@ async function handleCheckinAnswer(payload: any, answer: CheckinAnswer) {
   const error = await saveCheckinAnswer(createRepos(supabase), memberId, answer);
   if (error) {
     console.error("prickle_checkin_answer: not saved", { memberId, prickleId: answer.prickleId, field: answer.field, error });
+    if (error === PRICKLE_GONE) await replaceWithGoneNote(payload);
     return;
   }
 
@@ -174,13 +177,26 @@ async function handleSubmit(payload: any, half: CheckinHalfKind, prickleId: stri
     return;
   }
   const error = await dismissCheckinHalf(createRepos(supabase), half, memberId, prickleId);
-  if (error) return;
+  if (error) {
+    if (error === PRICKLE_GONE) await replaceWithGoneNote(payload);
+    return;
+  }
 
   const channelId = payload.channel?.id as string | undefined;
   const messageTs = payload.message?.ts as string | undefined;
   const token = await getSlackBotToken();
   if (channelId && messageTs && token) {
     await new WebClient(token).chat.update({ channel: channelId, ts: messageTs, ...closedDmBlocks(half, prickleId) });
+  }
+}
+
+/** The DM was about a prickle that no longer exists: say so in place of its questions, instead of leaving it looking live. */
+async function replaceWithGoneNote(payload: any) {
+  const channelId = payload.channel?.id as string | undefined;
+  const messageTs = payload.message?.ts as string | undefined;
+  const token = await getSlackBotToken();
+  if (channelId && messageTs && token) {
+    await new WebClient(token).chat.update({ channel: channelId, ts: messageTs, ...goneDmBlocks() });
   }
 }
 
@@ -195,7 +211,10 @@ async function handleDismiss(payload: any, half: CheckinHalfKind, prickleId: str
     return;
   }
   const error = await dismissCheckinHalf(createRepos(supabase), half, memberId, prickleId);
-  if (error) return;
+  if (error) {
+    if (error === PRICKLE_GONE) await replaceWithGoneNote(payload);
+    return;
+  }
 
   const channelId = payload.channel?.id as string | undefined;
   const messageTs = payload.message?.ts as string | undefined;

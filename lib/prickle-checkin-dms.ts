@@ -469,12 +469,35 @@ export function parseDismiss(action: any): { half: CheckinHalfKind; prickleId: s
 }
 
 /**
+ * What `saveCheckinAnswer` and `dismissCheckinHalf` return when the prickle the DM was about no
+ * longer exists (a Pop-Up Prickle rebuilt under a new id, a calendar item deleted): the answer has
+ * nowhere to go, since the check-in rows reference the prickle. The Slack handlers tell the member.
+ */
+export const PRICKLE_GONE = "that prickle isn't there any more";
+
+/** True only when the prickle is known to be missing; a failed read says nothing, and the write reports its own error. */
+async function prickleIsGone(repos: DmRepos, prickleId: string): Promise<boolean> {
+  const prickle = await repos.prickles.byId(prickleId).catch(() => undefined);
+  return prickle === null;
+}
+
+/**
+ * What a DM says in place of its questions when the prickle it was about is gone: it can't be
+ * answered or skipped any more, so it says so instead of looking live and doing nothing.
+ */
+export function goneDmBlocks(): { text: string; blocks: any[] } {
+  const text = "⚠️ This one is out of date: the session it was about changed on our side, so your answer can't be saved. Sorry about that! Your next check-in or check-out will work as usual.";
+  return { text, blocks: [{ type: "section", text: { type: "mrkdwn", text } }] };
+}
+
+/**
  * Closes one half of a prickle's check-in for good, the same for both halves: the dashboard (the
  * check-in pill, the "What did you write?" prompt), the search palette, upcoming prickles and the
  * Slack DM all stop asking, and the in-app notification is marked read so its banner and the bell
  * count go too. Returns an error message, or null.
  */
 export async function dismissCheckinHalf(repos: DmRepos, half: CheckinHalfKind, memberId: string, prickleId: string): Promise<string | null> {
+  if (await prickleIsGone(repos, prickleId)) return PRICKLE_GONE;
   try {
     await repos.prickleActivity.dismiss(half, memberId, prickleId);
   } catch (error) {
@@ -594,6 +617,7 @@ export async function loadCheckins(
  */
 export async function saveCheckinAnswer(repos: DmRepos, memberId: string, answer: CheckinAnswer): Promise<string | null> {
   const { prickleId, field, values } = answer;
+  if (await prickleIsGone(repos, prickleId)) return PRICKLE_GONE;
   const repo = repos.prickleActivity;
   let existing: CheckinInput | null;
   try {

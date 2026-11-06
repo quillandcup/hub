@@ -30,6 +30,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
 import { EMPTY_CHECKIN } from "@/lib/prickle-checkins";
+import { aPrickle } from "../helpers/prickle-fixture";
 
 const IDENTITY = { memberId: "member-1", memberName: "Member One", memberEmail: "m1@example.com", isSudo: false };
 
@@ -243,7 +244,7 @@ describe("getUnloggedRecentPrickles from live presence", () => {
 
 describe("dismissUnloggedPrickle", () => {
   it("records the dismissal for the acting member", async () => {
-    repos = createInMemoryRepos();
+    repos = createInMemoryRepos(new InMemoryDataset({ prickles: [aPrickle("p1")] }));
     useClient();
     expect(await dismissUnloggedPrickle("p1")).toEqual({ success: true });
     expect(await repos.prickleActivity.dismissedAmong("checkout", "member-1", ["p1"])).toEqual(new Set(["p1"]));
