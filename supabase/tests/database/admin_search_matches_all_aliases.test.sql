@@ -5,7 +5,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(7);
+SELECT plan(8);
 
 INSERT INTO public.members (id, name, display_name, email, joined_at, status, user_id) VALUES
   ('mbr_AAAAAAAs1A51', 'Search Ada', NULL, 'search-ada@example.test', now(), 'active', NULL),
@@ -15,7 +15,8 @@ INSERT INTO public.member_name_aliases (member_id, alias, source, active) VALUES
   ('mbr_AAAAAAAs1A51', 'Zqxsrch Zoomer', 'zoom', true),
   ('mbr_AAAAAAAs1A51', 'Zqxsrch Retired', 'zoom', false),
   ('mbr_AAAAAAAs1B51', 'Zqxsrch Penname', 'member', true),
-  ('mbr_AAAAAAAs1C51', 'Zqxsrch Staffadded', 'admin', true);
+  ('mbr_AAAAAAAs1C51', 'Zqxsrch Staffadded', 'admin', true),
+  ('mbr_AAAAAAAs1C51', 'Zqxsrch U0SLACKID', 'slack', true);
 
 SELECT is(
   (SELECT string_agg(id, ',') FROM public.admin_member_engagement('Zqxsrch Zoomer')),
@@ -29,6 +30,9 @@ SELECT is(
 SELECT is(
   (SELECT count(*)::int FROM public.admin_member_engagement('Zqxsrch Retired')),
   0, 'does not find anyone by an alias that is switched off');
+SELECT is(
+  (SELECT count(*)::int FROM public.admin_member_engagement('Zqxsrch U0SLACKID')),
+  0, 'does not find anyone by a Slack user id');
 SELECT is(
   (SELECT count(*)::int FROM public.admin_member_engagement('Zqxsrch')),
   3, 'a shared part of the alias finds each member once');

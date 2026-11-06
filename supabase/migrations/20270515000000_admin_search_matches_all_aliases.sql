@@ -2,7 +2,7 @@ set lock_timeout = '5s';
 
 -- The admin Members list searched a member's aliases only when they came from Zoom, and did not check whether an alias was
 -- switched off: an alias an admin added or a member wrote found nobody, and a Zoom alias that had been switched off still did.
--- It now matches every active alias, the rule the top-bar search (search_member_aliases) and the member directory
+-- It now matches every active name alias (a Slack-source alias is an opaque user id, not a name), the rule the top-bar search (search_member_aliases) and the member directory
 -- (member_directory_aliases) already use. Only the alias condition changes; the rest is the current definition.
 
 CREATE OR REPLACE FUNCTION public.admin_member_engagement(p_search text DEFAULT NULL::text, p_now timestamp with time zone DEFAULT now())
@@ -24,11 +24,11 @@ AS $function$
       OR m.name ILIKE pattern.like_pattern
       OR m.display_name ILIKE pattern.like_pattern
       OR m.email ILIKE pattern.like_pattern
-      -- Every active alias, whoever added it (a Zoom name, a pen name the member wrote, one an admin added): the same rule as
+      -- Every active name alias, whoever added it (a Zoom name, a pen name the member wrote, one an admin added): the same rule as
       -- the top-bar search and the member directory. A switched-off alias matches nobody.
       OR EXISTS (
         SELECT 1 FROM member_name_aliases a
-        WHERE a.member_id = m.id AND a.active AND a.alias ILIKE pattern.like_pattern
+        WHERE a.member_id = m.id AND a.active AND a.source <> 'slack' AND a.alias ILIKE pattern.like_pattern
       )
   ),
   attended AS (
