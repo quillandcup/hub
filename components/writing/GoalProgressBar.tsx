@@ -82,12 +82,12 @@ export default function GoalProgressBar({
         </p>
       )}
       {status === "achieved" ? (
-        <p className="mt-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">Achieved!</p>
+        <p className="mt-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">Achieved!</p>
       ) : status === "ended" ? (
         <p className="text-xs text-slate-600 dark:text-slate-400">{endDate ? `Ended ${endDate}` : "Ended"}</p>
       ) : (
         onPace !== null && (
-          <p className={`mt-1 text-xs ${onPace ? "text-plum-600 dark:text-plum-400" : "text-amber-600 dark:text-amber-400"}`}>
+          <p className={`mt-1 text-xs ${onPace ? "text-plum-600 dark:text-plum-400" : "text-amber-700 dark:text-amber-400"}`}>
             {onPace ? "On pace" : "Behind pace"}
           </p>
         )
