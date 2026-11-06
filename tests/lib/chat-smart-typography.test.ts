@@ -40,11 +40,35 @@ describe("smartReplacement", () => {
     }
   });
 
-  it("leaves an address alone: its dashes, dots and quotes are its own", () => {
-    for (const [before, typed] of [["see https://x.test/a-", "-"], ["see https://x.test/a..", "."], ["www.x-", "-"], ["mailto:a@x.test/a-", "-"], ["see http://x.test/?q=", '"']] as const) {
+  it("leaves an address alone: its dashes and dots are its own, with a scheme, www. or a bare domain and a path", () => {
+    for (const [before, typed] of [
+      ["see https://x.test/a-", "-"],
+      ["see https://x.test/a..", "."],
+      ["www.x-", "-"],
+      ["mailto:a@x.test/a-", "-"],
+      ["go to example.com/a-", "-"],
+      ["see github.com/x/y-", "-"],
+      ["see sub.example.co.uk/a/b..", "."],
+      ["see example.com/a-", ">"],
+    ] as const) {
       expect(smartReplacement(before, typed), `${before}${typed}`).toBeNull();
     }
     // But the next word is not part of it.
     expect(typeAfter("see https://x.test and -", "-")).toBe("see https://x.test and —");
+    expect(typeAfter("see example.com/a and -", "-")).toBe("see example.com/a and —");
+  });
+
+  it("converts a dash or dots after a bare domain with no path, where they are the writer's", () => {
+    expect(typeAfter("example.com-", "-")).toBe("example.com—");
+    expect(typeAfter("visit example.com..", ".")).toBe("visit example.com…");
+    // Ordinary words with a dot in them are not addresses either.
+    expect(typeAfter("e.g.-", "-")).toBe("e.g.—");
+    expect(typeAfter("Mr.Smith-", "-")).toBe("Mr.Smith—");
+  });
+
+  it("closes a quote typed right after an address, since a quote is never part of one", () => {
+    expect(typeAfter("see “https://x.test", '"')).toBe("see “https://x.test”");
+    expect(typeAfter("see ‘example.com/a", "'")).toBe("see ‘example.com/a’");
+    expect(typeAfter("see http://x.test/?q=", '"')).toBe('see http://x.test/?q=”');
   });
 });

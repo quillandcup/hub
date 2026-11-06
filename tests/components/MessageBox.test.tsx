@@ -354,6 +354,11 @@ describe("MessageBox: formatting", () => {
       ["a closing quote goes back to a straight one (the opening one was its own conversion)", 'say "hi"', "say “hi”", 'say “hi"'],
       ["an ellipsis goes back to ...", "hmm...", "hmm…", "hmm..."],
       ["an arrow goes back to ->", "a ->", "a →", "a ->"],
+      ["a left arrow goes back to <-", "a <-", "a ←", "a <-"],
+      ["an opening quote goes back to a straight one", 'say "', "say “", 'say "'],
+      ["an apostrophe goes back to a straight one", "it'", "it’", "it'"],
+      ["an opening single quote goes back to a straight one", "'", "‘", "'"],
+      ["<3 goes back from its heart, with the space typed after it", "ok <3 ", "ok ❤️ ", "ok <3 "],
       ["an emoticon's emoji goes back to the emoticon, with the space typed after it", "ok :) ", "ok \u{1F642} ", "ok :) "],
     ])("%s, and only that", async (_what, typed, converted, reverted) => {
       const box = await mount();
@@ -367,14 +372,64 @@ describe("MessageBox: formatting", () => {
       expect(latest).toBe(`${reverted}x`);
     });
 
-    it("takes the link off an address that was linked when a space was typed after it, and keeps the words", async () => {
+    it.each([
+      ["a bare domain", "see example.com ", "see <https://example.com|example.com> ", "see example.com "],
+      ["a full address", "see https://example.com/a ", "see <https://example.com/a> ", "see https://example.com/a "],
+      ["an email address", "mail a@b.co ", "mail <mailto:a@b.co|a@b.co> ", "mail a@b.co "],
+    ])("takes the link off %s that was linked when a space was typed after it, and keeps the words", async (_what, typed, linked, plain) => {
       const box = await mount();
       const user = boxUser();
-      await typeInto(box, "see example.com ", user);
-      expect(latest).toBe("see <https://example.com|example.com> ");
+      await typeInto(box, typed, user);
+      expect(latest).toBe(linked);
+      expect(box.querySelector("a")).not.toBeNull();
       await undo(user);
-      expect(latest).toBe("see example.com ");
+      expect(latest).toBe(plain);
       expect(box.querySelector("a")).toBeNull();
+      // Typing on does not link it again.
+      await typeInto(box, "x ", user);
+      expect(latest).toBe(`${plain}x `);
+    });
+
+    it("works with the Cmd key as with Ctrl", async () => {
+      const box = await mount();
+      const user = boxUser();
+      await typeInto(box, "so--", user);
+      await user.keyboard("{Meta>}z{/Meta}");
+      expect(latest).toBe("so--");
+    });
+
+    it("takes back one conversion, and the next undo is the editor's own", async () => {
+      const box = await mount();
+      const user = boxUser();
+      await typeInto(box, "so--", user);
+      await undo(user);
+      expect(latest).toBe("so--");
+      await undo(user);
+      expect(latest).not.toBe("so--");
+      expect(latest).not.toContain("\u2014");
+    });
+
+    it("takes back a conversion in the middle of a line, leaving the rest where it is", async () => {
+      const box = await mount({ initial: "a b" });
+      const user = boxUser();
+      // Caret right after the "a" (the editor learns of it from the document's selectionchange event).
+      const node = box.querySelector("p")!.firstChild as Text;
+      const range = document.createRange();
+      range.setStart(node, 1);
+      range.collapse(true);
+      box.focus();
+      window.getSelection()!.removeAllRanges();
+      window.getSelection()!.addRange(range);
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 30));
+      });
+      for (const key of ["-", "-"]) {
+        await user.keyboard(key);
+        flushEditor(box);
+      }
+      expect(latest).toBe("a\u2014 b");
+      await undo(user);
+      expect(latest).toBe("a-- b");
     });
 
     it("leaves it to the editor's own undo once something else was typed or the caret moved", async () => {
@@ -415,6 +470,23 @@ describe("MessageBox: formatting", () => {
       const box = await mount();
       await typeInto(box, "ok :) <3 a-b a.b 2 > 1 <i>");
       expect(latest).toBe("ok \u{1F642} ❤️ a-b a.b 2 > 1 <i>");
+    });
+
+    it("leaves an address's own dashes alone, with or without a scheme, and closes a quote right after one", async () => {
+      const box = await mount();
+      await typeInto(box, "go to example.com/a--b now");
+      expect(latest).toBe("go to <https://example.com/a--b|example.com/a--b> now");
+
+      cleanup();
+      const quoted = await mount();
+      await typeInto(quoted, 'visit "https://x.test" now');
+      expect(latest).toBe("visit \u201C<https://x.test>\u201D now");
+
+      // A dash right after a bare domain is the writer's.
+      cleanup();
+      const dash = await mount();
+      await typeInto(dash, "example.com--yes");
+      expect(latest).toBe("<https://example.com|example.com>\u2014yes");
     });
 
     it("leaves code alone: inline code, a code block and an address keep what was typed", async () => {
