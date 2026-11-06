@@ -1,18 +1,20 @@
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { CHANGELOG_ENTRIES, type ChangelogEntry } from "@/lib/changelog/entries";
 import {
   changelogEntryPath,
   changelogSince,
   filterByCategory,
+  filterByAudience,
+  findAnyChangelogEntry,
   findChangelogEntry,
+  groupByMonth,
+  parseAudienceFilter,
+  searchChangelog,
   isChangelogImagePath,
   isChangelogSlug,
   listChangelog,
   listProductChangelog,
   parseCategoryFilter,
-  renderChangelogMarkdown,
   validateChangelog,
 } from "@/lib/changelog";
 
@@ -32,10 +34,6 @@ describe("the committed changelog", () => {
     expect(validateChangelog()).toEqual([]);
   });
 
-  it("matches the generated CHANGELOG.md (run `pnpm changelog:generate`)", () => {
-    const file = readFileSync(path.join(process.cwd(), "CHANGELOG.md"), "utf8");
-    expect(file).toBe(renderChangelogMarkdown(CHANGELOG_ENTRIES));
-  });
 });
 
 describe("listChangelog", () => {
@@ -103,7 +101,7 @@ describe("audiences", () => {
   const product = entry({ slug: "product-one", date: "2026-11-02" });
   const eng = entry({ slug: "eng-one", date: "2026-11-03", audience: "engineering", title: "Repository pattern", summary: "Queries moved behind repositories.", body: "Every table has one interface and two implementations." });
 
-  it("lists only product entries for members, and everything for CHANGELOG.md", () => {
+  it("lists only product entries for members, and everything for the admin changelog", () => {
     expect(listProductChangelog([product, eng]).map((e) => e.slug)).toEqual(["product-one"]);
     expect(listChangelog([product, eng]).map((e) => e.slug)).toEqual(["eng-one", "product-one"]);
     expect(changelogSince(null, [product, eng]).map((e) => e.slug)).toEqual(["product-one"]);
@@ -114,13 +112,6 @@ describe("audiences", () => {
     expect(findChangelogEntry("product-one", [product, eng])?.title).toBe("A thing");
   });
 
-  it("writes engineering entries into CHANGELOG.md with a tag and their body, and product ones without", () => {
-    const md = renderChangelogMarkdown([product, eng]);
-    expect(md).toContain("## 2026-11-03 · Engineering · New: Repository pattern");
-    expect(md).toContain("Every table has one interface and two implementations.");
-    expect(md).toContain("## 2026-11-02 · New: A thing");
-    expect(md).not.toContain("More about the thing.");
-  });
 
   it("refuses an unknown audience and screenshots on an engineering entry", () => {
     const problems = validateChangelog([
@@ -149,11 +140,50 @@ describe("the category filter", () => {
 });
 
 describe("major entries", () => {
-  it("are labelled in CHANGELOG.md, and only a product entry can be major", () => {
+  it("can be set on a product entry, and only on a product entry", () => {
     const major = entry({ slug: "big", major: true, title: "A big thing" });
-    expect(renderChangelogMarkdown([major, entry({ slug: "small" })])).toContain("## 2026-11-01 · Major · New: A big thing");
-    expect(renderChangelogMarkdown([entry({ slug: "small" })])).not.toContain("Major");
     expect(validateChangelog([major])).toEqual([]);
     expect(validateChangelog([entry({ slug: "eng", audience: "engineering", major: true })]).join("\n")).toContain("only a product entry can be major");
+  });
+});
+
+describe("searching and grouping", () => {
+  const entries = [
+    entry({ slug: "chat", title: "Hub Chat", summary: "Read our Slack conversations.", body: "Mention people with @.", date: "2026-11-01" }),
+    entry({ slug: "courses", title: "Courses in the Hub", summary: "Watch lessons.", body: "Resume where you stopped.", date: "2026-10-12", audience: "engineering" }),
+    entry({ slug: "fix", title: "A fix", summary: "Sign-in page.", body: "Slack links.", date: "2026-10-30", category: "fixed" }),
+  ];
+
+  it("finds entries containing every word, in any case, in the title, summary or text", () => {
+    expect(searchChangelog(entries, "slack").map((e) => e.slug)).toEqual(["chat", "fix"]);
+    expect(searchChangelog(entries, "SLACK conversations").map((e) => e.slug)).toEqual(["chat"]);
+    expect(searchChangelog(entries, "resume stopped").map((e) => e.slug)).toEqual(["courses"]);
+    expect(searchChangelog(entries, "slack nothing")).toEqual([]);
+  });
+
+  it("treats no query, whitespace or a repeated parameter sensibly", () => {
+    expect(searchChangelog(entries, undefined)).toHaveLength(3);
+    expect(searchChangelog(entries, "   ")).toHaveLength(3);
+    expect(searchChangelog(entries, ["chat", "fix"]).map((e) => e.slug)).toEqual(["chat"]);
+  });
+
+  it("reads the audience filter and applies it", () => {
+    expect(parseAudienceFilter("engineering")).toBe("engineering");
+    for (const bad of [undefined, "", "staff", "toString", "PRODUCT"]) expect(parseAudienceFilter(bad as string | undefined)).toBeNull();
+    expect(filterByAudience(entries, "engineering").map((e) => e.slug)).toEqual(["courses"]);
+    expect(filterByAudience(entries, null)).toHaveLength(3);
+  });
+
+  it("finds any entry by slug, engineering included (members' lookup refuses those)", () => {
+    expect(findAnyChangelogEntry("courses", entries)?.title).toBe("Courses in the Hub");
+    expect(findChangelogEntry("courses", entries)).toBeNull();
+    expect(findAnyChangelogEntry("nope", entries)).toBeNull();
+  });
+
+  it("groups by month in the order given, labelled for people", () => {
+    expect(groupByMonth(listChangelog(entries)).map((g) => [g.month, g.label, g.entries.map((e) => e.slug)])).toEqual([
+      ["2026-11", "November 2026", ["chat"]],
+      ["2026-10", "October 2026", ["fix", "courses"]],
+    ]);
   });
 });

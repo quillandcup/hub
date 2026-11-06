@@ -52,6 +52,22 @@ describe("changelog pages", () => {
     expect(entryLinks().sort()).toEqual(fixed.sort());
   });
 
+  it("searches the updates, keeps the words when you change the filter, and says when nothing matches", async () => {
+    signInAs(USER, null);
+    const word = listProductChangelog()[0].title.split(" ")[0].toLowerCase();
+    await renderServerPage(ChangelogPage, { params: Promise.resolve({}), searchParams: Promise.resolve({ q: word, show: "new" }) });
+    expect(screen.getByRole("searchbox", { name: "Search updates" })).toHaveValue(word);
+    const nav = screen.getByRole("navigation", { name: "Show" });
+    expect(within(nav).getByRole("link", { name: "Fixed" })).toHaveAttribute("href", `/changelog?q=${encodeURIComponent(word)}&show=fixed`);
+    expect(screen.queryByRole("navigation", { name: "For" })).not.toBeInTheDocument(); // the audience filter is the admin page's
+  });
+
+  it("says when a search matches nothing", async () => {
+    signInAs(USER, null);
+    await renderServerPage(ChangelogPage, { params: Promise.resolve({}), searchParams: Promise.resolve({ q: "zzzqqqxxx" }) });
+    expect(screen.getByText("Nothing matches that.")).toBeInTheDocument();
+  });
+
   it("shows everything for no filter or one that is not a category", async () => {
     signInAs(USER, null);
     await renderServerPage(ChangelogPage, { params: Promise.resolve({}), searchParams: Promise.resolve({ show: "everything" }) });

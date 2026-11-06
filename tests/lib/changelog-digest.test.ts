@@ -73,7 +73,7 @@ describe("digestCandidates", () => {
 });
 
 describe("digestCandidates: who and what is never notified", () => {
-  it("leaves out engineering entries, which live only in CHANGELOG.md", () => {
+  it("leaves out engineering entries, which are for staff only", () => {
     const eng = entry({ slug: "eng", date: "2026-11-09", audience: "engineering" });
     expect(digestCandidates(NOW, [first, eng]).map((e) => e.slug)).toEqual(["first"]);
   });

@@ -3,7 +3,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { CHANGELOG_CATEGORIES } from "@/lib/changelog/entries";
-import { changelogEntryPath, filterByCategory, listProductChangelog, parseCategoryFilter } from "@/lib/changelog";
+import { changelogEntryPath, filterByCategory, listProductChangelog, parseCategoryFilter, searchChangelog } from "@/lib/changelog";
+import ChangelogFilters from "@/components/changelog/ChangelogFilters";
 
 export const metadata: Metadata = { title: "What's new" };
 
@@ -11,9 +12,10 @@ export default async function ChangelogPage({ searchParams }: PageProps<"/change
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const show = parseCategoryFilter((await searchParams).show);
-  const entries = filterByCategory(listProductChangelog(), show);
-  const filters = [{ label: "All", value: null, href: "/changelog" }, ...Object.entries(CHANGELOG_CATEGORIES).map(([value, label]) => ({ label, value, href: `/changelog?show=${value}` }))];
+  const params = await searchParams;
+  const show = parseCategoryFilter(params.show);
+  const q = (Array.isArray(params.q) ? params.q[0] : params.q) ?? "";
+  const entries = searchChangelog(filterByCategory(listProductChangelog(), show), q);
 
   return (
     <div className="max-w-3xl mx-auto p-6">
@@ -26,26 +28,10 @@ export default async function ChangelogPage({ searchParams }: PageProps<"/change
         .
       </p>
 
-      <nav aria-label="Show" className="mt-6 flex flex-wrap gap-2">
-        {filters.map((f) => (
-          <Link
-            key={f.label}
-            href={f.href}
-            data-track="changelog-filter"
-            aria-current={f.value === show ? "true" : undefined}
-            className={
-              f.value === show
-                ? "rounded-full bg-plum-700 px-4 py-1.5 text-sm font-medium text-white"
-                : "rounded-full border border-slate-300 bg-white px-4 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-            }
-          >
-            {f.label}
-          </Link>
-        ))}
-      </nav>
+      <ChangelogFilters basePath="/changelog" state={{ q, show, audience: null }} />
 
       {entries.length === 0 ? (
-        <p className="mt-8 text-slate-600 dark:text-slate-400">Nothing here yet.</p>
+        <p className="mt-8 text-slate-600 dark:text-slate-400">{q ? "Nothing matches that." : "Nothing here yet."}</p>
       ) : (
         <ul className="mt-8 space-y-6">
           {entries.map((e) => (
