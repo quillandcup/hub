@@ -86,7 +86,7 @@ Newcomers get a nudge to say hello in the intro channel, and anyone with nothing
 
 See what is coming up, with a picture on each event and a month-at-a-glance list that shows the time of day.
 
-## 2026-11-01 · New: Hub chat is open to every member
+## 2026-11-01 · New: Hub Chat is open to every member
 
 Read and join our Slack conversations from the Hub, reply in threads, react, share files and format your messages. What you write here appears in Slack too.
 
@@ -292,7 +292,7 @@ You can now choose email for any kind of Hub message, and every email has an uns
 
 A mirror of Slack conversations is projected from Bronze and updated live over Realtime, with posting back to Slack through an outbox.
 
-Row-level security gates content separately from channel metadata. Posts from the Hub go to Slack through an outbox with retries, and are credited to their author in activity and Wheel of Wonder. See docs/SLACK_BRIDGED_CHAT.md and the Hub chat product entry.
+Row-level security gates content separately from channel metadata. Posts from the Hub go to Slack through an outbox with retries, and are credited to their author in activity and Wheel of Wonder. See docs/SLACK_BRIDGED_CHAT.md and the Hub Chat product entry.
 
 ## 2026-10-07 · Engineering · Improved: Richer Slack capture with soft deletes
 
