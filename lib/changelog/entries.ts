@@ -2479,4 +2479,16 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "In the Slack check-in and check-out messages your top three are listed first in the feeling menu.",
     ].join("\n\n"),
   },
+  {
+    slug: "searchable-member-aliases-view",
+    date: "2026-11-06",
+    audience: "engineering",
+    category: "improved",
+    title: "One definition of a searchable alias",
+    summary: "The top-bar search, the Members page and the admin Members list now read the same view of name aliases, so they cannot drift apart again.",
+    body: [
+      "The rule for which aliases identify a person by name lived in three SQL functions and had already diverged once. `searchable_member_aliases` (a `security_invoker` view over `member_name_aliases`) now holds it: active, and never a Slack-source alias, which is an opaque user id. `search_member_aliases`, `member_directory_aliases` and `admin_member_engagement` all select from it.",
+      "Row level security still applies to anyone reading the view directly; the two `SECURITY DEFINER` functions run as the owner as before. `searchable_member_aliases.test.sql` checks the view and that the three searches agree on active, switched-off and Slack aliases. As a side effect, the top-bar search and the Members page no longer match Slack user ids.",
+    ].join("\n\n"),
+  },
 ];

@@ -6463,6 +6463,29 @@ export type Database = {
           },
         ]
       }
+      searchable_member_aliases: {
+        Row: {
+          alias: string | null
+          member_id: string | null
+        }
+        Insert: {
+          alias?: string | null
+          member_id?: string | null
+        }
+        Update: {
+          alias?: string | null
+          member_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_name_aliases_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       access_locations_at: {
