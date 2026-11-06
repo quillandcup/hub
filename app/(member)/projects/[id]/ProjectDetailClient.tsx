@@ -393,7 +393,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
 
       {showNewGoal && <GoalForm projectId={project.id} onSaved={handleChanged} onCancel={() => setShowNewGoal(false)} />}
 
-      {entries.length > 0 && <ProjectCharts entries={entries} />}
+      {entries.length > 0 && <ProjectCharts entries={entries} startingBalances={project.startingBalances} />}
 
       <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden">
         <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide p-5 pb-0">

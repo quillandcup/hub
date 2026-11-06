@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { computeCumulativeSeries, MEASURE_LABELS, type WritingMeasure } from "@/lib/writing-projects";
+import { computeCumulativeSeries, entriesAsDeltas, MEASURE_LABELS, type WritingMeasure } from "@/lib/writing-projects";
 import type { EntryRow } from "@/app/(member)/projects/actions";
 
 const HEATMAP_WEEKS = 12;
@@ -44,9 +44,11 @@ function heatmapColor(total: number, max: number): string {
 
 interface ProjectChartsProps {
   entries: EntryRow[];
+  /** The project's starting balance per measure: a set total replaces the whole total, balance included. */
+  startingBalances?: Partial<Record<WritingMeasure, number>>;
 }
 
-export default function ProjectCharts({ entries }: ProjectChartsProps) {
+export default function ProjectCharts({ entries, startingBalances = {} }: ProjectChartsProps) {
   const measuresWithEntries = useMemo(() => {
     const counts = new Map<WritingMeasure, number>();
     for (const e of entries) counts.set(e.measure, (counts.get(e.measure) ?? 0) + 1);
@@ -61,13 +63,17 @@ export default function ProjectCharts({ entries }: ProjectChartsProps) {
     [entries, activeMeasure]
   );
 
-  const series = useMemo(() => computeCumulativeSeries(measureEntries), [measureEntries]);
+  const startingBalance = activeMeasure ? startingBalances[activeMeasure] ?? 0 : 0;
+  const series = useMemo(() => computeCumulativeSeries(measureEntries, startingBalance), [measureEntries, startingBalance]);
 
+  // What each day added: a set total counts the difference from the total before it, not its whole value.
   const totalsByDate = useMemo(() => {
     const totals = new Map<string, number>();
-    for (const e of measureEntries) totals.set(e.entryDate, (totals.get(e.entryDate) ?? 0) + e.amount);
+    for (const e of entriesAsDeltas(measureEntries, startingBalance)) {
+      totals.set(e.entryDate, (totals.get(e.entryDate) ?? 0) + e.amount);
+    }
     return totals;
-  }, [measureEntries]);
+  }, [measureEntries, startingBalance]);
 
   const heatmapWeeks = useMemo(() => buildHeatmapWeeks(totalsByDate, new Date()), [totalsByDate]);
   const maxDayTotal = Math.max(0, ...[...totalsByDate.values()]);
