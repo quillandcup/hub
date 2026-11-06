@@ -26,6 +26,7 @@ import { cancelCommitment, createCommitment, getMyCommitments } from "@/app/(mem
 import { getMyCheckin, getMyCheckins } from "@/app/(member)/prickles/checkin-actions";
 import { dismissCheckinHalf, loadCheckins, loadDismissedIds, loadDismissedPairs, saveCheckinAnswer } from "@/lib/prickle-checkin-dms";
 import { EMPTY_CHECKIN } from "@/lib/prickle-checkins";
+import { aPrickle } from "../helpers/prickle-fixture";
 
 const IDENTITY = { memberId: "mbr_AAAAAAAAAAA1", memberName: "Ada Example", memberEmail: "ada@example.com", isSudo: false };
 const [M, P] = ["mbr_AAAAAAAAAAA1", "prkl_AAAAAAAAAAA1"];
@@ -34,7 +35,7 @@ const BEFORE = { ...EMPTY_CHECKIN, pleasantBefore: 3, energyBefore: 4, need: "co
 beforeEach(() => {
   vi.restoreAllMocks();
   vi.spyOn(console, "error").mockImplementation(() => {});
-  repos = createInMemoryRepos();
+  repos = createInMemoryRepos(new InMemoryDataset({ prickles: [aPrickle(P)] }));
   vi.mocked(getCurrentUser).mockResolvedValue({ id: "user-1", email: "ada@example.com" } as never);
   vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY as never);
 });
