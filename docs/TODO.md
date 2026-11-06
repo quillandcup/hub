@@ -1713,6 +1713,14 @@ When Slack token rotation is adopted (see `docs/SLACK_BRIDGED_CHAT.md`, "Slack a
 
 ---
 
+### `/members` hydration mismatch seen once in the page check, not reproduced since _(Needs Scheduling)_
+
+One screenshot run of the demo harness logged React's "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties" on `/members` (member persona, the page check's console finding). Two later runs on current `main`, each on a fresh dev server with the real `shot()` check across all 8 size and theme projects, found nothing (`*.findings.json` empty, no mention in the dev log), and neither run could say what differed. The first sighting happened while a screenshot scene had left the demo member's saved sidebar mode on auto-hide (`user_profiles.nav_mode`, since reset by the seed), which is the likeliest trigger: a server render and a client first render that disagree about the sidebar. Deferred because it cannot be reproduced on demand. To catch it: run the `/members` page check with `nav_mode = 'auto'` set for the member (`pnpm demo:app`, then a scene that signs in as `member` and calls `shot`), read the finding's text in `demo/out/<scene>/<project>/NN-name.findings.json` (it names the differing attribute), and compare `useSidebarMode` (`components/MemberNavigation.tsx`) between server and client.
+
+### The auto-hide sidebar covers the footer links while it is open _(Needs Scheduling)_
+
+With the sidebar in auto-hide mode, hovering the slim rail opens the menu over the page, and it covers the footer's Privacy and Contact links; the demo harness's `control-covered` check flags it. Deferred because it needs a design decision (push the page, dim it, or move the footer) more than a code fix. Start from `components/MemberNavigation.tsx` (`useSidebarMode`, `railOpen`, `peekHandlers`) and the member layout footer in `app/(member)/layout.tsx`; the page check on a page with the footer visible, with the rail opened, reproduces it.
+
 ## CRM Features
 
 ### Slack Engagement Signals
