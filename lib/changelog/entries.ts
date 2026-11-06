@@ -1350,7 +1350,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     body: [
       "Every prickle page has a Check in card. Pick up to two feelings for how you are coming in and one thing you need, such as momentum, deep focus, accountability, company or a push to get unstuck. Once the prickle has started you can also rate how it went and how you feel now. Every question is optional, and only you and the Hub admins can see your answers.",
       "The Prickle Picker now starts with How are you feeling? Your answer suggests a mood and the picks follow. Once you have rated at least two similar sessions, it also favors the kinds of prickle you rated higher than your usual.",
-      "There is no AI in the Prickle Picker. The part that gets personal only looks at your own past ratings of similar sessions.",
+      "There is no AI in the Prickle Picker, and nothing in it reads your writing. The part that gets personal only looks at your own past check-in ratings of similar sessions.",
       "![The Prickle Picker's How are you feeling? step with overall and energy scales, a feeling search and an intention list.](/changelog/check-ins-and-prickle-picker/01-prickle-picker-feelings.webp)",
     ].join("\n\n"),
   },
@@ -1556,7 +1556,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     summary:
       "A mirror of Slack conversations is projected from Bronze and updated live over Realtime, with posting back to Slack through an outbox.",
     body: [
-      "Row-level security gates content separately from channel metadata. Posts from the Hub go to Slack through an outbox with retries, and are credited to their author in activity and Wheel of Wonder. See docs/SLACK_BRIDGED_CHAT.md and the Hub chat product entry.",
+      "Row-level security gates content separately from channel metadata. Posts from the Hub go to Slack through an outbox with retries, and are credited to their author in activity and Wheel of Wonder. See docs/SLACK_BRIDGED_CHAT.md and the Hub Chat product entry.",
     ].join("\n\n"),
   },
   {
@@ -1726,7 +1726,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     image: { src: "/changelog/connect-slack-step/01-getting-started.webp", alt: "The Getting started checklist open in the corner of the dashboard, listing Check your details, Connect Slack and four more steps." },
     body: [
       "![The Getting started checklist open in the corner of the dashboard, listing Check your details, Connect Slack and four more steps.](/changelog/connect-slack-step/01-getting-started.webp)",
-      "Connecting Slack (Settings, Account) lets Hub chat send as you. Once connected, reading a conversation in one place clears it as unread in the other. Connecting also makes Open Hedgie Hub in Slack find your account even if your Slack email differs from your Hub email.",
+      "Connecting Slack (Settings, Account) lets Hub Chat send as you. Once connected, reading a conversation in one place clears it as unread in the other. Connecting also makes Open Hedgie Hub in Slack find your account even if your Slack email differs from your Hub email.",
       "A tour you already finished reopens to show only the steps added since.",
     ].join("\n\n"),
   },
@@ -2154,7 +2154,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-11-01",
     audience: "product",
     category: "new",
-    title: "Hub chat is open to every member",
+    title: "Hub Chat is open to every member",
     summary:
       "Read and join our Slack conversations from the Hub, reply in threads, react, share files and format your messages. What you write here appears in Slack too.",
     image: {
