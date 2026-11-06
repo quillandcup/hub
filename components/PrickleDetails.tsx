@@ -14,6 +14,7 @@ import type { PrickleRoster, RosterReason } from "@/lib/prickle-roster";
 import type { PrickleDetail } from "@/lib/domain/prickle";
 import { REASON_ICON } from "@/components/ReasonBadges";
 import PrickleDescription from "@/components/PrickleDescription";
+import { stripEventTag } from "@/lib/event-tag";
 import PrickleEditForm, { type PrickleEditConfig } from "@/components/PrickleEditForm";
 
 /** The same icons the prickle lists use (ReasonBadges), here worded for what another member did. */
@@ -144,8 +145,9 @@ export default function PrickleDetails({
           )}
         </div>
         {editing && edit && <div className="mb-4"><PrickleEditForm prickle={prickle} edit={edit} onDone={() => setEditing(false)} /></div>}
-        {!editing && prickle.description && (
-          <PrickleDescription markdown={prickle.description} />
+        {/* "#event" in the calendar entry's description is an instruction for the import (show it in Events), not something to read. */}
+        {!editing && stripEventTag(prickle.description) && (
+          <PrickleDescription markdown={stripEventTag(prickle.description) as string} />
         )}
         <div className="grid grid-cols-2 gap-4 text-sm">
           {!editing && (
