@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { loadDemoEnv } from "./env";
 import { persona } from "./personas";
+import { LIVE_MEETING_UUID, seedLiveRoom } from "./live-seed";
 
 /**
  * The demo stack's database as a scene's setup step sees it (service role, local only, from demo/.env.demo).
@@ -28,4 +29,15 @@ export async function resetNavMode(personaKey: string) {
 export async function resetCommitments(personaKey: string) {
   const { error } = await admin().from("prickle_commitments").delete().eq("member_id", await memberIdFor(personaKey));
   if (error) throw new Error(`reset commitments: ${error.message}`);
+}
+
+/** Empty the Zoom room the On air light reads (the live participants of demo/live-seed.ts), for a scene that shows the empty state. */
+export async function emptyLiveRoom() {
+  const { error } = await admin().schema("bronze").from("zoom_participant_events").delete().eq("meeting_uuid", LIVE_MEETING_UUID);
+  if (error) throw new Error(`empty live room: ${error.message}`);
+}
+
+/** Put the people back in the room (what pnpm demo:seed lays down), so the shared demo is left as found. */
+export async function restoreLiveRoom() {
+  await seedLiveRoom(admin(), new Date());
 }
