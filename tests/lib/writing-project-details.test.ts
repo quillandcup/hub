@@ -22,6 +22,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 import {
   createProject,
   getMyProjects,
+  getProfileWriting,
   getProject,
   getProjectSeries,
   setStartingBalances,
@@ -33,6 +34,7 @@ import {
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
+import { createClient } from "@/lib/supabase/server";
 
 const ME = "mbr_AAAAAAAAAAA1";
 const OTHER = "mbr_AAAAAAAAAAA2";
@@ -393,5 +395,64 @@ describe("getProjectSeries", () => {
     dataset.writingEntries.push(entry("wpe_AAAAAAAAAAA1", PROJECT, { amount: 100 }));
 
     expect(await getProjectSeries(PROJECT, "words")).toEqual([{ entryDate: "2026-02-01", total: 100 }]);
+  });
+});
+
+describe("set totals with a starting balance", () => {
+  const habit = {
+    id: "wgol_AAAAAAAAAAA2",
+    member_id: ME,
+    project_id: PROJECT,
+    title: "Every day",
+    description: null,
+    external_id: null,
+    goal_type: "habit",
+    habit_period: "day",
+    habit_threshold: 500,
+    is_starred: false,
+    measure: "words",
+    show_on_profile: false,
+    start_date: null,
+    end_date: null,
+    target_amount: null,
+    archived_at: null,
+    created_at: "2026-01-01T00:00:00Z",
+  };
+  const setEntry = entry("wpe_AAAAAAAAAAA3", PROJECT, { mode: "set_total", amount: 56000, entry_date: "2026-11-05" });
+
+  it("counts a set total as the words it added to a habit goal, not the whole total", async () => {
+    dataset.writingBalances.push({ project_id: PROJECT, member_id: ME, measure: "words", amount: 55000 });
+    dataset.writingGoals.push(habit);
+    dataset.writingEntries.push(setEntry);
+
+    const [mine] = (await getMyProjects()).filter((p) => p.id === PROJECT);
+    // 1,000 added on a 500-word day threshold: a hit; 56,000 would be too, so also check the total.
+    expect(mine.totalsByMeasure).toEqual({ words: 56000 });
+    expect(mine.goals[0]).toEqual(expect.objectContaining({ kind: "habit", longestStreak: 1 }));
+  });
+
+  it("does not count a set total below the habit threshold as a hit", async () => {
+    dataset.writingBalances.push({ project_id: PROJECT, member_id: ME, measure: "words", amount: 55800 });
+    dataset.writingGoals.push(habit);
+    dataset.writingEntries.push(setEntry);
+
+    const [mine] = (await getMyProjects()).filter((p) => p.id === PROJECT);
+    expect(mine.goals[0]).toEqual(expect.objectContaining({ kind: "habit", longestStreak: 0 }));
+  });
+
+  it("shows the profile headline as the whole total, balance included", async () => {
+    const rpc = vi.fn(async () => ({
+      data: {
+        projects: [{ id: PROJECT, title: "Hope" }],
+        goals: [],
+        entries: [{ ...entry("wpe_AAAAAAAAAAA3", PROJECT, { mode: "set_total", amount: 56000 }) }],
+        starting_balances: [{ project_id: PROJECT, measure: "words", amount: 39055 }],
+      },
+      error: null,
+    }));
+    vi.mocked(createClient).mockResolvedValueOnce({ rpc } as never);
+
+    const { projects } = await getProfileWriting(ME);
+    expect(projects[0].headline).toEqual({ measure: "words", total: 56000 });
   });
 });
