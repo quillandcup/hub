@@ -121,15 +121,36 @@ export interface ProgressEntryInput {
 /**
  * Replays entries in (entryDate, createdAt) order -- not insertion order -- so a backdated entry
  * recomputes the total correctly. A 'set_total' entry resets the running total to `amount` as of
- * that entry; a 'delta' entry adds `amount` to whatever the running total was at that point.
+ * that entry; a 'delta' entry adds `amount` to whatever the running total was at that point. The
+ * replay starts from the project's starting balance, so a set total is the whole total, balance included.
  */
-export function computeCumulativeTotal(entries: ProgressEntryInput[]): number {
+export function computeCumulativeTotal(entries: ProgressEntryInput[], startingBalance = 0): number {
   const sorted = [...entries].sort(compareByDateThenCreatedAt);
-  let running = 0;
+  let running = startingBalance;
   for (const entry of sorted) {
     running = entry.mode === "set_total" ? entry.amount : running + entry.amount;
   }
   return running;
+}
+
+/**
+ * What each entry added to the running total: a 'delta' adds its amount, a 'set_total' adds the
+ * difference between its amount and the total before it (negative if the total went down). Habit
+ * goals sum these per period, so setting a running total of 56,000 counts what was written since
+ * the last total, not 56,000 words. `startingBalance` seeds the total a first set_total replaces.
+ */
+export function entriesAsDeltas(
+  entries: ProgressEntryInput[],
+  startingBalance = 0
+): { entryDate: string; amount: number }[] {
+  const sorted = [...entries].sort(compareByDateThenCreatedAt);
+  let running = startingBalance;
+  return sorted.map((entry) => {
+    const next = entry.mode === "set_total" ? entry.amount : running + entry.amount;
+    const amount = next - running;
+    running = next;
+    return { entryDate: entry.entryDate, amount };
+  });
 }
 
 /**
@@ -139,10 +160,11 @@ export function computeCumulativeTotal(entries: ProgressEntryInput[]): number {
  * usefully distinguish same-day points anyway.
  */
 export function computeCumulativeSeries(
-  entries: ProgressEntryInput[]
+  entries: ProgressEntryInput[],
+  startingBalance = 0
 ): { entryDate: string; total: number }[] {
   const sorted = [...entries].sort(compareByDateThenCreatedAt);
-  let running = 0;
+  let running = startingBalance;
   const byDate = new Map<string, number>();
   for (const entry of sorted) {
     running = entry.mode === "set_total" ? entry.amount : running + entry.amount;
@@ -200,13 +222,15 @@ export interface GoalProgress {
 export function computeGoalProgress(input: GoalProgressInput): GoalProgress {
   const { entries, targetAmount, startDate, endDate, now, startingBalance } = input;
 
-  const inWindow = entries.filter(
+  // Deltas come from replaying every entry, not just the window's, so a set total inside the window
+  // counts what it added to the running total, not the whole total.
+  const deltas = entriesAsDeltas(entries, startingBalance);
+  const inWindow = deltas.filter(
     (e) => (!startDate || e.entryDate >= startDate) && (!endDate || e.entryDate <= endDate)
   );
   const includesStartingBalance = !startDate && !!startingBalance;
-  const current = includesStartingBalance
-    ? applyStartingBalance(computeCumulativeTotal(inWindow), startingBalance)
-    : computeCumulativeTotal(inWindow);
+  const windowTotal = inWindow.reduce((sum, e) => sum + e.amount, 0);
+  const current = includesStartingBalance ? windowTotal + (startingBalance ?? 0) : windowTotal;
   const percent = targetAmount > 0 ? (current / targetAmount) * 100 : 0;
 
   let parTarget: number | null = null;
@@ -314,9 +338,8 @@ function periodIndex(entryDateIso: string, period: HabitPeriod): number {
 /**
  * A period is a "hit" if its total logged amount meets the threshold (or, with no threshold, if
  * anything was logged at all). Per-period totals sum every entry's `amount` at face value
- * (delta and set_total alike) -- unlike the project's all-time cumulative total, a habit period
- * asks "how much did they log this period," not "what's the running total," so set_total's
- * replace-the-total semantics don't apply here.
+ * -- callers pass set_total entries through `entriesAsDeltas` first, so a set total counts only
+ * what it added to the running total, not the whole total.
  */
 export function computeHabitGoalProgress(input: HabitProgressInput): HabitProgress {
   const { entries, period, threshold, now } = input;
