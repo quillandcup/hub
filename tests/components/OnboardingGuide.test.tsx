@@ -69,6 +69,13 @@ describe("OnboardingGuide", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("marks the card so the layout leaves room under the page, and keeps the open list from growing past 45% of the screen", () => {
+    render(<OnboardingGuide initialState={fresh()} />);
+    const card = screen.getByRole("region", { name: "Getting started" });
+    expect(card).toHaveAttribute("data-onboarding-card");
+    expect(card.querySelector("ol")?.parentElement).toHaveClass("overflow-y-auto", "max-h-[calc(45dvh-7.5rem)]");
+  });
+
   it("renders nothing when the tour isn't active", () => {
     const state = { ...fresh(), active: false };
     vi.mocked(getMyOnboardingState).mockResolvedValue(state);
