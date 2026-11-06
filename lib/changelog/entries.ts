@@ -1232,10 +1232,14 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "new",
     title: "Your books and awards, and a Bookshelf for the whole community",
+    image: {
+      src: "/changelog/books-and-awards/02-bookshelf.webp",
+      alt: "The Hedgie Book Shelf with covers, authors, genres and prices, and genre filters above.",
+    },
     summary:
       "Add your published books and awards to your page, and browse the Hedgie Bookshelf to find what other members have published.",
     body:
-      "Add books (with cover, description and a link to buy) and awards under the Books and Awards tabs of [My Writing](/projects). The [Bookshelf](/bookshelf) lists the books Hedgies have published, newest first, so you can discover and cheer on each other.",
+      "Add books (with cover, description and a link to buy) and awards under the Books and Awards tabs of [My Writing](/projects). The [Bookshelf](/bookshelf) lists the books Hedgies have published, newest first, so you can discover and cheer on each other.\n\n![The Hedgie Book Shelf with covers, authors, genres and prices, and genre filters above.](/changelog/books-and-awards/02-bookshelf.webp)\n\n![My Writing, Books tab listing two books with their editions and prices.](/changelog/books-and-awards/01-my-books.webp)",
   },
   {
     slug: "wheel-of-wonder",
