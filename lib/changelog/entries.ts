@@ -1967,11 +1967,11 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "improved",
     title: "Search finds the names people go by",
     summary:
-      "Searching for a member also finds other names they go by, prickle search finds guest speakers, and hosts and attendees show the name people go by.",
+      "The search box in the top bar also finds the other names a member goes by and the guest speaker of a prickle, and hosts and attendees show the name people go by.",
     image: { src: "/changelog/search-and-display-names/01-search-alternate-name.webp", alt: "The search box with Jules typed, showing the member Julia Sample with the line also known as Jules Sample." },
     body: [
       "![The search box with Jules typed, showing the member Julia Sample with the line also known as Jules Sample.](/changelog/search-and-display-names/01-search-alternate-name.webp)",
-      "When a result matches a nickname, a small line under it says so. Hosts and attendees on prickle pages, the attendance calendar, calendar feed titles and the Events page now show each person's display name instead of their legal name.",
+      "When a search result matches a nickname, a small line under it says so (the search on the Members page matches names as before). Hosts and attendees on prickle pages, the attendance calendar, calendar feed titles and the Events page now show each person's display name instead of their legal name.",
       "Members can no longer turn their own alternate names on or off in Settings. Those names are how attendance gets matched to you, so switching one off could lose matches. Staff can still do it for you.",
     ].join("\n\n"),
   },
