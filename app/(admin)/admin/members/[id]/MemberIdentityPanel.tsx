@@ -72,6 +72,9 @@ export default function MemberIdentityPanel({
   const [reactivatingNameAliasId, setReactivatingNameAliasId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [conflictingMemberId, setConflictingMemberId] = useState<string | null>(null);
+  /** Another Kajabi contact has the address we just tried to move to, and the address (to retry with). */
+  const [kajabiConflict, setKajabiConflict] = useState<{ contactId: string; empty: boolean; address: string } | null>(null);
+  const [deletingDuplicate, setDeletingDuplicate] = useState(false);
 
   const emailChanged = emailInput.trim().length > 0 && emailInput.trim().toLowerCase() !== email.toLowerCase();
 
@@ -85,6 +88,7 @@ export default function MemberIdentityPanel({
     });
     const data = await response.json();
     setConflictingMemberId(data.conflictingMemberId ?? null);
+    setKajabiConflict(data.kajabiConflict && typeof body.email === "string" ? { ...data.kajabiConflict, address: body.email } : null);
     if (!response.ok) throw new Error(data.error || "Request failed");
     return data;
   }
@@ -101,6 +105,35 @@ export default function MemberIdentityPanel({
       setError(err.message);
     } finally {
       setSavingEmail(false);
+    }
+  }
+
+  /**
+   * The Kajabi contact holding the address is an empty leftover: delete it in Kajabi (the server checks it is
+   * still empty and unlinked), then try the change again.
+   */
+  async function handleDeleteEmptyDuplicate() {
+    if (!kajabiConflict) return;
+    const { contactId, address } = kajabiConflict;
+    if (!window.confirm(`Delete Kajabi contact ${contactId}? It has no customer record, tags or offers. This can't be undone.`)) return;
+    setDeletingDuplicate(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/admin/members/${memberId}/delete-empty-kajabi-contact`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contactId, email: address }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Request failed");
+      setKajabiConflict(null);
+      const changed = await patchMember({ email: address });
+      setEmailInput(changed.member?.email ?? address);
+      router.refresh();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setDeletingDuplicate(false);
     }
   }
 
@@ -235,6 +268,18 @@ export default function MemberIdentityPanel({
                 View that member
               </a>
             </>
+          )}
+          {kajabiConflict?.empty && (
+            <div className="mt-2">
+              <button
+                type="button"
+                onClick={handleDeleteEmptyDuplicate}
+                disabled={deletingDuplicate}
+                className="px-3 py-1.5 rounded-md bg-red-700 text-white text-xs hover:bg-red-800 disabled:opacity-50"
+              >
+                {deletingDuplicate ? "Deleting…" : "Delete the empty Kajabi contact and try again"}
+              </button>
+            </div>
           )}
         </div>
       )}

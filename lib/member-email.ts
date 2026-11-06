@@ -1,4 +1,5 @@
-import { createKajabiClient } from "@/lib/kajabi/client";
+import { contactAttachments, createKajabiClient, isEmptyContact, type KajabiClient } from "@/lib/kajabi/client";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { refreshKajabiContactInBronze } from "@/lib/kajabi/contact-refresh";
 import { createRepos, type Repos } from "@/lib/data/repos";
 import type { Db } from "@/lib/data/db";
@@ -25,9 +26,68 @@ export async function findEmailOwner(repos: Repos, memberId: string, address: st
   return null;
 }
 
+/** Another Kajabi contact that already has the address Kajabi was asked to move this member to. */
+export interface KajabiEmailConflict {
+  contactId: string;
+  /** The Hub member that contact is linked to, if any. */
+  memberId: string | null;
+  memberName: string | null;
+  /** Nothing is attached to it in Kajabi (no customer record, tags or offers) and no member is linked: safe to delete. */
+  empty: boolean;
+}
+
 export type PrimaryEmailResult =
   | { ok: true; changed: boolean }
-  | { ok: false; status: 409 | 500 | 502; error: string; conflictingMemberId?: string };
+  | { ok: false; status: 409 | 500 | 502; error: string; conflictingMemberId?: string; kajabiConflict?: KajabiEmailConflict };
+
+function plural(count: number, noun: string) {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
+
+/**
+ * Which Kajabi contact holds `address`, for the message when Kajabi refuses to move a member's contact to it
+ * (Kajabi keeps emails unique). Found in the Bronze copy; what is attached to it comes from Kajabi itself, so
+ * "empty" is only ever said when Kajabi did. A failed lookup just means a more general message.
+ */
+async function describeKajabiConflict(
+  repos: Repos,
+  kajabi: Pick<KajabiClient, "fetchContactWithAttachments">,
+  address: string,
+  ownContactId: string
+): Promise<{ error: string; conflict?: KajabiEmailConflict }> {
+  const general = "Kajabi already has a different contact with that email. Merge or delete that contact in Kajabi first, then try again.";
+  try {
+    const holder = (await repos.billing.kajabiContactsByEmail(address)).find((c) => c.kajabi_contact_id !== ownContactId);
+    if (!holder) return { error: general };
+
+    const contactId = holder.kajabi_contact_id;
+    const linked = await repos.members.byKajabiId(contactId);
+    const memberName = linked ? getMemberDisplayName({ name: linked.name, display_name: linked.displayName }) : null;
+    const base = `Kajabi contact ${contactId} already has that email`;
+    if (linked) {
+      return {
+        error: `${base} and is linked to ${memberName} here. If they are the same person, merge the two contacts in Kajabi, then merge the members here.`,
+        conflict: { contactId, memberId: linked.id, memberName, empty: false },
+      };
+    }
+
+    const attached = await kajabi.fetchContactWithAttachments(contactId).catch(() => null);
+    if (!attached) return { error: `${base} and isn't linked to a member here. Merge or delete it in Kajabi first, then try again.`, conflict: { contactId, memberId: null, memberName: null, empty: false } };
+
+    const empty = isEmptyContact(attached);
+    const { hasCustomer, tagCount, offerCount } = contactAttachments(attached);
+    const has = [hasCustomer && "a customer record", tagCount ? plural(tagCount, "tag") : null, offerCount ? plural(offerCount, "offer") : null].filter(Boolean).join(", ");
+    return {
+      error: empty
+        ? `${base}, isn't linked to a member here, and has nothing attached in Kajabi (no customer record, tags or offers). It looks like an empty duplicate.`
+        : `${base} and isn't linked to a member here. It has ${has || "things attached"} in Kajabi: merge it into this member's contact in Kajabi, refresh from Kajabi here, then try again.`,
+      conflict: { contactId, memberId: null, memberName: null, empty },
+    };
+  } catch (error) {
+    console.error("[member-email] Couldn't look up the Kajabi contact that has the address:", error);
+    return { error: general };
+  }
+}
 
 /**
  * Change a member's primary email, and the address they sign in with, together.
@@ -103,9 +163,10 @@ export async function changePrimaryEmail({
     } catch (err) {
       await restoreAccount();
       const message = err instanceof Error ? err.message : "";
-      // Kajabi keeps emails unique: another contact (often an old duplicate with no member) has the address.
+      // Kajabi keeps emails unique: another contact (often an old duplicate) has the address.
       if (/already taken/i.test(message)) {
-        return { ok: false, status: 409, error: "Kajabi already has a different contact with that email. Merge or delete that contact in Kajabi first, then try again." };
+        const { error, conflict } = await describeKajabiConflict(serviceRepos, kajabi, address, member.kajabiId);
+        return { ok: false, status: 409, error, ...(conflict ? { kajabiConflict: conflict } : {}) };
       }
       return { ok: false, status: 502, error: message || "Couldn't update the email in Kajabi" };
     }

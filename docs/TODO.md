@@ -1668,6 +1668,11 @@ When Slack token rotation is adopted (see `docs/SLACK_BRIDGED_CHAT.md`, "Slack a
 
 ## Bug Fixes
 
+### Member merge modal: say when the two Kajabi contacts still need merging
+- **Missing:** merging two members here does not tell the admin that their Kajabi contacts are still separate. Kajabi's public API has no merge call (only get, update and delete), so the contacts are merged by hand in Kajabi first, and when that step is skipped the leftover duplicate keeps its email in Kajabi and blocks later email changes ("Email is already taken"). The primary-email change already names the contact that holds the address and offers to delete one that is empty (`describeKajabiConflict` in `lib/member-email.ts`, `app/api/admin/members/[id]/delete-empty-kajabi-contact`).
+- **Why deferred:** the email change was the pain point; the merge modal needs its own design (when to check, what to show for Stripe, which contact is kept).
+- **Where to start:** `app/(admin)/admin/members/[id]/MergeMemberModal.tsx` and `app/api/admin/members/merge`. Look both members' `kajabi_id` up in Kajabi (`fetchContactWithAttachments`) and, when both exist and differ, show what is attached to each and a reminder to merge them in Kajabi first. Re-check Kajabi's API reference for a merge call before building anything that deletes.
+
 ### Chat: browser-level checks for layout the unit tests cannot see
 - **Still open:** these have unit tests only for the inputs (style attributes, classes, placement math), because jsdom does no layout: that the message box really grows to fit a long paste up to its cap (`MessageBox` sets `min-height`, `max-height`, `overflow-y` and no height; `tests/components/MessageBox.test.tsx`), that nothing in `/chat` can scroll past the composer (`min-h-0`/`overflow-hidden` on the member shell and chat layout), and that the picker heading stays above scrolling emoji. A Playwright scene in `demo/scenes/` (see `chat-formatting.spec.ts`) could measure `offsetHeight` before and after a paste, `document.scrollingElement.scrollHeight` against the viewport, and the heading's stacking.
 - **Where to start:** `demo/scenes/chat-formatting.spec.ts`, `components/chat/MessageBox.tsx`, `app/(member)/chat/layout.tsx`.

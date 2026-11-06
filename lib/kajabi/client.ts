@@ -119,6 +119,37 @@ function resolveContactTags(contacts: KajabiContact[], included: any[] | undefin
  * import (/api/import/kajabi) and the targeted single-contact refresh so both
  * write identical rows (UPSERT on kajabi_contact_id — idempotent).
  */
+/** What hangs off a contact in Kajabi: its customer record, tags and offers. `null` means the response didn't say. */
+export interface KajabiContactAttachments {
+  hasCustomer: boolean;
+  tagCount: number | null;
+  offerCount: number | null;
+}
+
+function relatedCount(relationship: any): number | null {
+  const data = Array.isArray(relationship?.data) ? relationship.data : Array.isArray(relationship?.links?.data) ? relationship.links.data : null;
+  return data ? data.length : null;
+}
+
+/** Reads what is attached to a contact fetched with `include=offers,tags,customer`. */
+export function contactAttachments(contact: KajabiContact): KajabiContactAttachments {
+  const customer = contact.links?.customer ?? contact.relationships?.customer?.data ?? null;
+  return {
+    hasCustomer: Boolean(customer),
+    tagCount: relatedCount(contact.relationships?.tags),
+    offerCount: relatedCount(contact.relationships?.offers),
+  };
+}
+
+/**
+ * A contact with nothing attached: no customer record, no tags, no offers. Anything the response didn't spell
+ * out counts as "not empty", so the answer is only ever true when Kajabi said so.
+ */
+export function isEmptyContact(contact: KajabiContact): boolean {
+  const { hasCustomer, tagCount, offerCount } = contactAttachments(contact);
+  return !hasCustomer && tagCount === 0 && offerCount === 0;
+}
+
 export function toKajabiContactBronzeRecord(contact: KajabiContact, importTimestamp: string) {
   return {
     kajabi_contact_id: contact.id,
@@ -401,6 +432,29 @@ export class KajabiClient {
     if (!contact) throw new Error(`Kajabi returned no contact for id ${contactId}`);
     resolveContactTags([contact], response.included);
     return contact;
+  }
+
+  /** One contact with its customer, tags and offers, to see what is attached to it. */
+  async fetchContactWithAttachments(contactId: string): Promise<KajabiContact> {
+    const params = new URLSearchParams({ include: 'offers,tags,customer' });
+    const response: any = await this.request(`/v1/contacts/${contactId}?${params.toString()}`);
+    const contact: KajabiContact | undefined = response.data;
+    if (!contact) throw new Error(`Kajabi returned no contact for id ${contactId}`);
+    return contact;
+  }
+
+  /**
+   * Delete a contact. Kajabi has no merge call, so this is only for a contact with nothing attached
+   * (`isEmptyContact`); it cannot be undone.
+   * See: https://help.kajabi.com/api-reference/contacts/delete-contact
+   */
+  async deleteContact(contactId: string): Promise<void> {
+    try {
+      await this.request(`/v1/contacts/${contactId}`, { method: 'DELETE' });
+    } catch (error) {
+      // A successful delete may come back with no body to parse.
+      if (!(error instanceof SyntaxError)) throw error;
+    }
   }
 
   /**
