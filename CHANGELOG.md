@@ -106,9 +106,9 @@ This is staff-only and not visible to members yet. Reorders write a single audit
 
 Cleaner event names, a past-events page that works, and tabs left open across an update reload themselves.
 
-## 2026-10-31 · Improved: Past projects, deleting, and goals that ended
+## 2026-10-31 · Improved: Set-aside projects, deleting, and goals that ended
 
-Finished projects are listed apart from the ones you are working on, you can delete a project from its details, and goals that ended unmet no longer show as a standing score.
+Projects you have set aside are listed apart from the ones you are working on, you can delete a project from its details, and goals that ended unmet no longer show as a standing score.
 
 ## 2026-10-31 · Improved: Book genres as tags you can filter by
 
