@@ -40,6 +40,23 @@ const renderDetails = (props: Partial<React.ComponentProps<typeof PrickleDetails
     />
   );
 
+describe("PrickleDetails description", () => {
+  it("shows the description without the #event tag that tells the import to list it in Events", () => {
+    renderDetails({ prickle: { ...prickle, description: "A **special** evening of craft talk. #event\n\nBring a friend." } });
+    expect(screen.getByText("special")).toBeInTheDocument();
+    expect(screen.getByText(/Bring a friend\./)).toBeInTheDocument();
+    expect(screen.queryByText(/#event/)).not.toBeInTheDocument();
+  });
+
+  it("shows nothing for a description that was only the tag, and keeps a word that merely starts with it", () => {
+    const { unmount } = renderDetails({ prickle: { ...prickle, description: "#event" } });
+    expect(screen.queryByText(/#event/)).not.toBeInTheDocument();
+    unmount();
+    renderDetails({ prickle: { ...prickle, description: "Join our #eventful night." } });
+    expect(screen.getByText(/#eventful/)).toBeInTheDocument();
+  });
+});
+
 describe("PrickleDetails attendees", () => {
   it("shows the guest speaker next to the host, and nothing when there is none", () => {
     const { unmount } = renderDetails({ prickle: { ...prickle, guestSpeaker: "Ellen Example" } });
