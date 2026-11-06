@@ -21,6 +21,7 @@ import { zonedTimeToUtc } from "@/lib/prickle-schedules";
 import { loadDemoEnv } from "./env";
 import { ATTENDANCE_RATE, DEMO_JOIN, DEMO_PASSWORD, FILLER_MEMBERS, PERSONAS, demoEvents } from "./personas";
 import { DEMO_TOPIC_PREFIX, attendanceRows } from "./attendance";
+import { eventCalendarRows, seedEventDetails, seedEventsFlag, seedKajabiContact, withFormattedDescription } from "./rest-seed";
 import { seedChat } from "./chat-seed";
 import { seedCourses } from "./courses-seed";
 import { seedAliases, seedBooks, seedGuestSpeaker, seedNewcomerTour, seedProfileLinks, seedWritingGoals } from "./member-content-seed";
@@ -142,7 +143,10 @@ export async function seed(now: Date = new Date()) {
   // Books with covers, alternate names, the demo member's profile links, and the newcomer's tour.
   await seedBooks(admin, now);
   await seedAliases(admin);
-  if (memberEmail) await seedProfileLinks(admin, memberEmail);
+  if (memberEmail) {
+    await seedProfileLinks(admin, memberEmail);
+    await seedKajabiContact(admin, memberEmail, "demo-kajabi-maya", { instagram: "maya.writes.example", facebook: "maya.writes.example", x: "maya_writes_example" });
+  }
   if (newcomerEmail) await seedNewcomerTour(admin, newcomerEmail);
 
   // Hosting for members (the Hosting tab in My Prickles) is behind a feature flag that is off by default.
@@ -179,10 +183,13 @@ export async function seed(now: Date = new Date()) {
       raw_data: { demo: true },
     };
   });
-  const { error: eventsError } = await admin.schema("bronze").from("calendar_events").upsert(events, { onConflict: "google_event_id" });
+  // The weekly prickles (one with a formatted description) and the invented Events items, which get no attendance.
+  const eventItems = eventCalendarRows(now, orgDate);
+  const weeklyRows = withFormattedDescription(events.map((e) => ({ ...e, description: null as string | null })), now);
+  const { error: eventsError } = await admin.schema("bronze").from("calendar_events").upsert([...weeklyRows, ...eventItems], { onConflict: "google_event_id" });
   if (eventsError) throw new Error(`calendar_events: ${eventsError.message}`);
   // Demo events this seed no longer defines (an older cast, a changed pattern) go; processing then drops their prickles.
-  const keep = new Set(events.map((e) => e.google_event_id));
+  const keep = new Set([...events, ...eventItems].map((e) => e.google_event_id));
   const { data: stale } = await admin.schema("bronze").from("calendar_events").select("google_event_id").like("google_event_id", "demo-%");
   const gone = (stale ?? []).map((e) => e.google_event_id).filter((id) => !keep.has(id));
   if (gone.length > 0) {
@@ -194,13 +201,15 @@ export async function seed(now: Date = new Date()) {
   const res = await fetch(`${env.appUrl}/api/process/calendar`, {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${env.serviceRoleKey}` },
-    body: JSON.stringify({ fromDate: orgDate(-30, now), toDate: orgDate(15, now) }),
+    body: JSON.stringify({ fromDate: orgDate(-30, now), toDate: orgDate(45, now) }),
   }).catch((e) => {
     throw new Error(`Could not reach the demo app at ${env.appUrl}: start it with \`pnpm demo:app\` (${e.message})`);
   });
   if (!res.ok) throw new Error(`/api/process/calendar ${res.status}: ${await res.text()}`);
   console.log("Seeded:", await res.json());
   await seedGuestSpeaker(admin, now);
+  await seedEventsFlag(admin);
+  await seedEventDetails(admin);
 
   // Who came to the prickles that have ended: Zoom's record (Bronze), replaced on every run, then the real
   // attendance processing. The prickles must exist first, so this runs after the calendar is processed.

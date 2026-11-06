@@ -85,7 +85,7 @@ function WeekDivider() {
 function DayLabel({ date }: { date: string }) {
   const d = new Date(`${date}T00:00:00Z`);
   return (
-    <div className="w-12 flex-shrink-0 text-center" aria-label={fmtDate(date, true)}>
+    <div role="group" className="w-12 flex-shrink-0 text-center" aria-label={fmtDate(date, true)}>
       <p aria-hidden="true" className="text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400">
         {d.toLocaleDateString("en-US", { timeZone: "UTC", weekday: "short" })}
       </p>

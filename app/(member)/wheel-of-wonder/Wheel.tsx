@@ -39,7 +39,7 @@ function getInitials(name: string): string {
 }
 
 function getAvatarColor(name: string): string {
-  const colors = ["bg-mist-600", "bg-plum-500", "bg-emerald-500", "bg-amber-500", "bg-rose-500", "bg-cyan-500"];
+  const colors = ["bg-mist-700", "bg-plum-700", "bg-emerald-700", "bg-amber-700", "bg-rose-700", "bg-cyan-700"];
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
   return colors[Math.abs(hash) % colors.length];
@@ -358,7 +358,7 @@ export default function Wheel({ confirmedConnectionCount = 0 }: WheelProps) {
             <button data-track="wheel-message-on-slack"
               onClick={() => handleMessageOnSlack(winner.memberId)}
               disabled={introducing}
-              className="px-5 py-2.5 rounded-lg font-medium text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+              className="px-5 py-2.5 rounded-lg font-medium text-white bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 transition-colors"
             >
               {introducing ? "Opening Slack…" : "Message on Slack →"}
             </button>
