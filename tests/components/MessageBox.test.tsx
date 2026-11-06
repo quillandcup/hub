@@ -346,6 +346,64 @@ describe("MessageBox: formatting", () => {
     expect(track).toHaveBeenCalledWith("chat_format_applied", { kind: "strike", via: "shortcut" });
   });
 
+  describe("Ctrl/Cmd+Z right after the box changed something as you typed", () => {
+    const undo = (user: ReturnType<typeof boxUser>) => user.keyboard("{Control>}z{/Control}");
+
+    it.each([
+      ["an em-dash goes back to --", "so--", "so—", "so--"],
+      ["a closing quote goes back to a straight one (the opening one was its own conversion)", 'say "hi"', "say “hi”", 'say “hi"'],
+      ["an ellipsis goes back to ...", "hmm...", "hmm…", "hmm..."],
+      ["an arrow goes back to ->", "a ->", "a →", "a ->"],
+      ["an emoticon's emoji goes back to the emoticon, with the space typed after it", "ok :) ", "ok \u{1F642} ", "ok :) "],
+    ])("%s, and only that", async (_what, typed, converted, reverted) => {
+      const box = await mount();
+      const user = boxUser();
+      await typeInto(box, typed, user);
+      expect(latest).toBe(converted);
+      await undo(user);
+      expect(latest).toBe(reverted);
+      // What is typed next is typed as it is: not converted again.
+      await typeInto(box, "x", user);
+      expect(latest).toBe(`${reverted}x`);
+    });
+
+    it("takes the link off an address that was linked when a space was typed after it, and keeps the words", async () => {
+      const box = await mount();
+      const user = boxUser();
+      await typeInto(box, "see example.com ", user);
+      expect(latest).toBe("see <https://example.com|example.com> ");
+      await undo(user);
+      expect(latest).toBe("see example.com ");
+      expect(box.querySelector("a")).toBeNull();
+    });
+
+    it("leaves it to the editor's own undo once something else was typed or the caret moved", async () => {
+      const box = await mount();
+      const user = boxUser();
+      await typeInto(box, "so-- and", user);
+      await undo(user);
+      // Not the conversion's: the editor's undo took back the burst it was typed in.
+      expect(latest).not.toBe("so-- and");
+      expect(latest).not.toContain("--");
+
+      cleanup();
+      const moved = await mount();
+      await typeInto(moved, "so--", user);
+      // Move the caret into the word (the editor learns of it from the document's selectionchange event).
+      const node = moved.querySelector("p")!.firstChild as Text;
+      const range = document.createRange();
+      range.setStart(node, 1);
+      range.collapse(true);
+      window.getSelection()!.removeAllRanges();
+      window.getSelection()!.addRange(range);
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 30));
+      });
+      await undo(user);
+      expect(latest).not.toBe("so--");
+    });
+  });
+
   describe("smart quotes and symbols, as Slack's setting has them", () => {
     it("turns quotes curly, -- into an em-dash, ... into an ellipsis and -> and <- into arrows as they are typed", async () => {
       const box = await mount();
