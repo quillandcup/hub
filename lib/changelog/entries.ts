@@ -1281,7 +1281,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "- Choose Show on my profile for each goal and project. Your profile lists every one you chose to show.",
       "- A goal that reaches its target says Achieved, and one whose end date passed without reaching it says Ended. Pace is only shown while a goal is active.",
       "- Fixed: other members could not see the project you chose to show on your profile.",
+      "![A project with an achieved goal and a goal behind pace, each with its title and description](/changelog/writing-goal-titles-and-status/01-goals.webp)",
     ].join("\n"),
+    image: { src: "/changelog/writing-goal-titles-and-status/01-goals.webp", alt: "A project page with goal cards that have titles and descriptions: one marked Behind pace and one marked Achieved" },
   },
   {
     slug: "sign-in-from-slack",
@@ -1963,7 +1965,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "Genres on the book form are tags, the Book Shelf can be filtered by genre, and search finds books by genre.",
     body: [
       "Add up to five genres or tropes per book. On the [Book Shelf](/bookshelf), genre chips with counts narrow the list, and clicking one again clears it.",
+      "![The Book Shelf with genre chips above the books](/changelog/book-genres-as-tags/01-shelf.webp)",
     ].join("\n\n"),
+    image: { src: "/changelog/book-genres-as-tags/01-shelf.webp", alt: "The Book Shelf with genre chips and counts above five books, each listing its genres" },
   },
   {
     slug: "sidebar-modes",
@@ -2015,10 +2019,12 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "Finished projects are listed apart from the ones you are working on, you can delete a project from its details, and goals that ended unmet no longer show as a standing score.",
     body: [
       "On My Writing, projects that are complete, published or abandoned move to a collapsed Past projects section. They still open as usual, and changing a status moves them back.",
+      "![My Writing with the current projects and a collapsed section for a set-aside project](/changelog/projects-past-and-delete/01-past-projects.webp)",
       "Delete is in the project's Edit details. Its goals and entries go with it, and a book published from it stays on the shelf. Deleted items are kept until you ask us to remove them, as [/privacy](/privacy) explains.",
       "A goal whose end date passed before its target now moves to Past goals on the project page and leaves the project list, the dashboard and your profile.",
       "Deleting a project hides it. We keep a copy until you ask us to remove it.",
     ].join("\n\n"),
+    image: { src: "/changelog/projects-past-and-delete/01-past-projects.webp", alt: "My Writing listing current projects, with a collapsed section below holding a set-aside project" },
   },
   {
     slug: "fixes-2026-10-31",
@@ -2230,7 +2236,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "A book on your shelf can have a print edition and an ebook edition, each with its own link and price, on one card.",
     body: [
       "In the book form, switch on Print, Ebook or both. The shelf, your profile and the project card show one link per edition, such as Print $17.99 and Ebook $4.99, with genres on their own line below. Existing books keep their single edition.",
+      "![My Books listing a book with Print and Ebook prices](/changelog/my-books-multiple-formats/01-my-books.webp)",
     ].join("\n\n"),
+    image: { src: "/changelog/my-books-multiple-formats/01-my-books.webp", alt: "My Books with a book showing both a Print and an Ebook price on one line" },
   },
   {
     slug: "fixes-2026-11-03",
