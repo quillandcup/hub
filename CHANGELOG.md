@@ -154,7 +154,7 @@ The help icon is now a menu with Hedgie Help and Send feedback.
 
 ## 2026-10-27 · Improved: Search finds the names people go by
 
-Searching for a member also finds other names they go by, prickle search finds guest speakers, and hosts and attendees show the name people go by.
+The search box in the top bar also finds the other names a member goes by and the guest speaker of a prickle, and hosts and attendees show the name people go by.
 
 ## 2026-10-25 · Improved: Clearer navigation and a footer
 
