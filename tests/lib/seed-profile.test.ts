@@ -134,7 +134,7 @@ describe("the profile through the repositories", () => {
   const maya = () => repos.members.byEmail("maya.example@example.com");
 
   it("is a community the member repository can list and search", async () => {
-    expect(await repos.members.count()).toBe(15);
+    expect(await repos.members.count()).toBe(16);
     expect((await repos.members.search({ words: ["hazel"] })).map((m) => m.name)).toEqual(["Hazel Hosting"]);
     expect((await repos.members.profile((await maya())!.id))?.bio).toMatch(/lighthouse bakery/);
   });
