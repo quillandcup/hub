@@ -1393,7 +1393,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "A Getting started tour for new members",
     summary:
       "A checklist walks new members through setting up their details, introducing themselves, setting a writing goal and finding a prickle.",
+    image: { src: "/changelog/getting-started-tour/01-getting-started.webp", alt: "The Getting started checklist open in the corner of the dashboard with 0 of 6 steps done." },
     body: [
+      "![The Getting started checklist open in the corner of the dashboard with 0 of 6 steps done.](/changelog/getting-started-tour/01-getting-started.webp)",
       "A Getting started checklist appears in the corner of the page for accounts under 30 days old. At each step a spotlight shows you the setting to use. Check your details covers your name, birthday, pen names and other email addresses.",
       "Finished steps can be revisited, and you can restart the tour from the user menu.",
     ].join("\n\n"),
@@ -1621,7 +1623,10 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Getting started: steps for newcomers",
     summary:
       "The Getting started tour now has steps for saying hello, scheduling your first prickle and syncing your calendar, and it is on for everyone.",
+    image: { src: "/changelog/getting-started-newcomer-steps/01-getting-started.webp", alt: "The Getting started checklist listing Introduce yourself, Join a prickle and Sync your calendar among its steps." },
     body: [
+      "![The Getting started checklist listing Introduce yourself, Join a prickle and Sync your calendar among its steps.](/changelog/getting-started-newcomer-steps/01-getting-started.webp)",
+      "",
       "- Say hello in the intro channel on Slack (for members in their first 90 days). It checks off when you post there.",
       "- Schedule your first prickle, pointing at the calendar icon in Upcoming.",
       "- Sync your calendar, pointing at the sync card on Commitments. It checks off once your calendar app has fetched your feed.",
@@ -1712,7 +1717,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Connect Slack in Getting started",
     summary:
       "Getting started has a Connect Slack step. Once connected, reading a conversation in Slack or in the Hub marks it as read in both places.",
+    image: { src: "/changelog/connect-slack-step/01-getting-started.webp", alt: "The Getting started checklist open in the corner of the dashboard, listing Check your details, Connect Slack and four more steps." },
     body: [
+      "![The Getting started checklist open in the corner of the dashboard, listing Check your details, Connect Slack and four more steps.](/changelog/connect-slack-step/01-getting-started.webp)",
       "Connecting Slack (Settings, Account) lets Hub chat send as you. Once connected, reading a conversation in one place clears it as unread in the other. Connecting also makes Open Hedgie Hub in Slack find your account even if your Slack email differs from your Hub email.",
       "A tour you already finished reopens to show only the steps added since.",
     ].join("\n\n"),
@@ -1814,7 +1821,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Getting started asks for your Zoom name",
     summary:
       "The tour explains that prickles are counted by the name Zoom shows, and refuses a name another member already uses.",
+    image: { src: "/changelog/zoom-name-in-getting-started/01-zoom-name-stop.webp", alt: "The Pen Names and Zoom/Slack Names section of Identity settings highlighted, with a Getting started step asking for your Zoom name." },
     body: [
+      "![The Pen Names and Zoom/Slack Names section of Identity settings highlighted, with a Getting started step asking for your Zoom name.](/changelog/zoom-name-in-getting-started/01-zoom-name-stop.webp)",
       "Change your name in Zoom to match your Real Name, or add the name you use in Zoom as a pen name. A name that is another member's pen name or real name is refused, so attendance cannot land on the wrong person.",
     ].join("\n\n"),
   },
@@ -1953,7 +1962,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Search finds the names people go by",
     summary:
       "Searching for a member also finds other names they go by, prickle search finds guest speakers, and hosts and attendees show the name people go by.",
+    image: { src: "/changelog/search-and-display-names/01-search-alternate-name.webp", alt: "The search box with Jules typed, showing the member Julia Sample with the line also known as Jules Sample." },
     body: [
+      "![The search box with Jules typed, showing the member Julia Sample with the line also known as Jules Sample.](/changelog/search-and-display-names/01-search-alternate-name.webp)",
       "When a result matches a nickname, a small line under it says so. Hosts and attendees on prickle pages, the attendance calendar, calendar feed titles and the Events page now show each person's display name instead of their legal name.",
       "Members can no longer turn their own alternate names on or off in Settings. Those names are how attendance gets matched to you, so switching one off could lose matches. Staff can still do it for you.",
     ].join("\n\n"),
