@@ -23,6 +23,7 @@ import { ATTENDANCE_RATE, DEMO_JOIN, DEMO_PASSWORD, FILLER_MEMBERS, PERSONAS, de
 import { DEMO_TOPIC_PREFIX, attendanceRows } from "./attendance";
 import { seedChat } from "./chat-seed";
 import { seedCourses } from "./courses-seed";
+import { seedAliases, seedBooks, seedGuestSpeaker, seedNewcomerTour, seedProfileLinks, seedWritingGoals } from "./member-content-seed";
 
 /** Today's date in the org's timezone as YYYY-MM-DD, plus a number of days. */
 export function orgDate(offsetDays: number, now: Date = new Date()): string {
@@ -47,7 +48,8 @@ export async function seed(now: Date = new Date()) {
       userIdByEmail.set(p.email, id);
     }
     // A zone already chosen, so the "Change time zone?" prompt stays out of screenshots.
-    const { error: profileError } = await admin.from("user_profiles").upsert({ id, email: p.email, role: p.role, timezone_preference: ORG_TIMEZONE });
+    // nav_mode back to its default (null): a scene that changed the saved sidebar mode must not leave it for the next screenshot.
+    const { error: profileError } = await admin.from("user_profiles").upsert({ id, email: p.email, role: p.role, timezone_preference: ORG_TIMEZONE, nav_mode: null });
     if (profileError) throw new Error(`user_profiles ${p.key}: ${profileError.message}`);
   }
 
@@ -71,7 +73,9 @@ export async function seed(now: Date = new Date()) {
   console.log("Community:", loaded);
 
   // The Getting started tour is for new members; the demo members have put it away so it doesn't cover the page.
-  const { data: seeded, error: seededError } = await admin.from("members").select("id").in("email", dataset.members.map((m) => m.email as string));
+  // The newcomer persona keeps it: its tour is in progress (seedNewcomerTour below).
+  const newcomerEmail = PERSONAS.find((p) => p.key === "newcomer")?.email ?? "";
+  const { data: seeded, error: seededError } = await admin.from("members").select("id").in("email", dataset.members.map((m) => m.email as string).filter((e) => e !== newcomerEmail));
   if (seededError) throw new Error(`members: ${seededError.message}`);
   const dismissedAt = now.toISOString();
   const { error: onboardingError } = await admin
@@ -111,6 +115,7 @@ export async function seed(now: Date = new Date()) {
       { external_id: "demo-lighthouse", title: "The Lighthouse Bakery Murders", phase: "drafting", description: "A cozy mystery about a baker who finds a body in the proofing room.", show_on_profile: true },
       { external_id: "demo-tide", title: "Tide Tables (short story)", phase: "revising", description: "A quiet story about two sisters and a very old tide chart.", show_on_profile: true },
       { external_id: "demo-seed", title: "Seed Notes", phase: "planning", description: "Ideas for the next book, collected a line at a time.", show_on_profile: false },
+      { external_id: "demo-marmalade", title: "The Marmalade Affair (set aside)", phase: "hibernating", description: "A first novel, put in a drawer until the right idea comes back.", show_on_profile: false },
     ];
     const { data: created, error: projectError } = await admin.from("writing_projects").insert(projects.map((p) => ({ ...p, member_id: memberId }))).select("id, external_id");
     if (projectError) throw new Error(`writing_projects: ${projectError.message}`);
@@ -124,6 +129,7 @@ export async function seed(now: Date = new Date()) {
         : [];
     });
     const tide = projectId("demo-tide");
+    await seedWritingGoals(admin, memberId, now);
     if (tide) {
       for (const [daysAgo, amount] of [[12, 3], [9, 2], [5, 4], [2, 3]] as const) {
         entries.push({ member_id: memberId, project_id: tide, entry_date: orgDate(-daysAgo, now), measure: "pages", mode: "delta", amount, tags: [] });
@@ -132,6 +138,12 @@ export async function seed(now: Date = new Date()) {
     const { error: entriesError } = await admin.from("writing_progress_entries").insert(entries);
     if (entriesError) throw new Error(`writing_progress_entries: ${entriesError.message}`);
   }
+
+  // Books with covers, alternate names, the demo member's profile links, and the newcomer's tour.
+  await seedBooks(admin, now);
+  await seedAliases(admin);
+  if (memberEmail) await seedProfileLinks(admin, memberEmail);
+  if (newcomerEmail) await seedNewcomerTour(admin, newcomerEmail);
 
   // Hosting for members (the Hosting tab in My Prickles) is behind a feature flag that is off by default.
   const { error: hostingFlagError } = await admin.from("feature_flags").upsert({ feature_key: "hosting", enabled_globally: true }, { onConflict: "feature_key" });
@@ -188,6 +200,7 @@ export async function seed(now: Date = new Date()) {
   });
   if (!res.ok) throw new Error(`/api/process/calendar ${res.status}: ${await res.text()}`);
   console.log("Seeded:", await res.json());
+  await seedGuestSpeaker(admin, now);
 
   // Who came to the prickles that have ended: Zoom's record (Bronze), replaced on every run, then the real
   // attendance processing. The prickles must exist first, so this runs after the calendar is processed.

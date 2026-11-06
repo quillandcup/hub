@@ -14,6 +14,7 @@ vi.mock('@/app/(member)/settings/identityActions', () => ({
   setCustomDisplayName: vi.fn(),
   addNameAlias: vi.fn(),
   addEmailAlias: vi.fn(),
+  requestEmailChange: vi.fn(),
 }))
 
 const baseSettings = {
@@ -144,5 +145,28 @@ describe('IdentityPanel', () => {
       expect(screen.getAllByText(label).length).toBeGreaterThan(0)
     }
     expect(screen.queryByRole('button', { name: /deactivate|reactivate/i })).not.toBeInTheDocument()
+  })
+
+  it('asks for confirmation when the primary email is changed, and shows a refusal', async () => {
+    vi.mocked(identityActions.getIdentitySettings).mockResolvedValue(baseSettings)
+    vi.mocked(identityActions.requestEmailChange)
+      .mockResolvedValueOnce({ error: 'That email is already in use.' })
+      .mockResolvedValueOnce({ success: true, sentTo: 'ada.new@example.com' })
+
+    render(<IdentityPanel />)
+    await waitFor(() => expect(screen.getByDisplayValue('Ada Lovelace')).toBeInTheDocument())
+
+    const input = screen.getByLabelText('New primary email')
+    const user = userEvent.setup()
+    await user.type(input, 'taken@example.com')
+    await user.click(screen.getByRole('button', { name: 'Change' }))
+    expect(await screen.findByText('That email is already in use.')).toBeInTheDocument()
+    expect(identityActions.requestEmailChange).toHaveBeenCalledWith('taken@example.com')
+
+    await user.clear(input)
+    await user.type(input, 'ada.new@example.com')
+    await user.click(screen.getByRole('button', { name: 'Change' }))
+    expect(await screen.findByText(/confirmation link to ada\.new@example\.com/)).toBeInTheDocument()
+    expect(input).toHaveValue('')
   })
 })

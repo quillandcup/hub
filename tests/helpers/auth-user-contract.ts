@@ -82,6 +82,26 @@ export function defineAuthUserContract(name: string, setup: () => AuthUserContra
       expect((await ctx.repo().byId(user.id))!.appMetadata).toMatchObject({ first: "a", second: "b" });
     });
 
+    it("removes an app metadata key set to null and keeps the others", async () => {
+      const user = await create("meta-null");
+      await ctx.repo().mergeAppMetadata(user.id, { keep: "a", drop: "b" });
+      await ctx.repo().mergeAppMetadata(user.id, { drop: null });
+      const metadata = (await ctx.repo().byId(user.id))!.appMetadata;
+      expect(metadata).toMatchObject({ keep: "a" });
+      expect(metadata).not.toHaveProperty("drop");
+    });
+
+    it("changes the sign-in email, refuses one another account has, and fails for an unknown id", async () => {
+      const user = await create("set-email");
+      const other = await create("set-email-other");
+      const next = `${user.email!.split("@")[0]}-new@example.com`;
+      await ctx.repo().setEmail(user.id, next.toUpperCase());
+      expect((await ctx.repo().byId(user.id))!.email).toBe(next);
+      await expect(ctx.repo().setEmail(user.id, other.email!)).rejects.toThrow();
+      expect((await ctx.repo().byId(user.id))!.email).toBe(next);
+      await expect(ctx.repo().setEmail(MISSING_ID, "nobody-here@example.com")).rejects.toThrow();
+    });
+
     it("generates a sign-in token and code for an account, and for an unknown id fails without creating one", async () => {
       const user = await create("link");
       const link = await ctx.repo().generateMagicLink(user.id);

@@ -180,8 +180,8 @@ export default function LogProgressModal({
       <form onSubmit={handleSubmit} className="space-y-4">
         {!editingEntry && (
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Project</label>
-            <select data-track="log-progress-project"
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1" htmlFor="log-progress-project">Project</label>
+            <select id="log-progress-project" data-track="log-progress-project"
               value={projectId}
               onChange={(e) => setProjectId(e.target.value)}
               className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
@@ -197,8 +197,8 @@ export default function LogProgressModal({
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Measure</label>
-            <select data-track="log-progress-measure"
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1" htmlFor="log-progress-measure">Measure</label>
+            <select id="log-progress-measure" data-track="log-progress-measure"
               value={measure}
               onChange={(e) => setMeasure(e.target.value as WritingMeasure)}
               className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
@@ -211,8 +211,9 @@ export default function LogProgressModal({
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Date</label>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1" htmlFor="log-progress-date">Date</label>
             <input
+              id="log-progress-date"
               type="date"
               value={entryDate}
               onChange={(e) => setEntryDate(e.target.value)}

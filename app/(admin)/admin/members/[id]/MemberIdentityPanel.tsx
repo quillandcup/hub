@@ -226,8 +226,8 @@ export default function MemberIdentityPanel({
         <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Email</h3>
         <p className="text-xs text-slate-600 dark:text-slate-400 mb-3">
           {hasKajabiId
-            ? "Changing this updates the contact's email in Kajabi. The old email is kept as an alias."
-            : "This member has no linked Kajabi contact — the email updates locally only. The old email is kept as an alias."}
+            ? "Changing this updates the address they sign in with and the contact's email in Kajabi. The old email is kept as an alias."
+            : "This member has no linked Kajabi contact, so Kajabi is untouched. Changing this updates the address they sign in with. The old email is kept as an alias."}
         </p>
         <form onSubmit={handleSaveEmail} className="flex gap-2 max-w-md mb-4">
           <input

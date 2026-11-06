@@ -9,6 +9,7 @@ import {
   setCustomDisplayName,
   addNameAlias,
   addEmailAlias,
+  requestEmailChange,
   type IdentitySettings,
 } from "./identityActions";
 import { SUPPORT_EMAIL } from "@/lib/config";
@@ -86,6 +87,8 @@ export function IdentityPanel() {
   const [addingNameAlias, setAddingNameAlias] = useState(false);
   const [emailAliasInput, setEmailAliasInput] = useState("");
   const [addingEmailAlias, setAddingEmailAlias] = useState(false);
+  const [primaryEmailInput, setPrimaryEmailInput] = useState("");
+  const [requestingEmailChange, setRequestingEmailChange] = useState(false);
   const [savingDisplayName, setSavingDisplayName] = useState(false);
   const [customDisplayName, setCustomDisplayNameInput] = useState<string | null>(null);
 
@@ -212,6 +215,22 @@ export function IdentityPanel() {
     setAddingEmailAlias(false);
   }
 
+  async function handleRequestEmailChange(e: FormEvent) {
+    e.preventDefault();
+    if (!primaryEmailInput.trim()) return;
+    setRequestingEmailChange(true);
+    setError(null);
+    setMessage(null);
+    const result = await requestEmailChange(primaryEmailInput);
+    if ("error" in result) {
+      setError(result.error);
+    } else {
+      setPrimaryEmailInput("");
+      setMessage(`We sent a confirmation link to ${result.sentTo}. Your email changes once you open it; until then, keep signing in with ${data?.primaryEmail}.`);
+    }
+    setRequestingEmailChange(false);
+  }
+
   if (loading) {
     return (
       <div className="animate-pulse space-y-2">
@@ -259,6 +278,7 @@ export function IdentityPanel() {
             <input
               type="text"
               value={nameInput}
+              aria-label="Real Name"
               onChange={(e) => setNameInput(e.target.value)}
               className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm"
               maxLength={200}
@@ -285,6 +305,7 @@ export function IdentityPanel() {
         <select
           value={customDisplayName !== null ? WRITE_OWN : (data.displayName ?? "")}
           data-track="settings-identity-display-name"
+          aria-label="Display Name"
           onChange={(e) => handleDisplayNameChange(e.target.value)}
           disabled={savingDisplayName}
           className="w-full max-w-md px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm disabled:opacity-50"
@@ -369,6 +390,33 @@ export function IdentityPanel() {
         </form>
       </div>
 
+      {/* Primary email */}
+      <div>
+        <h3 id="identity-primary-email" className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Primary Email</h3>
+        <p className="text-xs text-slate-600 dark:text-slate-400 mb-3">
+          The address you sign in with and we write to: <span className="font-medium">{data.primaryEmail}</span>. To switch,
+          enter the new one and open the confirmation link we send. Your current address stays on as an alias.
+        </p>
+        <form onSubmit={handleRequestEmailChange} className="flex gap-2 max-w-md">
+          <input
+            type="email"
+            aria-label="New primary email"
+            value={primaryEmailInput}
+            onChange={(e) => setPrimaryEmailInput(e.target.value)}
+            placeholder="new-email@example.com"
+            className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm"
+          />
+          <button
+            type="submit"
+            data-track="settings-identity-change-email"
+            disabled={requestingEmailChange || !primaryEmailInput.trim()}
+            className="px-4 py-2 bg-plum-600 text-white text-sm rounded-md hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {requestingEmailChange ? "Sending…" : "Change"}
+          </button>
+        </form>
+      </div>
+
       {/* Email aliases */}
       <div data-tour="identity-emails">
         <h3 id="identity-email-aliases" className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Email Aliases</h3>
@@ -415,7 +463,7 @@ export function IdentityPanel() {
           Month and day only — no year needed. Used to celebrate your hedgie birthday with you.
         </p>
         <form onSubmit={handleSaveBirthday} className="flex gap-2 max-w-md">
-          <select data-track="settings-identity-birthday-month"
+          <select data-track="settings-identity-birthday-month" aria-label="Birthday month"
             value={birthdayMonth}
             onChange={(e) => {
               setBirthdayMonth(e.target.value);
@@ -430,7 +478,7 @@ export function IdentityPanel() {
               </option>
             ))}
           </select>
-          <select data-track="settings-identity-birthday-day"
+          <select data-track="settings-identity-birthday-day" aria-label="Birthday day"
             value={birthdayDay}
             onChange={(e) => setBirthdayDay(e.target.value)}
             disabled={!birthdayMonth}

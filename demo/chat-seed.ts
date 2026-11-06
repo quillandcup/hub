@@ -3,6 +3,7 @@ import { COMMUNITY } from "@/lib/data/profiles/community";
 import { storeEmojiImage } from "@/lib/chat/emoji-copy";
 import { SLACK_EMOJI_BUCKET } from "@/lib/chat/emoji-url";
 import { SLACK_FILES_BUCKET } from "@/lib/slack-capture";
+import { SLACK_USER_SCOPES } from "@/lib/slack-connect";
 import { animatedGif, bouncingDisc, DISC_PALETTE } from "./gif";
 
 /**
@@ -256,9 +257,13 @@ export async function seedChat(admin: SupabaseClient, now: Date, supabaseUrl: st
   // Posting needs the member to have connected Slack. The demo has no Slack, so this is a connection record with no
   // tokens: enough for the Hub to treat the member as connected. The message isn't sent anywhere (outside production
   // the app leaves a post saved and pending), and the recording plays Slack's part by marking it sent (slack-stand-in.ts).
-  const { error: connectionError } = await admin
-    .from("member_slack_connections")
-    .upsert({ member_id: demoMember, slack_user_id: `${DEMO_SLACK_PREFIX.replace("C", "U")}USER01`, scopes: [], revoked_at: null }, { onConflict: "member_id" });
+  // Full scopes, so no "reconnect Slack" bar covers the page. The newcomer is the one signed-in persona without a connection:
+  // the Getting started tour's Connect Slack step is open for them (demo/member-content-seed.ts).
+  const connected = COMMUNITY.people.filter((p) => p.signsIn && p.key !== "newcomer" && byName.has(p.name));
+  const { error: connectionError } = await admin.from("member_slack_connections").upsert(
+    connected.map((p, i) => ({ member_id: id(p.name), slack_user_id: `${DEMO_SLACK_PREFIX.replace("C", "U")}USER${String(i + 1).padStart(2, "0")}`, scopes: [...SLACK_USER_SCOPES], revoked_at: null })),
+    { onConflict: "member_id" },
+  );
   if (connectionError) throw new Error(`member_slack_connections: ${connectionError.message}`);
 
   let slackSeq = 0;

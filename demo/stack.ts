@@ -65,6 +65,9 @@ function writeEnv() {
     `NEXT_PUBLIC_SUPABASE_ANON_KEY=${status.ANON_KEY}`,
     `SUPABASE_SERVICE_ROLE_KEY=${status.SERVICE_ROLE_KEY}`,
     `DEMO_MAIL_URL=${status.MAILPIT_URL}`,
+    `# Fake Slack app credentials, so Settings and the Getting started tour offer Connect Slack. Nothing calls Slack with them.`,
+    `SLACK_CLIENT_ID=demo-slack-client-id`,
+    `SLACK_CLIENT_SECRET=demo-slack-client-secret`,
     ``,
   ];
   writeFileSync(envFile, lines.join("\n"));
