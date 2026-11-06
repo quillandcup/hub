@@ -1,4 +1,10 @@
+import { resetNavMode } from "../../db";
 import { expect, shot, test } from "../../fixtures";
+
+// The scene changes a saved setting on the shared demo stack: put it back even when an assertion fails.
+test.afterEach(async () => {
+  await resetNavMode("member");
+});
 
 /** Screenshot for the changelog entry "sidebar-modes": run on demand with `pnpm changelog:capture sidebar-modes`. */
 test("a member sets the side menu to auto-hide @changelog", async ({ page, signInAs }, testInfo) => {
@@ -18,9 +24,4 @@ test("a member sets the side menu to auto-hide @changelog", async ({ page, signI
 
   await page.getByRole("complementary", { name: "Sidebar navigation" }).hover();
   await expect(mode(/^Sidebar auto-hides/).first()).toBeVisible();
-
-  // Leave the demo member as found: pinned open.
-  await mode(/^Sidebar auto-hides/).first().click();
-  await mode(/^Sidebar pinned closed/).first().click();
-  await expect(mode(/^Sidebar pinned open/).first()).toBeVisible();
 });

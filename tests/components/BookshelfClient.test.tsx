@@ -22,6 +22,13 @@ const SHELF = [book("one", ["Romance", "Fantasy"]), book("two", ["fantasy"]), bo
 
 afterEach(cleanup);
 
+describe("BookshelfClient publish link", () => {
+  it("is underlined, so it does not rely on colour alone inside the sentence", () => {
+    render(<BookshelfClient shelf={SHELF} />);
+    expect(screen.getByRole("link", { name: "Publish a project" }).className).toContain("underline");
+  });
+});
+
 describe("BookshelfClient genre filter", () => {
   it("lists each genre once with its count, case-insensitively, most common first", () => {
     render(<BookshelfClient shelf={SHELF} />);

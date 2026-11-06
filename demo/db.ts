@@ -18,6 +18,12 @@ async function memberIdFor(personaKey: string): Promise<string> {
   return data.id;
 }
 
+/** Put the persona's saved sidebar mode back to the default (null), for a scene that changes it. */
+export async function resetNavMode(personaKey: string) {
+  const { error } = await admin().from("user_profiles").update({ nav_mode: null }).eq("email", persona(personaKey).email);
+  if (error) throw new Error(`reset nav mode: ${error.message}`);
+}
+
 /** Remove the persona's prickle commitments. */
 export async function resetCommitments(personaKey: string) {
   const { error } = await admin().from("prickle_commitments").delete().eq("member_id", await memberIdFor(personaKey));
