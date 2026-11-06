@@ -8,7 +8,9 @@ import { getEffectiveIdentity } from "@/lib/sudo";
 import { triggerReprocessing } from "@/lib/processing/trigger";
 import { createKajabiClient } from "@/lib/kajabi/client";
 import { revalidatePath } from "next/cache";
-import { SUPPORT_EMAIL } from "@/lib/config";
+import { APP_URL, SUPPORT_EMAIL } from "@/lib/config";
+import { createServiceRoleClient } from "@/lib/supabase/service";
+import { applyConfirmedEmailChange, findEmailOwner, normalizeEmail, PENDING_EMAIL_KEY } from "@/lib/member-email";
 import { createRepos } from "@/lib/data/repos";
 
 import { withAction } from "@/lib/analytics/server";
@@ -68,6 +70,20 @@ export async function getIdentitySettings(): Promise<IdentitySettings | { error:
   const ctx = await requireIdentity();
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
+
+  // They may have just confirmed a new email from the link we sent; show it as the primary one.
+  if (!effectiveIdentity.isSudo) {
+    const user = await getCurrentUser();
+    if (user) {
+      try {
+        if (await applyConfirmedEmailChange(createServiceRoleClient(), user.id)) {
+          after(() => triggerReprocessing("member_email_aliases", "local"));
+        }
+      } catch (err) {
+        console.error("[identity] Applying a confirmed email change failed:", err);
+      }
+    }
+  }
 
   const [memberResult, nameAliasResult, emailAliasResult, attendanceCount] = await Promise.all([
     createRepos(supabase).members.profile(effectiveIdentity.memberId),
@@ -283,7 +299,52 @@ async function addEmailAliasImpl(email: string): Promise<{ success: true } | { e
   return { success: true };
 }
 
+/**
+ * Starts switching the primary email: Supabase mails a confirmation link to the new address (and,
+ * with double confirmation on, to the current one). Nothing changes until it is clicked; then
+ * `applyConfirmedEmailChange` moves the member, Kajabi and the sign-in together.
+ */
+async function requestEmailChangeImpl(email: string): Promise<{ success: true; sentTo: string } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  // In sudo the signed-in account is the admin's: it must never be pointed at the member's new address.
+  if (effectiveIdentity.isSudo) return { error: "Switch back to your own account to change the email." };
+
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const address = normalizeEmail(email);
+  if (!address) return { error: "Enter a valid email address" };
+  if (address === effectiveIdentity.memberEmail.toLowerCase()) return { error: "That's already your primary email" };
+
+  const repos = createRepos(supabase);
+  const owner = await findEmailOwner(repos, effectiveIdentity.memberId, address);
+  // Not saying whose it is: members can't see each other's emails.
+  if (owner) return { error: `That email is already in use. Email ${SUPPORT_EMAIL} if it's yours.` };
+
+  try {
+    await createRepos(createServiceRoleClient()).authUsers.mergeAppMetadata(user.id, { [PENDING_EMAIL_KEY]: address });
+  } catch (err) {
+    console.error("[identity] Couldn't remember the pending email change:", err);
+    return { error: "Couldn't start the email change. Try again." };
+  }
+
+  const { error } = await supabase.auth.updateUser({ email: address }, { emailRedirectTo: `${APP_URL}/auth/callback?next=/settings/identity` });
+  if (error) {
+    return { error: error.code === "email_exists" ? `That email is already in use. Email ${SUPPORT_EMAIL} if it's yours.` : error.message };
+  }
+
+  revalidatePath("/settings", "layout");
+  return { success: true, sentTo: address };
+}
+
 // Usage analytics: each action records whether it worked (lib/analytics/server.ts).
+export async function requestEmailChange(...args: Parameters<typeof requestEmailChangeImpl>): ReturnType<typeof requestEmailChangeImpl> {
+  return withAction("email_change_requested", () => requestEmailChangeImpl(...args));
+}
+
 export async function updateRealName(...args: Parameters<typeof updateRealNameImpl>): ReturnType<typeof updateRealNameImpl> {
   return withAction("real_name_changed", () => updateRealNameImpl(...args));
 }

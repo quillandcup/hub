@@ -229,10 +229,10 @@ describe("MemberIdentityPanel", () => {
 
   it("says whether an email change goes to Kajabi", () => {
     const { unmount } = renderWithEmails();
-    expect(screen.getByText(/updates the contact's email in Kajabi/)).toBeInTheDocument();
+    expect(screen.getByText(/updates the address they sign in with and the contact's email in Kajabi/)).toBeInTheDocument();
     unmount();
     renderWithEmails({ hasKajabiId: false });
-    expect(screen.getByText(/the email updates locally only/)).toBeInTheDocument();
+    expect(screen.getByText(/so Kajabi is untouched/)).toBeInTheDocument();
   });
 
   it("changes the primary email", async () => {
