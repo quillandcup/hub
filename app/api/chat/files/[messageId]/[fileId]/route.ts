@@ -48,12 +48,16 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       channelId: content.slackChannelId ?? "",
       messageTs: content.slackTs ?? "",
     });
-    if (!copy.ok) {
+    if (copy.ok) {
+      path = copy.path;
+      storedType = copy.mimetype;
+    } else if (file.staged) {
+      // Slack answers "not found" for a file for a couple of seconds after it was sent from the Hub: the bytes we sent are still in staging.
+      path = file.staged;
+    } else {
       console.error(`[chat] file ${fileId} unavailable: ${copy.reason}`);
       return notFound();
     }
-    path = copy.path;
-    storedType = copy.mimetype;
   }
 
   const { data: blob, error } = await service.storage.from(SLACK_FILES_BUCKET).download(path);
