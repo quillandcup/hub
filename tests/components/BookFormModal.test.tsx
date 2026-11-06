@@ -97,6 +97,15 @@ describe("BookFormModal", () => {
   });
 });
 
+describe("BookFormModal labels", () => {
+  it("ties the title, publication date and description to their labels", () => {
+    render(<BookFormModal isOpen onClose={() => {}} onSaved={() => {}} />);
+    expect(screen.getByLabelText("Title *")).toHaveAttribute("type", "text");
+    expect(screen.getByLabelText("Publication date *")).toHaveAttribute("type", "date");
+    expect(screen.getByLabelText("Description (optional)").tagName).toBe("TEXTAREA");
+  });
+});
+
 describe("BookFormModal genre tags", () => {
   const BOOK = { id: "book-1", title: "B", description: null, coverUrl: "https://example.com/c.jpg", publishedDate: "2026-03-15", editions: [{ format: "print" as const, purchaseUrl: "https://example.com/b", price: null }], genres: ["Romance", "Fantasy"], penName: null, projectId: null, coverAsset: null };
 

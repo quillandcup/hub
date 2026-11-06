@@ -1999,8 +1999,10 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "Upload a book cover at any size, pick it again from your own images and adjust its crop. We also offer a download in the size Amazon asks for, when your image is large enough.",
     body: [
       "The book form has one Choose cover button with a tab of your own images and an upload tab. JPEG, PNG, WebP, GIF, AVIF and iPhone HEIC photos all work, up to 4 MB. The exact-size rule is gone.",
+      "![The Choose a cover window with your own images](/changelog/media-library-and-book-covers/01-choose-cover.webp)",
       "Under the cover you will see a download link for the size Amazon wants, or what is missing if the image is too small. Older covers keep working but have no Amazon version until you upload them again.",
     ].join("\n\n"),
+    image: { src: "/changelog/media-library-and-book-covers/01-choose-cover.webp", alt: "The Choose a cover window over the book form, with Library and Upload tabs and two of the member's own book covers" },
   },
   {
     slug: "book-genres-as-tags",

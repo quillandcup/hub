@@ -158,8 +158,9 @@ export default function BookFormModal({
         )}
 
         <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Title *</label>
+          <label htmlFor="book-title" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Title *</label>
           <input
+            id="book-title"
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -169,10 +170,12 @@ export default function BookFormModal({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+          <label htmlFor="book-published-date" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
             Publication date *
           </label>
           <input
+
+            id="book-published-date"
             type="date"
             value={publishedDate}
             onChange={(e) => setPublishedDate(e.target.value)}
@@ -211,10 +214,12 @@ export default function BookFormModal({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+          <label htmlFor="book-description" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
             Description (optional)
           </label>
           <textarea
+
+            id="book-description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={3}
