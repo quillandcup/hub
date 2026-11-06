@@ -165,6 +165,7 @@ export const SITE_PAGES: SitePage[] = [
   admin({ title: "Prickle Zoom Link", href: "/admin/prickle-join", section: "Accountability", nav: { icon: "🔗" }, keywords: ["zoom", "passcode", "password", "join link", "room"] }),
   admin({ title: "Previews", href: "/admin/previews", section: "Developer", nav: { icon: "🧩" }, keywords: ["segments", "feature flags", "rollout"] }),
   admin({ title: "Feedback", href: "/admin/feedback", section: "Developer", nav: { icon: "💬" } }),
+  admin({ title: "Changelog", href: "/admin/changelog", section: "Developer", nav: { icon: "📝" }, keywords: ["what's new", "release notes", "engineering", "updates"] }),
   admin({ title: "Test Notifications", href: "/admin/notifications", section: "Developer", nav: { icon: "🔔" }, keywords: ["send test", "slack", "email", "push", "in-app", "reminders"] }),
 
   // Admin pages reached by drilling in (mostly from the health check), not from the sidebar

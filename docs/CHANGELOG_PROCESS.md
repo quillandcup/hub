@@ -4,7 +4,7 @@ What's new and fixed in the Hedgie Hub, for members. One source, three readers.
 
 - **Source:** `lib/changelog/entries.ts`, a typed list. Add an entry in the same PR as the change it describes, so it goes live with the deploy that ships the feature.
 - **In the app:** `/changelog` (list) and `/changelog/<slug>` (one entry, with its own link), reached from the **?** menu in the top bar.
-- **In the repo:** `CHANGELOG.md`, generated with `pnpm changelog:generate`. `tests/lib/changelog.test.ts` fails when it is stale or an entry is malformed.
+- **In the admin space:** `/admin/changelog` (list, with month headings) and `/admin/changelog/<slug>`: every entry, product and engineering, with search and filters for category and audience (Product / Engineering / All). The member page has the same search and the category filter. There is no generated `CHANGELOG.md`; `tests/lib/changelog.test.ts` fails when an entry is malformed or shows an image that is not there.
 - **Digest:** a weekly "What's new" notification (kind `changelog_digest`, "News about the Hub" in Settings → Notifications), so each member chooses Slack, in-app, email or browser push. `/api/internal/changelog-digest` runs Tuesdays 14:00 UTC from `vercel.json` (`lib/changelog/digest.ts`).
 - **Announcements channel:** the same run posts the new entries (excerpt, screenshot, link to `/changelog`) to the channel in `app.config.ts` (`slack.changelogChannelId`). That is a shared-room post, a direct Slack post like the Wheel of Wonder intro, not a notifier send. It is open to every member, so an entry's text must be fit for all of them. Outside production nothing is posted (`SLACK_TEST_MODE`); it is logged.
 
@@ -14,14 +14,14 @@ What's new and fixed in the Hedgie Hub, for members. One source, three readers.
 
 Every entry has an `audience`:
 
-- **`product`**: what a member can now do or what got fixed. It shows on the What's new pages (with its own link), in the weekly digest, in the announcements post, and in `CHANGELOG.md`. This is the main thing.
-- **`engineering`**: platform improvements (CI, test frameworks, the repository pattern, safety checks) or the lower-level detail behind a product update (the notifier and its routing behind a notification feature). It appears **only in `CHANGELOG.md`**, with its body, tagged "Engineering": no page, no notification. It has no screenshots (the validator refuses them). Say in the body which product entry it relates to, if any.
+- **`product`**: what a member can now do or what got fixed. It shows on the What's new pages (with its own link), in the weekly digest, and in the announcements post, and on the admin Changelog. This is the main thing.
+- **`engineering`**: platform improvements (CI, test frameworks, the repository pattern, safety checks) or the lower-level detail behind a product update (the notifier and its routing behind a notification feature). It appears **only on the admin Changelog**, with its body, tagged "Engineering": no member page, no notification. It has no screenshots (the validator refuses them). Say in the body which product entry it relates to, if any.
 
-**Backfilled history never notifies.** `changelogDigestStartsOn` in `app.config.ts` is the first day an entry can go out in the digest or the channel post; entries dated before it are on the page and in `CHANGELOG.md` only. Set it to the day the digest goes live when adding a batch of past entries.
+**Backfilled history never notifies.** `changelogDigestStartsOn` in `app.config.ts` is the first day an entry can go out in the digest or the channel post; entries dated before it are on the pages only. Set it to the day the digest goes live when adding a batch of past entries.
 
 ## Writing an entry
 
-- `major: true` marks a significant new capability (Hub Chat, Courses), not one more improvement: it is badged on the What's new pages, first in the weekly digest and the announcements post, and marked in `CHANGELOG.md`. It is a separate dimension from `category` (a major feature is also "new"), product entries only, and rare on purpose.
+- `major: true` marks a significant new capability (Hub Chat, Courses), not one more improvement: it is badged on the What's new pages, first in the weekly digest and the announcements post, and marked on the admin Changelog. It is a separate dimension from `category` (a major feature is also "new"), product entries only, and rare on purpose.
 - `category`: `new`, `improved` or `fixed`. Only things a member would notice; skip refactors and internal tooling.
 - `summary`: one or two plain sentences, no markdown (it is the excerpt in the list, digests and Slack). Say what the member can now do.
 - `body`: markdown. Link Hub pages as `/path`.

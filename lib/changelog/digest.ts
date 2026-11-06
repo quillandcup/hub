@@ -43,7 +43,7 @@ function orgDay(now: Date): string {
 }
 
 /**
- * Entries that can be sent now (newest first): product entries (engineering ones never leave CHANGELOG.md) from the last
+ * Entries that can be sent now (newest first): product entries (engineering ones are staff-only and never sent) from the last
  * DIGEST_WINDOW_DAYS days and no earlier than `startsOn`, so backfilled history is never notified.
  */
 export function digestCandidates(

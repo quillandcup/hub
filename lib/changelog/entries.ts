@@ -1,7 +1,7 @@
 /**
  * The Hedgie Hub changelog: one entry per release a member would notice, newest first or not (the
- * helpers sort). This file is the single source: the in-app pages (/changelog), the generated
- * CHANGELOG.md (`pnpm changelog:generate`, checked by a test) and the "What's new" digest all read it.
+ * helpers sort). This file is the single source: the in-app pages (/changelog), the
+ * admin Changelog (engineering entries too) and the "What's new" digest all read it.
  * Written for members: say what they can now do, not what changed in the code. See docs/CHANGELOG_PROCESS.md.
  *
  * Screenshots live in public/changelog/<slug>/ (the repo and that folder are public: no member data in
@@ -19,8 +19,8 @@ export type ChangelogCategory = keyof typeof CHANGELOG_CATEGORIES;
 
 /**
  * Who an entry is for. `product` entries are what members see: the What's new pages, the weekly digest, the
- * announcements post, and CHANGELOG.md. `engineering` entries (platform improvements, or the lower-level detail behind
- * a product update) appear only in CHANGELOG.md, with their body, and have no page or notification.
+ * announcements post, and the admin Changelog. `engineering` entries (platform improvements, or the lower-level detail behind
+ * a product update) appear only on the admin Changelog (`/admin/changelog`), with their body, and have no member page or notification.
  */
 export const CHANGELOG_AUDIENCES = {
   product: "Product",
@@ -38,7 +38,7 @@ export interface ChangelogEntry {
   category: ChangelogCategory;
   /**
    * A significant new capability (Hub Chat, Courses), as opposed to one more improvement: badged "Major" on the What's new
-   * pages, first in the weekly digest and the announcements post, and marked in CHANGELOG.md. A separate dimension from
+   * pages, first in the weekly digest and the announcements post, and marked on the admin Changelog. A separate dimension from
    * `category` (a major feature is also "new"), so it stays rare on purpose. Product entries only.
    */
   major?: boolean;
@@ -2430,9 +2430,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Changelog system, weekly digest and one notification log",
     summary:
-      "Changelog entries live in one typed file that feeds the What's new pages, CHANGELOG.md, the weekly digest and the announcements post.",
+      "Changelog entries live in one typed file that feeds the What's new pages, the admin Changelog, the weekly digest and the announcements post.",
     body: [
-      "`lib/changelog/entries.ts` is the single source. Each entry is for the `product` audience (members: the pages, the digest, the announcements post and CHANGELOG.md) or the `engineering` audience (CHANGELOG.md only). CHANGELOG.md is generated with `pnpm changelog:generate` and a test fails when it is stale or an entry is malformed.",
+      "`lib/changelog/entries.ts` is the single source. Each entry is for the `product` audience (members: the pages, the digest, the announcements post and the admin Changelog) or the `engineering` audience (staff only, on the admin Changelog). A test fails when an entry is malformed or shows an image that is not there. The in-app pages search and filter the entries; there is no generated file to keep in sync.",
       "The weekly digest is the `changelog_digest` notification kind, sent by `/api/internal/changelog-digest` from Vercel Cron (Tuesdays 14:00 UTC) behind the `changelog_digest` feature flag, so it starts in dry run. Each member gets the entries from the last 30 days they have not had, as one message on the channels they chose, and nothing dated before `changelogDigestStartsOn` in `app.config.ts` is ever sent.",
       "`notification_log` is one log of what the app sent, for every kind: a row per recipient (a member, or a shared place such as a Slack channel), kind and dedup key. A send is claimed before it is made and released when nothing was delivered, so a retry or an overlapping run never sends twice. `NotificationLogRepository` has an in-memory twin and one contract suite run against both.",
       "Screenshots are taken from the demo scenes: `pnpm changelog:capture <slug>` runs an `@changelog` scene and writes small WebP files into `public/changelog/<slug>/`.",
