@@ -2441,4 +2441,16 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "Type a nickname or pen name in the Members search and the member shows up, with a small line under their name that says also known as and the name you typed. It uses the same names as the search in the top bar, so the two always agree about who a name belongs to.",
     ].join("\n\n"),
   },
+  {
+    slug: "admin-search-matches-all-aliases",
+    date: "2026-11-06",
+    audience: "engineering",
+    category: "fixed",
+    title: "Admin member search matches every active alias",
+    summary: "The admin Members list now finds a member by any active alias, and no longer by one that has been switched off.",
+    body: [
+      "`admin_member_engagement` (behind `admin_members_page`) matched aliases only when their source was `zoom` and never checked `active`, so an alias an admin added or a member wrote found nobody, while a switched-off Zoom alias still did. It now uses the rule the top-bar search (`search_member_aliases`) and the member directory (`member_directory_aliases`) already share: any active alias.",
+      "Migration `20270515000000_admin_search_matches_all_aliases.sql` replaces only that condition; `admin_search_matches_all_aliases.test.sql` covers each alias source and a switched-off alias, and fails on the old function.",
+    ].join("\n\n"),
+  },
 ];

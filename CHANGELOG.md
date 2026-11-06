@@ -4,6 +4,14 @@
 
 What's new and fixed in the Hedgie Hub, newest first.
 
+## 2026-11-06 · Engineering · Fixed: Admin member search matches every active alias
+
+The admin Members list now finds a member by any active alias, and no longer by one that has been switched off.
+
+`admin_member_engagement` (behind `admin_members_page`) matched aliases only when their source was `zoom` and never checked `active`, so an alias an admin added or a member wrote found nobody, while a switched-off Zoom alias still did. It now uses the rule the top-bar search (`search_member_aliases`) and the member directory (`member_directory_aliases`) already share: any active alias.
+
+Migration `20270515000000_admin_search_matches_all_aliases.sql` replaces only that condition; `admin_search_matches_all_aliases.test.sql` covers each alias source and a switched-off alias, and fails on the old function.
+
 ## 2026-11-06 · Improved: The Members page finds the names people go by
 
 Search on the Members page now also finds a member by a nickname or pen name, and says so with a line under their name.
