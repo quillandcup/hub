@@ -166,10 +166,13 @@ export function EmotionPicker({
   value,
   onChange,
   readOnly = false,
+  frequent = [],
 }: {
   value: Emotion | null;
   onChange: (next: Emotion | null) => void;
   readOnly?: boolean;
+  /** The member's most named feelings, most used first, offered as one-tap chips above the wheel. */
+  frequent?: readonly Emotion[];
 }) {
   const [core, feeling] = value ? EMOTION_PATH[value] : [];
   const coreEntry = EMOTION_WHEEL.find((c) => c.key === core);
@@ -187,6 +190,19 @@ export function EmotionPicker({
           placeholder="Search for a feeling, e.g. frustrated"
           className="mb-3"
         />
+      )}
+      {!readOnly && frequent.length > 0 && (
+        <div className="mb-3">
+          <p className="mb-1.5 text-xs text-slate-500 dark:text-slate-400">Frequently used</p>
+          <EmotionRing
+            label="Frequently used"
+            options={frequent}
+            value={value ?? undefined}
+            onPick={(e) => onChange(value === e ? (EMOTION_PATH[e].length > 1 ? EMOTION_PATH[e][0] : null) : e)}
+            readOnly={readOnly}
+            track="checkin-emotion-usual"
+          />
+        </div>
       )}
       <EmotionRing
         label="Core feeling"
@@ -284,12 +300,15 @@ export function CheckinHalfFields({
   onChange,
   readOnly = false,
   past = false,
+  frequentEmotions = [],
 }: {
   half: "checkin" | "checkout";
   value: CheckinInput;
   onChange: (patch: Partial<CheckinInput>) => void;
   readOnly?: boolean;
   past?: boolean;
+  /** The member's usual feelings, offered first in the feeling picker. */
+  frequentEmotions?: readonly Emotion[];
 }) {
   if (half === "checkin") {
     return (
@@ -301,7 +320,12 @@ export function CheckinHalfFields({
           onChange={({ pleasant, energy }) => onChange({ pleasantBefore: pleasant, energyBefore: energy })}
           readOnly={readOnly}
         />
-        <EmotionPicker value={value.emotionBefore} onChange={(emotionBefore) => onChange({ emotionBefore })} readOnly={readOnly} />
+        <EmotionPicker
+          value={value.emotionBefore}
+          onChange={(emotionBefore) => onChange({ emotionBefore })}
+          readOnly={readOnly}
+          frequent={frequentEmotions}
+        />
         <NeedPicker
           label={past ? "My intention for the session was…" : "My intention for this session"}
           value={value.need}
@@ -327,7 +351,12 @@ export function CheckinHalfFields({
         onChange={({ pleasant, energy }) => onChange({ pleasantAfter: pleasant, energyAfter: energy })}
         readOnly={readOnly}
       />
-      <EmotionPicker value={value.emotionAfter} onChange={(emotionAfter) => onChange({ emotionAfter })} readOnly={readOnly} />
+      <EmotionPicker
+        value={value.emotionAfter}
+        onChange={(emotionAfter) => onChange({ emotionAfter })}
+        readOnly={readOnly}
+        frequent={frequentEmotions}
+      />
     </>
   );
 }

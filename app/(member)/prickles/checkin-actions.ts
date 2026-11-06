@@ -8,8 +8,10 @@ import { getEffectiveIdentity } from "@/lib/sudo";
 import {
   EMPTY_CHECKIN,
   validateCheckin,
+  WEB_FREQUENT_EMOTIONS,
   withHalf,
   type CheckinInput,
+  type Emotion,
 } from "@/lib/prickle-checkins";
 import { resolveAnsweredCheckinNotifications } from "@/lib/prickle-checkin-dms";
 import { prickleTitle as nameOfPrickle } from "@/lib/domain/prickle";
@@ -60,6 +62,23 @@ export async function getMyCheckins(): Promise<Record<string, CheckinInput>> {
   return Object.fromEntries(checkins);
 }
 
+/** The effective member's most named feelings, most used first, for the feeling picker. A failed read shows none. */
+export async function getMyFrequentEmotions(): Promise<Emotion[]> {
+  const user = await getCurrentUser();
+  if (!user) return [];
+  const identity = await getEffectiveIdentity(user);
+  if (!identity) return [];
+
+  const supabase = await createClient();
+  return createRepos(supabase)
+    .prickleActivity.frequentEmotions([identity.memberId], WEB_FREQUENT_EMOTIONS)
+    .then((byMember) => byMember.get(identity.memberId) ?? [])
+    .catch((error) => {
+      console.error("[prickle-checkins] Loading frequent feelings failed", error);
+      return [];
+    });
+}
+
 /** One project the check-out asks "how much did you get done?" about. */
 export interface CheckoutProject {
   id: string;
@@ -79,6 +98,8 @@ export interface CheckModalData {
   /** Whether the member has an active writing goal; without one the check-out shows a tip to set one. */
   hasGoals: boolean;
   checkin: CheckinInput | null;
+  /** The member's most named feelings, most used first (the picker's "Frequently used"). */
+  frequentEmotions: Emotion[];
   /** False in sudo: an admin sees the answers but nothing is saved on the member's behalf. */
   canEdit: boolean;
   /** The Zoom room's link and passcode (lib/prickle-join.ts), when configured. */
@@ -103,9 +124,10 @@ export async function getCheckModalData(prickleId: string): Promise<CheckModalDa
   const supabase = await createClient();
   const memberId = identity.memberId;
   const repos = createRepos(supabase);
-  const [prickle, checkin, projectRows, goalRows, recentRows, loggedRows, tzPref] = await Promise.all([
+  const [prickle, checkin, frequentEmotions, projectRows, goalRows, recentRows, loggedRows, tzPref] = await Promise.all([
     repos.prickles.byId(prickleId),
     getMyCheckin(prickleId),
+    getMyFrequentEmotions(),
     repos.writing.activeProjects(memberId),
     repos.writing.activeGoalMeasures(memberId),
     repos.writing.recentEntryMeasures(memberId, RECENT_ENTRIES),
@@ -145,6 +167,7 @@ export async function getCheckModalData(prickleId: string): Promise<CheckModalDa
     hasStarted: new Date(prickle.startTime).getTime() <= Date.now(),
     hasGoals: goalRows.some((g) => g.project_id !== null),
     checkin,
+    frequentEmotions,
     canEdit: !identity.isSudo,
     join: joinAt(await loadPrickleJoinSettings(createRepos(supabase)), prickle.startTime),
     projects,
@@ -157,12 +180,13 @@ export async function getCheckModalData(prickleId: string): Promise<CheckModalDa
  */
 export async function getCheckinForLogging(
   prickleId: string
-): Promise<{ checkin: CheckinInput | null; canEdit: boolean }> {
+): Promise<{ checkin: CheckinInput | null; canEdit: boolean; frequentEmotions: Emotion[] }> {
   const user = await getCurrentUser();
-  if (!user) return { checkin: null, canEdit: false };
+  if (!user) return { checkin: null, canEdit: false, frequentEmotions: [] };
   const identity = await getEffectiveIdentity(user);
-  if (!identity) return { checkin: null, canEdit: false };
-  return { checkin: await getMyCheckin(prickleId), canEdit: !identity.isSudo };
+  if (!identity) return { checkin: null, canEdit: false, frequentEmotions: [] };
+  const [checkin, frequentEmotions] = await Promise.all([getMyCheckin(prickleId), getMyFrequentEmotions()]);
+  return { checkin, canEdit: !identity.isSudo, frequentEmotions };
 }
 
 /**

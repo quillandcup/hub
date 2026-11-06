@@ -106,18 +106,18 @@ describe("getCheckinForLogging", () => {
 
   it("returns the member's check-in, editable", async () => {
     world([{ memberId: "member-1", prickleId: "prickle-1", checkin: mapped }]);
-    expect(await getCheckinForLogging("prickle-1")).toEqual({ checkin: mapped, canEdit: true });
+    expect(await getCheckinForLogging("prickle-1")).toEqual({ checkin: mapped, canEdit: true, frequentEmotions: ["sleepy"] });
   });
 
   it("is read-only in sudo, where saving is refused", async () => {
     vi.mocked(getEffectiveIdentity).mockResolvedValue({ ...IDENTITY, isSudo: true } as never);
     world([{ memberId: "member-1", prickleId: "prickle-1", checkin: mapped }]);
-    expect(await getCheckinForLogging("prickle-1")).toEqual({ checkin: mapped, canEdit: false });
+    expect(await getCheckinForLogging("prickle-1")).toEqual({ checkin: mapped, canEdit: false, frequentEmotions: ["sleepy"] });
   });
 
   it("is not editable when signed out", async () => {
     vi.mocked(getCurrentUser).mockResolvedValue(null);
-    expect(await getCheckinForLogging("prickle-1")).toEqual({ checkin: null, canEdit: false });
+    expect(await getCheckinForLogging("prickle-1")).toEqual({ checkin: null, canEdit: false, frequentEmotions: [] });
   });
 });
 

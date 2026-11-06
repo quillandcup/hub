@@ -1,7 +1,7 @@
 import { randomInt } from "node:crypto";
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
 import type { Commitment, CommitmentSlot, CommitmentStatus } from "@/lib/commitments";
-import { checkinFromRow, checkinToRow, CHECKIN_COLUMNS, isEmptyCheckin, type CheckinInput } from "@/lib/prickle-checkins";
+import { checkinFromRow, checkinToRow, CHECKIN_COLUMNS, frequentEmotions, isEmptyCheckin, type CheckinInput, type Emotion } from "@/lib/prickle-checkins";
 import type { Db, Insert } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 
@@ -77,6 +77,18 @@ function windowEnd(startDate: string, weeks: number): string {
 }
 
 const pairKey =(memberId: string, prickleId: string) => `${memberId}:${prickleId}`;
+function topEmotionsByMember(
+  answers: Map<string, { emotionBefore: string | null; emotionAfter: string | null }[]>,
+  limit: number
+): Map<string, Emotion[]> {
+  const result = new Map<string, Emotion[]>();
+  for (const [memberId, list] of answers) {
+    const top = frequentEmotions(list, limit);
+    if (top.length > 0) result.set(memberId, top);
+  }
+  return result;
+}
+
 const DISMISSALS_TABLE = { checkin: "prickle_checkin_dismissals", checkout: "prickle_checkout_dismissals" } as const;
 
 const bySlotOrder = (a: { dayOfWeek: number; startTimeLocal: string }, b: { dayOfWeek: number; startTimeLocal: string }) =>
@@ -117,6 +129,8 @@ export interface PrickleActivityRepository {
   checkinsAmong(memberId: string, prickleIds: string[]): Promise<Map<string, CheckinInput>>;
   /** These members' check-ins for these prickles, keyed `${memberId}:${prickleId}`. Paginated. */
   checkinsOfMembers(memberIds: string[], prickleIds: string[]): Promise<Map<string, CheckinInput>>;
+  /** Each member's most named feelings (before and after answers), most used first, at most `limit`; members with none are absent. Paginated. */
+  frequentEmotions(memberIds: string[], limit: number): Promise<Map<string, Emotion[]>>;
   /** A member's check-ins where they said whether they got what they came for, all time, with their prickle's series. Paginated. */
   ratedCheckinsOf(memberId: string): Promise<RatedCheckin[]>;
   /** Saves a check-in (restoring one that was cleared), or, when every answer is empty, soft deletes it and keeps its last answers. */
@@ -316,6 +330,30 @@ export class SupabasePrickleActivityRepository implements PrickleActivityReposit
       }
     }
     return result;
+  }
+
+  async frequentEmotions(memberIds: string[], limit: number) {
+    type Raw = { member_id: string; emotion_before: string | null; emotion_after: string | null };
+    const answers = new Map<string, { emotionBefore: string | null; emotionAfter: string | null }[]>();
+    for (const members of chunk(memberIds, ID_CHUNK_SIZE)) {
+      const rows = await fetchAllRows<Raw>(
+        (from, to) =>
+          this.db
+            .from("prickle_checkins")
+            .select("id, member_id, emotion_before, emotion_after")
+            .in("member_id", members)
+            .is("deleted_at", null)
+            .or("emotion_before.not.is.null,emotion_after.not.is.null")
+            .order("id")
+            .range(from, to)
+      );
+      for (const r of rows) {
+        const list = answers.get(r.member_id) ?? [];
+        list.push({ emotionBefore: r.emotion_before, emotionAfter: r.emotion_after });
+        answers.set(r.member_id, list);
+      }
+    }
+    return topEmotionsByMember(answers, limit);
   }
 
   async ratedCheckinsOf(memberId: string) {
@@ -566,6 +604,15 @@ export class InMemoryPrickleActivityRepository implements PrickleActivityReposit
         .filter((c) => memberIds.includes(c.memberId) && prickleIds.includes(c.prickleId))
         .map((c) => [pairKey(c.memberId, c.prickleId), { ...c.checkin }])
     );
+  }
+
+  async frequentEmotions(memberIds: string[], limit: number) {
+    const answers = new Map<string, { emotionBefore: string | null; emotionAfter: string | null }[]>();
+    for (const c of this.liveCheckins()) {
+      if (!memberIds.includes(c.memberId)) continue;
+      answers.set(c.memberId, [...(answers.get(c.memberId) ?? []), c.checkin]);
+    }
+    return topEmotionsByMember(answers, limit);
   }
 
   async ratedCheckinsOf(memberId: string) {

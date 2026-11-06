@@ -2441,4 +2441,17 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "Type a nickname or pen name in the Members search and the member shows up, with a small line under their name that says also known as and the name you typed. It uses the same names as the search in the top bar, so the two always agree about who a name belongs to.",
     ].join("\n\n"),
   },
+  {
+    slug: "check-in-usual-feelings",
+    date: "2026-11-06",
+    audience: "product",
+    category: "improved",
+    title: "Your most-used feelings come first when you check in",
+    summary:
+      "The feelings you name most often now sit at the top of the feeling question, so naming how you feel takes one tap instead of a search through the whole Feeling Wheel.",
+    body: [
+      "When you check in or out, the feelings you pick most often show up first, under Frequently used. Tap one to choose it, tap it again to step back. Nothing to set up: the list follows what you pick, the way frequent emojis do, and the full Feeling Wheel is still right below it.",
+      "In the Slack check-in and check-out messages your top three are listed first in the feeling menu.",
+    ].join("\n\n"),
+  },
 ];

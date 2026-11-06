@@ -11,6 +11,7 @@ import {
   LEGACY_FEELING_TO_EMOTION,
   offersCheckins,
   searchEmotions,
+  frequentEmotions,
   EMPTY_CHECKIN,
   ENERGY,
   INTENTION_MET,
@@ -294,5 +295,21 @@ describe("offersCheckins", () => {
     expect(offersCheckins({ source: "calendar", type: { purpose: "social" } })).toBe(false);
     expect(offersCheckins({ source: "calendar", type: null })).toBe(false);
     expect(offersCheckins({ source: "calendar" })).toBe(false);
+  });
+});
+
+describe("frequentEmotions", () => {
+  const a = (emotionBefore: string | null, emotionAfter: string | null = null) => ({ emotionBefore, emotionAfter });
+
+  it("lists the most named feelings first, counting before and after answers", () => {
+    const answers = [a("content", "content"), a("sleepy", "content"), a("sleepy"), a("proud"), a(null, null)];
+    expect(frequentEmotions(answers, 8)).toEqual(["content", "sleepy", "proud"]);
+    expect(frequentEmotions(answers, 2)).toEqual(["content", "sleepy"]);
+  });
+
+  it("keeps the wheel's order between ties, skips words off the wheel and gives nothing for no answers", () => {
+    expect(frequentEmotions([a("sad"), a("mad"), a("not-a-feeling")], 8)).toEqual(["mad", "sad"]);
+    expect(frequentEmotions([], 3)).toEqual([]);
+    expect(frequentEmotions([a("mad")], 0)).toEqual([]);
   });
 });

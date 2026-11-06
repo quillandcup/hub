@@ -19,6 +19,7 @@ import {
   loadCheckins,
   planCheckinDMs,
   loadDismissedPairs,
+  loadUsualEmotions,
   sendCheckoutDMs,
   sendDropInCheckins,
   tryRecordCheckinDM,
@@ -156,12 +157,14 @@ async function sendCheckins(repos: RouteRepos, memberIds: string[], now: number)
   const plan = planCheckinDMs(memberIds, upcomingPrickles, calendarPrickleIdsByMember);
   if (plan.length === 0) return 0;
   const plannedMemberIds = [...new Set(plan.map((p) => p.memberId))];
-  const [notifier, checkins, dismissed] = await Promise.all([
+  const [notifier, checkins, dismissed, usualEmotions] = await Promise.all([
     createNotifier(repos, "prickle_checkin", plannedMemberIds),
     // Answers already saved (e.g. from the prickle page) show as the DM's starting picks.
     loadCheckins(repos, plannedMemberIds, [...new Set(plan.map((p) => p.prickle.id))]),
     // Check-ins the member dismissed (a Slack button, the palette's x) never go out.
     loadDismissedPairs(repos, "checkin", [...new Set(plan.map((p) => p.prickle.id))]),
+    // Each member's usual feelings go on top of the DM's feeling select.
+    loadUsualEmotions(repos, plannedMemberIds),
   ]);
 
   const joinSettings = await loadPrickleJoinSettings(repos);
@@ -181,7 +184,7 @@ async function sendCheckins(repos: RouteRepos, memberIds: string[], now: number)
     const shouldSend = await tryRecordCheckinDM(repos, prickle.id, memberId, "prickle_checkin");
     if (!shouldSend) continue;
 
-    const delivered = await notifier.send(memberId, checkinMessage(prickle, saved, { join: joinAt(joinSettings, prickle.startTime) }));
+    const delivered = await notifier.send(memberId, checkinMessage(prickle, saved, { join: joinAt(joinSettings, prickle.startTime), usual: usualEmotions.get(memberId) }));
     if (delivered.length > 0) sent++;
     else await releaseCheckinDM(repos, prickle.id, memberId, "prickle_checkin");
   }

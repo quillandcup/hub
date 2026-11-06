@@ -4,6 +4,10 @@
 
 What's new and fixed in the Hedgie Hub, newest first.
 
+## 2026-11-06 · Improved: Your most-used feelings come first when you check in
+
+The feelings you name most often now sit at the top of the feeling question, so naming how you feel takes one tap instead of a search through the whole Feeling Wheel.
+
 ## 2026-11-06 · Improved: The Members page finds the names people go by
 
 Search on the Members page now also finds a member by a nickname or pen name, and says so with a line under their name.

@@ -296,6 +296,18 @@ describe("buildCheckinBlocks", () => {
     expect(blocks[7].elements[0].text).toContain("/my-prickles/history?checkin=p1|check-in for this prickle>");
   });
 
+  it("puts the member's usual feelings in a group on top, moved out of the wheel so no value repeats", () => {
+    const blocks = buildCheckinBlocks("p1", "Progress Prickle", null, false, ["content", "sleepy", "proud", "mad"]);
+    const groups = blocks[4].accessory.option_groups;
+    expect(groups[0].label.text).toBe("Frequently used");
+    // Only the first three are listed in Slack.
+    expect(groups[0].options.map((o: any) => o.value)).toEqual(["content", "sleepy", "proud"]);
+    const values = groups.flatMap((g: any) => g.options.map((o: any) => o.value));
+    expect(values).toHaveLength(78);
+    expect(new Set(values).size).toBe(78);
+    expect(buildCheckinBlocks("p1", "Progress Prickle", { ...EMPTY, emotionBefore: "sleepy" }, false, ["sleepy"])[4].accessory.initial_option.value).toBe("sleepy");
+  });
+
   it("starts from the saved answers", () => {
     const blocks = buildCheckinBlocks("p1", "Progress Prickle", { ...EMPTY, pleasantBefore: 2, emotionBefore: "lonely", need: "unstuck" });
     expect(picked(blocks[1])).toEqual(["2"]);

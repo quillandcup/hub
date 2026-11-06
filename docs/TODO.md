@@ -1021,6 +1021,10 @@ Sentry HUB-T (Firefox on Windows) and HUB-5 and HUB-D (Mobile Safari) are a Type
 ### Changelog screenshots from the demo scenes
 **Resolved:** `pnpm changelog:capture <slug>` runs an entry's demo scene (`demo/scenes/changelog/<slug>.spec.ts`, tagged `@changelog`) on desktop light and writes the screenshots into `public/changelog/<slug>/` as small WebP files; the validator fails an entry whose image file is missing; the scheduled help-screenshots run skips `@changelog` scenes. See `docs/CHANGELOG_PROCESS.md`, "Screenshots". **Still open:** scenes for the entries after the first one are written as each entry ships; the capture needs the demo stack and app running by hand, so it is not part of CI.
 
+### Usual feelings in Find a Prickle's check-in _(Needs Scheduling)_
+
+The check-in and check-out modals and the Log Progress modal list the member's most named feelings first (`frequentEmotions` in `lib/prickle-checkins.ts`, `PrickleActivityRepository.frequentEmotions`, the Slack DMs' "Frequently used" group), but Find a Prickle's wizard (`app/(member)/prickle-picker/PrickleWizard.tsx`) still shows the plain wheel because it has no server data to carry the list. Deferred to keep the first change small. Start by calling `getMyFrequentEmotions` (`app/(member)/prickles/checkin-actions.ts`) when the wizard opens and passing the result as `frequentEmotions` to its `CheckinHalfFields`. Also open: letting a member pin a feeling by hand, if the automatic list proves not to be enough.
+
 ### Checkly heartbeat for the changelog digest _(Needs Scheduling)_
 
 `/api/internal/changelog-digest` (weekly) has its heartbeat switched off (`unmonitored` in `lib/cron-heartbeats.ts`) for the same reason as `/api/reconcile/email`: the plan's 10 uptime monitors are used. Remove that line once a monitor is free (see "Monitor the nightly import" in the email timeline notes for the steps).
