@@ -22,13 +22,16 @@ Notifications".
 ## Pop-Up Prickles are paused
 
 Pop-Up Prickles (source `zoom`, created by the attendance processing from a Zoom room) get no
-check-in or check-out for now: not the DMs (`app/api/internal/prickle-checkins/route.ts`), not the
-dashboard's "How did it go?" card (`getUnloggedRecentPrickles`, `recentPresentPrickles`). One
-predicate, `offersCheckins` in `lib/prickle-checkins.ts`, decides it for all of them. The
-dashboard pills and the search palette never offered one: a Pop-Up Prickle's row does not exist
-until its room has been processed, after it ended. The reasons and the plan to bring them back
-are in `docs/TODO.md`, "Check-ins and check-outs for Pop-Up Prickles". Where the tables below say
-a check-out is sent "from imported attendance as the backstop" or "within minutes" by presence,
+check-in or check-out for now, on any surface. `checkinsPausedFor` in `lib/prickle-checkins.ts` is
+the one rule: the DMs (`app/api/internal/prickle-checkins/route.ts`) and the dashboard's "How did
+it go?" card (`getUnloggedRecentPrickles`, `recentPresentPrickles`) ask it through `offersCheckins`
+(which also limits them to writing prickles), and the dashboard pills and the search palette ask
+it in `checkinOffered`. The pills and the palette do not limit themselves to writing prickles: a
+prickle of a "work" type (Study Hall, Brainstorm, Pitch) with a personal tie still offers one,
+which the DMs never send (`docs/TODO.md`, "Check-in pills show on work prickles; the DMs don't").
+The reasons for the pause and the plan to bring Pop-Up Prickle check-ins back are in
+`docs/TODO.md`, "Check-ins and check-outs for Pop-Up Prickles". Where the tables below say a
+check-out is sent "from imported attendance as the backstop" or "within minutes" by presence,
 that describes scheduled prickles.
 
 ## Who is "tied" to a prickle

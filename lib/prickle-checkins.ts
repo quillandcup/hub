@@ -363,15 +363,20 @@ export function checkoutAnswered(saved: CheckinInput | null): boolean {
 }
 
 /**
- * Whether a prickle gets check-ins and check-outs: a writing prickle that is not a Pop-Up Prickle
- * (source "zoom"). Pop-Up Prickles are paused until the check-ins are reworked: their rows only
- * exist once processing has covered their room, often hours after it ended, and are rebuilt under
- * a new id when processing reruns, which loses saved answers and sends the same check-out again
- * (docs/TODO.md, "Check-ins and check-outs for Pop-Up Prickles"). Every sender and every offer
- * (the DMs, the dashboard's "How did it go?" card) asks this, so they can't drift.
+ * Whether check-ins and check-outs are paused for a prickle: Pop-Up Prickles (source "zoom"). Their
+ * rows only exist once processing has covered their room, and were rebuilt under a new id when a
+ * run changed their end, which sent the same check-out again and lost saved answers (docs/TODO.md,
+ * "Check-ins and check-outs for Pop-Up Prickles"). Every sender and every offer asks this, so they
+ * can't drift: the DMs and the dashboard card (through offersCheckins), the pills and the search
+ * palette (checkinOffered).
  */
+export function checkinsPausedFor(prickle: { source: string }): boolean {
+  return prickle.source === "zoom";
+}
+
+/** Whether the DMs and the dashboard's "How did it go?" card cover a prickle: a writing prickle, and not one the check-ins are paused for. */
 export function offersCheckins(prickle: { source: string; type?: { purpose: string } | null }): boolean {
-  return prickle.type?.purpose === "writing" && prickle.source !== "zoom";
+  return prickle.type?.purpose === "writing" && !checkinsPausedFor(prickle);
 }
 
 /** The prickle_checkins columns holding the answers, for selects. */
