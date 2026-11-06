@@ -21,25 +21,28 @@ const update = vi.fn(async () => ({ ok: true }));
 vi.mock("@slack/web-api", () => ({ WebClient: class { chat = { update }; } }));
 
 import { POST } from "@/app/api/webhooks/slack/interactions/route";
+import { aPrickle } from "../helpers/prickle-fixture";
 
 const ADA = "mbr_AAAAAAAAAAA1";
 const PRICKLE = "prkl_AAAAAAAAAAA1";
 
-function press(value: string) {
+function send(action: Record<string, unknown>) {
   const payload = {
     type: "block_actions",
     user: { id: "U_ADA" },
     channel: { id: "D1" },
     message: { ts: "1700000000.000100" },
-    actions: [{ action_id: "prickle_submit", value }],
+    actions: [action],
   };
   const body = new URLSearchParams({ payload: JSON.stringify(payload) }).toString();
   return POST(new NextRequest("http://localhost/api/webhooks/slack/interactions", { method: "POST", body, headers: { "content-type": "application/x-www-form-urlencoded" } }));
 }
 
+const press = (value: string) => send({ action_id: "prickle_submit", value });
+
 beforeEach(() => {
   vi.clearAllMocks();
-  dataset = new InMemoryDataset();
+  dataset = new InMemoryDataset({ prickles: [aPrickle(PRICKLE)] });
   repos = createInMemoryRepos(dataset);
   resolveMember.mockResolvedValue(ADA);
   vi.spyOn(console, "error").mockImplementation(() => {});
@@ -69,5 +72,41 @@ describe("Submit on a check-in or check-out DM", () => {
 
     expect(await repos.prickleActivity.dismissedAmong("checkin", ADA, [PRICKLE])).toEqual(new Set());
     expect(update).not.toHaveBeenCalled();
+  });
+});
+
+describe("A DM about a prickle that no longer exists", () => {
+  const outOfDate = expect.objectContaining({ channel: "D1", ts: "1700000000.000100", text: expect.stringContaining("out of date") });
+
+  beforeEach(() => {
+    // The prickle was rebuilt under another id after the DM went out: nothing is in the dataset.
+    dataset = new InMemoryDataset();
+    repos = createInMemoryRepos(dataset);
+  });
+
+  it("replaces the message with a note on Submit, and saves nothing", async () => {
+    await press(`checkout:${PRICKLE}`);
+
+    expect(update).toHaveBeenCalledWith(outOfDate);
+    expect(await repos.prickleActivity.dismissedAmong("checkout", ADA, [PRICKLE])).toEqual(new Set());
+  });
+
+  it("replaces the message with a note on Skip, and saves nothing", async () => {
+    await send({ action_id: "prickle_dismiss", value: `checkin:${PRICKLE}` });
+
+    expect(update).toHaveBeenCalledWith(outOfDate);
+    expect(await repos.prickleActivity.dismissedAmong("checkin", ADA, [PRICKLE])).toEqual(new Set());
+  });
+
+  it("replaces the message with a note when a question is answered, and saves nothing", async () => {
+    await send({
+      action_id: "prickle_checkin_answer",
+      block_id: `prickle_checkin:${PRICKLE}:need`,
+      type: "static_select",
+      selected_option: { value: "company" },
+    });
+
+    expect(update).toHaveBeenCalledWith(outOfDate);
+    expect(await repos.prickleActivity.checkinOf(ADA, PRICKLE)).toBeNull();
   });
 });

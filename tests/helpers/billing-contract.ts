@@ -291,6 +291,25 @@ export function defineBillingContract(name: string, setup: () => BillingContract
         }
       });
 
+      it("finds contacts by email whatever its case, and removes one from the Bronze copy", async () => {
+        const [a, b] = [ctx.unique("w-find-a"), ctx.unique("w-find-b")];
+        const address = email("w-find");
+        try {
+          await ctx.repo().upsertKajabiContacts([
+            { kajabi_contact_id: a, email: address, name: "Ada Example", data: {}, imported_at: NOW },
+            { kajabi_contact_id: b, email: email("w-other"), data: {}, imported_at: NOW },
+          ]);
+          expect(await ctx.repo().kajabiContactsByEmail(address.toUpperCase())).toEqual([{ kajabi_contact_id: a, email: address, name: "Ada Example" }]);
+          expect(await ctx.repo().kajabiContactsByEmail(email("w-nobody"))).toEqual([]);
+
+          await ctx.repo().deleteKajabiContact(a);
+          expect(await ctx.stored("kajabi_contacts", "kajabi_contact_id", [a, b])).toHaveLength(1);
+          expect(await ctx.repo().kajabiContactsByEmail(address)).toEqual([]);
+        } finally {
+          await ctx.removeStored("kajabi_contacts", "kajabi_contact_id", [a, b]);
+        }
+      });
+
       it("writes past one chunk of contacts without duplicating them on a second run", async () => {
         const rows = Array.from({ length: 1100 }, (_, i) => ({ kajabi_contact_id: ctx.unique(`w-many-${i}`), email: email(`w-many-${i}`), data: {}, imported_at: NOW }));
         const ids = rows.map((r) => r.kajabi_contact_id);

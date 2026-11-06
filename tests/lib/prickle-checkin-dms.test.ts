@@ -1,5 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
+  goneDmBlocks,
+  PRICKLE_GONE,
   applyCheckinAnswer,
   buildCheckinBlocks,
   buildCheckoutBlocks,
@@ -29,6 +31,7 @@ import {
 import { EMPTY_CHECKIN, NO_GOAL_TIP, NO_GOAL_TIP_PATH, type CheckinInput } from "@/lib/prickle-checkins";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
+import { aPrickle } from "../helpers/prickle-fixture";
 
 const TYPE = "type-progress";
 const OTHER_TYPE = "type-other";
@@ -293,6 +296,18 @@ describe("buildCheckinBlocks", () => {
     expect(blocks[7].elements[0].text).toContain("/my-prickles/history?checkin=p1|check-in for this prickle>");
   });
 
+  it("puts the member's usual feelings in a group on top, moved out of the wheel so no value repeats", () => {
+    const blocks = buildCheckinBlocks("p1", "Progress Prickle", null, false, ["content", "sleepy", "proud", "mad"]);
+    const groups = blocks[4].accessory.option_groups;
+    expect(groups[0].label.text).toBe("Frequently used");
+    // Only the first three are listed in Slack.
+    expect(groups[0].options.map((o: any) => o.value)).toEqual(["content", "sleepy", "proud"]);
+    const values = groups.flatMap((g: any) => g.options.map((o: any) => o.value));
+    expect(values).toHaveLength(78);
+    expect(new Set(values).size).toBe(78);
+    expect(buildCheckinBlocks("p1", "Progress Prickle", { ...EMPTY, emotionBefore: "sleepy" }, false, ["sleepy"])[4].accessory.initial_option.value).toBe("sleepy");
+  });
+
   it("starts from the saved answers", () => {
     const blocks = buildCheckinBlocks("p1", "Progress Prickle", { ...EMPTY, pleasantBefore: 2, emotionBefore: "lonely", need: "unstuck" });
     expect(picked(blocks[1])).toEqual(["2"]);
@@ -404,9 +419,41 @@ describe("withSavedAnswer", () => {
   });
 });
 
+describe("a DM about a prickle that is gone", () => {
+  it("is answered with PRICKLE_GONE, and nothing is written, for an answer, a skip and a submit", async () => {
+    const data = new InMemoryDataset({ inAppNotifications: [] });
+    const repos = createInMemoryRepos(data);
+
+    expect(await saveCheckinAnswer(repos, "m1", { prickleId: "gone", field: "need", values: ["company"] })).toBe(PRICKLE_GONE);
+    expect(await dismissCheckin(repos, "m1", "gone")).toBe(PRICKLE_GONE);
+    expect(await dismissCheckout(repos, "m1", "gone")).toBe(PRICKLE_GONE);
+
+    expect(data.prickleCheckins).toEqual([]);
+    expect(data.checkinDismissals).toEqual([]);
+    expect(data.checkoutDismissals).toEqual([]);
+  });
+
+  it("is still handled normally when the prickle can't be looked up, so a read failure never hides a working DM", async () => {
+    const data = new InMemoryDataset({ prickles: [aPrickle("p1")] });
+    const repos = createInMemoryRepos(data);
+    vi.spyOn(repos.prickles, "byId").mockRejectedValue(new Error("down"));
+
+    expect(await saveCheckinAnswer(repos, "m1", { prickleId: "p1", field: "need", values: ["company"] })).toBeNull();
+    expect(await dismissCheckout(repos, "m1", "p1")).toBeNull();
+  });
+
+  it("says so in the message: out of date, nothing saved, the next one works", () => {
+    const { text, blocks } = goneDmBlocks();
+
+    expect(text).toContain("out of date");
+    expect(text).toContain("can't be saved");
+    expect(blocks).toEqual([{ type: "section", text: { type: "mrkdwn", text } }]);
+  });
+});
+
 describe("saveCheckinAnswer", () => {
   const world = (checkin?: CheckinInput) => {
-    const data = new InMemoryDataset();
+    const data = new InMemoryDataset({ prickles: [aPrickle("p1")] });
     if (checkin) data.prickleCheckins.push({ memberId: "m1", prickleId: "p1", checkin });
     return { data, repos: createInMemoryRepos(data) };
   };
@@ -458,7 +505,7 @@ describe("in-app notifications", () => {
     createdAt: "2026-10-05T10:00:00Z",
   });
   const world = (checkin?: CheckinInput) => {
-    const data = new InMemoryDataset({ inAppNotifications: [note("prickle_checkin", "p1"), note("prickle_checkout", "p1")] });
+    const data = new InMemoryDataset({ prickles: [aPrickle("p1")], inAppNotifications: [note("prickle_checkin", "p1"), note("prickle_checkout", "p1")] });
     if (checkin) data.prickleCheckins.push({ memberId: "m1", prickleId: "p1", checkin });
     return { data, repos: createInMemoryRepos(data) };
   };
@@ -537,7 +584,7 @@ describe("dismissing a check-in or check-out", () => {
     ["checkin", dismissCheckin],
   ] as const)("records the %s dismissal and marks its in-app notification read", async (half, dismiss) => {
     const note = (kind: string) => ({ id: `n-${kind}`, memberId: "m1", kind, ref: "p1", text: "t", url: null, bannerUntil: null, readAt: null as string | null, createdAt: "2026-10-05T10:00:00Z" });
-    const data = new InMemoryDataset({ inAppNotifications: [note("prickle_checkin"), note("prickle_checkout")] });
+    const data = new InMemoryDataset({ prickles: [aPrickle("p1")], inAppNotifications: [note("prickle_checkin"), note("prickle_checkout")] });
     const repos = createInMemoryRepos(data);
     const read = () => data.inAppNotifications.filter((n) => n.readAt).map((n) => n.kind);
     expect(await dismiss(repos, "m1", "p1")).toBeNull();

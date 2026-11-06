@@ -1,4 +1,4 @@
-import { CHANGELOG_AUDIENCES, CHANGELOG_CATEGORIES, CHANGELOG_ENTRIES, type ChangelogCategory, type ChangelogEntry } from "@/lib/changelog/entries";
+import { CHANGELOG_AUDIENCES, CHANGELOG_CATEGORIES, CHANGELOG_ENTRIES, type ChangelogAudience, type ChangelogCategory, type ChangelogEntry } from "@/lib/changelog/entries";
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -21,7 +21,7 @@ export function listChangelog(entries: readonly ChangelogEntry[] = CHANGELOG_ENT
     .map(({ entry }) => entry);
 }
 
-/** What members see (the pages, the digest, the announcements post): the product entries, newest first. Engineering entries live only in CHANGELOG.md. */
+/** What members see (the pages, the digest, the announcements post): the product entries, newest first. Engineering entries are for staff, on the admin Changelog. */
 export function listProductChangelog(entries: readonly ChangelogEntry[] = CHANGELOG_ENTRIES): ChangelogEntry[] {
   return listChangelog(entries).filter((e) => e.audience === "product");
 }
@@ -35,6 +35,47 @@ export function parseCategoryFilter(value: string | string[] | undefined): Chang
 /** Entries of one category, or all of them for null. */
 export function filterByCategory(entries: readonly ChangelogEntry[], category: ChangelogCategory | null): ChangelogEntry[] {
   return category ? entries.filter((e) => e.category === category) : [...entries];
+}
+
+/** The `?for=` filter on the admin changelog: one audience, or null for both. */
+export function parseAudienceFilter(value: string | string[] | undefined): ChangelogAudience | null {
+  const one = Array.isArray(value) ? value[0] : value;
+  return one !== undefined && Object.hasOwn(CHANGELOG_AUDIENCES, one) ? (one as ChangelogAudience) : null;
+}
+
+/** Entries of one audience, or all of them for null. */
+export function filterByAudience(entries: readonly ChangelogEntry[], audience: ChangelogAudience | null): ChangelogEntry[] {
+  return audience ? entries.filter((e) => e.audience === audience) : [...entries];
+}
+
+/**
+ * The entries that contain every word of the query (any case) in their title, summary or text. An empty query is no filter.
+ * Plain words, not a syntax: what a person types into a search box.
+ */
+export function searchChangelog(entries: readonly ChangelogEntry[], query: string | string[] | undefined): ChangelogEntry[] {
+  const q = (Array.isArray(query) ? query[0] : query) ?? "";
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [...entries];
+  return entries.filter((e) => {
+    const text = `${e.title} ${e.summary} ${e.body}`.toLowerCase();
+    return words.every((w) => text.includes(w));
+  });
+}
+
+/** Any entry by slug, product or engineering (the admin pages show both), or null. */
+export function findAnyChangelogEntry(slug: string, entries: readonly ChangelogEntry[] = CHANGELOG_ENTRIES): ChangelogEntry | null {
+  return entries.find((e) => e.slug === slug) ?? null;
+}
+
+/** Entries grouped by month, newest first, each group labelled "November 2026" (their order within it is kept). */
+export function groupByMonth(entries: readonly ChangelogEntry[]): { month: string; label: string; entries: ChangelogEntry[] }[] {
+  const groups = new Map<string, ChangelogEntry[]>();
+  for (const e of entries) groups.set(e.date.slice(0, 7), [...(groups.get(e.date.slice(0, 7)) ?? []), e]);
+  return [...groups].map(([month, list]) => {
+    const [y, m] = month.split("-").map(Number);
+    const label = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(y, m - 1, 1)));
+    return { month, label, entries: list };
+  });
 }
 
 /** A product entry by slug, or null: an engineering entry has no page, so its slug is a 404 like any unknown one. */
@@ -64,6 +105,7 @@ export function validateChangelog(entries: readonly ChangelogEntry[] = CHANGELOG
     if (!DATE.test(e.date) || Number.isNaN(Date.parse(e.date))) problems.push(`${where}: date must be YYYY-MM-DD`);
     if (!(e.category in CHANGELOG_CATEGORIES)) problems.push(`${where}: unknown category`);
     if (!(e.audience in CHANGELOG_AUDIENCES)) problems.push(`${where}: unknown audience`);
+    if (e.major && e.audience !== "product") problems.push(`${where}: only a product entry can be major`);
     // An engineering entry has no page, digest or post to show a screenshot in.
     if (e.audience === "engineering" && (e.image || /!\[[^\]]*\]\(/.test(e.body))) problems.push(`${where}: an engineering entry has no screenshots`);
     if (!e.title.trim()) problems.push(`${where}: empty title`);
@@ -77,24 +119,4 @@ export function validateChangelog(entries: readonly ChangelogEntry[] = CHANGELOG
     }
   }
   return problems;
-}
-
-/**
- * The text of CHANGELOG.md, generated from the entries (`pnpm changelog:generate`): every entry, product and
- * engineering. Engineering entries are tagged and carry their body, since this file is the only place they appear.
- */
-export function renderChangelogMarkdown(entries: readonly ChangelogEntry[] = CHANGELOG_ENTRIES): string {
-  const lines = [
-    "# Changelog",
-    "",
-    "<!-- Generated from lib/changelog/entries.ts by `pnpm changelog:generate`. Edit the entries, not this file. -->",
-    "",
-    "What's new and fixed in the Hedgie Hub, newest first.",
-  ];
-  for (const e of listChangelog(entries)) {
-    const audience = e.audience === "engineering" ? ` · ${CHANGELOG_AUDIENCES.engineering}` : "";
-    lines.push("", `## ${e.date}${audience} · ${CHANGELOG_CATEGORIES[e.category]}: ${e.title}`, "", e.summary);
-    if (e.audience === "engineering") lines.push("", e.body.trim());
-  }
-  return lines.join("\n") + "\n";
 }

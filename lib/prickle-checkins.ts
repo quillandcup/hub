@@ -148,6 +148,31 @@ export const EMOTION_KEYS: readonly Emotion[] = [
   ...EMOTION_WHEEL.flatMap((c) => c.outer),
 ];
 
+/** How many of a member's usual feelings the Slack DM lists on top; the site shows more. */
+export const SLACK_FREQUENT_EMOTIONS = 3;
+/** How many the site's feeling picker lists as "Frequently used". */
+export const WEB_FREQUENT_EMOTIONS = 8;
+
+/**
+ * The feelings a member names most, most used first (before and after answers both count), like
+ * a keyboard's frequent emojis: nothing to set up, it follows what they pick. Ties keep the
+ * wheel's order, so the list doesn't shuffle between sends. Values that aren't on the wheel are skipped.
+ */
+export function frequentEmotions(
+  answers: Iterable<{ emotionBefore: string | null; emotionAfter: string | null }>,
+  limit: number
+): Emotion[] {
+  const counts = new Map<Emotion, number>();
+  for (const a of answers) {
+    for (const e of [a.emotionBefore, a.emotionAfter]) {
+      if (e && (EMOTION_KEYS as readonly string[]).includes(e)) counts.set(e as Emotion, (counts.get(e as Emotion) ?? 0) + 1);
+    }
+  }
+  return EMOTION_KEYS.filter((e) => counts.has(e))
+    .sort((a, b) => counts.get(b)! - counts.get(a)!)
+    .slice(0, Math.max(0, limit));
+}
+
 /** Each emotion's path from the core: [core] for a core, [core, feeling] otherwise. */
 export const EMOTION_PATH: Record<Emotion, readonly Emotion[]> = Object.fromEntries([
   ...EMOTION_WHEEL.map((c) => [c.key, [c.key]]),

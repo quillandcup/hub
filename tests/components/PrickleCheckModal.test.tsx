@@ -35,6 +35,7 @@ function data(overrides: Partial<CheckModalData> = {}): CheckModalData {
     hasStarted: true,
     hasGoals: true,
     checkin: null,
+    frequentEmotions: [],
     canEdit: true,
     join: null,
     projects: [

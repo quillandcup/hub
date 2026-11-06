@@ -8,7 +8,7 @@ import ProcessOrphanedButton from "./ProcessOrphanedButton";
 import ProcessOrphanedMeetingsButton from "./ProcessOrphanedMeetingsButton";
 import { matchAttendeeToMember } from "@/lib/member-matching";
 import { matchSlackUsersToMembers } from "@/lib/slack-matching";
-import { detectDuplicates } from "@/lib/member-duplicates";
+import { detectDuplicates, withDuplicateAliases } from "@/lib/member-duplicates";
 import { findStalePrivateChannels } from "@/lib/private-channel-access";
 import { loadIgnoredAppearances } from "@/lib/ignored-zoom-appearances";
 import { computeUnmatchedZoomNames } from "@/lib/unmatched-zoom-names";
@@ -95,7 +95,7 @@ export default async function DataHygienePage() {
   // zoom_email is NULL, so the same bare name can produce several rows.
   const ambiguousNamesCount = new Set(ambiguousNameRows.map((a) => a.zoom_name)).size;
 
-  const duplicateGroups = detectDuplicates(membersForDuplicates);
+  const duplicateGroups = detectDuplicates(await withDuplicateAliases(createRepos(supabase), membersForDuplicates));
   const duplicateCount = duplicateGroups.length;
   const stalePrivateChannels = findStalePrivateChannels(slackChannelsForAccessCheck);
 

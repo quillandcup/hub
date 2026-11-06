@@ -73,7 +73,7 @@ describe("digestCandidates", () => {
 });
 
 describe("digestCandidates: who and what is never notified", () => {
-  it("leaves out engineering entries, which live only in CHANGELOG.md", () => {
+  it("leaves out engineering entries, which are for staff only", () => {
     const eng = entry({ slug: "eng", date: "2026-11-09", audience: "engineering" });
     expect(digestCandidates(NOW, [first, eng]).map((e) => e.slug)).toEqual(["first"]);
   });
@@ -117,6 +117,15 @@ describe("digestMessage", () => {
     for (const shown of ["NewA", "NewB", "ImpA"]) expect(blocks).toContain(shown);
     for (const hidden of ["FixA", "FixB"]) expect(blocks).not.toContain(hidden);
     expect(blocks).toContain("2 more on the What's new page");
+  });
+
+  it("puts a major entry first, whatever its date or category", () => {
+    const entries = [
+      entry({ slug: "new-recent", title: "NewRecent", category: "new", date: "2026-11-09" }),
+      entry({ slug: "big-older", title: "BigOlder", category: "improved", major: true, date: "2026-11-05" }),
+      entry({ slug: "fix", title: "Fix", category: "fixed", date: "2026-11-09" }),
+    ];
+    expect(rankByBenefit(entries).map((e) => e.slug)).toEqual(["big-older", "new-recent", "fix"]);
   });
 
   it("only sends when something is new or improved, not for a week of fixes alone", () => {

@@ -1,5 +1,5 @@
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
-import { inChunks as inChunksOf, sortByKey, upsertInChunks } from "./query";
+import { escapeLike, inChunks as inChunksOf, sortByKey, upsertInChunks } from "./query";
 import type { Database, Json } from "./database.types";
 import type { Db } from "./db";
 import type { InMemoryDataset } from "./in-memory";
@@ -137,6 +137,10 @@ export interface BillingRepository {
   upsertKajabiContacts(rows: NewKajabiContact[]): Promise<void>;
   /** Sets the email of one contact, when Kajabi has changed it and the full refresh did not work. */
   setKajabiContactEmail(kajabiContactId: string, email: string): Promise<void>;
+  /** The contacts with this email, whatever its case (Kajabi keeps emails unique, so normally one). */
+  kajabiContactsByEmail(email: string): Promise<KajabiContactRef[]>;
+  /** Removes one contact from the Bronze copy, after it was deleted in Kajabi (the next import would not bring it back). */
+  deleteKajabiContact(kajabiContactId: string): Promise<void>;
   /** Adds customers, or replaces the ones with the same Kajabi customer id. Written in chunks. */
   upsertKajabiCustomers(rows: NewKajabiCustomer[]): Promise<void>;
   /** Adds purchases, or replaces the ones with the same Kajabi purchase id. Written in chunks. */
@@ -384,6 +388,17 @@ export class SupabaseBillingRepository implements BillingRepository {
 
   async setKajabiContactEmail(kajabiContactId: string, email: string) {
     const { error } = await this.contacts.update({ email }).eq("kajabi_contact_id", kajabiContactId);
+    if (error) throw new Error(error.message);
+  }
+
+  async kajabiContactsByEmail(email: string) {
+    const { data, error } = await this.contacts.select("kajabi_contact_id, email, name").ilike("email", escapeLike(email)).order("kajabi_contact_id");
+    if (error) throw new Error(error.message);
+    return (data ?? []) as KajabiContactRef[];
+  }
+
+  async deleteKajabiContact(kajabiContactId: string) {
+    const { error } = await this.contacts.delete().eq("kajabi_contact_id", kajabiContactId);
     if (error) throw new Error(error.message);
   }
 
@@ -705,6 +720,17 @@ export class InMemoryBillingRepository implements BillingRepository {
 
   async setKajabiContactEmail(kajabiContactId: string, email: string) {
     for (const c of this.dataset.kajabiContacts) if (c.kajabi_contact_id === kajabiContactId) c.email = email;
+  }
+
+  async kajabiContactsByEmail(email: string) {
+    return this.dataset.kajabiContacts
+      .filter((c) => c.email?.toLowerCase() === email.toLowerCase())
+      .map((c) => ({ kajabi_contact_id: c.kajabi_contact_id, email: c.email ?? null, name: c.name ?? null }) as KajabiContactRef)
+      .sort((a, b) => (a.kajabi_contact_id < b.kajabi_contact_id ? -1 : 1));
+  }
+
+  async deleteKajabiContact(kajabiContactId: string) {
+    this.dataset.kajabiContacts = this.dataset.kajabiContacts.filter((c) => c.kajabi_contact_id !== kajabiContactId);
   }
 
   async upsertKajabiCustomers(rows: NewKajabiCustomer[]) {

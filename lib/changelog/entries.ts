@@ -1,7 +1,7 @@
 /**
  * The Hedgie Hub changelog: one entry per release a member would notice, newest first or not (the
- * helpers sort). This file is the single source: the in-app pages (/changelog), the generated
- * CHANGELOG.md (`pnpm changelog:generate`, checked by a test) and the "What's new" digest all read it.
+ * helpers sort). This file is the single source: the in-app pages (/changelog), the
+ * admin Changelog (engineering entries too) and the "What's new" digest all read it.
  * Written for members: say what they can now do, not what changed in the code. See docs/CHANGELOG_PROCESS.md.
  *
  * Screenshots live in public/changelog/<slug>/ (the repo and that folder are public: no member data in
@@ -19,8 +19,8 @@ export type ChangelogCategory = keyof typeof CHANGELOG_CATEGORIES;
 
 /**
  * Who an entry is for. `product` entries are what members see: the What's new pages, the weekly digest, the
- * announcements post, and CHANGELOG.md. `engineering` entries (platform improvements, or the lower-level detail behind
- * a product update) appear only in CHANGELOG.md, with their body, and have no page or notification.
+ * announcements post, and the admin Changelog. `engineering` entries (platform improvements, or the lower-level detail behind
+ * a product update) appear only on the admin Changelog (`/admin/changelog`), with their body, and have no member page or notification.
  */
 export const CHANGELOG_AUDIENCES = {
   product: "Product",
@@ -36,6 +36,12 @@ export interface ChangelogEntry {
   date: string;
   audience: ChangelogAudience;
   category: ChangelogCategory;
+  /**
+   * A significant new capability (Hub Chat, Courses), as opposed to one more improvement: badged "Major" on the What's new
+   * pages, first in the weekly digest and the announcements post, and marked on the admin Changelog. A separate dimension from
+   * `category` (a major feature is also "new"), so it stays rare on purpose. Product entries only.
+   */
+  major?: boolean;
   title: string;
   /** One or two plain sentences (no markdown): the excerpt in the list, the digest and the Slack post. */
   summary: string;
@@ -2178,7 +2184,8 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-11-01",
     audience: "product",
     category: "new",
-    title: "Hub Chat is open to every member",
+    major: true,
+    title: "Hub Chat: our Slack conversations, in the Hub",
     summary:
       "Read and join our Slack conversations from the Hub, reply in threads, react, share files and format your messages. What you write here appears in Slack too.",
     image: {
@@ -2186,6 +2193,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       alt: "The chat page showing a channel with threads and reactions",
     },
     body: [
+      "Hub Chat brings our Slack conversations into the Hub, and it is now open to every member.",
       "Chat is in the sidebar under Community. It lists the conversations you are in first, with a Browse channels button for the public channels you could join, and a lock on private ones. Conversations, threads and reactions update on their own.",
       "![The chat page showing a channel with threads and reactions](/changelog/chat-open-to-everyone/01-conversation.webp)",
       "- Write messages and replies in the Hub and they appear in Slack. By default Billie Bot, our Slack helper, posts them with your name and photo. Connect your Slack account under Account in Settings and they go out as you; you can disconnect at any time from the same place.",
@@ -2202,11 +2210,12 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-11-01",
     audience: "product",
     category: "new",
-    title: "Events is open to every member",
+    title: "Events in the Hub",
     image: { src: "/changelog/events-open-to-everyone/01-events.webp", alt: "The Events page: special events and educational sessions as picture cards, with November at a glance below." },
     summary:
       "See what is coming up, with a picture on each event and a month-at-a-glance list that shows the time of day.",
     body: [
+      "Events are now open to every member in the Hub.",
       "![The Events page: special events and educational sessions as picture cards, with November at a glance below.](/changelog/events-open-to-everyone/01-events.webp)",
       "At [/events](/events), upcoming special events and educational sessions sit on top as picture cards. Below them, pick this month, next month or the one after to see everything by day, with times shown in your own time zone.",
       "Past events have their own page at [/events/past](/events/past), a month at a time.",
@@ -2217,7 +2226,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-11-01",
     audience: "product",
     category: "new",
-    title: "Gentle reminders are on for every member",
+    title: "Gentle reminders to say hello and to plan a prickle",
     summary:
       "Newcomers get a nudge to say hello in the intro channel, and anyone with nothing planned can get a reminder to put a prickle on their calendar. You choose where they arrive, or turn them off.",
     body: [
@@ -2232,14 +2241,16 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-11-02",
     audience: "product",
     category: "new",
-    title: "Courses are open to every member",
+    major: true,
+    title: "Courses in the Hub",
     summary:
-      "Watch the lessons of the courses you have access to right in the Hub, mark them complete and pick up where you left off.",
+      "Watch your course lessons right in the Hub, mark them complete and pick up where you left off.",
     image: {
       src: "/changelog/courses-open-to-everyone/01-courses-list.webp",
       alt: "The Courses page with three course cards, one showing progress",
     },
     body: [
+      "Courses now live in the Hub, and they are open to every member.",
       "Find them under [Courses](/courses): cards with cover images and your progress, a page for each module, and lesson pages with the video, its text and downloadable files.",
       "![The Courses page with course cards and progress](/changelog/courses-open-to-everyone/01-courses-list.webp)",
       "- A lesson completes by itself when you have watched about 90 percent, or you can press Mark complete under the video. A card then points you to the next lesson.",
@@ -2419,9 +2430,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Changelog system, weekly digest and one notification log",
     summary:
-      "Changelog entries live in one typed file that feeds the What's new pages, CHANGELOG.md, the weekly digest and the announcements post.",
+      "Changelog entries live in one typed file that feeds the What's new pages, the admin Changelog, the weekly digest and the announcements post.",
     body: [
-      "`lib/changelog/entries.ts` is the single source. Each entry is for the `product` audience (members: the pages, the digest, the announcements post and CHANGELOG.md) or the `engineering` audience (CHANGELOG.md only). CHANGELOG.md is generated with `pnpm changelog:generate` and a test fails when it is stale or an entry is malformed.",
+      "`lib/changelog/entries.ts` is the single source. Each entry is for the `product` audience (members: the pages, the digest, the announcements post and the admin Changelog) or the `engineering` audience (staff only, on the admin Changelog). A test fails when an entry is malformed or shows an image that is not there. The in-app pages search and filter the entries; there is no generated file to keep in sync.",
       "The weekly digest is the `changelog_digest` notification kind, sent by `/api/internal/changelog-digest` from Vercel Cron (Tuesdays 14:00 UTC) behind the `changelog_digest` feature flag, so it starts in dry run. Each member gets the entries from the last 30 days they have not had, as one message on the channels they chose, and nothing dated before `changelogDigestStartsOn` in `app.config.ts` is ever sent.",
       "`notification_log` is one log of what the app sent, for every kind: a row per recipient (a member, or a shared place such as a Slack channel), kind and dedup key. A send is claimed before it is made and released when nothing was delivered, so a retry or an overlapping run never sends twice. `NotificationLogRepository` has an in-memory twin and one contract suite run against both.",
       "Screenshots are taken from the demo scenes: `pnpm changelog:capture <slug>` runs an `@changelog` scene and writes small WebP files into `public/changelog/<slug>/`.",
@@ -2449,8 +2460,21 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Admin member search matches every active alias",
     summary: "The admin Members list now finds a member by any active alias, and no longer by one that has been switched off.",
     body: [
-      "`admin_member_engagement` (behind `admin_members_page`) matched aliases only when their source was `zoom` and never checked `active`, so an alias an admin added or a member wrote found nobody, while a switched-off Zoom alias still did. It now uses the rule the top-bar search (`search_member_aliases`) and the member directory (`member_directory_aliases`) already share: any active alias.",
+      "`admin_member_engagement` (behind `admin_members_page`) matched aliases only when their source was `zoom` and never checked `active`, so an alias an admin added or a member wrote found nobody, while a switched-off Zoom alias still did. It now uses the rule the top-bar search (`search_member_aliases`) and the member directory (`member_directory_aliases`) already share: any active name alias; a Slack-source alias is a user id, not a name, so it never matches.",
       "Migration `20270515000000_admin_search_matches_all_aliases.sql` replaces only that condition; `admin_search_matches_all_aliases.test.sql` covers each alias source and a switched-off alias, and fails on the old function.",
+    ].join("\n\n"),
+  },
+  {
+    slug: "check-in-usual-feelings",
+    date: "2026-11-06",
+    audience: "product",
+    category: "improved",
+    title: "Your most-used feelings come first when you check in",
+    summary:
+      "The feelings you name most often now sit at the top of the feeling question, so naming how you feel takes one tap instead of a search through the whole Feeling Wheel.",
+    body: [
+      "When you check in or out, the feelings you pick most often show up first, under Frequently used. Tap one to choose it, tap it again to step back. Nothing to set up: the list follows what you pick, the way frequent emojis do, and the full Feeling Wheel is still right below it.",
+      "In the Slack check-in and check-out messages your top three are listed first in the feeling menu.",
     ].join("\n\n"),
   },
 ];

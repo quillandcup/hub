@@ -65,7 +65,7 @@ export const appConfig = {
 
   /**
    * The first day (YYYY-MM-DD, Eastern) a changelog entry can go out in the weekly digest and the announcements post.
-   * Entries dated before it (the backfilled history) are on the What's new page and in CHANGELOG.md but are never
+   * Entries dated before it (the backfilled history) are on the What's new page and the admin Changelog but are never
    * notified, so turning the digest on does not send members the past.
    */
   changelogDigestStartsOn: "2026-11-04",

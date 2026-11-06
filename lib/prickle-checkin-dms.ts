@@ -31,11 +31,13 @@ import {
   INTENTION_MET_QUESTION,
   isEmptyCheckin,
   NEEDS,
+  SLACK_FREQUENT_EMOTIONS,
   offersCheckins,
   PLEASANTNESS,
   PLEASANTNESS_QUESTION,
   validateCheckin,
   type CheckinInput,
+  type Emotion,
   type ScalePoint,
 } from "@/lib/prickle-checkins";
 
@@ -312,7 +314,7 @@ const NEED_OPTIONS: SlackOption[] = NEEDS.map((n) => ({ text: plain(`${n.label} 
  * its middle and outer rings (78 options, under Slack's 100). One pick at any depth, like the
  * site's search; Slack's select filters as you type.
  */
-const EMOTION_GROUPS = EMOTION_WHEEL.map((c) => ({
+const EMOTION_GROUPS: { label: ReturnType<typeof plain>; options: SlackOption[] }[] = EMOTION_WHEEL.map((c) => ({
   label: plain(c.label),
   options: [
     { text: plain(c.label), value: c.key },
@@ -320,6 +322,21 @@ const EMOTION_GROUPS = EMOTION_WHEEL.map((c) => ({
   ],
 }));
 const EMOTION_OPTIONS: SlackOption[] = EMOTION_GROUPS.flatMap((g) => g.options);
+
+/**
+ * The wheel's groups with the member's usual feelings on top (a "Frequently used" group, like
+ * a keyboard's frequent emojis). A usual feeling is moved there, not copied, so no option value
+ * appears twice in the select. Only the first SLACK_FREQUENT_EMOTIONS are listed; the site shows more.
+ */
+function emotionGroups(usual: readonly Emotion[]): typeof EMOTION_GROUPS {
+  const top = new Set<string>(usual.slice(0, SLACK_FREQUENT_EMOTIONS));
+  if (top.size === 0) return EMOTION_GROUPS;
+  const picked = EMOTION_OPTIONS.filter((o) => top.has(o.value)).sort((a, b) => [...top].indexOf(a.value) - [...top].indexOf(b.value));
+  return [
+    { label: plain("Frequently used"), options: picked },
+    ...EMOTION_GROUPS.map((g) => ({ ...g, options: g.options.filter((o) => !top.has(o.value)) })).filter((g) => g.options.length > 0),
+  ];
+}
 
 /** Select fields' options, so a saved answer can be shown as the select's initial value (scales are button rows). */
 const FIELD_OPTIONS: Partial<Record<CheckinField, SlackOption[]>> = {
@@ -346,13 +363,20 @@ function withInitial(accessory: any, field: CheckinField, values: string[]): any
   return selected ? { ...rest, initial_option: selected } : rest;
 }
 
-function selectQuestion(prickleId: string, field: CheckinField, question: string, placeholder: string, saved: CheckinInput | null): any {
+function selectQuestion(
+  prickleId: string,
+  field: CheckinField,
+  question: string,
+  placeholder: string,
+  saved: CheckinInput | null,
+  usual: readonly Emotion[] = []
+): any {
   const isEmotion = field === "emotion_before" || field === "emotion_after";
   const accessory = {
     type: "static_select",
     action_id: CHECKIN_ANSWER_ACTION_ID,
     placeholder: plain(placeholder),
-    ...(isEmotion ? { option_groups: EMOTION_GROUPS } : { options: FIELD_OPTIONS[field] }),
+    ...(isEmotion ? { option_groups: emotionGroups(usual) } : { options: FIELD_OPTIONS[field] }),
   };
   return {
     type: "section",
@@ -386,11 +410,11 @@ function scaleBlocks(prickleId: string, field: CheckinField, points: readonly Sc
 }
 
 /** Mood (both scales) and the optional feeling, the same before and after. */
-function moodBlocks(prickleId: string, when: "before" | "after", intro: string, saved: CheckinInput | null): any[] {
+function moodBlocks(prickleId: string, when: "before" | "after", intro: string, saved: CheckinInput | null, usual: readonly Emotion[] = []): any[] {
   return [
     ...scaleBlocks(prickleId, `pleasant_${when}`, PLEASANTNESS, `${intro}${PLEASANTNESS_QUESTION}`, saved),
     ...scaleBlocks(prickleId, `energy_${when}`, ENERGY, ENERGY_QUESTION, saved),
-    selectQuestion(prickleId, `emotion_${when}`, `${EMOTION_QUESTION} \n_(Feeling Wheel by Gloria Willcox)_`, "Type or pick a feeling", saved),
+    selectQuestion(prickleId, `emotion_${when}`, `${EMOTION_QUESTION} \n_(Feeling Wheel by Gloria Willcox)_`, "Type or pick a feeling", saved, usual),
   ];
 }
 
@@ -411,9 +435,15 @@ function checkinFooter(prickleId: string, kind: "checkin" | "checkout" = "checki
 export { checkinAnswered, checkoutAnswered };
 
 /** The check-in DM, before a prickle (or, `running`, to a member who has just joined it): mood, the feeling, then their intention. */
-export function buildCheckinBlocks(prickleId: string, typeName: string, saved: CheckinInput | null, running = false): any[] {
+export function buildCheckinBlocks(
+  prickleId: string,
+  typeName: string,
+  saved: CheckinInput | null,
+  running = false,
+  usual: readonly Emotion[] = []
+): any[] {
   return [
-    ...moodBlocks(prickleId, "before", running ? `You're in *${typeName}*. ` : `*${typeName}* starts in about 20 minutes. `, saved),
+    ...moodBlocks(prickleId, "before", running ? `You're in *${typeName}*. ` : `*${typeName}* starts in about 20 minutes. `, saved, usual),
     selectQuestion(prickleId, "need", "Choose your intention: what do you need most from this session?", "Choose your intention", saved),
     dismissBlock("checkin", prickleId),
     checkinFooter(prickleId),
@@ -469,12 +499,35 @@ export function parseDismiss(action: any): { half: CheckinHalfKind; prickleId: s
 }
 
 /**
+ * What `saveCheckinAnswer` and `dismissCheckinHalf` return when the prickle the DM was about no
+ * longer exists (a Pop-Up Prickle rebuilt under a new id, a calendar item deleted): the answer has
+ * nowhere to go, since the check-in rows reference the prickle. The Slack handlers tell the member.
+ */
+export const PRICKLE_GONE = "that prickle isn't there any more";
+
+/** True only when the prickle is known to be missing; a failed read says nothing, and the write reports its own error. */
+async function prickleIsGone(repos: DmRepos, prickleId: string): Promise<boolean> {
+  const prickle = await repos.prickles.byId(prickleId).catch(() => undefined);
+  return prickle === null;
+}
+
+/**
+ * What a DM says in place of its questions when the prickle it was about is gone: it can't be
+ * answered or skipped any more, so it says so instead of looking live and doing nothing.
+ */
+export function goneDmBlocks(): { text: string; blocks: any[] } {
+  const text = "⚠️ This one is out of date: the session it was about changed on our side, so your answer can't be saved. Sorry about that! Your next check-in or check-out will work as usual.";
+  return { text, blocks: [{ type: "section", text: { type: "mrkdwn", text } }] };
+}
+
+/**
  * Closes one half of a prickle's check-in for good, the same for both halves: the dashboard (the
  * check-in pill, the "What did you write?" prompt), the search palette, upcoming prickles and the
  * Slack DM all stop asking, and the in-app notification is marked read so its banner and the bell
  * count go too. Returns an error message, or null.
  */
 export async function dismissCheckinHalf(repos: DmRepos, half: CheckinHalfKind, memberId: string, prickleId: string): Promise<string | null> {
+  if (await prickleIsGone(repos, prickleId)) return PRICKLE_GONE;
   try {
     await repos.prickleActivity.dismiss(half, memberId, prickleId);
   } catch (error) {
@@ -513,11 +566,12 @@ export function buildCheckoutBlocks(
   saved: CheckinInput | null,
   prompts: QuickLogPrompt[],
   prickleTitle: string = typeName,
-  hasGoals = true
+  hasGoals = true,
+  usual: readonly Emotion[] = []
 ): any[] {
   return [
     ...scaleBlocks(prickleId, "intention_met", INTENTION_MET, `Checking out of *${typeName}*: ${INTENTION_MET_QUESTION}`, saved),
-    ...moodBlocks(prickleId, "after", "And now: ", saved),
+    ...moodBlocks(prickleId, "after", "And now: ", saved, usual),
     ...buildQuickLogBlocks(prickleTitle, prickleId, prompts),
     dismissBlock("checkout", prickleId),
     ...(hasGoals ? [] : [noGoalTipBlock()]),
@@ -586,6 +640,15 @@ export async function loadCheckins(
   return repos.prickleActivity.checkinsOfMembers(memberIds, prickleIds);
 }
 
+/** Each member's usual feelings for the DMs' feeling select (a failed read just leaves the plain wheel). */
+export async function loadUsualEmotions(repos: DmRepos, memberIds: string[]): Promise<Map<string, Emotion[]>> {
+  if (memberIds.length === 0) return new Map();
+  return repos.prickleActivity.frequentEmotions(memberIds, SLACK_FREQUENT_EMOTIONS).catch((error) => {
+    console.error("loadUsualEmotions: read failed", error);
+    return new Map<string, Emotion[]>();
+  });
+}
+
 /**
  * Saves one answer from a DM into the member's check-in, the same row the prickle page edits:
  * merged with what's there, validated like the page's saveCheckin, and soft-deleted when
@@ -594,6 +657,7 @@ export async function loadCheckins(
  */
 export async function saveCheckinAnswer(repos: DmRepos, memberId: string, answer: CheckinAnswer): Promise<string | null> {
   const { prickleId, field, values } = answer;
+  if (await prickleIsGone(repos, prickleId)) return PRICKLE_GONE;
   const repo = repos.prickleActivity;
   let existing: CheckinInput | null;
   try {
@@ -795,10 +859,11 @@ export async function sendCheckoutDMs(
 
   const memberIds = [...new Set(plan.map((p) => p.memberId))];
   const plannedPrickleIds = [...new Set(plan.map((p) => p.prickle.id))];
-  const [notifier, checkins, loggedProjects] = await Promise.all([
+  const [notifier, checkins, loggedProjects, usualEmotions] = await Promise.all([
     createNotifier(repos, "prickle_checkout", memberIds),
     loadCheckins(repos, memberIds, plannedPrickleIds),
     loadLoggedProjects(repos, memberIds, plannedPrickleIds),
+    loadUsualEmotions(repos, memberIds),
   ]);
   const goalsByMember = groupByMember(candidates);
 
@@ -815,7 +880,7 @@ export async function sendCheckoutDMs(
     if (checkoutAnswered(saved) && unlogged.length === 0) continue;
 
     // Build before claiming: a failed progress lookup mustn't consume the notification.
-    const message = checkoutMessage(prickle, saved, await quickLogPrompts(repos, unlogged), { hasGoals: goals.length > 0 });
+    const message = checkoutMessage(prickle, saved, await quickLogPrompts(repos, unlogged), { hasGoals: goals.length > 0, usual: usualEmotions.get(memberId) });
     const shouldSend = await tryRecordCheckinDM(repos, prickle.id, memberId, "prickle_checkout");
     if (!shouldSend) continue;
 
@@ -874,9 +939,14 @@ const TEST_BANNER = {
 export function checkinMessage(
   prickle: DMPrickle,
   saved: CheckinInput | null,
-  { test = false, join = null, running = false }: { test?: boolean; join?: PrickleJoin | null; running?: boolean } = {}
+  {
+    test = false,
+    join = null,
+    running = false,
+    usual = [],
+  }: { test?: boolean; join?: PrickleJoin | null; running?: boolean; usual?: readonly Emotion[] } = {}
 ): OutboundMessage {
-  const blocks = [...buildCheckinBlocks(prickle.id, prickle.typeName, saved, running), ...joinSlackBlocks(join)];
+  const blocks = [...buildCheckinBlocks(prickle.id, prickle.typeName, saved, running, usual), ...joinSlackBlocks(join)];
   return {
     text: `${test ? "[Test] " : ""}${running ? `You're in ${prickle.typeName}.` : `Ready for ${prickle.typeName} in ~20 min?`} Check in: how are you feeling, and what do you need from it?`,
     url: `${APP_URL}${checkinHref(prickle.id, "checkin")}`,
@@ -899,9 +969,9 @@ export function checkoutMessage(
   prickle: DMPrickle,
   saved: CheckinInput | null,
   prompts: QuickLogPrompt[],
-  { test = false, hasGoals = true }: { test?: boolean; hasGoals?: boolean } = {}
+  { test = false, hasGoals = true, usual = [] }: { test?: boolean; hasGoals?: boolean; usual?: readonly Emotion[] } = {}
 ): OutboundMessage {
-  const blocks = buildCheckoutBlocks(prickle.id, prickle.typeName, saved, prompts, prickle.title ?? prickle.typeName, hasGoals);
+  const blocks = buildCheckoutBlocks(prickle.id, prickle.typeName, saved, prompts, prickle.title ?? prickle.typeName, hasGoals, usual);
   return {
     text: `${test ? "[Test] " : ""}Checking out of ${prickle.typeName}: did you get what you came for?`,
     url: `${APP_URL}${checkinHref(prickle.id, "checkout")}`,
@@ -933,15 +1003,17 @@ export async function sendTestCheckinDM(
   }
 
   const saved = (await loadCheckins(repos, [memberId], [prickle.id])).get(`${memberId}:${prickle.id}`) ?? null;
+  const usual = (await loadUsualEmotions(repos, [memberId])).get(memberId);
   let message: OutboundMessage;
   if (kind === "prickle_checkin") {
     message = checkinMessage(prickle, saved, {
       test: true,
+      usual,
       join: joinAt(await loadPrickleJoinSettings(repos), prickle.startTime),
     });
   } else {
     const goals = (await getActiveGoalCandidates(repos)).filter((g) => g.memberId === memberId);
-    message = checkoutMessage(prickle, saved, await quickLogPrompts(repos, goals), { test: true, hasGoals: goals.length > 0 });
+    message = checkoutMessage(prickle, saved, await quickLogPrompts(repos, goals), { test: true, hasGoals: goals.length > 0, usual });
   }
   const delivered = await notifier.send(memberId, message);
   return delivered.length > 0 ? { delivered } : { error: "Nothing went out; check the server logs." };
@@ -1018,10 +1090,11 @@ export async function sendDropInCheckins(
   if (plan.length === 0) return { sent: 0, dryRun: 0 };
 
   const memberIds = [...new Set(plan.map((p) => p.memberId))];
-  const [live, notifier, checkins] = await Promise.all([
+  const [live, notifier, checkins, usualEmotions] = await Promise.all([
     liveFor(memberIds),
     createNotifier(repos, "prickle_checkin", memberIds),
     loadCheckins(repos, memberIds, [...new Set(plan.map((p) => p.prickle.id))]),
+    loadUsualEmotions(repos, memberIds),
   ]);
 
   let sent = 0;
@@ -1029,7 +1102,7 @@ export async function sendDropInCheckins(
   for (const { memberId, prickle } of plan) {
     const saved = checkins.get(`${memberId}:${prickle.id}`) ?? null;
     if (checkinAnswered(saved)) continue;
-    const message = checkinMessage(prickle, saved, { running: true });
+    const message = checkinMessage(prickle, saved, { running: true, usual: usualEmotions.get(memberId) });
 
     if (!live.has(memberId)) {
       const channels = notifier.channelsFor(memberId);

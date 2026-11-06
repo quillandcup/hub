@@ -300,6 +300,63 @@ describe("MemberIdentityPanel", () => {
     expect(screen.getByDisplayValue("erica@example.com")).toBeInTheDocument();
   });
 
+  describe("when Kajabi already has another contact with the address", () => {
+    const refusal = (kajabiConflict: Record<string, unknown>) => ({
+      ok: false,
+      json: async () => ({ error: "Kajabi contact dup1 already has that email.", kajabiConflict }),
+    });
+
+    it("offers to delete an empty duplicate, then retries the change with the same address", async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(refusal({ contactId: "dup1", memberId: null, memberName: null, empty: true }))
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true }) })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ member: { email: "old@example.com" } }) });
+      vi.stubGlobal("fetch", fetchMock);
+      const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+      renderWithEmails();
+
+      await userEvent.click(screen.getByRole("button", { name: "Make old@example.com the primary email" }));
+      expect(await screen.findByText(/Kajabi contact dup1 already has that email/)).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: "Delete the empty Kajabi contact and try again" }));
+      expect(confirm).toHaveBeenLastCalledWith(expect.stringContaining("Delete Kajabi contact dup1"));
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+      expect(fetchMock.mock.calls[1][0]).toBe("/api/admin/members/member-1/delete-empty-kajabi-contact");
+      expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ contactId: "dup1", email: "old@example.com" });
+      expect(JSON.parse(fetchMock.mock.calls[2][1].body)).toEqual({ email: "old@example.com" });
+      await waitFor(() => expect(refresh).toHaveBeenCalled());
+      expect(screen.queryByText(/Kajabi contact dup1/)).not.toBeInTheDocument();
+    });
+
+    it("offers nothing to delete for a contact that has things attached or is linked to a member", async () => {
+      vi.spyOn(window, "confirm").mockReturnValue(true);
+      const fetchMock = vi.fn().mockResolvedValue(refusal({ contactId: "dup1", memberId: "member-2", memberName: "Grace Example", empty: false }));
+      vi.stubGlobal("fetch", fetchMock);
+      renderWithEmails();
+
+      await userEvent.click(screen.getByRole("button", { name: "Make old@example.com the primary email" }));
+      expect(await screen.findByText(/Kajabi contact dup1 already has that email/)).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Delete the empty Kajabi contact/ })).not.toBeInTheDocument();
+    });
+
+    it("stays put when the delete itself is refused", async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(refusal({ contactId: "dup1", memberId: null, memberName: null, empty: true }))
+        .mockResolvedValueOnce({ ok: false, json: async () => ({ error: "That Kajabi contact has a customer record, tags or offers, so it isn't deleted." }) });
+      vi.stubGlobal("fetch", fetchMock);
+      vi.spyOn(window, "confirm").mockReturnValueOnce(true).mockReturnValueOnce(true);
+      renderWithEmails();
+
+      await userEvent.click(screen.getByRole("button", { name: "Make old@example.com the primary email" }));
+      await userEvent.click(await screen.findByRole("button", { name: "Delete the empty Kajabi contact and try again" }));
+
+      expect(await screen.findByText(/so it isn't deleted/)).toBeInTheDocument();
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+  });
+
   it("deactivates and reactivates other emails", async () => {
     const fetchMock = okFetch();
     renderWithEmails();

@@ -206,7 +206,11 @@ async function changeEmail(supabase: SupabaseClient, member: MemberRow, input: s
   });
   if (!result.ok) {
     return NextResponse.json(
-      { error: result.error, ...(result.conflictingMemberId ? { conflictingMemberId: result.conflictingMemberId } : {}) },
+      {
+        error: result.error,
+        ...(result.conflictingMemberId ? { conflictingMemberId: result.conflictingMemberId } : {}),
+        ...(result.kajabiConflict ? { kajabiConflict: result.kajabiConflict } : {}),
+      },
       { status: result.status }
     );
   }

@@ -1,10 +1,17 @@
 import { stringSimilarity, tokenize } from './text-similarity';
+import type { Repos } from '@/lib/data/repos';
 
 export interface MemberForDuplication {
   id: string;
   name: string;
   email: string;
   status: string;
+  /** The pen name they chose to be shown as, if any. */
+  displayName?: string | null;
+  /** Their active other emails (an old Kajabi or Slack address, one they added). */
+  emailAliases?: string[];
+  /** Their active other names (pen names, the names Zoom and Slack know them by). */
+  nameAliases?: string[];
 }
 
 export type DuplicateConfidence = 'high' | 'medium' | 'low';
@@ -81,19 +88,27 @@ export function detectDuplicates(members: MemberForDuplication[]): DuplicateGrou
   }
 
   // Exact email match — the strongest possible signal, since the same email
-  // address always belongs to the same real account.
-  const byEmail = new Map<string, MemberForDuplication[]>();
-  for (const member of members) {
-    const key = member.email.toLowerCase().trim();
-    if (!byEmail.has(key)) byEmail.set(key, []);
-    byEmail.get(key)!.push(member);
-  }
-  for (const group of byEmail.values()) {
-    if (group.length > 1) {
+  // address always belongs to the same real account. An active email alias
+  // counts as the member's address too: when one member's old address is
+  // another's current one, they are the same person with two records.
+  const byEmail = new Map<string, Map<string, { member: MemberForDuplication; viaAlias: boolean }>>();
+  const addEmail = (address: string, member: MemberForDuplication, viaAlias: boolean) => {
+    const key = address.toLowerCase().trim();
+    if (!key) return;
+    if (!byEmail.has(key)) byEmail.set(key, new Map());
+    const entries = byEmail.get(key)!;
+    if (!entries.has(member.id)) entries.set(member.id, { member, viaAlias });
+  };
+  for (const member of members) addEmail(member.email, member, false);
+  for (const member of members) for (const alias of member.emailAliases ?? []) addEmail(alias, member, true);
+  for (const entries of byEmail.values()) {
+    if (entries.size > 1) {
+      const group = [...entries.values()].map((e) => e.member);
       const key = groupKey(group);
       if (!usedKeys.has(key)) {
         usedKeys.add(key);
-        groups.push({ reason: 'Same email', confidence: 'high', members: group });
+        const viaAlias = [...entries.values()].some((e) => e.viaAlias);
+        groups.push({ reason: viaAlias ? 'Email matches an alias' : 'Same email', confidence: 'high', members: group });
         for (const m of group) exactMatchedIds.add(m.id);
       }
     }
@@ -101,18 +116,29 @@ export function detectDuplicates(members: MemberForDuplication[]): DuplicateGrou
 
   // Exact name match — a real signal, but weaker than email: two different
   // people can share a common name, so this stays "medium" rather than "high".
-  const byName = new Map<string, MemberForDuplication[]>();
+  // A name that is another member's display name or active name alias (a pen
+  // name, the name Zoom or Slack knows them by) counts the same way.
+  const byName = new Map<string, Map<string, { member: MemberForDuplication; viaAlias: boolean }>>();
+  const addName = (name: string, member: MemberForDuplication, viaAlias: boolean) => {
+    const key = name.toLowerCase().trim().replace(/\s+/g, ' ');
+    if (!key) return;
+    if (!byName.has(key)) byName.set(key, new Map());
+    const entries = byName.get(key)!;
+    if (!entries.has(member.id)) entries.set(member.id, { member, viaAlias });
+  };
+  for (const member of members) addName(member.name, member, false);
   for (const member of members) {
-    const key = normalizedName(member);
-    if (!byName.has(key)) byName.set(key, []);
-    byName.get(key)!.push(member);
+    if (member.displayName) addName(member.displayName, member, true);
+    for (const alias of member.nameAliases ?? []) addName(alias, member, true);
   }
-  for (const group of byName.values()) {
-    if (group.length > 1) {
+  for (const entries of byName.values()) {
+    if (entries.size > 1) {
+      const group = [...entries.values()].map((e) => e.member);
       const key = groupKey(group);
       if (!usedKeys.has(key)) {
         usedKeys.add(key);
-        groups.push({ reason: 'Same name', confidence: 'medium', members: group });
+        const viaAlias = [...entries.values()].some((e) => e.viaAlias);
+        groups.push({ reason: viaAlias ? 'Name matches a pen name or alias' : 'Same name', confidence: 'medium', members: group });
         for (const m of group) exactMatchedIds.add(m.id);
       }
     }
@@ -146,4 +172,20 @@ export function detectDuplicates(members: MemberForDuplication[]): DuplicateGrou
   }
 
   return groups;
+}
+
+/**
+ * The members with what `detectDuplicates` needs beyond name and email: their display name and their active
+ * email and name aliases, read once each (the alias lists are paginated past 1000 rows by the repository).
+ */
+export async function withDuplicateAliases<T extends MemberForDuplication>(
+  repos: Pick<Repos, 'aliases'>,
+  members: T[]
+): Promise<T[]> {
+  const [emailOwners, nameAliases] = await Promise.all([repos.aliases.emailOwners(), repos.aliases.nameAliases({ activeOnly: true })]);
+  const emails = new Map<string, string[]>();
+  for (const { member_id, alias_email } of emailOwners) emails.set(member_id, [...(emails.get(member_id) ?? []), alias_email]);
+  const names = new Map<string, string[]>();
+  for (const { member_id, alias } of nameAliases) names.set(member_id, [...(names.get(member_id) ?? []), alias]);
+  return members.map((m) => ({ ...m, emailAliases: emails.get(m.id) ?? [], nameAliases: names.get(m.id) ?? [] }));
 }

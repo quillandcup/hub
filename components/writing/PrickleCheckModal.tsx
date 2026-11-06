@@ -152,6 +152,7 @@ export default function PrickleCheckModal({ prickleId, half, onClose, onSaved, p
               onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))}
               readOnly={readOnly}
               past={data.hasStarted}
+              frequentEmotions={data.frequentEmotions}
             />
           )}
 
@@ -166,6 +167,7 @@ export default function PrickleCheckModal({ prickleId, half, onClose, onSaved, p
                 value={draft}
                 onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))}
                 readOnly={readOnly}
+                frequentEmotions={data.frequentEmotions}
               />
 
               {data.projects.length > 0 && (
