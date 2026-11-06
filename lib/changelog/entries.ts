@@ -2061,11 +2061,11 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-10-31",
     audience: "product",
     category: "improved",
-    title: "Past projects, deleting, and goals that ended",
+    title: "Set-aside projects, deleting, and goals that ended",
     summary:
-      "Finished projects are listed apart from the ones you are working on, you can delete a project from its details, and goals that ended unmet no longer show as a standing score.",
+      "Projects you have set aside are listed apart from the ones you are working on, you can delete a project from its details, and goals that ended unmet no longer show as a standing score.",
     body: [
-      "On My Writing, projects that are complete, published or abandoned move to a collapsed Past projects section. They still open as usual, and changing a status moves them back.",
+      "On My Writing, projects you have set aside move to a collapsed Hibernating section, apart from the ones you are working on. They still open as usual, and changing a project's status brings it back.",
       "![My Writing with the current projects and a collapsed section for a set-aside project](/changelog/projects-past-and-delete/01-past-projects.webp)",
       "Delete is in the project's Edit details. Its goals and entries go with it, and a book published from it stays on the shelf. Deleted items are kept until you ask us to remove them, as [/privacy](/privacy) explains.",
       "A goal whose end date passed before its target now moves to Past goals on the project page and leaves the project list, the dashboard and your profile.",
