@@ -96,7 +96,7 @@ export default function EventsBrowser({
         <PillFilter ariaLabel="Month" options={options} value={monthId} onChange={setMonth} className="mb-2" />
         <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">
           {month.first <= today && `Showing what's still to come in ${month.label}. `}
-          <Link data-track="events-open-past" href={month.first <= today ? `/events/past?month=${month.id}` : "/events/past"} className="text-plum-600 dark:text-plum-400 hover:underline">
+          <Link data-track="events-open-past" href={month.first <= today ? `/events/past?month=${month.id}` : "/events/past"} className="text-plum-600 dark:text-plum-400 underline hover:no-underline">
             See past events
           </Link>
         </p>

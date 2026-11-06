@@ -1327,9 +1327,11 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "new",
     title: "Sign in to the Hub from Slack",
+    image: { src: "/changelog/sign-in-from-slack/01-slack-home-sign-in.webp", alt: "Billie Bot's Home tab in Slack with the Open Hedgie Hub button." },
     summary:
       "Open the Hedgie Hub straight from Slack, without waiting for an email link.",
     body: [
+      "![Billie Bot's Home tab in Slack with the Open Hedgie Hub button.](/changelog/sign-in-from-slack/01-slack-home-sign-in.webp)",
       "Billie Bot's Home tab in Slack, and its /hub command, give you an Open Hedgie Hub button that signs you in. Each link works once and lasts about an hour.",
       "Slack on iPhone opens links in its own browser, so you can also ask for a link to copy and open in Safari, or paste the code on the login page.",
       "Sign-in links sent by email now stay valid for 24 hours, and an invited person who asks for a link gets the invite again.",
@@ -1565,9 +1567,11 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "improved",
     title: "Instagram on your profile",
+    image: { src: "/changelog/instagram-and-profile-links/01-profile-links.webp", alt: "Settings, Profile with the Instagram field filled in beside Facebook and X." },
     summary:
       "The Instagram field in Settings is now a link like Facebook and X, and it shows the handle your profile really links to.",
     body: [
+      "![Settings, Profile with the Instagram field filled in beside Facebook and X.](/changelog/instagram-and-profile-links/01-profile-links.webp)",
       "Under Settings, Profile, the Instagram field shows the handle your profile points to. Clear the field and the handle comes off your profile and the directory.",
     ].join("\n\n"),
   },
@@ -1746,9 +1750,11 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "fixed",
     title: "Cleaner previews for Hub links",
+    image: { src: "/changelog/link-previews/01-slack-link-preview.webp", alt: "A Hub link in Slack with its preview card: title, description and one centered picture." },
     summary:
       "A Hub link shared in Slack and elsewhere now shows a single centered picture instead of an empty or cropped image.",
     body: [
+      "![A Hub link in Slack with its preview card: title, description and one centered picture.](/changelog/link-previews/01-slack-link-preview.webp)",
       "We fixed the preview image for shared Hub links so it appears and is not cropped. Slack on iPhone also no longer shows a stray ampersand code in the preview.",
     ].join("\n\n"),
   },
@@ -1789,9 +1795,11 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "improved",
     title: "Wheel of Wonder waits for you",
+    image: { src: "/changelog/wheel-of-wonder-message-on-slack/01-wheel-match.webp", alt: "The Wheel of Wonder after a spin: the match, with a Message on Slack button and Spin Again." },
     summary:
       "Spinning the Wheel now only picks a match; the chat and icebreaker start when you click Message on Slack.",
     body: [
+      "![The Wheel of Wonder after a spin: the match, with a Message on Slack button and Spin Again.](/changelog/wheel-of-wonder-message-on-slack/01-wheel-match.webp)",
       "Before, a spin opened a Slack chat and posted the icebreaker straight away. Now you can look at your match first, and the button says what it will do.",
     ].join("\n\n"),
   },
@@ -1963,9 +1971,11 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "improved",
     title: "Clearer navigation and a footer",
+    image: { src: "/changelog/navigation-reorganized/01-sidebar.webp", alt: "The sidebar with Community and Explore groups, and the footer with Privacy and Contact us." },
     summary:
       "The sidebar now separates Community, where you take part, from Explore, where you browse, and the My prefix is gone from your own pages.",
     body: [
+      "![The sidebar with Community and Explore groups, and the footer with Privacy and Contact us.](/changelog/navigation-reorganized/01-sidebar.webp)",
       "Chat, Wheel of Wonder and Big Sisters stay under Community. Members, Book Shelf and Events moved to a new Explore group. My Writing and My Prickles are now Writing and Prickles in the sidebar and search (their page headings are unchanged).",
       "The member area also has a small footer with links to Privacy and Contact us.",
     ].join("\n\n"),
@@ -2048,9 +2058,11 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "fixed",
     title: "Prickle and event descriptions keep their formatting",
+    image: { src: "/changelog/descriptions-keep-formatting/01-prickle-description.webp", alt: "A prickle page whose description keeps bold, italic, a bullet list, a link and a dividing line." },
     summary:
       "Descriptions imported from the calendar now keep bold, italic, links, bullet lists, paragraph breaks and dividing lines instead of running together.",
     body: [
+      "![A prickle page whose description keeps bold, italic, a bullet list, a link and a dividing line.](/changelog/descriptions-keep-formatting/01-prickle-description.webp)",
       "Prickles that were already imported pick up the formatting the next time the calendar refreshes.",
     ].join("\n\n"),
   },
@@ -2189,9 +2201,11 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "new",
     title: "Events is open to every member",
+    image: { src: "/changelog/events-open-to-everyone/01-events.webp", alt: "The Events page: special events and educational sessions as picture cards, with November at a glance below." },
     summary:
       "See what is coming up, with a picture on each event and a month-at-a-glance list that shows the time of day.",
     body: [
+      "![The Events page: special events and educational sessions as picture cards, with November at a glance below.](/changelog/events-open-to-everyone/01-events.webp)",
       "At [/events](/events), upcoming special events and educational sessions sit on top as picture cards. Below them, pick this month, next month or the one after to see everything by day, with times shown in your own time zone.",
       "Past events have their own page at [/events/past](/events/past), a month at a time.",
     ].join("\n\n"),
@@ -2239,9 +2253,11 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "new",
     title: "Sign in with a code from your email",
+    image: { src: "/changelog/sign-in-with-an-emailed-code/01-sign-in-email.webp", alt: "The sign-in email, with the Sign in button and a code to type on the sign-in page." },
     summary:
       "Your sign-in email now includes a one-time code you can type in, so signing in works even if the link opens in the wrong app.",
     body: [
+      "![The sign-in email, with the Sign in button and a code to type on the sign-in page.](/changelog/sign-in-with-an-emailed-code/01-sign-in-email.webp)",
       "Go to [/login](/login), enter your email and the code from the sign-in email. The code also works if the link opens in a different browser than the one you asked from, such as a phone's mail app.",
       "If you ask for a link twice within a minute, the page now tells you one was just sent and to check your inbox.",
     ].join("\n\n"),

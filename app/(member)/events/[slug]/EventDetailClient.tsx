@@ -84,7 +84,7 @@ export default function EventDetailClient({
           {timeText && ` · ${timeText}`}
           {where && " · "}
           {where?.href ? (
-            <a href={where.href} target="_blank" rel="noopener noreferrer" className="text-plum-600 dark:text-plum-400 hover:underline">
+            <a href={where.href} target="_blank" rel="noopener noreferrer" className="text-plum-600 dark:text-plum-400 underline hover:no-underline">
               {where.joinLabel}
             </a>
           ) : (
