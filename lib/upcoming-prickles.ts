@@ -11,6 +11,7 @@ import {
   type SisterStreak,
 } from "@/lib/streaks"
 import { getMemberDisplayName } from "@/lib/member-display-name"
+import { checkinsPausedFor } from "@/lib/prickle-checkins"
 import { countedPrickleIds, loadPresenceByMember, toWindow, type PresenceInterval, type PresenceRepos, type PrickleWindow } from "@/lib/zoom-presence"
 import {
   computeCommitmentProgress,
@@ -69,6 +70,8 @@ function getLocalDayAndHour(iso: string, timeZone: string): { dayOfWeek: string;
 
 export type UpcomingPrickle = {
   id: string
+  /** Where the prickle came from ("calendar", "zoom" for a Pop-Up Prickle, "hub"): check-ins are paused for some (checkinsPausedFor). */
+  source: string
   typeId: string | null
   typeName: string
   startTime: string
@@ -108,6 +111,7 @@ function toUpcomingPrickle(p: PrickleDetail, timeZone: string): UpcomingPrickle 
   const typeName = p.type?.name ?? "Prickle"
   return {
     id: p.id,
+    source: p.source,
     typeId: p.typeId,
     typeName,
     startTime: p.startTime,
@@ -631,7 +635,8 @@ function isRunningOrUpcoming(prickle: Pick<UpcomingPrickle, "endTime">, now: Dat
  * calendar, or in its room: markPresent), so the dashboard, My Prickles and the search palette's
  * "Needs attention" all agree.
  */
-export function checkinOffered(prickle: Pick<UpcomingPrickle, "startTime" | "endTime">, reasons: HighlightReason[], now: Date | number): boolean {
+export function checkinOffered(prickle: Pick<UpcomingPrickle, "startTime" | "endTime"> & { source?: string }, reasons: HighlightReason[], now: Date | number): boolean {
+  if (prickle.source !== undefined && checkinsPausedFor({ source: prickle.source })) return false
   const nowMs = typeof now === "number" ? now : now.getTime()
   const untilStart = new Date(prickle.startTime).getTime() - nowMs
   const ended = new Date(prickle.endTime).getTime() <= nowMs

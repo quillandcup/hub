@@ -67,13 +67,15 @@ export default async function MemberLayout({
   const extras = loadExtras(effectiveIdentity, enabledFeatures)
 
   const main = (
-    <main className="min-h-0 flex-1 overflow-auto overscroll-contain">
+    // The Getting started card floats over the bottom right corner (fixed, up to about 20rem tall open):
+    // while it is on the page there is room under the content, so the last control scrolls clear of it.
+    <main className="min-h-0 flex-1 overflow-auto overscroll-contain group-has-[[data-onboarding-card]]/shell:pb-80">
       {children}
     </main>
   )
 
   return (
-    <div className="relative flex h-dvh overflow-hidden bg-canvas dark:bg-slate-950">
+    <div className="group/shell relative flex h-dvh overflow-hidden bg-canvas dark:bg-slate-950">
       <Suspense fallback={null}>
         <PushGuard extras={extras} identity={effectiveIdentity} />
       </Suspense>

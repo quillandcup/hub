@@ -1142,10 +1142,14 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "new",
     title: "A dashboard that shows what is coming up",
+    image: {
+      src: "/changelog/hub-welcome-dashboard/01-dashboard.webp",
+      alt: "The dashboard with a welcome, a Continue watching card, a How did it go? card and the first upcoming prickles.",
+    },
     summary:
       "Open the Hub and see the prickles coming up in your next seven days, plus the writing goals you have starred.",
     body:
-      "Your dashboard greets you by name and lists the next few prickles, with a link to find more when the week is empty. Star a writing goal on its project page and it shows here too, so your progress is one glance away.\n\nTimes are shown in your own time zone.\n\n[Open your dashboard](/dashboard)",
+      "Your dashboard greets you by name and lists the next few prickles, with a link to find more when the week is empty. Star a writing goal on its project page and it shows here too, so your progress is one glance away.\n\nTimes are shown in your own time zone.\n\n[Open your dashboard](/dashboard)\n\n![The dashboard with a welcome, a Continue watching card, a How did it go? card and the first upcoming prickles.](/changelog/hub-welcome-dashboard/01-dashboard.webp)",
   },
   {
     slug: "browse-and-find-prickles",
@@ -1153,10 +1157,14 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "new",
     title: "Browse every prickle, or let the Hub help you find one",
+    image: {
+      src: "/changelog/browse-and-find-prickles/01-all-prickles.webp",
+      alt: "The All Prickles tab listing the weekly schedule by day with kind, host and typical turnout.",
+    },
     summary:
       "My Prickles has tabs for what is coming up, every prickle on the schedule, and a short guide that helps you pick a prickle that suits you.",
     body:
-      "In [My Prickles](/my-prickles) you can:\n\n- see the prickles coming up\n- browse All Prickles on the schedule, as a calendar or a table\n- use Find a Prickle to answer a few questions and get a suggestion\n- open any prickle to see what it is and who hosts it",
+      "In [My Prickles](/my-prickles) you can:\n\n- see the prickles coming up\n- browse All Prickles on the schedule, as a calendar or a table\n- use Find a Prickle to answer a few questions and get a suggestion\n- open any prickle to see what it is and who hosts it\n\n![The All Prickles tab listing the weekly schedule by day with kind, host and typical turnout.](/changelog/browse-and-find-prickles/01-all-prickles.webp)",
   },
   {
     slug: "attendance-history",
@@ -1164,10 +1172,14 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "new",
     title: "Your attendance history",
+    image: {
+      src: "/changelog/attendance-history/01-attendance-month.webp",
+      alt: "My Attendance in the month view, with the prickles attended shown on their days.",
+    },
     summary:
       "Look back at the prickles you have attended, month by month on a calendar or as a list you can sort.",
     body:
-      "The Attendance History tab in [My Prickles](/my-prickles/history) shows each prickle you joined, with its date and time. Switch between a month calendar and a list, and open any prickle for details.",
+      "The Attendance History tab in [My Prickles](/my-prickles/history) shows each prickle you joined, with its date and time. Switch between a month calendar and a list, and open any prickle for details.\n\n![My Attendance in the month view, with the prickles attended shown on their days.](/changelog/attendance-history/01-attendance-month.webp)",
   },
   {
     slug: "streaks-page",
@@ -1175,10 +1187,14 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "new",
     title: "Streaks: celebrate showing up week after week",
+    image: {
+      src: "/changelog/streaks-page/01-streaks.webp",
+      alt: "The Streaks page with an attendance streak, prickle streaks and streaks with other members.",
+    },
     summary:
       "See how many weeks in a row you have joined a prickle, your best run so far, and the streaks you keep with a particular prickle or with another Hedgie.",
     body:
-      "[Streaks](/streaks) shows three things:\n\n- your attendance streak, current and best, counted in weeks\n- Prickle Streaks, for attending the same prickle week after week\n- Sister Streaks, for showing up alongside the same Hedgie\n\nMiss a week and the streak starts again, so the page nudges you when it is time to begin a new one.",
+      "[Streaks](/streaks) shows three things:\n\n- your attendance streak, current and best, counted in weeks\n- Prickle Streaks, for attending the same prickle week after week\n- Sister Streaks, for showing up alongside the same Hedgie\n\nMiss a week and the streak starts again, so the page nudges you when it is time to begin a new one.\n\n![The Streaks page with an attendance streak, prickle streaks and streaks with other members.](/changelog/streaks-page/01-streaks.webp)",
   },
   {
     slug: "hosting-prickles",
@@ -1186,10 +1202,14 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "new",
     title: "Host prickles and plan your hosting month",
+    image: {
+      src: "/changelog/hosting-prickles/01-hosting.webp",
+      alt: "The Hosting tab with hosting stats and a Request to host button.",
+    },
     summary:
       "If you host prickles, a Hosting tab lets you plan which weekly prickle times you take and see how your hosting is going.",
     body:
-      "Hosts get a Hosting tab in [My Prickles](/my-prickles/hosting) with their schedule for the month and their hosting numbers. Hosts can also add a short note about the feel of their prickles in Settings, and a Hedgie's profile shows the prickles they host.",
+      "Hosts get a Hosting tab in [My Prickles](/my-prickles/hosting) with their schedule for the month and their hosting numbers. Hosts can also add a short note about the feel of their prickles in Settings, and a Hedgie's profile shows the prickles they host.\n\n![The Hosting tab with hosting stats and a Request to host button.](/changelog/hosting-prickles/01-hosting.webp)",
   },
   {
     slug: "my-writing-projects",
@@ -1197,10 +1217,14 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "new",
     title: "My Writing: projects, goals and progress",
+    image: {
+      src: "/changelog/my-writing-projects/01-projects.webp",
+      alt: "My Writing with project cards showing word counts and goal progress bars.",
+    },
     summary:
       "Keep your projects in one place, set goals, log how much you wrote, and watch your progress on charts.",
     body:
-      "In [My Writing](/projects) you can:\n\n- add a project and set goals for it\n- log your progress, by day, with a note\n- see charts of how the project is going\n- star a goal to show it on your dashboard\n- bring in progress you have been tracking in TrackBear\n\nEverything on this page is what you enter yourself.",
+      "In [My Writing](/projects) you can:\n\n- add a project and set goals for it\n- log your progress, by day, with a note\n- see charts of how the project is going\n- star a goal to show it on your dashboard\n- bring in progress you have been tracking in TrackBear\n\nEverything on this page is what you enter yourself.\n\n![My Writing with project cards showing word counts and goal progress bars.](/changelog/my-writing-projects/01-projects.webp)",
   },
   {
     slug: "books-and-awards",
@@ -1208,10 +1232,14 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "new",
     title: "Your books and awards, and a Bookshelf for the whole community",
+    image: {
+      src: "/changelog/books-and-awards/02-bookshelf.webp",
+      alt: "The Hedgie Book Shelf with covers, authors, genres and prices, and genre filters above.",
+    },
     summary:
       "Add your published books and awards to your page, and browse the Hedgie Bookshelf to find what other members have published.",
     body:
-      "Add books (with cover, description and a link to buy) and awards under the Books and Awards tabs of [My Writing](/projects). The [Bookshelf](/bookshelf) lists the books Hedgies have published, newest first, so you can discover and cheer on each other.",
+      "Add books (with cover, description and a link to buy) and awards under the Books and Awards tabs of [My Writing](/projects). The [Bookshelf](/bookshelf) lists the books Hedgies have published, newest first, so you can discover and cheer on each other.\n\n![The Hedgie Book Shelf with covers, authors, genres and prices, and genre filters above.](/changelog/books-and-awards/02-bookshelf.webp)\n\n![My Writing, Books tab listing two books with their editions and prices.](/changelog/books-and-awards/01-my-books.webp)",
   },
   {
     slug: "wheel-of-wonder",
@@ -1219,10 +1247,14 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "new",
     title: "Wheel of Wonder: meet a Hedgie who is here right now",
+    image: {
+      src: "/changelog/wheel-of-wonder/01-wheel-of-wonder.webp",
+      alt: "The Wheel of Wonder with its empty wheel and a Spin the Wheel button.",
+    },
     summary:
       "Give the wheel a spin and it picks a Hedgie who is online right now, leaning toward people who could use a new connection.",
     body:
-      "Spin the [Wheel of Wonder](/wheel-of-wonder) when you would like some company. It shows who it picked and a conversation starter, and the page keeps a running count of the new connections the community has made.",
+      "Spin the [Wheel of Wonder](/wheel-of-wonder) when you would like some company. It shows who it picked and a conversation starter, and the page keeps a running count of the new connections the community has made.\n\n![The Wheel of Wonder with its empty wheel and a Spin the Wheel button.](/changelog/wheel-of-wonder/01-wheel-of-wonder.webp)",
   },
   {
     slug: "settings-and-profile",
@@ -1230,10 +1262,14 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "new",
     title: "Settings: your profile, names, time zone and look",
+    image: {
+      src: "/changelog/settings-and-profile/01-identity.webp",
+      alt: "Settings, Identity with the Real Name, Display Name and pen names fields.",
+    },
     summary:
       "Make your profile yours, choose a light or dark look, set your time zone and manage where you are signed in.",
     body:
-      "[Settings](/settings) has these tabs:\n\n- Account, with your email and the places you are signed in, and a button to sign out of the others\n- Profile, with your bio and links to Instagram, Facebook and X\n- Identity, with your name, birthday and the other names you are known by\n- Preferences, with a light, dark or automatic look and your time zone",
+      "[Settings](/settings) has these tabs:\n\n- Account, with your email and the places you are signed in, and a button to sign out of the others\n- Profile, with your bio and links to Instagram, Facebook and X\n- Identity, with your name, birthday and the other names you are known by\n- Preferences, with a light, dark or automatic look and your time zone\n\n![Settings, Identity with the Real Name, Display Name and pen names fields.](/changelog/settings-and-profile/01-identity.webp)",
   },
   {
     slug: "personal-calendar-feed-and-commitments",
@@ -1281,7 +1317,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "- Choose Show on my profile for each goal and project. Your profile lists every one you chose to show.",
       "- A goal that reaches its target says Achieved, and one whose end date passed without reaching it says Ended. Pace is only shown while a goal is active.",
       "- Fixed: other members could not see the project you chose to show on your profile.",
+      "![A project with an achieved goal and a goal behind pace, each with its title and description](/changelog/writing-goal-titles-and-status/01-goals.webp)",
     ].join("\n"),
+    image: { src: "/changelog/writing-goal-titles-and-status/01-goals.webp", alt: "A project page with goal cards that have titles and descriptions: one marked Behind pace and one marked Achieved" },
   },
   {
     slug: "sign-in-from-slack",
@@ -1361,7 +1399,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "A Getting started tour for new members",
     summary:
       "A checklist walks new members through setting up their details, introducing themselves, setting a writing goal and finding a prickle.",
+    image: { src: "/changelog/getting-started-tour/01-getting-started.webp", alt: "The Getting started checklist open in the corner of the dashboard with 0 of 6 steps done." },
     body: [
+      "![The Getting started checklist open in the corner of the dashboard with 0 of 6 steps done.](/changelog/getting-started-tour/01-getting-started.webp)",
       "A Getting started checklist appears in the corner of the page for accounts under 30 days old. At each step a spotlight shows you the setting to use. Check your details covers your name, birthday, pen names and other email addresses.",
       "Finished steps can be revisited, and you can restart the tour from the user menu.",
     ].join("\n\n"),
@@ -1589,7 +1629,10 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Getting started: steps for newcomers",
     summary:
       "The Getting started tour now has steps for saying hello, scheduling your first prickle and syncing your calendar, and it is on for everyone.",
+    image: { src: "/changelog/getting-started-newcomer-steps/01-getting-started.webp", alt: "The Getting started checklist listing Introduce yourself, Join a prickle and Sync your calendar among its steps." },
     body: [
+      "![The Getting started checklist listing Introduce yourself, Join a prickle and Sync your calendar among its steps.](/changelog/getting-started-newcomer-steps/01-getting-started.webp)",
+      "",
       "- Say hello in the intro channel on Slack (for members in their first 90 days). It checks off when you post there.",
       "- Schedule your first prickle, pointing at the calendar icon in Upcoming.",
       "- Sync your calendar, pointing at the sync card on Commitments. It checks off once your calendar app has fetched your feed.",
@@ -1680,7 +1723,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Connect Slack in Getting started",
     summary:
       "Getting started has a Connect Slack step. Once connected, reading a conversation in Slack or in the Hub marks it as read in both places.",
+    image: { src: "/changelog/connect-slack-step/01-getting-started.webp", alt: "The Getting started checklist open in the corner of the dashboard, listing Check your details, Connect Slack and four more steps." },
     body: [
+      "![The Getting started checklist open in the corner of the dashboard, listing Check your details, Connect Slack and four more steps.](/changelog/connect-slack-step/01-getting-started.webp)",
       "Connecting Slack (Settings, Account) lets Hub Chat send as you. Once connected, reading a conversation in one place clears it as unread in the other. Connecting also makes Open Hedgie Hub in Slack find your account even if your Slack email differs from your Hub email.",
       "A tour you already finished reopens to show only the steps added since.",
     ].join("\n\n"),
@@ -1782,7 +1827,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Getting started asks for your Zoom name",
     summary:
       "The tour explains that prickles are counted by the name Zoom shows, and refuses a name another member already uses.",
+    image: { src: "/changelog/zoom-name-in-getting-started/01-zoom-name-stop.webp", alt: "The Pen Names and Zoom/Slack Names section of Identity settings highlighted, with a Getting started step asking for your Zoom name." },
     body: [
+      "![The Pen Names and Zoom/Slack Names section of Identity settings highlighted, with a Getting started step asking for your Zoom name.](/changelog/zoom-name-in-getting-started/01-zoom-name-stop.webp)",
       "Change your name in Zoom to match your Real Name, or add the name you use in Zoom as a pen name. A name that is another member's pen name or real name is refused, so attendance cannot land on the wrong person.",
     ].join("\n\n"),
   },
@@ -1920,9 +1967,11 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "improved",
     title: "Search finds the names people go by",
     summary:
-      "Searching for a member also finds other names they go by, prickle search finds guest speakers, and hosts and attendees show the name people go by.",
+      "The search box in the top bar also finds the other names a member goes by and the guest speaker of a prickle, and hosts and attendees show the name people go by.",
+    image: { src: "/changelog/search-and-display-names/01-search-alternate-name.webp", alt: "The search box with Jules typed, showing the member Julia Sample with the line also known as Jules Sample." },
     body: [
-      "When a result matches a nickname, a small line under it says so. Hosts and attendees on prickle pages, the attendance calendar, calendar feed titles and the Events page now show each person's display name instead of their legal name.",
+      "![The search box with Jules typed, showing the member Julia Sample with the line also known as Jules Sample.](/changelog/search-and-display-names/01-search-alternate-name.webp)",
+      "When a search result matches a nickname, a small line under it says so (the search on the Members page matches names as before). Hosts and attendees on prickle pages, the attendance calendar, calendar feed titles and the Events page now show each person's display name instead of their legal name.",
       "Members can no longer turn their own alternate names on or off in Settings. Those names are how attendance gets matched to you, so switching one off could lose matches. Staff can still do it for you.",
     ].join("\n\n"),
   },
@@ -1950,8 +1999,10 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "Upload a book cover at any size, pick it again from your own images and adjust its crop. We also offer a download in the size Amazon asks for, when your image is large enough.",
     body: [
       "The book form has one Choose cover button with a tab of your own images and an upload tab. JPEG, PNG, WebP, GIF, AVIF and iPhone HEIC photos all work, up to 4 MB. The exact-size rule is gone.",
+      "![The Choose a cover window with your own images](/changelog/media-library-and-book-covers/01-choose-cover.webp)",
       "Under the cover you will see a download link for the size Amazon wants, or what is missing if the image is too small. Older covers keep working but have no Amazon version until you upload them again.",
     ].join("\n\n"),
+    image: { src: "/changelog/media-library-and-book-covers/01-choose-cover.webp", alt: "The Choose a cover window over the book form, with Library and Upload tabs and two of the member's own book covers" },
   },
   {
     slug: "book-genres-as-tags",
@@ -1963,7 +2014,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "Genres on the book form are tags, the Book Shelf can be filtered by genre, and search finds books by genre.",
     body: [
       "Add up to five genres or tropes per book. On the [Book Shelf](/bookshelf), genre chips with counts narrow the list, and clicking one again clears it.",
+      "![The Book Shelf with genre chips above the books](/changelog/book-genres-as-tags/01-shelf.webp)",
     ].join("\n\n"),
+    image: { src: "/changelog/book-genres-as-tags/01-shelf.webp", alt: "The Book Shelf with genre chips and counts above five books, each listing its genres" },
   },
   {
     slug: "sidebar-modes",
@@ -2010,15 +2063,17 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-10-31",
     audience: "product",
     category: "improved",
-    title: "Past projects, deleting, and goals that ended",
+    title: "Set-aside projects, deleting, and goals that ended",
     summary:
-      "Finished projects are listed apart from the ones you are working on, you can delete a project from its details, and goals that ended unmet no longer show as a standing score.",
+      "Projects you have set aside are listed apart from the ones you are working on, you can delete a project from its details, and goals that ended unmet no longer show as a standing score.",
     body: [
-      "On My Writing, projects that are complete, published or abandoned move to a collapsed Past projects section. They still open as usual, and changing a status moves them back.",
+      "On My Writing, projects you have set aside move to a collapsed Hibernating section, apart from the ones you are working on. They still open as usual, and changing a project's status brings it back.",
+      "![My Writing with the current projects and a collapsed section for a set-aside project](/changelog/projects-past-and-delete/01-past-projects.webp)",
       "Delete is in the project's Edit details. Its goals and entries go with it, and a book published from it stays on the shelf. Deleted items are kept until you ask us to remove them, as [/privacy](/privacy) explains.",
       "A goal whose end date passed before its target now moves to Past goals on the project page and leaves the project list, the dashboard and your profile.",
       "Deleting a project hides it. We keep a copy until you ask us to remove it.",
     ].join("\n\n"),
+    image: { src: "/changelog/projects-past-and-delete/01-past-projects.webp", alt: "My Writing listing current projects, with a collapsed section below holding a set-aside project" },
   },
   {
     slug: "fixes-2026-10-31",
@@ -2230,7 +2285,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "A book on your shelf can have a print edition and an ebook edition, each with its own link and price, on one card.",
     body: [
       "In the book form, switch on Print, Ebook or both. The shelf, your profile and the project card show one link per edition, such as Print $17.99 and Ebook $4.99, with genres on their own line below. Existing books keep their single edition.",
+      "![My Books listing a book with Print and Ebook prices](/changelog/my-books-multiple-formats/01-my-books.webp)",
     ].join("\n\n"),
+    image: { src: "/changelog/my-books-multiple-formats/01-my-books.webp", alt: "My Books with a book showing both a Print and an Ebook price on one line" },
   },
   {
     slug: "fixes-2026-11-03",

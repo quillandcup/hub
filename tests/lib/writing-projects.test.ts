@@ -4,6 +4,7 @@ import {
   applyStartingBalance,
   computeCumulativeTotal,
   computeCumulativeSeries,
+  entriesAsDeltas,
   computeGoalProgress,
   computeHabitGoalProgress,
   derivePrickleHabitEntries,
@@ -459,5 +460,88 @@ describe("isMissedGoal", () => {
     expect(isMissedGoal({ kind: "target", status: "active" })).toBe(false);
     expect(isMissedGoal({ kind: "target", status: "achieved" })).toBe(false);
     expect(isMissedGoal({ kind: "habit" })).toBe(false);
+  });
+});
+
+describe("entriesAsDeltas", () => {
+  it("counts a set total as what it added, not the whole total", () => {
+    const deltas = entriesAsDeltas([
+      { entryDate: "2026-11-04", createdAt: "2026-11-04T10:00:00Z", mode: "delta", amount: 55000 },
+      { entryDate: "2026-11-05", createdAt: "2026-11-05T10:00:00Z", mode: "set_total", amount: 56000 },
+    ]);
+    expect(deltas).toEqual([
+      { entryDate: "2026-11-04", amount: 55000 },
+      { entryDate: "2026-11-05", amount: 1000 },
+    ]);
+  });
+
+  it("replaces the starting balance on a first set total", () => {
+    const deltas = entriesAsDeltas(
+      [{ entryDate: "2026-11-05", createdAt: "2026-11-05T10:00:00Z", mode: "set_total", amount: 56000 }],
+      55000
+    );
+    expect(deltas).toEqual([{ entryDate: "2026-11-05", amount: 1000 }]);
+  });
+});
+
+describe("set totals with a starting balance and a goal window", () => {
+  const entry = (entryDate: string, mode: "delta" | "set_total", amount: number) => ({
+    entryDate,
+    createdAt: `${entryDate}T10:00:00Z`,
+    mode,
+    amount,
+  });
+
+  it("a set total is the whole total, starting balance included", () => {
+    const entries = [entry("2026-11-03", "delta", 5000), entry("2026-11-05", "set_total", 56000)];
+    expect(computeCumulativeTotal(entries, 39055)).toBe(56000);
+  });
+
+  it("a goal with no start date counts the balance once, not on top of a set total", () => {
+    const progress = computeGoalProgress({
+      entries: [entry("2026-11-03", "delta", 5000), entry("2026-11-05", "set_total", 56000)],
+      targetAmount: 75000,
+      startDate: null,
+      endDate: "2026-12-31",
+      now: new Date("2026-11-06T12:00:00Z"),
+      startingBalance: 39055,
+    });
+    expect(progress.current).toBe(56000);
+  });
+
+  it("a windowed goal counts only what a set total added inside the window", () => {
+    const progress = computeGoalProgress({
+      entries: [entry("2026-10-20", "delta", 50000), entry("2026-11-05", "set_total", 56000)],
+      targetAmount: 10000,
+      startDate: "2026-11-01",
+      endDate: "2026-11-30",
+      now: new Date("2026-11-06T12:00:00Z"),
+      startingBalance: 1000,
+    });
+    expect(progress.current).toBe(5000);
+  });
+});
+
+describe("set totals stay correct when earlier entries change", () => {
+  const e = (entryDate: string, mode: "delta" | "set_total", amount: number) => ({
+    entryDate,
+    createdAt: `${entryDate}T10:00:00Z`,
+    mode,
+    amount,
+  });
+  const set = e("2026-11-05", "set_total", 500);
+
+  it("deleting an earlier entry leaves the set total as typed and moves the delta it implies", () => {
+    const earlier = e("2026-11-03", "delta", 100);
+    expect(computeCumulativeTotal([earlier, set])).toBe(500);
+    expect(computeCumulativeTotal([set])).toBe(500);
+    expect(entriesAsDeltas([earlier, set]).map((d) => d.amount)).toEqual([100, 400]);
+    expect(entriesAsDeltas([set]).map((d) => d.amount)).toEqual([500]);
+  });
+
+  it("backdating a new entry before the set total changes the delta, not the total", () => {
+    const backdated = e("2026-11-01", "delta", 250);
+    expect(computeCumulativeTotal([backdated, set])).toBe(500);
+    expect(entriesAsDeltas([backdated, set]).map((d) => d.amount)).toEqual([250, 250]);
   });
 });

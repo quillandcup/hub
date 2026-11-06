@@ -185,6 +185,7 @@ export default function OnboardingGuide({ initialState }: { initialState: Onboar
 
       <section
         aria-label="Getting started"
+        data-onboarding-card
         className="fixed bottom-20 right-5 z-40 w-[min(20rem,calc(100vw-2.5rem))] rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl"
       >
         <button data-track="onboarding-getting-started-of-done"
@@ -207,7 +208,8 @@ export default function OnboardingGuide({ initialState }: { initialState: Onboar
         </div>
 
         {expanded && (
-          <div className="px-4 py-3 space-y-3">
+          // Scrolls inside the card, so on a short screen it never rises over the middle of the page.
+          <div className="max-h-[calc(45dvh-7.5rem)] overflow-y-auto px-4 py-3 space-y-3">
             <ol className="space-y-2">
               {state.steps.map((step) => {
                 const isCurrent = step.id === state.currentStepId;

@@ -20,8 +20,8 @@ import {
   WRITING_MEASURES,
   PROJECT_PHASES,
   MANUALLY_SETTABLE_PHASES,
-  applyStartingBalance,
   computeCumulativeTotal,
+  entriesAsDeltas,
   computeCumulativeSeries,
   computeGoalProgress,
   computeHabitGoalProgress,
@@ -359,7 +359,10 @@ function buildGoalRow(
 
   if (g.goal_type === "habit") {
     const progress = computeHabitGoalProgress({
-      entries: measureEntries.map((e) => ({ entryDate: e.entryDate, amount: e.amount })),
+      entries: entriesAsDeltas(
+        measureEntries,
+        startingBalances.find((b) => b.project_id === g.project_id && b.measure === g.measure)?.amount
+      ),
       period: (g.habit_period as HabitPeriod) ?? "week",
       threshold: g.habit_threshold,
       now,
@@ -386,7 +389,7 @@ function buildGoalRow(
   const projectTotal =
     g.measure === "prickles"
       ? null
-      : applyStartingBalance(computeCumulativeTotal(measureEntries), startingBalance);
+      : computeCumulativeTotal(measureEntries, startingBalance);
   return {
     ...base,
     projectTotal,
@@ -421,15 +424,15 @@ function buildProjectRows(
       const measureEntries = projectEntries.filter((e) => e.measure === measure);
       const startingBalance = projectStartingBalances[measure];
       if (measureEntries.length === 0 && startingBalance === undefined) continue;
-      const loggedTotal = computeCumulativeTotal(
+      totalsByMeasure[measure] = computeCumulativeTotal(
         measureEntries.map((e) => ({
           entryDate: e.entry_date,
           createdAt: e.created_at,
           mode: e.mode as EntryMode,
           amount: e.amount,
-        }))
+        })),
+        startingBalance
       );
-      totalsByMeasure[measure] = applyStartingBalance(loggedTotal, startingBalance);
     }
 
     const projectGoals = goals
@@ -1386,11 +1389,11 @@ export async function getProjectSeries(
       createdAt: e.created_at,
       mode: e.mode as EntryMode,
       amount: e.amount,
-    }))
+    })),
+    startingBalanceAmount ?? 0
   );
 
-  const startingBalance = startingBalanceAmount ?? undefined;
-  return series.map((point) => ({ ...point, total: applyStartingBalance(point.total, startingBalance) }));
+  return series;
 }
 
 export interface ProfileWritingProject {
@@ -1434,15 +1437,13 @@ export async function getProfileWriting(
         (b) => b.project_id === project.id && b.measure === measure
       )?.amount;
       if (measureEntries.length === 0 && startingBalance === undefined) continue;
-      const total = applyStartingBalance(
-        computeCumulativeTotal(
-          measureEntries.map((e) => ({
-            entryDate: e.entry_date,
-            createdAt: e.created_at,
-            mode: e.mode as EntryMode,
-            amount: e.amount,
-          }))
-        ),
+      const total = computeCumulativeTotal(
+        measureEntries.map((e) => ({
+          entryDate: e.entry_date,
+          createdAt: e.created_at,
+          mode: e.mode as EntryMode,
+          amount: e.amount,
+        })),
         startingBalance
       );
       if (!headline || total > headline.total) headline = { measure, total };
