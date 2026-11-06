@@ -151,6 +151,15 @@ export function defineMemberContract(name: string, setup: () => MemberContractCo
       expect(await ctx.repo().byUserId(ctx.unusedUserId)).toBeNull();
     });
 
+    it("finds the member linked to a Kajabi contact", async () => {
+      const [ada, fern] = await ctx.seed([{ name: "Ada Example" }, { name: "Fern Example", kajabiId: "kaj-link" }]);
+      const kajabiId = (await ctx.repo().byIds([fern]))[0].kajabiId!;
+
+      expect((await ctx.repo().byKajabiId(kajabiId))?.id).toBe(fern);
+      expect(await ctx.repo().byKajabiId(`${kajabiId}-none`)).toBeNull();
+      expect(ada).not.toBe(fern);
+    });
+
     it("reads a member's profile and identity settings", async () => {
       const [ada, fern] = await ctx.seed([
         { name: "Ada Example", displayName: "Penny Quill", kajabiId: "kaj-9", bio: "Writes at dawn.", instagramUrl: "https://instagram.com/ada", birthday: [3, 14] },

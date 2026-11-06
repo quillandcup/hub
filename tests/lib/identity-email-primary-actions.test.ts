@@ -141,6 +141,20 @@ describe("makeEmailPrimary", () => {
     expect((await repos.authUsers.byId(USER))!.email).toBe("ada@example.com");
   });
 
+  it("never tells a member whose Kajabi contact holds the address", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const id = await confirmed();
+    await repos.members.setExternalIds(OTHER, { kajabiId: "kaj-grace" });
+    await repos.billing.upsertKajabiContacts([{ kajabi_contact_id: "kaj-grace", email: "ada.new@example.com", name: "Grace Example", data: {}, imported_at: "2026-01-01T00:00:00Z" }]);
+    updateContact.mockRejectedValue(new Error('Kajabi API error (422): {"errors":[{"detail":"Email is already taken"}]}'));
+
+    const result = await makeEmailPrimary(id);
+
+    expect(result).toEqual({ error: `That email can't be used right now. Email ${SUPPORT_EMAIL} for help.` });
+    expect(JSON.stringify(result)).not.toMatch(/Grace|kaj-grace/);
+    expect((await repos.authUsers.byId(USER))!.email).toBe("ada@example.com");
+  });
+
   it("explains without naming anyone when the address has become someone else's, and passes on a Kajabi failure", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const id = await confirmed();

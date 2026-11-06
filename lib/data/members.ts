@@ -135,6 +135,8 @@ export interface MemberRepository {
   byIds(ids: string[]): Promise<Member[]>;
   /** The member who signs in as this Supabase Auth user. */
   byUserId(userId: string): Promise<Member | null>;
+  /** The member linked to this Kajabi contact id, or null. */
+  byKajabiId(kajabiId: string): Promise<Member | null>;
   /** The member's profile and identity-settings columns. */
   profile(id: string): Promise<MemberProfile | null>;
   /** The columns the admin member page shows, or null if there is no such member. */
@@ -459,6 +461,12 @@ export class SupabaseMemberRepository implements MemberRepository {
     return data ? toMember(data) : null;
   }
 
+  async byKajabiId(kajabiId: string): Promise<Member | null> {
+    const { data, error } = await this.db.from("members").select(MEMBER_COLUMNS).eq("kajabi_id", kajabiId).order("id").limit(1);
+    if (error) throw new Error(error.message);
+    return data?.[0] ? toMember(data[0]) : null;
+  }
+
   async byEmail(email: string): Promise<Member | null> {
     const { data, error } = await this.db.from("members").select(MEMBER_COLUMNS).eq("email", email).maybeSingle();
     if (error) throw new Error(error.message);
@@ -746,6 +754,10 @@ export class InMemoryMemberRepository implements MemberRepository {
 
   async byUserId(userId: string) {
     return this.all().find((m) => m.userId === userId) ?? null;
+  }
+
+  async byKajabiId(kajabiId: string) {
+    return this.all().find((m) => m.kajabiId === kajabiId) ?? null;
   }
 
   async byEmail(email: string) {

@@ -13,7 +13,11 @@ vi.mock("@/lib/data/repos", async () => ({
 }));
 
 const updateContact = vi.fn();
-vi.mock("@/lib/kajabi/client", () => ({ createKajabiClient: () => ({ updateContact }) }));
+const fetchWithAttachments = vi.fn();
+vi.mock("@/lib/kajabi/client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/kajabi/client")>()),
+  createKajabiClient: () => ({ updateContact, fetchContactWithAttachments: fetchWithAttachments }),
+}));
 const refreshBronze = vi.fn();
 vi.mock("@/lib/kajabi/contact-refresh", () => ({ refreshKajabiContactInBronze: (...args: unknown[]) => refreshBronze(...args) }));
 
@@ -35,10 +39,11 @@ const me = (extra: Partial<{ kajabiId: string | null; userId: string | null }> =
 beforeEach(() => {
   updateContact.mockReset().mockResolvedValue(undefined);
   refreshBronze.mockReset().mockResolvedValue(undefined);
+  fetchWithAttachments.mockReset();
   dataset = new InMemoryDataset({
     members: [
       { id: ME, name: "Ada Example", email: "old@example.com", userId: USER, kajabiId: "kaj1" },
-      { id: OTHER, name: "Grace Example", email: "taken@example.com" },
+      { id: OTHER, name: "Grace Example", email: "taken@example.com", kajabiId: "kaj-grace" },
     ],
     authUsers: [authUser(USER, "old@example.com")],
   });
@@ -107,6 +112,70 @@ describe("changePrimaryEmail", () => {
     });
     expect((await repos.authUsers.byId(USER))!.email).toBe("old@example.com");
     expect((await repos.members.byId(ME))!.email).toBe("old@example.com");
+  });
+
+  describe("when Kajabi already has another contact with the address", () => {
+    const taken = () => updateContact.mockRejectedValue(new Error('Kajabi API error (422): {"errors":[{"detail":"Email is already taken"}]}'));
+    const holder = (id: string) => {
+      dataset.kajabiContacts.push({ kajabi_contact_id: id, email: "New@Example.com", name: "Dup", data: {}, imported_at: "2026-01-01T00:00:00Z" } as never);
+    };
+    const change = () => changePrimaryEmail({ repos, service: db, member: me({ kajabiId: "kaj1" }), address: "new@example.com" });
+    const attached = (extra: Record<string, unknown>) => ({ id: "dup1", type: "contacts", attributes: {}, ...extra });
+
+    it("names the contact and the member it is linked to, and never offers to delete it", async () => {
+      taken();
+      dataset.kajabiContacts.push({ kajabi_contact_id: "kaj-grace", email: "new@example.com", name: "Grace", data: {}, imported_at: "2026-01-01T00:00:00Z" } as never);
+
+      const result = await change();
+
+      expect(result).toMatchObject({
+        ok: false,
+        status: 409,
+        kajabiConflict: { contactId: "kaj-grace", memberId: OTHER, memberName: "Grace Example", empty: false },
+        error: expect.stringContaining("Kajabi contact kaj-grace already has that email and is linked to Grace Example here"),
+      });
+      expect(fetchWithAttachments).not.toHaveBeenCalled();
+      expect((await repos.authUsers.byId(USER))!.email).toBe("old@example.com");
+    });
+
+    it("says an unlinked contact is empty only when Kajabi says nothing is attached", async () => {
+      taken();
+      holder("dup1");
+      fetchWithAttachments.mockResolvedValue(attached({ relationships: { tags: { data: [] }, offers: { data: [] }, customer: { data: null } } }));
+
+      expect(await change()).toMatchObject({
+        status: 409,
+        kajabiConflict: { contactId: "dup1", memberId: null, empty: true },
+        error: expect.stringContaining("has nothing attached in Kajabi"),
+      });
+    });
+
+    it("says what is attached to an unlinked contact that isn't empty", async () => {
+      taken();
+      holder("dup1");
+      fetchWithAttachments.mockResolvedValue(
+        attached({ links: { customer: "https://app.kajabi.com/api/v1/customers/1" }, relationships: { tags: { data: [{ id: "1" }, { id: "2" }] }, offers: { data: [{ id: "9" }] } } })
+      );
+
+      const result = await change();
+
+      expect(result).toMatchObject({ status: 409, kajabiConflict: { contactId: "dup1", empty: false } });
+      expect((result as { error: string }).error).toContain("a customer record, 2 tags, 1 offer");
+      expect((result as { error: string }).error).toContain("merge it into this member's contact in Kajabi");
+    });
+
+    it("falls back to the general message when the contact can't be read or isn't in the Bronze copy", async () => {
+      taken();
+      expect(await change()).toEqual({
+        ok: false,
+        status: 409,
+        error: "Kajabi already has a different contact with that email. Merge or delete that contact in Kajabi first, then try again.",
+      });
+
+      holder("dup1");
+      fetchWithAttachments.mockRejectedValue(new Error("Kajabi is down"));
+      expect(await change()).toMatchObject({ status: 409, kajabiConflict: { contactId: "dup1", empty: false }, error: expect.stringContaining("Merge or delete it in Kajabi first") });
+    });
   });
 
   it("patches Bronze directly when the refresh fails after Kajabi changed", async () => {
