@@ -4,7 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { detectDuplicates } from "@/lib/member-duplicates";
+import { detectDuplicates, withDuplicateAliases } from "@/lib/member-duplicates";
 import MergeFixClient from "./MergeFixClient";
 import { sortGroupMembers } from "@/lib/merge-fix";
 import type { EnrichedGroup } from "@/lib/merge-fix";
@@ -34,7 +34,7 @@ export default async function MergeFixPage() {
     stripe_customer_id: m.stripeCustomerId,
   }));
 
-  const duplicateGroups = detectDuplicates(allMembers);
+  const duplicateGroups = detectDuplicates(await withDuplicateAliases(createRepos(supabase), allMembers));
 
   // Enrich groups with Stripe status and sort so the best primary candidate is first
   const memberById = new Map(allMembers.map(m => [m.id, m]));
@@ -81,7 +81,7 @@ export default async function MergeFixPage() {
             <div>
               <h1 className="text-2xl font-bold">Merge & Fix</h1>
               <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                Potential duplicate members detected by matching name or email
+                Potential duplicate members detected by matching name or email, including pen names and other email addresses
               </p>
             </div>
             {duplicateGroups.length > 0 && (
