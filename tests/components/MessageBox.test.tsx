@@ -63,6 +63,9 @@ const selectAll = async (box: HTMLElement) => {
   });
 };
 
+/** Turns on code for what is typed next, from the toolbar. */
+const user_click_code = () => boxUser().click(screen.getByRole("button", { name: "Code" }));
+
 const mount = async (props: Parameters<typeof Harness>[0] = {}) => {
   latest = props.initial ?? "";
   render(<Harness {...props} />);
@@ -341,6 +344,37 @@ describe("MessageBox: formatting", () => {
     await user.keyboard("{Control>}{Shift>}x{/Shift}{/Control}");
     expect(latest).toBe("*_~word~_*");
     expect(track).toHaveBeenCalledWith("chat_format_applied", { kind: "strike", via: "shortcut" });
+  });
+
+  describe("smart quotes and symbols, as Slack's setting has them", () => {
+    it("turns quotes curly, -- into an em-dash, ... into an ellipsis and -> and <- into arrows as they are typed", async () => {
+      const box = await mount();
+      await typeInto(box, `He said "hi" -- it's 5... a -> b <- c 'x'`);
+      expect(latest).toBe("He said “hi” — it’s 5… a → b ← c ‘x’");
+    });
+
+    it("still turns an emoticon into its emoji, and leaves a lone dash, dot or bracket alone", async () => {
+      const box = await mount();
+      await typeInto(box, "ok :) <3 a-b a.b 2 > 1 <i>");
+      expect(latest).toBe("ok \u{1F642} ❤️ a-b a.b 2 > 1 <i>");
+    });
+
+    it("leaves code alone: inline code, a code block and an address keep what was typed", async () => {
+      const box = await mount();
+      await user_click_code();
+      await typeInto(box, 'a--b "c"');
+      expect(latest).toBe('`a--b "c"`');
+
+      cleanup();
+      const block = await mount({ initial: "```\nx\n```" });
+      await typeInto(block, 'a--b... "q"');
+      expect(latest).toBe('```\nxa--b... "q"\n```');
+
+      cleanup();
+      const address = await mount();
+      await typeInto(address, "see https://x.test/a--b and--");
+      expect(latest).toBe("see <https://x.test/a--b> and—");
+    });
   });
 
   it("formats as it is typed: *bold*, _italic_, ~strike~, a > quote, a - list and a 1. list", async () => {
