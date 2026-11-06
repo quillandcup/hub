@@ -171,8 +171,10 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "A bell in the header and a notifications inbox keep your check-ins and other messages in the Hub, with a banner for anything time sensitive.",
     body: [
       "Messages can now arrive In the Hub as well as Slack: a bell in the header with the latest few, and a full list at /notifications. A banner appears for what is worth acting on right now, such as a check-in before the prickle starts.",
+      "![The notifications inbox listing a check-in and a check-out](/changelog/in-the-hub-notifications/01-inbox.webp)",
       "A notification counts as read once you open it, dismiss its banner or answer it. You can mark messages unread again and use Edit multiple to mark many as read or unread.",
     ].join("\n\n"),
+    image: { src: "/changelog/in-the-hub-notifications/01-inbox.webp", alt: "The Notifications page listing an unread check-in and a read check-out, with Mark read and Mark unread links" },
   },
   {
     slug: "week-2026-10-03-small-fixes",
@@ -766,6 +768,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "[/privacy](/privacy) now covers what we collect, who can see it, chat and messages, how long we keep things, your choices and the services we use.",
       "Turn off Share usage statistics and the Hub stops recording your usage and removes the usage events already stored under your account. Error recordings, used to fix crashes, continue.",
     ].join("\n\n"),
+    image: { src: "/changelog/privacy-page/01-privacy.webp", alt: "The top of the privacy page: a short summary, then a table of what we collect" },
   },
   {
     slug: "projects-past-and-delete",
