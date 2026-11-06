@@ -52,12 +52,17 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "new",
     title: "Your prickles in your own calendar, and commitments across several slots",
+    image: {
+      src: "/changelog/personal-calendar-feed-and-commitments/01-commitments.webp",
+      alt: "The Commitments tab with a Sync your prickles with your calendar card, buttons for Google, Apple and Outlook calendars and a copy link, above an active commitment covering two weekly slots.",
+    },
     summary:
       "Subscribe to a private calendar feed of the prickles you host, commit to or add by hand, and make a commitment that covers more than one weekly slot.",
     body: [
       "Each member now has a private calendar link that works with Google Calendar, Apple Calendar and Outlook. It shows the prickles you host, the ones you have committed to, and any prickle or event you add yourself, with a 15 minute reminder.",
       "On /my-prickles you will find the calendar card, with copy link and generate new link. Use Add to my calendar on a prickle row, a prickle page or an upcoming event to add just that one or every week.",
       "A commitment can now cover several slots. In All Prickles, tick the times you want, then pick the weeks and a start date. The Commitments tab shows your progress on each slot.",
+      "![The Commitments tab with a Sync your prickles with your calendar card, buttons for Google, Apple and Outlook calendars and a copy link, above an active commitment covering two weekly slots.](/changelog/personal-calendar-feed-and-commitments/01-commitments.webp)",
     ].join("\n\n"),
   },
   {
@@ -109,12 +114,17 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "new",
     title: "Say how you feel before and after a prickle",
+    image: {
+      src: "/changelog/check-ins-and-prickle-picker/01-prickle-picker-feelings.webp",
+      alt: "The Prickle Picker's How are you feeling? step with overall and energy scales, a feeling search and an intention list.",
+    },
     summary:
       "Tell us how you are feeling and what you need before a prickle, and how it went afterwards. The Prickle Picker can use your answers to suggest prickles.",
     body: [
       "Every prickle page has a Check in card. Pick up to two feelings for how you are coming in and one thing you need, such as momentum, deep focus, accountability, company or a push to get unstuck. Once the prickle has started you can also rate how it went and how you feel now. Every question is optional, and only you and the Hub admins can see your answers.",
       "The Prickle Picker now starts with How are you feeling? Your answer suggests a mood and the picks follow. Once you have rated at least two similar sessions, it also favors the kinds of prickle you rated higher than your usual.",
       "There is no AI in the Prickle Picker. The part that gets personal only looks at your own past ratings of similar sessions.",
+      "![The Prickle Picker's How are you feeling? step with overall and energy scales, a feeling search and an intention list.](/changelog/check-ins-and-prickle-picker/01-prickle-picker-feelings.webp)",
     ].join("\n\n"),
   },
   {
@@ -196,6 +206,10 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "improved",
     title: "Check in and out from your attendance history",
+    image: {
+      src: "/changelog/check-in-from-attendance-history/01-attendance-history.webp",
+      alt: "Attendance History as a list, each prickle row with Check in and Check out buttons.",
+    },
     summary:
       "Attendance History now has check-in and check-out buttons for each prickle, and Find a Prickle always gives you something to consider.",
     body: [
@@ -203,6 +217,8 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "- The check-out has a star rating, and the progress questions take numbers.",
       "- Attendance History opens as a list, 25 rows at a time.",
       "- Find a Prickle always suggests something, and says what does not match what you asked for. The feelings question now comes last and is optional.",
+      "",
+      "![Attendance History as a list, each prickle row with Check in and Check out buttons.](/changelog/check-in-from-attendance-history/01-attendance-history.webp)",
     ].join("\n"),
   },
   {
@@ -401,12 +417,18 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "improved",
     title: "Clearer time zone settings",
+    image: {
+      src: "/changelog/time-zone-choices/01-time-zone-settings.webp",
+      alt: "Settings, Preferences with the Primary time zone picker showing Eastern Time.",
+    },
     summary:
       "The auto-detect option is gone, your current location is always one click away, and the time zone prompt no longer pops up after you pick a zone yourself.",
     body: [
       "- The Settings time zone list no longer has an auto-detect option that did not stick. Your Hub keeps a real time zone and still offers to switch when it sees you are somewhere else.",
       "- Your browser's current zone is always in the list, with a Use current location button to return to it.",
       "- Picking a zone in Settings no longer immediately asks whether to change it, and the dropdown updates right away when you answer Yes.",
+      "",
+      "![Settings, Preferences with the Primary time zone picker showing Eastern Time.](/changelog/time-zone-choices/01-time-zone-settings.webp)",
     ].join("\n"),
   },
   {
@@ -496,10 +518,15 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "new",
     title: "Show a second time zone beside prickle times",
+    image: {
+      src: "/changelog/secondary-time-zone/01-second-time-zone.webp",
+      alt: "Settings, Preferences with Show a secondary time zone ticked and a Secondary time zone picker below it.",
+    },
     summary:
       "Settings has an option to show a second time zone, such as Eastern, beside the prickle times in your own.",
     body: [
       "Turn on Also show a second time zone under [Preferences](/settings/preferences) and pick any zone. It starts at Eastern, where prickles are announced. It is off by default, and appears next to times on upcoming prickles, events and commitments.",
+      "![Settings, Preferences with Show a secondary time zone ticked and a Secondary time zone picker below it.](/changelog/secondary-time-zone/01-second-time-zone.webp)",
     ].join("\n\n"),
   },
   {
@@ -520,12 +547,18 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "improved",
     title: "Check-ins with mood scales and the Feeling Wheel",
+    image: {
+      src: "/changelog/check-in-feeling-wheel/01-feeling-wheel.webp",
+      alt: "The mood scales and the Feeling Wheel, with Joyful chosen and its more specific feelings listed below.",
+    },
     summary:
       "Check-ins now use two labeled mood scales and an optional Feeling Wheel, and check-out asks whether you got what you came for.",
     body: [
       "- Before a prickle: rate how you feel overall and your energy on labeled five-step scales, optionally name the feeling from the Feeling Wheel (search works too), and choose your intention from a list.",
       "- After a prickle: say whether you got what you came for, then the same scales and the progress questions.",
       "The same questions appear in the check-in window, in Slack messages and where you log progress.",
+      "",
+      "![The mood scales and the Feeling Wheel, with Joyful chosen and its more specific feelings listed below.](/changelog/check-in-feeling-wheel/01-feeling-wheel.webp)",
     ].join("\n"),
   },
   {
@@ -560,11 +593,16 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "fixed",
     title: "Week calendars scroll on phones",
+    image: {
+      src: "/changelog/week-calendars-on-phones/01-week-on-phone.webp",
+      alt: "All Prickles in Calendar view on a phone, the week reaching past the right edge of the screen.",
+    },
     summary:
       "On a phone you can now scroll sideways to Thursday through Saturday on week calendars instead of having them cut off.",
     body: [
       "This fixes All Prickles, My Attendance and the host request form. We also made secondary text easier to read, using darker or lighter greys that meet contrast guidelines in both light and dark mode, and made the closed mobile menu skip keyboard focus.",
       "In light mode, today's column is also easier to see.",
+      "![All Prickles in Calendar view on a phone, the week reaching past the right edge of the screen.](/changelog/week-calendars-on-phones/01-week-on-phone.webp)",
     ].join("\n\n"),
   },
   {
