@@ -9,7 +9,7 @@ When a change fixes what a Sentry issue reports, resolve the issue **in the rele
 
 **How** (the org is in Sentry's EU region: `appConfig.sentry` in `app.config.ts` has org `quillandcup`, project `hub`, API `https://de.sentry.io`)
 - The release version is the full commit SHA of the squash commit (`git rev-parse <short-sha>`): the build uploads source maps under it. Check it exists first: `GET /api/0/organizations/quillandcup/releases/<sha>/`.
-- `sentry-cli` can't be used for this: its config points at the US `sentry.io` while the org is in the EU, and it ignores the token when the URL comes from elsewhere. Call the API with the token already in `~/.sentryclirc`, without ever printing it: write the header to a file and pass that to curl.
+- `sentry-cli` is fine for reading (`sentry-cli issues list -s unresolved`), once `~/.sentryclirc` has the EU URL in the same file as the token (`[defaults]` `url=https://de.sentry.io`, `org=quillandcup`, `project=hub`; a `--url` or `SENTRY_URL` from anywhere else makes it ignore the token). It can't do this step: `sentry-cli issues resolve` has `--next-release` but no "in release <sha>". `--next-release` means whichever release Sentry creates next, which is the wrong one if another deploy lands first or the fix has already shipped. So resolve through the API with an explicit release, using the token already in `~/.sentryclirc` without ever printing it: write the header to a file and pass that to curl.
 
 ```bash
 awk -F= '/^token=/{print "Authorization: Bearer " $2}' ~/.sentryclirc > /tmp/sentry_hdr
