@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { PRIVACY_ENTITY_TYPES, type ActivityFeedRow } from "@/lib/activity-feed";
 
@@ -71,7 +72,7 @@ describe("/admin/activity", () => {
     expect(requireAdminPage).toHaveBeenCalled();
     expect(rpc).toHaveBeenCalledWith("count_activity_feed", expect.objectContaining({ p_audit_only: true }));
     expect(screen.getByText("Bramble Admin")).toBeInTheDocument();
-    expect(screen.getByText("changed member — status")).toBeInTheDocument();
+    await userEvent.click(screen.getByText("changed member — status"));
     expect(screen.getAllByRole("link", { name: "Fern Quillsby" })[0]).toHaveAttribute(
       "href",
       `/admin/members/${MEMBER_ID}`
@@ -136,7 +137,7 @@ describe("/admin/activity", () => {
 
     expect(rpc).toHaveBeenCalledWith("count_activity_feed", expect.objectContaining({ p_audit_only: false }));
     expect(screen.getByRole("link", { name: "Page visits" })).toBeInTheDocument();
-    expect(screen.getByText("visited 2 pages (Dashboard ×1, My Prickles ×1)")).toBeInTheDocument();
+    await userEvent.click(screen.getByText("visited 2 pages (Dashboard ×1, My Prickles ×1)"));
     expect(screen.getByText("/my-prickles")).toBeInTheDocument();
   });
 
