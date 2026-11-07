@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { track } from "@/lib/analytics/client";
 import { createClient } from "@/lib/supabase/client";
 import { BOOK_COVER_MAX_BYTES, describeBookCoverRequirements } from "@/lib/bookCover";
@@ -40,6 +40,33 @@ export default function MediaUploadForm({
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  const [previewFailed, setPreviewFailed] = useState(false);
+  const canvas = useRef<HTMLCanvasElement>(null);
+
+  // A local preview of the chosen file, drawn onto a canvas right away (no URL or markup is built from the file).
+  // Browsers can't draw HEIC, so that falls back to the file name.
+  useEffect(() => {
+    setPreviewFailed(false);
+    if (!file) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const bitmap = await createImageBitmap(file);
+        const target = canvas.current;
+        if (cancelled || !target) return bitmap.close();
+        const scale = Math.min(1, 192 / bitmap.height, 640 / bitmap.width);
+        target.width = Math.max(1, Math.round(bitmap.width * scale));
+        target.height = Math.max(1, Math.round(bitmap.height * scale));
+        target.getContext("2d")?.drawImage(bitmap, 0, 0, target.width, target.height);
+        bitmap.close();
+      } catch {
+        if (!cancelled) setPreviewFailed(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [file]);
 
   // Not a <form>: this sits inside other forms (an event's edit form, the add form), and a form in a form submits the
   // outer one too, saving the event with nothing chosen yet. Enter in a field sends, instead of submitting what is around it.
@@ -115,6 +142,9 @@ export default function MediaUploadForm({
         }}
         className={`rounded border-2 border-dashed p-6 text-center text-sm ${dragging ? "border-plum-500 bg-plum-50 dark:bg-plum-900/20" : "border-gray-300 dark:border-slate-700"}`}
       >
+        {file && !previewFailed && (
+          <canvas ref={canvas} role="img" aria-label="Preview of the chosen image" className="mx-auto mb-2 max-h-48 max-w-full rounded border border-gray-200 dark:border-slate-700" />
+        )}
         <p className="mb-2">{file ? file.name : "Drop an image here, or"}</p>
         <button type="button" onClick={() => input.current?.click()} className={SECONDARY}>
           {file ? "Choose a different file" : "Choose a file"}

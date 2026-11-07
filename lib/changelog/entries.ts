@@ -52,6 +52,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
+  {
+    slug: "see-your-image-before-you-save-it",
+    date: "2026-11-07",
+    audience: "product",
+    category: "improved",
+    title: "See your image before you save it",
+    summary: "When you pick a picture you now see it right away, and when you choose where the interesting part is, the event card and book cover previews change as you click.",
+    body: "- After choosing or dropping a file in the image dialog, you see the picture itself, not just its name. (Some phone photos can't be shown by your browser; you'll see the file name instead.)\n- In the image editor, clicking the picture to mark the interesting part, or changing how a picture that isn't cover-shaped fits, moves the Event card and Book cover previews straight away. They are marked \"not saved yet\" until you save.\n- After you save a new focal point, pages that already show the image pick up the change within a minute.",
+  },
 {
     slug: "first-app-skeleton-and-prd",
     date: "2026-04-04",
