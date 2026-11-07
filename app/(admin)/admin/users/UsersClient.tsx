@@ -563,20 +563,25 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                               )}
                             </div>
                             {user.staffName ? (
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${STAFF_ROLE_COLORS[user.staffRole!]}`}>
-                                {user.staffName} · {STAFF_ROLE_LABELS[user.staffRole!]}
-                              </span>
+                              <div className="flex items-center gap-1">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${STAFF_ROLE_COLORS[user.staffRole!]}`}>
+                                  {user.staffName} · {STAFF_ROLE_LABELS[user.staffRole!]}
+                                </span>
+                                {user.staffId && (
+                                  <RecordHistoryButton entityType="staff" entityId={user.staffId} label={`${user.staffName}'s staff record`} />
+                                )}
+                              </div>
                             ) : null}
-                            {user.staffId && (
-                              <RecordHistoryButton entityType="staff" entityId={user.staffId} label={`${user.staffName}'s staff record`} />
-                            )}
                             {user.memberId ? (
-                              <a
-                                href={`/admin/members/${user.memberId}`}
-                                className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300 hover:underline"
-                              >
-                                Member: {user.memberName}
-                              </a>
+                              <div className="flex items-center gap-1">
+                                <a
+                                  href={`/admin/members/${user.memberId}`}
+                                  className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300 hover:underline"
+                                >
+                                  Member: {user.memberName}
+                                </a>
+                                <RecordHistoryButton entityType="member" entityId={user.memberId} includeMemberRows label={`${user.memberName}'s member record`} />
+                              </div>
                             ) : null}
                           </div>
                         )}
