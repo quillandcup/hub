@@ -25,9 +25,18 @@ test("the message box with a quote being written passes the page checks", async 
 
   const box = page.getByRole("textbox", { name: /^Message/ });
   await box.click();
+  // Start from an empty box: a draft saved by an earlier run (drafts are stored per conversation) would come back in it,
+  // and pressing Quote on text that is already a quote takes the quote off.
+  await page.keyboard.press("ControlOrMeta+A");
+  await page.keyboard.press("Backspace");
+  const quote = page.locator(".ProseMirror blockquote");
+  if (await quote.count()) await page.getByRole("button", { name: "Quote" }).click();
+  await expect(quote).toHaveCount(0);
+
   await page.getByRole("button", { name: "Quote" }).click();
+  await expect(quote).toHaveCount(1);
   await box.pressSequentially("Write drunk, edit sober.");
-  await expect(page.locator(".ProseMirror blockquote")).toHaveText("Write drunk, edit sober.");
+  await expect(quote).toHaveText("Write drunk, edit sober.");
   await shot(page, testInfo, "quote");
 
   // What the eye compares: the text and the bar against the surface behind them (the first opaque background up the tree).
