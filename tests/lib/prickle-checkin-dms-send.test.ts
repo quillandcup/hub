@@ -415,6 +415,47 @@ describe("check-in for a member who joins a running prickle", () => {
   });
 });
 
+describe("check-out for a member who only lingered into the next prickle", () => {
+  // Prickle A ran 7h05 to 6h05 ago, B 6h05 to 5h05 ago: B is inside the 6-hour lookback, A is not.
+  // Whether a stay in B counts depends on A, so A must still be known as a neighbour.
+  const hoursAgo = (h: number) => new Date(Date.now() - h * 60 * 60 * 1000).toISOString();
+  const A = { ...PRICKLE, id: "pA", startTime: hoursAgo(7 + 5 / 60), endTime: hoursAgo(6 + 5 / 60) };
+  const B = { ...PRICKLE, id: "pB", startTime: hoursAgo(6 + 5 / 60), endTime: hoursAgo(5 + 5 / 60) };
+  const event = (id: string, name: string, event: "joined" | "left", at: string) => ({
+    id, meeting_uuid: "mtg-1", meeting_id: null, host_id: "host-1", participant_key: `dev-${name}`, participant_name: name,
+    participant_email: null, event, event_time: at, leave_reason: null, raw_payload: {}, received_at: at,
+  });
+  const meeting = {
+    id: "z1", meeting_id: "z1", meeting_uuid: "mtg-1", topic: "Prickle", start_time: hoursAgo(8), end_time: null, duration_minutes: null,
+    host_email: null, host_name: null, participant_count: null, imported_at: null, updated_at: null, data: { host_id: "host-1" },
+  };
+  const minutesAfterBStarts = (m: number) => new Date(new Date(B.startTime).getTime() + m * 60 * 1000).toISOString();
+
+  function world(events: ReturnType<typeof event>[]) {
+    reset([A, B]);
+    dataset.zoomParticipantEvents.push(...events);
+    dataset.zoomMeetings.push(meeting as never);
+  }
+
+  it("sends nothing to a member who stayed a minute into B after a long stay in A, even once A has left the lookback", async () => {
+    // Ada was in A for nearly an hour and left a minute into B: B is not a prickle she attended.
+    world([
+      event("1", "Ada Example", "joined", new Date(new Date(A.startTime).getTime() + 4 * 60 * 1000).toISOString()),
+      event("2", "Ada Example", "left", minutesAfterBStarts(1)),
+    ]);
+
+    expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 0, checkouts: 0 });
+    expect(sendSlackDM).not.toHaveBeenCalled();
+  });
+
+  it("still checks out a member who really was in B", async () => {
+    world([event("1", "Bea Example", "joined", minutesAfterBStarts(2)), event("2", "Bea Example", "left", minutesAfterBStarts(50))]);
+
+    expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 0, checkouts: 1 });
+    expect(sendSlackDM).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("sendCheckoutDMs", () => {
   const checkout = async () =>
     sendCheckoutDMs(
