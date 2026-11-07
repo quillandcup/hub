@@ -6,30 +6,31 @@ import {
   EmailBody,
   EmailDivider,
   EmailMuted,
+  EmailCode,
   colors,
   fonts,
 } from "./layout";
 
+/** Subject: "<code> is your Hedgie Hub verification code" (config.toml, scripts/_email-templates.ts). */
 export function MagicLinkEmail({ confirmationUrl, code }: { confirmationUrl: string; code: string }) {
   return (
-    <EmailLayout preview="Your Hedgie Hub sign-in link is ready.">
-      <EmailHeading>Your sign-in link is ready.</EmailHeading>
+    <EmailLayout preview={`${code} is your Hedgie Hub verification code.`}>
+      <EmailHeading>Your verification code</EmailHeading>
 
-      <EmailBody>
-        Here's the link you requested to sign in to Hedgie Hub. Click below
-        to continue — no password needed.
-      </EmailBody>
+      <EmailBody>Your code is:</EmailBody>
 
-      <EmailBody>
-        This link expires in 24 hours and can only be used once.
-      </EmailBody>
+      <EmailCode>{code}</EmailCode>
+
+      <EmailBody>Enter this code on the sign-in page. It expires in 24 hours and works once.</EmailBody>
+
+      <EmailBody>Or sign in with one click on this device:</EmailBody>
 
       <Button
         href={confirmationUrl}
         style={{
           display: "block",
           width: "fit-content",
-          margin: "32px auto",
+          margin: "16px auto 32px auto",
           backgroundColor: colors.headingText,
           color: "#ffffff",
           padding: "14px 36px",
@@ -43,29 +44,10 @@ export function MagicLinkEmail({ confirmationUrl, code }: { confirmationUrl: str
         Sign in to Hedgie Hub
       </Button>
 
-      <EmailBody>
-        Opening this on a different device or browser than the one you signed
-        in from? The link may not work there. Enter this code on the sign-in
-        page instead:
-      </EmailBody>
-
-      <Text
-        style={{
-          fontSize: "28px",
-          letterSpacing: "0.2em",
-          textAlign: "center",
-          fontFamily: "monospace",
-          color: colors.headingText,
-          margin: "8px 0 24px 0",
-        }}
-      >
-        {code}
-      </Text>
-
       <EmailDivider />
 
       <EmailMuted>
-        If you didn't request this link, you can safely ignore this email — your
+        If you didn't request this, you can safely ignore this email — your
         account hasn't been affected.
       </EmailMuted>
 

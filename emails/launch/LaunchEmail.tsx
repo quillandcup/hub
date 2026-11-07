@@ -6,6 +6,7 @@ import {
   EmailBody,
   EmailDivider,
   EmailMuted,
+  EmailCode,
   colors,
   fonts,
 } from "../../supabase/emails/layout";
@@ -17,25 +18,14 @@ import {
  */
 export function LaunchEmail({ code, signInUrl }: { code: string; signInUrl: string }) {
   return (
-    <EmailLayout preview="Hedgie Hub is open. Your sign-in code is inside.">
+    <EmailLayout preview={`${code} is your Hedgie Hub verification code.`}>
       <EmailHeading>Hedgie Hub is open.</EmailHeading>
 
       <EmailBody>
-        Your account is ready. To sign in, open the page below, enter this email address, and enter your code:
+        Your account is ready. To sign in, open the page below, enter this email address, and enter your verification code:
       </EmailBody>
 
-      <Text
-        style={{
-          fontSize: "28px",
-          letterSpacing: "0.2em",
-          textAlign: "center",
-          fontFamily: "monospace",
-          color: colors.headingText,
-          margin: "8px 0 8px 0",
-        }}
-      >
-        {code}
-      </Text>
+      <EmailCode>{code}</EmailCode>
 
       <Button
         href={signInUrl}

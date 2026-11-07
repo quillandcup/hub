@@ -178,4 +178,10 @@ describe("renderLaunchEmail", () => {
     expect(LAUNCH_SIGN_IN_URL).not.toContain("98765432");
     expect(mail.text).toContain("98765432");
   });
+
+  it("puts the code first in the subject and says 'verification code' (Gmail Copy code)", async () => {
+    const mail = await renderLaunchEmail("98765432");
+    expect(mail.subject).toBe("98765432 is your Hedgie Hub verification code");
+    expect(mail.text).toContain("verification code");
+  });
 });
