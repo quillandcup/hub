@@ -44,3 +44,14 @@ export async function forgetPosts(): Promise<void> {
   const { error } = await admin.from("chat_messages").delete().in("channel_id", ids).eq("origin", "app");
   if (error) throw new Error(`slack stand-in: ${error.message}`);
 }
+
+/** Remove the demo's saved message drafts: a scene that types in the box leaves one behind, and it comes back in the box the next time the conversation opens. */
+export async function forgetDrafts(): Promise<void> {
+  const env = loadDemoEnv();
+  const admin = createClient(env.supabaseUrl, env.serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { data: channels } = await admin.from("chat_channels").select("id").like("slack_channel_id", "CDEMO%");
+  const ids = (channels ?? []).map((c) => c.id as string);
+  if (ids.length === 0) return;
+  const { error } = await admin.from("chat_drafts").delete().in("channel_id", ids);
+  if (error) throw new Error(`slack stand-in: ${error.message}`);
+}
