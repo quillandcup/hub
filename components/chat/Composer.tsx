@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { prepareChatUploads, saveChatDraft, sendChatMessage } from "@/app/(member)/chat/actions";
-import MessageBox, { type MessageBoxHandle } from "@/components/chat/MessageBox";
+import MessageBox, { filesOf, type MessageBoxHandle } from "@/components/chat/MessageBox";
 import { messageFeatures } from "@/lib/chat/message-features";
 import { NO_FORMATS, type FormatVia } from "@/lib/chat/format-text";
 import { fromEditableText } from "@/lib/chat/render";
@@ -337,7 +337,7 @@ export default function Composer({
           placeholder={placeholder}
           onValueChange={setText}
           onPaste={(e) => {
-            const pasted = [...(e.clipboardData?.files ?? [])];
+            const pasted = filesOf(e.clipboardData);
             if (pasted.length === 0) return;
             e.preventDefault();
             attach(pasted, "paste");
