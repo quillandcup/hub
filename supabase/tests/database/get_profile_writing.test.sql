@@ -26,6 +26,7 @@ INSERT INTO public.writing_progress_entries (member_id, project_id, entry_date, 
 
 INSERT INTO public.writing_project_starting_balances (member_id, project_id, measure, amount) VALUES
   ('mbr_AAAAAAAAb9A1', 'prj_AAAAAAAAb911', 'words', 24657),
+  ('mbr_AAAAAAAAb9A1', 'prj_AAAAAAAAb912', 'chapters', 300),
   ('mbr_AAAAAAAAb9A1', 'prj_AAAAAAAAb913', 'words', 999);
 
 INSERT INTO public.writing_goals (member_id, project_id, goal_type, measure, target_amount, title, description, show_on_profile) VALUES
@@ -72,7 +73,7 @@ SELECT ok(
   'entries have no note key');
 SELECT is(
   (SELECT jsonb_path_query_array(result, '$.starting_balances[*].amount') FROM profile_result WHERE label = 'viewer'),
-  '[24657]'::jsonb, 'starting balances only for shown projects');
+  '[24657, 300]'::jsonb, 'starting balances for shown projects and the projects of shown goals, never a private one');
 SELECT is(
   (SELECT result FROM profile_result WHERE label = 'direct'),
   '0'::jsonb, 'a regular member still can''t read another member''s writing_projects directly');
