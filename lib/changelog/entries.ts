@@ -2539,7 +2539,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     summary: "In Settings, Devices now names each one, like Chrome 156 on macOS or Safari on iPhone (iOS 18.7), so you can tell which to log out.",
     body: [
       "The old Active Sessions list showed a long block of browser code. It is now called Devices and shows a plain name for each device, when it was last used, and a Log out button. The device you are on is marked This device.",
-      "Every device is listed. If you have more than five, a Show more button under the list reveals the rest.",
+      "Every device is listed, however many you have.",
     ].join("\n\n"),
   },
 ];

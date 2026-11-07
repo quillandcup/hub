@@ -23,8 +23,6 @@ import {
  *
  * No location column: we have no geo-IP service and don't add a third party for it.
  */
-const INITIAL_VISIBLE = 5;
-
 function formatDate(value: string | null): string {
   if (!value) return "—";
   return new Date(value).toLocaleString(undefined, {
@@ -68,7 +66,6 @@ export function SessionsPanel() {
   const [message, setMessage] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [signingOutOthers, setSigningOutOthers] = useState(false);
-  const [showAll, setShowAll] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -120,9 +117,6 @@ export function SessionsPanel() {
   }
 
   const otherSessionCount = sessions?.filter((s) => !s.is_current).length ?? 0;
-  const all = sessions ?? [];
-  const visible = showAll ? all : all.slice(0, INITIAL_VISIBLE);
-  const hiddenCount = all.length - visible.length;
 
   return (
     <div>
@@ -181,7 +175,7 @@ export function SessionsPanel() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                {visible.map((session) => {
+                {(sessions ?? []).map((session) => {
                   const lastActive = formatDate(session.refreshed_at ?? session.updated_at ?? session.created_at);
                   return (
                     <tr key={session.id}>
@@ -223,15 +217,6 @@ export function SessionsPanel() {
               </tbody>
             </table>
           </div>
-          {hiddenCount > 0 && (
-            <button
-              type="button"
-              onClick={() => setShowAll(true)}
-              className="mt-3 text-sm font-medium px-3 py-1.5 rounded-md border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
-            >
-              Show {hiddenCount} more
-            </button>
-          )}
         </>
       )}
     </div>

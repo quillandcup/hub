@@ -150,16 +150,13 @@ describe("SessionsPanel", () => {
     await waitFor(() => expect(screen.getByText("No devices found.")).toBeInTheDocument());
   });
 
-  it("lists every device, the rest behind a visible Show N more button", async () => {
+  it("lists every device with no collapse or load-more control", async () => {
     const many = Array.from({ length: 8 }, (_, i) => ({ ...otherSession, id: `s${i}` }));
     vi.mocked(getMySessions).mockResolvedValue({ sessions: [currentSession, ...many] });
 
     render(<SessionsPanel />);
     await waitFor(() => expect(screen.getByText(CHROME_LABEL)).toBeInTheDocument());
-    expect(logOut()).toHaveLength(4);
-
-    await userEvent.click(screen.getByRole("button", { name: "Show 4 more" }));
     expect(logOut()).toHaveLength(8);
-    expect(screen.queryByRole("button", { name: /show \d+ more/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /more/i })).not.toBeInTheDocument();
   });
 });
