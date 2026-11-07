@@ -12,6 +12,7 @@ import { SUPPORT_EMAIL } from "@/lib/config";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { changePrimaryEmail, normalizeEmail } from "@/lib/member-email";
 import { sendVerificationEmail } from "@/lib/email-verification";
+import { sendPrimaryEmailChangedNotice } from "@/lib/email-change-notice";
 import { createRepos } from "@/lib/data/repos";
 
 import { withAction } from "@/lib/analytics/server";
@@ -338,6 +339,8 @@ async function makeEmailPrimaryImpl(aliasId: string): Promise<{ success: true } 
   if (!result.ok) return { error: result.status === 409 ? `That email can't be used right now. Email ${SUPPORT_EMAIL} for help.` : result.error };
 
   after(() => triggerReprocessing("member_email_aliases", "local"));
+  // Never silent: the old address hears about it too, in case this was someone else in the member's session.
+  after(() => sendPrimaryEmailChangedNotice(member.id, member.email, address, "member"));
   revalidatePath("/settings", "layout");
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
   return { success: true };

@@ -114,6 +114,19 @@ describe("makeEmailPrimary", () => {
     expect(aliases[0].verifiedAt).not.toBeNull();
     await Promise.all(afterCallbacks.map((fn) => fn()));
     expect(triggerReprocessing).toHaveBeenCalledWith("member_email_aliases", "local");
+
+    // The old address hears about it too, as does the new one.
+    const notices = sendEmail.mock.calls.map(([mail]) => mail).filter((mail) => mail.tags?.kind === "email_changed");
+    expect(notices.map((mail) => mail.to).sort()).toEqual(["ada.new@example.com", "ada@example.com"]);
+    expect(notices[0].text).toContain("from a signed-in session");
+  });
+
+  it("sends no notice when the change is refused", async () => {
+    await repos.aliases.addEmail(ME, "unconfirmed@example.com", "manual");
+    await makeEmailPrimary((await aliasOf("unconfirmed@example.com")).id);
+    await Promise.all(afterCallbacks.map((fn) => fn()));
+
+    expect(sendEmail.mock.calls.filter(([mail]) => mail.tags?.kind === "email_changed")).toEqual([]);
   });
 
   it("refuses an address that isn't confirmed, turned off, someone else's, or unknown", async () => {
