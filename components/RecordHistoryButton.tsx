@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { loadRecordHistory } from "@/app/actions/record-history";
 import { ChangeTable } from "@/app/(admin)/admin/activity/ActivityFeedTable";
-import { actorDisplay, changedFields, describeRow, type ActivityFeedRow } from "@/lib/activity-feed";
+import { detailLines } from "@/lib/audit-details";
+import { actorDisplay, describeRow, type ActivityFeedRow } from "@/lib/activity-feed";
 import { formatDateTime } from "@/lib/formatters";
 import { useTimeZone } from "@/components/Timezone";
 
@@ -89,7 +90,7 @@ export default function RecordHistoryButton({
                       <time dateTime={row.occurred_at}>{formatDateTime(row.occurred_at, timeZone)}</time> · {actorDisplay(row)}
                     </p>
                     <p className="text-sm text-slate-800 dark:text-slate-200">{describeRow(row)}</p>
-                    {changedFields(row.data).length > 0 && <ChangeTable row={row} />}
+                    {detailLines(row).length > 0 && <ChangeTable row={row} />}
                   </li>
                 ))}
               </ul>

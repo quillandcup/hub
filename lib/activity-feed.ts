@@ -6,6 +6,7 @@ import { createRepos } from "@/lib/data/repos";
 import { throwIfDbError } from "@/lib/db-error";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { FEATURE_PREVIEWS } from "@/lib/features";
+import { withReferenceNames } from "@/lib/audit-references";
 
 /**
  * The central activity log: audit_log rows, member_activities rows and page
@@ -43,6 +44,13 @@ export interface ActivityFeedRow {
   description: string | null;
   source: string | null;
   data: Record<string, unknown> | null;
+  /** Names (and admin pages) of the ids in an audit row's details, by id; set by the fetchers. */
+  refs?: Record<string, ResolvedRef>;
+}
+
+export interface ResolvedRef {
+  label: string;
+  href?: string;
 }
 
 /**
@@ -179,7 +187,7 @@ export async function fetchActivityFeed(
     p_limit: bounds.pageSize,
   });
   throwIfDbError("activity feed: get_activity_feed", error);
-  return { rows: await withMemberDisplayNames(supabase, await withMentionNames((data ?? []) as ActivityFeedRow[])), total, page: bounds.page, pageSize: bounds.pageSize };
+  return { rows: await withReferenceNames(supabase, await withMemberDisplayNames(supabase, await withMentionNames((data ?? []) as ActivityFeedRow[]))), total, page: bounds.page, pageSize: bounds.pageSize };
 }
 
 /**
@@ -244,7 +252,7 @@ export async function fetchRecordHistory(
     p_member_rows: scope.memberRows ?? false,
   });
   throwIfDbError("record history: get_record_history", error);
-  return withMemberDisplayNames(supabase, await withMentionNames((data ?? []) as ActivityFeedRow[]));
+  return withReferenceNames(supabase, await withMemberDisplayNames(supabase, await withMentionNames((data ?? []) as ActivityFeedRow[])));
 }
 
 // ---------------------------------------------------------------------------

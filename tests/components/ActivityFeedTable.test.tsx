@@ -67,6 +67,32 @@ describe("ActivityFeedTable email rows", () => {
   });
 });
 
+describe("ActivityFeedTable audit details", () => {
+  it("shows names instead of ids, linked, and hides the row id", async () => {
+    renderTable([
+      emailRow({
+        kind: "audit",
+        is_audit: true,
+        event_type: "insert",
+        entity_type: "calendar_feed_item",
+        title: null,
+        description: null,
+        source: null,
+        data: {
+          id: { old: null, new: "cfi_AAAAAAAAAAA1" },
+          member_id: { old: null, new: "mbr_AAAAAAAAAAA1" },
+        },
+        refs: { mbr_AAAAAAAAAAA1: { label: "Ada Example", href: "/admin/members/mbr_AAAAAAAAAAA1" } },
+      }),
+    ]);
+
+    await userEvent.click(screen.getByText(/added calendar item/));
+    expect(screen.getByRole("link", { name: "Ada Example" })).toHaveAttribute("href", "/admin/members/mbr_AAAAAAAAAAA1");
+    expect(screen.queryByText("cfi_AAAAAAAAAAA1")).not.toBeInTheDocument();
+    expect(screen.getByText("member")).toBeInTheDocument();
+  });
+});
+
 describe("ActivityFeedTable note rows", () => {
   const note = emailRow({
     event_id: "note:mnote_AAAAAAAAAAA1",
