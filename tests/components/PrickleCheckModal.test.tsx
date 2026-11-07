@@ -76,7 +76,7 @@ describe("PrickleCheckModal check-in", () => {
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
-    const answers = { pleasantBefore: 2, energyBefore: 1, emotionBefore: "lonely", need: "company" };
+    const answers = { pleasantBefore: 2, energyBefore: 1, emotionBefore: "lonely", need: "company", skipped: [] };
     expect(saveCheckinHalf).toHaveBeenCalledWith("p1", "checkin", answers);
     expect(logProgress).not.toHaveBeenCalled();
     expect(onSaved).toHaveBeenCalledWith("p1", expect.objectContaining(answers));
@@ -126,11 +126,35 @@ describe("PrickleCheckModal check-in", () => {
   });
 });
 
+describe("PrickleCheckModal skipping questions", () => {
+  it("saves the questions skipped, clearing an answer already given, and an answer lifts a skip", async () => {
+    const user = userEvent.setup();
+    const { onClose } = renderModal("checkin");
+    await user.click(await option(PLEASANTNESS_QUESTION, "Good"));
+    await user.click(await option(ENERGY_QUESTION, "Low"));
+    await user.click(await option(ENERGY_QUESTION, "Skip")); // skips, clearing the Low
+    await user.click(await option(WHEEL, "Skip"));
+    await user.selectOptions(screen.getByLabelText(/My intention/), "skip");
+    expect(await option(ENERGY_QUESTION, "Skipped")).toHaveAttribute("aria-pressed", "true");
+    await user.click(await option(WHEEL, "Sad")); // answering lifts the feeling's skip
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(saveCheckinHalf).toHaveBeenCalledWith("p1", "checkin", {
+      pleasantBefore: 4,
+      energyBefore: null,
+      emotionBefore: "sad",
+      need: null,
+      skipped: ["energyBefore", "need"],
+    });
+  });
+});
+
 describe("PrickleCheckModal check-out", () => {
   it("asks got-what-you-came-for, mood and the feeling, and a numeric question per project, worded for its measure", async () => {
     renderModal("checkout");
     const met = within(await screen.findByRole("group", { name: INTENTION_MET_QUESTION }));
-    expect(met.getAllByRole("button").map((b) => b.textContent)).toEqual(["Not at all", "A little", "Somewhat", "Mostly", "Completely"]);
+    expect(met.getAllByRole("button").map((b) => b.textContent)).toEqual(["Not at all", "A little", "Somewhat", "Mostly", "Completely", "Skip"]);
     expect(screen.getByRole("group", { name: PLEASANTNESS_QUESTION })).toBeInTheDocument();
     expect(screen.getByRole("group", { name: ENERGY_QUESTION })).toBeInTheDocument();
     expect(screen.getByRole("group", { name: WHEEL })).toBeInTheDocument();
@@ -173,6 +197,7 @@ describe("PrickleCheckModal check-out", () => {
       pleasantAfter: 4,
       energyAfter: 3,
       emotionAfter: null,
+      skipped: [],
     });
     expect(logProgress).toHaveBeenCalledTimes(1);
     expect(logProgress).toHaveBeenCalledWith({

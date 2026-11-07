@@ -2491,4 +2491,17 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "Row level security still applies to anyone reading the view directly; the two `SECURITY DEFINER` functions run as the owner as before. `searchable_member_aliases.test.sql` checks the view and that the three searches agree on active, switched-off and Slack aliases. As a side effect, the top-bar search and the Members page no longer match Slack user ids.",
     ].join("\n\n"),
   },
+  {
+    slug: "check-in-skip-questions",
+    date: "2026-11-06",
+    audience: "product",
+    category: "improved",
+    title: "Skip any check-in question",
+    summary:
+      "Every question in a check-in or check-out now has a Skip, so you can leave one out without the check-in staying unfinished.",
+    body: [
+      "Not every question fits every day. On the site each question has a Skip button, and in the Slack messages each one has a Skip button or a Skip this question choice. Skipped counts as done: once you have answered or skipped every question, the check-in or check-out is finished and we stop asking.",
+      "Changed your mind? Pick an answer and the skip goes away, or tap Skipped again.",
+    ].join("\n\n"),
+  },
 ];

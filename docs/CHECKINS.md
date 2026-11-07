@@ -49,6 +49,14 @@ friction, and lower response rates make every other answer less useful.
 A half counts as answered once its required questions are (`checkinAnswered`: mood + intention;
 `checkoutAnswered`: got what they came for + mood). The named feeling never blocks it.
 
+**Skipping.** Every question can be skipped ("I'd rather not say"): a Skip chip on the site, a
+Skip button or option in the Slack DMs. A skip is stored in `prickle_checkins.skipped` (by answer
+column name; never also answered, since skipping clears the answer and answering lifts the skip)
+and counts as dealt with, so a half whose required questions are each answered or skipped is
+answered and stops being offered. It is not a rating: analysis uses only the answers, and a skip
+is its own signal (compare the skip rate per question). Find a Prickle's mood step has no Skip,
+since those answers aren't saved as a check-in.
+
 ## Why these, and not the alternatives
 
 - **"Overall, how do you feel?", not "How pleasant do you feel?"** The dimension is valence

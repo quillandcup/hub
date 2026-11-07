@@ -16,6 +16,7 @@ import type { ChannelId, OutboundMessage } from "@/lib/channels";
 import { countedPrickleIds, loadPresenceByMember, presenceDue, staysOf, toWindow, type PresenceInterval, type PresenceRepos, type PrickleWindow } from "@/lib/zoom-presence";
 import {
   checkinAnswered,
+  CHECKIN_ANSWER_KEYS,
   NO_GOAL_TIP,
   NO_GOAL_TIP_PATH,
   checkinHref,
@@ -307,7 +308,11 @@ const plain = (text: string) => ({ type: "plain_text", text });
 
 type SlackOption = { text: { type: string; text: string }; value: string };
 
-const NEED_OPTIONS: SlackOption[] = NEEDS.map((n) => ({ text: plain(`${n.label} · ${n.hint}`), value: n.key }));
+/** The value a skip button or option sends, in place of an answer. */
+export const SKIP_VALUE = "skip";
+const SKIP_OPTION: SlackOption = { text: plain("Skip this question"), value: SKIP_VALUE };
+
+const NEED_OPTIONS: SlackOption[] = [...NEEDS.map((n) => ({ text: plain(`${n.label} · ${n.hint}`), value: n.key })), SKIP_OPTION];
 
 /**
  * The Feeling Wheel as one grouped select: a group per core feeling, the core itself first, then
@@ -321,7 +326,9 @@ const EMOTION_GROUPS: { label: ReturnType<typeof plain>; options: SlackOption[] 
     ...coreFeelings(c).map((f) => ({ text: plain(emotionLabel(f)), value: f })),
   ],
 }));
-const EMOTION_OPTIONS: SlackOption[] = EMOTION_GROUPS.flatMap((g) => g.options);
+/** The skip option, last, in a group of its own. */
+const SKIP_GROUP = { label: plain("Not now"), options: [SKIP_OPTION] };
+const EMOTION_OPTIONS: SlackOption[] = [...EMOTION_GROUPS.flatMap((g) => g.options), SKIP_OPTION];
 
 /**
  * The wheel's groups with the member's usual feelings on top (a "Frequently used" group, like
@@ -330,11 +337,12 @@ const EMOTION_OPTIONS: SlackOption[] = EMOTION_GROUPS.flatMap((g) => g.options);
  */
 function emotionGroups(usual: readonly Emotion[]): typeof EMOTION_GROUPS {
   const top = new Set<string>(usual.slice(0, SLACK_FREQUENT_EMOTIONS));
-  if (top.size === 0) return EMOTION_GROUPS;
+  if (top.size === 0) return [...EMOTION_GROUPS, SKIP_GROUP];
   const picked = EMOTION_OPTIONS.filter((o) => top.has(o.value)).sort((a, b) => [...top].indexOf(a.value) - [...top].indexOf(b.value));
   return [
     { label: plain("Frequently used"), options: picked },
     ...EMOTION_GROUPS.map((g) => ({ ...g, options: g.options.filter((o) => !top.has(o.value)) })).filter((g) => g.options.length > 0),
+    SKIP_GROUP,
   ];
 }
 
@@ -345,8 +353,9 @@ const FIELD_OPTIONS: Partial<Record<CheckinField, SlackOption[]>> = {
   emotion_after: EMOTION_OPTIONS,
 };
 
-/** The saved answer for `field` as option values; unanswered is []. */
+/** The saved answer for `field` as option values; a skipped question is [SKIP_VALUE], unanswered is []. */
 function savedValues(checkin: CheckinInput | null, field: CheckinField): string[] {
+  if (checkin?.skipped.includes(FIELD_KEY[field])) return [SKIP_VALUE];
   const value = checkin?.[FIELD_KEY[field]] ?? null;
   return value === null ? [] : [String(value)];
 }
@@ -404,7 +413,15 @@ function scaleBlocks(prickleId: string, field: CheckinField, points: readonly Sc
         text: plain(p.label),
         value: String(p.value),
         ...(current === String(p.value) ? { style: "primary" } : {}),
-      })),
+      })).concat([
+        {
+          type: "button",
+          action_id: `${CHECKIN_ANSWER_ACTION_ID}:${SKIP_VALUE}`,
+          text: plain("Skip"),
+          value: SKIP_VALUE,
+          ...(current === SKIP_VALUE ? { style: "primary" } : {}),
+        },
+      ]),
     },
   ];
 }
@@ -604,8 +621,12 @@ export function parseCheckinAnswer(action: any): CheckinAnswer | null {
 /** `checkin` with one answer replaced. Unknown values are left for validateCheckin to reject. */
 export function applyCheckinAnswer(checkin: CheckinInput, field: CheckinField, values: string[]): CheckinInput {
   const raw = values[0];
-  const value = raw === undefined ? null : SCALE_FIELDS.includes(field) ? Number(raw) : raw;
-  return { ...checkin, [FIELD_KEY[field]]: value } as CheckinInput;
+  const key = FIELD_KEY[field];
+  // A skip clears the answer and an answer lifts the skip, so a question is never both.
+  const skip = raw === SKIP_VALUE;
+  const value = raw === undefined || skip ? null : SCALE_FIELDS.includes(field) ? Number(raw) : raw;
+  const others = checkin.skipped.filter((k) => k !== key);
+  return { ...checkin, [key]: value, skipped: CHECKIN_ANSWER_KEYS.filter((k) => k === key ? skip : others.includes(k)) } as CheckinInput;
 }
 
 /** After an answer, the DM's blocks with that question showing what was saved. */

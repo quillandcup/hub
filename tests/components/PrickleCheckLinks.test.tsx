@@ -6,6 +6,7 @@ import PrickleCheckLinks from "@/components/writing/PrickleCheckLinks";
 import { NEEDS, type CheckinInput } from "@/lib/prickle-checkins";
 
 const NONE: CheckinInput = {
+  skipped: [],
   pleasantBefore: null,
   energyBefore: null,
   emotionBefore: null,

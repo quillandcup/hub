@@ -272,15 +272,16 @@ describe("buildCheckinBlocks", () => {
       undefined,
     ]);
     expect(blocks[0].text.text).toBe("*Progress Prickle* starts in about 20 minutes. Overall, how do you feel?");
-    expect(blocks[1].elements.map((e: any) => e.text.text)).toEqual(["Very bad", "Bad", "Okay", "Good", "Very good"]);
-    expect(blocks[1].elements.map((e: any) => e.value)).toEqual(["1", "2", "3", "4", "5"]);
-    expect(blocks[3].elements.map((e: any) => e.text.text)).toEqual(["Very low", "Low", "Medium", "High", "Very high"]);
+    expect(blocks[1].elements.map((e: any) => e.text.text)).toEqual(["Very bad", "Bad", "Okay", "Good", "Very good", "Skip"]);
+    expect(blocks[1].elements.map((e: any) => e.value)).toEqual(["1", "2", "3", "4", "5", "skip"]);
+    expect(blocks[3].elements.map((e: any) => e.text.text)).toEqual(["Very low", "Low", "Medium", "High", "Very high", "Skip"]);
 
     expect(blocks[4].text.text).toBe("Name the feeling \n_(Feeling Wheel by Gloria Willcox)_");
     const wheel = blocks[4].accessory;
     expect(wheel).toMatchObject({ type: "static_select", action_id: CHECKIN_ANSWER_ACTION_ID });
-    expect(wheel.option_groups.map((g: any) => g.label.text)).toEqual(["Mad", "Scared", "Joyful", "Powerful", "Peaceful", "Sad"]);
-    expect(wheel.option_groups.flatMap((g: any) => g.options)).toHaveLength(78);
+    expect(wheel.option_groups.map((g: any) => g.label.text)).toEqual(["Mad", "Scared", "Joyful", "Powerful", "Peaceful", "Sad", "Not now"]);
+    // 78 wheel feelings and the skip option, last.
+    expect(wheel.option_groups.flatMap((g: any) => g.options)).toHaveLength(79);
     expect(wheel.option_groups[0].options.slice(0, 5)).toEqual([
       { text: { type: "plain_text", text: "Mad" }, value: "mad" },
       { text: { type: "plain_text", text: "Hurt" }, value: "hurt" },
@@ -303,8 +304,8 @@ describe("buildCheckinBlocks", () => {
     // Only the first three are listed in Slack.
     expect(groups[0].options.map((o: any) => o.value)).toEqual(["content", "sleepy", "proud"]);
     const values = groups.flatMap((g: any) => g.options.map((o: any) => o.value));
-    expect(values).toHaveLength(78);
-    expect(new Set(values).size).toBe(78);
+    expect(values).toHaveLength(79);
+    expect(new Set(values).size).toBe(79);
     expect(buildCheckinBlocks("p1", "Progress Prickle", { ...EMPTY, emotionBefore: "sleepy" }, false, ["sleepy"])[4].accessory.initial_option.value).toBe("sleepy");
   });
 
@@ -339,7 +340,7 @@ describe("buildCheckoutBlocks", () => {
       undefined,
     ]);
     expect(blocks[0].text.text).toBe("Checking out of *Progress Prickle*: Did you get what you came for?");
-    expect(blocks[1].elements.map((e: any) => e.text.text)).toEqual(["Not at all", "A little", "Somewhat", "Mostly", "Completely"]);
+    expect(blocks[1].elements.map((e: any) => e.text.text)).toEqual(["Not at all", "A little", "Somewhat", "Mostly", "Completely", "Skip"]);
     expect(picked(blocks[1])).toEqual(["4"]);
     expect(picked(blocks[5])).toEqual(["2"]);
     expect(blocks[6].accessory.initial_option).toBeUndefined();
@@ -590,5 +591,39 @@ describe("dismissing a check-in or check-out", () => {
     expect(await dismiss(repos, "m1", "p1")).toBeNull();
     expect(await repos.prickleActivity.dismissedAmong(half, "m1", ["p1"])).toEqual(new Set(["p1"]));
     expect(read()).toEqual([`prickle_${half}`]);
+  });
+});
+
+describe("skipping a question in a DM", () => {
+  it("offers Skip on every scale and as the last option of the selects", () => {
+    const blocks = buildCheckinBlocks("p1", "Progress Prickle", null);
+    expect(blocks[1].elements.at(-1)).toMatchObject({ action_id: `${CHECKIN_ANSWER_ACTION_ID}:skip`, value: "skip", text: { text: "Skip" } });
+    expect(blocks[5].accessory.options.at(-1)).toEqual({ text: { type: "plain_text", text: "Skip this question" }, value: "skip" });
+  });
+
+  it("records a skip, clearing the answer, and an answer lifts it", () => {
+    const answered = { ...EMPTY, energyBefore: 2 };
+    const skipped = applyCheckinAnswer(answered, "energy_before", ["skip"]);
+    expect(skipped).toMatchObject({ energyBefore: null, skipped: ["energyBefore"] });
+    expect(applyCheckinAnswer(skipped, "energy_before", ["4"])).toMatchObject({ energyBefore: 4, skipped: [] });
+    expect(applyCheckinAnswer(skipped, "need", ["skip"]).skipped).toEqual(["energyBefore", "need"]);
+    expect(applyCheckinAnswer(skipped, "energy_before", [])).toMatchObject({ energyBefore: null, skipped: [] });
+  });
+
+  it("shows a saved skip highlighted on a scale and selected in a select, and after an answer", () => {
+    const saved = { ...EMPTY, skipped: ["energyBefore" as const, "need" as const] };
+    const blocks = buildCheckinBlocks("p1", "Progress Prickle", saved);
+    expect(picked(blocks[3])).toEqual(["skip"]);
+    expect(blocks[5].accessory.initial_option.value).toBe("skip");
+    const after = withSavedAnswer(blocks, { prickleId: "p1", field: "energy_before", values: ["skip"] })!;
+    expect(picked(after[3])).toEqual(["skip"]);
+    const emotion = buildCheckinBlocks("p1", "Progress Prickle", { ...EMPTY, skipped: ["emotionBefore" as const] })[4];
+    expect(emotion.accessory.initial_option.value).toBe("skip");
+  });
+
+  it("parses a skip button press", () => {
+    expect(
+      parseCheckinAnswer({ action_id: `${CHECKIN_ANSWER_ACTION_ID}:skip`, block_id: "prickle_checkin:p1:energy_before", type: "button", value: "skip" })
+    ).toEqual({ prickleId: "p1", field: "energy_before", values: ["skip"] });
   });
 });

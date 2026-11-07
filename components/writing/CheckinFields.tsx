@@ -18,6 +18,9 @@ import {
   corePairs,
   emotionParentsLabel,
   searchEmotions,
+  skipAwarePatch,
+  toggleSkipPatch,
+  type CheckinAnswerKey,
   type CheckinInput,
   type Emotion,
   type Need,
@@ -33,6 +36,25 @@ export function chipClass(selected: boolean, disabled = false): string {
   return `${base} border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-plum-400`;
 }
 
+/** The last chip of a question: skip it ("I'd rather not say"). Pressed once skipped; tapping again takes the skip back. */
+function SkipChip({ skipped, onToggle, readOnly }: { skipped: boolean; onToggle: () => void; readOnly: boolean }) {
+  if (readOnly && !skipped) return null;
+  return (
+    <button
+      data-track="checkin-skip"
+      type="button"
+      aria-pressed={skipped}
+      disabled={readOnly}
+      onClick={onToggle}
+      className={`${chipClass(skipped, readOnly)}${skipped ? "" : " border-dashed"}`}
+    >
+      {skipped ? "Skipped" : "Skip"}
+    </button>
+  );
+}
+
+const SKIP_VALUE = "skip";
+
 const legendClass = "text-sm font-medium text-slate-700 dark:text-slate-300 mb-2";
 
 /** A labeled 1-5 scale as a row of buttons; picking the selected point again clears it. */
@@ -42,12 +64,17 @@ export function ScalePicker({
   value,
   onChange,
   readOnly = false,
+  skipped = false,
+  onSkip,
 }: {
   label: string;
   points: readonly ScalePoint[];
   value: number | null;
   onChange: (next: number | null) => void;
   readOnly?: boolean;
+  /** Whether the question is skipped, and the toggle for it; without `onSkip` there is no skip chip. */
+  skipped?: boolean;
+  onSkip?: () => void;
 }) {
   return (
     <fieldset>
@@ -69,6 +96,7 @@ export function ScalePicker({
             </button>
           );
         })}
+        {onSkip && <SkipChip skipped={skipped} onToggle={onSkip} readOnly={readOnly} />}
       </div>
     </fieldset>
   );
@@ -81,12 +109,17 @@ export function MoodPicker({
   energy,
   onChange,
   readOnly = false,
+  skipped,
+  onSkip,
 }: {
   label: string;
   pleasant: number | null;
   energy: number | null;
   onChange: (next: { pleasant: number | null; energy: number | null }) => void;
   readOnly?: boolean;
+  /** Which of the two questions are skipped, and the toggle for each. */
+  skipped?: { pleasant: boolean; energy: boolean };
+  onSkip?: (which: "pleasant" | "energy") => void;
 }) {
   return (
     <div className="space-y-3">
@@ -97,6 +130,8 @@ export function MoodPicker({
         value={pleasant}
         onChange={(next) => onChange({ pleasant: next, energy })}
         readOnly={readOnly}
+        skipped={skipped?.pleasant}
+        onSkip={onSkip && (() => onSkip("pleasant"))}
       />
       <ScalePicker
         label={ENERGY_QUESTION}
@@ -104,6 +139,8 @@ export function MoodPicker({
         value={energy}
         onChange={(next) => onChange({ pleasant, energy: next })}
         readOnly={readOnly}
+        skipped={skipped?.energy}
+        onSkip={onSkip && (() => onSkip("energy"))}
       />
     </div>
   );
@@ -126,6 +163,7 @@ function EmotionRing({
   onPick,
   readOnly,
   track,
+  trailing,
 }: {
   label: string;
   options: readonly Emotion[];
@@ -133,6 +171,8 @@ function EmotionRing({
   onPick: (picked: Emotion) => void;
   readOnly: boolean;
   track: string;
+  /** Shown after the chips, in the same row. */
+  trailing?: React.ReactNode;
 }) {
   return (
     <div role="group" aria-label={label} className="flex flex-wrap gap-2">
@@ -152,6 +192,7 @@ function EmotionRing({
           </button>
         );
       })}
+      {trailing}
     </div>
   );
 }
@@ -167,10 +208,15 @@ export function EmotionPicker({
   onChange,
   readOnly = false,
   frequent = [],
+  skipped = false,
+  onSkip,
 }: {
   value: Emotion | null;
   onChange: (next: Emotion | null) => void;
   readOnly?: boolean;
+  /** Whether the question is skipped, and the toggle for it; without `onSkip` there is no skip chip. */
+  skipped?: boolean;
+  onSkip?: () => void;
   /** The member's most named feelings, most used first, offered as one-tap chips above the wheel. */
   frequent?: readonly Emotion[];
 }) {
@@ -211,6 +257,7 @@ export function EmotionPicker({
         onPick={(e) => onChange(value === e ? null : e)}
         readOnly={readOnly}
         track="checkin-emotion-core"
+        trailing={onSkip && <SkipChip skipped={skipped} onToggle={onSkip} readOnly={readOnly} />}
       />
       {coreEntry && (
         <div
@@ -258,11 +305,16 @@ export function NeedPicker({
   value,
   onChange,
   readOnly = false,
+  skipped = false,
+  onSkip,
 }: {
   label: string;
   value: Need | null;
   onChange: (next: Need | null) => void;
   readOnly?: boolean;
+  /** Whether the question is skipped, and the toggle for it; without `onSkip` the drop-down has no skip option. */
+  skipped?: boolean;
+  onSkip?: () => void;
 }) {
   const id = useId();
   return (
@@ -273,9 +325,14 @@ export function NeedPicker({
       <select
         id={id}
         data-track="checkin-need"
-        value={value ?? ""}
+        value={skipped ? SKIP_VALUE : (value ?? "")}
         disabled={readOnly}
-        onChange={(e) => onChange(e.target.value === "" ? null : (e.target.value as Need))}
+        onChange={(e) => {
+          const picked = e.target.value;
+          // Skip is an option of its own; choosing it or going back to the prompt flips the skip.
+          if (picked === SKIP_VALUE || (picked === "" && skipped)) onSkip?.();
+          else onChange(picked === "" ? null : (picked as Need));
+        }}
         className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
       >
         <option value="">Choose your intention…</option>
@@ -284,6 +341,7 @@ export function NeedPicker({
             {n.label} · {n.hint}
           </option>
         ))}
+        {onSkip && <option value={SKIP_VALUE}>Skip this question</option>}
       </select>
     </div>
   );
@@ -301,6 +359,7 @@ export function CheckinHalfFields({
   readOnly = false,
   past = false,
   frequentEmotions = [],
+  allowSkip = true,
 }: {
   half: "checkin" | "checkout";
   value: CheckinInput;
@@ -309,7 +368,13 @@ export function CheckinHalfFields({
   past?: boolean;
   /** The member's usual feelings, offered first in the feeling picker. */
   frequentEmotions?: readonly Emotion[];
+  /** Whether each question can be skipped. Off where the answers aren't saved as a check-in (Find a Prickle's mood step). */
+  allowSkip?: boolean;
 }) {
+  // Answering a question lifts its skip and skipping clears its answer (skipAwarePatch), the same in every form.
+  const change = (patch: Partial<CheckinInput>) => onChange(skipAwarePatch(value, patch));
+  const skip = (key: CheckinAnswerKey) => (allowSkip ? () => onChange(toggleSkipPatch(value, key)) : undefined);
+  const has = (key: CheckinAnswerKey) => value.skipped.includes(key);
   if (half === "checkin") {
     return (
       <>
@@ -317,20 +382,26 @@ export function CheckinHalfFields({
           label={past ? "Coming in, how were you feeling?" : "How are you feeling right now?"}
           pleasant={value.pleasantBefore}
           energy={value.energyBefore}
-          onChange={({ pleasant, energy }) => onChange({ pleasantBefore: pleasant, energyBefore: energy })}
+          onChange={({ pleasant, energy }) => change({ pleasantBefore: pleasant, energyBefore: energy })}
           readOnly={readOnly}
+          skipped={{ pleasant: has("pleasantBefore"), energy: has("energyBefore") }}
+          onSkip={allowSkip ? (which) => skip(which === "pleasant" ? "pleasantBefore" : "energyBefore")?.() : undefined}
         />
         <EmotionPicker
           value={value.emotionBefore}
-          onChange={(emotionBefore) => onChange({ emotionBefore })}
+          onChange={(emotionBefore) => change({ emotionBefore })}
           readOnly={readOnly}
           frequent={frequentEmotions}
+          skipped={has("emotionBefore")}
+          onSkip={skip("emotionBefore")}
         />
         <NeedPicker
           label={past ? "My intention for the session was…" : "My intention for this session"}
           value={value.need}
-          onChange={(need) => onChange({ need })}
+          onChange={(need) => change({ need })}
           readOnly={readOnly}
+          skipped={has("need")}
+          onSkip={skip("need")}
         />
       </>
     );
@@ -341,21 +412,27 @@ export function CheckinHalfFields({
         label={INTENTION_MET_QUESTION}
         points={INTENTION_MET}
         value={value.intentionMet}
-        onChange={(intentionMet) => onChange({ intentionMet })}
+        onChange={(intentionMet) => change({ intentionMet })}
         readOnly={readOnly}
+        skipped={has("intentionMet")}
+        onSkip={skip("intentionMet")}
       />
       <MoodPicker
         label="How are you feeling now?"
         pleasant={value.pleasantAfter}
         energy={value.energyAfter}
-        onChange={({ pleasant, energy }) => onChange({ pleasantAfter: pleasant, energyAfter: energy })}
+        onChange={({ pleasant, energy }) => change({ pleasantAfter: pleasant, energyAfter: energy })}
         readOnly={readOnly}
+        skipped={{ pleasant: has("pleasantAfter"), energy: has("energyAfter") }}
+        onSkip={allowSkip ? (which) => skip(which === "pleasant" ? "pleasantAfter" : "energyAfter")?.() : undefined}
       />
       <EmotionPicker
         value={value.emotionAfter}
-        onChange={(emotionAfter) => onChange({ emotionAfter })}
+        onChange={(emotionAfter) => change({ emotionAfter })}
         readOnly={readOnly}
         frequent={frequentEmotions}
+        skipped={has("emotionAfter")}
+        onSkip={skip("emotionAfter")}
       />
     </>
   );
