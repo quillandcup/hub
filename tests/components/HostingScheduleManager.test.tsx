@@ -13,10 +13,13 @@ vi.mock("@/app/(member)/hosting/actions", () => ({
   getHostingCalendarContext: vi.fn(),
 }));
 
-// HostingCalendarPicker renders CalendarWeekView, which calls useRouter().
+// HostingCalendarPicker renders CalendarWeekView, which calls useRouter(); the manager refreshes through it.
+const { refresh } = vi.hoisted(() => ({ refresh: vi.fn() }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: () => {} }),
+  useRouter: () => ({ push: () => {}, refresh }),
 }));
+
+const reload = vi.fn();
 
 beforeEach(() => {
   vi.mocked(requestToHost).mockReset();
@@ -24,12 +27,14 @@ beforeEach(() => {
   vi.mocked(withdrawMySchedule).mockReset();
   vi.mocked(getHostingCalendarContext).mockReset();
   vi.mocked(getHostingCalendarContext).mockResolvedValue({ prickles: [], proposedSlots: [] });
-  // handleChanged() calls window.location.reload(); stub it so jsdom doesn't
-  // throw "Not implemented: navigation".
+  // handleChanged() refreshes in place; it must never reload (a reload cancels the server action's response, which
+  // Firefox and Safari report as "Error in input stream" / "Load failed"). jsdom can't navigate, so stub it to count.
+  refresh.mockReset();
+  reload.mockReset();
   // @ts-expect-error -- test stub
   delete window.location;
   // @ts-expect-error -- test stub
-  window.location = { reload: vi.fn() };
+  window.location = { reload };
 });
 
 const prickleTypes = [{ id: "type-a", name: "Progress Prickle" }];
@@ -151,6 +156,10 @@ describe("HostingScheduleManager", () => {
     expect(requestToHost).toHaveBeenCalledWith(
       expect.objectContaining({ month: nextMonth, typeId: "type-a", recurrenceType: "weekly", dayOfWeek: 1 })
     );
+    // Refreshes the page's data in place, and the request form closes (the reload used to do that).
+    expect(refresh).toHaveBeenCalledOnce();
+    expect(reload).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Request to host for October 2026/)).not.toBeInTheDocument();
   });
 
   it("shows an error inline when the request fails", async () => {
@@ -162,6 +171,7 @@ describe("HostingScheduleManager", () => {
     await userEvent.click(screen.getByRole("button", { name: "Submit request" }));
 
     expect(await screen.findByText("This month is locked")).toBeInTheDocument();
+    expect(refresh).not.toHaveBeenCalled();
   });
 
   it("renders an existing schedule with its status and disables actions for a locked month", () => {
@@ -184,5 +194,7 @@ describe("HostingScheduleManager", () => {
     await userEvent.click(screen.getByRole("button", { name: "Withdraw" }));
 
     expect(withdrawMySchedule).toHaveBeenCalledWith("s2");
+    expect(refresh).toHaveBeenCalledOnce();
+    expect(reload).not.toHaveBeenCalled();
   });
 });
