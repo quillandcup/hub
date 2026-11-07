@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as actions from "@/app/(member)/projects/actions";
 import ProjectDetailClient from "@/app/(member)/projects/[id]/ProjectDetailClient";
@@ -155,7 +155,7 @@ describe("goal row controls on the project page", () => {
     render(<ProjectDetailClient project={{ ...project, showOnProfile: true, goals: [goals[2]] }} entries={[]} archivedGoals={[]} />);
     await userEvent.click(screen.getAllByRole("button", { name: "Show on my profile" })[0]);
     expect(actions.toggleProjectVisibility).toHaveBeenCalledWith("wpr_AAAAAAAAAAA1", false);
-    expect(reload).toHaveBeenCalled();
+    await waitFor(() => expect(reload).toHaveBeenCalled());
   });
 
   it("starts a new goal on the profile when its project is on the profile, and off when it is not", async () => {
@@ -180,6 +180,7 @@ describe("goal row controls on the project page", () => {
     renderMissedOnly();
     await userEvent.click(screen.getAllByRole("button", { name: "Show on my profile" })[0]);
     expect(actions.toggleProjectVisibility).toHaveBeenCalledWith("wpr_AAAAAAAAAAA1", true);
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "Show on my profile" })[0]).toHaveAttribute("aria-pressed", "true"));
     expect(reload).not.toHaveBeenCalled();
   });
 
