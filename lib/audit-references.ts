@@ -36,13 +36,15 @@ export async function withReferenceNames(supabase: SupabaseClient, rows: Activit
   const userIds = ids.filter((i) => UUID_RE.test(i));
   const prickleIds = ids.filter((i) => isId(i, "prkl"));
   const typeIds = ids.filter((i) => isId(i, "prty"));
+  const eventIds = ids.filter((i) => isId(i, "evt"));
 
   const memberByUser = userIds.length > 0 ? await repos.members.idsByUserId(userIds) : new Map<string, string>();
   const allMemberIds = [...new Set([...memberIds, ...memberByUser.values()])];
-  const [members, prickles, types] = await Promise.all([
+  const [members, prickles, types, events] = await Promise.all([
     allMemberIds.length > 0 ? repos.members.byIds(allMemberIds) : Promise.resolve([]),
     prickleIds.length > 0 ? repos.prickles.byIds(prickleIds) : Promise.resolve([]),
     typeIds.length > 0 ? repos.prickles.types() : Promise.resolve([]),
+    eventIds.length > 0 ? repos.events.byIds(eventIds) : Promise.resolve([]),
   ]);
 
   const memberRef = new Map<string, ResolvedRef>();
@@ -58,6 +60,8 @@ export async function withReferenceNames(supabase: SupabaseClient, rows: Activit
       href: `/admin/prickles/${p.id}`,
     };
   }
+  // The admin event page is addressed by slug (chosen by people, not an id).
+  for (const e of events) refs[e.id] = { label: e.title, href: `/admin/events/${e.slug}` };
   for (const t of types) if (typeIds.includes(t.id)) refs[t.id] = { label: t.name };
 
   return rows.map((r) => (r.kind === "audit" ? { ...r, refs } : r));

@@ -1,4 +1,5 @@
 import { changedFields, formatValue, type ActivityFeedRow, type ResolvedRef } from "@/lib/activity-feed";
+import { formatDateTime } from "@/lib/formatters";
 import { isId } from "@/lib/ids";
 
 /** Client-safe half of audit-references: what to show for a row's details. */
@@ -43,8 +44,11 @@ function resolveValue(v: unknown, refs: Record<string, ResolvedRef>): ResolvedVa
     const ref = refs[v];
     return ref ? { text: ref.label, href: ref.href } : "unresolved";
   }
+  if (typeof v === "string" && ISO_INSTANT.test(v)) return { text: formatDateTime(v) };
   return { text: formatValue(v) };
 }
+
+const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 
 /** The lines to show for an audit row's details: hidden fields and unresolvable ids dropped, ids replaced by names. */
 export function detailLines(row: ActivityFeedRow): DetailLine[] {
@@ -55,6 +59,9 @@ export function detailLines(row: ActivityFeedRow): DetailLine[] {
     const o = resolveValue(change.old, refs);
     const n = resolveValue(change.new, refs);
     if (o === "unresolved" || n === "unresolved") continue;
+    // Nothing set before or after (a column left empty on an insert): nothing to read.
+    if (o === null && n === null) continue;
+    if (row.event_type === "insert" && n === null) continue;
     lines.push({ field, label: fieldLabel(field), old: o, new: n });
   }
   return lines;

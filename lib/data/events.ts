@@ -1,6 +1,7 @@
 import { ORG_TIMEZONE } from "@/lib/config";
 import type { TicketInput, TicketSource } from "@/lib/event-tickets";
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
+import { inChunks } from "./query";
 import type { Db, Insert, Row, Update } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 import type { Prickle } from "./prickles";
@@ -166,6 +167,8 @@ export interface EventRepository {
   listWithPhotoCounts(): Promise<EventWithPhotoCount[]>;
   /** One event by id with its schedule, or null. */
   byId(id: string): Promise<EventDetail | null>;
+  /** Several events by id in one go (ids that match nothing are left out); for showing names where only ids are stored. */
+  byIds(ids: string[]): Promise<EventDetail[]>;
   /** One event by slug with its schedule (a hidden one included), or null: the admin page's address. */
   bySlug(slug: string): Promise<EventDetail | null>;
   /** Creates an event (it needs `prickle_id`) and returns it with its schedule. */
@@ -487,6 +490,14 @@ export class SupabaseEventRepository implements EventRepository {
       (from, to) => this.db.from("community_event_details").select("*, event_photos(id, hidden_at)").order("starts_at", { ascending: false }).order("id").range(from, to).overrideTypes<Embedded[], { merge: false }>() // view columns are all nullable in the generated types
     );
     return rows.map(({ event_photos, ...event }) => ({ ...event, photo_count: (event_photos ?? []).filter((p) => !p.hidden_at).length }));
+  }
+
+  async byIds(ids: string[]) {
+    return inChunks(ids, 100, async (part) => {
+      const { data, error } = await this.db.from("community_event_details").select("*").in("id", part).overrideTypes<EventDetail[], { merge: false }>();
+      if (error) throw new Error(error.message);
+      return data;
+    });
   }
 
   async byId(id: string) {
@@ -843,6 +854,11 @@ export class InMemoryEventRepository implements EventRepository {
       ...e,
       photo_count: this.data.eventPhotos.filter((p) => p.event_id === e.id && !p.hidden_at).length,
     }));
+  }
+
+  async byIds(ids: string[]) {
+    const wanted = new Set(ids);
+    return this.data.events.filter((e) => wanted.has(e.id)).flatMap((e) => eventDetail(this.data, e) ?? []);
   }
 
   async byId(id: string) {
