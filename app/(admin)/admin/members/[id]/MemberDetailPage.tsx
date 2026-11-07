@@ -29,9 +29,6 @@ import { getMemberBadges } from "@/lib/badges";
 import { MEMBER_TAB_LABELS, type MemberTabId } from "./tabs";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { tabTitle } from "@/lib/tab-routes";
-import { loadPushDevices } from "@/lib/channels/web-push";
-import { describeDevice } from "@/lib/device-label";
-import { createServiceRoleClient } from "@/lib/supabase/service";
 import * as Sentry from "@sentry/nextjs";
 import { fetchActivityFeed, parseFeedFilters, MEMBER_DEFAULTS, type FeedPage, type ActivityFeedRow } from "@/lib/activity-feed";
 import { traced } from "@/lib/query-trace";
@@ -57,7 +54,7 @@ export function memberTabMetadata(tab: MemberTabId) {
  * /admin/members/<id>/<tab> route with that tab open. Every tab's data loads here, so switching
  * tabs is instant. Callers have already run requireStaffPage() (or requireAdminPage() for an admin-only tab).
  * A community manager sees the profile read-only: no sudo, merge, split, remove, notes, billing links or
- * override reasons, and no push devices (each a staff feature, `can()` below).
+ * override reasons, (each a staff feature, `can()` below).
  */
 export default async function MemberDetailPage({
   id,
@@ -86,14 +83,6 @@ export default async function MemberDetailPage({
   if (!memberRow) {
     notFound();
   }
-
-  // Devices this member gets Browser notifications on (the table holds push credentials, so service
-  // role, after the admin check the callers ran). Only the labels leave this function.
-  const pushDeviceLabels = !can("member.push_devices")
-    ? []
-    : await loadPushDevices(createServiceRoleClient(), id)
-        .then((devices) => devices.map((d) => describeDevice(d.userAgent)))
-        .catch(() => []);
 
   // Fetch all attendance records for this member with prickle details
   const attendance = (await traced("member page: attendance", () => createRepos(supabase).attendance.forMemberWithPrickles(id), { memberId: id })).map(attendedPrickleRow);
@@ -351,12 +340,6 @@ export default async function MemberDetailPage({
       </header>
 
       <main className="container mx-auto px-6 py-8 space-y-6">
-        {pushDeviceLabels.length > 0 && (
-          <p className="text-sm text-slate-600 dark:text-slate-400">
-            Browser notifications on {pushDeviceLabels.length} {pushDeviceLabels.length === 1 ? "device" : "devices"}:{" "}
-            {pushDeviceLabels.join(", ")}
-          </p>
-        )}
         <MemberDetails
           key={tab}
           initialTab={tab}

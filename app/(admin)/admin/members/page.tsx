@@ -18,7 +18,7 @@ import { requireStaffPage } from "@/lib/admin-auth";
 import { staffCan } from "@/lib/staff-access";
 
 export const metadata: Metadata = {
-  title: "Member Analytics",
+  title: "All Members",
 };
 
 type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
@@ -63,7 +63,7 @@ export default async function MembersPage({
           <Link href="/admin" className="text-plum-600 hover:text-plum-700 dark:text-plum-400 text-sm mb-2 inline-block">
             ← Back to Dashboard
           </Link>
-          <h1 className="text-2xl font-bold">Member Analytics</h1>
+          <h1 className="text-2xl font-bold">All Members</h1>
         </div>
       </header>
 
