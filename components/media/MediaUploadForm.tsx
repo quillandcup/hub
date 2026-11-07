@@ -135,7 +135,7 @@ export default function MediaUploadForm({
         }}
         className={`rounded border-2 border-dashed p-6 text-center text-sm ${dragging ? "border-plum-500 bg-plum-50 dark:bg-plum-900/20" : "border-gray-300 dark:border-slate-700"}`}
       >
-        {file && preview && !previewFailed && (
+        {file && preview?.startsWith("blob:") && !previewFailed && (
           // eslint-disable-next-line @next/next/no-img-element -- a local blob preview
           <img src={preview} alt={`Preview of ${file.name}`} onError={() => setPreviewFailed(true)} className="mx-auto mb-2 max-h-48 max-w-full rounded border border-gray-200 dark:border-slate-700" />
         )}
