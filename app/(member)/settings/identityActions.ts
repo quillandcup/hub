@@ -8,7 +8,8 @@ import { getEffectiveIdentity } from "@/lib/sudo";
 import { triggerReprocessing } from "@/lib/processing/trigger";
 import { createKajabiClient } from "@/lib/kajabi/client";
 import { revalidatePath } from "next/cache";
-import { SUPPORT_EMAIL } from "@/lib/config";
+import { APP_URL, SUPPORT_EMAIL } from "@/lib/config";
+import { clock } from "@/lib/clock";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { changePrimaryEmail, normalizeEmail } from "@/lib/member-email";
 import { sendVerificationEmail } from "@/lib/email-verification";
@@ -308,16 +309,72 @@ async function resendEmailVerificationImpl(aliasId: string): Promise<{ success: 
   return sent.ok ? { success: true } : { error: sent.error };
 }
 
+/** How recently the member must have signed in (a link or a code, not just an open session) to switch their primary email. */
+const REAUTH_WINDOW_MS = 10 * 60_000;
+
+async function hasRecentSignIn(supabase: Awaited<ReturnType<typeof createClient>>): Promise<boolean> {
+  // The user record, not the token: only it carries when they last signed in (CLAUDE.md, "Auth lookups in server code").
+  const { data } = await supabase.auth.getUser();
+  const lastSignInAt = data.user?.last_sign_in_at;
+  return Boolean(lastSignInAt) && clock.now() - Date.parse(lastSignInAt!) <= REAUTH_WINDOW_MS;
+}
+
+/** Whether they have signed in recently enough to switch their primary email; the page asks after they come back from the email link. */
+export async function loadRecentSignIn(): Promise<{ recent: boolean }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx || ctx.effectiveIdentity.isSudo) return { recent: false };
+  return { recent: await hasRecentSignIn(ctx.supabase) };
+}
+
+/**
+ * Emails a fresh sign-in (a link and a code) to the address they sign in with, so a session someone else
+ * left open can't switch the primary email without access to that inbox. Only ever the signed-in account's own address.
+ */
+async function sendReauthCodeImpl(): Promise<{ success: true; sentTo: string } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  if (ctx.effectiveIdentity.isSudo) return { error: "Switch back to your own account to do this." };
+  const user = await getCurrentUser();
+  if (!user?.email) return { error: "Not authenticated" };
+
+  const { error } = await ctx.supabase.auth.signInWithOtp({
+    email: user.email,
+    options: { shouldCreateUser: false, emailRedirectTo: `${APP_URL}/auth/callback?next=/settings/identity` },
+  });
+  if (error) {
+    return { error: error.code === "over_email_send_rate_limit" ? "We just sent one. Check your inbox (and spam), or try again in a minute." : "Couldn't send the code. Try again in a minute." };
+  }
+  return { success: true, sentTo: user.email };
+}
+
+/** The code from that email. Signs the member in again (their own account: the address is the signed-in user's, never typed). */
+async function verifyReauthCodeImpl(code: string): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  if (ctx.effectiveIdentity.isSudo) return { error: "Switch back to your own account to do this." };
+  const user = await getCurrentUser();
+  if (!user?.email) return { error: "Not authenticated" };
+
+  const token = code.replace(/\s+/g, "");
+  if (!/^\d{6,8}$/.test(token)) return { error: "Enter the code from the email, digits only." };
+
+  const { error } = await ctx.supabase.auth.verifyOtp({ email: user.email, token, type: "email" });
+  if (error) return { error: "That code didn't work. It may have expired or been replaced by a newer email. Send a new one." };
+  return { success: true };
+}
+
 /**
  * Switches the primary email (and the address they sign in with) to one of their own confirmed
  * addresses. The old primary stays on as a confirmed alias. `lib/member-email.ts` does the moving.
  */
-async function makeEmailPrimaryImpl(aliasId: string): Promise<{ success: true } | { error: string }> {
+async function makeEmailPrimaryImpl(aliasId: string): Promise<{ success: true } | { error: string } | { needsReauth: true }> {
   const ctx = await requireIdentity();
   if ("error" in ctx) return ctx;
   const { effectiveIdentity } = ctx;
   // In sudo the signed-in account is the admin's, and the member's email is theirs to change.
   if (effectiveIdentity.isSudo) return { error: "Switch back to your own account to do this." };
+  // An open session isn't enough: they must have signed in again lately (the page asks for a code, then retries).
+  if (!(await hasRecentSignIn(ctx.supabase))) return { needsReauth: true };
 
   // Service role from here: the checks below are the authorization, and the alias writes need it (verification is server-only).
   const service = createServiceRoleClient();
@@ -364,7 +421,16 @@ export async function resendEmailVerification(...args: Parameters<typeof resendE
 }
 
 export async function makeEmailPrimary(...args: Parameters<typeof makeEmailPrimaryImpl>): ReturnType<typeof makeEmailPrimaryImpl> {
-  return withAction("email_made_primary", () => makeEmailPrimaryImpl(...args));
+  // Asking for a sign-in first is not a switch: only a result with `success` counts as one.
+  return withAction("email_made_primary", () => makeEmailPrimaryImpl(...args), (result) => ({ ok: "success" in result }));
+}
+
+export async function sendReauthCode(...args: Parameters<typeof sendReauthCodeImpl>): ReturnType<typeof sendReauthCodeImpl> {
+  return withAction("reauth_code_sent", () => sendReauthCodeImpl(...args));
+}
+
+export async function verifyReauthCode(...args: Parameters<typeof verifyReauthCodeImpl>): ReturnType<typeof verifyReauthCodeImpl> {
+  return withAction("reauth_code_verified", () => verifyReauthCodeImpl(...args));
 }
 
 export async function addEmailAlias(...args: Parameters<typeof addEmailAliasImpl>): ReturnType<typeof addEmailAliasImpl> {

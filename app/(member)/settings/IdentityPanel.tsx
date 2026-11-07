@@ -14,6 +14,7 @@ import {
   type IdentitySettings,
 } from "./identityActions";
 import { SUPPORT_EMAIL } from "@/lib/config";
+import ReauthModal from "./ReauthModal";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -96,6 +97,8 @@ export function IdentityPanel() {
   const [emailAliasInput, setEmailAliasInput] = useState("");
   const [addingEmailAlias, setAddingEmailAlias] = useState(false);
   const [busyEmailAliasId, setBusyEmailAliasId] = useState<string | null>(null);
+  /** The address waiting for a fresh sign-in before it can become the primary email. */
+  const [reauthForAliasId, setReauthForAliasId] = useState<string | null>(null);
   const [savingDisplayName, setSavingDisplayName] = useState(false);
   const [customDisplayName, setCustomDisplayNameInput] = useState<string | null>(null);
 
@@ -231,7 +234,10 @@ export function IdentityPanel() {
     setError(null);
     setMessage(null);
     const result = await (action === "resend" ? resendEmailVerification(aliasId) : makeEmailPrimary(aliasId));
-    if ("error" in result) {
+    if ("needsReauth" in result) {
+      // An open session isn't enough: sign in again with a code, then this runs again.
+      setReauthForAliasId(aliasId);
+    } else if ("error" in result) {
       setError(result.error);
     } else {
       setMessage(
@@ -242,6 +248,12 @@ export function IdentityPanel() {
       await load();
     }
     setBusyEmailAliasId(null);
+  }
+
+  function handleReauthVerified() {
+    const aliasId = reauthForAliasId;
+    setReauthForAliasId(null);
+    if (aliasId) void handleEmailAliasAction(aliasId, "primary");
   }
 
   if (loading) {
@@ -259,6 +271,8 @@ export function IdentityPanel() {
 
   return (
     <div className="space-y-8">
+      <ReauthModal isOpen={reauthForAliasId !== null} onClose={() => setReauthForAliasId(null)} onVerified={handleReauthVerified} />
+
       {(error || message) && (
         <div role="status" className="text-sm">
           {error && <span className="text-red-600 dark:text-red-400">{error}</span>}

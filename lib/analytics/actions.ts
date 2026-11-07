@@ -84,6 +84,8 @@ export const OUTCOME_ACTIONS = [
   "email_alias_added",
   "email_verification_sent",
   "email_made_primary",
+  "reauth_code_sent",
+  "reauth_code_verified",
   "slack_disconnected",
   // Outreach
   "prospects_imported",
