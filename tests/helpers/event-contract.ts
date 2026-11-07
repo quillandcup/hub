@@ -129,6 +129,8 @@ export function defineEventContract(name: string, setup: () => EventContractCont
 
         expect(await repo.byId(made.id)).toMatchObject({ id: made.id, title: "Open House" });
         expect(await repo.byId(NONE)).toBeNull();
+        expect((await repo.byIds([made.id, NONE])).map((e) => e.id)).toEqual([made.id]);
+        expect(await repo.byIds([])).toEqual([]);
         expect(await repo.bySlug(made.slug)).toMatchObject({ id: made.id, title: "Open House" });
         expect(await repo.bySlug("no-such-slug")).toBeNull();
 

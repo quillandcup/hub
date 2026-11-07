@@ -9,9 +9,11 @@ const byIds = vi.fn(async (ids: string[]) => ids.map((id) => ({ id, name: "Ada L
 const prickleByIds = vi.fn(async (ids: string[]) =>
   ids.map((id) => ({ id, title: null, startTime: "2097-03-02T15:00:00Z", type: { id: "prty_AAAAAAAAAAA1", name: "Sprint" } }))
 );
+const eventByIds = vi.fn(async (ids: string[]) => ids.map((id) => ({ id, slug: "open-house", title: "Open House" })));
 vi.mock("@/lib/data/repos", () => ({
   createRepos: () => ({
     members: { byIds, idsByUserId: async () => new Map([[USER, "mbr_AAAAAAAAAAA1"]]) },
+    events: { byIds: eventByIds },
     prickles: { byIds: prickleByIds, types: async () => [{ id: "prty_AAAAAAAAAAA1", name: "Sprint" }] },
   }),
 }));
@@ -57,7 +59,7 @@ describe("audit references", () => {
     const lines = detailLines(resolved);
     const by = Object.fromEntries(lines.map((l) => [l.field, l.new]));
     expect(by.id).toBeUndefined();
-    expect(by.event_id).toBeUndefined();
+    expect(by.event_id).toEqual({ text: "Open House", href: "/admin/events/open-house" });
     expect(by.created_by).toEqual({ text: "Ada Example", href: "/admin/members/mbr_AAAAAAAAAAA1" });
     expect(by.member_id?.text).toBe("Ada Example");
     expect(by.prickle_id?.href).toBe("/admin/prickles/prkl_AAAAAAAAAAA1");
@@ -65,6 +67,12 @@ describe("audit references", () => {
     expect(by.type_id).toEqual({ text: "Sprint" });
     expect(by.note).toEqual({ text: "hello" });
     expect(lines.find((l) => l.field === "created_by")?.label).toBe("added by");
+  });
+
+  it("hides empty values on an insert and shows timestamps as dates", () => {
+    const lines = detailLines(row({ timezone: null, enabled_at: "2026-11-03T13:36:16.84066+00:00" }));
+    expect(lines.map((l) => l.field)).toEqual(["enabled_at"]);
+    expect(lines[0].new?.text).not.toContain("T13:36");
   });
 
   it("does no lookups when no row references anything", async () => {
