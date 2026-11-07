@@ -90,9 +90,14 @@ export function InstallAppPrompt() {
       tone="info"
       aria-label="Install the Hub"
       dismiss={{ dismissKey: DISMISSED_KEY, scope: "device", variant: "icon", label: "Not now", track: "install-app-dismiss" }}
-      action={{ label: open ? "Hide" : "How", track: "install-app-how", onClick: () => setOpen((o) => !o) }}
+      compact
+      action={{ label: open ? "Hide" : "How", quiet: true, track: "install-app-how", onClick: () => setOpen((o) => !o) }}
     >
-      <div className="font-medium">Add the Hub to your Home Screen for notifications</div>
+      <div className="flex items-center gap-3">
+        {/* eslint-disable-next-line @next/next/no-img-element -- a 40px app icon, same file as the manifest's */}
+        <img src="/billiebot-192.png" alt="" width={40} height={40} className="size-10 shrink-0 rounded-lg" />
+        <div className="font-medium leading-snug">Add the Hub to your Home Screen for notifications</div>
+      </div>
       {open && <InstallSteps />}
     </AnnouncementBar>
   );
