@@ -7,7 +7,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(16);
+SELECT plan(17);
 
 -- Writer (whose profile is viewed) and a regular member viewing it. Fixed ids nothing else uses.
 INSERT INTO public.members (id, name, email, joined_at, status) VALUES
@@ -115,6 +115,8 @@ SELECT is(
 SELECT ok(
   NOT has_function_privilege('anon', 'public.get_profile_writing(text)', 'EXECUTE'),
   'anon can''t call it');
+
+SELECT hasnt_function('public', 'writing_project_hides_goals', 'the trigger function that cleared goals on hide is gone');
 
 SELECT * FROM finish(true);
 ROLLBACK;
