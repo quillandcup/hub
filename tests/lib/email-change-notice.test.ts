@@ -10,7 +10,7 @@ beforeEach(() => sendEmail.mockReset().mockResolvedValue(undefined));
 
 describe("sendPrimaryEmailChangedNotice", () => {
   it("tells the new address what to sign in with and the old one it no longer works, tagged for the member's timeline", async () => {
-    await sendPrimaryEmailChangedNotice("mbr_AAAAAAAAAAA1", "old@example.com", "new@example.com");
+    await sendPrimaryEmailChangedNotice("mbr_AAAAAAAAAAA1", "old@example.com", "new@example.com", "admin");
 
     const byTo = new Map(sendEmail.mock.calls.map(([mail]) => [mail.to, mail]));
     expect([...byTo.keys()].sort()).toEqual(["new@example.com", "old@example.com"]);
@@ -23,11 +23,21 @@ describe("sendPrimaryEmailChangedNotice", () => {
     expect(byTo.get("old@example.com")!.text).toContain("You can no longer sign in with old@example.com");
   });
 
+  it("says the member did it themselves, and tells the real owner to write in right away if it wasn't them", async () => {
+    await sendPrimaryEmailChangedNotice("mbr_AAAAAAAAAAA1", "old@example.com", "new@example.com", "member");
+
+    for (const [mail] of sendEmail.mock.calls) {
+      expect(mail.text).toContain("changed from old@example.com to new@example.com from a signed-in session");
+      expect(mail.text).toContain(`If you didn't do this, email ${SUPPORT_EMAIL} right away`);
+      expect(mail.text).not.toContain("admin");
+    }
+  });
+
   it("still sends to the other address, and doesn't throw, when one send fails", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     sendEmail.mockRejectedValueOnce(new Error("Resend is down"));
 
-    await expect(sendPrimaryEmailChangedNotice("mbr_AAAAAAAAAAA1", "old@example.com", "new@example.com")).resolves.toBeUndefined();
+    await expect(sendPrimaryEmailChangedNotice("mbr_AAAAAAAAAAA1", "old@example.com", "new@example.com", "admin")).resolves.toBeUndefined();
     expect(sendEmail).toHaveBeenCalledTimes(2);
   });
 });

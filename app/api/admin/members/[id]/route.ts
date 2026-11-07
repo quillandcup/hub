@@ -220,7 +220,7 @@ async function changeEmail(supabase: SupabaseClient, member: MemberRow, input: s
   member.email = address;
   scheduleAliasReprocess();
   // Never silent: both addresses are told, after the response.
-  after(() => sendPrimaryEmailChangedNotice(member.id, previous, address));
+  after(() => sendPrimaryEmailChangedNotice(member.id, previous, address, "admin"));
   return null;
 }
 
