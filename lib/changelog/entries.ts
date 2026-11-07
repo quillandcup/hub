@@ -2513,7 +2513,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     summary:
       "A goal on your profile always showed its project's title and progress, so now the project is on your profile whenever the goal is, and new projects start out on your profile.",
     body: [
-      "Showing a goal on your profile already showed the project it belongs to, with its title and how far along you are. We stopped treating them as two separate choices. Turning a goal on now puts its project on your profile too, and taking a project off your profile takes its goals off with it.",
+      "Showing a goal on your profile already showed the project it belongs to, with its title and how far along you are. We stopped treating them as two separate choices. Turning a goal on now puts its project on your profile too, and taking a project off your profile takes its goals off with it, until you put the project back.",
       "New projects start out on your profile, and a new goal starts the same way as its project. You can still turn either off on the project page.",
       "If you had a goal on your profile but not its project, the project is on your profile now. Take it off from the project page if you would rather keep it to yourself.",
       "We also fixed a mismatch where a goal on your profile could show less progress than your dashboard. Your profile now counts the words you started with, like your dashboard does.",
