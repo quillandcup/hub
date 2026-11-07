@@ -19,7 +19,8 @@ export type EventType = (typeof EVENT_TYPES)[number];
 const EDUCATIONAL_PRICKLE_TYPE = "educational";
 
 /** The kind an event starts as when it is made from a prickle of this type (an admin can change it on the event). */
-export function prickleEventKind(typeNormalizedName: string | null | undefined): EventType {
+export function prickleEventKind(typeNormalizedName: string | null | undefined, title?: string | null): EventType {
+  if (title && /\bvirtual\s+retreat\b/i.test(title)) return "virtual_retreat";
   return typeNormalizedName === EDUCATIONAL_PRICKLE_TYPE ? "educational" : "session";
 }
 
