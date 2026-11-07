@@ -18,7 +18,7 @@ export interface SettingsSection {
 export const SETTINGS_SECTIONS: SettingsSection[] = [
   { tab: "account", id: "account-information", title: "Account information", keywords: ["email", "address"] },
   { tab: "account", id: "slack-connect-heading", title: "Slack", keywords: ["connect", "sign in", "link"] },
-  { tab: "account", id: "active-sessions", title: "Active sessions", keywords: ["sign out", "logout", "devices", "revoke", "browsers"] },
+  { tab: "account", id: "active-sessions", title: "Devices", keywords: ["active sessions", "sessions", "sign out", "logout", "devices", "revoke", "browsers"] },
 
   { tab: "profile", id: "profile-bio", title: "Bio", keywords: ["about", "about me", "introduce"] },
   { tab: "profile", id: "profile-ask-me-about", title: "Ask me about", keywords: ["topics", "interests"] },

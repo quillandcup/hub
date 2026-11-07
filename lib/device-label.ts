@@ -38,6 +38,52 @@ export function describeDevice(userAgent: string | null): string {
 }
 
 /**
+ * A fuller name for the Devices list, built from the raw string, client-safe: browser and version, then the
+ * operating system, with the iOS or Android version on phones and tablets: "Chrome 156 on macOS",
+ * "Safari on iPhone (iOS 18.7)", "Firefox 126 on Windows". Browsers freeze the macOS and Windows versions in the
+ * string, so those are never shown. Safari's own version is left out on iOS, where it is the iOS version.
+ */
+export function describeSessionDevice(userAgent: string | null | undefined): string {
+  if (!userAgent) return "Unknown device";
+  const first = (re: RegExp) => re.exec(userAgent)?.[1];
+  const ios = /iPhone|iPad|iPod/.test(userAgent);
+
+  const name = describeDevice(userAgent).split(" on ")[0];
+  const known = ["Edge", "Firefox", "Chrome", "Safari"].includes(name);
+  const version =
+    name === "Edge"
+      ? first(/(?:EdgiOS|Edg|Edge)\/(\d+)/)
+      : name === "Firefox"
+        ? first(/(?:FxiOS|Firefox)\/(\d+)/)
+        : name === "Chrome"
+          ? first(/(?:CriOS|Chrome)\/(\d+)/)
+          : name === "Safari" && !ios
+            ? first(/Version\/(\d+)/)
+            : undefined;
+  const browser = known ? (version ? `${name} ${version}` : name) : null;
+
+  let place: string | null = null;
+  if (/iPhone/.test(userAgent)) place = "iPhone";
+  else if (/iPad/.test(userAgent)) place = "iPad";
+  else if (/Android/.test(userAgent)) place = "Android";
+  else if (/Windows/.test(userAgent)) place = "Windows";
+  else if (/Mac OS X|Macintosh/.test(userAgent)) place = "macOS";
+  else if (/CrOS/.test(userAgent)) place = "ChromeOS";
+  else if (/Linux/.test(userAgent)) place = "Linux";
+
+  if (ios) {
+    const v = first(/OS (\d+(?:_\d+)*) like Mac OS X/) ?? first(/CPU OS (\d+(?:_\d+)*)/);
+    if (v && place) place = `${place} (iOS ${v.replace(/_/g, ".")})`;
+  } else if (place === "Android") {
+    const v = first(/Android (\d+(?:\.\d+)*)/);
+    if (v) place = `Android ${v}`;
+  }
+
+  if (browser && place) return `${browser} on ${place}`;
+  return browser ?? place ?? "Unknown device";
+}
+
+/**
  * What we keep of a browser's user-agent string once the string itself is gone (it is removed after
  * `RETENTION.rawNetworkDays`, see lib/retention.ts): the browser and operating system, with versions
  * where the string honestly carries them, and the kind of device. Parsed once, when a request is

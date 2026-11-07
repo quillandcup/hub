@@ -2530,4 +2530,16 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "You can read it under Also good to know on the privacy page: your projects, goals, progress and books are never sent to an AI service, and we don't use them to train or run one.",
     ].join("\n\n"),
   },
+  {
+    slug: "settings-devices-list",
+    date: "2026-11-07",
+    audience: "product",
+    category: "improved",
+    title: "Your signed-in devices are easier to recognize",
+    summary: "In Settings, Devices now names each one, like Chrome 156 on macOS or Safari on iPhone (iOS 18.7), so you can tell which to log out.",
+    body: [
+      "The old Active Sessions list showed a long block of browser code. It is now called Devices and shows a plain name for each device, when it was last used, and a Log out button. The device you are on is marked This device.",
+      "Every device is listed. If you have more than five, a Show more button under the list reveals the rest.",
+    ].join("\n\n"),
+  },
 ];
