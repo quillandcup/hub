@@ -3,7 +3,7 @@ import { resolve } from "path";
 import { describe, expect, it } from "vitest";
 import { buildTemplates } from "../../scripts/_email-templates";
 
-const SUBJECT = "{{ .Token }} is your Hedgie Hub verification code";
+const SUBJECT = "Hedgie Hub – {{ .Token }} is your verification code";
 
 describe("sign-in code email (Gmail 'Copy code')", () => {
   it("leads the subject with the code, in the template list and in config.toml", async () => {
@@ -17,7 +17,7 @@ describe("sign-in code email (Gmail 'Copy code')", () => {
     const magic = (await buildTemplates()).find((t) => t.name === "magic_link")!;
     expect(magic.html).toMatch(/font-size:36px[^"]*">\{\{ \.Token \}\}<\/p>/);
     expect(magic.html).toContain("verification code");
-    expect(magic.html).toContain("Your code is:");
+    expect(magic.html).toContain("This is your unique code");
   });
 
   it("keeps the committed supabase/templates/magic_link.html in sync (run pnpm templates:render)", async () => {

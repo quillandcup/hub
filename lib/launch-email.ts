@@ -20,7 +20,7 @@ import type { MemberRepository } from "@/lib/data/members";
 
 export const LAUNCH_SENT_MARK = "launch_email_sent_at";
 /** The code leads the subject, the shape Gmail recognises as a verification code ("Copy code"). */
-export const launchEmailSubject = (code: string) => `${code} is your Hedgie Hub verification code`;
+export const launchEmailSubject = (code: string) => `Hedgie Hub – ${code} is your verification code`;
 export const LAUNCH_SIGN_IN_URL = `${APP_URL}/login?mode=code`;
 
 export type LaunchSend = (mail: { to: string; subject: string; html: string; text: string }) => Promise<void>;
