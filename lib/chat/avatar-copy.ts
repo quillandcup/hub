@@ -22,8 +22,8 @@ export interface AvatarCopyResult {
 }
 
 /**
- * Copies the photos that have no copy yet (or changed), and removes the copies of users who were deactivated or took
- * their photo down. One failure leaves that user on Slack's URL and the rest go on; the next run tries again.
+ * Copies the photos that have no copy yet (or changed; a deactivated user's too, since former members still show in
+ * the directory and chat history), and removes the copy of a user whose photo Slack dropped. One failure leaves that user on Slack's URL and the rest go on; the next run tries again.
  * `storage` must be a service-role client.
  */
 export async function copySlackAvatars(storage: SupabaseClient, fetchImage: typeof fetch = fetch): Promise<AvatarCopyResult> {

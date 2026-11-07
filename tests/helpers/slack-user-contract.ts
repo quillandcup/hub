@@ -99,12 +99,12 @@ export function defineSlackUserContract(name: string, setup: () => SlackUserCont
       expect((await ctx.repo().byEmails(["fresh@example.test"])).map((r) => r.real_name)).toEqual(["Fresh"]);
     });
 
-    it("lists the photos still to copy, records a copy until the photo changes, and lists copies to remove", async () => {
+    it("lists the photos still to copy (deactivated users too), records a copy until the photo changes, and lists copies to remove", async () => {
       const [fresh, copied, noPhoto, deactivated, gone] = [user("fresh"), user("copied"), user("nophoto", { image_url: null }), user("deactivated", { is_deleted: true }), user("gone")];
       await ctx.seed([fresh, copied, noPhoto, deactivated, gone]);
       const mine = async () => (await ctx.repo().photosToCopy()).filter((p) => [fresh, copied, noPhoto, deactivated, gone].some((u) => u.user_id === p.user_id));
 
-      expect((await mine()).map((p) => p.user_id).sort()).toEqual([fresh.user_id, copied.user_id, gone.user_id].sort());
+      expect((await mine()).map((p) => p.user_id).sort()).toEqual([fresh.user_id, copied.user_id, deactivated.user_id, gone.user_id].sort());
 
       await ctx.repo().markPhotoCopied(copied.user_id, { from: copied.image_url!, path: `${copied.user_id}/abc.png` });
       expect((await mine()).map((p) => p.user_id)).not.toContain(copied.user_id);
@@ -118,9 +118,13 @@ export function defineSlackUserContract(name: string, setup: () => SlackUserCont
       await ctx.repo().upsert([{ user_id: copied.user_id, image_url: "https://img.example.test/new.png", raw_payload: {} }]);
       expect((await mine()).find((p) => p.user_id === copied.user_id)).toEqual({ user_id: copied.user_id, image_url: "https://img.example.test/new.png", image_path: `${copied.user_id}/abc.png` });
 
-      // Copies stay only for live users who still have a photo.
+      // A copy stays while the user has a photo, deactivated or not; it goes when Slack drops the photo.
       await ctx.repo().markPhotoCopied(gone.user_id, { from: gone.image_url!, path: `${gone.user_id}/g.png` });
-      await ctx.repo().upsert([{ user_id: gone.user_id, is_deleted: true, raw_payload: {} }, { user_id: copied.user_id, image_url: null, raw_payload: {} }]);
+      // One upsert each: a bulk upsert of rows with different columns writes null into the ones a row leaves out.
+      await ctx.repo().upsert([{ user_id: gone.user_id, is_deleted: true, raw_payload: {} }]);
+      await ctx.repo().upsert([{ user_id: copied.user_id, image_url: null, raw_payload: {} }]);
+      expect((await ctx.repo().photoCopiesToRemove()).map((p) => p.user_id)).not.toContain(gone.user_id);
+      await ctx.repo().upsert([{ user_id: gone.user_id, image_url: null, raw_payload: {} }]);
       const removable = (await ctx.repo().photoCopiesToRemove()).filter((p) => [copied.user_id, gone.user_id, fresh.user_id].includes(p.user_id));
       expect(removable.map((p) => p.user_id).sort()).toEqual([copied.user_id, gone.user_id].sort());
 

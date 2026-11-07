@@ -38,11 +38,11 @@ export interface SlackUserRepository {
   byEmails(emails: string[], filter?: { excludeBots?: boolean }): Promise<SlackUserProfile[]>;
   /** Adds users, or replaces the ones with the same Slack id (an import is idempotent). */
   upsert(users: NewSlackUser[]): Promise<void>;
-  /** Live users (not deactivated) with a photo that has no copy yet, or whose photo changed since it was copied; `image_path` is the stale copy, if any. */
+  /** Users (deactivated ones too: former members still show in the directory and in chat history) with a photo that has no copy yet, or whose photo changed since it was copied; `image_path` is the stale copy, if any. */
   photosToCopy(): Promise<{ user_id: string; image_url: string; image_path: string | null }[]>;
   /** Records our copy of a user's photo, made from `from`. A no-op when the user's image_url has changed since. */
   markPhotoCopied(userId: string, copy: { from: string; path: string }): Promise<void>;
-  /** Copies that should not stay: the user was deactivated or no longer has a photo. */
+  /** Copies that should not stay: the user no longer has a photo (Slack dropped it). */
   photoCopiesToRemove(): Promise<{ user_id: string; image_path: string }[]>;
   /** Forgets the copy at `path` once its object is removed. A no-op when the user has a different copy now. */
   clearPhotoCopy(userId: string, path: string): Promise<void>;
@@ -100,7 +100,7 @@ export class SupabaseSlackUserRepository implements SlackUserRepository {
 
   async photosToCopy() {
     const rows = await fetchAllRows<{ user_id: string; image_url: string | null; image_path: string | null; copied_from_url: string | null }>((from, to) =>
-      this.table.select("user_id, image_url, image_path, copied_from_url").not("image_url", "is", null).or("is_deleted.is.null,is_deleted.eq.false").order("user_id").range(from, to)
+      this.table.select("user_id, image_url, image_path, copied_from_url").not("image_url", "is", null).order("user_id").range(from, to)
     );
     return rows.filter((r) => r.image_url !== r.copied_from_url).map((r) => ({ user_id: r.user_id, image_url: r.image_url as string, image_path: r.image_path }));
   }
@@ -111,10 +111,10 @@ export class SupabaseSlackUserRepository implements SlackUserRepository {
   }
 
   async photoCopiesToRemove() {
-    const rows = await fetchAllRows<{ user_id: string; image_path: string | null; image_url: string | null; is_deleted: boolean | null }>((from, to) =>
-      this.table.select("user_id, image_path, image_url, is_deleted").not("image_path", "is", null).order("user_id").range(from, to)
+    const rows = await fetchAllRows<{ user_id: string; image_path: string | null; image_url: string | null }>((from, to) =>
+      this.table.select("user_id, image_path, image_url").not("image_path", "is", null).order("user_id").range(from, to)
     );
-    return rows.filter((r) => r.is_deleted === true || r.image_url === null).map((r) => ({ user_id: r.user_id, image_path: r.image_path as string }));
+    return rows.filter((r) => r.image_url === null).map((r) => ({ user_id: r.user_id, image_path: r.image_path as string }));
   }
 
   async clearPhotoCopy(userId: string, path: string) {
@@ -171,7 +171,7 @@ export class InMemorySlackUserRepository implements SlackUserRepository {
   async photosToCopy() {
     return this.byUserId(this.data.slackUsers.map((u) => this.full(u)))
       .map((u) => ({ u, from: this.data.slackUsers.find((x) => x.user_id === u.user_id)?.copied_from_url ?? null }))
-      .filter(({ u, from }) => u.image_url !== null && u.is_deleted !== true && u.image_url !== from)
+      .filter(({ u, from }) => u.image_url !== null && u.image_url !== from)
       .map(({ u }) => ({ user_id: u.user_id, image_url: u.image_url as string, image_path: u.image_path }));
   }
 
@@ -182,7 +182,7 @@ export class InMemorySlackUserRepository implements SlackUserRepository {
 
   async photoCopiesToRemove() {
     return this.byUserId(this.data.slackUsers.map((u) => this.full(u)))
-      .filter((u) => u.image_path !== null && (u.is_deleted === true || u.image_url === null))
+      .filter((u) => u.image_path !== null && u.image_url === null)
       .map((u) => ({ user_id: u.user_id, image_path: u.image_path as string }));
   }
 
