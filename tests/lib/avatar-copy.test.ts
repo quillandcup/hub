@@ -53,15 +53,15 @@ beforeEach(async () => {
 });
 
 describe("copySlackAvatars", () => {
-  it("copies a live user's photo under their id and the content hash, and serves our copy from then on", async () => {
-    expect(await copySlackAvatars(storage, vi.fn(answer(png)) as unknown as typeof fetch)).toEqual({ copied: 1, failed: 0, removed: 0 });
+  it("copies a photo under the user's id and the content hash (a deactivated user's too), and serves our copy from then on", async () => {
+    expect(await copySlackAvatars(storage, vi.fn(answer(png)) as unknown as typeof fetch)).toEqual({ copied: 2, failed: 0, removed: 0 });
 
     const u1 = await users().byId("U1");
     expect(u1?.image_path).toMatch(/^U1\/[0-9a-f]{32}\.png$/);
     expect(objects.has(u1!.image_path!)).toBe(true);
     expect(slackPhotoUrl(storage, u1!)).toBe(avatarPublicUrl(storage, u1!.image_path!));
     expect(slackPhotoUrl(storage, (await users().byId("U3"))!)).toBeNull();
-    expect((await users().byId("U2"))?.image_path).toBeNull();
+    expect((await users().byId("U2"))?.image_path).toMatch(/^U2\//);
 
     // Idempotent: nothing left to copy.
     const again = vi.fn();
@@ -87,27 +87,30 @@ describe("copySlackAvatars", () => {
     expect(objects.has(next)).toBe(true);
   });
 
-  it("removes the copy of a user who was deactivated or took the photo down", async () => {
+  it("keeps the copy of a user who is deactivated later, and removes it when Slack drops the photo", async () => {
     await copySlackAvatars(storage, vi.fn(answer(png)) as unknown as typeof fetch);
     const path = (await users().byId("U1"))!.image_path!;
     await users().upsert([{ user_id: "U1", is_deleted: true, raw_payload: {} }]);
+    expect(await copySlackAvatars(storage, vi.fn() as unknown as typeof fetch)).toEqual({ copied: 0, failed: 0, removed: 0 });
+    expect(objects.has(path)).toBe(true);
 
+    await users().upsert([{ user_id: "U1", image_url: null, raw_payload: {} }]);
     expect(await copySlackAvatars(storage, vi.fn() as unknown as typeof fetch)).toEqual({ copied: 0, failed: 0, removed: 1 });
     expect(objects.has(path)).toBe(false);
     expect((await users().byId("U1"))?.image_path).toBeNull();
   });
 
   it("leaves a user on Slack's address when the photo can't be fetched, isn't an image, is too big, or can't be stored", async () => {
-    expect(await copySlackAvatars(storage, vi.fn(answer("", 404)) as unknown as typeof fetch)).toEqual({ copied: 0, failed: 1, removed: 0 });
-    expect(await copySlackAvatars(storage, vi.fn(answer("not an image")) as unknown as typeof fetch)).toMatchObject({ failed: 1 });
-    expect(await copySlackAvatars(storage, vi.fn(answer(Buffer.alloc(3 * 1024 * 1024))) as unknown as typeof fetch)).toMatchObject({ failed: 1 });
+    expect(await copySlackAvatars(storage, vi.fn(answer("", 404)) as unknown as typeof fetch)).toEqual({ copied: 0, failed: 2, removed: 0 });
+    expect(await copySlackAvatars(storage, vi.fn(answer("not an image")) as unknown as typeof fetch)).toMatchObject({ failed: 2 });
+    expect(await copySlackAvatars(storage, vi.fn(answer(Buffer.alloc(3 * 1024 * 1024))) as unknown as typeof fetch)).toMatchObject({ failed: 2 });
     uploadError = "bucket full";
-    expect(await copySlackAvatars(storage, vi.fn(answer(png)) as unknown as typeof fetch)).toMatchObject({ copied: 0, failed: 1 });
+    expect(await copySlackAvatars(storage, vi.fn(answer(png)) as unknown as typeof fetch)).toMatchObject({ copied: 0, failed: 2 });
     expect((await users().byId("U1"))?.image_path).toBeNull();
 
     // The next run tries again.
     uploadError = null;
-    expect(await copySlackAvatars(storage, vi.fn(answer(png)) as unknown as typeof fetch)).toMatchObject({ copied: 1 });
+    expect(await copySlackAvatars(storage, vi.fn(answer(png)) as unknown as typeof fetch)).toMatchObject({ copied: 2 });
   });
 
   it("refuses an address that isn't https and an id that isn't a Slack id", async () => {
