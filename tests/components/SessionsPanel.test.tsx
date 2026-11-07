@@ -30,7 +30,7 @@ const currentSession = {
   refreshed_at: "2026-08-27T09:00:00.000Z",
   not_after: null,
   user_agent: CHROME_UA,
-  ip: "1.2.3.4",
+  place: "Heredia, Costa Rica",
   is_current: true,
 };
 
@@ -41,7 +41,7 @@ const otherSession = {
   refreshed_at: "2026-08-16T10:00:00.000Z",
   not_after: null,
   user_agent: SAFARI_UA,
-  ip: "5.6.7.8",
+  place: null,
   is_current: false,
 };
 
@@ -60,6 +60,8 @@ describe("SessionsPanel", () => {
     await waitFor(() => expect(screen.getByText(CHROME_LABEL)).toBeInTheDocument());
     expect(screen.getByText(SAFARI_LABEL)).toBeInTheDocument();
     expect(screen.getByText("This device")).toBeInTheDocument();
+    expect(screen.getAllByText("Heredia, Costa Rica").length).toBeGreaterThan(0);
+    expect(screen.getByText("Location")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Devices" })).toBeInTheDocument();
     expect(screen.getAllByRole("tooltip")[0]).toHaveTextContent("All devices signed in to your account");
     expect(screen.getAllByText("Now")[0]).toBeInTheDocument();
@@ -150,16 +152,13 @@ describe("SessionsPanel", () => {
     await waitFor(() => expect(screen.getByText("No devices found.")).toBeInTheDocument());
   });
 
-  it("lists every device, the rest behind a visible Show N more button", async () => {
+  it("lists every device with no collapse or load-more control", async () => {
     const many = Array.from({ length: 8 }, (_, i) => ({ ...otherSession, id: `s${i}` }));
     vi.mocked(getMySessions).mockResolvedValue({ sessions: [currentSession, ...many] });
 
     render(<SessionsPanel />);
     await waitFor(() => expect(screen.getByText(CHROME_LABEL)).toBeInTheDocument());
-    expect(logOut()).toHaveLength(4);
-
-    await userEvent.click(screen.getByRole("button", { name: "Show 4 more" }));
     expect(logOut()).toHaveLength(8);
-    expect(screen.queryByRole("button", { name: /show \d+ more/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /more/i })).not.toBeInTheDocument();
   });
 });

@@ -23,8 +23,6 @@ import {
  *
  * No location column: we have no geo-IP service and don't add a third party for it.
  */
-const INITIAL_VISIBLE = 5;
-
 function formatDate(value: string | null): string {
   if (!value) return "—";
   return new Date(value).toLocaleString(undefined, {
@@ -68,7 +66,6 @@ export function SessionsPanel() {
   const [message, setMessage] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [signingOutOthers, setSigningOutOthers] = useState(false);
-  const [showAll, setShowAll] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -120,9 +117,6 @@ export function SessionsPanel() {
   }
 
   const otherSessionCount = sessions?.filter((s) => !s.is_current).length ?? 0;
-  const all = sessions ?? [];
-  const visible = showAll ? all : all.slice(0, INITIAL_VISIBLE);
-  const hiddenCount = all.length - visible.length;
 
   return (
     <div>
@@ -175,13 +169,19 @@ export function SessionsPanel() {
                       <InfoTip label="About last active">When this device last used your account</InfoTip>
                     </span>
                   </th>
+                  <th scope="col" className="hidden md:table-cell px-3 py-3 font-normal">
+                    <span className="inline-flex items-center gap-1.5">
+                      Location
+                      <InfoTip label="About location">Approximate, from the network the device connected from</InfoTip>
+                    </span>
+                  </th>
                   <th scope="col" className="px-3 py-2 font-medium text-right">
                     <span className="sr-only">Log out</span>
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                {visible.map((session) => {
+                {(sessions ?? []).map((session) => {
                   const lastActive = formatDate(session.refreshed_at ?? session.updated_at ?? session.created_at);
                   return (
                     <tr key={session.id}>
@@ -198,11 +198,17 @@ export function SessionsPanel() {
                             <p className="sm:hidden text-xs text-slate-600 dark:text-slate-400 mt-0.5">
                               {session.is_current ? "Now" : `Last active ${lastActive}`}
                             </p>
+                            {session.place && (
+                              <p className="md:hidden text-xs text-slate-600 dark:text-slate-400">{session.place}</p>
+                            )}
                           </div>
                         </div>
                       </td>
                       <td className="hidden sm:table-cell px-3 py-4 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">
                         {session.is_current ? "Now" : lastActive}
+                      </td>
+                      <td className="hidden md:table-cell px-3 py-4 text-sm text-slate-600 dark:text-slate-400">
+                        {session.place}
                       </td>
                       <td className="px-3 py-4 text-right">
                         {!session.is_current && (
@@ -223,15 +229,6 @@ export function SessionsPanel() {
               </tbody>
             </table>
           </div>
-          {hiddenCount > 0 && (
-            <button
-              type="button"
-              onClick={() => setShowAll(true)}
-              className="mt-3 text-sm font-medium px-3 py-1.5 rounded-md border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
-            >
-              Show {hiddenCount} more
-            </button>
-          )}
         </>
       )}
     </div>

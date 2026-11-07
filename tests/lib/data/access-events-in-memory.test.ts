@@ -15,4 +15,24 @@ describe("InMemoryAccessEventRepository", () => {
       [2, "/events", null, null, null, null],
     ]);
   });
+
+  it("gives each of one user's sessions its latest located place, and nothing for other users or unlocated sessions", async () => {
+    const data = new InMemoryDataset();
+    const repo = new InMemoryAccessEventRepository(data);
+    const me = "00000000-0000-4000-8000-000000000001";
+    const other = "00000000-0000-4000-8000-000000000002";
+    const s1 = "10000000-0000-4000-8000-000000000001";
+    const s2 = "10000000-0000-4000-8000-000000000002";
+    const s3 = "10000000-0000-4000-8000-000000000003";
+    const at = (created_at: string) => ({ created_at, path: "/x", is_page: true });
+
+    await repo.record({ user_id: me, session_id: s1, city: "Old City", country: "US", ...at("2026-01-01T00:00:00Z") });
+    await repo.record({ user_id: me, session_id: s1, city: "Heredia", country: "CR", ...at("2026-01-02T00:00:00Z") });
+    await repo.record({ user_id: me, session_id: s1, ...at("2026-01-03T00:00:00Z") });
+    await repo.record({ user_id: me, session_id: s2, ...at("2026-01-02T00:00:00Z") });
+    await repo.record({ user_id: other, session_id: s3, city: "Elsewhere", country: "FR", ...at("2026-01-02T00:00:00Z") });
+
+    const places = await repo.placesBySession(me, [s1, s2, s3]);
+    expect([...places.entries()]).toEqual([[s1, { city: "Heredia", country: "CR" }]]);
+  });
 });
