@@ -49,9 +49,14 @@ member who just joins (a "drop-in") gets a second kind of check-in message
 started less than `DROP_IN_CHECKIN_WINDOW_MS` (18 minutes, the end of the talking time) ago, they
 are sent the same check-in through the same notifier, worded "You're in …" instead of "starts in
 about 20 minutes". The dedup log keeps it to one per member and prickle, so a member who got the
-usual one is not sent another. It is behind the `checkin_dropins` flag, a dry run for members it
-does not cover: it logs the member, prickle, channels and why (`DRY RUN drop-in check-in` in the
-logs of `/api/internal/prickle-checkins`) and sends and records nothing.
+usual one is not sent another. It is behind the `checkin_dropins` flag, switched on for everyone
+since 2026-11-06 (migration `20270517000000_enable_checkin_dropins.sql`; it ran as a dry run for
+everyone before, which logged about 18 a day), so a member who joins without a plan gets the
+check-in and the check-out as a pair. The flag stays so an admin can turn it off from the feature
+flags admin page if members push back on the volume. While it is off, or for a member it does not
+cover (flag off, no segment, no preview), it is a dry run: it logs the member, prickle, channels and
+why (`DRY RUN drop-in check-in` in the logs of `/api/internal/prickle-checkins`) and sends and
+records nothing.
 
 The **check-out message** does not use ties at all. It goes to anyone Zoom presence shows in the
 room (`dueCheckoutMembers`), and as a backstop to anyone with imported attendance. A member
