@@ -14,14 +14,18 @@ import {
 /** Subject: "<code> is your Hedgie Hub verification code" (config.toml, scripts/_email-templates.ts). */
 export function MagicLinkEmail({ confirmationUrl, code }: { confirmationUrl: string; code: string }) {
   return (
-    <EmailLayout preview={`${code} is your Hedgie Hub verification code.`}>
-      <EmailHeading>Your verification code</EmailHeading>
+    <EmailLayout preview={`${code} is your verification code.`}>
+      <EmailHeading>Verify your email and sign in</EmailHeading>
 
-      <EmailBody>Your code is:</EmailBody>
+      <EmailBody>
+        This is your unique code – enter it on the sign-in page to securely sign in to Hedgie Hub without a password.
+      </EmailBody>
 
       <EmailCode>{code}</EmailCode>
 
-      <EmailBody>Enter this code on the sign-in page. It expires in 24 hours and works once.</EmailBody>
+      <EmailBody>
+        This code can only be used once and expires after 24 hours. Don't share this code with anyone.
+      </EmailBody>
 
       <EmailBody>Or sign in with one click on this device:</EmailBody>
 

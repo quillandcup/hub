@@ -18,7 +18,7 @@ import {
  */
 export function LaunchEmail({ code, signInUrl }: { code: string; signInUrl: string }) {
   return (
-    <EmailLayout preview={`${code} is your Hedgie Hub verification code.`}>
+    <EmailLayout preview={`${code} is your verification code.`}>
       <EmailHeading>Hedgie Hub is open.</EmailHeading>
 
       <EmailBody>
