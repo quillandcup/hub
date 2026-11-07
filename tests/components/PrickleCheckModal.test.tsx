@@ -134,7 +134,7 @@ describe("PrickleCheckModal skipping questions", () => {
     await user.click(await option(ENERGY_QUESTION, "Low"));
     await user.click(await option(ENERGY_QUESTION, "Skip")); // skips, clearing the Low
     await user.click(await option(WHEEL, "Skip"));
-    await user.selectOptions(screen.getByLabelText(/My intention/), "skip");
+    await user.click(within(screen.getByLabelText(/My intention/).parentElement!).getByRole("button", { name: "Skip" }));
     expect(await option(ENERGY_QUESTION, "Skipped")).toHaveAttribute("aria-pressed", "true");
     await user.click(await option(WHEEL, "Sad")); // answering lifts the feeling's skip
     await user.click(screen.getByRole("button", { name: "Save" }));

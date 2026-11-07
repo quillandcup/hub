@@ -53,8 +53,6 @@ function SkipChip({ skipped, onToggle, readOnly }: { skipped: boolean; onToggle:
   );
 }
 
-const SKIP_VALUE = "skip";
-
 const legendClass = "text-sm font-medium text-slate-700 dark:text-slate-300 mb-2";
 
 /** A labeled 1-5 scale as a row of buttons; picking the selected point again clears it. */
@@ -312,7 +310,7 @@ export function NeedPicker({
   value: Need | null;
   onChange: (next: Need | null) => void;
   readOnly?: boolean;
-  /** Whether the question is skipped, and the toggle for it; without `onSkip` the drop-down has no skip option. */
+  /** Whether the question is skipped, and the toggle for it; without `onSkip` there is no skip chip. */
   skipped?: boolean;
   onSkip?: () => void;
 }) {
@@ -322,27 +320,24 @@ export function NeedPicker({
       <label htmlFor={id} className={`block ${legendClass}`}>
         {label}
       </label>
-      <select
-        id={id}
-        data-track="checkin-need"
-        value={skipped ? SKIP_VALUE : (value ?? "")}
-        disabled={readOnly}
-        onChange={(e) => {
-          const picked = e.target.value;
-          // Skip is an option of its own; choosing it or going back to the prompt flips the skip.
-          if (picked === SKIP_VALUE || (picked === "" && skipped)) onSkip?.();
-          else onChange(picked === "" ? null : (picked as Need));
-        }}
-        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
-      >
-        <option value="">Choose your intention…</option>
-        {NEEDS.map((n) => (
-          <option key={n.key} value={n.key}>
-            {n.label} · {n.hint}
-          </option>
-        ))}
-        {onSkip && <option value={SKIP_VALUE}>Skip this question</option>}
-      </select>
+      <div className="flex items-center gap-2">
+        <select
+          id={id}
+          data-track="checkin-need"
+          value={value ?? ""}
+          disabled={readOnly}
+          onChange={(e) => onChange(e.target.value === "" ? null : (e.target.value as Need))}
+          className="min-w-0 flex-1 px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
+        >
+          <option value="">Choose your intention…</option>
+          {NEEDS.map((n) => (
+            <option key={n.key} value={n.key}>
+              {n.label} · {n.hint}
+            </option>
+          ))}
+        </select>
+        {onSkip && <SkipChip skipped={skipped} onToggle={onSkip} readOnly={readOnly} />}
+      </div>
     </div>
   );
 }
