@@ -7,7 +7,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(15);
+SELECT plan(16);
 
 -- Writer (whose profile is viewed) and a regular member viewing it. Fixed ids nothing else uses.
 INSERT INTO public.members (id, name, email, joined_at, status) VALUES
@@ -82,15 +82,30 @@ SELECT is(
   (SELECT show_on_profile FROM public.writing_projects WHERE id = 'prj_AAAAAAAAb912'),
   false, 'and it does not show the project');
 
--- Hiding a project hides its goals; showing the project again does not bring them back.
+-- Hiding a project takes its goals off the profile but keeps their own flag, so showing the project
+-- again brings them back.
 UPDATE public.writing_projects SET show_on_profile = false WHERE id = 'prj_AAAAAAAAb911';
 SELECT is(
   (SELECT show_on_profile FROM public.writing_goals WHERE title = 'Finish Draft 3' AND member_id = 'mbr_AAAAAAAAb9A1'),
-  false, 'hiding a project hides its goals');
-UPDATE public.writing_projects SET show_on_profile = true WHERE id = 'prj_AAAAAAAAb911';
+  true, 'hiding a project keeps its goals'' own setting');
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub": "00000000-0000-4000-a000-00000000b999", "email": "profile-viewer@example.test", "role": "authenticated"}', true);
+INSERT INTO profile_result SELECT 'hidden', public.get_profile_writing('mbr_AAAAAAAAb9A1');
+RESET ROLE;
 SELECT is(
-  (SELECT show_on_profile FROM public.writing_goals WHERE title = 'Finish Draft 3' AND member_id = 'mbr_AAAAAAAAb9A1'),
-  false, 'showing the project again leaves its goals hidden');
+  (SELECT jsonb_array_length(result -> 'goals') FROM profile_result WHERE label = 'hidden'),
+  0, 'but the profile lists no goal of a hidden project');
+UPDATE public.writing_projects SET show_on_profile = true WHERE id = 'prj_AAAAAAAAb911';
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub": "00000000-0000-4000-a000-00000000b999", "email": "profile-viewer@example.test", "role": "authenticated"}', true);
+INSERT INTO profile_result SELECT 'shown_again', public.get_profile_writing('mbr_AAAAAAAAb9A1');
+RESET ROLE;
+SELECT is(
+  (SELECT jsonb_path_query_array(result, '$.goals[*].title') FROM profile_result WHERE label = 'shown_again'),
+  '["Finish Draft 3"]'::jsonb, 'showing the project again brings the goal back');
+
 SELECT is(
   (SELECT result FROM profile_result WHERE label = 'direct'),
   '0'::jsonb, 'a regular member still can''t read another member''s writing_projects directly');

@@ -1189,6 +1189,9 @@ Track external competitions (awards, contests, anthologies, showcases) that memb
 
 ## Member Profiles
 
+### Drop `writing_project_hides_goals` _(Needs Scheduling)_
+Migration `20270521000000_goals_follow_project_visibility.sql` added a trigger on `writing_projects` that cleared a project's goals' `show_on_profile` when the project was hidden. That made hiding and re-showing a project lose which goals were on, so `20270523000000_hiding_a_project_keeps_its_goals_flags.sql` drops the trigger (the profile shows a goal only while both it and its project are on, and `get_profile_writing` requires both). The now-unused function `public.writing_project_hides_goals()` is still there: squawk's `ban-drop-function` needs the owner's explicit approval for a drop, so it was left. Start with a migration that drops it with `-- squawk-ignore ban-drop-function` and the approval comment (see `.squawk.toml` and `CLAUDE.md`, "Migrations: expand, then contract"); nothing references it.
+
 ### Public Pen Names ("Also writes as …") _(Idea)_
 Let members choose which of their alternate names show on their public profile. Today the only public name is `members.display_name` (the "default pen name", used as the profile heading via `getMemberDisplayName`). Other pen names live in `member_name_aliases`, mixed in with internal Zoom/Slack matching names that can include typos or legal names, and RLS only lets a member read their own aliases (`20260831180000_add_alias_self_service.sql`) — so they can't be shown to other members as-is.
 
