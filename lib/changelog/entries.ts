@@ -2538,8 +2538,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Your signed-in devices are easier to recognize",
     summary: "In Settings, Devices now names each one, like Chrome 156 on macOS or Safari on iPhone (iOS 18.7), so you can tell which to log out.",
     body: [
-      "The old Active Sessions list showed a long block of browser code. It is now called Devices and shows a plain name for each device, when it was last used, and a Log out button. The device you are on is marked This device.",
+      "The old Active Sessions list showed a long block of browser code. It is now called Devices and shows a plain name for each device, when it was last used, roughly where it connected from (a city and country), and a Log out button. The device you are on is marked This device.",
       "Every device is listed, however many you have.",
+      "The place is approximate, taken from the network a device connects through, so a VPN or a phone carrier can make it off. We already record it when you visit the Hub, and this list shows it back to you; your IP address is not shown. The privacy page explains how long we keep it.",
     ].join("\n\n"),
   },
 ];

@@ -2,6 +2,8 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createRepos } from "@/lib/data/repos";
+import { getServiceRepos } from "@/lib/data/server";
+import { formatPlace } from "@/lib/session-place";
 import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { isValidTimeZone } from "@/lib/time-zone";
@@ -15,7 +17,8 @@ export interface SessionRow {
   refreshed_at: string | null;
   not_after: string | null;
   user_agent: string | null;
-  ip: string | null;
+  /** "Heredia, Costa Rica" from the session's latest located visit; null when none. Never the IP address. */
+  place: string | null;
   is_current: boolean;
 }
 
@@ -57,7 +60,19 @@ export async function getMySessions(): Promise<GetMySessionsResult> {
     return { error: error.message };
   }
 
-  return { sessions: (data ?? []) as SessionRow[] };
+  // The place of each session from the access log, which only admins can read through RLS: read here with the service
+  // role, strictly for this signed-in user's own sessions. The IP address never leaves the server.
+  const rows = (data ?? []) as (Omit<SessionRow, "place"> & { ip?: string | null })[];
+  const places = await getServiceRepos().accessEvents.placesBySession(
+    user.id,
+    rows.map((r) => r.id),
+  );
+  return {
+    sessions: rows.map(({ ip: _ip, ...row }) => {
+      const found = places.get(row.id);
+      return { ...row, place: found ? formatPlace(found.city, found.country) : null };
+    }),
+  };
 }
 
 async function revokeSessionImpl(sessionId: string) {

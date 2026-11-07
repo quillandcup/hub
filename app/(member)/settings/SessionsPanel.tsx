@@ -169,6 +169,12 @@ export function SessionsPanel() {
                       <InfoTip label="About last active">When this device last used your account</InfoTip>
                     </span>
                   </th>
+                  <th scope="col" className="hidden md:table-cell px-3 py-3 font-normal">
+                    <span className="inline-flex items-center gap-1.5">
+                      Location
+                      <InfoTip label="About location">Approximate, from the network the device connected from</InfoTip>
+                    </span>
+                  </th>
                   <th scope="col" className="px-3 py-2 font-medium text-right">
                     <span className="sr-only">Log out</span>
                   </th>
@@ -192,11 +198,17 @@ export function SessionsPanel() {
                             <p className="sm:hidden text-xs text-slate-600 dark:text-slate-400 mt-0.5">
                               {session.is_current ? "Now" : `Last active ${lastActive}`}
                             </p>
+                            {session.place && (
+                              <p className="md:hidden text-xs text-slate-600 dark:text-slate-400">{session.place}</p>
+                            )}
                           </div>
                         </div>
                       </td>
                       <td className="hidden sm:table-cell px-3 py-4 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">
                         {session.is_current ? "Now" : lastActive}
+                      </td>
+                      <td className="hidden md:table-cell px-3 py-4 text-sm text-slate-600 dark:text-slate-400">
+                        {session.place}
                       </td>
                       <td className="px-3 py-4 text-right">
                         {!session.is_current && (

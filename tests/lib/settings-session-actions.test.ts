@@ -14,6 +14,11 @@ vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(),
 }));
 
+const placesBySession = vi.fn();
+vi.mock("@/lib/data/server", () => ({
+  getServiceRepos: () => ({ accessEvents: { placesBySession } }),
+}));
+
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
@@ -57,13 +62,24 @@ describe("getMySessions", () => {
   });
 
   it("calls get_my_sessions with no arguments (server scopes via auth.uid())", async () => {
-    const rows = [{ id: "s1", is_current: true }];
+    const rows = [
+      { id: "s1", is_current: true, ip: "203.0.113.9" },
+      { id: "s2", is_current: false, ip: "203.0.113.10" },
+    ];
     const mockSupabase = makeSupabaseMock({ rpcResult: { data: rows, error: null } });
     vi.mocked(createClient).mockResolvedValue(mockSupabase as any);
+    placesBySession.mockResolvedValue(new Map([["s1", { city: "Heredia", country: "CR" }]]));
 
     const result = await getMySessions();
     expect(mockSupabase.rpc).toHaveBeenCalledWith("get_my_sessions");
-    expect(result).toEqual({ sessions: rows });
+    // Places are looked up for this user's own sessions only, and the IP never reaches the client.
+    expect(placesBySession).toHaveBeenCalledWith("auth-user-1", ["s1", "s2"]);
+    expect(result).toEqual({
+      sessions: [
+        { id: "s1", is_current: true, place: "Heredia, Costa Rica" },
+        { id: "s2", is_current: false, place: null },
+      ],
+    });
   });
 
   it("surfaces an RPC error", async () => {

@@ -30,7 +30,7 @@ const currentSession = {
   refreshed_at: "2026-08-27T09:00:00.000Z",
   not_after: null,
   user_agent: CHROME_UA,
-  ip: "1.2.3.4",
+  place: "Heredia, Costa Rica",
   is_current: true,
 };
 
@@ -41,7 +41,7 @@ const otherSession = {
   refreshed_at: "2026-08-16T10:00:00.000Z",
   not_after: null,
   user_agent: SAFARI_UA,
-  ip: "5.6.7.8",
+  place: null,
   is_current: false,
 };
 
@@ -60,6 +60,8 @@ describe("SessionsPanel", () => {
     await waitFor(() => expect(screen.getByText(CHROME_LABEL)).toBeInTheDocument());
     expect(screen.getByText(SAFARI_LABEL)).toBeInTheDocument();
     expect(screen.getByText("This device")).toBeInTheDocument();
+    expect(screen.getAllByText("Heredia, Costa Rica").length).toBeGreaterThan(0);
+    expect(screen.getByText("Location")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Devices" })).toBeInTheDocument();
     expect(screen.getAllByRole("tooltip")[0]).toHaveTextContent("All devices signed in to your account");
     expect(screen.getAllByText("Now")[0]).toBeInTheDocument();
