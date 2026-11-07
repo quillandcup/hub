@@ -1332,9 +1332,9 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 ## UI Enhancements
 
-### A 390px horizontal-overflow check on key pages _(Needs Scheduling)_
+### Move the last hand-built tooltips onto a shared `Tooltip` _(Needs Scheduling)_
 
-The admin member page once scrolled sideways on phones because an invisible tooltip box (opacity-0, still laid out) hung off an icon near the right edge. `tests/lib/tooltips.test.ts` now guards that pattern, but nothing measures real pages. Deferred because the repo has no Playwright suite that signs in and loads pages against seeded data in CI (the demo scenes are the closest, `docs/` demo notes), and a signed-in check needs a seeded local database that matches the migrations. To do it: in a demo-style Playwright run at 390px, visit the member and admin pages, every tab, and assert `main.scrollWidth <= main.clientWidth`, listing elements with `getBoundingClientRect().right > innerWidth`. Also: `ReasonBadges` and the chat `ReactionHoverCard` are the two remaining hand-built tooltips (allowlisted in the guard); move them onto a shared `Tooltip` primitive that `InfoTip` builds on.
+`ReasonBadges` and the chat `ReactionHoverCard` are the two remaining hand-built tooltips (allowlisted in `tests/lib/tooltips.test.ts`; both are display:none or unmounted at rest, so they can't widen a page). Move them onto a shared `Tooltip` primitive that `InfoTip` builds on, then empty the allowlist. The phone-width overflow check is built: `demo/scenes/phone-overflow.spec.ts` (`pnpm demo:phone-overflow`, runs with the other scenes in the help-screenshots workflow); extend its page list as pages are added.
 
 ### Clean up stale media renditions when a focal point or fit changes _(Needs Scheduling)_
 

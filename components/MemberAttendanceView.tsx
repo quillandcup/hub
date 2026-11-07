@@ -150,7 +150,7 @@ export default function MemberAttendanceView({
       <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h2 className="text-xl font-bold">Attendance History ({distinctPrickleCount})</h2>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             {/* Timezone selector */}
             <TimezoneSelect value={timezone} onChange={setTimezone} track="attendance-timezone" />
             {/* View toggle */}
