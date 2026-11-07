@@ -9,14 +9,13 @@ import { useServerDataTable } from "@/lib/hooks/useDataTable";
 import { formatDateTime } from "@/lib/formatters";
 import { useTimeZone } from "@/components/Timezone";
 import NoteEntry, { type NoteControls } from "./NoteEntry";
+import { detailLines, type ResolvedValue } from "@/lib/audit-details";
 import {
   actorDisplay,
-  changedFields,
   describeRow,
   emailLinkOf,
   reactionName,
   feedSearch,
-  formatValue,
   summarizePages,
   type ActivityFeedRow,
   type FeedFilters,
@@ -28,27 +27,35 @@ const ACTOR_BADGE: Record<ActivityFeedRow["actor_kind"], string> = {
   system: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
 };
 
+/**
+ * The details of an audit row as a definition list: label above value on a phone, label beside value from
+ * `sm`, so a long value gets the full width instead of wrapping per character in a sliver of a column.
+ */
 export function ChangeTable({ row }: { row: ActivityFeedRow }) {
-  const fields = changedFields(row.data);
-  if (fields.length === 0) return null;
+  const lines = detailLines(row);
+  if (lines.length === 0) return null;
+  const show = (v: ResolvedValue | null) =>
+    v === null ? "" : v.href ? (
+      <Link href={v.href} className="text-plum-600 hover:underline dark:text-plum-400">
+        {v.text}
+      </Link>
+    ) : (
+      v.text
+    );
   return (
-    <table className="mt-2 text-xs w-full max-w-3xl">
-      <tbody>
-        {fields.map(([field, change]) => (
-          <tr key={field} className="border-t border-slate-100 dark:border-slate-800 align-top">
-            <td className="py-1 pr-3 font-medium text-slate-600 dark:text-slate-400 whitespace-nowrap">
-              {field.replace(/_/g, " ")}
-            </td>
-            <td className="py-1 pr-2 text-slate-600 dark:text-slate-400 line-through break-all">
-              {row.event_type === "insert" ? "" : formatValue(change.old)}
-            </td>
-            <td className="py-1 text-slate-900 dark:text-slate-100 break-all">
-              {row.event_type === "delete" ? "" : formatValue(change.new)}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div className="@container">
+    <dl className="mt-2 w-full max-w-3xl text-xs">
+      {lines.map((l) => (
+        <div key={l.field} className="grid gap-x-3 gap-y-0.5 border-t border-slate-100 py-1.5 dark:border-slate-800 @pair:grid-cols-[10rem_1fr]">
+          <dt className="font-medium capitalize text-slate-600 dark:text-slate-400">{l.label}</dt>
+          <dd className="min-w-0 break-words text-slate-900 dark:text-slate-100">
+            {row.event_type !== "insert" && l.old && <span className="mr-2 text-slate-600 line-through dark:text-slate-400">{show(l.old)}</span>}
+            {row.event_type !== "delete" && show(l.new)}
+          </dd>
+        </div>
+      ))}
+    </dl>
+    </div>
   );
 }
 
@@ -103,7 +110,7 @@ function SourceLink({ row }: { row: ActivityFeedRow }) {
 
 function hasDetail(row: ActivityFeedRow) {
   return (
-    (row.kind === "audit" && changedFields(row.data).length > 0) ||
+    (row.kind === "audit" && detailLines(row).length > 0) ||
     (row.kind === "session" && Array.isArray(row.data?.pages) && row.data.pages.length > 0) ||
     (row.kind === "activity" && (!!row.description || !!emailLinkOf(row.data)))
   );
