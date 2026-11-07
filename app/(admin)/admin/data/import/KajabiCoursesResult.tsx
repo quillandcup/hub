@@ -108,7 +108,7 @@ export default function KajabiCoursesResult({ courses }: { courses: CoursesSyncR
 
       {(courses.processed ?? []).length > 0 && (
         <div className="mt-2 border-t border-plum-200 pt-2 dark:border-plum-700">
-          <p className="font-semibold">Published courses refreshed:</p>
+          <p className="font-semibold">Courses refreshed:</p>
           <ul className="space-y-0.5">
             {(courses.processed ?? []).map((p) => (
               <li key={p.slug}>
