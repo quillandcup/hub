@@ -125,6 +125,19 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
     setShowOnProfile(next);
   }
 
+  // A shared goal shows its project's title and progress, so when the project is still private,
+  // ask whether to show it too. Cancel keeps the goal shared on its own.
+  async function offerToShareProject() {
+    if (showOnProfile) return;
+    if (!confirm(`A goal on your profile shows its project's title and progress. Show “${project.title}” on your profile too?`)) return;
+    const result = await toggleProjectVisibility(project.id, true);
+    if ("error" in result) {
+      alert(result.error);
+      return;
+    }
+    setShowOnProfile(true);
+  }
+
   async function handlePhaseChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const next = e.target.value as (typeof MANUALLY_SETTABLE_PHASES)[number];
     setPhasePending(true);
@@ -164,6 +177,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
             handleChanged();
           }}
           onCancel={() => setEditingGoal(null)}
+          offerToShareProject={offerToShareProject}
           onArchive={() => {
             setEditingGoal(null);
             handleArchiveGoal(goal.id);
@@ -184,8 +198,12 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
               on={goal.showOnProfile}
               onToggle={async () => {
                 const result = await toggleGoalVisibility(goal.id, !goal.showOnProfile);
-                if ("error" in result) alert(result.error);
-                else handleChanged();
+                if ("error" in result) {
+                  alert(result.error);
+                  return;
+                }
+                if (!goal.showOnProfile) await offerToShareProject();
+                handleChanged();
               }}
             />
           </div>
@@ -391,7 +409,12 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
         </button>
       </div>
 
-      {showNewGoal && <GoalForm projectId={project.id} onSaved={handleChanged} onCancel={() => setShowNewGoal(false)} />}
+      {showNewGoal && <GoalForm
+          projectId={project.id}
+          onSaved={handleChanged}
+          onCancel={() => setShowNewGoal(false)}
+          offerToShareProject={offerToShareProject}
+        />}
 
       {entries.length > 0 && <ProjectCharts entries={entries} startingBalances={project.startingBalances} />}
 
@@ -558,11 +581,14 @@ export function GoalForm({
   onSaved,
   onCancel,
   onArchive,
+  offerToShareProject,
 }: {
   projectId: string;
   goal?: GoalRow;
   onSaved: () => void;
   onCancel?: () => void;
+  /** Called after a save that leaves the goal on the profile; asks about the project if it is private. */
+  offerToShareProject?: () => Promise<void>;
   onArchive?: () => void;
 }) {
   const isEditing = !!goal;
@@ -626,6 +652,7 @@ export function GoalForm({
       setError(result.error);
       return;
     }
+    if (showOnProfile) await offerToShareProject?.();
     onSaved();
   }
 
@@ -806,7 +833,7 @@ export function GoalForm({
             className="rounded"
           />
           <span aria-hidden="true">{PROFILE_PUBLIC}</span>
-          Show on my profile <span className="text-slate-500 dark:text-slate-400">(other members can see this goal)</span>
+          Show on my profile <span className="text-slate-500 dark:text-slate-400">(other members can see this goal, with its project's title and progress)</span>
         </label>
       </div>
 

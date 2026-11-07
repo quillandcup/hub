@@ -43,7 +43,9 @@ export function ProfileVisibilityToggle({
   withText = false,
 }: ToggleProps & { noun?: string; withText?: boolean }) {
   const label = on
-    ? `Visible on your profile to other members (click to hide)`
+    ? noun === "goal"
+      ? `Visible on your profile to other members, with its project's title and progress (click to hide)`
+      : `Visible on your profile to other members (click to hide)`
     : `Only you can see this ${noun} (click to show on your profile)`;
   return (
     <button data-track="visibility-toggles-show-on-my-profile"

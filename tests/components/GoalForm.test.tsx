@@ -49,6 +49,28 @@ describe("GoalForm", () => {
     expect(createGoal).toHaveBeenCalledWith(expect.objectContaining({ isStarred: true, showOnProfile: true }));
   });
 
+  it("offers to share the project after saving a goal that is on the profile, before reporting it saved", async () => {
+    const order: string[] = [];
+    const offer = vi.fn(async () => {
+      order.push("offer");
+    });
+    render(<GoalForm projectId="p1" onSaved={() => order.push("saved")} offerToShareProject={offer} />);
+    await userEvent.type(amount(), "20");
+    await userEvent.click(screen.getByRole("button", { name: "Add goal" }));
+    expect(offer).toHaveBeenCalledTimes(1);
+    expect(order).toEqual(["offer", "saved"]);
+  });
+
+  it("does not offer to share the project for a goal kept off the profile", async () => {
+    const offer = vi.fn(async () => {});
+    render(<GoalForm projectId="p1" onSaved={vi.fn()} offerToShareProject={offer} />);
+    await userEvent.click(onProfile());
+    await userEvent.type(amount(), "20");
+    await userEvent.click(screen.getByRole("button", { name: "Add goal" }));
+    expect(createGoal).toHaveBeenCalledWith(expect.objectContaining({ showOnProfile: false }));
+    expect(offer).not.toHaveBeenCalled();
+  });
+
   it("lets the member untick either for a new goal", async () => {
     render(<GoalForm projectId="p1" onSaved={vi.fn()} />);
     await userEvent.click(pinned());

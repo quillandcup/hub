@@ -40,7 +40,7 @@ describe("ProfileVisibilityToggle", () => {
     const button = screen.getByRole("button", { name: "Show on my profile" });
     expect(button).toHaveTextContent("🌐");
     expect(button).toHaveAttribute("aria-pressed", "true");
-    expect(button).toHaveAttribute("title", "Visible on your profile to other members (click to hide)");
+    expect(button).toHaveAttribute("title", "Visible on your profile to other members, with its project's title and progress (click to hide)");
     await userEvent.click(button);
     expect(onToggle).toHaveBeenCalledOnce();
   });

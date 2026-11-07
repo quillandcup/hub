@@ -138,6 +138,7 @@ describe("goal row controls on the project page", () => {
   });
 
   it("shows a missed goal on the profile and reloads, or alerts when the action fails", async () => {
+    vi.stubGlobal("confirm", vi.fn(() => false));
     renderMissedOnly();
     // The page's own project-level toggle comes first; the goal row's is the last one.
     const goalToggle = () => screen.getAllByRole("button", { name: "Show on my profile" }).at(-1)!;
@@ -148,6 +149,37 @@ describe("goal row controls on the project page", () => {
     vi.mocked(actions.toggleGoalVisibility).mockResolvedValueOnce({ error: "Could not change" } as never);
     await userEvent.click(goalToggle());
     expect(alertSpy).toHaveBeenCalledWith("Could not change");
+  });
+
+  it("asks to show the private project too when a goal goes on the profile, and shares it on yes", async () => {
+    const confirmSpy = vi.fn(() => true);
+    vi.stubGlobal("confirm", confirmSpy);
+    vi.mocked(actions.toggleProjectVisibility).mockResolvedValue({ success: true } as never);
+    renderMissedOnly();
+    await userEvent.click(screen.getAllByRole("button", { name: "Show on my profile" }).at(-1)!);
+    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining("Lantern Draft Two"));
+    expect(actions.toggleGoalVisibility).toHaveBeenCalledWith("g3", true);
+    expect(actions.toggleProjectVisibility).toHaveBeenCalledWith("wpr_AAAAAAAAAAA1", true);
+    expect(reload).toHaveBeenCalled();
+  });
+
+  it("keeps the project private when the member says no", async () => {
+    vi.stubGlobal("confirm", vi.fn(() => false));
+    vi.mocked(actions.toggleProjectVisibility).mockClear();
+    renderMissedOnly();
+    await userEvent.click(screen.getAllByRole("button", { name: "Show on my profile" }).at(-1)!);
+    expect(actions.toggleGoalVisibility).toHaveBeenCalledWith("g3", true);
+    expect(actions.toggleProjectVisibility).not.toHaveBeenCalled();
+    expect(reload).toHaveBeenCalled();
+  });
+
+  it("does not ask when the project is already on the profile", async () => {
+    const confirmSpy = vi.fn(() => true);
+    vi.stubGlobal("confirm", confirmSpy);
+    render(<ProjectDetailClient project={{ ...project, showOnProfile: true, goals: [goals[2]] }} entries={[]} archivedGoals={[]} />);
+    await userEvent.click(screen.getAllByRole("button", { name: "Show on my profile" }).at(-1)!);
+    expect(actions.toggleGoalVisibility).toHaveBeenCalledWith("g3", true);
+    expect(confirmSpy).not.toHaveBeenCalled();
   });
 
   it("deletes a missed goal once confirmed", async () => {
