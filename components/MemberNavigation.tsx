@@ -113,7 +113,7 @@ function NavLinks({ isAdmin, isSudo = false, enabledFeatures, pathname, collapse
 export default function MemberNavigation({ isAdmin, isSudo = false, enabledFeatures, navMode = null }: MemberNavigationProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
-  const { mode, autoHide, collapsed, railOpen, peekHandlers, cycleMode } = useSidebarMode(navMode);
+  const { mode, autoHide, collapsed, railOpen, peekHandlers, setMode } = useSidebarMode(navMode);
 
   useOpenMobileNav(() => setMobileOpen(true));
 
@@ -167,7 +167,7 @@ export default function MemberNavigation({ isAdmin, isSudo = false, enabledFeatu
 
       {/* Desktop sidebar. On auto-hide pages the wrapper holds the rail's width and the aside floats over the page. */}
       <div
-        className={`hidden lg:block flex-shrink-0 h-screen relative transition-all duration-300 ${
+        className={`hidden lg:block flex-shrink-0 self-stretch relative transition-all duration-300 ${
           railOpen ? "z-40" : "z-30"
         } ${
           autoHide || collapsed ? "w-16" : "w-64"
@@ -188,7 +188,7 @@ export default function MemberNavigation({ isAdmin, isSudo = false, enabledFeatu
               className={`text-lg whitespace-nowrap ${autoHide ? `transition-opacity duration-200 ${railOpen ? "opacity-100" : "opacity-0"}` : ""}`}
             />
           )}
-          <NavModeButton mode={mode} railOpen={railOpen} onCycle={cycleMode} />
+          <NavModeButton mode={mode} railOpen={railOpen} onChange={setMode} />
         </div>
 
         <NavLinks

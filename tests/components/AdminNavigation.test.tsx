@@ -55,12 +55,13 @@ describe("AdminNavigation drawer and keyboard focus", () => {
 describe("AdminNavigation sidebar mode", () => {
   const sidebar = () => screen.getByRole("complementary", { name: "Sidebar navigation" });
 
-  it("is pinned open by default and cycles to auto-hide, closed and back, saving each choice", async () => {
+  it("is pinned open by default and picks auto-show, collapsed and back, saving each choice", async () => {
     updateNavMode.mockClear();
     render(<AdminNavigation role="admin" enabledFeatures={[]} />);
     expect(sidebar()).toHaveClass("w-64");
 
-    await userEvent.click(screen.getByRole("button", { name: /^Sidebar/ }));
+    await userEvent.click(screen.getByRole("button", { name: /^Sidebar:/ }));
+    await userEvent.click(screen.getByRole("menuitemradio", { name: "Auto-show on hover" }));
     expect(updateNavMode).toHaveBeenLastCalledWith("auto");
     expect(sidebar()).toHaveAttribute("data-auto-hide", "true");
     expect(sidebar()).toHaveClass("w-16", "overflow-hidden");
@@ -69,11 +70,13 @@ describe("AdminNavigation sidebar mode", () => {
 
     fireEvent.focus(within(sidebar()).getAllByRole("link")[0]);
     expect(sidebar()).toHaveClass("w-64");
-    await userEvent.click(screen.getByRole("button", { name: /^Sidebar/ }));
+    await userEvent.click(screen.getByRole("button", { name: /^Sidebar:/ }));
+    await userEvent.click(screen.getByRole("menuitemradio", { name: "Collapsed" }));
     expect(updateNavMode).toHaveBeenLastCalledWith("closed");
     expect(sidebar()).toHaveClass("w-16");
 
-    await userEvent.click(screen.getByRole("button", { name: /^Sidebar/ }));
+    await userEvent.click(screen.getByRole("button", { name: /^Sidebar:/ }));
+    await userEvent.click(screen.getByRole("menuitemradio", { name: "Always open" }));
     expect(updateNavMode).toHaveBeenLastCalledWith("open");
     expect(sidebar()).toHaveClass("w-64");
   });
