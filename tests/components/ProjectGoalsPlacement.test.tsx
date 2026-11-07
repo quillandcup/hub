@@ -154,12 +154,12 @@ describe("goal row controls on the project page", () => {
     expect(alertSpy).toHaveBeenCalledWith("Could not change");
   });
 
-  it("hides the project's goals too when the project is taken off the profile, and refreshes", async () => {
+  it("hides the project's goals too when the project is taken off the profile, and refreshes in place", async () => {
     vi.mocked(actions.toggleProjectVisibility).mockResolvedValue({ success: true } as never);
     render(<ProjectDetailClient project={{ ...project, showOnProfile: true, goals: [goals[2]] }} entries={[]} archivedGoals={[]} />);
     await userEvent.click(screen.getAllByRole("button", { name: "Show on my profile" })[0]);
     expect(actions.toggleProjectVisibility).toHaveBeenCalledWith("wpr_AAAAAAAAAAA1", false);
-    await waitFor(() => expect(reload).toHaveBeenCalled());
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
 
   it("starts a new goal on the profile when its project is on the profile, and off when it is not", async () => {
@@ -185,7 +185,7 @@ describe("goal row controls on the project page", () => {
     await userEvent.click(screen.getAllByRole("button", { name: "Show on my profile" })[0]);
     expect(actions.toggleProjectVisibility).toHaveBeenCalledWith("wpr_AAAAAAAAAAA1", true);
     await waitFor(() => expect(screen.getAllByRole("button", { name: "Show on my profile" })[0]).toHaveAttribute("aria-pressed", "true"));
-    expect(reload).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
   });
 
   it("deletes a missed goal once confirmed", async () => {
