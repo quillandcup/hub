@@ -47,12 +47,12 @@ describe("upload preview", () => {
     const { unmount } = render(<MediaUploadForm surface="admin_library" onUploaded={vi.fn()} onError={vi.fn()} />);
     await userEvent.upload(screen.getByLabelText("Image file"), new File(["x"], "photo.heic", { type: "image/heic" }));
 
-    const img = await screen.findByAltText("Preview of photo.heic");
+    const img = await screen.findByAltText("Preview of the chosen image");
     expect(img).toHaveAttribute("src", "blob:one");
     expect(screen.getByText("Choose a different file")).toBeInTheDocument();
 
     fireEvent.error(img);
-    expect(screen.queryByAltText("Preview of photo.heic")).toBeNull();
+    expect(screen.queryByAltText("Preview of the chosen image")).toBeNull();
     expect(screen.getByText("photo.heic")).toBeInTheDocument();
 
     unmount();

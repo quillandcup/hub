@@ -137,7 +137,7 @@ export default function MediaUploadForm({
       >
         {file && preview?.startsWith("blob:") && !previewFailed && (
           // eslint-disable-next-line @next/next/no-img-element -- a local blob preview
-          <img src={preview} alt={`Preview of ${file.name}`} onError={() => setPreviewFailed(true)} className="mx-auto mb-2 max-h-48 max-w-full rounded border border-gray-200 dark:border-slate-700" />
+          <img src={preview} alt="Preview of the chosen image" onError={() => setPreviewFailed(true)} className="mx-auto mb-2 max-h-48 max-w-full rounded border border-gray-200 dark:border-slate-700" />
         )}
         <p className="mb-2">{file ? file.name : "Drop an image here, or"}</p>
         <button type="button" onClick={() => input.current?.click()} className={SECONDARY}>
