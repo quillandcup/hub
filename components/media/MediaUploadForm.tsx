@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { track } from "@/lib/analytics/client";
 import { createClient } from "@/lib/supabase/client";
 import { BOOK_COVER_MAX_BYTES, describeBookCoverRequirements } from "@/lib/bookCover";
@@ -40,6 +40,26 @@ export default function MediaUploadForm({
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [previewFailed, setPreviewFailed] = useState(false);
+
+  // A local preview of the chosen file, made right away; browsers can't draw HEIC, so that falls back to the name.
+  useEffect(() => {
+    setPreviewFailed(false);
+    if (!file) {
+      setPreview(null);
+      return;
+    }
+    let url: string;
+    try {
+      url = URL.createObjectURL(file);
+    } catch {
+      setPreview(null); // no preview possible here; the file name is shown
+      return;
+    }
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
 
   // Not a <form>: this sits inside other forms (an event's edit form, the add form), and a form in a form submits the
   // outer one too, saving the event with nothing chosen yet. Enter in a field sends, instead of submitting what is around it.
@@ -115,6 +135,10 @@ export default function MediaUploadForm({
         }}
         className={`rounded border-2 border-dashed p-6 text-center text-sm ${dragging ? "border-plum-500 bg-plum-50 dark:bg-plum-900/20" : "border-gray-300 dark:border-slate-700"}`}
       >
+        {file && preview && !previewFailed && (
+          // eslint-disable-next-line @next/next/no-img-element -- a local blob preview
+          <img src={preview} alt={`Preview of ${file.name}`} onError={() => setPreviewFailed(true)} className="mx-auto mb-2 max-h-48 max-w-full rounded border border-gray-200 dark:border-slate-700" />
+        )}
         <p className="mb-2">{file ? file.name : "Drop an image here, or"}</p>
         <button type="button" onClick={() => input.current?.click()} className={SECONDARY}>
           {file ? "Choose a different file" : "Choose a file"}

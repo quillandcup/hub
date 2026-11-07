@@ -7,7 +7,7 @@ import { parseCustomSize } from "@/lib/media/custom";
 import { assetForVisitor } from "@/lib/media/public-covers";
 import { MEDIA_BUCKET, renditionOf } from "@/lib/media/library";
 import { isPresetName, PRESETS } from "@/lib/media/presets";
-import { FORMAT_INFO, renderImage, settingsFor } from "@/lib/media/render";
+import { FORMAT_INFO, renderImage, renditionEtag, settingsFor } from "@/lib/media/render";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 
@@ -73,6 +73,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     saveAs(downloadName(asset.title, `${size.spec.width}x${size.spec.height}.${FORMAT_INFO[size.spec.format].extension}`));
     return new NextResponse(new Uint8Array(body), { headers });
   }
+
+  // Revalidate quickly: a changed focal point or fit has a new tag, so every page shows it within a minute.
+  const etag = renditionEtag(asset, preset as keyof typeof PRESETS);
+  headers.ETag = etag;
+  headers["Cache-Control"] = headers["Cache-Control"].replace("max-age=3600", "max-age=60");
+  if (request.headers.get("if-none-match") === etag) return new NextResponse(null, { status: 304, headers });
 
   const result = await renditionOf(service.storage, asset, preset as keyof typeof PRESETS);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });

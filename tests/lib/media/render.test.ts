@@ -1,6 +1,17 @@
 import { describe, it, expect } from "vitest";
 import sharp from "sharp";
-import { renderImage, renderPreset, renditionPath, settingsFor } from "@/lib/media/render";
+import { renderImage, renderPreset, renditionEtag, renditionPath, settingsFor } from "@/lib/media/render";
+
+describe("renditionEtag", () => {
+  const a = (over = {}) => ({ id: "media_AAAAAAAAAAAA", width: 400, height: 200, focal_x: null, focal_y: null, fits: {}, ...over });
+  it("changes when the focal point or fit changes, and not otherwise", () => {
+    const base = renditionEtag(a(), "event_card");
+    expect(renditionEtag(a(), "event_card")).toBe(base);
+    expect(renditionPath(a({ focal_x: 0.2, focal_y: 0.8 }), "event_card")).not.toBe(renditionPath(a(), "event_card"));
+    expect(renditionEtag(a({ focal_x: 0.2, focal_y: 0.8 }), "event_card")).not.toBe(base);
+    expect(renditionEtag(a({ fits: { book_cover_shelf: "white" } }), "book_cover_shelf")).not.toBe(renditionEtag(a(), "book_cover_shelf"));
+  });
+});
 import { pixel, solidImage, splitImage } from "@/tests/helpers/media-fixtures";
 
 const asset = (over: Partial<Parameters<typeof settingsFor>[0]> = {}) => ({ id: "media_AAAAAAAAAAAA", width: 400, height: 200, focal_x: null, focal_y: null, fits: {}, ...over });

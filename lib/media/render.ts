@@ -44,6 +44,14 @@ export function renditionPath(asset: RenderSource, name: PresetName, settings: R
   return `renditions/${asset.id}/${name}-${hash}.${FORMAT_INFO[PRESETS[name].format].extension}`;
 }
 
+/**
+ * A validator for a preset's rendition: it changes exactly when the rendition's settings (focal point, fit) do, so a
+ * page that loaded the URL without a `?v=` still picks up a new focal point instead of waiting out the cache.
+ */
+export function renditionEtag(asset: RenderSource, name: PresetName): string {
+  return `"${createHash("sha1").update(renditionPath(asset, name)).digest("hex").slice(0, 16)}"`;
+}
+
 /** Any size and format: what a preset names, or what a download asks for. */
 export interface RenderSpec {
   width: number;
