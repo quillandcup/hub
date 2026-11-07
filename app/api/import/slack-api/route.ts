@@ -1,3 +1,4 @@
+import { copySlackAvatars } from "@/lib/chat/avatar-copy";
 import { copyEmojiImages } from "@/lib/chat/emoji-copy";
 import { invalidateChatLookups } from "@/lib/chat/invalidate-lookups";
 import { createRepos } from "@/lib/data/repos";
@@ -207,6 +208,9 @@ export async function POST(request: NextRequest) {
         return null;
       }
     };
+    // Our own copy of each profile photo, before members are rebuilt below so their photo points at it.
+    const photos = await capture('profile photos', () => copySlackAvatars(supabase));
+    if (photos && (photos.copied > 0 || photos.failed > 0 || photos.removed > 0)) console.log(`  Profile photos: ${photos.copied} copied, ${photos.removed} removed, ${photos.failed} failed`);
     // Messages deleted in Slack: soft-deleted here, and only where this run
     // can be sure (never because a message aged out of Slack's history).
     const deletions = await capture('deleted messages', () =>
@@ -259,7 +263,7 @@ export async function POST(request: NextRequest) {
     // messages when those changed; message and reaction changes alone never
     // touch members.
     const processed: any[] = [];
-    if (usersChanged) {
+    if (usersChanged || (photos && (photos.copied > 0 || photos.removed > 0))) {
       processed.push(...(await triggerReprocessing('slack_users', 'bronze')).processed);
     }
     if (dateRange) {

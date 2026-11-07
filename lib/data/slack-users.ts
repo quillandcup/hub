@@ -11,15 +11,15 @@ type SlackUserTable = Database["bronze"]["Tables"]["slack_users"];
  * A Slack user as the import keeps it (`bronze.slack_users`), without the raw payload, which signed-in
  * users can't read (column grants), so every read names these columns instead of using `*`.
  */
-export type SlackUserProfile = Pick<SlackUserTable["Row"], "user_id" | "email" | "real_name" | "display_name" | "name" | "image_url" | "is_bot" | "is_deleted">;
+export type SlackUserProfile = Pick<SlackUserTable["Row"], "user_id" | "email" | "real_name" | "display_name" | "name" | "image_url" | "image_path" | "is_bot" | "is_deleted">;
 
 /** A Slack user as the in-memory dataset keeps it: the id, and whatever else a test names. */
-export type SlackUserSeed = Pick<SlackUserProfile, "user_id"> & Partial<Omit<SlackUserProfile, "user_id">>;
+export type SlackUserSeed = Pick<SlackUserProfile, "user_id"> & Partial<Omit<SlackUserProfile, "user_id">> & { copied_from_url?: string | null };
 
 /** What the import writes: the CSV's columns (the raw payload included) plus the sync time. */
 export type NewSlackUser = SlackUserTable["Insert"];
 
-const COLUMNS = "user_id, email, real_name, display_name, name, image_url, is_bot, is_deleted";
+const COLUMNS = "user_id, email, real_name, display_name, name, image_url, image_path, is_bot, is_deleted";
 const ID_CHUNK = 100;
 
 /**
@@ -38,6 +38,14 @@ export interface SlackUserRepository {
   byEmails(emails: string[], filter?: { excludeBots?: boolean }): Promise<SlackUserProfile[]>;
   /** Adds users, or replaces the ones with the same Slack id (an import is idempotent). */
   upsert(users: NewSlackUser[]): Promise<void>;
+  /** Live users (not deactivated) with a photo that has no copy yet, or whose photo changed since it was copied; `image_path` is the stale copy, if any. */
+  photosToCopy(): Promise<{ user_id: string; image_url: string; image_path: string | null }[]>;
+  /** Records our copy of a user's photo, made from `from`. A no-op when the user's image_url has changed since. */
+  markPhotoCopied(userId: string, copy: { from: string; path: string }): Promise<void>;
+  /** Copies that should not stay: the user was deactivated or no longer has a photo. */
+  photoCopiesToRemove(): Promise<{ user_id: string; image_path: string }[]>;
+  /** Forgets the copy at `path` once its object is removed. A no-op when the user has a different copy now. */
+  clearPhotoCopy(userId: string, path: string): Promise<void>;
 }
 
 export class SupabaseSlackUserRepository implements SlackUserRepository {
@@ -89,6 +97,30 @@ export class SupabaseSlackUserRepository implements SlackUserRepository {
     // Small chunks, two at a time: each upsert is one statement under the API role's 8s statement timeout.
     await upsertInChunks(this.table, users, "user_id", 100, 2);
   }
+
+  async photosToCopy() {
+    const rows = await fetchAllRows<{ user_id: string; image_url: string | null; image_path: string | null; copied_from_url: string | null }>((from, to) =>
+      this.table.select("user_id, image_url, image_path, copied_from_url").not("image_url", "is", null).or("is_deleted.is.null,is_deleted.eq.false").order("user_id").range(from, to)
+    );
+    return rows.filter((r) => r.image_url !== r.copied_from_url).map((r) => ({ user_id: r.user_id, image_url: r.image_url as string, image_path: r.image_path }));
+  }
+
+  async markPhotoCopied(userId: string, copy: { from: string; path: string }) {
+    const { error } = await this.table.update({ image_path: copy.path, copied_from_url: copy.from }).eq("user_id", userId).eq("image_url", copy.from);
+    if (error) throw new Error(error.message);
+  }
+
+  async photoCopiesToRemove() {
+    const rows = await fetchAllRows<{ user_id: string; image_path: string | null; image_url: string | null; is_deleted: boolean | null }>((from, to) =>
+      this.table.select("user_id, image_path, image_url, is_deleted").not("image_path", "is", null).order("user_id").range(from, to)
+    );
+    return rows.filter((r) => r.is_deleted === true || r.image_url === null).map((r) => ({ user_id: r.user_id, image_path: r.image_path as string }));
+  }
+
+  async clearPhotoCopy(userId: string, path: string) {
+    const { error } = await this.table.update({ image_path: null, copied_from_url: null }).eq("user_id", userId).eq("image_path", path);
+    if (error) throw new Error(error.message);
+  }
 }
 
 /** In-memory twin over an `InMemoryDataset`. */
@@ -96,7 +128,7 @@ export class InMemorySlackUserRepository implements SlackUserRepository {
   constructor(private readonly data: InMemoryDataset) {}
 
   private full(u: SlackUserSeed): SlackUserProfile {
-    return { email: null, real_name: null, display_name: null, name: null, image_url: null, is_bot: null, is_deleted: null, ...u };
+    return { email: null, real_name: null, display_name: null, name: null, image_url: null, image_path: null, is_bot: null, is_deleted: null, ...u };
   }
 
   private byUserId(rows: SlackUserProfile[]) {
@@ -134,5 +166,28 @@ export class InMemorySlackUserRepository implements SlackUserRepository {
       if (existing) Object.assign(existing, profile);
       else this.data.slackUsers.push(profile);
     }
+  }
+
+  async photosToCopy() {
+    return this.byUserId(this.data.slackUsers.map((u) => this.full(u)))
+      .map((u) => ({ u, from: this.data.slackUsers.find((x) => x.user_id === u.user_id)?.copied_from_url ?? null }))
+      .filter(({ u, from }) => u.image_url !== null && u.is_deleted !== true && u.image_url !== from)
+      .map(({ u }) => ({ user_id: u.user_id, image_url: u.image_url as string, image_path: u.image_path }));
+  }
+
+  async markPhotoCopied(userId: string, copy: { from: string; path: string }) {
+    const row = this.data.slackUsers.find((u) => u.user_id === userId && u.image_url === copy.from);
+    if (row) Object.assign(row, { image_path: copy.path, copied_from_url: copy.from });
+  }
+
+  async photoCopiesToRemove() {
+    return this.byUserId(this.data.slackUsers.map((u) => this.full(u)))
+      .filter((u) => u.image_path !== null && (u.is_deleted === true || u.image_url === null))
+      .map((u) => ({ user_id: u.user_id, image_path: u.image_path as string }));
+  }
+
+  async clearPhotoCopy(userId: string, path: string) {
+    const row = this.data.slackUsers.find((u) => u.user_id === userId && u.image_path === path);
+    if (row) Object.assign(row, { image_path: null, copied_from_url: null });
   }
 }

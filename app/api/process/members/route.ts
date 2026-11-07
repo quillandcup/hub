@@ -5,6 +5,7 @@ import { buildMembershipStints, fetchStripeTrialInfoByEmail, isRealMembershipSti
 import { computeMemberTenure, computeActiveDays, type HiatusWindow } from "@/lib/member-tenure";
 import { buildMembersRunAliasMap, partitionEmailConflicts, resolveEmail as resolveEmailShared } from "@/lib/email-aliases";
 import { toKajabiPhotoUrl } from "@/lib/member-avatar";
+import { slackPhotoUrl } from "@/lib/slack-avatar-url";
 import { NextRequest, NextResponse, after } from "next/server";
 import { triggerAttendanceReprocessing } from "@/lib/processing/trigger";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -201,8 +202,9 @@ export async function POST(request: NextRequest) {
     const slackImageByEmail = new Map<string, string>();
     if (slackUsers && slackUsers.length > 0) {
       for (const slackUser of slackUsers) {
-        if (slackUser.email && slackUser.image_url) {
-          slackImageByEmail.set(resolveEmail(slackUser.email), slackUser.image_url);
+        const photo = slackPhotoUrl(supabase, slackUser);
+        if (slackUser.email && photo) {
+          slackImageByEmail.set(resolveEmail(slackUser.email), photo);
         }
       }
     }

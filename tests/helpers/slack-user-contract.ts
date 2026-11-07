@@ -43,6 +43,7 @@ export function defineSlackUserContract(name: string, setup: () => SlackUserCont
         display_name: a.display_name,
         name: a.name,
         image_url: a.image_url,
+        image_path: null,
         is_bot: false,
         is_deleted: false,
       });
@@ -96,6 +97,37 @@ export function defineSlackUserContract(name: string, setup: () => SlackUserCont
 
       expect((await ctx.repo().byId(a.user_id))?.real_name).toBe("Renamed");
       expect((await ctx.repo().byEmails(["fresh@example.test"])).map((r) => r.real_name)).toEqual(["Fresh"]);
+    });
+
+    it("lists the photos still to copy, records a copy until the photo changes, and lists copies to remove", async () => {
+      const [fresh, copied, noPhoto, deactivated, gone] = [user("fresh"), user("copied"), user("nophoto", { image_url: null }), user("deactivated", { is_deleted: true }), user("gone")];
+      await ctx.seed([fresh, copied, noPhoto, deactivated, gone]);
+      const mine = async () => (await ctx.repo().photosToCopy()).filter((p) => [fresh, copied, noPhoto, deactivated, gone].some((u) => u.user_id === p.user_id));
+
+      expect((await mine()).map((p) => p.user_id).sort()).toEqual([fresh.user_id, copied.user_id, gone.user_id].sort());
+
+      await ctx.repo().markPhotoCopied(copied.user_id, { from: copied.image_url!, path: `${copied.user_id}/abc.png` });
+      expect((await mine()).map((p) => p.user_id)).not.toContain(copied.user_id);
+      expect((await ctx.repo().byId(copied.user_id))?.image_path).toBe(`${copied.user_id}/abc.png`);
+
+      // A copy of a photo the user no longer has is not recorded.
+      await ctx.repo().markPhotoCopied(fresh.user_id, { from: "https://img.example.test/old.png", path: `${fresh.user_id}/old.png` });
+      expect((await ctx.repo().byId(fresh.user_id))?.image_path).toBeNull();
+
+      // A changed photo is copied again, and says which copy it replaces.
+      await ctx.repo().upsert([{ user_id: copied.user_id, image_url: "https://img.example.test/new.png", raw_payload: {} }]);
+      expect((await mine()).find((p) => p.user_id === copied.user_id)).toEqual({ user_id: copied.user_id, image_url: "https://img.example.test/new.png", image_path: `${copied.user_id}/abc.png` });
+
+      // Copies stay only for live users who still have a photo.
+      await ctx.repo().markPhotoCopied(gone.user_id, { from: gone.image_url!, path: `${gone.user_id}/g.png` });
+      await ctx.repo().upsert([{ user_id: gone.user_id, is_deleted: true, raw_payload: {} }, { user_id: copied.user_id, image_url: null, raw_payload: {} }]);
+      const removable = (await ctx.repo().photoCopiesToRemove()).filter((p) => [copied.user_id, gone.user_id, fresh.user_id].includes(p.user_id));
+      expect(removable.map((p) => p.user_id).sort()).toEqual([copied.user_id, gone.user_id].sort());
+
+      await ctx.repo().clearPhotoCopy(gone.user_id, `${gone.user_id}/other.png`);
+      expect((await ctx.repo().byId(gone.user_id))?.image_path).toBe(`${gone.user_id}/g.png`);
+      await ctx.repo().clearPhotoCopy(gone.user_id, `${gone.user_id}/g.png`);
+      expect((await ctx.repo().byId(gone.user_id))?.image_path).toBeNull();
     });
   });
 }
