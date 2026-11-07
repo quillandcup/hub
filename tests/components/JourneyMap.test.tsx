@@ -2,25 +2,25 @@
 import { describe, expect, it } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import JourneyMap from "@/components/writing/JourneyMap";
-import { COMPACT_STAGE_WIDTH, JOURNEY_STAGES, STAGE_HEIGHT, STAGE_WIDTH, journeyStageForPhase } from "@/lib/writing-journey";
+import { HIRE_A_PRO_STEPS, JOURNEY_CANVAS, JOURNEY_STAGES, STAGE_HEIGHT, STAGE_WIDTH, journeyStageForPhase, stagePhases } from "@/lib/writing-journey";
 import { PROJECT_PHASES } from "@/lib/writing-projects";
 
 const stageOf = (title: string) => screen.getByRole("heading", { name: new RegExp(`^${title}$`) }).closest("li")!;
+const stepOf = (title: string, nth = 0) => screen.getAllByText(title, { selector: "li > span" })[nth].closest("li")!;
 
 describe("journeyStageForPhase", () => {
   it("places every status except hibernating at exactly one stage", () => {
     for (const phase of PROJECT_PHASES) {
-      const stages = JOURNEY_STAGES.filter((s) => s.phases.includes(phase));
+      const stages = JOURNEY_STAGES.filter((s) => stagePhases(s).includes(phase));
       expect(stages).toHaveLength(phase === "hibernating" ? 0 : 1);
     }
-    expect(journeyStageForPhase("beta_readers")?.title).toBe("Beta readers");
-    expect(journeyStageForPhase("revising")?.id).toBe("revision-1");
+    expect(journeyStageForPhase("beta_readers")?.id).toBe("hire-a-pro");
+    expect(journeyStageForPhase("revising")?.id).toBe("hire-a-pro");
     expect(journeyStageForPhase("hibernating")).toBeNull();
   });
 
-  it("walks the hire-a-pro row in the order a manuscript goes through it", () => {
-    const row = JOURNEY_STAGES.filter((s) => s.y === 400).sort((a, b) => a.x - b.x);
-    expect(row.map((s) => s.title)).toEqual([
+  it("lists the hire-a-pro steps in the order a manuscript goes through them", () => {
+    expect(HIRE_A_PRO_STEPS.map((s) => s.title)).toEqual([
       "First read-through",
       "Revision",
       "Developmental edit",
@@ -35,7 +35,7 @@ describe("journeyStageForPhase", () => {
 });
 
 describe("JourneyMap", () => {
-  it("shows each project under the stage its status puts it at, and paused ones apart", () => {
+  it("shows each project at the stage or step its status puts it at, and paused ones apart", () => {
     render(
       <JourneyMap
         projects={[
@@ -46,51 +46,48 @@ describe("JourneyMap", () => {
         ]}
       />
     );
-    expect(within(stageOf("Line & copy edit")).getByRole("link", { name: "Book One" })).toHaveAttribute("href", "/projects/wprj_AAAAAAAAAAA1");
+    expect(within(stepOf("Line & copy edit")).getByRole("link", { name: "Book One" })).toHaveAttribute("href", "/projects/wprj_AAAAAAAAAAA1");
     expect(within(stageOf("Draft")).getByRole("link", { name: "Book Two" })).toBeInTheDocument();
     expect(within(stageOf("Publishing")).getByRole("link", { name: "Book Four" })).toBeInTheDocument();
-    expect(within(stageOf("Beta readers")).queryByRole("link")).toBeNull();
+    expect(within(stepOf("Beta readers")).queryByRole("link")).toBeNull();
     expect(screen.getByRole("heading", { name: "Paused" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Book Three · Hibernating" })).toBeInTheDocument();
   });
 
-  it("tags each stage with the statuses that put a project there", () => {
+  it("tags the stages with the statuses that put a project there", () => {
     render(<JourneyMap projects={[]} />);
     expect(stageOf("Draft")).toHaveTextContent("Status: Planning · Outlining · Drafting");
-    expect(stageOf("First read-through")).toHaveTextContent("Status: First read-through");
-    expect(stageOf("Developmental edit")).toHaveTextContent("Status: Developmental edit");
-    expect(stageOf("Beta readers")).toHaveTextContent("Status: Beta readers");
-    expect(stageOf("Line & copy edit")).toHaveTextContent("Status: Line & copy edit");
-    expect(stageOf("Final read-through")).toHaveTextContent("Status: Final read-through");
-    expect(stageOf("Final beta read")).toHaveTextContent("Status: Final beta read");
     expect(stageOf("Publishing")).toHaveTextContent("Status: Publishing · Complete");
     expect(stageOf("Launch & Sell")).toHaveTextContent("Status: Published");
     expect(stageOf("Self-Publish")).not.toHaveTextContent("Status:");
     expect(stageOf("ARC readers")).not.toHaveTextContent("Status:");
   });
 
-  it("shows a project at the first Revision only, since the other two share its status", () => {
+  it("shows a project at the first Revision only, since the three share the status", () => {
     render(<JourneyMap projects={[{ id: "wprj_AAAAAAAAAAA1", title: "Book One", phase: "revising" }]} />);
-    const revisions = screen.getAllByRole("heading", { name: "Revision" }).map((h) => h.closest("li")!);
-    expect(revisions).toHaveLength(3);
-    expect(within(revisions[0]).getByRole("link", { name: "Book One" })).toBeInTheDocument();
-    expect(within(revisions[1]).queryByRole("link")).toBeNull();
-    expect(within(revisions[2]).queryByRole("link")).toBeNull();
+    expect(screen.getAllByText("Revision", { selector: "li > span" })).toHaveLength(3);
+    expect(within(stepOf("Revision", 0)).getByRole("link", { name: "Book One" })).toBeInTheDocument();
+    expect(within(stepOf("Revision", 1)).queryByRole("link")).toBeNull();
+    expect(within(stepOf("Revision", 2)).queryByRole("link")).toBeNull();
   });
 
-  it("names The Ready Writer at Draft and spans the Self-Editing Academy over every stage of the row, with every status it covers", () => {
+  it("names The Ready Writer at Draft and gives the Self-Editing Academy every status it covers", () => {
     render(<JourneyMap projects={[]} />);
     expect(stageOf("Draft")).toHaveTextContent("The Ready Writer");
-    const academy = JOURNEY_STAGES.find((s) => s.offer === "Self-Editing Academy")!;
-    const row = JOURNEY_STAGES.filter((s) => s.y === 400);
-    for (const stage of row) {
-      expect(academy.x - academy.width! / 2).toBeLessThanOrEqual(stage.x - (stage.width ?? STAGE_WIDTH) / 2);
-      expect(academy.x + academy.width! / 2).toBeGreaterThanOrEqual(stage.x + (stage.width ?? STAGE_WIDTH) / 2);
-    }
-    for (const stage of row) expect(academy.y + academy.height! / 2).toBeLessThan(stage.y - stage.height! / 2);
+    expect(stageOf("Self-Edit")).toHaveTextContent("Self-Editing Academy");
     expect(stageOf("Self-Edit")).toHaveTextContent(
       "Status: First read-through · Revising · Developmental edit · Beta readers · Line & copy edit · Final read-through · Final beta read"
     );
+  });
+
+  it("draws the Self-Editing Academy about as big as the other programs, and the hire-a-pro path as one lane beside it", () => {
+    const [draft, academy, lane] = ["draft", "self-edit", "hire-a-pro"].map((id) => JOURNEY_STAGES.find((s) => s.id === id)!);
+    expect(academy.width ?? STAGE_WIDTH).toBeLessThanOrEqual((draft.width ?? STAGE_WIDTH) * 1.25);
+    expect(academy.height ?? STAGE_HEIGHT).toBeLessThanOrEqual((draft.height ?? STAGE_HEIGHT) * 1.3);
+    expect(lane.x).toBe(academy.x);
+    expect(lane.y - lane.height! / 2).toBeGreaterThan(academy.y + academy.height! / 2);
+    // The whole map stays about as tall as it is wide, instead of a row three times longer than the programs.
+    expect(JOURNEY_CANVAS.width / JOURNEY_CANVAS.height).toBeLessThan(3);
   });
 
   it("keeps ARC readers between Self-Publish and Query & Submit, inside the Publishing box", () => {
@@ -101,15 +98,6 @@ describe("JourneyMap", () => {
       expect(box.y - box.height! / 2).toBeLessThan(s.y - STAGE_HEIGHT / 2);
       expect(box.y + box.height! / 2).toBeGreaterThan(s.y + STAGE_HEIGHT / 2);
     }
-  });
-
-  it("keeps the writer's own steps narrow, so the swimlane stays compact", () => {
-    const row = JOURNEY_STAGES.filter((s) => s.y === 400);
-    const own = row.filter((s) => s.offerStatus === "own");
-    expect(own).toHaveLength(5);
-    for (const stage of own) expect(stage.width).toBeLessThanOrEqual(COMPACT_STAGE_WIDTH);
-    const span = Math.max(...row.map((s) => s.x + s.width! / 2)) - Math.min(...row.map((s) => s.x - s.width! / 2));
-    expect(span).toBeLessThan(1700);
   });
 
   it("has no Paused section when nothing is paused", () => {
