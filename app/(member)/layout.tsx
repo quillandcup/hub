@@ -69,7 +69,7 @@ export default async function MemberLayout({
   const main = (
     // The Getting started card floats over the bottom right corner (fixed, up to about 20rem tall open):
     // while it is on the page there is room under the content, so the last control scrolls clear of it.
-    <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain group-has-[[data-onboarding-card]]/shell:pb-80">
+    <main className="min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain group-has-[[data-onboarding-card]]/shell:pb-80">
       {children}
     </main>
   )

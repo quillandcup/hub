@@ -20,7 +20,10 @@ export function InfoTip({ children, label = "More info" }: { children: ReactNode
       </button>
       <span
         role="tooltip"
-        className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none absolute left-0 top-6 w-64 p-3 bg-slate-900 dark:bg-slate-700 text-white text-xs font-normal rounded shadow-lg z-10 transition-opacity duration-200"
+        // display:none until shown: an invisible 16rem box hanging off an icon near the right edge
+        // widened the page on a phone (the admin member page scrolled sideways into blank space). On a
+        // phone it spans the viewport (fixed, left/right set) instead of overflowing it.
+        className="hidden group-hover:block group-focus-within:block pointer-events-none z-10 rounded bg-slate-900 p-3 text-xs font-normal text-white shadow-lg dark:bg-slate-700 max-sm:fixed max-sm:inset-x-4 max-sm:mt-7 sm:absolute sm:left-0 sm:top-6 sm:w-64"
       >
         {children}
       </span>
