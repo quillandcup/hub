@@ -73,7 +73,7 @@ const EXACT_PATHS = [
 /**
  * Pages under a prefix, one level or more: a member's profile and its tabs, a prickle's page.
  * A tool that lives beside them (`/admin/members/network`) is not included, nor is a member's
- * Identity tab (emails, aliases, legal name) or Activity Log tab (audit entries): those stay admin-only.
+ * Identity tab (emails, aliases, legal name), Activity Log tab (audit entries) or Notifications tab (devices, email): those stay admin-only.
  */
 const PREFIX_PATHS = [
   { prefix: "/admin/members/", except: ["/admin/members/network"] },
@@ -83,7 +83,7 @@ const PREFIX_PATHS = [
 export function isCommunityManagerPath(pathname: string): boolean {
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
   if ((EXACT_PATHS as readonly string[]).includes(path)) return true;
-  if (/^\/admin\/members\/[^/]+\/(identity|activity)$/.test(path)) return false;
+  if (/^\/admin\/members\/[^/]+\/(identity|activity|notifications)$/.test(path)) return false;
   return PREFIX_PATHS.some(
     ({ prefix, except }) =>
       path.startsWith(prefix) && path.length > prefix.length && !except.some((e) => path === e || path.startsWith(`${e}/`))

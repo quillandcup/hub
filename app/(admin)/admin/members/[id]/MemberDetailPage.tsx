@@ -29,6 +29,12 @@ import { getMemberBadges } from "@/lib/badges";
 import { MEMBER_TAB_LABELS, type MemberTabId } from "./tabs";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { tabTitle } from "@/lib/tab-routes";
+import { loadPushDevices } from "@/lib/channels/web-push";
+import { describeDevice } from "@/lib/device-label";
+import { createServiceRoleClient } from "@/lib/supabase/service";
+import { NOTIFICATION_KINDS, NOTIFICATION_CHANNELS, effectiveChannels } from "@/lib/notifications/registry";
+import { isNewcomer } from "@/lib/newcomer";
+import type { NotificationKindRow } from "./MemberNotificationsPanel";
 import * as Sentry from "@sentry/nextjs";
 import { fetchActivityFeed, parseFeedFilters, MEMBER_DEFAULTS, type FeedPage, type ActivityFeedRow } from "@/lib/activity-feed";
 import { traced } from "@/lib/query-trace";
@@ -82,6 +88,34 @@ export default async function MemberDetailPage({
 
   if (!memberRow) {
     notFound();
+  }
+
+  // The Notifications tab: devices (service role, since the table holds push credentials; only the
+  // labels leave this function) and the member's stored choices against the defaults.
+  let notificationsInfo: { devices: string[]; newcomer: boolean; kinds: NotificationKindRow[] } | null = null;
+  if (tab === "notifications" && can("member.push_devices")) {
+    const [devices, stored] = await Promise.all([
+      loadPushDevices(createServiceRoleClient(), id)
+        .then((rows) => rows.map((d) => describeDevice(d.userAgent)))
+        .catch(() => [] as string[]),
+      createRepos(supabase).notifications.preferencesOf(id).catch(() => []),
+    ]);
+    const newcomer = isNewcomer(memberRow.firstJoinedAt, new Date(clock.now()));
+    notificationsInfo = {
+      devices,
+      newcomer,
+      kinds: NOTIFICATION_KINDS.map((k) => {
+        const channels = effectiveChannels(k.id, stored, { newcomer });
+        const defaults = effectiveChannels(k.id, [], { newcomer });
+        return {
+          id: k.id,
+          category: k.category,
+          label: k.label,
+          channels,
+          changed: NOTIFICATION_CHANNELS.map((c) => c.id).filter((c) => channels.includes(c) !== defaults.includes(c)),
+        };
+      }),
+    };
   }
 
   // Fetch all attendance records for this member with prickle details
@@ -371,6 +405,7 @@ export default async function MemberDetailPage({
           awards={awards}
           nameAliases={nameAliasRows ?? []}
           emailAliases={emailAliases ?? []}
+          notificationsInfo={notificationsInfo}
           features={features}
         />
         {can("member.remove") && <RemoveMemberPanel member={{ id: member.id, name: member.name, removed: member.email.endsWith("@removed.invalid") }} />}

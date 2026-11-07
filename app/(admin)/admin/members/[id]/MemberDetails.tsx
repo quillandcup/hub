@@ -19,6 +19,7 @@ import LatestNoteCard, { type LatestNote } from "./LatestNoteCard";
 import ActivityFilters from "@/app/(admin)/admin/activity/ActivityFilters";
 import { feedSearch, type FeedFilters, type FeedPage } from "@/lib/activity-feed";
 import MemberBadgesPanel from "./MemberBadgesPanel";
+import MemberNotificationsPanel, { type NotificationKindRow } from "./MemberNotificationsPanel";
 import MemberIdentityPanel, { type NameAliasRow, type EmailAliasRow } from "./MemberIdentityPanel";
 import type { EarnedBadge } from "@/lib/badges";
 import { formatDateInZone } from "@/lib/formatters";
@@ -73,6 +74,8 @@ interface MemberDetailsProps {
   }[];
   nameAliases: NameAliasRow[];
   emailAliases: EmailAliasRow[];
+  /** The Notifications tab's data; null off that tab or when the viewer may not see it. */
+  notificationsInfo?: { devices: string[]; newcomer: boolean; kinds: NotificationKindRow[] } | null;
   /** What the viewer may see or do beyond reading (lib/staff-access.ts): everything else is hidden. */
   features: readonly StaffFeature[];
 }
@@ -101,6 +104,7 @@ export default function MemberDetails({
   awards,
   nameAliases,
   emailAliases,
+  notificationsInfo = null,
   features,
 }: MemberDetailsProps) {
   const can = (feature: StaffFeature) => features.includes(feature);
@@ -135,6 +139,7 @@ export default function MemberDetails({
     { id: "slack", label: `${MEMBER_TAB_LABELS.slack} (${slackSummary.total})` },
     ...(!can("member.activity_tab") ? [] : [{ id: "activity" as const, label: MEMBER_TAB_LABELS.activity }]),
     ...(!can("member.identity_tab") ? [] : [{ id: "identity" as const, label: MEMBER_TAB_LABELS.identity }]),
+    ...(!can("member.push_devices") ? [] : [{ id: "notifications" as const, label: MEMBER_TAB_LABELS.notifications }]),
   ];
 
   return (
@@ -276,6 +281,10 @@ export default function MemberDetails({
           emailAliases={emailAliases}
           nameAliases={nameAliases}
         />
+      )}
+
+      {activeTab === "notifications" && notificationsInfo && (
+        <MemberNotificationsPanel email={member.email} {...notificationsInfo} />
       )}
 
       {activeTab === "attendance" && (
