@@ -158,6 +158,16 @@ describe("goal row controls on the project page", () => {
     expect(reload).toHaveBeenCalled();
   });
 
+  it("starts a new goal on the profile when its project is on the profile, and off when it is not", async () => {
+    const { unmount } = render(<ProjectDetailClient project={{ ...project, showOnProfile: true, goals: [] }} entries={[]} archivedGoals={[]} />);
+    await userEvent.click(screen.getByRole("button", { name: "+ Add a goal" }));
+    expect(screen.getByRole("checkbox", { name: /Show on my profile/ })).toBeChecked();
+    unmount();
+    render(<ProjectDetailClient project={{ ...project, goals: [] }} entries={[]} archivedGoals={[]} />);
+    await userEvent.click(screen.getByRole("button", { name: "+ Add a goal" }));
+    expect(screen.getByRole("checkbox", { name: /Show on my profile/ })).not.toBeChecked();
+  });
+
   it("does not refresh when a project is put on the profile", async () => {
     vi.mocked(actions.toggleProjectVisibility).mockResolvedValue({ success: true } as never);
     renderMissedOnly();

@@ -13,6 +13,8 @@ export interface JourneyStep {
   offerStatus: JourneyOffer;
   /** Statuses that put a project at this step. A step with none is only on the map (the later Revisions share the first one's status). */
   phases: ProjectPhase[];
+  /** A Revision that follows this step, drawn as a small tag on its line instead of a line of its own. It has its own statuses (the later ones share the first one's, so they have none). */
+  thenRevision?: { phases: ProjectPhase[] };
 }
 
 export interface JourneyStage {
@@ -47,12 +49,9 @@ export const STAGE_HEIGHT = 120;
 
 /** The editing steps between a finished draft and publishing, done with hired professionals (and beta readers) instead of the Academy. */
 export const HIRE_A_PRO_STEPS: JourneyStep[] = [
-  { title: "First read-through", offerStatus: "own", phases: ["first_read_through"] },
-  { title: "Revision", offerStatus: "own", phases: ["revising"] },
-  { title: "Developmental edit", offerStatus: "external", phases: ["developmental_edit"] },
-  { title: "Revision", offerStatus: "own", phases: [] },
-  { title: "Beta readers", offerStatus: "roadmap", phases: ["beta_readers"] },
-  { title: "Revision", offerStatus: "own", phases: [] },
+  { title: "First read-through", offerStatus: "own", phases: ["first_read_through"], thenRevision: { phases: ["revising"] } },
+  { title: "Developmental edit", offerStatus: "external", phases: ["developmental_edit"], thenRevision: { phases: [] } },
+  { title: "Beta readers", offerStatus: "roadmap", phases: ["beta_readers"], thenRevision: { phases: [] } },
   { title: "Line & copy edit", offerStatus: "external", phases: ["line_copy_edit"] },
   { title: "Final read-through", offerStatus: "own", phases: ["final_read_through"] },
   { title: "Final beta read", offerStatus: "roadmap", phases: ["final_beta_read"] },
@@ -95,9 +94,9 @@ export const JOURNEY_STAGES: JourneyStage[] = [
     kind: "lane",
     steps: HIRE_A_PRO_STEPS,
     x: 620,
-    y: 415,
+    y: 410,
     width: 230,
-    height: 250,
+    height: 200,
   },
   {
     id: "publishing",
@@ -164,7 +163,7 @@ export const JOURNEY_BFF = { title: "BFF", subtitle: "Best Feedback Friends", de
 
 /** Every status that puts a project at the stage, directly or at one of its steps. */
 export function stagePhases(stage: JourneyStage): ProjectPhase[] {
-  return [...stage.phases, ...(stage.steps ?? []).flatMap((s) => s.phases)];
+  return [...stage.phases, ...(stage.steps ?? []).flatMap((s) => [...s.phases, ...(s.thenRevision?.phases ?? [])])];
 }
 
 /** The stage a project in `phase` is at, or null when the status isn't a position (hibernating). */

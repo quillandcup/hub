@@ -92,16 +92,30 @@ function Chips({ projects }: { projects: JourneyProject[] }) {
   );
 }
 
-/** One line of the hire-a-pro lane: the step, with the projects at its status after it. */
-function LaneStep({ step, projects }: { step: JourneyStep; projects: JourneyProject[] }) {
+const PROJECT_LINK = "inline-block rounded-full bg-plum-100 dark:bg-plum-900/40 px-2 py-0.5 text-[11px] text-plum-800 dark:text-plum-200 hover:underline";
+
+/** One line of the hire-a-pro lane: the step, the projects at its status, and a small tag where a Revision follows (with the projects at that status). */
+function LaneStep({ step, projects, revisionProjects }: { step: JourneyStep; projects: JourneyProject[]; revisionProjects: JourneyProject[] }) {
   return (
     <li className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs leading-snug">
       <span className={STEP_STYLE[step.offerStatus]}>{step.title}</span>
       {projects.map((p) => (
-        <Link key={p.id} href={`/projects/${p.id}`} className="inline-block rounded-full bg-plum-100 dark:bg-plum-900/40 px-2 py-0.5 text-[11px] text-plum-800 dark:text-plum-200 hover:underline">
+        <Link key={p.id} href={`/projects/${p.id}`} className={PROJECT_LINK}>
           {p.title}
         </Link>
       ))}
+      {step.thenRevision && (
+        <>
+          <span className="text-[10px] text-slate-500 dark:text-slate-400">
+            <span aria-hidden="true">↻ </span>revise
+          </span>
+          {revisionProjects.map((p) => (
+            <Link key={p.id} href={`/projects/${p.id}`} className={PROJECT_LINK}>
+              {p.title}
+            </Link>
+          ))}
+        </>
+      )}
     </li>
   );
 }
@@ -176,7 +190,7 @@ export default function JourneyMap({ projects }: { projects: JourneyProject[] })
                     <h2 className="text-sm font-semibold leading-tight">{stage.title}</h2>
                     <ol className="mt-1 space-y-0.5">
                       {(stage.steps ?? []).map((step, i) => (
-                        <LaneStep key={i} step={step} projects={projects.filter((p) => step.phases.includes(p.phase))} />
+                        <LaneStep key={i} step={step} projects={projects.filter((p) => step.phases.includes(p.phase))} revisionProjects={projects.filter((p) => step.thenRevision?.phases.includes(p.phase))} />
                       ))}
                     </ol>
                   </li>

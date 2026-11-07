@@ -2519,4 +2519,15 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "We also fixed a mismatch where a goal on your profile could show less progress than your dashboard. Your profile now counts the words you started with, like your dashboard does.",
     ].join("\n\n"),
   },
+  {
+    slug: "privacy-no-ai-on-your-writing",
+    date: "2026-11-06",
+    audience: "product",
+    category: "improved",
+    title: "Our privacy page now says no AI touches your writing",
+    summary: "The privacy page states plainly that your projects, goals, progress and books are never sent to an AI service.",
+    body: [
+      "You can read it under Also good to know on the privacy page: your projects, goals, progress and books are never sent to an AI service, and we don't use them to train or run one.",
+    ].join("\n\n"),
+  },
 ];
