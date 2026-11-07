@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 
@@ -40,22 +40,23 @@ describe("media editor live preview", () => {
 });
 
 describe("upload preview", () => {
-  it("previews the chosen file, revokes it, and falls back to the name when the browser can't draw it", async () => {
-    const create = vi.fn(() => "blob:one");
-    const revoke = vi.fn();
-    vi.stubGlobal("URL", Object.assign(URL, { createObjectURL: create, revokeObjectURL: revoke }));
-    const { unmount } = render(<MediaUploadForm surface="admin_library" onUploaded={vi.fn()} onError={vi.fn()} />);
-    await userEvent.upload(screen.getByLabelText("Image file"), new File(["x"], "photo.heic", { type: "image/heic" }));
+  it("draws the chosen file, and falls back to the name when the browser can't draw it", async () => {
+    const drawImage = vi.fn();
+    const close = vi.fn();
+    vi.stubGlobal("createImageBitmap", vi.fn(async (f: File) => {
+      if (f.type === "image/heic") throw new Error("can't decode");
+      return { width: 400, height: 200, close };
+    }));
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({ drawImage } as unknown as CanvasRenderingContext2D);
+    render(<MediaUploadForm surface="admin_library" onUploaded={vi.fn()} onError={vi.fn()} />);
 
-    const img = await screen.findByAltText("Preview of the chosen image");
-    expect(img).toHaveAttribute("src", "blob:one");
+    await userEvent.upload(screen.getByLabelText("Image file"), new File(["x"], "photo.png", { type: "image/png" }));
+    await waitFor(() => expect(drawImage).toHaveBeenCalled());
+    expect(screen.getByRole("img", { name: "Preview of the chosen image" })).toBeInTheDocument();
     expect(screen.getByText("Choose a different file")).toBeInTheDocument();
 
-    fireEvent.error(img);
-    expect(screen.queryByAltText("Preview of the chosen image")).toBeNull();
+    await userEvent.upload(screen.getByLabelText("Image file"), new File(["x"], "photo.heic", { type: "image/heic" }));
+    await waitFor(() => expect(screen.queryByRole("img", { name: "Preview of the chosen image" })).toBeNull());
     expect(screen.getByText("photo.heic")).toBeInTheDocument();
-
-    unmount();
-    expect(revoke).toHaveBeenCalledWith("blob:one");
   });
 });
