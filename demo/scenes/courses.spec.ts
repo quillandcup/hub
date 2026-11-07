@@ -22,9 +22,20 @@ async function openLesson(page: Page, title: RegExp) {
   await page.getByRole("link", { name: title }).first().click();
 }
 
-/** Colours that are still easing to their final value read as low contrast to axe; wait for every transition to end first. */
+/**
+ * Colours that are still easing to their final value read as low contrast to axe; wait for every transition to end first.
+ * A looping animation never ends (the red dot of the "On air" button pings for as long as a prickle is live, which
+ * depends on the time of day the scene runs), so only ones that finish are waited for.
+ */
 async function settled(page: Page) {
-  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => undefined))));
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
+        .map((a) => a.finished.catch(() => undefined))
+    )
+  );
 }
 
 /**

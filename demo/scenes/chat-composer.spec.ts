@@ -1,5 +1,5 @@
 import { expect, shot, test } from "../fixtures";
-import { demoChannelId } from "../video/slack-stand-in";
+import { demoChannelId, forgetDrafts } from "../video/slack-stand-in";
 
 type Rgba = [number, number, number, number];
 
@@ -20,13 +20,14 @@ function contrast(a: Rgba, b: Rgba): number {
  */
 test("the message box with a quote being written passes the page checks", async ({ page, signInAs }, testInfo) => {
   await signInAs("member");
+  // The sizes run one after another against the same data, and what this scene types is saved as a draft that comes back in the box.
+  await forgetDrafts();
   await page.goto(`/chat/${await demoChannelId("craft-talk")}`);
   await page.waitForLoadState("networkidle");
 
   const box = page.getByRole("textbox", { name: /^Message/ });
   await box.click();
-  // Start from an empty box: a draft saved by an earlier run (drafts are stored per conversation) would come back in it,
-  // and pressing Quote on text that is already a quote takes the quote off.
+  // Start from an empty box whatever it holds: pressing Quote on text that is already a quote takes the quote off.
   await page.keyboard.press("ControlOrMeta+A");
   await page.keyboard.press("Backspace");
   const quote = page.locator(".ProseMirror blockquote");
