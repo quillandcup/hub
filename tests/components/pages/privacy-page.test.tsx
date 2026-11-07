@@ -269,6 +269,13 @@ describe("/privacy page", () => {
     expect(choices.queryByText(/whichever you/)).not.toBeInTheDocument();
   });
 
+  it("promises that no AI touches members' writing", async () => {
+    await renderServerPage(PrivacyPage, {});
+    const more = section("more");
+    expect(more.getByText("No AI touches your writing.")).toBeInTheDocument();
+    expect(more.getByText(/never sent to an AI\s+service/)).toBeInTheDocument();
+  });
+
   it("lists each class of service, generic infrastructure first and named services after", async () => {
     await renderServerPage(PrivacyPage, {});
     const services = section("services");

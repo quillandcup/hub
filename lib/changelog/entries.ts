@@ -2504,4 +2504,15 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "Changed your mind? Pick an answer and the skip goes away, or tap Skipped again.",
     ].join("\n\n"),
   },
+  {
+    slug: "privacy-no-ai-on-your-writing",
+    date: "2026-11-06",
+    audience: "product",
+    category: "improved",
+    title: "Our privacy page now says no AI touches your writing",
+    summary: "The privacy page states plainly that your projects, goals, progress and books are never sent to an AI service.",
+    body: [
+      "You can read it under Also good to know on the privacy page: your projects, goals, progress and books are never sent to an AI service, and we don't use them to train or run one.",
+    ].join("\n\n"),
+  },
 ];

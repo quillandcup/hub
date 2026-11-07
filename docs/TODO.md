@@ -870,6 +870,23 @@ Define user roles and permissions:
 
 ---
 
+### Scrub personal data from public git history _(Needs Scheduling)_
+
+The repo is public, and some old commits (messages, a seed file, a couple of fixtures and docs) still hold real member or staff names, personal emails, Slack handles and member ids. An old credential is also still in history; the owner confirmed it was rotated, so it is a cleanup, not an emergency. The owner reviewed the commits by hand and withdrew several candidates that turned out to be fine, so the list is theirs: it is in `/tmp/history-private-review.md` on the owner's machine (commit list with GitHub links, subjects with real names already removed), and the strings to replace must be rebuilt from it with the owner. Neither the list nor the strings go in the repo, a PR or a commit message (`public-repo-hygiene.md`).
+
+**Why deferred:** rewriting history needs a force-push to `main`, which the ruleset forbids and only the owner (repo admin) can lift, and it orphans every open branch and worktree. The owner wants it timed for when other PRs have slowed down.
+
+**Plan**
+1. Install `git-filter-repo` (not installed). Work on a fresh `git clone --mirror` in a scratch directory outside the repo, never in a worktree.
+2. Write a replacements file (`literal==>replacement`, one per string) outside the repo, from the reviewed list. Include the credential, emails, handles and member ids. Use `--replace-message` for commit messages and `--replace-text` for file contents, and `--path` rules for files that should disappear from history entirely (a seed file with real handles; a tracked local settings file and a one-off seed script were suggested as the cheap alternative: untrack them going forward and leave history alone).
+3. Dry run: check that no listed string survives (`git log --all -p -S<string>` and `git grep` over every ref for each one), that the tip's tree is identical to the current `main` apart from the replaced strings (`git diff` of the two trees), and that migration filenames and timestamps are unchanged.
+4. When PRs have settled: tell the owner, who lifts the `main` ruleset's force-push block (`github-repo-config.yml`; do not change it from a session). Push the rewritten refs with `--force-with-lease` from the mirror. Then the owner restores the ruleset (`pnpm github:config:push`).
+5. Every worktree and open branch must be rebased onto the new `main` or recreated; stale clones must not push the old history back. Merged branches' PR refs (`refs/pull/*`) still hold the old commits.
+6. Ask GitHub Support to remove cached views and the PR refs for the rewritten commits and to run garbage collection; until then the old commits stay reachable by hash.
+7. Rotate or revoke anything that was live in the old history, whether or not it is believed to be rotated already.
+
+**Do not**: force-push from a session without the owner present, lift or edit the ruleset yourself, or paste any flagged string into a commit, PR, issue or log. Report counts only.
+
 ## Login & Access History
 
 ### Session Replay (PostHog bolt-on)
@@ -1762,9 +1779,8 @@ When Slack token rotation is adopted (see `docs/SLACK_BRIDGED_CHAT.md`, "Slack a
 ### `/members` hydration mismatch in the page check
 **Resolved:** it was a false alarm caused by the harness, not an app bug. `shot()` (`demo/fixtures.ts`) scrolled and ran its checks right after navigation; before React had hydrated, that changed attributes the server rendered, and the console logged "a tree hydrated but some attributes of the server rendered HTML didn't match". It reproduced on `/members`, `/changelog` and others whenever a scene called `shot()` straight after `goto`, and not for anyone who waited first (which is why four attempts to find an app cause failed). `shot()` now waits for the page to settle (capped, since member pages poll) before it screenshots or checks; a scene that failed 3 of 3 times before passes 3 of 3 now. **Still open:** none for this entry.
 
-### The auto-hide sidebar covers the footer links while it is open _(Needs Scheduling)_
-
-With the sidebar in auto-hide mode, hovering the slim rail opens the menu over the page, and it covers the footer's Privacy and Contact links; the demo harness's `control-covered` check flags it. Deferred because it needs a design decision (push the page, dim it, or move the footer) more than a code fix. Start from `components/MemberNavigation.tsx` (`useSidebarMode`, `railOpen`, `peekHandlers`) and the member layout footer in `app/(member)/layout.tsx`; the page check on a page with the footer visible, with the rail opened, reproduces it.
+### The auto-hide sidebar covers the footer links while it is open
+**Resolved:** by design. The auto-hide sidebar opens over whatever is on the screen and covers the footer's Privacy and Contact links while it is open; the owner decided that is fine. **Still open:** the demo harness's `control-covered` check flags it when a scene opens the rail on a page with the footer visible; a scene that does so should not treat that as a failure (start from `demo/fixtures.ts` `shot()`).
 
 ## CRM Features
 
