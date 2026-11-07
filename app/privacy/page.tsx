@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 };
 
 /** When the wording below was last checked against the code. Bump it whenever the page changes. */
-export const PRIVACY_EFFECTIVE = "2026-11-03";
+export const PRIVACY_EFFECTIVE = "2026-11-06";
 
 /**
  * What the Hub collects, who can see it, how long it is kept and what a member can do about it.
@@ -405,6 +405,10 @@ export default async function PrivacyPage() {
 
       <Section id="more" title="Also good to know">
         <ul className="list-disc pl-5 space-y-1 text-sm">
+          <li>
+            <strong>No AI touches your writing.</strong> Your projects, goals, progress and books are never sent to an AI
+            service, and we don&apos;t use them to train or run one.
+          </li>
           <li>
             <strong>We don&apos;t share your information</strong> with anyone except the services above.
           </li>

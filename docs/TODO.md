@@ -1762,9 +1762,8 @@ When Slack token rotation is adopted (see `docs/SLACK_BRIDGED_CHAT.md`, "Slack a
 ### `/members` hydration mismatch in the page check
 **Resolved:** it was a false alarm caused by the harness, not an app bug. `shot()` (`demo/fixtures.ts`) scrolled and ran its checks right after navigation; before React had hydrated, that changed attributes the server rendered, and the console logged "a tree hydrated but some attributes of the server rendered HTML didn't match". It reproduced on `/members`, `/changelog` and others whenever a scene called `shot()` straight after `goto`, and not for anyone who waited first (which is why four attempts to find an app cause failed). `shot()` now waits for the page to settle (capped, since member pages poll) before it screenshots or checks; a scene that failed 3 of 3 times before passes 3 of 3 now. **Still open:** none for this entry.
 
-### The auto-hide sidebar covers the footer links while it is open _(Needs Scheduling)_
-
-With the sidebar in auto-hide mode, hovering the slim rail opens the menu over the page, and it covers the footer's Privacy and Contact links; the demo harness's `control-covered` check flags it. Deferred because it needs a design decision (push the page, dim it, or move the footer) more than a code fix. Start from `components/MemberNavigation.tsx` (`useSidebarMode`, `railOpen`, `peekHandlers`) and the member layout footer in `app/(member)/layout.tsx`; the page check on a page with the footer visible, with the rail opened, reproduces it.
+### The auto-hide sidebar covers the footer links while it is open
+**Resolved:** by design. The auto-hide sidebar opens over whatever is on the screen and covers the footer's Privacy and Contact links while it is open; the owner decided that is fine. **Still open:** the demo harness's `control-covered` check flags it when a scene opens the rail on a page with the footer visible; a scene that does so should not treat that as a failure (start from `demo/fixtures.ts` `shot()`).
 
 ## CRM Features
 
