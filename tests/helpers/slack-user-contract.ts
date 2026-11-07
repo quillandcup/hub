@@ -120,7 +120,9 @@ export function defineSlackUserContract(name: string, setup: () => SlackUserCont
 
       // A copy stays while the user has a photo, deactivated or not; it goes when Slack drops the photo.
       await ctx.repo().markPhotoCopied(gone.user_id, { from: gone.image_url!, path: `${gone.user_id}/g.png` });
-      await ctx.repo().upsert([{ user_id: gone.user_id, is_deleted: true, raw_payload: {} }, { user_id: copied.user_id, image_url: null, raw_payload: {} }]);
+      // One upsert each: a bulk upsert of rows with different columns writes null into the ones a row leaves out.
+      await ctx.repo().upsert([{ user_id: gone.user_id, is_deleted: true, raw_payload: {} }]);
+      await ctx.repo().upsert([{ user_id: copied.user_id, image_url: null, raw_payload: {} }]);
       expect((await ctx.repo().photoCopiesToRemove()).map((p) => p.user_id)).not.toContain(gone.user_id);
       await ctx.repo().upsert([{ user_id: gone.user_id, image_url: null, raw_payload: {} }]);
       const removable = (await ctx.repo().photoCopiesToRemove()).filter((p) => [copied.user_id, gone.user_id, fresh.user_id].includes(p.user_id));
