@@ -168,6 +168,13 @@ describe("goal row controls on the project page", () => {
     expect(screen.getByRole("checkbox", { name: /Show on my profile/ })).not.toBeChecked();
   });
 
+  it("closes the new goal form with its Cancel button", async () => {
+    render(<ProjectDetailClient project={{ ...project, goals: [] }} entries={[]} archivedGoals={[]} />);
+    await userEvent.click(screen.getByRole("button", { name: "+ Add a goal" }));
+    await userEvent.click(screen.getAllByRole("button", { name: "Cancel" }).at(-1)!);
+    expect(screen.queryByRole("button", { name: "Add goal" })).not.toBeInTheDocument();
+  });
+
   it("does not refresh when a project is put on the profile", async () => {
     vi.mocked(actions.toggleProjectVisibility).mockResolvedValue({ success: true } as never);
     renderMissedOnly();
