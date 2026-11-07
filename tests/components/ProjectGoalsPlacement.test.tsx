@@ -138,7 +138,6 @@ describe("goal row controls on the project page", () => {
   });
 
   it("shows a missed goal on the profile and reloads, or alerts when the action fails", async () => {
-    vi.stubGlobal("confirm", vi.fn(() => false));
     renderMissedOnly();
     // The page's own project-level toggle comes first; the goal row's is the last one.
     const goalToggle = () => screen.getAllByRole("button", { name: "Show on my profile" }).at(-1)!;
@@ -151,56 +150,20 @@ describe("goal row controls on the project page", () => {
     expect(alertSpy).toHaveBeenCalledWith("Could not change");
   });
 
-  it("asks to show the private project too when a goal goes on the profile, and shares it on yes", async () => {
-    const confirmSpy = vi.fn(() => true);
-    vi.stubGlobal("confirm", confirmSpy);
+  it("hides the project's goals too when the project is taken off the profile, and refreshes", async () => {
+    vi.mocked(actions.toggleProjectVisibility).mockResolvedValue({ success: true } as never);
+    render(<ProjectDetailClient project={{ ...project, showOnProfile: true, goals: [goals[2]] }} entries={[]} archivedGoals={[]} />);
+    await userEvent.click(screen.getAllByRole("button", { name: "Show on my profile" })[0]);
+    expect(actions.toggleProjectVisibility).toHaveBeenCalledWith("wpr_AAAAAAAAAAA1", false);
+    expect(reload).toHaveBeenCalled();
+  });
+
+  it("does not refresh when a project is put on the profile", async () => {
     vi.mocked(actions.toggleProjectVisibility).mockResolvedValue({ success: true } as never);
     renderMissedOnly();
-    await userEvent.click(screen.getAllByRole("button", { name: "Show on my profile" }).at(-1)!);
-    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining("Lantern Draft Two"));
-    expect(actions.toggleGoalVisibility).toHaveBeenCalledWith("g3", true);
+    await userEvent.click(screen.getAllByRole("button", { name: "Show on my profile" })[0]);
     expect(actions.toggleProjectVisibility).toHaveBeenCalledWith("wpr_AAAAAAAAAAA1", true);
-    expect(reload).toHaveBeenCalled();
-  });
-
-  it("keeps the project private when the member says no", async () => {
-    vi.stubGlobal("confirm", vi.fn(() => false));
-    vi.mocked(actions.toggleProjectVisibility).mockClear();
-    renderMissedOnly();
-    await userEvent.click(screen.getAllByRole("button", { name: "Show on my profile" }).at(-1)!);
-    expect(actions.toggleGoalVisibility).toHaveBeenCalledWith("g3", true);
-    expect(actions.toggleProjectVisibility).not.toHaveBeenCalled();
-    expect(reload).toHaveBeenCalled();
-  });
-
-  it("alerts and leaves the project private when sharing it fails", async () => {
-    vi.stubGlobal("confirm", vi.fn(() => true));
-    vi.mocked(actions.toggleProjectVisibility).mockResolvedValueOnce({ error: "Could not share" } as never);
-    renderMissedOnly();
-    await userEvent.click(screen.getAllByRole("button", { name: "Show on my profile" }).at(-1)!);
-    expect(alertSpy).toHaveBeenCalledWith("Could not share");
-  });
-
-  it("offers to share the project after a new goal is added", async () => {
-    const confirmSpy = vi.fn(() => false);
-    vi.stubGlobal("confirm", confirmSpy);
-    vi.mocked(actions.createGoal).mockResolvedValue({ success: true } as never);
-    renderMissedOnly();
-    await userEvent.click(screen.getByRole("button", { name: "+ Add a goal" }));
-    await userEvent.type(screen.getByLabelText("Target amount"), "20");
-    await userEvent.click(screen.getByRole("button", { name: "Add goal" }));
-    expect(actions.createGoal).toHaveBeenCalled();
-    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining("Lantern Draft Two"));
-    expect(reload).toHaveBeenCalled();
-  });
-
-  it("does not ask when the project is already on the profile", async () => {
-    const confirmSpy = vi.fn(() => true);
-    vi.stubGlobal("confirm", confirmSpy);
-    render(<ProjectDetailClient project={{ ...project, showOnProfile: true, goals: [goals[2]] }} entries={[]} archivedGoals={[]} />);
-    await userEvent.click(screen.getAllByRole("button", { name: "Show on my profile" }).at(-1)!);
-    expect(actions.toggleGoalVisibility).toHaveBeenCalledWith("g3", true);
-    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(reload).not.toHaveBeenCalled();
   });
 
   it("deletes a missed goal once confirmed", async () => {

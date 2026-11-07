@@ -187,6 +187,32 @@ describe("toggleGoalStar and toggleGoalVisibility", () => {
     expect(revalidatePath).toHaveBeenCalledWith(`/members/${ME}`);
   });
 
+  it("showing a goal shows its project too, and hiding a goal leaves the project alone", async () => {
+    const shown = () => dataset.writingProjects.find((p) => p.id === "wprj_1")!.show_on_profile;
+    expect(shown()).toBe(false);
+    await toggleGoalVisibility("wgol_1", true);
+    expect(shown()).toBe(true);
+    await toggleGoalVisibility("wgol_1", false);
+    expect(shown()).toBe(true);
+  });
+
+  it("refuses to show someone else's goal, and leaves their project alone", async () => {
+    expect(await toggleGoalVisibility("wgol_other", true)).toEqual({ error: "Goal not found" });
+    expect(dataset.writingProjects.find((p) => p.id === "wprj_2")!.show_on_profile).toBe(false);
+  });
+
+  it("shows the project when a goal is created or edited onto the profile", async () => {
+    const shown = () => dataset.writingProjects.find((p) => p.id === "wprj_1")!.show_on_profile;
+    await createGoal({ projectId: "wprj_1", measure: "words", goalType: "target", targetAmount: 100, showOnProfile: false });
+    expect(shown()).toBe(false);
+    await createGoal({ projectId: "wprj_1", measure: "words", goalType: "target", targetAmount: 100, showOnProfile: true });
+    expect(shown()).toBe(true);
+
+    dataset.writingProjects.find((p) => p.id === "wprj_1")!.show_on_profile = false;
+    await updateGoal("wgol_1", { habitThreshold: 2, showOnProfile: true });
+    expect(shown()).toBe(true);
+  });
+
   it("surface a database error", async () => {
     failWith("updateGoal");
     expect(await toggleGoalStar("wgol_1", true)).toEqual({ error: "boom" });

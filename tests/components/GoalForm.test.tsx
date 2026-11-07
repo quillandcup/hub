@@ -39,8 +39,17 @@ describe("GoalForm", () => {
     expect(screen.queryByText(/A total to reach/)).not.toBeInTheDocument();
   });
 
-  it("pins a new goal to the dashboard and shows it on the profile, and saves both", async () => {
+  it("starts a new goal off the profile when its project is private, since a shown goal shows its project", async () => {
     render(<GoalForm projectId="p1" onSaved={vi.fn()} />);
+    expect(pinned()).toBeChecked();
+    expect(onProfile()).not.toBeChecked();
+    await userEvent.type(amount(), "20");
+    await userEvent.click(screen.getByRole("button", { name: "Add goal" }));
+    expect(createGoal).toHaveBeenCalledWith(expect.objectContaining({ showOnProfile: false }));
+  });
+
+  it("pins a new goal to the dashboard and shows it on the profile when its project is shown, and saves both", async () => {
+    render(<GoalForm projectId="p1" onSaved={vi.fn()} projectShowOnProfile />);
     expect(pinned()).toBeChecked();
     expect(onProfile()).toBeChecked();
 
@@ -49,30 +58,8 @@ describe("GoalForm", () => {
     expect(createGoal).toHaveBeenCalledWith(expect.objectContaining({ isStarred: true, showOnProfile: true }));
   });
 
-  it("offers to share the project after saving a goal that is on the profile, before reporting it saved", async () => {
-    const order: string[] = [];
-    const offer = vi.fn(async () => {
-      order.push("offer");
-    });
-    render(<GoalForm projectId="p1" onSaved={() => order.push("saved")} offerToShareProject={offer} />);
-    await userEvent.type(amount(), "20");
-    await userEvent.click(screen.getByRole("button", { name: "Add goal" }));
-    expect(offer).toHaveBeenCalledTimes(1);
-    expect(order).toEqual(["offer", "saved"]);
-  });
-
-  it("does not offer to share the project for a goal kept off the profile", async () => {
-    const offer = vi.fn(async () => {});
-    render(<GoalForm projectId="p1" onSaved={vi.fn()} offerToShareProject={offer} />);
-    await userEvent.click(onProfile());
-    await userEvent.type(amount(), "20");
-    await userEvent.click(screen.getByRole("button", { name: "Add goal" }));
-    expect(createGoal).toHaveBeenCalledWith(expect.objectContaining({ showOnProfile: false }));
-    expect(offer).not.toHaveBeenCalled();
-  });
-
   it("lets the member untick either for a new goal", async () => {
-    render(<GoalForm projectId="p1" onSaved={vi.fn()} />);
+    render(<GoalForm projectId="p1" onSaved={vi.fn()} projectShowOnProfile />);
     await userEvent.click(pinned());
     await userEvent.click(onProfile());
     expect(pinned()).not.toBeChecked();

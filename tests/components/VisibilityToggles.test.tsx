@@ -31,7 +31,7 @@ describe("ProfileVisibilityToggle", () => {
     const button = screen.getByRole("button", { name: "Show on my profile" });
     expect(button).toHaveTextContent("🔒");
     expect(button).toHaveAttribute("aria-pressed", "false");
-    expect(button).toHaveAttribute("title", "Only you can see this goal (click to show on your profile)");
+    expect(button).toHaveAttribute("title", "Only you can see this goal (click to show it on your profile, with its project)");
   });
 
   it("shows a globe and says other members can see it when public", async () => {
@@ -40,7 +40,7 @@ describe("ProfileVisibilityToggle", () => {
     const button = screen.getByRole("button", { name: "Show on my profile" });
     expect(button).toHaveTextContent("🌐");
     expect(button).toHaveAttribute("aria-pressed", "true");
-    expect(button).toHaveAttribute("title", "Visible on your profile to other members, with its project's title and progress (click to hide)");
+    expect(button).toHaveAttribute("title", "Visible on your profile to other members, with its project (click to hide)");
     await userEvent.click(button);
     expect(onToggle).toHaveBeenCalledOnce();
   });

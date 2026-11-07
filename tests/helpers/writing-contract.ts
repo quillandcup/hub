@@ -381,7 +381,7 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       const id = await ctx.repo().createProject(a, "Fresh Start", "planning");
 
       expect(await ctx.repo().projectSummaries(a)).toEqual([
-        { id, title: "Fresh Start", phase: "planning", created_at: expect.any(String), show_on_profile: false, cover_url: null, description: null },
+        { id, title: "Fresh Start", phase: "planning", created_at: expect.any(String), show_on_profile: true, cover_url: null, description: null },
       ]);
       expect((await ctx.repo().projectSummary(a, id))?.title).toBe("Fresh Start");
       expect(await ctx.repo().projectSummary(b, id)).toBeNull();

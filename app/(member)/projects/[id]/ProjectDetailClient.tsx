@@ -123,19 +123,8 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
       return;
     }
     setShowOnProfile(next);
-  }
-
-  // A shared goal shows its project's title and progress, so when the project is still private,
-  // ask whether to show it too. Cancel keeps the goal shared on its own.
-  async function offerToShareProject() {
-    if (showOnProfile) return;
-    if (!confirm(`A goal on your profile shows its project's title and progress. Show “${project.title}” on your profile too?`)) return;
-    const result = await toggleProjectVisibility(project.id, true);
-    if ("error" in result) {
-      alert(result.error);
-      return;
-    }
-    setShowOnProfile(true);
+    // Hiding a project hides its goals too (the database does it), so refresh their toggles.
+    if (!next) handleChanged();
   }
 
   async function handlePhaseChange(e: React.ChangeEvent<HTMLSelectElement>) {
@@ -177,7 +166,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
             handleChanged();
           }}
           onCancel={() => setEditingGoal(null)}
-          offerToShareProject={offerToShareProject}
+          projectShowOnProfile={showOnProfile}
           onArchive={() => {
             setEditingGoal(null);
             handleArchiveGoal(goal.id);
@@ -198,12 +187,8 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
               on={goal.showOnProfile}
               onToggle={async () => {
                 const result = await toggleGoalVisibility(goal.id, !goal.showOnProfile);
-                if ("error" in result) {
-                  alert(result.error);
-                  return;
-                }
-                if (!goal.showOnProfile) await offerToShareProject();
-                handleChanged();
+                if ("error" in result) alert(result.error);
+                else handleChanged();
               }}
             />
           </div>
@@ -413,7 +398,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
           projectId={project.id}
           onSaved={handleChanged}
           onCancel={() => setShowNewGoal(false)}
-          offerToShareProject={offerToShareProject}
+          projectShowOnProfile={showOnProfile}
         />}
 
       {entries.length > 0 && <ProjectCharts entries={entries} startingBalances={project.startingBalances} />}
@@ -581,22 +566,22 @@ export function GoalForm({
   onSaved,
   onCancel,
   onArchive,
-  offerToShareProject,
+  projectShowOnProfile = false,
 }: {
   projectId: string;
   goal?: GoalRow;
   onSaved: () => void;
   onCancel?: () => void;
-  /** Called after a save that leaves the goal on the profile; asks about the project if it is private. */
-  offerToShareProject?: () => Promise<void>;
+  /** Whether the project is on the profile: a new goal starts the same way, since a shown goal shows its project. */
+  projectShowOnProfile?: boolean;
   onArchive?: () => void;
 }) {
   const isEditing = !!goal;
   const [title, setTitle] = useState(goal?.title ?? "");
   const [description, setDescription] = useState(goal?.description ?? "");
-  // A new goal starts pinned to the dashboard and on the profile (the member can untick either);
-  // editing keeps what was saved.
-  const [showOnProfile, setShowOnProfile] = useState(goal ? goal.showOnProfile : true);
+  // A new goal starts pinned to the dashboard and on the profile if its project is (the member can
+  // change either); editing keeps what was saved.
+  const [showOnProfile, setShowOnProfile] = useState(goal ? goal.showOnProfile : projectShowOnProfile);
   const [isStarred, setIsStarred] = useState(goal ? goal.isStarred : true);
   const [goalType, setGoalType] = useState<"target" | "habit">(goal?.kind ?? "target");
   // Prickles is the default for new goals -- it's the input (attending), word/page/etc counts
@@ -652,7 +637,6 @@ export function GoalForm({
       setError(result.error);
       return;
     }
-    if (showOnProfile) await offerToShareProject?.();
     onSaved();
   }
 
@@ -833,7 +817,7 @@ export function GoalForm({
             className="rounded"
           />
           <span aria-hidden="true">{PROFILE_PUBLIC}</span>
-          Show on my profile <span className="text-slate-500 dark:text-slate-400">(other members can see this goal, with its project's title and progress)</span>
+          Show on my profile <span className="text-slate-500 dark:text-slate-400">(other members can see this goal, and its project with it)</span>
         </label>
       </div>
 

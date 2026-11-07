@@ -7,7 +7,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(11);
+SELECT plan(15);
 
 -- Writer (whose profile is viewed) and a regular member viewing it. Fixed ids nothing else uses.
 INSERT INTO public.members (id, name, email, joined_at, status) VALUES
@@ -16,7 +16,7 @@ INSERT INTO public.members (id, name, email, joined_at, status) VALUES
 
 INSERT INTO public.writing_projects (id, member_id, title, show_on_profile) VALUES
   ('prj_AAAAAAAAb911', 'mbr_AAAAAAAAb9A1', 'Shown project', true),
-  ('prj_AAAAAAAAb912', 'mbr_AAAAAAAAb9A1', 'Hidden project with shown goal', false),
+  ('prj_AAAAAAAAb912', 'mbr_AAAAAAAAb9A1', 'Hidden project, goal asked to be shown', false),
   ('prj_AAAAAAAAb913', 'mbr_AAAAAAAAb9A1', 'Fully private', false);
 
 INSERT INTO public.writing_progress_entries (member_id, project_id, entry_date, measure, mode, amount, note, tags) VALUES
@@ -26,11 +26,12 @@ INSERT INTO public.writing_progress_entries (member_id, project_id, entry_date, 
 
 INSERT INTO public.writing_project_starting_balances (member_id, project_id, measure, amount) VALUES
   ('mbr_AAAAAAAAb9A1', 'prj_AAAAAAAAb911', 'words', 24657),
-  ('mbr_AAAAAAAAb9A1', 'prj_AAAAAAAAb912', 'chapters', 300),
   ('mbr_AAAAAAAAb9A1', 'prj_AAAAAAAAb913', 'words', 999);
 
+-- A goal can only be shown with its project: the one on the hidden project is stored as hidden.
 INSERT INTO public.writing_goals (member_id, project_id, goal_type, measure, target_amount, title, description, show_on_profile) VALUES
-  ('mbr_AAAAAAAAb9A1', 'prj_AAAAAAAAb912', 'target', 'chapters', 18, 'Finish Draft 3', 'For beta readers', true),
+  ('mbr_AAAAAAAAb9A1', 'prj_AAAAAAAAb911', 'target', 'chapters', 18, 'Finish Draft 3', 'For beta readers', true),
+  ('mbr_AAAAAAAAb9A1', 'prj_AAAAAAAAb912', 'target', 'words', 5000, 'Asked to be shown', NULL, true),
   ('mbr_AAAAAAAAb9A1', 'prj_AAAAAAAAb913', 'target', 'words', 1000, 'Private goal', NULL, false);
 
 -- Call it as a signed-in regular member, the way PostgREST does.
@@ -58,13 +59,13 @@ SELECT is(
   '["Finish Draft 3"]'::jsonb, 'only the opted-in goal is listed');
 SELECT is(
   (SELECT result #>> '{goals,0,project_title}' FROM profile_result WHERE label = 'viewer'),
-  'Hidden project with shown goal', 'a shown goal carries its project title');
+  'Shown project', 'a shown goal carries its project title');
 SELECT is(
   (SELECT result #>> '{goals,0,description}' FROM profile_result WHERE label = 'viewer'),
   'For beta readers', 'a shown goal carries its description');
 SELECT is(
   (SELECT jsonb_array_length(result -> 'entries') FROM profile_result WHERE label = 'viewer'),
-  2, 'entries come from the shown project and the shown goal''s project only');
+  1, 'entries come from the shown project only');
 SELECT ok(
   (SELECT NOT (result::text LIKE '%secret note%' OR result::text LIKE '%private%') FROM profile_result WHERE label = 'viewer'),
   'entry notes and tags are never returned');
@@ -73,7 +74,23 @@ SELECT ok(
   'entries have no note key');
 SELECT is(
   (SELECT jsonb_path_query_array(result, '$.starting_balances[*].amount') FROM profile_result WHERE label = 'viewer'),
-  '[24657, 300]'::jsonb, 'starting balances for shown projects and the projects of shown goals, never a private one');
+  '[24657]'::jsonb, 'starting balances only for shown projects');
+SELECT is(
+  (SELECT show_on_profile FROM public.writing_goals WHERE title = 'Asked to be shown' AND member_id = 'mbr_AAAAAAAAb9A1'),
+  false, 'a goal asked to be shown on a hidden project is stored as hidden');
+SELECT is(
+  (SELECT show_on_profile FROM public.writing_projects WHERE id = 'prj_AAAAAAAAb912'),
+  false, 'and it does not show the project');
+
+-- Hiding a project hides its goals; showing the project again does not bring them back.
+UPDATE public.writing_projects SET show_on_profile = false WHERE id = 'prj_AAAAAAAAb911';
+SELECT is(
+  (SELECT show_on_profile FROM public.writing_goals WHERE title = 'Finish Draft 3' AND member_id = 'mbr_AAAAAAAAb9A1'),
+  false, 'hiding a project hides its goals');
+UPDATE public.writing_projects SET show_on_profile = true WHERE id = 'prj_AAAAAAAAb911';
+SELECT is(
+  (SELECT show_on_profile FROM public.writing_goals WHERE title = 'Finish Draft 3' AND member_id = 'mbr_AAAAAAAAb9A1'),
+  false, 'showing the project again leaves its goals hidden');
 SELECT is(
   (SELECT result FROM profile_result WHERE label = 'direct'),
   '0'::jsonb, 'a regular member still can''t read another member''s writing_projects directly');

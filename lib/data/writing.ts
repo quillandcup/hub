@@ -1072,7 +1072,7 @@ export class InMemoryWritingRepository implements WritingRepository {
       cover_asset_id: null,
       cover_url: null,
       external_id: null,
-      show_on_profile: false,
+      show_on_profile: true,
       deleted_at: null,
       created_at: new Date().toISOString(),
     });
@@ -1187,7 +1187,7 @@ export class InMemoryWritingRepository implements WritingRepository {
         cover_asset_id: r.cover_asset_id ?? null,
         cover_url: r.cover_url ?? null,
         external_id: r.external_id ?? null,
-        show_on_profile: r.show_on_profile ?? false,
+        show_on_profile: r.show_on_profile ?? true,
         created_at: r.created_at ?? new Date().toISOString(),
       });
       if (r.external_id) created.push({ id, external_id: r.external_id });
