@@ -31,7 +31,9 @@ vi.mock("@/app/(admin)/admin/members/[id]/MemberDetails", () => ({
     activityFeed,
     emailAliases,
     eventSlugs,
+    notificationsInfo,
   }: {
+    notificationsInfo?: unknown;
     emailAliases: { alias_email: string }[];
     eventSlugs?: Record<string, string>;
     slackPage: { rows: { id: string; description: string | null }[] };
@@ -44,6 +46,7 @@ vi.mock("@/app/(admin)/admin/members/[id]/MemberDetails", () => ({
         ))}
       </ul>
       <p>{activityFeed ? `activity ${activityFeed.total} on page ${activityFeed.page}` : "activity unavailable"}</p>
+      <p data-testid="notifications-info">{JSON.stringify(notificationsInfo ?? null)}</p>
       <p>{`event slugs ${JSON.stringify(eventSlugs ?? {})}`}</p>
       <ol aria-label="email aliases">
         {emailAliases.map((a) => (
@@ -61,6 +64,8 @@ vi.mock("@/lib/timezone", () => ({ getUserTimezonePreference: vi.fn(async () => 
 vi.mock("@/lib/badges", () => ({ getMemberBadges: vi.fn(async () => []) }));
 vi.mock("@/lib/kajabi/membership-history", () => ({ fetchMembershipHistory: vi.fn(async () => []) }));
 
+vi.mock("@/lib/channels/web-push", () => ({ loadPushDevices: vi.fn(async () => []) }));
+import { loadPushDevices } from "@/lib/channels/web-push";
 import { getMemberBadges } from "@/lib/badges";
 import MemberDetailPage, { memberTabMetadata } from "@/app/(admin)/admin/members/[id]/MemberDetailPage";
 
@@ -72,6 +77,7 @@ function memberTables(extra: FakeTables = {}): FakeTables {
 
 beforeEach(() => {
   staff.role = "admin";
+  vi.mocked(loadPushDevices).mockClear();
   resetServerPageMocks();
   signInAs(ADMIN_USER);
   serviceTables = {
@@ -86,6 +92,26 @@ describe("MemberDetailPage controls", () => {
     useFakeSupabase(memberTables());
     await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "overview" as const });
     expect(screen.getByRole("button", { name: "Sudo As" })).toBeInTheDocument();
+  });
+
+  it("shows an admin the Notifications tab: devices, email and choices against defaults", async () => {
+    vi.mocked(loadPushDevices).mockResolvedValue([{ userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15" }] as never);
+    useFakeSupabase(memberTables({ notification_preferences: { data: [{ kind: "prickle_checkin", channel: "slack", enabled: false }] } }));
+    await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "notifications" as const });
+    const info = JSON.parse(screen.getByTestId("notifications-info").textContent!);
+    expect(info.devices).toHaveLength(1);
+    const checkin = info.kinds.find((k: { id: string }) => k.id === "prickle_checkin");
+    expect(checkin.channels).not.toContain("slack");
+    expect(checkin.changed).toEqual(["slack"]);
+    vi.mocked(loadPushDevices).mockResolvedValue([]);
+  });
+
+  it("hides the Notifications tab and its data from a community manager", async () => {
+    staff.role = "community_manager";
+    useFakeSupabase(memberTables());
+    await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "notifications" as const });
+    expect(screen.getByTestId("notifications-info")).toHaveTextContent("null");
+    expect(loadPushDevices).not.toHaveBeenCalled();
   });
 
   it("gives a community manager the profile without Sudo As, Merge, Split or the Remove panel", async () => {
