@@ -24,6 +24,8 @@ export type AnnouncementDismiss = {
   scope: "session" | "device";
   /** Button text, "Not now" by default. */
   label?: string;
+  /** "icon" is a compact X at the left edge (label becomes its accessible name), like a store's app banner. */
+  variant?: "text" | "icon";
   track?: string;
 };
 
@@ -88,31 +90,36 @@ export default function AnnouncementBar({ tone, children, action, dismiss, role,
     actionEl = <button type="button" data-track={action.track} onClick={action.onClick} className={actionClass}>{action.label}</button>;
   }
 
+  const icon = dismiss?.variant === "icon";
+  const dismissButton = dismiss && (
+    <button
+      type="button"
+      data-track={dismiss.track}
+      aria-label={icon ? (dismiss.label ?? "Dismiss") : undefined}
+      onClick={() => {
+        try {
+          storageFor(dismiss.scope).setItem(dismiss.dismissKey, "1");
+        } catch {
+          // Dismissed for this visit only.
+        }
+        setDismissed(true);
+      }}
+      className={icon ? `${dismissClass} -ml-2 px-2 text-lg leading-none` : dismissClass}
+    >
+      {icon ? "×" : (dismiss.label ?? "Not now")}
+    </button>
+  );
+
   return (
     <section
       role={role ?? (tone === "critical" ? "alert" : "status")}
       aria-label={ariaLabel}
       className={`${ANNOUNCEMENT_BAR_LAYOUT} ${ANNOUNCEMENT_TONE_CLASSES[tone]}`}
     >
+      {icon && dismissButton}
       <div className="min-w-0 flex-1">{children}</div>
       {actionEl}
-      {dismiss && (
-        <button
-          type="button"
-          data-track={dismiss.track}
-          onClick={() => {
-            try {
-              storageFor(dismiss.scope).setItem(dismiss.dismissKey, "1");
-            } catch {
-              // Dismissed for this visit only.
-            }
-            setDismissed(true);
-          }}
-          className={dismissClass}
-        >
-          {dismiss.label ?? "Not now"}
-        </button>
-      )}
+      {!icon && dismissButton}
     </section>
   );
 }

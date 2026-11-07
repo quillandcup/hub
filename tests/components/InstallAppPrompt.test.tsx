@@ -32,6 +32,7 @@ describe("InstallAppPrompt", () => {
     const share = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "share", { configurable: true, value: share });
     render(<InstallAppPrompt />);
+    await userEvent.click(await screen.findByRole("button", { name: "How" }));
     await userEvent.click(await screen.findByRole("button", { name: "Open the Share menu" }));
     expect(share).toHaveBeenCalledWith(expect.objectContaining({ url: window.location.href }));
     delete (navigator as { share?: unknown }).share;
@@ -42,6 +43,9 @@ describe("InstallAppPrompt", () => {
     const { unmount } = render(<InstallAppPrompt />);
     expect(await screen.findByText(/Add the Hub to your Home Screen/)).toBeInTheDocument();
 
+    expect(screen.queryByText("Add to Home Screen", { selector: "strong" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "How" }));
+    expect(screen.getByText("Add to Home Screen", { selector: "strong" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Not now" }));
     expect(screen.queryByText(/Add the Hub to your Home Screen/)).not.toBeInTheDocument();
 

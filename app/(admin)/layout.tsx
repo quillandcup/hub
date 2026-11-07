@@ -55,7 +55,7 @@ export default async function AdminLayout({
             <UserMenu userEmail={user.email || "User"} isAdmin={isAdmin} canPreviewRole={isAdmin} />
           </AppHeader>
           <TimezoneProvider zone={timeZone}>
-            <main className="flex-1 overflow-auto">
+            <main className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
               {children}
             </main>
           </TimezoneProvider>

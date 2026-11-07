@@ -52,8 +52,7 @@ export function InstallSteps() {
   return (
     <>
       <p className="mt-0.5">
-        On iPhone and iPad, notifications for prickle check-ins and more only work from the installed app. {where},
-        choose <strong>Add to Home Screen</strong>, then open the Hub from there and turn notifications on in
+        {where}, choose <strong>Add to Home Screen</strong>, then open the Hub from there and turn on notifications in
         Settings → Notifications.
       </p>
       {canShare && (
@@ -78,6 +77,7 @@ export function InstallSteps() {
  */
 export function InstallAppPrompt() {
   const [show, setShow] = useState(false);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     setShow(isIosBrowserTab());
@@ -89,10 +89,11 @@ export function InstallAppPrompt() {
     <AnnouncementBar
       tone="info"
       aria-label="Install the Hub"
-      dismiss={{ dismissKey: DISMISSED_KEY, scope: "device", track: "install-app-dismiss" }}
+      dismiss={{ dismissKey: DISMISSED_KEY, scope: "device", variant: "icon", label: "Not now", track: "install-app-dismiss" }}
+      action={{ label: open ? "Hide" : "How", track: "install-app-how", onClick: () => setOpen((o) => !o) }}
     >
-      <div className="font-medium">Add the Hub to your Home Screen to get notifications</div>
-      <InstallSteps />
+      <div className="font-medium">Add the Hub to your Home Screen for notifications</div>
+      {open && <InstallSteps />}
     </AnnouncementBar>
   );
 }
