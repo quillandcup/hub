@@ -58,7 +58,7 @@ vi.mock("@/app/(admin)/admin/members/[id]/MemberDetails", () => ({
 }));
 vi.mock("@/app/(admin)/admin/members/[id]/MergeButton", () => ({ default: () => null }));
 const staff = vi.hoisted(() => ({ role: "admin" }));
-vi.mock("@/lib/admin-auth", () => ({ requireStaffPage: vi.fn(async () => ({ id: "admin", email: "a@example.test", role: staff.role })) }));
+vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: vi.fn(async () => ({})), requireStaffPage: vi.fn(async () => ({ id: "admin", email: "a@example.test", role: staff.role })) }));
 vi.mock("@/app/actions/sudo", () => ({ startSudo: vi.fn() }));
 vi.mock("@/lib/timezone", () => ({ getUserTimezonePreference: vi.fn(async () => "UTC") }));
 vi.mock("@/lib/badges", () => ({ getMemberBadges: vi.fn(async () => []) }));
@@ -66,6 +66,7 @@ vi.mock("@/lib/kajabi/membership-history", () => ({ fetchMembershipHistory: vi.f
 
 vi.mock("@/lib/channels/web-push", () => ({ loadPushDevices: vi.fn(async () => []) }));
 import { loadPushDevices } from "@/lib/channels/web-push";
+import NotificationsRoute, { generateMetadata as notificationsMetadata } from "@/app/(admin)/admin/members/[id]/notifications/page";
 import { getMemberBadges } from "@/lib/badges";
 import MemberDetailPage, { memberTabMetadata } from "@/app/(admin)/admin/members/[id]/MemberDetailPage";
 
@@ -104,6 +105,23 @@ describe("MemberDetailPage controls", () => {
     expect(checkin.channels).not.toContain("slack");
     expect(checkin.changed).toEqual(["slack"]);
     vi.mocked(loadPushDevices).mockResolvedValue([]);
+  });
+
+  it("shows no devices and no stored choices, rather than failing, when either lookup errors", async () => {
+    vi.mocked(loadPushDevices).mockRejectedValueOnce(new Error("push table down"));
+    useFakeSupabase(memberTables({ notification_preferences: { data: null, error: { message: "prefs down" } } }));
+    await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "notifications" as const });
+    const info = JSON.parse(screen.getByTestId("notifications-info").textContent!);
+    expect(info.devices).toEqual([]);
+    expect(info.kinds.every((k: { changed: string[] }) => k.changed.length === 0)).toBe(true);
+  });
+
+  it("serves the Notifications tab at its own route, titled for the tab", async () => {
+    useFakeSupabase(memberTables());
+    const params = Promise.resolve({ id: MEMBER.id });
+    expect(String((await notificationsMetadata({ params })).title)).toContain("Notifications");
+    const element = await NotificationsRoute({ params } as never);
+    expect(element.props).toMatchObject({ id: MEMBER.id, tab: "notifications" });
   });
 
   it("hides the Notifications tab and its data from a community manager", async () => {
