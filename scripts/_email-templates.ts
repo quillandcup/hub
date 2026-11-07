@@ -32,7 +32,7 @@ export async function buildTemplates(): Promise<EmailTemplate[]> {
     },
     {
       name: "magic_link",
-      subject: "Your Hedgie Hub sign-in link",
+      subject: "{{ .Token }} is your Hedgie Hub verification code",
       html: await render(React.createElement(MagicLinkEmail, { confirmationUrl: CONFIRMATION_URL, code: OTP_CODE })),
     },
     {

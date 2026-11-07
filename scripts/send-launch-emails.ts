@@ -19,7 +19,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createRepos } from "@/lib/data/repos";
 import type { Database } from "@/lib/data/database.types";
 import { sendEmail } from "@/lib/email";
-import { LAUNCH_EMAIL_SUBJECT, renderLaunchEmail, sendLaunchEmails } from "@/lib/launch-email";
+import { renderLaunchEmail, sendLaunchEmails } from "@/lib/launch-email";
 
 const args = process.argv.slice(2);
 const apply = args.includes("--apply");
@@ -68,7 +68,7 @@ async function main() {
     process.env.EMAIL_TEST_MODE = "true";
     const mail = await renderLaunchEmail("12345678");
     await sendEmail({ to: "(test mode: goes to EMAIL_DEV_ADDRESS)", ...mail });
-    console.log(`Test email "${LAUNCH_EMAIL_SUBJECT}" sent to EMAIL_DEV_ADDRESS. Nobody was marked.`);
+    console.log(`Test email "${mail.subject}" sent to EMAIL_DEV_ADDRESS. Nobody was marked.`);
     return;
   }
   if (apply) process.env.EMAIL_TEST_MODE = "false";

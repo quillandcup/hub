@@ -19,7 +19,8 @@ import type { MemberRepository } from "@/lib/data/members";
  */
 
 export const LAUNCH_SENT_MARK = "launch_email_sent_at";
-export const LAUNCH_EMAIL_SUBJECT = "Hedgie Hub is open: sign in with your code";
+/** The code leads the subject, the shape Gmail recognises as a verification code ("Copy code"). */
+export const launchEmailSubject = (code: string) => `${code} is your Hedgie Hub verification code`;
 export const LAUNCH_SIGN_IN_URL = `${APP_URL}/login?mode=code`;
 
 export type LaunchSend = (mail: { to: string; subject: string; html: string; text: string }) => Promise<void>;
@@ -59,7 +60,7 @@ export type LaunchReport = {
 export async function renderLaunchEmail(code: string) {
   const element = React.createElement(LaunchEmail, { code, signInUrl: LAUNCH_SIGN_IN_URL });
   const [html, text] = await Promise.all([render(element), render(element, { plainText: true })]);
-  return { subject: LAUNCH_EMAIL_SUBJECT, html, text };
+  return { subject: launchEmailSubject(code), html, text };
 }
 
 const norm = (email: string | null | undefined) => (email ?? "").trim().toLowerCase();

@@ -241,7 +241,7 @@ subject = "Reset your Hedgie Hub password"
 content_path = "./supabase/templates/recovery.html"
 
 [auth.email.template.magic_link]
-subject = "Your Hedgie Hub sign-in link"
+subject = "{{ .Token }} is your Hedgie Hub verification code"
 content_path = "./supabase/templates/magic_link.html"
 
 [auth.email.template.email_change]

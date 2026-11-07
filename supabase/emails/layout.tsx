@@ -143,6 +143,28 @@ export function EmailDivider() {
   return <Hr style={{ border: "none", borderTop: `1px solid ${colors.border}`, margin: "28px 0" }} />;
 }
 
+/**
+ * A one-time code alone in a large element, the shape Gmail's verification-code detection looks for
+ * (it then offers "Copy code"). Keep the code itself free of spaces; spacing is CSS only.
+ */
+export function EmailCode({ children }: { children: React.ReactNode }) {
+  return (
+    <Text
+      style={{
+        fontSize: "36px",
+        fontWeight: "bold",
+        letterSpacing: "0.15em",
+        textAlign: "center",
+        fontFamily: "monospace",
+        color: colors.headingText,
+        margin: "8px 0 24px 0",
+      }}
+    >
+      {children}
+    </Text>
+  );
+}
+
 export function EmailMuted({ children }: { children: React.ReactNode }) {
   return (
     <Text style={{ fontSize: "14px", color: colors.mutedText, margin: "0" }}>
