@@ -382,6 +382,25 @@ describe("Composer attachments", () => {
     expect(screen.getByRole("button", { name: "Preview shot.png" })).toBeInTheDocument();
   });
 
+  it("takes a keyboard GIF commit: file items on a paste, or files on a beforeinput", async () => {
+    render(<Composer channelId="c1" placeholder="Message #hosts" />);
+    const box = await messageBox();
+    box.focus();
+    const gif = new File(["gif"], "kb.gif", { type: "image/gif" });
+    const paste = new Event("paste", { bubbles: true, cancelable: true }) as Event & { clipboardData?: unknown };
+    paste.clipboardData = { files: [], items: [{ kind: "file", getAsFile: () => gif }], getData: () => "", types: ["Files"] };
+    box.dispatchEvent(paste);
+    expect(await screen.findByRole("button", { name: "Preview kb.gif" })).toBeInTheDocument();
+
+    const second = new File(["gif"], "two.gif", { type: "image/gif" });
+    const input = new Event("beforeinput", { bubbles: true, cancelable: true }) as Event & { inputType?: string; dataTransfer?: unknown };
+    input.inputType = "insertFromPaste";
+    input.dataTransfer = { files: [second], items: [] };
+    box.dispatchEvent(input);
+    expect(await screen.findByRole("button", { name: "Preview two.gif" })).toBeInTheDocument();
+    expect(input.defaultPrevented).toBe(true);
+  });
+
   it("refuses a file over the limit and keeps the attachments when an upload fails", async () => {
     render(<Composer channelId="c1" placeholder="Message #hosts" />);
     await attach(new File([new Uint8Array(21 * 1024 * 1024)], "big.mov", { type: "video/quicktime" }));

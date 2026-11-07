@@ -50,6 +50,13 @@ export type BoxKeyEvent = Pick<KeyboardEvent, "key" | "shiftKey" | "metaKey" | "
 /** A paste as the box's owner sees it (the owner takes pasted files). */
 export type BoxPasteEvent = { clipboardData: DataTransfer | null; preventDefault: () => void };
 
+/** The files in a clipboard or drop: `files`, else the file items (some keyboards' GIF/sticker commits fill only `items`). */
+export function filesOf(data: DataTransfer | null | undefined): File[] {
+  if (!data) return [];
+  if (data.files?.length) return [...data.files];
+  return [...(data.items ?? [])].filter((i) => i.kind === "file").flatMap((i) => i.getAsFile() ?? []);
+}
+
 /** What an owner can ask of the box. */
 export type MessageBoxHandle = { focus: () => void };
 
@@ -274,6 +281,16 @@ export default function MessageBox({
         style: `min-height: ${rows * 1.25 + 1}rem; max-height: ${MAX_BOX_HEIGHT_PX}px; overflow-y: auto`,
       },
       handleKeyDown: (view, event) => keyDownRef.current(event),
+      handleDOMEvents: {
+        // A phone keyboard's GIF or sticker panel commits the image as an input event carrying files, not always a paste.
+        beforeinput: (view, event) => {
+          const e = event as InputEvent;
+          if (e.inputType !== "insertFromPaste" && e.inputType !== "insertFromDrop" && e.inputType !== "insertReplacementText") return false;
+          if (filesOf(e.dataTransfer).length === 0) return false;
+          live.current.onPaste?.({ clipboardData: e.dataTransfer, preventDefault: () => e.preventDefault() });
+          return e.defaultPrevented;
+        },
+      },
       handleTextInput: (view, from, to, text) => convertTyped(view, from, to, text),
       handlePaste: (view, event, slice) => {
         live.current.onPaste?.({ clipboardData: event.clipboardData, preventDefault: () => event.preventDefault() });
