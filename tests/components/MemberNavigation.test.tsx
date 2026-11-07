@@ -178,23 +178,28 @@ describe("MemberNavigation auto-hide on chat", () => {
     expect(screen.getByRole("button", { name: /sidebar/i })).toBeInTheDocument();
   });
 
-  it("cycles pinned open, auto-hide, pinned closed from the header button and saves each choice", async () => {
+  it("picks always open, collapsed or auto-show from a menu and saves each choice", async () => {
     render(<MemberNavigation isAdmin={false} enabledFeatures={[]} />);
-    const toggle = () => screen.getByRole("button", { name: /^Sidebar/ });
+    const pick = async (name: string) => {
+      await userEvent.click(screen.getByRole("button", { name: /^Sidebar:/ }));
+      await userEvent.click(screen.getByRole("menuitemradio", { name }));
+    };
 
-    await userEvent.click(toggle());
+    await userEvent.click(screen.getByRole("button", { name: /^Sidebar:/ }));
+    expect(screen.getByRole("menuitemradio", { name: "Always open" })).toBeChecked();
+    await userEvent.click(screen.getByRole("menuitemradio", { name: "Auto-show on hover" }));
     expect(sidebar()).toHaveAttribute("data-auto-hide", "true");
     expect(updateNavMode).toHaveBeenLastCalledWith("auto");
 
-    // Auto-hide rests as a rail with no button; hover opens it, and the button is there to pin it closed.
-    expect(screen.queryByRole("button", { name: /^Sidebar/ })).not.toBeInTheDocument();
+    // Auto-show rests as a rail with no button; opening it shows the button again.
+    expect(screen.queryByRole("button", { name: /^Sidebar:/ })).not.toBeInTheDocument();
     fireEvent.focus(within(sidebar()).getAllByRole("link")[0]);
-    await userEvent.click(toggle());
+    await pick("Collapsed");
     expect(updateNavMode).toHaveBeenLastCalledWith("closed");
     expect(sidebar()).not.toHaveAttribute("data-auto-hide");
     expect(sidebar()).toHaveClass("w-16");
 
-    await userEvent.click(toggle());
+    await pick("Always open");
     expect(updateNavMode).toHaveBeenLastCalledWith("open");
     expect(sidebar()).toHaveClass("w-64");
   });
@@ -206,7 +211,8 @@ describe("MemberNavigation auto-hide on chat", () => {
     expect(sidebar()).toHaveClass("w-64");
 
     updateNavMode.mockResolvedValueOnce({ error: "nope" });
-    await userEvent.click(screen.getByRole("button", { name: /^Sidebar/ }));
+    await userEvent.click(screen.getByRole("button", { name: /^Sidebar:/ }));
+    await userEvent.click(screen.getByRole("menuitemradio", { name: "Auto-show on hover" }));
     await vi.waitFor(() => expect(sidebar()).not.toHaveAttribute("data-auto-hide"));
   });
 

@@ -125,7 +125,7 @@ interface AdminNavigationProps {
 export default function AdminNavigation({ role, enabledFeatures, navMode = null }: AdminNavigationProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
-  const { mode, autoHide, collapsed, railOpen, peekHandlers, cycleMode } = useSidebarMode(navMode);
+  const { mode, autoHide, collapsed, railOpen, peekHandlers, setMode } = useSidebarMode(navMode);
 
   useOpenMobileNav(() => setMobileOpen(true));
 
@@ -178,7 +178,7 @@ export default function AdminNavigation({ role, enabledFeatures, navMode = null 
       {/* Desktop sidebar. In auto-hide the wrapper holds the rail's width and the aside floats over the page,
           above the app header (z-30), whose search box would otherwise cover the title. */}
       <div
-        className={`hidden lg:block flex-shrink-0 h-screen relative transition-all duration-300 ${railOpen ? "z-40" : "z-30"} ${
+        className={`hidden lg:block flex-shrink-0 self-stretch relative transition-all duration-300 ${railOpen ? "z-40" : "z-30"} ${
           autoHide || collapsed ? "w-16" : "w-64"
         }`}
         {...peekHandlers}
@@ -201,7 +201,7 @@ export default function AdminNavigation({ role, enabledFeatures, navMode = null 
                 ⚙️ Admin
               </h1>
             )}
-            <NavModeButton mode={mode} railOpen={railOpen} onCycle={cycleMode} />
+            <NavModeButton mode={mode} railOpen={railOpen} onChange={setMode} />
           </div>
 
           <NavLinks
