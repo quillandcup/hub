@@ -58,7 +58,7 @@ export default async function ProjectDetailPage({
       </header>
 
       <main className="container mx-auto px-6 py-8">
-        <ProjectDetailClient project={result.project} entries={result.entries} archivedGoals={archivedGoals} />
+        <ProjectDetailClient key={`${result.project.phase}:${result.project.showOnProfile}`} project={result.project} entries={result.entries} archivedGoals={archivedGoals} />
       </main>
     </div>
   );

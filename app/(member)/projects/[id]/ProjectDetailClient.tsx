@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import LogProgressModal from "@/components/writing/LogProgressModal";
 import GoalDisplay from "@/components/writing/GoalDisplay";
 import ProjectCharts from "@/components/writing/ProjectCharts";
@@ -64,6 +65,7 @@ function entrySortValue(entry: EntryRow, column: EntrySortColumn): SortValue {
 }
 
 export default function ProjectDetailClient({ project, entries, archivedGoals }: ProjectDetailClientProps) {
+  const router = useRouter();
   const [showLogProgress, setShowLogProgress] = useState(false);
   const [editingEntry, setEditingEntry] = useState<EntryRow | null>(null);
   const [showNewGoal, setShowNewGoal] = useState(false);
@@ -80,9 +82,11 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
   const { sortColumn, sortDirection, handleSort } = table;
 
   function handleChanged() {
-    // Server actions already revalidatePath(); a full page refresh picks up
-    // fresh server data (same approach as ProjectsClient/HostingScheduleManager).
-    window.location.reload();
+    // Re-render the page's server data in place (the page keys this component on the two values copied into state
+    // above, so it starts again when they change). Not window.location.reload(): that cancels the server action's
+    // response while the browser is still reading it, which Firefox and Safari report as "Error in input stream"
+    // / "Load failed" (a crash alert in #hub-alerts), though the change was saved.
+    router.refresh();
   }
 
   async function handleDelete(entryId: string) {
