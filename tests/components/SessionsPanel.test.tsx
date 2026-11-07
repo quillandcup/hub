@@ -61,19 +61,19 @@ describe("SessionsPanel", () => {
     expect(screen.getByText(SAFARI_LABEL)).toBeInTheDocument();
     expect(screen.getByText("This device")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Devices" })).toBeInTheDocument();
-    expect(screen.getByRole("tooltip")).toHaveTextContent("All devices signed in to your account");
+    expect(screen.getAllByRole("tooltip")[0]).toHaveTextContent("All devices signed in to your account");
+    expect(screen.getAllByText("Now")[0]).toBeInTheDocument();
     expect(screen.queryByText(/Mozilla/)).not.toBeInTheDocument();
   });
 
-  it("disables log out for the current device but not for others", async () => {
+  it("offers log out for other devices only, not the current one", async () => {
     vi.mocked(getMySessions).mockResolvedValue({ sessions: [currentSession, otherSession] });
 
     render(<SessionsPanel />);
     await waitFor(() => expect(screen.getByText(CHROME_LABEL)).toBeInTheDocument());
 
-    expect(logOut()).toHaveLength(2);
-    expect(logOut()[0]).toBeDisabled();
-    expect(logOut()[1]).not.toBeDisabled();
+    expect(logOut()).toHaveLength(1);
+    expect(logOut()[0]).not.toBeDisabled();
   });
 
   it("logs out a single device and refreshes the list", async () => {
@@ -85,7 +85,7 @@ describe("SessionsPanel", () => {
     render(<SessionsPanel />);
     await waitFor(() => expect(screen.getByText(SAFARI_LABEL)).toBeInTheDocument());
 
-    await userEvent.click(logOut()[1]);
+    await userEvent.click(logOut()[0]);
 
     await waitFor(() => expect(revokeSession).toHaveBeenCalledWith("session-other"));
     await waitFor(() => expect(screen.queryByText(SAFARI_LABEL)).not.toBeInTheDocument());
@@ -99,7 +99,7 @@ describe("SessionsPanel", () => {
     render(<SessionsPanel />);
     await waitFor(() => expect(screen.getByText(SAFARI_LABEL)).toBeInTheDocument());
 
-    await userEvent.click(logOut()[1]);
+    await userEvent.click(logOut()[0]);
 
     await waitFor(() =>
       expect(screen.getByRole("status")).toHaveTextContent("That session was already signed out")
@@ -156,10 +156,10 @@ describe("SessionsPanel", () => {
 
     render(<SessionsPanel />);
     await waitFor(() => expect(screen.getByText(CHROME_LABEL)).toBeInTheDocument());
-    expect(logOut()).toHaveLength(5);
+    expect(logOut()).toHaveLength(4);
 
     await userEvent.click(screen.getByRole("button", { name: "Show 4 more" }));
-    expect(logOut()).toHaveLength(9);
+    expect(logOut()).toHaveLength(8);
     expect(screen.queryByRole("button", { name: /show \d+ more/i })).not.toBeInTheDocument();
   });
 });

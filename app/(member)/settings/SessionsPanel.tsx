@@ -33,6 +33,34 @@ function formatDate(value: string | null): string {
   });
 }
 
+function DeviceIcon({ userAgent }: { userAgent: string | null }) {
+  const phone = /iPhone|iPod|Android.*Mobile/.test(userAgent ?? "");
+  return (
+    <svg
+      aria-hidden="true"
+      className="w-6 h-6 shrink-0 text-slate-400 dark:text-slate-500"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      viewBox="0 0 24 24"
+    >
+      {phone ? (
+        <>
+          <rect x="7" y="3" width="10" height="18" rx="2" />
+          <path d="M11 18h2" />
+        </>
+      ) : (
+        <>
+          <rect x="4" y="5" width="16" height="11" rx="1.5" />
+          <path d="M2 19h20" />
+        </>
+      )}
+    </svg>
+  );
+}
+
 export function SessionsPanel() {
   const [sessions, setSessions] = useState<SessionRow[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -110,7 +138,7 @@ export function SessionsPanel() {
           onClick={handleSignOutOthers}
           data-track="settings-sessions-sign-out-others"
           disabled={signingOutOthers || otherSessionCount === 0}
-          className="text-sm px-3 py-1.5 rounded-md border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="text-sm px-3 py-1.5 rounded-md bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {signingOutOthers ? "Logging out…" : "Log out of all other devices"}
         </button>
@@ -138,10 +166,15 @@ export function SessionsPanel() {
         <>
           <div className="border border-slate-200 dark:border-slate-700 rounded-md overflow-hidden">
             <table className="w-full text-left">
-              <thead className="bg-slate-50 dark:bg-slate-800 text-xs text-slate-600 dark:text-slate-400">
+              <thead className="border-b border-slate-200 dark:border-slate-700 text-sm text-slate-600 dark:text-slate-400">
                 <tr>
-                  <th scope="col" className="px-3 py-2 font-medium">Device name</th>
-                  <th scope="col" className="hidden sm:table-cell px-3 py-2 font-medium">Last active</th>
+                  <th scope="col" className="px-3 py-3 font-normal">Device name</th>
+                  <th scope="col" className="hidden sm:table-cell px-3 py-3 font-normal">
+                    <span className="inline-flex items-center gap-1.5">
+                      Last active
+                      <InfoTip label="About last active">When this device last used your account</InfoTip>
+                    </span>
+                  </th>
                   <th scope="col" className="px-3 py-2 font-medium text-right">
                     <span className="sr-only">Log out</span>
                   </th>
@@ -152,35 +185,37 @@ export function SessionsPanel() {
                   const lastActive = formatDate(session.refreshed_at ?? session.updated_at ?? session.created_at);
                   return (
                     <tr key={session.id}>
-                      <td className="px-3 py-3 align-middle">
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                          <span className="text-sm font-medium text-slate-900 dark:text-slate-100 break-words">
-                            {describeSessionDevice(session.user_agent)}
-                          </span>
-                          {session.is_current && (
-                            <span className="shrink-0 text-xs font-medium px-2 py-0.5 rounded-full bg-plum-100 text-plum-700 dark:bg-plum-900 dark:text-plum-300">
-                              This device
-                            </span>
-                          )}
+                      <td className="px-3 py-4 align-middle">
+                        <div className="flex items-center gap-3">
+                          <DeviceIcon userAgent={session.user_agent} />
+                          <div className="min-w-0">
+                            <div className="text-sm text-slate-900 dark:text-slate-100 break-words">
+                              {describeSessionDevice(session.user_agent)}
+                            </div>
+                            {session.is_current && (
+                              <div className="text-sm text-blue-600 dark:text-blue-400">This device</div>
+                            )}
+                            <p className="sm:hidden text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                              {session.is_current ? "Now" : `Last active ${lastActive}`}
+                            </p>
+                          </div>
                         </div>
-                        <p className="sm:hidden text-xs text-slate-600 dark:text-slate-400 mt-0.5">
-                          Last active {lastActive}
-                        </p>
                       </td>
-                      <td className="hidden sm:table-cell px-3 py-3 text-sm text-slate-700 dark:text-slate-300 whitespace-nowrap">
-                        {lastActive}
+                      <td className="hidden sm:table-cell px-3 py-4 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                        {session.is_current ? "Now" : lastActive}
                       </td>
-                      <td className="px-3 py-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => handleRevoke(session.id)}
-                          data-track="settings-sessions-revoke"
-                          disabled={session.is_current || pendingId === session.id}
-                          title={session.is_current ? "Log out of this device from the account menu" : undefined}
-                          className="shrink-0 text-sm px-3 py-1.5 rounded-md border border-red-300 dark:border-red-800 text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950 disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
-                          {pendingId === session.id ? "Logging out…" : "Log out"}
-                        </button>
+                      <td className="px-3 py-4 text-right">
+                        {!session.is_current && (
+                          <button
+                            type="button"
+                            onClick={() => handleRevoke(session.id)}
+                            data-track="settings-sessions-revoke"
+                            disabled={pendingId === session.id}
+                            className="shrink-0 text-sm px-3 py-1.5 rounded-md border border-slate-200 dark:border-slate-600 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            {pendingId === session.id ? "Logging out…" : "Log out"}
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
