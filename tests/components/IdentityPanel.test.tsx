@@ -16,6 +16,9 @@ vi.mock('@/app/(member)/settings/identityActions', () => ({
   addEmailAlias: vi.fn(),
   resendEmailVerification: vi.fn(),
   makeEmailPrimary: vi.fn(),
+  loadRecentSignIn: vi.fn(),
+  sendReauthCode: vi.fn(),
+  verifyReauthCode: vi.fn(),
 }))
 
 const baseSettings = {
@@ -199,5 +202,32 @@ describe('IdentityPanel', () => {
     await user.type(input, 'ada.newer@example.com')
     await user.click(within(input.closest('form')!).getByRole('button', { name: 'Add' }))
     expect(await screen.findByText(/couldn't send the confirmation link/)).toBeInTheDocument()
+  })
+
+  it('asks the member to sign in again before switching the primary email, then finishes the switch', async () => {
+    vi.mocked(identityActions.getIdentitySettings).mockResolvedValue({
+      ...baseSettings,
+      emailAliases: [{ id: 'e2', aliasEmail: 'ada.old@example.com', source: 'manual', active: true, createdAt: '2026-01-01', verifiedAt: '2026-01-03' }],
+    })
+    vi.mocked(identityActions.makeEmailPrimary).mockReset().mockResolvedValueOnce({ needsReauth: true }).mockResolvedValueOnce({ success: true })
+    vi.mocked(identityActions.sendReauthCode).mockResolvedValue({ success: true, sentTo: 'ada@example.com' })
+    vi.mocked(identityActions.verifyReauthCode).mockResolvedValue({ success: true })
+    vi.mocked(identityActions.loadRecentSignIn).mockResolvedValue({ recent: false })
+
+    render(<IdentityPanel />)
+    await waitFor(() => expect(screen.getByDisplayValue('Ada Lovelace')).toBeInTheDocument())
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Make ada.old@example.com my primary email' }))
+    expect(await screen.findByRole('dialog')).toHaveAccessibleName("Confirm it's you")
+    expect(identityActions.makeEmailPrimary).toHaveBeenCalledTimes(1)
+
+    await user.type(screen.getByLabelText('Sign-in code'), '12345678')
+    await user.click(screen.getByRole('button', { name: 'Confirm' }))
+
+    await waitFor(() => expect(identityActions.makeEmailPrimary).toHaveBeenCalledTimes(2))
+    expect(identityActions.makeEmailPrimary).toHaveBeenLastCalledWith('e2')
+    expect(await screen.findByText(/Your primary email is changed/)).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 })

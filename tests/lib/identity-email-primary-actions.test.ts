@@ -11,7 +11,8 @@ vi.mock("@/lib/data/repos", async () => ({
   ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
   createRepos: () => repos,
 }));
-vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn(async () => ({})) }));
+const auth = vi.hoisted(() => ({ getUser: vi.fn(), signInWithOtp: vi.fn(), verifyOtp: vi.fn() }));
+vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn(async () => ({ auth })) }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 vi.mock("@/lib/auth", () => ({ getCurrentUser: vi.fn() }));
 vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: vi.fn() }));
@@ -26,7 +27,15 @@ vi.mock("@/lib/processing/trigger", () => ({ triggerReprocessing }));
 const sendEmail = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/email", () => ({ sendEmail }));
 
-import { addEmailAlias, makeEmailPrimary, resendEmailVerification } from "@/app/(member)/settings/identityActions";
+import {
+  addEmailAlias,
+  loadRecentSignIn,
+  makeEmailPrimary,
+  resendEmailVerification,
+  sendReauthCode,
+  verifyReauthCode,
+} from "@/app/(member)/settings/identityActions";
+import { APP_URL } from "@/lib/config";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { SUPPORT_EMAIL } from "@/lib/config";
@@ -38,8 +47,14 @@ const identity = (isSudo = false) => ({ memberId: ME, memberName: "Ada Example",
 
 const aliasOf = async (address: string) => (await repos.aliases.emailsOf(ME)).find((a) => a.alias_email === address)!;
 
+/** When the member last signed in, relative to now. */
+const signedInAgo = (ms: number) => auth.getUser.mockResolvedValue({ data: { user: { last_sign_in_at: new Date(Date.now() - ms).toISOString() } } });
+
 beforeEach(() => {
   process.env.EMAIL_UNSUBSCRIBE_SECRET = "test-secret";
+  signedInAgo(60_000);
+  auth.signInWithOtp.mockReset().mockResolvedValue({ error: null });
+  auth.verifyOtp.mockReset().mockResolvedValue({ error: null });
   afterCallbacks.length = 0;
   updateContact.mockReset().mockResolvedValue(undefined);
   sendEmail.mockReset().mockResolvedValue(undefined);
@@ -178,5 +193,76 @@ describe("makeEmailPrimary", () => {
     updateContact.mockRejectedValue(new Error("Kajabi is down"));
     expect(await makeEmailPrimary(id)).toEqual({ error: "Kajabi is down" });
     expect((await repos.authUsers.byId(USER))!.email).toBe("ada@example.com");
+  });
+});
+
+describe("signing in again before the primary email changes", () => {
+  const confirmed = async () => {
+    await repos.aliases.addEmail(ME, "ada.new@example.com", "manual");
+    const { id } = await aliasOf("ada.new@example.com");
+    await repos.aliases.markEmailVerified(id, "ada.new@example.com");
+    return id;
+  };
+
+  it("asks for a fresh sign-in when the last one was more than ten minutes ago, and changes nothing", async () => {
+    const id = await confirmed();
+    signedInAgo(11 * 60_000);
+
+    expect(await makeEmailPrimary(id)).toEqual({ needsReauth: true });
+
+    expect((await repos.members.byId(ME))!.email).toBe("ada@example.com");
+    expect((await repos.authUsers.byId(USER))!.email).toBe("ada@example.com");
+    expect(updateContact).not.toHaveBeenCalled();
+  });
+
+  it("goes ahead without asking when they signed in within the last ten minutes, and asks when it isn't known", async () => {
+    const id = await confirmed();
+    signedInAgo(9 * 60_000);
+    expect(await makeEmailPrimary(id)).toEqual({ success: true });
+
+    auth.getUser.mockResolvedValue({ data: { user: null } });
+    expect(await makeEmailPrimary(id)).toEqual({ needsReauth: true });
+  });
+
+  it("reports whether they have signed in recently, never in sudo", async () => {
+    expect(await loadRecentSignIn()).toEqual({ recent: true });
+    signedInAgo(30 * 60_000);
+    expect(await loadRecentSignIn()).toEqual({ recent: false });
+    signedInAgo(1000);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(identity(true) as never);
+    expect(await loadRecentSignIn()).toEqual({ recent: false });
+  });
+
+  it("emails a sign-in link and code to the account's own address, and only to that", async () => {
+    expect(await sendReauthCode()).toEqual({ success: true, sentTo: "ada@example.com" });
+    expect(auth.signInWithOtp).toHaveBeenCalledWith({
+      email: "ada@example.com",
+      options: { shouldCreateUser: false, emailRedirectTo: `${APP_URL}/auth/callback?next=/settings/identity` },
+    });
+  });
+
+  it("says to wait when a code just went out, passes on other failures plainly, and is refused in sudo or signed out", async () => {
+    auth.signInWithOtp.mockResolvedValueOnce({ error: { code: "over_email_send_rate_limit", message: "x" } });
+    expect(await sendReauthCode()).toMatchObject({ error: expect.stringContaining("just sent one") });
+    auth.signInWithOtp.mockResolvedValueOnce({ error: { code: "unexpected_failure", message: "boom" } });
+    expect(await sendReauthCode()).toEqual({ error: "Couldn't send the code. Try again in a minute." });
+
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(identity(true) as never);
+    expect(await sendReauthCode()).toEqual({ error: "Switch back to your own account to do this." });
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(identity() as never);
+    vi.mocked(getCurrentUser).mockResolvedValue(null);
+    expect(await sendReauthCode()).toEqual({ error: "Not authenticated" });
+  });
+
+  it("checks the code against the signed-in account's address, tolerating spaces, and refuses a bad one", async () => {
+    expect(await verifyReauthCode(" 1234 5678 ")).toEqual({ success: true });
+    expect(auth.verifyOtp).toHaveBeenCalledWith({ email: "ada@example.com", token: "12345678", type: "email" });
+
+    expect(await verifyReauthCode("abc")).toEqual({ error: "Enter the code from the email, digits only." });
+    auth.verifyOtp.mockResolvedValueOnce({ error: { message: "expired" } });
+    expect(await verifyReauthCode("12345678")).toMatchObject({ error: expect.stringContaining("didn't work") });
+
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(identity(true) as never);
+    expect(await verifyReauthCode("12345678")).toEqual({ error: "Switch back to your own account to do this." });
   });
 });
