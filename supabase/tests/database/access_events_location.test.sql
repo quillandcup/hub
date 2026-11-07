@@ -5,7 +5,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(9);
+SELECT plan(11);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-0000000e0a01', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'loc-ann@example.test'),
@@ -53,6 +53,15 @@ SELECT is(
      ARRAY['00000000-0000-4000-a000-0000000e0a01', '00000000-0000-4000-a000-0000000e0a02', '00000000-0000-4000-a000-0000000e0a01']::uuid[],
      ARRAY['2026-10-06 14:45:00+00', '2026-10-06 15:30:00+00', '2026-10-06 23:30:00+00']::timestamptz[])),
   ARRAY['1:Muncie', '2:London', '3:Boston'], 'many pairs in one call, each at its own position');
+
+-- After retention erases the IP (it keeps the place), the visit is still placed.
+UPDATE public.access_events SET ip_address = NULL WHERE user_id = '00000000-0000-4000-a000-0000000e0a01';
+SELECT is(
+  (SELECT city FROM access_locations_at(ARRAY['00000000-0000-4000-a000-0000000e0a01']::uuid[], ARRAY['2026-10-06 14:45:00+00']::timestamptz[])),
+  'Muncie', 'a row with a place but no IP still places the visit');
+SELECT is(
+  (SELECT ip_address IS NULL FROM access_locations_at(ARRAY['00000000-0000-4000-a000-0000000e0a01']::uuid[], ARRAY['2026-10-06 14:45:00+00']::timestamptz[])),
+  true, 'and the returned IP is null');
 
 SELECT * FROM finish(true);
 ROLLBACK;
