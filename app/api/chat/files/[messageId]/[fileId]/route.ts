@@ -36,31 +36,50 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   if (!content || !file) return notFound();
 
   const service = createServiceRoleClient();
-  let path: string;
+  const fetchBytes = (from: string) => service.storage.from(SLACK_FILES_BUCKET).download(from);
   let storedType: string | null = null;
-  if (file.id.startsWith(PENDING_FILE_PREFIX)) {
-    // Still being sent to Slack: the bytes are where the composer staged them.
-    if (!file.staged) return notFound();
-    path = file.staged;
-  } else {
+  /** Ask Slack for the file (and keep a copy of it): the last resort, for a file that came from Slack and has not been copied yet. */
+  const fromSlack = async (): Promise<string | null> => {
     const copy = await ensureSlackFileCopied(service, (await getSlackBotToken()) ?? "", {
       fileId,
       channelId: content.slackChannelId ?? "",
       messageTs: content.slackTs ?? "",
     });
-    if (copy.ok) {
-      path = copy.path;
-      storedType = copy.mimetype;
-    } else if (file.staged) {
-      // Slack answers "not found" for a file for a couple of seconds after it was sent from the Hub: the bytes we sent are still in staging.
-      path = file.staged;
-    } else {
+    if (!copy.ok) {
       console.error(`[chat] file ${fileId} unavailable: ${copy.reason}`);
-      return notFound();
+      return null;
     }
+    storedType = copy.mimetype;
+    return copy.path;
+  };
+
+  // Where the bytes are, nearest first. A file the Hub sent itself is never asked of Slack while its own bytes are there: for a
+  // couple of seconds after the upload Slack answers "not found" for it.
+  let path: string;
+  const pending = file.id.startsWith(PENDING_FILE_PREFIX);
+  if (pending) {
+    // Still being sent to Slack: the bytes are where the composer staged them.
+    if (!file.staged) return notFound();
+    path = file.staged;
+  } else if (file.staged) {
+    // Sent from the Hub: our permanent copy once there is one (made from Slack's own event), else the bytes we sent.
+    const ours = await createRepos(service).slackMessages.fileById(fileId).catch(() => null);
+    if (ours?.storage_path && !ours.deleted_at) {
+      path = ours.storage_path;
+      storedType = ours.mimetype;
+    } else path = file.staged;
+  } else {
+    const slackPath = await fromSlack();
+    if (!slackPath) return notFound();
+    path = slackPath;
   }
 
-  const { data: blob, error } = await service.storage.from(SLACK_FILES_BUCKET).download(path);
+  let { data: blob, error } = await fetchBytes(path);
+  if ((error || !blob) && !pending && file.staged && path === file.staged) {
+    // The staged bytes have been cleared away since, so Slack has the file by now.
+    const slackPath = await fromSlack();
+    if (slackPath) ({ data: blob, error } = await fetchBytes(slackPath));
+  }
   if (error || !blob) {
     console.error(`[chat] file ${fileId} missing from the bucket: ${error?.message}`);
     return notFound();
