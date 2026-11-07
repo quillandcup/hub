@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
+import { IGNORED_BROWSER_ERRORS } from "@/lib/sentry-ignored-errors";
 
 Sentry.init({
   // From env-vars.config.ts. NEXT_PUBLIC_ so the browser bundle can read it too; unset
@@ -12,6 +13,9 @@ Sentry.init({
   tracesSampleRate: process.env.NODE_ENV === "development" ? 1.0 : 0.2,
 
   enableLogs: true,
+
+  // Errors from visitors' own browser extensions, not ours (see the list for why each is there).
+  ignoreErrors: IGNORED_BROWSER_ERRORS,
 
   // Session Replay keeps the last moments in memory and uploads them only when an error happens
   // (full repro context for the reports that matter). Recording ordinary sessions, a small sample,
