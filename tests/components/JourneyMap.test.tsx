@@ -19,18 +19,16 @@ describe("journeyStageForPhase", () => {
     expect(journeyStageForPhase("hibernating")).toBeNull();
   });
 
-  it("lists the hire-a-pro steps in the order a manuscript goes through them", () => {
+  it("lists the hire-a-pro steps in the order a manuscript goes through them, with a Revision after the first three", () => {
     expect(HIRE_A_PRO_STEPS.map((s) => s.title)).toEqual([
       "First read-through",
-      "Revision",
       "Developmental edit",
-      "Revision",
       "Beta readers",
-      "Revision",
       "Line & copy edit",
       "Final read-through",
       "Final beta read",
     ]);
+    expect(HIRE_A_PRO_STEPS.map((s) => Boolean(s.thenRevision))).toEqual([true, true, true, false, false, false]);
   });
 });
 
@@ -65,10 +63,10 @@ describe("JourneyMap", () => {
 
   it("shows a project at the first Revision only, since the three share the status", () => {
     render(<JourneyMap projects={[{ id: "wprj_AAAAAAAAAAA1", title: "Book One", phase: "revising" }]} />);
-    expect(screen.getAllByText("Revision", { selector: "li > span" })).toHaveLength(3);
-    expect(within(stepOf("Revision", 0)).getByRole("link", { name: "Book One" })).toBeInTheDocument();
-    expect(within(stepOf("Revision", 1)).queryByRole("link")).toBeNull();
-    expect(within(stepOf("Revision", 2)).queryByRole("link")).toBeNull();
+    expect(screen.getAllByText("revise", { selector: "li > span" })).toHaveLength(3);
+    expect(within(stepOf("First read-through")).getByRole("link", { name: "Book One" })).toBeInTheDocument();
+    expect(within(stepOf("Developmental edit")).queryByRole("link")).toBeNull();
+    expect(within(stepOf("Beta readers")).queryByRole("link")).toBeNull();
   });
 
   it("names The Ready Writer at Draft and gives the Self-Editing Academy every status it covers", () => {
@@ -88,6 +86,8 @@ describe("JourneyMap", () => {
     expect(lane.y - lane.height! / 2).toBeGreaterThan(academy.y + academy.height! / 2);
     // The whole map stays about as tall as it is wide, instead of a row three times longer than the programs.
     expect(JOURNEY_CANVAS.width / JOURNEY_CANVAS.height).toBeLessThan(3);
+    // The lane is only as tall as its six steps need.
+    expect(lane.height).toBeLessThanOrEqual(210);
   });
 
   it("keeps ARC readers between Self-Publish and Query & Submit, inside the Publishing box", () => {
