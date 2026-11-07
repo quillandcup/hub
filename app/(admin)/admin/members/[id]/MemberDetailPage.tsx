@@ -1,3 +1,4 @@
+import { InfoTip } from "@/components/InfoTip";
 import { parseSlackPageQuery } from "@/lib/slack-activity-table";
 import { clock } from "@/lib/clock";
 import { createRepos } from "@/lib/data/repos";
@@ -292,24 +293,9 @@ export default async function MemberDetailPage({
                       </span>
                     ))}
                   </div>
-                  <div className="group relative inline-block">
-                    <svg
-                      className="w-4 h-4 text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-help"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
-                    <div className="opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto absolute left-0 top-6 w-64 p-3 bg-slate-900 dark:bg-slate-700 text-white text-xs rounded shadow-lg z-10 transition-opacity duration-200 before:content-[''] before:absolute before:left-0 before:bottom-full before:w-full before:h-6">
-                      Aliases help match Zoom names to people.{can("member.alias_admin") && <> <Link href="/admin/data/aliases" className="underline hover:text-plum-300">Manage aliases →</Link></>}
-                    </div>
-                  </div>
+                  <InfoTip interactive label="About aliases">
+                    Aliases help match Zoom names to people.{can("member.alias_admin") && <> <Link href="/admin/data/aliases" className="underline hover:text-plum-300">Manage aliases →</Link></>}
+                  </InfoTip>
                 </div>
               )}
               {can("member.sudo") && (

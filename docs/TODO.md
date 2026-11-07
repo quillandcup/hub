@@ -1332,6 +1332,10 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 ## UI Enhancements
 
+### A 390px horizontal-overflow check on key pages _(Needs Scheduling)_
+
+The admin member page once scrolled sideways on phones because an invisible tooltip box (opacity-0, still laid out) hung off an icon near the right edge. `tests/lib/tooltips.test.ts` now guards that pattern, but nothing measures real pages. Deferred because the repo has no Playwright suite that signs in and loads pages against seeded data in CI (the demo scenes are the closest, `docs/` demo notes), and a signed-in check needs a seeded local database that matches the migrations. To do it: in a demo-style Playwright run at 390px, visit the member and admin pages, every tab, and assert `main.scrollWidth <= main.clientWidth`, listing elements with `getBoundingClientRect().right > innerWidth`. Also: `ReasonBadges` and the chat `ReactionHoverCard` are the two remaining hand-built tooltips (allowlisted in the guard); move them onto a shared `Tooltip` primitive that `InfoTip` builds on.
+
 ### Clean up stale media renditions when a focal point or fit changes _(Needs Scheduling)_
 
 A rendition is stored at `renditions/<asset id>/<preset>-<hash of fit and focal point>.<ext>` (`renditionPath`, `lib/media/render.ts`). Changing the focal point or fit makes a new object and nothing removes the old one: they are only deleted with the whole image, 30 days after it is deleted (`lib/media/sweep.ts`). Renditions are invisible derived copies (no table row, not listed in the library), so the cost is storage only, a few tens of KB per preset per edit. Deferred because it is small and bounded. To do it: after a successful PATCH that changed focal or fit (`app/api/media/[id]/route.ts`), or in the nightly sweep, list `renditions/<id>/` and remove every object whose name is not one of the current paths for the presets (`renditionPath` for each preset); keep a short grace period so a page still holding the old URL isn't broken.
