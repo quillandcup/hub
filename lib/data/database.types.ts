@@ -899,9 +899,11 @@ export type Database = {
       }
       slack_users: {
         Row: {
+          copied_from_url: string | null
           display_name: string | null
           email: string | null
           id: string
+          image_path: string | null
           image_url: string | null
           imported_at: string
           is_bot: boolean | null
@@ -912,9 +914,11 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          copied_from_url?: string | null
           display_name?: string | null
           email?: string | null
           id?: string
+          image_path?: string | null
           image_url?: string | null
           imported_at?: string
           is_bot?: boolean | null
@@ -925,9 +929,11 @@ export type Database = {
           user_id: string
         }
         Update: {
+          copied_from_url?: string | null
           display_name?: string | null
           email?: string | null
           id?: string
+          image_path?: string | null
           image_url?: string | null
           imported_at?: string
           is_bot?: boolean | null

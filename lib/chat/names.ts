@@ -3,6 +3,7 @@ import { createRepos } from "@/lib/data/repos";
 import type { SlackEmojiImage } from "@/lib/data/slack-workspace";
 import { emojiPublicUrl } from "@/lib/chat/emoji-url";
 import { safeUrl } from "@/lib/url";
+import { slackPhotoUrl } from "@/lib/slack-avatar-url";
 import { unicodeEmoji, type CustomEmoji } from "@/lib/chat/emoji";
 import { cachedLookup } from "@/lib/chat/lookup-cache";
 import { mentionedChannelIds, mentionedUserIds, mentionsToPlainText } from "@/lib/chat/render";
@@ -31,7 +32,8 @@ async function slackUserNamesUncached(userIds: string[]): Promise<Record<string,
   const ids = [...new Set(userIds)];
   const names: Record<string, string> = {};
   if (ids.length === 0) return names;
-  const repos = createRepos(createServiceRoleClient());
+  const service = createServiceRoleClient();
+  const repos = createRepos(service);
 
   for (const batch of chunks(ids)) {
     const [authors, slackUsers] = await Promise.all([repos.chat.memberIdsBySlackUser(batch), repos.slackUsers.byIds(batch)]);
@@ -109,7 +111,8 @@ async function slackUserPhotosUncached(userIds: string[]): Promise<Record<string
   const ids = [...new Set(userIds)];
   const photos: Record<string, string> = {};
   if (ids.length === 0) return photos;
-  const repos = createRepos(createServiceRoleClient());
+  const service = createServiceRoleClient();
+  const repos = createRepos(service);
 
   for (const batch of chunks(ids)) {
     const [authors, slackUsers] = await Promise.all([repos.chat.memberIdsBySlackUser(batch), repos.slackUsers.byIds(batch)]);
@@ -126,7 +129,8 @@ async function slackUserPhotosUncached(userIds: string[]): Promise<Record<string
       if (url) photos[slackUserId] = url;
     }
     for (const u of slackUsers ?? []) {
-      const url = safeUrl(u.image_url);
+      // Our copy once the sync has made one, Slack's address until then.
+      const url = safeUrl(slackPhotoUrl(service, u));
       if (url && !photos[u.user_id]) photos[u.user_id] = url;
     }
   }
