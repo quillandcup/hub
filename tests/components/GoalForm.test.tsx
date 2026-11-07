@@ -39,8 +39,17 @@ describe("GoalForm", () => {
     expect(screen.queryByText(/A total to reach/)).not.toBeInTheDocument();
   });
 
-  it("pins a new goal to the dashboard and shows it on the profile, and saves both", async () => {
+  it("starts a new goal off the profile when its project is private, since a shown goal shows its project", async () => {
     render(<GoalForm projectId="p1" onSaved={vi.fn()} />);
+    expect(pinned()).toBeChecked();
+    expect(onProfile()).not.toBeChecked();
+    await userEvent.type(amount(), "20");
+    await userEvent.click(screen.getByRole("button", { name: "Add goal" }));
+    expect(createGoal).toHaveBeenCalledWith(expect.objectContaining({ showOnProfile: false }));
+  });
+
+  it("pins a new goal to the dashboard and shows it on the profile when its project is shown, and saves both", async () => {
+    render(<GoalForm projectId="p1" onSaved={vi.fn()} projectShowOnProfile />);
     expect(pinned()).toBeChecked();
     expect(onProfile()).toBeChecked();
 
@@ -50,7 +59,7 @@ describe("GoalForm", () => {
   });
 
   it("lets the member untick either for a new goal", async () => {
-    render(<GoalForm projectId="p1" onSaved={vi.fn()} />);
+    render(<GoalForm projectId="p1" onSaved={vi.fn()} projectShowOnProfile />);
     await userEvent.click(pinned());
     await userEvent.click(onProfile());
     expect(pinned()).not.toBeChecked();

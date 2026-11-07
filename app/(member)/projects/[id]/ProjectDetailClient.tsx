@@ -127,6 +127,8 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
       return;
     }
     setShowOnProfile(next);
+    // Hiding a project hides its goals too (the database does it), so refresh their toggles.
+    if (!next) handleChanged();
   }
 
   async function handlePhaseChange(e: React.ChangeEvent<HTMLSelectElement>) {
@@ -168,6 +170,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
             handleChanged();
           }}
           onCancel={() => setEditingGoal(null)}
+          projectShowOnProfile={showOnProfile}
           onArchive={() => {
             setEditingGoal(null);
             handleArchiveGoal(goal.id);
@@ -395,7 +398,12 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
         </button>
       </div>
 
-      {showNewGoal && <GoalForm projectId={project.id} onSaved={handleChanged} onCancel={() => setShowNewGoal(false)} />}
+      {showNewGoal && <GoalForm
+          projectId={project.id}
+          onSaved={handleChanged}
+          onCancel={() => setShowNewGoal(false)}
+          projectShowOnProfile={showOnProfile}
+        />}
 
       {entries.length > 0 && <ProjectCharts entries={entries} startingBalances={project.startingBalances} />}
 
@@ -562,19 +570,22 @@ export function GoalForm({
   onSaved,
   onCancel,
   onArchive,
+  projectShowOnProfile = false,
 }: {
   projectId: string;
   goal?: GoalRow;
   onSaved: () => void;
   onCancel?: () => void;
+  /** Whether the project is on the profile: a new goal starts the same way, since a shown goal shows its project. */
+  projectShowOnProfile?: boolean;
   onArchive?: () => void;
 }) {
   const isEditing = !!goal;
   const [title, setTitle] = useState(goal?.title ?? "");
   const [description, setDescription] = useState(goal?.description ?? "");
-  // A new goal starts pinned to the dashboard and on the profile (the member can untick either);
-  // editing keeps what was saved.
-  const [showOnProfile, setShowOnProfile] = useState(goal ? goal.showOnProfile : true);
+  // A new goal starts pinned to the dashboard and on the profile if its project is (the member can
+  // change either); editing keeps what was saved.
+  const [showOnProfile, setShowOnProfile] = useState(goal ? goal.showOnProfile : projectShowOnProfile);
   const [isStarred, setIsStarred] = useState(goal ? goal.isStarred : true);
   const [goalType, setGoalType] = useState<"target" | "habit">(goal?.kind ?? "target");
   // Prickles is the default for new goals -- it's the input (attending), word/page/etc counts
@@ -810,7 +821,7 @@ export function GoalForm({
             className="rounded"
           />
           <span aria-hidden="true">{PROFILE_PUBLIC}</span>
-          Show on my profile <span className="text-slate-500 dark:text-slate-400">(other members can see this goal)</span>
+          Show on my profile <span className="text-slate-500 dark:text-slate-400">(other members can see this goal, and its project with it)</span>
         </label>
       </div>
 

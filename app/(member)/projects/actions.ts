@@ -1142,6 +1142,20 @@ function buildGoalFields(
   };
 }
 
+/**
+ * A goal on the profile shows its project's title and progress, so showing a goal shows its project
+ * (the database refuses a shown goal on a private project and would otherwise quietly hide the goal).
+ */
+async function shareProjectForGoal(
+  writing: ReturnType<typeof createRepos>["writing"],
+  memberId: string,
+  projectId: string | null,
+  details: { show_on_profile?: boolean }
+) {
+  if (details.show_on_profile !== true || !projectId) return;
+  await writing.updateProject(memberId, projectId, { show_on_profile: true });
+}
+
 async function createGoalImpl(
   input: CreateGoalInput
 ): Promise<{ success: true; id: string } | { error: string }> {
@@ -1162,7 +1176,9 @@ async function createGoalImpl(
 
   let id: string;
   try {
-    id = await createRepos(supabase).writing.createGoal({ member_id: effectiveIdentity.memberId, project_id: input.projectId, ...fields, ...details });
+    const writing = createRepos(supabase).writing;
+    await shareProjectForGoal(writing, effectiveIdentity.memberId, input.projectId, details);
+    id = await writing.createGoal({ member_id: effectiveIdentity.memberId, project_id: input.projectId, ...fields, ...details });
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed to create goal" };
   }
@@ -1221,6 +1237,7 @@ async function updateGoalImpl(
   if ("error" in details) return details;
 
   try {
+    await shareProjectForGoal(writing, effectiveIdentity.memberId, existing.project_id, details);
     await writing.updateGoal(effectiveIdentity.memberId, goalId, { ...fields, ...details });
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed to update goal" };
@@ -1330,7 +1347,11 @@ async function toggleGoalVisibilityImpl(
   const { supabase, effectiveIdentity } = ctx;
 
   try {
-    await createRepos(supabase).writing.updateGoal(effectiveIdentity.memberId, goalId, { show_on_profile: showOnProfile });
+    const writing = createRepos(supabase).writing;
+    const existing = await writing.goalForEdit(goalId);
+    if (!existing || existing.member_id !== effectiveIdentity.memberId) return { error: "Goal not found" };
+    await shareProjectForGoal(writing, effectiveIdentity.memberId, existing.project_id, { show_on_profile: showOnProfile });
+    await writing.updateGoal(effectiveIdentity.memberId, goalId, { show_on_profile: showOnProfile });
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed to update goal" };
   }

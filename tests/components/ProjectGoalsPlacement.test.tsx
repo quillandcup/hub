@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as actions from "@/app/(member)/projects/actions";
 import ProjectDetailClient from "@/app/(member)/projects/[id]/ProjectDetailClient";
@@ -152,6 +152,40 @@ describe("goal row controls on the project page", () => {
     vi.mocked(actions.toggleGoalVisibility).mockResolvedValueOnce({ error: "Could not change" } as never);
     await userEvent.click(goalToggle());
     expect(alertSpy).toHaveBeenCalledWith("Could not change");
+  });
+
+  it("hides the project's goals too when the project is taken off the profile, and refreshes in place", async () => {
+    vi.mocked(actions.toggleProjectVisibility).mockResolvedValue({ success: true } as never);
+    render(<ProjectDetailClient project={{ ...project, showOnProfile: true, goals: [goals[2]] }} entries={[]} archivedGoals={[]} />);
+    await userEvent.click(screen.getAllByRole("button", { name: "Show on my profile" })[0]);
+    expect(actions.toggleProjectVisibility).toHaveBeenCalledWith("wpr_AAAAAAAAAAA1", false);
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+  });
+
+  it("starts a new goal on the profile when its project is on the profile, and off when it is not", async () => {
+    const { unmount } = render(<ProjectDetailClient project={{ ...project, showOnProfile: true, goals: [] }} entries={[]} archivedGoals={[]} />);
+    await userEvent.click(screen.getByRole("button", { name: "+ Add a goal" }));
+    expect(screen.getByRole("checkbox", { name: /Show on my profile/ })).toBeChecked();
+    unmount();
+    render(<ProjectDetailClient project={{ ...project, goals: [] }} entries={[]} archivedGoals={[]} />);
+    await userEvent.click(screen.getByRole("button", { name: "+ Add a goal" }));
+    expect(screen.getByRole("checkbox", { name: /Show on my profile/ })).not.toBeChecked();
+  });
+
+  it("closes the new goal form with its Cancel button", async () => {
+    render(<ProjectDetailClient project={{ ...project, goals: [] }} entries={[]} archivedGoals={[]} />);
+    await userEvent.click(screen.getByRole("button", { name: "+ Add a goal" }));
+    await userEvent.click(screen.getAllByRole("button", { name: "Cancel" }).at(-1)!);
+    expect(screen.queryByRole("button", { name: "Add goal" })).not.toBeInTheDocument();
+  });
+
+  it("does not refresh when a project is put on the profile", async () => {
+    vi.mocked(actions.toggleProjectVisibility).mockResolvedValue({ success: true } as never);
+    renderMissedOnly();
+    await userEvent.click(screen.getAllByRole("button", { name: "Show on my profile" })[0]);
+    expect(actions.toggleProjectVisibility).toHaveBeenCalledWith("wpr_AAAAAAAAAAA1", true);
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "Show on my profile" })[0]).toHaveAttribute("aria-pressed", "true"));
+    expect(refresh).not.toHaveBeenCalled();
   });
 
   it("deletes a missed goal once confirmed", async () => {
