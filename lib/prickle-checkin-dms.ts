@@ -712,6 +712,15 @@ export const CHECKOUT_LOOKBACK_MS = 6 * 60 * 60 * 1000;
 const PRESENCE_LOOKBEHIND_MS = 12 * 60 * 60 * 1000;
 
 /**
+ * How much further back than CHECKOUT_LOOKBACK_MS the prickles are loaded as neighbours. Whether a
+ * stay counts as attending depends on the prickle before it (a few minutes lingering into the next
+ * prickle do not, staysOf), so the prickle before the earliest one in the lookback must be known,
+ * or exactly CHECKOUT_LOOKBACK_MS after a prickle starts the one before it drops out and the
+ * member who only lingered is sent a check-out, hours late, for a prickle they did not attend.
+ */
+export const NEIGHBOUR_MARGIN_MS = 12 * 60 * 60 * 1000;
+
+/**
  * Writing prickles that ended in the last CHECKOUT_LOOKBACK_MS and that `memberId` was in the room
  * for, from live presence (the Zoom participant webhooks). The dashboard's "How did it go?" card
  * lists these straight away instead of waiting for the attendance import, which only arrives once
@@ -724,13 +733,15 @@ export async function recentPresentPrickles(
   presenceRepos: PresenceRepos = repos
 ): Promise<PrickleDetail[]> {
   const since = now.getTime() - CHECKOUT_LOOKBACK_MS;
-  const recent = await repos.prickles.startingBetween({ from: new Date(since).toISOString(), to: now.toISOString() });
+  // The prickles before the window too (NEIGHBOUR_MARGIN_MS): they are the neighbours that decide what counts.
+  const around = await repos.prickles.startingBetween({ from: new Date(since - NEIGHBOUR_MARGIN_MS).toISOString(), to: now.toISOString() });
+  const recent = around.filter((p) => new Date(p.startTime).getTime() >= since);
   const ended = recent.filter((p) => offersCheckins(p) && new Date(p.endTime).getTime() <= now.getTime());
   if (ended.length === 0) return [];
   const intervals = (await loadPresenceByMember(presenceRepos, new Date(since - PRESENCE_LOOKBEHIND_MS), now)).get(memberId) ?? [];
   // Counted the way the attendance processing counts a stay (a lingering tail of the prickle
   // before is not attending), with every prickle of the period as a possible neighbour.
-  const counted = countedPrickleIds(intervals, recent.map(toWindow), now.getTime());
+  const counted = countedPrickleIds(intervals, around.map(toWindow), now.getTime());
   return ended.filter((p) => counted.has(p.id)).sort((a, b) => b.startTime.localeCompare(a.startTime));
 }
 

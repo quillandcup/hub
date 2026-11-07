@@ -66,7 +66,11 @@ and the "What did you write?" card) counts time in the room the way the attendan
 (`staysOf` and `countedPrickleIds` in `lib/zoom-presence.ts`, `EDGE_STAY_MS` = 15 minutes,
 `docs/ATTENDANCE_RULES.md`): a stay of less than 15 minutes in a prickle does not count when the stay
 in the neighbouring prickle was 15 minutes or more. A member who lingers a few minutes into the
-next prickle therefore gets no check-out for it and is not marked present in it. For the drop-in
+next prickle therefore gets no check-out for it and is not marked present in it. That rule needs the
+prickle before to be known, so the cron and the dashboard card load the prickles from
+`NEIGHBOUR_MARGIN_MS` (12 hours) before the 6-hour lookback as neighbours (they get no check-outs
+themselves); without them, exactly 6 hours after a prickle started, the one before dropped out and a
+member who had only lingered was sent a check-out for it, five hours late. For the drop-in
 check-in the rule is stricter on purpose: a member who is carrying on from a 15-minute-plus stay in
 another prickle never gets it, rather than getting it at minute 15 to 18, which is too late for
 "how are you coming in". A fresh joiner gets it on the next cron tick and can dismiss it if they do

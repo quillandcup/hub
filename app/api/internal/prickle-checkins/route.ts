@@ -14,6 +14,7 @@ import {
   checkinMessage,
   CHECKOUT_LOOKBACK_MS,
   DROP_IN_CHECKIN_WINDOW_MS,
+  NEIGHBOUR_MARGIN_MS,
   getActiveGoalCandidates,
   loadCalendarPrickleIdsByMember,
   loadCheckins,
@@ -80,10 +81,14 @@ async function runPrickleCheckins(request: NextRequest): Promise<NextResponse> {
  * time in the room counts as attending one (see staysOf).
  */
 async function loadRecentPrickles(repos: RouteRepos, now: number): Promise<{ writing: RecentPrickle[]; windows: PrickleWindow[] }> {
-  const active = await repos.prickles.activeBetween({
-    from: new Date(now - CHECKOUT_LOOKBACK_MS).toISOString(),
+  const lookbackFrom = now - CHECKOUT_LOOKBACK_MS;
+  // The prickles before the lookback too (NEIGHBOUR_MARGIN_MS) as windows: the one before the earliest
+  // prickle here decides whether a member who only lingered into it counts as attending it.
+  const around = await repos.prickles.activeBetween({
+    from: new Date(lookbackFrom - NEIGHBOUR_MARGIN_MS).toISOString(),
     to: new Date(now).toISOString(),
   });
+  const active = around.filter((p) => new Date(p.endTime).getTime() > lookbackFrom);
   return {
     writing: writingPrickles(active).map((p) => ({
       id: p.id,
@@ -92,7 +97,7 @@ async function loadRecentPrickles(repos: RouteRepos, now: number): Promise<{ wri
       startTime: p.startTime,
       endTime: p.endTime,
     })),
-    windows: active.map(toWindow),
+    windows: around.map(toWindow),
   };
 }
 

@@ -219,6 +219,15 @@ describe("getUnloggedRecentPrickles from live presence", () => {
     expect((await getUnloggedRecentPrickles()).map((p) => p.id)).toEqual(["p-before"]);
   });
 
+  it("leaves out a prickle the member only lingered into, even when the prickle before it started before the 6-hour window", async () => {
+    // p-before ran 6.9 to 5.9 hours ago (it started before the window), p-after 5.9 to 4.9: in the room from 6.8 to 5.88 hours ago,
+    // about a minute into p-after. Without p-before as a neighbour the lingering stay would count.
+    repos = world([sprint("p-before", 6.9, 5.9), sprint("p-after", 5.9, 4.9)], [event("1", "joined", 6.8), event("2", "left", 5.88)]);
+    useClient();
+
+    expect((await getUnloggedRecentPrickles()).map((p) => p.id)).toEqual([]);
+  });
+
   it("lists it once when the attendance has also arrived, and hides a finished check-out", async () => {
     const both = attended("p-both", at(4));
     const done = sprint("p-done", 3, 2);
