@@ -173,6 +173,27 @@ describe("goal row controls on the project page", () => {
     expect(reload).toHaveBeenCalled();
   });
 
+  it("alerts and leaves the project private when sharing it fails", async () => {
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    vi.mocked(actions.toggleProjectVisibility).mockResolvedValueOnce({ error: "Could not share" } as never);
+    renderMissedOnly();
+    await userEvent.click(screen.getAllByRole("button", { name: "Show on my profile" }).at(-1)!);
+    expect(alertSpy).toHaveBeenCalledWith("Could not share");
+  });
+
+  it("offers to share the project after a new goal is added", async () => {
+    const confirmSpy = vi.fn(() => false);
+    vi.stubGlobal("confirm", confirmSpy);
+    vi.mocked(actions.createGoal).mockResolvedValue({ success: true } as never);
+    renderMissedOnly();
+    await userEvent.click(screen.getByRole("button", { name: "+ Add a goal" }));
+    await userEvent.type(screen.getByLabelText("Target amount"), "20");
+    await userEvent.click(screen.getByRole("button", { name: "Add goal" }));
+    expect(actions.createGoal).toHaveBeenCalled();
+    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining("Lantern Draft Two"));
+    expect(reload).toHaveBeenCalled();
+  });
+
   it("does not ask when the project is already on the profile", async () => {
     const confirmSpy = vi.fn(() => true);
     vi.stubGlobal("confirm", confirmSpy);
