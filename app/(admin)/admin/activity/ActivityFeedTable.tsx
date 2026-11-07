@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment, useState } from "react";
 import Link from "next/link";
 import { activityLink } from "@/lib/activity-links";
 import ReactionEmoji from "@/components/ReactionEmoji";
@@ -141,6 +142,13 @@ export default function ActivityFeedTable({
   noteControls?: NoteControls;
 }) {
   const timeZone = useTimeZone();
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  const toggle = (id: string) =>
+    setOpen((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
   // Newest first is the only order; there are no sortable columns.
   const table = useServerDataTable<ActivityFeedRow, never>({
     rows,
@@ -167,7 +175,8 @@ export default function ActivityFeedTable({
             {table.rows.map((row) => {
               const sudo = !!row.acting_as_member_id;
               return (
-                <tr key={row.event_id} className="border-b border-slate-100 dark:border-slate-800 align-top">
+                <Fragment key={row.event_id}>
+                <tr className="border-b border-slate-100 dark:border-slate-800 align-top">
                   <td className="py-2 pr-4 whitespace-nowrap text-xs text-slate-600 dark:text-slate-400">
                     <time dateTime={row.occurred_at}>{formatDateTime(row.occurred_at, timeZone)}</time>
                   </td>
@@ -193,30 +202,16 @@ export default function ActivityFeedTable({
                       <NoteEntry row={row} controls={noteControls} />
                     ) : hasDetail(row) ? (
                       <>
-                      <details>
-                        <summary className="cursor-pointer"><Summary row={row} /></summary>
-                        {row.kind === "audit" && <ChangeTable row={row} />}
-                        {row.kind === "session" && <PageTrail row={row} />}
-                        {row.kind === "activity" && row.description && (
-                          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400 whitespace-pre-wrap">
-                            {row.description}
-                          </p>
-                        )}
-                        {row.kind === "activity" && emailLinkOf(row.data) && (
-                          <p className="mt-2 text-sm">
-                            <a
-                              href={emailLinkOf(row.data)!}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              data-track="activity-email-open-in-resend"
-                              className="text-plum-600 dark:text-plum-400 hover:underline"
-                            >
-                              Read this email at Resend
-                            </a>
-                          </p>
-                        )}
-                      </details>
-                      <SourceLink row={row} />
+                        <button
+                          type="button"
+                          aria-expanded={open.has(row.event_id)}
+                          onClick={() => toggle(row.event_id)}
+                          className="cursor-pointer text-left"
+                        >
+                          <span aria-hidden className="mr-1 text-slate-500">{open.has(row.event_id) ? "▾" : "▸"}</span>
+                          <Summary row={row} />
+                        </button>
+                        <SourceLink row={row} />
                       </>
                     ) : (
                       <>
@@ -242,6 +237,31 @@ export default function ActivityFeedTable({
                     </td>
                   )}
                 </tr>
+                {row.kind !== "note" && hasDetail(row) && open.has(row.event_id) && (
+                  <tr className="border-b border-slate-100 dark:border-slate-800">
+                    <td colSpan={hideAbout ? 3 : 4} className="bg-slate-50 px-3 pb-3 pt-1 text-slate-700 dark:bg-slate-800/40 dark:text-slate-300">
+                      {row.kind === "audit" && <ChangeTable row={row} />}
+                      {row.kind === "session" && <PageTrail row={row} />}
+                      {row.kind === "activity" && row.description && (
+                        <p className="mt-2 text-sm text-slate-600 dark:text-slate-400 whitespace-pre-wrap">{row.description}</p>
+                      )}
+                      {row.kind === "activity" && emailLinkOf(row.data) && (
+                        <p className="mt-2 text-sm">
+                          <a
+                            href={emailLinkOf(row.data)!}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            data-track="activity-email-open-in-resend"
+                            className="text-plum-600 dark:text-plum-400 hover:underline"
+                          >
+                            Read this email at Resend
+                          </a>
+                        </p>
+                      )}
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               );
             })}
           </tbody>

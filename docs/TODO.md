@@ -1325,9 +1325,9 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 ## UI Enhancements
 
-### Activity log: events and full-width details on a phone _(Needs Scheduling)_
+### Activity log: resolve event ids _(Needs Scheduling)_
 
-The audit details now show names for members, prickles, prickle types and accounts, and stack label over value in narrow containers (`lib/audit-references.ts`, `lib/audit-details.ts`). Still open: event ids (`evt_`) are left out because no repository resolves them in batch (add `EventRepository.byIds`, then include them in `withReferenceNames`); the details still sit inside the "What" column, so on a phone the panel is narrower than the screen. Give an open row a second table row spanning all columns, as the prickle insights page does.
+Audit details show names for members, prickles, prickle types and accounts (`lib/audit-references.ts`, `lib/audit-details.ts`). Still open: event ids (`evt_`) are left out because no repository resolves them in batch. Add `EventRepository.byIds`, then include them in `withReferenceNames`.
 
 ### Feedback: a readable id, then link the Activity Log straight to the item _(Needs Scheduling)_
 
