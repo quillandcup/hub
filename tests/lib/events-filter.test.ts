@@ -36,5 +36,8 @@ describe('prickleEventKind', () => {
     expect(prickleEventKind('educational')).toBe('educational')
     expect(prickleEventKind('pitch')).toBe('session')
     expect(prickleEventKind(null)).toBe('session')
+    expect(prickleEventKind(null, 'Quill & Cup Virtual Retreat')).toBe('virtual_retreat')
+    expect(prickleEventKind('educational', '2026 Fall virtual  retreat: Plot')).toBe('virtual_retreat')
+    expect(prickleEventKind(null, 'Retreat planning')).toBe('session')
   })
 })

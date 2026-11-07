@@ -137,7 +137,7 @@ export async function elevateCalendarEvent(db: Db, calendarEventId: string, user
         announced_publicly: prickle.type?.announcedPublicly ?? false,
         guests_allowed: prickle.type?.guestsAllowed ?? false,
         focus: calendarCategory(source.summary),
-        event_type: prickleEventKind(prickle.type?.normalizedName),
+        event_type: prickleEventKind(prickle.type?.normalizedName, `${title} ${source.summary ?? ""}`),
         created_by: userId,
         automatic,
       });

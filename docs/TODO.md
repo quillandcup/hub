@@ -1703,6 +1703,10 @@ Next steps, in order: (1) the TTFB gap above; (2) cache the global reads (featur
 ### Link the holder's name in the "already an alias" error
 Adding an alias that another member holds says `"AJ" is already an alias for <name>. Move it from there first.` (`lib/name-alias-conflict.ts`) as plain text, so the admin has to search for the holder. Deferred as a nit: the message is a string the identity page shows as is. Return the holder's id with the conflict and render the name as a link to `/admin/members/<id>` where the message is shown.
 
+### Calendar naming convention for virtual retreats
+
+Existing virtual retreats are titled "<year> <season> Virtual Retreat: <topic>" (for example "2026 Fall Virtual Retreat: Plot"), but newer calendar items such as "Quill & Cup Virtual Retreat" do not follow it. Deferred on purpose: renaming automatically is too much magic, and the event type now comes from the words "virtual retreat" in the title either way (`prickleEventKind`). Follow the pattern when creating the Google Calendar item; if the mismatch keeps happening, show a hint on the event admin page when a Virtual Retreat title lacks the pattern (`lib/events-filter.ts`, `components/EventDetailsCard.tsx`).
+
 ## Internationalization
 
 ### Secondary Time Zone: Remaining Displays
