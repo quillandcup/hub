@@ -15,6 +15,8 @@ export type AnnouncementAction = {
   onClick?: () => void;
   /** ...or a button that submits a server action. */
   formAction?: (formData: FormData) => void | Promise<void>;
+  /** A plain bold text link instead of a filled button (a store-style "Install"). */
+  quiet?: boolean;
 };
 
 export type AnnouncementDismiss = {
@@ -24,6 +26,8 @@ export type AnnouncementDismiss = {
   scope: "session" | "device";
   /** Button text, "Not now" by default. */
   label?: string;
+  /** "icon" is a compact X at the left edge (label becomes its accessible name), like a store's app banner. */
+  variant?: "text" | "icon";
   track?: string;
 };
 
@@ -35,6 +39,8 @@ type Props = {
   dismiss?: AnnouncementDismiss;
   /** Defaults to "alert" for critical and "status" otherwise. */
   role?: "status" | "alert";
+  /** One tight row that never wraps: dismiss, message, action. */
+  compact?: boolean;
   "aria-label"?: string;
 };
 
@@ -48,7 +54,7 @@ function storageFor(scope: "session" | "device"): Storage {
  * A dismissible bar is hidden until its stored state has been read, since the server can't know it
  * (no flash, no hydration mismatch); storage that is blocked just means it shows every visit.
  */
-export default function AnnouncementBar({ tone, children, action, dismiss, role, "aria-label": ariaLabel }: Props) {
+export default function AnnouncementBar({ tone, children, action, dismiss, role, compact, "aria-label": ariaLabel }: Props) {
   const [dismissed, setDismissed] = useState(Boolean(dismiss));
   const key = dismiss?.dismissKey;
   const scope = dismiss?.scope;
@@ -66,7 +72,9 @@ export default function AnnouncementBar({ tone, children, action, dismiss, role,
   if (dismiss && dismissed) return null;
 
   const solid = tone !== "info";
-  const actionClass = solid
+  const actionClass = action?.quiet
+    ? "shrink-0 cursor-pointer px-1 py-1 text-base font-semibold text-plum-700 dark:text-plum-200"
+    : solid
     ? "cursor-pointer font-medium underline underline-offset-2 hover:no-underline"
     : "rounded-lg bg-plum-600 px-3 py-1 font-medium text-white hover:bg-plum-700";
   const dismissClass = solid
@@ -88,31 +96,36 @@ export default function AnnouncementBar({ tone, children, action, dismiss, role,
     actionEl = <button type="button" data-track={action.track} onClick={action.onClick} className={actionClass}>{action.label}</button>;
   }
 
+  const icon = dismiss?.variant === "icon";
+  const dismissButton = dismiss && (
+    <button
+      type="button"
+      data-track={dismiss.track}
+      aria-label={icon ? (dismiss.label ?? "Dismiss") : undefined}
+      onClick={() => {
+        try {
+          storageFor(dismiss.scope).setItem(dismiss.dismissKey, "1");
+        } catch {
+          // Dismissed for this visit only.
+        }
+        setDismissed(true);
+      }}
+      className={icon ? `${dismissClass} -ml-2 px-2 text-lg leading-none` : dismissClass}
+    >
+      {icon ? "×" : (dismiss.label ?? "Not now")}
+    </button>
+  );
+
   return (
     <section
       role={role ?? (tone === "critical" ? "alert" : "status")}
       aria-label={ariaLabel}
-      className={`${ANNOUNCEMENT_BAR_LAYOUT} ${ANNOUNCEMENT_TONE_CLASSES[tone]}`}
+      className={`${ANNOUNCEMENT_BAR_LAYOUT} ${compact ? "flex-nowrap gap-x-3 px-4" : ""} ${ANNOUNCEMENT_TONE_CLASSES[tone]}`}
     >
+      {icon && dismissButton}
       <div className="min-w-0 flex-1">{children}</div>
       {actionEl}
-      {dismiss && (
-        <button
-          type="button"
-          data-track={dismiss.track}
-          onClick={() => {
-            try {
-              storageFor(dismiss.scope).setItem(dismiss.dismissKey, "1");
-            } catch {
-              // Dismissed for this visit only.
-            }
-            setDismissed(true);
-          }}
-          className={dismissClass}
-        >
-          {dismiss.label ?? "Not now"}
-        </button>
-      )}
+      {!icon && dismissButton}
     </section>
   );
 }
