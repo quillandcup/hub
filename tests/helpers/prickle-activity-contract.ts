@@ -174,6 +174,18 @@ export function definePrickleActivityContract(name: string, setup: () => Prickle
         expect(await repo.checkinOf(m1, p0.id)).toEqual(BEFORE);
       });
 
+      it("keeps the questions a member skipped, with nothing answered, and drops the row when nothing is left", async () => {
+        const [p0] = ctx.prickles;
+        const repo = ctx.repo();
+        const skippedOnly = { ...EMPTY_CHECKIN, skipped: ["energyBefore" as const, "need" as const] };
+        await repo.saveCheckin(m1, p0.id, skippedOnly, "web"); // only skips: still a check-in
+        expect(await repo.checkinOf(m1, p0.id)).toEqual(skippedOnly);
+        await repo.saveCheckin(m1, p0.id, { ...skippedOnly, energyBefore: 3, skipped: ["need"] }, "slack");
+        expect(await repo.checkinOf(m1, p0.id)).toEqual({ ...EMPTY_CHECKIN, energyBefore: 3, skipped: ["need"] });
+        await repo.saveCheckin(m1, p0.id, EMPTY_CHECKIN, "web"); // no answers, no skips: cleared
+        expect(await repo.checkinOf(m1, p0.id)).toBeNull();
+      });
+
       it("lists each member's most named feelings, before and after, and leaves cleared check-ins out", async () => {
         const [p0, p1, p2] = ctx.prickles;
         const repo = ctx.repo();

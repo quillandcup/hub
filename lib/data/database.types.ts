@@ -4890,6 +4890,7 @@ export type Database = {
           pleasant_before: number | null
           prickle_id: string
           saved_via: string
+          skipped: string[]
           updated_at: string
         }
         Insert: {
@@ -4907,6 +4908,7 @@ export type Database = {
           pleasant_before?: number | null
           prickle_id: string
           saved_via?: string
+          skipped?: string[]
           updated_at?: string
         }
         Update: {
@@ -4924,6 +4926,7 @@ export type Database = {
           pleasant_before?: number | null
           prickle_id?: string
           saved_via?: string
+          skipped?: string[]
           updated_at?: string
         }
         Relationships: [

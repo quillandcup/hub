@@ -12,6 +12,10 @@ import {
   offersCheckins,
   searchEmotions,
   frequentEmotions,
+  CHECKIN_ANSWER_KEYS,
+  CHECKIN_FIELDS,
+  skipAwarePatch,
+  toggleSkipPatch,
   EMPTY_CHECKIN,
   ENERGY,
   INTENTION_MET,
@@ -34,6 +38,7 @@ import {
 } from "@/lib/prickle-checkins";
 
 const VALID: CheckinInput = {
+  skipped: [],
   pleasantBefore: 2,
   energyBefore: 1,
   emotionBefore: "lonely",
@@ -203,16 +208,18 @@ describe("validateCheckin", () => {
 describe("isEmptyCheckin", () => {
   it("is true only when every answer is cleared", () => {
     expect(isEmptyCheckin(EMPTY_CHECKIN)).toBe(true);
-    for (const field of Object.keys(EMPTY_CHECKIN) as (keyof CheckinInput)[]) {
+    for (const field of CHECKIN_ANSWER_KEYS) {
       expect(isEmptyCheckin({ ...EMPTY_CHECKIN, [field]: VALID[field] })).toBe(false);
     }
+    // A skip is something to keep too: a check-in of only skips is not empty.
+    expect(isEmptyCheckin({ ...EMPTY_CHECKIN, skipped: ["energyBefore"] })).toBe(false);
   });
 });
 
 describe("halves", () => {
   it("splits every answer into exactly one half", () => {
     const all = [...CHECKIN_HALF_FIELDS.checkin, ...CHECKIN_HALF_FIELDS.checkout].sort();
-    expect(all).toEqual(Object.keys(EMPTY_CHECKIN).sort());
+    expect(all).toEqual([...CHECKIN_ANSWER_KEYS].sort());
   });
 
   it("replaces one half, leaving the other alone and clearing what wasn't given", () => {
@@ -248,6 +255,7 @@ describe("rows", () => {
       pleasant_after: 4,
       energy_after: 3,
       emotion_after: "hopeful",
+      skipped: [],
     });
     expect(checkinFromRow(checkinToRow(VALID))).toEqual(VALID);
   });
@@ -311,5 +319,50 @@ describe("frequentEmotions", () => {
     expect(frequentEmotions([a("sad"), a("mad"), a("not-a-feeling")], 8)).toEqual(["mad", "sad"]);
     expect(frequentEmotions([], 3)).toEqual([]);
     expect(frequentEmotions([a("mad")], 0)).toEqual([]);
+  });
+});
+
+describe("skipped questions", () => {
+  it("a skipped question counts as dealt with, so a half of answers and skips is answered", () => {
+    expect(checkinAnswered({ ...EMPTY_CHECKIN, pleasantBefore: 3, skipped: ["energyBefore", "need"] })).toBe(true);
+    expect(checkinAnswered({ ...EMPTY_CHECKIN, pleasantBefore: 3, skipped: ["energyBefore"] })).toBe(false);
+    expect(checkoutAnswered({ ...EMPTY_CHECKIN, intentionMet: 4, skipped: ["pleasantAfter", "energyAfter"] })).toBe(true);
+    // The feeling is optional either way.
+    expect(checkinAnswered({ ...EMPTY_CHECKIN, skipped: ["pleasantBefore", "energyBefore", "need"] })).toBe(true);
+  });
+
+  it("skipping clears the answer and answering lifts the skip", () => {
+    const answered = { ...EMPTY_CHECKIN, energyBefore: 2 };
+    const skipped = { ...answered, ...toggleSkipPatch(answered, "energyBefore") };
+    expect(skipped).toMatchObject({ energyBefore: null, skipped: ["energyBefore"] });
+    expect({ ...skipped, ...skipAwarePatch(skipped, { energyBefore: 4 }) }).toMatchObject({ energyBefore: 4, skipped: [] });
+    expect({ ...skipped, ...toggleSkipPatch(skipped, "energyBefore") }).toMatchObject({ energyBefore: null, skipped: [] });
+  });
+
+  it("keeps the other half's skips when a half is replaced, and the half's own skips in halfOf", () => {
+    const base = { ...VALID, skipped: ["energyBefore" as const, "energyAfter" as const] };
+    const next = withHalf({ ...base, energyBefore: null, energyAfter: null }, "checkout", { intentionMet: 2, skipped: ["pleasantAfter"] });
+    expect(next.skipped).toEqual(["energyBefore", "pleasantAfter"]);
+    expect(halfOf(next, "checkin").skipped).toEqual(["energyBefore"]);
+  });
+
+  it("validates the skip list: known questions only, once each, never also answered", () => {
+    expect(validateCheckin({ ...VALID, pleasantBefore: null, skipped: ["pleasantBefore"] })).toBeNull();
+    expect(validateCheckin({ ...VALID, skipped: ["bogus"] })).toBe("Invalid skip");
+    expect(validateCheckin({ ...VALID, skipped: "need" })).toBe("Invalid skip");
+    expect(validateCheckin({ ...VALID, pleasantBefore: null, skipped: ["pleasantBefore", "pleasantBefore"] })).toBe("Invalid skip");
+    expect(validateCheckin({ ...VALID, skipped: ["pleasantBefore"] })).toMatch(/both answered and skipped/);
+  });
+
+  it("is stored by column name, and a row's skips map back to the questions", () => {
+    const c = { ...EMPTY_CHECKIN, skipped: ["need" as const, "energyAfter" as const] };
+    expect(checkinToRow(c).skipped).toEqual(["need", "energy_after"]);
+    expect(checkinFromRow(checkinToRow(c))).toEqual(c);
+  });
+
+  it("matches the questions the migration allows", () => {
+    const sql = fs.readFileSync(path.join(__dirname, "../../supabase/migrations/20270518000000_checkin_skipped_questions.sql"), "utf8");
+    const allowed = [...sql.match(/ARRAY\[([^\]]+)\]/)![1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+    expect(allowed.sort()).toEqual(Object.values(CHECKIN_FIELDS).sort());
   });
 });

@@ -151,3 +151,24 @@ describe("EmotionPicker", () => {
     expect(chip("More specifically, sad", "Lonely")).toBeDisabled();
   });
 });
+
+describe("Skip on the feeling question", () => {
+  it("skips and takes the skip back, and picking a feeling lifts it", async () => {
+    const user = userEvent.setup();
+    const onSkip = vi.fn();
+    const { rerender } = render(<EmotionPicker value={null} onChange={vi.fn()} onSkip={onSkip} />);
+    await user.click(chip("Core feeling", "Skip"));
+    expect(onSkip).toHaveBeenCalledTimes(1);
+    rerender(<EmotionPicker value={null} onChange={vi.fn()} onSkip={onSkip} skipped />);
+    expect(chip("Core feeling", "Skipped")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("has no skip chip without a handler, and read only shows only a skip that was made", () => {
+    const { rerender } = render(<EmotionPicker value={null} onChange={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "Skip" })).not.toBeInTheDocument();
+    rerender(<EmotionPicker value={null} onChange={vi.fn()} onSkip={vi.fn()} readOnly />);
+    expect(screen.queryByRole("button", { name: "Skip" })).not.toBeInTheDocument();
+    rerender(<EmotionPicker value={null} onChange={vi.fn()} onSkip={vi.fn()} readOnly skipped />);
+    expect(chip("Core feeling", "Skipped")).toBeDisabled();
+  });
+});

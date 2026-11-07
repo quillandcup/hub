@@ -355,7 +355,7 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
           <p className="text-sm text-slate-600 dark:text-slate-400">
             Optional, so skip it if you like. It helps pick prickles that have worked for you when you felt like this.
           </p>
-          <CheckinHalfFields half="checkin" value={comingIn} onChange={(patch) => setComingIn((c) => ({ ...c, ...patch }))} />
+          <CheckinHalfFields half="checkin" allowSkip={false} value={comingIn} onChange={(patch) => setComingIn((c) => ({ ...c, ...patch }))} />
         </div>
       )}
 

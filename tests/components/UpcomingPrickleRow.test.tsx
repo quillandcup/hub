@@ -58,7 +58,7 @@ describe("UpcomingPrickleRow check-in pill", () => {
   });
 
   it("shows a finished check-out as done", () => {
-    renderRow(-60_000, { pleasantBefore: 3, energyBefore: 3, emotionBefore: null, need: "company", intentionMet: 4, pleasantAfter: 4, energyAfter: 3, emotionAfter: null });
+    renderRow(-60_000, { skipped: [], pleasantBefore: 3, energyBefore: 3, emotionBefore: null, need: "company", intentionMet: 4, pleasantAfter: 4, energyAfter: 3, emotionAfter: null });
     expect(screen.getByRole("link", { name: "Checked out ✓" })).toBeInTheDocument();
   });
 
@@ -78,7 +78,7 @@ describe("UpcomingPrickleRow check-in pill", () => {
   });
 
   it("shows a finished check-in as done", () => {
-    renderRow(10 * 60 * 1000, { pleasantBefore: 3, energyBefore: 3, emotionBefore: null, need: "company", intentionMet: null, pleasantAfter: null, energyAfter: null, emotionAfter: null });
+    renderRow(10 * 60 * 1000, { skipped: [], pleasantBefore: 3, energyBefore: 3, emotionBefore: null, need: "company", intentionMet: null, pleasantAfter: null, energyAfter: null, emotionAfter: null });
     expect(screen.getByRole("link", { name: "Checked in ✓" })).toBeInTheDocument();
   });
 

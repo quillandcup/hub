@@ -296,6 +296,32 @@ export const NEED_VIBE: Record<Need, "focused" | "balanced" | "chatty" | null> =
 
 export const NEED_KEYS: readonly Need[] = NEEDS.map((n) => n.key);
 
+/** Every question, by CheckinInput key, in the order they are asked. */
+export const CHECKIN_ANSWER_KEYS = [
+  "pleasantBefore",
+  "energyBefore",
+  "emotionBefore",
+  "need",
+  "intentionMet",
+  "pleasantAfter",
+  "energyAfter",
+  "emotionAfter",
+] as const;
+
+export type CheckinAnswerKey = (typeof CHECKIN_ANSWER_KEYS)[number];
+
+/** The prickle_checkins column each question is stored in, which is also how `skipped` names them (migration 20270518000000). */
+export const CHECKIN_FIELDS: Record<CheckinAnswerKey, string> = {
+  pleasantBefore: "pleasant_before",
+  energyBefore: "energy_before",
+  emotionBefore: "emotion_before",
+  need: "need",
+  intentionMet: "intention_met",
+  pleasantAfter: "pleasant_after",
+  energyAfter: "energy_after",
+  emotionAfter: "emotion_after",
+};
+
 /**
  * A prickle check-in has two halves, asked at different times, in Slack DMs
  * (lib/prickle-checkin-dms.ts) and on the site alike:
@@ -312,6 +338,12 @@ export const NEED_KEYS: readonly Need[] = NEEDS.map((n) => n.key);
  * own timing (check-in ~20 min before, check-out 5 min after the end or 10 min after leaving early).
  */
 export interface CheckinInput {
+  /**
+   * The questions the member skipped ("I'd rather not say"): a skipped question counts as dealt
+   * with, so a half whose questions are all answered or skipped is done (checkinAnswered). Never
+   * also answered: patchCheckin keeps the two apart.
+   */
+  skipped: CheckinAnswerKey[];
   pleasantBefore: number | null;
   energyBefore: number | null;
   emotionBefore: Emotion | null;
@@ -323,6 +355,7 @@ export interface CheckinInput {
 }
 
 export const EMPTY_CHECKIN: CheckinInput = {
+  skipped: [],
   pleasantBefore: null,
   energyBefore: null,
   emotionBefore: null,
@@ -341,18 +374,45 @@ export const CHECKIN_HALF_FIELDS = {
 
 /** `base` with one half's answers replaced by `answers` (missing ones cleared). */
 export function withHalf(base: CheckinInput, half: "checkin" | "checkout", answers: Partial<CheckinInput>): CheckinInput {
+  const fields: readonly CheckinAnswerKey[] = CHECKIN_HALF_FIELDS[half];
   const next = { ...base } as Record<keyof CheckinInput, unknown>;
-  for (const field of CHECKIN_HALF_FIELDS[half]) next[field] = answers[field] ?? null;
+  for (const field of fields) next[field] = answers[field] ?? null;
+  // The other half's skips stay; this half's are replaced by the ones in `answers`.
+  next.skipped = [...base.skipped.filter((k) => !fields.includes(k)), ...(answers.skipped ?? []).filter((k) => fields.includes(k))];
   return next as unknown as CheckinInput;
 }
 
 /** One half's answers, e.g. to save just that half. */
 export function halfOf(c: CheckinInput, half: "checkin" | "checkout"): Partial<CheckinInput> {
-  return Object.fromEntries(CHECKIN_HALF_FIELDS[half].map((f) => [f, c[f]]));
+  const fields: readonly CheckinAnswerKey[] = CHECKIN_HALF_FIELDS[half];
+  return { ...Object.fromEntries(fields.map((f) => [f, c[f]])), skipped: c.skipped.filter((k) => fields.includes(k)) };
 }
 
+/** Nothing answered and nothing skipped (a check-in like that is not kept). */
 export function isEmptyCheckin(c: CheckinInput): boolean {
-  return (Object.keys(EMPTY_CHECKIN) as (keyof CheckinInput)[]).every((k) => c[k] === null);
+  return c.skipped.length === 0 && CHECKIN_ANSWER_KEYS.every((k) => c[k] === null);
+}
+
+/**
+ * `patch` applied to a check-in the way the questions behave: skipping a question clears its
+ * answer, answering one lifts its skip. Returns the patch to merge (`{ ...draft, ...result }`), so
+ * every form handles skips the same way.
+ */
+export function skipAwarePatch(base: CheckinInput, patch: Partial<CheckinInput>): Partial<CheckinInput> {
+  const skipped = new Set(patch.skipped ?? base.skipped);
+  const out: Partial<CheckinInput> = { ...patch };
+  for (const key of CHECKIN_ANSWER_KEYS) {
+    if (patch[key] != null) skipped.delete(key);
+    else if (patch.skipped?.includes(key)) (out as Record<string, unknown>)[key] = null;
+  }
+  out.skipped = CHECKIN_ANSWER_KEYS.filter((k) => skipped.has(k));
+  return out;
+}
+
+/** The patch that skips a question, or, when it is already skipped, takes the skip back. */
+export function toggleSkipPatch(base: CheckinInput, key: CheckinAnswerKey): Partial<CheckinInput> {
+  const skipped = base.skipped.includes(key) ? base.skipped.filter((k) => k !== key) : [...base.skipped, key];
+  return skipAwarePatch(base, { skipped });
 }
 
 const SCALE_FIELDS = ["pleasantBefore", "energyBefore", "intentionMet", "pleasantAfter", "energyAfter"] as const;
@@ -367,6 +427,11 @@ export function validateCheckin(input: unknown): string | null {
       return "Invalid rating";
     }
   }
+  const skipped = c.skipped;
+  if (!Array.isArray(skipped) || skipped.some((k) => !(CHECKIN_ANSWER_KEYS as readonly unknown[]).includes(k)) || new Set(skipped).size !== skipped.length) {
+    return "Invalid skip";
+  }
+  if (skipped.some((k) => c[k as CheckinAnswerKey] != null)) return "A question can't be both answered and skipped";
   for (const field of ["emotionBefore", "emotionAfter"] as const) {
     if (c[field] !== null && !(EMOTION_KEYS as readonly unknown[]).includes(c[field])) return "Invalid feeling";
   }
@@ -379,12 +444,17 @@ export function validateCheckin(input: unknown): string | null {
  * partly answered check-in is still offered, to finish it (the Slack check-in DM is sent for one too).
  */
 export function checkinAnswered(saved: CheckinInput | null): boolean {
-  return !!saved && saved.pleasantBefore !== null && saved.energyBefore !== null && saved.need !== null;
+  return !!saved && (["pleasantBefore", "energyBefore", "need"] as const).every((k) => dealtWith(saved, k));
+}
+
+/** A question is dealt with once it is answered or skipped. */
+function dealtWith(c: CheckinInput, key: CheckinAnswerKey): boolean {
+  return c[key] !== null || c.skipped.includes(key);
 }
 
 /** Same for the check-out half: got what they came for, and mood. */
 export function checkoutAnswered(saved: CheckinInput | null): boolean {
-  return !!saved && saved.intentionMet !== null && saved.pleasantAfter !== null && saved.energyAfter !== null;
+  return !!saved && (["intentionMet", "pleasantAfter", "energyAfter"] as const).every((k) => dealtWith(saved, k));
 }
 
 /**
@@ -406,7 +476,7 @@ export function offersCheckins(prickle: { source: string; type?: { purpose: stri
 
 /** The prickle_checkins columns holding the answers, for selects. */
 export const CHECKIN_COLUMNS =
-  "pleasant_before, energy_before, emotion_before, need, intention_met, pleasant_after, energy_after, emotion_after";
+  "pleasant_before, energy_before, emotion_before, need, intention_met, pleasant_after, energy_after, emotion_after, skipped";
 
 export interface CheckinRow {
   pleasant_before: number | null;
@@ -417,11 +487,13 @@ export interface CheckinRow {
   pleasant_after: number | null;
   energy_after: number | null;
   emotion_after: string | null;
+  skipped: string[];
 }
 
 /** A prickle_checkins row's answers (live rows only: callers filter `deleted_at IS NULL`). */
 export function checkinFromRow(row: CheckinRow): CheckinInput {
   return {
+    skipped: CHECKIN_ANSWER_KEYS.filter((k) => (row.skipped ?? []).includes(CHECKIN_FIELDS[k])),
     pleasantBefore: row.pleasant_before ?? null,
     energyBefore: row.energy_before ?? null,
     emotionBefore: (row.emotion_before ?? null) as Emotion | null,
@@ -443,6 +515,7 @@ export function checkinToRow(c: CheckinInput): CheckinRow {
     pleasant_after: c.pleasantAfter,
     energy_after: c.energyAfter,
     emotion_after: c.emotionAfter,
+    skipped: CHECKIN_ANSWER_KEYS.filter((k) => c.skipped.includes(k)).map((k) => CHECKIN_FIELDS[k]),
   };
 }
 

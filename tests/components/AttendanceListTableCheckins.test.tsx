@@ -18,6 +18,7 @@ const row = (id: string, prickleId: string, join: string) => ({
 });
 const ATTENDANCE = [row("a1", "p1", "2026-10-05T17:00:00Z"), row("a2", "p2", "2026-10-04T17:00:00Z")];
 const DONE: CheckinInput = {
+  skipped: [],
   pleasantBefore: 3,
   energyBefore: 3,
   emotionBefore: null,
