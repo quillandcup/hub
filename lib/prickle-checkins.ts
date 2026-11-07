@@ -310,7 +310,7 @@ export const CHECKIN_ANSWER_KEYS = [
 
 export type CheckinAnswerKey = (typeof CHECKIN_ANSWER_KEYS)[number];
 
-/** The prickle_checkins column each question is stored in, which is also how `skipped` names them (migration 20270518000000). */
+/** The prickle_checkins column each question is stored in, which is also how `skipped` names them (migration 20270520000000). */
 export const CHECKIN_FIELDS: Record<CheckinAnswerKey, string> = {
   pleasantBefore: "pleasant_before",
   energyBefore: "energy_before",

@@ -361,7 +361,7 @@ describe("skipped questions", () => {
   });
 
   it("matches the questions the migration allows", () => {
-    const sql = fs.readFileSync(path.join(__dirname, "../../supabase/migrations/20270518000000_checkin_skipped_questions.sql"), "utf8");
+    const sql = fs.readFileSync(path.join(__dirname, "../../supabase/migrations/20270520000000_checkin_skipped_questions.sql"), "utf8");
     const allowed = [...sql.match(/ARRAY\[([^\]]+)\]/)![1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
     expect(allowed.sort()).toEqual(Object.values(CHECKIN_FIELDS).sort());
   });
