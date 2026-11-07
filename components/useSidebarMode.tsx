@@ -16,14 +16,22 @@ const NAV_MODE_HINTS: Record<NavMode, string> = {
   auto: "Opens over the page when you point at it",
 };
 
-/** Chrome-style vertical-tabs icons: a panel on the left of a window, drawn per mode. */
+/** Chrome vertical-tabs icons: three lines (the tab list) with a chevron. Open points left (collapse), collapsed
+ *  points right (expand), auto-show carries a dot for "appears when pointed at". */
 function NavModeIcon({ mode }: { mode: NavMode }) {
   return (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-      <rect x="2" y="3" width="14" height="12" rx="2" />
-      {mode === "open" && <rect x="2" y="3" width="5" height="12" fill="currentColor" stroke="none" />}
-      {mode === "closed" && <path d="M5 3v12" />}
-      {mode === "auto" && <path d="M5 3v12M8 7l2 2-2 2" strokeLinecap="round" strokeLinejoin="round" />}
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {mode === "closed" ? (
+        <>
+          <path d="M3 5l3 3-3 3" />
+          <path d="M9 5h8M9 10h8M3 15h14" />
+        </>
+      ) : (
+        <>
+          <path d="M3 5h9M3 10h9M3 15h14" />
+          <path d={mode === "open" ? "M17 5l-3 3 3 3" : "M16 6.5h.01"} />
+        </>
+      )}
     </svg>
   );
 }
