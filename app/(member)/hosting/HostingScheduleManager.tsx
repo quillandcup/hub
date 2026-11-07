@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
   DAY_NAMES,
@@ -729,17 +730,20 @@ export default function HostingScheduleManager({
   hostEligibility,
   calendarHostedCount = 0,
 }: Props) {
-  const [schedules, setSchedules] = useState(initialSchedules);
+  const router = useRouter();
+  // Read straight from the page's data: this component never changes the list itself, it asks the server to and refreshes.
+  const schedules = initialSchedules;
   const [requestingForMonth, setRequestingForMonth] = useState<string | null>(null);
 
   const currentSchedules = schedules.filter((s) => s.month === currentMonth);
   const nextSchedules = schedules.filter((s) => s.month === nextMonth);
 
   function handleChanged() {
-    // Server actions already revalidatePath('/my-prickles'); a full page refresh
-    // picks up fresh server data. Simplest correct approach given this is a
-    // client component holding its own copy of server-fetched data.
-    window.location.reload();
+    // Close the request form and re-render the page's server data in place. Not window.location.reload(): that
+    // cancels the server action's response while the browser is still reading it, which Firefox and Safari report
+    // as "Error in input stream" / "Load failed" (a crash alert in #hub-alerts), though the change was saved.
+    setRequestingForMonth(null);
+    router.refresh();
   }
 
   // We don't invite people to host until they've been a member for a full
