@@ -41,7 +41,7 @@ function ReactionHoverCard({ group, custom }: { group: ReactionGroup; custom: Re
   return (
     <div
       role="tooltip"
-      className="pointer-events-none absolute bottom-full left-0 z-30 mb-1 hidden w-48 flex-col items-center gap-1 rounded-lg border border-slate-200 bg-white p-3 text-center text-xs text-slate-700 shadow group-hover/chip:flex group-focus-within/chip:flex dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+      className="pointer-events-none absolute bottom-full left-0 z-30 mb-1 hidden w-48 max-w-[calc(100vw-2rem)] flex-col items-center gap-1 rounded-lg border border-slate-200 bg-white p-3 text-center text-xs text-slate-700 shadow group-hover/chip:flex group-focus-within/chip:flex dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
     >
       <span className="text-3xl leading-none">
         <Emoji name={group.variants[0].emoji} custom={custom} />
