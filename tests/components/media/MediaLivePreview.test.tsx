@@ -30,8 +30,9 @@ describe("media editor live preview", () => {
 
     fireEvent.click(picture, { clientX: 20, clientY: 40 });
     const card = screen.getByTestId("live-an event card");
-    expect(card.querySelector("img")).toHaveStyle({ objectPosition: "20% 80%" });
-    expect(screen.getByTestId("live-a book cover").querySelector("img")).toHaveStyle({ objectPosition: "20% 80%" });
+    expect(card.querySelector("img")).toHaveStyle({ objectPosition: "0% 50%" });
+    // 400x200 picture, 290x430 frame: scaled to 860x430, the window centred on x=0.2 starts 27px in, of 570px of slack.
+    expect(screen.getByTestId("live-a book cover").querySelector("img")?.style.objectPosition).toMatch(/^4\.7\d*% 50%$/);
 
     await userEvent.selectOptions(screen.getByLabelText(/isn't cover-shaped/), "white");
     expect(screen.getByTestId("live-a book cover")).toHaveAttribute("data-fit", "white");

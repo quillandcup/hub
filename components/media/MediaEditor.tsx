@@ -156,11 +156,22 @@ export default function MediaEditor({ assetId, onClose, onChanged, own = false }
 
   // Live previews from the whole picture while editing: the pending focal point and fit, before anything is saved.
   const liveSrc = `/api/media/${assetId}/custom?width=${wholeWidth}&height=${wholeHeight}&format=webp&fit=crop${version ? `&v=${encodeURIComponent(version)}` : ""}`;
-  const objectPosition = focal ? `${focal.x * 100}% ${focal.y * 100}%` : "50% 50%";
+  // The server cuts a window centred on the focal point (kept inside the picture); CSS object-position aligns
+  // proportionally instead, so work out the same window for a frame of the given shape.
+  const positionFor = (frameW: number, frameH: number) => {
+    if (!asset || !focal) return "50% 50%";
+    const cover = Math.max(frameW / asset.width, frameH / asset.height);
+    const sw = asset.width * cover;
+    const sh = asset.height * cover;
+    const along = (size: number, frame: number, f: number) => (size - frame < 1 ? 50 : (Math.min(size - frame, Math.max(0, f * size - frame / 2)) / (size - frame)) * 100);
+    return `${along(sw, frameW, focal.x)}% ${along(sh, frameH, focal.y)}%`;
+  };
   const savedFocal = asset && asset.focal_x !== null && asset.focal_y !== null ? { x: Number(asset.focal_x), y: Number(asset.focal_y) } : null;
   const savedFit = (((asset?.fits ?? {}) as Record<string, string>).book_cover_shelf ?? PRESETS.book_cover_shelf.defaultFit) as FitMode;
   const dirty = !!asset && (JSON.stringify(focal) !== JSON.stringify(savedFocal) || coverFit !== savedFit);
-  const liveFrame = (cls: string, label: string, fit: FitMode) => (
+  const liveFrame = (cls: string, label: string, fit: FitMode, frame: [number, number]) => {
+    const objectPosition = positionFor(frame[0], frame[1]);
+    return (
     <div data-testid={`live-${label}`} data-fit={fit} className={`${cls} relative overflow-hidden rounded border border-gray-200 dark:border-slate-700 ${fit === "white" ? "bg-white" : "bg-gray-100 dark:bg-slate-800"}`}>
       {fit === "extend" && (
         // eslint-disable-next-line @next/next/no-img-element -- a blurred copy continues the edges
@@ -169,7 +180,8 @@ export default function MediaEditor({ assetId, onClose, onChanged, own = false }
       {/* eslint-disable-next-line @next/next/no-img-element -- the picture, positioned the way the crop will be */}
       <img src={liveSrc} alt={`As ${label}`} className={`relative w-full h-full ${fit === "crop" ? "object-cover" : "object-contain"}`} style={{ objectPosition }} />
     </div>
-  );
+    );
+  };
 
   return (
     <Modal isOpen onClose={onClose} title={asset?.title ?? "Image"} maxWidth="2xl">
@@ -231,7 +243,7 @@ export default function MediaEditor({ assetId, onClose, onChanged, own = false }
             <div className="flex gap-4 items-start">
               {!own && (
               <figure>
-                {dirty ? liveFrame("w-48 aspect-video", "an event card", "crop") : (
+                {dirty ? liveFrame("w-48 aspect-video", "an event card", "crop", [800, 450]) : (
                   // eslint-disable-next-line @next/next/no-img-element -- served by the media route
                   <img src={mediaSrc(assetId, "event_card", version)} alt="As an event card" className="w-48 aspect-video object-cover rounded border border-gray-200 dark:border-slate-700" />
                 )}
@@ -239,7 +251,7 @@ export default function MediaEditor({ assetId, onClose, onChanged, own = false }
               </figure>
               )}
               <figure>
-                {dirty ? liveFrame("h-28 aspect-[290/430]", "a book cover", coverFit) : (
+                {dirty ? liveFrame("h-28 aspect-[290/430]", "a book cover", coverFit, [290, 430]) : (
                   // eslint-disable-next-line @next/next/no-img-element -- served by the media route
                   <img src={mediaSrc(assetId, "book_cover_shelf", version)} alt="As a book cover" className="h-28 aspect-[290/430] object-cover rounded border border-gray-200 dark:border-slate-700" />
                 )}
