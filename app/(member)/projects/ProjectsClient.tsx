@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import NewProjectModal from "@/components/writing/NewProjectModal";
 import TrackbearImportModal from "@/components/writing/TrackbearImportModal";
 import LogProgressModal from "@/components/writing/LogProgressModal";
@@ -17,15 +18,17 @@ interface ProjectsClientProps {
 }
 
 export default function ProjectsClient({ initialProjects, pastProjects = [] }: ProjectsClientProps) {
+  const router = useRouter();
   const [showNewProject, setShowNewProject] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [logProgressFor, setLogProgressFor] = useState<string | null>(null);
   const [publishing, setPublishing] = useState<WritingProjectRow | null>(null);
 
   function handleChanged() {
-    // Server actions already revalidatePath('/projects'); a full page refresh
-    // picks up fresh server data (same approach as HostingScheduleManager).
-    window.location.reload();
+    // Re-render the page's server data in place. Not window.location.reload(): that cancels the server action's
+    // response while the browser is still reading it, which Firefox and Safari report as "Error in input stream"
+    // / "Load failed" (a crash alert in #hub-alerts), though the project was saved.
+    router.refresh();
   }
 
   if (initialProjects.length === 0 && !showNewProject) {

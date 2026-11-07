@@ -7,7 +7,8 @@ import ProjectDetailClient from "@/app/(member)/projects/[id]/ProjectDetailClien
 import ProjectsClient from "@/app/(member)/projects/ProjectsClient";
 import type { GoalRow, WritingProjectRow } from "@/app/(member)/projects/actions";
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
+const { refresh } = vi.hoisted(() => ({ refresh: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh }) }));
 vi.mock("@/app/(member)/bookshelf/actions", () => ({ deleteBook: vi.fn(), addBook: vi.fn(), updateBook: vi.fn() }));
 vi.mock("@/app/(member)/projects/actions", () => ({
   archiveGoal: vi.fn(),
@@ -110,6 +111,7 @@ describe("goal row controls on the project page", () => {
 
   beforeEach(() => {
     reload.mockReset();
+    refresh.mockReset();
     alertSpy.mockReset();
     vi.mocked(actions.toggleGoalStar).mockResolvedValue({ success: true } as never);
     vi.mocked(actions.toggleGoalVisibility).mockResolvedValue({ success: true } as never);
@@ -124,26 +126,28 @@ describe("goal row controls on the project page", () => {
     render(<ProjectDetailClient project={{ ...project, goals: [goals[2]] }} entries={[]} archivedGoals={[]} />);
   }
 
-  it("pins a missed goal and reloads, or alerts when the action fails", async () => {
+  it("pins a missed goal and refreshes in place, or alerts when the action fails", async () => {
     renderMissedOnly();
     await userEvent.click(screen.getByRole("button", { name: "Pin to my dashboard" }));
     expect(actions.toggleGoalStar).toHaveBeenCalledWith("g3", true);
-    expect(reload).toHaveBeenCalled();
+    expect(refresh).toHaveBeenCalled();
+    expect(reload).not.toHaveBeenCalled();
 
-    reload.mockReset();
+    refresh.mockReset();
     vi.mocked(actions.toggleGoalStar).mockResolvedValueOnce({ error: "Could not pin" } as never);
     await userEvent.click(screen.getByRole("button", { name: "Pin to my dashboard" }));
     expect(alertSpy).toHaveBeenCalledWith("Could not pin");
-    expect(reload).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
   });
 
-  it("shows a missed goal on the profile and reloads, or alerts when the action fails", async () => {
+  it("shows a missed goal on the profile and refreshes in place, or alerts when the action fails", async () => {
     renderMissedOnly();
     // The page's own project-level toggle comes first; the goal row's is the last one.
     const goalToggle = () => screen.getAllByRole("button", { name: "Show on my profile" }).at(-1)!;
     await userEvent.click(goalToggle());
     expect(actions.toggleGoalVisibility).toHaveBeenCalledWith("g3", true);
-    expect(reload).toHaveBeenCalled();
+    expect(refresh).toHaveBeenCalled();
+    expect(reload).not.toHaveBeenCalled();
 
     vi.mocked(actions.toggleGoalVisibility).mockResolvedValueOnce({ error: "Could not change" } as never);
     await userEvent.click(goalToggle());
@@ -189,7 +193,8 @@ describe("goal row controls on the project page", () => {
     renderMissedOnly();
     await userEvent.click(screen.getByRole("button", { name: "Delete goal" }));
     expect(actions.deleteGoal).toHaveBeenCalledWith("g3");
-    expect(reload).toHaveBeenCalled();
+    expect(refresh).toHaveBeenCalled();
+    expect(reload).not.toHaveBeenCalled();
   });
 
   it("opens a missed goal for editing, and Cancel closes it", async () => {
@@ -201,13 +206,14 @@ describe("goal row controls on the project page", () => {
     expect(screen.getByText("Missed goal")).toBeInTheDocument();
   });
 
-  it("saves an edited missed goal and reloads", async () => {
+  it("saves an edited missed goal and refreshes in place", async () => {
     vi.mocked(actions.updateGoal).mockResolvedValue({ success: true } as never);
     renderMissedOnly();
     await userEvent.click(screen.getByRole("button", { name: "Edit goal" }));
     await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
     expect(actions.updateGoal).toHaveBeenCalled();
-    expect(reload).toHaveBeenCalled();
+    expect(refresh).toHaveBeenCalled();
+    expect(reload).not.toHaveBeenCalled();
   });
 
   it("marks a missed goal as done from its edit form", async () => {
@@ -215,6 +221,7 @@ describe("goal row controls on the project page", () => {
     await userEvent.click(screen.getByRole("button", { name: "Edit goal" }));
     await userEvent.click(screen.getByRole("button", { name: /Mark as done/ }));
     expect(actions.archiveGoal).toHaveBeenCalledWith("g3");
-    expect(reload).toHaveBeenCalled();
+    expect(refresh).toHaveBeenCalled();
+    expect(reload).not.toHaveBeenCalled();
   });
 });
