@@ -12,68 +12,124 @@ const TARGETS = [
   { id: "chn_AAAAAAAAAAA1", label: "#writing" },
   { id: "chn_AAAAAAAAAAA2", label: "#craft" },
 ];
+const LESSON = "les_AAAAAAAAAAA1";
+
+const open = () => userEvent.click(screen.getByRole("button", { name: /share this video in chat/i }));
+/** Picks a conversation from the searchable list. */
+const pick = async (label: string) => {
+  await userEvent.click(screen.getByRole("combobox", { name: "Where to share" }));
+  await userEvent.click(screen.getByRole("option", { name: label }));
+};
+const shareButton = () => screen.getByRole("button", { name: "Share" });
 
 beforeEach(() => share.mockReset());
 
 describe("ShareLessonInChat", () => {
   it("shows nothing when there is nowhere to share", () => {
-    const { container } = render(<ShareLessonInChat lessonId="les_AAAAAAAAAAA1" targets={[]} />);
+    const { container } = render(<ShareLessonInChat lessonId={LESSON} targets={[]} />);
 
     expect(container).toBeEmptyDOMElement();
   });
 
+  it("lists every conversation on focus, filters as you type, and doesn't preselect one when there are several", async () => {
+    render(<ShareLessonInChat lessonId={LESSON} targets={TARGETS} />);
+    await open();
+
+    expect(shareButton()).toBeDisabled();
+    await userEvent.click(screen.getByRole("combobox", { name: "Where to share" }));
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["#writing", "#craft"]);
+
+    await userEvent.type(screen.getByRole("combobox", { name: "Where to share" }), "cra");
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["#craft"]);
+  });
+
+  it("says when no conversation matches", async () => {
+    render(<ShareLessonInChat lessonId={LESSON} targets={TARGETS} />);
+    await open();
+
+    await userEvent.type(screen.getByRole("combobox", { name: "Where to share" }), "zzz");
+
+    expect(screen.getByText("No conversation matches")).toBeInTheDocument();
+  });
+
+  it("preselects the conversation when it is the only one", async () => {
+    share.mockResolvedValue({ ok: true, id: "msg_AAAAAAAAAAA1" });
+    render(<ShareLessonInChat lessonId={LESSON} targets={[TARGETS[0]]} />);
+    await open();
+
+    expect(screen.getByText("#writing")).toBeInTheDocument();
+    await userEvent.click(shareButton());
+
+    expect(share).toHaveBeenCalledWith("chn_AAAAAAAAAAA1", LESSON, "", false);
+  });
+
   it("shares into the chosen conversation with the member's words and links to it", async () => {
     share.mockResolvedValue({ ok: true, id: "msg_AAAAAAAAAAA1" });
-    render(<ShareLessonInChat lessonId="les_AAAAAAAAAAA1" targets={TARGETS} />);
+    render(<ShareLessonInChat lessonId={LESSON} targets={TARGETS} />);
 
-    await userEvent.click(screen.getByRole("button", { name: /share this video in chat/i }));
-    await userEvent.selectOptions(screen.getByLabelText(/where/i), "chn_AAAAAAAAAAA2");
+    await open();
+    await pick("#craft");
     await userEvent.type(screen.getByLabelText(/say something/i), "Worth a watch");
-    await userEvent.click(screen.getByRole("button", { name: "Share" }));
+    await userEvent.click(shareButton());
 
-    expect(share).toHaveBeenCalledWith("chn_AAAAAAAAAAA2", "les_AAAAAAAAAAA1", "Worth a watch", false);
+    expect(share).toHaveBeenCalledWith("chn_AAAAAAAAAAA2", LESSON, "Worth a watch", false);
     expect(await screen.findByRole("status")).toHaveTextContent("Shared.");
     expect(screen.getByRole("link", { name: /open the conversation/i })).toHaveAttribute("href", "/chat/chn_AAAAAAAAAAA2");
     expect(screen.getByLabelText(/say something/i)).toHaveValue("");
   });
 
+  it("lets the member change their mind about the conversation", async () => {
+    share.mockResolvedValue({ ok: true, id: "msg_AAAAAAAAAAA1" });
+    render(<ShareLessonInChat lessonId={LESSON} targets={TARGETS} />);
+    await open();
+    await pick("#writing");
+
+    await userEvent.click(screen.getByRole("button", { name: "Clear selection" }));
+    expect(shareButton()).toBeDisabled();
+    await pick("#craft");
+    await userEvent.click(shareButton());
+
+    expect(share).toHaveBeenCalledWith("chn_AAAAAAAAAAA2", LESSON, "", false);
+  });
+
   it("shows why it didn't work", async () => {
     share.mockResolvedValue({ ok: false, error: "That video can't be shared." });
-    render(<ShareLessonInChat lessonId="les_AAAAAAAAAAA1" targets={TARGETS} />);
+    render(<ShareLessonInChat lessonId={LESSON} targets={TARGETS} />);
 
-    await userEvent.click(screen.getByRole("button", { name: /share this video in chat/i }));
-    await userEvent.click(screen.getByRole("button", { name: "Share" }));
+    await open();
+    await pick("#writing");
+    await userEvent.click(shareButton());
 
     expect(await screen.findByRole("status")).toHaveTextContent("That video can't be shared.");
-    expect(share).toHaveBeenCalledWith("chn_AAAAAAAAAAA1", "les_AAAAAAAAAAA1", "", false);
+    expect(share).toHaveBeenCalledWith("chn_AAAAAAAAAAA1", LESSON, "", false);
   });
 
   describe("opening it to the whole conversation", () => {
-    const open = async () => userEvent.click(screen.getByRole("button", { name: /share this video in chat/i }));
-
     it("is offered to admins only, and off unless they choose it", async () => {
       share.mockResolvedValue({ ok: true, id: "msg_AAAAAAAAAAA1" });
-      const { unmount } = render(<ShareLessonInChat lessonId="les_AAAAAAAAAAA1" targets={TARGETS} />);
+      const { unmount } = render(<ShareLessonInChat lessonId={LESSON} targets={TARGETS} />);
       await open();
       expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
       unmount();
 
-      render(<ShareLessonInChat lessonId="les_AAAAAAAAAAA1" targets={TARGETS} canOpenToChannel />);
+      render(<ShareLessonInChat lessonId={LESSON} targets={TARGETS} canOpenToChannel />);
       await open();
       expect(screen.getByRole("checkbox", { name: /even without the course/i })).not.toBeChecked();
-      await userEvent.click(screen.getByRole("button", { name: "Share" }));
-      expect(share).toHaveBeenLastCalledWith("chn_AAAAAAAAAAA1", "les_AAAAAAAAAAA1", "", false);
+      await pick("#writing");
+      await userEvent.click(shareButton());
+      expect(share).toHaveBeenLastCalledWith("chn_AAAAAAAAAAA1", LESSON, "", false);
     });
 
     it("sends the choice when an admin makes it", async () => {
       share.mockResolvedValue({ ok: true, id: "msg_AAAAAAAAAAA1" });
-      render(<ShareLessonInChat lessonId="les_AAAAAAAAAAA1" targets={TARGETS} canOpenToChannel />);
+      render(<ShareLessonInChat lessonId={LESSON} targets={TARGETS} canOpenToChannel />);
 
       await open();
+      await pick("#writing");
       await userEvent.click(screen.getByRole("checkbox", { name: /even without the course/i }));
-      await userEvent.click(screen.getByRole("button", { name: "Share" }));
+      await userEvent.click(shareButton());
 
-      expect(share).toHaveBeenCalledWith("chn_AAAAAAAAAAA1", "les_AAAAAAAAAAA1", "", true);
+      expect(share).toHaveBeenCalledWith("chn_AAAAAAAAAAA1", LESSON, "", true);
     });
   });
 });
