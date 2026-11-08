@@ -107,7 +107,7 @@ const STAFF_ROLE_COLORS: Record<StaffRole, string> = {
   contractor: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
 };
 
-type SortColumn = "profiles" | "role" | "features" | "created" | "lastActivity";
+type SortColumn = "profiles" | "role" | "features" | "created" | "lastSignIn";
 
 type Audience = "all" | "members" | "staff";
 
@@ -144,7 +144,7 @@ function getSortValue(user: AppUser, column: SortColumn): SortValue {
       return user.features.length;
     case "created":
       return user.createdAt;
-    case "lastActivity":
+    case "lastSignIn":
       // null (never signed in) is a missing value: the sort hook groups them together at one end.
       return user.lastSignInAt;
   }
@@ -529,10 +529,10 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                     onClick={() => handleSort("created")}
                   />
                   <SortableTh
-                    label="Last Activity"
-                    active={sortColumn === "lastActivity"}
+                    label="Last Sign-in"
+                    active={sortColumn === "lastSignIn"}
                     direction={sortDirection}
-                    onClick={() => handleSort("lastActivity")}
+                    onClick={() => handleSort("lastSignIn")}
                   />
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider">
                     Actions
