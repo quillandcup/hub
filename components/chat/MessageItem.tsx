@@ -5,6 +5,7 @@ import AvatarStack from "@/components/AvatarStack";
 import { type ChatTextContext } from "@/components/chat/ChatText";
 import MessageActions from "@/components/chat/MessageActions";
 import MessageBody from "@/components/chat/MessageBody";
+import ChatVideo from "@/components/chat/ChatVideo";
 import MessageFiles from "@/components/chat/MessageFiles";
 import ReactionBar from "@/components/chat/ReactionBar";
 import RetryButton from "@/components/chat/RetryButton";
@@ -161,6 +162,7 @@ export default function MessageItem({
           </p>
         )}
         {message.contentState === "ok" && <MessageFiles messageId={message.id} files={message.files} canDelete={message.mine} />}
+        {message.sharesVideo && <ChatVideo messageId={message.id} />}
         {message.hasFiles && message.contentState === "ok" && message.files.length === 0 && (
           <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">📎 Includes files the Hub couldn&apos;t load.</p>
         )}

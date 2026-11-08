@@ -8,6 +8,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("@/app/(member)/chat/actions", () => ({ toggleChatReaction: vi.fn(), editChatMessage: vi.fn(), deleteChatMessage: vi.fn() }));
 vi.mock("@/components/member/MemberHoverCard", () => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock("@/components/chat/MessageFiles", () => ({ default: () => null }));
+vi.mock("@/components/chat/ChatVideo", () => ({ default: ({ messageId }: { messageId: string }) => <div data-testid="chat-video">{messageId}</div> }));
 import MessageItem, { systemNoticeText } from "@/components/chat/MessageItem";
 import { optimisticView } from "@/lib/chat/list-events";
 
@@ -42,6 +43,16 @@ describe("MessageItem actions menu", () => {
       mount(base(extra));
       expect(screen.queryByRole("menuitem", { name: "Edit" })).not.toBeInTheDocument();
     }
+  });
+});
+
+describe("MessageItem shared video", () => {
+  it("shows the video card only for a message that shares one, and not when its text is hidden", () => {
+    mount(base({ sharesVideo: true }));
+    expect(screen.getByTestId("chat-video")).toHaveTextContent(base().id);
+    cleanup();
+    mount(base());
+    expect(screen.queryByTestId("chat-video")).not.toBeInTheDocument();
   });
 });
 

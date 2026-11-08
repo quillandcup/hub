@@ -6,12 +6,13 @@ import type { CustomEmoji } from "@/lib/chat/emoji";
 import type { ChatTextContext } from "@/components/chat/ChatText";
 import { safeUrl } from "@/lib/url";
 import { parseChatFiles, type ChatFile } from "@/lib/chat/files";
+import { stripSharedVideoLink } from "@/lib/chat/video-link";
 import { getAttendedPrickleCount, getMemberBadges, type BadgeRepos, type EarnedBadge } from "@/lib/badges";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Repos } from "@/lib/data/repos";
 import type { ChannelRecord } from "@/lib/data/chat";
 
-export type ChatLoadRepos = Pick<Repos, "attendance" | "chat" | "directory" | "memberProfile">;
+export type ChatLoadRepos = Pick<Repos, "attendance" | "chat" | "chatVideos" | "directory" | "memberProfile">;
 
 /**
  * What the chat pages read. Everything goes through the caller's own Supabase client, so RLS
@@ -309,6 +310,8 @@ export interface ChatMessageView {
   hasFiles: boolean;
   /** The files to show under the message (empty when it has none, or Slack never gave us any). */
   files: ChatFile[];
+  /** Whether the message shares a course lesson's video (played through /api/chat/videos/<id>, never in the view). */
+  sharesVideo?: boolean;
   replyCount: number;
   lastReplyAt: string | null;
   reactions: ReactionSummary[];
@@ -430,7 +433,7 @@ export async function buildMessageViews(
   timer?.note("roots", threadRoots.length);
   timer?.note("unmatched", unmatched.length);
 
-  const [profiles, slackAuthorByTs, reactionRows, replies, userMembers, hubNames, channelNames] = await Promise.all([
+  const [profiles, slackAuthorByTs, reactionRows, replies, userMembers, hubNames, channelNames, sharedVideos] = await Promise.all([
     t("b1.profiles", memberProfiles(repos, matched)),
     t(
       "b1.slackAuthors",
@@ -443,6 +446,8 @@ export async function buildMessageViews(
     t("b1.userMembers", slackUserMemberIds(mentioned)),
     t("b1.hubNames", slackUserHubNames(mentionedInNotices)),
     t("b1.channelNames", slackChannelNames(rows.flatMap((r) => mentionedChannelIds(bodyOf(r) ?? "")))),
+    // A failed read only hides the card (the message and its text still show), so it never fails the page.
+    t("b1.sharedVideos", repos.chatVideos.lessonIdsOf(rows.map((r) => r.id)).catch((e) => { console.error("chat shared videos failed:", e); return new Map<string, string>(); })),
   ]);
   timer?.mark("views.batch1");
 
@@ -506,7 +511,9 @@ export async function buildMessageViews(
   }
 
   const views = rows.map((row): ChatMessageView => {
-    const body = bodyOf(row);
+    const rawBody = bodyOf(row);
+    // Slack's copy of a shared-video message ends with the link we added for Slack; the Hub shows the card instead.
+    const body = rawBody !== null && sharedVideos.has(row.id) ? stripSharedVideoLink(rawBody) : rawBody;
     const contentState: ContentState = row.deleted_at ? "deleted" : body === null ? "hidden" : "ok";
     const author =
       (row.author_member_id ? profiles.get(row.author_member_id) : undefined) ??
@@ -532,6 +539,7 @@ export async function buildMessageViews(
       contentState,
       hasFiles: row.has_files,
       files: contentState === "ok" ? parseChatFiles(contentOf(row)?.files) : [],
+      sharesVideo: contentState === "ok" && sharedVideos.has(row.id),
       replyCount: row.reply_count,
       lastReplyAt: row.last_reply_at,
       reactions: [...(reactionsByMessage.get(row.id)?.values() ?? [])].sort((a, b) => b.count - a.count),

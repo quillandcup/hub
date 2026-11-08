@@ -39,6 +39,8 @@ import type { ChatTextContext } from "@/components/chat/ChatText";
 import { withAction } from "@/lib/analytics/server";
 import { chatCaller, postingCaller } from "@/lib/chat/caller";
 import { isHubOnlyMessage } from "@/lib/chat/hub-only";
+import { getCoursesCaller } from "@/lib/courses/caller";
+import { canOpenLessons, loadMemberCourseAccess } from "@/lib/courses/member";
 /**
  * Saves what the signed-in member has typed and attached and not sent in a conversation's box (or a thread's reply
  * box, with `threadRootId`) so it is there when they come back; blank text with no files removes the draft.
@@ -380,6 +382,39 @@ async function sendChatMessageImpl(channelId: string, body: string, threadRootId
   return { ok: true, id: messageId };
 }
 
+/**
+ * The signed-in member shares a course lesson's video into a conversation: a message (their own words, or "Shared a lesson
+ * video: <title>") that shows the lesson's video as a card everyone who can read the message sees, playable by those with the
+ * course. Behind `chat_videos` on top of posting. The sharer must be able to open the lesson themselves (same checks as
+ * the lesson page); the message is posted like any other (`sendChatMessageImpl`, so Slack gets it with a link to the
+ * lesson), then the share row is written with the service role, before the Slack send, which runs after the response.
+ */
+async function shareLessonVideoImpl(channelId: string, lessonId: string, note: string): Promise<SendChatResult> {
+  if (!isId(channelId, "chn") || !isId(lessonId, "les") || typeof note !== "string") return { ok: false, error: "Something went wrong." };
+  const caller = await postingCaller();
+  if (!caller || !(await effectiveMemberHasFeature("chat_videos", caller.identity, await getUserFeaturePreviews(caller.userId)))) {
+    return { ok: false, error: "Sharing videos isn't available to you yet." };
+  }
+  const courses = await getCoursesCaller();
+  const repos = createRepos(createServiceRoleClient());
+  const lesson = courses ? await repos.courses.lessonById(lessonId) : null;
+  const video = lesson?.video_id ? (await repos.courses.videosByIds([lesson.video_id]))[0] : undefined;
+  if (!courses || !lesson || !(lesson.state === "open" || courses.scope.isAdminActing) || video?.status !== "ready") {
+    return { ok: false, error: "That video can't be shared." };
+  }
+  if (!canOpenLessons(await loadMemberCourseAccess(repos, courses.scope, lesson.course_id))) return { ok: false, error: "That video can't be shared." };
+
+  const posted = await sendChatMessageImpl(channelId, note.trim() || `Shared a lesson video: ${lesson.title}`);
+  if (!posted.ok) return posted;
+  try {
+    await repos.chatVideos.attach(posted.id, lessonId);
+  } catch (error) {
+    // The message is already posted (and on its way to Slack): it stays as text, without the card.
+    console.error("attaching a shared lesson video to message %s failed:", posted.id, error instanceof Error ? error.message : error);
+  }
+  return posted;
+}
+
 export type ToggleReactionResult = { ok: true; active: boolean } | { ok: false; error: string };
 
 const REACT_ERRORS: Record<string, string> = {
@@ -577,6 +612,10 @@ async function deleteChatFileImpl(messageId: string, fileId: string): Promise<Ch
 // Usage analytics: each action records whether it worked (lib/analytics/server.ts).
 export async function sendChatMessage(...args: Parameters<typeof sendChatMessageImpl>): ReturnType<typeof sendChatMessageImpl> {
   return withAction("chat_message_sent", () => sendChatMessageImpl(...args));
+}
+
+export async function shareLessonVideoInChat(...args: Parameters<typeof shareLessonVideoImpl>): ReturnType<typeof shareLessonVideoImpl> {
+  return withAction("chat_video_shared", () => shareLessonVideoImpl(...args));
 }
 
 export async function toggleChatReaction(...args: Parameters<typeof toggleChatReactionImpl>): ReturnType<typeof toggleChatReactionImpl> {

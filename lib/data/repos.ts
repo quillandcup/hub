@@ -45,6 +45,7 @@ import { InMemoryAwardRepository, SupabaseAwardRepository, type AwardRepository 
 import { InMemoryOutreachRepository, SupabaseOutreachRepository, type OutreachRepository } from "./outreach";
 import { InMemoryAdminWorkQueueRepository, SupabaseAdminWorkQueueRepository, type AdminWorkQueueRepository } from "./admin-work";
 import { InMemoryWheelOfWonderRepository, SupabaseWheelOfWonderRepository, type WheelOfWonderRepository } from "./wheel-of-wonder";
+import { InMemoryChatVideoRepository, SupabaseChatVideoRepository, type ChatVideoRepository } from "./chat-videos";
 import { InMemoryAccessEventRepository, SupabaseAccessEventRepository, type AccessEventRepository } from "./access-events";
 import { InMemorySegmentRepository, SupabaseSegmentRepository, type SegmentRepository } from "./segments";
 import { InMemoryFeatureFlagRepository, SupabaseFeatureFlagRepository, type FeatureFlagRepository } from "./feature-flags";
@@ -86,6 +87,7 @@ export interface Repos {
   programs: ProgramRepository;
   chat: ChatRepository;
   chatDrafts: ChatDraftRepository;
+  chatVideos: ChatVideoRepository;
   adminNotes: AdminNoteRepository;
   kajabiCourses: KajabiCourseRepository;
   billing: BillingRepository;
@@ -144,6 +146,7 @@ export function createRepos(db: Db): Repos {
     programs: new SupabaseProgramRepository(db),
     chat: new SupabaseChatRepository(db),
     chatDrafts: new SupabaseChatDraftRepository(db),
+    chatVideos: new SupabaseChatVideoRepository(db),
     adminNotes: new SupabaseAdminNoteRepository(db),
     kajabiCourses: new SupabaseKajabiCourseRepository(db),
     billing: new SupabaseBillingRepository(db),
@@ -202,6 +205,7 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     programs: new InMemoryProgramRepository(dataset),
     chat: new InMemoryChatRepository(dataset),
     chatDrafts: new InMemoryChatDraftRepository(dataset),
+    chatVideos: new InMemoryChatVideoRepository(dataset),
     adminNotes: new InMemoryAdminNoteRepository(dataset),
     kajabiCourses: new InMemoryKajabiCourseRepository(dataset),
     billing: new InMemoryBillingRepository(dataset),

@@ -115,4 +115,33 @@ describe("buildMessageViews", () => {
     const out = await buildMessageViews(repos, { slackChannelId: null }, [row("m1")], FERN);
     expect(out.views[0].reactions).toEqual([{ emoji: "tada", count: 5, mine: true, reactors: ["Bo <b>", "Rae & <Co>"] }]);
   });
+
+  it("marks the messages that share a lesson video and drops the Slack link line Slack's copy ends with", async () => {
+    const out = await buildMessageViews(
+      reposWith({ chatMessageVideos: [{ id: "cmv_AAAAAAAAAAA1", message_id: "m1", lesson_id: "les_AAAAAAAAAAA1", created_at: "2026-01-01T00:00:00Z" }] }),
+      { slackChannelId: null },
+      [
+        row("m1", { origin: "app", chat_message_contents: { body: "This helped\n<https://hub.example.com/courses/ready-writer/lessons/les_AAAAAAAAAAA1|Watch the video>" } }),
+        row("m2", { origin: "app", chat_message_contents: { body: "No video\n<https://hub.example.com/courses/ready-writer/lessons/les_AAAAAAAAAAA1|Watch the video>" } }),
+      ],
+      FERN
+    );
+
+    expect(out.views.map((v) => [v.sharesVideo, v.body])).toEqual([
+      [true, "This helped"],
+      [false, "No video\n<https://hub.example.com/courses/ready-writer/lessons/les_AAAAAAAAAAA1|Watch the video>"],
+    ]);
+  });
+
+  it("still lists the messages when the shared videos can't be read", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const repos = reposWith();
+    repos.chatVideos.lessonIdsOf = async () => {
+      throw new Error("db down");
+    };
+
+    const out = await buildMessageViews(repos, { slackChannelId: null }, [row("m1")], FERN);
+
+    expect(out.views.map((v) => [v.body, v.sharesVideo])).toEqual([["hi", false]]);
+  });
 });

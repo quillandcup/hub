@@ -92,6 +92,8 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   // (AccessEventRepository, lib/data/access-events.ts): every query is moved.
   wheel_of_wonder_matches: [],
   access_events: [],
+  // The lesson video a chat message shares (ChatVideoRepository, lib/data/chat-videos.ts): every query is moved.
+  chat_message_videos: [],
   // Derived per-member stats (MemberRepository.deleteDerivedStats): the merge route's cleanup was the only direct query.
   member_metrics: [],
   member_engagement: [],
