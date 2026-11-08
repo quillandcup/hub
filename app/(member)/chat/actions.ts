@@ -40,6 +40,8 @@ import { withAction } from "@/lib/analytics/server";
 import { chatCaller, postingCaller } from "@/lib/chat/caller";
 import { isHubOnlyMessage } from "@/lib/chat/hub-only";
 import { getCoursesCaller } from "@/lib/courses/caller";
+import { extractLessonLink } from "@/lib/chat/lesson-links";
+import { APP_URL } from "@/lib/config";
 import { canOpenLessons, loadMemberCourseAccess } from "@/lib/courses/member";
 /**
  * Saves what the signed-in member has typed and attached and not sent in a conversation's box (or a thread's reply
@@ -348,6 +350,20 @@ async function sendChatMessageImpl(channelId: string, body: string, threadRootId
     return { ok: false, error: "Connect Slack in Settings to post: your messages are posted as you." };
   }
 
+  // A lesson address pasted into the message (the lesson page's "Copy link to paste in chat") becomes a video card, here or in a
+  // thread or direct message, when this sender could share that lesson. If any check fails the address stays as text in the
+  // message, like any link: never an error for pasting a link.
+  let text = body;
+  if (!share && uploads.length === 0) {
+    const pasted = extractLessonLink(body, APP_URL);
+    const check = pasted ? await checkShareable(caller, pasted.lessonId) : null;
+    if (pasted && check?.ok) {
+      // The open-share marker counts only from an admin acting as themselves; from anyone else the share is just closed.
+      share = { lessonId: pasted.lessonId, openToChannel: pasted.openToChannel && check.isAdminActing };
+      text = pasted.body || `Shared a lesson video: ${check.lessonTitle}`;
+    }
+  }
+
   let files: Record<string, unknown>[] | null = null;
   if (uploads.length > 0) {
     // Attachments aren't supported in Hub-only conversations yet (chat_post_message refuses them too).
@@ -358,7 +374,13 @@ async function sendChatMessageImpl(channelId: string, body: string, threadRootId
   // A message that shares a lesson video is written together with its video row in one call (chat_post_shared_video), so
   // another member's page never receives the message without its card. The function checks the sharer again in the database.
   const { data, error } = share
-    ? await supabase.rpc("chat_post_shared_video", { p_channel_id: channelId, p_body: body, p_lesson_id: share.lessonId, p_open_to_channel: share.openToChannel })
+    ? await supabase.rpc("chat_post_shared_video", {
+        p_channel_id: channelId,
+        p_body: text,
+        p_lesson_id: share.lessonId,
+        p_open_to_channel: share.openToChannel,
+        p_thread_root_id: (threadRootId ?? null) as string, // null when absent (the generated type has no null)
+      })
     : await supabase.rpc("chat_post_message", {
         p_channel_id: channelId,
         p_body: body,
@@ -388,6 +410,28 @@ async function sendChatMessageImpl(channelId: string, body: string, threadRootId
   return { ok: true, id: messageId };
 }
 
+/** What `checkShareable` found out, for the share action and for a pasted lesson address. */
+type ShareCheck = { ok: true; lessonTitle: string; isAdminActing: boolean } | { ok: false; error: string };
+
+/**
+ * Whether this caller may share this lesson's video into chat: `chat_videos` on, the lesson open to them (or staff acting as
+ * themselves) with a ready video, and the course checks the lesson page applies. The database repeats the sharer checks
+ * (`chat_post_shared_video`); this is for the friendly answer and for deciding quietly whether a pasted address counts.
+ */
+async function checkShareable(caller: NonNullable<Awaited<ReturnType<typeof postingCaller>>>, lessonId: string): Promise<ShareCheck> {
+  const refused: ShareCheck = { ok: false, error: "That video can't be shared." };
+  if (!(await effectiveMemberHasFeature("chat_videos", caller.identity, await getUserFeaturePreviews(caller.userId)))) {
+    return { ok: false, error: "Sharing videos isn't available to you yet." };
+  }
+  const courses = await getCoursesCaller();
+  const repos = createRepos(createServiceRoleClient());
+  const lesson = courses ? await repos.courses.lessonById(lessonId) : null;
+  const video = lesson?.video_id ? (await repos.courses.videosByIds([lesson.video_id]))[0] : undefined;
+  if (!courses || !lesson || !(lesson.state === "open" || courses.scope.isAdminActing) || video?.status !== "ready") return refused;
+  if (!canOpenLessons(await loadMemberCourseAccess(repos, courses.scope, lesson.course_id))) return refused;
+  return { ok: true, lessonTitle: lesson.title, isAdminActing: courses.scope.isAdminActing };
+}
+
 /**
  * The signed-in member shares a course lesson's video into a conversation: a message (their own words, or "Shared a lesson
  * video: <title>") that shows the lesson's video as a card everyone who can read the message sees. Behind `chat_videos` on
@@ -395,25 +439,18 @@ async function sendChatMessageImpl(channelId: string, body: string, threadRootId
  * database by `chat_post_shared_video`). Playing needs the course too, unless an admin shares it with `openToChannel`: then
  * every member who can read the message may play it (default off; admins only, checked here and in the database).
  * The message and its video row are written in one call (no window in which the message exists without its card), and
- * Slack gets it after the response with a link to the lesson.
+ * Slack gets it after the response with links back to the Hub. The same share happens when a lesson address is pasted into
+ * any message (`sendChatMessageImpl`), where it also works in threads and direct messages.
  */
 async function shareLessonVideoImpl(channelId: string, lessonId: string, note: string, openToChannel = false): Promise<SendChatResult> {
   if (!isId(channelId, "chn") || !isId(lessonId, "les") || typeof note !== "string" || typeof openToChannel !== "boolean") return { ok: false, error: "Something went wrong." };
   const caller = await postingCaller();
-  if (!caller || !(await effectiveMemberHasFeature("chat_videos", caller.identity, await getUserFeaturePreviews(caller.userId)))) {
-    return { ok: false, error: "Sharing videos isn't available to you yet." };
-  }
-  const courses = await getCoursesCaller();
-  const repos = createRepos(createServiceRoleClient());
-  const lesson = courses ? await repos.courses.lessonById(lessonId) : null;
-  const video = lesson?.video_id ? (await repos.courses.videosByIds([lesson.video_id]))[0] : undefined;
-  if (!courses || !lesson || !(lesson.state === "open" || courses.scope.isAdminActing) || video?.status !== "ready") {
-    return { ok: false, error: "That video can't be shared." };
-  }
-  if (!canOpenLessons(await loadMemberCourseAccess(repos, courses.scope, lesson.course_id))) return { ok: false, error: "That video can't be shared." };
-  if (openToChannel && !courses.scope.isAdminActing) return { ok: false, error: POST_ERRORS.not_allowed };
+  if (!caller) return { ok: false, error: "Sharing videos isn't available to you yet." };
+  const check = await checkShareable(caller, lessonId);
+  if (!check.ok) return check;
+  if (openToChannel && !check.isAdminActing) return { ok: false, error: POST_ERRORS.not_allowed };
 
-  return sendChatMessageImpl(channelId, note.trim() || `Shared a lesson video: ${lesson.title}`, undefined, [], { lessonId, openToChannel });
+  return sendChatMessageImpl(channelId, note.trim() || `Shared a lesson video: ${check.lessonTitle}`, undefined, [], { lessonId, openToChannel });
 }
 
 export type ToggleReactionResult = { ok: true; active: boolean } | { ok: false; error: string };

@@ -38,7 +38,8 @@ vi.mock("@/lib/chat/file-cleanup", () => ({ removeChatFileBytes: vi.fn() }));
 
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
-import { shareLessonVideoInChat } from "@/app/(member)/chat/actions";
+import { sendChatMessage, shareLessonVideoInChat } from "@/app/(member)/chat/actions";
+import { APP_URL } from "@/lib/config";
 
 const CHANNEL = "chn_AAAAAAAAAAC1";
 const LESSON = "les_AAAAAAAAAAA1";
@@ -73,7 +74,7 @@ describe("shareLessonVideoInChat", () => {
 
     expect(result).toEqual({ ok: true, id: POSTED });
     expect(m.rpc).toHaveBeenCalledTimes(1);
-    expect(m.rpc).toHaveBeenCalledWith("chat_post_shared_video", { p_channel_id: CHANNEL, p_body: "This one helped me", p_lesson_id: LESSON, p_open_to_channel: false });
+    expect(m.rpc).toHaveBeenCalledWith("chat_post_shared_video", { p_channel_id: CHANNEL, p_body: "This one helped me", p_lesson_id: LESSON, p_open_to_channel: false, p_thread_root_id: null });
     expect(m.sendToSlack).not.toHaveBeenCalled();
     for (const cb of m.afterCallbacks) await cb();
     expect(m.sendToSlack).toHaveBeenCalledWith({ service: true }, POSTED);
@@ -138,5 +139,61 @@ describe("shareLessonVideoInChat", () => {
     m.rpc.mockResolvedValue({ data: null, error: { message: "chat_post: not_in_channel" } });
     expect((await shareLessonVideoInChat(CHANNEL, LESSON, "")).ok).toBe(false);
     expect(m.afterCallbacks).toHaveLength(0);
+  });
+});
+
+describe("sendChatMessage with a lesson address pasted in", () => {
+  const ADDRESS = `${APP_URL}/courses/ready-writer/lessons/${LESSON}`;
+  const ROOT = "msg_AAAAAAAAAAD9";
+
+  it("posts the video as a card and keeps the rest of the words", async () => {
+    expect(await sendChatMessage(CHANNEL, `This one helped me ${ADDRESS}`)).toEqual({ ok: true, id: POSTED });
+
+    expect(m.rpc).toHaveBeenCalledTimes(1);
+    expect(m.rpc).toHaveBeenCalledWith("chat_post_shared_video", { p_channel_id: CHANNEL, p_body: "This one helped me", p_lesson_id: LESSON, p_open_to_channel: false, p_thread_root_id: null });
+  });
+
+  it("works in a thread, and names the lesson when only the address was sent", async () => {
+    await sendChatMessage(CHANNEL, ADDRESS, ROOT);
+
+    expect(m.rpc).toHaveBeenCalledWith("chat_post_shared_video", { p_channel_id: CHANNEL, p_body: "Shared a lesson video: Show up for the page", p_lesson_id: LESSON, p_open_to_channel: false, p_thread_root_id: ROOT });
+  });
+
+  it("opens a pasted share to the channel only for an admin acting as themselves, and only with the marker", async () => {
+    m.coursesCaller.mockResolvedValue({ userId: "auth-1", identity: { memberId: "member-fern", isSudo: false }, scope: { memberId: "member-fern", isAdminActing: true } });
+    await sendChatMessage(CHANNEL, `${ADDRESS}?share=open`);
+    expect(m.rpc).toHaveBeenLastCalledWith("chat_post_shared_video", expect.objectContaining({ p_open_to_channel: true }));
+
+    await sendChatMessage(CHANNEL, ADDRESS);
+    expect(m.rpc).toHaveBeenLastCalledWith("chat_post_shared_video", expect.objectContaining({ p_open_to_channel: false }));
+
+    // A member sending the same link gets an ordinary closed share (and no error), and so does an admin in sudo.
+    m.coursesCaller.mockResolvedValue({ userId: "auth-1", identity: { memberId: "member-fern", isSudo: false }, scope: { memberId: "member-fern", isAdminActing: false } });
+    expect(await sendChatMessage(CHANNEL, `${ADDRESS}?share=open`)).toEqual({ ok: true, id: POSTED });
+    expect(m.rpc).toHaveBeenLastCalledWith("chat_post_shared_video", expect.objectContaining({ p_open_to_channel: false }));
+  });
+
+  it("leaves the address as ordinary text when the sender couldn't share that lesson", async () => {
+    m.canOpen.mockReturnValue(false);
+    await sendChatMessage(CHANNEL, `Look ${ADDRESS}`);
+    m.hasFeature.mockImplementation(async (key: string) => key !== "chat_videos");
+    await sendChatMessage(CHANNEL, `Look ${ADDRESS}`);
+    setLesson({ videoStatus: "preparing" });
+    m.canOpen.mockReturnValue(true);
+    m.hasFeature.mockResolvedValue(true);
+    await sendChatMessage(CHANNEL, `Look ${ADDRESS}`);
+
+    expect(m.rpc).toHaveBeenCalledTimes(3);
+    for (const call of m.rpc.mock.calls) {
+      expect(call[0]).toBe("chat_post_message");
+      expect(call[1]).toMatchObject({ p_body: `Look ${ADDRESS}` });
+    }
+  });
+
+  it("leaves other addresses alone", async () => {
+    await sendChatMessage(CHANNEL, "see https://elsewhere.example.org/courses/ready-writer/lessons/les_AAAAAAAAAAA1");
+    await sendChatMessage(CHANNEL, "no links here");
+
+    expect(m.rpc.mock.calls.map((c) => c[0])).toEqual(["chat_post_message", "chat_post_message"]);
   });
 });
