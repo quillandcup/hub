@@ -128,25 +128,27 @@ describe("sendChatMessageToSlack", () => {
     expect(stateOf(ID)).toMatchObject({ slack_ts: "1700000000.000100", slack_sync_status: "sent", posted_via: "user_token" });
   });
 
-  it("adds a link to the lesson for a message that shares a lesson video, as plain text even when the words need blocks", async () => {
+  it("adds links back to the Hub for a message that shares a lesson video, as plain text even when the words need blocks", async () => {
     dataset.courses.push({ id: "crs_AAAAAAAAAAA1", slug: "ready-writer" } as never);
     dataset.courseLessons.push({ id: "les_AAAAAAAAAAA1", course_id: "crs_AAAAAAAAAAA1" } as never);
-    dataset.chatMessageVideos.push({ id: "cmv_AAAAAAAAAAA1", message_id: ID, lesson_id: "les_AAAAAAAAAAA1", created_at: "2026-10-10T11:00:00Z" });
+    dataset.chatMessageVideos.push({ id: "cmv_AAAAAAAAAAA1", message_id: ID, lesson_id: "les_AAAAAAAAAAA1", open_to_channel: false, created_at: "2026-10-10T11:00:00Z" });
     dataset.chatMessageContents![0].body = "Hello <u>there</u> & friends";
 
     await sendChatMessageToSlack(supabase as never, ID);
 
     const [args] = postMessage.mock.calls[0];
-    expect(args.text).toBe(`Hello there &amp; friends\n<${APP_URL}/courses/ready-writer/lessons/les_AAAAAAAAAAA1|Watch the video>`);
+    expect(args.text).toBe(
+      `Hello there &amp; friends\n<${APP_URL}/chat/${CHANNEL}?thread=${ID}|Watch it in Hub Chat> · <${APP_URL}/courses/ready-writer/lessons/les_AAAAAAAAAAA1|Open the lesson>`
+    );
     expect(args.blocks).toBeUndefined();
   });
 
-  it("still posts the message, without a link, when the shared lesson can't be found", async () => {
-    dataset.chatMessageVideos.push({ id: "cmv_AAAAAAAAAAA1", message_id: ID, lesson_id: "les_AAAAAAAAAAA9", created_at: "2026-10-10T11:00:00Z" });
+  it("still posts the message, with just the Hub Chat link, when the shared lesson can't be found", async () => {
+    dataset.chatMessageVideos.push({ id: "cmv_AAAAAAAAAAA1", message_id: ID, lesson_id: "les_AAAAAAAAAAA9", open_to_channel: false, created_at: "2026-10-10T11:00:00Z" });
 
     await expect(sendChatMessageToSlack(supabase as never, ID)).resolves.toBe("sent");
 
-    expect(postMessage.mock.calls[0][0].text).toBe("Hello &lt;everyone&gt; &amp; friends");
+    expect(postMessage.mock.calls[0][0].text).toBe(`Hello &lt;everyone&gt; &amp; friends\n<${APP_URL}/chat/${CHANNEL}?thread=${ID}|Watch it in Hub Chat>`);
   });
 
   it("posts a message with an underline as rich-text blocks, with its text minus the underline as the fallback", async () => {

@@ -120,7 +120,7 @@ export default async function LessonPage({
     const own = await getUserFeaturePreviews(caller.userId);
     const allOn = (await Promise.all((["chat", "chat_posting", "chat_videos"] as const).map((k) => effectiveMemberHasFeature(k, caller.identity, own)))).every(Boolean);
     const targets = allOn ? await shareTargets(createRepos(await createClient()), caller.identity.memberId).catch(() => []) : [];
-    shareButton = <ShareLessonInChat lessonId={lesson.id} targets={targets} />;
+    shareButton = <ShareLessonInChat lessonId={lesson.id} targets={targets} canOpenToChannel={caller.scope.isAdminActing} />;
   }
 
   let player: React.ReactNode = null;

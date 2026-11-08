@@ -2,6 +2,7 @@
 /** The member courses pages: list, course outline, lesson. Data loaders are mocked; markup is real. */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { FEATURED_COURSE, SUPPORT_EMAIL } from "@/lib/config";
 import { buildOutline, courseProgress, type OutlineLesson, type OutlineModule } from "@/lib/courses/outline";
 import { expectRedirect, renderServerPage, resetServerPageMocks } from "@/tests/helpers/server-page";
@@ -872,6 +873,20 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
       await renderServerPage(LessonPage, params());
 
       expect(shareButton()).toBeInTheDocument();
+    });
+
+    it("offers admins acting as themselves the choice to open it to the whole conversation, and members not", async () => {
+      sharing.on = true;
+      ready();
+      await renderServerPage(LessonPage, params());
+      await userEvent.click(shareButton()!);
+      expect(screen.queryByRole("checkbox", { name: /even without the course/i })).not.toBeInTheDocument();
+      cleanup();
+
+      caller.scope.isAdminActing = true;
+      await renderServerPage(LessonPage, params());
+      await userEvent.click(shareButton()!);
+      expect(screen.getByRole("checkbox", { name: /even without the course/i })).toBeInTheDocument();
     });
 
     it("is not offered when a feature is off, in sudo, with nowhere to share, or before the video is ready", async () => {

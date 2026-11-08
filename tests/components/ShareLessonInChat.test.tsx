@@ -31,7 +31,7 @@ describe("ShareLessonInChat", () => {
     await userEvent.type(screen.getByLabelText(/say something/i), "Worth a watch");
     await userEvent.click(screen.getByRole("button", { name: "Share" }));
 
-    expect(share).toHaveBeenCalledWith("chn_AAAAAAAAAAA2", "les_AAAAAAAAAAA1", "Worth a watch");
+    expect(share).toHaveBeenCalledWith("chn_AAAAAAAAAAA2", "les_AAAAAAAAAAA1", "Worth a watch", false);
     expect(await screen.findByRole("status")).toHaveTextContent("Shared.");
     expect(screen.getByRole("link", { name: /open the conversation/i })).toHaveAttribute("href", "/chat/chn_AAAAAAAAAAA2");
     expect(screen.getByLabelText(/say something/i)).toHaveValue("");
@@ -45,6 +45,35 @@ describe("ShareLessonInChat", () => {
     await userEvent.click(screen.getByRole("button", { name: "Share" }));
 
     expect(await screen.findByRole("status")).toHaveTextContent("That video can't be shared.");
-    expect(share).toHaveBeenCalledWith("chn_AAAAAAAAAAA1", "les_AAAAAAAAAAA1", "");
+    expect(share).toHaveBeenCalledWith("chn_AAAAAAAAAAA1", "les_AAAAAAAAAAA1", "", false);
+  });
+
+  describe("opening it to the whole conversation", () => {
+    const open = async () => userEvent.click(screen.getByRole("button", { name: /share this video in chat/i }));
+
+    it("is offered to admins only, and off unless they choose it", async () => {
+      share.mockResolvedValue({ ok: true, id: "msg_AAAAAAAAAAA1" });
+      const { unmount } = render(<ShareLessonInChat lessonId="les_AAAAAAAAAAA1" targets={TARGETS} />);
+      await open();
+      expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+      unmount();
+
+      render(<ShareLessonInChat lessonId="les_AAAAAAAAAAA1" targets={TARGETS} canOpenToChannel />);
+      await open();
+      expect(screen.getByRole("checkbox", { name: /even without the course/i })).not.toBeChecked();
+      await userEvent.click(screen.getByRole("button", { name: "Share" }));
+      expect(share).toHaveBeenLastCalledWith("chn_AAAAAAAAAAA1", "les_AAAAAAAAAAA1", "", false);
+    });
+
+    it("sends the choice when an admin makes it", async () => {
+      share.mockResolvedValue({ ok: true, id: "msg_AAAAAAAAAAA1" });
+      render(<ShareLessonInChat lessonId="les_AAAAAAAAAAA1" targets={TARGETS} canOpenToChannel />);
+
+      await open();
+      await userEvent.click(screen.getByRole("checkbox", { name: /even without the course/i }));
+      await userEvent.click(screen.getByRole("button", { name: "Share" }));
+
+      expect(share).toHaveBeenCalledWith("chn_AAAAAAAAAAA1", "les_AAAAAAAAAAA1", "", true);
+    });
   });
 });

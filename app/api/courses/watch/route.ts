@@ -3,6 +3,7 @@ import { getCoursesCaller } from "@/lib/courses/caller";
 import { canOpenLessons, loadMemberCourseAccess } from "@/lib/courses/member";
 import { recordLessonWatched } from "@/lib/courses/activity";
 import { parseWatchBatch } from "@/lib/courses/watch";
+import { mayWatchSharedVideo } from "@/lib/chat/video-access";
 import { createRepos } from "@/lib/data/repos";
 import { userAgentForStorage } from "@/lib/device-label";
 import { deviceForStorage } from "@/lib/device";
@@ -22,6 +23,8 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
  * `chatMessageId` says the video was watched in a chat message that shares it (docs/SLACK_BRIDGED_CHAT.md, "Lesson videos
  * in messages"): it must be a message the member can read that shares exactly this lesson, and it is stored on each row so
  * the stats keep chat views apart from lesson views. The position still goes to the lesson (resume follows the video).
+ * A viewer without the course is accepted only for such a message an admin opened to the channel (`mayWatchSharedVideo`); then
+ * only the watching is saved: no position, no lesson activity, since they have no progress in a course they don't have.
  *
  * Written as the member, so RLS only lets it touch their own rows. Completion is never changed here.
  * `viewed` records that the player appeared for this session (a marker row beside the stretches: the
@@ -44,20 +47,24 @@ export async function POST(request: NextRequest) {
   // Members only get open lessons; staff acting as themselves can also record a preview of an unreleased one (their own rows).
   const openToCaller = lesson?.state === "open" || caller.scope.isAdminActing;
   if (!lesson || !openToCaller || !lesson.video_id) return NextResponse.json({ error: "Lesson not found" }, { status: 404 });
-  const access = await loadMemberCourseAccess(createRepos(service), caller.scope, lesson.course_id);
-  if (!canOpenLessons(access)) return NextResponse.json({ error: "No access to this course" }, { status: 403 });
-
   const supabase = await createClient();
   const progress = createRepos(supabase).courseProgress;
   const memberId = caller.identity.memberId;
   const videoId = lesson.video_id; // narrowed above; kept for the closures below
 
   // From a chat message: read as the member, so row-level security hides a message they can't read; it has to share this lesson.
+  let share: { lessonId: string; openToChannel: boolean } | null = null;
   if (batch.chatMessageId) {
-    const shared = (await createRepos(supabase).chatVideos.lessonIdsOf([batch.chatMessageId])).get(batch.chatMessageId);
-    if (shared !== batch.lessonId) return NextResponse.json({ error: "Lesson not found" }, { status: 404 });
+    share = await createRepos(supabase).chatVideos.shareOf(batch.chatMessageId);
+    if (share?.lessonId !== batch.lessonId) return NextResponse.json({ error: "Lesson not found" }, { status: 404 });
   }
   const chatMessageId = batch.chatMessageId;
+
+  // The course, or a video an admin opened to the channel (then it is only the watching that is saved, never the lesson's progress).
+  const hasCourse = canOpenLessons(await loadMemberCourseAccess(createRepos(service), caller.scope, lesson.course_id));
+  if (!hasCourse && !(share && (await mayWatchSharedVideo(createRepos(service), share, lesson, false)))) {
+    return NextResponse.json({ error: "No access to this course" }, { status: 403 });
+  }
 
   // The player appeared: one "viewed" marker per player session (its client id is the session id, so a resend is ignored).
   if (batch.viewed) {
@@ -108,7 +115,7 @@ export async function POST(request: NextRequest) {
 
   // New stretches may have tipped today's watching over the line that counts as having watched the
   // lesson: log it for the Activity Log and engagement. Members' open lessons only (not a staff preview).
-  if (saved > 0 && lesson.state === "open") {
+  if (saved > 0 && lesson.state === "open" && hasCourse) {
     await recordLessonWatched(createRepos(supabase), {
       memberId,
       lessonId: batch.lessonId,
@@ -119,7 +126,7 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  if (batch.position !== null) {
+  if (batch.position !== null && hasCourse) {
     // Only the position: completed_at is left alone.
     try {
       await progress.savePosition(memberId, batch.lessonId, batch.position);

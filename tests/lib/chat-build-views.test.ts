@@ -118,10 +118,10 @@ describe("buildMessageViews", () => {
 
   it("marks the messages that share a lesson video and drops the Slack link line Slack's copy ends with", async () => {
     const out = await buildMessageViews(
-      reposWith({ chatMessageVideos: [{ id: "cmv_AAAAAAAAAAA1", message_id: "m1", lesson_id: "les_AAAAAAAAAAA1", created_at: "2026-01-01T00:00:00Z" }] }),
+      reposWith({ chatMessageVideos: [{ id: "cmv_AAAAAAAAAAA1", message_id: "m1", lesson_id: "les_AAAAAAAAAAA1", open_to_channel: false, created_at: "2026-01-01T00:00:00Z" }] }),
       { slackChannelId: null },
       [
-        row("m1", { origin: "app", chat_message_contents: { body: "This helped\n<https://hub.example.com/courses/ready-writer/lessons/les_AAAAAAAAAAA1|Watch the video>" } }),
+        row("m1", { origin: "app", chat_message_contents: { body: "This helped\n<https://hub.example.com/chat/chn_AAAAAAAAAAA1?thread=msg_AAAAAAAAAAA1|Watch it in Hub Chat> · <https://hub.example.com/courses/ready-writer/lessons/les_AAAAAAAAAAA1|Open the lesson>" } }),
         row("m2", { origin: "app", chat_message_contents: { body: "No video\n<https://hub.example.com/courses/ready-writer/lessons/les_AAAAAAAAAAA1|Watch the video>" } }),
       ],
       FERN
