@@ -15,6 +15,8 @@ export interface WatchSegmentInput {
 
 export interface WatchBatch {
   lessonId: string;
+  /** The chat message the video was watched in, when it was watched from one that shares the lesson's video. */
+  chatMessageId: string | null;
   sessionId: string;
   segments: WatchSegmentInput[];
   /** Where the playhead was, for resume. Omitted when the player has nothing to say. */
@@ -62,7 +64,8 @@ export function parseWatchBatch(body: unknown): WatchBatch | null {
   const position = b.position === undefined || b.position === null ? null : b.position;
   if (position !== null && !seconds(position)) return null;
   if (b.viewed !== undefined && typeof b.viewed !== "boolean") return null;
-  return { lessonId: b.lessonId, sessionId: b.sessionId, segments, position, viewed: b.viewed === true };
+  if (b.chatMessageId !== undefined && (typeof b.chatMessageId !== "string" || !isId(b.chatMessageId, "msg"))) return null;
+  return { lessonId: b.lessonId, chatMessageId: b.chatMessageId ?? null, sessionId: b.sessionId, segments, position, viewed: b.viewed === true };
 }
 
 /**

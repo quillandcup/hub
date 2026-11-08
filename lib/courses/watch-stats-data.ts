@@ -31,6 +31,11 @@ export interface LessonWatchStats {
   stats: VideoWatchStats | null;
   /** The player sessions, newest first, with who: only when asked for (`withSessions`). */
   sessions: ViewSession[];
+  /**
+   * What was watched from chat messages that share the video, kept apart so the lesson's own numbers stay about the lesson
+   * (`stats`, the sessions and the course totals leave chat views out). Null when nobody watched it in chat.
+   */
+  chat: { stats: VideoWatchStats; /** Different messages it was watched from. */ messages: number } | null;
 }
 
 export interface CourseWatchStats {
@@ -78,6 +83,9 @@ export async function loadCourseWatchStats(
   const playbackIds = new Map<string, string | null>();
   const segmentsByVideo = new Map<string, WatchSegment[]>();
   const viewsByVideo = new Map<string, ViewMarker[]>();
+  const chatSegmentsByVideo = new Map<string, WatchSegment[]>();
+  const chatViewsByVideo = new Map<string, ViewMarker[]>();
+  const chatMessagesByVideo = new Map<string, Set<string>>();
   const staff = options.includeStaff ? new Set<string>() : await loadStaffMemberIds(supabase);
 
   const [videos, segments] = await Promise.all([repos.courses.videosByIds(videoIds), repos.courseProgress.segmentsOfVideos(videoIds)]);
@@ -87,22 +95,35 @@ export async function loadCourseWatchStats(
   }
   for (const s of segments) {
     if (staff.has(s.member_id)) continue;
+    // Watched from a chat message: counted on its own, never in the lesson's numbers.
+    const fromChat = s.chat_message_id !== null;
+    if (fromChat) {
+      const messages = chatMessagesByVideo.get(s.video_id) ?? new Set<string>();
+      messages.add(s.chat_message_id as string);
+      chatMessagesByVideo.set(s.video_id, messages);
+    }
     if (s.kind === "viewed") {
-      const views = viewsByVideo.get(s.video_id) ?? [];
+      const target = fromChat ? chatViewsByVideo : viewsByVideo;
+      const views = target.get(s.video_id) ?? [];
       views.push({ memberId: s.member_id, sessionId: s.session_id, startedAt: s.started_at, userAgent: s.user_agent, device: (s.device as DeviceInfo | null) ?? null });
-      viewsByVideo.set(s.video_id, views);
+      target.set(s.video_id, views);
       continue;
     }
-    const list = segmentsByVideo.get(s.video_id) ?? [];
+    const target = fromChat ? chatSegmentsByVideo : segmentsByVideo;
+    const list = target.get(s.video_id) ?? [];
     list.push({ memberId: s.member_id, sessionId: s.session_id, start: Number(s.start_seconds), end: Number(s.end_seconds), rate: Number(s.playback_rate), captions: s.captions_language, visible: s.visible, startedAt: s.started_at });
-    segmentsByVideo.set(s.video_id, list);
+    target.set(s.video_id, list);
   }
 
   const statsByVideo = new Map<string, VideoWatchStats>();
+  const chatStatsByVideo = new Map<string, VideoWatchStats>();
   const sessionsByVideo = new Map<string, PlaySession[]>();
   const viewerIds = new Set<string>();
   let watchedSeconds = 0;
   for (const videoId of videoIds) {
+    const chatSegments = chatSegmentsByVideo.get(videoId) ?? [];
+    const chatViews = chatViewsByVideo.get(videoId) ?? [];
+    if (chatSegments.length > 0 || chatViews.length > 0) chatStatsByVideo.set(videoId, computeVideoWatchStats(chatSegments, durations.get(videoId) ?? null, chatViews));
     const segments = segmentsByVideo.get(videoId) ?? [];
     const views = viewsByVideo.get(videoId) ?? [];
     if (segments.length === 0 && views.length === 0) continue;
@@ -143,7 +164,7 @@ export async function loadCourseWatchStats(
     course: { id: course.id, title: course.title, slug: course.slug },
     lessons: lessons.map((lesson) => {
       const videoId = videoOf.get(lesson.id) ?? null;
-      return { lesson, videoId, playbackId: videoId ? (playbackIds.get(videoId) ?? null) : null, stats: videoId ? (statsByVideo.get(videoId) ?? null) : null, sessions: (videoId ? (sessionsByVideo.get(videoId) ?? []) : []).map((x) => ({ ...x, memberName: names.get(x.memberId) ?? "Unknown member", location: locations.get(x.sessionId) ?? null })) };
+      return { lesson, videoId, playbackId: videoId ? (playbackIds.get(videoId) ?? null) : null, stats: videoId ? (statsByVideo.get(videoId) ?? null) : null, sessions: (videoId ? (sessionsByVideo.get(videoId) ?? []) : []).map((x) => ({ ...x, memberName: names.get(x.memberId) ?? "Unknown member", location: locations.get(x.sessionId) ?? null })), chat: videoId && chatStatsByVideo.has(videoId) ? { stats: chatStatsByVideo.get(videoId) as VideoWatchStats, messages: chatMessagesByVideo.get(videoId)?.size ?? 0 } : null };
     }),
     viewers: viewerIds.size,
     watchedSeconds,

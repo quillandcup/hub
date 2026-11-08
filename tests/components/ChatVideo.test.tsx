@@ -5,8 +5,8 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/components/courses/LessonPlayer", () => ({
-  default: (props: { title: string; playbackId: string; trackProgress?: boolean }) => (
-    <div data-testid="player" data-playback={props.playbackId} data-tracking={String(Boolean(props.trackProgress))}>
+  default: (props: { title: string; playbackId: string; lessonId?: string; chatMessageId?: string; resumeSeconds?: number; trackProgress?: boolean }) => (
+    <div data-testid="player" data-playback={props.playbackId} data-lesson={props.lessonId} data-message={props.chatMessageId} data-resume={props.resumeSeconds} data-tracking={String(Boolean(props.trackProgress))}>
       {props.title}
     </div>
   ),
@@ -30,8 +30,8 @@ describe("ChatVideo", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("fetches playback links for the message and shows the course player, which records no views yet", async () => {
-    answer(200, { title: "Show up for the page", playbackId: "pb123", tokens: { playback: "p", poster: "s", storyboard: "b" }, restricted: false });
+  it("fetches playback links for the message and shows the course player, recording the watching against the message", async () => {
+    answer(200, { title: "Show up for the page", lessonId: "les_AAAAAAAAAAA1", playbackId: "pb123", tokens: { playback: "p", poster: "s", storyboard: "b" }, restricted: false, record: true, resumeSeconds: 95 });
     render(<ChatVideo messageId="msg_AAAAAAAAAAA1" />);
 
     await userEvent.click(screen.getByRole("button", { name: /watch the video/i }));
@@ -39,8 +39,20 @@ describe("ChatVideo", () => {
     const player = await screen.findByTestId("player");
     expect(fetchMock).toHaveBeenCalledWith("/api/chat/videos/msg_AAAAAAAAAAA1", { method: "POST" });
     expect(player).toHaveAttribute("data-playback", "pb123");
-    expect(player).toHaveAttribute("data-tracking", "false");
+    expect(player).toHaveAttribute("data-lesson", "les_AAAAAAAAAAA1");
+    expect(player).toHaveAttribute("data-message", "msg_AAAAAAAAAAA1");
+    expect(player).toHaveAttribute("data-resume", "95");
+    expect(player).toHaveAttribute("data-tracking", "true");
     expect(screen.getAllByText("Show up for the page").length).toBeGreaterThan(0);
+  });
+
+  it("doesn't record when the server says not to (sudo, a lesson only staff can open)", async () => {
+    answer(200, { title: "T", lessonId: "les_AAAAAAAAAAA1", playbackId: "pb123", tokens: { playback: "p", poster: "s", storyboard: "b" }, restricted: false, record: false, resumeSeconds: 0 });
+    render(<ChatVideo messageId="msg_AAAAAAAAAAA1" />);
+
+    await userEvent.click(screen.getByRole("button", { name: /watch the video/i }));
+
+    expect(await screen.findByTestId("player")).toHaveAttribute("data-tracking", "false");
   });
 
   it.each([

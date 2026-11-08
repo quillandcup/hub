@@ -5,6 +5,7 @@ import { createRepos } from "@/lib/data/repos";
 import { isId } from "@/lib/ids";
 import { createMuxClient, signPlaybackTokens } from "@/lib/mux";
 import { restrictionIdForViewer } from "@/lib/mux-restriction.server";
+import { resumeSeconds } from "@/lib/courses/watch";
 import { hitRateLimits } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
@@ -53,8 +54,11 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
   const restrictionId = await restrictionIdForViewer(caller.userId, caller.identity);
   try {
     const tokens = await signPlaybackTokens(createMuxClient(), video.mux_playback_id, undefined, restrictionId);
+    // Watching is recorded for members' open lessons, and not in sudo (an admin previewing leaves no viewing history).
+    const record = lesson.state === "open" && !caller.identity.isSudo;
+    const position = record ? await createRepos(await createClient()).courseProgress.lessonPosition(caller.identity.memberId, lesson.id).catch(() => null) : null;
     return NextResponse.json(
-      { title: lesson.title, playbackId: video.mux_playback_id, tokens, restricted: restrictionId !== null },
+      { title: lesson.title, lessonId: lesson.id, playbackId: video.mux_playback_id, tokens, restricted: restrictionId !== null, record, resumeSeconds: resumeSeconds(position) },
       { headers: NO_STORE },
     );
   } catch (error) {

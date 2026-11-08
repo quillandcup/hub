@@ -7,14 +7,15 @@ import type { PlaybackTokens } from "@/lib/mux";
 type State =
   | { kind: "idle" }
   | { kind: "loading" }
-  | { kind: "ready"; title: string; playbackId: string; tokens: PlaybackTokens; restricted: boolean }
+  | { kind: "ready"; title: string; lessonId: string; playbackId: string; tokens: PlaybackTokens; restricted: boolean; record: boolean; resumeSeconds: number }
   | { kind: "error"; message: string };
 
 /**
  * A course lesson's video shared in a message. It shows a card; pressing play asks /api/chat/videos/<message id> for
  * playback links for this viewer (the server checks they can read the message and have the course), then the course
- * player takes over. Nothing is fetched until then, so a long conversation mints no links it doesn't need. Views are
- * not recorded yet (`trackProgress` off): the course's watch stats stay about the lessons themselves.
+ * player takes over. Nothing is fetched until then, so a long conversation mints no links it doesn't need. What is
+ * watched is recorded like a lesson view (resume included) but tagged with this message, so the staff watch stats keep
+ * chat views apart from the lesson's own. The route says when not to record (sudo, a lesson not open to members).
  */
 export default function ChatVideo({ messageId }: { messageId: string }) {
   const [state, setState] = useState<State>({ kind: "idle" });
@@ -31,7 +32,7 @@ export default function ChatVideo({ messageId }: { messageId: string }) {
         setState({ kind: "error", message: res.status === 429 ? "Too many videos opened just now. Try again in a few minutes." : "This video isn't available right now." });
         return;
       }
-      const body = (await res.json()) as { title: string; playbackId: string; tokens: PlaybackTokens; restricted: boolean };
+      const body = (await res.json()) as { title: string; lessonId: string; playbackId: string; tokens: PlaybackTokens; restricted: boolean; record: boolean; resumeSeconds: number };
       setState({ kind: "ready", ...body });
     } catch {
       setState({ kind: "error", message: "This video isn't available right now." });
@@ -41,7 +42,16 @@ export default function ChatVideo({ messageId }: { messageId: string }) {
   if (state.kind === "ready") {
     return (
       <div className="mt-2 max-w-xl overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
-        <LessonPlayer title={state.title} playbackId={state.playbackId} tokens={state.tokens} restricted={state.restricted} />
+        <LessonPlayer
+          title={state.title}
+          playbackId={state.playbackId}
+          tokens={state.tokens}
+          restricted={state.restricted}
+          lessonId={state.lessonId}
+          chatMessageId={messageId}
+          resumeSeconds={state.resumeSeconds}
+          trackProgress={state.record}
+        />
         <p className="px-3 py-2 text-sm font-medium text-slate-800 dark:text-slate-100">{state.title}</p>
       </div>
     );

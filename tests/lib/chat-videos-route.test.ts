@@ -75,8 +75,34 @@ describe("POST /api/chat/videos/[messageId]", () => {
 
     expect(res.status).toBe(200);
     expect(res.headers.get("Cache-Control")).toBe("no-store");
-    expect(await res.json()).toEqual({ title: "Show up for the page", playbackId: "pb123", tokens: TOKENS, restricted: false });
+    expect(await res.json()).toEqual({ title: "Show up for the page", lessonId: LESSON, playbackId: "pb123", tokens: TOKENS, restricted: false, record: true, resumeSeconds: 0 });
     expect(signPlaybackTokens).toHaveBeenCalledWith(expect.anything(), "pb123", undefined, null);
+  });
+
+  it("says to record the watching, and where to resume from the member's saved position", async () => {
+    await repos.courseProgress.savePosition("mbr_AAAAAAAAAAA1", LESSON, 95);
+    expect(await (await call()).json()).toMatchObject({ record: true, resumeSeconds: 95 });
+
+    // A position barely into the video isn't worth resuming.
+    await repos.courseProgress.savePosition("mbr_AAAAAAAAAAA1", LESSON, 3);
+    expect(await (await call()).json()).toMatchObject({ resumeSeconds: 0 });
+  });
+
+  it("says not to record in sudo or for a lesson only staff can open", async () => {
+    vi.mocked(getCoursesCaller).mockResolvedValue({
+      userId: "user-1",
+      identity: { memberId: "mbr_AAAAAAAAAAA1", memberName: "Ada Example", memberEmail: "ada@example.com", isSudo: true },
+      scope: { memberId: "mbr_AAAAAAAAAAA1", isAdminActing: false },
+    });
+    expect(await (await call()).json()).toMatchObject({ record: false, resumeSeconds: 0 });
+
+    vi.mocked(getCoursesCaller).mockResolvedValue({
+      userId: "user-1",
+      identity: { memberId: "mbr_AAAAAAAAAAA1", memberName: "Ada Example", memberEmail: "ada@example.com", isSudo: false },
+      scope: { memberId: "mbr_AAAAAAAAAAA1", isAdminActing: true },
+    });
+    setup({ lessonState: "coming_soon" });
+    expect(await (await call()).json()).toMatchObject({ record: false });
   });
 
   it("restricts the links by the same rule as the lesson page", async () => {
