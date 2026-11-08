@@ -10,7 +10,7 @@ import { escapeForSlack } from "@/lib/chat/slack-escape";
 import { reportRefusedBlocks } from "@/lib/chat/blocks-refused";
 import { bodyToBlocks, isInvalidBlocks, needsBlocks, stripUnderline } from "@/lib/chat/rich-blocks";
 import { sendChatFilesToSlack } from "@/lib/chat/slack-upload";
-import { sharedVideoLink } from "@/lib/chat/video-link";
+import { sharedVideoSlackLine } from "@/lib/chat/video-link";
 
 /**
  * The outbox's second step (docs/SLACK_BRIDGED_CHAT.md, "Hub -> Slack"): a message a member wrote
@@ -99,13 +99,13 @@ export async function sendChatMessageToSlack(supabase: SupabaseClient, messageId
 
   if (!connection) return fail("the member has no working Slack connection");
 
-  // A message that shares a lesson video says so in Slack with a link to the lesson: Slack can't play it (docs/TODO.md,
-  // "Chat: Watch Videos In The Conversation"). A failed lookup sends the message without the link rather than not at all.
-  const videoLink = await sharedVideoLink(createRepos(supabase as unknown as Db), messageId).catch((error) => {
-    console.error("sendChatMessageToSlack: shared video link failed for %s:", messageId, error);
+  // A message that shares a lesson video says so in Slack with links back to the Hub (Slack can't play it; docs/TODO.md,
+  // "Chat: Watch Videos In The Conversation"). A failed lookup sends the message without them rather than not at all.
+  const videoLine = await sharedVideoSlackLine(createRepos(supabase as unknown as Db), messageId, slackChannelId).catch((error) => {
+    console.error("sendChatMessageToSlack: shared video links failed for %s:", messageId, error);
     return null;
   });
-  const slackText = (text: string) => escapeForSlack(stripUnderline(text)) + (videoLink ? `\n<${videoLink}|Watch the video>` : "");
+  const slackText = (text: string) => escapeForSlack(stripUnderline(text)) + (videoLine ?? "");
 
   let result: Awaited<ReturnType<WebClient["chat"]["postMessage"]>>;
   try {
@@ -121,8 +121,8 @@ export async function sendChatMessageToSlack(supabase: SupabaseClient, messageId
         unfurl_media: false,
         metadata: hubMessageMetadata(messageId),
       });
-    // The link is part of the text, so a shared video goes as plain text even when the words would otherwise need blocks.
-    const withBlocks = needsBlocks(body) && !videoLink;
+    // The links are part of the text, so a shared video goes as plain text even when the words would otherwise need blocks.
+    const withBlocks = needsBlocks(body) && !videoLine;
     try {
       result = await post(withBlocks);
     } catch (error) {
