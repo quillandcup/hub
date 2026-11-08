@@ -2,21 +2,25 @@
 
 import { useState, useTransition } from "react";
 import { shareLessonVideoInChat } from "@/app/(member)/chat/actions";
+import EntitySearch from "@/components/EntitySearch";
 import type { ShareTarget } from "@/lib/chat/share-targets";
 
 /**
  * "Share in chat" on a lesson with a video: pick a conversation, add a note if you like, and the video is posted
- * there as a card. Others play it in the message if they have the course; in Slack the message shows a link to the lesson.
+ * there as a card. Others play it in the message if they have the course (or an admin opened it to everyone); in Slack the
+ * message links back to the Hub. The conversation is picked from a searchable list that shows all of them on focus, and is only
+ * preselected when there is one, so a share never goes to a conversation by default.
  */
 export default function ShareLessonInChat({ lessonId, targets, canOpenToChannel = false }: { lessonId: string; targets: ShareTarget[]; /** Admins only: offer to let everyone in the conversation play it, course or not. */ canOpenToChannel?: boolean }) {
   const [open, setOpen] = useState(false);
-  const [channelId, setChannelId] = useState(targets[0]?.id ?? "");
+  const [channelId, setChannelId] = useState(targets.length === 1 ? targets[0].id : "");
   const [note, setNote] = useState("");
   const [openToChannel, setOpenToChannel] = useState(false);
   const [pending, start] = useTransition();
   const [result, setResult] = useState<{ ok: true; channelId: string } | { ok: false; error: string } | null>(null);
 
   if (targets.length === 0) return null;
+  const items = targets.map((t) => ({ id: t.id, name: t.label }));
 
   function submit() {
     start(async () => {
@@ -43,20 +47,19 @@ export default function ShareLessonInChat({ lessonId, targets, canOpenToChannel 
       </button>
       {open && (
         <div className="mt-2 max-w-md space-y-2 rounded-lg border border-slate-200 p-3 dark:border-slate-700">
-          <label className="block text-sm text-slate-700 dark:text-slate-300">
-            Where
-            <select
-              value={channelId}
-              onChange={(e) => setChannelId(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-900"
-            >
-              {targets.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="text-sm text-slate-700 dark:text-slate-300">
+            <span>Where</span>
+            <EntitySearch
+              className="mt-1"
+              items={items}
+              browse
+              selectedId={channelId || null}
+              onSelect={(item) => setChannelId(item?.id ?? "")}
+              placeholder="Search your conversations"
+              ariaLabel="Where to share"
+              emptyText="No conversation matches"
+            />
+          </div>
           <label className="block text-sm text-slate-700 dark:text-slate-300">
             Say something about it
             <textarea

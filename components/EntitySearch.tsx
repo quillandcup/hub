@@ -17,6 +17,8 @@ export type RemoteSearch = (term: string, signal: AbortSignal) => Promise<Search
 interface EntitySearchProps {
   /** The whole list, filtered in the browser. Give this or `search`. */
   items?: SearchItem[];
+  /** List `items` as soon as the box is focused, before anything is typed (for a short list worth browsing, like a person's channels). */
+  browse?: boolean;
   /** Custom matching for `items` (e.g. suggestions for words not in the list); defaults to name or detail containing the term. */
   match?: (term: string) => SearchItem[];
   /** Server-side search, called (debounced) as the user types. Give this or `items`. */
@@ -39,6 +41,8 @@ interface EntitySearchProps {
 }
 
 const LOCAL_MATCH_LIMIT = 10;
+/** How many items a `browse` list shows before anything is typed (the dropdown scrolls). */
+const BROWSE_LIMIT = 50;
 
 /** Debounced server search: results for the current term, plus loading/error state. */
 function useRemoteResults(search: RemoteSearch | undefined, term: string, debounceMs: number) {
@@ -87,6 +91,7 @@ function useRemoteResults(search: RemoteSearch | undefined, term: string, deboun
  */
 export default function EntitySearch({
   items,
+  browse,
   match,
   search,
   debounceMs = 250,
@@ -110,7 +115,9 @@ export default function EntitySearch({
 
   const needle = term.toLowerCase();
   const localMatches = !term
-    ? []
+    ? browse && !search
+      ? (items ?? []).slice(0, BROWSE_LIMIT)
+      : []
     : match
       ? match(term).slice(0, LOCAL_MATCH_LIMIT)
       : (items ?? [])

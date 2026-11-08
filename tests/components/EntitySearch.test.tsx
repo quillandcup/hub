@@ -21,6 +21,27 @@ describe("EntitySearch", () => {
     expect(onSelect).toHaveBeenCalledWith(ITEMS[1]);
   });
 
+  it("lists everything on focus with browse, and still filters as you type", async () => {
+    const onSelect = vi.fn();
+    render(<EntitySearch items={ITEMS} browse selectedId={null} onSelect={onSelect} placeholder="Search" />);
+
+    await userEvent.click(screen.getByPlaceholderText("Search"));
+    expect(screen.getAllByRole("option")).toHaveLength(2);
+
+    await userEvent.type(screen.getByPlaceholderText("Search"), "bram");
+    expect(screen.getAllByRole("option")).toHaveLength(1);
+    await userEvent.click(screen.getByRole("option", { name: /Bramble Admin/ }));
+    expect(onSelect).toHaveBeenCalledWith(ITEMS[1]);
+  });
+
+  it("shows nothing before typing without browse", async () => {
+    render(<EntitySearch items={ITEMS} selectedId={null} onSelect={vi.fn()} placeholder="Search" />);
+
+    await userEvent.click(screen.getByPlaceholderText("Search"));
+
+    expect(screen.queryByRole("option")).not.toBeInTheDocument();
+  });
+
   it("is a combobox you can drive from the keyboard: arrows move (wrapping), Enter picks", async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
