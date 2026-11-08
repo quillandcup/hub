@@ -49,6 +49,15 @@ export function defineChatVideoContract(name: string, setup: () => ChatVideoCont
       expect((await ctx.repo().lessonIdsOf([ctx.messages[0]])).get(ctx.messages[0])).toBe(ctx.lessons[0]);
     });
 
+    it("tells what one message shares, and whether it is open to the channel", async () => {
+      await ctx.repo().attach(ctx.messages[0], ctx.lessons[0]);
+      await ctx.repo().attach(ctx.messages[1], ctx.lessons[1], true);
+
+      expect(await ctx.repo().shareOf(ctx.messages[0])).toEqual({ lessonId: ctx.lessons[0], openToChannel: false });
+      expect(await ctx.repo().shareOf(ctx.messages[1])).toEqual({ lessonId: ctx.lessons[1], openToChannel: true });
+      expect(await ctx.repo().shareOf(ctx.messages[2])).toBeNull();
+    });
+
     it("answers an empty list with an empty map", async () => {
       expect((await ctx.repo().lessonIdsOf([])).size).toBe(0);
     });

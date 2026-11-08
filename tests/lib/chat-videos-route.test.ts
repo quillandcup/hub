@@ -29,11 +29,12 @@ vi.mock("@/lib/data/repos", async () => ({
 }));
 
 /** The share row, a lesson and its video, each overridable: a missing row stands for what row-level security hides. */
-const setup = (over: { shared?: boolean; lessonState?: string; videoId?: string | null; videoStatus?: string } = {}) => {
-  const { shared = true, lessonState = "open", videoId = "video_AAAAAAAAAAA1", videoStatus = "ready" } = over;
+const setup = (over: { shared?: boolean; open?: boolean; draftCourse?: boolean; lessonState?: string; videoId?: string | null; videoStatus?: string } = {}) => {
+  const { shared = true, open = false, draftCourse = false, lessonState = "open", videoId = "video_AAAAAAAAAAA1", videoStatus = "ready" } = over;
   repos = createInMemoryRepos(
     new InMemoryDataset({
-      chatMessageVideos: shared ? [{ id: "cmv_AAAAAAAAAAA1", message_id: MESSAGE, lesson_id: LESSON, created_at: "2026-01-01T00:00:00Z" }] : [],
+      courses: [{ id: "crs_AAAAAAAAAAA1", slug: "c", title: "C", is_draft: draftCourse } as never],
+      chatMessageVideos: shared ? [{ id: "cmv_AAAAAAAAAAA1", message_id: MESSAGE, lesson_id: LESSON, open_to_channel: open, created_at: "2026-01-01T00:00:00Z" }] : [],
       courseLessons: [{ id: LESSON, course_id: "crs_AAAAAAAAAAA1", title: "Show up for the page", state: lessonState, video_id: videoId } as never],
       videos: [{ id: "video_AAAAAAAAAAA1", status: videoStatus, mux_playback_id: "pb123" } as never],
     }),
@@ -122,6 +123,33 @@ describe("POST /api/chat/videos/[messageId]", () => {
     expect(res.status).toBe(403);
     expect(await res.json()).toEqual({ error: "no_access" });
     expect(signPlaybackTokens).not.toHaveBeenCalled();
+  });
+
+  describe("a share an admin opened to the channel", () => {
+    beforeEach(() => vi.mocked(canOpenLessons).mockReturnValue(false));
+
+    it("lets a reader without the course play it, and says not to save their lesson progress", async () => {
+      setup({ open: true });
+
+      const res = await call();
+
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({ playbackId: "pb123", record: true, resumeSeconds: 0 });
+    });
+
+    it("still refuses a reader without the course when it isn't open to the channel", async () => {
+      setup({ open: false });
+      expect((await call()).status).toBe(403);
+    });
+
+    it("never opens a lesson that isn't open to members yet, or a course that is still a draft", async () => {
+      // A lesson not open to members is a plain 404 for them, as before (the share being open changes nothing).
+      setup({ open: true, lessonState: "coming_soon" });
+      expect((await call()).status).toBe(404);
+      setup({ open: true, draftCourse: true });
+      expect((await call()).status).toBe(403);
+      expect(signPlaybackTokens).not.toHaveBeenCalled();
+    });
   });
 
   it("is a 404 for a lesson that isn't open to members, unless staff are acting as themselves", async () => {

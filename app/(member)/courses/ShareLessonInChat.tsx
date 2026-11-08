@@ -8,10 +8,11 @@ import type { ShareTarget } from "@/lib/chat/share-targets";
  * "Share in chat" on a lesson with a video: pick a conversation, add a note if you like, and the video is posted
  * there as a card. Others play it in the message if they have the course; in Slack the message shows a link to the lesson.
  */
-export default function ShareLessonInChat({ lessonId, targets }: { lessonId: string; targets: ShareTarget[] }) {
+export default function ShareLessonInChat({ lessonId, targets, canOpenToChannel = false }: { lessonId: string; targets: ShareTarget[]; /** Admins only: offer to let everyone in the conversation play it, course or not. */ canOpenToChannel?: boolean }) {
   const [open, setOpen] = useState(false);
   const [channelId, setChannelId] = useState(targets[0]?.id ?? "");
   const [note, setNote] = useState("");
+  const [openToChannel, setOpenToChannel] = useState(false);
   const [pending, start] = useTransition();
   const [result, setResult] = useState<{ ok: true; channelId: string } | { ok: false; error: string } | null>(null);
 
@@ -19,7 +20,7 @@ export default function ShareLessonInChat({ lessonId, targets }: { lessonId: str
 
   function submit() {
     start(async () => {
-      const res = await shareLessonVideoInChat(channelId, lessonId, note);
+      const res = await shareLessonVideoInChat(channelId, lessonId, note, canOpenToChannel && openToChannel);
       if (res.ok) {
         setResult({ ok: true, channelId });
         setNote("");
@@ -66,6 +67,15 @@ export default function ShareLessonInChat({ lessonId, targets }: { lessonId: str
               className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-900"
             />
           </label>
+          {canOpenToChannel && (
+            <label className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
+              <input type="checkbox" checked={openToChannel} onChange={(e) => setOpenToChannel(e.target.checked)} className="mt-0.5" />
+              <span>
+                Let everyone in this conversation watch it, even without the course
+                <span className="block text-xs text-slate-600 dark:text-slate-400">Otherwise only members with the course can play it.</span>
+              </span>
+            </label>
+          )}
           <button
             type="button"
             onClick={submit}

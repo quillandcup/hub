@@ -275,6 +275,8 @@ const POST_ERRORS: Record<string, string> = {
   too_long: "That message is too long (4,000 characters at most).",
   bad_thread: "That thread can't be replied to.",
   bad_files: "Those files can't be sent.",
+  bad_video: "That video can't be shared.",
+  not_allowed: "Only an admin can open a video to the whole conversation.",
 };
 
 export type PrepareUploadsResult = { ok: true; uploads: { path: string; token: string }[] } | { ok: false; error: string };
@@ -333,7 +335,7 @@ async function stagedFilesFor(memberId: string, uploads: StagedUpload[]): Promis
  * else as the bot under their name and photo). If Slack is down the message stays in the Hub
  * marked failed, and the member can retry it; the nightly chat run retries too.
  */
-async function sendChatMessageImpl(channelId: string, body: string, threadRootId?: string, uploads: StagedUpload[] = []): Promise<SendChatResult> {
+async function sendChatMessageImpl(channelId: string, body: string, threadRootId?: string, uploads: StagedUpload[] = [], share?: { lessonId: string; openToChannel: boolean }): Promise<SendChatResult> {
   if (!isId(channelId, "chn") || (threadRootId !== undefined && !isId(threadRootId, "msg"))) return { ok: false, error: "Something went wrong." };
   const caller = await postingCaller();
   if (!caller) return { ok: false, error: "Posting isn't available to you yet." };
@@ -353,15 +355,19 @@ async function sendChatMessageImpl(channelId: string, body: string, threadRootId
     if (!files) return { ok: false, error: hubOnly ? "Files can't be sent in direct messages yet." : POST_ERRORS.bad_files };
   }
 
-  const { data, error } = await supabase.rpc("chat_post_message", {
-    p_channel_id: channelId,
-    p_body: body,
-    p_thread_root_id: (threadRootId ?? null) as string, // null when absent (the generated type has no null)
-    ...(files ? { p_files: files } : {}),
-  });
+  // A message that shares a lesson video is written together with its video row in one call (chat_post_shared_video), so
+  // another member's page never receives the message without its card. The function checks the sharer again in the database.
+  const { data, error } = share
+    ? await supabase.rpc("chat_post_shared_video", { p_channel_id: channelId, p_body: body, p_lesson_id: share.lessonId, p_open_to_channel: share.openToChannel })
+    : await supabase.rpc("chat_post_message", {
+        p_channel_id: channelId,
+        p_body: body,
+        p_thread_root_id: (threadRootId ?? null) as string, // null when absent (the generated type has no null)
+        ...(files ? { p_files: files } : {}),
+      });
   if (error || !data) {
     const reason = /chat_post: (\w+)/.exec(error?.message ?? "")?.[1];
-    if (!reason) console.error("chat_post_message failed:", error?.message);
+    if (!reason) console.error("%s failed:", share ? "chat_post_shared_video" : "chat_post_message", error?.message);
     return { ok: false, error: (reason && POST_ERRORS[reason]) || "Something went wrong. Try again." };
   }
 
@@ -384,13 +390,15 @@ async function sendChatMessageImpl(channelId: string, body: string, threadRootId
 
 /**
  * The signed-in member shares a course lesson's video into a conversation: a message (their own words, or "Shared a lesson
- * video: <title>") that shows the lesson's video as a card everyone who can read the message sees, playable by those with the
- * course. Behind `chat_videos` on top of posting. The sharer must be able to open the lesson themselves (same checks as
- * the lesson page); the message is posted like any other (`sendChatMessageImpl`, so Slack gets it with a link to the
- * lesson), then the share row is written with the service role, before the Slack send, which runs after the response.
+ * video: <title>") that shows the lesson's video as a card everyone who can read the message sees. Behind `chat_videos` on
+ * top of posting. The sharer must be able to open the lesson themselves (same checks as the lesson page, repeated in the
+ * database by `chat_post_shared_video`). Playing needs the course too, unless an admin shares it with `openToChannel`: then
+ * every member who can read the message may play it (default off; admins only, checked here and in the database).
+ * The message and its video row are written in one call (no window in which the message exists without its card), and
+ * Slack gets it after the response with a link to the lesson.
  */
-async function shareLessonVideoImpl(channelId: string, lessonId: string, note: string): Promise<SendChatResult> {
-  if (!isId(channelId, "chn") || !isId(lessonId, "les") || typeof note !== "string") return { ok: false, error: "Something went wrong." };
+async function shareLessonVideoImpl(channelId: string, lessonId: string, note: string, openToChannel = false): Promise<SendChatResult> {
+  if (!isId(channelId, "chn") || !isId(lessonId, "les") || typeof note !== "string" || typeof openToChannel !== "boolean") return { ok: false, error: "Something went wrong." };
   const caller = await postingCaller();
   if (!caller || !(await effectiveMemberHasFeature("chat_videos", caller.identity, await getUserFeaturePreviews(caller.userId)))) {
     return { ok: false, error: "Sharing videos isn't available to you yet." };
@@ -403,16 +411,9 @@ async function shareLessonVideoImpl(channelId: string, lessonId: string, note: s
     return { ok: false, error: "That video can't be shared." };
   }
   if (!canOpenLessons(await loadMemberCourseAccess(repos, courses.scope, lesson.course_id))) return { ok: false, error: "That video can't be shared." };
+  if (openToChannel && !courses.scope.isAdminActing) return { ok: false, error: POST_ERRORS.not_allowed };
 
-  const posted = await sendChatMessageImpl(channelId, note.trim() || `Shared a lesson video: ${lesson.title}`);
-  if (!posted.ok) return posted;
-  try {
-    await repos.chatVideos.attach(posted.id, lessonId);
-  } catch (error) {
-    // The message is already posted (and on its way to Slack): it stays as text, without the card.
-    console.error("attaching a shared lesson video to message %s failed:", posted.id, error instanceof Error ? error.message : error);
-  }
-  return posted;
+  return sendChatMessageImpl(channelId, note.trim() || `Shared a lesson video: ${lesson.title}`, undefined, [], { lessonId, openToChannel });
 }
 
 export type ToggleReactionResult = { ok: true; active: boolean } | { ok: false; error: string };

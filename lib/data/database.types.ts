@@ -2177,18 +2177,21 @@ export type Database = {
           id: string
           lesson_id: string
           message_id: string
+          open_to_channel: boolean
         }
         Insert: {
           created_at?: string
           id?: string
           lesson_id: string
           message_id: string
+          open_to_channel?: boolean
         }
         Update: {
           created_at?: string
           id?: string
           lesson_id?: string
           message_id?: string
+          open_to_channel?: boolean
         }
         Relationships: [
           {
@@ -6897,6 +6900,15 @@ export type Database = {
             }
             Returns: string
           }
+      chat_post_shared_video: {
+        Args: {
+          p_body: string
+          p_channel_id: string
+          p_lesson_id: string
+          p_open_to_channel?: boolean
+        }
+        Returns: string
+      }
       chat_slack_files_summary: { Args: { p_files: Json }; Returns: Json }
       chat_toggle_reaction: {
         Args: { p_emoji: string; p_message_id: string }

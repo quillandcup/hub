@@ -131,7 +131,7 @@ describe("sendChatMessageToSlack", () => {
   it("adds a link to the lesson for a message that shares a lesson video, as plain text even when the words need blocks", async () => {
     dataset.courses.push({ id: "crs_AAAAAAAAAAA1", slug: "ready-writer" } as never);
     dataset.courseLessons.push({ id: "les_AAAAAAAAAAA1", course_id: "crs_AAAAAAAAAAA1" } as never);
-    dataset.chatMessageVideos.push({ id: "cmv_AAAAAAAAAAA1", message_id: ID, lesson_id: "les_AAAAAAAAAAA1", created_at: "2026-10-10T11:00:00Z" });
+    dataset.chatMessageVideos.push({ id: "cmv_AAAAAAAAAAA1", message_id: ID, lesson_id: "les_AAAAAAAAAAA1", open_to_channel: false, created_at: "2026-10-10T11:00:00Z" });
     dataset.chatMessageContents![0].body = "Hello <u>there</u> & friends";
 
     await sendChatMessageToSlack(supabase as never, ID);
@@ -142,7 +142,7 @@ describe("sendChatMessageToSlack", () => {
   });
 
   it("still posts the message, without a link, when the shared lesson can't be found", async () => {
-    dataset.chatMessageVideos.push({ id: "cmv_AAAAAAAAAAA1", message_id: ID, lesson_id: "les_AAAAAAAAAAA9", created_at: "2026-10-10T11:00:00Z" });
+    dataset.chatMessageVideos.push({ id: "cmv_AAAAAAAAAAA1", message_id: ID, lesson_id: "les_AAAAAAAAAAA9", open_to_channel: false, created_at: "2026-10-10T11:00:00Z" });
 
     await expect(sendChatMessageToSlack(supabase as never, ID)).resolves.toBe("sent");
 

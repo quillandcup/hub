@@ -9,17 +9,28 @@ import { inChunks, must } from "./query";
  * Throws on a database error.
  */
 export interface ChatVideoRepository {
-  /** Records that `messageId` shares `lessonId`'s video. A message shares at most one: a second attach for it throws. */
-  attach(messageId: string, lessonId: string): Promise<void>;
+  /**
+   * Records that `messageId` shares `lessonId`'s video, closed to members without the course unless `openToChannel`. A message shares
+   * at most one: a second attach for it throws. The app shares through `chat_post_shared_video` (the message and this row in one
+   * transaction, with the sharer's access checked); this is for seeding and tests, and needs the service role.
+   */
+  attach(messageId: string, lessonId: string, openToChannel?: boolean): Promise<void>;
   /** The lesson each given message shares; a message that shares none is absent from the map. */
   lessonIdsOf(messageIds: string[]): Promise<Map<string, string>>;
+  /** What one message shares, or null when it shares nothing (or the caller can't read the message). */
+  shareOf(messageId: string): Promise<{ lessonId: string; openToChannel: boolean } | null>;
 }
 
 export class SupabaseChatVideoRepository implements ChatVideoRepository {
   constructor(private readonly db: Db) {}
 
-  async attach(messageId: string, lessonId: string) {
-    must(await this.db.from("chat_message_videos").insert({ message_id: messageId, lesson_id: lessonId }));
+  async attach(messageId: string, lessonId: string, openToChannel = false) {
+    must(await this.db.from("chat_message_videos").insert({ message_id: messageId, lesson_id: lessonId, open_to_channel: openToChannel }));
+  }
+
+  async shareOf(messageId: string) {
+    const row = must(await this.db.from("chat_message_videos").select("lesson_id, open_to_channel").eq("message_id", messageId).maybeSingle());
+    return row ? { lessonId: row.lesson_id, openToChannel: row.open_to_channel } : null;
   }
 
   async lessonIdsOf(messageIds: string[]) {
@@ -34,14 +45,20 @@ export class SupabaseChatVideoRepository implements ChatVideoRepository {
 export class InMemoryChatVideoRepository implements ChatVideoRepository {
   constructor(private readonly data: InMemoryDataset) {}
 
-  async attach(messageId: string, lessonId: string) {
+  async attach(messageId: string, lessonId: string, openToChannel = false) {
     if (this.data.chatMessageVideos.some((v) => v.message_id === messageId)) throw new Error("duplicate key value violates unique constraint");
     this.data.chatMessageVideos.push({
       id: `cmv_${String(this.data.chatMessageVideos.length + 1).padStart(12, "A")}`,
       message_id: messageId,
       lesson_id: lessonId,
+      open_to_channel: openToChannel,
       created_at: new Date().toISOString(),
     });
+  }
+
+  async shareOf(messageId: string) {
+    const row = this.data.chatMessageVideos.find((v) => v.message_id === messageId);
+    return row ? { lessonId: row.lesson_id, openToChannel: row.open_to_channel } : null;
   }
 
   async lessonIdsOf(messageIds: string[]) {
