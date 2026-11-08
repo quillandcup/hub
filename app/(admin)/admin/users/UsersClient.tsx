@@ -32,6 +32,8 @@ interface AppUser {
   role: Role;
   features: string[];
   createdAt: string;
+  /** Null when they have never signed in (an invite not accepted, or an account nobody has used). */
+  lastSignInAt: string | null;
   staffId: string | null;
   staffName: string | null;
   staffRole: StaffRole | null;
@@ -105,7 +107,7 @@ const STAFF_ROLE_COLORS: Record<StaffRole, string> = {
   contractor: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
 };
 
-type SortColumn = "profiles" | "role" | "features" | "created";
+type SortColumn = "profiles" | "role" | "features" | "created" | "lastActivity";
 
 type Audience = "all" | "members" | "staff";
 
@@ -142,6 +144,9 @@ function getSortValue(user: AppUser, column: SortColumn): SortValue {
       return user.features.length;
     case "created":
       return user.createdAt;
+    case "lastActivity":
+      // null (never signed in) is a missing value: the sort hook groups them together at one end.
+      return user.lastSignInAt;
   }
 }
 
@@ -523,6 +528,12 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                     direction={sortDirection}
                     onClick={() => handleSort("created")}
                   />
+                  <SortableTh
+                    label="Last Activity"
+                    active={sortColumn === "lastActivity"}
+                    direction={sortDirection}
+                    onClick={() => handleSort("lastActivity")}
+                  />
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider">
                     Actions
                   </th>
@@ -656,6 +667,20 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                         <span className="text-sm text-slate-600 dark:text-slate-400">
                           {formatDateInZone(user.createdAt, timeZone)}
                         </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        {user.lastSignInAt ? (
+                          <span className="text-sm text-slate-600 dark:text-slate-400">
+                            {formatDateInZone(user.lastSignInAt, timeZone)}
+                          </span>
+                        ) : (
+                          <span
+                            className="text-sm italic text-slate-500 dark:text-slate-400"
+                            title={user.pending ? "Invited, hasn't accepted yet" : "Has never signed in to the Hub"}
+                          >
+                            Never signed in
+                          </span>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
