@@ -6,12 +6,29 @@ import EntitySearch from "@/components/EntitySearch";
 import type { ShareTarget } from "@/lib/chat/share-targets";
 
 /**
- * "Share in chat" on a lesson with a video: pick a conversation, add a note if you like, and the video is posted
+ * "Share in chat" on a lesson with a video. Two ways: pick a conversation here, add a note if you like, and the video is posted
+ * there as a card; or "Copy link to paste in chat", the lesson's address, which turns into the same card when sent in any
+ * message (a thread or a direct message too), so you can take it anywhere without leaving the lesson. The copy button is
+ * offered even with no conversation to pick from.
+ *
+ * The picked-conversation share: pick a conversation, add a note if you like, and the video is posted
  * there as a card. Others play it in the message if they have the course (or an admin opened it to everyone); in Slack the
  * message links back to the Hub. The conversation is picked from a searchable list that shows all of them on focus, and is only
  * preselected when there is one, so a share never goes to a conversation by default.
  */
-export default function ShareLessonInChat({ lessonId, targets, canOpenToChannel = false }: { lessonId: string; targets: ShareTarget[]; /** Admins only: offer to let everyone in the conversation play it, course or not. */ canOpenToChannel?: boolean }) {
+export default function ShareLessonInChat({
+  lessonId,
+  targets,
+  shareUrl,
+  canOpenToChannel = false,
+}: {
+  lessonId: string;
+  targets: ShareTarget[];
+  /** The lesson's address, which is what "Copy link to paste in chat" copies. */
+  shareUrl: string;
+  /** Admins only: offer to let everyone in the conversation play it, course or not. */
+  canOpenToChannel?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [channelId, setChannelId] = useState(targets.length === 1 ? targets[0].id : "");
   const [note, setNote] = useState("");
@@ -19,8 +36,18 @@ export default function ShareLessonInChat({ lessonId, targets, canOpenToChannel 
   const [pending, start] = useTransition();
   const [result, setResult] = useState<{ ok: true; channelId: string } | { ok: false; error: string } | null>(null);
 
-  if (targets.length === 0) return null;
+  const [copied, setCopied] = useState<"yes" | "failed" | null>(null);
+
   const items = targets.map((t) => ({ id: t.id, name: t.label }));
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied("yes");
+    } catch {
+      setCopied("failed");
+    }
+  }
 
   function submit() {
     start(async () => {
@@ -36,16 +63,35 @@ export default function ShareLessonInChat({ lessonId, targets, canOpenToChannel 
 
   return (
     <div className="mt-3">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        data-track="lesson-share-in-chat-open"
-        className="text-sm font-medium text-plum-600 hover:underline dark:text-plum-400"
-      >
-        Share this video in chat
-      </button>
-      {open && (
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        {targets.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            aria-expanded={open}
+            data-track="lesson-share-in-chat-open"
+            className="text-sm font-medium text-plum-600 hover:underline dark:text-plum-400"
+          >
+            Share this video in chat
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={copyLink}
+          data-track="lesson-copy-chat-link"
+          className="text-sm font-medium text-plum-600 hover:underline dark:text-plum-400"
+        >
+          Copy link to paste in chat
+        </button>
+      </div>
+      {copied && (
+        <p role="status" className="mt-1 text-sm text-slate-700 dark:text-slate-300">
+          {copied === "yes"
+            ? "Copied. Paste it into any message in Hub Chat, in a thread or a direct message too, to share the video there."
+            : "Couldn't copy. The lesson's address in your browser's address bar works the same way."}
+        </p>
+      )}
+      {open && targets.length > 0 && (
         <div className="mt-2 max-w-md space-y-2 rounded-lg border border-slate-200 p-3 dark:border-slate-700">
           <div className="text-sm text-slate-700 dark:text-slate-300">
             <span>Where</span>

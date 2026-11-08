@@ -12,6 +12,8 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 import { createClient } from "@/lib/supabase/server";
 import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
 import { shareTargets } from "@/lib/chat/share-targets";
+import { lessonPath } from "@/lib/chat/video-link";
+import { APP_URL } from "@/lib/config";
 import ShareLessonInChat from "../../../ShareLessonInChat";
 import { courseTitle, lessonTitles } from "@/lib/courses/page-title";
 import { isId } from "@/lib/ids";
@@ -114,13 +116,14 @@ export default async function LessonPage({
   // Watching is recorded for members' open lessons, and nowhere else (sudo, a staff preview) unless staff turn it on for a preview.
   const watchRecorded = !caller.identity.isSudo && (!preview || (caller.scope.isAdminActing && trackPreview));
 
-  // "Share in chat": chat, posting and chat videos on, not in sudo (read-only), on a lesson whose video is ready. A failed read just hides it.
+  // "Share in chat": chat, posting and chat videos on, not in sudo (read-only), on a lesson whose video is ready. A failed channel read just leaves the copy button.
   let shareButton: React.ReactNode = null;
   if (video?.status === "ready" && !caller.identity.isSudo) {
     const own = await getUserFeaturePreviews(caller.userId);
     const allOn = (await Promise.all((["chat", "chat_posting", "chat_videos"] as const).map((k) => effectiveMemberHasFeature(k, caller.identity, own)))).every(Boolean);
     const targets = allOn ? await shareTargets(createRepos(await createClient()), caller.identity.memberId).catch(() => []) : [];
-    shareButton = <ShareLessonInChat lessonId={lesson.id} targets={targets} canOpenToChannel={caller.scope.isAdminActing} />;
+    // Also offered with nowhere to pick from: the copied link works in any thread or direct message.
+    if (allOn) shareButton = <ShareLessonInChat lessonId={lesson.id} targets={targets} shareUrl={`${APP_URL}${lessonPath(view.course.slug, lesson.id)}`} canOpenToChannel={caller.scope.isAdminActing} />;
   }
 
   let player: React.ReactNode = null;
