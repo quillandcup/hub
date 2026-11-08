@@ -333,6 +333,7 @@ export class InMemoryCourseProgressRepository implements CourseProgressRepositor
       this.data.videoWatchSegments.push({
         id: crypto.randomUUID(),
         captions_language: null,
+        chat_message_id: null,
         client_segment_id: null,
         device: null,
         kind: "watched",

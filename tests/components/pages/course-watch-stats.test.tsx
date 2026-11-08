@@ -370,6 +370,36 @@ describe("/admin/courses/[id]/stats/[lessonId]", () => {
     expect(screen.getByRole("link", { name: "Preview lesson" })).toBeInTheDocument();
   });
 
+  describe("watched in chat", () => {
+    const chat = { stats: computeVideoWatchStats([seg("b", 0, 120, { sessionId: "chat-1" })], 600, [view("b", "2026-10-08T10:00:00Z")].map((v) => ({ ...v, sessionId: "chat-1" }))), messages: 2 };
+    const withChat = (over: object = {}) => data({ lessons: [{ lesson: lesson(L1, "Reader Expectations"), videoId: "v1", playbackId: "pb-1", stats, sessions, chat, ...over }] });
+
+    it("reports chat viewing in its own section, apart from the lesson's tiles", async () => {
+      loadCourseWatchStats.mockResolvedValue(withChat());
+      await renderServerPage(LessonWatchStatsPage, lessonProps());
+
+      const section = screen.getByRole("region", { name: "Watched in chat" });
+      expect(within(section).getByText("Counted separately from the lesson: none of the numbers above include these.")).toBeInTheDocument();
+      expect(within(section).getByText("Time played").nextElementSibling).toHaveTextContent("2:00");
+      expect(within(section).getByText("Messages").nextElementSibling).toHaveTextContent("2");
+      // The lesson's own tiles are unchanged by it.
+      expect(tile("Viewers")).toHaveTextContent("2");
+    });
+
+    it("is not shown when nothing was watched in chat", async () => {
+      await renderServerPage(LessonWatchStatsPage, lessonProps());
+      expect(screen.queryByRole("region", { name: "Watched in chat" })).not.toBeInTheDocument();
+    });
+
+    it("is shown even when the lesson itself has not been watched", async () => {
+      loadCourseWatchStats.mockResolvedValue(withChat({ stats: null, sessions: [] }));
+      await renderServerPage(LessonWatchStatsPage, lessonProps());
+
+      expect(screen.getByText(/Nobody has watched this video yet/)).toBeInTheDocument();
+      expect(screen.getByRole("region", { name: "Watched in chat" })).toBeInTheDocument();
+    });
+  });
+
   it("says when nobody has watched it, or when it has no video", async () => {
     loadCourseWatchStats.mockResolvedValue(data({ lessons: [{ lesson: lesson(L1, "Voice"), videoId: "v1", playbackId: "pb-1", stats: null, sessions: [] }] }));
     await renderServerPage(LessonWatchStatsPage, lessonProps());

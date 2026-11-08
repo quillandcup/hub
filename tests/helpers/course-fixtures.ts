@@ -116,6 +116,7 @@ export const grantRow = (over: Partial<Row<"course_access_grants">> & Pick<Row<"
 
 export const segmentRow = (over: Partial<Row<"video_watch_segments">> & Pick<Row<"video_watch_segments">, "id" | "member_id" | "video_id">): Row<"video_watch_segments"> => ({
   captions_language: null,
+  chat_message_id: null,
   client_segment_id: null,
   device: null,
   end_seconds: 10,

@@ -19,6 +19,10 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
  * viewing history). Lessons members can't open yet are refused, except for staff acting as
  * themselves (the lesson page only sends for a preview when the staff member turned recording on).
  *
+ * `chatMessageId` says the video was watched in a chat message that shares it (docs/SLACK_BRIDGED_CHAT.md, "Lesson videos
+ * in messages"): it must be a message the member can read that shares exactly this lesson, and it is stored on each row so
+ * the stats keep chat views apart from lesson views. The position still goes to the lesson (resume follows the video).
+ *
  * Written as the member, so RLS only lets it touch their own rows. Completion is never changed here.
  * `viewed` records that the player appeared for this session (a marker row beside the stretches: the
  * play rate's denominator, and the device a view came from).
@@ -48,6 +52,13 @@ export async function POST(request: NextRequest) {
   const memberId = caller.identity.memberId;
   const videoId = lesson.video_id; // narrowed above; kept for the closures below
 
+  // From a chat message: read as the member, so row-level security hides a message they can't read; it has to share this lesson.
+  if (batch.chatMessageId) {
+    const shared = (await createRepos(supabase).chatVideos.lessonIdsOf([batch.chatMessageId])).get(batch.chatMessageId);
+    if (shared !== batch.lessonId) return NextResponse.json({ error: "Lesson not found" }, { status: 404 });
+  }
+  const chatMessageId = batch.chatMessageId;
+
   // The player appeared: one "viewed" marker per player session (its client id is the session id, so a resend is ignored).
   if (batch.viewed) {
     try {
@@ -58,6 +69,7 @@ export async function POST(request: NextRequest) {
           video_id: videoId,
           session_id: batch.sessionId,
           kind: "viewed",
+          chat_message_id: chatMessageId,
           start_seconds: 0,
           end_seconds: 0,
           user_agent: userAgentForStorage(request.headers.get("user-agent")),
@@ -80,6 +92,7 @@ export async function POST(request: NextRequest) {
           member_id: memberId,
           video_id: videoId,
           session_id: batch.sessionId,
+          chat_message_id: chatMessageId,
           start_seconds: s.start,
           end_seconds: s.end,
           playback_rate: s.rate,

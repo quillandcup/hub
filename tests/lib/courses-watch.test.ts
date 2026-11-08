@@ -9,13 +9,22 @@ const batch = (over: Record<string, unknown> = {}) => ({ lessonId: LESSON, sessi
 
 describe('parseWatchBatch', () => {
   it('accepts a well-formed batch', () => {
-    expect(parseWatchBatch(batch())).toEqual({ lessonId: LESSON, sessionId: SESSION, segments: [segment], position: 9.5, viewed: false })
+    expect(parseWatchBatch(batch())).toEqual({ lessonId: LESSON, sessionId: SESSION, segments: [segment], position: 9.5, viewed: false, chatMessageId: null })
   })
 
   it('takes a position-only update, and a missing position as none', () => {
     expect(parseWatchBatch(batch({ segments: [] }))?.segments).toEqual([])
     expect(parseWatchBatch(batch({ position: undefined }))?.position).toBeNull()
     expect(parseWatchBatch(batch({ position: null }))?.position).toBeNull()
+  })
+
+  it('takes the chat message a video was watched in, and refuses one that is not a message id', () => {
+    expect(parseWatchBatch(batch({ chatMessageId: 'msg_AAAAAAAAAAA1' }))?.chatMessageId).toBe('msg_AAAAAAAAAAA1')
+    expect(parseWatchBatch(batch({ chatMessageId: undefined }))?.chatMessageId).toBeNull()
+    expect(parseWatchBatch(batch({ chatMessageId: 'abc' }))).toBeNull()
+    expect(parseWatchBatch(batch({ chatMessageId: LESSON }))).toBeNull()
+    expect(parseWatchBatch(batch({ chatMessageId: 5 }))).toBeNull()
+    expect(parseWatchBatch(batch({ chatMessageId: null }))).toBeNull()
   })
 
   it('takes captions off as null', () => {

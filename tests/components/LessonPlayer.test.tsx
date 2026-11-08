@@ -5,7 +5,7 @@
  * the real library does with a stream was checked by hand in the player spike (docs/COURSES.md).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const player = vi.hoisted(() => ({
@@ -331,6 +331,27 @@ describe("LessonPlayer watch tracking", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
+  });
+
+  describe("watching from a chat message", () => {
+    it("names the message on the viewed marker and on every save, and leaves it off a lesson-page view", async () => {
+      player.media = fakeMedia();
+      render(<LessonPlayer title="T" playbackId="pb-1" tokens={tokens} lessonId="lesson-1" chatMessageId="msg_AAAAAAAAAAA1" trackProgress />);
+      await act(async () => {});
+      play(player.media, 0);
+      advance(player.media, 20);
+      pause(player.media);
+
+      expect(requests().length).toBeGreaterThan(1);
+      expect(requests().every((b) => b.chatMessageId === "msg_AAAAAAAAAAA1")).toBe(true);
+      cleanup();
+      fetchMock.mockClear();
+
+      player.media = fakeMedia();
+      render(tracked());
+      await act(async () => {});
+      expect(requests().every((b) => !("chatMessageId" in b))).toBe(true);
+    });
   });
 
   describe("the viewed marker", () => {

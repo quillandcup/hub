@@ -110,6 +110,35 @@ function HowWatched({ stats }: { stats: Stats }) {
   );
 }
 
+/**
+ * What was watched from chat messages that share the video. Kept out of every number above (the tiles, the graphs and the
+ * views are about the lesson), so a lesson shared widely in chat doesn't look like more people took the lesson.
+ */
+function ChatWatched({ chat }: { chat: NonNullable<LessonWatchStats["chat"]> }) {
+  const { stats, messages } = chat;
+  const items = [
+    { label: "Viewers", value: String(stats.viewers), note: "Different members who watched any of it in chat." },
+    { label: "Plays", value: String(stats.plays), note: `Visits to a message's video where it was played, of ${stats.views} ${stats.views === 1 ? "visit" : "visits"} that opened it.` },
+    { label: "Time played", value: formatClock(stats.watchedSeconds), note: "All video time played in chat, rewatches included." },
+    { label: "Messages", value: String(messages), note: "Different chat messages it was watched from." },
+  ];
+  return (
+    <section aria-labelledby="chat-watched" className="mt-6 rounded-lg bg-white p-6 shadow dark:bg-slate-900">
+      <h2 id="chat-watched" className="text-lg font-semibold">Watched in chat</h2>
+      <p className="mb-3 mt-1 text-sm text-slate-600 dark:text-slate-300">Counted separately from the lesson: none of the numbers above include these.</p>
+      <dl className="grid grid-cols-2 gap-3">
+        {items.map((i) => (
+          <div key={i.label} title={i.note} className="rounded-md border border-slate-200 px-3 py-2 dark:border-slate-800">
+            <dt className="text-xs text-slate-600 dark:text-slate-400">{i.label}</dt>
+            <dd className="text-lg font-semibold leading-tight tabular-nums">{i.value}</dd>
+            <dd className="sr-only">{i.note}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
 const messageClass = "rounded-lg bg-white p-6 text-sm text-slate-600 shadow dark:bg-slate-900 dark:text-slate-300";
 
 /**
@@ -292,6 +321,7 @@ export default async function renderLessonStats({
             />
           </>
         )}
+        {entry.chat && <ChatWatched chat={entry.chat} />}
       </StatsModal>
     );
   }
@@ -338,6 +368,7 @@ export default async function renderLessonStats({
           </div>
         </>
       )}
+      {entry.chat && <ChatWatched chat={entry.chat} />}
     </div>
   );
 }

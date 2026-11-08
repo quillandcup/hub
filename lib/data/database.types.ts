@@ -6031,6 +6031,7 @@ export type Database = {
       video_watch_segments: {
         Row: {
           captions_language: string | null
+          chat_message_id: string | null
           client_segment_id: string | null
           device: Json | null
           end_seconds: number
@@ -6047,6 +6048,7 @@ export type Database = {
         }
         Insert: {
           captions_language?: string | null
+          chat_message_id?: string | null
           client_segment_id?: string | null
           device?: Json | null
           end_seconds: number
@@ -6063,6 +6065,7 @@ export type Database = {
         }
         Update: {
           captions_language?: string | null
+          chat_message_id?: string | null
           client_segment_id?: string | null
           device?: Json | null
           end_seconds?: number
@@ -6078,6 +6081,13 @@ export type Database = {
           visible?: boolean
         }
         Relationships: [
+          {
+            foreignKeyName: "video_watch_segments_chat_message_id_fkey"
+            columns: ["chat_message_id"]
+            isOneToOne: false
+            referencedRelation: "chat_messages"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "video_watch_segments_member_id_fkey"
             columns: ["member_id"]

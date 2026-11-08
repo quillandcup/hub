@@ -278,7 +278,7 @@ function ResumePosition({ seconds }: { seconds: number }) {
  * stretch ends for a reason that may mean leaving; the playhead goes along so the next visit can
  * resume. Sending is best effort (a save that fails for a passing reason is queued and resent; each stretch's id makes a resend safe).
  */
-function WatchTracker({ lessonId }: { lessonId: string }) {
+function WatchTracker({ lessonId, chatMessageId }: { lessonId: string; chatMessageId?: string }) {
   const media = useMedia();
   const captions = useCaptionsOptions();
   // null when captions are off; the label ("English") otherwise, since track ids change per video.
@@ -298,13 +298,13 @@ function WatchTracker({ lessonId }: { lessonId: string }) {
         headers: { "Content-Type": "application/json" },
         // keepalive lets it finish while the page unloads.
         keepalive: true,
-        body: JSON.stringify({ lessonId, sessionId, segments, position, ...(viewed ? { viewed: true } : {}) }),
+        body: JSON.stringify({ lessonId, sessionId, segments, position, ...(chatMessageId ? { chatMessageId } : {}), ...(viewed ? { viewed: true } : {}) }),
       }).then((response) => {
         if (viewed && response.ok) viewedConfirmed.current = true;
         return response;
       });
     },
-    [lessonId, sessionId],
+    [lessonId, chatMessageId, sessionId],
   );
 
   // The player appeared: record the view, whether or not anything is played (the play rate's denominator).
@@ -469,6 +469,7 @@ export default function LessonPlayer({
   muxData,
   posterUrl,
   lessonId,
+  chatMessageId,
   resumeSeconds = 0,
   trackProgress = false,
   onTime,
@@ -483,6 +484,8 @@ export default function LessonPlayer({
   /** The lesson's thumbnail; only http(s) is used. */
   posterUrl?: string | null;
   lessonId?: string;
+  /** Set when the video is played from a chat message that shares it: its watching is recorded against the message. */
+  chatMessageId?: string;
   /** Where to start, from the member's saved position. */
   resumeSeconds?: number;
   /** Save watch segments and the playhead. Off in sudo and in a staff preview, which leave no viewing history. */
@@ -535,7 +538,7 @@ export default function LessonPlayer({
           />
           <ResumePosition seconds={resumeSeconds} />
           {onTime && <ReportTime onTime={onTime} />}
-          {trackProgress && lessonId && <WatchTracker lessonId={lessonId} />}
+          {trackProgress && lessonId && <WatchTracker lessonId={lessonId} chatMessageId={chatMessageId} />}
           <BigPlayButton />
           {muxDataOn && <MuxDataMonitor title={title} />}
           <MuxVideo
