@@ -79,6 +79,7 @@ export async function GET(request: NextRequest) {
       role: profile?.role ?? "member",
       features: featureMap.get(u.id) ?? [],
       createdAt: u.createdAt,
+      lastSignInAt: u.lastSignInAt,
       staffId: staff?.id ?? null,
       staffName: staff?.name ?? null,
       staffRole: staff?.role ?? null,

@@ -57,6 +57,8 @@ describe('Admin users and invite: aliases and the auth-user listing', () => {
     const body = await res.json()
     const row = body.users.find((u: { id: string }) => u.id === authUserId)
     expect(row.aliases.sort()).toEqual([emailAlias, nameAlias].sort())
+    // Created through the admin API and never signed in: no last sign-in.
+    expect(row.lastSignInAt).toBeNull()
     // A user with no linked member has no aliases (vacuously true if every user here is linked).
     const unlinked = body.users.filter((u: { memberId: string | null }) => u.memberId === null)
     expect(unlinked.every((u: { aliases: string[] }) => u.aliases.length === 0)).toBe(true)
