@@ -35,6 +35,14 @@ vi.mock("@/components/courses/LessonPlayer", () => ({
     </div>
   ),
 }));
+const sharing = { on: false, targets: [{ id: "chn_AAAAAAAAAAA1", label: "#writing" }] };
+vi.mock("@/lib/features.server", () => ({
+  getUserFeaturePreviews: async () => [],
+  effectiveMemberHasFeature: async () => sharing.on,
+}));
+vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({}) }));
+vi.mock("@/lib/chat/share-targets", () => ({ shareTargets: async () => sharing.targets }));
+vi.mock("@/app/(member)/chat/actions", () => ({ shareLessonVideoInChat: vi.fn() }));
 vi.mock("@/app/(member)/courses/actions", () => ({ setLessonComplete: vi.fn(async () => ({})), clearMyLessonProgress: vi.fn(async () => ({})) }));
 
 import LessonPlayerMock from "@/components/courses/LessonPlayer";
@@ -72,6 +80,8 @@ beforeEach(() => {
   muxDataConsentFor.mockResolvedValue(null);
   caller.identity.isSudo = false;
   caller.scope.isAdminActing = false;
+  sharing.on = false;
+  sharing.targets = [{ id: "chn_AAAAAAAAAAA1", label: "#writing" }];
 });
 
 describe("/courses", () => {
@@ -846,6 +856,46 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
       loadLessonView.mockResolvedValue(withVideo({ preview: true }));
       await renderServerPage(LessonPage, params());
       expect(screen.getByTestId("player")).toHaveAttribute("data-tracking", "false");
+    });
+  });
+
+  describe("Share this video in chat", () => {
+    const ready = () => {
+      signPlaybackTokens.mockResolvedValue({ playback: "p", poster: "t", storyboard: "s" });
+      loadLessonView.mockResolvedValue(ok({ video: { status: "ready", playbackId: "pb-1" } }));
+    };
+    const shareButton = () => screen.queryByRole("button", { name: /share this video in chat/i });
+
+    it("is offered when chat, posting and chat videos are on and the video is ready", async () => {
+      sharing.on = true;
+      ready();
+      await renderServerPage(LessonPage, params());
+
+      expect(shareButton()).toBeInTheDocument();
+    });
+
+    it("is not offered when a feature is off, in sudo, with nowhere to share, or before the video is ready", async () => {
+      ready();
+      await renderServerPage(LessonPage, params());
+      expect(shareButton()).not.toBeInTheDocument();
+      cleanup();
+
+      sharing.on = true;
+      caller.identity.isSudo = true;
+      await renderServerPage(LessonPage, params());
+      expect(shareButton()).not.toBeInTheDocument();
+      cleanup();
+
+      caller.identity.isSudo = false;
+      sharing.targets = [];
+      await renderServerPage(LessonPage, params());
+      expect(shareButton()).not.toBeInTheDocument();
+      cleanup();
+
+      sharing.targets = [{ id: "chn_AAAAAAAAAAA1", label: "#writing" }];
+      loadLessonView.mockResolvedValue(ok({ video: { status: "preparing", playbackId: null } }));
+      await renderServerPage(LessonPage, params());
+      expect(shareButton()).not.toBeInTheDocument();
     });
   });
 

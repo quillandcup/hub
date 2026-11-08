@@ -36,6 +36,7 @@ vi.mock("@/lib/chat/blocks-refused", () => ({ reportRefusedBlocks: (...args: unk
 const { sendFiles } = vi.hoisted(() => ({ sendFiles: vi.fn() }));
 vi.mock("@/lib/chat/slack-upload", () => ({ sendChatFilesToSlack: sendFiles }));
 
+import { APP_URL } from "@/lib/config";
 import { chatSlackWritesEnabled, escapeForSlack, hubMessageMetadata, retryUnsentChatMessages, sendChatMessageToSlack } from "@/lib/chat/slack-post";
 
 const CHANNEL = "chn_AAAAAAAAAAA1";
@@ -125,6 +126,27 @@ describe("sendChatMessageToSlack", () => {
       metadata: hubMessageMetadata(ID),
     });
     expect(stateOf(ID)).toMatchObject({ slack_ts: "1700000000.000100", slack_sync_status: "sent", posted_via: "user_token" });
+  });
+
+  it("adds a link to the lesson for a message that shares a lesson video, as plain text even when the words need blocks", async () => {
+    dataset.courses.push({ id: "crs_AAAAAAAAAAA1", slug: "ready-writer" } as never);
+    dataset.courseLessons.push({ id: "les_AAAAAAAAAAA1", course_id: "crs_AAAAAAAAAAA1" } as never);
+    dataset.chatMessageVideos.push({ id: "cmv_AAAAAAAAAAA1", message_id: ID, lesson_id: "les_AAAAAAAAAAA1", created_at: "2026-10-10T11:00:00Z" });
+    dataset.chatMessageContents![0].body = "Hello <u>there</u> & friends";
+
+    await sendChatMessageToSlack(supabase as never, ID);
+
+    const [args] = postMessage.mock.calls[0];
+    expect(args.text).toBe(`Hello there &amp; friends\n<${APP_URL}/courses/ready-writer/lessons/les_AAAAAAAAAAA1|Watch the video>`);
+    expect(args.blocks).toBeUndefined();
+  });
+
+  it("still posts the message, without a link, when the shared lesson can't be found", async () => {
+    dataset.chatMessageVideos.push({ id: "cmv_AAAAAAAAAAA1", message_id: ID, lesson_id: "les_AAAAAAAAAAA9", created_at: "2026-10-10T11:00:00Z" });
+
+    await expect(sendChatMessageToSlack(supabase as never, ID)).resolves.toBe("sent");
+
+    expect(postMessage.mock.calls[0][0].text).toBe("Hello &lt;everyone&gt; &amp; friends");
   });
 
   it("posts a message with an underline as rich-text blocks, with its text minus the underline as the fallback", async () => {

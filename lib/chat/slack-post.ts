@@ -10,6 +10,7 @@ import { escapeForSlack } from "@/lib/chat/slack-escape";
 import { reportRefusedBlocks } from "@/lib/chat/blocks-refused";
 import { bodyToBlocks, isInvalidBlocks, needsBlocks, stripUnderline } from "@/lib/chat/rich-blocks";
 import { sendChatFilesToSlack } from "@/lib/chat/slack-upload";
+import { sharedVideoLink } from "@/lib/chat/video-link";
 
 /**
  * The outbox's second step (docs/SLACK_BRIDGED_CHAT.md, "Hub -> Slack"): a message a member wrote
@@ -98,13 +99,21 @@ export async function sendChatMessageToSlack(supabase: SupabaseClient, messageId
 
   if (!connection) return fail("the member has no working Slack connection");
 
+  // A message that shares a lesson video says so in Slack with a link to the lesson: Slack can't play it (docs/TODO.md,
+  // "Chat: Watch Videos In The Conversation"). A failed lookup sends the message without the link rather than not at all.
+  const videoLink = await sharedVideoLink(createRepos(supabase as unknown as Db), messageId).catch((error) => {
+    console.error("sendChatMessageToSlack: shared video link failed for %s:", messageId, error);
+    return null;
+  });
+  const slackText = (text: string) => escapeForSlack(stripUnderline(text)) + (videoLink ? `\n<${videoLink}|Watch the video>` : "");
+
   let result: Awaited<ReturnType<WebClient["chat"]["postMessage"]>>;
   try {
     const client = new WebClient(connection.token);
     const post = (blocks: boolean) =>
       client.chat.postMessage({
         channel: slackChannelId,
-        text: escapeForSlack(stripUnderline(body)),
+        text: slackText(body),
         // An underline or a list has no mrkdwn, so a message with one goes as rich-text blocks (its text, minus the underline, is the fallback).
         ...(blocks ? { blocks: bodyToBlocks(body, { plain: true }) } : {}),
         thread_ts: threadTs,
@@ -112,7 +121,8 @@ export async function sendChatMessageToSlack(supabase: SupabaseClient, messageId
         unfurl_media: false,
         metadata: hubMessageMetadata(messageId),
       });
-    const withBlocks = needsBlocks(body);
+    // The link is part of the text, so a shared video goes as plain text even when the words would otherwise need blocks.
+    const withBlocks = needsBlocks(body) && !videoLink;
     try {
       result = await post(withBlocks);
     } catch (error) {

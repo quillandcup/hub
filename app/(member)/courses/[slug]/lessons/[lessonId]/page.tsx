@@ -9,6 +9,10 @@ import { restrictionIdForViewer } from "@/lib/mux-restriction.server";
 import { muxDataConsentFor } from "@/lib/mux-data.server";
 import { startSeconds } from "@/lib/courses/watch";
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import { createClient } from "@/lib/supabase/server";
+import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
+import { shareTargets } from "@/lib/chat/share-targets";
+import ShareLessonInChat from "../../../ShareLessonInChat";
 import { courseTitle, lessonTitles } from "@/lib/courses/page-title";
 import { isId } from "@/lib/ids";
 import PageBanner from "@/components/PageBanner";
@@ -109,6 +113,15 @@ export default async function LessonPage({
 
   // Watching is recorded for members' open lessons, and nowhere else (sudo, a staff preview) unless staff turn it on for a preview.
   const watchRecorded = !caller.identity.isSudo && (!preview || (caller.scope.isAdminActing && trackPreview));
+
+  // "Share in chat": chat, posting and chat videos on, not in sudo (read-only), on a lesson whose video is ready. A failed read just hides it.
+  let shareButton: React.ReactNode = null;
+  if (video?.status === "ready" && !caller.identity.isSudo) {
+    const own = await getUserFeaturePreviews(caller.userId);
+    const allOn = (await Promise.all((["chat", "chat_posting", "chat_videos"] as const).map((k) => effectiveMemberHasFeature(k, caller.identity, own)))).every(Boolean);
+    const targets = allOn ? await shareTargets(createRepos(await createClient()), caller.identity.memberId).catch(() => []) : [];
+    shareButton = <ShareLessonInChat lessonId={lesson.id} targets={targets} />;
+  }
 
   let player: React.ReactNode = null;
   if (video) {
@@ -218,6 +231,7 @@ export default async function LessonPage({
           )}
 
           <div className="@outline:col-start-1">
+            {shareButton}
             <StepButtons slug={view.course.slug} previous={neighbors.previous} next={neighbors.next} hideOnWide={Boolean(player && sectionList)} />
             {/* Where the list isn't beside the video, it follows it, closed: the way around the section stays one tap away. */}
             {sectionList && section && (

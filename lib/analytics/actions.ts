@@ -62,6 +62,7 @@ export const OUTCOME_ACTIONS = [
   "chat_channel_joined",
   "chat_file_deleted",
   "chat_dm_started",
+  "chat_video_shared",
   // Community
   "wheel_spun",
   "wheel_introduced",

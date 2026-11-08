@@ -1,4 +1,4 @@
-export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat' | 'chat_posting' | 'chat_dms' | 'slack_dm_bridge' | 'big_sisters' | 'intro_reminders' | 'prickle_reminders' | 'checkin_dropins' | 'courses' | 'hosting' | 'writing_journey' | 'mux_playback_restriction' | 'mux_data' | 'changelog_digest';
+export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat' | 'chat_posting' | 'chat_dms' | 'chat_videos' | 'slack_dm_bridge' | 'big_sisters' | 'intro_reminders' | 'prickle_reminders' | 'checkin_dropins' | 'courses' | 'hosting' | 'writing_journey' | 'mux_playback_restriction' | 'mux_data' | 'changelog_digest';
 
 export interface FeaturePreview {
   key: FeatureKey;
@@ -56,6 +56,11 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     key: 'chat_dms',
     name: 'Chat direct messages',
     description: 'Start a direct message with another member from their profile. Hub direct messages stay in the Hub (nothing goes to Slack), and staff cannot read them. Members you message see the conversation whether or not they have this on; this decides who can start one. Needs Chat and Chat posting',
+  },
+  {
+    key: 'chat_videos',
+    name: 'Chat videos',
+    description: 'Share a course lesson\'s video into a chat conversation, with a button on the lesson page. This decides who can share; any member who can read the message can see the card. Only members with access to the course can play it; everyone else sees that it is part of a course. In Slack the message shows a link to the lesson. Needs Chat, Chat posting and Courses',
   },
   {
     key: 'slack_dm_bridge',
