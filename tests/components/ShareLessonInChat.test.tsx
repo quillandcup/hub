@@ -50,6 +50,19 @@ describe("ShareLessonInChat", () => {
       expect(await screen.findByRole("status")).toHaveTextContent(/Paste it into any message in Hub Chat, in a thread or a direct message too/);
     });
 
+    it("gives admins a second link that carries the open marker, and members only the plain one", async () => {
+      writeText.mockResolvedValue(undefined);
+      const { unmount } = render(<ShareLessonInChat lessonId={LESSON} shareUrl={LINK} targets={TARGETS} />);
+      expect(screen.queryByRole("button", { name: /open to everyone in the conversation/i })).not.toBeInTheDocument();
+      unmount();
+
+      render(<ShareLessonInChat lessonId={LESSON} shareUrl={LINK} targets={TARGETS} canOpenToChannel />);
+      await userEvent.click(screen.getByRole("button", { name: /open to everyone in the conversation/i }));
+
+      expect(writeText).toHaveBeenCalledWith(`${LINK}?share=open`);
+      expect(await screen.findByRole("status")).toHaveTextContent(/everyone in that conversation can watch.*Only you, as an admin/);
+    });
+
     it("says so, and points at the address bar, when the browser won't copy", async () => {
       writeText.mockRejectedValue(new Error("denied"));
       render(<ShareLessonInChat lessonId={LESSON} shareUrl={LINK} targets={TARGETS} />);

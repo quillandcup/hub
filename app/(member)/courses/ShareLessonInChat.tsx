@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { shareLessonVideoInChat } from "@/app/(member)/chat/actions";
 import EntitySearch from "@/components/EntitySearch";
 import type { ShareTarget } from "@/lib/chat/share-targets";
+import { OPEN_SHARE_PARAM, OPEN_SHARE_VALUE } from "@/lib/chat/lesson-links";
 
 /**
  * "Share in chat" on a lesson with a video. Two ways: pick a conversation here, add a note if you like, and the video is posted
@@ -36,14 +37,15 @@ export default function ShareLessonInChat({
   const [pending, start] = useTransition();
   const [result, setResult] = useState<{ ok: true; channelId: string } | { ok: false; error: string } | null>(null);
 
-  const [copied, setCopied] = useState<"yes" | "failed" | null>(null);
+  const [copied, setCopied] = useState<"yes" | "open" | "failed" | null>(null);
 
   const items = targets.map((t) => ({ id: t.id, name: t.label }));
 
-  async function copyLink() {
+  async function copyLink(open = false) {
     try {
-      await navigator.clipboard.writeText(shareUrl);
-      setCopied("yes");
+      // The open link carries a marker that only counts when an admin sends it; for anyone else it is an ordinary closed share.
+      await navigator.clipboard.writeText(open ? `${shareUrl}?${OPEN_SHARE_PARAM}=${OPEN_SHARE_VALUE}` : shareUrl);
+      setCopied(open ? "open" : "yes");
     } catch {
       setCopied("failed");
     }
@@ -77,18 +79,30 @@ export default function ShareLessonInChat({
         )}
         <button
           type="button"
-          onClick={copyLink}
+          onClick={() => copyLink()}
           data-track="lesson-copy-chat-link"
           className="text-sm font-medium text-plum-600 hover:underline dark:text-plum-400"
         >
           Copy link to paste in chat
         </button>
+        {canOpenToChannel && (
+          <button
+            type="button"
+            onClick={() => copyLink(true)}
+            data-track="lesson-copy-chat-link-open"
+            className="text-sm font-medium text-plum-600 hover:underline dark:text-plum-400"
+          >
+            Copy link, open to everyone in the conversation
+          </button>
+        )}
       </div>
       {copied && (
         <p role="status" className="mt-1 text-sm text-slate-700 dark:text-slate-300">
           {copied === "yes"
             ? "Copied. Paste it into any message in Hub Chat, in a thread or a direct message too, to share the video there."
-            : "Couldn't copy. The lesson's address in your browser's address bar works the same way."}
+            : copied === "open"
+              ? "Copied. Paste it into any message in Hub Chat: everyone in that conversation can watch the video, even without the course. Only you, as an admin, can send this link that way."
+              : "Couldn't copy. The lesson's address in your browser's address bar works the same way (it shares to members with the course only)."}
         </p>
       )}
       {open && targets.length > 0 && (

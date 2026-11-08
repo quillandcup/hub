@@ -159,12 +159,18 @@ describe("sendChatMessage with a lesson address pasted in", () => {
     expect(m.rpc).toHaveBeenCalledWith("chat_post_shared_video", { p_channel_id: CHANNEL, p_body: "Shared a lesson video: Show up for the page", p_lesson_id: LESSON, p_open_to_channel: false, p_thread_root_id: ROOT });
   });
 
-  it("never opens a pasted share to the channel, even for an admin: that stays on the share panel", async () => {
+  it("opens a pasted share to the channel only for an admin acting as themselves, and only with the marker", async () => {
     m.coursesCaller.mockResolvedValue({ userId: "auth-1", identity: { memberId: "member-fern", isSudo: false }, scope: { memberId: "member-fern", isAdminActing: true } });
+    await sendChatMessage(CHANNEL, `${ADDRESS}?share=open`);
+    expect(m.rpc).toHaveBeenLastCalledWith("chat_post_shared_video", expect.objectContaining({ p_open_to_channel: true }));
 
-    await sendChatMessage(CHANNEL, `${ADDRESS}?open=1`);
+    await sendChatMessage(CHANNEL, ADDRESS);
+    expect(m.rpc).toHaveBeenLastCalledWith("chat_post_shared_video", expect.objectContaining({ p_open_to_channel: false }));
 
-    expect(m.rpc).toHaveBeenCalledWith("chat_post_shared_video", expect.objectContaining({ p_open_to_channel: false }));
+    // A member sending the same link gets an ordinary closed share (and no error), and so does an admin in sudo.
+    m.coursesCaller.mockResolvedValue({ userId: "auth-1", identity: { memberId: "member-fern", isSudo: false }, scope: { memberId: "member-fern", isAdminActing: false } });
+    expect(await sendChatMessage(CHANNEL, `${ADDRESS}?share=open`)).toEqual({ ok: true, id: POSTED });
+    expect(m.rpc).toHaveBeenLastCalledWith("chat_post_shared_video", expect.objectContaining({ p_open_to_channel: false }));
   });
 
   it("leaves the address as ordinary text when the sender couldn't share that lesson", async () => {

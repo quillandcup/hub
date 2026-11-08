@@ -358,7 +358,8 @@ async function sendChatMessageImpl(channelId: string, body: string, threadRootId
     const pasted = extractLessonLink(body, APP_URL);
     const check = pasted ? await checkShareable(caller, pasted.lessonId) : null;
     if (pasted && check?.ok) {
-      share = { lessonId: pasted.lessonId, openToChannel: false };
+      // The open-share marker counts only from an admin acting as themselves; from anyone else the share is just closed.
+      share = { lessonId: pasted.lessonId, openToChannel: pasted.openToChannel && check.isAdminActing };
       text = pasted.body || `Shared a lesson video: ${check.lessonTitle}`;
     }
   }
