@@ -32,8 +32,8 @@ export const PRIVACY_EFFECTIVE = "2026-11-03";
  * - One-on-one Slack DMs (the `slack_dm_bridge` feature, docs/SLACK_BRIDGED_CHAT.md): for a member it is on for, their
  *   own Slack token lists and reads their DMs (when they open chat, on a live event, nightly; `lib/chat/slack-dms.ts`,
  *   `lib/chat/slack-dm-events.ts`, `/api/reconcile/slack-dms`), into Bronze (service role only, never shown to admins as text) and
- *   the chat as a private, restricted `dm` conversation: the Hub members in it (either of them, once any pull has
- *   projected it) can read it, admins see only that it exists and its metadata, sudo never shows it. A DM with a
+ *   the chat as a private, restricted `dm` conversation: the Hub members in it who have pulled their own DMs (each is
+ *   added by their own pull, `slack_dm_member_pulled`; the other person only once theirs finds it) can read it, admins see only that it exists and its metadata, sudo never shows it. A DM with a
  *   non-member keeps their messages under their Slack name; nothing else about them. The page's DM statements must
  *   change with that code, in particular if a pull ever starts to cover a member the feature doesn't.
  * - Usage log: what is recorded and when (`lib/analytics/events.ts`, `lib/analytics/receive.ts`), the consent
@@ -298,7 +298,7 @@ export default async function PrivacyPage() {
           on our plan; the Hub keeps its copy until you ask us to remove it.
           <br />
           <br />
-          <strong>Who can see them.</strong> You, and the other person if they are a Hub member (they see the same copy). If
+          <strong>Who can see them.</strong> You, and the other person if they are a Hub member (they see the same conversation in their own chat once their own DMs are brought in). If
           they aren&apos;t a member, their messages are kept in your conversation under their Slack name, and we keep nothing
           else about them. Staff can see that the conversation exists, who is in it, who wrote and when, but they can read the
           text only through break-glass access, as for a restricted channel. Viewing the Hub as you never shows them.

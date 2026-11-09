@@ -30,6 +30,11 @@ INSERT INTO public.members (id, name, email, joined_at, status) VALUES
   ('mbr_AAAAAAAAsdA2', 'Sd Gale', 'sd-gale@example.test', now(), 'active'),
   ('mbr_AAAAAAAAsdA3', 'Sd Hale', 'sd-hale@example.test', now(), 'active');
 
+-- Both have pulled their DMs (a Slack DM is in the chat of the members who have; slack_dm_visibility_gate.test.sql covers who hasn't).
+INSERT INTO public.member_slack_connections (member_id, slack_user_id, scopes, dms_pulled_at) VALUES
+  ('mbr_AAAAAAAAsdA1', 'PGTAPSD_UFERN', ARRAY['im:history'], now()),
+  ('mbr_AAAAAAAAsdA2', 'PGTAPSD_UGALE', ARRAY['im:history'], now());
+
 -- A DM between Fern and Gale (D1), one between Fern and someone who isn't a member (D2), and a normal channel.
 INSERT INTO bronze.slack_channels (channel_id, name, is_private, is_mpim, is_im, im_user_id, is_archived, member_count, raw_payload) VALUES
   ('PGTAPSD_D1', '', true, false, true, 'PGTAPSD_UGALE', false, 2, '{}'),
@@ -64,7 +69,7 @@ SELECT public.project_slack_chat_channels('{"PGTAPSD_UFERN": "mbr_AAAAAAAAsdA1",
 SELECT is((SELECT string_agg(slack_channel_id || '=' || kind || '/' || restricted || '/' || COALESCE(name, '-'), ',' ORDER BY slack_channel_id) FROM public.chat_channels WHERE slack_channel_id LIKE 'PGTAPSD_%'), 'PGTAPSD_C1=channel/false/sd-general,PGTAPSD_D1=dm/true/-,PGTAPSD_D2=dm/true/-', 'the full projection files DMs as private direct messages and a channel as a channel');
 
 -- Claiming a pull: once, then not until the interval is over; never for a member without a working connection.
-INSERT INTO public.member_slack_connections (member_id, slack_user_id, scopes) VALUES ('mbr_AAAAAAAAsdA1', 'PGTAPSD_UFERN', ARRAY['im:history']);
+UPDATE public.member_slack_connections SET dms_pulled_at = NULL WHERE member_id = 'mbr_AAAAAAAAsdA1';
 SELECT is(public.chat_claim_slack_dm_pull('mbr_AAAAAAAAsdA1', 300), true, 'the first pull is claimed');
 SELECT is(public.chat_claim_slack_dm_pull('mbr_AAAAAAAAsdA1', 300), false, 'a second one a moment later is not');
 UPDATE public.member_slack_connections SET dms_pulled_at = now() - interval '10 minutes' WHERE member_id = 'mbr_AAAAAAAAsdA1';

@@ -341,7 +341,9 @@ describe("openSlackDm", () => {
     expect(m.open).toHaveBeenCalledWith({ users: "UGALE", return_im: true });
     expect(rpcCalls("project_slack_dm")[0][1]).toEqual({ p_channel_id: "D1", p_members: { USELF: MEMBER, UGALE: GALE } });
     expect((m.dataset as InMemoryDataset).slackMessages).toHaveLength(1);
-    expect(rpcCalls("chat_claim_slack_dm_pull")).toHaveLength(0); // opening a DM isn't throttled
+    // Opening a DM isn't throttled, and counts as the member having pulled (a Slack DM is in the chat of members who have).
+    expect(rpcCalls("chat_claim_slack_dm_pull").map(([, args]) => args.p_min_seconds)).toEqual([0]);
+    expect(m.rpc.mock.calls.findIndex(([name]) => name === "chat_claim_slack_dm_pull")).toBeLessThan(m.rpc.mock.calls.findIndex(([name]) => name === "project_slack_dm"));
   });
 
   it("does nothing off production, without the DM scopes or a token, or for a person with no known Slack id", async () => {
