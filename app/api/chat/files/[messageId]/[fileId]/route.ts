@@ -6,7 +6,7 @@ import { ensureSlackFileCopied, SLACK_FILES_BUCKET } from "@/lib/slack-capture";
 import { PENDING_FILE_PREFIX, isInlineImage, parseChatFiles } from "@/lib/chat/files";
 import { createRepos } from "@/lib/data/repos";
 import { isId } from "@/lib/ids";
-import { getSlackBotToken } from "@/lib/slack-bot-token";
+import { slackFileToken } from "@/lib/chat/file-token";
 
 export const maxDuration = 60;
 
@@ -40,7 +40,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   let storedType: string | null = null;
   /** Ask Slack for the file (and keep a copy of it): the last resort, for a file that came from Slack and has not been copied yet. */
   const fromSlack = async (): Promise<string | null> => {
-    const copy = await ensureSlackFileCopied(service, (await getSlackBotToken()) ?? "", {
+    const token = await slackFileToken(service, user, content.slackChannelId);
+    if (token === null) return null;
+    const copy = await ensureSlackFileCopied(service, token, {
       fileId,
       channelId: content.slackChannelId ?? "",
       messageTs: content.slackTs ?? "",

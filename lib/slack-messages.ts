@@ -212,3 +212,6 @@ export function addSlackMessage(
     }
   }
 }
+
+/** A Slack 1:1 DM's conversation id (`D…`): one the bot is never in, so only a member's own token can read it or its files. */
+export const isSlackDmChannelId = (channelId: unknown): boolean => typeof channelId === "string" && /^D[A-Z0-9]+$/.test(channelId)

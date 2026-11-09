@@ -6,7 +6,12 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: vi.fn() }));
 vi.mock("@/lib/slack-capture", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/slack-capture")>()), ensureSlackFileCopied: vi.fn() }));
 
+vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: vi.fn() }));
+vi.mock("@/lib/slack-connect", () => ({ getSlackUserToken: vi.fn() }));
+
 import { InMemoryDataset } from "@/lib/data/in-memory";
+import { getEffectiveIdentity } from "@/lib/sudo";
+import { getSlackUserToken } from "@/lib/slack-connect";
 import { createInMemoryRepos } from "@/lib/data/repos";
 import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -162,5 +167,32 @@ describe("GET /api/chat/files/[messageId]/[fileId]", () => {
     download = { data: null, error: { message: "Object not found" } };
     expect((await call(MESSAGE, "F_IMG")).status).toBe(404);
     log.mockRestore();
+  });
+
+  describe("a file in a one-on-one DM", () => {
+    // The bot can't be in a DM, so the member looking at it asks Slack with their own token.
+    beforeEach(() => {
+      setContent(FILES, { ts: "1.1", channel: "D1" });
+      vi.mocked(getEffectiveIdentity).mockResolvedValue({ memberId: "mbr_AAAAAAAAAAF1", isSudo: false } as never);
+      vi.mocked(getSlackUserToken).mockResolvedValue({ token: "xoxp-viewer", slackUserId: "UF" });
+    });
+
+    it("is fetched with the viewer's own token, not the bot's", async () => {
+      const res = await call(MESSAGE, "F_IMG");
+      expect(res.status).toBe(200);
+      expect(getSlackUserToken).toHaveBeenCalledWith(expect.anything(), "mbr_AAAAAAAAAAF1");
+      expect(ensureSlackFileCopied).toHaveBeenCalledWith(expect.anything(), "xoxp-viewer", { fileId: "F_IMG", channelId: "D1", messageTs: "1.1" });
+    });
+
+    it("is not asked of Slack at all when the viewer has no working connection, or is viewing as someone else", async () => {
+      vi.mocked(getSlackUserToken).mockResolvedValue(null);
+      expect((await call(MESSAGE, "F_IMG")).status).toBe(404);
+      vi.mocked(getSlackUserToken).mockResolvedValue({ token: "xoxp-viewer", slackUserId: "UF" });
+      vi.mocked(getEffectiveIdentity).mockResolvedValue({ memberId: "mbr_AAAAAAAAAAF1", isSudo: true } as never);
+      expect((await call(MESSAGE, "F_IMG")).status).toBe(404);
+      vi.mocked(getEffectiveIdentity).mockResolvedValue(null);
+      expect((await call(MESSAGE, "F_IMG")).status).toBe(404);
+      expect(ensureSlackFileCopied).not.toHaveBeenCalled();
+    });
   });
 });

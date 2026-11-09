@@ -11,6 +11,7 @@ const m = vi.hoisted(() => ({
   history: vi.fn(),
   open: vi.fn(),
   replies: vi.fn(),
+  ensureFile: vi.fn(),
   rpc: vi.fn(),
   dataset: null as unknown,
 }));
@@ -20,6 +21,7 @@ vi.mock("@slack/web-api", () => ({
     conversations = { list: m.list, history: m.history, open: m.open, replies: m.replies };
   },
 }));
+vi.mock("@/lib/slack-capture", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/slack-capture")>()), ensureSlackFileCopied: m.ensureFile }));
 vi.mock("@/lib/chat/slack-post", () => ({ chatSlackWritesEnabled: () => m.writes }));
 vi.mock("@/lib/features.server", () => ({
   membersWithFeatureForOutreach: async (_repos: unknown, _key: string, ids: string[]) => new Set(ids.filter((id) => m.covered.has(id))),
@@ -52,6 +54,7 @@ beforeEach(() => {
   m.dataset = new InMemoryDataset({ chatSlackAuthors: [{ slack_user_id: "UGALE", member_id: GALE }] });
   m.list.mockReset().mockResolvedValue({ channels: [{ id: "D1", user: "UGALE", created: 1_700_000_000 }] });
   m.history.mockReset().mockResolvedValue({ messages: [], has_more: false });
+  m.ensureFile.mockReset().mockResolvedValue({ ok: true, path: "F/x", mimetype: "image/png" });
   m.replies.mockReset().mockResolvedValue({ messages: [], has_more: false });
   m.open.mockReset().mockResolvedValue({ ok: true, channel: { id: "D1" } });
   m.rpc.mockReset().mockImplementation(async (name: string) => {
@@ -210,6 +213,43 @@ describe("what a pull keeps up with: replies, reactions, edits and deletions", (
     const live = ds().slackReactions.filter((r) => !r.deleted_at).map((r) => `${r.reaction}:${r.user_id}`).sort();
     expect(live).toEqual(["heart:UGALE", "heart:USELF"]);
     expect(ds().slackReactions.find((r) => r.reaction === "tada")?.deleted_at).toEqual(expect.any(String));
+  });
+
+  describe("files", () => {
+    const file = (id: string) => ({ id, name: `${id}.png`, mimetype: "image/png", size: 100, url_private: `https://files.slack.test/${id}` });
+
+    it("records the files on a message and copies them with the member's own token", async () => {
+      m.history.mockResolvedValue({ messages: [{ ts: ts(3600), user: "UGALE", text: "look", subtype: "file_share", files: [file("F1"), file("F2")] }], has_more: false });
+      await pullMemberDms(service, MEMBER);
+      expect(ds().slackFiles.map((f) => f.file_id).sort()).toEqual(["F1", "F2"]);
+      expect(m.ensureFile).toHaveBeenCalledTimes(2);
+      expect(m.ensureFile).toHaveBeenCalledWith(service, "xoxp-test", { fileId: "F1", channelId: "D1", messageTs: ts(3600) });
+    });
+
+    it("leaves alone a file already copied or deleted, and copies no more than its budget", async () => {
+      ds().slackFiles.push(
+        { file_id: "FDONE", channel_id: "D1", message_ts: ts(3600), storage_path: "FDONE/x", deleted_at: null, raw_payload: {} } as never,
+        { file_id: "FGONE", channel_id: "D1", message_ts: ts(3600), storage_path: null, deleted_at: "2026-11-03T00:00:00Z", raw_payload: {} } as never
+      );
+      const many = Array.from({ length: 14 }, (_, i) => file(`FM${i}`));
+      m.history.mockResolvedValue({ messages: [{ ts: ts(3600), user: "UGALE", text: "many", files: [file("FDONE"), file("FGONE"), ...many] }], has_more: false });
+      await pullMemberDms(service, MEMBER);
+      expect(m.ensureFile).toHaveBeenCalledTimes(10);
+      expect(m.ensureFile.mock.calls.map(([, , ref]) => ref.fileId)).not.toContain("FDONE");
+      expect(m.ensureFile.mock.calls.map(([, , ref]) => ref.fileId)).not.toContain("FGONE");
+      m.ensureFile.mockClear();
+      await pullMemberDms(service, MEMBER, { force: true, lookbackDays: 7, fileCopies: 40 });
+      expect(m.ensureFile.mock.calls.length).toBeGreaterThan(10);
+    });
+
+    it("doesn't fail the pull when a file can't be copied (it is tried again when someone opens it)", async () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      m.ensureFile.mockResolvedValue({ ok: false, reason: "download failed with HTTP 403" });
+      m.history.mockResolvedValue({ messages: [{ ts: ts(3600), user: "UGALE", text: "x", files: [file("F1")] }], has_more: false });
+      await expect(pullMemberDms(service, MEMBER)).resolves.toMatchObject({ conversations: 1, errors: [] });
+      expect(warn).toHaveBeenCalled();
+      warn.mockRestore();
+    });
   });
 
   it("updates an edited message", async () => {
