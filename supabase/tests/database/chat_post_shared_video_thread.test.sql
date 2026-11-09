@@ -1,7 +1,7 @@
 -- pgTAP tests for 20270531000000_chat_post_shared_video_thread.sql:
 --  * a lesson video can be shared as a reply in a thread, and in a Hub direct message;
 --  * a bad thread refuses the share and leaves neither a message nor a video row;
---  * the four-argument form (dropped by 20270603000000) is gone;
+--  * the four-argument form (dropped by 20270604000000) is gone;
 --  * the same sharer checks apply (no access, not in the conversation).
 -- Rolled back; run with `pnpm test:pgtap`.
 BEGIN;
