@@ -271,16 +271,43 @@ export function defineEventContract(name: string, setup: () => EventContractCont
         expect(await ctx.repo().setAttendeeTicket(NONE, ada, { source: "comped" })).toBe(false);
       });
 
+      it("links Kajabi offers to an event, once each, and unlinks them", async () => {
+        const ids = await ctx.seed([
+          { key: "a", title: "Retreat A", startsAt: "2097-03-01T09:00:00Z" },
+          { key: "b", title: "Retreat B", startsAt: "2097-04-01T09:00:00Z" },
+        ]);
+
+        expect(await ctx.repo().offerIdsOf(ids.a)).toEqual([]);
+        expect(await ctx.repo().linkOffer(ids.a, "kaj-offer-1", null)).toEqual({ linked: true });
+        expect(await ctx.repo().linkOffer(ids.a, "kaj-offer-2", null)).toEqual({ linked: true });
+        // Linking it again is a no-op; an offer that sells another event is refused and names that event.
+        expect(await ctx.repo().linkOffer(ids.a, "kaj-offer-1", null)).toEqual({ linked: true });
+        expect(await ctx.repo().linkOffer(ids.b, "kaj-offer-1", null)).toEqual({ linked: false, eventId: ids.a });
+
+        expect((await ctx.repo().offerIdsOf(ids.a)).sort()).toEqual(["kaj-offer-1", "kaj-offer-2"]);
+        expect(await ctx.repo().offerIdsOf(ids.b)).toEqual([]);
+        const linked = (await ctx.repo().linkedOffers()).filter((l) => [ids.a, ids.b].includes(l.event_id));
+        expect(linked.map((l) => [l.kajabi_offer_id, l.event_id]).sort()).toEqual([["kaj-offer-1", ids.a], ["kaj-offer-2", ids.a]]);
+
+        expect(await ctx.repo().unlinkOffer(ids.b, "kaj-offer-1")).toBe(false);
+        expect(await ctx.repo().unlinkOffer(ids.a, "kaj-offer-1")).toBe(true);
+        expect(await ctx.repo().offerIdsOf(ids.a)).toEqual(["kaj-offer-2"]);
+        // Free again for another event.
+        expect(await ctx.repo().linkOffer(ids.b, "kaj-offer-1", null)).toEqual({ linked: true });
+      });
+
       it("deleting an event takes its photos and attendees with it", async () => {
         const ids = await ctx.seed([{ key: "e", title: "Going away", startsAt: "2097-03-01T09:00:00Z" }]);
         const ada = await ctx.member({ name: "Ada Example", displayName: null, email: "ada@example.com" });
         await ctx.attend(ids.e, ada, "2097-01-01T00:00:00Z");
         await ctx.photo(ids.e, { path: "x.jpg", takenAt: null, createdAt: "2097-01-01T00:00:00Z" });
+        await ctx.repo().linkOffer(ids.e, "kaj-offer-gone", null);
 
         await ctx.repo().remove(ids.e);
 
         expect(await ctx.repo().attendeesOf(ids.e)).toEqual([]);
         expect(await ctx.repo().allPhotosOf(ids.e)).toEqual([]);
+        expect(await ctx.repo().offerIdsOf(ids.e)).toEqual([]);
       });
 
       it("finds the event that follows a calendar event, and whether it is shown or hidden", async () => {

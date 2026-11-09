@@ -2370,6 +2370,45 @@ export type Database = {
           },
         ]
       }
+      community_event_offers: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          event_id: string
+          id: string
+          kajabi_offer_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          event_id: string
+          id?: string
+          kajabi_offer_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          event_id?: string
+          id?: string
+          kajabi_offer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_event_offers_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "community_event_details"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_event_offers_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "community_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       community_events: {
         Row: {
           agenda: string | null
