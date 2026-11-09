@@ -7492,6 +7492,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      slack_dm_member_pulled: { Args: { p_member: string }; Returns: boolean }
       slack_is_system_message_type: {
         Args: { p_type: string }
         Returns: boolean
