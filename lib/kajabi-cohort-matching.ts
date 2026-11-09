@@ -1,5 +1,5 @@
 import type { Repos } from "@/lib/data/repos";
-import { buildAliasMap, resolveEmail } from "@/lib/email-aliases";
+import { membersForPurchases } from "@/lib/kajabi-purchase-members";
 
 type CohortRepos = Pick<Repos, "aliases" | "billing" | "members" | "programs">;
 
@@ -218,24 +218,8 @@ export async function findKajabiCandidatesForCohort(
     return { candidates: [], offerNamesConfigured: true };
   }
 
-  const customerIds = Array.from(new Set(allOfferPurchases.map((p) => p.kajabi_customer_id).filter((id): id is string => !!id)));
-  const [customers, emailAliases] = await Promise.all([
-    billing.kajabiCustomers({ customerIds }),
-    repos.aliases.emailAliases({ activeOnly: true }),
-  ]);
-
-  const aliasMap = buildAliasMap(emailAliases || []);
-  const emailByCustomerId = new Map<string, string>();
-  for (const c of customers) {
-    if (c.email) emailByCustomerId.set(c.kajabi_customer_id, resolveEmail(c.email, aliasMap));
-  }
-
-  const canonicalEmails = Array.from(new Set(Array.from(emailByCustomerId.values())));
-  if (canonicalEmails.length === 0) return { candidates: [], offerNamesConfigured: true };
-
-  const members = await repos.members.byEmails(canonicalEmails);
-
-  const memberByEmail = new Map(members.map((m) => [m.email.toLowerCase(), m]));
+  const { emailByCustomerId, memberByEmail } = await membersForPurchases(repos, allOfferPurchases);
+  if (emailByCustomerId.size === 0) return { candidates: [], offerNamesConfigured: true };
 
   // Fetched for every member who ever bought a matching offer (not narrowed
   // to this cohort's window) so computeCandidates can annotate any of them —
