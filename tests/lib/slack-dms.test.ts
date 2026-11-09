@@ -238,8 +238,35 @@ describe("what a pull keeps up with: replies, reactions, edits and deletions", (
       expect(m.ensureFile.mock.calls.map(([, , ref]) => ref.fileId)).not.toContain("FDONE");
       expect(m.ensureFile.mock.calls.map(([, , ref]) => ref.fileId)).not.toContain("FGONE");
       m.ensureFile.mockClear();
-      await pullMemberDms(service, MEMBER, { force: true, lookbackDays: 7, fileCopies: 40 });
-      expect(m.ensureFile.mock.calls.length).toBeGreaterThan(10);
+      await pullMemberDms(service, MEMBER, { force: true, lookbackDays: 7, fileCopies: Number.MAX_SAFE_INTEGER });
+      expect(m.ensureFile.mock.calls.length).toBe(14); // every one still pending (the mock copies nothing)
+    });
+
+    it("sweeps every pending DM file, oldest first, even from a message the pull no longer re-reads, and only this member's DMs", async () => {
+      const oldTs = ts(60 * 86400);
+      const pending = (file_id: string, channel_id: string, message_ts: string, extra: Record<string, unknown> = {}) =>
+        ({ file_id, channel_id, message_ts, storage_path: null, deleted_at: null, copy_error: null, raw_payload: {}, ...extra }) as never;
+      ds().slackFiles.push(
+        pending("FNEW", "D1", ts(3600)),
+        pending("FOLD", "D1", oldTs),
+        pending("FELSEWHERE", "C9", oldTs),
+        pending("FSKIPPED", "D1", oldTs, { copy_error: "skipped: larger than 20 MB" }),
+        pending("FRETRY", "D1", ts(7200), { copy_error: "download failed with HTTP 500" })
+      );
+      await pullMemberDms(service, MEMBER, { force: true, lookbackDays: 7, fileCopies: Number.MAX_SAFE_INTEGER });
+      expect(m.ensureFile.mock.calls.map(([, token, ref]) => [token, ref.fileId])).toEqual([
+        ["xoxp-test", "FOLD"],
+        ["xoxp-test", "FRETRY"],
+        ["xoxp-test", "FNEW"],
+      ]);
+    });
+
+    it("stops copying when the time is up, and when opening chat has copied its few", async () => {
+      for (let i = 0; i < 12; i++) ds().slackFiles.push({ file_id: `FP${i}`, channel_id: "D1", message_ts: ts(3600 + i), storage_path: null, deleted_at: null, copy_error: null, raw_payload: {} } as never);
+      await pullMemberDms(service, MEMBER, { force: true, fileCopies: Number.MAX_SAFE_INTEGER, fileDeadline: Date.parse("2026-11-03T11:59:00Z") });
+      expect(m.ensureFile).not.toHaveBeenCalled();
+      await pullMemberDms(service, MEMBER, { force: true });
+      expect(m.ensureFile).toHaveBeenCalledTimes(10);
     });
 
     it("doesn't fail the pull when a file can't be copied (it is tried again when someone opens it)", async () => {

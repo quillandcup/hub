@@ -32,9 +32,9 @@ const MAX_THREADS = 30;
 /** How far back a pull re-reads a DM besides what is new (reactions, edits, replies, deletions): when a member opens chat, and for the nightly run. */
 const OPEN_LOOKBACK_DAYS = 1;
 const NIGHTLY_LOOKBACK_DAYS = 7;
-/** Files copied into our bucket per DM per pull (the member's token; one that doesn't fit is next time's, or copied when someone opens it). */
+/** Files copied into our bucket by a pull when a member opens chat (it runs after the page, so a few); the nightly run copies every one that is pending, until its time is up. */
 const OPEN_FILE_COPIES = 10;
-const NIGHTLY_FILE_COPIES = 40;
+const NIGHTLY_FILE_COPIES = Number.MAX_SAFE_INTEGER;
 
 export interface DmPullResult {
   conversations: number;
@@ -63,7 +63,7 @@ interface SlackIm {
  * (the next one retries); one DM failing is logged and the others go on. `force` skips the interval (a live event
  * named a DM the chat hasn't seen).
  */
-export async function pullMemberDms(service: SupabaseClient, memberId: string, opts: { force?: boolean; lookbackDays?: number; fileCopies?: number } = {}): Promise<DmPullResult | null> {
+export async function pullMemberDms(service: SupabaseClient, memberId: string, opts: { force?: boolean; lookbackDays?: number; fileCopies?: number; fileDeadline?: number } = {}): Promise<DmPullResult | null> {
   if (!chatSlackWritesEnabled()) return null;
   const status = await getSlackConnectionStatus(service, memberId);
   if (!status.connected || !status.hasDmScopes || !status.slackUserId) return null;
@@ -85,11 +85,13 @@ export async function pullMemberDms(service: SupabaseClient, memberId: string, o
       cursor = page.response_metadata?.next_cursor || undefined;
     } while (cursor);
 
+    const dmIds = new Set<string>();
     for (const im of ims) {
       // Slackbot's "DM" is Slack's own, and a deactivated person's can't change.
       if (!im.user || im.user === "USLACKBOT" || im.is_user_deleted) continue;
       try {
-        result.messages += (await pullOneDm(service, repos, slack, { memberId, selfSlackId: connection.slackUserId, im, lookbackSeconds: (opts.lookbackDays ?? OPEN_LOOKBACK_DAYS) * 86400, token: connection.token, fileCopies: opts.fileCopies ?? OPEN_FILE_COPIES })).fetched;
+        result.messages += (await pullOneDm(service, repos, slack, { memberId, selfSlackId: connection.slackUserId, im, lookbackSeconds: (opts.lookbackDays ?? OPEN_LOOKBACK_DAYS) * 86400 })).fetched;
+        dmIds.add(im.id);
         result.conversations += 1;
       } catch (error) {
         if (isDeadTokenError(error) || isRateLimited(error) || errorCode(error) === "missing_scope") throw error;
@@ -97,6 +99,8 @@ export async function pullMemberDms(service: SupabaseClient, memberId: string, o
         result.errors.push(`a DM of member ${memberId}: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
+    // Their files, with their own token (the bot can't read a DM's files), while Slack still serves them.
+    await copyPendingDmFiles(service, repos, connection.token, dmIds, { max: opts.fileCopies ?? OPEN_FILE_COPIES, deadline: opts.fileDeadline });
   } catch (error) {
     if (isDeadTokenError(error)) await service.rpc("slack_connection_revoke", { p_member: memberId });
     else if (isRateLimited(error) || errorCode(error) === "missing_scope") {
@@ -114,7 +118,7 @@ async function pullOneDm(
   service: SupabaseClient,
   repos: ReturnType<typeof createRepos>,
   slack: WebClient,
-  opts: { memberId: string; selfSlackId: string; im: SlackIm; lookbackSeconds: number; token: string; fileCopies: number }
+  opts: { memberId: string; selfSlackId: string; im: SlackIm; lookbackSeconds: number }
 ): Promise<{ chatChannelId: string | null; fetched: number }> {
   const { memberId, selfSlackId, im } = opts;
   const otherSlackId = im.user as string;
@@ -187,23 +191,15 @@ async function pullOneDm(
 
   // A message in the window that Slack no longer returns was deleted there: only where the whole window was
   // fetched, and by the import's rules (never because it aged out of Slack's history; not a sudden mass disappearance).
-  // The files on them, kept now with the member's own token (the bot can't read a DM's files), while Slack still
-  // serves them. A failure is left for when someone opens the file (the file route asks again with the viewer's token).
+  // The files on them are recorded now and copied by the sweep after the pull (the member's token; the bot can't read a DM's files).
   const withFiles = [...topLevel, ...replies].filter((m) => isKeptSlackMessage(m) && Array.isArray(m.files) && m.files.length > 0);
   if (withFiles.length > 0) {
     const refs = slackFilesFromMessages(withFiles.map((m) => ({ channel_id: im.id, message_ts: m.ts as string, files: m.files })));
     await repos.slackMessages.recordFiles(refs.map((f) => ({ ...f, imported_at: now })));
-    let budget = opts.fileCopies;
-    for (const ref of refs) {
-      if (budget <= 0) break;
-      const row = await repos.slackMessages.fileById(ref.file_id);
-      if (row?.storage_path || row?.deleted_at) continue;
-      budget--;
-      const copied = await ensureSlackFileCopied(service, opts.token, { fileId: ref.file_id, channelId: im.id, messageTs: ref.message_ts });
-      if (!copied.ok) console.warn("a DM file wasn't copied (%s): %s", ref.file_id, copied.reason);
-    }
   }
 
+  // A message in the window that Slack no longer returns was deleted there: only where the whole window was
+  // fetched, and by the import's rules (never because it aged out of Slack's history; not a sudden mass disappearance).
   const window = complete ? deletionInferenceWindow(oldestSeconds, nowSeconds, clock.now()) : null;
   if (window) {
     const inWindow = await repos.slackMessages.storedMessagesBetween(window.from, window.to, im.id);
@@ -220,6 +216,30 @@ async function pullOneDm(
     }
   }
   return { chatChannelId, fetched: stored.messages };
+}
+
+/**
+ * Copies the DM files still without a copy, oldest message first (those are the next to fall out of Slack's
+ * history), into the private bucket with the member's own token. Only files of these conversations: the bot's
+ * import copies the rest. At most `max`, none started after `deadline`; a file that fails is tried again by the
+ * next pull (and when someone opens it), and one the import has skipped for good (too large) is left alone.
+ */
+async function copyPendingDmFiles(
+  service: SupabaseClient,
+  repos: ReturnType<typeof createRepos>,
+  token: string,
+  dmIds: Set<string>,
+  opts: { max: number; deadline?: number }
+): Promise<void> {
+  if (dmIds.size === 0) return;
+  let left = opts.max;
+  for (const file of await repos.slackMessages.filesWithoutCopy()) {
+    if (left <= 0 || (opts.deadline !== undefined && clock.now() >= opts.deadline)) break;
+    if (!dmIds.has(file.channel_id) || file.deleted_at || file.copy_error?.startsWith("skipped:")) continue;
+    left--;
+    const copied = await ensureSlackFileCopied(service, token, { fileId: file.file_id, channelId: file.channel_id, messageTs: file.message_ts });
+    if (!copied.ok) console.warn("a DM file wasn't copied (%s): %s", file.file_id, copied.reason);
+  }
 }
 
 export type OpenDmResult =
@@ -249,7 +269,7 @@ export async function openSlackDm(service: SupabaseClient, memberId: string, oth
     const opened = await slack.conversations.open({ users: otherSlackId, return_im: true });
     const im = opened.channel as SlackIm | undefined;
     if (!im?.id) return { ok: false, reason: "slack_refused" };
-    const { chatChannelId } = await pullOneDm(service, repos, slack, { memberId, selfSlackId: connection.slackUserId, im: { ...im, user: otherSlackId }, lookbackSeconds: OPEN_LOOKBACK_DAYS * 86400, token: connection.token, fileCopies: OPEN_FILE_COPIES });
+    const { chatChannelId } = await pullOneDm(service, repos, slack, { memberId, selfSlackId: connection.slackUserId, im: { ...im, user: otherSlackId }, lookbackSeconds: OPEN_LOOKBACK_DAYS * 86400 });
     return chatChannelId ? { ok: true, channelId: chatChannelId } : { ok: false, reason: "slack_refused" };
   } catch (error) {
     if (isDeadTokenError(error)) {
@@ -288,7 +308,7 @@ export async function pullDmsForCoveredMembers(service: SupabaseClient, opts: { 
       break;
     }
     try {
-      const pulled = await pullMemberDms(service, memberId, { force: true, lookbackDays: NIGHTLY_LOOKBACK_DAYS, fileCopies: NIGHTLY_FILE_COPIES });
+      const pulled = await pullMemberDms(service, memberId, { force: true, lookbackDays: NIGHTLY_LOOKBACK_DAYS, fileCopies: NIGHTLY_FILE_COPIES, fileDeadline: opts.deadline });
       if (!pulled) continue;
       result.conversations += pulled.conversations;
       result.messages += pulled.messages;
