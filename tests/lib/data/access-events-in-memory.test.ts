@@ -35,4 +35,19 @@ describe("InMemoryAccessEventRepository", () => {
     const places = await repo.placesBySession(me, [s1, s2, s3]);
     expect([...places.entries()]).toEqual([[s1, { city: "Heredia", country: "CR" }]]);
   });
+
+  it("gives each user the time of their latest event, and nothing to a user without one", async () => {
+    const data = new InMemoryDataset();
+    const repo = new InMemoryAccessEventRepository(data);
+    const me = "00000000-0000-4000-8000-000000000001";
+    const other = "00000000-0000-4000-8000-000000000002";
+
+    await repo.record({ user_id: me, path: "/a", is_page: true, created_at: "2026-01-02T00:00:00Z" });
+    await repo.record({ user_id: me, path: "/api/b", is_page: false, created_at: "2026-01-09T00:00:00Z" });
+    await repo.record({ user_id: me, path: "/c", is_page: true, created_at: "2026-01-05T00:00:00Z" });
+
+    const seen = await repo.lastSeenByUser();
+    expect(seen.get(me)).toBe("2026-01-09T00:00:00Z");
+    expect(seen.has(other)).toBe(false);
+  });
 });

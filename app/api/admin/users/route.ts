@@ -22,6 +22,17 @@ async function fetchAllMembers(supabase: SupabaseClient) {
   return members.map((m) => ({ id: m.id, name: m.name, displayName: m.displayName, email: m.email, user_id: m.userId }));
 }
 
+/**
+ * When the user last did anything in the Hub: the later of their latest page view or API call (the access log)
+ * and their last sign-in (which covers the time before the log, and sign-ins that made no request yet).
+ * Sessions last for weeks, so sign-in alone would show an active member as gone. Null: never signed in.
+ */
+function latestOf(...times: (string | null | undefined)[]): string | null {
+  const present = times.filter((t): t is string => Boolean(t));
+  if (present.length === 0) return null;
+  return present.reduce((a, b) => (Date.parse(b) > Date.parse(a) ? b : a));
+}
+
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin(request);
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -37,6 +48,7 @@ export async function GET(request: NextRequest) {
     allMembers,
     nameAliases,
     emailAliases,
+    lastSeen,
   ] = await Promise.all([
     createRepos(supabase).authUsers.all().catch((error: Error) => error),
     createRepos(supabase).profiles.all(),
@@ -45,6 +57,7 @@ export async function GET(request: NextRequest) {
     fetchAllMembers(supabase),
     createRepos(supabase).aliases.nameAliases({ activeOnly: true }),
     createRepos(supabase).aliases.emailOwners(),
+    createRepos(supabase).accessEvents.lastSeenByUser(),
   ]);
 
   if (authUsers instanceof Error) {
@@ -79,7 +92,7 @@ export async function GET(request: NextRequest) {
       role: profile?.role ?? "member",
       features: featureMap.get(u.id) ?? [],
       createdAt: u.createdAt,
-      lastSignInAt: u.lastSignInAt,
+      lastActivityAt: latestOf(lastSeen.get(u.id), u.lastSignInAt),
       staffId: staff?.id ?? null,
       staffName: staff?.name ?? null,
       staffRole: staff?.role ?? null,

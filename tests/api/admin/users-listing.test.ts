@@ -57,11 +57,22 @@ describe('Admin users and invite: aliases and the auth-user listing', () => {
     const body = await res.json()
     const row = body.users.find((u: { id: string }) => u.id === authUserId)
     expect(row.aliases.sort()).toEqual([emailAlias, nameAlias].sort())
-    // Created through the admin API and never signed in: no last sign-in.
-    expect(row.lastSignInAt).toBeNull()
+    // Created through the admin API and never signed in or seen: no last activity.
+    expect(row.lastActivityAt).toBeNull()
     // A user with no linked member has no aliases (vacuously true if every user here is linked).
     const unlinked = body.users.filter((u: { memberId: string | null }) => u.memberId === null)
     expect(unlinked.every((u: { aliases: string[] }) => u.aliases.length === 0)).toBe(true)
+  })
+
+  it('GET gives a user the time of their latest page view as last activity', async () => {
+    const seen = '2026-10-09T09:00:00.000Z'
+    await supabase.from('access_events').insert([
+      { user_id: authUserId, path: '/dashboard', is_page: true, created_at: '2026-10-06T14:00:00Z' },
+      { user_id: authUserId, path: '/api/x', is_page: false, created_at: seen },
+    ])
+    const res = await apiFetch(`${base}/api/admin/users`, { headers: getTestAuthHeaders() })
+    const row = (await res.json()).users.find((u: { id: string }) => u.id === authUserId)
+    expect(new Date(row.lastActivityAt).toISOString()).toBe(seen)
   })
 
   it('GET answers 500 with the reason when the auth users cannot be listed', async () => {

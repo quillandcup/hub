@@ -7154,6 +7154,13 @@ export type Database = {
         Args: { target_month: string }
         Returns: boolean
       }
+      last_access_by_user: {
+        Args: never
+        Returns: {
+          last_access_at: string
+          user_id: string
+        }[]
+      }
       match_member_by_name: {
         Args: { zoom_email?: string; zoom_name: string }
         Returns: {
