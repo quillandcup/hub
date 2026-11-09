@@ -18,6 +18,8 @@ export interface AccessEventRepository {
    * event is absent from the map. Never returns the IP address. Needs the service role (admins read the log through RLS).
    */
   placesBySession(userId: string, sessionIds: string[]): Promise<Map<string, SessionPlace>>;
+  /** The time of each user's latest event, for every user with one (a user with none is absent). Needs the service role. */
+  lastSeenByUser(): Promise<Map<string, string>>;
 }
 
 /** The coarse place a session came from, as recorded from the request's geolocation. */
@@ -55,6 +57,12 @@ export class SupabaseAccessEventRepository implements AccessEventRepository {
     for (const [sessionId, row] of rows) if (row) places.set(sessionId, { city: row.city, country: row.country });
     return places;
   }
+
+  async lastSeenByUser() {
+    const { data, error } = await this.db.rpc("last_access_by_user");
+    if (error) throw new Error(error.message);
+    return new Map((data ?? []).map((r) => [r.user_id, r.last_access_at]));
+  }
 }
 
 /** In-memory twin over an `InMemoryDataset`. */
@@ -85,5 +93,14 @@ export class InMemoryAccessEventRepository implements AccessEventRepository {
       .sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id - a.id);
     for (const e of mine) if (!places.has(e.session_id!)) places.set(e.session_id!, { city: e.city, country: e.country });
     return places;
+  }
+
+  async lastSeenByUser() {
+    const latest = new Map<string, string>();
+    for (const e of this.data.accessEvents) {
+      const seen = latest.get(e.user_id);
+      if (!seen || e.created_at > seen) latest.set(e.user_id, e.created_at);
+    }
+    return latest;
   }
 }

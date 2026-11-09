@@ -32,8 +32,8 @@ interface AppUser {
   role: Role;
   features: string[];
   createdAt: string;
-  /** Null when they have never signed in (an invite not accepted, or an account nobody has used). */
-  lastSignInAt: string | null;
+  /** Their latest page view or sign-in. Null when they have never signed in (an invite not accepted, or an account nobody has used). */
+  lastActivityAt: string | null;
   staffId: string | null;
   staffName: string | null;
   staffRole: StaffRole | null;
@@ -107,7 +107,7 @@ const STAFF_ROLE_COLORS: Record<StaffRole, string> = {
   contractor: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
 };
 
-type SortColumn = "profiles" | "role" | "features" | "created" | "lastSignIn";
+type SortColumn = "profiles" | "role" | "features" | "created" | "lastActivity";
 
 type Audience = "all" | "members" | "staff";
 
@@ -144,9 +144,9 @@ function getSortValue(user: AppUser, column: SortColumn): SortValue {
       return user.features.length;
     case "created":
       return user.createdAt;
-    case "lastSignIn":
+    case "lastActivity":
       // null (never signed in) is a missing value: the sort hook groups them together at one end.
-      return user.lastSignInAt;
+      return user.lastActivityAt;
   }
 }
 
@@ -529,10 +529,10 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                     onClick={() => handleSort("created")}
                   />
                   <SortableTh
-                    label="Last Sign-in"
-                    active={sortColumn === "lastSignIn"}
+                    label="Last Activity"
+                    active={sortColumn === "lastActivity"}
                     direction={sortDirection}
-                    onClick={() => handleSort("lastSignIn")}
+                    onClick={() => handleSort("lastActivity")}
                   />
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider">
                     Actions
@@ -669,9 +669,9 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        {user.lastSignInAt ? (
+                        {user.lastActivityAt ? (
                           <span className="text-sm text-slate-600 dark:text-slate-400">
-                            {formatDateInZone(user.lastSignInAt, timeZone)}
+                            {formatDateInZone(user.lastActivityAt, timeZone)}
                           </span>
                         ) : (
                           <span
