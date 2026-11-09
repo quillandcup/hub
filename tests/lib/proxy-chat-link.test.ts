@@ -104,6 +104,19 @@ describe("a signed-out visitor following the Slack link to a shared video", () =
     expect(await takeNextPath("/dashboard")).toBe("/dashboard");
   });
 
+  // KNOWN GAP (docs/TODO.md, shared videos in chat): the remembered address is used up by the sign-in itself. If the chat page then
+  // sends them on to connect Slack (lib/chat/access.ts), nothing is left to return them to the message afterwards. This documents
+  // today's behavior; when the destination is carried through the Settings step, replace it with a test that it is.
+  it("has nothing left to return to after sign-in has used the address (known gap: the connect-Slack step can't send them back)", async () => {
+    const path = await slackLinkPath();
+    const res = await call(path);
+    browserCookies.set(NEXT_PATH_COOKIE, { value: decodeURIComponent(res.cookies.get(NEXT_PATH_COOKIE)?.value ?? "") });
+
+    expect(await takeNextPath("/dashboard")).toBe(path);
+    expect(browserCookies.has(NEXT_PATH_COOKIE)).toBe(false);
+    expect(await takeNextPath("/dashboard")).toBe("/dashboard");
+  });
+
   it("is accepted as a safe return address, query included", async () => {
     expect(safeNextPath(await slackLinkPath())).toBe(`/chat/${CHANNEL}?thread=${MESSAGE}`);
   });
