@@ -35,6 +35,7 @@
     "demo:phone-overflow": "playwright test --config demo/playwright.config.ts phone-overflow --project=phone-light",
     "demo:capture": "playwright test --config demo/playwright.config.ts",
     "changelog:capture": "tsx scripts/changelog-capture.ts",
+    "changelog:draft": "tsx scripts/changelog-draft.ts",
     "check:migrations": "tsx scripts/check-migration-order.ts",
     "branches:prune": "tsx scripts/prune-branches.ts",
     "test:run": "vitest run",

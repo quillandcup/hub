@@ -43,6 +43,16 @@ To take them:
 
 `@changelog` scenes are left out of the scheduled help-screenshots run (`--grep-invert "@published|@changelog"`), which tracks the current UI: a scene for an old entry may stop matching the app, and that is fine, it is the record of how the screenshots were taken.
 
+## Drafting entries
+
+Entries written one PR at a time read like a developer diary, so there is a drafter that works the other way: it looks at everything merged in a window and proposes **stories**, which a person then reviews.
+
+`pnpm changelog:draft [--since YYYY-MM-DD] [--run]` lists the PRs merged to `main` since that day (default 14 days) with `gh`, drops the ones that only touch docs, tests or the changelog, and writes `demo/out/changelog-draft/prompt.md` (the PRs, the entries that already exist in the window, and an instruction to follow `.claude/rules/changelog-writing.md` and this document). With `--run` it pipes the prompt to `claude -p` and writes `drafts.md`: entry literals in the `ChangelogEntry` shape, the PRs each came from, a demo-scene suggestion, and a list of PRs it skipped or that need a human (a feature behind a flag, an unclear claim). Nothing is written to `lib/changelog/entries.ts`.
+
+It uses the Claude Code CLI, not an SDK: nothing is added to `package.json` or to the app, and no member data is involved (it reads public PR text). Keep it that way, because the "no AI touches your writing" statement is checked against the dependencies and the code (`.claude/rules/changelog-writing.md`).
+
+A draft is a starting point. Before it goes in: check every claim against the PR and the code, set the date to the day members could use it (for a flagged feature, the day the flag went on for everyone, from the audit log), run the member reader review, write the scene and take the screenshots. A window of about four days is about 140k characters of prompt; a nightly run covers a day or two, and a two-week window is too large for one call.
+
 ## How the digest decides what to send
 
 - **Entries from the last 30 days** (`DIGEST_WINDOW_DAYS`) that the recipient has not been sent. Each entry is claimed per recipient in `notification_log` (kind `changelog_digest`, dedup key = the slug) before the send and given back when no channel delivered it. So a retry or a second run sends nothing twice, a missed week catches up on the next run, and a member who turns a channel on later still gets what they missed. A week with nothing new sends nothing.
