@@ -1998,6 +1998,7 @@ export type Database = {
           dm_key: string | null
           id: string
           kind: string
+          last_message_at: string | null
           name: string | null
           purpose: string | null
           restricted: boolean
@@ -2014,6 +2015,7 @@ export type Database = {
           dm_key?: string | null
           id?: string
           kind: string
+          last_message_at?: string | null
           name?: string | null
           purpose?: string | null
           restricted?: boolean
@@ -2030,6 +2032,7 @@ export type Database = {
           dm_key?: string | null
           id?: string
           kind?: string
+          last_message_at?: string | null
           name?: string | null
           purpose?: string | null
           restricted?: boolean
