@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
+import { storeNextPath } from "@/lib/next-path-cookie";
+import { RETURN_PARAM } from "@/lib/gates";
 import { buildSlackAuthorizeUrl, isSlackConnectConfigured, setConnectStateCookie } from "@/lib/slack-connect";
 
 /**
  * Starts "Connect your Slack account": sends the signed-in member to Slack to approve the Hub
  * acting as them. Their own account only (never in sudo), and
- * only once the Slack app's client ID and secret are configured.
+ * only once the Slack app's client ID and secret are configured. `?next=` is the page they were headed to when a gate
+ * (lib/gates.ts) sent them here: it is remembered across Slack's approval page and used when the connection succeeds
+ * (the callback route). An unsafe value is ignored.
  */
 export async function GET(request: NextRequest) {
   const back = (reason: string) => NextResponse.redirect(new URL(`/settings?slack=${reason}`, request.nextUrl.origin));
@@ -18,6 +22,7 @@ export async function GET(request: NextRequest) {
   if (identity.isSudo) return back("sudo");
   if (!isSlackConnectConfigured()) return back("unavailable");
 
+  await storeNextPath(request.nextUrl.searchParams.get(RETURN_PARAM));
   const state = await setConnectStateCookie();
   return NextResponse.redirect(buildSlackAuthorizeUrl(state));
 }

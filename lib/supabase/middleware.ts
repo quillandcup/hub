@@ -10,14 +10,37 @@ import { SUDO_COOKIE_NAME, actingAsHeaderValue } from '@/lib/sudo-cookie'
 import { PAGE_VIEW_PATH } from '@/lib/page-views'
 import { NEXT_PATH_COOKIE, NEXT_PATH_COOKIE_MAX_AGE_SECONDS, safeNextPath } from '@/lib/safe-next'
 import { coursePreviewRewrite, lessonPreviewRewrite } from '@/lib/courses/preview-path'
+import { CURRENT_PATH_HEADER } from '@/lib/gates'
 import { requestLocation } from '@/lib/request-location'
 import { userAgentForStorage } from '@/lib/device-label'
 import { deviceForStorage } from '@/lib/device'
 import { GA_COOKIE_NAME, gaClientIdFromCookie } from '@/lib/analytics-identity'
 import type { Database } from '@/lib/data/database.types'
 
+/**
+ * The address being asked for (path and query, without Next's internal `_rsc` marker), for CURRENT_PATH_HEADER.
+ * A server page that decides a visitor must pass a gate (lib/gates.server.ts) reads it to say where to come back to.
+ */
+function askedFor(request: NextRequest): string {
+  const search = new URLSearchParams(request.nextUrl.search)
+  search.delete('_rsc')
+  const query = search.toString()
+  return `${request.nextUrl.pathname}${query ? `?${query}` : ''}`
+}
+
+/**
+ * Continues to the page, with the address being asked for added to the request headers (the documented way to hand something
+ * from the proxy to Server Components: `NextResponse.next({ request: { headers } })`). The headers are copied from the request
+ * at this moment, so cookies a token refresh just set on it (see setAll below) go along.
+ */
+function continueWithPath(request: NextRequest): NextResponse {
+  const headers = new Headers(request.headers)
+  headers.set(CURRENT_PATH_HEADER, askedFor(request))
+  return NextResponse.next({ request: { headers } })
+}
+
 export async function updateSession(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request })
+  let supabaseResponse = continueWithPath(request)
 
   // GoTrue records auth.sessions.user_agent/ip from whatever hit its own
   // endpoint — since this refresh call originates from our server, not the
@@ -34,7 +57,7 @@ export async function updateSession(request: NextRequest) {
         getAll() { return request.cookies.getAll() },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({ request })
+          supabaseResponse = continueWithPath(request)
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           )

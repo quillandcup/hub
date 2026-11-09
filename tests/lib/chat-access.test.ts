@@ -18,6 +18,8 @@ vi.mock("@/lib/slack-connect", () => ({
   isSlackConnectConfigured: () => isSlackConnectConfigured(),
 }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
+const { askedFor } = vi.hoisted(() => ({ askedFor: { current: null as string | null } }));
+vi.mock("next/headers", () => ({ headers: async () => ({ get: (name: string) => (name === "x-hub-path" ? askedFor.current : null) }) }));
 vi.mock("react", async (original) => ({ ...(await original<typeof import("react")>()), cache: <T,>(fn: T) => fn }));
 vi.mock("next/navigation", () => ({
   redirect: (to: string) => {
@@ -31,6 +33,7 @@ vi.mock("next/navigation", () => ({
 import { requireChat } from "@/lib/chat/access";
 
 beforeEach(() => {
+  askedFor.current = null;
   getCurrentUser.mockResolvedValue({ id: "auth-1", email: "fern@example.test" });
   getEffectiveIdentity.mockResolvedValue({ memberId: "m1", isSudo: false });
   hasFeature.mockResolvedValue(true);
@@ -50,15 +53,11 @@ describe("requireChat", () => {
     await expect(requireChat()).rejects.toThrow("redirect:/settings?slack=required");
   });
 
-  // KNOWN GAP (docs/TODO.md, shared videos in chat): this redirect carries no destination. A Slack reader who followed a link to a
-  // message, signed in, and still has to connect Slack lands on Settings, and the address the proxy remembered was already used up at
-  // sign-in (takeNextPath), so connecting does not bring them back to the message. This documents what happens today; when the
-  // destination is carried through, change the expectation to include it.
-  it("sends a member without a connection to settings with no destination, so connecting doesn't return them to the page they asked for (known gap)", async () => {
+  it("sends a member without a connection through the connect-Slack gate, carrying the page they asked for so connecting brings them back to it", async () => {
+    askedFor.current = "/chat/chn_AAAAAAAAAAA1?thread=msg_AAAAAAAAAAA1";
     getSlackConnectionStatus.mockResolvedValue({ connected: false, sharesReadState: false, revoked: false });
-    const redirected = await requireChat().catch((e: Error) => e.message);
-    expect(redirected).toBe("redirect:/settings?slack=required");
-    expect(redirected).not.toContain("next=");
+
+    await expect(requireChat()).rejects.toThrow(`redirect:/settings?slack=required&next=${encodeURIComponent("/chat/chn_AAAAAAAAAAA1?thread=msg_AAAAAAAAAAA1")}`);
   });
 
   it("asks a connection that lacks the read scopes to reconnect", async () => {

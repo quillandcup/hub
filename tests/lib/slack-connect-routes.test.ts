@@ -28,7 +28,8 @@ vi.mock("@/lib/slack-connect", async (original) => ({
   linkSlackAccount: (...a: unknown[]) => linkSlackAccount(...a),
   saveSlackConnection: (...a: unknown[]) => saveSlackConnection(...a),
 }));
-vi.mock("next/headers", () => ({ cookies: vi.fn() }));
+// The callback reads and clears the remembered destination (lib/next-path-cookie.ts); with none remembered it behaves as before.
+vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => undefined, set: () => undefined, delete: () => undefined }) }));
 
 import { GET as start } from "@/app/api/oauth/slack/start/route";
 import { GET as callback } from "@/app/api/oauth/slack/callback/route";

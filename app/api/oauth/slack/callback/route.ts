@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { BOT_STATE_PREFIX, completeBotInstall } from "@/lib/slack-bot-install";
 import { getCurrentUser } from "@/lib/auth";
+import { clearNextPath, takeNextPath } from "@/lib/next-path-cookie";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import {
@@ -23,7 +24,16 @@ export async function GET(request: NextRequest) {
   // An admin installing the bot itself (/api/oauth/slack/bot/start) comes back here too: one registered redirect URL.
   if (request.nextUrl.searchParams.get("state")?.startsWith(BOT_STATE_PREFIX)) return finishBotInstall(request);
 
-  const back = (reason: string) => NextResponse.redirect(new URL(`/settings?slack=${reason}`, request.nextUrl.origin));
+  // Back to Settings with what happened. A success goes on to the page they were headed to when a gate sent them here
+  // (`?next=` on the start route, lib/gates.ts), if any; every other outcome forgets that destination, so a later sign-in
+  // doesn't send them somewhere they stopped trying to go.
+  const back = async (reason: string) => {
+    if (reason !== "connected") {
+      await clearNextPath();
+      return NextResponse.redirect(new URL(`/settings?slack=${reason}`, request.nextUrl.origin));
+    }
+    return NextResponse.redirect(new URL(await takeNextPath(`/settings?slack=${reason}`), request.nextUrl.origin));
+  };
 
   const params = request.nextUrl.searchParams;
   const stateOk = await consumeConnectStateCookie(params.get("state"));
@@ -31,24 +41,24 @@ export async function GET(request: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.redirect(new URL("/login", request.nextUrl.origin));
   const identity = await getEffectiveIdentity(user);
-  if (!identity) return back("no_member");
-  if (identity.isSudo) return back("sudo");
-  if (!isSlackConnectConfigured()) return back("unavailable");
-  if (!stateOk) return back("invalid_state");
+  if (!identity) return await back("no_member");
+  if (identity.isSudo) return await back("sudo");
+  if (!isSlackConnectConfigured()) return await back("unavailable");
+  if (!stateOk) return await back("invalid_state");
 
   const code = params.get("code");
-  if (params.get("error") || !code) return back("declined");
+  if (params.get("error") || !code) return await back("declined");
 
   try {
     const grant = await exchangeSlackCode(code);
     const service = createServiceRoleClient();
     const link = await linkSlackAccount(service, grant, identity.memberId, user.id);
-    if (!link.ok) return back(link.reason);
+    if (!link.ok) return await back(link.reason);
     await saveSlackConnection(service, identity.memberId, grant);
-    return back("connected");
+    return await back("connected");
   } catch (error) {
     console.error("Slack connect failed:", error);
-    return back("failed");
+    return await back("failed");
   }
 }
 

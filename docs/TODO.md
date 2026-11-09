@@ -1516,7 +1516,11 @@ The Events list now shows a time of day for events that have `start_time`/`end_t
 - Then move the pasted Drive URLs out of the descriptions into resources and delete the "Materials shared with attendees" paragraphs.
 - Tests (route, component, RLS) and an analytics event for opens or downloads (`docs/ANALYTICS.md`).
 
-### Site-wide "Return To" Handling (Needs Design)
+### Site-wide "Return To" Handling, and the gates standard _(Started: the standard and the first gate are built)_
+
+**Resolved:** the standard for system-mandated detours ("gates") is `.claude/rules/gates-and-return-to.md`: a registry (`lib/gates.ts`), the proxy forwarding the address being asked for to Server Components (`x-hub-path`), `redirectToGate`, `GateExit` ("Not now"), and one destination validator (`safeNextPath`). The connect-Slack gate (`requireChat`) is the first on it: it carries the page the visitor asked for through Settings and Slack's approval page and back, and always offers a way out. Modeled on Laravel's `intended()` (every interception records the request it stopped; whatever finishes sends them back), Devise's rules for what to remember (GET page loads only, never the sign-in pages), and Auth.js's same-origin fallback.
+
+**Still to move onto the standard** (each should declare a gate, carry the destination and show `GateExit`): a signed-in visitor with no member record (`/admin`, then `/no-access`: nothing remembered and no way out but signing out); a course the member can't open, and Big Sisters (`redirect("/dashboard")` with no explanation); the sudo return (below); the `/login` fallback checks repeated in about forty pages (the proxy already handles them). **Also:** the remembered sign-in address is used up at sign-in and not restored if the visitor abandons a later gate at a third party (Slack's page) and never comes back (it stays for up to an hour and could take the next sign-in somewhere they stopped trying to go); consider a shorter life for the cookie once a gate hands off. A bar that can be dismissed (`SlackConnectPrompt`) is not a gate.
 
 **Still open:**
 - **Session expiry or idle timeout mid-form.** Whatever detects a 401 or expired session in the browser should send the member to `/login` with the current location stored (not wait for the next full page load to hit the proxy), and ideally keep their unsaved input.
