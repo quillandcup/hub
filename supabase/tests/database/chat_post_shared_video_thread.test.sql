@@ -1,14 +1,14 @@
 -- pgTAP tests for 20270531000000_chat_post_shared_video_thread.sql:
 --  * a lesson video can be shared as a reply in a thread, and in a Hub direct message;
 --  * a bad thread refuses the share and leaves neither a message nor a video row;
---  * the four-argument form keeps working;
+--  * the four-argument form (dropped by 20270603000000) is gone;
 --  * the same sharer checks apply (no access, not in the conversation).
 -- Rolled back; run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(11);
+SELECT plan(12);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000cd01', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'cthread-fern@example.test');
@@ -54,15 +54,7 @@ EXCEPTION WHEN OTHERS THEN
   INSERT INTO result VALUES (p_label, SQLERRM);
 END;
 $$ LANGUAGE plpgsql;
-CREATE FUNCTION public.pgtap_try_share4(p_label text, p_channel text, p_lesson text) RETURNS void AS $$
-BEGIN
-  INSERT INTO result VALUES (p_label, 'ok:' || chat_post_shared_video(p_channel, 'look', p_lesson, false)::text);
-EXCEPTION WHEN OTHERS THEN
-  INSERT INTO result VALUES (p_label, SQLERRM);
-END;
-$$ LANGUAGE plpgsql;
 GRANT EXECUTE ON FUNCTION public.pgtap_try_share5(text, text, text, text) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.pgtap_try_share4(text, text, text) TO authenticated;
 
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000cd01", "email": "cthread-fern@example.test", "role": "authenticated"}', true);
@@ -72,7 +64,7 @@ SELECT public.pgtap_try_share5('no such root', 'chn_PGTAPCTHR001', 'les_PGTAPCTH
 SELECT public.pgtap_try_share5('direct message', 'chn_PGTAPCTHR003', 'les_PGTAPCTHR001', NULL);
 SELECT public.pgtap_try_share5('no access, in a thread', 'chn_PGTAPCTHR001', 'les_PGTAPCTHR002', 'msg_PGTAPCTHR001');
 SELECT public.pgtap_try_share5('not in the conversation', 'chn_PGTAPCTHR002', 'les_PGTAPCTHR001', NULL);
-SELECT public.pgtap_try_share4('four arguments', 'chn_PGTAPCTHR001', 'les_PGTAPCTHR001');
+SELECT public.pgtap_try_share5('top level', 'chn_PGTAPCTHR001', 'les_PGTAPCTHR001', NULL);
 RESET ROLE;
 
 SELECT is(
@@ -96,7 +88,7 @@ SELECT is((SELECT value FROM result WHERE label = 'not in the conversation'), 'c
 SELECT is(
   (SELECT count(*)::int FROM chat_messages WHERE author_member_id = 'mbr_PGTAPCTHR001'),
   3,
-  'refused shares left no message behind (the thread reply, the direct message and the four-argument one)'
+  'refused shares left no message behind (the thread reply, the direct message and the top-level one)'
 );
 SELECT is(
   (SELECT count(*)::int FROM chat_message_videos v JOIN chat_messages m ON m.id = v.message_id WHERE m.author_member_id = 'mbr_PGTAPCTHR001'),
@@ -108,7 +100,8 @@ SELECT is(
   true,
   'a share in a direct message is Hub-only: nothing is queued for Slack'
 );
-SELECT ok((SELECT value LIKE 'ok:%' FROM result WHERE label = 'four arguments'), 'the four-argument form still works');
+SELECT ok((SELECT value LIKE 'ok:%' FROM result WHERE label = 'top level'), 'a top-level share passes a null thread root');
+SELECT hasnt_function('public', 'chat_post_shared_video', ARRAY['text', 'text', 'text', 'boolean'], 'and the old four-argument form is gone');
 SELECT is(has_function_privilege('anon', 'public.chat_post_shared_video(text,text,text,boolean,text)', 'EXECUTE'), false, 'a signed-out visitor cannot call the new form');
 SELECT is(has_function_privilege('authenticated', 'public.chat_post_shared_video(text,text,text,boolean,text)', 'EXECUTE'), true, 'a signed-in member can');
 

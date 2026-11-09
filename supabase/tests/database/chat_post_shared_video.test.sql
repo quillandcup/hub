@@ -1,4 +1,5 @@
--- pgTAP tests for 20270530000000_chat_post_shared_video.sql:
+-- pgTAP tests for 20270530000000_chat_post_shared_video.sql (the function as it is after 20270531000000 added the thread argument,
+-- so every call passes a thread root, null for a top-level message):
 --  * the message and its video row are written together;
 --  * a member can only share a lesson they could open themselves: no access, a lesson not open yet, a draft course,
 --    a lesson without a video are all refused, and nothing is posted;
@@ -48,7 +49,7 @@ CREATE TEMP TABLE result(label text, value text) ON COMMIT DROP;
 GRANT INSERT ON result TO authenticated;
 CREATE FUNCTION public.pgtap_try_share(p_label text, p_lesson text, p_open boolean) RETURNS void AS $$
 BEGIN
-  INSERT INTO result VALUES (p_label, 'ok:' || chat_post_shared_video('chn_PGTAPCSHR001', 'look at this', p_lesson, p_open)::text);
+  INSERT INTO result VALUES (p_label, 'ok:' || chat_post_shared_video('chn_PGTAPCSHR001', 'look at this', p_lesson, p_open, NULL::text)::text);
 EXCEPTION WHEN OTHERS THEN
   INSERT INTO result VALUES (p_label, SQLERRM);
 END;
@@ -99,8 +100,8 @@ SELECT is(
 );
 
 -- Checked as a privilege, not by calling it as anon: calling a refused SECURITY DEFINER function under SET ROLE anon crashed an older local Postgres.
-SELECT is(has_function_privilege('anon', 'public.chat_post_shared_video(text,text,text,boolean)', 'EXECUTE'), false, 'a signed-out visitor cannot call it');
-SELECT is(has_function_privilege('authenticated', 'public.chat_post_shared_video(text,text,text,boolean)', 'EXECUTE'), true, 'a signed-in member can');
+SELECT is(has_function_privilege('anon', 'public.chat_post_shared_video(text,text,text,boolean,text)', 'EXECUTE'), false, 'a signed-out visitor cannot call it');
+SELECT is(has_function_privilege('authenticated', 'public.chat_post_shared_video(text,text,text,boolean,text)', 'EXECUTE'), true, 'a signed-in member can');
 
 SELECT is(
   (SELECT open_to_channel FROM chat_message_videos WHERE message_id = (SELECT substr(value, 4) FROM result WHERE label = 'member shares')),
@@ -108,8 +109,8 @@ SELECT is(
   'the column defaults to closed'
 );
 SELECT col_default_is('public', 'chat_message_videos', 'open_to_channel', 'false', 'and is closed unless asked');
-SELECT has_function('public', 'chat_post_shared_video', ARRAY['text', 'text', 'text', 'boolean'], 'the function exists');
-SELECT function_privs_are('public', 'chat_post_shared_video', ARRAY['text', 'text', 'text', 'boolean'], 'anon', ARRAY[]::text[], 'and anon has no privilege on it');
+SELECT has_function('public', 'chat_post_shared_video', ARRAY['text', 'text', 'text', 'boolean', 'text'], 'the function exists');
+SELECT function_privs_are('public', 'chat_post_shared_video', ARRAY['text', 'text', 'text', 'boolean', 'text'], 'anon', ARRAY[]::text[], 'and anon has no privilege on it');
 
 SELECT * FROM finish(true);
 ROLLBACK;
