@@ -228,7 +228,7 @@ describe("chat page titles", () => {
   it("names the conversation in the tab title", async () => {
     expect(await channelMetadata({ params: Promise.resolve({ id: GENERAL }) })).toEqual({ title: "#general · Chat" });
     expect(await membersMetadata({ params: Promise.resolve({ id: GENERAL }) })).toEqual({ title: "Members · #general · Chat" });
-    expect(await channelMetadata({ params: Promise.resolve({ id: GROUP }) })).toEqual({ title: "Gale Prickleton · Chat" });
+    expect(await channelMetadata({ params: Promise.resolve({ id: GROUP }) })).toEqual({ title: "Gale Prickleton (group) · Chat" });
   });
 
   it("falls back to Chat for an unknown or malformed id", async () => {
@@ -251,7 +251,7 @@ describe("chat shell", () => {
 
     // The list is the member's own conversations; a public channel they are not in is behind Browse.
     expect(within(nav).getByRole("link", { name: /hosts/ })).toBeInTheDocument();
-    expect(within(nav).getByRole("link", { name: "Gale Prickleton" })).toHaveAttribute("href", `/chat/${GROUP}`);
+    expect(within(nav).getByRole("link", { name: "Gale Prickleton (group)" })).toHaveAttribute("href", `/chat/${GROUP}`);
     expect(within(nav).queryByRole("link", { name: "#general" })).not.toBeInTheDocument();
     await userEvent.click(within(nav).getByRole("button", { name: "Browse channels" }));
     expect(within(nav).getByRole("link", { name: "#general" })).toHaveAttribute("href", `/chat/${GENERAL}`);
@@ -399,7 +399,7 @@ describe("channel page", () => {
   });
 
   it("carries no note about staff access on any conversation (the privacy page covers that)", async () => {
-    for (const [cid, heading] of [[HOSTS, "#hosts"], [QUIET, "#quiet"], [GROUP, "Gale Prickleton"]]) {
+    for (const [cid, heading] of [[HOSTS, "#hosts"], [QUIET, "#quiet"], [GROUP, "Gale Prickleton (group)"]]) {
       document.body.innerHTML = "";
       await renderChannel(cid);
       expect(screen.getByRole("heading", { name: heading })).toBeInTheDocument();

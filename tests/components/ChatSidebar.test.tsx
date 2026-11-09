@@ -119,6 +119,8 @@ describe("ChatSidebar", () => {
       <ChatSidebar channels={[...CHANNELS, channel("8", "Ania", { kind: "dm", visibility: "private", restricted: true })]} />
     );
     const group = (title: string) => screen.getByRole("heading", { name: title }).closest("div.group") as HTMLElement;
+    // Channels, then group messages, then direct messages, as in Slack.
+    expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual(["Channels", "Group messages", "Direct messages"]);
     expect(within(group("Direct messages")).getAllByRole("link").map((a) => a.textContent)).toEqual(["Ania"]);
     expect(within(group("Group messages")).getAllByRole("link").map((a) => a.textContent)).toEqual(["Gale, Fern"]);
 
