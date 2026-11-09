@@ -26,8 +26,8 @@ describe("matchPages", () => {
     expect(titles(["work queue"])).toEqual([]);
     expect(titles(["health"], { isActingAsAdmin: true, features: [] })).toContain("Health Check");
     expect(titles(["health"])).toEqual([]);
-    expect(titles(["chat"])).not.toContain("Chat");
-    expect(titles(["chat"], { isActingAsAdmin: false, features: ["chat"] })).toContain("Chat");
+    expect(titles(["big sisters"])).not.toContain("Big Sisters");
+    expect(titles(["big sisters"], { isActingAsAdmin: false, features: ["big_sisters"] })).toContain("Big Sisters");
   });
 });
 

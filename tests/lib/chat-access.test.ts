@@ -69,12 +69,10 @@ describe("requireChat", () => {
     expect(getSlackConnectionStatus).not.toHaveBeenCalled();
   });
 
-  it("still sends visitors who are signed out to login, members without a record to admin, and hides chat without the feature", async () => {
+  it("still sends visitors who are signed out to login, members without a record to admin", async () => {
     getCurrentUser.mockResolvedValueOnce(null);
     await expect(requireChat()).rejects.toThrow("redirect:/login");
     getEffectiveIdentity.mockResolvedValueOnce(null);
     await expect(requireChat()).rejects.toThrow("redirect:/admin");
-    hasFeature.mockResolvedValueOnce(false);
-    await expect(requireChat()).rejects.toThrow("notFound");
   });
 });

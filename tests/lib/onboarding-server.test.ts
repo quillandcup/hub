@@ -9,7 +9,7 @@ let serviceSupabase: FakeSupabase;
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => userSupabase }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => serviceSupabase }));
 
-const slack = vi.hoisted(() => ({ configured: false, status: { connected: false, sharesReadState: false, revoked: false }, chatOn: false }));
+const slack = vi.hoisted(() => ({ configured: false, status: { connected: false, sharesReadState: false, revoked: false } }));
 vi.mock("@/lib/slack-connect", async (orig) => ({
   ...(await orig<typeof import("@/lib/slack-connect")>()),
   isSlackConnectConfigured: () => slack.configured,
@@ -17,7 +17,7 @@ vi.mock("@/lib/slack-connect", async (orig) => ({
 }));
 vi.mock("@/lib/features.server", async (orig) => ({
   ...(await orig<typeof import("@/lib/features.server")>()),
-  membersWithFeature: async (_s: unknown, key: string, ids: string[]) => new Set(key === "chat" && slack.chatOn ? ids : []),
+  membersWithFeature: async () => new Set<string>(),
 }));
 
 const upcomingPrickleIds = vi.fn(async (_s: unknown, _memberId: string): Promise<Set<string>> => new Set());
@@ -44,7 +44,6 @@ const step = (state: Awaited<ReturnType<typeof getOnboardingState>>, id: string)
 
 beforeEach(() => {
   slack.configured = false;
-  slack.chatOn = false;
   slack.status = { connected: false, sharesReadState: false, revoked: false };
   upcomingPrickleIds.mockReset();
   upcomingPrickleIds.mockResolvedValue(new Set());
@@ -132,9 +131,8 @@ describe("getOnboardingState for everyone else", () => {
 });
 
 describe("the Slack step's signals", () => {
-  it("is offered, and required, to a member who has chat, and done only with a connection that has every scope", async () => {
+  it("is offered, and required, to every member, and done only with a connection that has every scope", async () => {
     slack.configured = true;
-    slack.chatOn = true;
     const required = step(await run(), "slack");
     expect(required?.done).toBe(false);
     expect(required?.confirmLabel).toBeUndefined();
@@ -146,10 +144,7 @@ describe("the Slack step's signals", () => {
     expect(step(await run(), "slack")?.done).toBe(true);
   });
 
-  it("is optional for a member without chat, and absent when Slack isn't configured", async () => {
-    slack.configured = true;
-    expect(step(await run(), "slack")).toMatchObject({ done: false, confirmLabel: "I'll skip this" });
-
+  it("is absent when Slack isn't configured", async () => {
     slack.configured = false;
     expect(step(await run(), "slack")).toBeUndefined();
   });

@@ -1,12 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient } from '../../helpers/supabase'
 import { publicLessonPreview } from '@/lib/courses/public-preview'
-import { isFeatureOnForEveryone } from '@/lib/features.server'
 import { createRepos } from "@/lib/data/repos";
 
 /**
  * What anyone may see of a lesson without signing in (a shared link's title, picture and teaser):
- * only a lesson a member could open today, in a live course, with the courses feature on for everyone.
+ * only a lesson a member could open today, in a live course.
  */
 
 const ts = Date.now()
@@ -15,19 +14,12 @@ const SLUG = `test-public-preview-${ts}`
 describe('Public lesson preview', () => {
   const supabase = getTestSupabaseAdminClient()
   const ids: Record<string, string> = {}
-  let priorFlag: { feature_key: string; enabled_globally: boolean } | null = null
   const now = new Date()
   const days = (n: number) => new Date(now.getTime() + n * 86_400_000).toISOString()
 
-  const setFlag = async (on: boolean) => {
-    const { error } = await supabase.from('feature_flags').upsert({ feature_key: 'courses', enabled_globally: on })
-    expect(error).toBeNull()
-  }
   const preview = (name: string, opts: { slug?: string; now?: Date } = {}) => publicLessonPreview(createRepos(supabase), ids[name] ?? name, opts)
 
   beforeAll(async () => {
-    const { data } = await supabase.from('feature_flags').select('feature_key, enabled_globally').eq('feature_key', 'courses').maybeSingle()
-    priorFlag = data
     const { data: course } = await supabase.from('courses').insert({ slug: SLUG, title: 'The Ready Writer', source_key: SLUG }).select('id').single()
     ids.course = course!.id
     const { data: modules } = await supabase
@@ -52,12 +44,9 @@ describe('Public lesson preview', () => {
       ])
       .select('id, title')
     for (const l of lessons!) ids[l.title.toLowerCase().replace(/ /g, '_')] = l.id
-    await setFlag(true)
   })
   afterAll(async () => {
     await supabase.from('courses').delete().eq('source_key', SLUG) // modules and lessons go with it
-    if (priorFlag) await supabase.from('feature_flags').upsert(priorFlag)
-    else await supabase.from('feature_flags').delete().eq('feature_key', 'courses')
   })
 
   it("gives an open lesson's title, its course, its excerpt and its thumbnail", async () => {
@@ -117,16 +106,5 @@ describe('Public lesson preview', () => {
     expect(await preview('loose')).toEqual({ blocked: 'course_not_live' })
     await supabase.from('courses').update({ is_draft: false }).eq('id', ids.course)
     expect(await preview('loose')).toHaveProperty('preview')
-  })
-
-  it('is blocked whenever the courses feature is not on for everyone, even if a segment or a member has it', async () => {
-    await setFlag(false)
-    expect(await isFeatureOnForEveryone(createRepos(supabase), 'courses')).toBe(false)
-    expect(await preview('loose')).toEqual({ blocked: 'feature_off' })
-    await supabase.from('feature_flags').delete().eq('feature_key', 'courses')
-    expect(await isFeatureOnForEveryone(createRepos(supabase), 'courses')).toBe(false)
-    expect(await preview('loose')).toEqual({ blocked: 'feature_off' })
-    await setFlag(true)
-    expect(await isFeatureOnForEveryone(createRepos(supabase), 'courses')).toBe(true)
   })
 })

@@ -6,17 +6,15 @@ import { publicCoursePreview, publicCoursePreviewById } from "@/lib/courses/publ
 
 /**
  * What anyone may see of a course without signing in: its title, a plain-text teaser of the description and
- * its cover, only for a published course whose opening date has passed, with the courses feature on for everyone.
+ * its cover, only for a published course whose opening date has passed.
  */
 const ID = "crs_AAAAAAAAAAA1";
 const NOW = new Date("2026-11-02T12:00:00Z");
-const FLAG_ON = { feature_key: "courses", enabled_globally: true, created_at: "2026-10-01T00:00:00Z", updated_at: "2026-10-01T00:00:00Z" };
 
-const repos = (course: Partial<Parameters<typeof courseRow>[0]> = {}, flagOn = true) =>
+const repos = (course: Partial<Parameters<typeof courseRow>[0]> = {}) =>
   createInMemoryRepos(
     new InMemoryDataset({
       courses: [courseRow({ id: ID, slug: "the-ready-writer", title: "The Ready Writer", ...course })],
-      featureFlags: flagOn ? [FLAG_ON] : [],
     })
   );
 
@@ -77,9 +75,6 @@ describe("publicCoursePreview", () => {
     expect(await publicCoursePreview(r, "the-ready-writer", { now: new Date("2026-11-10T00:00:00Z") })).toHaveProperty("preview");
   });
 
-  it("is blocked whenever the courses feature is not on for everyone", async () => {
-    expect(await publicCoursePreview(repos({}, false), "the-ready-writer", { now: NOW })).toEqual({ blocked: "feature_off" });
-  });
 });
 
 describe("publicCoursePreviewById", () => {
@@ -87,6 +82,5 @@ describe("publicCoursePreviewById", () => {
     expect(await publicCoursePreviewById(repos(), ID, { now: NOW })).toHaveProperty("preview");
     expect(await publicCoursePreviewById(repos(), "crs_BBBBBBBBBBB2", { now: NOW })).toEqual({ blocked: "not_found" });
     expect(await publicCoursePreviewById(repos({ is_draft: true }), ID, { now: NOW })).toEqual({ blocked: "course_not_live" });
-    expect(await publicCoursePreviewById(repos({}, false), ID, { now: NOW })).toEqual({ blocked: "feature_off" });
   });
 });

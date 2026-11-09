@@ -106,7 +106,6 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
     bigSistersOn,
     birthday,
     slackStatus,
-    chatOn,
     hostingOn,
   ] = await Promise.all([
     // Written only when the member saves their bio or socials in the Hub. members.bio isn't read:
@@ -142,8 +141,6 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
     createRepos(supabase).members.profile(memberId),
     // Same gate as the Slack panel in Settings (SettingsPage): the Slack app is configured.
     isSlackConnectConfigured() ? getSlackConnectionStatus(createServiceRoleClient(), memberId) : Promise.resolve(null),
-    // Chat needs the connection, so for someone who has it the Slack step can't be skipped.
-    membersWithFeature(createRepos(createServiceRoleClient()), "chat", [memberId]).then((on) => on.has(memberId)),
     // The hosting steps are behind the hosting preview (this member's own flag).
     membersWithFeature(createRepos(createServiceRoleClient()), "hosting", [memberId]).then((on) => on.has(memberId)),
   ]);
@@ -168,7 +165,8 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
       hasCalendarSynced: feedFetched,
       hasBirthday: birthday?.birthdayMonth != null && birthday?.birthdayDay != null,
       ...newcomer,
-      slackConnect: slackStatus ? { connected: slackStatus.connected && slackStatus.sharesReadState, required: chatOn } : null,
+      // Chat needs the connection, so the Slack step can't be skipped.
+      slackConnect: slackStatus ? { connected: slackStatus.connected && slackStatus.sharesReadState, required: true } : null,
       bigSisterName: mentorships?.bigSister?.name ?? null,
     },
     recordData

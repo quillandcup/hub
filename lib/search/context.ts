@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { createRepos } from "@/lib/data/repos";
 import { getEffectiveIdentity } from "@/lib/sudo";
-import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
+import { getUserFeaturePreviews } from "@/lib/features.server";
 import { loadChatChannels, type ChannelSummary } from "@/lib/chat/load";
 import type { SearchContext } from "@/lib/search/universal";
 import type { SearchKind } from "@/lib/search/syntax";
@@ -34,8 +34,8 @@ export async function getSearcher(): Promise<Searcher | null> {
   ]);
   const isSudo = identity?.isSudo ?? false;
 
-  // Chat follows the viewed member's own chat flag, like the chat pages (lib/chat/access.ts).
-  const chatOn = identity ? await effectiveMemberHasFeature("chat", identity, features) : false;
+  // Chat is searched for any member (like the chat pages, lib/chat/access.ts).
+  const chatOn = !!identity;
   // Loaded only if chat is searched (see SearchContext.chatChannels), once per search.
   let channels: Promise<ChannelSummary[]> | undefined;
   const chatChannels = () =>
@@ -47,7 +47,7 @@ export async function getSearcher(): Promise<Searcher | null> {
       viewerMemberId: identity?.memberId ?? null,
       isActingAsAdmin: isAdmin && !isSudo,
       chatChannels: chatOn && identity ? chatChannels : [],
-      features: chatOn ? [...features, "chat"] : features,
+      features,
     },
     skip: chatOn ? [] : ["chat", "channels"],
     isAdmin,

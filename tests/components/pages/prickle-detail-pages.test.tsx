@@ -56,8 +56,6 @@ vi.mock("@/app/(admin)/admin/prickles/[id]/TestCheckinDMs", () => ({ default: ()
 vi.mock("@/app/(admin)/admin/prickles/[id]/ShowInEvents", () => ({
   default: (props: object) => <div data-testid="show-in-events">{JSON.stringify(props)}</div>,
 }));
-const features = vi.fn(async (_userId: string): Promise<string[]> => ["events"]);
-vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: (id: string) => features(id) }));
 
 import MemberPrickleDetailPage, { generateMetadata as memberMetadata } from "@/app/(member)/prickles/[id]/page";
 import AdminPrickleDetailPage, { generateMetadata as adminMetadata } from "@/app/(admin)/admin/prickles/[id]/page";
@@ -205,7 +203,6 @@ describe("admin prickle page", () => {
     const controlProps = () => JSON.parse(screen.getByTestId("show-in-events").textContent!);
 
     beforeEach(() => {
-      features.mockResolvedValue(["events"]);
       repos = dataset([prickle({ calendarEventId: CALENDAR_ID })]);
     });
 
@@ -229,14 +226,8 @@ describe("admin prickle page", () => {
       expect(controlProps().initial).toEqual({ id: "evt_AAAAAAAAAAA1", slug: "sprint", hidden: true });
     });
 
-    it("leaves the control out for a prickle with no calendar event, and when events aren't enabled", async () => {
+    it("leaves the control out for a prickle with no calendar event", async () => {
       repos = dataset([prickle()]);
-      await renderServerPage(AdminPrickleDetailPage, memberProps);
-      expect(screen.queryByTestId("show-in-events")).not.toBeInTheDocument();
-      cleanup();
-
-      repos = dataset([prickle({ calendarEventId: CALENDAR_ID })]);
-      features.mockResolvedValue([]);
       await renderServerPage(AdminPrickleDetailPage, memberProps);
       expect(screen.queryByTestId("show-in-events")).not.toBeInTheDocument();
     });

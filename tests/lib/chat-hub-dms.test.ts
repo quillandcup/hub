@@ -85,11 +85,9 @@ describe("startDirectMessage", () => {
     expect(m.rpc).toHaveBeenCalledWith("chat_find_or_create_dm", { p_other_member_id: GALE });
   });
 
-  it("is closed without the direct message preview, chat posting or in sudo", async () => {
+  it("is closed without the direct message preview or in sudo", async () => {
     m.hasFeature.mockImplementation(async (key: string) => key !== "chat_dms" && key !== "slack_dm_bridge");
     await expect(startDirectMessage(GALE)).resolves.toMatchObject({ ok: false, error: expect.stringContaining("available") });
-    m.hasFeature.mockImplementation(async (key: string) => key !== "chat_posting" && key !== "slack_dm_bridge");
-    await expect(startDirectMessage(GALE)).resolves.toMatchObject({ ok: false });
     m.hasFeature.mockImplementation(async (key: string) => key !== "slack_dm_bridge");
     m.getEffectiveIdentity.mockResolvedValue({ memberId: "member-fern", isSudo: true });
     await expect(startDirectMessage(GALE)).resolves.toMatchObject({ ok: false });
@@ -124,13 +122,10 @@ describe("startDirectMessage with the Slack DM bridge on", () => {
     expect(m.rpc).not.toHaveBeenCalled();
   });
 
-  it("works without the Hub DM preview, and not at all without posting or in sudo", async () => {
+  it("works without the Hub DM preview, and not at all in sudo", async () => {
     m.openDm.mockResolvedValue({ ok: true, channelId: CHANNEL });
     m.hasFeature.mockImplementation(async (key: string) => key !== "chat_dms");
     await expect(startDirectMessage(GALE)).resolves.toMatchObject({ ok: true });
-    m.hasFeature.mockImplementation(async (key: string) => key !== "chat_posting");
-    await expect(startDirectMessage(GALE)).resolves.toMatchObject({ ok: false });
-    m.hasFeature.mockResolvedValue(true);
     m.getEffectiveIdentity.mockResolvedValue({ memberId: "member-fern", isSudo: true });
     await expect(startDirectMessage(GALE)).resolves.toMatchObject({ ok: false });
     expect(m.openDm).toHaveBeenCalledTimes(1);
@@ -228,7 +223,7 @@ describe("isHubOnlyMessage", () => {
 describe("membershipAbilities for a Hub direct message", () => {
   it("explains that a direct message is between two people", () => {
     const abilities = membershipAbilities({
-      kind: "dm", visibility: "private", archived: false, joined: true, postingOn: true, isSudo: false, isStaff: false,
+      kind: "dm", visibility: "private", archived: false, joined: true, isSudo: false, isStaff: false,
       bridge: { bridge_mode: "app_only", bridge_disabled: false, bridge_status: "ok" }, slackChannelId: null,
     });
     expect(abilities.blocked).toBe("A direct message is between the two of you.");

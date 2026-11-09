@@ -92,19 +92,7 @@ describe('Course image route', () => {
   })
 
   describe('for a signed-out visitor (a shared link showing the lesson thumbnail)', () => {
-    let priorFlag: { feature_key: string; enabled_globally: boolean } | null = null
-    beforeAll(async () => {
-      const { data } = await supabase.from('feature_flags').select('feature_key, enabled_globally').eq('feature_key', 'courses').maybeSingle()
-      priorFlag = data
-    })
-    afterAll(async () => {
-      if (priorFlag) await supabase.from('feature_flags').upsert(priorFlag)
-      else await supabase.from('feature_flags').delete().eq('feature_key', 'courses')
-    })
-    const flag = (on: boolean) => supabase.from('feature_flags').upsert({ feature_key: 'courses', enabled_globally: on })
-
-    it("serves an open lesson's thumbnail, cached publicly, when the courses feature is on for everyone", async () => {
-      await flag(true)
+    it("serves an open lesson's thumbnail, cached publicly", async () => {
       as(null)
       const res = await get('lesson', 'open')
       expect(res.status).toBe(200)
@@ -113,15 +101,13 @@ describe('Course image route', () => {
     })
 
     it('still answers 404 for a draft lesson, a course banner, and a lesson that has no image', async () => {
-      await flag(true)
       as(null)
       expect((await get('lesson', 'draft')).status).toBe(404)
       expect((await get('hero', 'course')).status).toBe(404)
       expect((await get('lesson', 'bare')).status).toBe(404)
     })
 
-    it("serves a live course's cover, cached publicly, when the courses feature is on for everyone", async () => {
-      await flag(true)
+    it("serves a live course's cover, cached publicly", async () => {
       as(null)
       const res = await get('course', 'course')
       expect(res.status).toBe(200)
@@ -130,7 +116,6 @@ describe('Course image route', () => {
     })
 
     it("answers 404 for the cover of a draft course, and of one that hasn't opened yet", async () => {
-      await flag(true)
       as(null)
       await supabase.from('courses').update({ is_draft: true }).eq('id', ids.course)
       expect((await get('course', 'course')).status).toBe(404)
@@ -140,15 +125,7 @@ describe('Course image route', () => {
       expect((await get('course', 'course')).status).toBe(200)
     })
 
-    it('answers 404 for everything while the courses feature is not on for everyone', async () => {
-      await flag(false)
-      as(null)
-      expect((await get('lesson', 'open')).status).toBe(404)
-      expect((await get('course', 'course')).status).toBe(404)
-    })
-
     it('keeps a signed-in courses user on the private cache header, even for a public lesson', async () => {
-      await flag(true)
       as(false)
       expect((await get('lesson', 'open')).headers.get('cache-control')).toContain('private')
     })

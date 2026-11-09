@@ -7,7 +7,6 @@ import { requireChat } from "@/lib/chat/access";
 import { isId } from "@/lib/ids";
 import { loadChannelForMember, loadChannelMembers } from "@/lib/chat/load";
 import { membershipAbilities } from "@/lib/chat/membership-abilities";
-import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
 import MembersManager from "@/components/chat/MembersManager";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -31,9 +30,8 @@ export default async function ChatMembersPage({ params }: { params: Promise<{ id
   const supabase = await createClient();
   const channel = await loadChannelForMember(createRepos(supabase), id, identity.memberId, identity.isSudo);
   if (!channel) notFound();
-  const [people, features, profile, bridge] = await Promise.all([
+  const [people, profile, bridge] = await Promise.all([
     loadChannelMembers(createRepos(supabase), channel.id),
-    getUserFeaturePreviews(user.id),
     createRepos(supabase).profiles.isAdmin(user.id),
     createRepos(supabase).chat.bridgeState(channel.id),
   ]);
@@ -42,7 +40,6 @@ export default async function ChatMembersPage({ params }: { params: Promise<{ id
     visibility: channel.visibility,
     archived: channel.archived,
     joined: channel.joined,
-    postingOn: await effectiveMemberHasFeature("chat_posting", identity, features),
     isSudo: identity.isSudo,
     isStaff: profile,
     bridge,

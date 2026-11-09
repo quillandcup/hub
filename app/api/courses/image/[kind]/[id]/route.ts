@@ -11,11 +11,11 @@ const PREFIXES = { course: "crs", hero: "crs", module: "mod", lesson: "les" } as
 
 /**
  * A course image (cover, hero banner, module poster or lesson thumbnail) copied from Kajabi into the media library. The
- * bucket is private, so images come through here: the caller must be able to use the courses feature, and a hidden
+ * bucket is private, so images come through here: the caller must be a signed-in member, and a hidden
  * (draft) module or lesson's image is for staff acting as themselves only. Anything else is a plain 404.
  *
  * One exception, for shared links: a lesson thumbnail is public when the lesson itself is, and a course cover when the
- * course is (lib/courses/public-preview.ts: a live course, with the courses feature on for everyone, and for a lesson
+ * course is (lib/courses/public-preview.ts: a live course, and for a lesson
  * open to members), so a link pasted into Slack or a message can show it. Those are cached publicly; everything else
  * (hero banners, module posters) stays private.
  */

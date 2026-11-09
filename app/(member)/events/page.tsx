@@ -3,7 +3,6 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { createRepos } from "@/lib/data/repos";
-import { getUserFeaturePreviews } from "@/lib/features.server";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { localDateString } from "@/lib/events-filter";
 import { agendaMonths, parseAgendaMonth, withoutEventPrickles } from "@/lib/events-agenda";
@@ -21,11 +20,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const [enabledFeatures, tzPref] = await Promise.all([
-    getUserFeaturePreviews(user.id),
-    getUserTimezonePreference(),
-  ]);
-  if (!enabledFeatures.includes("events")) redirect("/dashboard");
+  const tzPref = await getUserTimezonePreference();
 
   const { month: rawMonth } = await searchParams;
   const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref;

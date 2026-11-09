@@ -78,28 +78,21 @@ it.each([
   ["reconnect", { connected: false, sharesReadState: false, hasDmScopes: false, revoked: true }],
   ["update", { connected: true, sharesReadState: false, hasDmScopes: false, revoked: false }],
   ["permissions", { connected: true, sharesReadState: true, hasDmScopes: false, revoked: false }],
-])("asks a member who has chat but not a working Slack connection to %s it", async (need, status) => {
-  effectiveMemberHasFeature.mockImplementation(async (feature: string) => feature === "chat");
+])("asks a member without a working Slack connection to %s it", async (need, status) => {
+  effectiveMemberHasFeature.mockResolvedValue(false);
   slack.status = status;
   await render(await MemberLayout({ children: <div>Member content</div> }));
   expect(await screen.findByTestId("slack-prompt")).toHaveTextContent(need);
 });
 
-it("doesn't ask when Slack is connected, chat is off, it is sudo, or Slack isn't configured", async () => {
-  effectiveMemberHasFeature.mockImplementation(async (feature: string) => feature === "chat");
-  await render(await MemberLayout({ children: <div>Member content</div> }));
-  await settled();
-  expect(screen.queryByTestId("slack-prompt")).not.toBeInTheDocument();
-  cleanup();
-
-  slack.status = { connected: false, sharesReadState: false, hasDmScopes: false, revoked: false };
+it("doesn't ask when Slack is connected, it is sudo, or Slack isn't configured", async () => {
   effectiveMemberHasFeature.mockResolvedValue(false);
   await render(await MemberLayout({ children: <div>Member content</div> }));
   await settled();
   expect(screen.queryByTestId("slack-prompt")).not.toBeInTheDocument();
   cleanup();
 
-  effectiveMemberHasFeature.mockImplementation(async (feature: string) => feature === "chat");
+  slack.status = { connected: false, sharesReadState: false, hasDmScopes: false, revoked: false };
   identity.isSudo = true;
   await render(await MemberLayout({ children: <div>Member content</div> }));
   await settled();
@@ -114,7 +107,7 @@ it("doesn't ask when Slack is connected, chat is off, it is sudo, or Slack isn't
 });
 
 it("leaves the Slack bar out while the Getting started tour is running, which has the same step", async () => {
-  effectiveMemberHasFeature.mockImplementation(async (feature: string) => feature === "chat");
+  effectiveMemberHasFeature.mockResolvedValue(false);
   slack.status = { connected: false, sharesReadState: false, hasDmScopes: false, revoked: false };
   tour.active = true;
   await render(await MemberLayout({ children: <div>Member content</div> }));

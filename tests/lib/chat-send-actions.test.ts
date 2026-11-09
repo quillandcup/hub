@@ -124,8 +124,8 @@ describe("retryChatMessage", () => {
     expect(m.sendToSlack).not.toHaveBeenCalled();
   });
 
-  it("is closed without the posting preview", async () => {
-    m.hasFeature.mockImplementation(async (key: string) => key !== "chat_posting");
+  it("is closed in sudo", async () => {
+    m.getEffectiveIdentity.mockResolvedValue({ memberId: "member-fern", isSudo: true });
     await expect(retryChatMessage(MESSAGE)).resolves.toMatchObject({ ok: false, error: expect.stringContaining("isn't available") });
   });
 });
@@ -164,11 +164,7 @@ describe("sendChatMessage", () => {
     expect(m.afterCallbacks).toHaveLength(0);
   });
 
-  it("is closed to a member without the chat_posting preview, and to sudo", async () => {
-    m.hasFeature.mockImplementation(async (key: string) => key !== "chat_posting");
-    await expect(sendChatMessage(CHANNEL, "hello")).resolves.toMatchObject({ ok: false });
-
-    m.hasFeature.mockResolvedValue(true);
+  it("is closed to sudo", async () => {
     m.getEffectiveIdentity.mockResolvedValue({ memberId: "member-fern", isSudo: true });
     await expect(sendChatMessage(CHANNEL, "hello")).resolves.toMatchObject({ ok: false });
     expect(m.rpc).not.toHaveBeenCalled();
@@ -308,11 +304,8 @@ describe("editChatMessage", () => {
     await expect(editChatMessage(MESSAGE, "new")).resolves.toEqual({ ok: false, error: "This conversation is archived." });
   });
 
-  it("is closed without the chat_posting preview, in sudo, and for a bad id", async () => {
+  it("is closed in sudo and for a bad id", async () => {
     await expect(editChatMessage("nope", "new")).resolves.toMatchObject({ ok: false });
-    m.hasFeature.mockImplementation(async (key: string) => key !== "chat_posting");
-    await expect(editChatMessage(MESSAGE, "new")).resolves.toMatchObject({ ok: false });
-    m.hasFeature.mockResolvedValue(true);
     m.getEffectiveIdentity.mockResolvedValue({ memberId: "member-fern", isSudo: true });
     await expect(editChatMessage(MESSAGE, "new")).resolves.toMatchObject({ ok: false });
     expect(m.slackUpdate).not.toHaveBeenCalled();
@@ -382,9 +375,9 @@ describe("deleteChatMessage", () => {
     expect(m.rpc).not.toHaveBeenCalled();
   });
 
-  it("is closed without the chat_posting preview and for a bad id", async () => {
+  it("is closed in sudo and for a bad id", async () => {
     await expect(deleteChatMessage("nope")).resolves.toMatchObject({ ok: false });
-    m.hasFeature.mockImplementation(async (key: string) => key !== "chat_posting");
+    m.getEffectiveIdentity.mockResolvedValue({ memberId: "member-fern", isSudo: true });
     await expect(deleteChatMessage(MESSAGE)).resolves.toMatchObject({ ok: false });
     expect(m.slackDelete).not.toHaveBeenCalled();
   });

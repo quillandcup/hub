@@ -45,7 +45,6 @@ const BLOCKED_REASON: Record<PreviewBlocker | "no_thumbnail" | "not_in_hub", str
   not_found: "This lesson isn't in the Hub yet",
   not_open: "Only a lesson that is open to members has a public link",
   course_not_live: "The course hasn't opened yet",
-  feature_off: "Courses aren't on for everyone yet",
   no_thumbnail: "This lesson has no thumbnail",
 };
 

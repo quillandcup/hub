@@ -110,13 +110,10 @@ describe("loadLatestChat", () => {
     expect(m.loadMessagesByIds).toHaveBeenCalledWith(REPOS, CHANNEL, []);
   });
 
-  it("returns nothing for a bad id, a signed-out visitor, chat turned off or a conversation the member can't open", async () => {
+  it("returns nothing for a bad id, a signed-out visitor or a conversation the member can't open", async () => {
     await expect(loadLatestChat("not-a-uuid")).resolves.toBeNull();
 
     m.getCurrentUser.mockResolvedValueOnce(null);
-    await expect(loadLatestChat(CHANNEL)).resolves.toBeNull();
-
-    m.hasFeature.mockResolvedValueOnce(false);
     await expect(loadLatestChat(CHANNEL)).resolves.toBeNull();
 
     m.loadChannelForMember.mockResolvedValueOnce(null);

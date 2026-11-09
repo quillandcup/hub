@@ -116,11 +116,11 @@ export default async function LessonPage({
   // Watching is recorded for members' open lessons, and nowhere else (sudo, a staff preview) unless staff turn it on for a preview.
   const watchRecorded = !caller.identity.isSudo && (!preview || (caller.scope.isAdminActing && trackPreview));
 
-  // "Share in chat": chat, posting and chat videos on, not in sudo (read-only), on a lesson whose video is ready. A failed channel read just leaves the copy button.
+  // "Share in chat": the chat videos preview on, not in sudo (read-only), on a lesson whose video is ready. A failed channel read just leaves the copy button.
   let shareButton: React.ReactNode = null;
   if (video?.status === "ready" && !caller.identity.isSudo) {
     const own = await getUserFeaturePreviews(caller.userId);
-    const allOn = (await Promise.all((["chat", "chat_posting", "chat_videos"] as const).map((k) => effectiveMemberHasFeature(k, caller.identity, own)))).every(Boolean);
+    const allOn = await effectiveMemberHasFeature("chat_videos", caller.identity, own);
     const targets = allOn ? await shareTargets(createRepos(await createClient()), caller.identity.memberId).catch(() => []) : [];
     // Also offered with nowhere to pick from: the copied link works in any thread or direct message.
     if (allOn) shareButton = <ShareLessonInChat lessonId={lesson.id} targets={targets} shareUrl={`${APP_URL}${lessonPath(view.course.slug, lesson.id)}`} canOpenToChannel={caller.scope.isAdminActing} />;

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
-import { getUserFeaturePreviews } from "@/lib/features.server";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { monthOf } from "@/lib/events-agenda";
@@ -17,7 +16,6 @@ import { createRepos } from "@/lib/data/repos";
 export async function GET(request: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  if (!(await getUserFeaturePreviews(user.id)).includes("events")) return NextResponse.json({ error: "Not available" }, { status: 403 });
 
   const month = request.nextUrl.searchParams.get("month") ?? "";
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return NextResponse.json({ error: "month must be YYYY-MM" }, { status: 400 });

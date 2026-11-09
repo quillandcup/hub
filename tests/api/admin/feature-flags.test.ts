@@ -67,7 +67,7 @@ describe('Admin Feature Flags API', () => {
     const res = await apiFetch(`${base}/api/admin/feature-flags`, { headers: getTestAuthHeaders() })
     expect(res.ok).toBe(true)
     const body = await res.json()
-    const found = body.flags.find((f: any) => f.key === 'events')
+    const found = body.flags.find((f: any) => f.key === 'work_queue')
     expect(found).toBeTruthy()
     expect(typeof found.enabledGlobally).toBe('boolean')
     expect(Array.isArray(found.segments)).toBe(true)

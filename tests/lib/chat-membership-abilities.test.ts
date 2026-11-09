@@ -7,7 +7,6 @@ const base = {
   visibility: "public" as const,
   archived: false,
   joined: true,
-  postingOn: true,
   isSudo: false,
   isStaff: false,
   bridge: BRIDGED,
@@ -30,10 +29,6 @@ describe("membershipAbilities", () => {
   it("doesn't offer a private channel to join: someone in it has to add you", () => {
     expect(membershipAbilities({ ...base, visibility: "private", joined: false }).canJoin).toBe(false);
     expect(membershipAbilities({ ...base, visibility: "private" })).toMatchObject({ canLeave: true, canAdd: true });
-  });
-
-  it("shows nothing, and says nothing, without the chat_posting preview", () => {
-    expect(membershipAbilities({ ...base, postingOn: false, isStaff: true })).toEqual({ blocked: null, canJoin: false, canLeave: false, canAdd: false, canRemoveOthers: false });
   });
 
   it.each([

@@ -5,7 +5,6 @@ import "@testing-library/jest-dom/vitest";
 import {
   MEMBER_IDENTITY,
   MEMBER_USER,
-  expectRedirect,
   renderServerPage,
   resetServerPageMocks,
   signInAs,
@@ -27,10 +26,8 @@ vi.mock("@/lib/data/repos", async () => ({
   createRepos: () => createInMemoryRepos(dataset),
 }));
 
-const previews = vi.fn(async (_userId: string): Promise<string[]> => ["events"]);
 const tz = vi.hoisted(() => ({ value: "browser" }));
 vi.mock("@/lib/timezone", () => ({ getUserTimezonePreference: async () => tz.value }));
-vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: (id: string) => previews(id) }));
 vi.mock("@/app/(member)/my-prickles/calendar-feed-actions", () => ({
   getMyCalendarItems: vi.fn(async () => [{ id: "cfi_AAAAAAAAAAA1", kind: "event", eventId: "evnt_AAAAAAAAAAA1" }]),
 }));
@@ -54,7 +51,6 @@ const params = (slug: string) => ({ params: Promise.resolve({ slug }) });
 
 beforeEach(() => {
   resetServerPageMocks();
-  previews.mockResolvedValue(["events"]);
   tz.value = "browser";
   signInAs(MEMBER_USER, MEMBER_IDENTITY);
   dataset = new InMemoryDataset({
@@ -105,11 +101,5 @@ describe("member event detail page", () => {
   it("is not found for a hidden event or an unknown slug", async () => {
     await expect(renderServerPage(EventDetailPage, params("secret"))).rejects.toThrow();
     await expect(renderServerPage(EventDetailPage, params("nope"))).rejects.toThrow();
-  });
-
-  it("sends a member without the events feature to the dashboard", async () => {
-    previews.mockResolvedValue([]);
-
-    await expectRedirect(EventDetailPage, params("spring-retreat"), "/dashboard");
   });
 });

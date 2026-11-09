@@ -20,7 +20,6 @@ import TestCheckinDMs from "./TestCheckinDMs";
 import ShowInEvents from "./ShowInEvents";
 import { updatePrickle } from "./actions";
 import { loadEventDecision } from "@/lib/prickle-event-decisions";
-import { getUserFeaturePreviews } from "@/lib/features.server";
 import { getServiceRepos } from "@/lib/data/server";
 import { loadLiveAttendance } from "@/lib/live-attendance";
 import LivePoll from "@/components/LivePoll";
@@ -161,10 +160,9 @@ export default async function AdminPrickleDetailPage({
     }
   }
 
-  // The event that follows this prickle's calendar event, if it has one (events are behind a feature preview).
-  const eventsEnabled = (await getUserFeaturePreviews(user.id)).includes("events");
+  // The event that follows this prickle's calendar event, if it has one.
   const eventFollowing =
-    eventsEnabled && prickle.calendarEventId
+    prickle.calendarEventId
       ? await createRepos(supabase).events.byCalendarEventId(prickle.calendarEventId)
       : null;
 
@@ -221,7 +219,7 @@ export default async function AdminPrickleDetailPage({
                 : undefined
             }
           />
-          {can("prickle.show_in_events") && eventsEnabled && prickle.calendarEventId && (
+          {can("prickle.show_in_events") && prickle.calendarEventId && (
             <ShowInEvents
               calendarEventId={prickle.calendarEventId}
               initial={eventFollowing ? { id: eventFollowing.id, slug: eventFollowing.slug, hidden: eventFollowing.hidden } : null}

@@ -25,7 +25,6 @@ import {
   loadMemberCard,
 } from "@/lib/chat/load";
 import AvatarStack from "@/components/AvatarStack";
-import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
 import Composer from "@/components/chat/Composer";
 import JoinPrompt from "@/components/chat/JoinPrompt";
 import ThreadList from "@/components/chat/ThreadList";
@@ -109,12 +108,9 @@ export default async function ChatChannelPage({
     // A failed read shows no marker, as it always has.
     return createRepos(supabase).chat.readMarker(channel.id, identity.memberId).catch(() => null);
   };
-  // Posting is its own preview on top of chat; never in sudo, in a conversation the member is not in
+  // Posting never happens in sudo, in a conversation the member is not in
   // or an archived one (chat_post_message checks the same again, and that the conversation is bridged).
-  const postingQuery = async (): Promise<boolean> => {
-    if (sudoHidden || identity.isSudo || channel.archived) return false;
-    return effectiveMemberHasFeature("chat_posting", identity, await getUserFeaturePreviews(user.id));
-  };
+  const postingQuery = async (): Promise<boolean> => !(sudoHidden || identity.isSudo || channel.archived);
   // The conversation always shows its messages; a thread or a profile opens beside it.
   const messagesQuery = async () => {
     if (sudoHidden) return { page: null, root: null, threadPage: null };

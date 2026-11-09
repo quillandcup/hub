@@ -24,10 +24,6 @@ vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
 vi.mock("@/lib/supabase/client", () => import("@/tests/helpers/chat-live").then((m) => m.supabaseClientModule));
 vi.mock("@/lib/chat/live", () => import("@/tests/helpers/chat-live").then((m) => m.chatLiveModule));
-vi.mock("@/lib/features.server", () => ({
-  getUserFeaturePreviews: vi.fn(),
-  effectiveMemberHasFeature: async (key: string, _identity: unknown, own: string[]) => own.includes(key),
-}));
 const { track, trackWhenEnabled } = vi.hoisted(() => ({ track: vi.fn(), trackWhenEnabled: vi.fn(() => () => {}) }));
 vi.mock("@/lib/analytics/client", () => ({ track, trackWhenEnabled }));
 vi.mock("@/lib/chat/names", () => ({
@@ -40,7 +36,6 @@ vi.mock("@/lib/chat/names", () => ({
   slackChannelNames: vi.fn(async () => ({})),
 }));
 
-const { getUserFeaturePreviews } = await import("@/lib/features.server");
 const { default: ChatSearchPage } = await import("@/app/(member)/chat/search/page");
 const { default: ChatLayout } = await import("@/app/(member)/chat/layout");
 const { SEARCH_PAGE_SIZE } = await import("@/lib/chat/search");
@@ -97,7 +92,6 @@ beforeEach(() => {
   hits = [];
   rows = [];
   rpcError = null;
-  vi.mocked(getUserFeaturePreviews).mockResolvedValue(["chat"]);
   signInAs(MEMBER_USER, MEMBER_IDENTITY);
   const tables = fakeTables();
   tables.chat_messages = () => ({ data: rows });
@@ -105,11 +99,6 @@ beforeEach(() => {
 });
 
 describe("chat search page", () => {
-  it("is a 404 without the chat flag", async () => {
-    vi.mocked(getUserFeaturePreviews).mockResolvedValue([]);
-    await expect(ChatSearchPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("404");
-  });
-
   it("shows the form and runs no search without a query", async () => {
     await renderSearch();
     expect(screen.getByRole("searchbox", { name: "Search messages" })).toBeInTheDocument();
@@ -176,8 +165,7 @@ describe("chat search page", () => {
 
   it("searches no restricted conversation while viewing as a member", async () => {
     signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
-    vi.mocked(getUserFeaturePreviews).mockResolvedValue(["chat"]);
-    await renderSearch({ q: "pineapple" });
+      await renderSearch({ q: "pineapple" });
     expect(rpcArgs()?.p_channel_ids).toEqual([GENERAL]);
   });
 

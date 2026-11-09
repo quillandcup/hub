@@ -534,8 +534,8 @@ describe("the reminder feature flags", () => {
       method: "POST",
       headers: { authorization: "Bearer test-secret" },
     });
-  /** The reminder flags, exactly these keys switched on globally. */
-  const flagsOn = (...keys: string[]) => ["intro_reminders", "prickle_reminders"].map((k) => flag(k, keys.includes(k)));
+  /** The prickle reminder flag, switched on globally or not (intro reminders have none: they go to everyone). */
+  const flagsOn = (...keys: string[]) => ["prickle_reminders"].map((k) => flag(k, keys.includes(k)));
 
   async function runRoute(seed: Seed, memberKind: "intro" | "prickle" = "intro") {
     const now = memberKind === "intro" ? sendTime("m1", "intro_nudge") : sendTime("m1", "prickle_nudge");
@@ -551,58 +551,48 @@ describe("the reminder feature flags", () => {
     }
   }
 
-  it("only logs, sending nothing, while the flag is off", async () => {
-    const { body, spy } = await runRoute({ featureFlags: flagsOn() });
-
-    expect(body).toEqual({ intro: 0, prickle: 0, dryRun: { intro: 1, prickle: 0 } });
-    expect(sendSlackDM).not.toHaveBeenCalled();
-    expect(spy.mock.calls.some((c) => String(c[0]).includes("DRY RUN intro_nudge"))).toBe(true);
-  });
-
-  it("sends intro reminders for real once intro_reminders is on globally", async () => {
-    const { body } = await runRoute({ featureFlags: flagsOn("intro_reminders") });
+  it("sends intro reminders for real to everyone, whatever the flags", async () => {
+    const { body } = await runRoute({ featureFlags: flagsOn() });
 
     expect(body).toEqual({ intro: 1, prickle: 0, dryRun: { intro: 0, prickle: 0 } });
     expect(sendSlackDM).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps intro reminders dry when only prickle_reminders is on", async () => {
-    const { body } = await runRoute({ featureFlags: flagsOn("prickle_reminders") });
-
-    expect(body).toEqual({ intro: 0, prickle: 0, dryRun: { intro: 1, prickle: 0 } });
-    expect(sendSlackDM).not.toHaveBeenCalled();
-  });
-
-  it("keeps prickle reminders dry when only intro_reminders is on, and sends them once prickle_reminders is", async () => {
+  it("keeps prickle reminders dry while prickle_reminders is off, and sends them once it's on", async () => {
     const tables = { notificationPreferences: [optIn("m1", "prickle_nudge")] };
 
-    const dry = await runRoute({ ...tables, featureFlags: flagsOn("intro_reminders") }, "prickle");
+    const dry = await runRoute({ ...tables, featureFlags: flagsOn() }, "prickle");
     expect(dry.body).toEqual({ intro: 0, prickle: 0, dryRun: { intro: 0, prickle: 1 } });
     expect(sendSlackDM).not.toHaveBeenCalled();
+    expect(dry.spy.mock.calls.some((c) => String(c[0]).includes("DRY RUN prickle_nudge"))).toBe(true);
 
     const live = await runRoute({ ...tables, featureFlags: flagsOn("prickle_reminders") }, "prickle");
     expect(live.body).toEqual({ intro: 0, prickle: 1, dryRun: { intro: 0, prickle: 0 } });
     expect(sendSlackDM).toHaveBeenCalledTimes(1);
   });
 
-  it("covers a member with their own preview of that flag even while it's off globally", async () => {
-    const { body } = await runRoute({
-      featureFlags: flagsOn(),
-      userFeaturePreviews: [{ user_id: "u1", feature_key: "intro_reminders", enabled_at: "2026-10-01T00:00:00Z" }],
-    });
+  it("covers a member with their own prickle_reminders preview even while it's off globally", async () => {
+    const { body } = await runRoute(
+      {
+        notificationPreferences: [optIn("m1", "prickle_nudge")],
+        featureFlags: flagsOn(),
+        userFeaturePreviews: [{ user_id: "u1", feature_key: "prickle_reminders", enabled_at: "2026-10-01T00:00:00Z" }],
+      },
+      "prickle"
+    );
 
-    expect(body.intro).toBe(1);
+    expect(body.prickle).toBe(1);
     expect(sendSlackDM).toHaveBeenCalledTimes(1);
   });
 
-  it("covers a member without a Hub account when it's on globally (Slack needs none)", async () => {
-    const now = sendTime("m1", "intro_nudge");
-    setup({ members: [member("m1", joinedDaysBefore(now, 10), null)], featureFlags: flagsOn("intro_reminders") });
+  it("covers a member without a Hub account when prickle_reminders is on globally (Slack needs none)", async () => {
+    const now = sendTime("m1", "prickle_nudge");
+    setup({ members: [member("m1", "2022-03-01", null)], notificationPreferences: [optIn("m1", "prickle_nudge")], featureFlags: flagsOn("prickle_reminders") });
     vi.spyOn(console, "log").mockImplementation(() => {});
 
     expect((await sendMemberReminders(repos, now, {
-      liveFor: (_kind, ids) => membersWithFeatureForOutreach(repos, "intro_reminders", ids),
-    })).intro).toBe(1);
+      liveFor: (_kind, ids) => membersWithFeatureForOutreach(repos, "prickle_reminders", ids),
+    })).prickle).toBe(1);
   });
 });
 

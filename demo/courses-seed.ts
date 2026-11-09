@@ -5,7 +5,7 @@ import { lessonExcerpt } from "@/lib/courses/excerpt";
  * The demo community's courses: three invented ones, so the Courses scene can look at every state a page has
  * (docs/DEMO_AND_HELP.md, "Page checks"). Written straight into the Silver course tables as Hub-owned rows
  * (`source = 'hub'`, source keys starting with "demo-"), which the Kajabi reprocess never touches; production builds
- * the same tables from Kajabi (docs/COURSES.md). The `courses` feature is on for everyone in the demo.
+ * the same tables from Kajabi (docs/COURSES.md). Courses are open to every member.
  *
  *  - "Finish Your First Draft": the demo member's current course. Open lessons (one completed, one half watched),
  *    a lesson with a download, videos that are still being prepared and one that couldn't be, a week of lessons
@@ -143,11 +143,8 @@ function must<T>(result: { data: T; error: { message: string } | null }, what: s
   return result.data;
 }
 
-/** Turn the `courses` feature on and write the demo courses, who can open them, and the demo member's progress. Replaced on every run. */
+/** Write the demo courses, who can open them, and the demo member's progress. Replaced on every run. */
 export async function seedCourses(admin: SupabaseClient, memberId: string, now: Date) {
-  const flag = await admin.from("feature_flags").upsert({ feature_key: "courses", enabled_globally: true }, { onConflict: "feature_key" });
-  if (flag.error) throw new Error(`feature_flags: ${flag.error.message}`);
-
   // A previous run's courses go (the foreign keys take their modules, lessons, access and progress with them), and its videos.
   const wipe = await admin.from("courses").delete().eq("source", "hub").like("source_key", `${DEMO_COURSE_SOURCE_PREFIX}%`);
   if (wipe.error) throw new Error(`courses clear: ${wipe.error.message}`);

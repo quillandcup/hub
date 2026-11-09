@@ -10,10 +10,7 @@ vi.mock("@/lib/auth", () => ({ getCurrentUser: () => getCurrentUser() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ client: true }) }));
 const getEffectiveIdentity = vi.fn();
 vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: (...args: unknown[]) => getEffectiveIdentity(...args) }));
-vi.mock("@/lib/features.server", () => ({
-  getUserFeaturePreviews: vi.fn(async () => []),
-  effectiveMemberHasFeature: vi.fn(async () => false),
-}));
+vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: vi.fn(async () => []) }));
 vi.mock("@/lib/chat/load", () => ({ loadChatChannels: vi.fn(async () => []) }));
 let dataset = new InMemoryDataset();
 vi.mock("@/lib/data/repos", async () => ({
@@ -57,7 +54,10 @@ describe("getSearcher", () => {
     expect(await getSearcher()).toMatchObject({ isAdmin: true, isSudo: true, ctx: { isActingAsAdmin: false } });
   });
 
-  it("leaves chat out when the chat feature is off", async () => {
+  it("searches chat for a member, and leaves it out without a member record", async () => {
+    expect(await getSearcher()).toMatchObject({ skip: [] });
+
+    getEffectiveIdentity.mockResolvedValue(null);
     expect(await getSearcher()).toMatchObject({ skip: ["chat", "channels"] });
   });
 });

@@ -5,7 +5,6 @@ import { getCurrentUser } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { createRepos } from "@/lib/data/repos";
 import { mediaSrc } from "@/lib/media/url";
-import { getUserFeaturePreviews } from "@/lib/features.server";
 import EventDetailClient from "./EventDetailClient";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { ORG_TIMEZONE } from "@/lib/config";
@@ -25,9 +24,6 @@ export default async function EventDetailPage({ params }: { params: Promise<{ sl
 
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-
-  const enabledFeatures = await getUserFeaturePreviews(user.id);
-  if (!enabledFeatures.includes("events")) redirect("/dashboard");
 
   const events = createRepos(supabase).events;
   const event = await events.visibleBySlug(slug);

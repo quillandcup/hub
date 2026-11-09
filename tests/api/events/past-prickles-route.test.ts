@@ -3,12 +3,10 @@ import { apiFetch } from "../../helpers/api-fetch";
 
 vi.mock("@/lib/auth", () => ({ getCurrentUser: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn(async () => ({})) }));
-vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: vi.fn() }));
 vi.mock("@/lib/timezone", () => ({ getUserTimezonePreference: vi.fn() }));
 vi.mock("@/lib/event-prickles", () => ({ fetchPastEventPrickles: vi.fn() }));
 
 import { getCurrentUser } from "@/lib/auth";
-import { getUserFeaturePreviews } from "@/lib/features.server";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { fetchPastEventPrickles } from "@/lib/event-prickles";
 import { ORG_TIMEZONE } from "@/lib/config";
@@ -18,7 +16,6 @@ const PRICKLE = { id: "prkl_AAAAAAAAAAA1", title: "Pitch", typeName: "Pitch Pric
 
 beforeEach(() => {
   vi.mocked(getCurrentUser).mockResolvedValue({ id: "user-1", email: "member@example.com" });
-  vi.mocked(getUserFeaturePreviews).mockResolvedValue(["events"]);
   vi.mocked(getUserTimezonePreference).mockResolvedValue("America/Chicago");
   vi.mocked(fetchPastEventPrickles).mockReset().mockResolvedValue([PRICKLE]);
 });
@@ -41,13 +38,9 @@ describe("GET /api/events/past-prickles", () => {
     expect(fetchPastEventPrickles).toHaveBeenCalledWith(expect.anything(), expect.anything(), ORG_TIMEZONE, expect.any(Date));
   });
 
-  it("refuses someone who is not signed in, and a member without the events feature", async () => {
+  it("refuses someone who is not signed in", async () => {
     vi.mocked(getCurrentUser).mockResolvedValue(null);
     expect((await apiFetch(url("2026-10"))).status).toBe(401);
-
-    vi.mocked(getCurrentUser).mockResolvedValue({ id: "user-1", email: "member@example.com" });
-    vi.mocked(getUserFeaturePreviews).mockResolvedValue([]);
-    expect((await apiFetch(url("2026-10"))).status).toBe(403);
     expect(fetchPastEventPrickles).not.toHaveBeenCalled();
   });
 
