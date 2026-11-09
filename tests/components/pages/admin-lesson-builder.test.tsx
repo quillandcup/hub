@@ -230,7 +230,7 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     expect(screen.getByRole("menuitem", { name: "Copy timestamp URL" })).toBeEnabled();
   });
 
-  it("enables Copy link with thumbnail for a public lesson, and says why not when it isn't (not open, no thumbnail, course not open, feature off, not in the Hub)", async () => {
+  it("enables Copy link with thumbnail for a public lesson, and says why not when it isn't (not open, no thumbnail, course not open, not in the Hub)", async () => {
     const user = userEvent.setup();
     loadAdminLesson.mockResolvedValue(detail());
     const { unmount } = await renderServerPage(AdminLessonPage, params);
@@ -242,7 +242,6 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     const cases: [unknown, RegExp][] = [
       [{ blocked: "not_open" }, /open to members/],
       [{ blocked: "course_not_live" }, /hasn't opened/],
-      [{ blocked: "feature_off" }, /aren't on for everyone/],
       [{ preview: { lessonId: "x", title: "T", excerpt: null, courseSlug: "s", courseTitle: "C", thumbnailSrc: null } }, /no thumbnail/],
     ];
     for (const [result, reason] of cases) {
@@ -260,7 +259,7 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     await renderServerPage(AdminLessonPage, params);
     await user.click(screen.getByRole("button", { name: /Video actions/ }));
     expect(screen.getByRole("menuitem", { name: "Copy link with thumbnail" })).toHaveAttribute("title", "This lesson isn't in the Hub yet");
-    expect(publicLessonPreview).toHaveBeenCalledTimes(5);
+    expect(publicLessonPreview).toHaveBeenCalledTimes(4);
   });
 
   it("keeps Video actions when the video can't play, and has none for a lesson without a video", async () => {

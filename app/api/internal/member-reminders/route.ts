@@ -10,14 +10,13 @@ import { createRepos } from "@/lib/data/repos";
 // supabase/migrations/20261106000000_member_reminders_rename.sql).
 export const maxDuration = 60;
 
-const FLAG_FOR_KIND = { intro_nudge: "intro_reminders", prickle_nudge: "prickle_reminders" } as const;
-
 /**
  * Member reminders: newcomers introduce themselves in #start-here, and members without a prickle
  * coming up are asked to schedule one (lib/member-reminders.ts). Each member's reminders go out in
- * their own hour, so most runs send nothing. Each kind has its own feature flag (`intro_reminders`,
- * `prickle_reminders`): only members it covers (globally, a segment, or their own preview) get that
- * reminder for real; for everyone else it only logs who would have been reminded and why.
+ * their own hour, so most runs send nothing. Intro reminders go to everyone; prickle reminders
+ * have a feature flag (`prickle_reminders`): only members it covers (globally, a segment, or their
+ * own preview) get that reminder for real; for everyone else it only logs who would have been
+ * reminded and why.
  */
 export async function POST(request: NextRequest) {
   return withCronHeartbeat("member-reminders", await runMemberReminders(request));
@@ -31,7 +30,8 @@ async function runMemberReminders(request: NextRequest): Promise<NextResponse> {
   }
   const supabase = createServiceRoleClient();
   const result = await sendMemberReminders(createRepos(supabase), new Date(), {
-    liveFor: (kind, memberIds) => membersWithFeatureForOutreach(createRepos(supabase), FLAG_FOR_KIND[kind], memberIds),
+    liveFor: async (kind, memberIds) =>
+      kind === "intro_nudge" ? new Set(memberIds) : membersWithFeatureForOutreach(createRepos(supabase), "prickle_reminders", memberIds),
   });
   return NextResponse.json(result);
 }

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { getUserFeaturePreviews } from "@/lib/features.server";
 import EventsClient from "./EventsClient";
 import { requireAdminPage } from "@/lib/admin-auth";
 
@@ -14,8 +13,6 @@ export default async function EventsPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const enabledFeatures = await getUserFeaturePreviews(user.id);
-  if (!enabledFeatures.includes("events")) redirect("/admin");
 
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">

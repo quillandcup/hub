@@ -197,26 +197,24 @@ describe("member profile page: Message button", () => {
   const withFeatures = (...keys: string[]) => vi.mocked(effectiveMemberHasFeature).mockImplementation(async (key) => keys.includes(key));
   const button = () => screen.queryByRole("button", { name: "Message" });
 
-  it("is there with chat, posting and either Hub direct messages or the Slack DM bridge", async () => {
-    withFeatures("chat", "chat_posting", "chat_dms");
+  it("is there with either Hub direct messages or the Slack DM bridge", async () => {
+    withFeatures("chat_dms");
     await renderServerPage(MemberProfilePage, params);
     expect(button()).toBeInTheDocument();
     document.body.innerHTML = "";
 
-    withFeatures("chat", "chat_posting", "slack_dm_bridge");
+    withFeatures("slack_dm_bridge");
     await renderServerPage(MemberProfilePage, params);
     expect(button()).toBeInTheDocument();
   });
 
-  it("is missing without chat, posting or a direct message feature, on your own profile and in sudo", async () => {
-    for (const keys of [["chat", "chat_posting"], ["chat_posting", "chat_dms"], ["chat", "chat_dms"]]) {
-      withFeatures(...keys);
-      await renderServerPage(MemberProfilePage, params);
-      expect(button()).not.toBeInTheDocument();
-      document.body.innerHTML = "";
-    }
+  it("is missing without a direct message feature, on your own profile and in sudo", async () => {
+    withFeatures();
+    await renderServerPage(MemberProfilePage, params);
+    expect(button()).not.toBeInTheDocument();
+    document.body.innerHTML = "";
 
-    withFeatures("chat", "chat_posting", "chat_dms");
+    withFeatures("chat_dms");
     signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, memberId: PROFILE_ID });
     await renderServerPage(MemberProfilePage, params);
     expect(button()).not.toBeInTheDocument();

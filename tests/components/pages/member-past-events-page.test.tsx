@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
-import { MEMBER_USER, expectRedirect, renderServerPage, resetServerPageMocks, signInAs } from "@/tests/helpers/server-page";
+import { MEMBER_USER, renderServerPage, resetServerPageMocks, signInAs } from "@/tests/helpers/server-page";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
 import { eventSeed, type EventSpec } from "@/tests/helpers/event-fixtures";
@@ -16,8 +16,6 @@ vi.mock("@/lib/data/repos", async () => ({
   createRepos: () => createInMemoryRepos(dataset),
 }));
 
-const previews = vi.fn(async (_userId: string): Promise<string[]> => ["events"]);
-vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: (id: string) => previews(id) }));
 vi.mock("@/lib/timezone", () => ({ getUserTimezonePreference: async () => "America/New_York" }));
 vi.mock("@/lib/event-prickles", async (importActual) => ({
   ...(await importActual<typeof import("@/lib/event-prickles")>()),
@@ -39,7 +37,6 @@ const event = (id: string, title: string, starts_at: string, ends_at = starts_at
 
 beforeEach(() => {
   resetServerPageMocks();
-  previews.mockResolvedValue(["events"]);
   signInAs(MEMBER_USER);
   dataset = new InMemoryDataset({
     ...eventSeed([
@@ -74,11 +71,5 @@ describe("member past events page", () => {
 
     const browser = screen.getByTestId("browser");
     expect(browser.textContent!.startsWith(browser.getAttribute("data-last")!)).toBe(true);
-  });
-
-  it("sends a member without the events feature to the dashboard", async () => {
-    previews.mockResolvedValue([]);
-
-    await expectRedirect(PastEventsPage, { searchParams: Promise.resolve({}) }, "/dashboard");
   });
 });

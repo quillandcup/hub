@@ -120,12 +120,10 @@ export default async function MemberProfilePage({
   // The Big Sister badge links to /big-sisters, which only members with the preview can open.
   const ownFeatures = await getUserFeaturePreviews(user.id)
   const bigSistersEnabled = await effectiveMemberHasFeature("big_sisters", effectiveIdentity, ownFeatures)
-  // A direct message needs chat, posting and the DM preview, and never starts in sudo (read-only) or with yourself.
+  // A direct message needs the DM preview, and never starts in sudo (read-only) or with yourself.
   const canMessage =
     member.id !== effectiveIdentity.memberId &&
     !effectiveIdentity.isSudo &&
-    (await effectiveMemberHasFeature("chat", effectiveIdentity, ownFeatures)) &&
-    (await effectiveMemberHasFeature("chat_posting", effectiveIdentity, ownFeatures)) &&
     ((await effectiveMemberHasFeature("slack_dm_bridge", effectiveIdentity, ownFeatures)) ||
       (await effectiveMemberHasFeature("chat_dms", effectiveIdentity, ownFeatures)))
 

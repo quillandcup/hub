@@ -21,7 +21,7 @@ import { zonedTimeToUtc } from "@/lib/prickle-schedules";
 import { loadDemoEnv } from "./env";
 import { ATTENDANCE_RATE, DEMO_JOIN, DEMO_PASSWORD, FILLER_MEMBERS, PERSONAS, demoEvents } from "./personas";
 import { DEMO_TOPIC_PREFIX, attendanceRows } from "./attendance";
-import { eventCalendarRows, seedEventDetails, seedEventsFlag, seedKajabiContact, withFormattedDescription } from "./rest-seed";
+import { eventCalendarRows, seedEventDetails, seedKajabiContact, withFormattedDescription } from "./rest-seed";
 import { addLivePrickleToCalendar, liveCalendarEvent, seedLiveRoom, withLapsedStreak } from "./live-seed";
 import { seedChat } from "./chat-seed";
 import { seedCourses } from "./courses-seed";
@@ -211,7 +211,6 @@ export async function seed(now: Date = new Date()) {
   if (!res.ok) throw new Error(`/api/process/calendar ${res.status}: ${await res.text()}`);
   console.log("Seeded:", await res.json());
   await seedGuestSpeaker(admin, now);
-  await seedEventsFlag(admin);
   await seedEventDetails(admin);
 
   // Who came to the prickles that have ended: Zoom's record (Bronze), replaced on every run, then the real

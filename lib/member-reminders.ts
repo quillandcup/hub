@@ -172,8 +172,7 @@ export interface MemberReminderOptions {
    * Which of these members get their reminders for real; the rest are dry-run: logged (member id,
    * kind, why, channels, message) but never sent, recorded or marked, so switching them on later
    * starts from a clean slate. Per kind, so one can be live while the other only logs; the route uses the
-   * `intro_reminders` and `prickle_reminders` feature flags. Default:
-   * everyone.
+   * `prickle_reminders` feature flag for prickle reminders. Default: everyone.
    */
   liveFor?: (kind: MemberReminderKind, memberIds: string[]) => Promise<Set<string>>;
 }
@@ -190,7 +189,7 @@ export async function sendMemberReminders(
   const members = await loadActiveMembers(repos);
   if (members.length === 0) return { intro: 0, prickle: 0, dryRun: { intro: 0, prickle: 0 } };
   const memberIds = members.map((m) => m.id);
-  // Each kind has its own switch, so intro reminders can go out for real before prickle reminders do.
+  // Each kind has its own switch, so one can go out for real while the other only logs.
   const [introLive, prickleLive] = await Promise.all([liveFor("intro_nudge", memberIds), liveFor("prickle_nudge", memberIds)]);
   const newcomers = members.filter((m) => isNewcomer(m.first_joined_at, now));
 

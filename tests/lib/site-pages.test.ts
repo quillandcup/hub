@@ -72,8 +72,8 @@ describe("site pages registry", () => {
 
   it("hides sidebar links whose feature is off", () => {
     const links = (features: Parameters<typeof navGroups>[1]) => navGroups("member", features).flatMap((g) => g.items.map((p) => p.href));
-    expect(links([])).not.toContain("/chat");
-    expect(links(["chat"])).toContain("/chat");
+    expect(links([])).not.toContain("/big-sisters");
+    expect(links(["big_sisters"])).toContain("/big-sisters");
   });
 
   it("lists the privacy page for every member", () => {
@@ -82,7 +82,7 @@ describe("site pages registry", () => {
   });
 
   it("names My Burrow pages without a My prefix and still finds them by it", () => {
-    const burrow = navGroups("member", ["courses"]).find((g) => g.name === "My Burrow")?.items;
+    const burrow = navGroups("member", []).find((g) => g.name === "My Burrow")?.items;
     expect(burrow?.map((p) => p.title)).toEqual(["Writing", "Prickles", "Courses", "Streaks"]);
     expect(burrow?.find((p) => p.href === "/projects")?.keywords).toContain("my writing");
     expect(burrow?.find((p) => p.href === "/my-prickles")?.keywords).toContain("my prickles");
@@ -90,7 +90,7 @@ describe("site pages registry", () => {
 
   it("keeps things to do in Community and things to browse in Explore", () => {
     const hrefs = (name: string) =>
-      navGroups("member", ["chat", "big_sisters", "events"]).find((g) => g.name === name)?.items.map((p) => p.href);
+      navGroups("member", ["big_sisters"]).find((g) => g.name === name)?.items.map((p) => p.href);
     expect(hrefs("Community")).toEqual(["/big-sisters", "/chat", "/wheel-of-wonder"]);
     expect(hrefs("Explore")).toEqual(["/members", "/bookshelf", "/events"]);
     expect(SITE_PAGES.find((p) => p.href === "/bookshelf")?.title).toBe("Book Shelf");

@@ -10,8 +10,7 @@ import { animatedGif, bouncingDisc, DISC_PALETTE } from "./gif";
  * The demo community's chat: four channels with a few days of friendly, fictional conversation, threads and
  * reactions, and a few messages the demo member hasn't read yet (so the sidebar shows unread counts). Written
  * straight into the chat tables (Local layer) as bridged channels with made-up Slack ids; production mirrors Slack
- * into the same tables (docs/SLACK_BRIDGED_CHAT.md). The `chat` and `chat_posting` features are on for everyone in
- * the demo, and the demo member has a (token-less) Slack connection, so the composer works: a post is saved as the
+ * into the same tables (docs/SLACK_BRIDGED_CHAT.md). Chat is open to every member, and the demo member has a (token-less) Slack connection, so the composer works: a post is saved as the
  * member and, with no Slack to send it to, stays pending until the recording marks it sent (slack-stand-in.ts).
  */
 
@@ -224,14 +223,9 @@ async function seedAnimatedAssets(admin: SupabaseClient, supabaseUrl: string) {
   if (error) throw new Error(`slack_custom_emoji: ${error.message}`);
 }
 
-/** Turn the chat features on and write the channels, their members, messages, threads and reactions. Replaced on every run. */
+/** Write the channels, their members, messages, threads and reactions. Replaced on every run. */
 export async function seedChat(admin: SupabaseClient, now: Date, supabaseUrl: string) {
   await seedAnimatedAssets(admin, supabaseUrl);
-
-  const { error: flagError } = await admin
-    .from("feature_flags")
-    .upsert([{ feature_key: "chat", enabled_globally: true }, { feature_key: "chat_posting", enabled_globally: true }], { onConflict: "feature_key" });
-  if (flagError) throw new Error(`feature_flags: ${flagError.message}`);
 
   const { data: members, error: membersError } = await admin.from("members").select("id, name, email");
   if (membersError) throw new Error(`members: ${membersError.message}`);

@@ -31,13 +31,10 @@ describe("MemberNavigation", () => {
     expect(sidebar.querySelector("nav")).toHaveAttribute("data-sentry-unmask");
   });
 
-  it("shows Chat only when the chat feature is on, and marks it active on its pages", () => {
-    const { rerender } = render(<MemberNavigation isAdmin={false} enabledFeatures={[]} />);
-    const sidebar = () => screen.getByRole("complementary", { name: "Sidebar navigation" });
-    expect(within(sidebar()).queryByRole("link", { name: /Chat/ })).not.toBeInTheDocument();
-
+  it("marks Chat active on its pages", () => {
     pathname = "/chat/00000000-0000-4000-a000-000000000001";
-    rerender(<MemberNavigation isAdmin={false} enabledFeatures={["chat"]} />);
+    render(<MemberNavigation isAdmin={false} enabledFeatures={[]} />);
+    const sidebar = () => screen.getByRole("complementary", { name: "Sidebar navigation" });
     // On chat the sidebar rests as an icon rail, so the link is found by its title.
     const link = within(sidebar()).getByTitle("Chat").closest("a")!;
     expect(link).toHaveAttribute("href", "/chat");
@@ -72,7 +69,7 @@ describe("MemberNavigation", () => {
   });
 
   it("renders the same primary links in the mobile drawer and the desktop sidebar", async () => {
-    render(<MemberNavigation isAdmin={true} enabledFeatures={["events"]} />);
+    render(<MemberNavigation isAdmin={true} enabledFeatures={[]} />);
     const drawer = await openMobileDrawer();
     const sidebar = screen.getByRole("complementary", { name: "Sidebar navigation" });
     const hrefs = (el: HTMLElement) => within(el).getAllByRole("link").map((a) => a.getAttribute("href"));
@@ -133,7 +130,7 @@ describe("MemberNavigation auto-hide on chat", () => {
     vi.useFakeTimers();
     try {
       pathname = "/chat/chan-1";
-      render(<MemberNavigation isAdmin={false} enabledFeatures={["chat"]} />);
+      render(<MemberNavigation isAdmin={false} enabledFeatures={[]} />);
       expect(sidebar()).toHaveAttribute("data-auto-hide", "true");
       expect(sidebar()).toHaveClass("w-16");
       expect(screen.queryByRole("button", { name: /sidebar/i })).not.toBeInTheDocument();
@@ -155,7 +152,7 @@ describe("MemberNavigation auto-hide on chat", () => {
 
   it("keeps headings and labels mounted, on one line, so the list doesn't shift as the rail opens", () => {
     pathname = "/chat";
-    render(<MemberNavigation isAdmin={false} enabledFeatures={["chat"]} />);
+    render(<MemberNavigation isAdmin={false} enabledFeatures={[]} />);
     const heading = within(sidebar()).getAllByRole("heading", { hidden: true })[0];
     expect(heading).toHaveClass("whitespace-nowrap", "opacity-0");
     expect(sidebar()).toHaveClass("overflow-hidden");
@@ -167,7 +164,7 @@ describe("MemberNavigation auto-hide on chat", () => {
 
   it("opens when focus moves into the rail", () => {
     pathname = "/chat";
-    render(<MemberNavigation isAdmin={false} enabledFeatures={["chat"]} />);
+    render(<MemberNavigation isAdmin={false} enabledFeatures={[]} />);
     act(() => { within(sidebar()).getAllByRole("link")[0].focus(); });
     expect(sidebar()).toHaveClass("w-64");
   });

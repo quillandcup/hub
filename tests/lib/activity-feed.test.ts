@@ -194,28 +194,28 @@ describe("describeRow", () => {
   });
 
   it("says a feature switch in plain words: on or off for everyone, and which segment or preview", () => {
-    const flag = { entity_type: "feature_flag", description: "chat" };
-    expect(describeRow(row({ ...flag, event_type: "update", data: { enabled_globally: { old: false, new: true } } }))).toBe("turned “Chat” on for everyone");
-    expect(describeRow(row({ ...flag, event_type: "update", data: { enabled_globally: { old: true, new: false } } }))).toBe("turned “Chat” off for everyone");
+    const flag = { entity_type: "feature_flag", description: "chat_dms" };
+    expect(describeRow(row({ ...flag, event_type: "update", data: { enabled_globally: { old: false, new: true } } }))).toBe("turned “Chat direct messages” on for everyone");
+    expect(describeRow(row({ ...flag, event_type: "update", data: { enabled_globally: { old: true, new: false } } }))).toBe("turned “Chat direct messages” off for everyone");
     // A feature without a friendly name shows its key, spaced out.
     expect(describeRow(row({ entity_type: "feature_flag", description: "some_new_thing", event_type: "update", data: { enabled_globally: { old: false, new: true } } }))).toBe(
       "turned “some new thing” on for everyone",
     );
-    expect(describeRow(row({ ...flag, event_type: "insert", data: { enabled_globally: { old: null, new: false } } }))).toBe("added the “Chat” feature");
-    expect(describeRow(row({ ...flag, event_type: "insert", data: { enabled_globally: { old: null, new: true } } }))).toBe("added the “Chat” feature, on for everyone");
-    expect(describeRow(row({ ...flag, event_type: "delete" }))).toBe("removed the “Chat” feature");
+    expect(describeRow(row({ ...flag, event_type: "insert", data: { enabled_globally: { old: null, new: false } } }))).toBe("added the “Chat direct messages” feature");
+    expect(describeRow(row({ ...flag, event_type: "insert", data: { enabled_globally: { old: null, new: true } } }))).toBe("added the “Chat direct messages” feature, on for everyone");
+    expect(describeRow(row({ ...flag, event_type: "delete" }))).toBe("removed the “Chat direct messages” feature");
     // Some other column changed: the generic wording, which still says what.
-    expect(describeRow(row({ ...flag, event_type: "update", data: { updated_at: { old: "a", new: "b" } } }))).toBe("changed feature “chat” — updated at");
+    expect(describeRow(row({ ...flag, event_type: "update", data: { updated_at: { old: "a", new: "b" } } }))).toBe("changed feature “chat_dms” — updated at");
 
-    const link = { entity_type: "feature_flag_segment", description: "chat · Founding Hedgies" };
-    expect(describeRow(row({ ...link, event_type: "insert" }))).toBe("gave the “Founding Hedgies” segment the “Chat” feature");
-    expect(describeRow(row({ ...link, event_type: "delete" }))).toBe("took the “Chat” feature away from the “Founding Hedgies” segment");
-    expect(describeRow(row({ entity_type: "feature_flag_segment", description: "chat", event_type: "insert" }))).toBe("gave a segment the “Chat” feature");
+    const link = { entity_type: "feature_flag_segment", description: "chat_dms · Founding Hedgies" };
+    expect(describeRow(row({ ...link, event_type: "insert" }))).toBe("gave the “Founding Hedgies” segment the “Chat direct messages” feature");
+    expect(describeRow(row({ ...link, event_type: "delete" }))).toBe("took the “Chat direct messages” feature away from the “Founding Hedgies” segment");
+    expect(describeRow(row({ entity_type: "feature_flag_segment", description: "chat_dms", event_type: "insert" }))).toBe("gave a segment the “Chat direct messages” feature");
     expect(describeRow(row({ ...link, event_type: "update", data: { x: { old: 1, new: 2 } } }))).toContain("changed feature flag segment");
 
-    const preview = { entity_type: "user_feature_preview", description: "chat" };
-    expect(describeRow(row({ ...preview, event_type: "insert" }))).toBe("turned on the “Chat” preview");
-    expect(describeRow(row({ ...preview, event_type: "delete" }))).toBe("turned off the “Chat” preview");
+    const preview = { entity_type: "user_feature_preview", description: "chat_dms" };
+    expect(describeRow(row({ ...preview, event_type: "insert" }))).toBe("turned on the “Chat direct messages” preview");
+    expect(describeRow(row({ ...preview, event_type: "delete" }))).toBe("turned off the “Chat direct messages” preview");
   });
 
   it("summarizes sessions and activities", () => {

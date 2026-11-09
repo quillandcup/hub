@@ -189,12 +189,6 @@ export async function eventImagePng(colors: [string, string]): Promise<Buffer> {
   return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
-/** Events switched on for everyone, as the admin does in the feature flags. */
-export async function seedEventsFlag(admin: Admin) {
-  const { error } = await admin.from("feature_flags").upsert({ feature_key: "events", enabled_globally: true }, { onConflict: "feature_key" });
-  if (error) throw new Error(`feature_flags events: ${error.message}`);
-}
-
 /**
  * The demo member's Kajabi contact and customer. Settings, Profile reads the Instagram handle from the contact's
  * "Instagram Handle" custom field (`INSTAGRAM_CUSTOM_FIELD_HANDLE`) and Facebook, X and the bio from the customer's

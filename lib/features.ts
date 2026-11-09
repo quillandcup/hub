@@ -1,4 +1,4 @@
-export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat' | 'chat_posting' | 'chat_dms' | 'chat_videos' | 'slack_dm_bridge' | 'big_sisters' | 'intro_reminders' | 'prickle_reminders' | 'checkin_dropins' | 'courses' | 'hosting' | 'writing_journey' | 'mux_playback_restriction' | 'mux_data' | 'changelog_digest';
+export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat_dms' | 'chat_videos' | 'slack_dm_bridge' | 'big_sisters' | 'prickle_reminders' | 'checkin_dropins' | 'hosting' | 'writing_journey' | 'mux_playback_restriction' | 'mux_data' | 'changelog_digest';
 
 export interface FeaturePreview {
   key: FeatureKey;
@@ -28,11 +28,6 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     description: 'Manage cohort-based program enrollment (180 Program, Self-Editing Academy, ...) and see who hasn\'t converted after their window lapsed',
   },
   {
-    key: 'events',
-    name: 'Events',
-    description: 'Retreats and other events, with metadata and a photo gallery imported from Google Photos',
-  },
-  {
     key: 'slack_admin_sign_in',
     name: 'Slack Sign-In for Admins',
     description: 'Lets you sign in to your admin account from Billie Bot (/hub or its Home tab), with links that last 10 minutes. Anyone who can use your Slack can then get into the Hub as you. Only your own opt-in counts: the global switch and segments do not turn this on',
@@ -43,39 +38,24 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     description: 'Desktop and phone notifications from your browser, even when the Hub is closed (Web Push). Adds a "Browser" switch and a per-device "Turn on for this device" button to Settings → Notifications; a device only receives them once it has turned them on',
   },
   {
-    key: 'chat',
-    name: 'Chat',
-    description: 'A read-only Hub view of our Slack channels: channel list, messages with threads and reactions. Only the channels you are in, plus public ones. Posting from the Hub comes later',
-  },
-  {
-    key: 'chat_posting',
-    name: 'Chat posting',
-    description: 'Write messages and thread replies in Hub Chat; they appear in Slack too, posted by Billie Bot under your name and photo. Needs Chat',
-  },
-  {
     key: 'chat_dms',
     name: 'Chat direct messages',
-    description: 'Start a direct message with another member from their profile. Hub direct messages stay in the Hub (nothing goes to Slack), and staff cannot read them. Members you message see the conversation whether or not they have this on; this decides who can start one. Needs Chat and Chat posting',
+    description: 'Start a direct message with another member from their profile. Hub direct messages stay in the Hub (nothing goes to Slack), and staff cannot read them. Members you message see the conversation whether or not they have this on; this decides who can start one',
   },
   {
     key: 'chat_videos',
     name: 'Chat videos',
-    description: 'Share a course lesson\'s video into a chat conversation, with a button on the lesson page. This decides who can share; any member who can read the message can see the card. Only members with access to the course can play it; everyone else sees that it is part of a course. In Slack the message shows a link to the lesson. Needs Chat, Chat posting and Courses',
+    description: 'Share a course lesson\'s video into a chat conversation, with a button on the lesson page. This decides who can share; any member who can read the message can see the card. Only members with access to the course can play it; everyone else sees that it is part of a course. In Slack the message shows a link to the lesson.',
   },
   {
     key: 'slack_dm_bridge',
     name: 'Slack DM bridge',
-    description: 'Brings your one-on-one Slack direct messages into Hub Chat, read with your own Slack token (reconnect Slack first so it has the direct message permissions). They are restricted like private channels: only you and the other person, and staff only through break-glass access. Read-only for now. Needs Chat',
+    description: 'Brings your one-on-one Slack direct messages into Hub Chat, read with your own Slack token (reconnect Slack first so it has the direct message permissions). They are restricted like private channels: only you and the other person, and staff only through break-glass access. Read-only for now.',
   },
   {
     key: 'big_sisters',
     name: 'Big Sisters',
     description: 'Every new member gets a big sister for their first 30 days: matching, volunteers and effectiveness for staff, plus a Big Sisters card on the dashboard, a Big Sisters page, an introduction message and a Getting Started step for members. Staff also need the Admin Work Queue to see who is waiting for a match',
-  },
-  {
-    key: 'intro_reminders',
-    name: 'Send intro reminders',
-    description: 'Sends the hourly reminder to say hello in #start-here for real to the members this covers: everyone when switched on globally, otherwise only members in a linked segment or with their own preview. For everyone else the job only logs who it would have reminded and why (see the logs of /api/internal/member-reminders). Members still choose their channels in Settings → Notifications',
   },
   {
     key: 'prickle_reminders',
@@ -91,11 +71,6 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     key: 'checkin_dropins',
     name: 'Check-in for members who join a prickle',
     description: 'Sends the check-in (how are you feeling, what do you need) for real to a member who has joined the Zoom room of a prickle that started in the last 18 minutes without having it on their calendar, for the members this covers: everyone when switched on globally, otherwise only members in a linked segment or with their own preview. For everyone else the job only logs who it would have sent it to and why (see the logs of /api/internal/prickle-checkins). Members still choose their channels in Settings → Notifications',
-  },
-  {
-    key: 'courses',
-    name: 'Courses',
-    description: 'Courses in the Hub (The Ready Writer first): a Courses page with progress, the course outline, and lesson pages with video, text and mark-complete. Members see only the courses they have access to; staff see all of them. Keep off until launch day',
   },
   {
     key: 'hosting',

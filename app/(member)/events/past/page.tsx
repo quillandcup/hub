@@ -4,7 +4,6 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { createRepos } from "@/lib/data/repos";
-import { getUserFeaturePreviews } from "@/lib/features.server";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { localDateString } from "@/lib/events-filter";
 import { ORG_TIMEZONE } from "@/lib/config";
@@ -26,8 +25,7 @@ export default async function PastEventsPage({ searchParams }: { searchParams: P
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const [enabledFeatures, tzPref] = await Promise.all([getUserFeaturePreviews(user.id), getUserTimezonePreference()]);
-  if (!enabledFeatures.includes("events")) redirect("/dashboard");
+  const tzPref = await getUserTimezonePreference();
 
   const { month } = await searchParams;
   const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref;

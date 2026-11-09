@@ -123,10 +123,10 @@ type Extras = Promise<{
 }>
 
 function loadExtras(identity: EffectiveIdentity, enabledFeatures: FeatureKey[]): Extras {
-  // Chat needs a working Slack connection (lib/chat/access.ts sends them to Settings); tell a member who has chat
-  // but not that, wherever they are, instead of leaving them to find out at the chat door.
+  // Chat needs a working Slack connection (lib/chat/access.ts sends them to Settings); tell a member who lacks
+  // that, wherever they are, instead of leaving them to find out at the chat door.
   const slackNeedFor = async (): Promise<'connect' | 'reconnect' | 'update' | 'permissions' | null> => {
-    if (identity.isSudo || !isSlackConnectConfigured() || !(await effectiveMemberHasFeature('chat', identity, enabledFeatures))) return null
+    if (identity.isSudo || !isSlackConnectConfigured()) return null
     const slack = await getSlackConnectionStatus(createServiceRoleClient(), identity.memberId)
     return !slack.connected ? (slack.revoked ? 'reconnect' : 'connect') : !slack.sharesReadState ? 'update' : !slack.hasDmScopes ? 'permissions' : null
   }

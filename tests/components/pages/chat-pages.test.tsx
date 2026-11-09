@@ -81,18 +81,12 @@ const EXAMPLE_VIEW = {
 
 let staffRole = "member";
 let earnedBadges: unknown[] = [];
-let sudoMemberHasFlag = true;
 /** The member's read marker for a conversation (null = never read: counts from joining). */
 let readMarker: string | null = null;
 /** The member's read marker can't be read. */
 let markerError = false;
 let singleMember = false;
 let unread: { channel_id: string; unread: number }[] = [];
-vi.mock("@/lib/features.server", () => ({
-  getUserFeaturePreviews: vi.fn(),
-  effectiveMemberHasFeature: async (key: string, identity: { isSudo: boolean }, own: string[]) =>
-    identity.isSudo ? sudoMemberHasFlag : own.includes(key),
-}));
 // The live-update subscription needs a browser Supabase client; see tests/components/ChatLive.test.tsx.
 vi.mock("@/components/chat/ChatLive", () => ({ default: () => null }));
 // Service-role name lookups (bronze.slack_users etc.) are stubbed.
@@ -106,7 +100,6 @@ vi.mock("@/lib/chat/names", () => ({
   slackChannelNames: vi.fn(async () => ({})),
 }));
 
-const { getUserFeaturePreviews } = await import("@/lib/features.server");
 const { loadOlderChat } = await import("@/app/(member)/chat/actions");
 const { getMemberBadges } = await import("@/lib/badges");
 const { default: ChatLayout } = await import("@/app/(member)/chat/layout");
@@ -217,7 +210,6 @@ beforeEach(() => {
   resetServerPageMocks();
   afterCallbacks.length = 0;
   catchUpChannel.mockClear();
-  sudoMemberHasFlag = true;
   staffRole = "member";
   readMarker = null;
   markerError = false;
@@ -228,7 +220,6 @@ beforeEach(() => {
   reactions = [];
   replies = [];
   lastChannelCookie = undefined;
-  vi.mocked(getUserFeaturePreviews).mockResolvedValue(["chat"]);
   signInAs(MEMBER_USER, MEMBER_IDENTITY);
   fake = useFakeSupabase(fakeTables());
 });
@@ -249,13 +240,6 @@ describe("chat page titles", () => {
 });
 
 describe("chat shell", () => {
-  it("is a 404 without the chat flag, on the layout and on every page", async () => {
-    vi.mocked(getUserFeaturePreviews).mockResolvedValue([]);
-    await expect(ChatLayout({ children: null })).rejects.toThrow("404");
-    await expect(ChatIndexPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("404");
-    await expect(ChatChannelPage({ params: Promise.resolve({ id: GENERAL }), searchParams: Promise.resolve({}) })).rejects.toThrow("404");
-  });
-
   it("sends signed-out visitors to login", async () => {
     signInAs(null);
     await expectRedirect(ChatIndexPage, { searchParams: Promise.resolve({}) }, "/login");
@@ -301,12 +285,6 @@ describe("chat shell", () => {
     const nav = screen.getByRole("navigation", { name: "Conversations" });
     expect(within(nav).getByRole("link", { name: /hosts/ })).toBeInTheDocument();
     expect(within(nav).queryByRole("link", { name: "Gale Prickleton" })).not.toBeInTheDocument();
-  });
-
-  it("follows the viewed member's flag in sudo", async () => {
-    signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
-    sudoMemberHasFlag = false;
-    await expect(ChatLayout({ children: null })).rejects.toThrow("404");
   });
 });
 
@@ -397,7 +375,7 @@ describe("channel page", () => {
     ];
     await renderChannel(GENERAL);
 
-    expect(screen.getByRole("heading", { name: "#general" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "#general" })).toBeInTheDocument();
     const first = document.getElementById(`m-${id(101)}`)!;
     expect(within(first).getByText("Gale Prickleton")).toBeInTheDocument();
     expect(within(first).getByText("world").tagName).toBe("STRONG");
@@ -496,33 +474,22 @@ describe("channel page", () => {
     );
   });
 
-  describe("posting (behind the chat_posting preview)", () => {
+  describe("posting", () => {
     const composer = () => screen.queryByRole("textbox", { name: "Message #hosts" });
 
-    it("offers a message box in a conversation the member is in, only with the chat_posting flag", async () => {
+    it("offers a message box in a conversation the member is in", async () => {
       messages = [msg(1)];
-      await renderChannel(HOSTS);
-      expect(composer()).not.toBeInTheDocument();
-      cleanup();
-
-      vi.mocked(getUserFeaturePreviews).mockResolvedValue(["chat", "chat_posting"]);
       await renderChannel(HOSTS);
       expect(composer()).toBeInTheDocument();
     });
 
-    it("offers reactions only with the chat_posting flag, and in a public channel the member hasn't joined", async () => {
+    it("offers reactions in a public channel the member hasn't joined", async () => {
       messages = [msg(1)];
-      await renderChannel(GENERAL);
-      expect(screen.queryByRole("button", { name: "Add reaction…" })).not.toBeInTheDocument();
-      cleanup();
-
-      vi.mocked(getUserFeaturePreviews).mockResolvedValue(["chat", "chat_posting"]);
       await renderChannel(GENERAL);
       expect(screen.getByRole("button", { name: "Add reaction…" })).toBeInTheDocument();
     });
 
     it("offers no message box in a public channel the member hasn't joined, and nothing in sudo", async () => {
-      vi.mocked(getUserFeaturePreviews).mockResolvedValue(["chat", "chat_posting"]);
       messages = [msg(1)];
       await renderChannel(GENERAL);
       expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
@@ -535,7 +502,6 @@ describe("channel page", () => {
     });
 
     it("offers a reply box in a thread whose root is in Slack, and none while the root is still sending", async () => {
-      vi.mocked(getUserFeaturePreviews).mockResolvedValue(["chat", "chat_posting"]);
       messages = [msg(1, { reply_count: 1 })];
       await renderChannel(HOSTS, { thread: id(101) });
       expect(within(screen.getByRole("complementary", { name: "Thread" })).getByRole("textbox", { name: "Reply…" })).toBeInTheDocument();
@@ -701,18 +667,10 @@ describe("authors and members", () => {
     await expect(ChatMembersPage({ params: Promise.resolve({ id: SECRET }) })).rejects.toThrow("404");
   });
 
-  describe("changing who is in a conversation (behind the chat_posting preview)", () => {
+  describe("changing who is in a conversation", () => {
     const membersPage = (cid: string) => ChatMembersPage({ params: Promise.resolve({ id: cid }) }).then((ui) => render(ui));
-    const on = () => vi.mocked(getUserFeaturePreviews).mockResolvedValue(["chat", "chat_posting"]);
-
-    it("shows no controls without the preview", async () => {
-      await membersPage(HOSTS);
-      expect(screen.queryByRole("button", { name: /Leave/ })).not.toBeInTheDocument();
-      expect(screen.queryByRole("searchbox", { name: "Add people" })).not.toBeInTheDocument();
-    });
 
     it("lets a member leave and add people to a conversation they're in, but only staff remove others", async () => {
-      on();
       await membersPage(HOSTS);
       expect(screen.getByRole("button", { name: "Leave #hosts" })).toBeInTheDocument();
       expect(screen.getByRole("searchbox", { name: "Add people" })).toBeInTheDocument();
@@ -729,14 +687,12 @@ describe("authors and members", () => {
     });
 
     it("offers to join a public channel the member isn't in, and no way to add people", async () => {
-      on();
       await membersPage(GENERAL);
       expect(screen.getByRole("button", { name: "Join #general" })).toBeInTheDocument();
       expect(screen.queryByRole("searchbox", { name: "Add people" })).not.toBeInTheDocument();
     });
 
     it("explains a conversation that isn't bridged to Slack", async () => {
-      on();
       CHANNELS[0].bridge_mode = "app_only";
       try {
         await membersPage(GENERAL);
@@ -747,7 +703,6 @@ describe("authors and members", () => {
     });
 
     it("on the channel page, offers a join prompt in place of the message box for a public channel the member isn't in", async () => {
-      on();
       await renderChannel(GENERAL);
       expect(screen.getByRole("region", { name: "Join #general" })).toBeInTheDocument();
       cleanup();
@@ -756,12 +711,7 @@ describe("authors and members", () => {
       expect(screen.queryByRole("region", { name: /^Join #/ })).not.toBeInTheDocument();
     });
 
-    it("has no join prompt without the preview or in sudo", async () => {
-      await renderChannel(GENERAL);
-      expect(screen.queryByRole("region", { name: /^Join #/ })).not.toBeInTheDocument();
-      cleanup();
-
-      on();
+    it("has no join prompt in sudo", async () => {
       signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
       await renderChannel(GENERAL);
       expect(screen.queryByRole("region", { name: /^Join #/ })).not.toBeInTheDocument();

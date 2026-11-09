@@ -20,10 +20,10 @@ Both are notification kinds (`lib/notifications/registry.ts`), so members choose
 
 ## Feature flags and rollout
 
-Two flags, both off: `intro_reminders` and `prickle_reminders`. For anyone a flag doesn't cover, the job only logs `[member-reminders] DRY RUN <kind> {...}` (who, channels, why, text, url) and sends, records and marks nothing, so the log shows what would go out.
+Intro reminders go to everyone (their flag, `intro_reminders`, was switched on for everyone and removed). Prickle reminders have one flag, `prickle_reminders`. For anyone it doesn't cover, the job only logs `[member-reminders] DRY RUN <kind> {...}` (who, channels, why, text, url) and sends, records and marks nothing, so the log shows what would go out.
 
-1. Leave both off and read the dry-run lines in the Vercel logs for a few days.
-2. Turn a flag on for yourself (a personal preview) to see it live on your own account.
+1. Leave the prickle flag off and read the dry-run lines in the Vercel logs for a few days.
+2. Turn `prickle_reminders` on for yourself (a personal preview) to see it live on your own account.
 3. Turn it on for a segment, then globally.
 
 The job only sends to members who are due, in their hour. To see either reminder yourself on any channel without waiting, use **Admin → Test Notifications** (`/admin/notifications`): a grid of every notification kind by every channel (Slack, In the Hub, Browser, Email), each cell sending that sample to your own accounts, marked "[Test]". It ignores your notification settings and the flags above, but not what a channel needs to reach you (a matched Slack account, an email address, a subscribed device, the In-app notifications preview), and says why when it can't. Outside production Slack and email are redirected to the dev address.

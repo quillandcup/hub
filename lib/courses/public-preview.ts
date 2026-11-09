@@ -1,10 +1,9 @@
 import type { Repos } from "@/lib/data/repos";
-import { isFeatureOnForEveryone } from "@/lib/features.server";
 import { courseImageSrc } from "@/lib/courses/image-urls";
 import { lessonExcerpt } from "@/lib/courses/excerpt";
 import { safeUrl } from "@/lib/url";
 
-type PreviewRepos = Pick<Repos, "courses" | "featureFlags" | "media">;
+type PreviewRepos = Pick<Repos, "courses" | "media">;
 
 /** Pixel size of our copy of a thumbnail or cover, so a link preview can declare it (a card that knows the size is shown large). */
 export interface ShareImageSize {
@@ -28,8 +27,7 @@ async function sizeOfCopy(repos: PreviewRepos, assetId: string | null): Promise<
  * picture and a teaser ("whet the appetite"): its title, its course's title, a short excerpt and
  * its thumbnail. Never the video or the full text.
  *
- * A lesson is public only when a member could open it today: the `courses` feature is on for
- * everyone (not just a segment), the course is live (its opening date has passed), and the lesson
+ * A lesson is public only when a member could open it today: the course is live (its opening date has passed), and the lesson
  * and every module above it are open (not "coming soon", not a draft). Anything else is null, and
  * the visitor gets the login page as before. Kajabi's own lesson thumbnails are public CDN images;
  * ours are copies of those, so this exposes nothing Kajabi didn't.
@@ -50,14 +48,13 @@ export interface PublicLessonPreview {
 }
 
 /** Why a lesson has no public preview, for the admin builder; "open" never appears as a reason. */
-export type PreviewBlocker = "feature_off" | "not_found" | "course_not_live" | "not_open";
+export type PreviewBlocker = "not_found" | "course_not_live" | "not_open";
 
 export async function publicLessonPreview(
   repos: PreviewRepos,
   lessonId: string,
   opts: { slug?: string; now?: Date } = {}
 ): Promise<{ preview: PublicLessonPreview } | { blocked: PreviewBlocker }> {
-  if (!(await isFeatureOnForEveryone(repos, "courses"))) return { blocked: "feature_off" };
   const lesson = await repos.courses.lessonById(lessonId);
   if (!lesson) return { blocked: "not_found" };
 
@@ -95,8 +92,8 @@ export async function publicLessonPreview(
 
 /**
  * What anyone may see of a course without signing in: its title, a short plain-text teaser of its
- * description and its cover. Never its lessons. Public under the same rule as a lesson's course: the
- * `courses` feature is on for everyone, the course is published and its opening date has passed.
+ * description and its cover. Never its lessons. Public under the same rule as a lesson's course: the course is
+ * published and its opening date has passed.
  */
 export interface PublicCoursePreview {
   courseId: string;
@@ -116,7 +113,6 @@ async function previewOfCourse(
   find: () => ReturnType<PreviewRepos["courses"]["courseById"]>,
   now: Date
 ): Promise<{ preview: PublicCoursePreview } | { blocked: CoursePreviewBlocker }> {
-  if (!(await isFeatureOnForEveryone(repos, "courses"))) return { blocked: "feature_off" };
   const course = await find();
   if (!course) return { blocked: "not_found" };
   if (course.is_draft) return { blocked: "course_not_live" };

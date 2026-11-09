@@ -5,7 +5,6 @@ import { createRepos } from "@/lib/data/repos";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
-import { getUserFeaturePreviews } from "@/lib/features.server";
 import EventDetailClient from "./EventDetailClient";
 import { requireAdminPage } from "@/lib/admin-auth";
 import { isId } from "@/lib/ids";
@@ -29,8 +28,6 @@ export default async function EventDetailPage({
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const enabledFeatures = await getUserFeaturePreviews(user.id);
-  if (!enabledFeatures.includes("events")) redirect("/admin");
 
   const events = createRepos(supabase).events;
   const event = await events.bySlug(slug);

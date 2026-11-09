@@ -19,15 +19,12 @@ export function membershipAbilities(args: {
   visibility: "public" | "private";
   archived: boolean;
   joined: boolean;
-  /** chat_posting is on for the viewed member. */
-  postingOn: boolean;
   isSudo: boolean;
   isStaff: boolean;
   /** The conversation's bridge to Slack: null when it can't be read. */
   bridge: { bridge_mode: string; bridge_disabled: boolean; bridge_status: string } | null;
   slackChannelId: string | null;
 }): MembershipAbilities {
-  if (!args.postingOn) return NONE;
   if (args.isSudo) return { ...NONE, blocked: "You can't change a conversation's members while viewing as another member." };
   if (args.kind === "dm" && args.bridge?.bridge_mode === "app_only") return { ...NONE, blocked: "A direct message is between the two of you." };
   if (args.kind !== "channel") return { ...NONE, blocked: "Slack doesn't allow changing who is in a group message." };

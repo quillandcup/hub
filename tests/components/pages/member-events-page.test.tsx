@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import {
   MEMBER_USER,
-  expectRedirect,
   renderServerPage,
   resetServerPageMocks,
   signInAs,
@@ -23,8 +22,6 @@ vi.mock("@/lib/data/repos", async () => ({
   createRepos: () => createInMemoryRepos(dataset),
 }));
 
-const previews = vi.fn(async (_userId: string): Promise<string[]> => ["events"]);
-vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: (id: string) => previews(id) }));
 vi.mock("@/lib/timezone", () => ({ getUserTimezonePreference: async () => "browser" }));
 vi.mock("@/lib/event-prickles", async (importActual) => ({
   ...(await importActual<typeof import("@/lib/event-prickles")>()),
@@ -55,7 +52,6 @@ const RETREAT: EventSpec = { id: "evnt_AAAAAAAAAAA1", slug: "retreat", title: "S
 
 beforeEach(() => {
   resetServerPageMocks();
-  previews.mockResolvedValue(["events"]);
   signInAs(MEMBER_USER);
   seed([RETREAT]);
 });
@@ -137,11 +133,5 @@ describe("member Events page", () => {
 
     await renderServerPage(EventsPage, { searchParams: Promise.resolve({ month: months[2] }) });
     expect(screen.getAllByTestId("browser").at(-1)).toHaveAttribute("data-month", months[2]);
-  });
-
-  it("sends a member without the events feature to the dashboard", async () => {
-    previews.mockResolvedValue([]);
-
-    await expectRedirect(EventsPage, { searchParams: Promise.resolve({}) }, "/dashboard");
   });
 });

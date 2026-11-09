@@ -22,11 +22,10 @@ vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({ ser
 vi.mock("@/lib/chat/slack-read", () => ({ pushReadToSlack: slackRead.push, pullReadFromSlack: slackRead.pull }));
 const dms = vi.hoisted(() => ({ pull: vi.fn(async () => ({ conversations: 0, messages: 0 })) }));
 vi.mock("@/lib/chat/slack-dms", () => ({ pullMemberDms: dms.pull }));
-let chatOn = true;
 let dmBridgeOn = false;
 vi.mock("@/lib/features.server", () => ({
   getUserFeaturePreviews: vi.fn(async () => []),
-  effectiveMemberHasFeature: async (key: string) => (key === "slack_dm_bridge" ? dmBridgeOn : chatOn),
+  effectiveMemberHasFeature: async (key: string) => key === "slack_dm_bridge" && dmBridgeOn,
 }));
 
 const { markChatRead, syncChatReadFromSlack } = await import("@/app/(member)/chat/actions");
@@ -37,7 +36,6 @@ const calls = () => fake.queries.filter((q) => q.table === "rpc:chat_mark_read")
 
 beforeEach(() => {
   resetServerPageMocks();
-  chatOn = true;
   slackRead.after.length = 0;
   slackRead.push.mockClear();
   slackRead.pull.mockReset();
@@ -53,15 +51,12 @@ describe("markChatRead", () => {
     expect(calls()[0].calls[0].args[0]).toEqual({ p_channel_id: CHANNEL, p_through: "2026-10-10T16:51:47.013065+00:00" });
   });
 
-  it("does nothing for a bad channel id or time, signed out, in sudo, or with chat off", async () => {
+  it("does nothing for a bad channel id or time, signed out or in sudo", async () => {
     await markChatRead("nope", "2026-10-10T16:51:47.013065+00:00");
     await markChatRead(CHANNEL, "not a time");
     signInAs(null);
     await markChatRead(CHANNEL, "2026-10-10T16:51:47.013065+00:00");
     signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
-    await markChatRead(CHANNEL, "2026-10-10T16:51:47.013065+00:00");
-    signInAs(MEMBER_USER, MEMBER_IDENTITY);
-    chatOn = false;
     await markChatRead(CHANNEL, "2026-10-10T16:51:47.013065+00:00");
     expect(calls()).toHaveLength(0);
   });
@@ -105,16 +100,13 @@ describe("syncChatReadFromSlack", () => {
     expect(slackRead.pull).toHaveBeenCalledWith({ service: true }, MEMBER_IDENTITY.memberId, { exceptChannelId: null });
   });
 
-  it("answers null when nothing was pulled, and never pulls in sudo, signed out or with chat off", async () => {
+  it("answers null when nothing was pulled, and never pulls in sudo or signed out", async () => {
     slackRead.pull.mockResolvedValue(false);
     await expect(syncChatReadFromSlack(null)).resolves.toBeNull();
     slackRead.pull.mockClear();
     signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
     await expect(syncChatReadFromSlack(null)).resolves.toBeNull();
     signInAs(null);
-    await expect(syncChatReadFromSlack(null)).resolves.toBeNull();
-    signInAs(MEMBER_USER, MEMBER_IDENTITY);
-    chatOn = false;
     await expect(syncChatReadFromSlack(null)).resolves.toBeNull();
     expect(slackRead.pull).not.toHaveBeenCalled();
   });
@@ -141,16 +133,12 @@ describe("syncChatReadFromSlack", () => {
     log.mockRestore();
   });
 
-  it("doesn't pull DMs in sudo, signed out or with chat off", async () => {
+  it("doesn't pull DMs in sudo or signed out", async () => {
     dmBridgeOn = true;
     signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
     await syncChatReadFromSlack(null);
     signInAs(null);
     await syncChatReadFromSlack(null);
-    signInAs(MEMBER_USER, MEMBER_IDENTITY);
-    chatOn = false;
-    await syncChatReadFromSlack(null);
-    chatOn = true;
     expect(slackRead.after).toHaveLength(0);
   });
 });
