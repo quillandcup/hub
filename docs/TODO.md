@@ -728,6 +728,8 @@ Statement timeouts (57014) kept hitting unrelated queries in production: the adm
 
 **Where to start.** `docs/DEMO_AND_HELP.md` (scenes, help images), `docs/CHANGELOG_PROCESS.md`, `lib/features.ts`, `lib/help.ts`, `tests/lib/` for the existing "every X has a Y" tests (`site-pages`, `staff-access`), and `scripts/docs-only.ts` for how a CI job decides what a change touched. Write a short design doc first (`docs/FEATURE_MANIFEST.md`), then stage 1.
 
+**Related: the nightly changelog drafter.** A prototype exists (`pnpm changelog:draft`, `lib/changelog/draft.ts`, `docs/CHANGELOG_PROCESS.md`, "Drafting entries"): it groups merged PRs into story drafts but guesses the grouping from PR titles and bodies. A feature manifest would make the grouping deterministic (PRs touching a feature's paths belong to its story), so build stage 1 first. **Still open:** run it on a schedule in CI (a `claude -p` step with `ANTHROPIC_API_KEY` as an Actions secret, opening a draft PR), have it write the demo scene and capture the screenshots (needs the demo stack in a CI runner), run the member reader review on the draft, and read the day a flag went on for everyone from the audit log instead of leaving it to a human.
+
 ## Security & Access Control
 
 ### Community manager: narrower billing reads, Activity Log, and the write page
