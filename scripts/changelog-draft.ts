@@ -9,6 +9,7 @@ import {
   type MergedPr,
 } from "@/lib/changelog/draft";
 import { CHANGELOG_ENTRIES } from "@/lib/changelog/entries";
+import { LIVE_FLAGS } from "@/lib/changelog/live-flags";
 import { FEATURE_PREVIEWS } from "@/lib/features";
 
 /**
@@ -16,7 +17,8 @@ import { FEATURE_PREVIEWS } from "@/lib/features";
  * (default: 2 days ago) and the production deployments from GitHub, and writes the titles-only grouping prompt to
  * demo/out/changelog-draft/. With `--run` it calls the Claude Code CLI (not a dependency of the app) twice: a small model
  * groups the pull requests into stories, then a larger one drafts only the member-visible stories into drafts.md. A pull
- * request that names a feature flag not listed in `--live-flags` is held back until the flag is on for everyone.
+ * request that names a feature flag not in `LIVE_FLAGS` (lib/changelog/live-flags.ts, or `--live-flags`) is held back until
+ * the flag is on for everyone. The job never reads the production database.
  * Nothing is added to the changelog: a person reviews the draft. docs/CHANGELOG_PROCESS.md, "Drafting entries".
  */
 function arg(name: string): string | undefined {
@@ -40,7 +42,7 @@ function claude(model: string, prompt: string): string {
 function main() {
   const since = arg("since") ?? new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(since)) throw new Error(`--since must be YYYY-MM-DD, got "${since}"`);
-  const liveFlags = (arg("live-flags") ?? "").split(",").filter(Boolean);
+  const liveFlags = [...LIVE_FLAGS, ...(arg("live-flags") ?? "").split(",").filter(Boolean)];
 
   const prs: MergedPr[] = (
     JSON.parse(
