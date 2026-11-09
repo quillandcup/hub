@@ -25,7 +25,7 @@ function emailsInOrder() {
   return rows.map((r) => /([a-z0-9]+@example\.com)/.exec(r.querySelector('td div.text-xs')!.textContent!)![1])
 }
 
-describe('UsersClient last activity', () => {
+describe('UsersClient last sign-in', () => {
   it('says "Never signed in" for users who never logged in, with a date for the rest', async () => {
     render(<UsersClient currentUserId="me" />)
     await screen.findByText('All Users (4)')
@@ -38,9 +38,9 @@ describe('UsersClient last activity', () => {
     const user = userEvent.setup()
     render(<UsersClient currentUserId="me" />)
     await screen.findByText('All Users (4)')
-    await user.click(screen.getByRole('columnheader', { name: /Last Activity/ }))
+    await user.click(screen.getByRole('columnheader', { name: /Last Sign-in/ }))
     expect(emailsInOrder().slice(0, 2)).toEqual(['older@example.com', 'recent@example.com'])
-    await user.click(screen.getByRole('columnheader', { name: /Last Activity/ }))
+    await user.click(screen.getByRole('columnheader', { name: /Last Sign-in/ }))
     const desc = emailsInOrder()
     expect(desc.slice(0, 2).sort()).toEqual(['invited@example.com', 'never1@example.com'])
     expect(desc.slice(2)).toEqual(['recent@example.com', 'older@example.com'])
