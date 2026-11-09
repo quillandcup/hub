@@ -114,6 +114,19 @@ describe("ChatSidebar", () => {
     expect(screen.queryByText("Archived")).not.toBeInTheDocument();
   });
 
+  it("lists one-on-one DMs under Direct messages and group DMs under Group messages, and leaves out a heading with nothing under it", () => {
+    const { rerender } = render(
+      <ChatSidebar channels={[...CHANNELS, channel("8", "Ania", { kind: "dm", visibility: "private", restricted: true })]} />
+    );
+    const group = (title: string) => screen.getByRole("heading", { name: title }).closest("div.group") as HTMLElement;
+    expect(within(group("Direct messages")).getAllByRole("link").map((a) => a.textContent)).toEqual(["Ania"]);
+    expect(within(group("Group messages")).getAllByRole("link").map((a) => a.textContent)).toEqual(["Gale, Fern"]);
+
+    rerender(<ChatSidebar channels={CHANNELS} />);
+    expect(screen.queryByRole("heading", { name: "Direct messages" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Group messages" })).toBeInTheDocument();
+  });
+
   it("opens the channels you could join in a panel under the icon, not further down the list", async () => {
     const all = [
       ...CHANNELS,

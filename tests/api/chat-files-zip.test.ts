@@ -7,7 +7,12 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: vi.fn() }));
 vi.mock("@/lib/slack-capture", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/slack-capture")>()), ensureSlackFileCopied: vi.fn() }));
 
+vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: vi.fn() }));
+vi.mock("@/lib/slack-connect", () => ({ getSlackUserToken: vi.fn() }));
+
 import { InMemoryDataset } from "@/lib/data/in-memory";
+import { getEffectiveIdentity } from "@/lib/sudo";
+import { getSlackUserToken } from "@/lib/slack-connect";
 import { createInMemoryRepos } from "@/lib/data/repos";
 import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -103,5 +108,25 @@ describe("GET /api/chat/files/[messageId]/zip", () => {
     setContent([{ id: "F1", name: "a.txt" }], null);
     bytes["F1/a.txt"] = { data: { size: 101 * 1024 * 1024, arrayBuffer: async () => new ArrayBuffer(0) }, error: null };
     expect((await apiFetch(url(MESSAGE))).status).toBe(413);
+  });
+
+  describe("files in a one-on-one DM", () => {
+    beforeEach(() => {
+      setContent([{ id: "F1", name: "a.txt", mimetype: "text/plain" }], { ts: "1.1", channel: "D1" });
+      vi.mocked(getEffectiveIdentity).mockResolvedValue({ memberId: "mbr_AAAAAAAAAAF1", isSudo: false } as never);
+      vi.mocked(getSlackUserToken).mockResolvedValue({ token: "xoxp-viewer", slackUserId: "UF" });
+    });
+
+    it("are fetched with the viewer's own token, since the bot can't read a DM", async () => {
+      const res = await apiFetch(url(MESSAGE));
+      expect(res.status).toBe(200);
+      expect(ensureSlackFileCopied).toHaveBeenCalledWith(expect.anything(), "xoxp-viewer", { fileId: "F1", channelId: "D1", messageTs: "1.1" });
+    });
+
+    it("are skipped, and Slack not asked, without a working connection", async () => {
+      vi.mocked(getSlackUserToken).mockResolvedValue(null);
+      expect((await apiFetch(url(MESSAGE))).status).toBe(404);
+      expect(ensureSlackFileCopied).not.toHaveBeenCalled();
+    });
   });
 });

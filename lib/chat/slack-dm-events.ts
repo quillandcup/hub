@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createRepos } from "@/lib/data/repos";
 import { membersWithFeatureForOutreach } from "@/lib/features.server";
 import { getSlackConnectionStatus } from "@/lib/slack-connect";
+import { isSlackDmChannelId } from "@/lib/slack-messages";
 
 /**
  * Live delivery of Slack DMs (docs/SLACK_BRIDGED_CHAT.md, "Slack 1:1 DMs through members' own tokens"). The app
@@ -26,8 +27,7 @@ export type DmEventDecision =
   /** A DM the chat hasn't seen yet: its first message tells us nothing of who is in it, so the member's DMs are pulled. */
   | { kind: "pull"; memberId: string };
 
-/** A message event in a 1:1 DM (Slack's `D…` conversations). */
-export const isSlackDmChannelId = (channelId: unknown): boolean => typeof channelId === "string" && /^D[A-Z0-9]+$/.test(channelId);
+export { isSlackDmChannelId };
 
 export async function decideDmEvent(
   service: SupabaseClient,
