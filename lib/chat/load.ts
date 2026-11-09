@@ -27,6 +27,10 @@ const REPLY_AVATARS = 5;
 /** Distinct repliers read per thread before Slack-only ones are merged by user, so a duplicate does not eat a slot. */
 const REPLY_CANDIDATES = 25;
 
+/** Newest message first; a conversation with none goes last. */
+export const byRecency = (a: Pick<ChannelSummary, "lastMessageAt">, b: Pick<ChannelSummary, "lastMessageAt">): number =>
+  (b.lastMessageAt ? Date.parse(b.lastMessageAt) : -Infinity) - (a.lastMessageAt ? Date.parse(a.lastMessageAt) : -Infinity) || 0;
+
 export interface ChannelSummary {
   id: string;
   kind: "channel" | "dm" | "group_dm";
@@ -37,6 +41,8 @@ export interface ChannelSummary {
   archived: boolean;
   joined: boolean;
   slackChannelId: string | null;
+  /** When it last had a message: direct and group messages are listed by it, newest first, as in Slack. */
+  lastMessageAt: string | null;
 }
 
 
@@ -76,10 +82,12 @@ export async function loadChatChannels(
       archived: c.archived_at !== null,
       joined: joined.has(c.id),
       slackChannelId: c.slack_channel_id,
+      lastMessageAt: c.last_message_at,
     })
   );
   const rank = (c: ChannelSummary) => (c.archived ? 2 : c.kind === "channel" ? 0 : 1);
-  return summaries.sort((a, b) => rank(a) - rank(b) || a.label.localeCompare(b.label));
+  // Channels by name; direct and group messages, like Slack's, with the most recently active first.
+  return summaries.sort((a, b) => rank(a) - rank(b) || (a.kind === "channel" ? 0 : byRecency(a, b)) || a.label.localeCompare(b.label));
 }
 
 /**
@@ -224,6 +232,7 @@ export async function loadChannelForMember(
     archived: channel.archived_at !== null,
     joined: Boolean(membership),
     slackChannelId: channel.slack_channel_id,
+    lastMessageAt: channel.last_message_at,
   };
 }
 

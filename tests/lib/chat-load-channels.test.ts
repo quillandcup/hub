@@ -100,6 +100,7 @@ describe("loadChannelForMember", () => {
       archived: false,
       joined: true,
       slackChannelId: "C_HOSTS",
+      lastMessageAt: null,
     });
     await expect(loadChannelForMember(repos(), GENERAL, HAZEL, false)).resolves.toMatchObject({ label: "#general", joined: false });
     await expect(loadChannelForMember(repos(), OLD, FERN, false)).resolves.toMatchObject({ archived: true });
@@ -113,6 +114,27 @@ describe("loadChannelForMember", () => {
 
   it("names a group message after the others in it, and says it is a group when there is only one other person", async () => {
     await expect(loadChannelForMember(repos(), GROUP, FERN, false)).resolves.toMatchObject({ kind: "group_dm", label: "Gale Prickleton (group)" });
+  });
+
+  it("lists direct and group messages most recently active first, with ones that have no messages last, and channels by name", async () => {
+    const DM_A = "chn_AAAAAAAAAAD1";
+    const DM_B = "chn_AAAAAAAAAAD2";
+    const DM_C = "chn_AAAAAAAAAAD3";
+    channels.push(
+      { id: DM_A, kind: "dm", visibility: "private", restricted: true, name: null, slack_channel_id: "D_A", last_message_at: "2026-11-08T10:00:00Z" },
+      { id: DM_B, kind: "dm", visibility: "private", restricted: true, name: null, slack_channel_id: "D_B", last_message_at: "2026-11-09T09:00:00Z" },
+      { id: DM_C, kind: "dm", visibility: "private", restricted: true, name: null, slack_channel_id: "D_C" }
+    );
+    channels.find((c) => c.id === GROUP)!.last_message_at = "2026-11-09T12:00:00Z";
+    memberships.push(
+      { channel_id: DM_A, member_id: FERN }, { channel_id: DM_A, member_id: GALE },
+      { channel_id: DM_B, member_id: FERN }, { channel_id: DM_B, member_id: HAZEL },
+      { channel_id: DM_C, member_id: FERN }, { channel_id: DM_C, member_id: HAZEL }
+    );
+    const list = await loadChatChannels(repos(), FERN, false);
+    expect(list.filter((c) => c.kind !== "channel" && !c.archived).map((c) => c.id)).toEqual([GROUP, DM_B, DM_A, DM_C]);
+    expect(list.filter((c) => c.kind === "channel" && !c.archived).map((c) => c.label)).toEqual(["#general", "#hosts"]);
+    expect(list.find((c) => c.id === DM_B)!.lastMessageAt).toBe("2026-11-09T09:00:00Z");
   });
 
   it("names a direct message plainly after the other person, so a group message with the same person reads differently", async () => {

@@ -21,7 +21,7 @@ type Row = Record<string, unknown>;
 let onInsert: (payload: { new: Row }) => void = () => {};
 let onUpdate: (payload: { new: Row }) => void = () => {};
 const loadCounts = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/chat/load", () => ({ loadUnreadCounts: loadCounts }));
+vi.mock("@/lib/chat/load", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/chat/load")>()), loadUnreadCounts: loadCounts }));
 const subscribe = vi.fn();
 const realtime: { on: ReturnType<typeof vi.fn>; subscribe: ReturnType<typeof vi.fn> } = {
   on: vi.fn((_t: string, f: { event: string }, cb: (p: { new: Row }) => void) => {
@@ -51,6 +51,7 @@ const channel = (id: string, label: string, extra: Partial<ChannelSummary> = {})
   archived: false,
   joined: true,
   slackChannelId: null,
+  lastMessageAt: null,
   ...extra,
 });
 
@@ -127,6 +128,36 @@ describe("ChatSidebar", () => {
     rerender(<ChatSidebar channels={CHANNELS} />);
     expect(screen.queryByRole("heading", { name: "Direct messages" })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Group messages" })).toBeInTheDocument();
+  });
+
+  describe("order of direct and group messages", () => {
+    const dm = (id: string, label: string, lastMessageAt: string | null) => channel(id, label, { kind: "dm", visibility: "private", lastMessageAt });
+    const DMS = [dm("d1", "Ania", "2026-11-08T10:00:00Z"), dm("d2", "Birgit", "2026-11-09T10:00:00Z"), dm("d3", "Carly", null)];
+    const direct = () => within(screen.getByRole("heading", { name: "Direct messages" }).closest("div.group") as HTMLElement).getAllByRole("link").map((a) => (a.textContent ?? "").replace(/\d+\+?\s*unread$/, ""));
+
+    it("lists them as the server ordered them: newest first, and ones with no messages last", () => {
+      render(<ChatSidebar channels={[DMS[1], DMS[0], DMS[2]]} />);
+      expect(direct()).toEqual(["Birgit", "Ania", "Carly"]);
+    });
+
+    it("moves a conversation to the top when a message arrives in it, however the list was ordered", async () => {
+      render(<ChatSidebar channels={[DMS[1], DMS[0], DMS[2]]} selfMemberId={ME} />);
+      await flush();
+      act(() => onInsert(insert({ channel_id: "d3", created_at: "2026-11-09T11:00:00Z" })));
+      expect(direct()).toEqual(["Carly", "Birgit", "Ania"]);
+      // Even a message the member wrote, or one in the conversation that is open.
+      act(() => onInsert(insert({ channel_id: "d1", author_member_id: ME, created_at: "2026-11-09T12:00:00Z" })));
+      expect(direct()).toEqual(["Ania", "Carly", "Birgit"]);
+    });
+
+    it("does not move one back for an older message, and leaves channels alone", async () => {
+      render(<ChatSidebar channels={[...CHANNELS, ...DMS]} selfMemberId={ME} />);
+      await flush();
+      act(() => onInsert(insert({ channel_id: "d2", created_at: "2026-11-01T00:00:00Z" })));
+      expect(direct()).toEqual(["Birgit", "Ania", "Carly"]);
+      act(() => onInsert(insert({ channel_id: "2", created_at: "2026-11-09T12:00:00Z" })));
+      expect(screen.getAllByRole("link").map((a) => (a.textContent ?? "").replace(/\d+\+?\s*unread$/, "")).slice(0, 2)).toEqual(["#general", "#writing-sprints"]);
+    });
   });
 
   it("opens the channels you could join in a panel under the icon, not further down the list", async () => {
