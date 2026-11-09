@@ -63,7 +63,7 @@ export async function loadChatChannels(
   const dmIds = visible.filter((c) => c.kind !== "channel").map((c) => c.id);
   timer?.note("visible", visible.length);
   timer?.note("dms", dmIds.length);
-  const dmLabels = await groupDmLabels(repos, dmIds, memberId, timer);
+  const dmLabels = await groupDmLabels(repos, dmIds, memberId, timer, new Map(visible.map((c) => [c.id, c.kind])));
   timer?.mark("dmLabels");
 
   const summaries = visible.map(
@@ -84,9 +84,16 @@ export async function loadChatChannels(
 
 /**
  * "Fern, Gale" for each group DM: the other people in it. Deliberately not Billie Bot: it is in every group
- * message (the bridge needs it there) and isn't a Hub member, so naming it would say nothing.
+ * message (the bridge needs it there) and isn't a Hub member, so naming it would say nothing. A group message
+ * with a single other person reads "Fern (group)", so it isn't mistaken for a direct message with them.
  */
-async function groupDmLabels(repos: ChatLoadRepos, channelIds: string[], memberId: string, timer?: StageTimer) {
+async function groupDmLabels(
+  repos: ChatLoadRepos,
+  channelIds: string[],
+  memberId: string,
+  timer?: StageTimer,
+  kinds: Map<string, ChannelRecord["kind"]> = new Map()
+) {
   const labels = new Map<string, string>();
   if (channelIds.length === 0) return labels;
   const rows = await repos.chat.activeMembersOf(channelIds).catch(() => []);
@@ -99,7 +106,9 @@ async function groupDmLabels(repos: ChatLoadRepos, channelIds: string[], memberI
       .filter((r) => r.channel_id === channelId)
       .map((r) => names.get(r.member_id as string)?.name)
       .filter((n): n is string => Boolean(n));
-    if (list.length > 0) labels.set(channelId, list.join(", "));
+    // A group message with one other person (you, them and Billie Bot) would read exactly like your DM with them.
+    if (list.length === 1 && kinds.get(channelId) === "group_dm") labels.set(channelId, `${list[0]} (group)`);
+    else if (list.length > 0) labels.set(channelId, list.join(", "));
   }
   return labels;
 }
@@ -205,7 +214,7 @@ export async function loadChannelForMember(
   if (isSudo && channel.kind !== "channel") return null;
   if (channel.visibility === "private" && !membership) return null;
 
-  const labels = channel.kind === "channel" ? new Map<string, string>() : await groupDmLabels(repos, [channel.id], memberId);
+  const labels = channel.kind === "channel" ? new Map<string, string>() : await groupDmLabels(repos, [channel.id], memberId, undefined, new Map([[channel.id, channel.kind]]));
   return {
     id: channel.id,
     kind: channel.kind,

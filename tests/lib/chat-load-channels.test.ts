@@ -61,7 +61,7 @@ describe("loadChatChannels", () => {
     expect(list.map((c) => [c.label, c.joined, c.archived])).toEqual([
       ["#general", true, false],
       ["#hosts", true, false],
-      ["Gale Prickleton", true, false],
+      ["Gale Prickleton (group)", true, false],
       ["#old", false, true],
     ]);
     expect(list.find((c) => c.id === HOSTS)).toMatchObject({ visibility: "private", slackChannelId: "C_HOSTS", restricted: false });
@@ -111,8 +111,17 @@ describe("loadChannelForMember", () => {
     await expect(loadChannelForMember(repos(), GROUP, FERN, true)).resolves.toBeNull();
   });
 
-  it("names a group message after the others in it", async () => {
-    await expect(loadChannelForMember(repos(), GROUP, FERN, false)).resolves.toMatchObject({ kind: "group_dm", label: "Gale Prickleton" });
+  it("names a group message after the others in it, and says it is a group when there is only one other person", async () => {
+    await expect(loadChannelForMember(repos(), GROUP, FERN, false)).resolves.toMatchObject({ kind: "group_dm", label: "Gale Prickleton (group)" });
+  });
+
+  it("names a direct message plainly after the other person, so a group message with the same person reads differently", async () => {
+    const DM = "chn_AAAAAAAAAAC6";
+    channels.push({ id: DM, kind: "dm", visibility: "private", restricted: true, name: null, slack_channel_id: "D_ONE" });
+    memberships.push({ channel_id: DM, member_id: FERN }, { channel_id: DM, member_id: GALE });
+    await expect(loadChannelForMember(repos(), DM, FERN, false)).resolves.toMatchObject({ kind: "dm", label: "Gale Prickleton" });
+    const labels = (await loadChatChannels(repos(), FERN, false)).filter((c) => c.kind !== "channel").map((c) => c.label).sort();
+    expect(labels).toEqual(["Gale Prickleton", "Gale Prickleton (group)"]);
   });
 
   it("lists only the people in a group message, never Billie Bot, which is in every group and isn't a member", async () => {
