@@ -42,6 +42,7 @@ vi.mock("@/lib/chat/notifications", () => ({ notifyPulledMessages: notifyPulled 
 
 import { openSlackDm, pullDmsForCoveredMembers, pullMemberDms, SLACK_DM_PULL_INTERVAL_SECONDS } from "@/lib/chat/slack-dms";
 import { InMemoryDataset } from "@/lib/data/in-memory";
+import { InMemorySlackWorkspaceRepository } from "@/lib/data/slack-workspace";
 
 const service = { rpc: (...args: unknown[]) => m.rpc(...args) } as never;
 const MEMBER = "mbr_AAAAAAAAAAF1";
@@ -106,6 +107,33 @@ describe("pullMemberDms", () => {
     await pullMemberDms(service, MEMBER);
     expect(notifyPulled).toHaveBeenCalledTimes(1);
     expect(notifyPulled).toHaveBeenCalledWith(expect.anything(), "D1", ["1762170000.000200", "1762170000.000100"]);
+  });
+
+  it.each(["pull", "open"] as const)("stores a self-DM with one participant during %s", async (action) => {
+    const memberships = vi.spyOn(InMemorySlackWorkspaceRepository.prototype, "upsertMemberships");
+    try {
+      const ds = m.dataset as InMemoryDataset;
+      ds.chatSlackAuthors.push({ slack_user_id: "USELF", member_id: MEMBER });
+      m.list.mockResolvedValue({ channels: [{ id: "DSELF", user: "USELF" }] });
+      m.open.mockResolvedValue({ ok: true, channel: { id: "DSELF" } });
+      m.history.mockResolvedValue({ messages: [{ ts: "1762170000.000100", user: "USELF", text: "note to self" }], has_more: false });
+
+      if (action === "pull") {
+        await expect(pullMemberDms(service, MEMBER)).resolves.toEqual({ conversations: 1, messages: 1, errors: [] });
+      } else {
+        await expect(openSlackDm(service, MEMBER, MEMBER)).resolves.toEqual({ ok: true, channelId: CHAT });
+      }
+
+      // The in-memory repo accepts repeats; Postgres rejects duplicate keys in a single upsert.
+      expect(memberships).toHaveBeenCalledExactlyOnceWith([
+        { channel_id: "DSELF", user_id: "USELF", left_at: null, imported_at: "2026-11-03T12:00:00.000Z" },
+      ]);
+      expect(ds.slackChannels).toEqual([expect.objectContaining({ channel_id: "DSELF", member_count: 1 })]);
+      expect(rpcCalls("project_slack_dm")[0][1]).toEqual({ p_channel_id: "DSELF", p_members: { USELF: MEMBER } });
+      expect(ds.slackMessages).toHaveLength(1);
+    } finally {
+      memberships.mockRestore();
+    }
   });
 
   it("skips the interval when forced (a live event named a DM we hadn't seen)", async () => {
