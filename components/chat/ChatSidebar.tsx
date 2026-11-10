@@ -419,6 +419,8 @@ export default function ChatSidebar({
   // When each conversation last had a message as of what has arrived since the page loaded (Realtime), for ordering.
   const [bumps, setBumps] = useState<Record<string, string>>({});
   const counts = useUnreadCounts(unread, activeId, selfMemberId, channels, (id, at) => setBumps((b) => (b[id] && Date.parse(b[id]) >= Date.parse(at) ? b : { ...b, [id]: at })));
+  /** Slack lists a DM or group message only once it has something in it (the Wheel of Wonder opens many rooms nobody writes in): one with no messages is left out, unless it is open or just had a message. */
+  const hasActivity = (c: ChannelSummary) => c.lastMessageAt !== null || Boolean(bumps[c.id]) || c.id === activeId;
   /** Newest first, by the later of the server's time and what has arrived since (a stable sort: ties keep the server's order). */
   const recent = (list: ChannelSummary[]) => {
     const at = (c: ChannelSummary) => ({ lastMessageAt: bumps[c.id] && (!c.lastMessageAt || Date.parse(bumps[c.id]) > Date.parse(c.lastMessageAt)) ? bumps[c.id] : c.lastMessageAt });
@@ -479,10 +481,10 @@ export default function ChatSidebar({
         unread={counts}
         action={joinable.length > 0 && <BrowseChannels channels={joinable} pathname={pathname} />}
       />
-      <Section title="Group messages" channels={recent(mine.filter((c) => c.kind === "group_dm"))} pathname={pathname} unread={counts} />
+      <Section title="Group messages" channels={recent(mine.filter((c) => c.kind === "group_dm" && hasActivity(c)))} pathname={pathname} unread={counts} />
       <Section
         title="Direct messages"
-        channels={recent(mine.filter((c) => c.kind === "dm"))}
+        channels={recent(mine.filter((c) => c.kind === "dm" && hasActivity(c)))}
         pathname={pathname}
         unread={counts}
         action={canStartDm && <NewMessagePicker pathname={pathname} />}

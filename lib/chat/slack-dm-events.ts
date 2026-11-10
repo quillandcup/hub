@@ -35,7 +35,8 @@ export { isSlackDmChannelId };
  */
 export async function isMemberTokenConversation(service: SupabaseClient, channelId: unknown): Promise<boolean> {
   if (isSlackDmChannelId(channelId)) return true;
-  if (typeof channelId !== "string" || !channelId.startsWith("G")) return false;
+  // Slack's ids for group DMs begin with G on older conversations and C on newer ones, so the prefix says nothing: the stored conversation does.
+  if (typeof channelId !== "string" || channelId === "") return false;
   return createRepos(service).slackWorkspace.isTokenOnlyGroupDm(channelId);
 }
 
@@ -53,7 +54,8 @@ export async function decideDmEvent(
   const isReaction = event.type === "reaction_added" || event.type === "reaction_removed";
   const isDm = event.channel_type === "im" || isSlackDmChannelId(channelId);
   // A group DM (`message.mpim`), or an event in a `G…` conversation, which is a group DM or a private channel (looked up below).
-  const mayBeGroup = !isDm && (event.channel_type === "mpim" || (channelId?.startsWith("G") ?? false));
+  // (A reaction carries no conversation type, and newer group DMs have C ids like channels, so a reaction is looked up too.)
+  const mayBeGroup = !isDm && (event.channel_type === "mpim" || (channelId?.startsWith("G") ?? false) || isReaction);
   // A reaction delivered on a member's behalf anywhere else is the bot's to record (its own reaction events cover those channels): drop the copy.
   const elsewhere = (): DmEventDecision => (isReaction && !forTheBot ? { kind: "drop" } : { kind: "not_dm" });
   if (!isDm && !mayBeGroup) return elsewhere();

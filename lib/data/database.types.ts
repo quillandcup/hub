@@ -6906,6 +6906,15 @@ export type Database = {
         Args: { p_message_id: string }
         Returns: undefined
       }
+      chat_dm_counterparts: {
+        Args: { p_member: string }
+        Returns: {
+          channel_id: string
+          member_id: string
+          name: string
+          slack_user_id: string
+        }[]
+      }
       chat_edit_message: {
         Args: { p_body: string; p_message_id: string }
         Returns: undefined

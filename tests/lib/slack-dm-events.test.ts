@@ -156,6 +156,18 @@ describe("decideDmEvent: group DMs", () => {
     await expect(decideDmEvent(service, reaction("D1"))).resolves.toEqual({ kind: "pull", memberId: FERN });
   });
 
+  it("recognizes a reaction in a group DM whose id begins with C, as newer ones do, by the stored conversation", async () => {
+    const reaction = (channel: string) => ({ event: { type: "reaction_added", item: { channel }, user: "UGALE" }, authorizations: [{ user_id: "UFERN" }] });
+    dataset.slackChannels.push(
+      { channel_id: "C_GROUP", name: "", is_mpim: true, token_only: true } as never,
+      { channel_id: "C_PUBLIC", name: "general", is_mpim: false } as never
+    );
+    await expect(decideDmEvent(service, reaction("C_GROUP"))).resolves.toEqual({ kind: "keep" });
+    // A channel, and one we have never heard of, are the bot's to record.
+    await expect(decideDmEvent(service, reaction("C_PUBLIC"))).resolves.toEqual({ kind: "drop" });
+    await expect(decideDmEvent(service, reaction("C_NEW"))).resolves.toEqual({ kind: "drop" });
+  });
+
   it("does not look at channels that are neither", async () => {
     await expect(decideDmEvent(service, { event: { type: "message", channel: "C1", channel_type: "channel" }, authorizations: [{ user_id: "UFERN" }] })).resolves.toEqual({ kind: "not_dm" });
   });
@@ -171,6 +183,15 @@ describe("isMemberTokenConversation", () => {
     expect(await isMemberTokenConversation(service, "G1")).toBe(true);
     expect(await isMemberTokenConversation(service, "G2")).toBe(false);
     expect(await isMemberTokenConversation(service, "C1")).toBe(false);
+    // Newer group DMs have C ids like channels: what says it is a group is the stored conversation, not the prefix.
+    dataset.slackChannels.push(
+      { channel_id: "C_GROUP", name: "", is_mpim: true, token_only: true } as never,
+      { channel_id: "C_BOT_GROUP", name: "", is_mpim: true, token_only: false } as never,
+      { channel_id: "C_CHANNEL", name: "general", is_mpim: false } as never
+    );
+    expect(await isMemberTokenConversation(service, "C_GROUP")).toBe(true);
+    expect(await isMemberTokenConversation(service, "C_BOT_GROUP")).toBe(false);
+    expect(await isMemberTokenConversation(service, "C_CHANNEL")).toBe(false);
     expect(await isMemberTokenConversation(service, null)).toBe(false);
   });
 });

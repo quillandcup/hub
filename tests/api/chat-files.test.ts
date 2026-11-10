@@ -184,6 +184,23 @@ describe("GET /api/chat/files/[messageId]/[fileId]", () => {
       expect(ensureSlackFileCopied).toHaveBeenCalledWith(expect.anything(), "xoxp-viewer", { fileId: "F_IMG", channelId: "D1", messageTs: "1.1" });
     });
 
+    it("falls back to another member of the conversation's connection when Slack won't give the file to the viewer", async () => {
+      repos = createInMemoryRepos(
+        new InMemoryDataset({
+          chatChannels: [{ id: "chn_AAAAAAAAAAA1", slack_channel_id: "D1" }],
+          chatMessages: [{ id: MESSAGE, channel_id: "chn_AAAAAAAAAAA1", slack_ts: "1.1" }],
+          chatMessageContents: [{ message_id: MESSAGE, files: FILES as never }],
+          chatChannelMembers: [{ channel_id: "chn_AAAAAAAAAAA1", member_id: "mbr_AAAAAAAAAAF1" }, { channel_id: "chn_AAAAAAAAAAA1", member_id: "mbr_AAAAAAAAAAF2" }],
+        }),
+      );
+      vi.mocked(getSlackUserToken).mockImplementation((async (_s: unknown, memberId: string) => ({ token: memberId === "mbr_AAAAAAAAAAF1" ? "xoxp-viewer" : "xoxp-other", slackUserId: "U" })) as never);
+      vi.mocked(ensureSlackFileCopied).mockImplementation((async (_s: unknown, token: string) =>
+        token === "xoxp-viewer" ? { ok: false, reason: "download failed with HTTP 403" } : { ok: true, path: "F_IMG/hedgie.gif", mimetype: "image/gif" }) as never);
+      const res = await call(MESSAGE, "F_IMG");
+      expect(res.status).toBe(200);
+      expect(vi.mocked(ensureSlackFileCopied).mock.calls.map(([, token]) => token)).toEqual(["xoxp-viewer", "xoxp-other"]);
+    });
+
     it("is not asked of Slack at all when the viewer has no working connection, or is viewing as someone else", async () => {
       vi.mocked(getSlackUserToken).mockResolvedValue(null);
       expect((await call(MESSAGE, "F_IMG")).status).toBe(404);

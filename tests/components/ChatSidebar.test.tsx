@@ -53,7 +53,8 @@ const channel = (id: string, label: string, extra: Partial<ChannelSummary> = {})
   archived: false,
   joined: true,
   slackChannelId: null,
-  lastMessageAt: null,
+  // A direct or group message is listed once it has had a message (see "empty conversations"); channels needn't have.
+  lastMessageAt: (extra.kind ?? "channel") === "channel" ? null : "2026-11-01T00:00:00Z",
   ...extra,
 });
 
@@ -147,9 +148,29 @@ describe("ChatSidebar", () => {
     const DMS = [dm("d1", "Ania", "2026-11-08T10:00:00Z"), dm("d2", "Birgit", "2026-11-09T10:00:00Z"), dm("d3", "Carly", null)];
     const direct = () => within(screen.getByRole("heading", { name: "Direct messages" }).closest("div.group") as HTMLElement).getAllByRole("link").map((a) => (a.textContent ?? "").replace(/\d+\+?\s*unread$/, ""));
 
-    it("lists them as the server ordered them: newest first, and ones with no messages last", () => {
+    it("lists them as the server ordered them: newest first", () => {
+      render(<ChatSidebar channels={[DMS[1], DMS[0]]} />);
+      expect(direct()).toEqual(["Birgit", "Ania"]);
+    });
+
+    it("leaves out ones with no messages (Slack lists a DM once there is one), unless it is open, then lists it once it has one", async () => {
+      render(<ChatSidebar channels={[DMS[1], DMS[0], DMS[2]]} selfMemberId={ME} />);
+      expect(direct()).toEqual(["Birgit", "Ania"]);
+      // A message arriving in it brings it in.
+      await flush();
+      act(() => onInsert(insert({ channel_id: "d3", created_at: "2026-11-09T11:00:00Z" })));
+      expect(direct()).toEqual(["Carly", "Birgit", "Ania"]);
+    });
+
+    it("lists an empty one while it is the open conversation (one just started from New message)", () => {
+      pathname = "/chat/d3";
       render(<ChatSidebar channels={[DMS[1], DMS[0], DMS[2]]} />);
-      expect(direct()).toEqual(["Birgit", "Ania", "Carly"]);
+      expect(direct().sort()).toEqual(["Ania", "Birgit", "Carly"]);
+    });
+
+    it("leaves out a group message with no messages too, and shows no heading when none has any", () => {
+      render(<ChatSidebar channels={[channel("g1", "Ania (group)", { kind: "group_dm", lastMessageAt: null }), ...DMS]} />);
+      expect(screen.queryByRole("heading", { name: "Group messages" })).not.toBeInTheDocument();
     });
 
     it("moves a conversation to the top when a message arrives in it, however the list was ordered", async () => {
@@ -166,7 +187,7 @@ describe("ChatSidebar", () => {
       render(<ChatSidebar channels={[...CHANNELS, ...DMS]} selfMemberId={ME} />);
       await flush();
       act(() => onInsert(insert({ channel_id: "d2", created_at: "2026-11-01T00:00:00Z" })));
-      expect(direct()).toEqual(["Birgit", "Ania", "Carly"]);
+      expect(direct()).toEqual(["Birgit", "Ania"]);
       act(() => onInsert(insert({ channel_id: "2", created_at: "2026-11-09T12:00:00Z" })));
       expect(screen.getAllByRole("link").map((a) => (a.textContent ?? "").replace(/\d+\+?\s*unread$/, "")).slice(0, 2)).toEqual(["#general", "#writing-sprints"]);
     });
