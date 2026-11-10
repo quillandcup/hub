@@ -1,4 +1,4 @@
-import { fetchAllRows } from "@/lib/supabase/paginate";
+import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
 import type { Db } from "./db";
 import { eventDetails } from "./events";
 import type { InMemoryDataset } from "./in-memory";
@@ -106,6 +106,8 @@ export interface BadgeRepository {
   award(input: { memberId: string; badgeTypeId: string; occurredAt?: string; note: string | null; awardedBy: string | null }): Promise<MemberBadge>;
   /** Removes an award. */
   revoke(id: string): Promise<void>;
+  /** Moves every award of one member to another (a member merge). An event award the target already has for the same event is left alone (it would show twice); hand-given awards all move. Returns how many moved. */
+  moveAwards(fromMemberId: string, toMemberId: string): Promise<number>;
 }
 
 type TypeRow = {
@@ -333,6 +335,21 @@ export class SupabaseBadgeRepository implements BadgeRepository {
     const { error } = await this.db.from("member_badges").delete().eq("id", id);
     if (error) throw new Error(error.message);
   }
+
+  async moveAwards(fromMemberId: string, toMemberId: string) {
+    const rows = (member: string) =>
+      fetchAllRows<{ id: string; badge_type_id: string; event_id: string | null }>((from, to) =>
+        this.db.from("member_badges").select("id, badge_type_id, event_id").eq("member_id", member).order("id").range(from, to)
+      );
+    const [mine, theirs] = await Promise.all([rows(fromMemberId), rows(toMemberId)]);
+    const have = new Set(theirs.flatMap((r) => (r.event_id ? [`${r.badge_type_id}:${r.event_id}`] : [])));
+    const ids = mine.filter((r) => !r.event_id || !have.has(`${r.badge_type_id}:${r.event_id}`)).map((r) => r.id);
+    for (const part of chunk(ids, 100)) {
+      const { error } = await this.db.from("member_badges").update({ member_id: toMemberId }).in("id", part);
+      if (error) throw new Error(error.message);
+    }
+    return ids.length;
+  }
 }
 
 const newId = (prefix: string) => `${prefix}_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
@@ -469,5 +486,16 @@ export class InMemoryBadgeRepository implements BadgeRepository {
 
   async revoke(id: string) {
     this.data.memberBadges = this.data.memberBadges.filter((b) => b.id !== id);
+  }
+
+  async moveAwards(fromMemberId: string, toMemberId: string) {
+    const have = new Set(this.data.memberBadges.filter((b) => b.memberId === toMemberId && b.eventId).map((b) => `${b.badgeTypeId}:${b.eventId}`));
+    let moved = 0;
+    for (const b of this.data.memberBadges) {
+      if (b.memberId !== fromMemberId || (b.eventId && have.has(`${b.badgeTypeId}:${b.eventId}`))) continue;
+      b.memberId = toMemberId;
+      moved++;
+    }
+    return moved;
   }
 }

@@ -127,6 +127,20 @@ export function defineBadgeContract(name: string, setup: () => BadgeContractCont
       expect(await ctx.repo().levelsOf(type.id)).toEqual([]);
     });
 
+    it("moves a member's awards to another member", async () => {
+      const [a, b] = ctx.memberIds;
+      const type = await newType("Moves");
+      const first = await ctx.repo().award({ memberId: a, badgeTypeId: type.id, occurredAt: "2026-03-01", note: "Early", awardedBy: null });
+      const second = await ctx.repo().award({ memberId: a, badgeTypeId: type.id, occurredAt: "2026-05-01", note: null, awardedBy: null });
+      ctx.adopt({ awardIds: [first.id, second.id] });
+
+      expect(await ctx.repo().moveAwards(a, b)).toBe(2);
+
+      expect(await ctx.repo().awardsOf(a)).toEqual([]);
+      expect((await ctx.repo().awardsOf(b)).map((x) => x.note).sort()).toEqual([null, "Early"].sort());
+      expect(await ctx.repo().moveAwards(a, b)).toBe(0);
+    });
+
     it("awards a badge by hand and reads the awards back by member, by type, and with details", async () => {
       const [a, b] = ctx.memberIds;
       const type = await newType("Awardable", { icon: "🌟" });

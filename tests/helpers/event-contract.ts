@@ -263,6 +263,30 @@ export function defineEventContract(name: string, setup: () => EventContractCont
         expect(await ticketOf(ada)).toEqual([null, null]);
       });
 
+      it("moves a member's event attendances to another member, keeping the ticket, and skips events the target attends", async () => {
+        const ids = await ctx.seed([
+          { key: "a", title: "Retreat A", startsAt: "2097-03-01T09:00:00Z" },
+          { key: "b", title: "Retreat B", startsAt: "2097-04-01T09:00:00Z" },
+          { key: "c", title: "Retreat C", startsAt: "2097-05-01T09:00:00Z" },
+        ]);
+        const dup = await ctx.member({ name: "Ada Example", displayName: null, email: "ada@example.com" });
+        const keep = await ctx.member({ name: "Ada E", displayName: null, email: "ada.new@example.com" });
+        await ctx.attend(ids.a, dup, "2097-01-01T00:00:00Z");
+        await ctx.attend(ids.b, dup, "2097-01-01T00:00:00Z");
+        await ctx.attend(ids.b, keep, "2097-01-02T00:00:00Z");
+        await ctx.repo().setAttendeeTicket(ids.a, dup, { source: "comped", note: "covered by staff" });
+
+        expect(await ctx.repo().moveAttendances(dup, keep)).toBe(1);
+
+        const ofKeep = async (eventId: string) => (await ctx.repo().attendeesOf(eventId)).filter((a) => a.member_id === keep).map((a) => [a.ticket_source, a.ticket_note]);
+        expect(await ofKeep(ids.a)).toEqual([["comped", "covered by staff"]]);
+        expect(await ofKeep(ids.b)).toEqual([[null, null]]);
+        expect((await ctx.repo().attendeesOf(ids.a)).some((a) => a.member_id === dup)).toBe(false);
+        // The one the target already attended stays with the source (it goes when the source is deleted).
+        expect((await ctx.repo().attendeesOf(ids.b)).filter((a) => a.member_id === dup)).toHaveLength(1);
+        expect(await ctx.repo().moveAttendances(dup, keep)).toBe(0);
+      });
+
       it("says so when the member is not an attendee of the event", async () => {
         const ids = await ctx.seed([{ key: "e", title: "No guests", startsAt: "2097-03-01T09:00:00Z" }]);
         const ada = await ctx.member({ name: "Ada Example", displayName: null, email: "ada@example.com" });

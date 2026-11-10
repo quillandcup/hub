@@ -107,6 +107,8 @@ export interface MentorshipRepository {
   counts(): Promise<MentorshipCountRow[]>;
   /** The member's own matches, newest first, from `my_mentorships()`. */
   myMentorships(memberId: string): Promise<MyMentorshipRow[]>;
+  /** Moves a member's matches (as the new member or as the big sister) and volunteer record to another member (a member merge). A match between the two stays out (it would pair a member with themselves), and one that would be a second live match for the same arrival is left, with the source. Returns how many matches moved and whether the volunteer record did. */
+  moveMemberRecords(fromMemberId: string, toMemberId: string): Promise<{ matches: number; volunteer: boolean }>;
   /** A big sister's reason on their own live match, through `set_mentorship_note()`. False when it is not theirs. */
   setNote(mentorshipId: string, note: string): Promise<boolean>;
 }
@@ -146,6 +148,35 @@ export class SupabaseMentorshipRepository implements MentorshipRepository {
   async delete(id: string) {
     const { error } = await this.db.from("mentorships").delete().eq("id", id);
     if (error) throw new Error(error.message);
+  }
+
+  async moveMemberRecords(fromMemberId: string, toMemberId: string) {
+    type Match = { id: string; mentor_member_id: string; new_member_id: string };
+    const matchesOf = (column: "mentor_member_id" | "new_member_id") =>
+      fetchAllRows<Match>((from, to) => this.db.from("mentorships").select("id, mentor_member_id, new_member_id").eq(column, fromMemberId).order("id").range(from, to));
+    const rows = [...(await matchesOf("mentor_member_id")), ...(await matchesOf("new_member_id"))];
+    let matches = 0;
+    for (const r of rows) {
+      const column = r.mentor_member_id === fromMemberId ? "mentor_member_id" : "new_member_id";
+      const other = column === "mentor_member_id" ? r.new_member_id : r.mentor_member_id;
+      if (other === toMemberId) continue;
+      const { error } = await this.db.from("mentorships").update(column === "mentor_member_id" ? { mentor_member_id: toMemberId } : { new_member_id: toMemberId }).eq("id", r.id);
+      if (error?.code === "23505") continue; // a second live match for that arrival: stays with the source
+      if (error) throw new Error(error.message);
+      matches++;
+    }
+
+    // The volunteer record is keyed by member: it moves only when the target has none.
+    const theirs = await fetchAllRows<{ member_id: string }>((from, to) =>
+      this.db.from("big_sister_volunteers").select("member_id").eq("member_id", toMemberId).order("member_id").range(from, to)
+    );
+    let volunteer = false;
+    if (theirs.length === 0) {
+      const { data, error } = await this.db.from("big_sister_volunteers").update({ member_id: toMemberId }).eq("member_id", fromMemberId).select("member_id");
+      if (error) throw new Error(error.message);
+      volunteer = (data ?? []).length > 0;
+    }
+    return { matches, volunteer };
   }
 
   async volunteers() {
@@ -272,6 +303,24 @@ export class InMemoryMentorshipRepository implements MentorshipRepository {
 
   async delete(id: string) {
     this.data.mentorships = this.data.mentorships.filter((m) => m.id !== id);
+  }
+
+  async moveMemberRecords(fromMemberId: string, toMemberId: string) {
+    let matches = 0;
+    for (const m of this.data.mentorships) {
+      const column = m.mentor_member_id === fromMemberId ? "mentor_member_id" : m.new_member_id === fromMemberId ? "new_member_id" : null;
+      if (!column) continue;
+      const other = column === "mentor_member_id" ? m.new_member_id : m.mentor_member_id;
+      if (other === toMemberId) continue;
+      const clash = column === "new_member_id" && m.status === "matched" && this.data.mentorships.some((x) => x !== m && x.new_member_id === toMemberId && x.started_on === m.started_on && x.status === "matched");
+      if (clash) continue;
+      m[column] = toMemberId;
+      matches++;
+    }
+    const mine = this.data.bigSisterVolunteers.find((v) => v.member_id === fromMemberId);
+    const volunteer = !!mine && !this.data.bigSisterVolunteers.some((v) => v.member_id === toMemberId);
+    if (mine && volunteer) mine.member_id = toMemberId;
+    return { matches, volunteer };
   }
 
   async volunteers() {
