@@ -1,0 +1,137 @@
+import { describe, it, expect } from "vitest";
+import {
+  MAX_SHARED_MESSAGES,
+  MAX_SHARED_TEXT,
+  httpsUrl,
+  parseSharedMessage,
+  parseSharedMessages,
+  sharedMessageSource,
+} from "@/lib/chat/shared-message";
+
+const share = (over: Record<string, unknown> = {}) => ({
+  is_share: true,
+  is_msg_unfurl: true,
+  author_name: "Ada Example",
+  author_subname: "ada",
+  author_icon: "https://avatars.example.test/ada.png",
+  text: "Tea &amp; <@U1> time",
+  ts: "1700000000.000100",
+  channel_id: "C123ABC",
+  channel_name: "tea-room",
+  from_url: "https://example.slack.com/archives/C123ABC/p1700000000000100",
+  footer: "Posted in #tea-room",
+  ...over,
+});
+
+describe("parseSharedMessage", () => {
+  it("reads the fields of a share", () => {
+    expect(parseSharedMessage(share())).toEqual({
+      text: "Tea &amp; <@U1> time",
+      authorName: "Ada Example",
+      authorSubname: "ada",
+      authorIcon: "https://avatars.example.test/ada.png",
+      ts: "1700000000.000100",
+      postedAt: "2023-11-14T22:13:20.000Z",
+      slackChannelId: "C123ABC",
+      channelName: "tea-room",
+      slackUrl: "https://example.slack.com/archives/C123ABC/p1700000000000100",
+      footer: "Posted in #tea-room",
+      files: [],
+    });
+  });
+
+  it("ignores attachments that are not shares, and non-objects", () => {
+    for (const v of [null, undefined, 4, "x", [], { text: "link preview" }, { is_share: false, text: "x" }]) expect(parseSharedMessage(v)).toBeNull();
+  });
+
+  it("accepts is_msg_unfurl alone", () => {
+    expect(parseSharedMessage({ is_msg_unfurl: true, text: "hi" })?.text).toBe("hi");
+  });
+
+  it("falls back to message_blocks, then fallback", () => {
+    const blocks = [
+      { message: { blocks: [{ type: "rich_text", elements: [{ type: "rich_text_section", elements: [{ type: "text", text: "Hello " }, { type: "user", user_id: "U9" }, { type: "emoji", name: "tea" }] }] }] } },
+    ];
+    expect(parseSharedMessage({ is_share: true, message_blocks: blocks })?.text).toBe("Hello <@U9>:tea:");
+    expect(parseSharedMessage({ is_share: true, fallback: "plain fallback" })?.text).toBe("plain fallback");
+  });
+
+  it("is null with nothing to quote, and keeps a files-only share", () => {
+    expect(parseSharedMessage({ is_share: true })).toBeNull();
+    const s = parseSharedMessage({ is_share: true, files: [{ name: "pic.png", mimetype: "image/png" }, { nope: 1 }, "x"] });
+    expect(s?.files).toEqual([{ name: "pic.png", mimetype: "image/png" }]);
+  });
+
+  it("defaults the author and drops a bad channel id and time", () => {
+    const s = parseSharedMessage({ is_share: true, text: "x", ts: "not a ts", channel_id: "<script>" });
+    expect(s).toMatchObject({ authorName: "Someone", authorSubname: null, postedAt: null, slackChannelId: null });
+  });
+
+  it("refuses non-https urls and non-Slack permalinks", () => {
+    const s = parseSharedMessage(share({ author_icon: "javascript:alert(1)", from_url: "https://evil.example.test/x" }));
+    expect(s?.authorIcon).toBeNull();
+    expect(s?.slackUrl).toBeNull();
+    expect(parseSharedMessage(share({ from_url: "javascript:alert(1)" }))?.slackUrl).toBeNull();
+    expect(parseSharedMessage(share({ from_url: "http://example.slack.com/x" }))?.slackUrl).toBeNull();
+    expect(httpsUrl("not a url")).toBeNull();
+    expect(httpsUrl(5)).toBeNull();
+  });
+
+  it("caps the text and strips control characters", () => {
+    const s = parseSharedMessage(share({ text: "a".repeat(MAX_SHARED_TEXT + 500), author_name: "Bo\u0000b" }));
+    expect(s?.text.length).toBe(MAX_SHARED_TEXT);
+    expect(s?.authorName).toBe("Bob");
+  });
+
+  it("does not read a share nested inside a share, or crash on deep hostile blocks", () => {
+    const nested = share({ attachments: [share({ text: "inner", attachments: [share({ text: "innermost" })] })] });
+    expect(parseSharedMessages([nested])).toHaveLength(1);
+    let deep: unknown = { type: "text", text: "x" };
+    for (let i = 0; i < 5000; i++) deep = { type: "rich_text_section", elements: [deep] };
+    const s = parseSharedMessage({ is_share: true, text: "", message_blocks: [{ message: { blocks: [deep] } }], fallback: "fb" });
+    expect(s?.text).toBe("fb");
+  });
+});
+
+describe("parseSharedMessages", () => {
+  it("keeps only shares, at most the cap", () => {
+    const many = Array.from({ length: MAX_SHARED_MESSAGES + 4 }, () => share());
+    expect(parseSharedMessages([{ title: "link" }, ...many])).toHaveLength(MAX_SHARED_MESSAGES);
+    expect(parseSharedMessages("nope")).toEqual([]);
+    expect(parseSharedMessages(null)).toEqual([]);
+  });
+});
+
+describe("sharedMessageSource (privacy)", () => {
+  const shared = parseSharedMessage(share())!;
+
+  it("shows the Hub's current text for a readable source, with a link to the Hub copy", () => {
+    expect(sharedMessageSource(shared, { state: "readable", channelId: "hub-tea", messageId: "msg_AAAAAAAAAAA1", deleted: false, text: "edited" })).toEqual({
+      kind: "readable",
+      hubUrl: "/chat/hub-tea?m=msg_AAAAAAAAAAA1",
+      deleted: false,
+      text: "edited",
+    });
+  });
+
+  it("falls back to Slack's copy only when the Hub copy is readable but carries no text", () => {
+    expect(sharedMessageSource(shared, { state: "readable", channelId: "c", messageId: "m", deleted: false })).toMatchObject({ kind: "readable", text: shared.text });
+  });
+
+  it("drops the text of a deleted source", () => {
+    expect(sharedMessageSource(shared, { state: "readable", channelId: "c", messageId: "m", deleted: true, text: "old" })).toMatchObject({ deleted: true, text: "" });
+  });
+
+  it("never carries the text when the viewer can't read, the Hub has no copy, or there was no lookup", () => {
+    for (const l of [{ state: "hidden" as const }, { state: "not_mirrored" as const }, undefined]) {
+      expect(JSON.stringify(sharedMessageSource(shared, l))).not.toContain("Tea");
+    }
+    expect(sharedMessageSource(shared, { state: "hidden" })).toEqual({ kind: "private" });
+    expect(sharedMessageSource(shared, undefined)).toEqual({ kind: "private" });
+    expect(sharedMessageSource(shared, { state: "not_mirrored" })).toEqual({ kind: "elsewhere" });
+  });
+
+  it("refuses ids that could escape the path", () => {
+    expect(sharedMessageSource(shared, { state: "readable", channelId: "../x", messageId: "m", deleted: false })).toEqual({ kind: "private" });
+  });
+});
