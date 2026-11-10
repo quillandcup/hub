@@ -31,13 +31,22 @@ export { isSlackDmChannelId };
 
 export async function decideDmEvent(
   service: SupabaseClient,
-  payload: { event?: { channel?: unknown; channel_type?: unknown }; authorizations?: SlackAuthorization[] }
+  payload: { event?: { type?: unknown; channel?: unknown; channel_type?: unknown; item?: { channel?: unknown } }; authorizations?: SlackAuthorization[] }
 ): Promise<DmEventDecision> {
   const event = payload.event;
-  if (!event || (event.channel_type !== "im" && !isSlackDmChannelId(event.channel))) return { kind: "not_dm" };
+  if (!event) return { kind: "not_dm" };
+  // A reaction names its conversation in `item`, a message in `channel`.
+  const channel = event.channel ?? event.item?.channel;
   const authorizations = payload.authorizations ?? [];
   // A DM with the bot (delivered as a bot event) and an event with nobody named: the way it has always been handled.
-  if (authorizations.length === 0 || authorizations.some((a) => a.is_bot)) return { kind: "not_dm" };
+  const forTheBot = authorizations.length === 0 || authorizations.some((a) => a.is_bot);
+  const isDm = event.channel_type === "im" || isSlackDmChannelId(channel);
+  if (!isDm) {
+    // A reaction delivered on a member's behalf anywhere else is the bot's to record (its own reaction events cover those channels): drop the copy.
+    const isReaction = event.type === "reaction_added" || event.type === "reaction_removed";
+    return isReaction && !forTheBot ? { kind: "drop" } : { kind: "not_dm" };
+  }
+  if (forTheBot) return { kind: "not_dm" };
 
   const repos = createRepos(service);
   const slackUserIds = authorizations.map((a) => a.user_id).filter((id): id is string => typeof id === "string" && id !== "");
@@ -49,6 +58,6 @@ export async function decideDmEvent(
   }
   if (allowed.length === 0) return { kind: "drop" };
 
-  const known = typeof event.channel === "string" ? await repos.slackWorkspace.channelById(event.channel) : null;
+  const known = typeof channel === "string" ? await repos.slackWorkspace.channelById(channel) : null;
   return known?.is_im ? { kind: "keep" } : { kind: "pull", memberId: allowed[0] };
 }

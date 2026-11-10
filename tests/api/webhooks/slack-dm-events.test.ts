@@ -65,4 +65,28 @@ describe('Slack webhook: DM messages delivered on behalf of a user', () => {
     await send({ event: dmEvent(channel, `${nowSec}.000300`) })
     expect(await stored(channel)).toEqual([`${nowSec}.000300`])
   })
+
+  describe('reactions', () => {
+    const reactions = async (channel: string) => {
+      const { data, error } = await supabase.schema('bronze').from('slack_reactions').select('reaction').eq('channel_id', channel)
+      if (error) throw error
+      return data.map((r) => r.reaction)
+    }
+    const reactionEvent = (channel: string) => ({ type: 'reaction_added', user: 'UPGTAPDM', reaction: 'tada', item: { type: 'message', channel, ts: `${nowSec}.000400` }, event_ts: `${nowSec}.000500` })
+
+    it('stores nothing for a reaction on a DM that no covered member can see, or one on a channel delivered on a member\'s behalf', async () => {
+      const dm = `DRXN${tag}`
+      const channel = `CRXN${tag}`
+      await send({ event: reactionEvent(dm), authorizations: [{ user_id: 'UPGTAPNOBODY', is_bot: false }] })
+      await send({ event: reactionEvent(channel), authorizations: [{ user_id: 'UPGTAPNOBODY', is_bot: false }] })
+      expect(await reactions(dm)).toEqual([])
+      expect(await reactions(channel)).toEqual([])
+    })
+
+    it('still stores the bot\'s own reaction event', async () => {
+      const channel = `CRXNBOT${tag}`
+      await send({ event: reactionEvent(channel), authorizations: [{ user_id: 'UPGTAPBOT', is_bot: true }] })
+      expect(await reactions(channel)).toEqual(['tada'])
+    })
+  })
 })
