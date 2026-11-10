@@ -263,8 +263,8 @@ export default async function PrivacyPage() {
             <Row where="Private channels that include Billie Bot" activity="Yes" content="Yes, unless the channel is marked restricted" />
             <Row where="Restricted private channels" activity="Yes" content="No, except break-glass access (below)" />
             <Row where="Group DMs that include Billie Bot" activity="Yes" content="No, except break-glass access (below)" />
-            <Row where="Slack group DMs or private channels without Billie Bot" activity="No" content="No. These never reach the Hub" />
-            <Row where="One-on-one Slack DMs, as they reach the Hub" activity="Yes" content="No, except break-glass access (below)" />
+            <Row where="One-on-one Slack DMs, and group DMs without Billie Bot, as they reach the Hub" activity="Yes" content="No, except break-glass access (below)" />
+            <Row where="Private channels without Billie Bot" activity="Not yet. Planned: yes" content="Not yet. Planned: restricted, so break-glass access only" />
           </tbody>
         </table>
         <p>
@@ -284,15 +284,17 @@ export default async function PrivacyPage() {
         <Detail title="Connecting your Slack account">
           Hub Chat needs your Slack account connected. That lets the Hub act as you in Slack: post your messages and
           reactions, edit and delete the ones you wrote, join and leave channels, add people to a channel, and mark
-          conversations read. Slack also lists permission to read and send your direct messages. The Hub uses that only for
-          the DM bridge below, and only for members it is switched on for. Apart from that the Hub does nothing in Slack you
-          didn&apos;t ask for. The connection is kept encrypted and used only by the Hub&apos;s
+          conversations read. Slack also lists permission to read and send your direct messages, and to read the private
+          channels you are in. The Hub uses the first only for the DM bridge below, and only for members it is switched on
+          for. The second it doesn&apos;t use yet: we plan to bring private channels Billie Bot isn&apos;t in into Hub Chat too,
+          restricted like the rest, and it is asked for now so you only reconnect once. Apart from that the Hub does nothing
+          in Slack you didn&apos;t ask for. The connection is kept encrypted and used only by the Hub&apos;s
           server. You can disconnect it in Settings at any time (chat then stays closed until you reconnect), and Slack
           shows it under your authorized apps.
         </Detail>
 
-        <Detail title="Your one-on-one Slack DMs">
-          Slack&apos;s bot can&apos;t be in a one-on-one DM, so the Hub brings yours into chat with your own Slack connection,
+        <Detail title="Your Slack direct messages">
+          Slack&apos;s bot can&apos;t be in a one-on-one DM, or in a group message it wasn&apos;t added to, so the Hub brings yours into chat with your own Slack connection,
           as we roll it out to every member. The Hub keeps them, shows them in your chat so you can read and reply there (your
           replies go to Slack as you), and counts them as activity, like any message. Slack only shows about 90 days of history
           on our plan; the Hub keeps its copy until you ask us to remove it.

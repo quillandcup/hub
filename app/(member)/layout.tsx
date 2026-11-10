@@ -119,16 +119,16 @@ export default async function MemberLayout({
 type Extras = Promise<{
   showInstallPrompt: boolean
   onboardingState: Awaited<ReturnType<typeof getOnboardingState>> | null
-  slackNeed: 'connect' | 'reconnect' | 'update' | 'permissions' | 'reactions' | null
+  slackNeed: 'connect' | 'reconnect' | 'update' | 'permissions' | 'latest' | null
 }>
 
 function loadExtras(identity: EffectiveIdentity, enabledFeatures: FeatureKey[]): Extras {
   // Chat needs a working Slack connection (lib/chat/access.ts sends them to Settings); tell a member who lacks
   // that, wherever they are, instead of leaving them to find out at the chat door.
-  const slackNeedFor = async (): Promise<'connect' | 'reconnect' | 'update' | 'permissions' | 'reactions' | null> => {
+  const slackNeedFor = async (): Promise<'connect' | 'reconnect' | 'update' | 'permissions' | 'latest' | null> => {
     if (identity.isSudo || !isSlackConnectConfigured()) return null
     const slack = await getSlackConnectionStatus(createServiceRoleClient(), identity.memberId)
-    return !slack.connected ? (slack.revoked ? 'reconnect' : 'connect') : !slack.sharesReadState ? 'update' : !slack.hasDmScopes ? 'permissions' : !slack.hasDmReactionScope ? 'reactions' : null
+    return !slack.connected ? (slack.revoked ? 'reconnect' : 'connect') : !slack.sharesReadState ? 'update' : !slack.hasDmScopes ? 'permissions' : !slack.hasDmReactionScope || !slack.hasPrivateChannelScope ? 'latest' : null
   }
   return Promise.all([
     effectiveMemberHasFeature('browser_notifications', identity, enabledFeatures),

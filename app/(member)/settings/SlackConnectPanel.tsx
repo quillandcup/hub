@@ -33,11 +33,13 @@ export default function SlackConnectPanel({
   sharesReadState = true,
   hasDmScopes = true,
   hasDmReactionScope = true,
+  hasPrivateChannelScope = true,
 }: {
   connected: boolean;
   sharesReadState?: boolean;
   hasDmScopes?: boolean;
   hasDmReactionScope?: boolean;
+  hasPrivateChannelScope?: boolean;
 }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -84,10 +86,11 @@ export default function SlackConnectPanel({
               </a>
             </p>
           )}
-          {sharesReadState && hasDmScopes && !hasDmReactionScope && (
+          {sharesReadState && hasDmScopes && (!hasDmReactionScope || !hasPrivateChannelScope) && (
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-              Reconnect Slack once more to see reactions in your direct messages as they happen; without it they show up a
-              little later.{" "}
+              Reconnect Slack once more to get the latest permissions: reactions in your direct messages as they happen,
+              and private channels, which are coming next. Chat keeps working.
+              {" "}
               <a href="/api/oauth/slack/start" data-track="settings-slack-reconnect-reactions" className="font-medium text-plum-700 underline dark:text-plum-400">
                 Reconnect Slack
               </a>
