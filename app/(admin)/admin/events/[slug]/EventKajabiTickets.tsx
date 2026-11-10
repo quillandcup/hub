@@ -9,6 +9,19 @@ interface OfferRow {
   name: string;
 }
 
+/** Says a buyer and an attendee with no ticket share a name: likely one person with two member records. */
+function DuplicateHint({ other }: { other: { member_id: string; member_name: string } }) {
+  return (
+    <span className="block text-xs text-amber-700 dark:text-amber-400">
+      May be the same person as{" "}
+      <Link href={`/admin/members/${other.member_id}`} className="underline">
+        {other.member_name}
+      </Link>
+      : merge the two members first, then search again.
+    </span>
+  );
+}
+
 function money(cents: number | null): string {
   return cents === null ? "" : `$${(cents / 100).toFixed(2)}`;
 }
@@ -89,8 +102,9 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
       if (!res.ok) throw new Error(body.error || "Failed to find Kajabi matches");
       const found = body as EventKajabiMatches;
       setMatches(found);
-      // A refunded or deactivated purchase starts unchecked: someone looks at it first.
-      setSelected(new Set(found.buyers.filter((b) => !b.deactivated).map((b) => b.member_id)));
+      // A refunded or deactivated purchase, or a buyer who may already be an attendee under
+      // another member record, starts unchecked: someone looks at it first.
+      setSelected(new Set(found.buyers.filter((b) => !b.deactivated && !b.possible_duplicate).map((b) => b.member_id)));
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -229,6 +243,7 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
                         {[buyer.offer_names.join(", "), money(buyer.amount_in_cents), buyer.purchase_date?.slice(0, 10), buyer.member_status].filter(Boolean).join(" · ")}
                         {buyer.deactivated && <span className="ml-1 text-amber-700 dark:text-amber-400">· purchase deactivated or refunded</span>}
                       </span>
+                      {buyer.possible_duplicate && <DuplicateHint other={buyer.possible_duplicate} />}
                     </span>
                   </li>
                 ))}
@@ -268,7 +283,10 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
               <h3 className="text-sm font-semibold mb-1">Attendees with no ticket on record ({matches.attendeesWithoutTicket.length})</h3>
               <ul className="text-sm space-y-0.5">
                 {matches.attendeesWithoutTicket.map((attendee) => (
-                  <li key={attendee.member_id}>{attendee.member_name}</li>
+                  <li key={attendee.member_id}>
+                    {attendee.member_name}
+                    {attendee.possible_duplicate && <DuplicateHint other={attendee.possible_duplicate} />}
+                  </li>
                 ))}
               </ul>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
