@@ -195,7 +195,7 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
           aria-label="Kajabi offer to link"
           value={choice}
           onChange={(e) => setChoice(e.target.value)}
-          className="px-2 py-1.5 border border-gray-300 dark:border-slate-700 rounded text-sm bg-white dark:bg-slate-900 max-w-md"
+          className="px-2 py-1.5 border border-gray-300 dark:border-slate-700 rounded text-sm bg-white dark:bg-slate-900 w-full max-w-md min-w-0"
         >
           <option value="">Choose an offer…</option>
           {shown.map((offer) => (
