@@ -4,7 +4,11 @@ import { createInMemoryRepos, type Repos } from "@/lib/data/repos";
 import { APP_URL } from "@/lib/config";
 import { accessRow, courseRow, lessonRow, videoRow } from "@/tests/helpers/course-fixtures";
 import { useFakeClock } from "@/tests/helpers/fake-clock";
-import { SLACK_LINK_MAX_AGE_MS, shareLessonLinkBySlackTs, shareLessonLinkInMessage, shareRecentLessonLinks } from "@/lib/chat/slack-lesson-links";
+import { SLACK_LINK_MAX_AGE_MS, rewriteInSlack, shareLessonLinkBySlackTs, shareLessonLinkInMessage, shareRecentLessonLinks } from "@/lib/chat/slack-lesson-links";
+
+const updateInSlack = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/chat/slack-edit", () => ({ updateChatMessageInSlack: updateInSlack }));
+vi.mock("@/lib/data/repos", async (orig) => ({ ...(await orig<typeof import("@/lib/data/repos")>()), createRepos: () => repos }));
 
 const FERN = "mbr_AAAAAAAAAAA1";
 const BRAMBLE = "mbr_AAAAAAAAAAA2";
@@ -193,5 +197,67 @@ describe("shareRecentLessonLinks (the nightly import's path)", () => {
     };
 
     expect(await shareRecentLessonLinks(repos)).toEqual({ shared: 0, looked: 0 });
+  });
+});
+
+describe("rewriteInSlack (the Slack copy of a converted message)", () => {
+  const stored = (extra: object = {}) => {
+    world({ messages: [{ id: "msg_AAAAAAAAAAA1", channel_id: CHANNEL, slack_ts: "1.1", author_member_id: FERN, origin: "slack", created_at: "2026-11-10T11:00:00Z", ...extra }] });
+    dataset.chatMessageContents.push({ message_id: "msg_AAAAAAAAAAA1", body: `look <${address(OPEN_LESSON)}|here> &amp; more` });
+  };
+  const rewrite = rewriteInSlack({} as never);
+  useFakeClock(() => NOW);
+
+  beforeEach(() => updateInSlack.mockReset().mockResolvedValue({ ok: true }));
+
+  it("swaps the pasted address for the Hub links, edited as the author", async () => {
+    stored();
+    expect(await shareLessonLinkBySlackTs(repos, "C_HOSTS", "1.1", rewrite)).toBe("shared");
+
+    expect(updateInSlack).toHaveBeenCalledTimes(1);
+    const [, opts] = updateInSlack.mock.calls[0];
+    expect(opts.messageId).toBe("msg_AAAAAAAAAAA1");
+    expect(opts.memberId).toBe(FERN);
+    expect(opts.body).toContain("look &amp; more\n<");
+    expect(opts.body).toContain("|Watch it in Hub Chat>");
+    expect(opts.body).not.toContain("/lessons/" + OPEN_LESSON + "|here");
+  });
+
+  it("sends just the links when the address was the whole message", async () => {
+    stored();
+    dataset.chatMessageContents[0].body = address(OPEN_LESSON);
+    await shareLessonLinkBySlackTs(repos, "C_HOSTS", "1.1", rewrite);
+    expect(updateInSlack.mock.calls[0][1].body.startsWith("<")).toBe(true);
+  });
+
+  it("leaves a message with files alone (an edit would drop them)", async () => {
+    stored();
+    dataset.chatMessageContents[0].files = [{ id: "F1", name: "a.png", mimetype: "image/png" }] as never;
+    expect(await shareLessonLinkBySlackTs(repos, "C_HOSTS", "1.1", rewrite)).toBe("shared");
+    expect(updateInSlack).not.toHaveBeenCalled();
+  });
+
+  it("keeps the card when Slack refuses or throws", async () => {
+    stored();
+    updateInSlack.mockResolvedValueOnce({ ok: false, error: "Connect Slack in Settings" });
+    expect(await shareLessonLinkBySlackTs(repos, "C_HOSTS", "1.1", rewrite)).toBe("shared");
+    expect((await shared())?.lessonId).toBe(OPEN_LESSON);
+
+    stored();
+    updateInSlack.mockRejectedValueOnce(new Error("boom"));
+    expect(await shareLessonLinkBySlackTs(repos, "C_HOSTS", "1.1", rewrite)).toBe("shared");
+  });
+
+  it("does nothing when the message did not become a card, and the nightly path rewrites too", async () => {
+    stored({ author_member_id: null });
+    expect(await shareLessonLinkBySlackTs(repos, "C_HOSTS", "1.1", rewrite)).toBe("skipped");
+    expect(updateInSlack).not.toHaveBeenCalled();
+
+  });
+
+  it("rewrites from the nightly path too", async () => {
+    stored();
+    expect((await shareRecentLessonLinks(repos, rewrite)).shared).toBe(1);
+    expect(updateInSlack).toHaveBeenCalledTimes(1);
   });
 });
