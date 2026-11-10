@@ -5,7 +5,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/components/courses/LessonPlayer", () => ({
-  default: (props: { title: string; playbackId: string; lessonId?: string; chatMessageId?: string; resumeSeconds?: number; trackProgress?: boolean; autoPlay?: boolean }) => (
+  default: (props: { title: string; playbackId: string; lessonId?: string; chatMessageId?: string; resumeSeconds?: number; trackProgress?: boolean; autoPlay?: boolean; posterUrl?: string | null }) => (
     <div
       data-testid="player"
       data-playback={props.playbackId}
@@ -14,6 +14,7 @@ vi.mock("@/components/courses/LessonPlayer", () => ({
       data-resume={props.resumeSeconds}
       data-tracking={String(Boolean(props.trackProgress))}
       data-autoplay={String(Boolean(props.autoPlay))}
+      data-poster={props.posterUrl ?? ""}
     >
       {props.title}
     </div>
@@ -69,6 +70,31 @@ describe("ChatVideo", () => {
     expect(player).toHaveAttribute("data-message", MESSAGE);
     expect(player).toHaveAttribute("data-resume", "95");
     expect(player).toHaveAttribute("data-tracking", "true");
+  });
+
+  it("gives the player the card's thumbnail as its poster, so opening it doesn't swap to a different frame first", async () => {
+    answers({ status: 200, body: WATCHABLE }, { status: 200, body: PLAYBACK });
+    render(<ChatVideo messageId={MESSAGE} />);
+
+    await userEvent.click(await screen.findByRole("button", { name: /Play/ }));
+
+    expect(await screen.findByTestId("player")).toHaveAttribute("data-poster", "/api/courses/image/lesson/les_AAAAAAAAAAA1");
+  });
+
+  it("gives it no poster when the card has no thumbnail, or its thumbnail wouldn't load", async () => {
+    answers({ status: 200, body: { ...WATCHABLE, thumbnailUrl: null } }, { status: 200, body: PLAYBACK });
+    const first = render(<ChatVideo messageId={MESSAGE} />);
+    await userEvent.click(await screen.findByRole("button", { name: /Play/ }));
+    expect(await screen.findByTestId("player")).toHaveAttribute("data-poster", "");
+    first.unmount();
+
+    answers({ status: 200, body: WATCHABLE }, { status: 200, body: PLAYBACK });
+    const second = render(<ChatVideo messageId={MESSAGE} />);
+    await screen.findByText("From The Ready Writer");
+    second.container.querySelector("img")!.dispatchEvent(new Event("error"));
+    await waitFor(() => expect(second.container.querySelector("img")).toBeNull());
+    await userEvent.click(screen.getByRole("button", { name: /Play/ }));
+    expect(await screen.findByTestId("player")).toHaveAttribute("data-poster", "");
   });
 
   it("doesn't record when the server says not to (sudo, a lesson only staff can open)", async () => {
