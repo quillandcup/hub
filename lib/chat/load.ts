@@ -2,6 +2,8 @@ import type { StageTimer } from "@/lib/chat/timing";
 import { emojiNamesIn, mentionedChannelIds, mentionedUserIds } from "@/lib/chat/render";
 import { blocksToBody } from "@/lib/chat/rich-blocks";
 import { parseUnfurls, unfurlTexts, type Unfurl } from "@/lib/chat/unfurls";
+import { parseSharedMessage, sharedMessageSource, type SharedSourceLookup } from "@/lib/chat/shared-message";
+import { sharedSourceKey, type SharedSourceRow } from "@/lib/data/chat";
 import { formatSlackPermalink } from "@/lib/slack-emoji";
 import { customEmojiFor, slackAuthorIdsByTs, slackChannelNames, slackUserHubNames, slackUserMemberIds, slackUserNames, slackUserPhotos } from "@/lib/chat/names";
 import type { CustomEmoji } from "@/lib/chat/emoji";
@@ -458,6 +460,22 @@ export function loadReactionRows(repos: ChatLoadRepos, messageIds: string[]) {
   return repos.chat.reactionRows(messageIds);
 }
 
+/** Fills a share with what this viewer may see of the message it quotes. A lookup that failed (null) is no lookup: a stub. */
+export function withShareSource(u: Extract<Unfurl, { kind: "share" }>, sources: Map<string, SharedSourceRow> | null): Extract<Unfurl, { kind: "share" }> {
+  const shared = parseSharedMessage(u.attachment);
+  if (!shared) return u;
+  let lookup: SharedSourceLookup | undefined;
+  if (sources) {
+    const row = shared.slackChannelId && shared.ts ? sources.get(sharedSourceKey(shared.slackChannelId, shared.ts)) : undefined;
+    lookup = !row
+      ? { state: "not_mirrored" }
+      : row.body === null && !row.deleted
+        ? { state: "hidden" }
+        : { state: "readable", channelId: row.channelId, messageId: row.messageId, deleted: row.deleted, text: row.body ?? undefined };
+  }
+  return { ...u, shared, source: sharedMessageSource(shared, lookup) };
+}
+
 /** Messages with their authors' names, reactions and body state, ready to render. */
 export async function buildMessageViews(
   repos: ChatLoadRepos,
@@ -496,7 +514,15 @@ export async function buildMessageViews(
   timer?.note("roots", threadRoots.length);
   timer?.note("unmatched", unmatched.length);
 
-  const [profiles, slackAuthorByTs, reactionRows, replies, userMembers, hubNames, channelNames, sharedVideos] = await Promise.all([
+  // Quoted Slack messages are looked up in the Hub as the viewer, so a source they can't read is never shown (docs/SLACK_BRIDGED_CHAT.md, "Shared Slack messages").
+  const shareRefs = rows.flatMap((r) =>
+    (unfurlsByRow.get(r.id)?.unfurls ?? []).flatMap((u) => {
+      const s = u.kind === "share" ? parseSharedMessage(u.attachment) : null;
+      return s?.slackChannelId && s.ts ? [{ slackChannelId: s.slackChannelId, slackTs: s.ts }] : [];
+    })
+  );
+
+  const [profiles, slackAuthorByTs, reactionRows, replies, userMembers, hubNames, channelNames, sharedVideos, sharedSources] = await Promise.all([
     t("b1.profiles", memberProfiles(repos, matched)),
     t(
       "b1.slackAuthors",
@@ -511,6 +537,16 @@ export async function buildMessageViews(
     t("b1.channelNames", slackChannelNames(rows.flatMap((r) => mentionedChannelIds(`${bodyOf(r) ?? ""}\n${unfurlText(r)}`)))),
     // A failed read only hides the card (the message and its text still show), so it never fails the page.
     t("b1.sharedVideos", repos.chatVideos.lessonIdsOf(rows.map((r) => r.id)).catch((e) => { console.error("chat shared videos failed:", e); return new Map<string, string>(); })),
+    // A failed lookup is null, and a quote then shows as a private-conversation stub (fail closed), not an error page.
+    t(
+      "b1.sharedSources",
+      shareRefs.length === 0
+        ? Promise.resolve(new Map<string, SharedSourceRow>() as Map<string, SharedSourceRow> | null)
+        : repos.chat.sharedSourcesBySlackRef(shareRefs).catch((e) => {
+            console.error("chat shared message sources failed:", e);
+            return null;
+          })
+    ),
   ]);
   timer?.mark("views.batch1");
 
@@ -608,7 +644,7 @@ export async function buildMessageViews(
       contentState,
       hasFiles: row.has_files,
       files: contentState === "ok" ? parseChatFiles(contentOf(row)?.files) : [],
-      unfurls: parsed?.unfurls ?? [],
+      unfurls: (parsed?.unfurls ?? []).map((u) => (u.kind === "share" ? withShareSource(u, sharedSources) : u)),
       hideBody: parsed?.hideBody ?? false,
       slackPermalink: channel.slackChannelId && row.slack_ts ? formatSlackPermalink(SLACK_WORKSPACE_URL, channel.slackChannelId, row.slack_ts) : null,
       sharesVideo: contentState === "ok" && sharedVideos.has(row.id),

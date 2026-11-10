@@ -843,6 +843,22 @@ export function defineChatContract(name: string, setup: () => ChatContractContex
         expect(await ctx.repo().messageIdBySlackTs(c, "1.1")).toBeNull();
       });
 
+      it("finds Slack messages by channel and ts for a shared-message card, with their text", async () => {
+        const ts = `${Date.now()}.000300`;
+        const slackC = ctx.unique("C");
+        const { c } = await ctx.seedChannels([{ key: "c", slackChannelId: slackC }]);
+        const ids = await ctx.seedContentMessages([{ key: "m", channelId: c, slackTs: ts, body: "quoted words" }]);
+
+        const found = await ctx.repo().sharedSourcesBySlackRef([
+          { slackChannelId: slackC, slackTs: ts },
+          { slackChannelId: slackC, slackTs: "1.1" },
+          { slackChannelId: ctx.unique("C"), slackTs: ts },
+        ]);
+        expect([...found.keys()]).toEqual([`${slackC}:${ts}`]);
+        expect(found.get(`${slackC}:${ts}`)).toEqual({ channelId: c, messageId: ids.m, deleted: false, body: "quoted words" });
+        expect((await ctx.repo().sharedSourcesBySlackRef([])).size).toBe(0);
+      });
+
       it("records a gap-fill's outcome and lists the newest first", async () => {
         const slack = ctx.unique("C");
         const ids = await ctx.seedGapFills([

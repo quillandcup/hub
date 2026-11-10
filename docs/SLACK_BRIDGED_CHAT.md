@@ -311,7 +311,7 @@ When someone pastes a Slack message permalink or uses "Share message", Slack put
 - `hidden` (the conversation exists but the viewer can't read it, or the lookup failed) and no lookup at all: a stub, "A message from a private conversation.", with no text, author, channel name or link. It fails closed.
 - `not_mirrored` (the Hub has no copy: an unbridged conversation, or older than the import): a stub, "A message from another Slack conversation.", plus "Open in Slack". Also no text: the Hub cannot tell whether that conversation is private.
 
-The cost is that a share from an unbridged public channel shows as a stub. That is the safer side; widening it (for example, trusting the embedded copy when the Slack channel is known to be public) is a decision for later. Wiring the lookup into the loader and the card into `MessageItem` follows the link-unfurls work (`lib/chat/unfurls.ts`).
+The cost is that a share from an unbridged public channel shows as a stub. That is the safer side; widening it (for example, trusting the embedded copy when the Slack channel is known to be public) is a decision for later. **Wiring.** `buildMessageViews` (`lib/chat/load.ts`) parses each share, looks all sources of a page up in one batched call, `ChatRepository.sharedSourcesBySlackRef` (the viewer's own client, so row-level security applies; `body` is null when the message is visible but its text isn't), fills the share unfurl's `shared` and `source` (`withShareSource`) and `MessageUnfurls` draws `SharedMessageCard`. A message the viewer's client can't see at all is absent from the lookup and shows as the "another Slack conversation" stub; a failed lookup shows the private stub and is logged, never an error page.
 
 ## Message permalinks (`?m=`)
 
