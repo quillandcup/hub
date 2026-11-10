@@ -133,4 +133,35 @@ describe("findKajabiMatchesForEvent", () => {
       ["Di Example", "purchased"],
     ]);
   });
+  describe("the same person under two member records", () => {
+    // The roster has one record (no ticket on record); the purchase belongs to the other.
+    const twoRecords = (roster: { name: string; displayName?: string | null }) =>
+      repos({
+        members: [
+          { id: "mbr_AAAAAAAAAAA1", name: "Erica Example", displayName: "Edy E", email: "ada@example.com" },
+          { id: "mbr_AAAAAAAAAAA2", name: roster.name, displayName: roster.displayName ?? null, email: "bo@example.com", status: "lead" },
+        ],
+        kajabiPurchases: [purchase("p1", "c1", FULL)],
+        eventAttendees: [{ id: "a1", event_id: EVENT, member_id: "mbr_AAAAAAAAAAA2", ticket_source: null }],
+      });
+
+    it("points the buyer and the attendee at each other when their legal names match", async () => {
+      const { buyers, attendeesWithoutTicket } = await findKajabiMatchesForEvent(twoRecords({ name: "Erica Example" }), EVENT);
+
+      expect(buyers[0].possible_duplicate).toEqual({ member_id: "mbr_AAAAAAAAAAA2", member_name: "Erica Example" });
+      expect(attendeesWithoutTicket[0].possible_duplicate).toEqual({ member_id: "mbr_AAAAAAAAAAA1", member_name: "Edy E" });
+    });
+
+    it("ignores case, accents and spacing, and matches a shown name too", async () => {
+      expect((await findKajabiMatchesForEvent(twoRecords({ name: "  érica   EXAMPLE " }), EVENT)).buyers[0].possible_duplicate).not.toBeNull();
+      expect((await findKajabiMatchesForEvent(twoRecords({ name: "Someone Else", displayName: "edy e" }), EVENT)).buyers[0].possible_duplicate).not.toBeNull();
+    });
+
+    it("says nothing when the names differ", async () => {
+      const { buyers, attendeesWithoutTicket } = await findKajabiMatchesForEvent(twoRecords({ name: "Someone Else" }), EVENT);
+
+      expect(buyers[0].possible_duplicate).toBeNull();
+      expect(attendeesWithoutTicket[0].possible_duplicate).toBeNull();
+    });
+  });
 });

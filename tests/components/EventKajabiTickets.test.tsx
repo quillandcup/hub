@@ -26,7 +26,7 @@ const MATCHES = {
 
 let calls: { url: string; method: string; body: unknown }[];
 let linked: typeof SUMMER[];
-let matches: typeof MATCHES;
+let matches: unknown;
 let failNext: string | null;
 
 beforeEach(() => {
@@ -137,5 +137,23 @@ describe("Kajabi tickets on an event", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Find Kajabi matches" }));
 
     expect(await screen.findByText("Everyone who bought a ticket is already an attendee.")).toBeInTheDocument();
+  });
+  it("warns when a buyer and an attendee may be one person, and leaves that buyer unticked", async () => {
+    matches = {
+      ...MATCHES,
+      buyers: [{ ...MATCHES.buyers[0], possible_duplicate: { member_id: "mbr_AAAAAAAAAAA3", member_name: "Cy Example" } }],
+      attendeesWithoutTicket: [{ ...MATCHES.attendeesWithoutTicket[0], possible_duplicate: { member_id: "mbr_AAAAAAAAAAA1", member_name: "Ada E" } }],
+    };
+    render(<EventKajabiTickets eventId={EVENT} onAttendeesChanged={vi.fn()} />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Find Kajabi matches" }));
+
+    expect(await screen.findByLabelText("Add Ada E")).not.toBeChecked();
+    expect(screen.getByRole("button", { name: "Add 0 as attendees" })).toBeDisabled();
+    const hints = screen.getAllByText(/May be the same person as/);
+    expect(hints).toHaveLength(2);
+    expect(screen.getByRole("link", { name: "Cy Example" })).toHaveAttribute("href", "/admin/members/mbr_AAAAAAAAAAA3");
+    // "Ada E" is both the buyer's name and the target of the attendee's hint.
+    expect(screen.getAllByRole("link", { name: "Ada E" }).map((a) => a.getAttribute("href"))).toContain("/admin/members/mbr_AAAAAAAAAAA1");
   });
 });

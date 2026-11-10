@@ -20,6 +20,14 @@ export interface EventTicketBuyer {
   purchase_count: number;
   /** Every one of their purchases of these offers was deactivated: review before adding. */
   deactivated: boolean;
+  /** An attendee with no ticket on record who may be the same person under another member record: merge them before adding this buyer. */
+  possible_duplicate: PossibleDuplicate | null;
+}
+
+/** The other member record that a buyer or an attendee may be the same person as. */
+export interface PossibleDuplicate {
+  member_id: string;
+  member_name: string;
 }
 
 /** A purchase whose buyer has no member in the Hub (a different email, or never joined). */
@@ -34,6 +42,8 @@ export interface AttendeeWithoutTicket {
   member_id: string;
   member_name: string;
   ticket_source: TicketSource | null;
+  /** A buyer who is not an attendee and may be the same person under another member record. */
+  possible_duplicate: PossibleDuplicate | null;
 }
 
 export interface EventKajabiMatches {
@@ -43,6 +53,9 @@ export interface EventKajabiMatches {
   unmatched: UnmatchedBuyer[];
   attendeesWithoutTicket: AttendeeWithoutTicket[];
 }
+
+/** A name as people compare it: case, accents and extra spaces ignored. */
+const nameKey = (name: string) => name.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
 const EXPLAINED_WITHOUT_PURCHASE: ReadonlySet<TicketSource | null> = new Set(["comped", "gifted", "donated"]);
 
@@ -86,6 +99,8 @@ export async function findKajabiMatchesForEvent(repos: EventRepos, eventId: stri
   const earliest = (acc: Accum) => acc.purchases.map(resolveMatchDate).filter((d): d is string => !!d).sort()[0] ?? null;
 
   const buyers: EventTicketBuyer[] = [];
+  // The names each buyer goes by (legal and shown), to compare with attendees that have no ticket.
+  const legalNames = new Map<string, string[]>();
   for (const [memberId, acc] of byMember) {
     if (attendeeIds.has(memberId)) continue;
     const member = memberById.get(memberId)!;
@@ -100,7 +115,9 @@ export async function findKajabiMatchesForEvent(repos: EventRepos, eventId: stri
       amount_in_cents: acc.purchases.reduce((sum, p) => sum + (p.amount_in_cents ?? 0), 0),
       purchase_count: acc.purchases.length,
       deactivated: acc.purchases.every((p) => p.deactivated_at !== null),
+      possible_duplicate: null,
     });
+    legalNames.set(memberId, [member.name, display]);
   }
   buyers.sort((a, b) => (a.purchase_date ?? "").localeCompare(b.purchase_date ?? "") || a.member_name.localeCompare(b.member_name));
 
@@ -116,7 +133,20 @@ export async function findKajabiMatchesForEvent(repos: EventRepos, eventId: stri
       member_id: a.member_id,
       member_name: a.member ? getMemberDisplayName(a.member) : "Unknown",
       ticket_source: a.ticket_source,
+      possible_duplicate: null,
     }));
+
+  // The same name on both lists is usually one person with two member records (the roster has
+  // one, the purchase belongs to the other). Say so on both sides, so staff merge instead of
+  // adding the buyer a second time. Only a hint: two people can share a name.
+  const attendeeNames = new Map(attendees.map((a) => [a.member_id, a.member ? [a.member.name, getMemberDisplayName(a.member)] : []]));
+  for (const attendee of attendeesWithoutTicket) {
+    const keys = new Set((attendeeNames.get(attendee.member_id) ?? []).map(nameKey));
+    const buyer = buyers.find((b) => (legalNames.get(b.member_id) ?? []).some((n) => keys.has(nameKey(n))));
+    if (!buyer) continue;
+    attendee.possible_duplicate = { member_id: buyer.member_id, member_name: buyer.member_name };
+    buyer.possible_duplicate = { member_id: attendee.member_id, member_name: attendee.member_name };
+  }
 
   return { offersLinked: true, buyers, unmatched, attendeesWithoutTicket };
 }
