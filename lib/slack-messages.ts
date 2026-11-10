@@ -1,3 +1,5 @@
+import { clock } from "@/lib/clock";
+
 /**
  * Rules shared by the Slack import (app/api/import/slack-api) and the Events
  * API webhook (app/api/webhooks/slack) for what goes into bronze.slack_messages,
@@ -168,7 +170,8 @@ export function addSlackMessage(
   reactions: any[]
 ) {
   // Skip the notices Slack posts that the chat doesn't show
-  if (!isKeptSlackMessage(msg)) {
+  const tombstone = msg.subtype === 'tombstone';
+  if (!tombstone && !isKeptSlackMessage(msg)) {
     return;
   }
 
@@ -187,13 +190,14 @@ export function addSlackMessage(
     reply_users_count: msg.reply_users_count || 0,
     occurred_at: slackTsToIso(msg.ts),
     edited_at: msg.edited ? new Date(msg.edited.ts * 1000).toISOString() : null,
-    deleted_at: null,
+    // Slack keeps a deleted parent as a tombstone while its replies survive.
+    deleted_at: tombstone ? new Date(clock.now()).toISOString() : null,
     files: msg.files ? msg.files : null,
     raw_payload: msg
   });
 
   // Extract reactions
-  if (msg.reactions) {
+  if (!tombstone && msg.reactions) {
     for (const reaction of msg.reactions) {
       for (const userId of reaction.users) {
         reactions.push({

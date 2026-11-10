@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  addSlackMessage,
   isKeptSlackMessage,
   isSlackSystemMessage,
   slackMessageText,
@@ -149,3 +150,14 @@ describe('slackMessageText', () => {
     expect(slackMessageText({})).toBe('')
   })
 })
+
+describe('addSlackMessage tombstones', () => {
+  it('stores a deleted parent with its thread metadata, without treating the placeholder as live content', () => {
+    const messages: any[] = [];
+    const reactions: any[] = [];
+    addSlackMessage({ ts: '123.000001', subtype: 'tombstone', text: 'This message was deleted.', thread_ts: '123.000001', reply_count: 2 }, 'C1', 'general', 'channel', messages, reactions);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toMatchObject({ message_type: 'tombstone', thread_ts: '123.000001', reply_count: 2, deleted_at: expect.any(String) });
+    expect(reactions).toEqual([]);
+  });
+});

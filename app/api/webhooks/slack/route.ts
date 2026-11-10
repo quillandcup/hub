@@ -167,6 +167,8 @@ async function processSlackEvent(event: any) {
       invalidateChatLookups();
     } else if (eventType === "message" && event.subtype === "message_changed") {
       await applyMessageEdit(supabase, event);
+    } else if (eventType === "message" && event.subtype === "tombstone") {
+      await applyMessageDelete(supabase, { ...event, deleted_ts: event.ts });
     } else if (eventType === "message" && event.subtype === "message_deleted") {
       await applyMessageDelete(supabase, event);
     } else if (eventType === "message" && !isKeptSlackMessage(event)) {
@@ -271,6 +273,10 @@ async function processSlackEvent(event: any) {
 async function applyMessageEdit(supabase: SupabaseClient, event: any) {
   const message = event.message;
   if (!message?.ts) return;
+  if (message.subtype === "tombstone") {
+    await applyMessageDelete(supabase, { ...event, deleted_ts: message.ts });
+    return;
+  }
 
   try {
     await createRepos(supabase).slackMessages.editMessage(event.channel, message.ts, {

@@ -20,6 +20,8 @@ export const PENDING_ID_PREFIX = "pending-";
 export const isPendingId = (id: string) => id.startsWith(PENDING_ID_PREFIX);
 
 export type ListEvent =
+  /** A successful delete updates every mounted copy without hiding its thread link. */
+  | { kind: "deleted"; channelId: string; messageId: string }
   /** Show a message the member just sent (a reply when `threadRootId` is set, else in the conversation). */
   | { kind: "add"; channelId: string; threadRootId?: string; view: ChatMessageView }
   /** The action returned: swap the placeholder for the saved message (same text, its real id). */
@@ -99,3 +101,8 @@ export function optimisticView(opts: {
 
 /** Fired on window by a message's menu to start editing or deleting it; MessageBody listens. */
 export const MESSAGE_CHANGE_EVENT = "chat-message-change";
+
+/** Keep the thread metadata while removing everything belonging to the deleted message. */
+export function deletedMessageView(message: ChatMessageView): ChatMessageView {
+  return { ...message, contentState: "deleted", body: null, files: [], hasFiles: false, sharesVideo: false, reactions: [], syncStatus: null };
+}

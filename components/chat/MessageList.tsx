@@ -7,7 +7,7 @@ import type { ChatTextContext } from "@/components/chat/ChatText";
 import type { ChatMessageView } from "@/lib/chat/load";
 import { focusedMessageDomId, scrollParent, scrollToHashMessage } from "@/lib/chat/scroll";
 import { loadOlderChat } from "@/app/(member)/chat/actions";
-import { subscribeListEvents } from "@/lib/chat/list-events";
+import { deletedMessageView, subscribeListEvents } from "@/lib/chat/list-events";
 import { mergeChatContext } from "@/lib/chat/merge";
 import { groupByDay } from "@/lib/chat/days";
 import { ORG_TIMEZONE } from "@/lib/config";
@@ -95,6 +95,18 @@ export default function MessageList({
     return subscribeListEvents((event) => {
       // A reply or a thread's own refresh belongs to the thread panel, not to this list.
       if (event.channelId !== channelId || event.kind === "merge-thread" || ("threadRootId" in event && event.threadRootId)) return;
+      if (event.kind === "deleted") {
+        setById((prev) => {
+          const message = prev.get(event.messageId);
+          if (!message) return prev;
+          const next = new Map(prev);
+          if (message.replyCount > 0) next.set(message.id, deletedMessageView(message));
+          else next.delete(message.id);
+          return next;
+        });
+        setLiveAt(new Date().toISOString());
+        return;
+      }
       if (event.kind === "drop") {
         setById((prev) => {
           const next = new Map(prev);

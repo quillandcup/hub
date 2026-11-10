@@ -27,6 +27,17 @@ const texts = () => screen.getAllByRole("article").map((a) => /the root|[a-z ]*r
 beforeEach(() => cleanup());
 
 describe("ThreadList", () => {
+  it("keeps replies visible when their parent is deleted, and removes a deleted reply", () => {
+    render(<ThreadList channelId="c1" threadRootId="root" root={{ ...ROOT, replyCount: 2 }} replies={[view("r1", "first reply", 1), view("r2", "second reply", 2)]} ctx={CTX} canReact={false} />);
+    act(() => emitListEvent({ kind: "deleted", channelId: "c1", messageId: "root" }));
+    expect(screen.getByText("This message was deleted.")).toBeVisible();
+    expect(screen.getByText("first reply")).toBeVisible();
+    expect(screen.getByText("second reply")).toBeVisible();
+    act(() => emitListEvent({ kind: "deleted", channelId: "c1", messageId: "r1" }));
+    expect(screen.queryByText("first reply")).not.toBeInTheDocument();
+    expect(screen.getByText("second reply")).toBeVisible();
+  });
+
   it("shows the root and its replies in order, and says nothing when there are none (as Slack doesn't)", () => {
     mount();
     expect(texts()).toEqual(["the root", "first reply"]);

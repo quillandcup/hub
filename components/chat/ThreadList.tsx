@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import MessageItem from "@/components/chat/MessageItem";
 import type { ChatTextContext } from "@/components/chat/ChatText";
 import type { ChatMessageView } from "@/lib/chat/load";
-import { subscribeListEvents } from "@/lib/chat/list-events";
+import { deletedMessageView, subscribeListEvents } from "@/lib/chat/list-events";
 import { mergeChatContext } from "@/lib/chat/merge";
 import { scrollParent, scrollToHashMessage } from "@/lib/chat/scroll";
 
@@ -60,6 +60,16 @@ export default function ThreadList({
   useEffect(() => {
     return subscribeListEvents((event) => {
       if (event.channelId !== channelId || event.kind === "merge" || event.kind === "unread") return;
+      if (event.kind === "deleted") {
+        if (event.messageId === threadRootId) setRootView((prev) => deletedMessageView(prev));
+        else setById((prev) => {
+          if (!prev.has(event.messageId)) return prev;
+          const next = new Map(prev);
+          next.delete(event.messageId);
+          return next;
+        });
+        return;
+      }
       // Only this thread's: a send in the conversation itself has no thread id and isn't ours.
       if (event.threadRootId !== threadRootId) return;
       if (event.kind === "merge-thread") {
