@@ -20,7 +20,6 @@ const address = (lesson: string, query = "") => `${APP_URL}/courses/ready-writer
 
 let repos: Repos;
 let dataset: InMemoryDataset;
-useFakeClock(() => NOW);
 
 /** Fern (a member with the course) and Bramble (an admin, no course access row) in a world where chat videos is on. */
 function world(over: { flags?: object[]; access?: boolean; messages?: object[] } = {}) {
@@ -154,6 +153,7 @@ describe("shareLessonLinkBySlackTs (the webhook's path)", () => {
 });
 
 describe("shareRecentLessonLinks (the nightly import's path)", () => {
+  useFakeClock(() => NOW);
   const at = (msAgo: number) => new Date(NOW - msAgo).toISOString();
 
   it("converts recent Slack messages the webhook missed, and leaves older ones, other text and Hub-written ones", async () => {
