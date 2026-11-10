@@ -25,7 +25,7 @@ export async function DELETE(
   return NextResponse.json({ success: true });
 }
 
-// Records how an attendee got in (comped, gifted, donated, purchased); an empty source clears it.
+// Records how an attendee got in (purchased, comped, gifted); an empty source clears it.
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; memberId: string }> }

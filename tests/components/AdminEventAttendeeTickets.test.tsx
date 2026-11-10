@@ -102,15 +102,15 @@ describe("how an attendee got in", () => {
     render(<EventDetailClient eventId={EVENT.id} />);
 
     await userEvent.click(await screen.findByRole("button", { name: "pick member" }));
-    await userEvent.selectOptions(screen.getByLabelText("How they got in"), "donated");
-    await userEvent.type(screen.getByLabelText("Ticket note"), "from the pool");
+    await userEvent.selectOptions(screen.getByLabelText("How they got in"), "gifted");
+    await userEvent.type(screen.getByLabelText("Ticket note"), "from a friend");
     await userEvent.click(screen.getByRole("button", { name: "Add attendee" }));
 
     await waitFor(() => expect(writes).toHaveLength(1));
     expect(writes[0]).toEqual({
       url: `/api/admin/events/${EVENT.id}/attendees`,
       method: "POST",
-      body: { memberId: "mbr_AAAAAAAAAAA2", ticketSource: "donated", ticketNote: "from the pool" },
+      body: { memberId: "mbr_AAAAAAAAAAA2", ticketSource: "gifted", ticketNote: "from a friend" },
     });
   });
 
@@ -128,7 +128,7 @@ describe("how an attendee got in", () => {
     const select = await screen.findByLabelText("How Ada Example got in");
     vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, json: async () => ({ error: "Not an attendee of this event" }) }) as Response));
 
-    await userEvent.selectOptions(select, "donated");
+    await userEvent.selectOptions(select, "comped");
 
     expect(await screen.findByText("Not an attendee of this event")).toBeInTheDocument();
   });

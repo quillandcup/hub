@@ -114,7 +114,7 @@ describe("findKajabiMatchesForEvent", () => {
     expect(unmatched[0].offer_names).toEqual(["Summer Retreat"]);
   });
 
-  it("lists attendees with no purchase and no recorded reason, but not comped, gifted or donated ones", async () => {
+  it("lists attendees with no purchase and no recorded reason, but not comped or gifted ones", async () => {
     const r = repos({
       kajabiPurchases: [purchase("p1", "c1", FULL)],
       eventAttendees: [

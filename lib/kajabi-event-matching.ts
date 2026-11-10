@@ -37,7 +37,7 @@ export interface UnmatchedBuyer {
   purchase_date: string | null;
 }
 
-/** An attendee with no matching purchase and no recorded reason (comped, gifted, donated). */
+/** An attendee with no matching purchase and no recorded reason (comped or gifted). */
 export interface AttendeeWithoutTicket {
   member_id: string;
   member_name: string;
@@ -57,7 +57,7 @@ export interface EventKajabiMatches {
 /** A name as people compare it: case, accents and extra spaces ignored. */
 const nameKey = (name: string) => name.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
-const EXPLAINED_WITHOUT_PURCHASE: ReadonlySet<TicketSource | null> = new Set(["comped", "gifted", "donated"]);
+const EXPLAINED_WITHOUT_PURCHASE: ReadonlySet<TicketSource | null> = new Set(["comped", "gifted"]);
 
 /**
  * Compares who bought the event's linked Kajabi offers with who is on its attendee list.
