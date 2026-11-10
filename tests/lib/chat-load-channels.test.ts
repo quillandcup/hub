@@ -233,13 +233,25 @@ describe("labels of Slack direct messages", () => {
     await expect(loadChannelForMember(repos(), DM_PAIR, FERN, false)).resolves.toMatchObject({ label: "Gale Prickleton" });
   });
 
-  it("names a DM with someone who isn't a member by their Slack name, and one with nobody else a plain 'Direct message'", async () => {
+  it("names a DM with someone who isn't a member by their Slack name, and one we know nothing of a plain 'Direct message'", async () => {
     expect(await labelOf(DM_STRANGER)).toBe("Stella Stranger");
+    slackMembers = slackMembers.filter((m) => m.channel_id !== "D_LONE");
     expect(await labelOf(DM_LONE)).toBe("Direct message");
   });
 
   it("names a group only members' tokens read after everyone in it but you, which the chat's own member list couldn't", async () => {
     expect(await labelOf(TOKEN_GROUP)).toBe("Gale Prickleton, Hazel Burrows");
+  });
+
+  it("names a DM with yourself after you, as Slack does", async () => {
+    const SELF = "chn_AAAAAAAAAAE5";
+    channels.push({ id: SELF, kind: "dm", visibility: "private", restricted: true, name: null, slack_channel_id: "D_SELF" });
+    memberships.push({ channel_id: SELF, member_id: FERN });
+    slackChannels.push({ channel_id: "D_SELF", name: "", is_im: true });
+    slackMembers.push({ channel_id: "D_SELF", user_id: "U_FERN" });
+    expect(await labelOf(SELF)).toBe("Fern");
+    // Not when someone else is in it: you are left out of your own DMs' names.
+    expect(await labelOf(DM_PAIR)).toBe("Gale Prickleton");
   });
 
   it("leaves the bot out, and someone who has left", async () => {
