@@ -10,6 +10,7 @@ import { LAST_CHAT_COOKIE } from "@/lib/chat/last-channel";
 import { mentionsToPlainText } from "@/lib/chat/render";
 import { subscribeDraftChanges } from "@/lib/chat/draft-events";
 import { syncChatReadFromSlack } from "@/app/(member)/chat/actions";
+import NewMessagePicker from "@/components/chat/NewMessagePicker";
 
 /** A badge reads 99+ beyond that; the server stops counting at 100. */
 const badge = (n: number) => (n > 99 ? "99+" : String(n));
@@ -401,7 +402,10 @@ export default function ChatSidebar({
   unread = {},
   selfMemberId = null,
   drafts = [],
+  canStartDm = false,
 }: {
+  /** Offer the New message picker in the Direct messages heading (the member can start direct messages; not in sudo). */
+  canStartDm?: boolean;
   channels: ChannelSummary[];
   /** Unsent text per conversation or thread, as of the page load (the layout re-runs when a message is sent). */
   drafts?: SidebarDraft[];
@@ -476,7 +480,13 @@ export default function ChatSidebar({
         action={joinable.length > 0 && <BrowseChannels channels={joinable} pathname={pathname} />}
       />
       <Section title="Group messages" channels={recent(mine.filter((c) => c.kind === "group_dm"))} pathname={pathname} unread={counts} />
-      <Section title="Direct messages" channels={recent(mine.filter((c) => c.kind === "dm"))} pathname={pathname} unread={counts} />
+      <Section
+        title="Direct messages"
+        channels={recent(mine.filter((c) => c.kind === "dm"))}
+        pathname={pathname}
+        unread={counts}
+        action={canStartDm && <NewMessagePicker pathname={pathname} />}
+      />
       {channels.length === 0 && <p className="px-3 text-sm text-slate-600 dark:text-slate-400">No conversations yet.</p>}
       {channels.length > 0 && Boolean(wanted) && mine.length === 0 && <p className="px-3 text-sm text-slate-600 dark:text-slate-400">No channels match.</p>}
       <p className="mt-4 px-3 text-xs">

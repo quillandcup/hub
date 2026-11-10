@@ -32,10 +32,12 @@ export default function SlackConnectPanel({
   connected,
   sharesReadState = true,
   hasDmScopes = true,
+  hasDmReactionScope = true,
 }: {
   connected: boolean;
   sharesReadState?: boolean;
   hasDmScopes?: boolean;
+  hasDmReactionScope?: boolean;
 }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -78,6 +80,15 @@ export default function SlackConnectPanel({
               uses it only for the DM bridge, which we switch on member by member (see Privacy).
               {" "}
               <a href={connectHref} data-track="settings-slack-reconnect-dm" className="font-medium text-plum-700 underline dark:text-plum-400">
+                Reconnect Slack
+              </a>
+            </p>
+          )}
+          {sharesReadState && hasDmScopes && !hasDmReactionScope && (
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+              Reconnect Slack once more to see reactions in your direct messages as they happen; without it they show up a
+              little later.{" "}
+              <a href="/api/oauth/slack/start" data-track="settings-slack-reconnect-reactions" className="font-medium text-plum-700 underline dark:text-plum-400">
                 Reconnect Slack
               </a>
             </p>

@@ -19,6 +19,7 @@ import LessonBuilderForm from "./LessonBuilderForm";
 import LessonVideoControls from "./LessonVideoControls";
 import LessonCaptions from "./LessonCaptions";
 import { createRepos } from "@/lib/data/repos";
+import { getUserFeaturePreviews } from "@/lib/features.server";
 
 type Params = { params: Promise<{ id: string; lessonId: string }> };
 
@@ -61,8 +62,8 @@ async function thumbnailLinkFor(detail: AdminLessonDetail, lessonUrl: string | n
 }
 
 /** What plays or says why not, and for a Hub-owned lesson the buttons that upload, replace or remove the video. */
-async function lessonMedia(detail: AdminLessonDetail) {
-  const media = await lessonPlayback(detail);
+async function lessonMedia(detail: AdminLessonDetail, chatShare: boolean) {
+  const media = await lessonPlayback(detail, chatShare);
   if (!detail.editable) return media;
   return (
     <>
@@ -73,7 +74,7 @@ async function lessonMedia(detail: AdminLessonDetail) {
   );
 }
 
-async function lessonPlayback(detail: AdminLessonDetail) {
+async function lessonPlayback(detail: AdminLessonDetail, chatShare: boolean) {
   const { lesson, video, hub, course } = detail;
   const note = "rounded border border-slate-200 p-4 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-400";
   const lessonUrl = hub ? `${APP_URL}/courses/${hub.slug}/lessons/${hub.lessonId}` : null;
@@ -81,12 +82,12 @@ async function lessonPlayback(detail: AdminLessonDetail) {
   const { link: thumbnailLink, blocked: thumbnailLinkBlocked } = await thumbnailLinkFor(detail, lessonUrl);
   const actions = (
     <div className="mt-3">
-      <VideoActions statsHref={statsHref} lessonUrl={lessonUrl} thumbnailLink={thumbnailLink} thumbnailLinkBlocked={thumbnailLinkBlocked} />
+      <VideoActions statsHref={statsHref} lessonUrl={lessonUrl} thumbnailLink={thumbnailLink} thumbnailLinkBlocked={thumbnailLinkBlocked} chatShare={chatShare} />
     </div>
   );
   if (video?.status === "ready" && video.playbackId) {
     const tokens = await mintTokens(video.playbackId);
-    if (tokens) return <LessonMediaPanel title={lesson.title} playbackId={video.playbackId} tokens={tokens} posterUrl={lesson.thumbnailSrc} statsHref={statsHref} lessonUrl={lessonUrl} thumbnailLink={thumbnailLink} thumbnailLinkBlocked={thumbnailLinkBlocked} frameThumbnail={detail.editable ? { courseId: course.id, lessonId: lesson.kajabiId } : null} />;
+    if (tokens) return <LessonMediaPanel title={lesson.title} playbackId={video.playbackId} tokens={tokens} posterUrl={lesson.thumbnailSrc} statsHref={statsHref} lessonUrl={lessonUrl} thumbnailLink={thumbnailLink} thumbnailLinkBlocked={thumbnailLinkBlocked} chatShare={chatShare} frameThumbnail={detail.editable ? { courseId: course.id, lessonId: lesson.kajabiId } : null} />;
     return (
       <>
         <p role="status" className={note}>The video can&apos;t be played right now.</p>
@@ -118,12 +119,14 @@ async function lessonPlayback(detail: AdminLessonDetail) {
 
 /** One lesson's builder page: the lesson as last imported from Kajabi, read only until the builder can save. */
 export default async function AdminLessonPage({ params }: Params) {
-  await requireAdminPage();
+  const user = await requireAdminPage();
   const { id, lessonId } = await params;
   const detail = await loadAdminLesson(createRepos(await createClient()), id, lessonId);
   if (!detail) notFound();
   const { course, lesson, hub } = detail;
-  const media = await lessonMedia(detail);
+  // The "paste in chat" links in Video actions, once the chat videos feature is on for this admin (their own account, never the sudo'd member).
+  const chatShare = (await getUserFeaturePreviews(user.id)).includes("chat_videos");
+  const media = await lessonMedia(detail, chatShare);
   const path = hub ? `/courses/${hub.slug}/lessons/${hub.lessonId}` : null;
 
   return (

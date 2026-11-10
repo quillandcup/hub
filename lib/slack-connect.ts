@@ -34,21 +34,30 @@ export const SLACK_READ_SYNC_SCOPES = [
 ];
 
 /**
- * Asked for ahead of Hub direct messages through Slack, so members reconnect once now instead of again when it
- * ships. Nothing uses them yet: the Hub reads no direct messages (the `/privacy` page says so), and the app
- * subscribes to no user events. They let it list and read the member's own DMs (`im:read`, `im:history`,
- * `mpim:history`), open and post in them (`im:write`), and copy files shared there (`files:read`).
+ * What the Hub needs to bring a member's Slack direct messages into chat (`slack_dm_bridge`): list and read their own DMs
+ * (`im:read`, `im:history`, `mpim:history`), open and post in them (`im:write`), and copy files shared there (`files:read`).
+ * A member with all of these is pulled; one without them is asked to reconnect.
  */
 export const SLACK_DM_SCOPES = ["im:read", "im:history", "im:write", "mpim:history", "files:read"];
 
+/**
+ * Seeing a reaction in a DM as it happens: Slack sends `reaction_added` / `reaction_removed` on a member's behalf only with
+ * `reactions:read`. Without it a DM's reactions still arrive, at the next pull, so a connection without it is not left out of
+ * the bridge: it is only asked to reconnect once more.
+ */
+export const SLACK_DM_REACTION_SCOPES = ["reactions:read"];
+
 /** Everything the Hub asks the member to approve. */
-export const SLACK_USER_SCOPES = [...SLACK_READ_SYNC_SCOPES, ...SLACK_DM_SCOPES];
+export const SLACK_USER_SCOPES = [...SLACK_READ_SYNC_SCOPES, ...SLACK_DM_SCOPES, ...SLACK_DM_REACTION_SCOPES];
 
 /** Whether a stored connection predates read sync and needs to be reconnected to share read state. Chat is gated on this. */
 export const hasReadSyncScopes = (scopes: string[]): boolean => SLACK_READ_SYNC_SCOPES.every((s) => scopes.includes(s));
 
-/** Whether a stored connection has the direct message scopes. Nothing is gated on it: it only decides who is asked to reconnect. */
+/** Whether a stored connection has the direct message scopes: what the DM pull and live messages are gated on. */
 export const hasDmScopes = (scopes: string[]): boolean => SLACK_DM_SCOPES.every((s) => scopes.includes(s));
+
+/** Whether a stored connection can have a DM's reactions delivered live. Nothing is gated on it: it only decides who is asked to reconnect. */
+export const hasDmReactionScope = (scopes: string[]): boolean => SLACK_DM_REACTION_SCOPES.every((s) => scopes.includes(s));
 
 /** Registered as a redirect URL in slack-app-manifest.yml; Slack requires an exact match. */
 export const SLACK_REDIRECT_PATH = "/api/oauth/slack/callback";
@@ -194,6 +203,8 @@ export interface SlackConnectionStatus {
   sharesReadState: boolean;
   /** Connected with the direct message scopes too (`SLACK_DM_SCOPES`); false for a connection made before they were asked for. */
   hasDmScopes: boolean;
+  /** Connected with `reactions:read` too (`SLACK_DM_REACTION_SCOPES`), so a DM's reactions arrive live; false before it was asked for. */
+  hasDmReactionScope: boolean;
   /** Had a connection that Slack stopped honouring (revoked by us when its token died), so it needs reconnecting rather than connecting. */
   revoked: boolean;
 }
@@ -208,6 +219,7 @@ export async function getSlackConnectionStatus(service: SupabaseClient, memberId
     connectedAt: connected ? data!.connected_at : null,
     sharesReadState: connected && hasReadSyncScopes((data!.scopes as string[] | null) ?? []),
     hasDmScopes: connected && hasDmScopes((data!.scopes as string[] | null) ?? []),
+    hasDmReactionScope: connected && hasDmReactionScope((data!.scopes as string[] | null) ?? []),
     revoked: Boolean(data?.revoked_at),
   };
 }

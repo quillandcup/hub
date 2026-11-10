@@ -50,6 +50,16 @@ describe("SlackConnectPanel", () => {
     expect(screen.queryByRole("link", { name: "Reconnect Slack" })).not.toBeInTheDocument();
   });
 
+  it("asks a connection with the DM permissions but not the reactions one to reconnect once more, for live reactions", () => {
+    render(<SlackConnectPanel connected sharesReadState hasDmScopes hasDmReactionScope={false} />);
+    expect(screen.getByRole("link", { name: "Reconnect Slack" })).toHaveAttribute("href", "/api/oauth/slack/start");
+    expect(screen.getByText(/see reactions in your direct messages as they happen/)).toBeInTheDocument();
+    cleanup();
+
+    render(<SlackConnectPanel connected sharesReadState hasDmScopes hasDmReactionScope />);
+    expect(screen.queryByRole("link", { name: "Reconnect Slack" })).not.toBeInTheDocument();
+  });
+
   it("shows the outcome Slack sent the member back with", () => {
     slackParam = "connected";
     render(<SlackConnectPanel connected />);

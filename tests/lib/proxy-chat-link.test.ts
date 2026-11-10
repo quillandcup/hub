@@ -49,7 +49,7 @@ const MESSAGE = "msg_AAAAAAAAAAA1";
 const LESSON = "les_AAAAAAAAAAA1";
 const SLACK_CHANNEL = "C_HOSTS";
 
-/** The "Watch it in Hub Chat" address exactly as the Slack message carries it, as a path (the proxy sees the request path). */
+/** The "Watch it in Hub Chat" address exactly as the Slack message carries it, as a path, anchor included. The proxy sees only the path and query: a fragment never leaves the browser. */
 async function slackLinkPath(): Promise<string> {
   const repos = createInMemoryRepos(
     new InMemoryDataset({
@@ -64,6 +64,9 @@ async function slackLinkPath(): Promise<string> {
   expect(url.startsWith(APP_URL)).toBe(true);
   return url.slice(APP_URL.length);
 }
+
+/** What the server is asked for: the address without its #fragment. */
+const serverSees = (path: string) => path.split("#", 1)[0];
 
 const call = async (path: string, headers: Record<string, string> = {}) => {
   const req = new NextRequest(`http://localhost:3000${path}`);
@@ -82,14 +85,14 @@ beforeEach(() => {
 describe("a signed-out visitor following the Slack link to a shared video", () => {
   it("is sent to /login without the message in the address, and the link is remembered in full", async () => {
     const path = await slackLinkPath();
-    expect(path).toBe(`/chat/${CHANNEL}?thread=${MESSAGE}`);
+    expect(path).toBe(`/chat/${CHANNEL}?thread=${MESSAGE}#m-${MESSAGE}`);
 
     const res = await call(path);
 
     const location = new URL(res.headers.get("location") as string);
     expect(location.pathname).toBe("/login");
     expect(location.search).toBe("");
-    expect(decodeURIComponent(res.cookies.get(NEXT_PATH_COOKIE)?.value ?? "")).toBe(path);
+    expect(decodeURIComponent(res.cookies.get(NEXT_PATH_COOKIE)?.value ?? "")).toBe(serverSees(path));
     // Not readable by scripts on the page, so a stray script can't read where they were headed.
     expect(res.cookies.get(NEXT_PATH_COOKIE)?.httpOnly).toBe(true);
   });
@@ -100,7 +103,7 @@ describe("a signed-out visitor following the Slack link to a shared video", () =
     // The browser keeps the cookie the proxy set and sends it with the sign-in request.
     browserCookies.set(NEXT_PATH_COOKIE, { value: decodeURIComponent(res.cookies.get(NEXT_PATH_COOKIE)?.value ?? "") });
 
-    expect(await takeNextPath("/dashboard")).toBe(path);
+    expect(await takeNextPath("/dashboard")).toBe(serverSees(path));
     // It is used once: a second sign-in doesn't send them there again.
     expect(await takeNextPath("/dashboard")).toBe("/dashboard");
   });
@@ -113,15 +116,28 @@ describe("a signed-out visitor following the Slack link to a shared video", () =
     browserCookies.set(NEXT_PATH_COOKIE, { value: decodeURIComponent(res.cookies.get(NEXT_PATH_COOKIE)?.value ?? "") });
 
     const afterSignIn = await takeNextPath("/dashboard");
-    expect(afterSignIn).toBe(path);
+    expect(afterSignIn).toBe(serverSees(path));
     expect(browserCookies.has(NEXT_PATH_COOKIE)).toBe(false);
     expect(await takeNextPath("/dashboard")).toBe("/dashboard");
     // The chat page, opened at that address, sends the member through the gate with it attached.
-    expect(new URL(`http://x${gateHref(GATES.connectSlack, afterSignIn)}`).searchParams.get("next")).toBe(path);
+    expect(new URL(`http://x${gateHref(GATES.connectSlack, afterSignIn)}`).searchParams.get("next")).toBe(serverSees(path));
+  });
+
+  // KNOWN GAP (docs/TODO.md, shared videos in chat): the #m-<message> anchor stays in the browser, so it can't be remembered through sign-in. After
+  // signing in they land on the conversation with the message open beside it (the ?thread= part survives), but the list isn't scrolled to the
+  // message. Changing that needs the anchor carried by the sign-in pages themselves (they run in the browser).
+  it("remembers the thread but not the #m- anchor through sign-in (known gap: the list isn't scrolled to the message afterwards)", async () => {
+    const path = await slackLinkPath();
+    expect(path).toContain("#m-");
+
+    const res = await call(path);
+
+    expect(decodeURIComponent(res.cookies.get(NEXT_PATH_COOKIE)?.value ?? "")).not.toContain("#");
+    expect(decodeURIComponent(res.cookies.get(NEXT_PATH_COOKIE)?.value ?? "")).toContain(`?thread=${MESSAGE}`);
   });
 
   it("is accepted as a safe return address, query included", async () => {
-    expect(safeNextPath(await slackLinkPath())).toBe(`/chat/${CHANNEL}?thread=${MESSAGE}`);
+    expect(safeNextPath(serverSees(await slackLinkPath()))).toBe(`/chat/${CHANNEL}?thread=${MESSAGE}`);
   });
 
   it("doesn't remember a router prefetch as somewhere they asked to go", async () => {

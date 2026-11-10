@@ -135,4 +135,36 @@ describe("VideoActions", () => {
     expect(screen.getByRole("menuitem", { name: "Copy timestamp URL" })).toBeDisabled();
     expect(writeText).not.toHaveBeenCalled();
   });
+
+  describe("the paste-in-chat links", () => {
+    it("are left out unless chat sharing is on", async () => {
+      await open(<VideoActions statsHref={STATS} lessonUrl={URL} />);
+      expect(screen.queryByRole("menuitem", { name: /paste in chat/ })).not.toBeInTheDocument();
+    });
+
+    it("copy the lesson's address, and with the open marker for everyone in the conversation, then say what happens", async () => {
+      const user = await open(<VideoActions statsHref={STATS} lessonUrl={URL} chatShare />);
+      await user.click(screen.getByRole("menuitem", { name: "Copy link to paste in chat" }));
+      expect(writeText).toHaveBeenLastCalledWith(URL);
+      expect(screen.getByRole("status")).toHaveTextContent(/Paste it into any chat message to share the video there; members with the course can play it/);
+
+      await user.click(screen.getByRole("button", { name: /Video actions/ }));
+      await user.click(screen.getByRole("menuitem", { name: "Copy link, open to everyone" }));
+      expect(writeText).toHaveBeenLastCalledWith(`${URL}?share=open`);
+      expect(screen.getByRole("status")).toHaveTextContent(/everyone in that conversation can watch the video, even without the course/);
+    });
+
+    it("are disabled for a lesson that isn't in the Hub yet", async () => {
+      await open(<VideoActions statsHref={null} lessonUrl={null} chatShare />);
+      expect(screen.getByRole("menuitem", { name: "Copy link to paste in chat" })).toBeDisabled();
+      expect(screen.getByRole("menuitem", { name: "Copy link, open to everyone" })).toBeDisabled();
+    });
+
+    it("say so when the browser won't copy", async () => {
+      writeText.mockRejectedValue(new Error("denied"));
+      const user = await open(<VideoActions statsHref={STATS} lessonUrl={URL} chatShare />);
+      await user.click(screen.getByRole("menuitem", { name: "Copy link to paste in chat" }));
+      expect(screen.getByRole("status")).toHaveTextContent("Couldn't copy the link.");
+    });
+  });
 });

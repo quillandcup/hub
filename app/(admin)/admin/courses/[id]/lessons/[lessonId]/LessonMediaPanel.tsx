@@ -15,6 +15,7 @@ export default function LessonMediaPanel({
   lessonUrl,
   thumbnailLink,
   thumbnailLinkBlocked,
+  chatShare = false,
   frameThumbnail = null,
 }: {
   title: string;
@@ -25,6 +26,8 @@ export default function LessonMediaPanel({
   lessonUrl: string | null;
   thumbnailLink: { url: string; imageUrl: string; title: string } | null;
   thumbnailLinkBlocked: string;
+  /** Offer the "paste in chat" links in the Video actions menu. */
+  chatShare?: boolean;
   /** For a Hub-owned lesson: the course and lesson the current frame can become the thumbnail of. */
   frameThumbnail?: { courseId: string; lessonId: string } | null;
 }) {
@@ -34,7 +37,7 @@ export default function LessonMediaPanel({
       {/* No watch tracking: this is an admin looking at the lesson, not a viewing. */}
       <LessonPlayer title={title} playbackId={playbackId} tokens={tokens} posterUrl={posterUrl} onTime={setSeconds} />
       <div className="mt-3">
-        <VideoActions statsHref={statsHref} lessonUrl={lessonUrl} seconds={seconds} thumbnailLink={thumbnailLink} thumbnailLinkBlocked={thumbnailLinkBlocked} />
+        <VideoActions statsHref={statsHref} lessonUrl={lessonUrl} seconds={seconds} thumbnailLink={thumbnailLink} thumbnailLinkBlocked={thumbnailLinkBlocked} chatShare={chatShare} />
       </div>
       {frameThumbnail && <FrameThumbnailButton courseId={frameThumbnail.courseId} lessonId={frameThumbnail.lessonId} seconds={seconds} />}
     </div>

@@ -5,12 +5,13 @@ import AnnouncementBar from "@/components/announcements/AnnouncementBar";
 
 const DISMISSED_KEY = "slack-connect-prompt-dismissed";
 
-export type SlackConnectNeed = "connect" | "reconnect" | "update" | "permissions";
+export type SlackConnectNeed = "connect" | "reconnect" | "update" | "permissions" | "reactions";
 
 const COPY: Record<SlackConnectNeed, { text: string; action: string }> = {
   connect: { text: "Hub Chat needs your Slack account, so your messages and reactions come from you.", action: "Connect Slack" },
   reconnect: { text: "Your Slack connection stopped working, so chat is closed until you reconnect it.", action: "Reconnect Slack" },
   update: { text: "Chat needs you to reconnect Slack once, to give the Hub the permissions it asks for now.", action: "Reconnect Slack" },
+  reactions: { text: "Reconnect Slack once more to see reactions in your direct messages as they happen. Without it they show up a little later.", action: "Reconnect Slack" },
   permissions: { text: "Slack direct messages are coming to Hub Chat. Reconnect Slack once now, or you won't be able to message people in the Hub when they arrive.", action: "Reconnect Slack" },
 };
 
