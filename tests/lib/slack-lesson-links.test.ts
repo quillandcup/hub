@@ -224,6 +224,17 @@ describe("rewriteInSlack (the Slack copy of a converted message)", () => {
     expect(opts.body).not.toContain("/lessons/" + OPEN_LESSON + "|here");
   });
 
+  it("keeps the text before and after the address, with its formatting, mentions and line breaks", async () => {
+    stored();
+    dataset.chatMessageContents[0].body = `*Hey* <@U123>, watch this:\n<${address(OPEN_LESSON, "?t=95&amp;share=open")}|the lesson>\nthen tell me what you think &lt;3`;
+    await shareLessonLinkBySlackTs(repos, "C_HOSTS", "1.1", rewrite);
+
+    const body: string = updateInSlack.mock.calls[0][1].body;
+    expect(body.startsWith("*Hey* <@U123>, watch this:\n\nthen tell me what you think &lt;3\n<")).toBe(true);
+    expect(body).not.toContain("the lesson>");
+    expect(body).not.toContain("share=open");
+  });
+
   it("sends just the links when the address was the whole message", async () => {
     stored();
     dataset.chatMessageContents[0].body = address(OPEN_LESSON);
@@ -235,7 +246,11 @@ describe("rewriteInSlack (the Slack copy of a converted message)", () => {
     stored();
     dataset.chatMessageContents[0].files = [{ id: "F1", name: "a.png", mimetype: "image/png" }] as never;
     expect(await shareLessonLinkBySlackTs(repos, "C_HOSTS", "1.1", rewrite)).toBe("shared");
+    // Nothing is sent to Slack, so its copy keeps its files, and the Hub's copy keeps them and the text as they were.
     expect(updateInSlack).not.toHaveBeenCalled();
+    const kept = dataset.chatMessageContents[0];
+    expect(kept.files).toHaveLength(1);
+    expect(kept.body).toBe(`look <${address(OPEN_LESSON)}|here> &amp; more`);
   });
 
   it("keeps the card when Slack refuses or throws", async () => {
