@@ -404,7 +404,7 @@ describe("pullDmsForCoveredMembers", () => {
     m.covered = new Set([GALE]);
     const result = await pullDmsForCoveredMembers(service, { deadline: later() });
     expect(result.members).toBe(1);
-    expect(m.list).toHaveBeenCalledTimes(1);
+    expect(m.list.mock.calls.filter(([a]) => a.types === "im")).toHaveLength(1);
   });
 
   it("stops starting members when the time is up, and says how many are left", async () => {
@@ -419,7 +419,7 @@ describe("pullDmsForCoveredMembers", () => {
     const result = await pullDmsForCoveredMembers(service, { deadline: later() });
     expect(result.errors).toHaveLength(1);
     expect(result.errors[0]).toMatch(/stopped on missing_scope/);
-    expect(m.list).toHaveBeenCalledTimes(2);
+    expect(m.list.mock.calls.filter(([a]) => a.types === "im")).toHaveLength(2);
     warn.mockRestore();
   });
 
@@ -429,6 +429,6 @@ describe("pullDmsForCoveredMembers", () => {
     });
     const result = await pullDmsForCoveredMembers(service, { deadline: later() });
     expect(result.errors).toEqual([expect.stringContaining("db down")]);
-    expect(m.list).toHaveBeenCalledTimes(1);
+    expect(m.list.mock.calls.filter(([a]) => a.types === "im")).toHaveLength(1);
   });
 });

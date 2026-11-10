@@ -663,6 +663,7 @@ export type Database = {
           name: string
           purpose: string | null
           raw_payload: Json
+          token_only: boolean
           topic: string | null
         }
         Insert: {
@@ -679,6 +680,7 @@ export type Database = {
           name: string
           purpose?: string | null
           raw_payload: Json
+          token_only?: boolean
           topic?: string | null
         }
         Update: {
@@ -695,6 +697,7 @@ export type Database = {
           name?: string
           purpose?: string | null
           raw_payload?: Json
+          token_only?: boolean
           topic?: string | null
         }
         Relationships: []
@@ -7328,6 +7331,10 @@ export type Database = {
         Args: { p_channel_id: string; p_members: Json }
         Returns: Json
       }
+      project_slack_group_dm: {
+        Args: { p_channel_id: string; p_members: Json }
+        Returns: Json
+      }
       rate_limit_hit: {
         Args: { p_bucket: string; p_max_hits: number; p_window_seconds: number }
         Returns: boolean
@@ -7525,6 +7532,10 @@ export type Database = {
         Returns: undefined
       }
       slack_dm_member_pulled: { Args: { p_member: string }; Returns: boolean }
+      slack_group_dm_token_only: {
+        Args: { p_channel: string }
+        Returns: boolean
+      }
       slack_is_system_message_type: {
         Args: { p_type: string }
         Returns: boolean

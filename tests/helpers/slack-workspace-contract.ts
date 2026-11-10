@@ -118,6 +118,41 @@ export function defineSlackWorkspaceContract(name: string, setup: () => SlackWor
       expect(await ctx.repo().channelById(many[229].channel_id)).toMatchObject({ name: many[229].name });
     });
 
+    it("records a group DM only a member's token reads, without overwriting one the bot has, and the bot's upsert clears the marker", async () => {
+      const botFirst = ctx.unique("bot-first");
+      const memberFirst = ctx.unique("member-first");
+      const group = (channel_id: string, extra: Record<string, unknown> = {}) => ({ channel_id, name: "", is_mpim: true, is_private: true, raw_payload: {}, ...extra });
+
+      // The bot's import has it: the member's pull adds nothing and the marker is never set.
+      await ctx.repo().upsertChannels([group(botFirst, { name: "bot-name", token_only: false })]);
+      expect(await ctx.repo().insertChannelIfAbsent(group(botFirst, { token_only: true }))).toBe(false);
+      expect(await ctx.repo().isTokenOnlyGroupDm(botFirst)).toBe(false);
+      expect((await ctx.repo().channelById(botFirst))?.name).toBe("bot-name");
+
+      // The member's pull has it first: token only, a second pull changes nothing, and the bot's import (which writes the marker false) clears it.
+      expect(await ctx.repo().insertChannelIfAbsent(group(memberFirst, { token_only: true }))).toBe(true);
+      expect(await ctx.repo().insertChannelIfAbsent(group(memberFirst, { token_only: true, name: "ignored" }))).toBe(false);
+      expect(await ctx.repo().isTokenOnlyGroupDm(memberFirst)).toBe(true);
+      expect((await ctx.repo().channelById(memberFirst))?.name).toBe("");
+      await ctx.repo().upsertChannels([group(memberFirst, { name: "now-the-bot-reads-it", token_only: false })]);
+      expect(await ctx.repo().isTokenOnlyGroupDm(memberFirst)).toBe(false);
+
+      // Unknown, and a channel that isn't a group DM, are not token only.
+      expect(await ctx.repo().isTokenOnlyGroupDm(ctx.unique("nobody"))).toBe(false);
+      const plain = ctx.unique("plain");
+      await ctx.repo().insertChannelIfAbsent({ channel_id: plain, name: "plain", is_mpim: false, token_only: true, raw_payload: {} });
+      expect(await ctx.repo().isTokenOnlyGroupDm(plain)).toBe(false);
+    });
+
+    it("lists who is in a conversation now", async () => {
+      const [room, ada, grace] = [ctx.unique("room"), ctx.unique("ada"), ctx.unique("grace")];
+      await ctx.repo().upsertMemberships([ada, grace].map((user_id) => ({ channel_id: room, user_id, left_at: null, imported_at: "2031-02-01T10:00:00.000Z" })));
+      expect(await ctx.repo().currentMemberUserIds(room)).toEqual([ada, grace].sort());
+      await ctx.repo().markMembersLeft(room, [ada], "2031-02-02T10:00:00.000Z");
+      expect(await ctx.repo().currentMemberUserIds(room)).toEqual([grace]);
+      expect(await ctx.repo().currentMemberUserIds(ctx.unique("empty"))).toEqual([]);
+    });
+
     it("keeps who is in a conversation: joins, comebacks and leaves", async () => {
       const [room, ada, grace, mary] = [ctx.unique("room"), ctx.unique("ada"), ctx.unique("grace"), ctx.unique("mary")];
       const at = (n: number) => `2031-02-0${n}T10:00:00.000Z`;

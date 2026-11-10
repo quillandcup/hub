@@ -27,6 +27,8 @@ export interface SlackChannelRow {
   name: string;
   is_private: boolean;
   is_mpim: boolean;
+  /** The bot reads it, so no longer one that only members' tokens read (bronze.slack_channels.token_only). */
+  token_only: false;
   is_archived: boolean;
   member_count: number;
   topic: string | null;
@@ -41,6 +43,7 @@ export function toSlackChannelRow(c: any): SlackChannelRow {
     name: c.name,
     is_private: c.is_private || c.is_mpim || false,
     is_mpim: c.is_mpim || false,
+    token_only: false,
     is_archived: c.is_archived || false,
     member_count: c.num_members || 0,
     topic: c.topic?.value || null,

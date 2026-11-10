@@ -22,12 +22,22 @@ export type DmEventDecision =
   | { kind: "not_dm" }
   /** A member's DM that no covered member can see: ignored, nothing stored. */
   | { kind: "drop" }
-  /** A DM of a covered member that is already in the chat: stored and projected like any message. */
+  /** A DM (or group DM) of a covered member that is already in the chat: stored and projected like any message. */
   | { kind: "keep" }
-  /** A DM the chat hasn't seen yet: its first message tells us nothing of who is in it, so the member's DMs are pulled. */
+  /** A DM or group DM the chat hasn't seen yet: its first message tells us nothing of who is in it, so the member's DMs are pulled. */
   | { kind: "pull"; memberId: string };
 
 export { isSlackDmChannelId };
+
+/**
+ * A conversation only a member's own token reads: a 1:1 DM (the bot is never in one), or a group DM the bot is not in
+ * (`bronze.slack_channels.token_only`). Its messages are never fetched with the bot's token, and its files are copied with a member's.
+ */
+export async function isMemberTokenConversation(service: SupabaseClient, channelId: unknown): Promise<boolean> {
+  if (isSlackDmChannelId(channelId)) return true;
+  if (typeof channelId !== "string" || !channelId.startsWith("G")) return false;
+  return createRepos(service).slackWorkspace.isTokenOnlyGroupDm(channelId);
+}
 
 export async function decideDmEvent(
   service: SupabaseClient,
@@ -36,19 +46,23 @@ export async function decideDmEvent(
   const event = payload.event;
   if (!event) return { kind: "not_dm" };
   // A reaction names its conversation in `item`, a message in `channel`.
-  const channel = event.channel ?? event.item?.channel;
+  const channelId = typeof event.channel === "string" ? event.channel : typeof event.item?.channel === "string" ? event.item.channel : undefined;
   const authorizations = payload.authorizations ?? [];
   // A DM with the bot (delivered as a bot event) and an event with nobody named: the way it has always been handled.
   const forTheBot = authorizations.length === 0 || authorizations.some((a) => a.is_bot);
-  const isDm = event.channel_type === "im" || isSlackDmChannelId(channel);
-  if (!isDm) {
-    // A reaction delivered on a member's behalf anywhere else is the bot's to record (its own reaction events cover those channels): drop the copy.
-    const isReaction = event.type === "reaction_added" || event.type === "reaction_removed";
-    return isReaction && !forTheBot ? { kind: "drop" } : { kind: "not_dm" };
-  }
+  const isReaction = event.type === "reaction_added" || event.type === "reaction_removed";
+  const isDm = event.channel_type === "im" || isSlackDmChannelId(channelId);
+  // A group DM (`message.mpim`), or an event in a `G…` conversation, which is a group DM or a private channel (looked up below).
+  const mayBeGroup = !isDm && (event.channel_type === "mpim" || (channelId?.startsWith("G") ?? false));
+  // A reaction delivered on a member's behalf anywhere else is the bot's to record (its own reaction events cover those channels): drop the copy.
+  const elsewhere = (): DmEventDecision => (isReaction && !forTheBot ? { kind: "drop" } : { kind: "not_dm" });
+  if (!isDm && !mayBeGroup) return elsewhere();
   if (forTheBot) return { kind: "not_dm" };
 
   const repos = createRepos(service);
+  const known = channelId ? await repos.slackWorkspace.channelById(channelId) : null;
+  // A private channel's event is not a group DM's.
+  if (mayBeGroup && event.channel_type !== "mpim" && !known?.is_mpim) return elsewhere();
   const slackUserIds = authorizations.map((a) => a.user_id).filter((id): id is string => typeof id === "string" && id !== "");
   const memberIds = [...(await repos.chat.memberIdsBySlackUser(slackUserIds)).values()];
   const covered = [...(await membersWithFeatureForOutreach(repos, "slack_dm_bridge", memberIds))];
@@ -58,6 +72,6 @@ export async function decideDmEvent(
   }
   if (allowed.length === 0) return { kind: "drop" };
 
-  const known = typeof channel === "string" ? await repos.slackWorkspace.channelById(channel) : null;
-  return known?.is_im ? { kind: "keep" } : { kind: "pull", memberId: allowed[0] };
+  const seen = isDm ? known?.is_im : known?.is_mpim;
+  return seen ? { kind: "keep" } : { kind: "pull", memberId: allowed[0] };
 }
