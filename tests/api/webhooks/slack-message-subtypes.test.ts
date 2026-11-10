@@ -105,6 +105,28 @@ describe('Slack webhook: message subtypes', () => {
     expect(projectSlackActivity).toHaveBeenCalledWith(expect.anything(), expect.any(String), expect.any(String))
   })
 
+  it('stores the link preview Slack adds in a later message_changed, without clearing an earlier edit time', async () => {
+    await storeOriginal()
+    const editTs = `${nowSec - 60}.000900`
+    await send({
+      type: 'message', subtype: 'message_changed', hidden: true, ts: editTs, event_ts: editTs,
+      message: { type: 'message', ts: originalTs, user: 'UAUTHOR', text: 'see <https://example.com/a|example>', edited: { user: 'UAUTHOR', ts: editTs } },
+    })
+    const unfurlTs = `${nowSec - 50}.000100`
+    const attachments = [{ title: 'Example &amp; Co', title_link: 'https://example.com/a', text: 'A page', service_name: 'example.com', from_url: 'https://example.com/a', id: 1 }]
+    // The preview arrives as its own message_changed: no `edited`, the same text, and the attachments.
+    await send({
+      type: 'message', subtype: 'message_changed', hidden: true, ts: unfurlTs, event_ts: unfurlTs,
+      message: { type: 'message', ts: originalTs, user: 'UAUTHOR', text: 'see <https://example.com/a|example>', attachments },
+    })
+
+    const { data, error } = await supabase.schema('bronze').from('slack_messages').select('raw_payload, edited_at').eq('channel_id', channelId).eq('message_ts', originalTs).single()
+    expect(error).toBeNull()
+    expect((data!.raw_payload as { attachments: unknown }).attachments).toEqual(attachments)
+    expect(new Date(data!.edited_at!).toISOString()).toBe(new Date(parseFloat(editTs) * 1000).toISOString())
+    expect(projectSlackActivity).toHaveBeenCalled()
+  })
+
   it('ignores an edit to a message we never stored (the nightly import brings it in)', async () => {
     await send({
       type: 'message',

@@ -34,7 +34,8 @@ export type ReactionKey = { channel_id: string; message_ts: string; reaction: st
 /** A message edit: the columns `message_changed` rewrites. */
 export type SlackMessageEdit = {
   text: string;
-  edited_at: string | null;
+  /** When the edit happened; left out when the event isn't an edit (Slack adding a link preview), so an earlier edit time stays. */
+  edited_at?: string | null;
   reply_count: number;
   reply_users_count: number;
   files: unknown;

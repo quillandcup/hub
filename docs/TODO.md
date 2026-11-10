@@ -1176,6 +1176,18 @@ The check-in and check-out modals and the Log Progress modal list the member's m
 
 The admin member page's Notifications tab (`app/(admin)/admin/members/[id]/MemberNotificationsPanel.tsx`) shows the browser devices, the email on record and each kind's channels against the defaults, but not whether the member can be reached on Slack. Deferred because the answer is not a simple lookup: the notifier only sends a Slack DM when the member matches exactly one Slack account by the safe match (alias, then email, then normalized name, deactivated accounts ignored), and an ambiguous match is rejected, logged and reported rather than guessed (see "Slack notification delivery" in `CLAUDE.md`). Showing a different rule on the tab would tell staff a member is reachable when the notifier would refuse to send. Start with the member-to-Slack resolution in `lib/slack-member-ids.ts` (the one `createNotifier` and `lib/member-reminders.ts` use): expose a read that returns the same result for one member (matched, none, or ambiguous, without sending or alerting), load it in `MemberDetailPage.tsx` only when the Notifications tab is open, and show it beside the Browser and Email lines. Read-only, behind the same `member.push_devices` staff feature, and no Slack ids on screen.
 
+## Hub Chat: Beyond the First Unfurl Pass
+
+### Full Block Kit, proxied pictures and interactivity in chat _(Needs Scheduling)_
+
+The first pass (`lib/chat/unfurls.ts`, `components/chat/MessageUnfurls.tsx`) draws legacy attachments (link previews, app cards) and a small Block Kit subset (header, section, context, divider, image, link buttons), and shows one "Open in Slack" link for any other block. Deferred, worth doing when members ask for it or a common app's cards read badly:
+
+- **More block types**: add a parser to `BLOCK_PARSERS` and a renderer to `BLOCK_RENDERERS` for `video`, `table`, `rich_text` inside an app's section, `context_actions`, `input` (display only), and accessory elements (menus, date pickers) shown disabled.
+- **Pictures through our own address**: unfurl pictures load straight from the remote address Slack gave, so the host sees the viewer's IP (no referrer is sent). Copy or proxy them as with Slack files (`/api/chat/files`) and check the Slack image hosts for hotlinking limits. The app sets no CSP today; if one is added, `img-src` needs these hosts or the proxy.
+- **Interactivity**: buttons that post back to an app (`action_id`) are not shown. Our own bot's messages could handle them Slack-independently (see "Interactive elements" in `docs/SLACK_BRIDGED_CHAT.md`); third-party apps stay "Open in Slack".
+- **Search results** use a narrower content select, so cards are not shown there.
+- **Message-level unfurl toggles** (hide a preview, as in Slack) and animated/video unfurls (`video_html`).
+
 ## Slack Bot Channel Access
 
 ### Auto-invite Billie Bot into private channels using a personal Slack token

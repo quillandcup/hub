@@ -1,6 +1,8 @@
 import type { StageTimer } from "@/lib/chat/timing";
 import { emojiNamesIn, mentionedChannelIds, mentionedUserIds } from "@/lib/chat/render";
 import { blocksToBody } from "@/lib/chat/rich-blocks";
+import { parseUnfurls, unfurlTexts, type Unfurl } from "@/lib/chat/unfurls";
+import { formatSlackPermalink } from "@/lib/slack-emoji";
 import { customEmojiFor, slackAuthorIdsByTs, slackChannelNames, slackUserHubNames, slackUserMemberIds, slackUserNames, slackUserPhotos } from "@/lib/chat/names";
 import type { CustomEmoji } from "@/lib/chat/emoji";
 import type { ChatTextContext } from "@/components/chat/ChatText";
@@ -8,7 +10,7 @@ import { safeUrl } from "@/lib/url";
 import { parseChatFiles, type ChatFile } from "@/lib/chat/files";
 import { stripSharedVideoLink } from "@/lib/chat/video-link";
 import { withoutSharedLessonLink } from "@/lib/chat/lesson-links";
-import { APP_URL } from "@/lib/config";
+import { APP_URL, SLACK_WORKSPACE_URL } from "@/lib/config";
 import { getAttendedPrickleCount, getMemberBadges, type BadgeRepos, type EarnedBadge } from "@/lib/badges";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Repos } from "@/lib/data/repos";
@@ -246,6 +248,17 @@ export async function loadChannelForMember(
   };
 }
 
+/** What a message row carries from chat_message_contents. */
+export interface MessageContent {
+  body: string;
+  files?: unknown;
+  blocks?: unknown;
+  /** Slack's legacy attachments (link previews, app cards), drawn by lib/chat/unfurls.ts. */
+  attachments?: unknown;
+  /** {name, icon} of the Slack app that posted it, from Bronze (chat_message_contents.bot). */
+  bot?: unknown;
+}
+
 export interface MessageRow {
   id: string;
   author_member_id: string | null;
@@ -262,7 +275,7 @@ export interface MessageRow {
   system_subtype?: string | null;
   /** The outbox state of a message written in the Hub; null for Slack-origin rows. */
   slack_sync_status?: "pending" | "sent" | "failed" | null;
-  chat_message_contents: { body: string; files?: unknown; blocks?: unknown } | { body: string; files?: unknown; blocks?: unknown }[] | null;
+  chat_message_contents: MessageContent | MessageContent[] | null;
 }
 
 /** The message reads here have always shown an empty list rather than an error page when the database fails: keep that. */
@@ -338,6 +351,12 @@ export interface ChatMessageView {
   hasFiles: boolean;
   /** The files to show under the message (empty when it has none, or Slack never gave us any). */
   files: ChatFile[];
+  /** Cards under the message: link previews, app cards and an app's blocks (components/chat/MessageUnfurls.tsx). Empty when it has none. */
+  unfurls?: Unfurl[];
+  /** The message is an app's blocks, drawn as `unfurls`: its text only repeats them, so it is not shown. */
+  hideBody?: boolean;
+  /** Where the message is in Slack, for "Open in Slack" on what the Hub can't draw. */
+  slackPermalink?: string | null;
   /** Whether the message shares a course lesson's video (played through /api/chat/videos/<id>, never in the view). */
   sharesVideo?: boolean;
   replyCount: number;
@@ -381,6 +400,14 @@ export function chatTextContext(rendered: Omit<ChatMessages, "views">, channels:
     },
     channelIds: Object.fromEntries(channels.filter((c) => c.slackChannelId).map((c) => [c.slackChannelId as string, c.id])),
   };
+}
+
+/** The app that posted a message: {name, icon} from its content row, read defensively. */
+export function botOf(raw: unknown): { name: string; icon: string | null } | null {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
+  const { name, icon } = raw as { name?: unknown; icon?: unknown };
+  if (typeof name !== "string" || !name.trim()) return null;
+  return { name: name.trim().slice(0, 100), icon: typeof icon === "string" && /^https:\/\//i.test(icon) ? icon : null };
 }
 
 const contentOf = (row: MessageRow) =>
@@ -451,10 +478,18 @@ export async function buildMessageViews(
 
   // Lookups that need only the rows are started with the first batch: mention names, notices,
   // channel links and the emoji used in the bodies. The batches below reuse them.
-  const mentioned = rows.flatMap((r) => mentionedUserIds(bodyOf(r) ?? ""));
+  // Cards under a message (link previews, an app's blocks) have text with mentions and emoji too.
+  const unfurlsByRow = new Map(
+    rows.map((r) => {
+      const content = contentOf(r);
+      return [r.id, parseUnfurls({ attachments: content?.attachments, blocks: content?.blocks }, { bot: botOf(content?.bot) !== null, body: content?.body ?? "" })] as const;
+    })
+  );
+  const unfurlText = (r: MessageRow) => unfurlTexts(unfurlsByRow.get(r.id)?.unfurls ?? []).join("\n");
+  const mentioned = rows.flatMap((r) => mentionedUserIds(`${bodyOf(r) ?? ""}\n${unfurlText(r)}`));
   // People named in a notice (a join, a leave) are shown by their Hub name; elsewhere a mention reads as in Slack.
   const mentionedInNotices = rows.flatMap((r) => (r.system_subtype ? mentionedUserIds(bodyOf(r) ?? "") : []));
-  const bodyEmojiNames = rows.flatMap((r) => emojiNamesIn(bodyOf(r) ?? ""));
+  const bodyEmojiNames = rows.flatMap((r) => emojiNamesIn(`${bodyOf(r) ?? ""}\n${unfurlText(r)}`));
 
   const t = <T,>(name: string, work: PromiseLike<T>): PromiseLike<T> => (timer ? timer.time(name, work) : work);
   timer?.note("rows", rows.length);
@@ -473,7 +508,7 @@ export async function buildMessageViews(
     t("b1.replyAuthors", loadReplyAuthors(repos, threadRoots)),
     t("b1.userMembers", slackUserMemberIds(mentioned)),
     t("b1.hubNames", slackUserHubNames(mentionedInNotices)),
-    t("b1.channelNames", slackChannelNames(rows.flatMap((r) => mentionedChannelIds(bodyOf(r) ?? "")))),
+    t("b1.channelNames", slackChannelNames(rows.flatMap((r) => mentionedChannelIds(`${bodyOf(r) ?? ""}\n${unfurlText(r)}`)))),
     // A failed read only hides the card (the message and its text still show), so it never fails the page.
     t("b1.sharedVideos", repos.chatVideos.lessonIdsOf(rows.map((r) => r.id)).catch((e) => { console.error("chat shared videos failed:", e); return new Map<string, string>(); })),
   ]);
@@ -545,9 +580,13 @@ export async function buildMessageViews(
     const sharedLesson = sharedVideos.get(row.id);
     const body = rawBody !== null && sharedLesson ? withoutSharedLessonLink(stripSharedVideoLink(rawBody), APP_URL, sharedLesson) : rawBody;
     const contentState: ContentState = row.deleted_at ? "deleted" : body === null ? "hidden" : "ok";
+    const bot = botOf(contentOf(row)?.bot);
     const author =
       (row.author_member_id ? profiles.get(row.author_member_id) : undefined) ??
+      // An app is shown by its own name and logo, not as "Slack app".
+      (bot && !row.author_member_id ? { name: bot.name, photoUrl: bot.icon } : undefined) ??
       slackPerson(row.slack_ts ? slackAuthorByTs[row.slack_ts] : undefined);
+    const parsed = contentState === "ok" ? unfurlsByRow.get(row.id) : undefined;
     const replyAuthors: Person[] = [];
     const replySeen = new Set<string>();
     for (const a of replies.get(row.id) ?? []) {
@@ -569,6 +608,9 @@ export async function buildMessageViews(
       contentState,
       hasFiles: row.has_files,
       files: contentState === "ok" ? parseChatFiles(contentOf(row)?.files) : [],
+      unfurls: parsed?.unfurls ?? [],
+      hideBody: parsed?.hideBody ?? false,
+      slackPermalink: channel.slackChannelId && row.slack_ts ? formatSlackPermalink(SLACK_WORKSPACE_URL, channel.slackChannelId, row.slack_ts) : null,
       sharesVideo: contentState === "ok" && sharedVideos.has(row.id),
       replyCount: row.reply_count,
       lastReplyAt: row.last_reply_at,
