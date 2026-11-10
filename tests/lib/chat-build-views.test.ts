@@ -14,6 +14,7 @@ vi.mock("@/lib/chat/names", () => ({
   slackUserPhotos: async () => ({}),
 }));
 
+import { APP_URL } from "@/lib/config";
 import { buildMessageViews, type MessageRow } from "@/lib/chat/load";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
@@ -143,5 +144,24 @@ describe("buildMessageViews", () => {
     const out = await buildMessageViews(repos, { slackChannelId: null }, [row("m1")], FERN);
 
     expect(out.views.map((v) => [v.body, v.sharesVideo])).toEqual([["hi", false]]);
+  });
+
+  it("hides the lesson address a Slack message was posted with once it is the video card, and keeps any other text", async () => {
+    const address = `${APP_URL}/courses/ready-writer/lessons/les_AAAAAAAAAAA1`;
+    const out = await buildMessageViews(
+      reposWith({ chatMessageVideos: [{ id: "cmv_AAAAAAAAAAA1", message_id: "m1", lesson_id: "les_AAAAAAAAAAA1", open_to_channel: false, created_at: "2026-01-01T00:00:00Z" }] }),
+      { slackChannelId: null },
+      [
+        row("m1", { origin: "slack", chat_message_contents: { body: `this helped <${address}|here> a lot` } }),
+        row("m2", { origin: "slack", chat_message_contents: { body: address } }),
+      ],
+      FERN
+    );
+
+    expect(out.views[0].body).toBe("this helped a lot");
+    expect(out.views[0].sharesVideo).toBe(true);
+    // A message with no card keeps its address: it is just a link.
+    expect(out.views[1].body).toBe(address);
+    expect(out.views[1].sharesVideo).toBe(false);
   });
 });

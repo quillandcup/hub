@@ -7,6 +7,7 @@ import { verifySlackSignature } from "@/lib/slack-signature";
 import { publishSlackHome } from "@/lib/slack-sign-in";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { projectChatMessage } from "@/lib/chat-projection";
+import { shareLessonLinkBySlackTs } from "@/lib/chat/slack-lesson-links";
 import { notifyChatMessageBySlackTs } from "@/lib/chat/notifications";
 import { fillMessageGap, fillThreadIfRootMissing } from "@/lib/chat/gap-fill";
 import { isKeptSlackMessage, isSlackSystemMessage, slackMessageText, slackMessageUserId, slackTsToIso } from "@/lib/slack-messages";
@@ -425,6 +426,8 @@ function triggerSlackProcessing(channelId: string, messageTs: string, opts: { th
         Date.now() - projectStarted,
         projected ? "" : " (the chat has no such message)"
       );
+      // A lesson address pasted into Slack becomes the video card in Hub Chat (before anyone is notified of the message).
+      if (projected) await shareLessonLinkBySlackTs(createRepos(service), channelId, messageTs);
       if (opts.notify && projected) await notifyChatMessageBySlackTs(createRepos(service), channelId, messageTs);
 
       // The event refers to something the chat doesn't have: fetch it from Slack now (and its thread

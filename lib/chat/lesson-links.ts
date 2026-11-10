@@ -32,3 +32,13 @@ export function extractLessonLink(body: string, appUrl: string): { lessonId: str
   const openToChannel = new URLSearchParams(found[2] ?? "").get(OPEN_SHARE_PARAM) === OPEN_SHARE_VALUE;
   return { lessonId: found[1], body: rest, openToChannel };
 }
+
+/**
+ * `body` without the lesson address that became its video card, for display: the first lesson address, when it is the lesson the message
+ * shares (Slack-origin messages keep the address in their text; a message sent from the Hub already had it removed). Slack's escapes are
+ * left as stored. Another lesson's address, or none, leaves the text alone.
+ */
+export function withoutSharedLessonLink(body: string, appUrl: string, sharedLessonId: string): string {
+  const found = extractLessonLink(body, appUrl);
+  return found && found.lessonId === sharedLessonId ? found.body : body;
+}

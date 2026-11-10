@@ -14,7 +14,7 @@ export type SeedChannel = {
 };
 
 // --- content, authors and gap fills: seeding ---
-export type SeedContentMessage = { key: string; channelId: string; slackTs?: string; files?: unknown[] };
+export type SeedContentMessage = { key: string; channelId: string; slackTs?: string; files?: unknown[]; /** The message's text; a placeholder when left out. */ body?: string };
 export type SeedGapFill = { key: string; slackChannelId: string; startedAt: string };
 
 export type ChatContractContext = {
@@ -916,6 +916,26 @@ export function defineChatContract(name: string, setup: () => ChatContractContex
         // A member who left is never listed, and the marker falls back to when they joined.
         expect(everyone.find((m) => m.memberId === members[1])?.readMarker).toBeTruthy();
         expect((await ctx.repo().notifiableMembers(channels.dm, { everyone: true, memberIds: [] })).map((m) => m.memberId)).toEqual([members[0]]);
+      });
+    });
+
+    describe("lesson-link candidates", () => {
+      it("lists the live Slack messages that name a lesson page, and nothing else, up to the limit", async () => {
+        const { c } = await ctx.seedChannels([{ key: "c", slackChannelId: ctx.unique("C") }]);
+        const ids = await ctx.seedContentMessages([
+          { key: "link", channelId: c, slackTs: "1.1", body: "this helped <https://hub.example.test/courses/ready-writer/lessons/les_AAAAAAAAAAA1|here>" },
+          { key: "bare", channelId: c, slackTs: "1.2", body: "https://hub.example.test/courses/ready-writer/lessons/les_AAAAAAAAAAA2?t=95" },
+          { key: "plain", channelId: c, slackTs: "1.3", body: "no link here" },
+          { key: "course", channelId: c, slackTs: "1.4", body: "https://hub.example.test/courses/ready-writer" },
+        ]);
+
+        const found = await ctx.repo().slackMessagesLinkingLessons(50);
+        const mine = found.filter((m) => [ids.link, ids.bare, ids.plain, ids.course].includes(m.id));
+
+        expect(mine.map((m) => m.id).sort()).toEqual([ids.link, ids.bare].sort());
+        expect(mine.find((m) => m.id === ids.link)?.body).toContain("/lessons/les_AAAAAAAAAAA1");
+        expect(mine.every((m) => m.authorMemberId === null && typeof m.createdAt === "string")).toBe(true);
+        expect((await ctx.repo().slackMessagesLinkingLessons(1)).length).toBeLessThanOrEqual(1);
       });
     });
   });

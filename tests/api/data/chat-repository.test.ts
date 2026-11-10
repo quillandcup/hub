@@ -253,7 +253,7 @@ defineChatContract("SupabaseChatRepository", () => ({
       ids[m.key] = data.id;
       const { error: contentError } = await db
         .from("chat_message_contents")
-        .upsert({ message_id: data.id, body: "contract", files: (m.files ?? null) as never }, { onConflict: "message_id" });
+        .upsert({ message_id: data.id, body: m.body ?? "contract", files: (m.files ?? null) as never }, { onConflict: "message_id" });
       if (contentError) throw new Error(contentError.message);
     }
     return ids;

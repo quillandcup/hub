@@ -1,3 +1,4 @@
+import { shareRecentLessonLinks } from "@/lib/chat/slack-lesson-links";
 import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
@@ -95,6 +96,10 @@ export async function POST(request: NextRequest) {
     console.log(
       `Chat projection complete: ${messages} messages, ${reactions} reactions in ${windows.length} daily windows`
     );
+
+    // Lesson addresses pasted into Slack that the webhook did not turn into the shared-video card (lib/chat/slack-lesson-links.ts).
+    const lessonLinks = await shareRecentLessonLinks(createRepos(supabase));
+    if (lessonLinks.shared > 0) console.log(`Lesson links in Slack messages shared as videos: ${lessonLinks.shared} of ${lessonLinks.looked} candidates`);
 
     // The outbox: Hub-written messages Slack never took. After the projection, so one whose
     // Slack event did arrive is already linked and isn't posted a second time.
