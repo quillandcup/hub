@@ -26,6 +26,7 @@ import { getMemberHostingSchedule } from "@/lib/prickle-schedule"
 import MemberHostingCard from "./MemberHostingCard"
 import MemberNotesCard from "./MemberNotesCard"
 import BookEditionLinks from "@/components/books/BookEditionLinks"
+import { canStartDirectMessage } from "@/lib/chat/can-message"
 import MessageMemberButton from "@/components/chat/MessageMemberButton"
 import { ORG_TIMEZONE } from "@/lib/config";
 
@@ -123,9 +124,7 @@ export default async function MemberProfilePage({
   // A direct message needs the DM preview, and never starts in sudo (read-only) or with yourself.
   const canMessage =
     member.id !== effectiveIdentity.memberId &&
-    !effectiveIdentity.isSudo &&
-    ((await effectiveMemberHasFeature("slack_dm_bridge", effectiveIdentity, ownFeatures)) ||
-      (await effectiveMemberHasFeature("chat_dms", effectiveIdentity, ownFeatures)))
+    canStartDirectMessage(effectiveIdentity, ownFeatures)
 
   // No fallback to joined_at (Kajabi contact creation) — a lead who never
   // had a real subscription has no first_joined_at, and isn't a member, so
