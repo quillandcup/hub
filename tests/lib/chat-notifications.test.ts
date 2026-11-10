@@ -31,7 +31,6 @@ const {
 } = await import("@/lib/chat/notifications");
 
 const NOW = Date.UTC(2026, 10, 10, 15, 0, 0);
-useFakeClock(() => NOW);
 const minutesAgo = (m: number) => new Date(NOW - m * 60_000).toISOString();
 
 const CH = "chn_AAAAAAAAAAA1";
@@ -178,6 +177,8 @@ beforeEach(() => {
 });
 
 describe("notifyChatMessage", () => {
+  useFakeClock(() => NOW);
+
   it("tells a member of a direct message in the app, once, with a link to the conversation and none of the text", async () => {
     const result = await notifyChatMessage(repos, MSG);
 
@@ -333,6 +334,8 @@ describe("notifyChatMessage", () => {
 });
 
 describe("notifyPulledMessages", () => {
+  useFakeClock(() => NOW);
+
   it("considers only the young messages of a pull, newest first, and queries nothing for old history", async () => {
     const lookups = vi.spyOn(repos.chat, "idBySlackChannel");
     await notifyPulledMessages(repos, "D1", [`${(NOW - 3 * 3_600_000) / 1000}`, `${(NOW - 2 * 86_400_000) / 1000}`]);

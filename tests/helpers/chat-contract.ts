@@ -886,7 +886,7 @@ export function defineChatContract(name: string, setup: () => ChatContractContex
         expect(await ctx.repo().notificationContext(`msg_${"A".repeat(12)}`)).toBeNull();
       });
 
-      it("lists the members worth considering: followers of every message and the ones named, or everyone for an @channel", async () => {
+      it("lists the members worth considering (followers of every message and the ones named, or everyone for an @channel) and answers a member's setting", async () => {
         const channels = await ctx.seedChannelRows([{ key: "c", name: "writing" }, { key: "dm", kind: "dm", visibility: "private", restricted: true }]);
         const members = await ctx.seedMembers(5);
         await ctx.seedMemberships([
@@ -894,8 +894,14 @@ export function defineChatContract(name: string, setup: () => ChatContractContex
           { channel: "c", member: 1 },
           { channel: "c", member: 2, muted: true, notifyLevel: "mentions" },
           { channel: "c", member: 3, leftAt: "2026-03-01T00:00:00Z", notifyLevel: "all" },
+          { channel: "c", member: 4, notifyLevel: "mentions" },
           { channel: "dm", member: 0 },
         ]);
+
+        // A member's own setting: default, every message, muted (wins over the level), none for one who left or was never in.
+        const settings = await Promise.all(members.map((m) => ctx.repo().notifySettingOf(channels.c, m)));
+        expect(settings).toEqual(["all", "default", "nothing", null, "mentions"]);
+        expect(await ctx.repo().notifySettingOf(channels.c, `mbr_${"A".repeat(12)}`)).toBeNull();
 
         const followers = await ctx.repo().notifiableMembers(channels.c, { everyone: false, memberIds: [] });
         expect(followers).toEqual([{ memberId: members[0], setting: "all", readMarker: expect.stringMatching(/^2026-03-01T09:00:00/) }]);
@@ -906,26 +912,10 @@ export function defineChatContract(name: string, setup: () => ChatContractContex
         );
 
         const everyone = await ctx.repo().notifiableMembers(channels.c, { everyone: true, memberIds: [] });
-        expect(everyone.map((m) => m.memberId).sort()).toEqual([members[0], members[1], members[2]].sort());
+        expect(everyone.map((m) => m.memberId).sort()).toEqual([members[0], members[1], members[2], members[4]].sort());
         // A member who left is never listed, and the marker falls back to when they joined.
         expect(everyone.find((m) => m.memberId === members[1])?.readMarker).toBeTruthy();
         expect((await ctx.repo().notifiableMembers(channels.dm, { everyone: true, memberIds: [] })).map((m) => m.memberId)).toEqual([members[0]]);
-      });
-
-      it("answers a member's setting for a conversation they are in, and null when they are not", async () => {
-        const channels = await ctx.seedChannelRows([{ key: "c", name: "writing" }]);
-        const members = await ctx.seedMembers(5);
-        await ctx.seedMemberships([
-          { channel: "c", member: 0 },
-          { channel: "c", member: 1, notifyLevel: "all" },
-          { channel: "c", member: 2, notifyLevel: "mentions" },
-          { channel: "c", member: 3, muted: true },
-          { channel: "c", member: 4, leftAt: "2026-03-01T00:00:00Z" },
-        ]);
-
-        const settings = await Promise.all(members.map((m) => ctx.repo().notifySettingOf(channels.c, m)));
-        expect(settings).toEqual(["default", "all", "mentions", "nothing", null]);
-        expect(await ctx.repo().notifySettingOf(channels.c, `mbr_${"A".repeat(12)}`)).toBeNull();
       });
     });
   });
