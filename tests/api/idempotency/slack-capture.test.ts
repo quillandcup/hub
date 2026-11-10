@@ -474,8 +474,8 @@ describe('Slack import: group DMs, membership, emoji and files', () => {
             : new Response('nope', { status: 500 })) as typeof fetch
         await bronze('slack_files').delete().eq('file_id', fileIds[5])
         const result = await ensureSlackFileCopied(supabase, 'xoxb-test', ref(6), down)
-        expect(result).toEqual({ ok: false, reason: 'download failed with HTTP 500' })
-        expect((await stored(fileIds[5])).copy_error).toBe('download failed with HTTP 500')
+        expect(result).toEqual({ ok: false, reason: 'download failed with HTTP 500: nope' })
+        expect((await stored(fileIds[5])).copy_error).toBe('download failed with HTTP 500: nope')
       })
     })
   })

@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
-import { ensureSlackFileCopied, SLACK_FILES_BUCKET } from "@/lib/slack-capture";
+import { SLACK_FILES_BUCKET } from "@/lib/slack-capture";
 import { PENDING_FILE_PREFIX, isInlineImage, parseChatFiles } from "@/lib/chat/files";
 import { createRepos } from "@/lib/data/repos";
 import { isId } from "@/lib/ids";
-import { slackFileToken } from "@/lib/chat/file-token";
+import { copyChatFile } from "@/lib/chat/file-token";
 
 export const maxDuration = 60;
 
@@ -40,9 +40,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   let storedType: string | null = null;
   /** Ask Slack for the file (and keep a copy of it): the last resort, for a file that came from Slack and has not been copied yet. */
   const fromSlack = async (): Promise<string | null> => {
-    const token = await slackFileToken(service, user, content.slackChannelId);
-    if (token === null) return null;
-    const copy = await ensureSlackFileCopied(service, token, {
+    const copy = await copyChatFile(service, user, {
       fileId,
       channelId: content.slackChannelId ?? "",
       messageTs: content.slackTs ?? "",

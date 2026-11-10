@@ -9,6 +9,10 @@ import { loadChannelForMember, loadChannelMembers, loadChatChannels } from "@/li
 let channels: ChatChannelSeed[];
 let memberships: ChatChannelMemberSeed[];
 let failing: string[];
+/** Bronze: who is in each Slack conversation, and who the Slack users are (a name for the ones that aren't members). */
+let slackMembers: { channel_id: string; user_id: string; left_at?: string | null }[] = [];
+let slackChannels: { channel_id: string; name: string; is_im?: boolean; is_mpim?: boolean; token_only?: boolean }[] = [];
+let slackAuthors: { slack_user_id: string; member_id: string }[] = [];
 
 function repos() {
   const twins = createInMemoryRepos(
@@ -20,6 +24,13 @@ function repos() {
       ],
       chatChannels: channels,
       chatChannelMembers: memberships,
+      slackChannelMembers: slackMembers as never,
+      slackChannels: slackChannels as never,
+      chatSlackAuthors: slackAuthors as never,
+      slackUsers: [
+        { user_id: "U_STRANGER", real_name: "Stella Stranger", name: "stella" },
+        { user_id: "U_BOT", real_name: "Billie Bot", name: "billie", is_bot: true },
+      ] as never,
     })
   );
   for (const method of failing) (twins.chat as unknown as Record<string, unknown>)[method] = async () => { throw new Error(`${method} failed`); };
@@ -37,6 +48,9 @@ const OLD = "chn_AAAAAAAAAAC5";
 
 beforeEach(() => {
   failing = [];
+  slackMembers = [];
+  slackChannels = [];
+  slackAuthors = [];
   channels = [
     { id: GENERAL, kind: "channel", visibility: "public", restricted: false, name: "general", slack_channel_id: "C_GENERAL" },
     { id: HOSTS, kind: "channel", visibility: "private", restricted: false, name: "hosts", slack_channel_id: "C_HOSTS" },
@@ -175,5 +189,68 @@ describe("loadChannelMembers", () => {
   it("lists nobody when the members can't be read", async () => {
     failing = ["activeMembersOf"];
     await expect(loadChannelMembers(repos(), GENERAL)).resolves.toEqual([]);
+  });
+});
+
+describe("labels of Slack direct messages", () => {
+  const DM_PAIR = "chn_AAAAAAAAAAE1";
+  const DM_STRANGER = "chn_AAAAAAAAAAE2";
+  const DM_LONE = "chn_AAAAAAAAAAE3";
+  const TOKEN_GROUP = "chn_AAAAAAAAAAE4";
+
+  beforeEach(() => {
+    channels.push(
+      { id: DM_PAIR, kind: "dm", visibility: "private", restricted: true, name: null, slack_channel_id: "D_PAIR" },
+      { id: DM_STRANGER, kind: "dm", visibility: "private", restricted: true, name: null, slack_channel_id: "D_STRANGER" },
+      { id: DM_LONE, kind: "dm", visibility: "private", restricted: true, name: null, slack_channel_id: "D_LONE" },
+      { id: TOKEN_GROUP, kind: "group_dm", visibility: "private", restricted: true, name: null, slack_channel_id: "C_TOKEN_GROUP" }
+    );
+    // Only Fern has pulled these, so Fern is the only Hub member in any of them.
+    memberships.push(...[DM_PAIR, DM_STRANGER, DM_LONE, TOKEN_GROUP].map((channel_id) => ({ channel_id, member_id: FERN })));
+    slackAuthors = [
+      { slack_user_id: "U_FERN", member_id: FERN },
+      { slack_user_id: "U_GALE", member_id: GALE },
+      { slack_user_id: "U_HAZEL", member_id: HAZEL },
+    ];
+    slackChannels = [
+      { channel_id: "D_PAIR", name: "", is_im: true },
+      { channel_id: "D_STRANGER", name: "", is_im: true },
+      { channel_id: "D_LONE", name: "", is_im: true },
+      { channel_id: "C_TOKEN_GROUP", name: "", is_mpim: true, token_only: true },
+    ];
+    slackMembers = [
+      { channel_id: "D_PAIR", user_id: "U_FERN" }, { channel_id: "D_PAIR", user_id: "U_GALE" },
+      { channel_id: "D_STRANGER", user_id: "U_FERN" }, { channel_id: "D_STRANGER", user_id: "U_STRANGER" },
+      { channel_id: "D_LONE", user_id: "U_FERN" },
+      { channel_id: "C_TOKEN_GROUP", user_id: "U_FERN" }, { channel_id: "C_TOKEN_GROUP", user_id: "U_GALE" }, { channel_id: "C_TOKEN_GROUP", user_id: "U_HAZEL" },
+    ];
+  });
+
+  const labelOf = async (id: string) => (await loadChatChannels(repos(), FERN, false)).find((c) => c.id === id)!.label;
+
+  it("names a DM after the other person even though they are not in the chat conversation yet", async () => {
+    expect(await labelOf(DM_PAIR)).toBe("Gale Prickleton");
+    await expect(loadChannelForMember(repos(), DM_PAIR, FERN, false)).resolves.toMatchObject({ label: "Gale Prickleton" });
+  });
+
+  it("names a DM with someone who isn't a member by their Slack name, and one with nobody else a plain 'Direct message'", async () => {
+    expect(await labelOf(DM_STRANGER)).toBe("Stella Stranger");
+    expect(await labelOf(DM_LONE)).toBe("Direct message");
+  });
+
+  it("names a group only members' tokens read after everyone in it but you, which the chat's own member list couldn't", async () => {
+    expect(await labelOf(TOKEN_GROUP)).toBe("Gale Prickleton, Hazel Burrows");
+  });
+
+  it("leaves the bot out, and someone who has left", async () => {
+    slackMembers.push({ channel_id: "D_PAIR", user_id: "U_BOT" }, { channel_id: "C_TOKEN_GROUP", user_id: "U_STRANGER", left_at: "2026-11-01T00:00:00Z" });
+    expect(await labelOf(DM_PAIR)).toBe("Gale Prickleton");
+    expect(await labelOf(TOKEN_GROUP)).toBe("Gale Prickleton, Hazel Burrows");
+  });
+
+  it("falls back to the chat's own member list when the counterparts can't be read, and a DM to 'Direct message'", async () => {
+    failing = ["dmCounterparts"];
+    expect(await labelOf(DM_PAIR)).toBe("Direct message");
+    expect(await labelOf(GROUP)).toBe("Gale Prickleton (group)");
   });
 });

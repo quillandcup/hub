@@ -240,6 +240,12 @@ export interface ChatRepository {
   activeMembership(channelId: string, memberId: string): Promise<{ source: string } | null>;
   /** Who is in each of these conversations now. */
   activeMembersOf(channelIds: string[]): Promise<{ channel_id: string; member_id: string }[]>;
+  /**
+   * The other people in the member's own Slack DMs (and the group DMs only members' tokens read), by conversation, as the Hub
+   * member's display name when matched, else their Slack name. A Slack DM is in a member's chat before the other person is,
+   * so the chat's own member list can't name them. Names only; the bots are left out.
+   */
+  dmCounterparts(memberId: string): Promise<Map<string, string[]>>;
   /** Which of these members are in the conversation now. */
   presentMembers(channelId: string, memberIds: string[]): Promise<Set<string>>;
   /** Where the member has read up to (their marker, else when they joined), or null when they are not in the conversation. */
@@ -599,6 +605,18 @@ export class SupabaseChatRepository implements ChatRepository {
       .maybeSingle();
     if (error) throw new Error(error.message);
     return data;
+  }
+
+  async dmCounterparts(memberId: string) {
+    const { data, error } = await this.db.rpc("chat_dm_counterparts", { p_member: memberId });
+    if (error) throw new Error(error.message);
+    const out = new Map<string, string[]>();
+    for (const row of data ?? []) {
+      if (!row.name) continue;
+      out.set(row.channel_id, [...(out.get(row.channel_id) ?? []), row.name]);
+    }
+    for (const [id, names] of out) out.set(id, [...new Set(names)].sort((a, b) => a.localeCompare(b)));
+    return out;
   }
 
   async activeMembersOf(channelIds: string[]) {
@@ -1148,6 +1166,29 @@ export class InMemoryChatRepository implements ChatRepository {
   async activeMembership(channelId: string, memberId: string) {
     const m = this.active(channelId).find((x) => x.member_id === memberId);
     return m ? { source: m.source ?? "slack" } : null;
+  }
+
+  async dmCounterparts(memberId: string) {
+    const mine = new Set(this.active().filter((m) => m.member_id === memberId).map((m) => m.channel_id));
+    const out = new Map<string, string[]>();
+    for (const c of this.data.chatChannels) {
+      const slackId = c.slack_channel_id;
+      if (!slackId || !mine.has(c.id)) continue;
+      const bronze = this.data.slackChannels.find((x) => x.channel_id === slackId);
+      if (!bronze || !((c.kind ?? "channel") === "dm" || ((c.kind ?? "channel") === "group_dm" && bronze.token_only))) continue;
+      const names: string[] = [];
+      for (const b of this.data.slackChannelMembers.filter((x) => x.channel_id === slackId && !x.left_at)) {
+        const authorMember = this.data.chatSlackAuthors.find((a) => a.slack_user_id === b.user_id)?.member_id ?? null;
+        if (authorMember === memberId) continue;
+        const user = this.data.slackUsers.find((u) => u.user_id === b.user_id);
+        if (user?.is_bot) continue;
+        const member = authorMember ? this.data.members.find((m) => m.id === authorMember) : undefined;
+        const name = member?.displayName || member?.name || user?.real_name || user?.display_name || user?.name;
+        if (name) names.push(name);
+      }
+      if (names.length > 0) out.set(c.id, [...new Set(names)].sort((a, b) => a.localeCompare(b)));
+    }
+    return out;
   }
 
   async activeMembersOf(channelIds: string[]) {

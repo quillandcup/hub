@@ -78,7 +78,7 @@ export async function loadChatChannels(
     (c): ChannelSummary => ({
       id: c.id,
       kind: c.kind,
-      label: c.kind === "channel" ? `#${c.name ?? "unnamed"}` : (dmLabels.get(c.id) ?? "Group message"),
+      label: c.kind === "channel" ? `#${c.name ?? "unnamed"}` : (dmLabels.get(c.id) ?? (c.kind === "dm" ? "Direct message" : "Group message")),
       visibility: c.visibility,
       restricted: c.restricted,
       archived: c.archived_at !== null,
@@ -107,6 +107,9 @@ async function groupDmLabels(
   const labels = new Map<string, string>();
   if (channelIds.length === 0) return labels;
   const rows = await repos.chat.activeMembersOf(channelIds).catch(() => []);
+  // A Slack DM is in the chat of the people who pulled it, not the other person (until they pull), so its label
+  // comes from who is in the Slack conversation: names only, through the member's own view of it.
+  const counterparts = await repos.chat.dmCounterparts(memberId).catch(() => new Map<string, string[]>());
   timer?.mark("dmMembers");
   const others = rows.filter((r) => r.member_id !== memberId);
   timer?.note("dmPeople", others.length);
@@ -116,6 +119,11 @@ async function groupDmLabels(
       .filter((r) => r.channel_id === channelId)
       .map((r) => names.get(r.member_id as string)?.name)
       .filter((n): n is string => Boolean(n));
+    const slackNames = counterparts.get(channelId);
+    if (slackNames && slackNames.length > 0) {
+      labels.set(channelId, slackNames.length === 1 && kinds.get(channelId) === "group_dm" ? `${slackNames[0]} (group)` : slackNames.join(", "));
+      continue;
+    }
     // A group message with one other person (you, them and Billie Bot) would read exactly like your DM with them.
     if (list.length === 1 && kinds.get(channelId) === "group_dm") labels.set(channelId, `${list[0]} (group)`);
     else if (list.length > 0) labels.set(channelId, list.join(", "));
@@ -228,7 +236,7 @@ export async function loadChannelForMember(
   return {
     id: channel.id,
     kind: channel.kind,
-    label: channel.kind === "channel" ? `#${channel.name ?? "unnamed"}` : (labels.get(channel.id) ?? "Group message"),
+    label: channel.kind === "channel" ? `#${channel.name ?? "unnamed"}` : (labels.get(channel.id) ?? (channel.kind === "dm" ? "Direct message" : "Group message")),
     visibility: channel.visibility,
     restricted: channel.restricted,
     archived: channel.archived_at !== null,

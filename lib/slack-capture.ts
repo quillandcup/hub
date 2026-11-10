@@ -500,7 +500,7 @@ export async function copySlackFiles(
     try {
       const url = file.raw_payload.url_private_download || file.raw_payload.url_private;
       const response = await download(url, { headers: { Authorization: `Bearer ${botToken}` } });
-      if (!response.ok) throw new Error(`download failed with HTTP ${response.status}`);
+      if (!response.ok) throw new Error(await downloadFailure(response));
       // Without access Slack answers 200 with its sign-in page instead of the file.
       const contentType = response.headers.get("content-type") ?? "";
       if (contentType.startsWith("text/html") && !(file.mimetype ?? "").startsWith("text/html")) {
@@ -530,6 +530,12 @@ export async function copySlackFiles(
 
   result.pending = remaining + result.failed;
   return result;
+}
+
+/** Why a download from Slack failed: the status, and the start of what Slack said (its reason, such as a missing scope or no access, is in the body). */
+async function downloadFailure(response: Response): Promise<string> {
+  const said = (await response.text().catch(() => "")).replace(/\s+/g, " ").trim().slice(0, 100);
+  return `download failed with HTTP ${response.status}${said ? `: ${said}` : ""}`;
 }
 
 export type EnsuredSlackFile = { ok: true; path: string; mimetype: string | null } | { ok: false; reason: string };
@@ -579,7 +585,7 @@ export async function ensureSlackFileCopied(
     const response = await download(file.raw_payload.url_private_download || file.raw_payload.url_private, {
       headers: { Authorization: `Bearer ${botToken}` },
     });
-    if (!response.ok) throw new Error(`download failed with HTTP ${response.status}`);
+    if (!response.ok) throw new Error(await downloadFailure(response));
     const contentType = response.headers.get("content-type") ?? "";
     if (contentType.startsWith("text/html") && !(file.mimetype ?? "").startsWith("text/html")) {
       throw new Error("Slack returned a sign-in page instead of the file");
