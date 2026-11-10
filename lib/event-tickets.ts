@@ -1,12 +1,11 @@
 /** How an event attendee got in (`event_attendees.ticket_source`); null means not recorded. */
-export const TICKET_SOURCES = ["purchased", "comped", "gifted", "donated"] as const;
+export const TICKET_SOURCES = ["purchased", "comped", "gifted"] as const;
 export type TicketSource = (typeof TICKET_SOURCES)[number];
 
 export const TICKET_SOURCE_LABELS: Record<TicketSource, string> = {
   purchased: "Purchased",
   comped: "Comped",
-  gifted: "Gifted by a member",
-  donated: "Donated ticket",
+  gifted: "Gifted",
 };
 
 export const TICKET_NOTE_MAX_LENGTH = 300;

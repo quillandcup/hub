@@ -27,7 +27,8 @@ describe("parseTicketInput", () => {
   });
 
   it("knows the sources", () => {
-    expect(isTicketSource("donated")).toBe(true);
+    expect(isTicketSource("gifted")).toBe(true);
+    expect(isTicketSource("donated")).toBe(false);
     expect(isTicketSource("free")).toBe(false);
     expect(isTicketSource(undefined)).toBe(false);
   });

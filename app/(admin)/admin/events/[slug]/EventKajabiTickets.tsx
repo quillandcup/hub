@@ -152,7 +152,7 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
     <section className="bg-white dark:bg-slate-900 rounded-lg shadow p-6 mb-6">
       <h2 className="text-lg font-semibold mb-1">Kajabi tickets</h2>
       <p className="text-sm text-gray-600 dark:text-slate-400 mb-4">
-        Link the Kajabi offers that sell this event, then find the buyers who are not attendees yet. Comped, gifted and donated tickets have no
+        Link the Kajabi offers that sell this event, then find the buyers who are not attendees yet. Comped and gifted tickets have no
         purchase: record them on the attendee.
       </p>
       {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
@@ -290,7 +290,7 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
                 ))}
               </ul>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                No purchase of these offers. Set how they got in (comped, gifted, donated) in the list below.
+                No purchase of these offers. Set how they got in (comped or gifted) in the list below.
               </p>
             </div>
           )}
