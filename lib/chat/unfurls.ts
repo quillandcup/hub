@@ -1,4 +1,5 @@
 import { decodeEntities, isSafeHref } from "@/lib/chat/render";
+import { parseSharedMessage, type SharedMessage, type SharedMessageSource } from "@/lib/chat/shared-message";
 
 /**
  * What Slack hands us besides a message's text, drawn under it as cards (components/chat/MessageUnfurls.tsx):
@@ -42,13 +43,15 @@ export interface CardUnfurl {
 }
 
 /**
- * A shared message (`is_msg_unfurl` / `is_share`): the quoted-message card is drawn by someone else. The attachment is
- * passed through untouched for that renderer to read defensively; MessageUnfurls leaves it out until
- * `UNFURL_RENDERERS.share` is set (see components/chat/MessageUnfurls.tsx).
+ * A shared message (`is_msg_unfurl` / `is_share`), a quoted message. The attachment is passed through untouched; the loader
+ * parses it (lib/chat/shared-message.ts) and looks the original up as the viewer, filling `shared` and `source`.
+ * MessageUnfurls draws nothing for a share without them (components/chat/SharedMessageCard.tsx draws it).
  */
 export interface ShareUnfurl {
   kind: "share";
   attachment: Record<string, unknown>;
+  shared?: SharedMessage;
+  source?: SharedMessageSource;
 }
 
 /** Text of a block: Slack mrkdwn, or plain text that is shown as it is. */
@@ -303,6 +306,9 @@ export function unfurlTexts(unfurls: Unfurl[]): string[] {
       add(u.pretext);
       add(u.text);
       u.fields.forEach((f) => add(f.value));
+    } else if (u.kind === "share") {
+      // Names for the mentions in a quoted message; whether the text is shown is decided apart (sharedMessageSource).
+      add(parseSharedMessage(u.attachment)?.text);
     } else if (u.kind === "blocks") {
       for (const b of u.blocks) {
         if (b.type === "section") {

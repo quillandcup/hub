@@ -1,18 +1,13 @@
 import type { ReactNode } from "react";
+import SharedMessageCard from "@/components/chat/SharedMessageCard";
 import ChatText, { type ChatTextContext } from "@/components/chat/ChatText";
-import type { BlockImage, BlocksUnfurl, BlockText, CardUnfurl, LinkButton, ShareUnfurl, Unfurl, UnfurlBlock } from "@/lib/chat/unfurls";
+import type { BlockImage, BlocksUnfurl, BlockText, CardUnfurl, LinkButton, Unfurl, UnfurlBlock } from "@/lib/chat/unfurls";
 
 /**
  * What Slack gave a message besides its text, drawn as cards: link previews and app cards (legacy attachments) and an
  * app's Block Kit blocks (lib/chat/unfurls.ts parses and sanitizes; nothing here trusts the payload further).
  * Every link opens in a new tab with `noopener noreferrer`; pictures load without sending a referrer.
  */
-
-/**
- * Where other kinds of unfurl plug in. A shared message (`kind: "share"`, a quoted message) is drawn by
- * components/chat/SharedMessageCard.tsx: set `UNFURL_RENDERERS.share` to its renderer. Until then a share draws nothing.
- */
-export const UNFURL_RENDERERS: { share?: (unfurl: ShareUnfurl, props: { ctx: ChatTextContext; permalink: string | null }) => ReactNode } = {};
 
 const LINK = "text-plum-600 dark:text-plum-400 hover:underline";
 const MUTED = "text-xs text-slate-600 dark:text-slate-400";
@@ -192,7 +187,7 @@ export default function MessageUnfurls({ unfurls, ctx, permalink }: { unfurls: U
           case "blocks":
             return <Blocks key={i} unfurl={u} ctx={ctx} permalink={permalink} />;
           case "share":
-            return <div key={i}>{UNFURL_RENDERERS.share?.(u, { ctx, permalink })}</div>;
+            return u.shared && u.source ? <SharedMessageCard key={i} shared={u.shared} source={u.source} ctx={ctx} /> : null;
         }
       })}
     </>

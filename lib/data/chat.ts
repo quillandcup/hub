@@ -315,6 +315,13 @@ export interface ChatRepository {
   /** The Hub id of the message at this Slack ts in a channel, or null. */
   messageIdBySlackTs(channelId: string, slackTs: string): Promise<string | null>;
   /**
+   * The Hub copies of Slack messages named by (Slack channel id, ts), as the caller sees them: the caller's own client, so
+   * row-level security decides what comes back. Keyed `${slackChannelId}:${slackTs}`; a message the caller can't see, or the Hub
+   * doesn't have, is absent. `body` is null when the message is visible but its text isn't (`chat_can_read_content` refuses),
+   * which is how a shared message from a private conversation is told apart from one the Hub can show.
+   */
+  sharedSourcesBySlackRef(refs: { slackChannelId: string; slackTs: string }[]): Promise<Map<string, SharedSourceRow>>;
+  /**
    * The newest live Slack-origin messages whose text names a course lesson's page (`.../lessons/les_...`), newest first, up to `limit`:
    * the candidates for turning a lesson address someone pasted into Slack into the shared-video card (`lib/chat/slack-lesson-links.ts`).
    * Service role (it reads every conversation's text). Whether a message already shares a video is for the caller to ask `ChatVideoRepository`.
@@ -329,6 +336,17 @@ export interface ChatRepository {
   /** What notifies the member about this conversation, or null when they are not in it. */
   notifySettingOf(channelId: string, memberId: string): Promise<NotifySetting | null>;
 }
+
+/** A message found by its Slack channel and ts (see `sharedSourcesBySlackRef`). */
+export interface SharedSourceRow {
+  channelId: string;
+  messageId: string;
+  deleted: boolean;
+  /** Null when the caller may not read the text. */
+  body: string | null;
+}
+
+export const sharedSourceKey = (slackChannelId: string, slackTs: string) => `${slackChannelId}:${slackTs}`;
 
 export interface MessageFileContext {
   files: Json | null;
@@ -919,6 +937,32 @@ export class SupabaseChatRepository implements ChatRepository {
     return data?.id ?? null;
   }
 
+  async sharedSourcesBySlackRef(refs: { slackChannelId: string; slackTs: string }[]) {
+    const byChannel = new Map<string, Set<string>>();
+    for (const r of refs) byChannel.set(r.slackChannelId, (byChannel.get(r.slackChannelId) ?? new Set()).add(r.slackTs));
+    const out = new Map<string, SharedSourceRow>();
+    await Promise.all(
+      [...byChannel].map(async ([slackChannelId, tss]) => {
+        const { data, error } = await this.db
+          .from("chat_messages")
+          .select("id, channel_id, slack_ts, deleted_at, chat_message_contents(body), chat_channels!inner(slack_channel_id)")
+          .eq("chat_channels.slack_channel_id", slackChannelId)
+          .in("slack_ts", [...tss]);
+        if (error) throw new Error(error.message);
+        for (const m of data ?? []) {
+          if (!m.slack_ts) continue;
+          out.set(sharedSourceKey(slackChannelId, m.slack_ts), {
+            channelId: m.channel_id,
+            messageId: m.id,
+            deleted: m.deleted_at !== null,
+            body: one(m.chat_message_contents)?.body ?? null,
+          });
+        }
+      })
+    );
+    return out;
+  }
+
   async notificationContext(messageId: string): Promise<ChatNotificationContext | null> {
     const { data: m, error } = await this.db
       .from("chat_messages")
@@ -1444,6 +1488,22 @@ export class InMemoryChatRepository implements ChatRepository {
 
   async messageIdBySlackTs(channelId: string, slackTs: string) {
     return this.data.chatMessages.find((m) => m.channel_id === channelId && m.slack_ts === slackTs)?.id ?? null;
+  }
+
+  async sharedSourcesBySlackRef(refs: { slackChannelId: string; slackTs: string }[]) {
+    const out = new Map<string, SharedSourceRow>();
+    for (const r of refs) {
+      const channel = this.data.chatChannels.find((c) => c.slack_channel_id === r.slackChannelId);
+      const m = channel ? this.data.chatMessages.find((x) => x.channel_id === channel.id && x.slack_ts === r.slackTs) : undefined;
+      if (!m) continue;
+      out.set(sharedSourceKey(r.slackChannelId, r.slackTs), {
+        channelId: m.channel_id,
+        messageId: m.id,
+        deleted: Boolean(m.deleted_at),
+        body: this.data.chatMessageContents.find((c) => c.message_id === m.id)?.body ?? null,
+      });
+    }
+    return out;
   }
 
   async notificationContext(messageId: string): Promise<ChatNotificationContext | null> {

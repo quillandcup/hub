@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import MessageUnfurls, { UNFURL_RENDERERS } from "@/components/chat/MessageUnfurls";
+import MessageUnfurls from "@/components/chat/MessageUnfurls";
 import type { ChatTextContext } from "@/components/chat/ChatText";
 import { parseUnfurls } from "@/lib/chat/unfurls";
+import { parseSharedMessage } from "@/lib/chat/shared-message";
 
 const ctx: ChatTextContext = { userNames: { U1: "Fern <3 & Co" }, userMembers: {}, channelIds: {}, channelNames: {}, customEmoji: {} };
 const PERMALINK = "https://example.slack.test/archives/C1/p1";
@@ -75,16 +76,19 @@ describe("MessageUnfurls: Block Kit", () => {
 
 describe("MessageUnfurls: shared messages", () => {
   const raw = { attachments: [{ is_msg_unfurl: true, text: "quoted" }] };
-  it("draws nothing for a share until a renderer is plugged in, then hands it the unfurl", () => {
+  it("draws nothing for a share the loader has not resolved", () => {
     const { container } = draw(raw);
     expect(container).toHaveTextContent("");
-    UNFURL_RENDERERS.share = (u) => <blockquote>{String(u.attachment.text)}</blockquote>;
-    try {
-      draw(raw);
-      expect(screen.getByText("quoted")).toBeInTheDocument();
-    } finally {
-      delete UNFURL_RENDERERS.share;
-    }
+  });
+  it("draws the quoted-message card, or a stub, from what the loader resolved", () => {
+    const unfurls = parseUnfurls(raw, { bot: false, body: "" }).unfurls.map((u) =>
+      u.kind === "share"
+        ? { ...u, shared: parseSharedMessage(u.attachment)!, source: { kind: "private" as const } }
+        : u
+    );
+    render(<MessageUnfurls unfurls={unfurls} ctx={ctx} permalink={null} />);
+    expect(screen.getByTestId("shared-message-stub")).toBeInTheDocument();
+    expect(screen.queryByText("quoted")).toBeNull();
   });
   it("renders nothing for no unfurls", () => {
     const { container } = render(<MessageUnfurls unfurls={[]} ctx={ctx} permalink={null} />);
