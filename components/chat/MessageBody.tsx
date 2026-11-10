@@ -17,7 +17,7 @@ import MemberAvatar from "@/app/(member)/members/[id]/MemberAvatar";
 import { formatChatTime } from "@/lib/chat/format";
 import ChatText, { type ChatTextContext } from "@/components/chat/ChatText";
 import { deleteChatFile, deleteChatMessage, editChatMessage } from "@/app/(member)/chat/actions";
-import { isPendingId, MESSAGE_CHANGE_EVENT, pokeChat } from "@/lib/chat/list-events";
+import { emitListEvent, isPendingId, MESSAGE_CHANGE_EVENT, pokeChat } from "@/lib/chat/list-events";
 import type { ChatMessageView } from "@/lib/chat/load";
 
 /**
@@ -143,9 +143,7 @@ export default function MessageBody({
       return setError(result.error);
     }
     setDeleted(true);
-    // Take the whole message out of the feed at once; the server's copy no longer has it.
-    const row = document.getElementById(`m-${message.id}`);
-    if (row) row.style.display = "none";
+    emitListEvent({ kind: "deleted", channelId, messageId: message.id });
     catchUp();
   };
 

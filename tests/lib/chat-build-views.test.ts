@@ -134,6 +134,16 @@ describe("buildMessageViews", () => {
     ]);
   });
 
+  it("keeps a deleted video's thread reachable without its video card or attachments", async () => {
+    const out = await buildMessageViews(
+      reposWith({ chatMessageVideos: [{ id: "cmv_AAAAAAAAAAA1", message_id: "m1", lesson_id: "les_AAAAAAAAAAA1", open_to_channel: false, created_at: "2026-01-01T00:00:00Z" }] }),
+      { slackChannelId: null },
+      [row("m1", { deleted_at: "2026-10-02T00:00:00Z", reply_count: 2, has_files: true, chat_message_contents: { body: "This message was deleted.", files: [{ id: "F1", name: "old.png" }] } })],
+      FERN
+    );
+    expect(out.views[0]).toMatchObject({ contentState: "deleted", body: null, sharesVideo: false, files: [], replyCount: 2 });
+  });
+
   it("still lists the messages when the shared videos can't be read", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const repos = reposWith();

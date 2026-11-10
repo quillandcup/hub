@@ -8,13 +8,15 @@ import type { ChatMessageView } from "@/lib/chat/load";
 
 const refresh = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
-vi.mock("@/app/(member)/chat/actions", () => ({ editChatMessage: vi.fn(), deleteChatMessage: vi.fn(), deleteChatFile: vi.fn() }));
+vi.mock("@/app/(member)/chat/actions", () => ({ editChatMessage: vi.fn(), deleteChatMessage: vi.fn(), deleteChatFile: vi.fn(), loadOlderChat: vi.fn(), toggleChatReaction: vi.fn() }));
 vi.mock("@/lib/chat/upload-client", () => ({ uploadStagedFiles: vi.fn() }));
 vi.mock("@/lib/analytics/client", () => ({ track: vi.fn() }));
 import { uploadStagedFiles } from "@/lib/chat/upload-client";
 vi.mock("@/app/(member)/chat/mention-actions", () => ({ suggestMentions: vi.fn() }));
 import { suggestMentions } from "@/app/(member)/chat/mention-actions";
 import { deleteChatFile, deleteChatMessage, editChatMessage } from "@/app/(member)/chat/actions";
+import MessageList from "@/components/chat/MessageList";
+import { emitListEvent } from "@/lib/chat/list-events";
 import MessageBody from "@/components/chat/MessageBody";
 import { messageBox, typeInto, boxUser } from "../helpers/message-box";
 import { MESSAGE_CHANGE_EVENT, onPoke, optimisticView } from "@/lib/chat/list-events";
@@ -378,15 +380,19 @@ describe("MessageBody", () => {
     expect(screen.getByText("first draft")).toBeInTheDocument();
   });
 
-  it("hides the message's row in the feed at once when it is deleted", async () => {
+  it.each([0, 2])("deletes through list state and preserves the thread link with %i replies", async (replyCount) => {
     vi.mocked(deleteChatMessage).mockResolvedValue({ ok: true });
-    const row = document.createElement("article");
-    row.id = "m-m1";
-    document.body.appendChild(row);
-    mount();
+    const message = mine({ replyCount });
+    render(<MessageList channelId="c1" views={[message]} ctx={CTX} olderBefore={null} canReact />);
     fire("delete");
     await userEvent.click(screen.getByRole("button", { name: "Delete" }));
-    await waitFor(() => expect(row.style.display).toBe("none"));
-    row.remove();
+    await waitFor(() => expect(screen.queryByText("first draft")).not.toBeInTheDocument());
+    if (replyCount) {
+      expect(screen.getByText("This message was deleted.")).toBeVisible();
+      expect(screen.getByRole("link", { name: /2 replies/ })).toHaveAttribute("href", "/chat/c1?thread=m1");
+      // A live merge must leave the same row visible after the server catches up.
+      act(() => emitListEvent({ kind: "merge", channelId: "c1", views: [{ ...message, contentState: "deleted", body: null }], ctx: CTX }));
+      expect(screen.getByText("This message was deleted.")).toBeVisible();
+    } else expect(screen.queryByRole("article")).not.toBeInTheDocument();
   });
 });
