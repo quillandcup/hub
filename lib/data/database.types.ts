@@ -2153,6 +2153,7 @@ export type Database = {
           attachments: Json | null
           blocks: Json | null
           body: string
+          bot: Json | null
           files: Json | null
           message_id: string
           search_vector: unknown
@@ -2161,6 +2162,7 @@ export type Database = {
           attachments?: Json | null
           blocks?: Json | null
           body?: string
+          bot?: Json | null
           files?: Json | null
           message_id: string
           search_vector?: unknown
@@ -2169,6 +2171,7 @@ export type Database = {
           attachments?: Json | null
           blocks?: Json | null
           body?: string
+          bot?: Json | null
           files?: Json | null
           message_id?: string
           search_vector?: unknown
@@ -6974,6 +6977,7 @@ export type Database = {
         Args: { p_channel_id: string; p_setting: string }
         Returns: undefined
       }
+      chat_slack_bot_summary: { Args: { p_payload: Json }; Returns: Json }
       chat_slack_files_summary: { Args: { p_files: Json }; Returns: Json }
       chat_toggle_reaction: {
         Args: { p_emoji: string; p_message_id: string }

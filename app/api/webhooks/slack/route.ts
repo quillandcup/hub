@@ -282,7 +282,9 @@ async function applyMessageEdit(supabase: SupabaseClient, event: any) {
   try {
     await createRepos(supabase).slackMessages.editMessage(event.channel, message.ts, {
       text: message.text ?? "",
-      edited_at: message.edited?.ts ? slackTsToIso(message.edited.ts) : null,
+      // A message_changed that is not an edit (Slack filling in a link preview, or an app updating its own message)
+      // has no `edited`: it must not clear the time of an earlier real edit.
+      ...(message.edited?.ts ? { edited_at: slackTsToIso(message.edited.ts) } : {}),
       reply_count: message.reply_count ?? 0,
       reply_users_count: message.reply_users_count ?? 0,
       files: message.files ?? null,

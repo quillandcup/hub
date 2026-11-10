@@ -2541,4 +2541,18 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "The place is approximate, taken from the network a device connects through, so a VPN or a phone carrier can make it off. We already record it when you visit the Hub, and this list shows it back to you; your IP address is not shown. The privacy page explains how long we keep it.",
     ].join("\n\n"),
   },
+  {
+    slug: "chat-link-previews-and-app-cards",
+    date: "2026-11-10",
+    audience: "engineering",
+    category: "new",
+    title: "Hub Chat draws Slack's link previews and app cards",
+    summary: "Messages that Slack gave a link preview, and messages posted by apps such as deploy notices, now show as cards in Hub Chat, with the app's own name and logo.",
+    body: [
+      "`chat_message_contents.attachments` (legacy attachments, which is where Slack puts a link preview) and the Block Kit `blocks` of an app's message are now read by the chat loader and drawn under the message by `components/chat/MessageUnfurls.tsx`. `lib/chat/unfurls.ts` parses and sanitizes them: http(s) links only, https pictures only, capped lengths and counts, and Slack text still goes through the chat's own mrkdwn renderer so entities and mentions read correctly.",
+      "Block Kit is a registry of per-type parsers and renderers (header, section, context, divider, image, link buttons). A block type without one shows one \"Open in Slack\" link. An app's message is drawn from its blocks, and its fallback text is hidden, only when it has no `rich_text` block; people's messages stay text.",
+      "A new `chat_message_contents.bot` column ({name, icon}) is filled by a trigger from the Bronze payload, so apps show by their own name and logo instead of \"Slack app\" without opening Bronze to members. A `message_changed` that only adds a preview no longer clears the time of an earlier edit.",
+      "Related product entry: none yet. Shared messages shown as quoted cards are the next slice.",
+    ].join("\n\n"),
+  },
 ];

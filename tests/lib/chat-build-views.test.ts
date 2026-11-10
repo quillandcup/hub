@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 
-const names = vi.hoisted(() => ({ userNames: {} as Record<string, string>, hubNames: {} as Record<string, string>, hubAsked: [] as string[][] }));
+const names = vi.hoisted(() => ({ namesAsked: [] as string[][], userNames: {} as Record<string, string>, hubNames: {} as Record<string, string>, hubAsked: [] as string[][] }));
 vi.mock("@/lib/chat/names", () => ({
   customEmojiFor: async () => ({}),
   slackAuthorIdsByTs: async () => ({}),
@@ -10,7 +10,10 @@ vi.mock("@/lib/chat/names", () => ({
     names.hubAsked.push(ids);
     return names.hubNames;
   },
-  slackUserNames: async () => names.userNames,
+  slackUserNames: async (ids: string[]) => {
+    names.namesAsked.push(ids);
+    return names.userNames;
+  },
   slackUserPhotos: async () => ({}),
 }));
 
@@ -173,5 +176,56 @@ describe("buildMessageViews", () => {
     // A message with no card keeps its address: it is just a link.
     expect(out.views[1].body).toBe(address);
     expect(out.views[1].sharesVideo).toBe(false);
+  });
+
+  it("carries the cards under a message, with the people they mention looked up and a Slack address for what the Hub cannot draw", async () => {
+    names.namesAsked.length = 0;
+    const attachments = [{ title: "A page", title_link: "https://example.com/a", text: "thanks <@UMENTIONED>" }];
+    const out = await buildMessageViews(
+      reposWith(),
+      { slackChannelId: "C123" },
+      [
+        row("m1", { slack_ts: "1700000000.000100", chat_message_contents: { body: "see https://example.com/a", attachments } }),
+        row("m2", { chat_message_contents: { body: "plain" } }),
+      ],
+      FERN
+    );
+    expect(out.views[0].unfurls?.map((u) => u.kind)).toEqual(["card"]);
+    expect(out.views[0].hideBody).toBe(false);
+    expect(out.views[0].slackPermalink).toMatch(/\/archives\/C123\/p1700000000000100$/);
+    expect(out.views[1].unfurls).toEqual([]);
+    expect(out.views[1].slackPermalink).toBeNull();
+    expect(names.namesAsked.flat()).toContain("UMENTIONED");
+  });
+
+  it("draws an app's blocks instead of its fallback text, and shows the app by its own name and logo", async () => {
+    const blocks = [{ type: "section", text: { type: "mrkdwn", text: "*Deployed*" } }];
+    const out = await buildMessageViews(
+      reposWith(),
+      { slackChannelId: null },
+      [
+        row("m1", { author_member_id: null, chat_message_contents: { body: "Deployed", blocks, bot: { name: "Deploys", icon: "https://example.com/i.png" } } }),
+        // A person's message with the same blocks keeps its text; so does an unknown app.
+        row("m2", { author_member_id: null, chat_message_contents: { body: "Deployed", blocks } }),
+        row("m3", { author_member_id: null, chat_message_contents: { body: "x", blocks, bot: { name: "  ", icon: "javascript:1" } } }),
+        row("m4", { author_member_id: null, chat_message_contents: { body: "x", bot: { name: "No icon", icon: "http://insecure.example/i.png" } } }),
+      ],
+      FERN
+    );
+    expect(out.views[0]).toMatchObject({ authorName: "Deploys", authorPhotoUrl: "https://example.com/i.png", hideBody: true });
+    expect(out.views[0].unfurls?.map((u) => u.kind)).toEqual(["blocks"]);
+    expect(out.views[1]).toMatchObject({ authorName: "Someone on Slack", hideBody: false, unfurls: [] });
+    expect(out.views[2]).toMatchObject({ authorName: "Someone on Slack", hideBody: false, unfurls: [] });
+    expect(out.views[3]).toMatchObject({ authorName: "No icon", authorPhotoUrl: null });
+  });
+
+  it("draws no cards for a message that is deleted or hidden", async () => {
+    const out = await buildMessageViews(
+      reposWith(),
+      { slackChannelId: null },
+      [row("m1", { deleted_at: "2026-10-02T00:00:00Z", reply_count: 1, chat_message_contents: { body: "x", attachments: [{ title: "T" }] } })],
+      FERN
+    );
+    expect(out.views[0].unfurls).toEqual([]);
   });
 });

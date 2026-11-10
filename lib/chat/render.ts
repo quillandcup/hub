@@ -30,6 +30,9 @@ import { toneOf, tonedUnicode } from "@/lib/chat/skin-tone";
 
 const SAFE_HREF = /^(https?:\/\/|mailto:)/i;
 
+/** Whether an address is one a link may go to (http, https or mailto), for anything that draws Slack-sourced links. */
+export const isSafeHref = (href: string): boolean => SAFE_HREF.test(href);
+
 export function decodeEntities(s: string): string {
   return s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
 }
