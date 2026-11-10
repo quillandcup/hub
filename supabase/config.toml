@@ -440,7 +440,7 @@ additional_redirect_urls = ["http://localhost:3000/auth/callback", "https://quil
 [remotes.prod.auth.email]
 enable_confirmations = true
 max_frequency = "1m"
-otp_length = 8
+otp_length = 6
 
 # Auth emails go out through Resend SMTP. The password comes from RESEND_API_KEY at push time.
 [remotes.prod.auth.email.smtp]

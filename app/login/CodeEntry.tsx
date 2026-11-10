@@ -123,7 +123,7 @@ export default function CodeEntry({ email, open, fromSlack }: { email: string; o
           autoComplete="one-time-code"
           autoCapitalize="characters"
           spellCheck={false}
-          placeholder={fromSlack ? "12345678 or ABCDE-12345" : "12345678"}
+          placeholder={fromSlack ? "123456 or ABCDE-12345" : "123456"}
           className="min-w-0 flex-1 px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-plum-500"
         />
         <button

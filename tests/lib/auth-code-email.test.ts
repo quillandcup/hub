@@ -5,19 +5,19 @@ import { buildTemplates } from "../../scripts/_email-templates";
 
 const SUBJECT = "Hedgie Hub – {{ .Token }} is your verification code";
 
-describe("sign-in code email (Gmail 'Copy code')", () => {
-  it("leads the subject with the code, in the template list and in config.toml", async () => {
+// These checks verify the template, not Gmail's decision to display its copy helper.
+describe("sign-in code email", () => {
+  it("includes the code in the subject, in the template list and in config.toml", async () => {
     const magic = (await buildTemplates()).find((t) => t.name === "magic_link")!;
     expect(magic.subject).toBe(SUBJECT);
     const config = readFileSync(resolve(__dirname, "../../supabase/config.toml"), "utf8");
     expect(config).toContain(`subject = "${SUBJECT}"`);
   });
 
-  it("shows the code alone in a large element, with the standard wording near it", async () => {
+  it("labels the code in the visible body and keeps its digits together", async () => {
     const magic = (await buildTemplates()).find((t) => t.name === "magic_link")!;
     expect(magic.html).toMatch(/font-size:36px[^"]*">\{\{ \.Token \}\}<\/p>/);
-    expect(magic.html).toContain("verification code");
-    expect(magic.html).toContain("This is your unique code");
+    expect(magic.html).toMatch(/<p[^>]*>Use the verification code below to sign in to Hedgie Hub\.<\/p>/);
   });
 
   it("keeps the committed supabase/templates/magic_link.html in sync (run pnpm templates:render)", async () => {
