@@ -69,12 +69,15 @@ describe("stripSharedVideoLink", () => {
     ["the earlier link shape with the thread only", `\n<${APP_URL}/chat/${CHANNEL}?thread=${MESSAGE}|Watch it in Hub Chat> · ${LESSON_LINK}`],
   ])("removes the line Slack's copy of the message ends with: %s", (_name, line) => {
     expect(stripSharedVideoLink(`This one helped me${line}`)).toBe("This one helped me");
+    // A Slack message that was only a pasted address is rewritten to just the line, with nothing before it.
+    expect(stripSharedVideoLink(line.replace(/^\n/, ""))).toBe("");
   });
 
   it("leaves other links and a link in the middle of the text alone", () => {
     const other = `see ${CHAT_LINK} now`;
     expect(stripSharedVideoLink(other)).toBe(other);
     expect(stripSharedVideoLink("plain")).toBe("plain");
+
     expect(stripSharedVideoLink("see <https://example.com/x|Watch it in Hub Chat>")).toBe("see <https://example.com/x|Watch it in Hub Chat>");
     expect(stripSharedVideoLink("a\n<https://example.com/courses/a/lessons/b|Open the lesson> and more")).toBe("a\n<https://example.com/courses/a/lessons/b|Open the lesson> and more");
   });
