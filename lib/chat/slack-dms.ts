@@ -56,6 +56,15 @@ interface SlackIm {
   created?: number;
 }
 
+/** A group DM as `conversations.list` (types mpim) reports it. */
+interface SlackGroup {
+  id: string;
+  is_mpim?: boolean;
+  is_archived?: boolean;
+  num_members?: number;
+  created?: number;
+}
+
 /**
  * Pulls one member's DMs from Slack into Bronze and the chat. Returns null when nothing was done: not
  * production (like every read or write of the real workspace), no connection with the DM scopes, or pulled
@@ -97,6 +106,27 @@ export async function pullMemberDms(service: SupabaseClient, memberId: string, o
         if (isDeadTokenError(error) || isRateLimited(error) || errorCode(error) === "missing_scope") throw error;
         console.error("pullMemberDms failed for a DM of member %s:", memberId, error);
         result.errors.push(`a DM of member ${memberId}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    // Group DMs the bot is not in (the ones it is in are bridged by the bot).
+    const groups: SlackGroup[] = [];
+    cursor = undefined;
+    do {
+      const page = await slack.conversations.list({ types: "mpim", limit: PAGE_SIZE, cursor, exclude_archived: false });
+      groups.push(...((page.channels ?? []) as SlackGroup[]).filter((c) => c.id && c.is_mpim === true));
+      cursor = page.response_metadata?.next_cursor || undefined;
+    } while (cursor);
+    for (const group of groups) {
+      try {
+        const pulled = await pullOneGroupDm(service, repos, slack, { memberId, selfSlackId: connection.slackUserId, group, lookbackSeconds: (opts.lookbackDays ?? OPEN_LOOKBACK_DAYS) * 86400 });
+        if (!pulled.chatChannelId) continue;
+        result.messages += pulled.fetched;
+        dmIds.add(group.id);
+        result.conversations += 1;
+      } catch (error) {
+        if (isDeadTokenError(error) || isRateLimited(error) || errorCode(error) === "missing_scope") throw error;
+        console.error("pullMemberDms failed for a group DM of member %s:", memberId, error);
+        result.errors.push(`a group DM of member ${memberId}: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
     // Their files, with their own token (the bot can't read a DM's files), while Slack still serves them.
@@ -152,6 +182,75 @@ async function pullOneDm(
   const chatChannelId = (projected as { channel?: string | null } | null)?.channel;
   if (!chatChannelId) return { chatChannelId: null, fetched: 0 };
 
+  return { chatChannelId, fetched: await pullConversationMessages(service, repos, slack, { conversationId: im.id, chatChannelId, type: "im", lookbackSeconds: opts.lookbackSeconds }) };
+}
+
+/**
+ * One group DM the bot is not in, with the member's own token. A group the bot has recorded is left to the bot (its members
+ * and messages come from the bot's import and events: nothing here touches that row); one it has not is recorded as
+ * `token_only` and is in the chat of the Hub members among its Slack members who have pulled their own DMs
+ * (project_slack_group_dm). Returns a null chat channel when the bot reads the group.
+ */
+async function pullOneGroupDm(
+  service: SupabaseClient,
+  repos: ReturnType<typeof createRepos>,
+  slack: WebClient,
+  opts: { memberId: string; selfSlackId: string; group: SlackGroup; lookbackSeconds: number }
+): Promise<{ chatChannelId: string | null; fetched: number }> {
+  const { memberId, selfSlackId, group } = opts;
+  const now = new Date(clock.now()).toISOString();
+
+  // Recorded only if the bot has not: never overwrites its row, and the marker is never set on a group it knows.
+  await repos.slackWorkspace.insertChannelIfAbsent({
+    channel_id: group.id,
+    // A group's Slack name lists its members: not stored (nor shown).
+    name: "",
+    is_private: true,
+    is_mpim: true,
+    is_im: false,
+    token_only: true,
+    is_archived: group.is_archived ?? false,
+    member_count: group.num_members ?? null,
+    created: group.created ? new Date(group.created * 1000).toISOString() : null,
+    raw_payload: { id: group.id },
+    imported_at: now,
+  });
+  if (!(await repos.slackWorkspace.isTokenOnlyGroupDm(group.id))) return { chatChannelId: null, fetched: 0 };
+
+  // Who is in it, with this token (paginated), kept as current in Bronze; someone who is no longer listed has left.
+  const slackIds = new Set<string>([selfSlackId]);
+  let cursor: string | undefined;
+  do {
+    const page = await slack.conversations.members({ channel: group.id, limit: PAGE_SIZE, cursor });
+    for (const id of page.members ?? []) slackIds.add(id);
+    cursor = page.response_metadata?.next_cursor || undefined;
+  } while (cursor);
+  await repos.slackWorkspace.upsertMemberships([...slackIds].map((user_id) => ({ channel_id: group.id, user_id, left_at: null, imported_at: now })));
+  const gone = (await repos.slackWorkspace.currentMemberUserIds(group.id)).filter((id) => !slackIds.has(id));
+  if (gone.length > 0) await repos.slackWorkspace.markMembersLeft(group.id, gone, now);
+
+  const matched = await repos.chat.memberIdsBySlackUser([...slackIds]);
+  const people: Record<string, string> = { ...Object.fromEntries(matched), [selfSlackId]: memberId };
+  const { data: projected, error } = await service.rpc("project_slack_group_dm", { p_channel_id: group.id, p_members: people });
+  if (error) throw new Error(error.message);
+  const chatChannelId = (projected as { channel?: string | null } | null)?.channel;
+  if (!chatChannelId) return { chatChannelId: null, fetched: 0 };
+
+  return { chatChannelId, fetched: await pullConversationMessages(service, repos, slack, { conversationId: group.id, chatChannelId, type: "mpim", lookbackSeconds: opts.lookbackSeconds }) };
+}
+
+/**
+ * The messages of one projected conversation (a 1:1 DM, or a group DM only the member's token reads) from Slack into Bronze
+ * and the chat, with replies, reactions, edits, files and deletions: the same for both. Returns how many messages were new.
+ */
+async function pullConversationMessages(
+  service: SupabaseClient,
+  repos: ReturnType<typeof createRepos>,
+  slack: WebClient,
+  opts: { conversationId: string; chatChannelId: string; type: "im" | "mpim"; lookbackSeconds: number }
+): Promise<number> {
+  const { conversationId, chatChannelId, type } = opts;
+  const now = new Date(clock.now()).toISOString();
   // From the newest message the chat has, or `lookbackSeconds` back if that is further (an older message can gain
   // a reaction, an edit or a reply, or be deleted); the first pull goes back as far as Slack serves.
   const nowSeconds = Math.floor(clock.now() / 1000);
@@ -164,7 +263,7 @@ async function pullOneDm(
   let cursor: string | undefined;
   let complete = false;
   for (let page = 0; page < MAX_PAGES; page++) {
-    const history = await slack.conversations.history({ channel: im.id, oldest, limit: PAGE_SIZE, cursor, inclusive: false });
+    const history = await slack.conversations.history({ channel: conversationId, oldest, limit: PAGE_SIZE, cursor, inclusive: false });
     topLevel.push(...((history.messages ?? []) as SlackMessage[]).filter((m) => typeof m.ts === "string"));
     cursor = history.response_metadata?.next_cursor || undefined;
     if (!history.has_more || !cursor) {
@@ -175,26 +274,26 @@ async function pullOneDm(
 
   // Replies of the threads Slack has more of than we do (history returns only each thread's first message).
   const roots = topLevel.filter((m) => (m.reply_count ?? 0) > 0);
-  const storedReplies = await storedReplyCounts(service, im.id, roots.map((m) => m.ts as string));
+  const storedReplies = await storedReplyCounts(service, conversationId, roots.map((m) => m.ts as string));
   const behind = roots.filter((m) => (storedReplies.get(m.ts as string) ?? 0) < (m.reply_count ?? 0)).slice(0, MAX_THREADS);
   const replies: SlackMessage[] = [];
   const repliesByThread = new Map<string, Set<string>>();
   for (const root of behind) {
-    const thread = await fetchThread(slack, im.id, root.ts as string);
+    const thread = await fetchThread(slack, conversationId, root.ts as string);
     const others = thread.filter((m) => m.ts !== root.ts);
     replies.push(...others);
-    repliesByThread.set(slackThreadKey(im.id, root.ts as string), new Set(others.map((m) => m.ts as string)));
+    repliesByThread.set(slackThreadKey(conversationId, root.ts as string), new Set(others.map((m) => m.ts as string)));
   }
 
   // Bronze (messages, reactions, taken-back reactions), then the chat, exactly as a channel's gap-fill does.
-  const stored = await storeAndProject(service, im.id, { name: "", type: "im" }, [...topLevel, ...replies]);
+  const stored = await storeAndProject(service, conversationId, { name: "", type }, [...topLevel, ...replies]);
 
   // A message in the window that Slack no longer returns was deleted there: only where the whole window was
   // fetched, and by the import's rules (never because it aged out of Slack's history; not a sudden mass disappearance).
   // The files on them are recorded now and copied by the sweep after the pull (the member's token; the bot can't read a DM's files).
   const withFiles = [...topLevel, ...replies].filter((m) => isKeptSlackMessage(m) && Array.isArray(m.files) && m.files.length > 0);
   if (withFiles.length > 0) {
-    const refs = slackFilesFromMessages(withFiles.map((m) => ({ channel_id: im.id, message_ts: m.ts as string, files: m.files })));
+    const refs = slackFilesFromMessages(withFiles.map((m) => ({ channel_id: conversationId, message_ts: m.ts as string, files: m.files })));
     await repos.slackMessages.recordFiles(refs.map((f) => ({ ...f, imported_at: now })));
   }
 
@@ -202,20 +301,20 @@ async function pullOneDm(
   // fetched, and by the import's rules (never because it aged out of Slack's history; not a sudden mass disappearance).
   const window = complete ? deletionInferenceWindow(oldestSeconds, nowSeconds, clock.now()) : null;
   if (window) {
-    const inWindow = await repos.slackMessages.storedMessagesBetween(window.from, window.to, im.id);
-    const seen = { topLevelByChannel: new Map([[im.id, new Set(topLevel.map((m) => m.ts as string))]]), repliesByThread };
+    const inWindow = await repos.slackMessages.storedMessagesBetween(window.from, window.to, conversationId);
+    const seen = { topLevelByChannel: new Map([[conversationId, new Set(topLevel.map((m) => m.ts as string))]]), repliesByThread };
     const nothingSeen = {
-      topLevelByChannel: new Map([[im.id, new Set<string>()]]),
+      topLevelByChannel: new Map([[conversationId, new Set<string>()]]),
       repliesByThread: new Map([...repliesByThread.keys()].map((key) => [key, new Set<string>()])),
     };
     const judged = messagesMissingFromSlack(inWindow, nothingSeen, window).length;
     const missing = messagesMissingFromSlack(inWindow, seen, window);
     if (missing.length > 0 && !isSuspiciousDeletionCount(missing.length, judged)) {
-      await repos.slackMessages.markMessagesDeleted(im.id, missing.map((m) => m.message_ts), now);
-      await Promise.all(missing.map((m) => projectChatMessage(service, im.id, m.message_ts)));
+      await repos.slackMessages.markMessagesDeleted(conversationId, missing.map((m) => m.message_ts), now);
+      await Promise.all(missing.map((m) => projectChatMessage(service, conversationId, m.message_ts)));
     }
   }
-  return { chatChannelId, fetched: stored.messages };
+  return stored.messages;
 }
 
 /**

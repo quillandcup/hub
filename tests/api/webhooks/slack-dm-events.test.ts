@@ -60,6 +60,20 @@ describe('Slack webhook: DM messages delivered on behalf of a user', () => {
     expect(await stored(channel)).toEqual([`${nowSec}.000200`])
   })
 
+  const groupEvent = (channel: string, ts: string) => ({ type: 'message', channel, channel_type: 'mpim', user: 'UPGTAPDM', text: 'private group words', ts })
+
+  it("stores nothing of a group DM when no member the feature covers can see it", async () => {
+    const channel = `GUSER${tag}`
+    await send({ event: groupEvent(channel, `${nowSec}.000400`), authorizations: [{ user_id: 'UPGTAPNOBODY', is_bot: false }] })
+    expect(await stored(channel)).toEqual([])
+  })
+
+  it("still stores a group DM the bot is in, which arrives as a bot event", async () => {
+    const channel = `GBOT${tag}`
+    await send({ event: groupEvent(channel, `${nowSec}.000500`), authorizations: [{ user_id: 'UPGTAPBOT', is_bot: true }] })
+    expect(await stored(channel)).toEqual([`${nowSec}.000500`])
+  })
+
   it("handles an event that names nobody as before", async () => {
     const channel = `DNONE${tag}`
     await send({ event: dmEvent(channel, `${nowSec}.000300`) })

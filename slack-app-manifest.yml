@@ -114,12 +114,13 @@ settings:
       # - channel_rename
       # - channel_archive
       # - user_change
-    # A member's 1:1 DM messages, on their behalf (their im:history user scope): one event for each DM message of
-    # every member who authorized it. The webhook keeps one only for a member the slack_dm_bridge feature covers
+    # A member's 1:1 and group DM messages, on their behalf (their im:history and mpim:history user scopes): one event for each
+    # DM message of every member who authorized it. The webhook keeps one only for a member the slack_dm_bridge feature covers
     # (lib/chat/slack-dm-events.ts) and drops the rest. The same goes for reactions on a DM; a reaction anywhere else delivered
     # this way is dropped too, since the bot's own reaction events above cover those conversations.
     user_events:
       - message.im
+      - message.mpim
       - reaction_added
       - reaction_removed
   org_deploy_enabled: false

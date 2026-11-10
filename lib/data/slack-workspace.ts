@@ -18,7 +18,7 @@ export type SlackChannel = Pick<
 >;
 
 /** A channel as the in-memory dataset keeps it: the id and name, and whatever else a test names. */
-export type SlackChannelSeed = Pick<SlackChannel, "channel_id" | "name"> & Partial<Omit<SlackChannel, "channel_id" | "name">>;
+export type SlackChannelSeed = Pick<SlackChannel, "channel_id" | "name"> & Partial<Omit<SlackChannel, "channel_id" | "name">> & { token_only?: boolean };
 
 /** What the import writes for a conversation: the Slack fields (the raw payload included) plus the sync time. */
 export type NewSlackChannel = ChannelTable["Insert"];
@@ -91,6 +91,16 @@ export interface SlackWorkspaceRepository {
 
   /** Adds conversations, or replaces the ones with the same Slack id (an import is idempotent). Chunked. */
   upsertChannels(channels: NewSlackChannel[]): Promise<void>;
+  /**
+   * Records a conversation only if its Slack id is not stored yet, leaving a stored one untouched: how a member's pull
+   * records a group DM without overwriting what the bot's import knows (`token_only`, set here, is cleared only by that
+   * import's upsert). Returns whether it was added.
+   */
+  insertChannelIfAbsent(channel: NewSlackChannel): Promise<boolean>;
+  /** The Slack user ids currently in a conversation (not marked as left). */
+  currentMemberUserIds(channelId: string): Promise<string[]>;
+  /** Whether the conversation is a group DM that only members' own tokens read (the bot is not in it). False when unknown. */
+  isTokenOnlyGroupDm(channelId: string): Promise<boolean>;
 
   /** Every conversation's members, current and past, by channel then user. */
   memberships(): Promise<SlackChannelMembership[]>;
@@ -184,6 +194,23 @@ export class SupabaseSlackWorkspaceRepository implements SlackWorkspaceRepositor
   async upsertChannels(channels: NewSlackChannel[]) {
     // Small chunks, two at a time: each upsert is one statement under the API role's 8s statement timeout.
     await upsertInChunks(this.channelsTable, channels, "channel_id", 100, 2);
+  }
+
+  async insertChannelIfAbsent(channel: NewSlackChannel) {
+    const rows = must(await this.channelsTable.upsert(channel, { onConflict: "channel_id", ignoreDuplicates: true }).select("channel_id"));
+    return (rows ?? []).length > 0;
+  }
+
+  async currentMemberUserIds(channelId: string) {
+    const rows = await fetchAllRows<{ user_id: string }>((from, to) =>
+      this.membersTable.select("user_id").eq("channel_id", channelId).is("left_at", null).order("user_id").range(from, to)
+    );
+    return rows.map((r) => r.user_id);
+  }
+
+  async isTokenOnlyGroupDm(channelId: string) {
+    const row = must(await this.channelsTable.select("token_only").eq("channel_id", channelId).eq("is_mpim", true).maybeSingle());
+    return row?.token_only === true;
   }
 
   private get membersTable() {
@@ -355,6 +382,22 @@ export class InMemorySlackWorkspaceRepository implements SlackWorkspaceRepositor
       if (existing) Object.assign(existing, fields);
       else this.data.slackChannels.push(fields);
     }
+  }
+
+  async insertChannelIfAbsent(channel: NewSlackChannel) {
+    if (this.data.slackChannels.some((x) => x.channel_id === channel.channel_id)) return false;
+    const { raw_payload: _raw, id: _id, ...fields } = channel;
+    this.data.slackChannels.push(fields);
+    return true;
+  }
+
+  async currentMemberUserIds(channelId: string) {
+    return this.data.slackChannelMembers.filter((m) => m.channel_id === channelId && !m.left_at).map((m) => m.user_id).sort();
+  }
+
+  async isTokenOnlyGroupDm(channelId: string) {
+    const c = this.data.slackChannels.find((x) => x.channel_id === channelId);
+    return !!c && c.is_mpim === true && c.token_only === true;
   }
 
   async memberships() {

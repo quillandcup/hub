@@ -16,7 +16,7 @@ import {
   slackMemberNoticeEvent,
 } from "@/lib/slack-capture";
 import { isBeyondSlackHistory } from "@/lib/slack-deletions";
-import { decideDmEvent, isSlackDmChannelId } from "@/lib/chat/slack-dm-events";
+import { decideDmEvent, isMemberTokenConversation } from "@/lib/chat/slack-dm-events";
 import { pullMemberDms } from "@/lib/chat/slack-dms";
 import { clock } from "@/lib/clock";
 import { removeChatFileBytes } from "@/lib/chat/file-cleanup";
@@ -428,8 +428,8 @@ function triggerSlackProcessing(channelId: string, messageTs: string, opts: { th
       // The event refers to something the chat doesn't have: fetch it from Slack now (and its thread
       // root, if it is a reply to one we lack) instead of waiting for the nightly import. Recorded in
       // chat_gap_fills; a burst of events for one message is one fetch.
-      // (Not for a DM: the bot can't fetch from one. A missed DM message is the member's own pull's to find.)
-      if (opts.fillGaps !== false && !isSlackDmChannelId(channelId)) {
+      // (Not for a DM or a group DM the bot is not in: the bot can't fetch from one. A missed DM message is the member's own pull's to find.)
+      if (opts.fillGaps !== false && !(await isMemberTokenConversation(service, channelId))) {
         const filled = projected
           ? opts.threadTs && opts.threadTs !== messageTs
             ? await fillThreadIfRootMissing(service, { channelId, threadTs: opts.threadTs, source: "webhook" })

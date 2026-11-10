@@ -340,12 +340,12 @@ describe("the direct message scopes", () => {
     expect(hasDmReactionScope([...SLACK_USER_SCOPES])).toBe(true);
   });
 
-  it("are in the app manifest's user scopes, with the DM's messages and reactions as the user events", async () => {
+  it("are in the app manifest's user scopes, with the DM and group DM messages and the reactions as the user events", async () => {
     const manifest = (await import("node:fs")).readFileSync("slack-app-manifest.yml", "utf8");
     const user = manifest.slice(manifest.indexOf("    user:\n"), manifest.indexOf("  # Where Slack sends a member back"));
     for (const scope of SLACK_USER_SCOPES) expect(user).toContain(`- ${scope}\n`);
     // The only user event is the DM message, which the webhook keeps only for members the DM bridge covers.
-    expect(manifest.match(/user_events:\n((?:\s+- .*\n)+)/)?.[1].trim().split("\n").map((l) => l.trim())).toEqual(["- message.im", "- reaction_added", "- reaction_removed"]);
+    expect(manifest.match(/user_events:\n((?:\s+- .*\n)+)/)?.[1].trim().split("\n").map((l) => l.trim())).toEqual(["- message.im", "- message.mpim", "- reaction_added", "- reaction_removed"]);
   });
 });
 
