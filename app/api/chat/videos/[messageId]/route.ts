@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCoursesCaller } from "@/lib/courses/caller";
+import { courseImageSrc } from "@/lib/courses/image-urls";
 import { canOpenLessons, loadMemberCourseAccess } from "@/lib/courses/member";
 import { mayWatchSharedVideo } from "@/lib/chat/video-access";
 import { createRepos } from "@/lib/data/repos";
@@ -55,7 +56,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     {
       title: lesson.title,
       courseTitle: course?.title ?? null,
-      thumbnailUrl: lesson.thumbnail_asset_id || lesson.thumbnail_url ? `/api/courses/image/lesson/${lesson.id}` : null,
+      // The same picture the lesson page shows: our copy when there is one (what the course builder chose), else the original link.
+      thumbnailUrl: courseImageSrc("lesson", lesson.id, lesson.thumbnail_asset_id, lesson.thumbnail_url),
       canWatch: watchable,
     },
     { headers: NO_STORE },

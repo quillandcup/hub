@@ -29,13 +29,13 @@ vi.mock("@/lib/data/repos", async () => ({
 }));
 
 /** The share row, a lesson and its video, each overridable: a missing row stands for what row-level security hides. */
-const setup = (over: { shared?: boolean; open?: boolean; draftCourse?: boolean; lessonState?: string; videoId?: string | null; videoStatus?: string; thumbnail?: boolean } = {}) => {
+const setup = (over: { shared?: boolean; open?: boolean; draftCourse?: boolean; lessonState?: string; videoId?: string | null; videoStatus?: string; thumbnail?: boolean | "asset" } = {}) => {
   const { shared = true, open = false, draftCourse = false, lessonState = "open", videoId = "video_AAAAAAAAAAA1", videoStatus = "ready", thumbnail = false } = over;
   repos = createInMemoryRepos(
     new InMemoryDataset({
       courses: [{ id: "crs_AAAAAAAAAAA1", slug: "c", title: "The Ready Writer", is_draft: draftCourse } as never],
       chatMessageVideos: shared ? [{ id: "cmv_AAAAAAAAAAA1", message_id: MESSAGE, lesson_id: LESSON, open_to_channel: open, created_at: "2026-01-01T00:00:00Z" }] : [],
-      courseLessons: [{ id: LESSON, course_id: "crs_AAAAAAAAAAA1", title: "Show up for the page", state: lessonState, video_id: videoId, thumbnail_url: thumbnail ? "https://cdn.example.test/t.jpg" : null, thumbnail_asset_id: null } as never],
+      courseLessons: [{ id: LESSON, course_id: "crs_AAAAAAAAAAA1", title: "Show up for the page", state: lessonState, video_id: videoId, thumbnail_url: thumbnail === true ? "https://cdn.example.test/t.jpg" : null, thumbnail_asset_id: thumbnail === "asset" ? "media_AAAAAAAAAAA1" : null } as never],
       videos: [{ id: "video_AAAAAAAAAAA1", status: videoStatus, mux_playback_id: "pb123" } as never],
     }),
   );
@@ -195,7 +195,7 @@ describe("GET /api/chat/videos/[messageId] (what the card shows before anyone pr
   const card = (messageId = MESSAGE) => GET(new NextRequest("http://localhost/api/chat/videos/x"), { params: Promise.resolve({ messageId }) });
 
   it("gives the lesson's title, its course, its thumbnail and that the viewer can watch, and mints nothing", async () => {
-    setup({ thumbnail: true });
+    setup({ thumbnail: "asset" });
 
     const res = await card();
 
@@ -203,6 +203,11 @@ describe("GET /api/chat/videos/[messageId] (what the card shows before anyone pr
     expect(res.headers.get("Cache-Control")).toBe("no-store");
     expect(await res.json()).toEqual({ title: "Show up for the page", courseTitle: "The Ready Writer", thumbnailUrl: `/api/courses/image/lesson/${LESSON}`, canWatch: true });
     expect(signPlaybackTokens).not.toHaveBeenCalled();
+  });
+
+  it("shows the same picture the lesson page does: our copy when the builder's choice has been copied, else the original link", async () => {
+    setup({ thumbnail: true });
+    expect((await (await card()).json()).thumbnailUrl).toBe("https://cdn.example.test/t.jpg");
   });
 
   it("has no thumbnail address for a lesson without one", async () => {
