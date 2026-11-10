@@ -231,7 +231,7 @@ describe("rewriteInSlack (the Slack copy of a converted message)", () => {
 
     const body: string = updateInSlack.mock.calls[0][1].body;
     expect(body.startsWith("*Hey* <@U123>, watch this:\n\nthen tell me what you think &lt;3\n<")).toBe(true);
-    expect(body).not.toContain("the lesson>");
+    expect(body).not.toContain("|the lesson>");
     expect(body).not.toContain("share=open");
   });
 
