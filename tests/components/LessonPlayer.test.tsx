@@ -299,6 +299,57 @@ function fakeMedia(over: Partial<{ currentTime: number; duration: number; paused
   return Object.assign(new EventTarget(), { currentTime: 0, duration: 600, paused: true, seeking: false, playbackRate: 1, ...over });
 }
 
+describe("LessonPlayer autoPlay (a shared video's card, where pressing it is the one click)", () => {
+  const mediaWith = (readyState: number, play: () => Promise<void> | undefined) =>
+    Object.assign(new EventTarget(), { currentTime: 0, duration: 600, paused: true, seeking: false, playbackRate: 1, readyState, play }) as never;
+
+  afterEach(() => {
+    player.media = undefined;
+  });
+
+  it("starts at once when the video can already play", () => {
+    const play = vi.fn(async () => {});
+    player.media = mediaWith(4, play);
+
+    render(<LessonPlayer title="T" playbackId="pb-1" tokens={tokens} autoPlay />);
+
+    expect(play).toHaveBeenCalledTimes(1);
+  });
+
+  it("starts once the video can play, and only once", () => {
+    const play = vi.fn(async () => {});
+    const media = mediaWith(0, play) as unknown as EventTarget;
+    player.media = media as never;
+
+    render(<LessonPlayer title="T" playbackId="pb-1" tokens={tokens} autoPlay />);
+    expect(play).not.toHaveBeenCalled();
+    act(() => void media.dispatchEvent(new Event("canplay")));
+    act(() => void media.dispatchEvent(new Event("canplay")));
+
+    expect(play).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves the big play button to press when the browser refuses", async () => {
+    const play = vi.fn(() => Promise.reject(new Error("NotAllowedError")));
+    player.media = mediaWith(4, play);
+
+    render(<LessonPlayer title="T" playbackId="pb-1" tokens={tokens} autoPlay />);
+    await act(async () => {});
+
+    expect(play).toHaveBeenCalled();
+    expect(screen.getByTestId("player")).toBeInTheDocument();
+  });
+
+  it("does nothing without autoPlay (a lesson page waits for the viewer)", () => {
+    const play = vi.fn(async () => {});
+    player.media = mediaWith(4, play);
+
+    render(<LessonPlayer title="T" playbackId="pb-1" tokens={tokens} />);
+
+    expect(play).not.toHaveBeenCalled();
+  });
+});
+
 describe("LessonPlayer watch tracking", () => {
   const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => new Response("{}"));
   const requests = () => fetchMock.mock.calls.map(([, init]) => JSON.parse(init!.body as string));

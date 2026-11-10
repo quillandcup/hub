@@ -16,7 +16,7 @@ import { canOpenLessons, loadMemberCourseAccess } from "@/lib/courses/member";
 import { signPlaybackTokens } from "@/lib/mux";
 import { restrictionIdForViewer } from "@/lib/mux-restriction.server";
 import { hitRateLimits } from "@/lib/rate-limit";
-import { POST } from "@/app/api/chat/videos/[messageId]/route";
+import { GET, POST } from "@/app/api/chat/videos/[messageId]/route";
 
 const MESSAGE = "msg_AAAAAAAAAAA1";
 const LESSON = "les_AAAAAAAAAAA1";
@@ -29,13 +29,13 @@ vi.mock("@/lib/data/repos", async () => ({
 }));
 
 /** The share row, a lesson and its video, each overridable: a missing row stands for what row-level security hides. */
-const setup = (over: { shared?: boolean; open?: boolean; draftCourse?: boolean; lessonState?: string; videoId?: string | null; videoStatus?: string } = {}) => {
-  const { shared = true, open = false, draftCourse = false, lessonState = "open", videoId = "video_AAAAAAAAAAA1", videoStatus = "ready" } = over;
+const setup = (over: { shared?: boolean; open?: boolean; draftCourse?: boolean; lessonState?: string; videoId?: string | null; videoStatus?: string; thumbnail?: boolean } = {}) => {
+  const { shared = true, open = false, draftCourse = false, lessonState = "open", videoId = "video_AAAAAAAAAAA1", videoStatus = "ready", thumbnail = false } = over;
   repos = createInMemoryRepos(
     new InMemoryDataset({
-      courses: [{ id: "crs_AAAAAAAAAAA1", slug: "c", title: "C", is_draft: draftCourse } as never],
+      courses: [{ id: "crs_AAAAAAAAAAA1", slug: "c", title: "The Ready Writer", is_draft: draftCourse } as never],
       chatMessageVideos: shared ? [{ id: "cmv_AAAAAAAAAAA1", message_id: MESSAGE, lesson_id: LESSON, open_to_channel: open, created_at: "2026-01-01T00:00:00Z" }] : [],
-      courseLessons: [{ id: LESSON, course_id: "crs_AAAAAAAAAAA1", title: "Show up for the page", state: lessonState, video_id: videoId } as never],
+      courseLessons: [{ id: LESSON, course_id: "crs_AAAAAAAAAAA1", title: "Show up for the page", state: lessonState, video_id: videoId, thumbnail_url: thumbnail ? "https://cdn.example.test/t.jpg" : null, thumbnail_asset_id: null } as never],
       videos: [{ id: "video_AAAAAAAAAAA1", status: videoStatus, mux_playback_id: "pb123" } as never],
     }),
   );
@@ -188,5 +188,62 @@ describe("POST /api/chat/videos/[messageId]", () => {
 
     expect(res.status).toBe(502);
     expect(JSON.stringify(await res.json())).not.toContain("mux down");
+  });
+});
+
+describe("GET /api/chat/videos/[messageId] (what the card shows before anyone presses play)", () => {
+  const card = (messageId = MESSAGE) => GET(new NextRequest("http://localhost/api/chat/videos/x"), { params: Promise.resolve({ messageId }) });
+
+  it("gives the lesson's title, its course, its thumbnail and that the viewer can watch, and mints nothing", async () => {
+    setup({ thumbnail: true });
+
+    const res = await card();
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Cache-Control")).toBe("no-store");
+    expect(await res.json()).toEqual({ title: "Show up for the page", courseTitle: "The Ready Writer", thumbnailUrl: `/api/courses/image/lesson/${LESSON}`, canWatch: true });
+    expect(signPlaybackTokens).not.toHaveBeenCalled();
+  });
+
+  it("has no thumbnail address for a lesson without one", async () => {
+    expect((await (await card()).json()).thumbnailUrl).toBeNull();
+  });
+
+  it("says a reader without the course can't watch it, and still names it (the sharer chose to put it in that conversation)", async () => {
+    vi.mocked(canOpenLessons).mockReturnValue(false);
+
+    expect(await (await card()).json()).toMatchObject({ title: "Show up for the page", courseTitle: "The Ready Writer", canWatch: false });
+  });
+
+  it("says a reader without the course can watch it when an admin opened the share to the channel, but not for a draft course or a video that isn't ready", async () => {
+    vi.mocked(canOpenLessons).mockReturnValue(false);
+    setup({ open: true });
+    expect((await (await card()).json()).canWatch).toBe(true);
+
+    setup({ open: true, draftCourse: true });
+    expect((await (await card()).json()).canWatch).toBe(false);
+
+    setup({ videoStatus: "preparing" });
+    vi.mocked(canOpenLessons).mockReturnValue(true);
+    expect((await (await card()).json()).canWatch).toBe(false);
+  });
+
+  it("is a 404 for a malformed id, a message that shares nothing (or that the reader can't read), and a lesson not open to members; 401 signed out", async () => {
+    expect((await card("nope")).status).toBe(404);
+    setup({ shared: false });
+    expect((await card()).status).toBe(404);
+    setup({ lessonState: "coming_soon" });
+    expect((await card()).status).toBe(404);
+    vi.mocked(getCoursesCaller).mockResolvedValue(null);
+    expect((await card()).status).toBe(401);
+  });
+
+  it("is rate limited", async () => {
+    vi.mocked(hitRateLimits).mockResolvedValue(false);
+
+    const res = await card();
+
+    expect(res.status).toBe(429);
+    expect(res.headers.get("Retry-After")).toBe("600");
   });
 });

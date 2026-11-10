@@ -1,8 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import LessonPlayer from "@/components/courses/LessonPlayer";
 import type { PlaybackTokens } from "@/lib/mux";
+
+/** What the card shows before play, from GET /api/chat/videos/<message id>; `canWatch` null until it has answered (or when it couldn't). */
+interface CardInfo {
+  title: string | null;
+  courseTitle: string | null;
+  thumbnailUrl: string | null;
+  canWatch: boolean | null;
+}
 
 type State =
   | { kind: "idle" }
@@ -10,22 +18,41 @@ type State =
   | { kind: "ready"; title: string; lessonId: string; playbackId: string; tokens: PlaybackTokens; restricted: boolean; record: boolean; resumeSeconds: number }
   | { kind: "error"; message: string };
 
+const NO_INFO: CardInfo = { title: null, courseTitle: null, thumbnailUrl: null, canWatch: null };
+
 /**
- * A course lesson's video shared in a message. It shows a card; pressing play asks /api/chat/videos/<message id> for
- * playback links for this viewer (the server checks they can read the message and have the course), then the course
- * player takes over. Nothing is fetched until then, so a long conversation mints no links it doesn't need. What is
- * watched is recorded like a lesson view (resume included) but tagged with this message, so the staff watch stats keep
- * chat views apart from the lesson's own. The route says when not to record (sudo, a lesson not open to members).
+ * A course lesson's video shared in a message. The card shows the lesson's thumbnail, title and course as soon as it appears (one light
+ * request that mints nothing), and says up front when this viewer can't watch it (it is part of a course they don't have), so the click is
+ * never a dead end. Pressing it asks /api/chat/videos/<message id> for playback links for this viewer (the server checks they can read the
+ * message and may watch the video) and the course player takes over and starts playing: one click. What is watched is recorded like a
+ * lesson view (resume included) but tagged with this message, so the staff watch stats keep chat views apart from the lesson's own. The
+ * route says when not to record (sudo, a lesson not open to members).
  */
 export default function ChatVideo({ messageId }: { messageId: string }) {
   const [state, setState] = useState<State>({ kind: "idle" });
+  const [card, setCard] = useState<CardInfo>(NO_INFO);
+  const [imageFailed, setImageFailed] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/chat/videos/${messageId}`)
+      .then(async (res) => (res.ok ? ((await res.json()) as Partial<CardInfo>) : null))
+      .then((info) => {
+        if (alive && info) setCard({ title: info.title ?? null, courseTitle: info.courseTitle ?? null, thumbnailUrl: info.thumbnailUrl ?? null, canWatch: typeof info.canWatch === "boolean" ? info.canWatch : null });
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [messageId]);
 
   async function open() {
     setState({ kind: "loading" });
     try {
       const res = await fetch(`/api/chat/videos/${messageId}`, { method: "POST" });
       if (res.status === 403) {
-        setState({ kind: "error", message: "This video is part of a course you don't have access to." });
+        setCard((c) => ({ ...c, canWatch: false }));
+        setState({ kind: "idle" });
         return;
       }
       if (!res.ok) {
@@ -51,27 +78,57 @@ export default function ChatVideo({ messageId }: { messageId: string }) {
           chatMessageId={messageId}
           resumeSeconds={state.resumeSeconds}
           trackProgress={state.record}
+          autoPlay
         />
         <p className="px-3 py-2 text-sm font-medium text-slate-800 dark:text-slate-100">{state.title}</p>
       </div>
     );
   }
 
+  const title = card.title ?? "Lesson video";
+  const subtitle = card.courseTitle ? `From ${card.courseTitle}` : "A lesson video from a course";
+
+  // Not watchable by this viewer: say so on the card (no button to press), and what to do about it.
+  if (card.canWatch === false) {
+    return (
+      <div className="mt-2 max-w-xl rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/60">
+        <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{card.title ?? "A lesson video"}</p>
+        <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-400">
+          {card.courseTitle ? `Part of ${card.courseTitle}.` : "Part of a course."} You need access to the course to watch it.
+        </p>
+      </div>
+    );
+  }
+
+  const busy = state.kind === "loading";
   return (
-    <div className="mt-2 max-w-xl rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/60">
+    <div className="mt-2 max-w-xl overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
       <button
         type="button"
         onClick={open}
-        disabled={state.kind === "loading"}
+        disabled={busy}
+        aria-label={`Play ${title}`}
         data-track="chat-video-open"
-        className="inline-flex items-center gap-2 rounded-md bg-plum-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-plum-700 disabled:opacity-60"
+        className="group block w-full text-left disabled:cursor-wait"
       >
-        <span aria-hidden>▶</span>
-        {state.kind === "loading" ? "Opening…" : "Watch the video"}
+        <span className="relative block aspect-video w-full bg-slate-900">
+          {card.thumbnailUrl && !imageFailed && (
+            // eslint-disable-next-line @next/next/no-img-element -- the lesson's thumbnail, served by the course image route
+            <img src={card.thumbnailUrl} alt="" loading="lazy" onError={() => setImageFailed(true)} className="absolute inset-0 h-full w-full object-cover opacity-90 group-hover:opacity-100" />
+          )}
+          <span className="absolute inset-0 flex items-center justify-center">
+            <span className="flex h-14 w-20 items-center justify-center rounded-xl bg-plum-600 text-2xl text-white shadow-lg group-hover:bg-plum-700" aria-hidden="true">
+              {busy ? "…" : "▶"}
+            </span>
+          </span>
+        </span>
+        <span className="block bg-white px-3 py-2 dark:bg-slate-900">
+          <span className="block text-sm font-medium text-slate-800 dark:text-slate-100">{title}</span>
+          <span className="block text-xs text-slate-600 dark:text-slate-400">{busy ? "Opening…" : subtitle}</span>
+        </span>
       </button>
-      <span className="ml-2 text-xs text-slate-600 dark:text-slate-400">A lesson video from a course</span>
       {state.kind === "error" && (
-        <p role="alert" className="mt-2 text-sm text-slate-700 dark:text-slate-300">
+        <p role="alert" className="border-t border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
           {state.message}
         </p>
       )}
