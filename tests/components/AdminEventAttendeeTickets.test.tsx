@@ -78,7 +78,7 @@ describe("how an attendee got in", () => {
     render(<EventDetailClient eventId={EVENT.id} />);
 
     expect(await screen.findByLabelText("How Ada Example got in")).toHaveValue("comped");
-    expect(screen.getByText("covered by staff")).toBeInTheDocument();
+    expect(screen.getByLabelText("Ticket note for Ada Example")).toHaveValue("covered by staff");
   });
 
   it("changes the source of an attendee without touching the note", async () => {
@@ -90,12 +90,41 @@ describe("how an attendee got in", () => {
     expect(writes[0]).toEqual({ url: `/api/admin/events/${EVENT.id}/attendees/${ADA.memberId}`, method: "PATCH", body: { ticketSource: "gifted" } });
   });
 
-  it("clears the source when set back to not recorded", async () => {
+  it("clears the source and the note when set back to not recorded", async () => {
     render(<EventDetailClient eventId={EVENT.id} />);
 
     await userEvent.selectOptions(await screen.findByLabelText("How Ada Example got in"), "");
 
-    await waitFor(() => expect(writes[0]?.body).toEqual({ ticketSource: null }));
+    // The note says how they got in, so it goes with the source.
+    await waitFor(() => expect(writes[0]?.body).toEqual({ ticketSource: null, ticketNote: null }));
+  });
+
+  it("saves an edited note when the field loses focus, and clears it when emptied", async () => {
+    render(<EventDetailClient eventId={EVENT.id} />);
+    const note = await screen.findByLabelText("Ticket note for Ada Example");
+
+    await userEvent.clear(note);
+    await userEvent.type(note, "gifted by Joanne");
+    await userEvent.tab();
+
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]).toEqual({ url: `/api/admin/events/${EVENT.id}/attendees/${ADA.memberId}`, method: "PATCH", body: { ticketNote: "gifted by Joanne" } });
+
+    await userEvent.clear(note);
+    await userEvent.tab();
+
+    await waitFor(() => expect(writes).toHaveLength(2));
+    expect(writes[1].body).toEqual({ ticketNote: "" });
+  });
+
+  it("does not save a note that did not change", async () => {
+    render(<EventDetailClient eventId={EVENT.id} />);
+    const note = await screen.findByLabelText("Ticket note for Ada Example");
+
+    await userEvent.click(note);
+    await userEvent.tab();
+
+    expect(writes).toEqual([]);
   });
 
   it("sends the ticket with a new attendee", async () => {

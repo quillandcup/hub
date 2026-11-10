@@ -125,13 +125,14 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
     }
   };
 
-  const handleTicketSource = async (memberId: string, value: string) => {
+  /** Saves the ticket fields it is given (the source, the note, or both); null clears one. */
+  const saveTicket = async (memberId: string, ticket: { ticketSource?: TicketSource | null; ticketNote?: string | null }) => {
     setError(null);
     try {
       const response = await fetch(`/api/admin/events/${eventId}/attendees/${memberId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ticketSource: isTicketSource(value) ? value : null }),
+        body: JSON.stringify(ticket),
       });
       if (!response.ok) {
         const body = await response.json();
@@ -142,6 +143,10 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
       setError(err.message);
     }
   };
+
+  // "Not recorded" clears the note as well: it says how they got in, so it goes with the source.
+  const handleTicketSource = (memberId: string, value: string) =>
+    saveTicket(memberId, isTicketSource(value) ? { ticketSource: value } : { ticketSource: null, ticketNote: null });
 
   const handleRemoveAttendee = async (memberId: string) => {
     setRemovingId(memberId);
@@ -325,11 +330,25 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                   {attendee.memberRealName && (
                     <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">{attendee.memberRealName}</span>
                   )}
-                  {attendee.ticketNote && (
-                    <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">{attendee.ticketNote}</span>
-                  )}
                 </span>
                 <span className="flex items-center gap-3">
+                {attendee.ticketSource && (
+                  <input
+                    key={`${attendee.id}:${attendee.ticketNote ?? ""}`}
+                    type="text"
+                    aria-label={`Ticket note for ${attendee.memberName}`}
+                    defaultValue={attendee.ticketNote ?? ""}
+                    maxLength={TICKET_NOTE_MAX_LENGTH}
+                    placeholder="Note (who gave it, why)"
+                    onBlur={(e) => {
+                      if (e.target.value.trim() !== (attendee.ticketNote ?? "")) saveTicket(attendee.memberId, { ticketNote: e.target.value });
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") e.currentTarget.blur();
+                    }}
+                    className="px-1 py-0.5 border border-gray-300 dark:border-slate-700 rounded text-xs bg-white dark:bg-slate-900 w-56"
+                  />
+                )}
                 <select
                   aria-label={`How ${attendee.memberName} got in`}
                   value={attendee.ticketSource ?? ""}
