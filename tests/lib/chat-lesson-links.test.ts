@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { OPEN_SHARE_PARAM, OPEN_SHARE_VALUE, extractLessonLink } from "@/lib/chat/lesson-links";
+import { OPEN_SHARE_PARAM, OPEN_SHARE_VALUE, extractLessonLink, withoutSharedLessonLink } from "@/lib/chat/lesson-links";
 
 const APP = "https://hub.example.com";
 const LESSON = "les_AAAAAAAAAAA1";
@@ -56,5 +56,21 @@ describe("extractLessonLink", () => {
 
   it("finds nothing when the app address can't be read", () => {
     expect(extractLessonLink(URL_, "not a url")).toBeNull();
+  });
+});
+
+describe("withoutSharedLessonLink", () => {
+  const OTHER = "les_AAAAAAAAAAA2";
+
+  it("takes out the address that became the card, as Slack stored it", () => {
+    expect(withoutSharedLessonLink(`this helped <${URL_}|here> a lot`, APP, LESSON)).toBe("this helped a lot");
+    expect(withoutSharedLessonLink(`${URL_}?t=95&amp;share=open`, APP, LESSON)).toBe("");
+  });
+
+  it("leaves the text alone for another lesson's address, another site, or no address", () => {
+    const other = `see ${APP}/courses/ready-writer/lessons/${OTHER}`;
+    expect(withoutSharedLessonLink(other, APP, LESSON)).toBe(other);
+    expect(withoutSharedLessonLink("plain", APP, LESSON)).toBe("plain");
+    expect(withoutSharedLessonLink("https://elsewhere.example.org/courses/a/lessons/les_AAAAAAAAAAA1", APP, LESSON)).toBe("https://elsewhere.example.org/courses/a/lessons/les_AAAAAAAAAAA1");
   });
 });

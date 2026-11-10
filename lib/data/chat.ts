@@ -57,6 +57,15 @@ export interface ChatSearchMessageRow {
   chat_message_contents: { body: string; files: unknown } | null;
 }
 
+/** A Slack message whose text names a lesson page: what the shared-video conversion needs to decide about it. */
+export interface LessonLinkCandidate {
+  id: string;
+  authorMemberId: string | null;
+  createdAt: string;
+  /** The text as Slack stored it (escaped, links as `<url|label>`). */
+  body: string;
+}
+
 /** What a chat search asks for: the filters of the `search_chat_messages` function. */
 export interface ChatSearchQuery {
   /** to_tsquery expression; empty for a filters-only search. */
@@ -296,6 +305,12 @@ export interface ChatRepository {
   recentGapFills(limit: number): Promise<GapFillRecord[]>;
   /** The Hub id of the message at this Slack ts in a channel, or null. */
   messageIdBySlackTs(channelId: string, slackTs: string): Promise<string | null>;
+  /**
+   * The newest live Slack-origin messages whose text names a course lesson's page (`.../lessons/les_...`), newest first, up to `limit`:
+   * the candidates for turning a lesson address someone pasted into Slack into the shared-video card (`lib/chat/slack-lesson-links.ts`).
+   * Service role (it reads every conversation's text). Whether a message already shares a video is for the caller to ask `ChatVideoRepository`.
+   */
+  slackMessagesLinkingLessons(limit: number): Promise<LessonLinkCandidate[]>;
 
   // --- notifications ---
   /** A message with its text and its conversation, for deciding who to notify; null when there is no such message. */
@@ -863,6 +878,20 @@ export class SupabaseChatRepository implements ChatRepository {
     return data ?? [];
   }
 
+  async slackMessagesLinkingLessons(limit: number) {
+    const { data, error } = await this.db
+      .from("chat_messages")
+      .select("id, author_member_id, created_at, chat_message_contents!inner(body)")
+      .eq("origin", "slack")
+      .is("deleted_at", null)
+      .ilike("chat_message_contents.body", "%/lessons/les_%")
+      .order("created_at", { ascending: false })
+      .order("id")
+      .limit(limit);
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((m) => ({ id: m.id, authorMemberId: m.author_member_id, createdAt: m.created_at, body: one(m.chat_message_contents)?.body ?? "" }));
+  }
+
   async messageIdBySlackTs(channelId: string, slackTs: string) {
     const { data, error } = await this.db.from("chat_messages").select("id").eq("channel_id", channelId).eq("slack_ts", slackTs).maybeSingle();
     if (error) throw new Error(error.message);
@@ -1351,6 +1380,17 @@ export class InMemoryChatRepository implements ChatRepository {
         error: f.error ?? null,
       }))
       .sort((a, b) => (a.started_at < b.started_at ? 1 : a.started_at > b.started_at ? -1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+      .slice(0, limit);
+  }
+
+  async slackMessagesLinkingLessons(limit: number) {
+    return this.data.chatMessages
+      .filter((m) => (m.origin ?? "slack") === "slack" && !m.deleted_at)
+      .flatMap((m) => {
+        const body = this.data.chatMessageContents.find((c) => c.message_id === m.id)?.body ?? "";
+        return body.includes("/lessons/les_") ? [{ id: m.id, authorMemberId: m.author_member_id ?? null, createdAt: m.created_at ?? "", body }] : [];
+      })
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : a.id < b.id ? -1 : 1))
       .slice(0, limit);
   }
 

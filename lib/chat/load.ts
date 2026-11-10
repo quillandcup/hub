@@ -7,6 +7,8 @@ import type { ChatTextContext } from "@/components/chat/ChatText";
 import { safeUrl } from "@/lib/url";
 import { parseChatFiles, type ChatFile } from "@/lib/chat/files";
 import { stripSharedVideoLink } from "@/lib/chat/video-link";
+import { withoutSharedLessonLink } from "@/lib/chat/lesson-links";
+import { APP_URL } from "@/lib/config";
 import { getAttendedPrickleCount, getMemberBadges, type BadgeRepos, type EarnedBadge } from "@/lib/badges";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Repos } from "@/lib/data/repos";
@@ -530,8 +532,10 @@ export async function buildMessageViews(
 
   const views = rows.map((row): ChatMessageView => {
     const rawBody = bodyOf(row);
-    // Slack's copy of a shared-video message ends with the link we added for Slack; the Hub shows the card instead.
-    const body = rawBody !== null && sharedVideos.has(row.id) ? stripSharedVideoLink(rawBody) : rawBody;
+    // Slack's copy of a shared-video message ends with the links we added for Slack, and one pasted into Slack keeps its address in the text;
+    // the Hub shows the card instead.
+    const sharedLesson = sharedVideos.get(row.id);
+    const body = rawBody !== null && sharedLesson ? withoutSharedLessonLink(stripSharedVideoLink(rawBody), APP_URL, sharedLesson) : rawBody;
     const contentState: ContentState = row.deleted_at ? "deleted" : body === null ? "hidden" : "ok";
     const author =
       (row.author_member_id ? profiles.get(row.author_member_id) : undefined) ??
