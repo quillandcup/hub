@@ -6,9 +6,10 @@ import "@testing-library/jest-dom/vitest";
 
 const replace = vi.fn();
 let slackParam: string | null = null;
+let nextParam: string | null = null;
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace }),
-  useSearchParams: () => new URLSearchParams(slackParam ? { slack: slackParam } : {}),
+  useSearchParams: () => new URLSearchParams({ ...(slackParam ? { slack: slackParam } : {}), ...(nextParam ? { next: nextParam } : {}) }),
 }));
 vi.mock("@/app/(member)/settings/slackConnectActions", () => ({ disconnectSlackAction: vi.fn() }));
 import { disconnectSlackAction } from "@/app/(member)/settings/slackConnectActions";
@@ -18,6 +19,7 @@ beforeEach(() => {
   cleanup();
   replace.mockReset();
   slackParam = null;
+  nextParam = null;
   vi.mocked(disconnectSlackAction).mockReset();
 });
 
@@ -98,5 +100,53 @@ describe("SlackConnectPanel privacy link", () => {
 
     render(<SlackConnectPanel connected />);
     expect(screen.getByRole("link", { name: /what staff can and can't see/ })).toHaveAttribute("href", "/privacy");
+  });
+
+  // The connect-Slack gate (lib/gates.ts): chat sent them here with the page they were headed to.
+  describe("when the connect-Slack gate sent the member here", () => {
+    const DESTINATION = "/chat/chn_AAAAAAAAAAA1?thread=msg_AAAAAAAAAAA1";
+
+    it("says why, carries the page they asked for to Slack and back, and offers a way out", () => {
+      slackParam = "required";
+      nextParam = DESTINATION;
+      render(<SlackConnectPanel connected={false} />);
+
+      expect(screen.getByRole("status")).toHaveTextContent("Chat needs your Slack account connected");
+      expect(screen.getByRole("link", { name: "Connect Slack" })).toHaveAttribute("href", `/api/oauth/slack/start?next=${encodeURIComponent(DESTINATION)}`);
+      expect(screen.getByRole("link", { name: /Not now, go to your dashboard/ })).toHaveAttribute("href", "/dashboard");
+    });
+
+    it("carries it through a reconnect too, which is what a connection without the read scopes needs", () => {
+      slackParam = "required";
+      nextParam = DESTINATION;
+      render(<SlackConnectPanel connected sharesReadState={false} />);
+
+      expect(screen.getByRole("link", { name: "Reconnect Slack" })).toHaveAttribute("href", `/api/oauth/slack/start?next=${encodeURIComponent(DESTINATION)}`);
+      expect(screen.getByRole("link", { name: /Not now/ })).toBeInTheDocument();
+    });
+
+    it("still offers the way out when there is no destination, and connects as usual", () => {
+      slackParam = "required";
+      render(<SlackConnectPanel connected={false} />);
+
+      expect(screen.getByRole("link", { name: "Connect Slack" })).toHaveAttribute("href", "/api/oauth/slack/start");
+      expect(screen.getByRole("link", { name: /Not now/ })).toBeInTheDocument();
+    });
+
+    it("ignores a destination that isn't a safe same-origin path", () => {
+      slackParam = "required";
+      nextParam = "https://evil.example.com/";
+      render(<SlackConnectPanel connected={false} />);
+
+      expect(screen.getByRole("link", { name: "Connect Slack" })).toHaveAttribute("href", "/api/oauth/slack/start");
+    });
+
+    it("shows neither the exit nor the destination on an ordinary visit to Settings", () => {
+      nextParam = DESTINATION;
+      render(<SlackConnectPanel connected={false} />);
+
+      expect(screen.queryByRole("link", { name: /Not now/ })).not.toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Connect Slack" })).toHaveAttribute("href", "/api/oauth/slack/start");
+    });
   });
 });

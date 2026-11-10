@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import GateExit from "@/components/GateExit";
+import { GATES, RETURN_PARAM, returnToParam } from "@/lib/gates";
 import { disconnectSlackAction } from "./slackConnectActions";
 
 const FLASH: Record<string, { ok: boolean; text: string }> = {
@@ -11,7 +13,7 @@ const FLASH: Record<string, { ok: boolean; text: string }> = {
   wrong_workspace: { ok: false, text: "That Slack account is in a different workspace. Sign in to our Slack workspace and try again." },
   taken: { ok: false, text: "That Slack account is already connected to another member. Ask an admin for help." },
   other_account: { ok: false, text: "You already connected a different Slack account. Disconnect it first, or ask an admin for help." },
-  required: { ok: false, text: "Chat needs your Slack account connected. Connect it once and you are in." },
+  required: { ok: false, text: GATES.connectSlack.reason },
   invalid_state: { ok: false, text: "That link expired. Try connecting again." },
   failed: { ok: false, text: "Couldn't connect to Slack. Try again in a moment." },
   sudo: { ok: false, text: "You can't connect Slack while viewing as another member." },
@@ -38,7 +40,12 @@ export default function SlackConnectPanel({
   hasDmReactionScope?: boolean;
 }) {
   const router = useRouter();
-  const flash = FLASH[useSearchParams().get("slack") ?? ""];
+  const params = useSearchParams();
+  const flash = FLASH[params.get("slack") ?? ""];
+  // Sent here by the connect-Slack gate (lib/gates.ts): the page they were headed to rides along to Slack and back, and "Not now" is the way out.
+  const gated = params.get("slack") === GATES.connectSlack.params.slack;
+  const destination = gated ? returnToParam(params.get(RETURN_PARAM)) : null;
+  const connectHref = `/api/oauth/slack/start${destination ? `?${RETURN_PARAM}=${encodeURIComponent(destination)}` : ""}`;
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -61,7 +68,7 @@ export default function SlackConnectPanel({
           {!sharesReadState && (
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
               To mark conversations read in both places, reconnect Slack once so it can share how far you have read.{" "}
-              <a href="/api/oauth/slack/start" data-track="settings-slack-reconnect" className="font-medium text-plum-700 underline dark:text-plum-400">
+              <a href={connectHref} data-track="settings-slack-reconnect" className="font-medium text-plum-700 underline dark:text-plum-400">
                 Reconnect Slack
               </a>
             </p>
@@ -72,7 +79,7 @@ export default function SlackConnectPanel({
               people in the Hub when they arrive. Slack will list permission to read and send your direct messages; the Hub
               uses it only for the DM bridge, which we switch on member by member (see Privacy).
               {" "}
-              <a href="/api/oauth/slack/start" data-track="settings-slack-reconnect-dm" className="font-medium text-plum-700 underline dark:text-plum-400">
+              <a href={connectHref} data-track="settings-slack-reconnect-dm" className="font-medium text-plum-700 underline dark:text-plum-400">
                 Reconnect Slack
               </a>
             </p>
@@ -116,12 +123,17 @@ export default function SlackConnectPanel({
           </p>
           {/* A full navigation: this goes to Slack and comes back through the callback route. */}
           <a data-track="settings-slack-connect-slack"
-            href="/api/oauth/slack/start"
+            href={connectHref}
             className="mt-3 inline-block rounded-lg bg-plum-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-plum-700"
           >
             Connect Slack
           </a>
         </>
+      )}
+      {gated && (
+        <p className="mt-3">
+          <GateExit gate={GATES.connectSlack} />
+        </p>
       )}
       <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">
         Wondering who can read what you write?{" "}
