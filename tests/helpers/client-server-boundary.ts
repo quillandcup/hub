@@ -8,11 +8,14 @@
  * 2. A server file that imports from a "use client" file gets client references, which can be rendered but not called
  *    or read: only components (PascalCase) may be imported, never a function, a constant or a namespace. Calling one
  *    fails the server render with React error #441, which the person sees as "a client-side exception".
+ * 3. A "use server" module exports only async functions at runtime. A constant export breaks the
+ *    generated action bundle when a request loads it, even when the production build succeeds.
  *
  * A file the client bundles (reachable from a "use client" file) is exempt from 2: it is client code without the
  * directive. Type imports are erased and never count.
  */
 import path from "node:path";
+import ts from "typescript";
 
 export type Files = Map<string, string>;
 
@@ -57,6 +60,69 @@ export function importsOf(text: string): ImportOf[] {
 
 /** A component's name: PascalCase with a lowercase letter, so not a constant (`HIGHLIGHT_SECTIONS`) or a function. */
 export const looksLikeComponent = (name: string) => /^[A-Z][A-Za-z0-9]*$/.test(name) && /[a-z]/.test(name);
+
+/**
+ * Server action modules may expose only async functions at runtime. Inspect syntax rather than
+ * importing modules: importing them in Vitest bypasses Next's generated export validation.
+ * Keep runtime re-exports out of action entry points too; declare an async wrapper instead so
+ * the entry point's contract can be checked here without executing its dependencies.
+ */
+export function serverActionExportOffenders(files: Files): string[] {
+  const offenders: string[] = [];
+  for (const [file, text] of files) {
+    const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
+    // Directives form a prologue: comments and another directive before "use server" are allowed.
+    const directives: string[] = [];
+    for (const statement of source.statements) {
+      if (!ts.isExpressionStatement(statement) || !ts.isStringLiteral(statement.expression)) break;
+      directives.push(statement.expression.text);
+    }
+    if (!directives.includes("use server")) continue;
+
+    const has = (node: ts.Node, kind: ts.SyntaxKind) => ts.canHaveModifiers(node) && ts.getModifiers(node)?.some((m) => m.kind === kind);
+    const asyncFunction = (node: ts.Node | undefined): boolean => !!node
+      && (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node) || ts.isArrowFunction(node))
+      && !!has(node, ts.SyntaxKind.AsyncKeyword);
+    const locals = new Map<string, ts.Node>();
+    for (const statement of source.statements) {
+      if (ts.isFunctionDeclaration(statement) && statement.name) locals.set(statement.name.text, statement);
+      if (ts.isVariableStatement(statement)) {
+        for (const declaration of statement.declarationList.declarations) {
+          if (ts.isIdentifier(declaration.name) && declaration.initializer) locals.set(declaration.name.text, declaration.initializer);
+        }
+      }
+    }
+    const validValue = (node: ts.Node): boolean => {
+      if (ts.isIdentifier(node)) return asyncFunction(locals.get(node.text));
+      if (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isSatisfiesExpression(node)) return validValue(node.expression);
+      return asyncFunction(node);
+    };
+    const report = (node: ts.Node, name: string) => {
+      const line = source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
+      offenders.push(`${file}:${line} exports ${name}; use server entry points must export only explicit async functions (move shared values to another module)`);
+    };
+    for (const statement of source.statements) {
+      if (ts.isExportDeclaration(statement)) {
+        if (statement.isTypeOnly) continue;
+        if (statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+          for (const entry of statement.exportClause.elements) {
+            if (!entry.isTypeOnly && (statement.moduleSpecifier || !validValue(entry.propertyName ?? entry.name))) report(entry, entry.name.text);
+          }
+        } else report(statement, "a runtime re-export");
+      } else if (ts.isExportAssignment(statement)) {
+        if (!validValue(statement.expression)) report(statement, "default");
+      } else if (has(statement, ts.SyntaxKind.ExportKeyword)) {
+        if (ts.isInterfaceDeclaration(statement) || ts.isTypeAliasDeclaration(statement)) continue;
+        if (ts.isVariableStatement(statement)) {
+          for (const declaration of statement.declarationList.declarations) {
+            if (!declaration.initializer || !validValue(declaration.initializer)) report(declaration, declaration.name.getText(source));
+          }
+        } else if (!asyncFunction(statement)) report(statement, statement.getText(source).split("\n")[0]);
+      }
+    }
+  }
+  return offenders;
+}
 
 export function boundary(files: Files) {
   const imports = new Map([...files].map(([f, text]) => [f, importsOf(text)]));

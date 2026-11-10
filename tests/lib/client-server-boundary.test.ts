@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, it, expect } from "vitest";
-import { boundary, importsOf, looksLikeComponent, type Files } from "../helpers/client-server-boundary";
+import { boundary, importsOf, looksLikeComponent, serverActionExportOffenders, type Files } from "../helpers/client-server-boundary";
 
 /**
  * The client/server import boundary (see tests/helpers/client-server-boundary.ts for the rules). A build and the
@@ -25,12 +25,67 @@ const real: Files = new Map(DIRS.flatMap(sources).map((f) => [f, fs.readFileSync
 const fixture = (files: Record<string, string>): Files => new Map(Object.entries(files));
 
 describe("the client/server import boundary, in the app", () => {
+  it("exports only async functions from every use server module", () => {
+    expect([...real.values()].filter((text) => text.includes("use server")).length).toBeGreaterThan(40);
+    expect(serverActionExportOffenders(real)).toEqual([]);
+  });
   it("keeps server-only code out of every client bundle", () => {
     expect(boundary(real).clientBundleOffenders()).toEqual([]);
   });
 
   it("imports only components from a client file into a server file", () => {
     expect(boundary(real).serverImportOffenders()).toEqual([]);
+  });
+});
+
+describe("server action exports, on examples", () => {
+  it("rejects the chat regression and other runtime values, including multiline exports", () => {
+    const offenders = serverActionExportOffenders(fixture({
+      "app/actions.ts": `// Header comment
+"use server";
+export const NOTIFY_SETTINGS = ["default", "all"] as const;
+export const config = {};
+export function sync() { return 1; }
+export class Settings {}
+export enum Setting { All }
+const hidden = [];
+export {
+  hidden as settings
+};
+export default {};
+`,
+    }));
+    expect(offenders).toHaveLength(7);
+    expect(offenders[0]).toContain("app/actions.ts:3 exports NOTIFY_SETTINGS");
+    expect(offenders.some((message) => message.includes("exports settings"))).toBe(true);
+  });
+
+  it("allows async declarations, async expressions, aliases and type-only exports", () => {
+    expect(serverActionExportOffenders(fixture({
+      "lib/actions.ts": `/* Header */
+'use strict';
+'use server';
+export async function save() {}
+export const remove = async () => {};
+export const update = async function () {};
+async function local() {}
+export { local as renamed };
+export default async function () {}
+export interface Result { ok: boolean }
+export type Choice = "all";
+export type { Something } from "./types";
+export { type Another } from "./types";
+`,
+      "components/Widget.tsx": '"use client"; export const values = [];',
+      "lib/shared.ts": 'export const values = [];',
+      "app/inline.ts": 'export function render() { async function save() { "use server"; } }',
+    }))).toEqual([]);
+  });
+
+  it("requires explicit async entry points instead of unchecked runtime re-exports", () => {
+    expect(serverActionExportOffenders(fixture({
+      "app/actions.ts": '"use server"; export * from "./shared"; export { values } from "./shared";',
+    }))).toHaveLength(2);
   });
 });
 
