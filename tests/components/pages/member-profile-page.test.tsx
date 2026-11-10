@@ -18,7 +18,7 @@ import {
   useFakeSupabase,
   type FakeTables,
 } from "@/tests/helpers/server-page";
-import { effectiveMemberHasFeature } from "@/lib/features.server";
+import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
 import type { HostedPrickleRecord } from "@/lib/hosting-stats";
 import type { HostedScheduleSlot } from "@/lib/prickle-schedule";
 
@@ -194,7 +194,10 @@ describe("member profile page: header", () => {
 });
 
 describe("member profile page: Message button", () => {
-  const withFeatures = (...keys: string[]) => vi.mocked(effectiveMemberHasFeature).mockImplementation(async (key) => keys.includes(key));
+  const withFeatures = (...keys: string[]) => {
+    vi.mocked(effectiveMemberHasFeature).mockImplementation(async (key) => keys.includes(key));
+    vi.mocked(getUserFeaturePreviews).mockResolvedValue(keys as never);
+  };
   const button = () => screen.queryByRole("button", { name: "Message" });
 
   it("is there with either Hub direct messages or the Slack DM bridge", async () => {

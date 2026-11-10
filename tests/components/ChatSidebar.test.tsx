@@ -40,6 +40,8 @@ vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ channel: () => 
 const syncRead = vi.hoisted(() => vi.fn());
 vi.mock("@/app/(member)/chat/actions", () => ({ syncChatReadFromSlack: syncRead }));
 
+vi.mock("@/app/(member)/chat/dm-actions", () => ({ startDirectMessage: vi.fn(), searchDmCandidates: vi.fn(async () => []) }));
+
 import ChatSidebar from "@/components/chat/ChatSidebar";
 
 const channel = (id: string, label: string, extra: Partial<ChannelSummary> = {}): ChannelSummary => ({
@@ -94,6 +96,16 @@ describe("ChatSidebar", () => {
     await userEvent.clear(screen.getByRole("searchbox", { name: "Find a channel" }));
     await userEvent.type(screen.getByRole("searchbox", { name: "Find a channel" }), "gale");
     expect(links()).toEqual(["Gale, Fern"]);
+  });
+
+  it("offers New message in the Direct messages heading only when allowed, even with no direct messages yet", () => {
+    const { unmount } = render(<ChatSidebar channels={CHANNELS} />);
+    expect(screen.queryByRole("button", { name: "New message" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Direct messages" })).toBeNull();
+    unmount();
+    render(<ChatSidebar channels={CHANNELS} canStartDm />);
+    expect(screen.getByRole("heading", { name: "Direct messages" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New message" })).toBeInTheDocument();
   });
 
   it("takes the whole height on the list screen, so the empty pane beside it can't halve it", () => {

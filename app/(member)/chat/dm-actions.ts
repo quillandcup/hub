@@ -7,6 +7,9 @@ import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/feature
 import { openSlackDm, type OpenDmResult } from "@/lib/chat/slack-dms";
 import { isId } from "@/lib/ids";
 import { withAction } from "@/lib/analytics/server";
+import { createRepos } from "@/lib/data/repos";
+import { canStartDirectMessage } from "@/lib/chat/can-message";
+import { memberSearchItem } from "@/lib/member-search-item";
 
 export type StartDmResult = { ok: true; channelId: string } | { ok: false; error: string };
 
@@ -61,4 +64,36 @@ async function slackBridgeCaller() {
 // Usage analytics: each action records whether it worked (lib/analytics/server.ts).
 export async function startDirectMessage(memberId: string): Promise<StartDmResult> {
   return withAction("chat_dm_started", () => startDirectMessageImpl(memberId));
+}
+
+const DM_CANDIDATE_LIMIT = 8;
+
+/** A person the picker offers: the name they are known by, and their legal name when it differs (both are searched). */
+export interface DmCandidate {
+  id: string;
+  name: string;
+  detail: string | null;
+}
+
+/**
+ * Members the signed-in member can start a direct message with, found by what they typed (display or legal
+ * name). Same gate as the picker: not in sudo, and with a way to message at all. Leaves out the caller and
+ * anyone who is not active or has no Hub login (no one to read it); names only, from the directory every member can read.
+ */
+export async function searchDmCandidates(query: string): Promise<DmCandidate[]> {
+  const text = query.trim().slice(0, 40);
+  if (!text) return [];
+  const caller = await postingCaller();
+  if (!caller) return [];
+  if (!canStartDirectMessage(caller.identity, await getUserFeaturePreviews(caller.userId))) return [];
+  const repos = createRepos(createServiceRoleClient());
+  const matches = (await repos.directory.matching(text, 40)).filter((m) => m.id !== caller.identity.memberId);
+  if (matches.length === 0) return [];
+  const ids = matches.map((m) => m.id);
+  const [members, accounts] = await Promise.all([repos.members.byIds(ids), repos.members.userIdsByMemberId(ids)]);
+  const active = new Set(members.filter((m) => m.status === "active").map((m) => m.id));
+  return matches
+    .filter((m) => active.has(m.id) && accounts.get(m.id))
+    .slice(0, DM_CANDIDATE_LIMIT)
+    .map((m) => memberSearchItem({ id: m.id, name: m.name, displayName: m.display_name }));
 }
