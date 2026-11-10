@@ -31,6 +31,8 @@ import ThreadList from "@/components/chat/ThreadList";
 import MessageList from "@/components/chat/MessageList";
 import ChatLive from "@/components/chat/ChatLive";
 import SidePanel from "@/components/chat/SidePanel";
+import NotifySetting from "@/components/chat/NotifySetting";
+import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { isValidTimeZone } from "@/lib/time-zone";
@@ -140,7 +142,14 @@ export default async function ChatChannelPage({
     ]);
     return { conversation: conversation?.body ?? null, thread: thread?.body ?? null, conversationFiles, threadFiles };
   };
-  const [{ page, root, threadPage }, preferredZone, people, readMarker, channels, memberCard, postingOn, drafts] = await Promise.all([
+  // The notification setting of this conversation, for members who have chat notifications (not in sudo: it is the viewed member's own).
+  const notifySettingQuery = async () => {
+    if (sudoHidden || identity.isSudo || !channel.joined) return null;
+    if (!(await effectiveMemberHasFeature("chat_notifications", identity, await getUserFeaturePreviews(user.id)))) return null;
+    // A failed read just hides the control.
+    return createRepos(supabase).chat.notifySettingOf(channel.id, identity.memberId).catch(() => null);
+  };
+  const [{ page, root, threadPage }, preferredZone, people, readMarker, channels, memberCard, postingOn, drafts, notifySetting] = await Promise.all([
     timer.time("messages", messagesQuery()),
     // Times are in the reader's zone; "browser" means not detected yet, so the organization's.
     timer.time("timezone", getUserTimezonePreference()),
@@ -151,6 +160,7 @@ export default async function ChatChannelPage({
     timer.time("posting", postingQuery()),
     // A failed read just means no draft is put back.
     timer.time("drafts", draftsQuery().catch(() => ({ conversation: null, thread: null, conversationFiles: [], threadFiles: [] }))),
+    timer.time("notifySetting", notifySettingQuery()),
   ]);
   timer.mark("parallel");
   const timeZone = isValidTimeZone(preferredZone) ? preferredZone : ORG_TIMEZONE;
@@ -191,6 +201,7 @@ export default async function ChatChannelPage({
               <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">This channel is archived in Slack.</p>
             )}
           </div>
+          {notifySetting && <NotifySetting channelId={channel.id} initial={notifySetting} isDirect={channel.kind !== "channel"} />}
           {people.length > 0 && (
             <Link data-track="chat-channel-members"
               href={`/chat/${channel.id}/members`}

@@ -56,6 +56,13 @@ vi.mock("next/server", () => ({ after: (cb: () => unknown) => void afterCallback
 const catchUpChannel = vi.fn(async () => ({ claimed: false, messages: 0, reactions: 0 }));
 vi.mock("@/lib/chat/gap-fill", () => ({ catchUpChannel: (...a: unknown[]) => catchUpChannel(...(a as [])) }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({ service: true }) }));
+// Whether the member has chat notifications (the control for what notifies them about a conversation).
+let chatNotificationsOn = false;
+vi.mock("@/lib/features.server", async (original) => ({
+  ...(await original<typeof import("@/lib/features.server")>()),
+  getUserFeaturePreviews: async () => [],
+  effectiveMemberHasFeature: async (key: string) => key === "chat_notifications" && chatNotificationsOn,
+}));
 
 const EMPTY_CTX = { userNames: {}, userMembers: {}, channelIds: {}, channelNames: {}, customEmoji: {} };
 const EXAMPLE_VIEW = {
@@ -212,6 +219,7 @@ beforeEach(() => {
   catchUpChannel.mockClear();
   staffRole = "member";
   readMarker = null;
+  chatNotificationsOn = false;
   markerError = false;
   singleMember = false;
   unread = [];
@@ -352,6 +360,39 @@ describe("the line between read and new", () => {
     signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
     await renderChannel(HOSTS);
     expect(line()).not.toBeInTheDocument();
+  });
+});
+
+describe("notification setting of a conversation", () => {
+  const control = () => screen.queryByRole("combobox", { name: "Notifications for this conversation" });
+
+  it("is offered to a member with chat notifications, in a conversation they are in", async () => {
+    chatNotificationsOn = true;
+    await renderChannel(HOSTS);
+    expect(control()).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Default (mentions only)" })).toBeInTheDocument();
+  });
+
+  it("names the direct message default for a group message", async () => {
+    chatNotificationsOn = true;
+    await renderChannel(GROUP);
+    expect(screen.getByRole("option", { name: "Default (every message)" })).toBeInTheDocument();
+  });
+
+  it("is not offered without chat notifications, in a channel not joined, or in sudo", async () => {
+    chatNotificationsOn = false;
+    await renderChannel(HOSTS);
+    expect(control()).not.toBeInTheDocument();
+    cleanup();
+
+    chatNotificationsOn = true;
+    await renderChannel(GENERAL);
+    expect(control()).not.toBeInTheDocument();
+    cleanup();
+
+    signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
+    await renderChannel(HOSTS);
+    expect(control()).not.toBeInTheDocument();
   });
 });
 

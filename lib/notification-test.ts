@@ -3,6 +3,7 @@ import type { Repos } from "@/lib/data/repos";
 import { bigSisterMessageForMentor, bigSisterMessageForNewMember } from "@/lib/mentorship-intro";
 import { loadIntroChannelId } from "@/lib/newcomer-signals";
 import { introNudgeMessage, prickleNudgeMessage } from "@/lib/member-reminders";
+import { chatNotificationMessage } from "@/lib/chat/notifications";
 import { checkinMessage, checkoutMessage } from "@/lib/prickle-checkin-dms";
 import { NOTIFICATION_SETTINGS_PATH } from "@/lib/notifications/notify";
 import { joinAt, loadPrickleJoinSettings } from "@/lib/prickle-join";
@@ -75,6 +76,13 @@ export async function sampleMessages(
       return [mark(prickleNudgeMessage("first"))];
     case "changelog_digest":
       return [mark(digestMessage(listProductChangelog().slice(0, 1)))];
+    // Chat samples link to the chat list, not a conversation: there is no real one to name.
+    case "chat_dm":
+      return [mark(chatNotificationMessage("chat_dm", { authorName: "Marlow", channelKind: "dm", channelName: null, channelId: null, threadRootId: null }))];
+    case "chat_mention":
+      return [mark(chatNotificationMessage("chat_mention", { authorName: "Marlow", channelKind: "channel", channelName: "writing-sprints", channelId: null, threadRootId: null }))];
+    case "chat_channel_message":
+      return [mark(chatNotificationMessage("chat_channel_message", { authorName: "Marlow", channelKind: "channel", channelName: "writing-sprints", channelId: null, threadRootId: null }))];
     case "big_sister_match":
       return [mark(bigSisterMessageForNewMember("Marlow", "sample")), mark(bigSisterMessageForMentor("Marlow", "Linden", "sample"))];
   }

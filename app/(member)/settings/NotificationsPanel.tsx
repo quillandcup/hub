@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import {
+  CHAT_NOTIFICATION_KINDS,
   NOTIFICATION_CHANNELS,
   NOTIFICATION_KINDS,
   type NotificationChannelId,
@@ -9,7 +10,10 @@ import {
 } from "@/lib/notifications/registry";
 import { ChannelIcon } from "@/components/ChannelIcon";
 import { BrowserNotificationsToggle } from "./BrowserNotificationsToggle";
-import { setNotificationChannel, type NotificationSettings } from "./notificationActions";
+import { setChatMainPlace, setNotificationChannel, type NotificationSettings } from "./notificationActions";
+
+/** Slack's own guide to configuring notifications (Slack has no API to read or change a member's preferences). */
+const SLACK_NOTIFICATION_HELP_URL = "https://slack.com/help/articles/201355156-Configure-your-Slack-notifications";
 import { trackSlug } from "@/lib/analytics/names";
 
 /**
@@ -21,6 +25,8 @@ export function NotificationsPanel({ initial }: { initial: NotificationSettings 
   const [channelsByKind, setChannelsByKind] = useState(initial.channelsByKind);
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [mainPlace, setMainPlace] = useState(initial.chatMainPlace);
+  const [savingMainPlace, setSavingMainPlace] = useState(false);
 
   const visibleKinds = NOTIFICATION_KINDS.filter((k) => initial.visibleKinds.includes(k.id));
   const categories = [...new Set(visibleKinds.map((k) => k.category))];
@@ -39,6 +45,22 @@ export function NotificationsPanel({ initial }: { initial: NotificationSettings 
       setError(result.error);
     }
     setSaving(null);
+  };
+
+  const toggleMainPlace = async (on: boolean) => {
+    const before = { mainPlace, channelsByKind };
+    const turnedOn = initial.channels.filter((c) => c === "in_app" || c === "web_push");
+    setMainPlace(on);
+    setChannelsByKind((s) => ({ ...s, ...Object.fromEntries(CHAT_NOTIFICATION_KINDS.map((k) => [k, on ? turnedOn : []])) }));
+    setSavingMainPlace(true);
+    setError(null);
+    const result = await setChatMainPlace(on);
+    if ("error" in result) {
+      setMainPlace(before.mainPlace);
+      setChannelsByKind(before.channelsByKind);
+      setError(result.error);
+    }
+    setSavingMainPlace(false);
   };
 
   return (
@@ -63,6 +85,54 @@ export function NotificationsPanel({ initial }: { initial: NotificationSettings 
 
       {initial.webPushPublicKey && (
         <BrowserNotificationsToggle publicKey={initial.webPushPublicKey} readOnly={initial.readOnly} />
+      )}
+
+      {initial.chatNotifications && (
+        <section aria-labelledby="chat-main-place-heading" className="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+          <label className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              role="switch"
+              checked={mainPlace}
+              disabled={initial.readOnly || savingMainPlace}
+              aria-busy={savingMainPlace}
+              data-track="settings-chat-main-place"
+              onChange={(e) => toggleMainPlace(e.target.checked)}
+              className="mt-1 h-4 w-4"
+            />
+            <span>
+              <span id="chat-main-place-heading" className="block font-medium text-slate-900 dark:text-slate-100">
+                Hub chat is my main place
+              </span>
+              <span className="block text-sm text-slate-600 dark:text-slate-400">
+                Tell me in the Hub about direct messages, mentions and the channels I follow, on the channels chosen below. Messages
+                in conversations that are also in Slack are told to you by Slack too, so turn this on when you want Slack to stop.
+              </span>
+            </span>
+          </label>
+          {mainPlace && (
+            <div className="mt-3 border-t border-slate-100 pt-3 text-sm text-slate-600 dark:border-slate-800 dark:text-slate-400">
+              <p className="font-medium text-slate-800 dark:text-slate-200">So Slack doesn&apos;t tell you twice</p>
+              <ol className="mt-1 list-decimal space-y-1 pl-5">
+                <li>Open Slack, then Preferences, then Notifications.</li>
+                <li>Under &ldquo;Notify me about&rdquo;, choose &ldquo;Nothing&rdquo; (or only the conversations you still want there).</li>
+                <li>For a single conversation, open it in Slack and change its own notification setting.</li>
+              </ol>
+              <p className="mt-2">
+                Slack doesn&apos;t let apps change these for you, so this has to be done in Slack.{" "}
+                <a
+                  href={SLACK_NOTIFICATION_HELP_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-track="settings-chat-slack-help"
+                  className="text-plum-600 underline dark:text-plum-400"
+                >
+                  Slack&apos;s guide to notifications
+                </a>
+              </p>
+            </div>
+          )}
+        </section>
       )}
 
       {categories.map((category) => (

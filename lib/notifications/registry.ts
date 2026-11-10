@@ -95,7 +95,47 @@ export const NOTIFICATION_KINDS = [
       "A short note, at most once a week, when we have added or improved something. Nothing is sent in quiet weeks. The full list is on the What's new page.",
     defaultChannels: ["slack", "in_app"],
   },
+  // Hub chat. Off for everyone until they turn on "Hub chat is my main place" (Settings -> Notifications), which writes
+  // their choices for these three kinds: a bridged conversation is a real Slack one, and Slack already tells them.
+  {
+    id: "chat_dm",
+    category: "Chat",
+    label: "Direct messages",
+    description: "Sent when someone sends you a direct message in Hub Chat and you haven't read the conversation yet. A burst of messages is one notification, and it never contains the message itself.",
+    defaultChannels: [],
+    feature: "chat_notifications",
+  },
+  {
+    id: "chat_mention",
+    category: "Chat",
+    label: "Mentions in channels",
+    description: "Sent when someone mentions you (or the whole channel) in a Hub Chat channel and you haven't read the conversation yet. One notification per conversation until you read it, with a link to the conversation.",
+    defaultChannels: [],
+    feature: "chat_notifications",
+  },
+  {
+    id: "chat_channel_message",
+    category: "Chat",
+    label: "Messages in channels you follow",
+    description: "Sent for new messages in a channel you have set to notify you about every message (the bell on the conversation), until you read it. Channels notify you only when you are mentioned unless you change that.",
+    defaultChannels: [],
+    feature: "chat_notifications",
+  },
 ] as const satisfies readonly NotificationKindDef[];
+
+/** The chat kinds, which the "Hub chat is my main place" switch turns on and off together. */
+export const CHAT_NOTIFICATION_KINDS = ["chat_dm", "chat_mention", "chat_channel_message"] as const satisfies readonly string[];
+export type ChatNotificationKindId = (typeof CHAT_NOTIFICATION_KINDS)[number];
+
+/**
+ * "Hub chat is my main place" (Settings -> Notifications): the member wants Hub chat to tell them about direct messages, mentions
+ * and followed channels, so it is on when any channel is on for any of the three chat kinds. The kinds are off by default
+ * (Slack already tells them about the same conversations); the switch writes ordinary per-kind choices, and the grid below it
+ * can still fine-tune them.
+ */
+export function chatIsMainPlace(channelsByKind: Readonly<Record<string, readonly string[] | undefined>>): boolean {
+  return CHAT_NOTIFICATION_KINDS.some((kind) => (channelsByKind[kind]?.length ?? 0) > 0);
+}
 
 export type NotificationKindId = (typeof NOTIFICATION_KINDS)[number]["id"];
 

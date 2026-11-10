@@ -156,6 +156,8 @@ defineChatContract("SupabaseChatRepository", () => ({
         left_at: r.leftAt ?? null,
         last_read_at: r.lastReadAt ?? null,
         source: r.source ?? "slack",
+        muted: r.muted ?? false,
+        notify_level: r.notifyLevel ?? null,
       }))
     );
     if (error) throw new Error(error.message);
@@ -174,11 +176,16 @@ defineChatContract("SupabaseChatRepository", () => ({
           deleted_at: r.deleted ? r.createdAt : null,
           ...(r.origin ? { origin: r.origin } : {}),
           ...(r.syncStatus ? { slack_sync_status: r.syncStatus } : {}),
+          ...(r.systemSubtype ? { system_subtype: r.systemSubtype } : {}),
         })
         .select("id")
         .single();
       if (error) throw new Error(error.message);
       ids[r.key] = data.id;
+      if (r.body !== undefined) {
+        const { error: contentError } = await db.from("chat_message_contents").insert({ message_id: data.id, body: r.body });
+        if (contentError) throw new Error(contentError.message);
+      }
     }
     return ids;
   },

@@ -51,6 +51,8 @@ vi.mock("@/lib/chat/slack-edit", () => ({ updateChatMessageInSlack: m.slackUpdat
 vi.mock("@/lib/chat/load", () => ({}));
 vi.mock("@/lib/chat/slack-dms", () => ({ openSlackDm: m.openDm, pullMemberDms: vi.fn() }));
 vi.mock("@/lib/chat/file-cleanup", () => ({ removeChatFileBytes: vi.fn() }));
+const notifyChat = vi.hoisted(() => vi.fn(async () => ({ sent: [], dryRun: [] })));
+vi.mock("@/lib/chat/notifications", () => ({ notifyChatMessage: notifyChat, resolveChatNotifications: vi.fn() }));
 
 import { deleteChatMessage, editChatMessage, retryChatMessage, sendChatMessage, toggleChatReaction } from "@/app/(member)/chat/actions";
 import { startDirectMessage } from "@/app/(member)/chat/dm-actions";
@@ -154,7 +156,10 @@ describe("a Hub-only conversation never touches Slack", () => {
     m.rpc.mockResolvedValue({ data: MESSAGE, error: null });
     await expect(sendChatMessage(CHANNEL, "hello")).resolves.toEqual({ ok: true, id: MESSAGE });
     expect(m.connected).not.toHaveBeenCalled();
-    expect(m.afterCallbacks).toHaveLength(0);
+    // The one thing left for after the response is telling the other member (not Slack).
+    expect(m.afterCallbacks).toHaveLength(1);
+    await m.afterCallbacks[0]();
+    expect(notifyChat).toHaveBeenCalledWith(expect.anything(), MESSAGE);
     expect(m.sendToSlack).not.toHaveBeenCalled();
   });
 

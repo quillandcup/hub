@@ -30,6 +30,10 @@ const { fillMessageGap, fillThreadIfRootMissing } = vi.hoisted(() => ({
 }))
 vi.mock('@/lib/chat/gap-fill', () => ({ fillMessageGap, fillThreadIfRootMissing }))
 
+// Chat notifications are tested in tests/lib/chat-notifications.test.ts; here only that the webhook asks for them.
+const { notifyChatMessageBySlackTs } = vi.hoisted(() => ({ notifyChatMessageBySlackTs: vi.fn() }))
+vi.mock('@/lib/chat/notifications', () => ({ notifyChatMessageBySlackTs }))
+
 const channelId = `CGAPFILL${Date.now()}`
 const nowSec = Math.floor(Date.now() / 1000)
 const rootTs = `${nowSec - 900}.000100`
@@ -119,6 +123,25 @@ describe('Slack webhook: gap-fill', () => {
 
     expect(fillMessageGap).not.toHaveBeenCalled()
     expect(fillThreadIfRootMissing).not.toHaveBeenCalled()
+  })
+
+  it('asks for chat notifications for a new message the chat took in, but not for a reaction, an edit or a delete', async () => {
+    await mirrorChannel()
+    notifyChatMessageBySlackTs.mockClear()
+    await send({ type: 'message', channel: channelId, user: 'UPOSTER', text: 'hello', ts: rootTs })
+    expect(notifyChatMessageBySlackTs).toHaveBeenCalledTimes(1)
+    expect(notifyChatMessageBySlackTs).toHaveBeenCalledWith(expect.anything(), channelId, rootTs)
+
+    notifyChatMessageBySlackTs.mockClear()
+    await send({ ...reaction, item: { type: 'message', channel: channelId, ts: rootTs } })
+    await send({ type: 'message', subtype: 'message_deleted', channel: channelId, deleted_ts: rootTs, event_ts: `${nowSec}.000400` })
+    expect(notifyChatMessageBySlackTs).not.toHaveBeenCalled()
+  })
+
+  it('asks for no chat notification for a message the chat does not mirror', async () => {
+    notifyChatMessageBySlackTs.mockClear()
+    await send({ type: 'message', channel: channelId, user: 'UPOSTER', text: 'hello', ts: rootTs })
+    expect(notifyChatMessageBySlackTs).not.toHaveBeenCalled()
   })
 
   it('fetches nothing for a message that was deleted: there is nothing to fetch', async () => {

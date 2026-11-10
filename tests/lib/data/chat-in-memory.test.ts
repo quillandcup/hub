@@ -104,6 +104,8 @@ defineChatContract("InMemoryChatRepository", () => {
         ...(r.leftAt ? { left_at: r.leftAt } : {}),
         ...(r.lastReadAt ? { last_read_at: r.lastReadAt } : {}),
         ...(r.source ? { source: r.source } : {}),
+        ...(r.muted !== undefined ? { muted: r.muted } : {}),
+        ...(r.notifyLevel ? { notify_level: r.notifyLevel } : {}),
       }));
     },
     seedChannelMessages: async (rows) => {
@@ -121,7 +123,9 @@ defineChatContract("InMemoryChatRepository", () => {
           ...(r.deleted ? { deleted_at: r.createdAt } : {}),
           ...(r.origin ? { origin: r.origin } : {}),
           ...(r.syncStatus ? { slack_sync_status: r.syncStatus } : {}),
+          ...(r.systemSubtype ? { system_subtype: r.systemSubtype } : {}),
         });
+        if (r.body !== undefined) data.chatMessageContents.push({ message_id: ids[r.key], body: r.body });
       }
       return ids;
     },

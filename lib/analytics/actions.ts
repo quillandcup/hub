@@ -63,6 +63,7 @@ export const OUTCOME_ACTIONS = [
   "chat_file_deleted",
   "chat_dm_started",
   "chat_video_shared",
+  "chat_notify_setting_set",
   // Community
   "wheel_spun",
   "wheel_introduced",
@@ -70,6 +71,7 @@ export const OUTCOME_ACTIONS = [
   "member_note_saved",
   // Settings
   "notification_setting_changed",
+  "chat_main_place_set",
   "push_enabled",
   "push_disabled",
   "nav_mode_changed",

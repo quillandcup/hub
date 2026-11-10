@@ -57,6 +57,8 @@ vi.mock("@/lib/chat/slack-edit", () => ({ updateChatMessageInSlack: m.slackUpdat
 vi.mock("@/lib/chat/slack-upload", () => ({ keepCopies: m.keepCopies }));
 vi.mock("@/lib/chat/load", () => ({}));
 vi.mock("@/lib/chat/file-cleanup", () => ({ removeChatFileBytes: m.removeBytes }));
+const notifyChat = vi.hoisted(() => vi.fn(async () => ({ sent: [], dryRun: [] })));
+vi.mock("@/lib/chat/notifications", () => ({ notifyChatMessage: notifyChat, resolveChatNotifications: vi.fn() }));
 
 import { deleteChatFile, deleteChatMessage, editChatMessage, prepareChatUploads, retryChatMessage, sendChatMessage, toggleChatReaction } from "@/app/(member)/chat/actions";
 
@@ -140,6 +142,21 @@ describe("sendChatMessage", () => {
 
     await flushAfter();
     expect(m.sendToSlack).toHaveBeenCalledWith({ service: true }, MESSAGE);
+  });
+
+  it("tells the members the message is for after the response, and only when it was saved", async () => {
+    notifyChat.mockClear();
+    m.rpc.mockResolvedValue({ data: MESSAGE, error: null });
+    await sendChatMessage(CHANNEL, "hello");
+    expect(notifyChat).not.toHaveBeenCalled();
+    await flushAfter();
+    expect(notifyChat).toHaveBeenCalledWith(expect.anything(), MESSAGE);
+
+    notifyChat.mockClear();
+    m.rpc.mockResolvedValue({ data: null, error: { message: "chat_post: not_a_member" } });
+    await sendChatMessage(CHANNEL, "hello");
+    await flushAfter();
+    expect(notifyChat).not.toHaveBeenCalled();
   });
 
   it("refuses, saving nothing, when the member has no working Slack connection, since there is no bot fallback", async () => {

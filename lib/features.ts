@@ -1,4 +1,4 @@
-export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat_dms' | 'chat_videos' | 'slack_dm_bridge' | 'big_sisters' | 'prickle_reminders' | 'checkin_dropins' | 'hosting' | 'writing_journey' | 'mux_playback_restriction' | 'mux_data' | 'changelog_digest';
+export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat_dms' | 'chat_videos' | 'slack_dm_bridge' | 'big_sisters' | 'prickle_reminders' | 'checkin_dropins' | 'hosting' | 'writing_journey' | 'mux_playback_restriction' | 'mux_data' | 'changelog_digest' | 'chat_notifications';
 
 export interface FeaturePreview {
   key: FeatureKey;
@@ -66,6 +66,11 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     key: 'changelog_digest',
     name: 'Send the weekly What\'s new digest',
     description: 'Sends the weekly roundup of new changelog entries for real to the members this covers: everyone when switched on globally, otherwise only members in a linked segment or with their own preview. For everyone else the job only logs who it would have sent it to and what it would have said (see the logs of /api/internal/changelog-digest). The post to the announcements channel goes out only when this is on for everyone. Members still choose their channels in Settings → Notifications',
+  },
+  {
+    key: 'chat_notifications',
+    name: 'Send chat notifications',
+    description: 'Tells you about new direct messages, mentions and messages in the channels you follow in Hub Chat, on the channels you choose in Settings → Notifications, so Hub Chat can replace Slack for you. For members this covers (everyone when switched on globally, otherwise only members in a linked segment or with their own preview) the notifications go out for real and the Hub chat settings appear; for everyone else the sender only logs who it would have told and why (see the logs of the Slack webhook and the chat actions). Nothing is sent to a member who has not turned on "Hub chat is my main place" in Settings → Notifications, since Slack already tells them',
   },
   {
     key: 'checkin_dropins',

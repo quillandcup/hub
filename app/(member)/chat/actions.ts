@@ -11,6 +11,7 @@ import { sendChatMessageToSlack } from "@/lib/chat/slack-post";
 import { syncReactionToSlack } from "@/lib/chat/slack-react";
 import { pullReadFromSlack, pushReadToSlack } from "@/lib/chat/slack-read";
 import { pullMemberDms } from "@/lib/chat/slack-dms";
+import { notifyChatMessage, resolveChatNotifications } from "@/lib/chat/notifications";
 import { removeChatFileBytes } from "@/lib/chat/file-cleanup";
 import { keepCopies } from "@/lib/chat/slack-upload";
 import type { Json } from "@/lib/data/database.types";
@@ -97,6 +98,8 @@ export async function markChatRead(channelId: string, through: string): Promise<
   }
   // Slack stops showing it as unread too, once the response is out (members who connected Slack only).
   after(() => pushReadToSlack(createServiceRoleClient(), { memberId: caller.identity.memberId, channelId, through }).catch((e) => console.error("pushReadToSlack failed:", e)));
+  // Read here means read for notifications too: the conversation's in-app notifications are marked read.
+  after(() => resolveChatNotifications(createRepos(createServiceRoleClient()), caller.identity.memberId, channelId));
 }
 
 /**
@@ -399,6 +402,8 @@ async function sendChatMessageImpl(channelId: string, body: string, threadRootId
   const messageId = data as string;
   // What was written is sent, so it is no longer a draft (the box also stops saving it as it clears).
   await createRepos(supabase).chatDrafts.clear(caller.identity.memberId, { channelId, threadRootId: threadRootId ?? null }).catch((e) => console.error("chat draft clear failed:", e));
+  // Tell the members it is for (their direct message, a mention, a channel they follow), after the response.
+  after(() => notifyChatMessage(createRepos(createServiceRoleClient()), messageId));
   if (hubOnly) return { ok: true, id: messageId };
   after(async () => {
     try {
