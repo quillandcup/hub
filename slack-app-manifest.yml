@@ -80,6 +80,9 @@ oauth_config:
       - files:read
       # A DM's reactions as they happen (the user_events below); without it they arrive at the next pull.
       - reactions:read
+      # Asked for ahead of bringing private channels the bot isn't in into chat (SLACK_PRIVATE_CHANNEL_SCOPES, lib/slack-connect.ts),
+      # so members reconnect once. Nothing uses it yet.
+      - groups:history
   # Where Slack sends a member back after they approve (app/api/oauth/slack/callback).
   redirect_urls:
     - https://hub.quillandcup.com/api/oauth/slack/callback

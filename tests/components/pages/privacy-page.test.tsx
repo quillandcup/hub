@@ -157,7 +157,12 @@ describe("/privacy page", () => {
     expect(chat.getByText(/we will record who looked, why and when/)).toBeInTheDocument();
     expect(chat.getByText("Break-glass access")).toBeInTheDocument();
     // One-on-one Slack DMs: what is kept, who sees it, and that there is no separate switch (no objection promise).
-    expect(chat.getByText(/^One-on-one Slack DMs, as they reach the Hub/)).toBeInTheDocument();
+    expect(chat.getByText(/^One-on-one Slack DMs, and group DMs without Billie Bot, as they reach the Hub/)).toBeInTheDocument();
+    // Private channels without Billie Bot are planned, not bridged yet, and the permission is asked for ahead of them.
+    expect(chat.getByText(/^Private channels without Billie Bot/)).toBeInTheDocument();
+    expect(chat.queryByText(/Slack group DMs or private channels without Billie Bot/)).not.toBeInTheDocument();
+    expect(chat.getByText(/read the private\s+channels you are in/)).toBeInTheDocument();
+    expect(chat.getByText(/we plan to bring private channels Billie Bot isn't in into Hub Chat too/)).toBeInTheDocument();
     expect(chat.getByText(/the Hub brings yours into chat with your own Slack connection/)).toBeInTheDocument();
     expect(chat.getByText(/Slack only shows about 90 days of history/)).toBeInTheDocument();
     expect(chat.getByText(/they can read the\s+text only through break-glass access/)).toBeInTheDocument();
@@ -177,7 +182,7 @@ describe("/privacy page", () => {
   it("folds the long chat explanations into collapsed details", async () => {
     await renderServerPage(PrivacyPage, {});
     const titles = [...document.querySelectorAll("details > summary")].map((s) => s.textContent);
-    expect(titles).toEqual(["Break-glass access", "Connecting your Slack account", "Your one-on-one Slack DMs", "Viewing the Hub as you", "Deleted messages and reactions", "How usage statistics work"]);
+    expect(titles).toEqual(["Break-glass access", "Connecting your Slack account", "Your Slack direct messages", "Viewing the Hub as you", "Deleted messages and reactions", "How usage statistics work"]);
     expect(document.querySelectorAll("details[open]")).toHaveLength(0);
   });
 

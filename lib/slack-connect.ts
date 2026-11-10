@@ -47,8 +47,15 @@ export const SLACK_DM_SCOPES = ["im:read", "im:history", "im:write", "mpim:histo
  */
 export const SLACK_DM_REACTION_SCOPES = ["reactions:read"];
 
+/**
+ * Asked for ahead of bringing the private channels Billie Bot isn't in into chat, so members reconnect once now (they are
+ * reconnecting for the other scopes anyway): reading a private channel's messages with the member's own token. Nothing
+ * uses it yet; docs/TODO.md, "Slack bridge: private channels the bot isn't in".
+ */
+export const SLACK_PRIVATE_CHANNEL_SCOPES = ["groups:history"];
+
 /** Everything the Hub asks the member to approve. */
-export const SLACK_USER_SCOPES = [...SLACK_READ_SYNC_SCOPES, ...SLACK_DM_SCOPES, ...SLACK_DM_REACTION_SCOPES];
+export const SLACK_USER_SCOPES = [...SLACK_READ_SYNC_SCOPES, ...SLACK_DM_SCOPES, ...SLACK_DM_REACTION_SCOPES, ...SLACK_PRIVATE_CHANNEL_SCOPES];
 
 /** Whether a stored connection predates read sync and needs to be reconnected to share read state. Chat is gated on this. */
 export const hasReadSyncScopes = (scopes: string[]): boolean => SLACK_READ_SYNC_SCOPES.every((s) => scopes.includes(s));
@@ -58,6 +65,9 @@ export const hasDmScopes = (scopes: string[]): boolean => SLACK_DM_SCOPES.every(
 
 /** Whether a stored connection can have a DM's reactions delivered live. Nothing is gated on it: it only decides who is asked to reconnect. */
 export const hasDmReactionScope = (scopes: string[]): boolean => SLACK_DM_REACTION_SCOPES.every((s) => scopes.includes(s));
+
+/** Whether a stored connection has the private-channel scope. Nothing is gated on it: it only decides who is asked to reconnect. */
+export const hasPrivateChannelScope = (scopes: string[]): boolean => SLACK_PRIVATE_CHANNEL_SCOPES.every((s) => scopes.includes(s));
 
 /** Registered as a redirect URL in slack-app-manifest.yml; Slack requires an exact match. */
 export const SLACK_REDIRECT_PATH = "/api/oauth/slack/callback";
@@ -205,6 +215,8 @@ export interface SlackConnectionStatus {
   hasDmScopes: boolean;
   /** Connected with `reactions:read` too (`SLACK_DM_REACTION_SCOPES`), so a DM's reactions arrive live; false before it was asked for. */
   hasDmReactionScope: boolean;
+  /** Connected with `groups:history` too (`SLACK_PRIVATE_CHANNEL_SCOPES`), asked for ahead of private channels; false before it was asked for. */
+  hasPrivateChannelScope: boolean;
   /** Had a connection that Slack stopped honouring (revoked by us when its token died), so it needs reconnecting rather than connecting. */
   revoked: boolean;
 }
@@ -220,6 +232,7 @@ export async function getSlackConnectionStatus(service: SupabaseClient, memberId
     sharesReadState: connected && hasReadSyncScopes((data!.scopes as string[] | null) ?? []),
     hasDmScopes: connected && hasDmScopes((data!.scopes as string[] | null) ?? []),
     hasDmReactionScope: connected && hasDmReactionScope((data!.scopes as string[] | null) ?? []),
+    hasPrivateChannelScope: connected && hasPrivateChannelScope((data!.scopes as string[] | null) ?? []),
     revoked: Boolean(data?.revoked_at),
   };
 }
