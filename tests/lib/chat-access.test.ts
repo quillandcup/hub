@@ -50,6 +50,17 @@ describe("requireChat", () => {
     await expect(requireChat()).rejects.toThrow("redirect:/settings?slack=required");
   });
 
+  // KNOWN GAP (docs/TODO.md, shared videos in chat): this redirect carries no destination. A Slack reader who followed a link to a
+  // message, signed in, and still has to connect Slack lands on Settings, and the address the proxy remembered was already used up at
+  // sign-in (takeNextPath), so connecting does not bring them back to the message. This documents what happens today; when the
+  // destination is carried through, change the expectation to include it.
+  it("sends a member without a connection to settings with no destination, so connecting doesn't return them to the page they asked for (known gap)", async () => {
+    getSlackConnectionStatus.mockResolvedValue({ connected: false, sharesReadState: false, revoked: false });
+    const redirected = await requireChat().catch((e: Error) => e.message);
+    expect(redirected).toBe("redirect:/settings?slack=required");
+    expect(redirected).not.toContain("next=");
+  });
+
   it("asks a connection that lacks the read scopes to reconnect", async () => {
     getSlackConnectionStatus.mockResolvedValue({ connected: true, sharesReadState: false, revoked: false });
     await expect(requireChat()).rejects.toThrow("redirect:/settings?slack=required");
