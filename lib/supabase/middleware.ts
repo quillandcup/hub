@@ -8,7 +8,7 @@ import { COMMUNITY_MANAGER_HOME, mayOpenAdminPath } from '@/lib/staff-access'
 import { effectiveStaffRole, STAFF_PREVIEW_COOKIE } from '@/lib/staff-preview'
 import { SUDO_COOKIE_NAME, actingAsHeaderValue } from '@/lib/sudo-cookie'
 import { PAGE_VIEW_PATH } from '@/lib/page-views'
-import { NEXT_PATH_COOKIE, NEXT_PATH_COOKIE_MAX_AGE_SECONDS, safeNextPath } from '@/lib/safe-next'
+import { NEXT_PATH_COOKIE, NEXT_PATH_COOKIE_MAX_AGE_SECONDS, isRememberableVisit, safeNextPath } from '@/lib/safe-next'
 import { coursePreviewRewrite, lessonPreviewRewrite } from '@/lib/courses/preview-path'
 import { CURRENT_PATH_HEADER } from '@/lib/gates'
 import { requestLocation } from '@/lib/request-location'
@@ -191,9 +191,10 @@ export async function updateSession(request: NextRequest) {
       response = NextResponse.redirect(url)
     }
     // Remember where they were headed so every sign-in path can bring them back (lib/safe-next.ts).
-    // Skip router prefetches: they aren't somewhere the member asked to go.
+    // Only a real page navigation counts (isRememberableVisit): the cookie is one slot per browser, so a background request from
+    // another open tab would overwrite the page they clicked a link to.
     const nextPath = safeNextPath(`${pathname}${request.nextUrl.search}`)
-    if (nextPath && !request.headers.get('next-router-prefetch')) {
+    if (nextPath && isRememberableVisit(request.method, request.headers, nextPath)) {
       response.cookies.set(NEXT_PATH_COOKIE, nextPath, {
         httpOnly: true,
         sameSite: 'lax',
