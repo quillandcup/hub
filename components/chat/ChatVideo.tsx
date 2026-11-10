@@ -79,6 +79,8 @@ export default function ChatVideo({ messageId }: { messageId: string }) {
           resumeSeconds={state.resumeSeconds}
           trackProgress={state.record}
           autoPlay
+          // The card's own thumbnail as the player's poster, so opening it doesn't swap to a different frame (Mux's, from two seconds in) before the video starts.
+          posterUrl={card.thumbnailUrl && !imageFailed ? card.thumbnailUrl : null}
         />
         <p className="px-3 py-2 text-sm font-medium text-slate-800 dark:text-slate-100">{state.title}</p>
       </div>
