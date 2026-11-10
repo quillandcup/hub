@@ -185,6 +185,12 @@ describe("updateChatMessageInSlack", () => {
     expect(update).toHaveBeenCalledWith({ channel: "C_HOSTS", ts: "1700000000.000100", text: "*fixed* <@U1> & more", blocks: [] }, "xoxp-fern");
   });
 
+  it("clears the message's link previews only when asked (the rewrite of a pasted lesson address)", async () => {
+    row = { ...ROW, origin: "slack", posted_via: null };
+    await updateChatMessageInSlack(service, { ...EDIT, body: "text", dropPreviews: true });
+    expect(update).toHaveBeenCalledWith({ channel: "C_HOSTS", ts: "1700000000.000100", text: "text", blocks: [], attachments: [] }, "xoxp-fern");
+  });
+
   it("needs the member's own Slack connection for a message written in Slack", async () => {
     row = { ...ROW, origin: "slack", posted_via: null };
     getSlackUserToken.mockResolvedValueOnce(null);
