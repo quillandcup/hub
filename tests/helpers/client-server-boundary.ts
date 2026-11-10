@@ -69,7 +69,19 @@ export const looksLikeComponent = (name: string) => /^[A-Z][A-Za-z0-9]*$/.test(n
  */
 export function serverActionExportOffenders(files: Files): string[] {
   const offenders: string[] = [];
+  const scanner = ts.createScanner(ts.ScriptTarget.Latest, true);
   for (const [file, text] of files) {
+    // Most files are not action entry points. Scan only their directive prologue first:
+    // parsing every component's full AST exceeds the CI timeout under coverage.
+    scanner.setText(text);
+    let token = scanner.scan();
+    let candidate = false;
+    while (token === ts.SyntaxKind.StringLiteral) {
+      if (scanner.getTokenValue() === "use server") candidate = true;
+      token = scanner.scan();
+      if (token === ts.SyntaxKind.SemicolonToken) token = scanner.scan();
+    }
+    if (!candidate) continue;
     const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
     // Directives form a prologue: comments and another directive before "use server" are allowed.
     const directives: string[] = [];
