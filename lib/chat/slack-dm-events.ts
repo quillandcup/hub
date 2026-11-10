@@ -25,7 +25,7 @@ export type DmEventDecision =
   /** A DM (or group DM) of a covered member that is already in the chat: stored and projected like any message. */
   | { kind: "keep" }
   /** A DM or group DM the chat hasn't seen yet: its first message tells us nothing of who is in it, so the member's DMs are pulled. */
-  | { kind: "pull"; memberId: string };
+  | { kind: "pull"; memberId: string; channelId: string };
 
 export { isSlackDmChannelId };
 
@@ -74,6 +74,7 @@ export async function decideDmEvent(
   }
   if (allowed.length === 0) return { kind: "drop" };
 
-  const seen = isDm ? known?.is_im : known?.is_mpim;
-  return seen ? { kind: "keep" } : { kind: "pull", memberId: allowed[0] };
+  // Known to Bronze is not enough: a DM found empty has a row but no chat conversation (and nothing to project into), so its first message is a pull.
+  const seen = (isDm ? known?.is_im : known?.is_mpim) && channelId !== undefined && (await repos.chat.idBySlackChannel(channelId).catch(() => null)) !== null;
+  return seen ? { kind: "keep" } : { kind: "pull", memberId: allowed[0], channelId: channelId as string };
 }

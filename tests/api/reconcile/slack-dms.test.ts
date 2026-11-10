@@ -17,7 +17,7 @@ import { requireAdmin } from '@/lib/supabase/api-auth'
 import { pingCronHeartbeat } from '@/lib/cron-heartbeats'
 
 const request = () => new Request('http://localhost:3000/api/reconcile/slack-dms') as unknown as NextRequest
-const clean = { members: 3, conversations: 9, messages: 40, deferred: 0, errors: [] as string[] }
+const clean = { members: 3, conversations: 9, messages: 40, deferred: 0, incomplete: 0, errors: [] as string[] }
 
 describe('GET /api/reconcile/slack-dms', () => {
   beforeEach(() => {
@@ -55,13 +55,13 @@ describe('GET /api/reconcile/slack-dms', () => {
   })
 
   it('alerts instead of pinging when a DM failed or members were left for the next run', async () => {
-    vi.mocked(pullDmsForCoveredMembers).mockResolvedValue({ ...clean, deferred: 2, errors: ['member x: boom'] })
+    vi.mocked(pullDmsForCoveredMembers).mockResolvedValue({ ...clean, deferred: 2, incomplete: 1, errors: ['member x: boom'] })
     const response = await GET(request())
     expect(response.status).toBe(200)
     expect(sendOperationsAlert).toHaveBeenCalledWith({}, {
       type: 'cron_partial_failure',
       job: 'reconcile-slack-dms',
-      problems: ["2 members' DMs left for the next run: out of time", 'member x: boom'],
+      problems: ["2 members' DMs left for the next run: out of time", "1 members' DMs only partly read: out of time (the rest next run)", 'member x: boom'],
     })
     expect(pingCronHeartbeat).not.toHaveBeenCalled()
   })

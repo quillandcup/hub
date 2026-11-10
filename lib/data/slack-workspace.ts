@@ -18,7 +18,7 @@ export type SlackChannel = Pick<
 >;
 
 /** A channel as the in-memory dataset keeps it: the id and name, and whatever else a test names. */
-export type SlackChannelSeed = Pick<SlackChannel, "channel_id" | "name"> & Partial<Omit<SlackChannel, "channel_id" | "name">> & { token_only?: boolean };
+export type SlackChannelSeed = Pick<SlackChannel, "channel_id" | "name"> & Partial<Omit<SlackChannel, "channel_id" | "name">> & { token_only?: boolean; last_pulled_at?: string | null };
 
 /** What the import writes for a conversation: the Slack fields (the raw payload included) plus the sync time. */
 export type NewSlackChannel = ChannelTable["Insert"];
@@ -101,6 +101,10 @@ export interface SlackWorkspaceRepository {
   currentMemberUserIds(channelId: string): Promise<string[]>;
   /** Whether the conversation is a group DM that only members' own tokens read (the bot is not in it). False when unknown. */
   isTokenOnlyGroupDm(channelId: string): Promise<boolean>;
+  /** When a member's own token last read each of these conversations (those never read are left out). Chunked. */
+  pulledAt(channelIds: string[]): Promise<Map<string, string>>;
+  /** Records that a member's token read these conversations at `at`. A conversation we have no row for is left alone. Chunked. */
+  markPulled(channelIds: string[], at: string): Promise<void>;
 
   /** Every conversation's members, current and past, by channel then user. */
   memberships(): Promise<SlackChannelMembership[]>;
@@ -211,6 +215,19 @@ export class SupabaseSlackWorkspaceRepository implements SlackWorkspaceRepositor
   async isTokenOnlyGroupDm(channelId: string) {
     const row = must(await this.channelsTable.select("token_only").eq("channel_id", channelId).eq("is_mpim", true).maybeSingle());
     return row?.token_only === true;
+  }
+
+  async pulledAt(channelIds: string[]) {
+    const out = new Map<string, string>();
+    for (const ids of chunk([...new Set(channelIds)], 100)) {
+      const rows = must(await this.channelsTable.select("channel_id, last_pulled_at").in("channel_id", ids).not("last_pulled_at", "is", null));
+      for (const row of rows ?? []) if (row.last_pulled_at) out.set(row.channel_id, row.last_pulled_at);
+    }
+    return out;
+  }
+
+  async markPulled(channelIds: string[], at: string) {
+    for (const ids of chunk([...new Set(channelIds)], 100)) must(await this.channelsTable.update({ last_pulled_at: at }).in("channel_id", ids).select("channel_id"));
   }
 
   private get membersTable() {
@@ -398,6 +415,16 @@ export class InMemorySlackWorkspaceRepository implements SlackWorkspaceRepositor
   async isTokenOnlyGroupDm(channelId: string) {
     const c = this.data.slackChannels.find((x) => x.channel_id === channelId);
     return !!c && c.is_mpim === true && c.token_only === true;
+  }
+
+  async pulledAt(channelIds: string[]) {
+    const wanted = new Set(channelIds);
+    return new Map(this.data.slackChannels.filter((c) => wanted.has(c.channel_id) && c.last_pulled_at).map((c) => [c.channel_id, c.last_pulled_at as string]));
+  }
+
+  async markPulled(channelIds: string[], at: string) {
+    const wanted = new Set(channelIds);
+    for (const c of this.data.slackChannels) if (wanted.has(c.channel_id)) c.last_pulled_at = at;
   }
 
   async memberships() {
