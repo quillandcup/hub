@@ -10,6 +10,7 @@ Reviewed 2026-10-21: completed items removed, duplicates merged. Sections below 
 3. Save Find a Prickle's answers as a check-in.
 
 **Admin-facing (operations, incl. churn reduction)**
+0. **High priority, data loss: member merge drops most of a member's data.** About 45 tables that point at `members` are not moved by a merge and cascade away with the duplicate (writing, books, awards, course progress, notes, settings...). Until fixed, don't merge members who have any of it. See "Member merge drops most of a member's data" under Bug Fixes; the list is `NOT_MOVED` in `tests/lib/member-merge-coverage.test.ts`.
 1. Member merge log with exact undo.
 2. Prickle check-in patterns page (reach-out prompt).
 3. Host-facing: let a prickle's host report unmatched Zoom attendees (member-facing, scoped write path needed).
@@ -1810,12 +1811,12 @@ When Slack token rotation is adopted (see `docs/SLACK_BRIDGED_CHAT.md`, "Slack a
 
 ## Bug Fixes
 
-### Member merge drops most of a member's data _(Needs Scheduling)_
+### Member merge drops most of a member's data _(High Priority: data loss)_
 A member merge (`app/api/admin/members/merge/route.ts`) deletes the duplicate, and about 45 tables that point at `members` cascade on delete, so what the merge does not move is gone. It moves prickle attendance, activities, hiatuses and status overrides, hosting, name and email aliases, program enrollments, and (since the retreat fix) event attendance, badges, Big Sister matches and the volunteer record. A merge in November 2026 lost a retreat attendance with its badge and three mentorships, found through the audit log (`audit_log` rows for the member's delete and the cascaded deletes in the same transaction, by `txid`).
 
 **Still open:** every table in `NOT_MOVED` in `tests/lib/member-merge-coverage.test.ts`: the members' own writing, books, awards, course progress and access, notes, onboarding, notification settings and push subscriptions, chat drafts and memberships, calendar feed, check-ins and commitments, outreach, segments, and the join-date and profile overrides. Each needs a rule for what to do when both members have a row (keep the kept member's, merge, or move both). The test fails on a new table that references `members` until it is classified; remove a table's line when the merge moves it.
 
-**Why deferred:** the retreat and Big Sister tables were the ones with a known loss; the rest need a per-table decision, and most are owned data (a book, a project) where the right answer is not obvious. **Where to start:** the audit log shows what past merges dropped (`entity_type = 'member'`, `action = 'delete'`), so check it before deciding what to restore; then move the member-owned tables with real content first (projects, books, awards, notes), through their repositories with a `move...(from, to)` method like `moveAttendances`.
+**Until then:** before merging two members, check what the duplicate owns (the merge dialog does not show it); a merge cannot be undone, and the audit log (`entity_type = 'member'`, `action = 'delete'`, same `txid` for the cascaded rows) is the only record of what went. **Why deferred:** the retreat and Big Sister tables were the ones with a known loss; the rest need a per-table decision, and most are owned data (a book, a project) where the right answer is not obvious. **Where to start:** the audit log shows what past merges dropped (`entity_type = 'member'`, `action = 'delete'`), so check it before deciding what to restore; then move the member-owned tables with real content first (projects, books, awards, notes), through their repositories with a `move...(from, to)` method like `moveAttendances`.
 
 ---
 
