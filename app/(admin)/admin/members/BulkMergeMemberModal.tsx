@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
 import type { MemberExternalStatus } from "@/app/api/admin/members/external-status/route";
 import { hasExternalNotes, needsActionBeforeMerge, MergeExternalNotice } from "./MergeExternalNotice";
+import MergeOwnedData from "./MergeOwnedData";
 
 interface Member {
   id: string;
   name: string;
+  display_name?: string | null;
   email: string;
 }
 
@@ -127,6 +129,10 @@ export default function BulkMergeMemberModal({ members, isOpen, onClose }: BulkM
             </ul>
           </div>
         )}
+
+        {primary && secondaries.map((s) => (
+          <MergeOwnedData key={s.id} member={s} keptName={primary.name} />
+        ))}
 
         {externalLoading && (
           <p className="text-xs text-slate-600 dark:text-slate-400">Checking external accounts...</p>

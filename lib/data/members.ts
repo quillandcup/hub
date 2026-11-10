@@ -108,6 +108,9 @@ export type EmailChange = { ok: true } | { ok: false; reason: "taken" };
 /** External ids a merge copies onto the member that is kept; only the ones given are written. */
 export type ExternalIds = { kajabiId?: string; stripeCustomerId?: string; userId?: string };
 
+/** Rows of one table that point at a member (`table.column = member id`), for the merge dialog. */
+export type OwnedRowCount = { table: string; column: string; count: number };
+
 /**
  * Everything the app asks of `members`. Scans are paginated here (a members table past 1000 rows
  * is silently truncated by a bare select), and lookups by id or auth user are chunked.
@@ -164,6 +167,12 @@ export interface MemberRepository {
   delete(id: string): Promise<void>;
   /** Drops a member's derived stats (`member_metrics`, `member_engagement`), which are recomputed for whoever remains (a merge). */
   deleteDerivedStats(id: string): Promise<void>;
+  /**
+   * How many rows each table that references `members` holds for this member (zero counts and the
+   * derived stats left out), sorted by table then column. Admin only: the database function checks the caller.
+   * The twin counts only the tables its dataset has (name and email aliases).
+   */
+  ownedRowCounts(id: string): Promise<OwnedRowCount[]>;
   /**
    * Sets the real name, in one write with `displayName` when given (an admin rename that keeps the old
    * name as the display name). `selfService` also stamps the member's one self-service change. False if
@@ -542,6 +551,12 @@ export class SupabaseMemberRepository implements MemberRepository {
     if (failed) throw new Error(failed.message);
   }
 
+  async ownedRowCounts(id: string): Promise<OwnedRowCount[]> {
+    const { data, error } = await this.db.rpc("member_owned_row_counts", { p_member_id: id });
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((r) => ({ table: r.table_name, column: r.column_name, count: Number(r.row_count) }));
+  }
+
   setName(id: string, name: string, { selfService = false, displayName }: { selfService?: boolean; displayName?: string } = {}) {
     const patch: Update<"members"> = { name };
     if (selfService) patch.self_service_name_changed_at = new Date().toISOString();
@@ -803,6 +818,14 @@ export class InMemoryMemberRepository implements MemberRepository {
   async deleteDerivedStats(id: string) {
     this.data.memberMetrics = this.data.memberMetrics.filter((r) => r.member_id !== id);
     this.data.memberEngagement = this.data.memberEngagement.filter((r) => r.member_id !== id);
+  }
+
+  async ownedRowCounts(id: string): Promise<OwnedRowCount[]> {
+    const counts: OwnedRowCount[] = [
+      { table: "member_email_aliases", column: "member_id", count: this.data.emailAliases.filter((r) => r.memberId === id).length },
+      { table: "member_name_aliases", column: "member_id", count: this.data.nameAliases.filter((r) => r.member_id === id).length },
+    ];
+    return counts.filter((c) => c.count > 0);
   }
 
   async setName(id: string, name: string, { selfService = false, displayName }: { selfService?: boolean; displayName?: string } = {}) {

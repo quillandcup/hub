@@ -4,7 +4,7 @@ import { useState } from "react";
 import MergeMemberModal from "./MergeMemberModal";
 
 interface MergeButtonProps {
-  member: { id: string; name: string; email: string };
+  member: { id: string; name: string; display_name?: string | null; email: string };
 }
 
 export default function MergeButton({ member }: MergeButtonProps) {

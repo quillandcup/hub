@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
 import type { MemberExternalStatus } from "@/app/api/admin/members/external-status/route";
 import { hasExternalNotes, needsActionBeforeMerge, MergeExternalNotice } from "../MergeExternalNotice";
+import MergeOwnedData from "../MergeOwnedData";
 
 interface Member {
   id: string;
   name: string;
+  display_name?: string | null;
   email: string;
 }
 
@@ -77,7 +79,11 @@ export default function MergeMemberModal({ primaryMember, isOpen, onClose }: Mer
         const res = await fetch(`/api/members?search=${encodeURIComponent(query.trim())}`);
         const json = await res.json();
         // Exclude the page member from results
-        setResults((json.members || []).filter((m: Member) => m.id !== primaryMember.id));
+        setResults(
+          (json.members || [])
+            .filter((m: Member) => m.id !== primaryMember.id)
+            .map((m: Member & { displayName?: string | null }) => ({ id: m.id, name: m.name, display_name: m.displayName ?? null, email: m.email })),
+        );
       } catch {
         setResults([]);
       } finally {
@@ -275,6 +281,8 @@ export default function MergeMemberModal({ primaryMember, isOpen, onClose }: Mer
             </ul>
           </div>
         )}
+
+        {secondary && <MergeOwnedData member={secondary} keptName={primary.name} />}
 
         {externalLoading && secondary && (
           <p className="text-xs text-slate-600 dark:text-slate-400">Checking external accounts...</p>
