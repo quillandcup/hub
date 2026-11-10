@@ -120,6 +120,39 @@ export function defineMentorshipContract(name: string, setup: () => MentorshipCo
       });
     });
 
+    describe("member merge", () => {
+      it("moves a member's matches, as big sister and as the new member, and their volunteer record", async () => {
+        const repo = ctx.repo();
+        // ada is the duplicate, bo the member kept.
+        await repo.create({ mentor_member_id: id(ada), new_member_id: id(cy), started_on: "2026-01-10", kind: "direct" });
+        await repo.create({ mentor_member_id: id(dee), new_member_id: id(ada), started_on: "2026-02-10", kind: "trial", trial_ends_on: "2026-02-17" });
+        // A match between the two would pair bo with themselves: it stays out.
+        await repo.create({ mentor_member_id: id(ada), new_member_id: id(bo), started_on: "2026-03-10", kind: "direct" });
+        await repo.volunteer(id(ada), "Happy to help");
+
+        expect(await repo.moveMemberRecords(id(ada), id(bo))).toEqual({ matches: 2, volunteer: true });
+
+        const rows = await repo.listWithMembers();
+        expect(rows.filter((m) => m.mentor_member_id === id(bo)).map((m) => m.new_member_id)).toEqual([id(cy)]);
+        expect(rows.filter((m) => m.new_member_id === id(bo) && m.mentor_member_id === id(dee))).toHaveLength(1);
+        expect(rows.filter((m) => m.mentor_member_id === id(ada) || m.new_member_id === id(ada))).toHaveLength(1);
+        expect(await repo.volunteerNote(id(bo))).toEqual({ note: "Happy to help" });
+        expect(await repo.volunteerNote(id(ada))).toBeNull();
+      });
+
+      it("leaves a match that would be a second live match for the arrival, and keeps the target's own volunteer record", async () => {
+        const repo = ctx.repo();
+        await repo.create({ mentor_member_id: id(cy), new_member_id: id(ada), started_on: "2026-02-01", kind: "direct" });
+        await repo.create({ mentor_member_id: id(dee), new_member_id: id(bo), started_on: "2026-02-01", kind: "direct" });
+        await repo.volunteer(id(ada), "From the duplicate");
+        await repo.volunteer(id(bo), "Mine");
+
+        expect(await repo.moveMemberRecords(id(ada), id(bo))).toEqual({ matches: 0, volunteer: false });
+
+        expect(await repo.volunteerNote(id(bo))).toEqual({ note: "Mine" });
+      });
+    });
+
     describe("functions", () => {
       it("counts a mentor's live matches that have started", async () => {
         const repo = ctx.repo();

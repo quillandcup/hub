@@ -55,6 +55,11 @@ export async function POST(request: NextRequest) {
     // Transfer simple foreign keys in parallel
     await Promise.all([
       createRepos(supabase).attendance.reassign(secondaryId, primaryId),
+      // These cascade on delete too, so they must move before the delete below: a retreat
+      // attendance with its badge, and the Big Sister matches and volunteer record.
+      createRepos(supabase).events.moveAttendances(secondaryId, primaryId),
+      createRepos(supabase).badges.moveAwards(secondaryId, primaryId),
+      createRepos(supabase).mentorship.moveMemberRecords(secondaryId, primaryId),
       createRepos(supabase).activities.reassign(secondaryId, primaryId),
       createRepos(supabase).memberStatus.reassignMember(secondaryId, primaryId),
       // prickles.host (not host_id) -- a wrong column name here used to fail silently, and deleting

@@ -191,6 +191,8 @@ export interface EventRepository {
   photoPaths(eventId: string): Promise<string[]>;
   /** An event's attendees with the member's names, in the order they were added. */
   attendeesOf(eventId: string): Promise<EventAttendeeEntry[]>;
+  /** Moves every event attendance of one member to another (a member merge). Events the target already attends are left alone: the source's row for them is dropped with the source. Returns how many moved. */
+  moveAttendances(fromMemberId: string, toMemberId: string): Promise<number>;
   /** Records how an attendee got in; only the fields given change, null clears one. False when the member isn't an attendee of the event. */
   setAttendeeTicket(eventId: string, memberId: string, ticket: TicketInput): Promise<boolean>;
   /** The Kajabi offer ids that sell this event, oldest link first. */
@@ -655,6 +657,19 @@ export class SupabaseEventRepository implements EventRepository {
     return rows.map((r) => ({ id: r.id, member_id: r.member_id, ticket_source: r.ticket_source as TicketSource | null, /* the column's CHECK allows only these */ ticket_note: r.ticket_note, member: r.members }));
   }
 
+  async moveAttendances(fromMemberId: string, toMemberId: string) {
+    const rows = (member: string) =>
+      fetchAllRows<{ id: string; event_id: string }>((from, to) => this.db.from("event_attendees").select("id, event_id").eq("member_id", member).order("id").range(from, to));
+    const [mine, theirs] = await Promise.all([rows(fromMemberId), rows(toMemberId)]);
+    const already = new Set(theirs.map((r) => r.event_id));
+    const ids = mine.filter((r) => !already.has(r.event_id)).map((r) => r.id);
+    for (const part of chunk(ids, 100)) {
+      const { error } = await this.db.from("event_attendees").update({ member_id: toMemberId }).in("id", part);
+      if (error) throw new Error(error.message);
+    }
+    return ids.length;
+  }
+
   async setAttendeeTicket(eventId: string, memberId: string, ticket: TicketInput) {
     const { data, error } = await this.db
       .from("event_attendees")
@@ -998,6 +1013,17 @@ export class InMemoryEventRepository implements EventRepository {
     const before = this.data.eventOffers.length;
     this.data.eventOffers = this.data.eventOffers.filter((o) => !(o.event_id === eventId && o.kajabi_offer_id === kajabiOfferId));
     return this.data.eventOffers.length < before;
+  }
+
+  async moveAttendances(fromMemberId: string, toMemberId: string) {
+    const already = new Set(this.data.eventAttendees.filter((a) => a.member_id === toMemberId).map((a) => a.event_id));
+    let moved = 0;
+    for (const a of this.data.eventAttendees) {
+      if (a.member_id !== fromMemberId || already.has(a.event_id)) continue;
+      a.member_id = toMemberId;
+      moved++;
+    }
+    return moved;
   }
 
   async setAttendeeTicket(eventId: string, memberId: string, ticket: TicketInput) {
