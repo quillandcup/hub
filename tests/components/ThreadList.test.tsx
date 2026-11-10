@@ -97,4 +97,28 @@ describe("ThreadList", () => {
     rerender(<ThreadList channelId="c1" threadRootId="root" root={ROOT} replies={[view("r1", "first reply", 1), view("r2", "second reply", 2)]} ctx={CTX} canReact={false} />);
     expect(texts()).toEqual(["the root", "first reply", "second reply"]);
   });
+
+  describe("a ?m= link to one reply (focusId)", () => {
+    it("scrolls to and highlights that reply when the thread opens", () => {
+      const animate = vi.fn();
+      const original = HTMLElement.prototype.animate;
+      HTMLElement.prototype.animate = animate as never;
+      render(<ThreadList channelId="c1" threadRootId="root" root={ROOT} replies={[view("r1", "first reply", 1), view("r2", "second reply", 2)]} ctx={CTX} canReact={false} focusId="r2" />);
+
+      expect(animate).toHaveBeenCalledTimes(1);
+      HTMLElement.prototype.animate = original;
+    });
+
+    it("does nothing without one, or when the message isn't in the thread", () => {
+      const animate = vi.fn();
+      const original = HTMLElement.prototype.animate;
+      HTMLElement.prototype.animate = animate as never;
+      mount();
+      cleanup();
+      render(<ThreadList channelId="c1" threadRootId="root" root={ROOT} replies={[view("r1", "first reply", 1)]} ctx={CTX} canReact={false} focusId="gone" />);
+
+      expect(animate).not.toHaveBeenCalled();
+      HTMLElement.prototype.animate = original;
+    });
+  });
 });

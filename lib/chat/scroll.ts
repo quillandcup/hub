@@ -10,11 +10,17 @@ export function scrollParent(el: HTMLElement | null): HTMLElement {
 export const hashMessageId = (): string | null => /^#(m-[\w-]+)$/.exec(window.location.hash)?.[1] ?? null;
 
 /**
- * Scrolls to (and briefly highlights) the message the URL's #hash names, leaving room above it for
- * the sticky day marker. False when the URL names none or it is not on the page (yet).
+ * The element id (`m-<message id>`) of the message a link asks for: the server's `?m=<message id>` (`focusId`, which survives sign-in
+ * because the query reaches the server, unlike a fragment) when there is one, else the URL's #hash.
  */
-export function scrollToHashMessage(from: HTMLElement | null): boolean {
-  const id = hashMessageId();
+export const focusedMessageDomId = (focusId?: string | null): string | null => (focusId ? `m-${focusId}` : hashMessageId());
+
+/**
+ * Scrolls to (and briefly highlights) the message the link names (`focusId` from `?m=`, else the URL's #hash), leaving room above
+ * it for the sticky day marker. False when the link names none or it is not on the page (yet).
+ */
+export function scrollToHashMessage(from: HTMLElement | null, focusId?: string | null): boolean {
+  const id = focusedMessageDomId(focusId);
   const el = id ? document.getElementById(id) : null;
   if (!el) return false;
   const scroller = scrollParent(from);

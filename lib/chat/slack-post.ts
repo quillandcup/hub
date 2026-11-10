@@ -101,7 +101,7 @@ export async function sendChatMessageToSlack(supabase: SupabaseClient, messageId
 
   // A message that shares a lesson video says so in Slack with links back to the Hub (Slack can't play it; docs/TODO.md,
   // "Chat: Watch Videos In The Conversation"). A failed lookup sends the message without them rather than not at all.
-  const videoLine = await sharedVideoSlackLine(createRepos(supabase as unknown as Db), messageId, slackChannelId, row.threadRootId).catch((error) => {
+  const videoLine = await sharedVideoSlackLine(createRepos(supabase as unknown as Db), messageId, slackChannelId).catch((error) => {
     console.error("sendChatMessageToSlack: shared video links failed for %s:", messageId, error);
     return null;
   });

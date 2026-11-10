@@ -5,7 +5,7 @@ import MessageItem from "@/components/chat/MessageItem";
 import UnreadDivider from "@/components/chat/UnreadDivider";
 import type { ChatTextContext } from "@/components/chat/ChatText";
 import type { ChatMessageView } from "@/lib/chat/load";
-import { hashMessageId, scrollParent, scrollToHashMessage } from "@/lib/chat/scroll";
+import { focusedMessageDomId, scrollParent, scrollToHashMessage } from "@/lib/chat/scroll";
 import { loadOlderChat } from "@/app/(member)/chat/actions";
 import { subscribeListEvents } from "@/lib/chat/list-events";
 import { mergeChatContext } from "@/lib/chat/merge";
@@ -35,6 +35,7 @@ export default function MessageList({
   showSent = true,
   timeZone = ORG_TIMEZONE,
   renderedAt = null,
+  focusId = null,
 }: {
   channelId: string;
   /** The server's current window, oldest first. */
@@ -53,6 +54,8 @@ export default function MessageList({
   timeZone?: string;
   /** When the server rendered `views`. A page from the client cache is older than what live changes have since merged. */
   renderedAt?: string | null;
+  /** The message a `?m=` link asks for: loaded and scrolled to like a #hash link, even when it is further back than this page. */
+  focusId?: string | null;
 }) {
   const [byId, setById] = useState(() => new Map(views.map((v) => [v.id, v])));
   const [context, setContext] = useState(ctx);
@@ -173,15 +176,15 @@ export default function MessageList({
   const hashAttempts = useRef(0);
   const hashDone = useRef(false);
   useEffect(() => {
-    if (hashDone.current || !hashMessageId()) return;
-    if (scrollToHashMessage(top.current)) {
+    if (hashDone.current || !focusedMessageDomId(focusId)) return;
+    if (scrollToHashMessage(top.current, focusId)) {
       hashDone.current = true;
       return;
     }
     if (!cursor || failed || loading || hashAttempts.current >= MAX_HASH_PAGES) return;
     hashAttempts.current += 1;
     void loadRef.current();
-  }, [byId, cursor, failed, loading]);
+  }, [byId, cursor, failed, loading, focusId]);
 
   useEffect(() => {
     const el = top.current;

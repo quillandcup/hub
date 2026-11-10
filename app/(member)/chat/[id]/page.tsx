@@ -1,3 +1,4 @@
+import { resolveFocus } from "@/lib/chat/focus";
 import { CHAT_LIST_HREF } from "@/lib/chat/last-channel";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -66,13 +67,13 @@ export default async function ChatChannelPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ before?: Param; thread?: Param; profile?: Param }>;
+  searchParams: Promise<{ before?: Param; thread?: Param; profile?: Param; m?: Param }>;
 }) {
   const timer = createStageTimer();
   const { user, identity } = await requireChat();
   timer.mark("requireChat");
   const { id } = await params;
-  const { before, thread, profile } = await searchParams;
+  const { before, thread, profile, m } = await searchParams;
   if (!isId(id, "chn")) notFound();
 
   const supabase = await createClient();
@@ -95,8 +96,17 @@ export default async function ChatChannelPage({
       }
     });
   }
-  const threadId = Array.isArray(thread) ? thread[0] : thread;
-  if (threadId !== undefined && !isId(threadId, "msg")) notFound();
+  const explicitThreadId = Array.isArray(thread) ? thread[0] : thread;
+  if (explicitThreadId !== undefined && !isId(explicitThreadId, "msg")) notFound();
+  // A `?m=<message id>` permalink (the message's own link, which survives sign-in): the conversation scrolls to that message, and a reply
+  // opens its thread. Not in a restricted conversation hidden in sudo, and a message that isn't there is just the conversation.
+  const focusParam = Array.isArray(m) ? m[0] : m;
+  if (focusParam !== undefined && !isId(focusParam, "msg")) notFound();
+  const focus = focusParam && !sudoHidden ? await resolveFocus(createRepos(supabase), channel.id, focusParam) : null;
+  const threadId = explicitThreadId ?? focus?.threadRootId ?? undefined;
+  // The main list scrolls to a top-level message; a reply is scrolled to inside its thread.
+  const listFocusId = focus && !focus.threadRootId ? focus.id : null;
+  const threadFocusId = focus?.threadRootId ? focus.id : null;
   const profileParam = Array.isArray(profile) ? profile[0] : profile;
   const profileId = profileParam && isId(profileParam, "mbr") ? profileParam : null;
 
@@ -231,6 +241,7 @@ export default async function ChatChannelPage({
                 catchUpIds={messageViews.filter((v) => v.replyCount > 0).map((v) => v.id)}
                 latestAt={messageViews.length > 0 ? messageViews[messageViews.length - 1].createdAt : null}
                 latestId={messageViews.length > 0 ? messageViews[messageViews.length - 1].id : null}
+                focusId={listFocusId}
               />
               <MessageList
                 key={`${channel.id}:${before ?? ""}`}
@@ -243,6 +254,7 @@ export default async function ChatChannelPage({
                 showSent={!before}
                 timeZone={timeZone}
                 renderedAt={renderedAt}
+                focusId={listFocusId}
               />
             </section>
           )}
@@ -273,6 +285,7 @@ export default async function ChatChannelPage({
             ctx={ctx}
             canReact={canReact}
             timeZone={timeZone}
+            focusId={threadFocusId}
           />
           {canPost && rootView.syncStatus === null && (
             <Composer key={rootView.id} channelId={channel.id} threadRootId={rootView.id} initialDraft={drafts.thread} initialDraftFiles={drafts.threadFiles} saveDrafts={!identity.isSudo} placeholder="Reply…" viewer={viewer} showSent dropTargetIds={["chat-thread-panel"]} />
