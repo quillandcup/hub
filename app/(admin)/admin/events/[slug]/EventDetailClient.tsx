@@ -6,6 +6,7 @@ import { track } from "@/lib/analytics/client";
 import PhotoLightbox from "@/components/PhotoLightbox";
 import MemberSearch from "@/components/MemberSearch";
 import { TICKET_NOTE_MAX_LENGTH, TICKET_SOURCES, TICKET_SOURCE_LABELS, isTicketSource, type TicketSource } from "@/lib/event-tickets";
+import EventKajabiTickets from "./EventKajabiTickets";
 import EventDetailsCard, { type EventData, type EventForm, type EventOverrides } from "./EventDetailsCard";
 
 interface Photo {
@@ -248,6 +249,8 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
         removing={changingVisibility}
         photos={visiblePhotos}
       />
+
+      <EventKajabiTickets eventId={eventId} onAttendeesChanged={fetchData} />
 
       {/* Attendees */}
       <section className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">

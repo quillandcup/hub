@@ -265,6 +265,8 @@ export async function openSlackDm(service: SupabaseClient, memberId: string, oth
   if (!otherSlackId) return { ok: false, reason: "unknown_person" };
 
   const slack = new WebClient(connection.token, { rejectRateLimitedCalls: true, retryConfig: { retries: 0 } });
+  // Opening a DM counts as pulling the member's DMs: a Slack DM is in the chat of the members who have pulled (project_slack_dm).
+  await service.rpc("chat_claim_slack_dm_pull", { p_member: memberId, p_min_seconds: 0 });
   try {
     const opened = await slack.conversations.open({ users: otherSlackId, return_im: true });
     const im = opened.channel as SlackIm | undefined;

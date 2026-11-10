@@ -92,6 +92,12 @@ export const eventDetails = (data: InMemoryDataset): EventDetail[] => data.event
 const calendarOf = (data: InMemoryDataset, prickleId: string): Prickle | undefined => data.prickles.find((p) => p.id === prickleId);
 
 
+/** A Kajabi offer linked to an event, as the in-memory dataset keeps it. */
+export type EventOfferRow = Pick<Row<"community_event_offers">, "event_id" | "kajabi_offer_id"> & Partial<Omit<Row<"community_event_offers">, "event_id" | "kajabi_offer_id">>;
+
+/** The result of linking an offer: done, or the offer already sells another event. */
+export type LinkOfferResult = { linked: true } | { linked: false; eventId: string };
+
 /** An attendee row as the in-memory dataset keeps it (only the event matters to the calendar sync). */
 export type EventAttendeeRow = Pick<Row<"event_attendees">, "event_id"> & Partial<Omit<Row<"event_attendees">, "event_id">>;
 
@@ -187,6 +193,14 @@ export interface EventRepository {
   attendeesOf(eventId: string): Promise<EventAttendeeEntry[]>;
   /** Records how an attendee got in; only the fields given change, null clears one. False when the member isn't an attendee of the event. */
   setAttendeeTicket(eventId: string, memberId: string, ticket: TicketInput): Promise<boolean>;
+  /** The Kajabi offer ids that sell this event, oldest link first. */
+  offerIdsOf(eventId: string): Promise<string[]>;
+  /** Every linked offer id with the event it sells (an offer sells one event). */
+  linkedOffers(): Promise<{ kajabi_offer_id: string; event_id: string }[]>;
+  /** Links an offer to the event. Linking it again is a no-op; an offer that sells another event is refused. */
+  linkOffer(eventId: string, kajabiOfferId: string, createdBy: string | null): Promise<LinkOfferResult>;
+  /** Unlinks an offer; false when it was not linked to this event. */
+  unlinkOffer(eventId: string, kajabiOfferId: string): Promise<boolean>;
   /** For each given calendar event that has an event, whether it is shown to members or hidden. Chunked. */
   visibilityByCalendarEvent(calendarEventIds: string[]): Promise<Map<string, "shown" | "hidden">>;
 }
@@ -655,6 +669,36 @@ export class SupabaseEventRepository implements EventRepository {
     return (data ?? []).length > 0;
   }
 
+  async offerIdsOf(eventId: string) {
+    const rows = await fetchAllRows<{ kajabi_offer_id: string }>((from, to) =>
+      this.db.from("community_event_offers").select("kajabi_offer_id").eq("event_id", eventId).order("created_at").order("id").range(from, to)
+    );
+    return rows.map((r) => r.kajabi_offer_id);
+  }
+
+  async linkedOffers() {
+    return fetchAllRows<{ kajabi_offer_id: string; event_id: string }>((from, to) =>
+      this.db.from("community_event_offers").select("kajabi_offer_id, event_id").order("id").range(from, to)
+    );
+  }
+
+  async linkOffer(eventId: string, kajabiOfferId: string, createdBy: string | null): Promise<LinkOfferResult> {
+    const { error } = await this.db.from("community_event_offers").insert({ event_id: eventId, kajabi_offer_id: kajabiOfferId, created_by: createdBy });
+    if (!error) return { linked: true };
+    if (error.code !== "23505") throw new Error(error.message);
+    // The offer is already linked: to this event (nothing to do) or to another one.
+    const { data, error: readError } = await this.db.from("community_event_offers").select("event_id").eq("kajabi_offer_id", kajabiOfferId).maybeSingle();
+    if (readError) throw new Error(readError.message);
+    if (!data) throw new Error(error.message); // unlinked in between: let the caller retry
+    return data.event_id === eventId ? { linked: true } : { linked: false, eventId: data.event_id };
+  }
+
+  async unlinkOffer(eventId: string, kajabiOfferId: string) {
+    const { data, error } = await this.db.from("community_event_offers").delete().eq("event_id", eventId).eq("kajabi_offer_id", kajabiOfferId).select("id");
+    if (error) throw new Error(error.message);
+    return (data ?? []).length > 0;
+  }
+
   async visibilityByCalendarEvent(calendarEventIds: string[]) {
     const out = new Map<string, "shown" | "hidden">();
     for (const r of await this.onCalendarEvents(calendarEventIds)) out.set(r.calendarEventId, r.deletedAt ? "hidden" : "shown");
@@ -899,6 +943,7 @@ export class InMemoryEventRepository implements EventRepository {
     this.data.events = this.data.events.filter((e) => e.id !== id);
     this.data.eventPhotos = this.data.eventPhotos.filter((p) => p.event_id !== id);
     this.data.eventAttendees = this.data.eventAttendees.filter((a) => a.event_id !== id);
+    this.data.eventOffers = this.data.eventOffers.filter((o) => o.event_id !== id);
   }
 
   async allPhotosOf(eventId: string) {
@@ -932,6 +977,27 @@ export class InMemoryEventRepository implements EventRepository {
         const m = this.data.members.find((x) => x.id === a.member_id);
         return { id: a.id, member_id: a.member_id, ticket_source: a.ticket_source, ticket_note: a.ticket_note, member: m ? { name: m.name, display_name: m.displayName ?? null, email: m.email ?? "" } : null };
       });
+  }
+
+  async offerIdsOf(eventId: string) {
+    return this.data.eventOffers.filter((o) => o.event_id === eventId).map((o) => o.kajabi_offer_id);
+  }
+
+  async linkedOffers() {
+    return this.data.eventOffers.map((o) => ({ kajabi_offer_id: o.kajabi_offer_id, event_id: o.event_id }));
+  }
+
+  async linkOffer(eventId: string, kajabiOfferId: string, createdBy: string | null): Promise<LinkOfferResult> {
+    const existing = this.data.eventOffers.find((o) => o.kajabi_offer_id === kajabiOfferId);
+    if (existing) return existing.event_id === eventId ? { linked: true } : { linked: false, eventId: existing.event_id };
+    this.data.eventOffers.push({ event_id: eventId, kajabi_offer_id: kajabiOfferId, created_by: createdBy });
+    return { linked: true };
+  }
+
+  async unlinkOffer(eventId: string, kajabiOfferId: string) {
+    const before = this.data.eventOffers.length;
+    this.data.eventOffers = this.data.eventOffers.filter((o) => !(o.event_id === eventId && o.kajabi_offer_id === kajabiOfferId));
+    return this.data.eventOffers.length < before;
   }
 
   async setAttendeeTicket(eventId: string, memberId: string, ticket: TicketInput) {

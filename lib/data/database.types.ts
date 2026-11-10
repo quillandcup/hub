@@ -1998,6 +1998,7 @@ export type Database = {
           dm_key: string | null
           id: string
           kind: string
+          last_message_at: string | null
           name: string | null
           purpose: string | null
           restricted: boolean
@@ -2014,6 +2015,7 @@ export type Database = {
           dm_key?: string | null
           id?: string
           kind: string
+          last_message_at?: string | null
           name?: string | null
           purpose?: string | null
           restricted?: boolean
@@ -2030,6 +2032,7 @@ export type Database = {
           dm_key?: string | null
           id?: string
           kind?: string
+          last_message_at?: string | null
           name?: string | null
           purpose?: string | null
           restricted?: boolean
@@ -2366,6 +2369,45 @@ export type Database = {
             columns: ["member_id"]
             isOneToOne: false
             referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      community_event_offers: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          event_id: string
+          id: string
+          kajabi_offer_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          event_id: string
+          id?: string
+          kajabi_offer_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          event_id?: string
+          id?: string
+          kajabi_offer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_event_offers_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "community_event_details"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_event_offers_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "community_events"
             referencedColumns: ["id"]
           },
         ]
@@ -6900,26 +6942,16 @@ export type Database = {
             }
             Returns: string
           }
-      chat_post_shared_video:
-        | {
-            Args: {
-              p_body: string
-              p_channel_id: string
-              p_lesson_id: string
-              p_open_to_channel?: boolean
-            }
-            Returns: string
-          }
-        | {
-            Args: {
-              p_body: string
-              p_channel_id: string
-              p_lesson_id: string
-              p_open_to_channel: boolean
-              p_thread_root_id: string
-            }
-            Returns: string
-          }
+      chat_post_shared_video: {
+        Args: {
+          p_body: string
+          p_channel_id: string
+          p_lesson_id: string
+          p_open_to_channel: boolean
+          p_thread_root_id: string
+        }
+        Returns: string
+      }
       chat_slack_files_summary: { Args: { p_files: Json }; Returns: Json }
       chat_toggle_reaction: {
         Args: { p_emoji: string; p_message_id: string }
@@ -7492,6 +7524,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      slack_dm_member_pulled: { Args: { p_member: string }; Returns: boolean }
       slack_is_system_message_type: {
         Args: { p_type: string }
         Returns: boolean

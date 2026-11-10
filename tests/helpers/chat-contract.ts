@@ -367,7 +367,7 @@ export function defineChatContract(name: string, setup: () => ChatContractContex
 
         // Both names share a prefix that sorts the same way in any collation; the unnamed one comes last.
         expect(listed.map((c) => c.id)).toEqual([ids.alpha, ids.beta, ids.dm]);
-        expect(listed[0]).toEqual({ id: ids.alpha, kind: "channel", visibility: "public", restricted: false, name: expect.any(String), archived_at: null, slack_channel_id: null });
+        expect(listed[0]).toEqual({ id: ids.alpha, kind: "channel", visibility: "public", restricted: false, name: expect.any(String), archived_at: null, slack_channel_id: null, last_message_at: null });
         expect(listed[1]).toMatchObject({ restricted: true, slack_channel_id: slack });
         expect(at(listed[1].archived_at!)).toBe(at("2026-02-01T00:00:00Z"));
         expect(listed[2]).toMatchObject({ kind: "group_dm", visibility: "private", name: null });

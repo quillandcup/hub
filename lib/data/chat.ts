@@ -107,6 +107,8 @@ export interface ChannelRecord {
   name: string | null;
   archived_at: string | null;
   slack_channel_id: string | null;
+  /** When the conversation last had a message (not a Slack notice), for ordering direct and group messages by recency; null when it has none. */
+  last_message_at: string | null;
 }
 
 /** What decides whether a conversation's members can be changed from the Hub. */
@@ -139,7 +141,7 @@ export interface MembershipNoticeInput {
   createdAt: string;
 }
 
-const CHANNEL_COLUMNS = "id, kind, visibility, restricted, name, archived_at, slack_channel_id";
+const CHANNEL_COLUMNS = "id, kind, visibility, restricted, name, archived_at, slack_channel_id, last_message_at";
 /** Ids per `.in(...)` request. */
 const IN_CHUNK = 100;
 
@@ -972,6 +974,7 @@ export class InMemoryChatRepository implements ChatRepository {
       name: c.name ?? null,
       archived_at: c.archived_at ?? null,
       slack_channel_id: c.slack_channel_id ?? null,
+      last_message_at: c.last_message_at ?? null,
     };
   }
 

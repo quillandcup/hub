@@ -43,6 +43,23 @@ To take them:
 
 `@changelog` scenes are left out of the scheduled help-screenshots run (`--grep-invert "@published|@changelog"`), which tracks the current UI: a scene for an old entry may stop matching the app, and that is fine, it is the record of how the screenshots were taken.
 
+## Drafting entries
+
+Entries written one PR at a time read like a developer diary, so there is a drafter that works the other way: it looks at everything merged in a window and proposes **stories**, which a person then reviews.
+
+`pnpm changelog:draft [--since YYYY-MM-DD] [--live-flags a,b] [--run]` lists the PRs merged to `main` since that day (default 2 days) with `gh`, drops the ones that only touch docs, tests, demo scenes or the changelog, and works in two small steps so a run stays cheap (the first version sent every PR body in one prompt, 140 KB for four days, and used a lot of a subscription's weekly quota):
+
+1. **Group** (`--model haiku`): a titles-only prompt, about 19 KB for four days (PR number, title, three file paths, no bodies), asks for JSON: stories (several PRs each), engineering PRs, skipped ones. Written to `demo/out/changelog-draft/grouping.json`.
+2. **Draft** (`--model sonnet`): only the member-visible stories, with each PR's body cut to 600 characters and the writing rules from `.claude/rules/changelog-writing.md` inside the prompt, so the model needs no tools (`--tools ""`, `--max-turns 1`). Written to `drafts.md`: entry literals in the `ChangelogEntry` shape, the PRs each came from, a demo-scene suggestion and "Check:" lines for claims it was unsure of.
+
+Nothing is written to `lib/changelog/entries.ts`. It uses the Claude Code CLI, not an SDK: nothing is added to `package.json` or the app, and no member data is involved (it reads public PR text). Keep it that way, because the "no AI touches your writing" statement is checked against the dependencies and the code (`.claude/rules/changelog-writing.md`).
+
+**Flagged features are left out until the flag is on for everyone.** A PR whose title or body names a flag key from `lib/features.ts` quoted as code (`` `chat_videos` ``) is held back and listed in the output, unless the flag is in `LIVE_FLAGS` (`lib/changelog/live-flags.ts`) or passed as `--live-flags a,b`. CI never reads the production database, so that list is committed: add a flag's key in the same PR as the feature's entry, after reading the day it went on for everyone from the audit log, and delete it when the flag is removed (a test fails on a key that no longer exists). This is a heuristic on PR text: a stray mention holds a PR, and a PR that removes or switches on a flag is held too (it is the go-live PR), so read the "held" list. The entry for a feature that has been flagged for a while needs all of its PRs, back to the first; find them with `git log -S"<flag key>" --format=%s`, since they are outside the window.
+
+**Dates come from GitHub deployments.** An unflagged change is dated the Eastern day of the first production deployment after its merge (`gh api repos/{owner}/{repo}/deployments?environment=production`), not the merge day. That is when the code went live, not when a flag went on: a flagged feature is still dated from the audit log (see "Writing an entry").
+
+A draft is a starting point. Before it goes in: check every claim against the PR and the code, run the member reader review, write the scene and take the screenshots.
+
 ## How the digest decides what to send
 
 - **Entries from the last 30 days** (`DIGEST_WINDOW_DAYS`) that the recipient has not been sent. Each entry is claimed per recipient in `notification_log` (kind `changelog_digest`, dedup key = the slug) before the send and given back when no channel delivered it. So a retry or a second run sends nothing twice, a missed week catches up on the next run, and a member who turns a channel on later still gets what they missed. A week with nothing new sends nothing.

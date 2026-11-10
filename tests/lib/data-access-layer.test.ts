@@ -44,6 +44,8 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   // Events (EventRepository): every query on the three event tables is moved.
   community_events: [],
   event_attendees: [],
+  // The Kajabi offers that sell an event (EventRepository).
+  community_event_offers: [],
   event_photos: [],
   // The event schedule view and the Hub-made events' schedules (EventRepository, HubSessionRepository).
   community_event_details: [],

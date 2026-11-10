@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { authenticateRealtime } from "@/lib/chat/live";
-import { loadUnreadCounts, type ChannelSummary } from "@/lib/chat/load";
+import { byRecency, loadUnreadCounts, type ChannelSummary } from "@/lib/chat/load";
 import { LAST_CHAT_COOKIE } from "@/lib/chat/last-channel";
 import { mentionsToPlainText } from "@/lib/chat/render";
 import { subscribeDraftChanges } from "@/lib/chat/draft-events";
@@ -272,7 +272,8 @@ function useUnreadCounts(
   fromServer: Record<string, number>,
   activeId: string | null,
   selfMemberId: string | null,
-  channels: ChannelSummary[]
+  channels: ChannelSummary[],
+  onMessage?: (channelId: string, at: string) => void
 ): Record<string, number> {
   const signature = JSON.stringify(fromServer);
   const [seen, setSeen] = useState(signature);
@@ -291,11 +292,13 @@ function useUnreadCounts(
 
   // Read through refs so the subscription is not rebuilt on every navigation.
   const router = useRouter();
+  const messageSeen = useRef(onMessage);
   const active = useRef(activeId);
   const joined = useRef(new Set<string>());
   const known = useRef(new Set<string>());
   useEffect(() => {
     active.current = activeId;
+    messageSeen.current = onMessage;
     joined.current = new Set(channels.filter((c) => c.joined && !c.archived).map((c) => c.id));
     known.current = new Set(channels.map((c) => c.id));
   });
@@ -323,9 +326,11 @@ function useUnreadCounts(
       subscription = supabase
         .channel("chat:unread")
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, (payload) => {
-          const row = payload.new as { channel_id: string; thread_root_id: string | null; author_member_id: string | null; deleted_at: string | null };
+          const row = payload.new as { channel_id: string; thread_root_id: string | null; author_member_id: string | null; deleted_at: string | null; created_at?: string };
           if (row.deleted_at) return;
           listNeedsRefresh(row.channel_id);
+          // A conversation with a new message moves to the top of its list, as in Slack.
+          if (row.created_at) messageSeen.current?.(row.channel_id, row.created_at);
           if (row.thread_root_id || row.author_member_id === selfMemberId) return;
           if (row.channel_id === active.current || !joined.current.has(row.channel_id)) return;
           setCounts((c) => ({ ...c, [row.channel_id]: Math.min((c[row.channel_id] ?? 0) + 1, 100) }));
@@ -407,7 +412,14 @@ export default function ChatSidebar({
 }) {
   const pathname = usePathname();
   const activeId = pathname.startsWith("/chat/") ? pathname.split("/")[2] : null;
-  const counts = useUnreadCounts(unread, activeId, selfMemberId, channels);
+  // When each conversation last had a message as of what has arrived since the page loaded (Realtime), for ordering.
+  const [bumps, setBumps] = useState<Record<string, string>>({});
+  const counts = useUnreadCounts(unread, activeId, selfMemberId, channels, (id, at) => setBumps((b) => (b[id] && Date.parse(b[id]) >= Date.parse(at) ? b : { ...b, [id]: at })));
+  /** Newest first, by the later of the server's time and what has arrived since (a stable sort: ties keep the server's order). */
+  const recent = (list: ChannelSummary[]) => {
+    const at = (c: ChannelSummary) => ({ lastMessageAt: bumps[c.id] && (!c.lastMessageAt || Date.parse(bumps[c.id]) > Date.parse(c.lastMessageAt)) ? bumps[c.id] : c.lastMessageAt });
+    return [...list].sort((a, b) => byRecency(at(a), at(b)));
+  };
   const liveDrafts = useDrafts(drafts);
   // Remember the open conversation so /chat can reopen it (a year; read by chat/page.tsx).
   useEffect(() => {
@@ -463,8 +475,8 @@ export default function ChatSidebar({
         unread={counts}
         action={joinable.length > 0 && <BrowseChannels channels={joinable} pathname={pathname} />}
       />
-      <Section title="Group messages" channels={mine.filter((c) => c.kind === "group_dm")} pathname={pathname} unread={counts} />
-      <Section title="Direct messages" channels={mine.filter((c) => c.kind === "dm")} pathname={pathname} unread={counts} />
+      <Section title="Group messages" channels={recent(mine.filter((c) => c.kind === "group_dm"))} pathname={pathname} unread={counts} />
+      <Section title="Direct messages" channels={recent(mine.filter((c) => c.kind === "dm"))} pathname={pathname} unread={counts} />
       {channels.length === 0 && <p className="px-3 text-sm text-slate-600 dark:text-slate-400">No conversations yet.</p>}
       {channels.length > 0 && Boolean(wanted) && mine.length === 0 && <p className="px-3 text-sm text-slate-600 dark:text-slate-400">No channels match.</p>}
       <p className="mt-4 px-3 text-xs">
