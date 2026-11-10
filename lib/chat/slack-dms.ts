@@ -153,9 +153,11 @@ async function pullOneDm(
 ): Promise<{ chatChannelId: string | null; fetched: number }> {
   const { memberId, selfSlackId, im } = opts;
   const otherSlackId = im.user as string;
+  // Slack also lists the member's self-DM: one participant, and one row per upsert key.
+  const participantIds = [...new Set([selfSlackId, otherSlackId])];
   const now = new Date(clock.now()).toISOString();
 
-  // The conversation and its two participants in Bronze, then in the chat (the Hub members among them).
+  // The conversation and its participants in Bronze, then in the chat (the Hub members among them).
   await repos.slackWorkspace.upsertChannels([
     {
       channel_id: im.id,
@@ -165,14 +167,14 @@ async function pullOneDm(
       is_im: true,
       im_user_id: otherSlackId,
       is_archived: false,
-      member_count: 2,
+      member_count: participantIds.length,
       created: im.created ? new Date(im.created * 1000).toISOString() : null,
       raw_payload: im as never,
       imported_at: now,
     },
   ]);
   await repos.slackWorkspace.upsertMemberships(
-    [selfSlackId, otherSlackId].map((user_id) => ({ channel_id: im.id, user_id, left_at: null, imported_at: now }))
+    participantIds.map((user_id) => ({ channel_id: im.id, user_id, left_at: null, imported_at: now }))
   );
   const others = await repos.chat.memberIdsBySlackUser([otherSlackId]);
   const people: Record<string, string> = { [selfSlackId]: memberId };
