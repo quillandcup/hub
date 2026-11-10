@@ -69,7 +69,7 @@ describe("pullMemberDms: group DMs the bot is not in", () => {
       ],
       has_more: false,
     });
-    await expect(pullMemberDms(service, MEMBER)).resolves.toEqual({ conversations: 1, messages: 2, errors: [] });
+    await expect(pullMemberDms(service, MEMBER)).resolves.toEqual({ conversations: 1, messages: 2, incomplete: false, errors: [] });
 
     expect(m.list).toHaveBeenCalledWith(expect.objectContaining({ types: "mpim" }));
     expect(ds().slackChannels).toEqual([expect.objectContaining({ channel_id: "G1", name: "", is_mpim: true, is_im: false, is_private: true, token_only: true })]);
@@ -89,6 +89,7 @@ describe("pullMemberDms: group DMs the bot is not in", () => {
     m.members
       .mockResolvedValueOnce({ members: ["USELF"], response_metadata: { next_cursor: "n2" } })
       .mockResolvedValueOnce({ members: ["UGALE"] });
+    m.history.mockResolvedValue({ messages: [{ ts: "1762170000.000100", user: "UGALE", text: "hi" }], has_more: false });
     await pullMemberDms(service, MEMBER);
     expect(m.members).toHaveBeenLastCalledWith(expect.objectContaining({ channel: "G1", cursor: "n2" }));
     expect(ds().slackChannelMembers.find((r) => r.user_id === "UGONE")?.left_at).toBeTruthy();
@@ -97,7 +98,7 @@ describe("pullMemberDms: group DMs the bot is not in", () => {
 
   it("leaves a group the bot reads alone: nothing of its row, members or messages is touched or pulled", async () => {
     ds().slackChannels.push({ channel_id: "G1", name: "bot-name", is_mpim: true, token_only: false } as never);
-    await expect(pullMemberDms(service, MEMBER)).resolves.toEqual({ conversations: 0, messages: 0, errors: [] });
+    await expect(pullMemberDms(service, MEMBER)).resolves.toEqual({ conversations: 0, messages: 0, incomplete: false, errors: [] });
     expect(ds().slackChannels).toEqual([expect.objectContaining({ channel_id: "G1", name: "bot-name", token_only: false })]);
     expect(m.members).not.toHaveBeenCalled();
     expect(m.history).not.toHaveBeenCalled();
@@ -105,14 +106,15 @@ describe("pullMemberDms: group DMs the bot is not in", () => {
   });
 
   it("a group the projection refuses is not pulled", async () => {
+    m.history.mockResolvedValue({ messages: [{ ts: "1762170000.000100", user: "UGALE", text: "hi" }], has_more: false });
     m.rpc.mockImplementation(async (name: string) => (name === "project_slack_group_dm" ? { data: { channel: null }, error: null } : { data: true, error: null }));
-    await expect(pullMemberDms(service, MEMBER)).resolves.toEqual({ conversations: 0, messages: 0, errors: [] });
-    expect(m.history).not.toHaveBeenCalled();
+    await expect(pullMemberDms(service, MEMBER)).resolves.toEqual({ conversations: 0, messages: 0, incomplete: false, errors: [] });
+    expect(rpcCalls("project_slack_chat_message")).toHaveLength(0);
   });
 
   it("only takes Slack's group DMs, not whatever else a list returns", async () => {
     m.list.mockImplementation(async ({ types }: { types: string }) => ({ channels: types === "mpim" ? [{ id: "G2", is_mpim: false }] : [] }));
-    await expect(pullMemberDms(service, MEMBER)).resolves.toEqual({ conversations: 0, messages: 0, errors: [] });
+    await expect(pullMemberDms(service, MEMBER)).resolves.toEqual({ conversations: 0, messages: 0, incomplete: false, errors: [] });
     expect(ds().slackChannels).toEqual([]);
   });
 
@@ -120,7 +122,7 @@ describe("pullMemberDms: group DMs the bot is not in", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     m.list.mockImplementation(async ({ types }: { types: string }) => ({ channels: types === "mpim" ? [{ id: "G1", is_mpim: true }, { id: "G2", is_mpim: true }] : [] }));
     m.history.mockRejectedValueOnce(new Error("boom")).mockResolvedValue({ messages: [{ ts: "1762170000.000100", user: "UGALE", text: "hi" }], has_more: false });
-    await expect(pullMemberDms(service, MEMBER)).resolves.toEqual({ conversations: 1, messages: 1, errors: [expect.stringContaining("boom")] });
+    await expect(pullMemberDms(service, MEMBER)).resolves.toEqual({ conversations: 1, messages: 1, incomplete: false, errors: [expect.stringContaining("boom")] });
     error.mockRestore();
 
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});

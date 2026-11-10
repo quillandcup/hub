@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
     const result = await pullDmsForCoveredMembers(service, { deadline: clock.now() + TIME_BUDGET_MS });
     const problems = [
       ...(result.deferred > 0 ? [`${result.deferred} members' DMs left for the next run: out of time`] : []),
+      ...(result.incomplete > 0 ? [`${result.incomplete} members' DMs only partly read: out of time (the rest next run)`] : []),
       ...result.errors,
     ];
     if (problems.length > 0) {

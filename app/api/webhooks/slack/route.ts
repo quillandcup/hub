@@ -99,10 +99,11 @@ export async function POST(request: NextRequest) {
         // bridge covers; everything else goes as it always has.
         const decision = await decideDmEvent(createServiceRoleClient(), payload);
         if (decision.kind === "pull") {
-          const { memberId } = decision;
+          const { memberId, channelId } = decision;
           after(async () => {
             try {
-              await pullMemberDms(createServiceRoleClient(), memberId, { force: true });
+              // Just this conversation: reading all of the member's DMs for one new message would cost hundreds of calls.
+              await pullMemberDms(createServiceRoleClient(), memberId, { force: true, only: channelId });
             } catch (error) {
               console.error("pullMemberDms threw for %s:", memberId, error);
             }

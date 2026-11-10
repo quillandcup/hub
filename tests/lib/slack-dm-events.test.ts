@@ -24,6 +24,8 @@ import { decideDmEvent, isMemberTokenConversation, isSlackDmChannelId } from "@/
 import { InMemoryDataset } from "@/lib/data/in-memory";
 
 const service = {} as never;
+/** The chat has a conversation for this Slack conversation (a DM found empty has a Bronze row and none). */
+const inChat = (slackId: string) => dataset.chatChannels.push({ id: `chn_${slackId}`, slack_channel_id: slackId } as never);
 const FERN = "mbr_AAAAAAAAAAF1";
 const GALE = "mbr_AAAAAAAAAAG1";
 const dm = (extra: Record<string, unknown> = {}) => ({
@@ -82,8 +84,9 @@ describe("decideDmEvent", () => {
     });
 
     it("is kept in a DM the chat has, and pulls for one it hasn't", async () => {
-      await expect(decideDmEvent(service, reaction("D1"))).resolves.toEqual({ kind: "pull", memberId: FERN });
+      await expect(decideDmEvent(service, reaction("D1"))).resolves.toEqual({ kind: "pull", memberId: FERN, channelId: "D1" });
       dataset.slackChannels.push({ channel_id: "D1", name: "", is_im: true } as never);
+      inChat("D1");
       await expect(decideDmEvent(service, reaction("D1"))).resolves.toEqual({ kind: "keep" });
       await expect(decideDmEvent(service, { ...reaction("D1"), event: { ...reaction("D1").event, type: "reaction_removed" } })).resolves.toEqual({ kind: "keep" });
     });
@@ -107,14 +110,20 @@ describe("decideDmEvent", () => {
 
   it("keeps a message in a DM the chat already has, for a covered member", async () => {
     dataset.slackChannels.push({ channel_id: "D1", name: "", is_im: true } as never);
+    inChat("D1");
     await expect(decideDmEvent(service, dm())).resolves.toEqual({ kind: "keep" });
   });
 
+  it("pulls for a DM Bronze knows but the chat has no conversation for (one found empty), when its first message arrives", async () => {
+    dataset.slackChannels.push({ channel_id: "D1", name: "", is_im: true } as never);
+    await expect(decideDmEvent(service, dm())).resolves.toEqual({ kind: "pull", memberId: FERN, channelId: "D1" });
+  });
+
   it("pulls the member's DMs when the DM is new to us", async () => {
-    await expect(decideDmEvent(service, dm())).resolves.toEqual({ kind: "pull", memberId: FERN });
+    await expect(decideDmEvent(service, dm())).resolves.toEqual({ kind: "pull", memberId: FERN, channelId: "D1" });
     // A conversation we know that isn't a DM (a channel id mislabelled) is not taken for one.
     dataset.slackChannels.push({ channel_id: "D1", name: "x", is_im: false } as never);
-    await expect(decideDmEvent(service, dm())).resolves.toEqual({ kind: "pull", memberId: FERN });
+    await expect(decideDmEvent(service, dm())).resolves.toEqual({ kind: "pull", memberId: FERN, channelId: "D1" });
   });
 });
 
@@ -126,8 +135,9 @@ describe("decideDmEvent: group DMs", () => {
   });
 
   it("pulls the member's DMs when the group is new to us, keeps one the chat has, and drops it for nobody covered", async () => {
-    await expect(decideDmEvent(service, group())).resolves.toEqual({ kind: "pull", memberId: FERN });
+    await expect(decideDmEvent(service, group())).resolves.toEqual({ kind: "pull", memberId: FERN, channelId: "G1" });
     dataset.slackChannels.push({ channel_id: "G1", name: "", is_mpim: true, token_only: true } as never);
+    inChat("G1");
     await expect(decideDmEvent(service, group())).resolves.toEqual({ kind: "keep" });
     m.covered = new Set();
     await expect(decideDmEvent(service, group())).resolves.toEqual({ kind: "drop" });
@@ -142,6 +152,7 @@ describe("decideDmEvent: group DMs", () => {
 
   it("keeps a user event of a group the bot reads, for a covered member", async () => {
     dataset.slackChannels.push({ channel_id: "G1", name: "x", is_mpim: true, token_only: false } as never);
+    inChat("G1");
     await expect(decideDmEvent(service, group())).resolves.toEqual({ kind: "keep" });
   });
 
@@ -152,8 +163,9 @@ describe("decideDmEvent: group DMs", () => {
     await expect(decideDmEvent(service, reaction("G2"))).resolves.toEqual({ kind: "drop" });
     await expect(decideDmEvent(service, reaction("G9"))).resolves.toEqual({ kind: "drop" });
     dataset.slackChannels.push({ channel_id: "G1", name: "", is_mpim: true, token_only: true } as never);
+    inChat("G1");
     await expect(decideDmEvent(service, reaction("G1"))).resolves.toEqual({ kind: "keep" });
-    await expect(decideDmEvent(service, reaction("D1"))).resolves.toEqual({ kind: "pull", memberId: FERN });
+    await expect(decideDmEvent(service, reaction("D1"))).resolves.toEqual({ kind: "pull", memberId: FERN, channelId: "D1" });
   });
 
   it("recognizes a reaction in a group DM whose id begins with C, as newer ones do, by the stored conversation", async () => {
@@ -162,6 +174,7 @@ describe("decideDmEvent: group DMs", () => {
       { channel_id: "C_GROUP", name: "", is_mpim: true, token_only: true } as never,
       { channel_id: "C_PUBLIC", name: "general", is_mpim: false } as never
     );
+    inChat("C_GROUP");
     await expect(decideDmEvent(service, reaction("C_GROUP"))).resolves.toEqual({ kind: "keep" });
     // A channel, and one we have never heard of, are the bot's to record.
     await expect(decideDmEvent(service, reaction("C_PUBLIC"))).resolves.toEqual({ kind: "drop" });

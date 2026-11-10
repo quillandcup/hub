@@ -144,6 +144,23 @@ export function defineSlackWorkspaceContract(name: string, setup: () => SlackWor
       expect(await ctx.repo().isTokenOnlyGroupDm(plain)).toBe(false);
     });
 
+    it("remembers when a member's token last read a conversation, for those it has a row for", async () => {
+      const [a, b, never, unknown] = [ctx.unique("a"), ctx.unique("b"), ctx.unique("never"), ctx.unique("unknown")];
+      await ctx.repo().upsertChannels([a, b, never].map((channel_id) => ({ channel_id, name: "pulled-test", raw_payload: {} })));
+      expect(await ctx.repo().pulledAt([a, b, never])).toEqual(new Map());
+
+      await ctx.repo().markPulled([a, b, unknown], "2031-03-01T10:00:00.000Z");
+      await ctx.repo().markPulled([], "2031-03-01T11:00:00.000Z");
+      const pulled = await ctx.repo().pulledAt([a, b, never, unknown]);
+      expect([...pulled.keys()].sort()).toEqual([a, b].sort());
+      expect(new Date(pulled.get(a) as string).toISOString()).toBe("2031-03-01T10:00:00.000Z");
+
+      // Read again later: the newer time; and past a chunk of ids.
+      await ctx.repo().markPulled([a], "2031-03-02T10:00:00.000Z");
+      expect(new Date((await ctx.repo().pulledAt([a])).get(a) as string).toISOString()).toBe("2031-03-02T10:00:00.000Z");
+      expect(await ctx.repo().pulledAt(Array.from({ length: 150 }, (_, i) => ctx.unique(`x${i}`)))).toEqual(new Map());
+    });
+
     it("lists who is in a conversation now", async () => {
       const [room, ada, grace] = [ctx.unique("room"), ctx.unique("ada"), ctx.unique("grace")];
       await ctx.repo().upsertMemberships([ada, grace].map((user_id) => ({ channel_id: room, user_id, left_at: null, imported_at: "2031-02-01T10:00:00.000Z" })));

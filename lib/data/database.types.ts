@@ -659,6 +659,7 @@ export type Database = {
           is_im: boolean
           is_mpim: boolean
           is_private: boolean | null
+          last_pulled_at: string | null
           member_count: number | null
           name: string
           purpose: string | null
@@ -676,6 +677,7 @@ export type Database = {
           is_im?: boolean
           is_mpim?: boolean
           is_private?: boolean | null
+          last_pulled_at?: string | null
           member_count?: number | null
           name: string
           purpose?: string | null
@@ -693,6 +695,7 @@ export type Database = {
           is_im?: boolean
           is_mpim?: boolean
           is_private?: boolean | null
+          last_pulled_at?: string | null
           member_count?: number | null
           name?: string
           purpose?: string | null
