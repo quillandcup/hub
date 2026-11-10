@@ -142,6 +142,17 @@ export function contactAttachments(contact: KajabiContact): KajabiContactAttachm
 }
 
 /**
+ * The ids of the offers a contact holds (bought or granted), from a contact fetched with
+ * `include=offers`. Null when the response didn't spell the list out, so "holds nothing" is only
+ * ever said when Kajabi said so.
+ */
+export function contactOfferIds(contact: KajabiContact): string[] | null {
+  const rel = contact.relationships?.offers;
+  const data = Array.isArray(rel?.data) ? rel.data : Array.isArray(rel?.links?.data) ? rel.links.data : null;
+  return data ? data.flatMap((o: { id?: unknown }) => (typeof o?.id === "string" || typeof o?.id === "number" ? [String(o.id)] : [])) : null;
+}
+
+/**
  * A contact with nothing attached: no customer record, no tags, no offers. Anything the response didn't spell
  * out counts as "not empty", so the answer is only ever true when Kajabi said so.
  */

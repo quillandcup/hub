@@ -9,7 +9,14 @@ import { createInMemoryRepos } from "@/lib/data/repos";
 const auth = vi.hoisted(() => ({ current: { user: { id: "admin" }, supabase: {} } as { user: { id: string } | null; forbidden?: boolean; supabase: object } }));
 vi.mock("@/lib/supabase/api-auth", () => ({ requireAdmin: async () => auth.current }));
 
-const state = vi.hoisted(() => ({ repos: null as unknown }));
+const state = vi.hoisted(() => ({ repos: null as unknown, kajabi: null as null | { fetchContactWithAttachments: (id: string) => Promise<unknown> } }));
+vi.mock("@/lib/kajabi/client", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/kajabi/client")>("@/lib/kajabi/client")),
+  createKajabiClient: () => {
+    if (!state.kajabi) throw new Error("Kajabi is not configured");
+    return state.kajabi;
+  },
+}));
 vi.mock("@/lib/data/repos", async () => ({
   ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
   createRepos: () => state.repos,
@@ -23,6 +30,7 @@ const A = "evt_AAAAAAAAAAA1";
 const B = "evt_AAAAAAAAAAA2";
 
 function reset() {
+  state.kajabi = null;
   auth.current = { user: { id: "admin" }, supabase: {} };
   state.repos = createInMemoryRepos(
     new InMemoryDataset({
@@ -91,6 +99,30 @@ describe("event offers routes", () => {
     expect(res.status).toBe(200);
     expect(body.offersLinked).toBe(true);
     expect(body.buyers.map((b: { member_name: string }) => b.member_name)).toEqual(["Ada Example"]);
+  });
+
+  it("asks Kajabi about attendees with no purchase when it is configured, and carries on when it is not", async () => {
+    const dataset = new InMemoryDataset({
+      ...eventSeed([{ id: A, title: "Summer Retreat", slug: "summer" }]),
+      members: [{ id: "mbr_AAAAAAAAAAA1", name: "Ada Example", email: "ada@example.com", kajabiId: "k1" }],
+      kajabiOffers: [{ kajabi_offer_id: "o1", name: "Summer Retreat" }],
+      eventOffers: [{ event_id: A, kajabi_offer_id: "o1" }],
+      eventAttendees: [{ id: "a1", event_id: A, member_id: "mbr_AAAAAAAAAAA1", ticket_source: null }],
+    } as never);
+    state.repos = createInMemoryRepos(dataset);
+    const search = async () => (await (await findMatches(req(`/api/admin/events/${A}/kajabi-matches`), { params: Promise.resolve({ id: A }) })).json()).attendeesWithoutTicket[0].kajabi_offer;
+
+    expect(await search()).toBe("unknown");
+
+    const asked: string[] = [];
+    state.kajabi = {
+      fetchContactWithAttachments: async (id) => {
+        asked.push(id);
+        return { id, type: "contacts", attributes: {}, relationships: { offers: { data: [{ id: "o1", type: "offers" }] } } };
+      },
+    };
+    expect(await search()).toBe("held");
+    expect(asked).toEqual(["k1"]);
   });
 
   it("404s matches for an event that does not exist", async () => {
