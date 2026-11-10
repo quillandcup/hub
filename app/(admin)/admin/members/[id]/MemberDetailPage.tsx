@@ -308,7 +308,7 @@ export default async function MemberDetailPage({
                 </button>
               </form>
               )}
-              {can("member.merge") && <MergeButton member={{ id: member.id, name: member.name, email: member.email }} />}
+              {can("member.merge") && <MergeButton member={{ id: member.id, name: member.name, display_name: member.displayName, email: member.email }} />}
               {can("member.split") && (
                 <SplitButton
                   member={{ id: member.id, name: member.name, email: member.email }}

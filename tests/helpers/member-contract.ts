@@ -340,6 +340,21 @@ export function defineMemberContract(name: string, setup: () => MemberContractCo
       expect(await ctx.repo().byId(id)).toBeNull();
     });
 
+    it("counts the rows a member owns per table, leaving out empty tables and derived stats", async () => {
+      const [ada, fern] = await ctx.seed([
+        { name: "Ada Example", aliases: [{ alias: "Penny Quill" }, { alias: "Ada Q", active: false }] },
+        { name: "Fern Example" },
+      ]);
+
+      const counts = await ctx.repo().ownedRowCounts(ada);
+
+      expect(counts).toContainEqual({ table: "member_name_aliases", column: "member_id", count: 2 });
+      expect(counts.every((c) => c.count > 0)).toBe(true);
+      expect(counts.map((c) => c.table)).not.toContain("member_metrics");
+      expect(counts.map((c) => c.table)).not.toContain("member_directory");
+      expect((await ctx.repo().ownedRowCounts(fern)).map((c) => c.table)).not.toContain("member_name_aliases");
+    });
+
     it("sets names, stamping the self-service change only when asked", async () => {
       const [ada] = await ctx.seed([{ name: "Ada Example", displayName: "Penny Quill" }]);
 

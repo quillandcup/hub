@@ -7238,6 +7238,14 @@ export type Database = {
           visibility: string
         }[]
       }
+      member_owned_row_counts: {
+        Args: { p_member_id: string }
+        Returns: {
+          column_name: string
+          row_count: number
+          table_name: string
+        }[]
+      }
       member_slack_channels: {
         Args: { p_member_id: string }
         Returns: {
