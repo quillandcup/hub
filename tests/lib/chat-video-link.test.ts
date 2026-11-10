@@ -37,16 +37,11 @@ describe("sharedVideoSlackLine", () => {
     expect(await sharedVideoSlackLine(repos({ courses: [], chatChannels: [] }), MESSAGE, SLACK_CHANNEL)).toBeNull();
   });
 
-  it("uses the permalink shape the chat search uses: the thread open beside it and the #m- anchor the Copy link option uses", async () => {
+  it("is the message's permalink, the one the Copy link option gives: the conversation with ?m=<message>", async () => {
     const line = (await sharedVideoSlackLine(repos(), MESSAGE, SLACK_CHANNEL)) as string;
 
-    expect(line).toContain(`${APP_URL}/chat/${CHANNEL}?thread=${MESSAGE}#m-${MESSAGE}|`);
-  });
-
-  it("opens a reply in its thread, and anchors on the reply itself", async () => {
-    const line = (await sharedVideoSlackLine(repos(), MESSAGE, SLACK_CHANNEL, ROOT)) as string;
-
-    expect(line).toContain(`${APP_URL}/chat/${CHANNEL}?thread=${ROOT}#m-${MESSAGE}|`);
+    expect(line).toContain(`${APP_URL}/chat/${CHANNEL}?m=${MESSAGE}|`);
+    expect(chatMessagePath(CHANNEL, MESSAGE)).toBe(`/chat/${CHANNEL}?m=${MESSAGE}`);
   });
 
   it("is null for a message that shares nothing", async () => {
@@ -57,8 +52,8 @@ describe("sharedVideoSlackLine", () => {
     const line = (await sharedVideoSlackLine(repos(), MESSAGE, SLACK_CHANNEL)) as string;
     const urls = [...line.matchAll(/<([^|>]+)\|/g)].map((m) => new URL(m[1]));
     expect(urls).toHaveLength(2);
-    expect(urls[0].search).toBe(`?thread=${MESSAGE}`);
-    expect(urls[0].hash).toBe(`#m-${MESSAGE}`);
+    expect(urls[0].search).toBe(`?m=${MESSAGE}`);
+    expect(urls[0].hash).toBe("");
     expect(urls[1].search).toBe("");
   });
 });
@@ -70,8 +65,8 @@ describe("stripSharedVideoLink", () => {
     ["only the lesson link", `\n${LESSON_LINK}`],
     ["the first version's single link", `\n<${APP_URL}${lessonPath("ready-writer", LESSON)}|Watch the video>`],
     ["trailing whitespace", `\n${CHAT_LINK} · ${LESSON_LINK}\n`],
-    ["a reply's link, which names its thread", `\n<${APP_URL}${chatMessagePath(CHANNEL, MESSAGE, ROOT)}|Watch it in Hub Chat> · ${LESSON_LINK}`],
-    ["the earlier link shape without the anchor", `\n<${APP_URL}/chat/${CHANNEL}?thread=${MESSAGE}|Watch it in Hub Chat> · ${LESSON_LINK}`],
+    ["the earlier link shape with the thread and the anchor", `\n<${APP_URL}/chat/${CHANNEL}?thread=${ROOT}#m-${MESSAGE}|Watch it in Hub Chat> · ${LESSON_LINK}`],
+    ["the earlier link shape with the thread only", `\n<${APP_URL}/chat/${CHANNEL}?thread=${MESSAGE}|Watch it in Hub Chat> · ${LESSON_LINK}`],
   ])("removes the line Slack's copy of the message ends with: %s", (_name, line) => {
     expect(stripSharedVideoLink(`This one helped me${line}`)).toBe("This one helped me");
   });

@@ -1,5 +1,6 @@
 "use client";
 
+import { messagePermalink } from "@/lib/chat/focus";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
@@ -225,7 +226,7 @@ export default function MessageActions({
                 type="button"
                 role="menuitem"
                 data-track="chat-copy-link"
-                onClick={() => void copy("Link", `${window.location.origin}/chat/${channelId}#m-${messageId}`)}
+                onClick={() => void copy("Link", `${window.location.origin}${messagePermalink(channelId, messageId)}`)}
                 className="block w-full px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-slate-800"
               >
                 Copy link

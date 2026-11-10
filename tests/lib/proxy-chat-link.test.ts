@@ -85,7 +85,7 @@ beforeEach(() => {
 describe("a signed-out visitor following the Slack link to a shared video", () => {
   it("is sent to /login without the message in the address, and the link is remembered in full", async () => {
     const path = await slackLinkPath();
-    expect(path).toBe(`/chat/${CHANNEL}?thread=${MESSAGE}#m-${MESSAGE}`);
+    expect(path).toBe(`/chat/${CHANNEL}?m=${MESSAGE}`);
 
     const res = await call(path);
 
@@ -123,21 +123,19 @@ describe("a signed-out visitor following the Slack link to a shared video", () =
     expect(new URL(`http://x${gateHref(GATES.connectSlack, afterSignIn)}`).searchParams.get("next")).toBe(serverSees(path));
   });
 
-  // KNOWN GAP (docs/TODO.md, shared videos in chat): the #m-<message> anchor stays in the browser, so it can't be remembered through sign-in. After
-  // signing in they land on the conversation with the message open beside it (the ?thread= part survives), but the list isn't scrolled to the
-  // message. Changing that needs the anchor carried by the sign-in pages themselves (they run in the browser).
-  it("remembers the thread but not the #m- anchor through sign-in (known gap: the list isn't scrolled to the message afterwards)", async () => {
+  // The link is the message's permalink (`?m=`), in the query, so the whole of it reaches the server and survives sign-in: the member lands on
+  // the message, scrolled to and highlighted, even one that is further back than the newest page, and a reply opens its thread.
+  it("remembers the whole permalink through sign-in, the message included", async () => {
     const path = await slackLinkPath();
-    expect(path).toContain("#m-");
+    expect(path).not.toContain("#");
 
     const res = await call(path);
 
-    expect(decodeURIComponent(res.cookies.get(NEXT_PATH_COOKIE)?.value ?? "")).not.toContain("#");
-    expect(decodeURIComponent(res.cookies.get(NEXT_PATH_COOKIE)?.value ?? "")).toContain(`?thread=${MESSAGE}`);
+    expect(decodeURIComponent(res.cookies.get(NEXT_PATH_COOKIE)?.value ?? "")).toBe(`/chat/${CHANNEL}?m=${MESSAGE}`);
   });
 
   it("is accepted as a safe return address, query included", async () => {
-    expect(safeNextPath(serverSees(await slackLinkPath()))).toBe(`/chat/${CHANNEL}?thread=${MESSAGE}`);
+    expect(safeNextPath(serverSees(await slackLinkPath()))).toBe(`/chat/${CHANNEL}?m=${MESSAGE}`);
   });
 
   it("doesn't remember a router prefetch as somewhere they asked to go", async () => {

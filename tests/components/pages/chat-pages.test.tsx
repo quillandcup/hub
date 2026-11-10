@@ -506,6 +506,45 @@ describe("channel page", () => {
     expect(within(screen.getByRole("region", { name: "Messages" })).queryByText("the reply")).not.toBeInTheDocument();
   });
 
+  describe("a ?m= permalink (the message's own link, which survives sign-in)", () => {
+    it("takes the reader to a top-level message in the conversation, without opening a panel", async () => {
+      messages = [msg(1), msg(2)];
+      await renderChannel(GENERAL, { m: id(101) });
+
+      expect(document.getElementById(`m-${id(101)}`)).toBeInTheDocument();
+      expect(screen.queryByRole("complementary", { name: "Thread" })).not.toBeInTheDocument();
+    });
+
+    it("opens the thread of a reply, with the reply in the panel and not in the conversation", async () => {
+      messages = [msg(1, { reply_count: 1 }), msg(2, { thread_root_id: id(101), chat_message_contents: { body: "the reply" } })];
+      await renderChannel(GENERAL, { m: id(102) });
+
+      const panel = within(screen.getByRole("complementary", { name: "Thread" }));
+      expect(panel.getByText("the reply")).toBeInTheDocument();
+      expect(document.getElementById(`m-${id(102)}`)).toBeInTheDocument();
+      expect(within(screen.getByRole("region", { name: "Messages" })).queryByText("the reply")).not.toBeInTheDocument();
+    });
+
+    it("leaves a thread that was asked for by name open, whichever message is linked", async () => {
+      messages = [msg(1, { reply_count: 1 }), msg(2, { thread_root_id: id(101) }), msg(3, { reply_count: 1 })];
+      await renderChannel(GENERAL, { m: id(102), thread: id(103) });
+
+      expect(within(screen.getByRole("complementary", { name: "Thread" })).getByText("message 3")).toBeInTheDocument();
+    });
+
+    it("is just the conversation for a message that isn't in it (or that this member can't read)", async () => {
+      messages = [msg(1)];
+      await renderChannel(GENERAL, { m: id(150) });
+
+      expect(screen.getByRole("region", { name: "Messages" })).toBeInTheDocument();
+      expect(screen.queryByRole("complementary", { name: "Thread" })).not.toBeInTheDocument();
+    });
+
+    it("is a 404 for a value that isn't a message id", async () => {
+      await expect(renderChannel(GENERAL, { m: "nope" })).rejects.toThrow("404");
+    });
+  });
+
   it("keeps ?before= when a panel is closed, so the reader stays on the older page", async () => {
     messages = [msg(1, { reply_count: 1 })];
     await renderChannel(GENERAL, { thread: id(101), before: "2026-10-05T00:00:00Z" });

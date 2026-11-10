@@ -138,18 +138,18 @@ describe("sendChatMessageToSlack", () => {
 
     const [args] = postMessage.mock.calls[0];
     expect(args.text).toBe(
-      `Hello there &amp; friends\n<${APP_URL}/chat/${CHANNEL}?thread=${ID}#m-${ID}|Watch it in Hub Chat> · <${APP_URL}/courses/ready-writer/lessons/les_AAAAAAAAAAA1|Open the lesson>`
+      `Hello there &amp; friends\n<${APP_URL}/chat/${CHANNEL}?m=${ID}|Watch it in Hub Chat> · <${APP_URL}/courses/ready-writer/lessons/les_AAAAAAAAAAA1|Open the lesson>`
     );
     expect(args.blocks).toBeUndefined();
   });
 
-  it("links a shared video posted as a thread reply to its thread, anchored on the reply", async () => {
+  it("links a shared video posted as a thread reply by its own permalink (the page opens the thread)", async () => {
     dataset.chatMessages.find((m) => m.id === ID)!.thread_root_id = ROOT_ID;
     dataset.chatMessageVideos.push({ id: "cmv_AAAAAAAAAAA1", message_id: ID, lesson_id: "les_AAAAAAAAAAA9", open_to_channel: false, created_at: "2026-10-10T11:00:00Z" });
 
     await sendChatMessageToSlack(supabase as never, ID);
 
-    expect(postMessage.mock.calls[0][0].text).toContain(`<${APP_URL}/chat/${CHANNEL}?thread=${ROOT_ID}#m-${ID}|Watch it in Hub Chat>`);
+    expect(postMessage.mock.calls[0][0].text).toContain(`<${APP_URL}/chat/${CHANNEL}?m=${ID}|Watch it in Hub Chat>`);
     expect(postMessage.mock.calls[0][0].thread_ts).toBe("1699999999.000100");
   });
 
@@ -158,7 +158,7 @@ describe("sendChatMessageToSlack", () => {
 
     await expect(sendChatMessageToSlack(supabase as never, ID)).resolves.toBe("sent");
 
-    expect(postMessage.mock.calls[0][0].text).toBe(`Hello &lt;everyone&gt; &amp; friends\n<${APP_URL}/chat/${CHANNEL}?thread=${ID}#m-${ID}|Watch it in Hub Chat>`);
+    expect(postMessage.mock.calls[0][0].text).toBe(`Hello &lt;everyone&gt; &amp; friends\n<${APP_URL}/chat/${CHANNEL}?m=${ID}|Watch it in Hub Chat>`);
   });
 
   it("posts a message with an underline as rich-text blocks, with its text minus the underline as the fallback", async () => {

@@ -1,18 +1,16 @@
 import { APP_URL } from "@/lib/config";
 import type { Repos } from "@/lib/data/repos";
+import { messagePermalink } from "@/lib/chat/focus";
 
 /** The address of a course lesson's page: the lesson route takes the course's slug and the lesson's id. */
 export const lessonPath = (courseSlug: string, lessonId: string) => `/courses/${courseSlug}/lessons/${lessonId}`;
 
 /**
- * The address of a chat message in the Hub, in the shape the chat search uses for a result (`app/(member)/chat/search/page.tsx`):
- * the conversation with the message's thread open beside it and `#m-<message id>`, the anchor of the "Copy link" on every message,
- * which scrolls the list to it. The thread is the message's own for a top-level message and its root's for a reply. The query part
- * is what carries through sign-in (the fragment never reaches the server, so it is lost there); it also opens the message with its
- * video card even when the message is older than the page of messages the conversation loads.
+ * The address of a chat message in the Hub: its permalink (`lib/chat/focus.ts`), the conversation with `?m=<message>`. The server reads it,
+ * so it survives sign-in, scrolls the list to the message however far back it is, and opens the thread of a reply. Same shape as the "Copy link"
+ * on every message.
  */
-export const chatMessagePath = (channelId: string, messageId: string, threadRootId?: string | null) =>
-  `/chat/${channelId}?thread=${threadRootId ?? messageId}#m-${messageId}`;
+export const chatMessagePath = (channelId: string, messageId: string) => messagePermalink(channelId, messageId);
 
 const CHAT_LABEL = "Watch it in Hub Chat";
 const LESSON_LABEL = "Open the lesson";
@@ -28,8 +26,6 @@ export async function sharedVideoSlackLine(
   repos: Pick<Repos, "chat" | "chatVideos" | "courses">,
   messageId: string,
   slackChannelId: string | null,
-  /** The thread the message is a reply in, when it is one. */
-  threadRootId: string | null = null,
 ): Promise<string | null> {
   const lessonId = (await repos.chatVideos.lessonIdsOf([messageId])).get(messageId);
   if (!lessonId) return null;
@@ -39,7 +35,7 @@ export async function sharedVideoSlackLine(
   ]);
   const course = lesson ? await repos.courses.courseById(lesson.course_id) : null;
   const links = [
-    hubChannelId ? `<${APP_URL}${chatMessagePath(hubChannelId, messageId, threadRootId)}|${CHAT_LABEL}>` : null,
+    hubChannelId ? `<${APP_URL}${chatMessagePath(hubChannelId, messageId)}|${CHAT_LABEL}>` : null,
     course ? `<${APP_URL}${lessonPath(course.slug, lessonId)}|${LESSON_LABEL}>` : null,
   ].filter((l): l is string => l !== null);
   return links.length > 0 ? `\n${links.join(" · ")}` : null;
@@ -49,7 +45,8 @@ export async function sharedVideoSlackLine(
  * The line above as Slack's copy of the message brings it back into the Hub, and the single link an earlier version added. The
  * Hub shows the card instead, so it is dropped from the text of a message that shares a video.
  */
-const CHAT_LINK = "<https?://[^|>\\s]*/chat/[^|>\\s/?]+\\?thread=msg_[^|>\\s]+\\|" + CHAT_LABEL + ">";
+// The permalink (?m=) and the two earlier shapes (?thread=, with or without #m-).
+const CHAT_LINK = "<https?://[^|>\\s]*/chat/[^|>\\s/?]+\\?(?:m|thread)=msg_[^|>\\s]+\\|" + CHAT_LABEL + ">";
 const LESSON_LINK = "<https?://[^|>\\s]*/courses/[^|>\\s/]+/lessons/[^|>\\s/]+\\|" + LESSON_LABEL + ">";
 const FIRST_VERSION_LINK = "<https?://[^|>\\s]*/courses/[^|>\\s/]+/lessons/[^|>\\s/]+\\|Watch the video>";
 const SLACK_LINK_LINE = new RegExp(`\\n(?:${CHAT_LINK}(?: · ${LESSON_LINK})?|${LESSON_LINK}|${FIRST_VERSION_LINK})\\s*$`);

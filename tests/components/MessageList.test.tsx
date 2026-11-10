@@ -202,7 +202,7 @@ describe("MessageList days and hover", () => {
     expect(writeText).toHaveBeenCalledWith("message 1");
     await userEvent.click(screen.getByRole("button", { name: "More actions" }));
     await userEvent.click(screen.getByRole("menuitem", { name: "Copy link" }));
-    expect(writeText).toHaveBeenLastCalledWith(`${window.location.origin}/chat/c1#m-m1`);
+    expect(writeText).toHaveBeenLastCalledWith(`${window.location.origin}/chat/c1?m=m1`);
   });
 
   it("reacts from the hover bar when the viewer can react", async () => {
@@ -229,6 +229,24 @@ describe("MessageList linked message", () => {
     await waitFor(() => expect(scrollIntoViewTop).toHaveBeenCalled());
     scrollIntoViewTop.mockRestore();
     window.location.hash = "";
+  });
+
+  it("does the same for a ?m= link (focusId), which has no #hash in the URL", async () => {
+    const scrollTop = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect");
+    vi.mocked(loadOlderChat).mockResolvedValueOnce({ views: [view(-1, { id: "target", body: "the one" })], ctx: CTX, olderBefore: null });
+    render(<MessageList channelId="c1" views={[view(1)]} ctx={CTX} olderBefore="2026-10-01T00:00:00.000Z" focusId="target" />);
+
+    await screen.findByText("the one");
+    expect(loadOlderChat).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(scrollTop).toHaveBeenCalled());
+    scrollTop.mockRestore();
+  });
+
+  it("loads no older pages when it isn't linking to a message", async () => {
+    render(<MessageList channelId="c1" views={[view(1)]} ctx={CTX} olderBefore="2026-10-01T00:00:00.000Z" />);
+    await screen.findByText("message 1");
+
+    expect(loadOlderChat).not.toHaveBeenCalled();
   });
 
   it("stops looking when the older pages run out", async () => {

@@ -64,6 +64,7 @@ export default function ChatLive({
   latestAt = null,
   renderedAt = null,
   catchUpIds = [],
+  focusId = null,
 }: {
   channelId: string;
   view: ChatLiveView;
@@ -77,6 +78,8 @@ export default function ChatLive({
   renderedAt?: string | null;
   /** The thread roots on the page. A page from the client cache is asked about them too, since their reply counts may have moved. */
   catchUpIds?: string[];
+  /** The message a `?m=` link asks for, which wins over where the reader left off. */
+  focusId?: string | null;
 }) {
   const router = useRouter();
   const anchor = useRef<HTMLSpanElement>(null);
@@ -299,13 +302,13 @@ export default function ChatLive({
   }, [markRead, view, channelId]);
 
   const land = useCallback(() => {
-    // A link to one message (#m-<id>) wins over where the reader left off.
-    if (scrollToHashMessage(anchor.current)) return;
+    // A link to one message (?m=<id>, or #m-<id>) wins over where the reader left off.
+    if (scrollToHashMessage(anchor.current, focusId)) return;
     const scroller = scrollParent(anchor.current);
     const line = scroller.querySelector("#unread-divider");
     if (line) scroller.scrollTop += line.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 24;
     else scrollToBottom(anchor.current);
-  }, []);
+  }, [focusId]);
 
   // Opening a conversation lands where the reader left off: on the line between what they had read
   // and what is new, if there is one, else on the newest message (so the first new message after

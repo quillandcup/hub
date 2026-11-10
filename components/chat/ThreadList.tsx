@@ -6,7 +6,7 @@ import type { ChatTextContext } from "@/components/chat/ChatText";
 import type { ChatMessageView } from "@/lib/chat/load";
 import { subscribeListEvents } from "@/lib/chat/list-events";
 import { mergeChatContext } from "@/lib/chat/merge";
-import { scrollParent } from "@/lib/chat/scroll";
+import { scrollParent, scrollToHashMessage } from "@/lib/chat/scroll";
 
 const sortKey = (m: ChatMessageView) => Date.parse(m.createdAt);
 
@@ -25,6 +25,7 @@ export default function ThreadList({
   ctx,
   canReact,
   timeZone,
+  focusId = null,
 }: {
   channelId: string;
   threadRootId: string;
@@ -34,6 +35,8 @@ export default function ThreadList({
   ctx: ChatTextContext;
   canReact: boolean;
   timeZone?: string;
+  /** The reply a `?m=` link asks for: scrolled to and briefly highlighted when the thread opens. */
+  focusId?: string | null;
 }) {
   const [rootView, setRootView] = useState(root);
   const [byId, setById] = useState(() => new Map(replies.map((v) => [v.id, v])));
@@ -91,6 +94,10 @@ export default function ThreadList({
       if (event.kind === "add") setSentCount((n) => n + 1);
     });
   }, [channelId, threadRootId]);
+  // A link to one reply: take the reader to it once, when the thread opens.
+  useEffect(() => {
+    if (focusId) scrollToHashMessage(end.current, focusId);
+  }, [focusId]);
   useLayoutEffect(() => {
     if (sentCount === 0) return;
     const scroller = scrollParent(end.current);
