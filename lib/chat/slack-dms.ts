@@ -6,6 +6,7 @@ import { getSlackConnectionStatus, getSlackUserToken, isDeadTokenError, SLACK_DM
 import { fetchThread, storedReplyCounts, storeAndProject } from "@/lib/chat/gap-fill";
 import { isKeptSlackMessage } from "@/lib/slack-messages";
 import { projectChatMessage } from "@/lib/chat-projection";
+import { notifyPulledMessages } from "@/lib/chat/notifications";
 import { deletionInferenceWindow, isSuspiciousDeletionCount, messagesMissingFromSlack, slackThreadKey } from "@/lib/slack-deletions";
 import { clock } from "@/lib/clock";
 import { ensureSlackFileCopied, slackFilesFromMessages } from "@/lib/slack-capture";
@@ -287,6 +288,7 @@ async function pullConversationMessages(
 
   // Bronze (messages, reactions, taken-back reactions), then the chat, exactly as a channel's gap-fill does.
   const stored = await storeAndProject(service, conversationId, { name: "", type }, [...topLevel, ...replies]);
+  await notifyPulledMessages(repos, conversationId, [...topLevel, ...replies].map((m) => m.ts as string));
 
   // A message in the window that Slack no longer returns was deleted there: only where the whole window was
   // fetched, and by the import's rules (never because it aged out of Slack's history; not a sudden mass disappearance).

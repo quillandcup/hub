@@ -72,7 +72,7 @@ export type SeedChannelRow = {
   slackChannelId?: string | null;
   bridgeDisabled?: boolean;
 };
-export type SeedMembership = { channel: string; member: number; joinedAt?: string; leftAt?: string; lastReadAt?: string; source?: "slack" | "app" };
+export type SeedMembership = { channel: string; member: number; joinedAt?: string; leftAt?: string; lastReadAt?: string; source?: "slack" | "app"; muted?: boolean; notifyLevel?: "all" | "mentions" };
 export type SeedChannelMessage = {
   key: string;
   channel: string;
@@ -84,6 +84,10 @@ export type SeedChannelMessage = {
   deleted?: boolean;
   origin?: "app" | "slack";
   syncStatus?: "pending" | "sent" | "failed";
+  /** The text of the message (its content row). */
+  body?: string;
+  /** A Slack notice (a join or leave), not something anyone wrote. */
+  systemSubtype?: "channel_join" | "channel_leave";
 };
 
 export type MessageState = {
@@ -857,6 +861,61 @@ export function defineChatContract(name: string, setup: () => ChatContractContex
         expect(recent.map((f) => f.id)).toEqual([ids.new, ids.mid, ids.old]);
         expect(recent[0]).toMatchObject({ slack_channel_id: slack, scope: "message", source: "webhook", error: "not_in_channel" });
         expect(await ctx.repo().recentGapFills(1)).toHaveLength(1);
+      });
+    });
+
+    // --- notifications ---
+    describe("notifications", () => {
+      it("reads a message with its text and conversation, and nothing for a missing message", async () => {
+        const [author] = await ctx.seedMembers(1);
+        const channels = await ctx.seedChannelRows([{ key: "c", name: "writing", kind: "channel" }]);
+        const ids = await ctx.seedChannelMessages([
+          { key: "top", channel: "c", author: 0, createdAt: "2026-03-01T10:00:00Z", body: "hello <@U1>" },
+          { key: "reply", channel: "c", createdAt: "2026-03-01T10:05:00Z", replyTo: "top", body: "second" },
+          { key: "notice", channel: "c", createdAt: "2026-03-01T10:06:00Z", systemSubtype: "channel_join" },
+          { key: "gone", channel: "c", createdAt: "2026-03-01T10:07:00Z", deleted: true },
+        ]);
+
+        const top = await ctx.repo().notificationContext(ids.top);
+        expect(top?.channel).toEqual({ id: channels.c, kind: "channel", name: "writing", archivedAt: null });
+        expect(top?.message).toMatchObject({ id: ids.top, channelId: channels.c, authorMemberId: author, threadRootId: null, systemSubtype: null, deletedAt: null, body: "hello <@U1>" });
+        expect(Date.parse(top!.message.createdAt)).toBe(Date.parse("2026-03-01T10:00:00Z"));
+        expect((await ctx.repo().notificationContext(ids.reply))?.message).toMatchObject({ threadRootId: ids.top, authorMemberId: null, body: "second" });
+        expect((await ctx.repo().notificationContext(ids.notice))?.message).toMatchObject({ systemSubtype: "channel_join", body: "" });
+        expect((await ctx.repo().notificationContext(ids.gone))?.message.deletedAt).not.toBeNull();
+        expect(await ctx.repo().notificationContext(`msg_${"A".repeat(12)}`)).toBeNull();
+      });
+
+      it("lists the members worth considering (followers of every message and the ones named, or everyone for an @channel) and answers a member's setting", async () => {
+        const channels = await ctx.seedChannelRows([{ key: "c", name: "writing" }, { key: "dm", kind: "dm", visibility: "private", restricted: true }]);
+        const members = await ctx.seedMembers(5);
+        await ctx.seedMemberships([
+          { channel: "c", member: 0, notifyLevel: "all", lastReadAt: "2026-03-01T09:00:00Z" },
+          { channel: "c", member: 1 },
+          { channel: "c", member: 2, muted: true, notifyLevel: "mentions" },
+          { channel: "c", member: 3, leftAt: "2026-03-01T00:00:00Z", notifyLevel: "all" },
+          { channel: "c", member: 4, notifyLevel: "mentions" },
+          { channel: "dm", member: 0 },
+        ]);
+
+        // A member's own setting: default, every message, muted (wins over the level), none for one who left or was never in.
+        const settings = await Promise.all(members.map((m) => ctx.repo().notifySettingOf(channels.c, m)));
+        expect(settings).toEqual(["all", "default", "nothing", null, "mentions"]);
+        expect(await ctx.repo().notifySettingOf(channels.c, `mbr_${"A".repeat(12)}`)).toBeNull();
+
+        const followers = await ctx.repo().notifiableMembers(channels.c, { everyone: false, memberIds: [] });
+        expect(followers).toEqual([{ memberId: members[0], setting: "all", readMarker: expect.stringMatching(/^2026-03-01T09:00:00/) }]);
+
+        const withNamed = await ctx.repo().notifiableMembers(channels.c, { everyone: false, memberIds: [members[1], members[2]] });
+        expect(withNamed.map((m) => [m.memberId, m.setting]).sort()).toEqual(
+          [[members[0], "all"], [members[1], "default"], [members[2], "nothing"]].sort()
+        );
+
+        const everyone = await ctx.repo().notifiableMembers(channels.c, { everyone: true, memberIds: [] });
+        expect(everyone.map((m) => m.memberId).sort()).toEqual([members[0], members[1], members[2], members[4]].sort());
+        // A member who left is never listed, and the marker falls back to when they joined.
+        expect(everyone.find((m) => m.memberId === members[1])?.readMarker).toBeTruthy();
+        expect((await ctx.repo().notifiableMembers(channels.dm, { everyone: true, memberIds: [] })).map((m) => m.memberId)).toEqual([members[0]]);
       });
     });
   });

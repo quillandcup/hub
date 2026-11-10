@@ -69,6 +69,8 @@ export interface NotificationRepository {
   markAllInAppRead(memberId: string): Promise<void>;
   /** Marks the member's unread notifications of this kind about this ref read. */
   resolveInApp(memberId: string, kind: string, ref: string): Promise<void>;
+  /** Marks the member's unread notifications about this ref read, whatever their kind (a conversation's, across the chat kinds). */
+  resolveInAppByRef(memberId: string, ref: string): Promise<void>;
 }
 
 const IN_APP_COLUMNS = "id, member_id, kind, ref, text, url, banner_until, read_at, created_at";
@@ -222,6 +224,16 @@ export class SupabaseNotificationRepository implements NotificationRepository {
       .is("read_at", null);
     if (error) throw new Error(error.message);
   }
+
+  async resolveInAppByRef(memberId: string, ref: string): Promise<void> {
+    const { error } = await this.db
+      .from("in_app_notifications")
+      .update({ read_at: new Date().toISOString() })
+      .eq("member_id", memberId)
+      .eq("ref", ref)
+      .is("read_at", null);
+    if (error) throw new Error(error.message);
+  }
 }
 
 const newestFirst = (a: InAppNotificationRow, b: InAppNotificationRow) =>
@@ -305,5 +317,9 @@ export class InMemoryNotificationRepository implements NotificationRepository {
 
   async resolveInApp(memberId: string, kind: string, ref: string) {
     for (const n of this.mine(memberId)) if (n.kind === kind && n.ref === ref && n.readAt === null) n.readAt = new Date().toISOString();
+  }
+
+  async resolveInAppByRef(memberId: string, ref: string) {
+    for (const n of this.mine(memberId)) if (n.ref === ref && n.readAt === null) n.readAt = new Date().toISOString();
   }
 }

@@ -1954,6 +1954,7 @@ export type Database = {
           left_at: string | null
           member_id: string
           muted: boolean
+          notify_level: string | null
           source: string
         }
         Insert: {
@@ -1963,6 +1964,7 @@ export type Database = {
           left_at?: string | null
           member_id: string
           muted?: boolean
+          notify_level?: string | null
           source?: string
         }
         Update: {
@@ -1972,6 +1974,7 @@ export type Database = {
           left_at?: string | null
           member_id?: string
           muted?: boolean
+          notify_level?: string | null
           source?: string
         }
         Relationships: [
@@ -6954,6 +6957,10 @@ export type Database = {
           p_thread_root_id: string
         }
         Returns: string
+      }
+      chat_set_notify_setting: {
+        Args: { p_channel_id: string; p_setting: string }
+        Returns: undefined
       }
       chat_slack_files_summary: { Args: { p_files: Json }; Returns: Json }
       chat_toggle_reaction: {

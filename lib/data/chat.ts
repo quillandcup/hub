@@ -89,6 +89,44 @@ export interface ChatReactionRow {
   slack_user_id: string | null;
 }
 
+/** What a message's notification decision needs of the message and its conversation (service role: it reads the text for mentions). */
+export interface ChatNotificationContext {
+  message: {
+    id: string;
+    channelId: string;
+    authorMemberId: string | null;
+    threadRootId: string | null;
+    /** Set for a Slack notice (a join, a leave): not something anyone wrote. */
+    systemSubtype: string | null;
+    deletedAt: string | null;
+    createdAt: string;
+    body: string;
+  };
+  channel: { id: string; kind: "channel" | "dm" | "group_dm"; name: string | null; archivedAt: string | null };
+}
+
+/** What notifies a member about a conversation: the default of its kind, every message, only mentions, or nothing (muted). */
+export type NotifySetting = "default" | "all" | "mentions" | "nothing";
+
+/** A member in a conversation with what decides whether a message there notifies them. */
+export interface NotifiableMember {
+  memberId: string;
+  setting: NotifySetting;
+  /** Where they have read up to: their marker, else when they joined. */
+  readMarker: string;
+}
+
+/** Which members of a conversation to look at for one message: all of them (an @channel), or those who follow every message plus the ones named. */
+export interface NotifiableMembersQuery {
+  everyone: boolean;
+  memberIds: string[];
+}
+
+export function notifySettingOf(row: { muted: boolean; notify_level: string | null }): NotifySetting {
+  if (row.muted) return "nothing";
+  return row.notify_level === "all" || row.notify_level === "mentions" ? row.notify_level : "default";
+}
+
 const MESSAGE_COLUMNS =
   "id, author_member_id, slack_ts, origin, created_at, edited_at, deleted_at, reply_count, last_reply_at, has_files, system_subtype, slack_sync_status, chat_message_contents(body, files, blocks)";
 const SEARCH_MESSAGE_COLUMNS =
@@ -258,6 +296,14 @@ export interface ChatRepository {
   recentGapFills(limit: number): Promise<GapFillRecord[]>;
   /** The Hub id of the message at this Slack ts in a channel, or null. */
   messageIdBySlackTs(channelId: string, slackTs: string): Promise<string | null>;
+
+  // --- notifications ---
+  /** A message with its text and its conversation, for deciding who to notify; null when there is no such message. */
+  notificationContext(messageId: string): Promise<ChatNotificationContext | null>;
+  /** The conversation's current members worth considering for one message (see the query), with their settings and read markers. */
+  notifiableMembers(channelId: string, query: NotifiableMembersQuery): Promise<NotifiableMember[]>;
+  /** What notifies the member about this conversation, or null when they are not in it. */
+  notifySettingOf(channelId: string, memberId: string): Promise<NotifySetting | null>;
 }
 
 export interface MessageFileContext {
@@ -822,6 +868,65 @@ export class SupabaseChatRepository implements ChatRepository {
     if (error) throw new Error(error.message);
     return data?.id ?? null;
   }
+
+  async notificationContext(messageId: string): Promise<ChatNotificationContext | null> {
+    const { data: m, error } = await this.db
+      .from("chat_messages")
+      .select("id, channel_id, author_member_id, thread_root_id, system_subtype, deleted_at, created_at")
+      .eq("id", messageId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!m) return null;
+    const [content, channel] = await Promise.all([
+      this.db.from("chat_message_contents").select("body").eq("message_id", messageId).maybeSingle(),
+      this.db.from("chat_channels").select("id, kind, name, archived_at").eq("id", m.channel_id).maybeSingle(),
+    ]);
+    if (content.error) throw new Error(content.error.message);
+    if (channel.error) throw new Error(channel.error.message);
+    if (!channel.data) return null;
+    return {
+      message: {
+        id: m.id,
+        channelId: m.channel_id,
+        authorMemberId: m.author_member_id,
+        threadRootId: m.thread_root_id,
+        systemSubtype: m.system_subtype,
+        deletedAt: m.deleted_at,
+        createdAt: m.created_at,
+        body: content.data?.body ?? "",
+      },
+      channel: { id: channel.data.id, kind: channel.data.kind as "channel" | "dm" | "group_dm", name: channel.data.name, archivedAt: channel.data.archived_at },
+    };
+  }
+
+  async notifiableMembers(channelId: string, query: NotifiableMembersQuery): Promise<NotifiableMember[]> {
+    const rows = await fetchAllRows<{ member_id: string; muted: boolean; notify_level: string | null; last_read_at: string | null; joined_at: string }>((from, to) => {
+      let q = this.db
+        .from("chat_channel_members")
+        .select("member_id, muted, notify_level, last_read_at, joined_at")
+        .eq("channel_id", channelId)
+        .is("left_at", null);
+      if (!query.everyone) {
+        // Followers of every message, plus the people named. Ids are ours (prefixed, no commas), so they are safe in the filter.
+        const named = query.memberIds.length > 0 ? ",member_id.in.(" + query.memberIds.join(",") + ")" : "";
+        q = q.or("notify_level.eq.all" + named);
+      }
+      return q.order("member_id").range(from, to);
+    });
+    return rows.map((r) => ({ memberId: r.member_id, setting: notifySettingOf(r), readMarker: r.last_read_at ?? r.joined_at }));
+  }
+
+  async notifySettingOf(channelId: string, memberId: string): Promise<NotifySetting | null> {
+    const { data, error } = await this.db
+      .from("chat_channel_members")
+      .select("muted, notify_level")
+      .eq("channel_id", channelId)
+      .eq("member_id", memberId)
+      .is("left_at", null)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data ? notifySettingOf(data) : null;
+  }
 }
 
 const time = (m: { created_at?: string }) => Date.parse(m.created_at ?? new Date(0).toISOString());
@@ -1251,5 +1356,37 @@ export class InMemoryChatRepository implements ChatRepository {
 
   async messageIdBySlackTs(channelId: string, slackTs: string) {
     return this.data.chatMessages.find((m) => m.channel_id === channelId && m.slack_ts === slackTs)?.id ?? null;
+  }
+
+  async notificationContext(messageId: string): Promise<ChatNotificationContext | null> {
+    const m = this.data.chatMessages.find((x) => x.id === messageId);
+    const channel = m ? this.data.chatChannels.find((c) => c.id === m.channel_id) : undefined;
+    if (!m || !channel) return null;
+    return {
+      message: {
+        id: m.id,
+        channelId: m.channel_id,
+        authorMemberId: m.author_member_id ?? null,
+        threadRootId: m.thread_root_id ?? null,
+        systemSubtype: m.system_subtype ?? null,
+        deletedAt: m.deleted_at ?? null,
+        createdAt: m.created_at ?? new Date(0).toISOString(),
+        body: this.data.chatMessageContents.find((c) => c.message_id === m.id)?.body ?? "",
+      },
+      channel: { id: channel.id, kind: (channel.kind ?? "channel") as "channel" | "dm" | "group_dm", name: channel.name ?? null, archivedAt: channel.archived_at ?? null },
+    };
+  }
+
+  async notifiableMembers(channelId: string, query: NotifiableMembersQuery): Promise<NotifiableMember[]> {
+    const named = new Set(query.memberIds);
+    return this.active(channelId)
+      .filter((m) => query.everyone || m.notify_level === "all" || named.has(m.member_id))
+      .map((m) => ({ memberId: m.member_id, setting: notifySettingOf({ muted: m.muted ?? false, notify_level: m.notify_level ?? null }), readMarker: m.last_read_at ?? m.joined_at ?? new Date(0).toISOString() }))
+      .sort((a, b) => (a.memberId < b.memberId ? -1 : 1));
+  }
+
+  async notifySettingOf(channelId: string, memberId: string): Promise<NotifySetting | null> {
+    const m = this.active(channelId).find((x) => x.member_id === memberId);
+    return m ? notifySettingOf({ muted: m.muted ?? false, notify_level: m.notify_level ?? null }) : null;
   }
 }

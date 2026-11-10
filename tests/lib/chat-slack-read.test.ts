@@ -27,6 +27,9 @@ vi.mock("@/lib/slack-connect", async (original) => ({
   getSlackUserToken: (...args: unknown[]) => getSlackUserToken(...args),
 }));
 
+const resolveNotifications = vi.hoisted(() => vi.fn(async () => {}));
+vi.mock("@/lib/chat/notifications", () => ({ resolveChatNotifications: resolveNotifications }));
+
 import { pullReadFromSlack, pushReadToSlack, slackReadCovers } from "@/lib/chat/slack-read";
 
 /** The conversation the member read in the Hub (`chan-1`), and the newest Slack message in it at or before `through`. */
@@ -166,6 +169,15 @@ describe("pullReadFromSlack", () => {
     await expect(pullReadFromSlack(service, "member-fern")).resolves.toBe(true);
     expect(rpc).toHaveBeenCalledWith("chat_apply_slack_read", { p_member: "member-fern", p_channel_id: "chan-1", p_slack_ts: "1700000000.000100" });
     expect(rpc).toHaveBeenCalledWith("chat_apply_slack_read", { p_member: "member-fern", p_channel_id: "chan-2", p_slack_ts: "1700000009.000000" });
+  });
+
+  it("marks a conversation's notifications read when Slack says the member read it there", async () => {
+    resolveNotifications.mockClear();
+    memberships = [membership("chan-1", "C_ONE"), membership("chan-2", "C_TWO")];
+    info.mockImplementation(async ({ channel: id }: { channel: string }) => ({ ok: true, channel: id === "C_ONE" ? { last_read: "1700000000.000100" } : { last_read: "0000000000.000000" } }));
+    await pullReadFromSlack(service, "member-fern");
+    expect(resolveNotifications).toHaveBeenCalledTimes(1);
+    expect(resolveNotifications).toHaveBeenCalledWith(expect.anything(), "member-fern", "chan-1");
   });
 
   it("skips the open conversation, archived and unbridged ones, and conversations Slack has never seen them read", async () => {

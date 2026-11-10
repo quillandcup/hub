@@ -8,6 +8,9 @@ import { IntroNudgeEmail } from "./intro-nudge";
 import { PrickleNudgeEmail } from "./prickle-nudge";
 import { BigSisterMatchEmail } from "./big-sister-match";
 import { ChangelogDigestEmail } from "./changelog-digest";
+import { ChatDmEmail } from "./chat-dm";
+import { ChatMentionEmail } from "./chat-mention";
+import { ChatChannelMessageEmail } from "./chat-channel-message";
 
 /**
  * One template per notification kind, as React Email components. Member notification emails are
@@ -25,6 +28,9 @@ const TEMPLATES = {
   prickle_nudge: PrickleNudgeEmail,
   big_sister_match: BigSisterMatchEmail,
   changelog_digest: ChangelogDigestEmail,
+  chat_dm: ChatDmEmail,
+  chat_mention: ChatMentionEmail,
+  chat_channel_message: ChatChannelMessageEmail,
 } satisfies Record<NotificationKindId, (props: NotificationEmailProps) => React.ReactElement>;
 
 export interface RenderedNotificationEmail {

@@ -22,6 +22,8 @@ vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({ ser
 vi.mock("@/lib/chat/slack-read", () => ({ pushReadToSlack: slackRead.push, pullReadFromSlack: slackRead.pull }));
 const dms = vi.hoisted(() => ({ pull: vi.fn(async () => ({ conversations: 0, messages: 0 })) }));
 vi.mock("@/lib/chat/slack-dms", () => ({ pullMemberDms: dms.pull }));
+const chatNotify = vi.hoisted(() => ({ resolve: vi.fn(async () => {}), notify: vi.fn(async () => ({ sent: [], dryRun: [] })) }));
+vi.mock("@/lib/chat/notifications", () => ({ resolveChatNotifications: chatNotify.resolve, notifyChatMessage: chatNotify.notify }));
 let dmBridgeOn = false;
 vi.mock("@/lib/features.server", () => ({
   getUserFeaturePreviews: vi.fn(async () => []),
@@ -72,6 +74,22 @@ describe("markChatRead and Slack", () => {
       channelId: CHANNEL,
       through: "2026-10-10T16:51:47.013065+00:00",
     });
+  });
+
+  it("marks the conversation's notifications read, after the response, for the member who read it", async () => {
+    chatNotify.resolve.mockClear();
+    await markChatRead(CHANNEL, "2026-10-10T16:51:47.013065+00:00");
+    expect(chatNotify.resolve).not.toHaveBeenCalled();
+    for (const cb of slackRead.after) await cb();
+    expect(chatNotify.resolve).toHaveBeenCalledWith(expect.anything(), MEMBER_IDENTITY.memberId, CHANNEL);
+  });
+
+  it("does not mark anything read in sudo, where the viewing admin has read nothing", async () => {
+    chatNotify.resolve.mockClear();
+    signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
+    await markChatRead(CHANNEL, "2026-10-10T16:51:47.013065+00:00");
+    for (const cb of slackRead.after) await cb();
+    expect(chatNotify.resolve).not.toHaveBeenCalled();
   });
 
   it("leaves Slack alone when the Hub marker did not move", async () => {

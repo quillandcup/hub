@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createRepos } from "@/lib/data/repos";
 import { chatSlackWritesEnabled } from "@/lib/chat/slack-post";
 import { getSlackUserToken, isDeadTokenError } from "@/lib/slack-connect";
+import { resolveChatNotifications } from "@/lib/chat/notifications";
 
 /**
  * Read state shared with Slack (docs/SLACK_BRIDGED_CHAT.md, "Read state shared with Slack"). Only a
@@ -128,6 +129,7 @@ export async function pullReadFromSlack(
         const read = lastRead ? tsValue(lastRead) : null;
         if (lastRead === undefined || read === null || read === BigInt(0)) continue; // never read there
         await service.rpc("chat_apply_slack_read", { p_member: memberId, p_channel_id: target.channelId, p_slack_ts: lastRead });
+        await resolveChatNotifications(createRepos(service), memberId, target.channelId);
       } catch (error) {
         const code = errorCode(error);
         if (isDeadTokenError(error)) {

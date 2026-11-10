@@ -15,8 +15,10 @@ import { isNewcomer } from "@/lib/newcomer";
 import { isAllowedPushEndpoint } from "@/lib/push-endpoint";
 import { describeDevice } from "@/lib/device-label";
 import {
+  CHAT_NOTIFICATION_KINDS,
   NOTIFICATION_CHANNELS,
   NOTIFICATION_KINDS,
+  chatIsMainPlace,
   effectiveSettings,
   isNotificationChannel,
   isNotificationKind,
@@ -37,6 +39,10 @@ export interface NotificationSettings {
   visibleKinds: NotificationKindId[];
   /** True in sudo: an admin can see a member's settings but not change them. */
   readOnly: boolean;
+  /** The member has Hub chat notifications (the chat_notifications preview): they see the "Hub chat is my main place" switch. */
+  chatNotifications: boolean;
+  /** "Hub chat is my main place" is on: some channel is on for the chat kinds (chatIsMainPlace). */
+  chatMainPlace: boolean;
 }
 
 /** The effective member's notification settings (defaults with their overrides applied). */
@@ -79,6 +85,8 @@ export async function getNotificationSettings(): Promise<NotificationSettings | 
     channelsByKind: effectiveSettings(stored, { newcomer }),
     visibleKinds,
     readOnly: identity.isSudo,
+    chatNotifications: featureOn.has("chat_notifications"),
+    chatMainPlace: chatIsMainPlace(effectiveSettings(stored, { newcomer })),
   };
 }
 
@@ -108,6 +116,44 @@ async function setNotificationChannelImpl(
   } catch (error) {
     console.error("[notifications] Saving setting failed", { member: identity.memberId, kind, channel, error });
     return { error: "Couldn't save that setting — please try again." };
+  }
+  return { success: true };
+}
+
+/**
+ * Turns "Hub chat is my main place" on or off. On: the three chat kinds go to in-app and, when the member has Browser
+ * notifications available, to the browser (email stays a choice in the grid below). Off: every channel for the three kinds
+ * is turned off, so nobody is told twice once Slack is the place again. Stored as ordinary per-kind choices
+ * (notification_preferences), so the grid shows exactly what the switch did. Refused in sudo and without the preview.
+ */
+async function setChatMainPlaceImpl(on: boolean): Promise<{ success: true } | { error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+  const identity = await getEffectiveIdentity(user);
+  if (!identity) return { error: "No member record" };
+  if (identity.isSudo) return { error: "Notification settings can't be changed in sudo mode." };
+  if (typeof on !== "boolean") return { error: "Invalid notification setting" };
+
+  const service = createServiceRoleClient();
+  const [chatOn, browserOn] = await Promise.all([
+    membersWithFeature(createRepos(service), "chat_notifications", [identity.memberId]),
+    membersWithFeature(createRepos(service), WEB_PUSH_FEATURE, [identity.memberId]),
+  ]);
+  if (!chatOn.has(identity.memberId)) return { error: "Chat notifications aren't available to you yet." };
+
+  const turnedOn: NotificationChannelId[] = browserOn.has(identity.memberId) && vapidKeys() ? ["in_app", "web_push"] : ["in_app"];
+  const repos = createRepos(await createClient());
+  try {
+    await Promise.all(
+      CHAT_NOTIFICATION_KINDS.flatMap((kind) =>
+        NOTIFICATION_CHANNELS.filter((c) => (on ? turnedOn.includes(c.id) : true)).map((c) =>
+          repos.notifications.setPreference(identity.memberId, kind, c.id, on)
+        )
+      )
+    );
+  } catch (error) {
+    console.error("[notifications] Saving chat main place failed", { member: identity.memberId, on, error });
+    return { error: "Couldn't save that setting. Please try again." };
   }
   return { success: true };
 }
@@ -306,6 +352,10 @@ export async function sendTestPushNotification(): Promise<{ success: true } | { 
 // Usage analytics: each action records whether it worked (lib/analytics/server.ts).
 export async function setNotificationChannel(...args: Parameters<typeof setNotificationChannelImpl>): ReturnType<typeof setNotificationChannelImpl> {
   return withAction("notification_setting_changed", () => setNotificationChannelImpl(...args));
+}
+
+export async function setChatMainPlace(...args: Parameters<typeof setChatMainPlaceImpl>): ReturnType<typeof setChatMainPlaceImpl> {
+  return withAction("chat_main_place_set", () => setChatMainPlaceImpl(...args));
 }
 
 export async function savePushSubscription(...args: Parameters<typeof savePushSubscriptionImpl>): ReturnType<typeof savePushSubscriptionImpl> {

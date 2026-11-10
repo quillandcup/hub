@@ -37,6 +37,9 @@ vi.mock("@/lib/data/repos", async () => {
   return { ...actual, createRepos: () => actual.createInMemoryRepos(m.dataset as never) };
 });
 
+const notifyPulled = vi.hoisted(() => vi.fn(async () => {}));
+vi.mock("@/lib/chat/notifications", () => ({ notifyPulledMessages: notifyPulled }));
+
 import { openSlackDm, pullDmsForCoveredMembers, pullMemberDms, SLACK_DM_PULL_INTERVAL_SECONDS } from "@/lib/chat/slack-dms";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 
@@ -95,6 +98,14 @@ describe("pullMemberDms", () => {
       "1762170000.000200",
       "1762170000.000300",
     ]);
+  });
+
+  it("hands the messages it just stored to the notifier, once they are in the chat", async () => {
+    notifyPulled.mockClear();
+    m.history.mockResolvedValue({ messages: [{ ts: "1762170000.000200", user: "UGALE", text: "new" }, { ts: "1762170000.000100", user: "USELF", text: "old" }], has_more: false });
+    await pullMemberDms(service, MEMBER);
+    expect(notifyPulled).toHaveBeenCalledTimes(1);
+    expect(notifyPulled).toHaveBeenCalledWith(expect.anything(), "D1", ["1762170000.000200", "1762170000.000100"]);
   });
 
   it("skips the interval when forced (a live event named a DM we hadn't seen)", async () => {

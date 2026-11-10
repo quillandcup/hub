@@ -27,8 +27,10 @@ const {
   resumePushSubscription,
   savePushSubscription,
   sendTestPushNotification,
+  setChatMainPlace,
   setNotificationChannel,
 } = await import("@/app/(member)/settings/notificationActions");
+const { NOTIFICATION_CHANNELS } = await import("@/lib/notifications/registry");
 const { NotificationsPanel } = await import("@/app/(member)/settings/NotificationsPanel");
 
 const IDENTITY = { memberId: "member-1", memberName: "Member One", memberEmail: "m1@example.com", isSudo: false };
@@ -51,9 +53,11 @@ describe("getNotificationSettings", () => {
     expect(await getNotificationSettings()).toEqual({
       channels: ["slack", "in_app", "email"],
       webPushPublicKey: null,
-      channelsByKind: { prickle_checkin: ["slack", "in_app", "web_push"], prickle_checkout: ["in_app", "web_push"], intro_nudge: ["slack", "in_app"], prickle_nudge: [], big_sister_match: ["slack", "in_app", "web_push"], changelog_digest: ["slack", "in_app"] },
+      channelsByKind: { prickle_checkin: ["slack", "in_app", "web_push"], prickle_checkout: ["in_app", "web_push"], intro_nudge: ["slack", "in_app"], prickle_nudge: [], big_sister_match: ["slack", "in_app", "web_push"], changelog_digest: ["slack", "in_app"], chat_dm: [], chat_mention: [], chat_channel_message: [] },
       visibleKinds: ["prickle_checkin", "prickle_checkout", "intro_nudge", "prickle_nudge", "changelog_digest"],
       readOnly: false,
+      chatNotifications: false,
+      chatMainPlace: false,
     });
     const query = fake.queries.find((q) => q.table === "notification_preferences")!;
     expect(query.calls).toContainEqual({ method: "eq", args: ["member_id", "member-1"] });
@@ -317,9 +321,11 @@ describe("NotificationsPanel", () => {
   const initial = {
     channels: ["slack" as const],
     webPushPublicKey: null,
-    channelsByKind: { prickle_checkin: ["slack" as const], prickle_checkout: [], intro_nudge: [], prickle_nudge: [], big_sister_match: [], changelog_digest: [] },
+    channelsByKind: { prickle_checkin: ["slack" as const], prickle_checkout: [], intro_nudge: [], prickle_nudge: [], big_sister_match: [], changelog_digest: [], chat_dm: [], chat_mention: [], chat_channel_message: [] },
     visibleKinds: ["prickle_checkin" as const, "prickle_checkout" as const, "intro_nudge" as const, "prickle_nudge" as const],
     readOnly: false,
+    chatNotifications: false,
+    chatMainPlace: false,
   };
 
   it("leaves out a kind the member can't see", () => {
@@ -362,7 +368,7 @@ describe("NotificationsPanel", () => {
 
     render(
       <NotificationsPanel
-        initial={{ ...initial, channels: ["slack", "in_app"], channelsByKind: { prickle_checkin: ["in_app"], prickle_checkout: [], intro_nudge: [], prickle_nudge: [], big_sister_match: [], changelog_digest: [] } }}
+        initial={{ ...initial, channels: ["slack", "in_app"], channelsByKind: { prickle_checkin: ["in_app"], prickle_checkout: [], intro_nudge: [], prickle_nudge: [], big_sister_match: [], changelog_digest: [], chat_dm: [], chat_mention: [], chat_channel_message: [] } }}
       />
     );
     expect(screen.getByRole("button", { name: "Prickle check-ins via In the Hub" })).toHaveAttribute("aria-pressed", "true");
@@ -386,5 +392,124 @@ describe("NotificationsPanel", () => {
     render(<NotificationsPanel initial={{ ...initial, readOnly: true }} />);
     for (const box of screen.getAllByRole("button")) expect(box).toBeDisabled();
     expect(screen.getByText(/sudo mode/)).toBeInTheDocument();
+  });
+});
+
+describe("Hub chat is my main place", () => {
+  const chatOnFake = () =>
+    createFakeSupabase({
+      feature_flags: { data: { enabled_globally: true } },
+      members: { data: [{ id: "member-1", user_id: "user-1" }] },
+    });
+  const prefWrites = () =>
+    upserts().map((q) => q.calls.find((c) => c.method === "upsert")!.args[0] as { kind: string; channel: string; enabled: boolean });
+
+  it("turns the three chat kinds on for the Hub, leaving email and Slack to the grid", async () => {
+    serviceFake = chatOnFake();
+    expect(await setChatMainPlace(true)).toEqual({ success: true });
+    expect(prefWrites().map((w) => [w.kind, w.channel, w.enabled]).sort()).toEqual([
+      ["chat_channel_message", "in_app", true],
+      ["chat_dm", "in_app", true],
+      ["chat_mention", "in_app", true],
+    ]);
+  });
+
+  it("turns every channel off for the three kinds when switched off", async () => {
+    serviceFake = chatOnFake();
+    expect(await setChatMainPlace(false)).toEqual({ success: true });
+    const writes = prefWrites();
+    expect(writes).toHaveLength(3 * NOTIFICATION_CHANNELS.length);
+    expect(writes.every((w) => w.enabled === false && w.kind.startsWith("chat_"))).toBe(true);
+  });
+
+  it("is refused in sudo, without the preview, for a bad value, and when the save fails", async () => {
+    vi.mocked(getEffectiveIdentity).mockResolvedValue({ ...IDENTITY, isSudo: true } as never);
+    expect(await setChatMainPlace(true)).toEqual({ error: expect.stringContaining("sudo") });
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY as never);
+    expect(await setChatMainPlace(true)).toEqual({ error: expect.stringContaining("aren't available") });
+    serviceFake = chatOnFake();
+    expect(await setChatMainPlace("yes" as never)).toEqual({ error: "Invalid notification setting" });
+    fake = createFakeSupabase({ notification_preferences: { error: { message: "boom" } } });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await setChatMainPlace(true)).toEqual({ error: expect.stringContaining("Couldn't save") });
+  });
+
+  it("shows the switch in the settings only to a member with the preview, on once a chat kind has a channel", async () => {
+    serviceFake = chatOnFake();
+    fake = createFakeSupabase({ notification_preferences: { data: [{ kind: "chat_dm", channel: "in_app", enabled: true }] } });
+    const settings = await getNotificationSettings();
+    expect(settings).toMatchObject({ chatNotifications: true, chatMainPlace: true });
+    expect(settings?.visibleKinds).toEqual(expect.arrayContaining(["chat_dm", "chat_mention", "chat_channel_message"]));
+    fake = createFakeSupabase({ notification_preferences: { data: [] } });
+    expect(await getNotificationSettings()).toMatchObject({ chatMainPlace: false });
+  });
+
+  const initial = {
+    channels: ["slack" as const],
+    webPushPublicKey: null,
+    channelsByKind: { prickle_checkin: ["slack" as const], prickle_checkout: [], intro_nudge: [], prickle_nudge: [], big_sister_match: [], changelog_digest: [], chat_dm: [], chat_mention: [], chat_channel_message: [] },
+    visibleKinds: ["prickle_checkin" as const, "prickle_checkout" as const],
+    readOnly: false,
+    chatNotifications: false,
+    chatMainPlace: false,
+  };
+  const chatInitial = { ...initial, chatNotifications: true, channels: ["slack" as const, "in_app" as const], visibleKinds: [...initial.visibleKinds, "chat_dm" as const] };
+
+  it("hides the switch from a member without the preview", () => {
+    render(<NotificationsPanel initial={initial} />);
+    expect(screen.queryByRole("switch", { name: /Hub chat is my main place/ })).not.toBeInTheDocument();
+  });
+
+  it("shows the switch off, without the Slack steps, until it is turned on", async () => {
+    fake = createFakeSupabase();
+    serviceFake = chatOnFake();
+    render(<NotificationsPanel initial={chatInitial} />);
+    const toggle = screen.getByRole("switch", { name: /Hub chat is my main place/ });
+    expect(toggle).not.toBeChecked();
+    expect(screen.queryByText(/So Slack doesn't tell you twice/)).not.toBeInTheDocument();
+
+    await userEvent.click(toggle);
+
+    await waitFor(() => expect(toggle).toBeChecked());
+    expect(screen.getByText(/So Slack doesn't tell you twice/)).toBeInTheDocument();
+    const help = screen.getByRole("link", { name: /Slack's guide to notifications/ });
+    expect(help).toHaveAttribute("href", "https://slack.com/help/articles/201355156-Configure-your-Slack-notifications");
+    expect(help).toHaveAttribute("rel", expect.stringContaining("noopener"));
+    // The grid shows what the switch did.
+    expect(screen.getByRole("button", { name: "Direct messages via In the Hub" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("switches off again, clearing the chat kinds in the grid", async () => {
+    fake = createFakeSupabase();
+    serviceFake = chatOnFake();
+    render(
+      <NotificationsPanel
+        initial={{ ...chatInitial, chatMainPlace: true, channelsByKind: { ...chatInitial.channelsByKind, chat_dm: ["in_app"] } }}
+      />
+    );
+    const toggle = screen.getByRole("switch", { name: /Hub chat is my main place/ });
+    expect(toggle).toBeChecked();
+
+    await userEvent.click(toggle);
+
+    await waitFor(() => expect(toggle).not.toBeChecked());
+    expect(screen.getByRole("button", { name: "Direct messages via In the Hub" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("puts the switch back and says so when the save fails, and disables it in sudo view", async () => {
+    fake = createFakeSupabase();
+    serviceFake = createFakeSupabase();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    render(<NotificationsPanel initial={chatInitial} />);
+    const toggle = screen.getByRole("switch", { name: /Hub chat is my main place/ });
+
+    await userEvent.click(toggle);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("aren't available");
+    expect(toggle).not.toBeChecked();
+    cleanup();
+
+    render(<NotificationsPanel initial={{ ...chatInitial, readOnly: true }} />);
+    expect(screen.getByRole("switch", { name: /Hub chat is my main place/ })).toBeDisabled();
   });
 });

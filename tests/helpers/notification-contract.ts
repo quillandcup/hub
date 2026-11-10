@@ -175,5 +175,24 @@ export function defineNotificationContract(name: string, setup: () => Notificati
       expect(await ctx.repo().inAppById(a, hit)).toMatchObject({ readAt: expect.any(String) });
       expect(alreadyRead).toBeTruthy();
     });
+
+    it("resolves a member's unread notifications about a ref whatever their kind, and only theirs", async () => {
+      const [first, second, otherRef, otherMember] = await ctx.seed({
+        inApp: [
+          { member: 0, kind: "chat_dm", minute: 1, ref: "chat:c1" },
+          { member: 0, kind: "chat_mention", minute: 2, ref: "chat:c1" },
+          { member: 0, kind: "chat_dm", minute: 3, ref: "chat:c2" },
+          { member: 1, kind: "chat_dm", minute: 4, ref: "chat:c1" },
+        ],
+      });
+      const [a, b] = ctx.memberIds;
+
+      await ctx.repo().resolveInAppByRef(a, "chat:c1");
+
+      expect((await ctx.repo().inAppUnread(a, 10)).map((n) => n.id)).toEqual([otherRef]);
+      expect(await ctx.repo().inAppById(a, first)).toMatchObject({ readAt: expect.any(String) });
+      expect(await ctx.repo().inAppById(a, second)).toMatchObject({ readAt: expect.any(String) });
+      expect((await ctx.repo().inAppUnread(b, 10)).map((n) => n.id)).toEqual([otherMember]);
+    });
   });
 }

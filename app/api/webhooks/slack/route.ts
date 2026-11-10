@@ -7,6 +7,7 @@ import { verifySlackSignature } from "@/lib/slack-signature";
 import { publishSlackHome } from "@/lib/slack-sign-in";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { projectChatMessage } from "@/lib/chat-projection";
+import { notifyChatMessageBySlackTs } from "@/lib/chat/notifications";
 import { fillMessageGap, fillThreadIfRootMissing } from "@/lib/chat/gap-fill";
 import { isKeptSlackMessage, isSlackSystemMessage, slackMessageText, slackMessageUserId, slackTsToIso } from "@/lib/slack-messages";
 import {
@@ -211,7 +212,7 @@ async function processSlackEvent(event: any) {
       }
 
       // Trigger Silver processing asynchronously
-      triggerSlackProcessing(event.channel, event.ts, { threadTs: event.thread_ts });
+      triggerSlackProcessing(event.channel, event.ts, { threadTs: event.thread_ts, notify: true });
     } else if (eventType === "reaction_added") {
       // UPSERT reaction to Bronze layer
       try {
@@ -408,7 +409,7 @@ async function trackWheelExchange(supabase: any, event: any, hubAuthorMemberId: 
 /**
  * Trigger Silver layer processing for Slack data
  */
-function triggerSlackProcessing(channelId: string, messageTs: string, opts: { threadTs?: string | null; fillGaps?: boolean } = {}) {
+function triggerSlackProcessing(channelId: string, messageTs: string, opts: { threadTs?: string | null; fillGaps?: boolean; notify?: boolean } = {}) {
   // Wrapped in after() so Vercel keeps the function alive until processing
   // finishes; a bare floating promise can be cut off once the response is sent
   // (see docs/TODO.md Bug Fixes for the Slack webhook data-loss incident).
@@ -424,6 +425,7 @@ function triggerSlackProcessing(channelId: string, messageTs: string, opts: { th
         Date.now() - projectStarted,
         projected ? "" : " (the chat has no such message)"
       );
+      if (opts.notify && projected) await notifyChatMessageBySlackTs(createRepos(service), channelId, messageTs);
 
       // The event refers to something the chat doesn't have: fetch it from Slack now (and its thread
       // root, if it is a reply to one we lack) instead of waiting for the nightly import. Recorded in
