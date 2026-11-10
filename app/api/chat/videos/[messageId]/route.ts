@@ -17,6 +17,51 @@ const LIMIT = { windowSeconds: 10 * 60, maxHits: 20 };
 /** Never cached: the body is a credential. */
 const NO_STORE = { "Cache-Control": "no-store" };
 
+/** A card asks once when it appears, and mints nothing, so a channel full of them stays well inside this. */
+const CARD_LIMIT = { windowSeconds: 10 * 60, maxHits: 300 };
+
+/**
+ * What a shared video's card shows before anyone presses play: the lesson's title, its course, its thumbnail (the image route's own
+ * rules apply to it) and whether this viewer can watch it, so someone who can't is told on the card, not after a click. No playback
+ * link is minted here. The viewer must be able to read the message (the share row is read as them); an unopened lesson is the same 404 as
+ * in the playback route. Naming the lesson and course to a reader without the course is deliberate: the sharer chose to put it in
+ * that conversation, and the message's own text usually names it.
+ */
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ messageId: string }> }) {
+  const { messageId } = await params;
+  const notFound = () => NextResponse.json({ error: "Not found" }, { status: 404, headers: NO_STORE });
+  if (!isId(messageId, "msg")) return notFound();
+
+  const caller = await getCoursesCaller();
+  if (!caller) return NextResponse.json({ error: "Not available" }, { status: 401, headers: NO_STORE });
+
+  const share = await createRepos(await createClient()).chatVideos.shareOf(messageId);
+  if (!share) return notFound();
+
+  const repos = createRepos(createServiceRoleClient());
+  if (!(await hitRateLimits(repos, [{ bucket: `chat_video_cards:user:${caller.userId}`, ...CARD_LIMIT }]))) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429, headers: { ...NO_STORE, "Retry-After": String(CARD_LIMIT.windowSeconds) } });
+  }
+
+  const lesson = await repos.courses.lessonById(share.lessonId);
+  if (!lesson || !(lesson.state === "open" || caller.scope.isAdminActing)) return notFound();
+  const [course, video, access] = await Promise.all([
+    repos.courses.courseById(lesson.course_id),
+    lesson.video_id ? repos.courses.videosByIds([lesson.video_id]).then((v) => v[0]) : Promise.resolve(undefined),
+    loadMemberCourseAccess(repos, caller.scope, lesson.course_id),
+  ]);
+  const watchable = video?.status === "ready" && Boolean(video.mux_playback_id) && (await mayWatchSharedVideo(repos, share, lesson, canOpenLessons(access)));
+  return NextResponse.json(
+    {
+      title: lesson.title,
+      courseTitle: course?.title ?? null,
+      thumbnailUrl: lesson.thumbnail_asset_id || lesson.thumbnail_url ? `/api/courses/image/lesson/${lesson.id}` : null,
+      canWatch: watchable,
+    },
+    { headers: NO_STORE },
+  );
+}
+
 /**
  * Playback links for the lesson video a chat message shares, minted when the viewer presses play. Playing needs no
  * `chat_videos` flag (that decides who can share). Two checks, in this order: the viewer can read the message (the

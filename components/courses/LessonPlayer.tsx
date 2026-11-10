@@ -272,6 +272,28 @@ function ResumePosition({ seconds }: { seconds: number }) {
 }
 
 /**
+ * Starts playing as soon as the video can, for a player the member just asked to open (a shared video's card in chat, where pressing
+ * the card is the one click). A browser that refuses (no recent click, a data-saver mode) leaves the big play button to press.
+ */
+function AutoPlay() {
+  const media = useMedia();
+  useEffect(() => {
+    if (!media) return;
+    const el = media as unknown as HTMLMediaElement;
+    let done = false;
+    const start = () => {
+      if (done) return;
+      done = true;
+      void el.play?.()?.catch(() => {});
+    };
+    if (el.readyState >= 2) start();
+    el.addEventListener("canplay", start);
+    return () => el.removeEventListener("canplay", start);
+  }, [media]);
+  return null;
+}
+
+/**
  * Records what the member watched: one row per continuous stretch (opens on play, closes on pause,
  * seek, speed or captions change, tab hide or show, page leave or the end), with the media seconds
  * from the element's own clock. Rows are batched and sent every 30s while playing and whenever the
@@ -472,6 +494,7 @@ export default function LessonPlayer({
   chatMessageId,
   resumeSeconds = 0,
   trackProgress = false,
+  autoPlay = false,
   onTime,
 }: {
   title: string;
@@ -490,6 +513,8 @@ export default function LessonPlayer({
   resumeSeconds?: number;
   /** Save watch segments and the playhead. Off in sudo and in a staff preview, which leave no viewing history. */
   trackProgress?: boolean;
+  /** Start playing once it can (the member just pressed something to open it). */
+  autoPlay?: boolean;
   /** Called with the playhead's whole second whenever it changes. */
   onTime?: (seconds: number) => void;
 }) {
@@ -537,6 +562,7 @@ export default function LessonPlayer({
             refreshTokens={refreshTokens}
           />
           <ResumePosition seconds={resumeSeconds} />
+          {autoPlay && <AutoPlay />}
           {onTime && <ReportTime onTime={onTime} />}
           {trackProgress && lessonId && <WatchTracker lessonId={lessonId} chatMessageId={chatMessageId} />}
           <BigPlayButton />
