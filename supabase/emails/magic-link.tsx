@@ -11,14 +11,14 @@ import {
   fonts,
 } from "./layout";
 
-/** Subject: "<code> is your Hedgie Hub verification code" (config.toml, scripts/_email-templates.ts). */
+/** Subject is configured in config.toml and scripts/_email-templates.ts. */
 export function MagicLinkEmail({ confirmationUrl, code }: { confirmationUrl: string; code: string }) {
   return (
     <EmailLayout preview={`${code} is your verification code.`}>
       <EmailHeading>Verify your email and sign in</EmailHeading>
 
       <EmailBody>
-        This is your unique code – enter it on the sign-in page to securely sign in to Hedgie Hub without a password.
+        Use the verification code below to sign in to Hedgie Hub.
       </EmailBody>
 
       <EmailCode>{code}</EmailCode>

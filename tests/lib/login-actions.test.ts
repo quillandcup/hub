@@ -38,10 +38,13 @@ describe("verifyEmailCode", () => {
     expect(rememberSignInFailure).toHaveBeenCalledWith("code_malformed");
   });
 
-  it("verifies the code (spaces removed, email lowercased) and goes to the remembered page", async () => {
-    await expect(verifyEmailCode(" Member@Example.com ", "1234 5678")).rejects.toThrow("NEXT_REDIRECT");
+  it.each([
+    ["012 345", "012345"],
+    ["1234 5678", "12345678"],
+  ])("verifies %j (spaces removed, email lowercased) and goes to the remembered page", async (input, token) => {
+    await expect(verifyEmailCode(" Member@Example.com ", input)).rejects.toThrow("NEXT_REDIRECT");
 
-    expect(verifyOtp).toHaveBeenCalledWith({ email: "member@example.com", token: "12345678", type: "email" });
+    expect(verifyOtp).toHaveBeenCalledWith({ email: "member@example.com", token, type: "email" });
     expect(redirect).toHaveBeenCalledWith("/courses");
     expect(logSignIn).toHaveBeenCalledWith("code_ok");
     expect(rememberSignInMethod).toHaveBeenCalledWith("email_code");

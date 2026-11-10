@@ -144,8 +144,8 @@ export function EmailDivider() {
 }
 
 /**
- * A one-time code alone in a large element, the shape Gmail's verification-code detection looks for
- * (it then offers "Copy code"). Keep the code itself free of spaces; spacing is CSS only.
+ * A selectable one-time code in a large element. Keep the code itself free of spaces;
+ * spacing is CSS only. Email clients decide whether to offer a native copy helper.
  */
 export function EmailCode({ children }: { children: React.ReactNode }) {
   return (
