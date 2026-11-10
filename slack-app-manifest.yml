@@ -72,13 +72,14 @@ oauth_config:
       - mpim:write
       # Files the member sends from the Hub post as them (lib/chat/slack-upload.ts).
       - files:write
-      # Asked for ahead of Hub direct messages through Slack (SLACK_DM_SCOPES, lib/slack-connect.ts), so members
-      # reconnect once now. Nothing uses them yet and there is no user_events subscription.
+      # Hub direct messages through Slack (SLACK_DM_SCOPES, lib/slack-connect.ts): list, read and post in the member's own DMs.
       - im:read
       - im:history
       - im:write
       - mpim:history
       - files:read
+      # A DM's reactions as they happen (the user_events below); without it they arrive at the next pull.
+      - reactions:read
   # Where Slack sends a member back after they approve (app/api/oauth/slack/callback).
   redirect_urls:
     - https://hub.quillandcup.com/api/oauth/slack/callback
@@ -115,9 +116,12 @@ settings:
       # - user_change
     # A member's 1:1 DM messages, on their behalf (their im:history user scope): one event for each DM message of
     # every member who authorized it. The webhook keeps one only for a member the slack_dm_bridge feature covers
-    # (lib/chat/slack-dm-events.ts) and drops the rest.
+    # (lib/chat/slack-dm-events.ts) and drops the rest. The same goes for reactions on a DM; a reaction anywhere else delivered
+    # this way is dropped too, since the bot's own reaction events above cover those conversations.
     user_events:
       - message.im
+      - reaction_added
+      - reaction_removed
   org_deploy_enabled: false
   socket_mode_enabled: false
   # Bot and user tokens last 12 hours and are refreshed by the Hub (lib/slack-bot-token.ts, lib/slack-connect.ts,

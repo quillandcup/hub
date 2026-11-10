@@ -75,6 +75,36 @@ describe("decideDmEvent", () => {
     await expect(decideDmEvent(service, dm({ authorizations: [{ user_id: "UNKNOWN" }] }))).resolves.toEqual({ kind: "drop" });
   });
 
+  describe("a reaction delivered on a member's behalf", () => {
+    const reaction = (channel: string, extra: Record<string, unknown> = {}) => ({
+      event: { type: "reaction_added", user: "UGALE", reaction: "tada", item: { type: "message", channel, ts: "1.1" }, ...extra },
+      authorizations: [{ user_id: "UFERN", is_bot: false }],
+    });
+
+    it("is kept in a DM the chat has, and pulls for one it hasn't", async () => {
+      await expect(decideDmEvent(service, reaction("D1"))).resolves.toEqual({ kind: "pull", memberId: FERN });
+      dataset.slackChannels.push({ channel_id: "D1", name: "", is_im: true } as never);
+      await expect(decideDmEvent(service, reaction("D1"))).resolves.toEqual({ kind: "keep" });
+      await expect(decideDmEvent(service, { ...reaction("D1"), event: { ...reaction("D1").event, type: "reaction_removed" } })).resolves.toEqual({ kind: "keep" });
+    });
+
+    it("is dropped when no covered member with the DM permissions can see the DM", async () => {
+      m.covered = new Set();
+      await expect(decideDmEvent(service, reaction("D1"))).resolves.toEqual({ kind: "drop" });
+      m.covered = new Set([FERN]);
+      m.scopes = new Map([[FERN, false]]);
+      await expect(decideDmEvent(service, reaction("D1"))).resolves.toEqual({ kind: "drop" });
+    });
+
+    it("is dropped anywhere else, since the bot's own reaction events cover channels, but a bot's is handled as always", async () => {
+      await expect(decideDmEvent(service, reaction("C1"))).resolves.toEqual({ kind: "drop" });
+      await expect(decideDmEvent(service, reaction("G1"))).resolves.toEqual({ kind: "drop" });
+      await expect(decideDmEvent(service, { ...reaction("C1"), authorizations: [{ user_id: "UBOT", is_bot: true }] })).resolves.toEqual({ kind: "not_dm" });
+      await expect(decideDmEvent(service, { ...reaction("C1"), authorizations: [] })).resolves.toEqual({ kind: "not_dm" });
+      await expect(decideDmEvent(service, { event: { type: "channel_rename", channel: "C1" }, authorizations: [{ user_id: "UFERN", is_bot: false }] })).resolves.toEqual({ kind: "not_dm" });
+    });
+  });
+
   it("keeps a message in a DM the chat already has, for a covered member", async () => {
     dataset.slackChannels.push({ channel_id: "D1", name: "", is_im: true } as never);
     await expect(decideDmEvent(service, dm())).resolves.toEqual({ kind: "keep" });
