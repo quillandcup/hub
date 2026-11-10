@@ -4,12 +4,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderServerPage, resetServerPageMocks } from "@/tests/helpers/server-page";
-import { SUPPORT_EMAIL } from "@/lib/config";
+import { APP_URL, SUPPORT_EMAIL } from "@/lib/config";
 import type { AdminLessonDetail } from "@/lib/courses/admin";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
-const requireAdminPage = vi.fn(async () => undefined);
+const requireAdminPage = vi.fn(async () => ({ id: "admin-1", email: "admin@example.test" }));
+const features = { on: [] as string[] };
+vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: async () => features.on }));
 vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: () => requireAdminPage() }));
 const loadAdminLesson = vi.fn();
 vi.mock("@/lib/courses/admin", () => ({ loadAdminLesson: (...a: unknown[]) => loadAdminLesson(...a) }));
@@ -66,6 +68,7 @@ const params = { params: Promise.resolve({ id: "crs_AAAAAAAAAAA1", lessonId: "le
 
 beforeEach(() => {
   resetServerPageMocks();
+  features.on = [];
   requireAdminPage.mockClear();
   loadAdminLesson.mockReset();
   publicLessonPreview.mockReset();
@@ -228,6 +231,39 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     await user.click(screen.getByRole("button", { name: /Video actions/ }));
     expect(screen.getByRole("menuitem", { name: "Video stats" })).toHaveAttribute("href", "/admin/courses/crs_AAAAAAAAAAA1/stats/les_AAAAAAAAAAA1");
     expect(screen.getByRole("menuitem", { name: "Copy timestamp URL" })).toBeEnabled();
+  });
+
+  describe("the paste-in-chat links in Video actions", () => {
+    const LESSON_URL = `${APP_URL}/courses/the-ready-writer/lessons/les_AAAAAAAAAAA1`;
+    const writeText = vi.fn();
+
+    it("are offered once chat videos is on for the admin, and copy the lesson's address (the open one with its marker)", async () => {
+      features.on = ["chat_videos"];
+      loadAdminLesson.mockResolvedValue(detail());
+      const user = userEvent.setup();
+      Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+      writeText.mockReset().mockResolvedValue(undefined);
+      await renderServerPage(AdminLessonPage, params);
+
+      await user.click(screen.getByRole("button", { name: /Video actions/ }));
+      await user.click(screen.getByRole("menuitem", { name: "Copy link to paste in chat" }));
+      expect(writeText).toHaveBeenLastCalledWith(LESSON_URL);
+
+      await user.click(screen.getByRole("button", { name: /Video actions/ }));
+      await user.click(screen.getByRole("menuitem", { name: "Copy link, open to everyone" }));
+      expect(writeText).toHaveBeenLastCalledWith(`${LESSON_URL}?share=open`);
+    });
+
+    it("are not offered while chat videos is off for the admin", async () => {
+      loadAdminLesson.mockResolvedValue(detail());
+      const user = userEvent.setup();
+      await renderServerPage(AdminLessonPage, params);
+
+      await user.click(screen.getByRole("button", { name: /Video actions/ }));
+
+      expect(screen.queryByRole("menuitem", { name: /paste in chat/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole("menuitem", { name: /open to everyone/ })).not.toBeInTheDocument();
+    });
   });
 
   it("enables Copy link with thumbnail for a public lesson, and says why not when it isn't (not open, no thumbnail, course not open, not in the Hub)", async () => {

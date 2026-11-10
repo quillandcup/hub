@@ -4,8 +4,15 @@ import type { Repos } from "@/lib/data/repos";
 /** The address of a course lesson's page: the lesson route takes the course's slug and the lesson's id. */
 export const lessonPath = (courseSlug: string, lessonId: string) => `/courses/${courseSlug}/lessons/${lessonId}`;
 
-/** The address of a chat message in the Hub: the conversation with the message open beside it (where its video card plays). */
-export const chatMessagePath = (channelId: string, messageId: string) => `/chat/${channelId}?thread=${messageId}`;
+/**
+ * The address of a chat message in the Hub, in the shape the chat search uses for a result (`app/(member)/chat/search/page.tsx`):
+ * the conversation with the message's thread open beside it and `#m-<message id>`, the anchor of the "Copy link" on every message,
+ * which scrolls the list to it. The thread is the message's own for a top-level message and its root's for a reply. The query part
+ * is what carries through sign-in (the fragment never reaches the server, so it is lost there); it also opens the message with its
+ * video card even when the message is older than the page of messages the conversation loads.
+ */
+export const chatMessagePath = (channelId: string, messageId: string, threadRootId?: string | null) =>
+  `/chat/${channelId}?thread=${threadRootId ?? messageId}#m-${messageId}`;
 
 const CHAT_LABEL = "Watch it in Hub Chat";
 const LESSON_LABEL = "Open the lesson";
@@ -21,6 +28,8 @@ export async function sharedVideoSlackLine(
   repos: Pick<Repos, "chat" | "chatVideos" | "courses">,
   messageId: string,
   slackChannelId: string | null,
+  /** The thread the message is a reply in, when it is one. */
+  threadRootId: string | null = null,
 ): Promise<string | null> {
   const lessonId = (await repos.chatVideos.lessonIdsOf([messageId])).get(messageId);
   if (!lessonId) return null;
@@ -30,7 +39,7 @@ export async function sharedVideoSlackLine(
   ]);
   const course = lesson ? await repos.courses.courseById(lesson.course_id) : null;
   const links = [
-    hubChannelId ? `<${APP_URL}${chatMessagePath(hubChannelId, messageId)}|${CHAT_LABEL}>` : null,
+    hubChannelId ? `<${APP_URL}${chatMessagePath(hubChannelId, messageId, threadRootId)}|${CHAT_LABEL}>` : null,
     course ? `<${APP_URL}${lessonPath(course.slug, lessonId)}|${LESSON_LABEL}>` : null,
   ].filter((l): l is string => l !== null);
   return links.length > 0 ? `\n${links.join(" · ")}` : null;

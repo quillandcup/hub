@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { OPEN_SHARE_PARAM, OPEN_SHARE_VALUE } from "@/lib/chat/lesson-links";
 
 const SOON = "Not available yet: courses are imported from Kajabi for now";
 const ITEM = "flex w-full items-center gap-3 px-4 py-2 text-left text-sm";
@@ -20,6 +21,7 @@ export default function VideoActions({
   seconds = 0,
   thumbnailLink,
   thumbnailLinkBlocked,
+  chatShare = false,
 }: {
   /** The lesson's watch stats; null when the lesson has no video in the Hub. */
   statsHref: string | null;
@@ -31,6 +33,8 @@ export default function VideoActions({
   thumbnailLink?: { url: string; imageUrl: string; title: string } | null;
   /** Why there is no thumbnail link, shown on hover. */
   thumbnailLinkBlocked?: string;
+  /** Offer the two "paste in chat" links (the `chat_videos` feature is on for this admin). */
+  chatShare?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -57,6 +61,26 @@ export default function VideoActions({
     try {
       await navigator.clipboard.writeText(seconds > 0 ? `${lessonUrl}?t=${seconds}` : lessonUrl);
       setStatus(seconds > 0 ? `Copied a link to ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}.` : "Copied a link to the lesson.");
+    } catch {
+      setStatus("Couldn't copy the link.");
+    }
+    setOpen(false);
+  }
+
+  /**
+   * The lesson's address, to paste into any chat message (a thread or a direct message too), where it becomes the video card when the sender
+   * can share the lesson (docs/SLACK_BRIDGED_CHAT.md, "Paste a lesson link, anywhere"). The open form carries the marker that lets everyone
+   * in the conversation play it without the course; it only counts when an admin sends it.
+   */
+  async function copyChatLink(openToChannel: boolean) {
+    if (!lessonUrl) return;
+    try {
+      await navigator.clipboard.writeText(openToChannel ? `${lessonUrl}?${OPEN_SHARE_PARAM}=${OPEN_SHARE_VALUE}` : lessonUrl);
+      setStatus(
+        openToChannel
+          ? "Copied. Paste it into any chat message: everyone in that conversation can watch the video, even without the course."
+          : "Copied. Paste it into any chat message to share the video there; members with the course can play it.",
+      );
     } catch {
       setStatus("Couldn't copy the link.");
     }
@@ -126,6 +150,30 @@ export default function VideoActions({
           >
             Copy link with thumbnail
           </button>
+          {chatShare && (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => copyChatLink(false)}
+                disabled={!lessonUrl}
+                title={lessonUrl ? undefined : "This lesson isn't in the Hub yet"}
+                className={lessonUrl ? `${ITEM} hover:bg-slate-50 dark:hover:bg-slate-800` : OFF}
+              >
+                Copy link to paste in chat
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => copyChatLink(true)}
+                disabled={!lessonUrl}
+                title={lessonUrl ? "Everyone in the conversation can watch it, even without the course" : "This lesson isn't in the Hub yet"}
+                className={lessonUrl ? `${ITEM} hover:bg-slate-50 dark:hover:bg-slate-800` : OFF}
+              >
+                Copy link, open to everyone
+              </button>
+            </>
+          )}
           <button type="button" role="menuitem" disabled title="Needs downloadable (MP4) copies of the video turned on in Mux, which has a cost" className={OFF}>
             Download video
           </button>
