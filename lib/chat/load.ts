@@ -460,7 +460,7 @@ export function loadReactionRows(repos: ChatLoadRepos, messageIds: string[]) {
   return repos.chat.reactionRows(messageIds);
 }
 
-/** Fills a share with what this viewer may see of the message it quotes. A lookup that failed (null) is no lookup: a stub. */
+/** Fills a share with what this viewer may see of the message it quotes. The embedded copy is always shown; a failed lookup (null) only means no Hub link. */
 export function withShareSource(u: Extract<Unfurl, { kind: "share" }>, sources: Map<string, SharedSourceRow> | null): Extract<Unfurl, { kind: "share" }> {
   const shared = parseSharedMessage(u.attachment);
   if (!shared) return u;
@@ -471,9 +471,9 @@ export function withShareSource(u: Extract<Unfurl, { kind: "share" }>, sources: 
       ? { state: "not_mirrored" }
       : row.body === null && !row.deleted
         ? { state: "hidden" }
-        : { state: "readable", channelId: row.channelId, messageId: row.messageId, deleted: row.deleted, text: row.body ?? undefined };
+        : { state: "readable", channelId: row.channelId, messageId: row.messageId, deleted: row.deleted };
   }
-  return { ...u, shared, source: sharedMessageSource(shared, lookup) };
+  return { ...u, shared, source: sharedMessageSource(lookup) };
 }
 
 /** Messages with their authors' names, reactions and body state, ready to render. */
@@ -514,7 +514,7 @@ export async function buildMessageViews(
   timer?.note("roots", threadRoots.length);
   timer?.note("unmatched", unmatched.length);
 
-  // Quoted Slack messages are looked up in the Hub as the viewer, so a source they can't read is never shown (docs/SLACK_BRIDGED_CHAT.md, "Shared Slack messages").
+  // Quoted Slack messages are looked up in the Hub as the viewer, only to link the original when they can open it (docs/SLACK_BRIDGED_CHAT.md, "Shared Slack messages").
   const shareRefs = rows.flatMap((r) =>
     (unfurlsByRow.get(r.id)?.unfurls ?? []).flatMap((u) => {
       const s = u.kind === "share" ? parseSharedMessage(u.attachment) : null;

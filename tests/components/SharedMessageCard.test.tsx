@@ -19,7 +19,7 @@ const shared = parseSharedMessage({
   from_url: "https://example.slack.com/archives/C1/p1",
   files: [{ name: "menu.pdf" }],
 })!;
-const readable = sharedMessageSource(shared, { state: "readable", channelId: "hub-tea", messageId: "msg_AAAAAAAAAAA1", deleted: false });
+const readable = sharedMessageSource({ state: "readable", channelId: "hub-tea", messageId: "msg_AAAAAAAAAAA1", deleted: false });
 
 describe("SharedMessageCard", () => {
   it("shows author, decoded text, mention names, time, channel and a Hub link", () => {
@@ -35,25 +35,28 @@ describe("SharedMessageCard", () => {
     expect(screen.getByRole("link", { name: "View in Chat" }).getAttribute("href")).toBe("/chat/hub-tea?m=msg_AAAAAAAAAAA1");
   });
 
-  it("says a deleted source was deleted and shows no text", () => {
-    const src = sharedMessageSource(shared, { state: "readable", channelId: "c", messageId: "m", deleted: true });
-    render(<SharedMessageCard shared={shared} source={src} ctx={ctx} />);
-    expect(screen.getByText("This message was deleted.")).toBeTruthy();
-    expect(screen.queryByText(/Fish/)).toBeNull();
+  it("keeps the copy and adds a calm note when the original was deleted in the Hub", () => {
+    render(<SharedMessageCard shared={shared} source={sharedMessageSource({ state: "readable", channelId: "c", messageId: "m", deleted: true })} ctx={ctx} />);
+    expect(screen.getByText("The original message was deleted.")).toBeTruthy();
+    expect(screen.getByTestId("shared-message-card").textContent).toContain("Fish & chips");
+    expect(screen.queryByRole("link", { name: "View in Chat" })).toBeNull();
   });
 
-  it("shows only a stub for a private source: no text, author or channel", () => {
-    const { container } = render(<SharedMessageCard shared={shared} source={sharedMessageSource(shared, { state: "hidden" })} ctx={ctx} />);
-    expect(screen.getByText("A message from a private conversation.")).toBeTruthy();
-    expect(container.textContent).not.toMatch(/Fish|Ada|tea-room|menu\.pdf/);
+  it("shows the copy with Open in Slack, and no Hub link, when the viewer can't open the original", () => {
+    for (const l of [{ state: "hidden" as const }, { state: "not_mirrored" as const }, undefined]) {
+      cleanup();
+      render(<SharedMessageCard shared={shared} source={sharedMessageSource(l)} ctx={ctx} />);
+      expect(screen.getByTestId("shared-message-card").textContent).toMatch(/Fish & chips.*tea-room/);
+      expect(screen.queryByRole("link", { name: "View in Chat" })).toBeNull();
+      const a = screen.getByRole("link", { name: "Open in Slack" });
+      expect(a.getAttribute("href")).toBe("https://example.slack.com/archives/C1/p1");
+      expect(a.getAttribute("rel")).toContain("noopener");
+    }
+  });
+
+  it("offers no Open in Slack when Slack sent no permalink", () => {
+    const bare = parseSharedMessage({ is_share: true, text: "hi", ts: "1700000000.000100" })!;
+    render(<SharedMessageCard shared={bare} source={{ hubUrl: null, deleted: false }} ctx={ctx} />);
     expect(screen.queryByRole("link")).toBeNull();
-  });
-
-  it("offers Open in Slack, and no content, when the Hub has no copy", () => {
-    const { container } = render(<SharedMessageCard shared={shared} source={sharedMessageSource(shared, { state: "not_mirrored" })} ctx={ctx} />);
-    expect(container.textContent).not.toMatch(/Fish|Ada|tea-room/);
-    const a = screen.getByRole("link", { name: "Open in Slack" });
-    expect(a.getAttribute("href")).toBe("https://example.slack.com/archives/C1/p1");
-    expect(a.getAttribute("rel")).toContain("noopener");
   });
 });

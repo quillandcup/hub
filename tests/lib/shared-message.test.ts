@@ -102,36 +102,25 @@ describe("parseSharedMessages", () => {
   });
 });
 
-describe("sharedMessageSource (privacy)", () => {
-  const shared = parseSharedMessage(share())!;
-
-  it("shows the Hub's current text for a readable source, with a link to the Hub copy", () => {
-    expect(sharedMessageSource(shared, { state: "readable", channelId: "hub-tea", messageId: "msg_AAAAAAAAAAA1", deleted: false, text: "edited" })).toEqual({
-      kind: "readable",
+describe("sharedMessageSource (never a gate)", () => {
+  it("links the original when the viewer can read it", () => {
+    expect(sharedMessageSource({ state: "readable", channelId: "hub-tea", messageId: "msg_AAAAAAAAAAA1", deleted: false })).toEqual({
       hubUrl: "/chat/hub-tea?m=msg_AAAAAAAAAAA1",
       deleted: false,
-      text: "edited",
     });
   });
 
-  it("falls back to Slack's copy only when the Hub copy is readable but carries no text", () => {
-    expect(sharedMessageSource(shared, { state: "readable", channelId: "c", messageId: "m", deleted: false })).toMatchObject({ kind: "readable", text: shared.text });
+  it("notes a deleted original and gives no link", () => {
+    expect(sharedMessageSource({ state: "readable", channelId: "c", messageId: "m", deleted: true })).toEqual({ hubUrl: null, deleted: true });
   });
 
-  it("drops the text of a deleted source", () => {
-    expect(sharedMessageSource(shared, { state: "readable", channelId: "c", messageId: "m", deleted: true, text: "old" })).toMatchObject({ deleted: true, text: "" });
-  });
-
-  it("never carries the text when the viewer can't read, the Hub has no copy, or there was no lookup", () => {
+  it("gives no link when the viewer can't read it, the Hub has no copy, or there was no lookup", () => {
     for (const l of [{ state: "hidden" as const }, { state: "not_mirrored" as const }, undefined]) {
-      expect(JSON.stringify(sharedMessageSource(shared, l))).not.toContain("Tea");
+      expect(sharedMessageSource(l)).toEqual({ hubUrl: null, deleted: false });
     }
-    expect(sharedMessageSource(shared, { state: "hidden" })).toEqual({ kind: "private" });
-    expect(sharedMessageSource(shared, undefined)).toEqual({ kind: "private" });
-    expect(sharedMessageSource(shared, { state: "not_mirrored" })).toEqual({ kind: "elsewhere" });
   });
 
   it("refuses ids that could escape the path", () => {
-    expect(sharedMessageSource(shared, { state: "readable", channelId: "../x", messageId: "m", deleted: false })).toEqual({ kind: "private" });
+    expect(sharedMessageSource({ state: "readable", channelId: "../x", messageId: "m", deleted: false })).toEqual({ hubUrl: null, deleted: false });
   });
 });

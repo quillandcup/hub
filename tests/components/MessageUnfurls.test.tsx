@@ -80,15 +80,14 @@ describe("MessageUnfurls: shared messages", () => {
     const { container } = draw(raw);
     expect(container).toHaveTextContent("");
   });
-  it("draws the quoted-message card, or a stub, from what the loader resolved", () => {
+  it("draws the quoted-message card with its embedded copy from what the loader resolved", () => {
     const unfurls = parseUnfurls(raw, { bot: false, body: "" }).unfurls.map((u) =>
       u.kind === "share"
-        ? { ...u, shared: parseSharedMessage(u.attachment)!, source: { kind: "private" as const } }
+        ? { ...u, shared: parseSharedMessage(u.attachment)!, source: { hubUrl: null, deleted: false } }
         : u
     );
     render(<MessageUnfurls unfurls={unfurls} ctx={ctx} permalink={null} />);
-    expect(screen.getByTestId("shared-message-stub")).toBeInTheDocument();
-    expect(screen.queryByText("quoted")).toBeNull();
+    expect(screen.getByTestId("shared-message-card")).toHaveTextContent("quoted");
   });
   it("renders nothing for no unfurls", () => {
     const { container } = render(<MessageUnfurls unfurls={[]} ctx={ctx} permalink={null} />);
