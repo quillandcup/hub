@@ -1177,9 +1177,13 @@ export class InMemoryChatRepository implements ChatRepository {
       const bronze = this.data.slackChannels.find((x) => x.channel_id === slackId);
       if (!bronze || !((c.kind ?? "channel") === "dm" || ((c.kind ?? "channel") === "group_dm" && bronze.token_only))) continue;
       const names: string[] = [];
-      for (const b of this.data.slackChannelMembers.filter((x) => x.channel_id === slackId && !x.left_at)) {
-        const authorMember = this.data.chatSlackAuthors.find((a) => a.slack_user_id === b.user_id)?.member_id ?? null;
-        if (authorMember === memberId) continue;
+      const people = this.data.slackChannelMembers.filter((x) => x.channel_id === slackId && !x.left_at);
+      const authorOf = (userId: string) => this.data.chatSlackAuthors.find((a) => a.slack_user_id === userId)?.member_id ?? null;
+      // You are left out, unless nobody else is in it: a DM with yourself is named after you, as Slack does.
+      const nobodyElse = people.every((b) => authorOf(b.user_id) === memberId);
+      for (const b of people) {
+        const authorMember = authorOf(b.user_id);
+        if (authorMember === memberId && !nobodyElse) continue;
         const user = this.data.slackUsers.find((u) => u.user_id === b.user_id);
         if (user?.is_bot) continue;
         const member = authorMember ? this.data.members.find((m) => m.id === authorMember) : undefined;
