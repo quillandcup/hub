@@ -29,7 +29,7 @@ export type OnShared = (shared: { messageId: string; memberId: string; text: str
 /**
  * The Slack copy of a converted message, as the Hub Chat paste would have sent it: the pasted address out, "Watch it in Hub Chat" and
  * "Open the lesson" in. The change is made as the author (their connected Slack account: Slack only lets whoever posted a message edit it),
- * the same way they edit their own message from the Hub. An author without a live connection, a message with files, a refused edit, or Slack
+ * the same way they edit their own message from the Hub, with Slack's link previews removed so it looks like one shared from the Hub. An author without a live connection, a message with files, a refused edit, or Slack
  * writes turned off leave the message as it was; the card in the Hub does not depend on it. Logs ids, never text.
  */
 export const rewriteInSlack =
@@ -43,7 +43,7 @@ export const rewriteInSlack =
       if (parseChatFiles(row.files).length > 0) return;
       const line = await sharedVideoSlackLine(repos, messageId, row.slackChannelId);
       if (!line) return;
-      const result = await updateChatMessageInSlack(supabase, { messageId, memberId, body: `${text}${line}`.replace(/^\n/, "") });
+      const result = await updateChatMessageInSlack(supabase, { messageId, memberId, body: `${text}${line}`.replace(/^\n/, ""), dropPreviews: true });
       if (!result.ok) console.error("[chat] rewriting the Slack copy of message %s failed: %s", messageId, result.error);
     } catch (error) {
       console.error("[chat] rewriting the Slack copy of message %s failed:", messageId, error instanceof Error ? error.message : error);

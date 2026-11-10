@@ -54,7 +54,7 @@ const slackError = (error: unknown): string | undefined => (error as { data?: { 
 /** Replace the text of one of the member's Hub messages in Slack (nothing to do for one that never got there). */
 export async function updateChatMessageInSlack(
   supabase: SupabaseClient,
-  opts: { messageId: string; memberId: string; body: string; addFiles?: { existingIds: string[]; uploads: { file: Buffer; filename: string }[] } }
+  opts: { messageId: string; memberId: string; body: string; dropPreviews?: boolean; addFiles?: { existingIds: string[]; uploads: { file: Buffer; filename: string }[] } }
 ): Promise<SlackWriteResult> {
   const writer = await writerFor(supabase, opts.messageId, opts.memberId, "edited");
   if (!writer.ok) return writer;
@@ -74,12 +74,15 @@ export async function updateChatMessageInSlack(
       if (fileIds.length !== opts.addFiles.uploads.length) return { ok: false, error: "Slack didn't take the files. Try again in a moment." };
     }
     const withFiles = fileIds ? { file_ids: [...opts.addFiles!.existingIds, ...fileIds] } : {};
+    // chat.update has no switch to keep Slack from unfurling a link, but an empty attachments list removes the previews the message
+    // already has (left alone otherwise: previews are kept through an ordinary edit). Used when the Hub rewrites a pasted lesson address.
+    const previews = opts.dropPreviews ? { attachments: [] } : {};
     const update = (withBlocks: boolean) => {
       const blocks = withBlocks ? bodyToBlocks(opts.body, { plain: !native }) : [];
       return client.chat.update(
         native
-          ? { channel, ts, text: stripUnderline(opts.body), blocks, ...withFiles }
-          : { channel, ts, text: escapeForSlack(stripUnderline(opts.body)), blocks, metadata: hubMessageMetadata(opts.messageId), ...withFiles }
+          ? { channel, ts, text: stripUnderline(opts.body), blocks, ...previews, ...withFiles }
+          : { channel, ts, text: escapeForSlack(stripUnderline(opts.body)), blocks, metadata: hubMessageMetadata(opts.messageId), ...previews, ...withFiles }
       );
     };
     const withBlocks = needsBlocks(opts.body);

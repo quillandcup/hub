@@ -218,6 +218,7 @@ describe("rewriteInSlack (the Slack copy of a converted message)", () => {
     const [, opts] = updateInSlack.mock.calls[0];
     expect(opts.messageId).toBe("msg_AAAAAAAAAAA1");
     expect(opts.memberId).toBe(FERN);
+    expect(opts.dropPreviews).toBe(true);
     expect(opts.body).toContain("look &amp; more\n<");
     expect(opts.body).toContain("|Watch it in Hub Chat>");
     expect(opts.body).not.toContain("/lessons/" + OPEN_LESSON + "|here");
