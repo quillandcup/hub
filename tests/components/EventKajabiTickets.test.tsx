@@ -16,12 +16,14 @@ const AUTUMN = { kajabiOfferId: "o3", name: "Autumn Retreat" };
 
 const MATCHES = {
   offersLinked: true,
+  multiTicketBuyers: [] as { member_id: string | null; name: string; tickets: number; first_bought: string | null; is_attendee: boolean }[],
+  giftedAttendees: 0,
   buyers: [
     { member_id: "mbr_AAAAAAAAAAA1", member_name: "Ada E", member_real_name: "Ada Example", member_status: "active", offer_names: ["Summer Retreat"], purchase_date: "2097-01-10T12:00:00Z", amount_in_cents: 5000, purchase_count: 1, deactivated: false },
     { member_id: "mbr_AAAAAAAAAAA2", member_name: "Bo Example", member_real_name: null, member_status: "cancelled", offer_names: ["Summer Retreat"], purchase_date: "2097-01-11T12:00:00Z", amount_in_cents: 5000, purchase_count: 1, deactivated: true },
   ],
   unmatched: [{ email: "stranger@example.com", offer_names: ["Summer Retreat"], purchase_date: "2097-01-12T12:00:00Z" }],
-  attendeesWithoutTicket: [{ member_id: "mbr_AAAAAAAAAAA3", member_name: "Cy Example", ticket_source: null }],
+  attendeesWithoutTicket: [{ member_id: "mbr_AAAAAAAAAAA3", member_name: "Cy Example", ticket_source: null, kajabi_offer: "held" }],
 };
 
 let calls: { url: string; method: string; body: unknown }[];
@@ -131,7 +133,7 @@ describe("Kajabi tickets on an event", () => {
   });
 
   it("says when everyone who bought is already an attendee", async () => {
-    matches = { offersLinked: true, buyers: [], unmatched: [], attendeesWithoutTicket: [] };
+    matches = { offersLinked: true, multiTicketBuyers: [], giftedAttendees: 0, buyers: [], unmatched: [], attendeesWithoutTicket: [] };
     render(<EventKajabiTickets eventId={EVENT} onAttendeesChanged={vi.fn()} />);
 
     await userEvent.click(await screen.findByRole("button", { name: "Find Kajabi matches" }));
@@ -155,5 +157,43 @@ describe("Kajabi tickets on an event", () => {
     expect(screen.getByRole("link", { name: "Cy Example" })).toHaveAttribute("href", "/admin/members/mbr_AAAAAAAAAAA3");
     // "Ada E" is both the buyer's name and the target of the attendee's hint.
     expect(screen.getAllByRole("link", { name: "Ada E" }).map((a) => a.getAttribute("href"))).toContain("/admin/members/mbr_AAAAAAAAAAA1");
+  });
+  it("lists who bought more than one ticket, with the extra ones and how many are recorded as gifted", async () => {
+    matches = {
+      ...MATCHES,
+      giftedAttendees: 1,
+      multiTicketBuyers: [
+        { member_id: "mbr_AAAAAAAAAAA1", name: "Ada E", tickets: 2, first_bought: "2097-01-10T12:00:00Z", is_attendee: true },
+        { member_id: null, name: "stranger@example.com", tickets: 3, first_bought: null, is_attendee: false },
+      ],
+    };
+    render(<EventKajabiTickets eventId={EVENT} onAttendeesChanged={vi.fn()} />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Find Kajabi matches" }));
+
+    expect(await screen.findByText("Bought more than one ticket (2)")).toBeInTheDocument();
+    expect(screen.getByText("2 tickets · 2097-01-10 · attendee")).toBeInTheDocument();
+    expect(screen.getByText("3 tickets · not an attendee")).toBeInTheDocument();
+    expect(screen.getByText(/3 extra, 1 attendee recorded as gifted\./)).toBeInTheDocument();
+  });
+
+  it("says what Kajabi knows about each attendee with no purchase", async () => {
+    matches = {
+      ...MATCHES,
+      attendeesWithoutTicket: [
+        { member_id: "m1", member_name: "Held Example", ticket_source: null, kajabi_offer: "held" },
+        { member_id: "m2", member_name: "None Example", ticket_source: null, kajabi_offer: "not_held" },
+        { member_id: "m3", member_name: "Unknown Example", ticket_source: null, kajabi_offer: "unknown" },
+        { member_id: "m4", member_name: "NoContact Example", ticket_source: null, kajabi_offer: "no_contact" },
+      ],
+    };
+    render(<EventKajabiTickets eventId={EVENT} onAttendeesChanged={vi.fn()} />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Find Kajabi matches" }));
+
+    expect(await screen.findByText(/likely granted \(comped or gifted\)/)).toBeInTheDocument();
+    expect(screen.getByText("Kajabi shows no sign of this offer for them.")).toBeInTheDocument();
+    expect(screen.getByText("Couldn't check Kajabi.")).toBeInTheDocument();
+    expect(screen.getByText("No Kajabi contact for this member.")).toBeInTheDocument();
   });
 });

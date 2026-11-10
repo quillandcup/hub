@@ -9,6 +9,13 @@ interface OfferRow {
   name: string;
 }
 
+const KAJABI_OFFER_NOTES = {
+  held: "Kajabi holds this offer for them without a purchase: likely granted (comped or gifted).",
+  not_held: "Kajabi shows no sign of this offer for them.",
+  unknown: "Couldn't check Kajabi.",
+  no_contact: "No Kajabi contact for this member.",
+} as const;
+
 /** Says a buyer and an attendee with no ticket share a name: likely one person with two member records. */
 function DuplicateHint({ other }: { other: { member_id: string; member_name: string } }) {
   return (
@@ -278,6 +285,32 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
             </div>
           )}
 
+          {matches.multiTicketBuyers.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold mb-1">Bought more than one ticket ({matches.multiTicketBuyers.length})</h3>
+              <ul className="text-sm space-y-0.5">
+                {matches.multiTicketBuyers.map((buyer) => (
+                  <li key={buyer.member_id ?? buyer.name}>
+                    {buyer.member_id ? (
+                      <Link href={`/admin/members/${buyer.member_id}`} className="font-medium text-plum-600 dark:text-plum-400 hover:underline">
+                        {buyer.name}
+                      </Link>
+                    ) : (
+                      buyer.name
+                    )}
+                    <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
+                      {[`${buyer.tickets} tickets`, buyer.first_bought?.slice(0, 10), buyer.is_attendee ? "attendee" : "not an attendee"].filter(Boolean).join(" · ")}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                {`${matches.multiTicketBuyers.reduce((sum, b) => sum + b.tickets - 1, 0)} extra, ${matches.giftedAttendees} attendee${matches.giftedAttendees === 1 ? "" : "s"} recorded as gifted. `}
+                An extra ticket is usually a gift for someone else: set the recipient to Gifted in the list below, with the buyer in the note.
+              </p>
+            </div>
+          )}
+
           {matches.attendeesWithoutTicket.length > 0 && (
             <div>
               <h3 className="text-sm font-semibold mb-1">Attendees with no ticket on record ({matches.attendeesWithoutTicket.length})</h3>
@@ -286,6 +319,7 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
                   <li key={attendee.member_id}>
                     {attendee.member_name}
                     {attendee.possible_duplicate && <DuplicateHint other={attendee.possible_duplicate} />}
+                    <span className="block text-xs text-slate-500 dark:text-slate-400">{KAJABI_OFFER_NOTES[attendee.kajabi_offer]}</span>
                   </li>
                 ))}
               </ul>
