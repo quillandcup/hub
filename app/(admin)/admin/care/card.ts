@@ -1,4 +1,5 @@
-import { careStatus, daysAgoLabel, isFollowUpDue, lastActivityAt, memberWroteLast, type CareSettings, type CareStatus } from "@/lib/care";
+import { careStatus, daysAgoLabel, isFollowUpDue, lastActivityAt, memberWroteLast, periodNumber, type CareSettings, type CareStatus } from "@/lib/care";
+import { ownerName, type CareOwner } from "@/lib/care-owners";
 import type { CareEngagementWithMember } from "@/lib/data/care";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { orgYmd } from "@/lib/org-week";
@@ -22,6 +23,11 @@ export type EngagementCardData = {
   periodOver: boolean;
   /** This period continues an earlier one. */
   renewed: boolean;
+  /** The auth user id of its owner (null: unassigned) and the name shown for them. */
+  ownerId: string | null;
+  ownerName: string;
+  /** Which period of a chain of renewals this is (the first is 1). */
+  period: number;
   /** "3 days ago": the last message from either side, or when it was opened if none is logged. */
   lastActivityLabel: string;
   /** Who spoke last, for the line under the name; null when nobody has been logged. */
@@ -33,7 +39,16 @@ export type EngagementCardData = {
   notes: string | null;
 };
 
-export function toEngagementCard(row: CareEngagementWithMember, now: Date, settings?: CareSettings): EngagementCardData {
+export type CardOptions = {
+  settings?: CareSettings;
+  /** Everyone who may own one, for the owner's name. */
+  owners?: readonly CareOwner[];
+  /** The rows the page loaded, by id, to count which period of a chain this is. */
+  byId?: ReadonlyMap<string, { renewed_from: string | null }>;
+};
+
+export function toEngagementCard(row: CareEngagementWithMember, now: Date, options: CardOptions = {}): EngagementCardData {
+  const { settings, owners = [], byId = new Map() } = options;
   const shown = row.member ? getMemberDisplayName(row.member) : "A member who is no longer here";
   return {
     id: row.id,
@@ -46,6 +61,9 @@ export function toEngagementCard(row: CareEngagementWithMember, now: Date, setti
     endedHow: row.ended_how,
     openedAt: row.opened_at,
     periodEndsOn: row.period_ends_on,
+    ownerId: row.owned_by,
+    ownerName: ownerName(row.owned_by, owners),
+    period: periodNumber(row, byId),
     periodOver: orgYmd(now) > row.period_ends_on,
     renewed: row.renewed_from !== null,
     lastActivityLabel: daysAgoLabel(lastActivityAt(row), now),

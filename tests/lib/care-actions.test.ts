@@ -11,6 +11,8 @@ import { useFakeClock } from "@/tests/helpers/fake-clock";
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+// The service-role client is only handed to createRepos, which this file replaces.
+vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 // What withAction records is tested in analytics-server.test.ts; here the action just runs.
 vi.mock("@/lib/analytics/server", () => ({
   withAction: vi.fn(async (_action: string, run: () => Promise<unknown>) => run()),
@@ -19,6 +21,8 @@ const preview = vi.hoisted(() => ({ role: null as string | null }));
 vi.mock("@/lib/staff-preview.server", () => ({ getStaffPreviewRole: async () => preview.role }));
 
 const CM_USER = { id: "user-community-manager", email: "cm@example.test" };
+const OWNER_B = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"; // another admin
+const NOT_STAFF = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"; // a member with a profile
 const ADA = "mbr_AAAAAAAAAAA1";
 const BO = "mbr_AAAAAAAAAAA2";
 
@@ -35,6 +39,7 @@ import {
   deleteEngagement,
   getEngagementResults,
   logCareMessage,
+  reassignEngagement,
   renewEngagement,
   searchCareMembers,
   startEngagement,
@@ -42,6 +47,27 @@ import {
 } from "@/app/(admin)/admin/care/actions";
 
 const start = (over: Record<string, unknown> = {}) => startEngagement({ memberId: ADA, reason: "writing_check_in", channel: "slack_dm", ...over });
+const engagementRow = (id: string, member: string, openedAt: string) => ({
+  id,
+  member_id: member,
+  opened_by: null,
+  owned_by: null,
+  reason: "check_in",
+  channel: "email",
+  opened_at: openedAt,
+  period_ends_on: "2026-12-31",
+  renewed_from: null,
+  closed_at: null,
+  ended_how: null,
+  last_staff_message_at: openedAt,
+  last_member_message_at: null,
+  follow_up_on: null,
+  next_step: null,
+  notes: null,
+  deleted_at: null,
+  created_at: openedAt,
+  updated_at: openedAt,
+});
 const onlyEngagementId = () => data.careEngagements[0].id;
 const onlyEngagement = () => {
   expect(data.careEngagements).toHaveLength(1);
@@ -61,6 +87,8 @@ beforeEach(() => {
       { id: ADMIN_USER.id, email: ADMIN_USER.email!, role: "admin" },
       { id: MEMBER_USER.id, email: MEMBER_USER.email!, role: "member" },
       { id: CM_USER.id, email: CM_USER.email, role: "community_manager" },
+      { id: OWNER_B, email: "owner-b@example.test", role: "admin" },
+      { id: NOT_STAFF, email: "plain-b@example.test", role: "member" },
     ],
   });
   repos = createInMemoryRepos(data);
@@ -72,7 +100,8 @@ describe("who may write Hedgie Care", () => {
     ["logCareMessage", () => logCareMessage("care_AAAAAAAAAAA1", "member")],
     ["updateEngagement", () => updateEngagement("care_AAAAAAAAAAA1", { notes: "x" })],
     ["closeEngagement", () => closeEngagement("care_AAAAAAAAAAA1", "no_reply")],
-    ["renewEngagement", () => renewEngagement("care_AAAAAAAAAAA1")],
+    ["renewEngagement", () => renewEngagement("care_AAAAAAAAAAA1", "a plan")],
+    ["reassignEngagement", () => reassignEngagement("care_AAAAAAAAAAA1", OWNER_B)],
     ["getEngagementResults", () => getEngagementResults("care_AAAAAAAAAAA1")],
     ["deleteEngagement", () => deleteEngagement("care_AAAAAAAAAAA1")],
   ];
@@ -309,7 +338,7 @@ describe.each([
     expect(onlyEngagement().period_ends_on).toBe(addDays(easternDay, CARE_ENGAGEMENT_DAYS));
     expect(onlyEngagement().period_ends_on).toBe(periodEndsOn(new Date(startIso)));
 
-    await renewEngagement(onlyEngagementId());
+    await renewEngagement(onlyEngagementId(), "a plan");
     expect(data.careEngagements[1].period_ends_on).toBe(addDays(easternDay, CARE_ENGAGEMENT_DAYS));
   });
 });
@@ -323,13 +352,13 @@ describe("renewEngagement", () => {
   });
 
   it("closes this period as renewed, opens the next linked to it, and writes one timeline row for it", async () => {
-    await expect(renewEngagement(id)).resolves.toEqual({ success: true });
+    await expect(renewEngagement(id, "a plan")).resolves.toEqual({ success: true });
 
     expect(data.careEngagements).toHaveLength(2);
     const [old, next] = data.careEngagements;
     expect(old).toMatchObject({ id, ended_how: "renewed" });
     expect(old.closed_at).not.toBeNull();
-    expect(next).toMatchObject({ member_id: ADA, opened_by: CM_USER.id, renewed_from: id, closed_at: null, notes: null, reason: "writing_check_in", channel: "slack_dm" });
+    expect(next).toMatchObject({ member_id: ADA, opened_by: CM_USER.id, renewed_from: id, closed_at: null, owned_by: CM_USER.id, notes: "a plan", reason: "writing_check_in", channel: "slack_dm" });
     expect(next.period_ends_on >= old.period_ends_on).toBe(true);
 
     const rows = data.activities.filter((a) => a.source === "care" && a.activity_type === "care_renewed");
@@ -341,7 +370,7 @@ describe("renewEngagement", () => {
   });
 
   it("opens one period for a double click, and tells the second click why", async () => {
-    const [a, b] = await Promise.all([renewEngagement(id), renewEngagement(id)]);
+    const [a, b] = await Promise.all([renewEngagement(id, "a plan"), renewEngagement(id, "a plan")]);
     expect([a, b].filter((r) => "success" in r)).toHaveLength(1);
     expect([a, b].find((r) => "error" in r)).toEqual({ error: expect.stringContaining("already renewed, closed or gone") });
     expect(data.careEngagements.filter((c) => c.closed_at === null)).toHaveLength(1);
@@ -349,15 +378,33 @@ describe("renewEngagement", () => {
   });
 
   it("checks the id, and answers a closed or missing engagement", async () => {
-    await expect(renewEngagement("nope")).resolves.toEqual({ error: "That engagement is gone." });
+    await expect(renewEngagement("nope", "a plan")).resolves.toEqual({ error: "That engagement is gone." });
     await closeEngagement(id, "no_reply");
-    await expect(renewEngagement(id)).resolves.toEqual({ error: expect.stringContaining("already renewed, closed or gone") });
+    await expect(renewEngagement(id, "a plan")).resolves.toEqual({ error: expect.stringContaining("already renewed, closed or gone") });
+  });
+
+  it("needs a reason, which becomes the new period's note, and keeps the old note on the old period", async () => {
+    await expect(renewEngagement(id, "   ")).resolves.toEqual({ error: "Say why you are renewing: what is the plan?" });
+    await expect(renewEngagement(id, "x".repeat(1001))).resolves.toEqual({ error: "The reason can be at most 1000 characters." });
+    await expect(renewEngagement(id, 42 as never)).resolves.toEqual({ error: "Check the reason." });
+    expect(data.careEngagements).toHaveLength(1); // nothing happened
+
+    await renewEngagement(id, "  they answered, a writing sprint is planned  ");
+    expect(data.careEngagements[0]).toMatchObject({ notes: "first period", ended_how: "renewed" });
+    expect(data.careEngagements[1].notes).toBe("they answered, a writing sprint is planned");
+  });
+
+  it("keeps the owner, even when someone else renews it, and can renew one that is long past its period", async () => {
+    data.careEngagements[0].owned_by = OWNER_B;
+    data.careEngagements[0].period_ends_on = "2020-01-01"; // lapsed
+    await expect(renewEngagement(id, "a plan")).resolves.toEqual({ success: true });
+    expect(data.careEngagements[1]).toMatchObject({ owned_by: OWNER_B, opened_by: CM_USER.id });
   });
 
   it("says it could not renew when the database fails, without its message", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.spyOn(repos.care, "renew").mockRejectedValueOnce(new Error("connection reset"));
-    await expect(renewEngagement(id)).resolves.toEqual({ error: "Couldn't renew the engagement." });
+    await expect(renewEngagement(id, "a plan")).resolves.toEqual({ error: "Couldn't renew the engagement." });
   });
 });
 
@@ -371,6 +418,7 @@ describe("getEngagementResults", () => {
       id: "care_AAAAAAAAAAA9",
       member_id: ADA,
       opened_by: CM_USER.id,
+      owned_by: CM_USER.id,
       reason: "check_in",
       channel: "slack_dm",
       opened_at: OPENED,
@@ -414,5 +462,70 @@ describe("getEngagementResults", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.spyOn(repos.activities, "firsts").mockRejectedValueOnce(new Error("connection reset"));
     await expect(getEngagementResults(id)).resolves.toEqual({ error: "Couldn't work out the results." });
+  });
+});
+
+describe("who owns an engagement", () => {
+  beforeEach(() => signInAs(CM_USER));
+
+  it("goes to whoever starts it, when the member has had none before", async () => {
+    await start();
+    expect(onlyEngagement().owned_by).toBe(CM_USER.id);
+  });
+
+  it("goes to the owner of the member's latest engagement, whoever starts it (continuity), and not to an older one's", async () => {
+    data.careEngagements.push(
+      { ...engagementRow("care_BBBBBBBBBBB1", ADA, "2026-01-01T10:00:00Z"), owned_by: NOT_STAFF, closed_at: "2026-01-20T10:00:00Z", ended_how: "ran_its_course" },
+      { ...engagementRow("care_BBBBBBBBBBB2", ADA, "2026-02-01T10:00:00Z"), owned_by: OWNER_B, closed_at: "2026-02-20T10:00:00Z", ended_how: "no_reply" }
+    );
+    await expect(start()).resolves.toEqual({ success: true });
+    expect(data.careEngagements.at(-1)).toMatchObject({ opened_by: CM_USER.id, owned_by: OWNER_B });
+  });
+
+  it("goes to whoever starts it when the latest engagement had no owner, and ignores a removed one", async () => {
+    data.careEngagements.push(
+      { ...engagementRow("care_BBBBBBBBBBB1", ADA, "2026-02-01T10:00:00Z"), owned_by: null, closed_at: "2026-02-20T10:00:00Z", ended_how: "no_reply" },
+      { ...engagementRow("care_BBBBBBBBBBB2", ADA, "2026-03-01T10:00:00Z"), owned_by: OWNER_B, closed_at: "2026-03-05T10:00:00Z", ended_how: "no_reply", deleted_at: "2026-03-06T10:00:00Z" }
+    );
+    await start();
+    expect(data.careEngagements.at(-1)?.owned_by).toBe(CM_USER.id);
+  });
+});
+
+describe("reassignEngagement", () => {
+  let id: string;
+  beforeEach(async () => {
+    signInAs(CM_USER);
+    await start();
+    id = onlyEngagement().id;
+  });
+
+  it("hands an open engagement to another admin or community manager", async () => {
+    await expect(reassignEngagement(id, OWNER_B)).resolves.toEqual({ success: true });
+    expect(onlyEngagement().owned_by).toBe(OWNER_B);
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/care");
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/care/earlier");
+  });
+
+  it("hands a closed one over too", async () => {
+    await closeEngagement(id, "ran_its_course");
+    await expect(reassignEngagement(id, OWNER_B)).resolves.toEqual({ success: true });
+    expect(onlyEngagement()).toMatchObject({ owned_by: OWNER_B, ended_how: "ran_its_course" });
+  });
+
+  it("refuses someone who is not on the team, something that is not an id, and an engagement that is gone", async () => {
+    await expect(reassignEngagement(id, NOT_STAFF)).resolves.toEqual({ error: "Pick someone on the team." });
+    await expect(reassignEngagement(id, "cccccccc-cccc-4ccc-8ccc-cccccccccccc")).resolves.toEqual({ error: "Pick someone on the team." }); // no profile
+    await expect(reassignEngagement(id, "not-a-user")).resolves.toEqual({ error: "Pick who it goes to." });
+    await expect(reassignEngagement(id, undefined as never)).resolves.toEqual({ error: "Pick who it goes to." });
+    await expect(reassignEngagement("nope", OWNER_B)).resolves.toEqual({ error: "That engagement is gone." });
+    await expect(reassignEngagement("care_ZZZZZZZZZZZZ", OWNER_B)).resolves.toEqual({ error: "That engagement is gone." });
+    expect(onlyEngagement().owned_by).toBe(CM_USER.id);
+  });
+
+  it("says it could not hand it over when the database fails, without its message", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(repos.care, "reassign").mockRejectedValueOnce(new Error("connection reset"));
+    await expect(reassignEngagement(id, OWNER_B)).resolves.toEqual({ error: "Couldn't hand it over." });
   });
 });

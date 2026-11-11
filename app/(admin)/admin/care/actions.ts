@@ -22,10 +22,12 @@ import {
   type MessageDirection,
 } from "@/lib/care";
 import { loadCareResults } from "@/lib/care-results";
+import { isCareOwner } from "@/lib/care-owners";
 import { clock } from "@/lib/clock";
 import type { CareEngagementRow, CarePatch } from "@/lib/data/care";
 import { createRepos, type Repos } from "@/lib/data/repos";
-import { isId } from "@/lib/ids";
+import { getServiceRepos } from "@/lib/data/server";
+import { isId, isUuid } from "@/lib/ids";
 import { memberSearchItem } from "@/lib/member-search-item";
 import { staffCan } from "@/lib/staff-access";
 
@@ -117,12 +119,15 @@ async function startImpl(repos: Repos, userId: string, input: StartEngagementInp
   const now = new Date(clock.now());
   let result;
   try {
+    // Continuity: the member's latest engagement (newest first) keeps its owner; otherwise it is whoever starts this one.
+    const latest = (await repos.care.forMember(input.memberId))[0];
     result = await repos.care.open({
       memberId: input.memberId,
       reason: input.reason,
       channel: input.channel,
       periodEndsOn: periodEndsOn(now),
       openedBy: userId,
+      ownedBy: latest?.owned_by ?? userId,
       openedAt: now.toISOString(),
       firstMessageFrom: input.memberWroteFirst ? "member" : "staff",
       notes: notes.value,
@@ -203,12 +208,15 @@ async function closeImpl(repos: Repos, userId: string, id: string, endedHow: str
   return { success: true };
 }
 
-async function renewImpl(repos: Repos, userId: string, id: string): Promise<CareActionResult> {
+async function renewImpl(repos: Repos, userId: string, id: string, why: unknown): Promise<CareActionResult> {
   if (!isCareId(id)) return { error: MISSING };
+  const reason = text(why, CARE_NOTES_MAX, "reason");
+  if ("error" in reason) return reason;
+  if (!reason.value) return { error: "Say why you are renewing: what is the plan?" };
   const now = new Date(clock.now());
   let result;
   try {
-    result = await repos.care.renew(id, { periodEndsOn: periodEndsOn(now), openedBy: userId, at: now.toISOString() });
+    result = await repos.care.renew(id, { periodEndsOn: periodEndsOn(now), openedBy: userId, at: now.toISOString(), reason: reason.value });
   } catch (error) {
     console.error("[care] renew failed:", error instanceof Error ? error.message : error);
     return { error: "Couldn't renew the engagement." };
@@ -216,6 +224,22 @@ async function renewImpl(repos: Repos, userId: string, id: string): Promise<Care
   if (!result.ok) return { error: "That engagement is already renewed, closed or gone. Refresh the list." };
 
   await mirrorToTimeline(repos, userId, result.engagement, "renewed");
+  revalidate();
+  return { success: true };
+}
+
+async function reassignImpl(repos: Repos, id: string, ownerId: unknown): Promise<CareActionResult> {
+  if (!isCareId(id)) return { error: MISSING };
+  if (typeof ownerId !== "string" || !isUuid(ownerId)) return { error: "Pick who it goes to." };
+  try {
+    // Only staff who work Hedgie Care may own one; the profile's role says so (read with the service role: a community
+    // manager's own client cannot read other users' profiles).
+    if (!(await isCareOwner(getServiceRepos(), ownerId))) return { error: "Pick someone on the team." };
+    if (!(await repos.care.reassign(id, ownerId))) return { error: MISSING };
+  } catch (error) {
+    console.error("[care] reassign failed:", error instanceof Error ? error.message : error);
+    return { error: "Couldn't hand it over." };
+  }
   revalidate();
   return { success: true };
 }
@@ -274,12 +298,20 @@ export async function closeEngagement(id: string, endedHow: string): Promise<Car
   return withAction("care_engagement_closed", () => closeImpl(createRepos(auth.supabase), auth.user.id, id, endedHow), (r) => ({ ok: "success" in r }));
 }
 
-/** Renews an engagement: closes this period as renewed and opens the next, in one step. */
-export async function renewEngagement(id: string): Promise<CareActionResult> {
+/** Renews an engagement: closes this period as renewed and opens the next, in one step. `reason` (what is the plan) is required and becomes the new period's note. */
+export async function renewEngagement(id: string, reason: string): Promise<CareActionResult> {
   const auth = await requireStaffAction();
   if (!auth.ok) return { error: auth.error };
   if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
-  return withAction("care_engagement_renewed", () => renewImpl(createRepos(auth.supabase), auth.user.id, id), (r) => ({ ok: "success" in r }));
+  return withAction("care_engagement_renewed", () => renewImpl(createRepos(auth.supabase), auth.user.id, id, reason), (r) => ({ ok: "success" in r }));
+}
+
+/** Hands an engagement (open or closed) to another staff member. */
+export async function reassignEngagement(id: string, ownerId: string): Promise<CareActionResult> {
+  const auth = await requireStaffAction();
+  if (!auth.ok) return { error: auth.error };
+  if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
+  return withAction("care_engagement_reassigned", () => reassignImpl(createRepos(auth.supabase), id, ownerId), (r) => ({ ok: "success" in r }));
 }
 
 /** Removes an engagement from the lists (kept in the database, hidden everywhere). */
@@ -300,7 +332,8 @@ export async function getEngagementResults(id: string): Promise<{ error: string 
   try {
     const engagement = await repos.care.byId(id);
     if (!engagement) return { error: MISSING };
-    return { results: await loadCareResults(repos, engagement, new Date(clock.now())) };
+    // Membership and program enrollments come from tables her own client may not read; the derived answer is all that leaves.
+    return { results: await loadCareResults(repos, getServiceRepos(), engagement, new Date(clock.now())) };
   } catch (error) {
     console.error("[care] results failed:", error instanceof Error ? error.message : error);
     return { error: "Couldn't work out the results." };

@@ -54,7 +54,13 @@ const interaction = (a: string, b: string, at: string, n: number) => ({
   visibility: "private",
 });
 
-function seed() {
+const program = (id: string, name: string) => ({ id, name, includes_membership: false }) as never;
+const cohort = (id: string, programId: string, startsAt: string, expiresAt: string) => ({ id, program_id: programId, starts_at: startsAt, expires_at: expiresAt }) as never;
+const enrollment = (id: string, cohortId: string) => ({ id, member_id: ADA, cohort_id: cohortId, created_at: "2026-01-01T00:00:00Z" }) as never;
+const hiatus = (id: string, start: string, end: string | null) =>
+  ({ id, member_id: ADA, start_date: start, end_date: end, reason: null, notes: null, created_at: null, created_by: null, updated_at: "2026-01-01T00:00:00Z" }) as never;
+
+function seed(options: { hiatusFrom?: string | null; programEnds?: string } = {}) {
   const data = new InMemoryDataset({
     members: [member(ADA, "Ada"), member(BO, "Bo"), member(CY, "Cy"), member(DEE, "Dee", { userId: MANAGER_USER }), member(ELI, "Eli")],
   });
@@ -74,6 +80,15 @@ function seed() {
     interaction(ELI, ADA, "2026-03-08T15:00:00Z", 5), // during: Eli again
     interaction(ADA, BO, "2026-05-10T15:00:00Z", 6) // after: Bo
   );
+  // Ada is a member through a program that runs to the end of the year (or `programEnds`), goes on hiatus from mid April (or
+  // `hiatusFrom`, none for null) with no end, and a second program starts inside the "during" window.
+  data.programs = [program("prog_AAAAAAAAAAA1", "Example Program"), program("prog_AAAAAAAAAAA2", "Second Program")];
+  data.programCohorts = [
+    cohort("coh_AAAAAAAAAAA1", "prog_AAAAAAAAAAA1", "2026-01-01", options.programEnds ?? "2026-12-31"),
+    cohort("coh_AAAAAAAAAAA2", "prog_AAAAAAAAAAA2", "2026-03-15", "2026-03-31"),
+  ];
+  data.programEnrollments = [enrollment("enr_AAAAAAAAAAA1", "coh_AAAAAAAAAAA1"), enrollment("enr_AAAAAAAAAAA2", "coh_AAAAAAAAAAA2")];
+  data.memberHiatuses = options.hiatusFrom === null ? [] : [hiatus("hia_AAAAAAAAAAA1", options.hiatusFrom ?? "2026-04-15", null)];
   return createInMemoryRepos(data);
 }
 
@@ -92,27 +107,63 @@ describe("careExcludedMemberIds", () => {
 });
 
 describe("loadCareResults", () => {
-  it("counts each window from the member's activity, leaving staff and the opener out of the people they connected with", async () => {
-    const results = await loadCareResults(seed(), engagement, new Date("2027-01-01T00:00:00Z"));
+  const LATER = new Date("2027-01-01T00:00:00Z");
 
-    expect(results.before.counts).toEqual({ pricklesAttended: 1, slackMessages: 0, firstPrickle: true, firstSlackPost: false, peopleConnected: 1 });
-    expect(results.during.counts).toEqual({ pricklesAttended: 1, slackMessages: 1, firstPrickle: false, firstSlackPost: true, peopleConnected: 1 });
-    expect(results.after.counts).toEqual({ pricklesAttended: 1, slackMessages: 1, firstPrickle: false, firstSlackPost: false, peopleConnected: 1 });
+  it("counts each window from the member's activity, leaving staff and the opener out of the people they connected with", async () => {
+    const repos = seed();
+    const results = await loadCareResults(repos, repos, engagement, LATER);
+
+    expect(results.before.counts).toMatchObject({ pricklesAttended: 1, slackMessages: 0, firstPrickle: true, firstSlackPost: false, peopleConnected: 1 });
+    expect(results.during.counts).toMatchObject({ pricklesAttended: 1, slackMessages: 1, firstPrickle: false, firstSlackPost: true, peopleConnected: 1 });
+    expect(results.after.counts).toMatchObject({ pricklesAttended: 1, slackMessages: 1, firstPrickle: false, firstSlackPost: false, peopleConnected: 1 });
     expect(results.after.window.state).toBe("complete");
   });
 
+  it("says whether they were a member at the end of each window, and that a member on hiatus has not left", async () => {
+    const repos = seed();
+    const results = await loadCareResults(repos, repos, engagement, LATER);
+
+    expect(results.before.counts?.membershipAtEnd).toBe("member");
+    expect(results.during.counts?.membershipAtEnd).toBe("member");
+    expect(results.after.counts?.membershipAtEnd).toBe("on_hiatus"); // the hiatus began in April and has no end
+  });
+
+  it("says not a member once their membership ended before the window's end", async () => {
+    const repos = seed({ hiatusFrom: null, programEnds: "2026-04-10" });
+    const results = await loadCareResults(repos, repos, engagement, LATER);
+
+    expect(results.during.counts?.membershipAtEnd).toBe("member"); // the program was still running on Mar 31
+    expect(results.after.counts?.membershipAtEnd).toBe("not_a_member");
+  });
+
+  it("lists the programs whose start date falls inside each window", async () => {
+    const repos = seed();
+    const results = await loadCareResults(repos, repos, engagement, LATER);
+
+    expect(results.before.counts?.programsStarted).toEqual([]);
+    expect(results.during.counts?.programsStarted).toEqual(["Second Program"]);
+    expect(results.after.counts?.programsStarted).toEqual([]);
+  });
+
+  it("reads a member who does not exist as not a member", async () => {
+    const repos = seed();
+    const results = await loadCareResults(repos, repos, { ...engagement, member_id: "mbr_ZZZZZZZZZZZZ" }, LATER);
+    expect(results.before.counts).toMatchObject({ membershipAtEnd: "not_a_member", programsStarted: [] });
+  });
+
   it("does not count the after window until it has passed, and counts during so far", async () => {
-    const results = await loadCareResults(seed(), engagement, new Date("2026-03-10T00:00:00Z"));
+    const repos = seed();
+    const results = await loadCareResults(repos, repos, engagement, new Date("2026-03-10T00:00:00Z"));
 
     expect(results.after).toMatchObject({ counts: null, window: { state: "not_yet" } });
     expect(results.during.window.state).toBe("so_far");
     expect(results.during.counts?.pricklesAttended).toBe(0); // the prickle on the 10th at 15:00 has not happened yet
+    expect(results.during.counts?.programsStarted).toEqual([]); // the second program starts on the 15th
   });
 
   it("leaves a firsts flag off when the first activity is outside the window", async () => {
-    const data = seed();
-    const repos = data;
-    const results = await loadCareResults(repos, { ...engagement, opened_at: "2026-04-01T15:00:00.000Z", period_ends_on: "2026-04-30" }, new Date("2027-01-01T00:00:00Z"));
+    const repos = seed();
+    const results = await loadCareResults(repos, repos, { ...engagement, opened_at: "2026-04-01T15:00:00.000Z", period_ends_on: "2026-04-30" }, LATER);
     expect(results.before.counts).toMatchObject({ firstPrickle: false }); // the first prickle was before the window began
   });
 });

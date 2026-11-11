@@ -31,6 +31,8 @@ export interface ProfileRepository {
   isAdmin(userId: string): Promise<boolean>;
   /** The admins and assistants, by email. */
   staff(): Promise<StaffProfile[]>;
+  /** The profiles (id, email, role) of everyone with one of these roles, by email then id. Empty roles: nobody. */
+  byRoles(roles: string[]): Promise<StaffProfile[]>;
   /** The auth user ids of every admin. */
   adminIds(): Promise<string[]>;
   /** These users' profiles (users without one are left out). Chunked. */
@@ -75,6 +77,13 @@ export class SupabaseProfileRepository implements ProfileRepository {
 
   async staff() {
     const { data, error } = await this.db.from("user_profiles").select("id, email, role").in("role", ["admin", "assistant"]).order("email").order("id");
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  }
+
+  async byRoles(roles: string[]) {
+    if (roles.length === 0) return [];
+    const { data, error } = await this.db.from("user_profiles").select("id, email, role").in("role", roles).order("email").order("id");
     if (error) throw new Error(error.message);
     return data ?? [];
   }
@@ -161,6 +170,14 @@ export class InMemoryProfileRepository implements ProfileRepository {
     return this.data.userProfiles
       .map((p) => this.full(p))
       .filter((p) => p.role === "admin" || p.role === "assistant")
+      .sort((a, b) => (a.email < b.email ? -1 : a.email > b.email ? 1 : a.id < b.id ? -1 : 1))
+      .map(({ id, email, role }) => ({ id, email, role }));
+  }
+
+  async byRoles(roles: string[]) {
+    return this.data.userProfiles
+      .map((p) => this.full(p))
+      .filter((p) => roles.includes(p.role))
       .sort((a, b) => (a.email < b.email ? -1 : a.email > b.email ? 1 : a.id < b.id ? -1 : 1))
       .map(({ id, email, role }) => ({ id, email, role }));
   }

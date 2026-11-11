@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   CARE_CLOSE_OPTIONS,
   CARE_ENDED_HOW,
+  CARE_ENDED_HOW_HELP,
+  CARE_ENDED_HOW_LABELS,
+  CARE_REASONS,
+  CARE_REASON_HELP,
+  CARE_REASON_LABELS,
   CARE_SETTINGS,
   CARE_WINDOW_SETTINGS,
   careStatus,
@@ -19,6 +24,7 @@ import {
   lastActivityAt,
   memberWroteLast,
   periodEndsOn,
+  periodNumber,
   sortActive,
   sortEarlier,
   type CareTimes,
@@ -65,7 +71,30 @@ describe("the value sets", () => {
     expect(isCloseOption("no_reply")).toBe(true);
     expect(isCloseOption("renewed")).toBe(false);
     expect(isCloseOption("nonsense")).toBe(false);
-    expect(CARE_CLOSE_OPTIONS).toEqual(CARE_ENDED_HOW.filter((how) => how !== "renewed"));
+    expect(new Set(CARE_CLOSE_OPTIONS)).toEqual(new Set(CARE_ENDED_HOW.filter((how) => how !== "renewed")));
+  });
+
+  it("has the endings the owner chose, and none he dropped", () => {
+    expect([...CARE_ENDED_HOW].sort()).toEqual(["back_in_community", "handed_off", "no_reply", "ran_its_course", "renewed"]);
+    expect(isCareEndedHow("friendly_contact")).toBe(false);
+    expect(isCareEndedHow("asked_not_to_contact")).toBe(false);
+  });
+
+  it("lists the endings first match first, each with a label and a one-line definition", () => {
+    expect(CARE_CLOSE_OPTIONS).toEqual(["handed_off", "no_reply", "back_in_community", "ran_its_course"]);
+    for (const how of CARE_ENDED_HOW) {
+      expect(CARE_ENDED_HOW_LABELS[how]).toBeTruthy();
+      expect(CARE_ENDED_HOW_HELP[how]).toBeTruthy();
+    }
+    expect(CARE_ENDED_HOW_HELP.no_reply).toMatch(/never answered/);
+    expect(CARE_ENDED_HOW_HELP.handed_off).toMatch(/asks you to stop/);
+  });
+
+  it("has a label and a one-line guide for every reason", () => {
+    for (const reason of CARE_REASONS) {
+      expect(CARE_REASON_LABELS[reason]).toBeTruthy();
+      expect(CARE_REASON_HELP[reason]).toBeTruthy();
+    }
   });
 
   it("recognizes an engagement id by its prefix and base58 characters", () => {
@@ -312,5 +341,26 @@ describe("careWindows", () => {
   it("never lets during run backwards if the clock is before the opening", () => {
     const w = windows({}, "2026-02-01T00:00:00Z");
     expect(Date.parse(w.during.to)).toBeGreaterThanOrEqual(Date.parse(w.during.from));
+  });
+});
+
+describe("periodNumber", () => {
+  const rows = new Map([
+    ["care_AAAAAAAAAAA1", { renewed_from: null }],
+    ["care_AAAAAAAAAAA2", { renewed_from: "care_AAAAAAAAAAA1" }],
+    ["care_AAAAAAAAAAA3", { renewed_from: "care_AAAAAAAAAAA2" }],
+    ["care_AAAAAAAAAAA4", { renewed_from: "care_ZZZZZZZZZZZZ" }], // renewed from one that is gone
+    ["care_AAAAAAAAAAA5", { renewed_from: "care_AAAAAAAAAAA6" }], // a cycle
+    ["care_AAAAAAAAAAA6", { renewed_from: "care_AAAAAAAAAAA5" }],
+  ]);
+  const of = (id: string) => periodNumber({ id, renewed_from: rows.get(id)!.renewed_from }, rows);
+
+  it("counts the chain of renewals, the first being period 1", () => {
+    expect([of("care_AAAAAAAAAAA1"), of("care_AAAAAAAAAAA2"), of("care_AAAAAAAAAAA3")]).toEqual([1, 2, 3]);
+  });
+
+  it("stops at an ancestor that is not among the rows, and at a cycle", () => {
+    expect(of("care_AAAAAAAAAAA4")).toBe(1);
+    expect(of("care_AAAAAAAAAAA5")).toBe(2);
   });
 });

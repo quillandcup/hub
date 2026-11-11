@@ -11,7 +11,13 @@ import { createInMemoryRepos } from "@/lib/data/repos";
 import { COMMUNITY_MANAGER_FEATURES, type StaffFeature } from "@/lib/staff-access";
 import { ADMIN_USER, MEMBER_USER, expectRedirect, renderServerRoute, resetServerPageMocks, signInAs } from "@/tests/helpers/server-page";
 
-vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
+// The page's own search params are the address bar's, so the owner filter can be read from and written to the URL.
+vi.mock("next/navigation", async () => ({
+  ...(await import("@/tests/helpers/server-page")).nextNavigationModule,
+  useSearchParams: () => new URLSearchParams(window.location.search),
+}));
+// The service-role client is only handed to createRepos, which this file replaces.
+vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
 const preview = vi.hoisted(() => ({ role: null as string | null }));
@@ -32,6 +38,7 @@ const actions = vi.hoisted(() => ({
   updateEngagement: vi.fn(),
   closeEngagement: vi.fn(),
   renewEngagement: vi.fn(),
+  reassignEngagement: vi.fn(),
   deleteEngagement: vi.fn(),
   getEngagementResults: vi.fn(),
   searchCareMembers: vi.fn(),
@@ -41,10 +48,10 @@ vi.mock("@/app/(admin)/admin/care/actions", () => actions);
 import CareIndex from "@/app/(admin)/admin/care/page";
 import CareEarlierPage from "@/app/(admin)/admin/care/earlier/page";
 
+const CM_USER = { id: "user-community-manager", email: "cm@example.test" };
 const activePage = () => CareIndex({ searchParams: Promise.resolve({}) } as never);
 const earlierPage = () => CareEarlierPage();
 
-const CM_USER = { id: "user-community-manager", email: "cm@example.test" };
 const NOW = Date.parse("2026-03-20T12:00:00.000Z");
 const ago = (days: number) => new Date(NOW - days * 86_400_000).toISOString();
 
@@ -52,6 +59,7 @@ const row = (id: string, member: string, over: Record<string, unknown> = {}) => 
   id,
   member_id: member,
   opened_by: null,
+  owned_by: CM_USER.id,
   reason: "check_in",
   channel: "slack_dm",
   opened_at: ago(10),
@@ -80,6 +88,8 @@ function seed() {
       { id: ADA, name: "Ada Example", displayName: "Ada E.", email: "ada@example.test" },
       { id: BO, name: "Bo Example", email: "bo@example.test" },
       { id: CY, name: "Cy Example", email: "cy@example.test" },
+      { id: "mbr_AAAAAAAAAAA8", name: "Cam Manager", email: "cam@example.test", userId: CM_USER.id },
+      { id: "mbr_AAAAAAAAAAA9", name: "Abe Admin", email: "abe@example.test", userId: ADMIN_USER.id },
     ],
     userProfiles: [
       { id: ADMIN_USER.id, email: ADMIN_USER.email!, role: "admin" },
@@ -88,16 +98,26 @@ function seed() {
     ],
   });
   dataset.careEngagements.push(
-    row("care_AAAAAAAAAAA1", BO, { last_staff_message_at: ago(2) }), // waiting on them
+    row("care_AAAAAAAAAAA1", BO, { last_staff_message_at: ago(2), owned_by: ADMIN_USER.id }), // waiting on them
     row("care_AAAAAAAAAAA2", ADA, { channel: "email", last_staff_message_at: ago(5), last_member_message_at: ago(1), next_step: "Ask about chapter two", follow_up_on: "2026-03-19", notes: "Mentioned her draft." }), // needs a reply, follow-up overdue
     row("care_AAAAAAAAAAA3", CY, { opened_at: ago(60), last_staff_message_at: ago(40) }), // gone quiet
     row("care_AAAAAAAAAAA4", CY, { channel: "email", closed_at: ago(3), ended_how: "back_in_community" }), // closed lately
     row("care_AAAAAAAAAAA5", BO, { channel: "email", closed_at: ago(90), ended_how: "no_reply" }), // closed long ago
     row("care_AAAAAAAAAAA6", BO, { channel: "prickle", deleted_at: ago(1) }), // removed: not listed
     row("care_AAAAAAAAAAA7", ADA, { period_ends_on: "2026-03-15", last_staff_message_at: ago(8) }), // period over, inside the grace: review due
-    row("care_AAAAAAAAAAA8", CY, { channel: "prickle", period_ends_on: "2026-02-01", opened_at: ago(60), last_staff_message_at: ago(55) }), // lapsed
+    row("care_AAAAAAAAAAA8", CY, { owned_by: ADMIN_USER.id, channel: "prickle", period_ends_on: "2026-02-01", opened_at: ago(60), last_staff_message_at: ago(55) }), // lapsed
   );
 }
+
+const RESULTS = (() => {
+  const window = (name: "before" | "during" | "after", state: "complete" | "so_far" | "not_yet") => ({ name, from: "2026-02-01T05:00:00.000Z", to: "2026-03-01T05:00:00.000Z", state });
+  const counts = (n: number) => ({ pricklesAttended: n, slackMessages: n + 1, firstPrickle: n === 2, firstSlackPost: false, peopleConnected: n + 2, membershipAtEnd: n === 2 ? "on_hiatus" : "member", programsStarted: n === 2 ? ["Example Program"] : [] });
+  return {
+    before: { window: window("before", "complete"), counts: counts(1) },
+    during: { window: window("during", "so_far"), counts: counts(2) },
+    after: { window: window("after", "not_yet"), counts: null },
+  };
+})();
 
 // Pinned "now" for the page (lib/clock reads Date) and for the browser's own timing of a close.
 beforeEach(() => {
@@ -111,14 +131,20 @@ beforeEach(() => {
   actions.updateEngagement.mockResolvedValue({ success: true });
   actions.closeEngagement.mockResolvedValue({ success: true });
   actions.renewEngagement.mockResolvedValue({ success: true });
+  actions.reassignEngagement.mockResolvedValue({ success: true });
+  actions.getEngagementResults.mockResolvedValue({ results: RESULTS });
   actions.deleteEngagement.mockResolvedValue({ success: true });
   actions.searchCareMembers.mockResolvedValue([{ id: BO, name: "Bo Example", detail: "bo@example.test" }]);
   track.mockClear();
   seed();
 });
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  window.history.replaceState(null, "", "/");
+});
 
-const cards = () => screen.getAllByRole("listitem");
+// The owner chips are list items too; a card is the one with a link to the member.
+const cards = () => screen.getAllByRole("listitem").filter((li) => li.querySelector("a[href^='/admin/members/']"));
 
 describe("the Active tab", () => {
   it("lists what needs her reply first, then review due, gone quiet and waiting, and nothing that has ended", async () => {
@@ -156,9 +182,11 @@ describe("the Active tab", () => {
     expect(within(ada).getByText(/· Follow up \w+/)).toBeInTheDocument();
     expect(within(ada).getByText("Next: Ask about chapter two")).toBeInTheDocument();
     expect(within(ada).getByText("Mentioned her draft.")).toBeInTheDocument();
-    expect(within(ada).getByText("A check-in · Email")).toBeInTheDocument();
+    expect(within(ada).getByText("A check-in · Email · Period 1")).toBeInTheDocument();
+    expect(within(ada).getByText("Owner: Cam Manager")).toBeInTheDocument();
+    expect(within(cards()[3]).getByText("Owner: Abe Admin")).toBeInTheDocument();
     expect(within(cards()[3]).getByText(/You wrote 2 days ago/)).toBeInTheDocument();
-    expect(within(cards()[1]).getByText("The period is over. Renew it to keep going, or close it.")).toBeInTheDocument();
+    expect(within(cards()[1]).getByText("The period is over. Renew it if there is a plan, or close it.")).toBeInTheDocument();
     expect(within(cards()[1]).getByText(/Period ended/)).toBeInTheDocument();
   });
 
@@ -239,7 +267,7 @@ describe("the Earlier tab", () => {
     signInAs(CM_USER);
     await renderServerRoute(earlierPage, undefined as never);
 
-    expect(screen.getByRole("tab", { name: "Earlier" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Earlier (1 lapsed)" })).toHaveAttribute("aria-selected", "true");
     expect(cards()).toHaveLength(3);
     expect(within(cards()[0]).getByText("Closed")).toBeInTheDocument();
     expect(within(cards()[0]).getByText(/Back in the community, closed 3 days ago/)).toBeInTheDocument();
@@ -312,23 +340,47 @@ describe("the controls", () => {
     expect(track).not.toHaveBeenCalled();
   });
 
-  it("renews, and reports it with how many days the period had run", async () => {
+  it("asks why before renewing, shows the results at that moment, then renews with the reason and reports it", async () => {
     const user = await open();
+    const ada = cards()[0];
 
-    await user.click(within(cards()[0]).getByRole("button", { name: "Renew" }));
+    await user.click(within(ada).getByRole("button", { name: "Renew" }));
+    expect(await within(ada).findByRole("table")).toBeInTheDocument(); // the measured results, loaded for the decision
+    expect(actions.getEngagementResults).toHaveBeenCalledWith("care_AAAAAAAAAAA2");
+    expect(actions.renewEngagement).not.toHaveBeenCalled();
 
-    expect(actions.renewEngagement).toHaveBeenCalledWith("care_AAAAAAAAAAA2");
+    await user.click(within(ada).getByRole("button", { name: "Renew engagement" }));
+    expect(within(ada).getByRole("alert")).toHaveTextContent("Say why you are renewing");
+    expect(actions.renewEngagement).not.toHaveBeenCalled();
+
+    await user.type(within(ada).getByLabelText("Why renew? What is the plan?"), "A writing sprint in April");
+    await user.click(within(ada).getByRole("button", { name: "Renew engagement" }));
+
+    expect(actions.renewEngagement).toHaveBeenCalledWith("care_AAAAAAAAAAA2", "A writing sprint in April");
     await waitFor(() => expect(track).toHaveBeenCalledWith("care_engagement_renewed", { days_open: 10 }));
   });
 
   it("shows why a renewal was refused and does not report it", async () => {
     actions.renewEngagement.mockResolvedValue({ error: "That engagement is already renewed, closed or gone. Refresh the list." });
     const user = await open();
+    const ada = cards()[0];
 
-    await user.click(within(cards()[0]).getByRole("button", { name: "Renew" }));
+    await user.click(within(ada).getByRole("button", { name: "Renew" }));
+    await user.type(within(ada).getByLabelText("Why renew? What is the plan?"), "A plan");
+    await user.click(within(ada).getByRole("button", { name: "Renew engagement" }));
 
-    expect(await within(cards()[0]).findByRole("alert")).toHaveTextContent("already renewed");
+    expect(await within(ada).findByRole("alert")).toHaveTextContent("already renewed");
     expect(track).not.toHaveBeenCalled();
+  });
+
+  it("renews one whose period is over, from the Active tab (review due) and from Earlier (lapsed)", async () => {
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+    const user = userEvent.setup();
+    const reviewDue = cards()[1];
+    expect(within(reviewDue).getByText("Review due")).toBeInTheDocument();
+    await user.click(within(reviewDue).getByRole("button", { name: "Renew" }));
+    expect(within(reviewDue).getByLabelText("Why renew? What is the plan?")).toBeInTheDocument();
   });
 
   it("edits the reason, follow-up, next step and note", async () => {
@@ -348,20 +400,26 @@ describe("the controls", () => {
     await waitFor(() => expect(within(cards()[0]).queryByLabelText("Next step")).not.toBeInTheDocument());
   });
 
-  it("closes with how it ended, asking for one first, and never offers 'renewed'", async () => {
+  it("closes with how it ended, each ending explained, the results beside them, and never offers 'renewed'", async () => {
     const user = await open();
     const ada = cards()[0];
 
     await user.click(within(ada).getByRole("button", { name: "Close" }));
+    expect(await within(ada).findByRole("table")).toBeInTheDocument();
     await user.click(within(ada).getByRole("button", { name: "Close engagement" }));
     expect(within(ada).getByRole("alert")).toHaveTextContent("Pick how it ended.");
     expect(actions.closeEngagement).not.toHaveBeenCalled();
 
-    const options = within(within(ada).getByLabelText("How did it end?")).getAllByRole("option").map((o) => o.textContent);
-    expect(options).not.toContain("Renewed");
-    expect(options).toContain("Back in the community");
+    const labels = within(ada).getAllByRole("radio").map((r) => r.closest("label")?.textContent ?? "");
+    expect(labels).toHaveLength(4);
+    expect(labels.join(" ")).not.toContain("Renewed");
+    expect(labels[0]).toMatch(/^Handed to someone else.*not yours/);
+    expect(labels[1]).toMatch(/^No reply.*never answered/);
+    expect(labels[2]).toMatch(/^Back in the community.*took part again/);
+    expect(labels[3]).toMatch(/^Ran its course.*later check-in date/);
+    expect(within(ada).getByText(/If it is still alive and you have a plan, renew it instead/)).toBeInTheDocument();
 
-    await user.selectOptions(within(ada).getByLabelText("How did it end?"), "back_in_community");
+    await user.click(within(ada).getByRole("radio", { name: /Back in the community/ }));
     await user.click(within(ada).getByRole("button", { name: "Close engagement" }));
 
     expect(actions.closeEngagement).toHaveBeenCalledWith("care_AAAAAAAAAAA2", "back_in_community");
@@ -390,21 +448,7 @@ describe("the controls", () => {
 });
 
 describe("the results", () => {
-  const counts = (n: number) => ({ pricklesAttended: n, slackMessages: n + 1, firstPrickle: n === 2, firstSlackPost: false, peopleConnected: n + 2 });
-  const window = (name: "before" | "during" | "after", state: "complete" | "so_far" | "not_yet") => ({
-    name,
-    from: "2026-02-01T05:00:00.000Z",
-    to: "2026-03-01T05:00:00.000Z",
-    state,
-  });
-  const results = {
-    before: { window: window("before", "complete"), counts: counts(1) },
-    during: { window: window("during", "so_far"), counts: counts(2) },
-    after: { window: window("after", "not_yet"), counts: null },
-  };
-
-  it("loads on request, shows the three windows and the honest limits, and loads once", async () => {
-    actions.getEngagementResults.mockResolvedValue({ results });
+  it("loads on request, shows the windows with membership and programs and the honest limits, and loads once", async () => {
     signInAs(CM_USER);
     await renderServerRoute(activePage, undefined as never);
     const user = userEvent.setup();
@@ -418,11 +462,15 @@ describe("the results", () => {
     const rows = within(ada).getAllByRole("row");
     expect(rows).toHaveLength(4); // header and three windows
     expect(within(rows[1]).getByText("Before")).toBeInTheDocument();
+    expect(within(rows[1]).getByText("Member")).toBeInTheDocument();
+    expect(within(rows[1]).getAllByText("None")).toHaveLength(2); // no firsts in the window, and no programs started
     expect(within(rows[2]).getByText(/so far/)).toBeInTheDocument();
     expect(within(rows[2]).getByText("first prickle")).toBeInTheDocument();
-    expect(within(rows[1]).getByText("None")).toBeInTheDocument();
+    expect(within(rows[2]).getByText("On hiatus")).toBeInTheDocument();
+    expect(within(rows[2]).getByText("Example Program")).toBeInTheDocument();
     expect(within(rows[3]).getByText("Not yet")).toBeInTheDocument();
     expect(within(ada).getByText(/read each one as a story, not a score/)).toBeInTheDocument();
+    expect(within(ada).getByText(/do not show the outreach caused it/)).toBeInTheDocument();
 
     await user.click(within(ada).getByRole("button", { name: "Results" }));
     expect(within(ada).queryByRole("table")).not.toBeInTheDocument();
@@ -450,6 +498,14 @@ describe("starting an engagement", () => {
     return userEvent.setup();
   };
 
+  it("explains each reason in a line, so two people pick the same one", async () => {
+    await open();
+    const radios = screen.getAllByRole("radio", { name: /.+/ }).filter((r) => (r as HTMLInputElement).name === "care-reason");
+    expect(radios).toHaveLength(6);
+    expect(screen.getByText("You are saying hello to someone you have not spoken with yet.")).toBeInTheDocument();
+    expect(screen.getByText("You are asking how their writing is going.")).toBeInTheDocument();
+  });
+
   it("asks for a member first, then a reason", async () => {
     const user = await open();
 
@@ -463,7 +519,7 @@ describe("starting an engagement", () => {
 
     await user.type(screen.getByRole("combobox", { name: "Member" }), "bo");
     await user.click(await screen.findByRole("option", { name: /Bo Example/ }));
-    await user.selectOptions(screen.getByLabelText("Why you are reaching out"), "welcome");
+    await user.click(screen.getByRole("radio", { name: /A welcome/ }));
     await user.selectOptions(screen.getByLabelText("Where"), "email");
     await user.click(screen.getByLabelText("They wrote to me first"));
     await user.type(screen.getByLabelText("Note"), "Joined last week");
@@ -480,12 +536,168 @@ describe("starting an engagement", () => {
 
     await user.type(screen.getByRole("combobox", { name: "Member" }), "bo");
     await user.click(await screen.findByRole("option", { name: /Bo Example/ }));
-    await user.selectOptions(screen.getByLabelText("Why you are reaching out"), "introduction");
+    await user.click(screen.getByRole("radio", { name: /An introduction/ }));
     await user.type(screen.getByLabelText("Note"), "Hi there");
     await user.click(screen.getByRole("button", { name: "Start engagement" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("already an open engagement");
     expect(screen.getByLabelText("Note")).toHaveValue("Hi there");
     expect(track).not.toHaveBeenCalled();
+  });
+});
+
+describe("what is overdue", () => {
+  it("shows the lapsed and review due counts and whose they are, to anyone who opens the page", async () => {
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+
+    const overdue = screen.getByRole("region", { name: "Overdue" });
+    expect(within(overdue).getByRole("link", { name: "Lapsed: 1" })).toHaveAttribute("href", "/admin/care/earlier");
+    expect(within(overdue).getByRole("link", { name: "Review due: 1" })).toHaveAttribute("href", "/admin/care");
+    const rows = within(within(overdue).getByRole("table")).getAllByRole("row");
+    expect(rows).toHaveLength(3); // header, the owner of the lapsed one first, then the owner of the review due one
+    expect(within(rows[1]).getByText("Abe Admin")).toBeInTheDocument();
+    expect(within(rows[2]).getByText("Cam Manager")).toBeInTheDocument();
+  });
+
+  it("says nothing is overdue, with no table, when nothing is", async () => {
+    dataset.careEngagements.length = 0;
+    signInAs(ADMIN_USER);
+    await renderServerRoute(activePage, undefined as never);
+    const overdue = screen.getByRole("region", { name: "Overdue" });
+    expect(within(overdue).getByText("Nothing is overdue.")).toBeInTheDocument();
+    expect(within(overdue).queryByRole("table")).not.toBeInTheDocument();
+  });
+
+  it("marks a lapsed engagement and offers it a renewal from Earlier, and narrows Earlier to lapsed or closed", async () => {
+    signInAs(CM_USER);
+    await renderServerRoute(earlierPage, undefined as never);
+    const user = userEvent.setup();
+
+    expect(screen.getByRole("button", { name: "All (3)" })).toHaveAttribute("aria-pressed", "true");
+    await user.click(screen.getByRole("button", { name: "Lapsed (1)" }));
+    expect(cards()).toHaveLength(1);
+    expect(within(cards()[0]).getByText("Lapsed")).toBeInTheDocument();
+    expect(within(cards()[0]).getByText(/nobody renewed or closed it/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Closed (2)" }));
+    expect(cards()).toHaveLength(2);
+  });
+});
+
+describe("the owner filter", () => {
+  it("narrows to Mine and back to Everyone, counts shown beside each owner's avatar, and writes the choice to the address", async () => {
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+    const user = userEvent.setup();
+
+    expect(cards()).toHaveLength(4);
+    await user.click(screen.getByRole("button", { name: "Mine" }));
+    expect(cards().map((c) => within(c).getAllByRole("link")[0].textContent)).toEqual(["Ada E.", "Ada E.", "Cy Example"]);
+    expect(window.location.search).toBe("?owner=me");
+    expect(screen.getByRole("button", { name: "All (3)" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Everyone" }));
+    expect(cards()).toHaveLength(4);
+    expect(window.location.search).toBe("");
+  });
+
+  it("shows one avatar chip per owner with their count, and a click filters to them and a second click clears it", async () => {
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+    const user = userEvent.setup();
+
+    const owners = within(screen.getByRole("list", { name: "Owners" }));
+    expect(owners.getAllByRole("button")).toHaveLength(2);
+    await user.click(owners.getByRole("button", { name: "Abe Admin, 1" }));
+    expect(cards()).toHaveLength(1);
+    expect(within(cards()[0]).getByText("Owner: Abe Admin")).toBeInTheDocument();
+    expect(window.location.search).toBe(`?owner=${ADMIN_USER.id}`);
+    expect(owners.getByRole("button", { name: "Abe Admin, 1" })).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(owners.getByRole("button", { name: "Abe Admin, 1" }));
+    expect(cards()).toHaveLength(4);
+  });
+
+  it("finds an owner by name in the search, and clears with the search emptied", async () => {
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+    const user = userEvent.setup();
+
+    await user.type(screen.getByRole("combobox", { name: "Find an owner" }), "abe");
+    await user.click(await screen.findByRole("option", { name: /Abe Admin/ }));
+    expect(cards()).toHaveLength(1);
+    expect(window.location.search).toBe(`?owner=${ADMIN_USER.id}`);
+  });
+
+  it("starts from the owner in the address, so a reload or a shared link lands on it", async () => {
+    window.history.replaceState(null, "", `/admin/care?owner=${CM_USER.id}`);
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+    expect(cards()).toHaveLength(3);
+    expect(screen.getByRole("button", { name: "Cam Manager, 3" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("can show the engagements nobody owns", async () => {
+    dataset.careEngagements[0].owned_by = null;
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+    const user = userEvent.setup();
+
+    await user.click(within(screen.getByRole("list", { name: "Owners" })).getByRole("button", { name: "Unassigned, 1" }));
+    expect(cards()).toHaveLength(1);
+    expect(within(cards()[0]).getByText("Owner: Unassigned")).toBeInTheDocument();
+    expect(window.location.search).toBe("?owner=unassigned");
+  });
+
+  it("filters Earlier on its own, the same way", async () => {
+    signInAs(CM_USER);
+    await renderServerRoute(earlierPage, undefined as never);
+    const user = userEvent.setup();
+
+    expect(cards()).toHaveLength(3);
+    await user.click(screen.getByRole("button", { name: "Mine" }));
+    expect(cards()).toHaveLength(2); // the lapsed one is Abe's
+  });
+});
+
+describe("handing an engagement over", () => {
+  it("lists the team, hands it to the one picked and refreshes", async () => {
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+    const user = userEvent.setup();
+    const ada = cards()[0];
+
+    await user.click(within(ada).getByRole("button", { name: "Reassign" }));
+    await user.click(within(ada).getByRole("combobox", { name: "Hand it to" }));
+    await user.click(await within(ada).findByRole("option", { name: /Abe Admin/ }));
+
+    expect(actions.reassignEngagement).toHaveBeenCalledWith("care_AAAAAAAAAAA2", ADMIN_USER.id);
+  });
+
+  it("shows the refusal from the server", async () => {
+    actions.reassignEngagement.mockResolvedValue({ error: "Pick someone on the team." });
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+    const user = userEvent.setup();
+    const ada = cards()[0];
+
+    await user.click(within(ada).getByRole("button", { name: "Reassign" }));
+    await user.click(within(ada).getByRole("combobox", { name: "Hand it to" }));
+    await user.click(await within(ada).findByRole("option", { name: /Abe Admin/ }));
+
+    expect(await within(ada).findByRole("alert")).toHaveTextContent("Pick someone on the team.");
+  });
+
+  it("does not offer the current owner", async () => {
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+    const user = userEvent.setup();
+    const ada = cards()[0]; // Cam's
+
+    await user.click(within(ada).getByRole("button", { name: "Reassign" }));
+    await user.click(within(ada).getByRole("combobox", { name: "Hand it to" }));
+    expect(await within(ada).findByRole("option", { name: /Abe Admin/ })).toBeInTheDocument();
+    expect(within(ada).queryByRole("option", { name: /Cam Manager/ })).not.toBeInTheDocument();
+    expect(actions.reassignEngagement).not.toHaveBeenCalled();
   });
 });

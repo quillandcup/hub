@@ -2085,6 +2085,7 @@ export type Database = {
           notes: string | null
           opened_at: string
           opened_by: string | null
+          owned_by: string | null
           period_ends_on: string
           reason: string
           renewed_from: string | null
@@ -2105,6 +2106,7 @@ export type Database = {
           notes?: string | null
           opened_at?: string
           opened_by?: string | null
+          owned_by?: string | null
           period_ends_on: string
           reason: string
           renewed_from?: string | null
@@ -2125,6 +2127,7 @@ export type Database = {
           notes?: string | null
           opened_at?: string
           opened_by?: string | null
+          owned_by?: string | null
           period_ends_on?: string
           reason?: string
           renewed_from?: string | null
@@ -7672,6 +7675,7 @@ export type Database = {
         Args: {
           p_at: string
           p_id: string
+          p_notes: string
           p_opened_by: string
           p_period_ends_on: string
         }
@@ -7690,6 +7694,7 @@ export type Database = {
           notes: string | null
           opened_at: string
           opened_by: string | null
+          owned_by: string | null
           period_ends_on: string
           reason: string
           renewed_from: string | null

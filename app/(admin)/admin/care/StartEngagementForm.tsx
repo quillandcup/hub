@@ -9,6 +9,7 @@ import {
   CARE_CHANNEL_LABELS,
   CARE_NOTES_MAX,
   CARE_REASONS,
+  CARE_REASON_HELP,
   CARE_REASON_LABELS,
   isCareChannel,
   isCareReason,
@@ -65,19 +66,20 @@ export default function StartEngagementForm() {
             emptyText="No one found."
           />
         </div>
-        <div>
-          <label htmlFor="care-reason" className={LABEL}>
-            Why you are reaching out
-          </label>
-          <select id="care-reason" value={reason} onChange={(e) => setReason(e.target.value)} className={FIELD}>
-            <option value="">Pick one</option>
+        <fieldset className="@pair:col-span-2">
+          <legend className={LABEL}>Why you are reaching out</legend>
+          <div className="space-y-2">
             {CARE_REASONS.map((r) => (
-              <option key={r} value={r}>
-                {CARE_REASON_LABELS[r]}
-              </option>
+              <label key={r} className="flex items-start gap-2 text-sm">
+                <input type="radio" name="care-reason" value={r} checked={reason === r} onChange={() => setReason(r)} className="mt-1" />
+                <span>
+                  <span className="font-medium">{CARE_REASON_LABELS[r]}</span>
+                  <span className="block text-slate-600 dark:text-slate-400">{CARE_REASON_HELP[r]}</span>
+                </span>
+              </label>
             ))}
-          </select>
-        </div>
+          </div>
+        </fieldset>
         <div>
           <label htmlFor="care-channel" className={LABEL}>
             Where

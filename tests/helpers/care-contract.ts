@@ -7,6 +7,8 @@ export type CareContractContext = {
   members: readonly { id: string; name: string }[];
   /** The staff account that opens engagements (an auth user id), or null for none. */
   openedBy: string | null;
+  /** A second staff account, to hand engagements to; null when the context has none (every owner then is `openedBy`). */
+  otherOwner: string | null;
   /** An engagement id nothing has. */
   missingId: string;
   /** Removes every engagement of the three members. */
@@ -42,7 +44,7 @@ export function defineCareContract(name: string, setup: () => CareContractContex
       if (!result.ok) throw new Error("expected the engagement to open");
       return result.engagement;
     };
-    const renewInput = { periodEndsOn: "2026-05-01", at: "2026-04-02T12:00:00.000Z" };
+    const renewInput = { periodEndsOn: "2026-05-01", at: "2026-04-02T12:00:00.000Z", reason: "she answered and we have a plan" };
 
     describe("opening", () => {
       it("opens an engagement she started: open, with her message at the start and the period's last day", async () => {
@@ -53,6 +55,7 @@ export function defineCareContract(name: string, setup: () => CareContractContex
           reason: "check_in",
           channel: "slack_dm",
           opened_by: ctx.openedBy,
+          owned_by: ctx.openedBy,
           period_ends_on: "2026-03-31",
           renewed_from: null,
           closed_at: null,
@@ -112,7 +115,7 @@ export function defineCareContract(name: string, setup: () => CareContractContex
     });
 
     describe("renewing", () => {
-      it("closes the period as renewed and opens the next one, linked, keeping reason, channel and who spoke last", async () => {
+      it("closes the period as renewed and opens the next one, linked, keeping reason, channel, owner and who spoke last, with why as its note", async () => {
         const first = await opened(ada, { notes: "first period", nextStep: "write back", followUpOn: "2026-03-08" });
         await ctx.repo().logMessage(first.id, "member", "2026-03-20T10:00:00.000Z");
 
@@ -126,11 +129,12 @@ export function defineCareContract(name: string, setup: () => CareContractContex
           reason: "check_in",
           channel: "slack_dm",
           opened_by: ctx.openedBy,
+          owned_by: ctx.openedBy,
           period_ends_on: "2026-05-01",
           renewed_from: first.id,
           closed_at: null,
           ended_how: null,
-          notes: null,
+          notes: "she answered and we have a plan",
           next_step: null,
           follow_up_on: null,
           deleted_at: null,
@@ -176,9 +180,51 @@ export function defineCareContract(name: string, setup: () => CareContractContex
         const first = await opened(ada);
         const second = await ctx.repo().renew(first.id, { ...renewInput, openedBy: ctx.openedBy });
         if (!second.ok) throw new Error("unreachable");
-        const third = await ctx.repo().renew(second.engagement.id, { periodEndsOn: "2026-06-01", at: "2026-05-02T12:00:00.000Z", openedBy: ctx.openedBy });
+        const third = await ctx.repo().renew(second.engagement.id, { ...renewInput, periodEndsOn: "2026-06-01", at: "2026-05-02T12:00:00.000Z", openedBy: ctx.openedBy });
 
         expect(third).toMatchObject({ ok: true, engagement: { renewed_from: second.engagement.id, period_ends_on: "2026-06-01" } });
+      });
+    });
+
+    describe("owners", () => {
+      it("gives an engagement to whoever is named, or to whoever opened it, and a renewal keeps the owner", async () => {
+        const other = ctx.otherOwner ?? ctx.openedBy;
+        const own = await opened(ada);
+        expect(own.owned_by).toBe(ctx.openedBy);
+
+        const named = await opened(bo, { ownedBy: other });
+        expect(named.owned_by).toBe(other);
+
+        const renewed = await ctx.repo().renew(named.id, { ...renewInput, openedBy: ctx.openedBy });
+        if (!renewed.ok) throw new Error("unreachable");
+        expect(renewed.engagement.owned_by).toBe(other);
+
+        const unowned = await opened(cy, { ownedBy: null });
+        expect(unowned.owned_by).toBeNull();
+      });
+
+      it("reassigns an open or a closed engagement, and answers null for one that is gone", async () => {
+        const other = ctx.otherOwner ?? ctx.openedBy;
+        const c = await opened(ada);
+
+        expect(await ctx.repo().reassign(c.id, other)).toMatchObject({ id: c.id, owned_by: other });
+        expect((await ctx.repo().byId(c.id))?.owned_by).toBe(other);
+
+        await ctx.repo().close(c.id, "ran_its_course", "2026-03-09T09:00:00.000Z");
+        expect(await ctx.repo().reassign(c.id, ctx.openedBy)).toMatchObject({ owned_by: ctx.openedBy, ended_how: "ran_its_course" });
+
+        expect(await ctx.repo().reassign(ctx.missingId, other)).toBeNull();
+        await ctx.repo().softDelete(c.id, "2026-03-10T09:00:00.000Z");
+        expect(await ctx.repo().reassign(c.id, other)).toBeNull();
+      });
+    });
+
+    describe("renewing needs a reason that fits", () => {
+      it("refuses a reason over the note's limit and leaves the engagement open", async () => {
+        const first = await opened(ada);
+        await expect(ctx.repo().renew(first.id, { ...renewInput, reason: "x".repeat(1001), openedBy: ctx.openedBy })).rejects.toThrow();
+        expect((await ctx.repo().byId(first.id))?.closed_at).toBeNull();
+        expect(await ctx.repo().forMember(id(ada))).toHaveLength(1);
       });
     });
 

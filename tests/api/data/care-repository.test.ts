@@ -11,15 +11,18 @@ const RUN = `${Date.now()}`;
 
 let members: PeopleMember[] = [];
 let userId = "";
+let otherUserId = "";
 
 beforeAll(async () => {
   members = await createRunMembers(db, "care-repo", RUN, 3);
   userId = await createRunUser(admin, "care-repo-user", RUN);
+  otherUserId = await createRunUser(admin, "care-repo-other", RUN);
 });
 
 afterAll(async () => {
   await deleteRunMembers(db, members); // cascades to their engagements
   if (userId) await admin.auth.admin.deleteUser(userId);
+  if (otherUserId) await admin.auth.admin.deleteUser(otherUserId);
 });
 
 defineCareContract("SupabaseCareRepository", () => ({
@@ -29,6 +32,9 @@ defineCareContract("SupabaseCareRepository", () => ({
   },
   get openedBy() {
     return userId;
+  },
+  get otherOwner() {
+    return otherUserId;
   },
   missingId: "care_ZZZZZZZZZZZZ",
   clear: async () => {

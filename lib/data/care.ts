@@ -29,6 +29,8 @@ export type NewCareEngagement = {
   periodEndsOn: string;
   /** The staff member's auth user id; null for an import or a system caller. */
   openedBy: string | null;
+  /** Who owns it: the owner of the member's latest engagement (the caller works that out), else, when not given, whoever opened it. */
+  ownedBy?: string | null;
   /** When it started; now when not given. */
   openedAt?: string;
   /** Who wrote the first message, which is the moment it was opened: she did, unless the member wrote to her first. */
@@ -43,8 +45,8 @@ export type OpenResult =
   | { ok: true; engagement: CareEngagementRow }
   | { ok: false; reason: "already_open"; engagement: CareEngagementRow };
 
-/** What renewing takes: the next period's last day, who is renewing and when. */
-export type RenewInput = { periodEndsOn: string; openedBy: string | null; at: string };
+/** What renewing takes: the next period's last day, who is renewing, when, and why (it becomes the new period's note). The owner stays. */
+export type RenewInput = { periodEndsOn: string; openedBy: string | null; at: string; reason: string };
 
 /** Renewing answers with the new period, or `not_open` when the engagement was already closed, renewed or removed (a second click). */
 export type RenewResult = { ok: true; engagement: CareEngagementRow } | { ok: false; reason: "not_open" };
@@ -88,6 +90,8 @@ export interface CareRepository {
   close(id: string, endedHow: string, at: string): Promise<CareEngagementRow | null>;
   /** Marks an engagement deleted. False when there is none. */
   softDelete(id: string, at: string): Promise<boolean>;
+  /** Gives an engagement (open or closed) to another staff user, or to nobody. The engagement, or null when there is none. The caller checks the user is staff. */
+  reassign(id: string, ownedBy: string | null): Promise<CareEngagementRow | null>;
 }
 
 const UNIQUE_VIOLATION = "23505";
@@ -108,6 +112,7 @@ function insertOf(c: NewCareEngagement) {
     reason: c.reason,
     channel: c.channel,
     opened_by: c.openedBy,
+    owned_by: c.ownedBy === undefined ? c.openedBy : c.ownedBy,
     opened_at: openedAt,
     period_ends_on: c.periodEndsOn,
     last_staff_message_at: memberWroteFirst ? null : openedAt,
@@ -185,6 +190,7 @@ export class SupabaseCareRepository implements CareRepository {
       // The function takes a uuid; null (an import or a system caller) is what the column allows.
       p_opened_by: input.openedBy as string,
       p_at: input.at,
+      p_notes: input.reason,
     });
     if (error) throw new Error(error.message);
     const next = data?.[0];
@@ -225,6 +231,12 @@ export class SupabaseCareRepository implements CareRepository {
       .is("deleted_at", null)
       .select("*")
       .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  async reassign(id: string, ownedBy: string | null) {
+    const { data, error } = await this.db.from("care_engagements").update({ owned_by: ownedBy }).eq("id", id).is("deleted_at", null).select("*").maybeSingle();
     if (error) throw new Error(error.message);
     return data;
   }
@@ -319,12 +331,14 @@ export class InMemoryCareRepository implements CareRepository {
     const previous = this.live().find((c) => c.id === id && c.closed_at === null);
     if (!previous) return { ok: false, reason: "not_open" };
     if (!DAY.test(input.periodEndsOn)) throw new Error("invalid input syntax for type date");
+    this.checkText(input.reason, null);
     const now = new Date().toISOString();
     Object.assign(previous, { closed_at: input.at, ended_how: "renewed", updated_at: now });
     const row: CareEngagementRow = {
       id: this.nextId(),
       member_id: previous.member_id,
       opened_by: input.openedBy,
+      owned_by: previous.owned_by,
       reason: previous.reason,
       channel: previous.channel,
       opened_at: input.at,
@@ -336,7 +350,7 @@ export class InMemoryCareRepository implements CareRepository {
       last_member_message_at: previous.last_member_message_at,
       follow_up_on: null,
       next_step: null,
-      notes: null,
+      notes: input.reason,
       deleted_at: null,
       created_at: now,
       updated_at: now,
@@ -369,6 +383,14 @@ export class InMemoryCareRepository implements CareRepository {
     const row = this.live().find((c) => c.id === id && c.closed_at === null);
     if (!row) return null;
     Object.assign(row, { closed_at: at, ended_how: endedHow, updated_at: new Date().toISOString() });
+    return { ...row };
+  }
+
+  async reassign(id: string, ownedBy: string | null) {
+    const row = this.live().find((c) => c.id === id);
+    if (!row) return null;
+    row.owned_by = ownedBy;
+    row.updated_at = new Date().toISOString();
     return { ...row };
   }
 

@@ -3,9 +3,13 @@ import { Tabs } from "@/components/Tabs";
 import type { StaffUser } from "@/lib/admin-auth";
 import { clock } from "@/lib/clock";
 import { careStatus, isActiveStatus, sortActive, sortEarlier } from "@/lib/care";
+import { loadCareOwners } from "@/lib/care-owners";
 import { createRepos } from "@/lib/data/repos";
+import { getServiceRepos } from "@/lib/data/server";
 import { staffCan } from "@/lib/staff-access";
 import { createClient } from "@/lib/supabase/server";
+import { careAttention } from "./attention";
+import CareAttention from "./CareAttention";
 import { toEngagementCard } from "./card";
 import { ActiveList, EarlierList } from "./CareLists";
 import StartEngagementForm from "./StartEngagementForm";
@@ -17,12 +21,18 @@ import { CARE_TAB_LABELS, CARE_TITLE, type CareTabId } from "./tabs";
  */
 export default async function CarePage({ tab, staff }: { tab: CareTabId; staff: StaffUser }) {
   const now = new Date(clock.now());
-  const rows = await createRepos(await createClient()).care.list({ includeClosed: true });
+  const repos = createRepos(await createClient());
+  // Who may own one: user_profiles is read with the service role (a community manager's own client can't read other
+  // users' profiles); only ids, names and roles are used.
+  const [rows, owners] = await Promise.all([repos.care.list({ includeClosed: true }), loadCareOwners(repos, getServiceRepos())]);
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  const options = { owners, byId };
   const active = sortActive(
     rows.filter((row) => isActiveStatus(careStatus(row, now))),
     now
-  ).map((row) => toEngagementCard(row, now));
-  const earlier = sortEarlier(rows.filter((row) => !isActiveStatus(careStatus(row, now)))).map((row) => toEngagementCard(row, now));
+  ).map((row) => toEngagementCard(row, now, options));
+  const earlier = sortEarlier(rows.filter((row) => !isActiveStatus(careStatus(row, now)))).map((row) => toEngagementCard(row, now, options));
+  const attention = careAttention([...active, ...earlier]);
   const canWrite = staffCan(staff.role, "care.write");
 
   return (
@@ -39,6 +49,7 @@ export default async function CarePage({ tab, staff }: { tab: CareTabId; staff: 
         </div>
       </header>
       <main className="container mx-auto px-6 py-8">
+        <CareAttention attention={attention} />
         <Tabs
           key={tab}
           initialTab={tab}
@@ -52,11 +63,16 @@ export default async function CarePage({ tab, staff }: { tab: CareTabId; staff: 
               content: (
                 <div className="space-y-6">
                   {canWrite && <StartEngagementForm />}
-                  <ActiveList cards={active} canWrite={canWrite} />
+                  <ActiveList cards={active} canWrite={canWrite} owners={owners} meId={staff.id} />
                 </div>
               ),
             },
-            { id: "earlier", label: CARE_TAB_LABELS.earlier, content: <EarlierList cards={earlier} canWrite={canWrite} /> },
+            {
+              id: "earlier",
+              label: attention.lapsed > 0 ? `${CARE_TAB_LABELS.earlier} (${attention.lapsed} lapsed)` : CARE_TAB_LABELS.earlier,
+              title: CARE_TAB_LABELS.earlier,
+              content: <EarlierList cards={earlier} canWrite={canWrite} owners={owners} meId={staff.id} />,
+            },
           ]}
         />
       </main>

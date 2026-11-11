@@ -14,6 +14,7 @@ const row = (over: Partial<CareEngagementWithMember> = {}): CareEngagementWithMe
   channel: "slack_dm",
   opened_at: ago(4),
   period_ends_on: "2026-04-15",
+  owned_by: "11111111-1111-4111-8111-111111111111",
   renewed_from: null,
   closed_at: null,
   ended_how: null,
@@ -54,9 +55,9 @@ describe("toEngagementCard", () => {
   });
 
   it("derives review due and lapsed from the period, and keeps needs_reply when the member wrote last", () => {
-    expect(toEngagementCard(row({ period_ends_on: "2026-03-19" }), NOW, settings).status).toBe("review_due");
-    expect(toEngagementCard(row({ period_ends_on: "2026-03-01" }), NOW, settings).status).toBe("lapsed");
-    expect(toEngagementCard(row({ period_ends_on: "2026-03-01", last_member_message_at: ago(1) }), NOW, settings).status).toBe("needs_reply");
+    expect(toEngagementCard(row({ period_ends_on: "2026-03-19" }), NOW, { settings }).status).toBe("review_due");
+    expect(toEngagementCard(row({ period_ends_on: "2026-03-01" }), NOW, { settings }).status).toBe("lapsed");
+    expect(toEngagementCard(row({ period_ends_on: "2026-03-01", last_member_message_at: ago(1) }), NOW, { settings }).status).toBe("needs_reply");
   });
 
   it("flags a follow-up that is due, but not on a closed engagement", () => {
@@ -65,7 +66,20 @@ describe("toEngagementCard", () => {
     expect(toEngagementCard(row({ follow_up_on: "2026-03-01", closed_at: ago(1), ended_how: "no_reply" }), NOW)).toMatchObject({ followUpDue: false, status: "closed", closedLabel: "yesterday", endedHow: "no_reply" });
   });
 
+  it("names the owner and counts which period of a chain it is", () => {
+    const owners = [{ id: "11111111-1111-4111-8111-111111111111", name: "Cam Manager", role: "community_manager" }];
+    const first = row({ id: "care_AAAAAAAAAAA1", renewed_from: null });
+    const second = row({ id: "care_AAAAAAAAAAA2", renewed_from: "care_AAAAAAAAAAA1" });
+    const third = row({ id: "care_AAAAAAAAAAA3", renewed_from: "care_AAAAAAAAAAA2", owned_by: null });
+    const byId = new Map([first, second, third].map((r) => [r.id, r]));
+
+    expect(toEngagementCard(first, NOW, { owners, byId })).toMatchObject({ ownerId: first.owned_by, ownerName: "Cam Manager", period: 1 });
+    expect(toEngagementCard(second, NOW, { owners, byId }).period).toBe(2);
+    expect(toEngagementCard(third, NOW, { owners, byId })).toMatchObject({ ownerId: null, ownerName: "Unassigned", period: 3 });
+    expect(toEngagementCard(first, NOW)).toMatchObject({ ownerName: "A staff member", period: 1 });
+  });
+
   it("takes the settings from the caller when given them", () => {
-    expect(toEngagementCard(row({ last_staff_message_at: ago(4) }), NOW, { ...settings, quietDays: 3 }).status).toBe("gone_quiet");
+    expect(toEngagementCard(row({ last_staff_message_at: ago(4) }), NOW, { settings: { ...settings, quietDays: 3 } }).status).toBe("gone_quiet");
   });
 });

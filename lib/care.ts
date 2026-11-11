@@ -212,7 +212,16 @@ export function careWindows(
   };
 }
 
-/** What was counted in one window. `null` where the window is `not_yet`. */
+/** Whether they were a member at the end of a window: derived from membership history, a member on hiatus is not gone. */
+export type CareMembership = "member" | "on_hiatus" | "not_a_member";
+
+export const CARE_MEMBERSHIP_LABELS: Record<CareMembership, string> = {
+  member: "Member",
+  on_hiatus: "On hiatus",
+  not_a_member: "Not a member",
+};
+
+/** What was counted in one window. `counts` is null where the window is `not_yet`. */
 export type CareWindowResult = {
   window: CareWindow;
   counts: {
@@ -225,7 +234,28 @@ export type CareWindowResult = {
     firstSlackPost: boolean;
     /** Distinct members they interacted with (DMs, thread replies, mentions, reactions), not counting staff. */
     peopleConnected: number;
+    /** Their membership at the end of the window (the end so far for one still running), from the membership history. */
+    membershipAtEnd: CareMembership;
+    /** The programs they were enrolled in from a start date inside the window (names). */
+    programsStarted: string[];
   } | null;
 };
 
 export type CareResults = Record<CareWindowName, CareWindowResult>;
+
+/**
+ * Which period of a chain of renewals this engagement is (the first is 1): one more than the number of engagements it was
+ * renewed from, followed through `renewed_from` among the rows given. An ancestor that was removed or is not among the rows
+ * ends the count there. Guards against a cycle.
+ */
+export function periodNumber(row: { id: string; renewed_from: string | null }, byId: ReadonlyMap<string, { renewed_from: string | null }>): number {
+  let n = 1;
+  const seen = new Set([row.id]);
+  let next = row.renewed_from;
+  while (next && !seen.has(next) && byId.has(next)) {
+    seen.add(next);
+    n += 1;
+    next = byId.get(next)!.renewed_from;
+  }
+  return n;
+}

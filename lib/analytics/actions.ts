@@ -100,6 +100,7 @@ export const OUTCOME_ACTIONS = [
   "care_engagement_updated",
   "care_engagement_closed",
   "care_engagement_renewed",
+  "care_engagement_reassigned",
   "care_engagement_deleted",
   // Onboarding
   "onboarding_started",

@@ -19,6 +19,10 @@ CREATE TABLE public.care_engagements (
   member_id text NOT NULL REFERENCES public.members(id) ON DELETE CASCADE,
   -- The staff member who opened it (Supabase Auth, so uuid). Null for an import or after the account is deleted.
   opened_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  -- Who owns it now (Supabase Auth, so uuid; admin or community manager, checked by the app, which is why there is no
+  -- constraint here). A new engagement takes the owner of the member's latest one, else the person who opened it; a renewal
+  -- keeps it. Reassigning is an UPDATE, so the audit log shows it as a change of this column.
+  owned_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   reason text NOT NULL CHECK (reason IN ('introduction', 'welcome', 'check_in', 'writing_check_in', 'encouragement', 'other')),
   channel text NOT NULL CHECK (channel IN ('slack_dm', 'prickle', 'email', 'other')),
   opened_at timestamptz NOT NULL DEFAULT now(),
@@ -29,7 +33,7 @@ CREATE TABLE public.care_engagements (
   renewed_from text REFERENCES public.care_engagements(id) ON DELETE SET NULL,
   closed_at timestamptz,
   -- Her own read of how it went; null while open, always set once closed. 'renewed' only by renewing.
-  ended_how text CHECK (ended_how IN ('back_in_community', 'friendly_contact', 'no_reply', 'asked_not_to_contact', 'handed_off', 'ran_its_course', 'renewed')),
+  ended_how text CHECK (ended_how IN ('back_in_community', 'no_reply', 'handed_off', 'ran_its_course', 'renewed')),
   last_staff_message_at timestamptz,
   last_member_message_at timestamptz,
   follow_up_on date,
@@ -43,6 +47,7 @@ CREATE TABLE public.care_engagements (
 
 COMMENT ON TABLE public.care_engagements IS
   'LOCAL: Hedgie Care, a staff member''s reach-out to one member for one period (an engagement). The status (needs reply, waiting, gone quiet, review due, lapsed) is derived in lib/care.ts from the dates and from who spoke last (last_staff_message_at / last_member_message_at, logged by hand, later derived from Slack DMs and email), never stored. renewed_from links a renewal to the engagement it continues. One open engagement per member and channel. Soft delete (deleted_at). Staff only (admin and community manager). Not reprocessed. Tier 2: the id is never shown in a URL or export. [id prefix: care_]';
+COMMENT ON COLUMN public.care_engagements.owned_by IS 'The staff user who owns it (admin or community manager, checked by the app). Several people may own engagements.';
 COMMENT ON COLUMN public.care_engagements.notes IS 'Short and light: no sensitive detail about the member.';
 COMMENT ON COLUMN public.care_engagements.ended_how IS 'How it ended in her own words; null while open. Set together with closed_at.';
 COMMENT ON COLUMN public.care_engagements.period_ends_on IS 'Last day of the period, an organization-timezone calendar date (length from app.config.ts careEngagementDays).';
@@ -53,6 +58,7 @@ CREATE UNIQUE INDEX care_engagements_one_open_per_member_channel
   WHERE closed_at IS NULL AND deleted_at IS NULL;
 CREATE INDEX care_engagements_member_id_opened_at_idx ON public.care_engagements (member_id, opened_at DESC);
 CREATE INDEX care_engagements_open_idx ON public.care_engagements (period_ends_on) WHERE closed_at IS NULL AND deleted_at IS NULL;
+CREATE INDEX care_engagements_owned_by_idx ON public.care_engagements (owned_by) WHERE closed_at IS NULL AND deleted_at IS NULL;
 CREATE INDEX care_engagements_renewed_from_idx ON public.care_engagements (renewed_from) WHERE renewed_from IS NOT NULL;
 
 CREATE TRIGGER care_engagements_updated_at
@@ -103,10 +109,10 @@ CREATE TRIGGER audit_row_change_delete
 -- security decides, as for any write. Safe against a double click: the close is conditional on the engagement still being
 -- open, so the second call finds nothing to close and opens nothing (it returns no row); the one-open-per-member-and-channel
 -- index can never be hit, because the old period is closed before the new one is inserted. The new period keeps the reason,
--- the channel and who spoke last, and starts fresh on notes, next step and follow-up.
+-- the channel, the owner and who spoke last; the note is why she renewed, and the next step and follow-up start fresh.
 ------------------------------------------------------------------------------------------------
 
-CREATE FUNCTION public.renew_care_engagement(p_id text, p_period_ends_on date, p_opened_by uuid, p_at timestamptz)
+CREATE FUNCTION public.renew_care_engagement(p_id text, p_period_ends_on date, p_opened_by uuid, p_at timestamptz, p_notes text)
 RETURNS SETOF public.care_engagements
 LANGUAGE plpgsql
 SECURITY INVOKER
@@ -124,17 +130,17 @@ BEGIN
   END IF;
 
   RETURN QUERY
-  INSERT INTO public.care_engagements (member_id, opened_by, reason, channel, opened_at, period_ends_on, renewed_from, last_staff_message_at, last_member_message_at)
-  VALUES (previous.member_id, p_opened_by, previous.reason, previous.channel, p_at, p_period_ends_on, previous.id, previous.last_staff_message_at, previous.last_member_message_at)
+  INSERT INTO public.care_engagements (member_id, opened_by, owned_by, reason, channel, opened_at, period_ends_on, renewed_from, last_staff_message_at, last_member_message_at, notes)
+  VALUES (previous.member_id, p_opened_by, previous.owned_by, previous.reason, previous.channel, p_at, p_period_ends_on, previous.id, previous.last_staff_message_at, previous.last_member_message_at, p_notes)
   RETURNING *;
 END;
 $function$;
 
-REVOKE ALL ON FUNCTION public.renew_care_engagement(text, date, uuid, timestamptz) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.renew_care_engagement(text, date, uuid, timestamptz) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.renew_care_engagement(text, date, uuid, timestamptz, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.renew_care_engagement(text, date, uuid, timestamptz, text) TO authenticated, service_role;
 
-COMMENT ON FUNCTION public.renew_care_engagement(text, date, uuid, timestamptz) IS
-  'Closes an open care engagement as renewed and opens the next period (renewed_from = the old one) in one transaction. No row when the engagement is not open, so a double click opens one period, not two. SECURITY INVOKER: RLS applies.';
+COMMENT ON FUNCTION public.renew_care_engagement(text, date, uuid, timestamptz, text) IS
+  'Closes an open care engagement as renewed and opens the next period (renewed_from = the old one, the same owner, p_notes as its note: why she renewed) in one transaction. No row when the engagement is not open, so a double click opens one period, not two. SECURITY INVOKER: RLS applies.';
 
 ------------------------------------------------------------------------------------------------
 -- What she may add to a member's timeline: opening, renewing and closing show there (member_activities, like an outreach
