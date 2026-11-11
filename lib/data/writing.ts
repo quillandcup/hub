@@ -272,6 +272,11 @@ export interface WritingRepository {
   /** Changes the given fields of the member's project (a project that isn't theirs, or is deleted, is left alone). */
   updateProject(memberId: string, projectId: string, patch: ProjectPatch): Promise<void>;
   /**
+   * Points the project at a library image, but only if its cover is still `currentUrl` and not yet a library image
+   * (the move of older covers must not overwrite one the member changed since). False when it no longer is.
+   */
+  adoptCover(memberId: string, projectId: string, currentUrl: string, cover: { url: string; assetId: string }): Promise<boolean>;
+  /**
    * Soft deletes the member's project together with its goals and entries, so none of them counts
    * toward totals, streaks or badges. Books and awards linked to it stay. Repeating it is harmless.
    */
@@ -637,6 +642,20 @@ export class SupabaseWritingRepository implements WritingRepository {
   async updateProject(memberId: string, projectId: string, patch: ProjectPatch): Promise<void> {
     const { error } = await this.db.from("writing_projects").update(patch).eq("id", projectId).eq("member_id", memberId).is("deleted_at", null);
     if (error) throw new Error(error.message);
+  }
+
+  async adoptCover(memberId: string, projectId: string, currentUrl: string, cover: { url: string; assetId: string }): Promise<boolean> {
+    const { data, error } = await this.db
+      .from("writing_projects")
+      .update({ cover_url: cover.url, cover_asset_id: cover.assetId })
+      .eq("id", projectId)
+      .eq("member_id", memberId)
+      .eq("cover_url", currentUrl)
+      .is("cover_asset_id", null)
+      .is("deleted_at", null)
+      .select("id");
+    if (error) throw new Error(error.message);
+    return (data ?? []).length > 0;
   }
 
   async deleteProject(memberId: string, projectId: string): Promise<void> {
@@ -1093,6 +1112,13 @@ export class InMemoryWritingRepository implements WritingRepository {
   async updateProject(memberId: string, projectId: string, patch: ProjectPatch): Promise<void> {
     const project = this.data.writingProjects.find((p) => p.id === projectId && p.member_id === memberId && !p.deleted_at);
     if (project) Object.assign(project, patch);
+  }
+
+  async adoptCover(memberId: string, projectId: string, currentUrl: string, cover: { url: string; assetId: string }): Promise<boolean> {
+    const project = this.data.writingProjects.find((p) => p.id === projectId && p.member_id === memberId && !p.deleted_at && p.cover_url === currentUrl && p.cover_asset_id === null);
+    if (!project) return false;
+    Object.assign(project, { cover_url: cover.url, cover_asset_id: cover.assetId });
+    return true;
   }
 
   async deleteProject(memberId: string, projectId: string): Promise<void> {

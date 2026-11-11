@@ -65,7 +65,7 @@ describe("adoptLegacyCovers: a dry run", () => {
 
     const report = await run(false);
 
-    expect(report).toEqual({ dryRun: true, considered: 3, adopted: 3, fromOwnBucket: 1, fromLinks: 2, amazonReady: 2, tooSmallForAmazon: 1, failed: [] });
+    expect(report).toEqual({ dryRun: true, considered: 3, adopted: 3, fromOwnBucket: 1, fromLinks: 2, amazonReady: 2, tooSmallForAmazon: 1, failed: [], skipped: [], skippedHttp: 0 });
     expect(data.mediaAssets).toHaveLength(0);
     expect(upload).not.toHaveBeenCalled();
     expect(adopted()).toEqual([]);
@@ -149,7 +149,7 @@ describe("adoptLegacyCovers: applying", () => {
       { kind: "book", id: "book_AAAAAAAAAAA2", memberId: ME, title: "t", url: LINK },
     ]);
     project("wprj_AAAAAAAAAAA3", OTHER, OWN);
-    vi.spyOn(writing, "updateProject").mockRejectedValue(new Error("write failed"));
+    vi.spyOn(writing, "adoptCover").mockRejectedValue(new Error("write failed"));
 
     const report = await run(true);
 
@@ -168,5 +168,125 @@ describe("adoptLegacyCovers: applying", () => {
     const progress = vi.fn();
     await run(false, { onProgress: progress });
     expect(progress.mock.calls).toEqual([[1, 2], [2, 2]]);
+  });
+});
+
+describe("adoptLegacyCovers: https only and re-runs", () => {
+  const counting = () => {
+    const fetched: string[] = [];
+    const go = (apply: boolean) =>
+      adoptLegacyCovers(
+        {
+          media,
+          writing,
+          books,
+          storage: storage(),
+          supabaseUrl: SUPABASE,
+          fetchCover: async (_s, _u, url) => {
+            fetched.push(url);
+            const found = images[url];
+            if (!found) return { error: "HTTP 404" };
+            return "error" in found ? found : { bytes: found };
+          },
+        },
+        { apply }
+      );
+    return { fetched, go };
+  };
+
+  it("skips a plain http link with a reason and a count, in a dry run and when applying, without fetching it", async () => {
+    const insecure = "http://pics.example.test/old.png";
+    images[insecure] = await solidImage(300, 400, "png", { r: 1, g: 2, b: 3 });
+    shelve([
+      { kind: "book", id: "book_AAAAAAAAAAA1", memberId: ME, title: "t", url: insecure },
+      { kind: "book", id: "book_AAAAAAAAAAA2", memberId: ME, title: "t", url: LINK },
+    ]);
+    project("wprj_AAAAAAAAAAA1", OTHER, "HTTP://pics.example.test/old.png");
+    for (const apply of [false, true]) {
+      const { fetched, go } = counting();
+      const report = await go(apply);
+      expect(fetched).toEqual([LINK]);
+      expect(report.skippedHttp).toBe(2);
+      expect(report.skipped).toEqual([
+        { kind: "book", id: "book_AAAAAAAAAAA1", reason: expect.stringMatching(/plain http/) },
+        { kind: "project", id: "wprj_AAAAAAAAAAA1", reason: expect.stringMatching(/plain http/) },
+      ]);
+      expect(report.failed).toEqual([]);
+      expect(report.adopted).toBe(1);
+    }
+    expect(data.memberBooks[0].cover_url).toBe(insecure);
+    expect(data.writingProjects[0].cover_asset_id).toBeNull();
+  });
+
+  it("a second run is a no-op: nothing is downloaded again and no second asset is made", async () => {
+    shelve([
+      { kind: "book", id: "book_AAAAAAAAAAA1", memberId: ME, title: "t", url: OWN },
+      { kind: "book", id: "book_AAAAAAAAAAA2", memberId: ME, title: "t", url: LINK },
+    ]);
+    project("wprj_AAAAAAAAAAA1", OTHER, LINK);
+    const first = counting();
+    expect((await first.go(true)).adopted).toBe(3);
+    const assets = data.mediaAssets.map((a) => a.id);
+    const second = counting();
+    const again = await second.go(true);
+    expect(second.fetched).toEqual([]);
+    expect(again).toMatchObject({ considered: 0, adopted: 0, failed: [], skipped: [] });
+    expect(data.mediaAssets.map((a) => a.id)).toEqual(assets);
+  });
+
+  it("after a partial failure a re-run does the rest and does not repeat what worked", async () => {
+    const flaky = "https://pics.example.test/flaky.png";
+    shelve([
+      { kind: "book", id: "book_AAAAAAAAAAA1", memberId: ME, title: "t", url: LINK },
+      { kind: "book", id: "book_AAAAAAAAAAA2", memberId: ME, title: "t", url: flaky },
+    ]);
+    const first = counting();
+    const r1 = await first.go(true);
+    expect(r1.adopted).toBe(1);
+    expect(r1.failed).toEqual([{ kind: "book", id: "book_AAAAAAAAAAA2", reason: "HTTP 404" }]);
+
+    images[flaky] = await solidImage(900, 1400, "png", { r: 7, g: 8, b: 9 });
+    const second = counting();
+    const r2 = await second.go(true);
+    expect(second.fetched).toEqual([flaky]);
+    expect(r2).toMatchObject({ considered: 1, adopted: 1, failed: [] });
+    expect(adopted().map((b) => b.id)).toEqual(["book_AAAAAAAAAAA1", "book_AAAAAAAAAAA2"]);
+    expect(data.mediaAssets).toHaveLength(2);
+  });
+
+  it("leaves a cover the member changed since it was read untouched, for a book and for a project", async () => {
+    shelve([{ kind: "book", id: "book_AAAAAAAAAAA1", memberId: ME, title: "t", url: LINK }]);
+    project("wprj_AAAAAAAAAAA1", ME, LINK);
+    const { go } = counting();
+    const picked = "https://pics.example.test/member-picked.png";
+    // The member picks another cover after the list was read, before the write.
+    const realBook = books.adoptCover.bind(books);
+    const realProject = writing.adoptCover.bind(writing);
+    vi.spyOn(books, "adoptCover").mockImplementation(async (...args) => {
+      data.memberBooks[0].cover_url = picked;
+      return realBook(...args);
+    });
+    vi.spyOn(writing, "adoptCover").mockImplementation(async (...args) => {
+      data.writingProjects[0].cover_url = picked;
+      return realProject(...args);
+    });
+
+    const report = await go(true);
+
+    expect(report.adopted).toBe(0);
+    expect(report.failed.map((f) => f.reason)).toEqual(["its cover changed while this ran; left as it is", "its cover changed while this ran; left as it is"]);
+    expect(data.memberBooks[0].cover_url).toBe(picked);
+    expect(data.memberBooks[0].cover_asset_id).toBeNull();
+    expect(data.writingProjects[0].cover_url).toBe(picked);
+    expect(data.writingProjects[0].cover_asset_id).toBeNull();
+  });
+
+  it("a project moves only for its owner, only from the link that was read, and only once", async () => {
+    project("wprj_AAAAAAAAAAA1", ME, LINK);
+    const cover = { url: "/api/media/media_AAAAAAAAAAA9/book_cover_shelf", assetId: "media_AAAAAAAAAAA9" };
+    expect(await writing.adoptCover(ME, "wprj_AAAAAAAAAAA1", "https://elsewhere.example.test/x.png", cover)).toBe(false);
+    expect(await writing.adoptCover(OTHER, "wprj_AAAAAAAAAAA1", LINK, cover)).toBe(false);
+    expect(await writing.adoptCover(ME, "wprj_AAAAAAAAAAA1", LINK, cover)).toBe(true);
+    expect(await writing.adoptCover(ME, "wprj_AAAAAAAAAAA1", LINK, cover)).toBe(false);
   });
 });

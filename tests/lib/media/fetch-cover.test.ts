@@ -1,8 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
-import { http, HttpResponse } from "msw";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { server } from "../../setup-msw";
 import { fetchLegacyCover, isPublicAddress } from "@/lib/media/fetch-cover";
+import { setNetHooks, type Transport, type TransportRequest } from "@/lib/net/safe-fetch";
 
 const SUPABASE = "http://127.0.0.1:54321";
 const PUBLIC = async () => [{ address: "93.184.216.34" }];
@@ -37,68 +36,109 @@ describe("fetchLegacyCover: our own bucket", () => {
   });
 });
 
-describe("fetchLegacyCover: a link to another site", () => {
-  it("downloads a picture from a public address", async () => {
-    server.use(http.get("https://pics.example.test/cover.jpg", () => new HttpResponse(BYTES)));
-    expect(await fetchLegacyCover(storage(), SUPABASE, "https://pics.example.test/cover.jpg", PUBLIC)).toEqual({ bytes: BYTES });
+describe("fetchLegacyCover: a link to another site (pinned fetch)", () => {
+  type Answer = { status?: number; headers?: Record<string, string>; body?: Buffer | Buffer[] };
+  /** Installs a name lookup and a socket that answer from tables, and records every request that reached the socket. */
+  function net(answers: Record<string, Answer>, resolve: (host: string) => Promise<{ address: string }[]> = PUBLIC) {
+    const calls: TransportRequest[] = [];
+    const transport: Transport = async (req) => {
+      calls.push(req);
+      const a = answers[req.url.href];
+      if (!a) throw new Error("connection refused");
+      const chunks = Array.isArray(a.body) ? a.body : [a.body ?? BYTES];
+      return {
+        status: a.status ?? 200,
+        headers: a.headers ?? {},
+        body: (async function* () {
+          for (const c of chunks) yield c;
+        })(),
+        destroy: () => {},
+      };
+    };
+    setNetHooks({ resolve, transport });
+    return calls;
+  }
+  afterEach(() => setNetHooks());
+  const get = (url: string) => fetchLegacyCover(storage(), SUPABASE, url);
+
+  it("downloads a picture from a public address, connecting to the address it resolved", async () => {
+    const calls = net({ "https://pics.example.test/cover.jpg": {} });
+    expect(await get("https://pics.example.test/cover.jpg")).toEqual({ bytes: BYTES });
+    expect(calls.map((c) => c.address)).toEqual(["93.184.216.34"]);
   });
 
-  it("refuses an address on a private network, localhost, a bare private IP and a non-http link, without asking it for anything", async () => {
-    const hit = vi.fn(() => new HttpResponse(BYTES));
-    server.use(http.get("https://*/*", hit), http.get("http://*/*", hit));
-    expect(await fetchLegacyCover(storage(), SUPABASE, "https://pics.example.test/c.jpg", PRIVATE)).toEqual({ error: "not a public address" });
-    expect(await fetchLegacyCover(storage(), SUPABASE, "http://localhost/c.jpg", PUBLIC)).toEqual({ error: "not a public address" });
-    expect(await fetchLegacyCover(storage(), SUPABASE, "http://metadata.internal/c.jpg", PUBLIC)).toEqual({ error: "not a public address" });
-    expect(await fetchLegacyCover(storage(), SUPABASE, "http://169.254.169.254/latest/meta-data", PUBLIC)).toEqual({ error: "not a public address" });
-    expect(await fetchLegacyCover(storage(), SUPABASE, "http://[::1]/c.jpg", PUBLIC)).toEqual({ error: "not a public address" });
-    expect(await fetchLegacyCover(storage(), SUPABASE, "ftp://pics.example.test/c.jpg", PUBLIC)).toEqual({ error: "not an http(s) link" });
-    expect(await fetchLegacyCover(storage(), SUPABASE, "https://pics.example.test:8443/c.jpg", PUBLIC)).toEqual({ error: "unusual port" });
-    expect(hit).not.toHaveBeenCalled();
+  it("refuses plain http, whatever the address, without connecting", async () => {
+    const calls = net({ "http://pics.example.test/c.jpg": {}, "http://93.184.216.34/c.jpg": {} });
+    expect(await get("http://pics.example.test/c.jpg")).toEqual({ error: "not an https link" });
+    expect(await get("http://93.184.216.34/c.jpg")).toEqual({ error: "not an https link" });
+    expect(calls).toHaveLength(0);
+  });
+
+  it("refuses an https link that redirects to plain http", async () => {
+    const calls = net({ "https://short.example.test/c": { status: 302, headers: { location: "http://cdn.example.test/real.jpg" } }, "http://cdn.example.test/real.jpg": {} });
+    expect(await get("https://short.example.test/c")).toEqual({ error: "not an https link" });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("refuses private networks, localhost, link-local and odd ports, without connecting", async () => {
+    const calls = net({}, PRIVATE);
+    expect(await get("https://pics.example.test/c.jpg")).toEqual({ error: "not a public address" });
+    net({});
+    expect(await get("https://localhost/c.jpg")).toEqual({ error: "not a public address" });
+    expect(await get("https://metadata.internal/c.jpg")).toEqual({ error: "not a public address" });
+    expect(await get("https://169.254.169.254/latest/meta-data")).toEqual({ error: "not a public address" });
+    expect(await get("https://[::1]/c.jpg")).toEqual({ error: "not a public address" });
+    expect(await get("ftp://pics.example.test/c.jpg")).toEqual({ error: "not an https link" });
+    expect(await get("https://pics.example.test:8443/c.jpg")).toEqual({ error: "unusual port" });
+    expect(calls).toHaveLength(0);
+  });
+
+  it("refuses a name with any private answer (rebinding), and never connects to a redirect's private target", async () => {
+    const calls = net({ "https://sneaky.example.test/c": { status: 301, headers: { location: "https://169.254.169.254/latest/meta-data" } } });
+    expect(await get("https://sneaky.example.test/c")).toEqual({ error: "not a public address" });
+    expect(calls).toHaveLength(1);
+    net({}, async () => [{ address: "93.184.216.34" }, { address: "10.0.0.5" }]);
+    expect(await get("https://mixed.example.test/c")).toEqual({ error: "not a public address" });
   });
 
   it("reports a link that is not a link, and a name that doesn't resolve", async () => {
-    expect(await fetchLegacyCover(storage(), SUPABASE, "not a url", PUBLIC)).toEqual({ error: "not a valid link" });
-    expect(await fetchLegacyCover(storage(), SUPABASE, "https://nowhere.example.test/c.jpg", async () => [])).toEqual({ error: "the address doesn't resolve" });
-    expect(await fetchLegacyCover(storage(), SUPABASE, "https://nowhere.example.test/c.jpg", async () => Promise.reject(new Error("ENOTFOUND")))).toEqual({ error: "the address doesn't resolve" });
+    net({});
+    expect(await get("not a url")).toEqual({ error: "not a valid link" });
+    net({}, async () => []);
+    expect(await get("https://nowhere.example.test/c.jpg")).toEqual({ error: "the address doesn't resolve" });
+    net({}, async () => Promise.reject(new Error("ENOTFOUND")));
+    expect(await get("https://nowhere.example.test/c.jpg")).toEqual({ error: "the address doesn't resolve" });
   });
 
-  it("follows a redirect to another public address, and checks every hop", async () => {
-    server.use(
-      http.get("https://short.example.test/c", () => new HttpResponse(null, { status: 302, headers: { location: "https://cdn.example.test/real.jpg" } })),
-      http.get("https://cdn.example.test/real.jpg", () => new HttpResponse(BYTES)),
-      http.get("https://sneaky.example.test/c", () => new HttpResponse(null, { status: 301, headers: { location: "http://169.254.169.254/latest/meta-data" } }))
-    );
-    expect(await fetchLegacyCover(storage(), SUPABASE, "https://short.example.test/c", PUBLIC)).toEqual({ bytes: BYTES });
-    expect(await fetchLegacyCover(storage(), SUPABASE, "https://sneaky.example.test/c", PUBLIC)).toEqual({ error: "not a public address" });
+  it("follows a redirect to another public address", async () => {
+    net({ "https://short.example.test/c": { status: 302, headers: { location: "https://cdn.example.test/real.jpg" } }, "https://cdn.example.test/real.jpg": {} });
+    expect(await get("https://short.example.test/c")).toEqual({ bytes: BYTES });
   });
 
   it("gives up on a redirect loop or a redirect that says nowhere", async () => {
-    server.use(
-      http.get("https://loop.example.test/a", () => new HttpResponse(null, { status: 302, headers: { location: "https://loop.example.test/a" } })),
-      http.get("https://lost.example.test/a", () => new HttpResponse(null, { status: 302 }))
-    );
-    expect(await fetchLegacyCover(storage(), SUPABASE, "https://loop.example.test/a", PUBLIC)).toEqual({ error: "too many redirects" });
-    expect(await fetchLegacyCover(storage(), SUPABASE, "https://lost.example.test/a", PUBLIC)).toEqual({ error: "redirected (HTTP 302) without saying where" });
+    net({ "https://loop.example.test/a": { status: 302, headers: { location: "https://loop.example.test/a" } }, "https://lost.example.test/a": { status: 302 } });
+    expect(await get("https://loop.example.test/a")).toEqual({ error: "too many redirects" });
+    expect(await get("https://lost.example.test/a")).toEqual({ error: "redirected (HTTP 302) without saying where" });
   });
 
   it("reports an error status and a download that fails", async () => {
-    server.use(http.get("https://gone.example.test/c.jpg", () => new HttpResponse(null, { status: 404 })), http.get("https://down.example.test/c.jpg", () => HttpResponse.error()));
-    expect(await fetchLegacyCover(storage(), SUPABASE, "https://gone.example.test/c.jpg", PUBLIC)).toEqual({ error: "HTTP 404" });
-    expect(await fetchLegacyCover(storage(), SUPABASE, "https://down.example.test/c.jpg", PUBLIC)).toEqual({ error: "couldn't download it" });
+    net({ "https://gone.example.test/c.jpg": { status: 404 } });
+    expect(await get("https://gone.example.test/c.jpg")).toEqual({ error: "HTTP 404" });
+    expect(await get("https://down.example.test/c.jpg")).toEqual({ error: "couldn't download it" });
   });
 
-  it("refuses a file that announces it is too large, before reading it", async () => {
-    server.use(http.get("https://huge.example.test/declared.jpg", () => new HttpResponse(BYTES, { headers: { "content-length": String(50 * 1024 * 1024) } })));
-    expect(await fetchLegacyCover(storage(), SUPABASE, "https://huge.example.test/declared.jpg", PUBLIC)).toEqual({ error: "larger than 10 MB" });
+  it("refuses a file that announces it is too large, and one that turns out too large while it streams", async () => {
+    net({
+      "https://huge.example.test/declared.jpg": { headers: { "content-length": String(50 * 1024 * 1024) } },
+      "https://huge.example.test/streamed.jpg": { body: [Buffer.alloc(6 * 1024 * 1024), Buffer.alloc(5 * 1024 * 1024)] },
+    });
+    expect(await get("https://huge.example.test/declared.jpg")).toEqual({ error: "larger than 10 MB" });
+    expect(await get("https://huge.example.test/streamed.jpg")).toEqual({ error: "larger than 10 MB" });
   });
 
-  it("stops reading a file that turns out too large while it streams", async () => {
-    server.use(http.get("https://huge.example.test/streamed.jpg", () => new HttpResponse(Buffer.alloc(10 * 1024 * 1024 + 1))));
-    expect(await fetchLegacyCover(storage(), SUPABASE, "https://huge.example.test/streamed.jpg", PUBLIC)).toEqual({ error: "larger than 10 MB" });
-  });
-
-  it("returns an empty body as it is (the image check then refuses it)", async () => {
-    server.use(http.get("https://empty.example.test/c.jpg", () => new HttpResponse(null, { status: 200 })));
-    expect(await fetchLegacyCover(storage(), SUPABASE, "https://empty.example.test/c.jpg", PUBLIC)).toEqual({ bytes: Buffer.alloc(0) });
+  it("accepts a cover between the proxy's 5 MB cap and the cover cap of 10 MB", async () => {
+    net({ "https://big.example.test/c.jpg": { body: Buffer.alloc(7 * 1024 * 1024) } });
+    const got = await get("https://big.example.test/c.jpg");
+    expect("bytes" in got && got.bytes.length).toBe(7 * 1024 * 1024);
   });
 });
