@@ -187,6 +187,9 @@ export const EVENTS = {
     used_tab: bool(),
   },
 
+  /** The author removed a preview card from their message with the X in its corner (components/chat/RemoveUnfurlButton.tsx): `source` is a preview the Hub made for a link or one of Slack's unfurls. Never the address. */
+  chat_unfurl_removed: { source: oneOf("hub", "slack") },
+
   /** An emoji was picked from the `:name` suggestions in a message box (components/chat/MessageBox.tsx): `custom` whether it was a workspace emoji, `via` the keyboard or the pointer. */
   chat_emoji_suggestion_picked: { custom: bool(), via: oneOf("keyboard", "pointer") },
 

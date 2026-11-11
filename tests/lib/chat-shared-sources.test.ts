@@ -47,7 +47,7 @@ const dataset = () =>
     ],
   });
 
-async function shareOf(repos: Pick<Repos, "attendance" | "chat" | "chatVideos" | "directory" | "memberProfile">, attachment: unknown) {
+async function shareOf(repos: Pick<Repos, "attendance" | "chat" | "chatLinkPreviews" | "chatVideos" | "directory" | "memberProfile">, attachment: unknown) {
   const out = await buildMessageViews(repos, { slackChannelId: null }, [row([attachment])], FERN);
   const u = out.views[0].unfurls?.[0];
   if (!u || u.kind !== "share") throw new Error("no share");

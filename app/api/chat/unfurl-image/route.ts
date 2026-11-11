@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { botOf } from "@/lib/chat/load";
+import { withLinkPreviews } from "@/lib/chat/link-preview-cards";
 import { unfurlImageUrls } from "@/lib/chat/unfurl-images";
 import { parseUnfurls } from "@/lib/chat/unfurls";
 import { createRepos } from "@/lib/data/repos";
@@ -41,17 +42,27 @@ export async function GET(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: { "Cache-Control": "no-store" } });
 
   // Read as the viewer: a message they can't read has no content for them, so there is nothing to fetch.
-  const content = await createRepos(await createClient())
-    .chat.unfurlContext(messageId)
-    .catch((error: Error) => {
-      console.error("[chat] reading the cards of %s failed:", messageId, error.message);
-      return null;
-    });
+  const repos = createRepos(await createClient());
+  const content = await repos.chat.unfurlContext(messageId).catch((error: Error) => {
+    console.error("[chat] reading the cards of %s failed:", messageId, error.message);
+    return null;
+  });
   if (!content) return notFound();
+  // The Hub's own link previews are read as the viewer too, and come after Slack's cards, as the renderer lists them.
+  const previews = await repos.chatLinkPreviews.forMessages([messageId]).catch((error: Error) => {
+    console.error("[chat] reading the link previews of %s failed:", messageId, error.message);
+    return null;
+  });
+  // And the cards its author removed, whose pictures are not served. With no answer, nothing is.
+  const hidden = await repos.chatLinkPreviews.hiddenKeys([messageId]).catch((error: Error) => {
+    console.error("[chat] reading the removed cards of %s failed:", messageId, error.message);
+    return null;
+  });
+  if (!previews || !hidden) return notFound();
 
   const bot = botOf(content.bot);
   const parsed = parseUnfurls({ attachments: content.attachments, blocks: content.blocks }, { bot: bot !== null, body: content.body });
-  const url = unfurlImageUrls(parsed.unfurls, bot?.icon ?? null)[index];
+  const url = unfurlImageUrls(withLinkPreviews(parsed.unfurls, previews.get(messageId), hidden.get(messageId)), bot?.icon ?? null)[index];
   if (!url) return notFound();
 
   if (!(await hitRateLimits(createRepos(createServiceRoleClient()), [{ bucket: `chat_unfurl_images:user:${user.id}`, ...LIMIT }]))) {

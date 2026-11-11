@@ -31,8 +31,12 @@ export interface CardUnfurl {
   pretext: string | null;
   title: string | null;
   titleLink: string | null;
-  /** mrkdwn. */
+  /** mrkdwn, unless `hubPreview`. */
   text: string | null;
+  /** A link preview the Hub made itself (lib/chat/link-previews.ts), not Slack's: `text` is plain text, shown as it is (a page's description has no Slack formatting). */
+  hubPreview?: boolean;
+  /** What removes this card from its message (`unfurlKey`, lib/chat/link-previews.ts); set by the loader on every card. */
+  removeKey?: string;
   fields: UnfurlField[];
   imageUrl: string | null;
   thumbUrl: string | null;

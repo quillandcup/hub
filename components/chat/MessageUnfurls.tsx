@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import RemoveUnfurlButton from "@/components/chat/RemoveUnfurlButton";
 import SharedMessageCard from "@/components/chat/SharedMessageCard";
 import ChatText, { type ChatTextContext } from "@/components/chat/ChatText";
 import type { BlockImage, BlocksUnfurl, BlockText, CardUnfurl, LinkButton, Unfurl, UnfurlBlock } from "@/lib/chat/unfurls";
@@ -9,12 +10,18 @@ import type { BlockImage, BlocksUnfurl, BlockText, CardUnfurl, LinkButton, Unfur
  * Every link opens in a new tab with `noopener noreferrer`; pictures load without sending a referrer.
  */
 
+/** Who may remove a card from this message: set only for its author (and not while acting as someone else); the control is the X in the card's corner. */
+export interface Removable {
+  channelId: string;
+  messageId: string;
+}
+
 const LINK = "text-plum-600 dark:text-plum-400 hover:underline";
 const MUTED = "text-xs text-slate-600 dark:text-slate-400";
 
-function A({ href, children, className = LINK }: { href: string; children: ReactNode; className?: string }) {
+function A({ href, children, className = LINK, track = "chat-unfurl-link" }: { href: string; children: ReactNode; className?: string; track?: string }) {
   return (
-    <a href={href} target="_blank" rel="noopener noreferrer" data-track="chat-unfurl-link" className={className}>
+    <a href={href} target="_blank" rel="noopener noreferrer" data-track={track} className={className}>
       {children}
     </a>
   );
@@ -51,28 +58,30 @@ function Button({ button }: { button: LinkButton }) {
 
 // ---- legacy attachment ---------------------------------------------------------------------------------------------
 
-function Card({ card, ctx }: { card: CardUnfurl; ctx: ChatTextContext }) {
+function Card({ card, ctx, removable }: { card: CardUnfurl; ctx: ChatTextContext; removable?: Removable }) {
   const site = card.serviceName ?? null;
+  // The previews the Hub made are told apart from Slack's in usage statistics, so we can see whether they are clicked.
+  const track = card.hubPreview ? "chat-link-preview" : undefined;
   return (
     <div className="@container mt-1.5 max-w-2xl">
       {card.pretext && <Mrkdwn text={card.pretext} ctx={ctx} />}
       <div
-        className="mt-1 flex gap-3 rounded-r border-l-4 border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/40 py-2 pl-3 pr-3"
+        className="group relative mt-1 flex gap-3 rounded-r border-l-4 border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/40 py-2 pl-3 pr-3"
         style={card.color ? { borderLeftColor: card.color } : undefined}
         data-testid="unfurl-card"
       >
         <div className="min-w-0 flex-1 space-y-1">
           {(card.authorName || site) && (
             <p className={MUTED}>
-              {card.authorName && (card.authorLink ? <A href={card.authorLink}>{card.authorName}</A> : card.authorName)}
+              {card.authorName && (card.authorLink ? <A href={card.authorLink} track={track}>{card.authorName}</A> : card.authorName)}
               {card.authorName && site && " · "}
-              {site && (card.fromUrl ? <A href={card.fromUrl} className="hover:underline">{site}</A> : site)}
+              {site && (card.fromUrl ? <A href={card.fromUrl} className="hover:underline" track={track}>{site}</A> : site)}
             </p>
           )}
           {card.title && (
-            <p className="break-words text-sm font-semibold">{card.titleLink ? <A href={card.titleLink}>{card.title}</A> : card.title}</p>
+            <p className="break-words text-sm font-semibold">{card.titleLink ? <A href={card.titleLink} track={track}>{card.title}</A> : card.title}</p>
           )}
-          {card.text && <Mrkdwn text={card.text} ctx={ctx} />}
+          {card.text && (card.hubPreview ? <p className="whitespace-pre-wrap break-words text-sm">{card.text}</p> : <Mrkdwn text={card.text} ctx={ctx} />)}
           {card.fields.length > 0 && (
             <dl className="grid grid-cols-1 gap-x-4 gap-y-1 @pair:grid-cols-2">
               {card.fields.map((f, i) => (
@@ -87,10 +96,26 @@ function Card({ card, ctx }: { card: CardUnfurl; ctx: ChatTextContext }) {
               ))}
             </dl>
           )}
-          {card.imageUrl && <Picture image={{ url: card.imageUrl, alt: card.title ?? "" }} className="mt-1 max-h-72 max-w-full rounded" />}
+          {card.imageUrl &&
+            (card.hubPreview && card.titleLink ? (
+              // The picture of a preview the Hub made opens the page too; with a title beside it, the title is the link for keyboards and screen readers.
+              <a
+                href={card.titleLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                data-track="chat-link-preview"
+                className="mt-1 block"
+                {...(card.title ? { tabIndex: -1, "aria-hidden": true } : { "aria-label": "Open picture" })}
+              >
+                <Picture image={{ url: card.imageUrl, alt: "" }} className="max-h-72 max-w-full rounded" />
+              </a>
+            ) : (
+              <Picture image={{ url: card.imageUrl, alt: card.title ?? "" }} className="mt-1 max-h-72 max-w-full rounded" />
+            ))}
           {card.footer && <p className={MUTED}>{card.footer}</p>}
         </div>
         {card.thumbUrl && <Picture image={{ url: card.thumbUrl, alt: "" }} className="h-16 w-16 shrink-0 rounded object-cover" />}
+        {removable && card.removeKey && <RemoveUnfurlButton channelId={removable.channelId} messageId={removable.messageId} removeKey={card.removeKey} source={card.hubPreview ? "hub" : "slack"} />}
       </div>
     </div>
   );
@@ -176,14 +201,14 @@ function Blocks({ unfurl, ctx, permalink }: { unfurl: BlocksUnfurl } & BlockProp
 }
 
 /** The cards under a message, after its text and files. */
-export default function MessageUnfurls({ unfurls, ctx, permalink }: { unfurls: Unfurl[]; ctx: ChatTextContext; permalink: string | null }) {
+export default function MessageUnfurls({ unfurls, ctx, permalink, removable }: { unfurls: Unfurl[]; ctx: ChatTextContext; permalink: string | null; removable?: Removable }) {
   if (unfurls.length === 0) return null;
   return (
     <>
       {unfurls.map((u, i) => {
         switch (u.kind) {
           case "card":
-            return <Card key={i} card={u} ctx={ctx} />;
+            return <Card key={i} card={u} ctx={ctx} removable={removable} />;
           case "blocks":
             return <Blocks key={i} unfurl={u} ctx={ctx} permalink={permalink} />;
           case "share":

@@ -53,6 +53,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "chat-link-previews-for-hub-messages",
+    date: "2026-11-10",
+    audience: "engineering",
+    category: "new",
+    title: "Hub Chat makes link previews for messages written in the Hub, and authors can remove any preview",
+    summary: "A link in a message sent from the Hub gets a preview card (or the picture itself, for a link to an image), behind a feature flag, and the author can remove a preview, Slack's included, with an X on the card.",
+    body: [
+      "Slack builds no preview for messages the Hub posts (it posts with unfurling off), so after a message is sent the server looks at its first three https links once, in `after()`, and stores what it found in `chat_link_previews` (`lib/chat/link-previews.ts`, `ChatLinkPreviewRepository`). Never at read time and never from a viewer's request; an edit fetches only links it added. A page is read by `fetchPage` in `lib/net/safe-fetch.ts` (same SSRF rules as the picture proxy, `text/html` only, the first 512 KB, a link straight to a picture answered from its headers) and its head is parsed by parse5 (`lib/chat/link-preview-html.ts`); texts are plain, capped, stripped of control and direction characters, and the picture must be https. Failed and blocked links are stored too, so they are not asked for again. Who gets previews is decided by the `chat_link_previews` flag for the sender.",
+      "The table follows the message text's visibility through RLS (`chat_can_read_content`). The picture goes through `/api/chat/unfurl-image` as one more entry in the message's picture list. The author removes a card with `chat_hidden_unfurls` (`url:<address>` or `idx:<n>`), written as themselves under RLS (a Slack author matched to a member counts), for the Hub's previews and Slack's unfurls alike; the loader and the picture route drop it, and a fetch after an edit does not bring it back. See `docs/SLACK_BRIDGED_CHAT.md`, \"Link previews\".",
+    ].join("\n\n"),
+  },
+  {
     slug: "chat-picture-proxy-and-csp",
     date: "2026-11-10",
     audience: "engineering",

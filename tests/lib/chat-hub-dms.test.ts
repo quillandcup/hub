@@ -156,9 +156,9 @@ describe("a Hub-only conversation never touches Slack", () => {
     m.rpc.mockResolvedValue({ data: MESSAGE, error: null });
     await expect(sendChatMessage(CHANNEL, "hello")).resolves.toEqual({ ok: true, id: MESSAGE });
     expect(m.connected).not.toHaveBeenCalled();
-    // The one thing left for after the response is telling the other member (not Slack).
-    expect(m.afterCallbacks).toHaveLength(1);
-    await m.afterCallbacks[0]();
+    // What is left for after the response is telling the other member (not Slack) and looking at the message's links (none here).
+    expect(m.afterCallbacks).toHaveLength(2);
+    for (const callback of m.afterCallbacks) await callback();
     expect(notifyChat).toHaveBeenCalledWith(expect.anything(), MESSAGE);
     expect(m.sendToSlack).not.toHaveBeenCalled();
   });

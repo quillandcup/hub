@@ -96,6 +96,9 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   access_events: [],
   // The lesson video a chat message shares (ChatVideoRepository, lib/data/chat-videos.ts): every query is moved.
   chat_message_videos: [],
+  // The preview cards of links in Hub-written messages (ChatLinkPreviewRepository, lib/data/chat-link-previews.ts): every query is moved.
+  chat_link_previews: [],
+  chat_hidden_unfurls: [],
   // Derived per-member stats (MemberRepository.deleteDerivedStats): the merge route's cleanup was the only direct query.
   member_metrics: [],
   member_engagement: [],

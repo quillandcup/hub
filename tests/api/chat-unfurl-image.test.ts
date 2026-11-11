@@ -208,3 +208,43 @@ describe("GET /api/chat/unfurl-image", () => {
     expect(requests).toEqual([]);
   });
 });
+
+describe("GET /api/chat/unfurl-image: the Hub's own link previews and removed cards", () => {
+  const draft = (url: string, position: number, imageUrl: string | null) => ({ url, position, finalUrl: url, kind: "link" as const, status: "ok" as const, title: "T", description: null, siteName: null, imageUrl });
+
+  it("serves the picture of a link preview, numbered after Slack's cards", async () => {
+    setMessage({ attachments: [{ title: "Slack's", image_url: "https://img.example.test/big.png" }] });
+    await repos.chatLinkPreviews.save(MESSAGE, [draft("https://example.test/post", 0, "https://img.example.test/second.png")]);
+
+    expect((await get(`?m=${MESSAGE}&i=1`)).status).toBe(200);
+    expect(requests.map((r) => r.url.pathname)).toEqual(["/second.png"]);
+  });
+
+  it("refuses the picture of a preview its author removed, and of a Slack card they removed, and renumbers the rest", async () => {
+    setMessage({ attachments: [{ title: "Slack's", title_link: "https://slack-card.example.test/", image_url: "https://img.example.test/big.png" }] });
+    await repos.chatLinkPreviews.save(MESSAGE, [draft("https://example.test/post", 0, "https://img.example.test/second.png"), draft("https://example.test/other", 1, "https://img.example.test/small.png")]);
+    await repos.chatLinkPreviews.hide(MESSAGE, "url:https://example.test/post");
+    await repos.chatLinkPreviews.hide(MESSAGE, "url:https://slack-card.example.test/");
+
+    expect((await get(`?m=${MESSAGE}&i=0`)).status).toBe(200);
+    expect(requests.map((r) => r.url.pathname)).toEqual(["/small.png"]);
+    expect((await get(`?m=${MESSAGE}&i=1`)).status).toBe(404);
+  });
+
+  it("answers 404 and fetches nothing when the removed cards can't be read", async () => {
+    setMessage();
+    repos.chatLinkPreviews.hiddenKeys = async () => {
+      throw new Error("db down");
+    };
+    expect((await get(`?m=${MESSAGE}&i=0`)).status).toBe(404);
+    expect(requests).toEqual([]);
+  });
+
+  it("answers 404 when the previews can't be read", async () => {
+    setMessage();
+    repos.chatLinkPreviews.forMessages = async () => {
+      throw new Error("db down");
+    };
+    expect((await get(`?m=${MESSAGE}&i=0`)).status).toBe(404);
+  });
+});

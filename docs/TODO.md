@@ -1186,7 +1186,11 @@ The first pass (`lib/chat/unfurls.ts`, `components/chat/MessageUnfurls.tsx`) dra
 - **Pictures through our own address** — **Resolved:** unfurl pictures (card and block pictures, app logos, quoted authors) go through `GET /api/chat/unfurl-image` (`lib/chat/unfurl-images.ts`, `lib/net/safe-fetch.ts`; `docs/SLACK_BRIDGED_CHAT.md`, "Pictures under messages"). **Still open:** see "Chat unfurl pictures: re-encode and keep a copy" and the CSP entries below.
 - **Interactivity**: buttons that post back to an app (`action_id`) are not shown. Our own bot's messages could handle them Slack-independently (see "Interactive elements" in `docs/SLACK_BRIDGED_CHAT.md`); third-party apps stay "Open in Slack".
 - **Search results** use a narrower content select, so cards are not shown there.
-- **Message-level unfurl toggles** (hide a preview, as in Slack) and animated/video unfurls (`video_html`).
+- **Message-level unfurl toggles** — **Resolved:** the author removes a preview (Hub's or Slack's) with the X on the card (`chat_hidden_unfurls`; `docs/SLACK_BRIDGED_CHAT.md`, "Link previews for messages written in the Hub"). **Still open:** animated/video unfurls (`video_html`).
+
+### Chat link previews: undo, a Hub-made preview for Slack-origin messages, richer pages _(Needs Scheduling)_
+
+The Hub makes link previews only for messages written in the Hub (`lib/chat/link-previews.ts`, behind `chat_link_previews`). Deferred: **undo** for a removed card (a DELETE policy for the author on `chat_hidden_unfurls` and a toast); **previews for links in messages that came from Slack when Slack made none** (a link in a private conversation, an app that disables unfurling): needs a decision on fetching for others' messages and a pull-based path; **re-fetching** a page whose preview failed or went stale (today an address is looked at once per message); **oEmbed** and rich players for video and social links; **a pull-based path**: previews are made right after a send and an edit, and a failure is not retried by the nightly run, so a transient network error leaves a plain link; **a copy of the picture** (see "Chat unfurl pictures: re-encode and keep a copy"). Start in `lib/chat/link-previews.ts` and `lib/data/chat-link-previews.ts`.
 
 ### Chat unfurl pictures: re-encode and keep a copy _(Needs Scheduling)_
 

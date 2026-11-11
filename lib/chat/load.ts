@@ -3,6 +3,8 @@ import { emojiNamesIn, mentionedChannelIds, mentionedUserIds } from "@/lib/chat/
 import { blocksToBody } from "@/lib/chat/rich-blocks";
 import { parseUnfurls, unfurlTexts, type Unfurl } from "@/lib/chat/unfurls";
 import { proxyUnfurlImages } from "@/lib/chat/unfurl-images";
+import { withLinkPreviews } from "@/lib/chat/link-preview-cards";
+import type { LinkPreview } from "@/lib/data/chat-link-previews";
 import { parseSharedMessage, sharedMessageSource, type SharedSourceLookup } from "@/lib/chat/shared-message";
 import { sharedSourceKey, type SharedSourceRow } from "@/lib/data/chat";
 import { formatSlackPermalink } from "@/lib/slack-emoji";
@@ -19,7 +21,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Repos } from "@/lib/data/repos";
 import type { ChannelRecord } from "@/lib/data/chat";
 
-export type ChatLoadRepos = Pick<Repos, "attendance" | "chat" | "chatVideos" | "directory" | "memberProfile">;
+export type ChatLoadRepos = Pick<Repos, "attendance" | "chat" | "chatLinkPreviews" | "chatVideos" | "directory" | "memberProfile">;
 
 /**
  * What the chat pages read. Everything goes through the caller's own Supabase client, so RLS
@@ -523,7 +525,7 @@ export async function buildMessageViews(
     })
   );
 
-  const [profiles, slackAuthorByTs, reactionRows, replies, userMembers, hubNames, channelNames, sharedVideos, sharedSources] = await Promise.all([
+  const [profiles, slackAuthorByTs, reactionRows, replies, userMembers, hubNames, channelNames, sharedVideos, linkPreviews, hiddenCards, sharedSources] = await Promise.all([
     t("b1.profiles", memberProfiles(repos, matched)),
     t(
       "b1.slackAuthors",
@@ -538,6 +540,27 @@ export async function buildMessageViews(
     t("b1.channelNames", slackChannelNames(rows.flatMap((r) => mentionedChannelIds(`${bodyOf(r) ?? ""}\n${unfurlText(r)}`)))),
     // A failed read only hides the card (the message and its text still show), so it never fails the page.
     t("b1.sharedVideos", repos.chatVideos.lessonIdsOf(rows.map((r) => r.id)).catch((e) => { console.error("chat shared videos failed:", e); return new Map<string, string>(); })),
+    // The cards the Hub made for links in Hub-written messages, read as the viewer. A failed read only hides them.
+    t(
+      "b1.linkPreviews",
+      Promise.resolve()
+        .then(() => repos.chatLinkPreviews.forMessages(rows.map((r) => r.id)))
+        .catch((e) => {
+          console.error("chat link previews failed:", e instanceof Error ? e.message : e);
+          return new Map<string, LinkPreview[]>();
+        })
+    ),
+    // The cards their authors removed (Hub previews and Slack's unfurls alike). A failed read must not show what was removed, but it must not fail the page
+    // either, and the previews are the likelier to be wrong: so with no answer the Hub's own previews are left out (see below) and Slack's cards stay.
+    t(
+      "b1.hiddenCards",
+      Promise.resolve()
+        .then(() => repos.chatLinkPreviews.hiddenKeys(rows.map((r) => r.id)))
+        .catch((e) => {
+          console.error("chat removed cards failed:", e instanceof Error ? e.message : e);
+          return null;
+        })
+    ),
     // A failed lookup is null, and a quote then shows as a private-conversation stub (fail closed), not an error page.
     t(
       "b1.sharedSources",
@@ -622,7 +645,7 @@ export async function buildMessageViews(
     // Pictures on other people's servers go through our own route, so those servers never see who looked (lib/chat/unfurl-images.ts).
     // Only a message that is shown gets proxy addresses; the logo is position 0 and counts whether or not it is used below.
     const proxied = parsed
-      ? proxyUnfurlImages(row.id, parsed.unfurls.map((u) => (u.kind === "share" ? withShareSource(u, sharedSources) : u)), bot?.icon ?? null)
+      ? proxyUnfurlImages(row.id, withLinkPreviews(parsed.unfurls.map((u) => (u.kind === "share" ? withShareSource(u, sharedSources) : u)), hiddenCards ? linkPreviews.get(row.id) : undefined, hiddenCards?.get(row.id)), bot?.icon ?? null)
       : null;
     const author =
       (row.author_member_id ? profiles.get(row.author_member_id) : undefined) ??

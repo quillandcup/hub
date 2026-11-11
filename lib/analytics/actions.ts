@@ -122,6 +122,8 @@ export const OUTCOME_ACTIONS = [
   "award_edited",
   "award_deleted",
   "chat_message_retried",
+  "chat_link_previews_built",
+  "chat_unfurl_hidden",
   "lesson_progress_cleared",
   "calendar_item_removed",
   "push_paused",
