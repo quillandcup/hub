@@ -87,7 +87,7 @@ async function lessonPlayback(detail: AdminLessonDetail, chatShare: boolean) {
   );
   if (video?.status === "ready" && video.playbackId) {
     const tokens = await mintTokens(video.playbackId);
-    if (tokens) return <LessonMediaPanel title={lesson.title} playbackId={video.playbackId} tokens={tokens} posterUrl={lesson.thumbnailSrc} statsHref={statsHref} lessonUrl={lessonUrl} thumbnailLink={thumbnailLink} thumbnailLinkBlocked={thumbnailLinkBlocked} chatShare={chatShare} frameThumbnail={detail.editable ? { courseId: course.id, lessonId: lesson.kajabiId } : null} />;
+    if (tokens) return <LessonMediaPanel title={lesson.title} playbackId={video.playbackId} tokens={tokens} posterUrl={lesson.thumbnailSrc} lessonId={hub?.lessonId} statsHref={statsHref} lessonUrl={lessonUrl} thumbnailLink={thumbnailLink} thumbnailLinkBlocked={thumbnailLinkBlocked} chatShare={chatShare} frameThumbnail={detail.editable ? { courseId: course.id, lessonId: lesson.kajabiId } : null} />;
     return (
       <>
         <p role="status" className={note}>The video can&apos;t be played right now.</p>
