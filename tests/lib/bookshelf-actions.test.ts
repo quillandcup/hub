@@ -40,14 +40,14 @@ vi.mock("@/lib/book-cover-assets", async (importOriginal) => {
 });
 
 vi.mock("@/lib/slack", () => ({
-  notifyStaffNewBook: vi.fn().mockResolvedValue(undefined),
+  celebrateNewBook: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { getMyBooks, getMyPenNameOptions, addBook, updateBook, deleteBook, type BookInput } from "@/app/(member)/bookshelf/actions";
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
-import { notifyStaffNewBook } from "@/lib/slack";
+import { celebrateNewBook } from "@/lib/slack";
 import { getPenNameOptions } from "@/lib/book-pen-name";
 import { releaseReplacedCover, resolveBookCover } from "@/lib/book-cover-assets";
 import { InMemoryDataset } from "@/lib/data/in-memory";
@@ -56,6 +56,7 @@ import { createInMemoryRepos } from "@/lib/data/repos";
 const IDENTITY = {
   memberId: "member-1",
   memberName: "Member One",
+  memberDisplayName: "Ada Display",
   memberEmail: "m1@example.com",
   isSudo: false,
 };
@@ -207,10 +208,10 @@ describe("addBook", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/bookshelf");
     expect(revalidatePath).toHaveBeenCalledWith("/projects", "layout");
     expect(revalidatePath).toHaveBeenCalledWith("/members/member-1");
-    expect(notifyStaffNewBook).toHaveBeenCalledWith({
+    expect(celebrateNewBook).toHaveBeenCalledWith({
       title: "My Book",
       memberId: "member-1",
-      memberName: "Member One",
+      memberName: "Ada Display",
       purchaseUrl: "https://example.com/buy",
     });
   });
@@ -241,11 +242,11 @@ describe("addBook", () => {
     vi.spyOn(store.repos.books, "add").mockRejectedValueOnce(new Error("boom"));
     expect(await addBook(VALID_INPUT)).toEqual({ error: "boom" });
     expect(revalidatePath).not.toHaveBeenCalled();
-    expect(notifyStaffNewBook).not.toHaveBeenCalled();
+    expect(celebrateNewBook).not.toHaveBeenCalled();
   });
 
   it("doesn't fail when the staff Slack notification does", async () => {
-    vi.mocked(notifyStaffNewBook).mockRejectedValueOnce(new Error("slack down"));
+    vi.mocked(celebrateNewBook).mockRejectedValueOnce(new Error("slack down"));
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     expect(await addBook(VALID_INPUT)).toEqual({ success: true });
     await vi.waitFor(() => expect(log).toHaveBeenCalledWith("New book Slack notification failed:", expect.any(Error)));

@@ -7,7 +7,7 @@ import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
 import { safeUrl } from "@/lib/url";
 import { validateAwardInput } from "@/lib/awardValidation";
-import { notifyStaffNewAward } from "@/lib/slack";
+import { celebrateNewAward } from "@/lib/slack";
 
 import { withAction } from "@/lib/analytics/server";
 export interface AwardInput {
@@ -101,11 +101,11 @@ async function addAwardImpl(input: AwardInput): Promise<{ success: true } | { er
   }
 
   // Fire-and-forget: a Slack outage must never block the win from being recorded.
-  notifyStaffNewAward({
+  celebrateNewAward({
     awardName: input.awardName.trim(),
     workTitle: input.workTitle.trim(),
     memberId: effectiveIdentity.memberId,
-    memberName: effectiveIdentity.memberName,
+    memberName: effectiveIdentity.memberDisplayName ?? effectiveIdentity.memberName,
     url: safeUrl(input.url),
   }).catch((err) => console.error("New award Slack notification failed:", err));
 

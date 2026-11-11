@@ -89,6 +89,8 @@ export const appConfig = {
      * new changelog entries with a link to /changelog. Leave empty to post nowhere.
      */
     changelogChannelId: "C01PGFFQGQ0",
+    /** Where wins are cheered (#hedgiehype, open to all members): new books and awards. */
+    celebrationsChannelId: "C02L0FEFVGQ",
   },
 
   /**

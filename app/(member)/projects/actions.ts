@@ -14,7 +14,7 @@ import { validateBookInput } from "@/lib/bookValidation";
 import { cleanGenres } from "@/lib/book-genres";
 import { resolvePenName } from "@/lib/book-pen-name";
 import { releaseReplacedCover, resolveBookCover } from "@/lib/book-cover-assets";
-import { notifyStaffNewBook } from "@/lib/slack";
+import { celebrateNewBook } from "@/lib/slack";
 import { getMyBooks, type BookInput, type MyBookRow } from "@/app/(member)/bookshelf/actions";
 import {
   WRITING_MEASURES,
@@ -732,10 +732,10 @@ async function publishProjectImpl(
   if (failure) return failure;
 
   // Fire-and-forget: a Slack outage must never block the publish from succeeding.
-  notifyStaffNewBook({
+  celebrateNewBook({
     title: book.title.trim(),
     memberId: effectiveIdentity.memberId,
-    memberName: effectiveIdentity.memberName,
+    memberName: effectiveIdentity.memberDisplayName ?? effectiveIdentity.memberName,
     purchaseUrl: editions[0].purchase_url,
   }).catch((err) => console.error("New book Slack notification failed:", err));
 

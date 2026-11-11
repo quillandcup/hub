@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("@/lib/slack", () => ({ notifyStaffNewBook: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("@/lib/slack", () => ({ celebrateNewBook: vi.fn().mockResolvedValue(undefined) }));
 // The bookshelf is the in-memory twin; the writing project lookups keep going through the mocked client below.
 const shelf = vi.hoisted(() => ({ repo: undefined as unknown as import("@/lib/data/books").BookRepository }));
 vi.mock("@/lib/data/repos", async (importOriginal) => {
