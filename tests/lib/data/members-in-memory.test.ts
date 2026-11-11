@@ -28,6 +28,7 @@ defineMemberContract("InMemoryMemberRepository", () => {
           stripeCustomerId: m.stripeCustomerId ?? null,
           bio: m.bio ?? null,
           instagramUrl: m.instagramUrl ?? null,
+          photoUrl: m.photoUrl ?? null,
           birthdayMonth: m.birthday?.[0] ?? null,
           birthdayDay: m.birthday?.[1] ?? null,
           updatedAt: new Date().toISOString(),

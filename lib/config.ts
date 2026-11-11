@@ -78,6 +78,9 @@ export const SLACK_CHANGELOG_CHANNEL_ID: string = appConfig.slack.changelogChann
 export const CHANGELOG_DIGEST_STARTS_ON: string = appConfig.changelogDigestStartsOn;
 
 /** First day (YYYY-MM-DD) prickle attendance is recorded from. */
+/** Hosts where Kajabi keeps member photos; the adoption script copies those into our storage. */
+export const KAJABI_PHOTO_HOSTS: readonly string[] = appConfig.kajabiPhotoHosts;
+
 export const ATTENDANCE_DATA_STARTS_ON = appConfig.attendanceDataStartsOn;
 
 /** The course the Courses page offers to members who have none, and its waitlist page (app.config.ts `featuredCourse`). */

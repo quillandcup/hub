@@ -6,6 +6,7 @@ import { computeMemberTenure, computeActiveDays, type HiatusWindow } from "@/lib
 import { buildMembersRunAliasMap, partitionEmailConflicts, resolveEmail as resolveEmailShared } from "@/lib/email-aliases";
 import { toKajabiPhotoUrl } from "@/lib/member-avatar";
 import { slackPhotoUrl } from "@/lib/slack-avatar-url";
+import { memberPhotoPublicUrl, photoUrlFor } from "@/lib/member-photo";
 import { NextRequest, NextResponse, after } from "next/server";
 import { triggerAttendanceReprocessing } from "@/lib/processing/trigger";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -453,7 +454,11 @@ export async function POST(request: NextRequest) {
     for (const [email, member] of membersByEmail) {
       const override =
         (member.kajabi_id && profileOverrideByKajabiId.get(member.kajabi_id)) || profileOverrideByEmail.get(email);
-      if (override) Object.assign(member, applyProfileOverride(member, override));
+      if (override) {
+        Object.assign(member, applyProfileOverride(member, override));
+        // A photo of their own (our storage) outlasts the Kajabi, Slack and Gravatar address built above.
+        member.photo_url = photoUrlFor(member.photo_url, override, (path) => memberPhotoPublicUrl(supabase, path));
+      }
     }
 
     // A row whose email another member already has would fail the whole

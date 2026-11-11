@@ -1135,6 +1135,25 @@ describe('Member profile overrides during reprocessing', () => {
     expect(await fetchMember()).toMatchObject({ bio: 'Only in the Hub', facebook_url: null, twitter_url: null })
   })
 
+  it("keeps a photo copied into our storage over the Kajabi CDN address, which every run would otherwise put back", async () => {
+    const kajabiPhoto = 'https://kajabi-storefronts-production.kajabi-cdn.com/kajabi-storefronts-production/avatars/test.png'
+    await setKajabiProfile({ avatar: kajabiPhoto })
+    await reprocess()
+    expect((await supabase.from('members').select('photo_url').eq('id', memberId).single()).data?.photo_url).toBe(kajabiPhoto)
+
+    const photoPath = `${memberId}/0123456789abcdef0123456789abcdef.webp`
+    await supabase.from('member_profile_overrides').update({ photo_path: photoPath }).eq('member_id', memberId)
+    await reprocess()
+    await reprocess()
+    const { data } = await supabase.from('members').select('photo_url').eq('id', memberId).single()
+    expect(data?.photo_url).toBe(supabase.storage.from('member-photos').getPublicUrl(photoPath).data.publicUrl)
+
+    // Reset: follows the sources again.
+    await supabase.from('member_profile_overrides').update({ photo_path: null }).eq('member_id', memberId)
+    await reprocess()
+    expect((await supabase.from('members').select('photo_url').eq('id', memberId).single()).data?.photo_url).toBe(kajabiPhoto)
+  })
+
   it("hides an Instagram that only exists in Kajabi's member directory once the member cleared it, and follows Kajabi again when reset", async () => {
     await setKajabiProfile({ socials: { instagram: 'directory_handle' } })
     await supabase.from('member_profile_overrides').update({ instagram_url: null }).eq('member_id', memberId)

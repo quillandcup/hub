@@ -4252,6 +4252,7 @@ export type Database = {
           facebook_url: string | null
           instagram_url: string | null
           member_id: string
+          photo_path: string | null
           twitter_url: string | null
           updated_at: string
           updated_by: string | null
@@ -4262,6 +4263,7 @@ export type Database = {
           facebook_url?: string | null
           instagram_url?: string | null
           member_id: string
+          photo_path?: string | null
           twitter_url?: string | null
           updated_at?: string
           updated_by?: string | null
@@ -4272,6 +4274,7 @@ export type Database = {
           facebook_url?: string | null
           instagram_url?: string | null
           member_id?: string
+          photo_path?: string | null
           twitter_url?: string | null
           updated_at?: string
           updated_by?: string | null

@@ -14,6 +14,7 @@ export type MemberSeedRecord = {
   stripeCustomerId?: string;
   bio?: string;
   instagramUrl?: string;
+  photoUrl?: string;
   birthday?: [month: number, day: number];
   totalActiveMonths?: number;
   /** Kajabi tags on the contact. */
@@ -51,6 +52,28 @@ export function defineMemberContract(name: string, setup: () => MemberContractCo
       expect(await ctx.repo().instagramUrls()).toEqual(
         expect.arrayContaining(["https://instagram.com/contract.insta.one", "https://instagram.com/contract.insta.two"]),
       );
+    });
+
+    it("lists the members who have a photo, and moves a photo only while it is still the one given", async () => {
+      const [ada, , gale] = await ctx.seed([
+        { name: "Photo One", photoUrl: "https://photos.example.test/one.png" },
+        { name: "No Photo" },
+        { name: "Photo Two", status: "cancelled", photoUrl: "https://photos.example.test/two.png" },
+      ]);
+
+      const withPhotos = await ctx.repo().withPhotos();
+      expect(withPhotos).toEqual(
+        expect.arrayContaining([
+          { id: ada, photoUrl: "https://photos.example.test/one.png" },
+          { id: gale, photoUrl: "https://photos.example.test/two.png" },
+        ]),
+      );
+
+      expect(await ctx.repo().setPhotoUrlIf(ada, "https://photos.example.test/one.png", "https://ours.example.test/one.webp")).toBe(true);
+      expect((await ctx.repo().byId(ada))?.photoUrl).toBe("https://ours.example.test/one.webp");
+      // Already moved (or changed by the member meanwhile): the guess about the old value is stale, nothing changes.
+      expect(await ctx.repo().setPhotoUrlIf(ada, "https://photos.example.test/one.png", "https://ours.example.test/other.webp")).toBe(false);
+      expect((await ctx.repo().byId(ada))?.photoUrl).toBe("https://ours.example.test/one.webp");
     });
 
     it("lists members' identities in a stable order, optionally one status", async () => {

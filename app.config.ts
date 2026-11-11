@@ -102,6 +102,12 @@ export const appConfig = {
    * anywhere, so the reports will name hosts missing here; Slack app pictures go through our own proxy
    * (/api/chat/unfurl-image) and need nothing listed.
    */
+  /**
+   * Hosts where Kajabi keeps member photos (the Kajabi CDN, going away when Kajabi is retired). `pnpm photos:adopt`
+   * copies the photos found there into our own storage (lib/members/adopt-photos.ts). Names only, no scheme.
+   */
+  kajabiPhotoHosts: ["kajabi-storefronts-production.kajabi-cdn.com"],
+
   csp: {
     imageHosts: [
       "https://image.mux.com", // lesson video stills

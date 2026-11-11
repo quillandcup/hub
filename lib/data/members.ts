@@ -197,6 +197,10 @@ export interface MemberRepository {
   unlinkAuthUser(userId: string): Promise<void>;
   /** Copies the given external ids onto the member. */
   setExternalIds(id: string, ids: ExternalIds): Promise<void>;
+  /** Every member who has a profile photo address, as (id, address), in id order. Paginated past 1000. */
+  withPhotos(): Promise<{ id: string; photoUrl: string }[]>;
+  /** Points the member's photo at `to`, only while it is still `from`; false when it had changed (or the member is gone). */
+  setPhotoUrlIf(id: string, from: string, to: string): Promise<boolean>;
 }
 
 const IDENTITY_COLUMNS = "id, name, display_name, email";
@@ -606,6 +610,19 @@ export class SupabaseMemberRepository implements MemberRepository {
     if (error) throw new Error(error.message);
   }
 
+  async withPhotos() {
+    const rows = await fetchAllRows<{ id: string; photo_url: string | null }>((from, to) =>
+      this.db.from("members").select("id, photo_url").not("photo_url", "is", null).order("id").range(from, to),
+    );
+    return rows.flatMap((r) => (r.photo_url ? [{ id: r.id, photoUrl: r.photo_url }] : []));
+  }
+
+  async setPhotoUrlIf(id: string, from: string, to: string) {
+    const { data, error } = await this.db.from("members").update({ photo_url: to }).eq("id", id).eq("photo_url", from).select("id");
+    if (error) throw new Error(error.message);
+    return (data ?? []).length > 0;
+  }
+
   async setExternalIds(id: string, ids: ExternalIds): Promise<void> {
     const patch: Update<"members"> = {};
     if (ids.kajabiId !== undefined) patch.kajabi_id = ids.kajabiId;
@@ -890,5 +907,18 @@ export class InMemoryMemberRepository implements MemberRepository {
     if (ids.kajabiId !== undefined) m.kajabiId = ids.kajabiId;
     if (ids.stripeCustomerId !== undefined) m.stripeCustomerId = ids.stripeCustomerId;
     if (ids.userId !== undefined) m.userId = ids.userId;
+  }
+
+  async withPhotos() {
+    return [...this.data.members]
+      .sort((a, b) => a.id.localeCompare(b.id))
+      .flatMap((m) => (m.photoUrl ? [{ id: m.id, photoUrl: m.photoUrl }] : []));
+  }
+
+  async setPhotoUrlIf(id: string, from: string, to: string) {
+    const m = this.find(id);
+    if (!m || m.photoUrl !== from) return false;
+    m.photoUrl = to;
+    return true;
   }
 }

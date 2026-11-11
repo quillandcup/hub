@@ -57,6 +57,7 @@ defineMemberContract("SupabaseMemberRepository", () => ({
       stripe_customer_id: m.stripeCustomerId ? `${m.stripeCustomerId}-${RUN}-${i}` : null,
       bio: m.bio ?? null,
       instagram_url: m.instagramUrl ?? null,
+      photo_url: m.photoUrl ?? null,
       birthday_month: m.birthday?.[0] ?? null,
       birthday_day: m.birthday?.[1] ?? null,
       first_joined_at: m.firstJoinedAt ?? null,

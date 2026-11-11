@@ -40,7 +40,7 @@ describe("InMemoryMemberStatusRepository seeding", () => {
       memberHiatuses: [hiatus],
       memberStatusOverrides: [{ id: "o1", member_id: members[0].id, override_type: "gift", reason: "r", notes: null, starts_at: "2026-01-01T00:00:00Z", expires_at: null, created_at: "2026-01-01T00:00:00Z", created_by: null, updated_at: "2026-01-01T00:00:00Z" }],
       memberJoinDateOverrides: [{ member_id: members[0].id, first_joined_at: "2020-01-01T00:00:00Z", reason: null, created_at: "2026-01-01T00:00:00Z" }],
-      memberProfileOverrides: [{ member_id: members[0].id, bio: "Hi", instagram_url: null, facebook_url: null, twitter_url: null, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z", updated_by: null }],
+      memberProfileOverrides: [{ member_id: members[0].id, bio: "Hi", instagram_url: null, facebook_url: null, twitter_url: null, photo_path: null, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z", updated_by: null }],
     });
     hiatus.start_date = "1999-01-01";
     const repo = createInMemoryRepos(data).memberStatus;
