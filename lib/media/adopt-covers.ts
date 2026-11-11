@@ -30,6 +30,10 @@ export interface AdoptReport {
   tooSmallForAmazon: number;
   /** Covers that couldn't be moved, with the id of the book or project and why; they stay as they were. */
   failed: { kind: "book" | "project"; id: string; reason: string }[];
+  /** Covers deliberately not read: a plain http link (https only), with the id and why. They stay as they were. */
+  skipped: { kind: "book" | "project"; id: string; reason: string }[];
+  /** How many of `skipped` are http links. */
+  skippedHttp: number;
 }
 
 export interface AdoptDeps {
@@ -43,12 +47,17 @@ export interface AdoptDeps {
   onProgress?: (done: number, total: number) => void;
 }
 
+const isPlainHttp = (url: string) => /^http:/i.test(url.trim());
+
 /**
  * Moves older covers into the media library as their member's own image, so the new Bookshelf size and the Amazon
  * download work for them (as far as their size allows: a 145 x 215 cover can't be made an Amazon cover, but a
  * cover that was a link to a bigger picture can). Each book or project is pointed at the new image only if its cover
- * hasn't changed meanwhile; the old file in the book-covers bucket is left where it is. Safe to run again: what
- * was moved is not looked at, and the same picture twice is one image. Without `apply` it reads and reports only.
+ * hasn't changed meanwhile (books and projects alike: the write is conditional on the old link); the old file in the
+ * book-covers bucket is left where it is. Links must be https: an http link is skipped and reported. Safe to run again:
+ * what was moved no longer has a link, so it is not looked at or downloaded again; the same picture twice is one image;
+ * a cover that failed or was skipped is tried again next time; and a source whose picture changed after the move is
+ * not followed (the Hub's copy stays). Without `apply` it reads and reports only.
  */
 export async function adoptLegacyCovers(deps: AdoptDeps, { apply }: { apply: boolean }): Promise<AdoptReport> {
   const fetchCover = deps.fetchCover ?? fetchLegacyCover;
@@ -59,12 +68,18 @@ export async function adoptLegacyCovers(deps: AdoptDeps, { apply }: { apply: boo
       .map((b) => ({ kind: "book" as const, id: b.id, memberId: b.member_id, title: b.title, url: b.cover_url })),
     ...projects.filter((p) => !coverAssetIdOf(p.cover_url)).map((p) => ({ kind: "project" as const, id: p.id, memberId: p.member_id, title: p.title, url: p.cover_url })),
   ];
-  const report: AdoptReport = { dryRun: !apply, considered: covers.length, adopted: 0, fromOwnBucket: 0, fromLinks: 0, amazonReady: 0, tooSmallForAmazon: 0, failed: [] };
+  const report: AdoptReport = { dryRun: !apply, considered: covers.length, adopted: 0, fromOwnBucket: 0, fromLinks: 0, amazonReady: 0, tooSmallForAmazon: 0, failed: [], skipped: [], skippedHttp: 0 };
   const fail = (c: LegacyCover, reason: string) => report.failed.push({ kind: c.kind, id: c.id, reason });
   const ownPrefix = `${deps.supabaseUrl.replace(/\/$/, "")}/storage/v1/object/public/book-covers/`;
 
   for (const [index, cover] of covers.entries()) {
     deps.onProgress?.(index + 1, covers.length);
+    // A file in our own bucket is read through storage, not the network, so only outside links must be https.
+    if (!cover.url.startsWith(ownPrefix) && isPlainHttp(cover.url)) {
+      report.skipped.push({ kind: cover.kind, id: cover.id, reason: "plain http link; only https links are fetched" });
+      report.skippedHttp++;
+      continue;
+    }
     try {
       const fetched = await fetchCover(deps.storage, deps.supabaseUrl, cover.url);
       if ("error" in fetched) {
@@ -80,7 +95,7 @@ export async function adoptLegacyCovers(deps: AdoptDeps, { apply }: { apply: boo
         }
         let moved = true;
         if (cover.kind === "book") moved = await deps.books.adoptCover(cover.id, cover.url, { url: bookCoverUrlFor(stored.asset.id), assetId: stored.asset.id });
-        else await deps.writing.updateProject(cover.memberId, cover.id, { cover_url: bookCoverUrlFor(stored.asset.id), cover_asset_id: stored.asset.id });
+        else moved = await deps.writing.adoptCover(cover.memberId, cover.id, cover.url, { url: bookCoverUrlFor(stored.asset.id), assetId: stored.asset.id });
         if (!moved) {
           fail(cover, "its cover changed while this ran; left as it is");
           continue;

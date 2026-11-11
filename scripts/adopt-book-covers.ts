@@ -9,6 +9,13 @@
  * Usage:
  *   pnpm covers:adopt [--env <file>] [--apply]
  *
+ * Links must be https (fetched pinned to the resolved public address, redirects re-checked, 10 MB cap); an http link is
+ * not fetched but listed as skipped, with a count, and stays as it was. Re-runs are safe: a moved cover no longer has a
+ * link so it is neither downloaded nor touched again, a book or project whose cover the member changed meanwhile is left
+ * as it is, the same picture twice is one library image, and anything that failed or was skipped is tried again.
+ * A picture that changes at its source after the move is not followed. To pick up new legacy links (for example to
+ * stay in step with the public members page), just run it again.
+ *
  * Without --apply it reads every cover and reports what it would do (how many, where from, how many would be big
  * enough for Amazon, and which can't be read and why), writing nothing: read that, then re-run with --apply. Safe to
  * run again. Writes use the service role. The output has counts and book or project ids, no names.
@@ -61,6 +68,10 @@ async function main() {
   console.log(`\n${report.considered} cover(s) are still a link.`);
   console.log(`${report.adopted} ${report.dryRun ? "can be moved" : "moved"}: ${report.fromOwnBucket} from the old book-covers bucket, ${report.fromLinks} from links to other sites.`);
   console.log(`Of those, ${report.amazonReady} are big enough to become an Amazon cover as they are, ${report.tooSmallForAmazon} are too small (the member has to upload a bigger one).`);
+  if (report.skipped.length > 0) {
+    console.log(`\n${report.skippedHttp} skipped because the link is plain http (only https is fetched); they stay as they were:`);
+    for (const f of report.skipped) console.log(`  ${f.kind} ${f.id}: ${f.reason}`);
+  }
   if (report.failed.length > 0) {
     console.log(`\n${report.failed.length} could not be ${report.dryRun ? "moved" : "moved, and stay as they were"}:`);
     for (const f of report.failed) console.log(`  ${f.kind} ${f.id}: ${f.reason}`);
