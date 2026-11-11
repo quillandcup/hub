@@ -5,7 +5,7 @@ export type ZoomContractContext = {
   repo: () => ZoomRepository;
   /** A value no other run has used (names, meeting uuids, ids). Everything a test stores carries it, so `clear` can find it. */
   unique: (label: string) => string;
-  /** Removes every attendee, meeting, ignored name, per-prickle ignore, ambiguous name and participant event this context made. */
+  /** Removes every attendee, meeting, ignored name, per-prickle ignore, ambiguous name and participant event and chat message this context made. */
   clear: () => Promise<void>;
   /** Two members and two prickles that exist (the ambiguous names and per-prickle ignores point at them). */
   members: [string, string];
@@ -348,6 +348,32 @@ export function defineZoomContract(name: string, setup: () => ZoomContractContex
       expect(since[0]).toEqual(expect.objectContaining({ host_id: "host-live", participant_name: "Ada p1", participant_email: null }));
       const all = (await ctx.repo().participantEventsSince(at(23, 0))).filter((e) => e.meeting_uuid === meeting);
       expect(all).toHaveLength(3);
+    });
+
+    it("records a chat message once per meeting and message id, and lists them since an instant in id order", async () => {
+      const meeting = ctx.unique("chat");
+      const message = (id: string, time: string, extra: Record<string, unknown> = {}) => ({
+        meeting_uuid: meeting,
+        meeting_id: "999",
+        message_id: id,
+        sent_at: time,
+        sender_name: "Ada Example",
+        recipient_type: "everyone",
+        message_text: `text of ${id}`,
+        raw_payload: { example: true },
+        ...extra,
+      });
+      await ctx.repo().recordChatMessage(message("m1", at(24, 9)));
+      await ctx.repo().recordChatMessage(message("m1", at(24, 9), { message_text: "redelivered" })); // the webhook retried
+      await ctx.repo().recordChatMessage(message("m2", at(24, 10), { recipient_type: "guest", recipient_name: "Bea Example", recipient_email: "bea@example.test", has_files: true }));
+      await ctx.repo().recordChatMessage(message("m0", at(24, 8)));
+
+      const rows = (await ctx.repo().chatMessagesSince(at(24, 8, 30))).filter((m) => m.meeting_uuid === meeting);
+      expect(rows.map((m) => m.message_id).sort()).toEqual(["m1", "m2"]);
+      expect(rows.find((m) => m.message_id === "m1")).toEqual(expect.objectContaining({ message_text: "text of m1", sender_name: "Ada Example", recipient_type: "everyone", has_files: false, sender_email: null }));
+      expect(rows.find((m) => m.message_id === "m2")).toEqual(expect.objectContaining({ recipient_type: "guest", recipient_email: "bea@example.test", has_files: true }));
+      expect(rows.map((m) => m.id)).toEqual([...rows.map((m) => m.id)].sort());
+      expect((await ctx.repo().chatMessagesSince(at(24, 0))).filter((m) => m.meeting_uuid === meeting)).toHaveLength(3);
     });
   });
 }

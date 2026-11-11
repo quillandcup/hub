@@ -20,6 +20,13 @@ export type NewZoomParticipantEvent = Database["bronze"]["Tables"]["zoom_partici
 export type ZoomParticipantEvent = Pick<ZoomParticipantEventRow, "id" | "meeting_uuid" | "host_id" | "participant_key" | "participant_name" | "participant_email" | "event_time"> & {
   event: "joined" | "left";
 };
+/**
+ * An in-meeting chat message the webhook saw (`bronze.zoom_chat_messages`, service role only: the text and the
+ * raw payload are hidden from admins, who read `zoom_chat_messages_meta`: sender and, for a private message, recipient).
+ */
+export type ZoomChatMessageRow = Database["bronze"]["Tables"]["zoom_chat_messages"]["Row"];
+export type NewZoomChatMessage = Database["bronze"]["Tables"]["zoom_chat_messages"]["Insert"];
+
 /** A Zoom display name that matched several members, queued for an admin to decide (`ambiguous_zoom_names`). */
 export type AmbiguousZoomNameRow = Database["public"]["Tables"]["ambiguous_zoom_names"]["Row"];
 /** A Zoom name ignored for one prickle only (`ignored_zoom_appearances`). */
@@ -133,6 +140,12 @@ export interface ZoomRepository {
   recordParticipantEvent(event: NewZoomParticipantEvent): Promise<void>;
   /** The participant events at or after an instant, in id order. */
   participantEventsSince(since: string): Promise<ZoomParticipantEvent[]>;
+
+  // --- in-meeting chat (service role only: it holds the text) ---
+  /** Records a chat message the webhook saw. Seeing the same one again (meeting, message id) changes nothing. */
+  recordChatMessage(message: NewZoomChatMessage): Promise<void>;
+  /** The chat messages sent at or after an instant, in id order. */
+  chatMessagesSince(since: string): Promise<ZoomChatMessageRow[]>;
 }
 
 export class SupabaseZoomRepository implements ZoomRepository {
@@ -421,6 +434,26 @@ export class SupabaseZoomRepository implements ZoomRepository {
     // The column is text; the webhook only writes "joined" and "left".
     return rows.map((row) => ({ ...row, event: row.event as ZoomParticipantEvent["event"] }));
   }
+
+  async recordChatMessage(message: NewZoomChatMessage) {
+    const { error } = await this.db
+      .schema("bronze")
+      .from("zoom_chat_messages")
+      .upsert(message, { onConflict: "meeting_uuid,message_id", ignoreDuplicates: true });
+    if (error) throw new Error(error.message);
+  }
+
+  async chatMessagesSince(since: string) {
+    return fetchAllRows((a, b) =>
+      this.db
+        .schema("bronze")
+        .from("zoom_chat_messages")
+        .select("*")
+        .gte("sent_at", since)
+        .order("id")
+        .range(a, b)
+    );
+  }
 }
 
 /** The candidate ids with `from` swapped for `to` (kept once, at the end). */
@@ -677,5 +710,33 @@ export class InMemoryZoomRepository implements ZoomRepository {
         event: event as "joined" | "left",
         event_time,
       }));
+  }
+  async recordChatMessage(message: NewZoomChatMessage) {
+    const seen = this.data.zoomChatMessages.some((r) => r.meeting_uuid === message.meeting_uuid && r.message_id === message.message_id);
+    if (seen) return;
+    this.data.zoomChatMessages.push({
+      id: message.id ?? `zmmsg_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`,
+      breakout_room_uuid: null,
+      has_files: false,
+      meeting_id: null,
+      message_text: "",
+      received_at: new Date().toISOString(),
+      recipient_context: null,
+      recipient_email: null,
+      recipient_name: null,
+      recipient_session_id: null,
+      recipient_type: null,
+      sender_context: null,
+      sender_email: null,
+      sender_name: null,
+      sender_session_id: null,
+      sender_type: null,
+      ...message,
+      raw_payload: message.raw_payload ?? null,
+    });
+  }
+
+  async chatMessagesSince(since: string) {
+    return byId(this.data.zoomChatMessages).filter((r) => r.sent_at >= since);
   }
 }

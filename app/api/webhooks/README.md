@@ -9,7 +9,7 @@ When external systems send events, we UPSERT to Bronze layer and immediately tri
 ## Endpoints
 
 - `/api/webhooks/calendar` - Google Calendar push notifications
-- `/api/webhooks/zoom` - Zoom meeting events
+- `/api/webhooks/zoom` - Zoom meeting events (meeting ended, participants joined/left, in-meeting chat messages)
 - `/api/webhooks/slack` - Slack Events API
 
 ## Architecture

@@ -5,6 +5,7 @@ import { triggerZoomImport } from "@/lib/processing/trigger";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { createRepos } from "@/lib/data/repos";
 import { parseParticipantEvent } from "@/lib/zoom-presence";
+import { parseChatMessage } from "@/lib/zoom-chat";
 
 // Webhook should respond quickly
 export const maxDuration = 60;
@@ -23,6 +24,7 @@ export const maxDuration = 60;
  * - meeting.ended
  * - meeting.participant_joined
  * - meeting.participant_left
+ * - meeting.chat_message_sent
  */
 /**
  * Zoom's HMAC-SHA256 signature over `v0:{timestamp}:{body}`. Required: participant events write
@@ -118,6 +120,17 @@ async function processMeetingEvent(payload: any) {
       await createRepos(createServiceRoleClient()).zoom.recordParticipantEvent(participantEvent);
     } catch (error) {
       console.error("Error recording Zoom participant event:", error);
+    }
+  }
+
+  // In-meeting chat. The webhook is the only source for a meeting that wasn't recorded to the cloud (Zoom's
+  // pull path is the recording's CHAT file), so a failure here is logged for Vercel and not retried.
+  const chatMessage = parseChatMessage(payload);
+  if (chatMessage) {
+    try {
+      await createRepos(createServiceRoleClient()).zoom.recordChatMessage(chatMessage);
+    } catch (error) {
+      console.error("Error recording Zoom chat message:", error);
     }
   }
 

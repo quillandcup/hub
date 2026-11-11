@@ -342,4 +342,69 @@ describe('Zoom Webhook', () => {
       expect(upsert).not.toHaveBeenCalled()
     })
   })
+
+  describe('In-meeting chat', () => {
+    const chatEvent = () =>
+      JSON.stringify({
+        event: 'meeting.chat_message_sent',
+        event_ts: 1791198000000,
+        payload: {
+          object: {
+            id: 123456789,
+            uuid: 'meeting-uuid-1',
+            chat_message: {
+              date_time: '2026-10-05T11:02:00Z',
+              message_id: 'msg-1',
+              message_content: 'a secret chat line',
+              sender_name: 'Test Writer',
+              sender_email: 'writer@example.test',
+              recipient_type: 'everyone',
+            },
+          },
+        },
+      })
+
+    it('records a chat message once per meeting and message id, without starting an import', async () => {
+      vi.useFakeTimers()
+      const response = await POST(signedRequest(chatEvent()))
+
+      expect(response.status).toBe(200)
+      expect(schemaFrom).toHaveBeenCalledWith('zoom_chat_messages')
+      expect(upsert.mock.calls[0][0]).toMatchObject({
+        meeting_uuid: 'meeting-uuid-1',
+        message_id: 'msg-1',
+        sent_at: '2026-10-05T11:02:00.000Z',
+        sender_name: 'Test Writer',
+        recipient_type: 'everyone',
+        message_text: 'a secret chat line',
+      })
+      expect(upsert.mock.calls[0][1]).toEqual({ onConflict: 'meeting_uuid,message_id', ignoreDuplicates: true })
+      await vi.runAllTimersAsync()
+      expect(triggerZoomImport).not.toHaveBeenCalled()
+    })
+
+    it('keeps the message text out of the logs', async () => {
+      const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+      await POST(signedRequest(chatEvent()))
+      expect(JSON.stringify(log.mock.calls)).not.toContain('a secret chat line')
+      log.mockRestore()
+    })
+
+    it('still answers 200 and logs the failure when the message cannot be saved', async () => {
+      upsert.mockResolvedValueOnce({ error: { message: 'database is down' } } as never)
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const response = await POST(signedRequest(chatEvent()))
+
+      expect(response.status).toBe(200)
+      expect(error).toHaveBeenCalledWith('Error recording Zoom chat message:', expect.anything())
+      error.mockRestore()
+    })
+
+    it('records nothing for a chat payload without a message id', async () => {
+      const body = JSON.parse(chatEvent())
+      delete body.payload.object.chat_message.message_id
+      await POST(signedRequest(JSON.stringify(body)))
+      expect(upsert).not.toHaveBeenCalled()
+    })
+  })
 })
