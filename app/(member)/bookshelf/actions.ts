@@ -9,7 +9,7 @@ import { cleanGenres } from "@/lib/book-genres";
 import { cleanEditions, type BookEdition, type BookEditionInput, type BookFormat } from "@/lib/book-editions";
 import { createRepos } from "@/lib/data/repos";
 import { releaseReplacedCover, resolveBookCover } from "@/lib/book-cover-assets";
-import { notifyStaffNewBook } from "@/lib/slack";
+import { celebrateNewBook } from "@/lib/slack";
 import { getPenNameOptions, resolvePenName, type PenNameOptions } from "@/lib/book-pen-name";
 
 import { withAction } from "@/lib/analytics/server";
@@ -118,10 +118,10 @@ async function addBookImpl(input: BookInput): Promise<{ success: true } | { erro
   }
 
   // Fire-and-forget: a Slack outage must never block the book from being added.
-  notifyStaffNewBook({
+  celebrateNewBook({
     title: input.title.trim(),
     memberId: effectiveIdentity.memberId,
-    memberName: effectiveIdentity.memberName,
+    memberName: effectiveIdentity.memberDisplayName ?? effectiveIdentity.memberName,
     purchaseUrl: editions[0].purchase_url,
   }).catch((err) => console.error("New book Slack notification failed:", err));
 

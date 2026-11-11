@@ -1,6 +1,6 @@
 import { WebClient } from "@slack/web-api";
 import { createSlackClient } from "@/lib/slack-client";
-import { APP_URL, isProduction } from "@/lib/config";
+import { APP_URL, SLACK_CELEBRATIONS_CHANNEL_ID, isProduction } from "@/lib/config";
 import { getSlackBotToken } from "@/lib/slack-bot-token";
 
 /**
@@ -72,64 +72,49 @@ export async function postToSlackChannel(params: { channel: string; text: string
   return true;
 }
 
-export interface NotifyStaffNewBookParams {
+export interface CelebrateNewBookParams {
   title: string;
   memberId: string;
+  /** The name the community knows them by (display name), not the legal name. */
   memberName: string;
   purchaseUrl?: string | null;
 }
 
 /**
- * Posts to a staff Slack channel when a member adds a new book -- either the standalone "Add a
- * Book" flow or the book-creation step of publishing a tracked project -- so staff can add it to
- * the Shopify store. Distinct from sendSlackDM above (that messages a *member*, not staff) and
- * from feedback/route.ts's notifySlack (a different channel, SLACK_FEEDBACK_CHANNEL_ID, for a
- * different purpose). Gated the same way: silently no-ops until both env vars are configured.
+ * Celebrates a new book in the community's cheering channel (SLACK_CELEBRATIONS_CHANNEL_ID) when a member adds one --
+ * the standalone "Add a Book" flow or the book step of publishing a tracked project. Links to the member's public
+ * profile, never an admin page, since everyone in the channel sees it. Posts only in production (postToSlackChannel).
  */
-export async function notifyStaffNewBook(params: NotifyStaffNewBookParams): Promise<void> {
-  const token = await getSlackBotToken();
-  const channel = process.env.SLACK_NEW_BOOKS_CHANNEL_ID;
-  if (!token || !channel) return;
-
+export async function celebrateNewBook(params: CelebrateNewBookParams): Promise<void> {
   const { title, memberId, memberName, purchaseUrl } = params;
-  const memberLink = `${APP_URL}/admin/members/${memberId}`;
+  const memberLink = `${APP_URL}/members/${memberId}`;
 
   const text = [
-    `📚 New book added: *${title}* by ${memberName}`,
+    `📚 New book added: *${escapeSlackText(title)}* by ${escapeSlackText(memberName)}`,
     purchaseUrl ? `<${purchaseUrl}|Where to buy>  ·  <${memberLink}|View member>` : `<${memberLink}|View member>`,
   ].join("\n");
 
-  const slack = createSlackClient(token);
-  await slack.chat.postMessage({ channel, text, unfurl_links: false, unfurl_media: false });
+  await postToSlackChannel({ channel: SLACK_CELEBRATIONS_CHANNEL_ID, text });
 }
 
-export interface NotifyStaffNewAwardParams {
+export interface CelebrateNewAwardParams {
   awardName: string;
   workTitle: string;
   memberId: string;
+  /** The name the community knows them by (display name), not the legal name. */
   memberName: string;
   url?: string | null;
 }
 
-/**
- * Posts to a staff Slack channel when a member self-reports an award/competition win, so staff
- * see it as soon as it happens (today they only learn about these informally in
- * #hedgie-classifieds) and can pull it into marketing/stats. Same gated-no-op pattern as
- * notifyStaffNewBook: silently does nothing until both env vars are configured.
- */
-export async function notifyStaffNewAward(params: NotifyStaffNewAwardParams): Promise<void> {
-  const token = await getSlackBotToken();
-  const channel = process.env.SLACK_NEW_AWARDS_CHANNEL_ID;
-  if (!token || !channel) return;
-
+/** Celebrates a member's self-reported award or competition win in the same channel as celebrateNewBook. */
+export async function celebrateNewAward(params: CelebrateNewAwardParams): Promise<void> {
   const { awardName, workTitle, memberId, memberName, url } = params;
-  const memberLink = `${APP_URL}/admin/members/${memberId}`;
+  const memberLink = `${APP_URL}/members/${memberId}`;
 
   const text = [
-    `🏆 ${memberName} won *${awardName}* for "${workTitle}"`,
+    `🏆 ${escapeSlackText(memberName)} won *${escapeSlackText(awardName)}* for "${escapeSlackText(workTitle)}"`,
     url ? `<${url}|Details>  ·  <${memberLink}|View member>` : `<${memberLink}|View member>`,
   ].join("\n");
 
-  const slack = createSlackClient(token);
-  await slack.chat.postMessage({ channel, text, unfurl_links: false, unfurl_media: false });
+  await postToSlackChannel({ channel: SLACK_CELEBRATIONS_CHANNEL_ID, text });
 }

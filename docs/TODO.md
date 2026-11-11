@@ -975,7 +975,7 @@ One system for everything the Hub sends members, instead of each feature hand-ro
 **Still to build:**
 - Inbound on the channel layer: a shared shape for replies (member, channel, conversation ref, text or action) so Messaging and interactive notifications don't each parse provider webhooks. Today only Slack replies exist, handled in `app/api/webhooks/slack/interactions/route.ts`.
 - Move remaining hand-rolled member messages onto `createNotifier`: payment-failure DMs (below), Host Confirmation Flow (CRM section). Wheel of Wonder's group intro and the Slack sign-in DM stay direct: one is a shared room, the other a transactional reply the member just asked for.
-- Staff channel posts as admin notification kinds, so each admin picks their channels: new book (`notifyStaffNewBook`), new award (`notifyStaffNewAward`), new feedback (`app/api/feedback/route.ts`). They post to a shared Slack channel today.
+- Staff channel posts as admin notification kinds, so each admin picks their channels: new feedback (`app/api/feedback/route.ts`). They post to a shared Slack channel today.
 - A `notifications` outbox with async fan-out, once a channel is slow or needs retries (email, push)
 - Quiet hours / time zone, and per-member frequency caps across kinds
 - Escalation and dedupe: don't email what was already seen in-app; delay-then-send (e.g. email only if a DM is still unread after N minutes)
