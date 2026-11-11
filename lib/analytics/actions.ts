@@ -94,6 +94,12 @@ export const OUTCOME_ACTIONS = [
   "prospects_imported",
   "prospects_searched",
   "prospect_reviewed",
+  // Conversations (staff)
+  "conversation_started",
+  "conversation_message_logged",
+  "conversation_updated",
+  "conversation_closed",
+  "conversation_deleted",
   // Onboarding
   "onboarding_started",
   "onboarding_dismissed",

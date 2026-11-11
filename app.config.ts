@@ -40,6 +40,13 @@ export const appConfig = {
    */
   adminNoteEditMinutes: 15,
 
+  /**
+   * How many days of silence on both sides turn a conversation (the community manager's reach-outs,
+   * lib/conversations.ts) from "waiting on them" into "gone quiet". A starting point to settle from real
+   * conversations (docs/CONVERSATIONS.md).
+   */
+  conversationQuietDays: 14,
+
   /** Support address shown to members (settings, /no-access, the auth email footer). */
   supportEmail: "support@quillandcup.com",
 

@@ -2587,6 +2587,71 @@ export type Database = {
           },
         ]
       }
+      conversations: {
+        Row: {
+          channel: string
+          closed_at: string | null
+          created_at: string
+          deleted_at: string | null
+          follow_up_on: string | null
+          id: string
+          last_member_message_at: string | null
+          last_staff_message_at: string | null
+          member_id: string
+          next_step: string | null
+          notes: string | null
+          opened_at: string
+          opened_by: string | null
+          outcome: string | null
+          reason: string
+          updated_at: string
+        }
+        Insert: {
+          channel: string
+          closed_at?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          follow_up_on?: string | null
+          id?: string
+          last_member_message_at?: string | null
+          last_staff_message_at?: string | null
+          member_id: string
+          next_step?: string | null
+          notes?: string | null
+          opened_at?: string
+          opened_by?: string | null
+          outcome?: string | null
+          reason: string
+          updated_at?: string
+        }
+        Update: {
+          channel?: string
+          closed_at?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          follow_up_on?: string | null
+          id?: string
+          last_member_message_at?: string | null
+          last_staff_message_at?: string | null
+          member_id?: string
+          next_step?: string | null
+          notes?: string | null
+          opened_at?: string
+          opened_by?: string | null
+          outcome?: string | null
+          reason?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversations_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       course_access: {
         Row: {
           course_id: string

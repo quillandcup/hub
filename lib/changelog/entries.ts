@@ -53,6 +53,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "conversations-and-staff-write-access",
+    date: "2026-11-11",
+    audience: "engineering",
+    category: "new",
+    title: "Conversations for the community manager, and the first staff write access",
+    summary: "A Conversations page where the community manager keeps track of her reach-outs to members, built on a new way for staff other than admins to write.",
+    body: [
+      "`/admin/conversations` (`docs/CONVERSATIONS.md`, step 1) replaces her spreadsheet with one row per conversation: member, reason (a hello, a welcome, a check-in, a writing check-in, encouragement), channel, who spoke last, a follow-up day, a next step and a short note. The status (needs reply, waiting on them, gone quiet, closed) is not stored: `lib/conversations.ts` derives it from the last-message times and a quiet window in `app.config.ts` (`conversationQuietDays`). For now she logs \"they replied\" and \"I replied\" by hand; steps 2 to 4 derive them from Slack DMs and email. No product entry: it is staff only.",
+      "It is the first table a community manager may write, so three things changed with it. `requireStaffAction()` (`lib/admin-auth.ts`) lets an admin or a community manager into a server action, and the action then asks for the `conversations.write` staff feature, which only she and admins have (`lib/staff-access.ts`). RLS lets `is_admin()` or `is_community_manager()` read, insert and update `conversations` (no delete: a removed conversation keeps its row), without widening `is_admin()`. And `audit_row_change()` now counts a community manager as staff: it used to classify only `admin` and `assistant` that way, so her writes would have been logged as a member's own action.",
+      "The data goes through `ConversationRepository` (`lib/data/conversations.ts`, with an in-memory twin and one contract suite). Opening and closing also write a `member_activities` row (source `conversations`, staff, engagement 0) so the member's timeline shows it, as outreach touches do; the audit log records the conversation's own change once, leaving out the last-message columns so logging a reply writes nothing.",
+    ].join("\n\n"),
+  },
+  {
     slug: "chat-link-previews-for-hub-messages",
     date: "2026-11-10",
     audience: "engineering",

@@ -2,7 +2,7 @@
 
 The community manager reaches out to members (a hello, a check-in on their writing, a welcome back) and some of those turn into long conversations. She started with a spreadsheet, one row per message. This is the design for tracking it in the Hub instead: one record per **conversation**, status that follows from who spoke last, and outcomes measured against the member's own activity before and after.
 
-Status: **design**. Nothing here is built yet; the build order is at the end.
+Status: **step 1 built** (2026-11-11): write access, the `conversations` table, the repository and the page at `/admin/conversations`, with manual logging. The other steps are design; the build order is at the end, and what is left of each is in `docs/TODO.md`, "Conversations: what is left".
 
 ## Why not the spreadsheet, and why not Outreach
 
@@ -94,3 +94,13 @@ Outcomes show on each conversation and as a cohort view on `/admin/at-risk`, whi
 4. **Email** through Resend, as above.
 
 Deferred pieces are entries in `docs/TODO.md` ("Conversations: what is left").
+
+### What step 1 does
+
+- **Table:** `conversations` (`20270624000000_conversations.sql`, id prefix `conv_`), as in "Data model" above, plus a check that `closed_at` and `outcome` are set together. Reasons: hello, welcome, check_in, writing_check_in, encouragement, other. Channels: slack_dm, prickle, email, other. Outcomes: re_engaged, no_response, declined, resolved, other. Notes are capped at 1000 characters and the next step at 280 (CHECK constraints, mirrored in `lib/conversations.ts`).
+- **Access:** RLS lets `is_admin()` or `is_community_manager()` read, insert (as themselves: `opened_by` must be the caller) and update; there is no DELETE grant, a removed conversation has `deleted_at`. The page and its actions are open to her through `requireStaffPage()` / `requireStaffAction()` and the `conversations.write` staff feature (granted to her, which every admin has); a future staff role gets neither the page nor the feature until added.
+- **Status:** `conversationStatus()` in `lib/conversations.ts`, from the last-message times. The member wrote last: needs your reply (however long ago). She wrote last or opened it: waiting on them until `conversationQuietDays` (`app.config.ts`, 14) days pass with nothing from either side, then gone quiet. A conversation with nothing logged counts from when it was opened. Opening one records her message at that moment, unless "they wrote to me first" is ticked.
+- **Audit:** the `conversation` entity is audited by three triggers; the update one leaves out `updated_at`, `last_staff_message_at` and `last_member_message_at`, so logging a reply writes no row. `audit_row_change()` now counts a community manager as staff (it listed only admin and assistant).
+- **Timeline:** opening and closing write a `member_activities` row (source `conversations`, actor staff, engagement 0, `related_id` the conversation) from the server action, best effort, with the reason and channel and, on a close, the outcome. Never her notes. RLS gives a community manager an INSERT on `member_activities` for that source, as herself, and nothing else.
+- **Removal request:** `member_data_handling` says `conversations.member_id` is deleted with the member.
+
