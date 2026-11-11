@@ -2,7 +2,9 @@ import { lookup as dnsLookup } from "node:dns/promises";
 import http from "node:http";
 import https from "node:https";
 import { isIP } from "node:net";
+import appConfig from "../../app.config";
 import { clock } from "@/lib/clock";
+import { APP_URL, SUPPORT_EMAIL } from "@/lib/config";
 
 /**
  * Fetching an address somebody else chose (a Slack app's picture, a book cover a member typed) without letting it reach
@@ -126,9 +128,17 @@ export type SafeGetFailure = "invalid_url" | "blocked" | "too_many_redirects" | 
 
 export type SafeGetResult =
   | { ok: true; bytes: Buffer; contentType: string | null; finalUrl: string }
-  | { ok: false; reason: SafeGetFailure; detail: string };
+  | { ok: false; reason: SafeGetFailure; detail: string; /** The upstream HTTP status behind a bad_status, when there was one. */ status?: number };
+
+/**
+ * Who we say we are to a server that isn't ours. Some hosts (Wikimedia) refuse a request with no User-Agent and ask for
+ * one that names the app and a contact; it carries nothing about the member.
+ */
+export const DEFAULT_USER_AGENT = `${appConfig.appName.replace(/[^\w .-]/g, "").replace(/ +/g, " ")}/1.0 (+${APP_URL}; ${SUPPORT_EMAIL})`;
 
 export interface SafeGetOptions {
+  /** Sent on every hop; defaults to DEFAULT_USER_AGENT. */
+  userAgent?: string;
   maxBytes: number;
   timeoutMs: number;
   allowHttp?: boolean;
@@ -161,7 +171,7 @@ export async function safeGet(input: string | URL, opts: SafeGetOptions): Promis
         url,
         address: checked.address,
         // No cookies, no referrer, nothing of ours; no compression so the size cap counts what is stored.
-        headers: { accept: opts.accept ?? "*/*", "accept-encoding": "identity" },
+        headers: { accept: opts.accept ?? "*/*", "accept-encoding": "identity", "user-agent": opts.userAgent ?? DEFAULT_USER_AGENT },
         signal: abort.signal,
       });
       if (response.status >= 300 && response.status < 400) {
@@ -178,7 +188,7 @@ export async function safeGet(input: string | URL, opts: SafeGetOptions): Promis
       }
       if (response.status < 200 || response.status >= 300) {
         response.destroy();
-        return fail("bad_status", `HTTP ${response.status}`);
+        return { ok: false, reason: "bad_status", detail: `HTTP ${response.status}`, status: response.status };
       }
       if (opts.acceptResponse && !opts.acceptResponse(response.headers)) {
         response.destroy();
@@ -232,14 +242,14 @@ export function sniffImageType(b: Uint8Array): ImageType | null {
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 export const IMAGE_TIMEOUT_MS = 10_000;
 
-export type FetchImageResult = { ok: true; bytes: Buffer; contentType: ImageType } | { ok: false; reason: SafeGetFailure | "not_image"; detail: string };
+export type FetchImageResult = { ok: true; bytes: Buffer; contentType: ImageType } | { ok: false; reason: SafeGetFailure | "not_image"; detail: string; status?: number };
 
 /**
  * A picture from an address we didn't choose: https only, at most 5 MB, one of the allowed raster types decided by the
  * bytes (a server's Content-Type is not believed, and SVG is refused).
  */
-export async function fetchImage(url: string | URL): Promise<FetchImageResult> {
-  const got = await safeGet(url, { maxBytes: MAX_IMAGE_BYTES, timeoutMs: IMAGE_TIMEOUT_MS, allowHttp: false, accept: "image/png,image/jpeg,image/gif,image/webp,image/avif" });
+export async function fetchImage(url: string | URL, opts: { userAgent?: string } = {}): Promise<FetchImageResult> {
+  const got = await safeGet(url, { userAgent: opts.userAgent, maxBytes: MAX_IMAGE_BYTES, timeoutMs: IMAGE_TIMEOUT_MS, allowHttp: false, accept: "image/png,image/jpeg,image/gif,image/webp,image/avif" });
   if (!got.ok) return got;
   const contentType = sniffImageType(got.bytes);
   return contentType ? { ok: true, bytes: got.bytes, contentType } : { ok: false, reason: "not_image", detail: "not an allowed image type" };

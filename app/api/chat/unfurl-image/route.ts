@@ -61,7 +61,8 @@ export async function GET(request: NextRequest) {
   const image = await fetchImage(url);
   if (!image.ok) {
     // The reason is one of our own codes; the address can carry a token, so it is not logged.
-    console.error("[chat] unfurl picture of %s (#%d) not served: %s", messageId, index, image.reason);
+    // The upstream status (a number) says whether a host refused us (403) or lost the file (404).
+    console.error("[chat] unfurl picture of %s (#%d) not served: %s%s", messageId, index, image.reason, image.status ? ` (upstream HTTP ${image.status})` : "");
     return unavailable();
   }
   return new NextResponse(new Uint8Array(image.bytes), {

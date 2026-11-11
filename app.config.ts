@@ -109,6 +109,7 @@ export const appConfig = {
       "https://secure.gravatar.com",
       "https://kajabi-storefronts-production.kajabi-cdn.com", // photos and covers imported from Kajabi
       "https://avatars.slack-edge.com", // Slack profile photos
+      "https://a.slack-edge.com", // one Slack user picture lives here
       "https://*.googleusercontent.com", // Google profile photos
       "https://www.google-analytics.com", // measurement beacons
       "https://www.googletagmanager.com",
