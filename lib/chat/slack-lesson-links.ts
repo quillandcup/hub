@@ -44,15 +44,11 @@ export const rewriteInSlack =
       if (parseChatFiles(row.files).length > 0) return;
       const line = await sharedVideoSlackLine(repos, messageId, row.slackChannelId);
       if (!line) return;
-      // The links stand where the address was: text before it stays before, text after it stays after. With no text at all, a message
-      // sent from the Hub says "Shared a lesson video: <title>" first, so this does too.
-      const links = line.replace(/^\n/, "");
-      const parts = [before.trim(), links, after.trim()].filter((part) => part !== "");
-      if (parts.length === 1) {
-        const lessonId = (await repos.chatVideos.lessonIdsOf([messageId])).get(messageId);
-        const title = lessonId ? (await repos.courses.lessonById(lessonId))?.title : null;
-        if (title) parts.unshift(escapeForSlack(sharedVideoDefaultText(title)));
-      }
+      // The links stand where the address was: text before it stays before, text after it stays after. Slack has no card, so what was
+      // shared is named right above the links, as a message sent from the Hub does when it has no text of its own.
+      const lessonId = (await repos.chatVideos.lessonIdsOf([messageId])).get(messageId);
+      const title = lessonId ? (await repos.courses.lessonById(lessonId))?.title : null;
+      const parts = [before.trim(), title ? escapeForSlack(sharedVideoDefaultText(title)) : "", line.replace(/^\n/, ""), after.trim()].filter((part) => part !== "");
       const result = await updateChatMessageInSlack(supabase, { messageId, memberId, body: parts.join("\n"), dropPreviews: true });
       if (!result.ok) console.error("[chat] rewriting the Slack copy of message %s failed: %s", messageId, result.error);
     } catch (error) {

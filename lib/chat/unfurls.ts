@@ -266,6 +266,16 @@ export function blocksAreCards(blocks: unknown, opts: { bot: boolean; body: stri
   return opts.bot || opts.body.trim() === "";
 }
 
+/**
+ * `unfurls` without Slack's own preview of the lesson a message already shows as a video card: a message sharing a lesson that was left as a
+ * plain link in Slack (it has files, so it was not rewritten) would otherwise show the card and Slack's picture of the same page.
+ */
+export function withoutLessonPreview(unfurls: Unfurl[], lessonId: string | undefined): Unfurl[] {
+  if (!lessonId) return unfurls;
+  const marker = `/lessons/${lessonId}`;
+  return unfurls.filter((u) => !(u.kind === "card" && [u.titleLink, u.fromUrl].some((link) => link?.includes(marker))));
+}
+
 /** Everything under a message that is not its text. */
 export function parseUnfurls(raw: { attachments?: unknown; blocks?: unknown }, opts: { bot: boolean; body: string }): ParsedUnfurls {
   const unfurls: Unfurl[] = [];

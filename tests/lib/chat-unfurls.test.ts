@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { blocksAreCards, MAX_ATTACHMENTS, MAX_BLOCKS, parseUnfurls, safeImageUrl, safeLinkUrl, unfurlTexts, type BlocksUnfurl, type CardUnfurl } from "@/lib/chat/unfurls";
+import { blocksAreCards, MAX_ATTACHMENTS, MAX_BLOCKS, parseUnfurls, safeImageUrl, safeLinkUrl, unfurlTexts, withoutLessonPreview, type BlocksUnfurl, type CardUnfurl } from "@/lib/chat/unfurls";
 
 const person = { bot: false, body: "hello" };
 const app = { bot: true, body: "Deployed" };
@@ -194,5 +194,24 @@ describe("unfurlTexts", () => {
       app
     );
     expect(unfurlTexts(unfurls)).toEqual(["pre <@U1>", "see <#C1|general>", ":tada:", "hi <@U2>", "by <@U4>"]);
+  });
+});
+
+describe("withoutLessonPreview", () => {
+  const card = (over: Partial<CardUnfurl>): CardUnfurl => ({ kind: "card", color: null, authorName: null, authorLink: null, pretext: null, title: "t", titleLink: null, text: null, fields: [], imageUrl: null, thumbUrl: null, serviceName: null, fromUrl: null, footer: null, ...over });
+  const LESSON = "les_AAAAAAAAAAA1";
+
+  it("drops Slack's preview of the lesson the message shares, by its link or its original address", () => {
+    const byTitle = card({ titleLink: `https://hub.example.test/courses/ready-writer/lessons/${LESSON}` });
+    const byOrigin = card({ fromUrl: `https://hub.example.test/courses/ready-writer/lessons/${LESSON}?t=95` });
+    expect(withoutLessonPreview([byTitle, byOrigin], LESSON)).toEqual([]);
+  });
+
+  it("keeps other previews, other lessons' previews, and everything when no lesson is shared", () => {
+    const other = card({ titleLink: "https://example.org/article" });
+    const otherLesson = card({ titleLink: "https://hub.example.test/courses/ready-writer/lessons/les_AAAAAAAAAAA2" });
+    expect(withoutLessonPreview([other, otherLesson], LESSON)).toEqual([other, otherLesson]);
+    const same = card({ titleLink: `https://hub.example.test/courses/ready-writer/lessons/${LESSON}` });
+    expect(withoutLessonPreview([same], undefined)).toEqual([same]);
   });
 });

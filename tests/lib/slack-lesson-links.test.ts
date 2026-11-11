@@ -219,7 +219,7 @@ describe("rewriteInSlack (the Slack copy of a converted message)", () => {
     expect(opts.messageId).toBe("msg_AAAAAAAAAAA1");
     expect(opts.memberId).toBe(FERN);
     expect(opts.dropPreviews).toBe(true);
-    expect(opts.body.startsWith("look\n<")).toBe(true);
+    expect(opts.body.startsWith("look\nShared a lesson video: Show up\n<")).toBe(true);
     expect(opts.body.endsWith("\n&amp; more")).toBe(true);
     expect(opts.body).toContain("|Watch it in Hub Chat>");
     expect(opts.body).not.toContain("/lessons/" + OPEN_LESSON + "|here");
@@ -231,7 +231,7 @@ describe("rewriteInSlack (the Slack copy of a converted message)", () => {
     await shareLessonLinkBySlackTs(repos, "C_HOSTS", "1.1", rewrite);
 
     const body: string = updateInSlack.mock.calls[0][1].body;
-    expect(body.startsWith("*Hey* <@U123>, watch this:\n<")).toBe(true);
+    expect(body.startsWith("*Hey* <@U123>, watch this:\nShared a lesson video: Show up\n<")).toBe(true);
     expect(body).toMatch(/\|Open the lesson>\nthen tell me what you think &lt;3$/);
     expect(body).not.toContain("|the lesson>");
     expect(body).not.toContain("share=open");
@@ -241,12 +241,12 @@ describe("rewriteInSlack (the Slack copy of a converted message)", () => {
     stored();
     dataset.chatMessageContents[0].body = `${address(OPEN_LESSON)} is the one to watch`;
     await shareLessonLinkBySlackTs(repos, "C_HOSTS", "1.1", rewrite);
-    expect(updateInSlack.mock.calls[0][1].body).toMatch(/^<[^\n]*\|Open the lesson>\nis the one to watch$/);
+    expect(updateInSlack.mock.calls[0][1].body).toMatch(/^Shared a lesson video: Show up\n<[^\n]*\|Open the lesson>\nis the one to watch$/);
 
     world({ messages: [{ id: "msg_AAAAAAAAAAA1", channel_id: CHANNEL, slack_ts: "1.1", author_member_id: FERN, origin: "slack", created_at: "2026-11-10T11:00:00Z" }] });
     dataset.chatMessageContents.push({ message_id: "msg_AAAAAAAAAAA1", body: `Watch this: ${address(OPEN_LESSON)}` });
     await shareLessonLinkBySlackTs(repos, "C_HOSTS", "1.1", rewrite);
-    expect(updateInSlack.mock.calls[1][1].body).toMatch(/^Watch this:\n<[^\n]*\|Open the lesson>$/);
+    expect(updateInSlack.mock.calls[1][1].body).toMatch(/^Watch this:\nShared a lesson video: Show up\n<[^\n]*\|Open the lesson>$/);
   });
 
   it("says what was shared, then the links, when the address was the whole message", async () => {
