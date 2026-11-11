@@ -31,14 +31,14 @@ export type JoinDateOverride = Pick<JoinDateOverrideRow, "member_id" | "first_jo
  * Profile fields a member edits in the Hub (`member_profile_overrides`), each with three states:
  * null (never set, follow Kajabi), "" (cleared) or a value.
  */
-export type ProfileOverrideFields = Pick<Row<"member_profile_overrides">, "bio" | "instagram_url" | "facebook_url" | "twitter_url">;
+export type ProfileOverrideFields = Pick<Row<"member_profile_overrides">, "bio" | "instagram_url" | "facebook_url" | "twitter_url" | "photo_path">;
 export type ProfileOverrideStoredRow = Row<"member_profile_overrides">;
 export type ProfileOverrideRow = ProfileOverrideFields & Pick<ProfileOverrideStoredRow, "member_id">;
 
 const HIATUS_WINDOW_COLUMNS = "id, start_date, end_date, reason, notes";
 const OVERRIDE_WINDOW_COLUMNS = "id, override_type, reason, starts_at, expires_at";
 const OVERRIDE_WITH_MEMBER = "*, member:members(id, name, display_name, email)";
-const PROFILE_COLUMNS = "member_id, bio, instagram_url, facebook_url, twitter_url";
+const PROFILE_COLUMNS = "member_id, bio, instagram_url, facebook_url, twitter_url, photo_path";
 
 
 /** Ordered by a text key, then by id (see `byKeyThenId`). */
@@ -99,7 +99,7 @@ export interface MemberStatusRepository {
   /** Every member's profile overrides, ordered by member. Paginated. */
   profileOverrides(): Promise<ProfileOverrideRow[]>;
   /** Saves the given fields (and who saved them), keeping the ones not given. Creates the member's row when there is none. */
-  saveProfileOverride(memberId: string, fields: Partial<ProfileOverrideFields>, updatedBy: string): Promise<void>;
+  saveProfileOverride(memberId: string, fields: Partial<ProfileOverrideFields>, updatedBy: string | null): Promise<void>;
 }
 
 export class SupabaseMemberStatusRepository implements MemberStatusRepository {
@@ -219,7 +219,7 @@ export class SupabaseMemberStatusRepository implements MemberStatusRepository {
   async profileOverrideOf(memberId: string) {
     const { data, error } = await this.db
       .from("member_profile_overrides")
-      .select("bio, instagram_url, facebook_url, twitter_url")
+      .select("bio, instagram_url, facebook_url, twitter_url, photo_path")
       .eq("member_id", memberId)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -232,7 +232,7 @@ export class SupabaseMemberStatusRepository implements MemberStatusRepository {
     );
   }
 
-  async saveProfileOverride(memberId: string, fields: Partial<ProfileOverrideFields>, updatedBy: string) {
+  async saveProfileOverride(memberId: string, fields: Partial<ProfileOverrideFields>, updatedBy: string | null) {
     const { error } = await this.db
       .from("member_profile_overrides")
       .upsert({ member_id: memberId, ...fields, updated_by: updatedBy }, { onConflict: "member_id" });
@@ -361,16 +361,16 @@ export class InMemoryMemberStatusRepository implements MemberStatusRepository {
 
   async profileOverrideOf(memberId: string) {
     const row = this.data.memberProfileOverrides.find((p) => p.member_id === memberId);
-    return row ? { bio: row.bio, instagram_url: row.instagram_url, facebook_url: row.facebook_url, twitter_url: row.twitter_url } : null;
+    return row ? { bio: row.bio, instagram_url: row.instagram_url, facebook_url: row.facebook_url, twitter_url: row.twitter_url, photo_path: row.photo_path } : null;
   }
 
   async profileOverrides() {
     return [...this.data.memberProfileOverrides]
       .sort((a, b) => (a.member_id < b.member_id ? -1 : a.member_id > b.member_id ? 1 : 0))
-      .map(({ member_id, bio, instagram_url, facebook_url, twitter_url }) => ({ member_id, bio, instagram_url, facebook_url, twitter_url }));
+      .map(({ member_id, bio, instagram_url, facebook_url, twitter_url, photo_path }) => ({ member_id, bio, instagram_url, facebook_url, twitter_url, photo_path }));
   }
 
-  async saveProfileOverride(memberId: string, fields: Partial<ProfileOverrideFields>, updatedBy: string) {
+  async saveProfileOverride(memberId: string, fields: Partial<ProfileOverrideFields>, updatedBy: string | null) {
     if (!this.memberExists(memberId)) throw new Error("violates foreign key constraint on member_id");
     const existing = this.data.memberProfileOverrides.find((p) => p.member_id === memberId);
     if (existing) {
@@ -383,6 +383,7 @@ export class InMemoryMemberStatusRepository implements MemberStatusRepository {
       instagram_url: null,
       facebook_url: null,
       twitter_url: null,
+      photo_path: null,
       created_at: this.now(),
       updated_at: this.now(),
       ...stripUndefined(fields),

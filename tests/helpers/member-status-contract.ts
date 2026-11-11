@@ -194,7 +194,7 @@ export function defineMemberStatusContract(name: string, setup: () => MemberStat
       it("saves some fields, keeps the others on the next save and keeps one member apart from another", async () => {
         const repo = ctx.repo();
         await repo.saveProfileOverride(ctx.members[ada].id, { bio: "Hello there", facebook_url: "https://facebook.example/ada" }, ctx.userId);
-        expect(await repo.profileOverrideOf(ctx.members[ada].id)).toEqual({ bio: "Hello there", instagram_url: null, facebook_url: "https://facebook.example/ada", twitter_url: null });
+        expect(await repo.profileOverrideOf(ctx.members[ada].id)).toEqual({ bio: "Hello there", instagram_url: null, facebook_url: "https://facebook.example/ada", twitter_url: null, photo_path: null });
 
         await repo.saveProfileOverride(ctx.members[ada].id, { instagram_url: "https://instagram.example/ada", bio: null }, ctx.userId);
         expect(await repo.profileOverrideOf(ctx.members[ada].id)).toEqual({
@@ -202,10 +202,11 @@ export function defineMemberStatusContract(name: string, setup: () => MemberStat
           instagram_url: "https://instagram.example/ada",
           facebook_url: "https://facebook.example/ada",
           twitter_url: null,
+          photo_path: null,
         });
 
         await repo.saveProfileOverride(ctx.members[bo].id, { twitter_url: "https://x.example/bo" }, ctx.userId);
-        expect(await repo.profileOverrideOf(ctx.members[bo].id)).toEqual({ bio: null, instagram_url: null, facebook_url: null, twitter_url: "https://x.example/bo" });
+        expect(await repo.profileOverrideOf(ctx.members[bo].id)).toEqual({ bio: null, instagram_url: null, facebook_url: null, twitter_url: "https://x.example/bo", photo_path: null });
       });
 
       it("leaves a field out of the save when it is undefined", async () => {
@@ -213,6 +214,15 @@ export function defineMemberStatusContract(name: string, setup: () => MemberStat
         await repo.saveProfileOverride(ctx.members[ada].id, { bio: "Kept" }, ctx.userId);
         await repo.saveProfileOverride(ctx.members[ada].id, { bio: undefined, twitter_url: "https://x.example/ada" }, ctx.userId);
         expect(await repo.profileOverrideOf(ctx.members[ada].id)).toMatchObject({ bio: "Kept", twitter_url: "https://x.example/ada" });
+      });
+
+      it("keeps a photo path of its own, saved with no signed-in user (the adoption script), apart from the text fields", async () => {
+        const repo = ctx.repo();
+        await repo.saveProfileOverride(ctx.members[ada].id, { bio: "Kept" }, ctx.userId);
+        await repo.saveProfileOverride(ctx.members[ada].id, { photo_path: `${ctx.members[ada].id}/abc.webp` }, null);
+        expect(await repo.profileOverrideOf(ctx.members[ada].id)).toMatchObject({ bio: "Kept", photo_path: `${ctx.members[ada].id}/abc.webp` });
+        await repo.saveProfileOverride(ctx.members[ada].id, { photo_path: null }, null);
+        expect((await repo.profileOverrideOf(ctx.members[ada].id))?.photo_path).toBeNull();
       });
 
       it("scans every member's overrides by member", async () => {
@@ -225,8 +235,8 @@ export function defineMemberStatusContract(name: string, setup: () => MemberStat
         const ours = (await repo.profileOverrides()).filter((p) => mine(p.member_id));
         expect(byMember(ours)).toEqual(
           byMember([
-            { member_id: ctx.members[ada].id, bio: "Ada bio", instagram_url: null, facebook_url: null, twitter_url: null },
-            { member_id: ctx.members[bo].id, bio: "Bo bio", instagram_url: null, facebook_url: null, twitter_url: null },
+            { member_id: ctx.members[ada].id, bio: "Ada bio", instagram_url: null, facebook_url: null, twitter_url: null, photo_path: null },
+            { member_id: ctx.members[bo].id, bio: "Bo bio", instagram_url: null, facebook_url: null, twitter_url: null, photo_path: null },
           ]),
         );
       });

@@ -20,9 +20,11 @@ export interface ProfileOverride {
   instagram_url: string | null;
   facebook_url: string | null;
   twitter_url: string | null;
+  /** Our copy of the member's own photo (lib/member-photo.ts); not a text field, so applyProfileOverride leaves it alone. */
+  photo_path?: string | null;
 }
 
-export type ProfileFields = ProfileOverride;
+export type ProfileFields = Omit<ProfileOverride, "photo_path">;
 
 /** Stored value for a field the member cleared. */
 export const CLEARED = "";

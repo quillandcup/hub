@@ -1286,6 +1286,13 @@ Track external competitions (awards, contests, anthologies, showcases) that memb
 
 ## Member Profiles
 
+### After the Kajabi photos are copied: drop the Kajabi photo path
+`pnpm photos:adopt` (`scripts/adopt-member-photos.ts`, `lib/members/adopt-photos.ts`) copies member photos from the Kajabi CDN into the `member-photos` bucket and remembers each in `member_profile_overrides.photo_path`, which `/api/process/members` prefers over the Kajabi, Slack and Gravatar address. Open items once it has been applied in production and Kajabi is being retired:
+- Re-run it (it only touches photos still on the Kajabi host) until a dry run reports 0 photos, since a member can still get a new Kajabi avatar until the import stops.
+- Remove `https://kajabi-storefronts-production.kajabi-cdn.com` from `csp.imageHosts` and `kajabiPhotoHosts` in `app.config.ts` (the book covers imported from Kajabi need their own move first), then delete the `KAJABI_CDN` and avatar branch of `toKajabiPhotoUrl` in `lib/member-avatar.ts` along with the rest of the Kajabi member import.
+- Member removal (`remove_member_data`) deletes the override row, so the copy in `member-photos` (`<member id>/<hash>.webp`) is left behind: add that bucket to the files it returns next to the media library and feedback ones (`supabase/migrations/20270412000000_remove_member_data_paths_by_bucket.sql`, then the code that deletes them).
+- A member-facing "upload my own photo" setting does not exist; when it does, it should write `photo_path` the same way, so the one mechanism covers both.
+
 ### Public Pen Names ("Also writes as …") _(Idea)_
 Let members choose which of their alternate names show on their public profile. Today the only public name is `members.display_name` (the "default pen name", used as the profile heading via `getMemberDisplayName`). Other pen names live in `member_name_aliases`, mixed in with internal Zoom/Slack matching names that can include typos or legal names, and RLS only lets a member read their own aliases (`20260831180000_add_alias_self_service.sql`) — so they can't be shown to other members as-is.
 

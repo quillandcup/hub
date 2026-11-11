@@ -51,6 +51,7 @@
     "templates:render": "tsx scripts/render-email-templates.ts",
     "courses:content": "tsx scripts/kajabi-course-content.ts",
     "covers:adopt": "tsx scripts/adopt-book-covers.ts",
+    "photos:adopt": "tsx scripts/adopt-member-photos.ts",
     "books:import": "tsx scripts/import-storefront-books.ts",
     "config:diff": "dotenv -e .env.prod -- supabase config diff",
     "config:push": "dotenv -e .env.prod -- supabase config push",
