@@ -127,6 +127,21 @@ describe('Slack webhook: message subtypes', () => {
     expect(projectSlackActivity).toHaveBeenCalled()
   })
 
+  it('stores the preview Slack adds to a message the Hub posted (it carries our metadata), so the Hub can draw it when it has no preview of its own', async () => {
+    await storeOriginal()
+    const unfurlTs = `${nowSec - 50}.000100`
+    const attachments = [{ title: 'Hub-posted link', title_link: 'https://example.com/b', original_url: 'https://example.com/b', id: 1 }]
+    const metadata = { event_type: 'hub_message', event_payload: { app_message_id: 'msg_AAAAAAAAAAA1' } }
+    await send({
+      type: 'message', subtype: 'message_changed', hidden: true, ts: unfurlTs, event_ts: unfurlTs,
+      message: { type: 'message', ts: originalTs, user: 'UAUTHOR', text: 'first draft', metadata, attachments },
+    })
+
+    const { data, error } = await supabase.schema('bronze').from('slack_messages').select('raw_payload').eq('channel_id', channelId).eq('message_ts', originalTs).single()
+    expect(error).toBeNull()
+    expect((data!.raw_payload as { attachments: unknown }).attachments).toEqual(attachments)
+  })
+
   it('ignores an edit to a message we never stored (the nightly import brings it in)', async () => {
     await send({
       type: 'message',

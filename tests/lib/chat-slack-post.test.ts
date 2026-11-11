@@ -3,7 +3,8 @@ import { useFakeClock } from "@/tests/helpers/fake-clock";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos, type Repos } from "@/lib/data/repos";
 
-const { postMessage, tokensUsed, config, getSlackUserToken, repos } = vi.hoisted(() => ({
+const { postMessage, tokensUsed, config, getSlackUserToken, repos, previewFlag } = vi.hoisted(() => ({
+  previewFlag: { on: false, throws: false },
   postMessage: vi.fn(),
   tokensUsed: [] as (string | undefined)[],
   config: { isProduction: true },
@@ -29,6 +30,13 @@ vi.mock("@/lib/slack-connect", async (original) => ({
 vi.mock("@/lib/data/repos", async () => ({
   ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
   createRepos: () => repos.current,
+}));
+
+vi.mock("@/lib/features.server", () => ({
+  membersWithFeature: async (_repos: unknown, _key: string, ids: string[]) => {
+    if (previewFlag.throws) throw new Error("flag lookup down");
+    return new Set(previewFlag.on ? ids : []);
+  },
 }));
 
 const { reportRefused } = vi.hoisted(() => ({ reportRefused: vi.fn() }));
@@ -65,6 +73,8 @@ beforeEach(() => {
   vi.stubEnv("SLACK_TEST_MODE", "true");
   vi.stubEnv("SLACK_BOT_TOKEN", "xoxb-test");
   config.isProduction = true;
+  previewFlag.on = false;
+  previewFlag.throws = false;
   getSlackUserToken.mockReset();
   // Chat requires a connected account, so a member normally has one.
   getSlackUserToken.mockResolvedValue({ token: "xoxp-fern", slackUserId: "U_FERN" });
@@ -126,6 +136,26 @@ describe("sendChatMessageToSlack", () => {
       metadata: hubMessageMetadata(ID),
     });
     expect(stateOf(ID)).toMatchObject({ slack_ts: "1700000000.000100", slack_sync_status: "sent", posted_via: "user_token" });
+  });
+
+  it("lets Slack unfurl the links in a message from a sender who has chat_link_previews", async () => {
+    previewFlag.on = true;
+    await expect(sendChatMessageToSlack(supabase as never, ID)).resolves.toBe("sent");
+    const [args, token] = postMessage.mock.calls[0];
+    expect(token).toBe("xoxp-fern");
+    expect(args).toMatchObject({ unfurl_links: true, unfurl_media: true });
+  });
+
+  it("keeps unfurling off when the flag is off, and when the flag lookup fails (the message still goes)", async () => {
+    await sendChatMessageToSlack(supabase as never, ID);
+    expect(postMessage.mock.calls[0][0]).toMatchObject({ unfurl_links: false, unfurl_media: false });
+
+    postMessage.mockClear();
+    dataset.chatMessages.find((m) => m.id === ID)!.slack_sync_status = "pending";
+    previewFlag.throws = true;
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(sendChatMessageToSlack(supabase as never, ID)).resolves.toBe("sent");
+    expect(postMessage.mock.calls[0][0]).toMatchObject({ unfurl_links: false, unfurl_media: false });
   });
 
   it("adds links back to the Hub for a message that shares a lesson video, as plain text even when the words need blocks", async () => {
