@@ -212,7 +212,7 @@ describe("buildMessageViews", () => {
       ],
       FERN
     );
-    expect(out.views[0]).toMatchObject({ authorName: "Deploys", authorPhotoUrl: "https://example.com/i.png", hideBody: true });
+    expect(out.views[0]).toMatchObject({ authorName: "Deploys", authorPhotoUrl: "/api/chat/unfurl-image?m=m1&i=0", hideBody: true });
     expect(out.views[0].unfurls?.map((u) => u.kind)).toEqual(["blocks"]);
     expect(out.views[1]).toMatchObject({ authorName: "Someone on Slack", hideBody: false, unfurls: [] });
     expect(out.views[2]).toMatchObject({ authorName: "Someone on Slack", hideBody: false, unfurls: [] });

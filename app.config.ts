@@ -95,6 +95,25 @@ export const appConfig = {
    * settings are read and written on (sentry-config.yml, scripts/sentry-config.ts). The org is in the EU region.
    */
   sentry: { org: "quillandcup", project: "hub", apiUrl: "https://de.sentry.io" },
+
+  /**
+   * Content-Security-Policy (lib/csp.ts, sent by next.config.ts, today as Report-Only): the origins other than our own
+   * and Supabase storage that pictures may load from. Member photos, book covers and Slack link previews can come from
+   * anywhere, so the reports will name hosts missing here; Slack app pictures go through our own proxy
+   * (/api/chat/unfurl-image) and need nothing listed.
+   */
+  csp: {
+    imageHosts: [
+      "https://image.mux.com", // lesson video stills
+      "https://www.gravatar.com", // avatars by email
+      "https://secure.gravatar.com",
+      "https://kajabi-storefronts-production.kajabi-cdn.com", // photos and covers imported from Kajabi
+      "https://avatars.slack-edge.com", // Slack profile photos
+      "https://*.googleusercontent.com", // Google profile photos
+      "https://www.google-analytics.com", // measurement beacons
+      "https://www.googletagmanager.com",
+    ],
+  },
 } as const;
 
 export default appConfig;

@@ -175,8 +175,14 @@ defineChatContract("InMemoryChatRepository", () => {
       const ids: Record<string, string> = {};
       for (const m of messages) {
         ids[m.key] = `msg_${String(++n).padStart(12, "A")}`;
-        data.chatMessages.push({ id: ids[m.key], channel_id: m.channelId, slack_ts: m.slackTs ?? null });
-        data.chatMessageContents.push({ message_id: ids[m.key], files: (m.files ?? null) as never, ...(m.body !== undefined ? { body: m.body } : {}) });
+        data.chatMessages.push({ id: ids[m.key], channel_id: m.channelId, slack_ts: m.slackTs ?? null, ...(m.deleted ? { deleted_at: new Date().toISOString() } : {}) });
+        data.chatMessageContents.push({
+          message_id: ids[m.key],
+          files: (m.files ?? null) as never,
+          ...(m.body !== undefined ? { body: m.body } : {}),
+          ...(m.attachments !== undefined ? { attachments: m.attachments as never } : {}),
+          ...(m.bot !== undefined ? { bot: m.bot as never } : {}),
+        });
       }
       return ids;
     },
