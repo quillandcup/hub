@@ -17,14 +17,16 @@ const TIME_BUDGET_MS = 200_000;
  * Daily reconciliation of members' Slack 1:1 DMs. The live events (`user_events` `message.im`) and the pull
  * when a member opens chat can both miss something, and the bot can't read a DM, so this pulls the DMs of
  * every member the `slack_dm_bridge` feature covers with their own token (docs/SLACK_BRIDGED_CHAT.md).
- * Members left when the time runs out are first in line next time only by luck of the order, so a run that
- * defers anyone reports it. Scheduled daily by Vercel Cron, which always invokes via GET. Does nothing off production.
+ * Members are taken the one pulled longest ago first, so those left when the time runs out are first next time; a run that
+ * defers anyone reports it, except one the admin's backfill button asked for (`?backfill=1`: it repeats the run until
+ * everyone is read, so a partial run is expected and neither alerts nor pings). Scheduled daily by Vercel Cron, which always invokes via GET. Does nothing off production.
  */
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin(request);
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
+  const backfill = new URL(request.url).searchParams.get("backfill") === "1";
   const service = createServiceRoleClient();
   try {
     if (!chatSlackWritesEnabled()) return NextResponse.json({ success: true, reconciliation: "slack-dms", skipped: "not production" });
@@ -35,7 +37,9 @@ export async function GET(request: NextRequest) {
       ...(result.incomplete > 0 ? [`${result.incomplete} members' DMs only partly read: out of time (the rest next run)`] : []),
       ...result.errors,
     ];
-    if (problems.length > 0) {
+    if (backfill) {
+      // The button reads the counts and errors from the response.
+    } else if (problems.length > 0) {
       console.warn("[Reconciliation] Slack DM reconciliation did not finish cleanly:", problems);
       await sendOperationsAlert(createRepos(service), { type: "cron_partial_failure", job: "reconcile-slack-dms", problems });
     } else {

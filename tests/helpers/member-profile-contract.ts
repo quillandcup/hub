@@ -10,7 +10,7 @@ export type MemberProfileContractContext = {
   /** A member id nothing has. */
   missingMemberId: string;
   /** Stores a Slack connection (the app writes them through a database function that keeps the tokens in the vault). */
-  seedSlackConnection: (memberId: string, slackUserId: string, options?: { revoked?: boolean; scopes?: string[] }) => Promise<void>;
+  seedSlackConnection: (memberId: string, slackUserId: string, options?: { revoked?: boolean; scopes?: string[]; dmsPulledAt?: string }) => Promise<void>;
   /** Removes everything stored for the three members. */
   clear: () => Promise<void>;
 };
@@ -166,6 +166,15 @@ export function defineMemberProfileContract(name: string, setup: () => MemberPro
         expect(await repo.memberIdsWithSlackScopes(["im:history", "im:read"])).toEqual([id(ada)]);
         expect([...(await repo.memberIdsWithSlackScopes(["im:history"]))].sort()).toEqual([id(ada), id(bo)].sort());
         expect(await repo.memberIdsWithSlackScopes(["files:read"])).toEqual([]);
+      });
+
+      it("lists them least recently pulled first, never pulled before any pulled", async () => {
+        const repo = ctx.repo();
+        await ctx.seedSlackConnection(id(ada), "U_CONTRACT_A", { scopes: ["im:history"], dmsPulledAt: "2026-11-01T00:00:00Z" });
+        await ctx.seedSlackConnection(id(bo), "U_CONTRACT_B", { scopes: ["im:history"], dmsPulledAt: "2026-10-01T00:00:00Z" });
+        await ctx.seedSlackConnection(id(cy), "U_CONTRACT_C", { scopes: ["im:history"] });
+
+        expect(await repo.memberIdsWithSlackScopes(["im:history"])).toEqual([id(cy), id(bo), id(ada)]);
       });
 
       it("maps every connected Slack user to its member, revoked connections included", async () => {
