@@ -70,6 +70,9 @@ export const CARE_BEFORE_DAYS: number = appConfig.careBeforeDays;
 export const CARE_AFTER_FROM_DAYS: number = appConfig.careAfterFromDays;
 export const CARE_AFTER_TO_DAYS: number = appConfig.careAfterToDays;
 
+/** The days after an engagement period's last day at which retention is read (`careRetentionCheckpointDays`). */
+export const CARE_RETENTION_CHECKPOINT_DAYS: readonly number[] = appConfig.careRetentionCheckpointDays;
+
 /** Where members are told to email for help. */
 export const SUPPORT_EMAIL = appConfig.supportEmail;
 

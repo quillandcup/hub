@@ -6,6 +6,7 @@ import type { Db } from "@/lib/data/db";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { SupabaseMemberInteractionRepository } from "@/lib/data/member-interactions";
 import { createInMemoryRepos } from "@/lib/data/repos";
+import { parseDateOnly } from "@/lib/member-tenure";
 import { failingDb } from "@/tests/helpers/people-fixtures";
 
 const [ADA, BO, CY, DEE, ELI] = ["mbr_AAAAAAAAAAA1", "mbr_AAAAAAAAAAA2", "mbr_AAAAAAAAAAA3", "mbr_AAAAAAAAAAA4", "mbr_AAAAAAAAAAA5"];
@@ -60,7 +61,7 @@ const enrollment = (id: string, cohortId: string) => ({ id, member_id: ADA, coho
 const hiatus = (id: string, start: string, end: string | null) =>
   ({ id, member_id: ADA, start_date: start, end_date: end, reason: null, notes: null, created_at: null, created_by: null, updated_at: "2026-01-01T00:00:00Z" }) as never;
 
-function seed(options: { hiatusFrom?: string | null; programEnds?: string } = {}) {
+function seed(options: { hiatusFrom?: string | null; hiatusTo?: string | null; programEnds?: string } = {}) {
   const data = new InMemoryDataset({
     members: [member(ADA, "Ada"), member(BO, "Bo"), member(CY, "Cy"), member(DEE, "Dee", { userId: MANAGER_USER }), member(ELI, "Eli")],
   });
@@ -88,7 +89,7 @@ function seed(options: { hiatusFrom?: string | null; programEnds?: string } = {}
     cohort("coh_AAAAAAAAAAA2", "prog_AAAAAAAAAAA2", "2026-03-15", "2026-03-31"),
   ];
   data.programEnrollments = [enrollment("enr_AAAAAAAAAAA1", "coh_AAAAAAAAAAA1"), enrollment("enr_AAAAAAAAAAA2", "coh_AAAAAAAAAAA2")];
-  data.memberHiatuses = options.hiatusFrom === null ? [] : [hiatus("hia_AAAAAAAAAAA1", options.hiatusFrom ?? "2026-04-15", null)];
+  data.memberHiatuses = options.hiatusFrom === null ? [] : [hiatus("hia_AAAAAAAAAAA1", options.hiatusFrom ?? "2026-04-15", options.hiatusTo ?? null)];
   return createInMemoryRepos(data);
 }
 
@@ -108,63 +109,96 @@ describe("careExcludedMemberIds", () => {
 
 describe("loadCareResults", () => {
   const LATER = new Date("2027-01-01T00:00:00Z");
+  const CHECKPOINTS = [60, 90, 180];
+  const load = (repos: ReturnType<typeof seed>, now = LATER, over: Partial<typeof engagement> = {}) =>
+    loadCareResults(repos, repos, { ...engagement, ...over }, now, undefined, CHECKPOINTS);
 
   it("counts each window from the member's activity, leaving staff and the opener out of the people they connected with", async () => {
-    const repos = seed();
-    const results = await loadCareResults(repos, repos, engagement, LATER);
+    const { windows } = await load(seed());
 
-    expect(results.before.counts).toMatchObject({ pricklesAttended: 1, slackMessages: 0, firstPrickle: true, firstSlackPost: false, peopleConnected: 1 });
-    expect(results.during.counts).toMatchObject({ pricklesAttended: 1, slackMessages: 1, firstPrickle: false, firstSlackPost: true, peopleConnected: 1 });
-    expect(results.after.counts).toMatchObject({ pricklesAttended: 1, slackMessages: 1, firstPrickle: false, firstSlackPost: false, peopleConnected: 1 });
-    expect(results.after.window.state).toBe("complete");
+    expect(windows.before.counts).toMatchObject({ pricklesAttended: 1, slackMessages: 0, firstPrickle: true, firstSlackPost: false, peopleConnected: 1 });
+    expect(windows.during.counts).toMatchObject({ pricklesAttended: 1, slackMessages: 1, firstPrickle: false, firstSlackPost: true, peopleConnected: 1 });
+    expect(windows.after.counts).toMatchObject({ pricklesAttended: 1, slackMessages: 1, firstPrickle: false, firstSlackPost: false, peopleConnected: 1 });
+    expect(windows.after.window.state).toBe("complete");
   });
 
-  it("says whether they were a member at the end of each window, and that a member on hiatus has not left", async () => {
-    const repos = seed();
-    const results = await loadCareResults(repos, repos, engagement, LATER);
+  it("lists the programs whose start date falls inside each window, with how long each is", async () => {
+    const { windows } = await load(seed());
 
-    expect(results.before.counts?.membershipAtEnd).toBe("member");
-    expect(results.during.counts?.membershipAtEnd).toBe("member");
-    expect(results.after.counts?.membershipAtEnd).toBe("on_hiatus"); // the hiatus began in April and has no end
+    expect(windows.before.counts?.programsStarted).toEqual([]);
+    expect(windows.during.counts?.programsStarted).toEqual(["Second Program, 16 days"]);
+    expect(windows.after.counts?.programsStarted).toEqual([]);
   });
 
-  it("says not a member once their membership ended before the window's end", async () => {
-    const repos = seed({ hiatusFrom: null, programEnds: "2026-04-10" });
-    const results = await loadCareResults(repos, repos, engagement, LATER);
+  it("reads membership at each checkpoint as active, on hiatus or cancelled, three distinct states, with the program held", async () => {
+    // Hiatus from mid April with no end: on hiatus at every checkpoint, which is not the same as gone.
+    const { retention } = await load(seed());
 
-    expect(results.during.counts?.membershipAtEnd).toBe("member"); // the program was still running on Mar 31
-    expect(results.after.counts?.membershipAtEnd).toBe("not_a_member");
+    expect(retention.checkpoints.map((c) => [c.days, c.state, c.membership])).toEqual([
+      [60, "complete", "on_hiatus"],
+      [90, "complete", "on_hiatus"],
+      [180, "complete", "on_hiatus"],
+    ]);
+    expect(retention.checkpoints[0].programs).toEqual(["Example Program, 12 months"]);
+    expect(retention.checkpoints[0].at).toBe("2026-05-31T04:00:00.000Z");
   });
 
-  it("lists the programs whose start date falls inside each window", async () => {
-    const repos = seed();
-    const results = await loadCareResults(repos, repos, engagement, LATER);
+  it("says cancelled once the membership ended, and active while it ran", async () => {
+    const { retention } = await load(seed({ hiatusFrom: null, programEnds: "2026-06-15" }));
 
-    expect(results.before.counts?.programsStarted).toEqual([]);
-    expect(results.during.counts?.programsStarted).toEqual(["Second Program"]);
-    expect(results.after.counts?.programsStarted).toEqual([]);
+    expect(retention.checkpoints.map((c) => c.membership)).toEqual(["member", "not_a_member", "not_a_member"]); // day 60 is May 31; the program ran to Jun 15
+    expect(retention.checkpoints[0].programs).toEqual(["Example Program, 5 months"]);
+    expect(retention.checkpoints[1].programs).toEqual([]); // no longer held
+    expect(retention.firstLapse).toMatchObject({ status: "cancelled" });
   });
 
-  it("reads a member who does not exist as not a member", async () => {
+  it("shows the first hiatus even though they came back, with how many days after it started", async () => {
+    const { retention } = await load(seed({ hiatusFrom: "2026-03-20", hiatusTo: "2026-04-10" }));
+
+    expect(retention.checkpoints.map((c) => c.membership)).toEqual(["member", "member", "member"]); // back and active at every checkpoint
+    expect(retention.firstLapse?.status).toBe("on_hiatus");
+    // The hiatus began at the start of Mar 20 (parseDateOnly: the machine's midnight), after it opened on Mar 1 at 15:00 UTC.
+    expect(retention.firstLapse?.daysAfterStart).toBe(Math.floor((parseDateOnly("2026-03-20").getTime() - Date.parse(engagement.opened_at)) / 86_400_000));
+    expect(retention.firstLapse?.at).toBe(parseDateOnly("2026-03-20").toISOString());
+  });
+
+  it("has no first lapse when they have not gone on hiatus or left, and none before it began", async () => {
+    expect((await load(seed({ hiatusFrom: null, programEnds: "2027-12-31" }))).retention.firstLapse).toBeNull();
+    expect((await load(seed(), new Date("2026-04-01T00:00:00Z"))).retention.firstLapse).toBeNull(); // the hiatus is still in the future
+  });
+
+  it("says not yet for a checkpoint that has not passed, without reading membership for it", async () => {
+    const { retention } = await load(seed({ hiatusFrom: null }), new Date("2026-06-15T00:00:00Z"));
+
+    expect(retention.checkpoints.map((c) => [c.days, c.state])).toEqual([[60, "complete"], [90, "not_yet"], [180, "not_yet"]]);
+    expect(retention.checkpoints[1]).toMatchObject({ membership: null, programs: null });
+  });
+
+  it("uses the configured checkpoints when none are given", async () => {
     const repos = seed();
-    const results = await loadCareResults(repos, repos, { ...engagement, member_id: "mbr_ZZZZZZZZZZZZ" }, LATER);
-    expect(results.before.counts).toMatchObject({ membershipAtEnd: "not_a_member", programsStarted: [] });
+    const { retention } = await loadCareResults(repos, repos, engagement, LATER);
+    expect(retention.checkpoints.length).toBeGreaterThan(0);
+  });
+
+  it("reads a member who does not exist as cancelled with nothing held", async () => {
+    const { retention, windows } = await load(seed(), LATER, { member_id: "mbr_ZZZZZZZZZZZZ" });
+    expect(retention.checkpoints[0]).toMatchObject({ membership: "not_a_member", programs: [] });
+    expect(retention.firstLapse).toBeNull();
+    expect(windows.before.counts).toMatchObject({ programsStarted: [] });
   });
 
   it("does not count the after window until it has passed, and counts during so far", async () => {
-    const repos = seed();
-    const results = await loadCareResults(repos, repos, engagement, new Date("2026-03-10T00:00:00Z"));
+    const { windows } = await load(seed(), new Date("2026-03-10T00:00:00Z"));
 
-    expect(results.after).toMatchObject({ counts: null, window: { state: "not_yet" } });
-    expect(results.during.window.state).toBe("so_far");
-    expect(results.during.counts?.pricklesAttended).toBe(0); // the prickle on the 10th at 15:00 has not happened yet
-    expect(results.during.counts?.programsStarted).toEqual([]); // the second program starts on the 15th
+    expect(windows.after).toMatchObject({ counts: null, window: { state: "not_yet" } });
+    expect(windows.during.window.state).toBe("so_far");
+    expect(windows.during.counts?.pricklesAttended).toBe(0); // the prickle on the 10th at 15:00 has not happened yet
+    expect(windows.during.counts?.programsStarted).toEqual([]); // the second program starts on the 15th
   });
 
   it("leaves a firsts flag off when the first activity is outside the window", async () => {
-    const repos = seed();
-    const results = await loadCareResults(repos, repos, { ...engagement, opened_at: "2026-04-01T15:00:00.000Z", period_ends_on: "2026-04-30" }, LATER);
-    expect(results.before.counts).toMatchObject({ firstPrickle: false }); // the first prickle was before the window began
+    const { windows } = await load(seed(), LATER, { opened_at: "2026-04-01T15:00:00.000Z", period_ends_on: "2026-04-30" });
+    expect(windows.before.counts).toMatchObject({ firstPrickle: false }); // the first prickle was before the window began
   });
 });
 
