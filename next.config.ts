@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 import path from "path";
 import { withSentryConfig } from "@sentry/nextjs/config";
 import appConfig from "./app.config";
+import { buildCsp, CSP_REPORT_ONLY_HEADER } from "./lib/csp";
 import { helpImagesVersion } from "./scripts/help-images-version";
 import { readSkewMaxAgeSeconds } from "./scripts/skew-protection-config";
 
@@ -44,6 +45,24 @@ const nextConfig: NextConfig = {
   // the server). Makes flipping between chat conversations instant; a server action that calls
   // revalidatePath still clears it, and the live conversation reconciles over Realtime.
   experimental: { staleTimes: { dynamic: 30 } },
+  // Report-Only Content-Security-Policy on every response (lib/csp.ts): reports what it would block, blocks nothing.
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          {
+            key: CSP_REPORT_ONLY_HEADER,
+            value: buildCsp({
+              supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+              imageHosts: appConfig.csp.imageHosts,
+              sentryDsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+            }),
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default withSentryConfig(nextConfig, {

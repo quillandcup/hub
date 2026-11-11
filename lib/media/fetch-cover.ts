@@ -1,6 +1,8 @@
 import { lookup as dnsLookup } from "node:dns/promises";
-import { isIP } from "node:net";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { checkHost, isPublicAddress } from "@/lib/net/safe-fetch";
+
+export { isPublicAddress };
 
 /** A cover that is a link to somewhere else is read at most this large, and for at most this long. */
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -11,39 +13,9 @@ const OWN_BUCKET = "book-covers";
 export type FetchedCover = { bytes: Buffer } | { error: string };
 export type Lookup = (host: string) => Promise<{ address: string }[]>;
 
-/** Whether an address is somewhere on the open internet: not this machine, not a private or link-local network. */
-export function isPublicAddress(address: string): boolean {
-  if (isIP(address) === 6) {
-    const a = address.toLowerCase();
-    const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(a);
-    if (mapped) return isPublicAddress(mapped[1]);
-    const first = a.split(":")[0];
-    return !(a === "::" || a === "::1" || /^fe[89ab]/.test(first) || /^f[cdf]/.test(first));
-  }
-  const parts = address.split(".").map(Number);
-  if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return false;
-  const [a, b, c] = parts;
-  return !(
-    a === 0 ||
-    a === 10 ||
-    a === 127 ||
-    a >= 224 ||
-    (a === 100 && b >= 64 && b <= 127) ||
-    (a === 169 && b === 254) ||
-    (a === 172 && b >= 16 && b <= 31) ||
-    (a === 192 && b === 168) ||
-    (a === 192 && b === 0 && c === 0)
-  );
-}
-
-async function checkHost(url: URL, lookup: Lookup): Promise<string | null> {
-  if (url.protocol !== "http:" && url.protocol !== "https:") return "not an http(s) link";
-  if (url.port && url.port !== (url.protocol === "https:" ? "443" : "80")) return "unusual port";
-  const host = url.hostname.replace(/^\[|\]$/g, "");
-  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".internal")) return "not a public address";
-  const addresses = isIP(host) ? [{ address: host }] : await lookup(host).catch(() => []);
-  if (addresses.length === 0) return "the address doesn't resolve";
-  return addresses.every((a) => isPublicAddress(a.address)) ? null : "not a public address";
+async function checkCoverHost(url: URL, lookup: Lookup): Promise<string | null> {
+  const checked = await checkHost(url, lookup, { allowHttp: true });
+  return "problem" in checked ? checked.problem : null;
 }
 
 async function readLimited(res: Response): Promise<Buffer | null> {
@@ -96,7 +68,7 @@ export async function fetchLegacyCover(
   }
   try {
     for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-      const problem = await checkHost(url, lookup);
+      const problem = await checkCoverHost(url, lookup);
       if (problem) return { error: problem };
       const res = await fetch(url, { redirect: "manual", signal: AbortSignal.timeout(TIMEOUT_MS), headers: { accept: "image/*" } });
       if (res.status >= 300 && res.status < 400) {

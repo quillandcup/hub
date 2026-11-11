@@ -53,6 +53,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "chat-picture-proxy-and-csp",
+    date: "2026-11-10",
+    audience: "engineering",
+    category: "improved",
+    title: "Pictures under chat messages go through the Hub, and the app sends a Content-Security-Policy in report-only mode",
+    summary: "Link previews, app cards and logos in chat are fetched by the Hub instead of by each viewer's browser, and every page now reports which pictures a stricter policy would block.",
+    body: "Related to the product entry on Slack link previews and app cards in Hub chat. `GET /api/chat/unfurl-image?m=<message>&i=<position>` reads the message as the viewer (row-level security applies; a deleted message is a 404), lists its pictures with the same walk the renderer used (`lib/chat/unfurl-images.ts`) and fetches the one at that position, so the browser never names an address and no image host learns who looked. The fetch is `lib/net/safe-fetch.ts`: https only, ports 80 and 443, the name is resolved once and the connection is pinned to a public address (no DNS rebinding), every redirect hop is checked again, 5 MB cap while streaming, a time budget on `lib/clock.ts`, and the type is decided by the first bytes (PNG, JPEG, GIF, WebP, AVIF; SVG refused). The book-cover import shares its address checks. `next.config.ts` now sends `Content-Security-Policy-Report-Only` (`lib/csp.ts`: `img-src`, `object-src`, `base-uri`, `form-action`, `frame-ancestors`; violations go to Sentry); enforcing it, and covering scripts and styles with nonces, are in `docs/TODO.md`.",
+  },
+  {
     slug: "see-your-image-before-you-save-it",
     date: "2026-11-07",
     audience: "product",

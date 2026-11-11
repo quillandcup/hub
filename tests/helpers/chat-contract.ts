@@ -14,7 +14,7 @@ export type SeedChannel = {
 };
 
 // --- content, authors and gap fills: seeding ---
-export type SeedContentMessage = { key: string; channelId: string; slackTs?: string; files?: unknown[]; /** The message's text; a placeholder when left out. */ body?: string };
+export type SeedContentMessage = { key: string; channelId: string; slackTs?: string; files?: unknown[]; /** The message's text; a placeholder when left out. */ body?: string; attachments?: unknown; bot?: unknown; deleted?: boolean };
 export type SeedGapFill = { key: string; slackChannelId: string; startedAt: string };
 
 export type ChatContractContext = {
@@ -763,6 +763,22 @@ export function defineChatContract(name: string, setup: () => ChatContractContex
         expect(await ctx.repo().fileContext(ids.m)).toEqual({ files, slackTs: ts, slackChannelId: slack });
         expect(await ctx.repo().fileContext(ids.bare)).toEqual({ files: null, slackTs: null, slackChannelId: slack });
         expect(await ctx.repo().fileContext(NONE)).toBeNull();
+      });
+
+      it("reads what a message's cards are drawn from, and nothing for a deleted message or one without content", async () => {
+        const { c } = await ctx.seedChannels([{ key: "c", slackChannelId: ctx.unique("C") }]);
+        const attachments = [{ title: "A page", image_url: "https://img.example.test/a.png" }];
+        const bot = { name: "Deploy Bot", icon: "https://img.example.test/logo.png" };
+        const ids = await ctx.seedContentMessages([
+          { key: "m", channelId: c, body: "see this", attachments, bot },
+          { key: "plain", channelId: c, body: "just text" },
+          { key: "gone", channelId: c, body: "deleted", attachments, deleted: true },
+        ]);
+
+        expect(await ctx.repo().unfurlContext(ids.m)).toEqual({ body: "see this", blocks: null, attachments, bot });
+        expect(await ctx.repo().unfurlContext(ids.plain)).toEqual({ body: "just text", blocks: null, attachments: null, bot: null });
+        expect(await ctx.repo().unfurlContext(ids.gone)).toBeNull();
+        expect(await ctx.repo().unfurlContext(NONE)).toBeNull();
       });
 
       it("knows whether any message lists a file, and replaces a message's file list", async () => {

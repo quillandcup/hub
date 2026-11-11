@@ -246,14 +246,14 @@ defineChatContract("SupabaseChatRepository", () => ({
     for (const m of messages) {
       const { data, error } = await db
         .from("chat_messages")
-        .insert({ channel_id: m.channelId, created_at: new Date().toISOString(), slack_ts: m.slackTs ?? null })
+        .insert({ channel_id: m.channelId, created_at: new Date().toISOString(), slack_ts: m.slackTs ?? null, ...(m.deleted ? { deleted_at: new Date().toISOString() } : {}) })
         .select("id")
         .single();
       if (error) throw new Error(error.message);
       ids[m.key] = data.id;
       const { error: contentError } = await db
         .from("chat_message_contents")
-        .upsert({ message_id: data.id, body: m.body ?? "contract", files: (m.files ?? null) as never }, { onConflict: "message_id" });
+        .upsert({ message_id: data.id, body: m.body ?? "contract", files: (m.files ?? null) as never, attachments: (m.attachments ?? null) as never, bot: (m.bot ?? null) as never }, { onConflict: "message_id" });
       if (contentError) throw new Error(contentError.message);
     }
     return ids;

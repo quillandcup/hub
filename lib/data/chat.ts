@@ -296,6 +296,11 @@ export interface ChatRepository {
    * channel, so as the signed-in member this is null for a message they can't read.
    */
   fileContext(messageId: string): Promise<MessageFileContext | null>;
+  /**
+   * What the cards under a message are drawn from (body, blocks, attachments, the app that posted it), read as the caller, so a
+   * message they can't read is null. A deleted message is null too. For the picture proxy (app/api/chat/unfurl-image).
+   */
+  unfurlContext(messageId: string): Promise<MessageUnfurlContext | null>;
   /** Whether any message's file list names this file. */
   fileIsListed(fileId: string): Promise<boolean>;
   /** Replaces a message's file list. */
@@ -347,6 +352,13 @@ export interface SharedSourceRow {
 }
 
 export const sharedSourceKey = (slackChannelId: string, slackTs: string) => `${slackChannelId}:${slackTs}`;
+
+export interface MessageUnfurlContext {
+  body: string;
+  blocks: unknown;
+  attachments: unknown;
+  bot: unknown;
+}
 
 export interface MessageFileContext {
   files: Json | null;
@@ -844,6 +856,17 @@ export class SupabaseChatRepository implements ChatRepository {
     const message = data.chat_messages;
     const channel = message?.chat_channels;
     return { files: data.files, slackTs: message?.slack_ts ?? null, slackChannelId: channel?.slack_channel_id ?? null };
+  }
+
+  async unfurlContext(messageId: string) {
+    const { data, error } = await this.db
+      .from("chat_message_contents")
+      .select("body, blocks, attachments, bot, chat_messages(deleted_at)")
+      .eq("message_id", messageId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data || data.chat_messages?.deleted_at) return null;
+    return { body: data.body, blocks: data.blocks, attachments: data.attachments, bot: data.bot };
   }
 
   async fileIsListed(fileId: string) {
@@ -1407,6 +1430,13 @@ export class InMemoryChatRepository implements ChatRepository {
     const message = this.data.chatMessages.find((m) => m.id === messageId);
     const channel = message ? this.data.chatChannels.find((c) => c.id === message.channel_id) : undefined;
     return { files: content.files ?? null, slackTs: message?.slack_ts ?? null, slackChannelId: channel?.slack_channel_id ?? null };
+  }
+
+  async unfurlContext(messageId: string) {
+    const content = this.data.chatMessageContents.find((c) => c.message_id === messageId);
+    const message = this.data.chatMessages.find((m) => m.id === messageId);
+    if (!content || !message || message.deleted_at) return null;
+    return { body: content.body ?? "", blocks: content.blocks ?? null, attachments: content.attachments ?? null, bot: content.bot ?? null };
   }
 
   async fileIsListed(fileId: string) {

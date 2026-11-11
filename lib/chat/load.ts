@@ -2,6 +2,7 @@ import type { StageTimer } from "@/lib/chat/timing";
 import { emojiNamesIn, mentionedChannelIds, mentionedUserIds } from "@/lib/chat/render";
 import { blocksToBody } from "@/lib/chat/rich-blocks";
 import { parseUnfurls, unfurlTexts, type Unfurl } from "@/lib/chat/unfurls";
+import { proxyUnfurlImages } from "@/lib/chat/unfurl-images";
 import { parseSharedMessage, sharedMessageSource, type SharedSourceLookup } from "@/lib/chat/shared-message";
 import { sharedSourceKey, type SharedSourceRow } from "@/lib/data/chat";
 import { formatSlackPermalink } from "@/lib/slack-emoji";
@@ -617,12 +618,17 @@ export async function buildMessageViews(
     const body = rawBody !== null && sharedLesson ? withoutSharedLessonLink(stripSharedVideoLink(rawBody), APP_URL, sharedLesson) : rawBody;
     const contentState: ContentState = row.deleted_at ? "deleted" : body === null ? "hidden" : "ok";
     const bot = botOf(contentOf(row)?.bot);
+    const parsed = contentState === "ok" ? unfurlsByRow.get(row.id) : undefined;
+    // Pictures on other people's servers go through our own route, so those servers never see who looked (lib/chat/unfurl-images.ts).
+    // Only a message that is shown gets proxy addresses; the logo is position 0 and counts whether or not it is used below.
+    const proxied = parsed
+      ? proxyUnfurlImages(row.id, parsed.unfurls.map((u) => (u.kind === "share" ? withShareSource(u, sharedSources) : u)), bot?.icon ?? null)
+      : null;
     const author =
       (row.author_member_id ? profiles.get(row.author_member_id) : undefined) ??
       // An app is shown by its own name and logo, not as "Slack app".
-      (bot && !row.author_member_id ? { name: bot.name, photoUrl: bot.icon } : undefined) ??
+      (bot && !row.author_member_id ? { name: bot.name, photoUrl: proxied?.botIcon ?? null } : undefined) ??
       slackPerson(row.slack_ts ? slackAuthorByTs[row.slack_ts] : undefined);
-    const parsed = contentState === "ok" ? unfurlsByRow.get(row.id) : undefined;
     const replyAuthors: Person[] = [];
     const replySeen = new Set<string>();
     for (const a of replies.get(row.id) ?? []) {
@@ -644,7 +650,7 @@ export async function buildMessageViews(
       contentState,
       hasFiles: row.has_files,
       files: contentState === "ok" ? parseChatFiles(contentOf(row)?.files) : [],
-      unfurls: (parsed?.unfurls ?? []).map((u) => (u.kind === "share" ? withShareSource(u, sharedSources) : u)),
+      unfurls: proxied?.unfurls ?? [],
       hideBody: parsed?.hideBody ?? false,
       slackPermalink: channel.slackChannelId && row.slack_ts ? formatSlackPermalink(SLACK_WORKSPACE_URL, channel.slackChannelId, row.slack_ts) : null,
       sharesVideo: contentState === "ok" && sharedVideos.has(row.id),

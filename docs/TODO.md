@@ -1179,10 +1179,22 @@ The admin member page's Notifications tab (`app/(admin)/admin/members/[id]/Membe
 The first pass (`lib/chat/unfurls.ts`, `components/chat/MessageUnfurls.tsx`) draws legacy attachments (link previews, app cards) and a small Block Kit subset (header, section, context, divider, image, link buttons), and shows one "Open in Slack" link for any other block. Deferred, worth doing when members ask for it or a common app's cards read badly:
 
 - **More block types**: add a parser to `BLOCK_PARSERS` and a renderer to `BLOCK_RENDERERS` for `video`, `table`, `rich_text` inside an app's section, `context_actions`, `input` (display only), and accessory elements (menus, date pickers) shown disabled.
-- **Pictures through our own address**: unfurl pictures load straight from the remote address Slack gave, so the host sees the viewer's IP (no referrer is sent). Copy or proxy them as with Slack files (`/api/chat/files`) and check the Slack image hosts for hotlinking limits. The app sets no CSP today; if one is added, `img-src` needs these hosts or the proxy.
+- **Pictures through our own address** — **Resolved:** unfurl pictures (card and block pictures, app logos, quoted authors) go through `GET /api/chat/unfurl-image` (`lib/chat/unfurl-images.ts`, `lib/net/safe-fetch.ts`; `docs/SLACK_BRIDGED_CHAT.md`, "Pictures under messages"). **Still open:** see "Chat unfurl pictures: re-encode and keep a copy" and the CSP entries below.
 - **Interactivity**: buttons that post back to an app (`action_id`) are not shown. Our own bot's messages could handle them Slack-independently (see "Interactive elements" in `docs/SLACK_BRIDGED_CHAT.md`); third-party apps stay "Open in Slack".
 - **Search results** use a narrower content select, so cards are not shown there.
 - **Message-level unfurl toggles** (hide a preview, as in Slack) and animated/video unfurls (`video_html`).
+
+### Chat unfurl pictures: re-encode and keep a copy _(Needs Scheduling)_
+
+The unfurl picture proxy (`app/api/chat/unfurl-image/route.ts`) streams the other end's bytes after checking their type by magic bytes, but does not decode and re-encode them (so a crafted file that is a valid PNG header with a hostile body still reaches the browser, inert behind `nosniff` and a sandbox CSP), and it fetches again for each viewer whose browser cache is cold, so a host still sees our server's address and a request per viewer. Worth doing: re-encode through `sharp` (as `lib/media/` does for uploads) with a pixel cap, and/or keep a copy in a private bucket keyed by message and position so a picture survives the host deleting it and is fetched once. Start in the route and `lib/net/safe-fetch.ts` (`fetchImage`); the copy needs a bucket and a sweep like `lib/chat/file-cleanup.ts`.
+
+### Enforce the Content-Security-Policy _(Needs Scheduling)_
+
+`next.config.ts` sends `Content-Security-Policy-Report-Only` (`lib/csp.ts`: `img-src`, `object-src`, `base-uri`, `form-action`, `frame-ancestors`), reporting to Sentry. Deferred: read the reports for a week or two (member photos and legacy book covers on other hosts will show up; add hosts to `app.config.ts` `csp.imageHosts` or fix the data), then send the same value as `Content-Security-Policy`. Check `frame-ancestors 'self'` and `form-action 'self'` against real flows (OAuth redirects after a form post are covered by `form-action` in some browsers) before enforcing.
+
+### CSP for scripts and styles (nonces) _(Needs Scheduling)_
+
+The policy has no `script-src`, `style-src` or `default-src`: Next's inline bootstrap scripts, the Google Analytics tag and inline styles need per-request nonces, which makes every page dynamic (`node_modules/next/dist/docs/01-app/02-guides/content-security-policy.md`, "Adding a nonce with Proxy"). Deferred because it changes rendering for the whole app and needs its own measurement (caching, PPR). Start in `proxy.ts` / `lib/supabase/middleware.ts`, then `lib/csp.ts`; add `connect-src`, `frame-src` and `media-src` once the script policy is in.
 
 ## Slack Bot Channel Access
 
