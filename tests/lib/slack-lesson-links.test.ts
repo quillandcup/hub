@@ -235,11 +235,12 @@ describe("rewriteInSlack (the Slack copy of a converted message)", () => {
     expect(body).not.toContain("share=open");
   });
 
-  it("sends just the links when the address was the whole message", async () => {
+  it("says what was shared, then the links, when the address was the whole message", async () => {
     stored();
     dataset.chatMessageContents[0].body = address(OPEN_LESSON);
     await shareLessonLinkBySlackTs(repos, "C_HOSTS", "1.1", rewrite);
-    expect(updateInSlack.mock.calls[0][1].body.startsWith("<")).toBe(true);
+    // As a message sent from the Hub, with the lesson's title standing in for the text.
+    expect(updateInSlack.mock.calls[0][1].body.startsWith("Shared a lesson video: Show up\n<")).toBe(true);
   });
 
   it("leaves a message with files alone (an edit would drop them)", async () => {

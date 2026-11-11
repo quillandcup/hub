@@ -12,6 +12,9 @@ export const lessonPath = (courseSlug: string, lessonId: string) => `/courses/${
  */
 export const chatMessagePath = (channelId: string, messageId: string) => messagePermalink(channelId, messageId);
 
+/** The text of a message that shares a lesson video and says nothing else (the Hub's own wording, for a share from the Hub and a Slack paste alike). */
+export const sharedVideoDefaultText = (lessonTitle: string) => `Shared a lesson video: ${lessonTitle}`;
+
 const CHAT_LABEL = "Watch it in Hub Chat";
 const LESSON_LABEL = "Open the lesson";
 
