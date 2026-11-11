@@ -6,7 +6,8 @@ import { inChunks, must } from "./query";
  * The course lesson a chat message shares (`chat_message_videos`, one per message). The row only points at the
  * lesson; playback links are minted per viewer by the token route. Reads run as the caller, so RLS shows a video only
  * on a message whose content they can read; `attach` needs the service role (the share action checks the sharer first).
- * Throws on a database error.
+ * A deleted message shares nothing: its share is not returned to anyone (the service role included), so deleting a message ends
+ * every way to play its video at once, whatever the lesson was opened to. Throws on a database error.
  */
 export interface ChatVideoRepository {
   /**
@@ -15,9 +16,9 @@ export interface ChatVideoRepository {
    * transaction, with the sharer's access checked); this is for seeding and tests, and needs the service role.
    */
   attach(messageId: string, lessonId: string, openToChannel?: boolean): Promise<void>;
-  /** The lesson each given message shares; a message that shares none is absent from the map. */
+  /** The lesson each given message shares; a message that shares none, or is deleted, is absent from the map. */
   lessonIdsOf(messageIds: string[]): Promise<Map<string, string>>;
-  /** What one message shares, or null when it shares nothing (or the caller can't read the message). */
+  /** What one message shares, or null when it shares nothing, is deleted, or the caller can't read it. */
   shareOf(messageId: string): Promise<{ lessonId: string; openToChannel: boolean } | null>;
 }
 
@@ -29,13 +30,15 @@ export class SupabaseChatVideoRepository implements ChatVideoRepository {
   }
 
   async shareOf(messageId: string) {
-    const row = must(await this.db.from("chat_message_videos").select("lesson_id, open_to_channel").eq("message_id", messageId).maybeSingle());
+    const row = must(
+      await this.db.from("chat_message_videos").select("lesson_id, open_to_channel, chat_messages!inner(deleted_at)").eq("message_id", messageId).is("chat_messages.deleted_at", null).maybeSingle(),
+    );
     return row ? { lessonId: row.lesson_id, openToChannel: row.open_to_channel } : null;
   }
 
   async lessonIdsOf(messageIds: string[]) {
     const rows = await inChunks(messageIds, 100, async (part) =>
-      must(await this.db.from("chat_message_videos").select("message_id, lesson_id").in("message_id", part)) ?? [],
+      must(await this.db.from("chat_message_videos").select("message_id, lesson_id, chat_messages!inner(deleted_at)").in("message_id", part).is("chat_messages.deleted_at", null)) ?? [],
     );
     return new Map(rows.map((r) => [r.message_id, r.lesson_id]));
   }
@@ -56,13 +59,17 @@ export class InMemoryChatVideoRepository implements ChatVideoRepository {
     });
   }
 
+  private deleted(messageId: string) {
+    return Boolean(this.data.chatMessages.find((m) => m.id === messageId)?.deleted_at);
+  }
+
   async shareOf(messageId: string) {
-    const row = this.data.chatMessageVideos.find((v) => v.message_id === messageId);
+    const row = this.data.chatMessageVideos.find((v) => v.message_id === messageId && !this.deleted(messageId));
     return row ? { lessonId: row.lesson_id, openToChannel: row.open_to_channel } : null;
   }
 
   async lessonIdsOf(messageIds: string[]) {
     const wanted = new Set(messageIds);
-    return new Map(this.data.chatMessageVideos.filter((v) => wanted.has(v.message_id)).map((v) => [v.message_id, v.lesson_id]));
+    return new Map(this.data.chatMessageVideos.filter((v) => wanted.has(v.message_id) && !this.deleted(v.message_id)).map((v) => [v.message_id, v.lesson_id]));
   }
 }
