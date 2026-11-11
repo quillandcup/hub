@@ -8,8 +8,9 @@ set lock_timeout = '5s';
 -- anything is built on it.
 --
 -- Append-only. Zoom retries deliveries, so UNIQUE (meeting_uuid, message_id) makes a redelivery a no-op.
--- Privacy follows the Slack content tables: the text, who a private message went to and the raw payload are
--- service role only; admins read the other columns, normally through bronze.zoom_chat_messages_meta.
+-- Privacy follows the Slack content tables: the text and the raw payload are service role only; admins read the
+-- other columns, normally through bronze.zoom_chat_messages_meta. Who a private message went to is metadata
+-- (staff and system can see the interaction between two members), not content.
 -- A column added later needs its own GRANT SELECT (col) ... TO authenticated.
 CREATE TABLE IF NOT EXISTS bronze.zoom_chat_messages (
   id TEXT PRIMARY KEY DEFAULT public.new_id('zmmsg'),
@@ -27,7 +28,7 @@ CREATE TABLE IF NOT EXISTS bronze.zoom_chat_messages (
   recipient_type TEXT,
   recipient_context TEXT,
   recipient_session_id TEXT,
-  -- Who a private message went to: content, like the text.
+  -- Who a private message went to: metadata, readable by admins.
   recipient_name TEXT,
   recipient_email TEXT,
   message_text TEXT NOT NULL DEFAULT '',
@@ -40,7 +41,7 @@ CREATE TABLE IF NOT EXISTS bronze.zoom_chat_messages (
 CREATE INDEX IF NOT EXISTS zoom_chat_messages_sent_at_idx ON bronze.zoom_chat_messages (sent_at);
 
 COMMENT ON TABLE bronze.zoom_chat_messages IS
-  'BRONZE: Zoom in-meeting chat messages from the meeting.chat_message_sent webhook [id prefix: zmmsg_]. message_text, recipient_name, recipient_email and raw_payload are service role only; admins can read the other columns, normally through bronze.zoom_chat_messages_meta.';
+  'BRONZE: Zoom in-meeting chat messages from the meeting.chat_message_sent webhook [id prefix: zmmsg_]. message_text and raw_payload are service role only; admins can read the other columns, normally through bronze.zoom_chat_messages_meta.';
 
 ALTER TABLE bronze.zoom_chat_messages ENABLE ROW LEVEL SECURITY;
 
@@ -49,7 +50,7 @@ GRANT ALL ON bronze.zoom_chat_messages TO service_role;
 GRANT SELECT (
   id, meeting_uuid, meeting_id, breakout_room_uuid, message_id, sent_at,
   sender_name, sender_email, sender_session_id, sender_type, sender_context,
-  recipient_type, recipient_context, recipient_session_id, has_files, received_at
+  recipient_type, recipient_context, recipient_session_id, recipient_name, recipient_email, has_files, received_at
 ) ON bronze.zoom_chat_messages TO authenticated;
 
 DROP POLICY IF EXISTS "Admins can read zoom_chat_messages" ON bronze.zoom_chat_messages;
@@ -68,12 +69,14 @@ CREATE OR REPLACE VIEW bronze.zoom_chat_messages_meta WITH (security_invoker = t
     m.sender_email,
     m.sender_type,
     m.recipient_type,
+    m.recipient_name,
+    m.recipient_email,
     m.has_files,
     m.received_at
   FROM bronze.zoom_chat_messages m;
 
 COMMENT ON VIEW bronze.zoom_chat_messages_meta IS
-  'Zoom chat messages without their content (who, when, to whom in kind, not what). Runs as the caller: admins only, by the policy on bronze.zoom_chat_messages.';
+  'Zoom chat messages without their content (who, to whom, when, not what). Runs as the caller: admins only, by the policy on bronze.zoom_chat_messages.';
 
 REVOKE ALL ON bronze.zoom_chat_messages_meta FROM anon, authenticated;
 GRANT SELECT ON bronze.zoom_chat_messages_meta TO authenticated, service_role;

@@ -1430,6 +1430,8 @@ export type Database = {
           meeting_uuid: string | null
           message_id: string | null
           received_at: string | null
+          recipient_email: string | null
+          recipient_name: string | null
           recipient_type: string | null
           sender_email: string | null
           sender_name: string | null
@@ -1444,6 +1446,8 @@ export type Database = {
           meeting_uuid?: string | null
           message_id?: string | null
           received_at?: string | null
+          recipient_email?: string | null
+          recipient_name?: string | null
           recipient_type?: string | null
           sender_email?: string | null
           sender_name?: string | null
@@ -1458,6 +1462,8 @@ export type Database = {
           meeting_uuid?: string | null
           message_id?: string | null
           received_at?: string | null
+          recipient_email?: string | null
+          recipient_name?: string | null
           recipient_type?: string | null
           sender_email?: string | null
           sender_name?: string | null

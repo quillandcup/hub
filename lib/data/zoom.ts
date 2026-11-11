@@ -21,8 +21,8 @@ export type ZoomParticipantEvent = Pick<ZoomParticipantEventRow, "id" | "meeting
   event: "joined" | "left";
 };
 /**
- * An in-meeting chat message the webhook saw (`bronze.zoom_chat_messages`, service role only: the text, who a
- * private message went to and the raw payload are hidden from admins, who read `zoom_chat_messages_meta`).
+ * An in-meeting chat message the webhook saw (`bronze.zoom_chat_messages`, service role only: the text and the
+ * raw payload are hidden from admins, who read `zoom_chat_messages_meta`: sender and, for a private message, recipient).
  */
 export type ZoomChatMessageRow = Database["bronze"]["Tables"]["zoom_chat_messages"]["Row"];
 export type NewZoomChatMessage = Database["bronze"]["Tables"]["zoom_chat_messages"]["Insert"];
