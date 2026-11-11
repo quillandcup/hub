@@ -80,7 +80,7 @@ describe("GET /api/chat/unfurl-image", () => {
     expect(res.headers.get("cache-control")).toMatch(/^private, max-age=\d+$/);
     expect(res.headers.get("set-cookie")).toBeNull();
     expect(requests.map((r) => r.url.href)).toEqual(["https://img.example.test/small.png"]);
-    expect(Object.keys(requests[0].headers).sort()).toEqual(["accept", "accept-encoding"]);
+    expect(Object.keys(requests[0].headers).sort()).toEqual(["accept", "accept-encoding", "user-agent"]);
   });
 
   it("numbers pictures in the order they are drawn: cards in turn, image then thumbnail", async () => {
@@ -164,6 +164,16 @@ describe("GET /api/chat/unfurl-image", () => {
       upstream["https://img.example.test/big.png"] = { status: 302, headers: { location: "http://169.254.169.254/latest/meta-data/" } };
       expect((await get(`?m=${MESSAGE}&i=0`)).status).toBe(502);
       expect(requests).toHaveLength(1);
+    });
+
+    it("logs the upstream status code of a refusal, and not the address", async () => {
+      upstream["https://img.example.test/big.png"] = { status: 403 };
+      expect((await get(`?m=${MESSAGE}&i=0`)).status).toBe(502);
+      const logged = JSON.stringify(vi.mocked(console.error).mock.calls);
+      expect(logged).toContain("bad_status");
+      expect(logged).toContain("403");
+      expect(logged).not.toContain("img.example.test");
+      expect(requests[0].headers["user-agent"]).toBeTruthy();
     });
 
     it("keeps the address, which can carry a token, out of the log", async () => {

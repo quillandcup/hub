@@ -3,7 +3,8 @@ import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FakeClock } from "../../helpers/fake-clock";
 import { resetClock, setClock } from "@/lib/clock";
-import { fetchImage, isPublicAddress, nodeTransport, safeGet, setNetHooks, sniffImageType, type Transport, type TransportRequest } from "@/lib/net/safe-fetch";
+import { APP_URL, SUPPORT_EMAIL } from "@/lib/config";
+import { DEFAULT_USER_AGENT, fetchImage, isPublicAddress, nodeTransport, safeGet, setNetHooks, sniffImageType, type Transport, type TransportRequest } from "@/lib/net/safe-fetch";
 
 const fake = {} as { clock: FakeClock };
 beforeEach(() => {
@@ -124,7 +125,7 @@ describe("safeGet: connecting", () => {
     expect(result).toMatchObject({ ok: true, contentType: "image/png", finalUrl: "https://pictures.example.test/a.png" });
     expect(resolve).toHaveBeenCalledTimes(1);
     expect(t.calls[0].address).toBe(PUBLIC);
-    expect(t.calls[0].headers).toEqual({ accept: "image/png", "accept-encoding": "identity" });
+    expect(t.calls[0].headers).toEqual({ accept: "image/png", "accept-encoding": "identity", "user-agent": DEFAULT_USER_AGENT });
   });
 
   it("follows redirects by hand and checks every hop: one to a private address is refused", async () => {
@@ -136,6 +137,31 @@ describe("safeGet: connecting", () => {
     expect(await safeGet("https://a.example.test/1", { maxBytes: 100, timeoutMs: 1000 })).toMatchObject({ ok: false, reason: "blocked" });
     expect(t.calls.map((c) => c.url.href)).toEqual(["https://a.example.test/1", "https://b.example.test/2"]);
     expect(t.destroyed).toHaveLength(2);
+  });
+
+  it("sends a descriptive User-Agent on the first request and on every redirect hop, and no cookie or referrer", async () => {
+    const t = fakeTransport({
+      "https://a.example.test/1": { status: 302, headers: { location: "https://b.example.test/2" } },
+      "https://b.example.test/2": {},
+    });
+    setNetHooks({ resolve: resolveTo({ "a.example.test": [PUBLIC], "b.example.test": [PUBLIC] }), transport: t.transport });
+    expect(await safeGet("https://a.example.test/1", { maxBytes: 100, timeoutMs: 1000 })).toMatchObject({ ok: true });
+    expect(t.calls).toHaveLength(2);
+    for (const call of t.calls) {
+      expect(call.headers["user-agent"]).toBe(DEFAULT_USER_AGENT);
+      expect(call.headers["user-agent"]).toContain(APP_URL);
+      expect(call.headers["user-agent"]).toContain(SUPPORT_EMAIL);
+      expect(Object.keys(call.headers)).not.toContain("cookie");
+      expect(Object.keys(call.headers)).not.toContain("referer");
+    }
+  });
+
+  it("lets the caller choose the User-Agent, and reports the upstream status of a refusal", async () => {
+    const t = fakeTransport({ "https://a.example.test/1": { status: 403 } });
+    setNetHooks({ resolve: resolveTo({ "a.example.test": [PUBLIC] }), transport: t.transport });
+    const got = await fetchImage("https://a.example.test/1", { userAgent: "Custom/2" });
+    expect(t.calls[0].headers["user-agent"]).toBe("Custom/2");
+    expect(got).toMatchObject({ ok: false, reason: "bad_status", status: 403 });
   });
 
   it("refuses a redirect to a name that now resolves privately (rebinding between hops)", async () => {
