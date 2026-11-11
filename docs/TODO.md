@@ -238,10 +238,6 @@ The past events page (`app/(member)/events/past/page.tsx`, `PAST_EVENTS_FROM`) h
 
 Production (2026-11-10): lesson thumbnails are all copied into the media library, but 77 module posters and 7 course covers still show Kajabi's own address, because `courseImageSrc` (`lib/courses/image-urls.ts`) falls back to the original link until a copy exists. All of them belong to 7 courses that are still drafts (nothing member-visible is hot-linked), and the per-course "Copy images" step (`copyCourseImages`, `lib/courses/images.ts`) has not been run for them. Once Kajabi is cancelled their links die and copying is no longer possible. Do: run "Copy images" for every course while Kajabi is still paid for, re-run the count (course/module/lesson rows with a `*_url` and no `*_asset_id`, read-only against production) until it is 0, then remove the Kajabi-address fallback from `courseImageSrc` so nothing can hot-link again.
 
-### Tell an open Hub Chat tab that a newer version is deployed
-
-Observed after the Slack-rewrite fixes (2026-11-11): a Hub Chat tab opened before a deploy kept showing the old behavior (a links line that the new code hides, a title line the new code drops) until a hard refresh, so a fix looked like it had not worked. The cause is not confirmed; the likely one is that a tab keeps talking to the build it loaded (Vercel skew protection pins server action calls to it). Worth a small "A new version is available, refresh" notice for long-lived tabs (chat is the page people leave open), and checking whether skew protection is on for the project (`vercel.json`/project settings) before deciding. Start in `components/chat/ChatLive.tsx` and the app shell.
-
 ## Infrastructure & Deployment
 
 ### A Docs-Only Merge Can Leave an Earlier Code Merge Undeployed
