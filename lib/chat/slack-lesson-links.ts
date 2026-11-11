@@ -30,7 +30,7 @@ export type OnShared = (shared: { messageId: string; memberId: string; before: s
 /**
  * The Slack copy of a converted message, as the Hub Chat paste would have sent it: the pasted address out, "Watch it in Hub Chat" and
  * "Open the lesson" in. The change is made as the author (their connected Slack account: Slack only lets whoever posted a message edit it),
- * the same way they edit their own message from the Hub, with Slack's link previews removed so it looks like one shared from the Hub. An author without a live connection, a message with files, a refused edit, or Slack
+ * the same way they edit their own message from the Hub, with Slack's link previews removed so it looks like one shared from the Hub. An author without a live connection, a refused edit, or Slack
  * writes turned off leave the message as it was; the card in the Hub does not depend on it. Logs ids, never text.
  */
 export const rewriteInSlack =
@@ -40,8 +40,8 @@ export const rewriteInSlack =
       const repos = createRepos(supabase as unknown as Db);
       const row = await repos.chat.outboxMessage(messageId);
       if (!row || row.deletedAt || row.origin !== "slack" || !row.slackTs) return;
-      // chat.update without the file list would drop them, so a message with files keeps its plain link.
-      if (parseChatFiles(row.files).length > 0) return;
+      // The edit names the message's files again, so Slack keeps them with it.
+      const fileIds = parseChatFiles(row.files).map((f) => f.id);
       const line = await sharedVideoSlackLine(repos, messageId, row.slackChannelId);
       if (!line) return;
       // The links stand where the address was: text before it stays before, text after it stays after. Slack has no card, so what was
@@ -49,7 +49,7 @@ export const rewriteInSlack =
       const lessonId = (await repos.chatVideos.lessonIdsOf([messageId])).get(messageId);
       const title = lessonId ? (await repos.courses.lessonById(lessonId))?.title : null;
       const parts = [before.trim(), title ? escapeForSlack(sharedVideoDefaultText(title)) : "", line.replace(/^\n/, ""), after.trim()].filter((part) => part !== "");
-      const result = await updateChatMessageInSlack(supabase, { messageId, memberId, body: parts.join("\n"), dropPreviews: true });
+      const result = await updateChatMessageInSlack(supabase, { messageId, memberId, body: parts.join("\n"), dropPreviews: true, keepFileIds: fileIds });
       if (!result.ok) console.error("[chat] rewriting the Slack copy of message %s failed: %s", messageId, result.error);
     } catch (error) {
       console.error("[chat] rewriting the Slack copy of message %s failed:", messageId, error instanceof Error ? error.message : error);

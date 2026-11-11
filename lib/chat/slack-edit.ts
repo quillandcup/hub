@@ -54,7 +54,7 @@ const slackError = (error: unknown): string | undefined => (error as { data?: { 
 /** Replace the text of one of the member's Hub messages in Slack (nothing to do for one that never got there). */
 export async function updateChatMessageInSlack(
   supabase: SupabaseClient,
-  opts: { messageId: string; memberId: string; body: string; dropPreviews?: boolean; addFiles?: { existingIds: string[]; uploads: { file: Buffer; filename: string }[] } }
+  opts: { messageId: string; memberId: string; body: string; dropPreviews?: boolean; keepFileIds?: string[]; addFiles?: { existingIds: string[]; uploads: { file: Buffer; filename: string }[] } }
 ): Promise<SlackWriteResult> {
   const writer = await writerFor(supabase, opts.messageId, opts.memberId, "edited");
   if (!writer.ok) return writer;
@@ -73,7 +73,8 @@ export async function updateChatMessageInSlack(
       fileIds = uploadedFileIds(await client.filesUploadV2({ file_uploads: opts.addFiles.uploads }));
       if (fileIds.length !== opts.addFiles.uploads.length) return { ok: false, error: "Slack didn't take the files. Try again in a moment." };
     }
-    const withFiles = fileIds ? { file_ids: [...opts.addFiles!.existingIds, ...fileIds] } : {};
+    // An edit that names no files could drop the message's own, so the rewrite of a pasted lesson address names the ones it has.
+    const withFiles = fileIds ? { file_ids: [...opts.addFiles!.existingIds, ...fileIds] } : opts.keepFileIds?.length ? { file_ids: opts.keepFileIds } : {};
     // chat.update has no switch to keep Slack from unfurling a link, but an empty attachments list removes the previews the message
     // already has (left alone otherwise: previews are kept through an ordinary edit). Used when the Hub rewrites a pasted lesson address.
     const previews = opts.dropPreviews ? { attachments: [] } : {};
@@ -95,6 +96,10 @@ export async function updateChatMessageInSlack(
       console.error("updateChatMessageInSlack: Slack refused the blocks for message %s, sending the edit as text", opts.messageId);
       await reportRefusedBlocks(createRepos(supabase as unknown as Db), "edit", opts.messageId, error);
       result = await update(false);
+    }
+    if (result.ok && opts.keepFileIds?.length) {
+      const kept = (result as { message?: { files?: unknown[] } }).message?.files?.length ?? 0;
+      if (kept < opts.keepFileIds.length) console.error("updateChatMessageInSlack: message %s has %d of its %d files after the edit", opts.messageId, kept, opts.keepFileIds.length);
     }
     return result.ok ? { ok: true, ...(fileIds ? { fileIds } : {}) } : { ok: false, error: "Slack didn't take the edit. Try again in a moment." };
   } catch (error) {
