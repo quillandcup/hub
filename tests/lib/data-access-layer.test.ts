@@ -83,6 +83,8 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   ambiguous_zoom_names: [],
   ignored_zoom_appearances: [],
   zoom_participant_events: [],
+  // The in-meeting chat the webhook saw (ZoomRepository): every query is moved.
+  zoom_chat_messages: [],
   // How to join the prickle room (ZoomRepository): every query is moved.
   prickle_join_settings: [],
   // Hosts' vibe tags (PrickleRepository), the hosting schedule's month locks (PrickleScheduleRepository) and the

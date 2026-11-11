@@ -1185,6 +1185,75 @@ export type Database = {
         }
         Relationships: []
       }
+      zoom_chat_messages: {
+        Row: {
+          breakout_room_uuid: string | null
+          has_files: boolean
+          id: string
+          meeting_id: string | null
+          meeting_uuid: string
+          message_id: string
+          message_text: string
+          raw_payload: Json
+          received_at: string
+          recipient_context: string | null
+          recipient_email: string | null
+          recipient_name: string | null
+          recipient_session_id: string | null
+          recipient_type: string | null
+          sender_context: string | null
+          sender_email: string | null
+          sender_name: string | null
+          sender_session_id: string | null
+          sender_type: string | null
+          sent_at: string
+        }
+        Insert: {
+          breakout_room_uuid?: string | null
+          has_files?: boolean
+          id?: string
+          meeting_id?: string | null
+          meeting_uuid: string
+          message_id: string
+          message_text?: string
+          raw_payload: Json
+          received_at?: string
+          recipient_context?: string | null
+          recipient_email?: string | null
+          recipient_name?: string | null
+          recipient_session_id?: string | null
+          recipient_type?: string | null
+          sender_context?: string | null
+          sender_email?: string | null
+          sender_name?: string | null
+          sender_session_id?: string | null
+          sender_type?: string | null
+          sent_at: string
+        }
+        Update: {
+          breakout_room_uuid?: string | null
+          has_files?: boolean
+          id?: string
+          meeting_id?: string | null
+          meeting_uuid?: string
+          message_id?: string
+          message_text?: string
+          raw_payload?: Json
+          received_at?: string
+          recipient_context?: string | null
+          recipient_email?: string | null
+          recipient_name?: string | null
+          recipient_session_id?: string | null
+          recipient_type?: string | null
+          sender_context?: string | null
+          sender_email?: string | null
+          sender_name?: string | null
+          sender_session_id?: string | null
+          sender_type?: string | null
+          sent_at?: string
+        }
+        Relationships: []
+      }
       zoom_meetings: {
         Row: {
           data: Json
@@ -1349,6 +1418,51 @@ export type Database = {
           user_email?: string | null
           user_id?: string | null
           user_name?: string | null
+        }
+        Relationships: []
+      }
+      zoom_chat_messages_meta: {
+        Row: {
+          breakout_room_uuid: string | null
+          has_files: boolean | null
+          id: string | null
+          meeting_id: string | null
+          meeting_uuid: string | null
+          message_id: string | null
+          received_at: string | null
+          recipient_type: string | null
+          sender_email: string | null
+          sender_name: string | null
+          sender_type: string | null
+          sent_at: string | null
+        }
+        Insert: {
+          breakout_room_uuid?: string | null
+          has_files?: boolean | null
+          id?: string | null
+          meeting_id?: string | null
+          meeting_uuid?: string | null
+          message_id?: string | null
+          received_at?: string | null
+          recipient_type?: string | null
+          sender_email?: string | null
+          sender_name?: string | null
+          sender_type?: string | null
+          sent_at?: string | null
+        }
+        Update: {
+          breakout_room_uuid?: string | null
+          has_files?: boolean | null
+          id?: string | null
+          meeting_id?: string | null
+          meeting_uuid?: string | null
+          message_id?: string | null
+          received_at?: string | null
+          recipient_type?: string | null
+          sender_email?: string | null
+          sender_name?: string | null
+          sender_type?: string | null
+          sent_at?: string | null
         }
         Relationships: []
       }
@@ -5565,6 +5679,7 @@ export type Database = {
       prickle_types: {
         Row: {
           announced_publicly: boolean
+          chat_visibility: string
           created_at: string | null
           default_host_id: string | null
           description: string | null
@@ -5581,6 +5696,7 @@ export type Database = {
         }
         Insert: {
           announced_publicly?: boolean
+          chat_visibility?: string
           created_at?: string | null
           default_host_id?: string | null
           description?: string | null
@@ -5597,6 +5713,7 @@ export type Database = {
         }
         Update: {
           announced_publicly?: boolean
+          chat_visibility?: string
           created_at?: string | null
           default_host_id?: string | null
           description?: string | null
