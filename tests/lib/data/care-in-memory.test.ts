@@ -1,6 +1,6 @@
-import { InMemoryConversationRepository } from "@/lib/data/conversations";
+import { InMemoryCareRepository } from "@/lib/data/care";
 import { InMemoryDataset } from "@/lib/data/in-memory";
-import { defineConversationContract } from "@/tests/helpers/conversations-contract";
+import { defineCareContract } from "@/tests/helpers/care-contract";
 
 const members = [
   { id: "mbr_AAAAAAAAAAA1", name: "Ada Example", displayName: "Ada E.", email: "ada@example.test" },
@@ -8,15 +8,15 @@ const members = [
   { id: "mbr_AAAAAAAAAAA3", name: "Cy Example", email: "cy@example.test" },
 ];
 
-defineConversationContract("InMemoryConversationRepository", () => {
+defineCareContract("InMemoryCareRepository", () => {
   const data = new InMemoryDataset({ members: members.map((m) => ({ ...m })) });
   return {
-    repo: () => new InMemoryConversationRepository(data),
+    repo: () => new InMemoryCareRepository(data),
     members,
     openedBy: "11111111-1111-4111-8111-111111111111",
-    missingId: "conv_ZZZZZZZZZZZZ",
+    missingId: "care_ZZZZZZZZZZZZ",
     clear: async () => {
-      data.conversations = [];
+      data.careEngagements = [];
     },
   };
 });

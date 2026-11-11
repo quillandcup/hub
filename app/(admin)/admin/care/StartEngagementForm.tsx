@@ -5,21 +5,21 @@ import DatePicker from "@/components/DatePicker";
 import EntitySearch, { type SearchItem } from "@/components/EntitySearch";
 import { track } from "@/lib/analytics/client";
 import {
-  CONVERSATION_CHANNELS,
-  CONVERSATION_CHANNEL_LABELS,
-  CONVERSATION_NOTES_MAX,
-  CONVERSATION_REASONS,
-  CONVERSATION_REASON_LABELS,
-  isConversationChannel,
-  isConversationReason,
-} from "@/lib/conversations";
-import { searchConversationMembers, startConversation } from "./actions";
+  CARE_CHANNELS,
+  CARE_CHANNEL_LABELS,
+  CARE_NOTES_MAX,
+  CARE_REASONS,
+  CARE_REASON_LABELS,
+  isCareChannel,
+  isCareReason,
+} from "@/lib/care";
+import { searchCareMembers, startEngagement } from "./actions";
 
 const FIELD = "w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-sm";
 const LABEL = "block text-sm font-medium mb-1";
 
-/** Opens a conversation: who, why, where, and an optional note. She reached out, or they wrote to her first. */
-export default function StartConversationForm() {
+/** Starts an engagement: who, why, where, and an optional note. She reached out, or they wrote to her first. */
+export default function StartEngagementForm() {
   const [member, setMember] = useState<SearchItem | null>(null);
   const [reason, setReason] = useState("");
   const [channel, setChannel] = useState("slack_dm");
@@ -32,12 +32,12 @@ export default function StartConversationForm() {
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!member) return setError("Pick a member.");
-    if (!isConversationReason(reason) || !isConversationChannel(channel)) return setError("Pick why you are reaching out.");
+    if (!isCareReason(reason) || !isCareChannel(channel)) return setError("Pick why you are reaching out.");
     setError(null);
     startTransition(async () => {
-      const result = await startConversation({ memberId: member.id, reason, channel, memberWroteFirst, notes, followUpOn });
+      const result = await startEngagement({ memberId: member.id, reason, channel, memberWroteFirst, notes, followUpOn });
       if ("error" in result) return setError(result.error);
-      track("conversation_started", { reason, channel, member_wrote_first: memberWroteFirst });
+      track("care_engagement_started", { reason, channel, member_wrote_first: memberWroteFirst });
       setMember(null);
       setReason("");
       setMemberWroteFirst(false);
@@ -48,14 +48,14 @@ export default function StartConversationForm() {
 
   return (
     <form onSubmit={submit} className="@container rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-      <h2 className="text-lg font-semibold">Start a conversation</h2>
+      <h2 className="text-lg font-semibold">Start an engagement</h2>
       <div className="mt-3 grid grid-cols-1 gap-4 @pair:grid-cols-2">
         <div>
-          <span className={LABEL} id="conversation-member-label">
+          <span className={LABEL} id="care-member-label">
             Member
           </span>
           <EntitySearch
-            search={searchConversationMembers}
+            search={searchCareMembers}
             selectedId={member?.id ?? null}
             selectedName={member?.name ?? null}
             selectedDetail={member?.detail ?? null}
@@ -66,40 +66,40 @@ export default function StartConversationForm() {
           />
         </div>
         <div>
-          <label htmlFor="conversation-reason" className={LABEL}>
+          <label htmlFor="care-reason" className={LABEL}>
             Why you are reaching out
           </label>
-          <select id="conversation-reason" value={reason} onChange={(e) => setReason(e.target.value)} className={FIELD}>
+          <select id="care-reason" value={reason} onChange={(e) => setReason(e.target.value)} className={FIELD}>
             <option value="">Pick one</option>
-            {CONVERSATION_REASONS.map((r) => (
+            {CARE_REASONS.map((r) => (
               <option key={r} value={r}>
-                {CONVERSATION_REASON_LABELS[r]}
+                {CARE_REASON_LABELS[r]}
               </option>
             ))}
           </select>
         </div>
         <div>
-          <label htmlFor="conversation-channel" className={LABEL}>
+          <label htmlFor="care-channel" className={LABEL}>
             Where
           </label>
-          <select id="conversation-channel" value={channel} onChange={(e) => setChannel(e.target.value)} className={FIELD}>
-            {CONVERSATION_CHANNELS.map((c) => (
+          <select id="care-channel" value={channel} onChange={(e) => setChannel(e.target.value)} className={FIELD}>
+            {CARE_CHANNELS.map((c) => (
               <option key={c} value={c}>
-                {CONVERSATION_CHANNEL_LABELS[c]}
+                {CARE_CHANNEL_LABELS[c]}
               </option>
             ))}
           </select>
         </div>
-        <DatePicker id="conversation-follow-up" label="Follow up on" value={followUpOn} onChange={setFollowUpOn} />
+        <DatePicker id="care-follow-up" label="Follow up on" value={followUpOn} onChange={setFollowUpOn} />
         <div className="@pair:col-span-2">
-          <label htmlFor="conversation-notes" className={LABEL}>
+          <label htmlFor="care-notes" className={LABEL}>
             Note
           </label>
           <textarea
-            id="conversation-notes"
+            id="care-notes"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            maxLength={CONVERSATION_NOTES_MAX}
+            maxLength={CARE_NOTES_MAX}
             rows={2}
             placeholder="What you said or why. Keep it light: nothing sensitive."
             className={FIELD}
@@ -117,11 +117,11 @@ export default function StartConversationForm() {
       )}
       <button
         type="submit"
-        data-track="conversation-start"
+        data-track="care-start"
         disabled={pending}
         className="mt-4 rounded-lg bg-plum-600 px-4 py-2 text-sm font-medium text-white hover:bg-plum-700 disabled:opacity-50"
       >
-        {pending ? "Starting…" : "Start conversation"}
+        {pending ? "Starting…" : "Start engagement"}
       </button>
     </form>
   );

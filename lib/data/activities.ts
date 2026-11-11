@@ -36,6 +36,20 @@ export interface EngagementRow {
   occurred_at: string;
 }
 
+/** What a member did in a stretch of time, from their activity log. */
+export interface ActivityCounts {
+  /** Distinct prickles attended: leaving and rejoining one is one prickle, not two records. */
+  pricklesAttended: number;
+  /** Slack messages and thread replies (not reactions). */
+  slackMessages: number;
+}
+
+/** The first time a member did each thing the Hub has a record of, or null. */
+export interface ActivityFirsts {
+  firstPrickleAt: string | null;
+  firstSlackPostAt: string | null;
+}
+
 const ID_CHUNK = 100;
 const UNIQUE_VIOLATION = "23505";
 
@@ -78,9 +92,31 @@ export interface ActivityRepository {
   introducedIn(memberIds: string[], channelName: string): Promise<Set<string>>;
   /** Which of these related ids a source has already written. Chunked. */
   relatedIdsWritten(source: string, relatedIds: string[]): Promise<Set<string>>;
+  /**
+   * What a member did from `fromIso` up to, not including, `toIso`: distinct prickles attended and Slack messages.
+   * Paginated past 1000 rows with a stable order. A prickle is counted on the day the member joined it.
+   */
+  countsBetween(memberId: string, fromIso: string, toIso: string): Promise<ActivityCounts>;
+  /** When the activity log first shows a member at a prickle and posting in Slack, whatever the date. */
+  firsts(memberId: string): Promise<ActivityFirsts>;
 }
 
 const SLACK_MESSAGE_TYPES = ["slack_message", "slack_thread_reply"];
+
+type CountRow = { activity_type: string; related_id: string | null; prickle_id: string | null };
+
+/** One distinct prickle per prickle id (the related id of an attendance activity), whatever the number of rows. */
+function countRows(rows: CountRow[]): ActivityCounts {
+  const prickles = new Set<string>();
+  let slackMessages = 0;
+  let unkeyed = 0;
+  for (const r of rows) {
+    if (r.activity_type !== "prickle_attended") slackMessages += 1;
+    else if (r.related_id ?? r.prickle_id) prickles.add((r.related_id ?? r.prickle_id) as string);
+    else unkeyed += 1; // no prickle to tell it apart by: each counts once
+  }
+  return { pricklesAttended: prickles.size + unkeyed, slackMessages };
+}
 // The database column (or JSON path) each sortable column of the Slack tab orders by.
 const SLACK_SORT_COLUMN: Record<SlackSortColumn, string> = {
   type: "activity_type",
@@ -264,6 +300,38 @@ export class SupabaseActivityRepository implements ActivityRepository {
     return introduced;
   }
 
+  async countsBetween(memberId: string, fromIso: string, toIso: string) {
+    const rows = await fetchAllRows<CountRow>((from, to) =>
+      this.db
+        .from("member_activities")
+        .select("activity_type, related_id, prickle_id")
+        .eq("member_id", memberId)
+        .in("activity_type", ["prickle_attended", ...SLACK_MESSAGE_TYPES])
+        .gte("occurred_at", fromIso)
+        .lt("occurred_at", toIso)
+        .order("id")
+        .range(from, to)
+    );
+    return countRows(rows);
+  }
+
+  async firsts(memberId: string) {
+    const first = async (types: string[]) => {
+      const { data, error } = await this.db
+        .from("member_activities")
+        .select("occurred_at")
+        .eq("member_id", memberId)
+        .in("activity_type", types)
+        .order("occurred_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      return data?.occurred_at ?? null;
+    };
+    const [firstPrickleAt, firstSlackPostAt] = await Promise.all([first(["prickle_attended"]), first(SLACK_MESSAGE_TYPES)]);
+    return { firstPrickleAt, firstSlackPostAt };
+  }
+
   async relatedIdsWritten(source: string, relatedIds: string[]) {
     const written = new Set<string>();
     for (const ids of chunk(relatedIds, ID_CHUNK)) {
@@ -412,6 +480,21 @@ export class InMemoryActivityRepository implements ActivityRepository {
         .filter((a) => wanted.has(a.member_id) && a.source === "slack" && a.activity_type === "slack_message" && (a.data as { channel_name?: string } | null)?.channel_name === channelName)
         .map((a) => a.member_id)
     );
+  }
+
+  async countsBetween(memberId: string, fromIso: string, toIso: string) {
+    const types = ["prickle_attended", ...SLACK_MESSAGE_TYPES];
+    return countRows(
+      this.data.activities.filter((a) => a.member_id === memberId && types.includes(a.activity_type) && Date.parse(a.occurred_at) >= Date.parse(fromIso) && Date.parse(a.occurred_at) < Date.parse(toIso))
+    );
+  }
+
+  async firsts(memberId: string) {
+    const first = (types: string[]) => {
+      const times = this.data.activities.filter((a) => a.member_id === memberId && types.includes(a.activity_type)).map((a) => a.occurred_at);
+      return times.length ? times.reduce((a, b) => (new Date(b) < new Date(a) ? b : a)) : null;
+    };
+    return { firstPrickleAt: first(["prickle_attended"]), firstSlackPostAt: first(SLACK_MESSAGE_TYPES) };
   }
 
   async relatedIdsWritten(source: string, relatedIds: string[]) {

@@ -41,11 +41,23 @@ export const appConfig = {
   adminNoteEditMinutes: 15,
 
   /**
-   * How many days of silence on both sides turn a conversation (the community manager's reach-outs,
-   * lib/conversations.ts) from "waiting on them" into "gone quiet". A starting point to settle from real
-   * conversations (docs/CONVERSATIONS.md).
+   * Hedgie Care (the community manager's reach-outs, lib/care.ts, docs/HEDGIE_CARE.md). These are starting points
+   * for her to confirm, not settled numbers; change them here, never in code.
+   *
+   * `careEngagementDays`: how long one engagement (one reach-out period) lasts. The period ends on the org-timezone
+   * calendar day this many days after it opened.
+   * `careLapseGraceDays`: days after the period ends during which it waits for her to renew or close it ("Review
+   * due"); after that, an engagement nobody answered for moves to "Earlier" as lapsed.
+   * `careQuietDays`: days with nothing from either side before "waiting on them" becomes "gone quiet".
+   * `careBeforeDays`, `careAfterFromDays`, `careAfterToDays`: the measured windows. Before is this many days before it
+   * opened; after is from `careAfterFromDays` to `careAfterToDays` days after the period ended.
    */
-  conversationQuietDays: 14,
+  careEngagementDays: 30,
+  careLapseGraceDays: 14,
+  careQuietDays: 14,
+  careBeforeDays: 28,
+  careAfterFromDays: 30,
+  careAfterToDays: 60,
 
   /** Support address shown to members (settings, /no-access, the auth email footer). */
   supportEmail: "support@quillandcup.com",

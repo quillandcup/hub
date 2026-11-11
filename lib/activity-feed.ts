@@ -354,7 +354,7 @@ const ENTITY_LABELS: Record<string, string> = {
   member_status_override: "status override",
   prickle_host_vibe: "host vibe",
   mentorship: "Big Sister match",
-  conversation: "conversation",
+  care_engagement: "Hedgie Care engagement",
 };
 
 const NAME_FIELDS = ["title", "name", "alias"] as const;

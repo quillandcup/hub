@@ -94,12 +94,13 @@ export const OUTCOME_ACTIONS = [
   "prospects_imported",
   "prospects_searched",
   "prospect_reviewed",
-  // Conversations (staff)
-  "conversation_started",
-  "conversation_message_logged",
-  "conversation_updated",
-  "conversation_closed",
-  "conversation_deleted",
+  // Hedgie Care (staff)
+  "care_engagement_started",
+  "care_message_logged",
+  "care_engagement_updated",
+  "care_engagement_closed",
+  "care_engagement_renewed",
+  "care_engagement_deleted",
   // Onboarding
   "onboarding_started",
   "onboarding_dismissed",

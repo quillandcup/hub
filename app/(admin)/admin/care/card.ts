@@ -1,15 +1,10 @@
-import {
-  conversationStatus,
-  daysAgoLabel,
-  isFollowUpDue,
-  lastActivityAt,
-  type ConversationStatus,
-} from "@/lib/conversations";
-import type { ConversationWithMember } from "@/lib/data/conversations";
+import { careStatus, daysAgoLabel, isFollowUpDue, lastActivityAt, memberWroteLast, type CareSettings, type CareStatus } from "@/lib/care";
+import type { CareEngagementWithMember } from "@/lib/data/care";
 import { getMemberDisplayName } from "@/lib/member-display-name";
+import { orgYmd } from "@/lib/org-week";
 
-/** One conversation as the page's client components need it: names resolved, status and "how long ago" worked out on the server. */
-export type ConversationCardData = {
+/** One engagement as the page's client components need it: names resolved, status and "how long ago" worked out on the server. */
+export type EngagementCardData = {
   id: string;
   memberId: string;
   /** The name the community knows them by (CLAUDE.md, "Display Names"). */
@@ -18,9 +13,15 @@ export type ConversationCardData = {
   legalName: string | null;
   reason: string;
   channel: string;
-  status: ConversationStatus;
-  outcome: string | null;
+  status: CareStatus;
+  endedHow: string | null;
   openedAt: string;
+  /** The last day of the period (a plain date). */
+  periodEndsOn: string;
+  /** The period's last day is behind us (an Eastern calendar day), whether or not it was closed. */
+  periodOver: boolean;
+  /** This period continues an earlier one. */
+  renewed: boolean;
   /** "3 days ago": the last message from either side, or when it was opened if none is logged. */
   lastActivityLabel: string;
   /** Who spoke last, for the line under the name; null when nobody has been logged. */
@@ -32,14 +33,8 @@ export type ConversationCardData = {
   notes: string | null;
 };
 
-export function toConversationCard(row: ConversationWithMember, now: Date, quietDays?: number): ConversationCardData {
+export function toEngagementCard(row: CareEngagementWithMember, now: Date, settings?: CareSettings): EngagementCardData {
   const shown = row.member ? getMemberDisplayName(row.member) : "A member who is no longer here";
-  const speaker =
-    row.last_member_message_at && (!row.last_staff_message_at || row.last_member_message_at > row.last_staff_message_at)
-      ? "member"
-      : row.last_staff_message_at
-        ? "staff"
-        : null;
   return {
     id: row.id,
     memberId: row.member_id,
@@ -47,11 +42,14 @@ export function toConversationCard(row: ConversationWithMember, now: Date, quiet
     legalName: row.member && shown !== row.member.name ? row.member.name : null,
     reason: row.reason,
     channel: row.channel,
-    status: conversationStatus(row, now, quietDays),
-    outcome: row.outcome,
+    status: careStatus(row, now, settings),
+    endedHow: row.ended_how,
     openedAt: row.opened_at,
+    periodEndsOn: row.period_ends_on,
+    periodOver: orgYmd(now) > row.period_ends_on,
+    renewed: row.renewed_from !== null,
     lastActivityLabel: daysAgoLabel(lastActivityAt(row), now),
-    lastSpeaker: speaker,
+    lastSpeaker: memberWroteLast(row) ? "member" : row.last_staff_message_at ? "staff" : null,
     closedLabel: row.closed_at ? daysAgoLabel(row.closed_at, now) : null,
     followUpOn: row.follow_up_on,
     followUpDue: row.closed_at === null && isFollowUpDue(row.follow_up_on, now),

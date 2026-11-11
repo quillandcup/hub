@@ -98,8 +98,10 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   access_events: [],
   // The lesson video a chat message shares (ChatVideoRepository, lib/data/chat-videos.ts): every query is moved.
   chat_message_videos: [],
-  // Staff's conversations with members (ConversationRepository, lib/data/conversations.ts): every query is moved.
-  conversations: [],
+  // Hedgie Care's engagements (CareRepository, lib/data/care.ts): every query is moved.
+  care_engagements: [],
+  // Who interacted with whom in chat (MemberInteractionRepository, lib/data/member-interactions.ts): every query is moved.
+  member_interactions: [],
   // The preview cards of links in Hub-written messages (ChatLinkPreviewRepository, lib/data/chat-link-previews.ts): every query is moved.
   chat_link_previews: [],
   chat_hidden_unfurls: [],

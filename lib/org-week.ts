@@ -16,7 +16,8 @@ export function orgYmd(instant: Date): Ymd {
   return ymdParts.format(instant);
 }
 
-function addDays(ymd: Ymd, days: number): Ymd {
+/** A calendar date plus whole days. Pure date arithmetic, so no zone or daylight saving change can shift it. */
+export function addDays(ymd: Ymd, days: number): Ymd {
   const [y, m, d] = ymd.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
 }

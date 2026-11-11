@@ -16,7 +16,8 @@ describe("isCommunityManagerPath", () => {
     "/admin/insights/resubscriptions",
     "/admin/prickles/prkl_AAAAAAAAAAA1",
     "/admin/at-risk/",
-    "/admin/conversations",
+    "/admin/care",
+    "/admin/care/earlier",
   ])("opens %s", (path) => {
     expect(isCommunityManagerPath(path)).toBe(true);
   });
@@ -75,8 +76,8 @@ describe("staff features are opt-in", () => {
     expect(staffCan("admin", "member.sudo")).toBe(true);
   });
 
-  it("gives a community manager only what is listed: writing her own conversations, and nothing else yet", () => {
-    expect(COMMUNITY_MANAGER_FEATURES).toEqual(["conversations.write"]);
+  it("gives a community manager only what is listed: Hedgie Care, and nothing else yet", () => {
+    expect(COMMUNITY_MANAGER_FEATURES).toEqual(["care.write"]);
     for (const feature of STAFF_FEATURES) expect(staffCan(COMMUNITY_MANAGER_ROLE, feature), feature).toBe(COMMUNITY_MANAGER_FEATURES.includes(feature));
   });
 

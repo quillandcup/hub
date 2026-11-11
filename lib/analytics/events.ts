@@ -13,7 +13,7 @@
  */
 
 import { OUTCOME_ACTIONS } from "@/lib/analytics/actions";
-import { CONVERSATION_CHANNELS, CONVERSATION_OUTCOMES, CONVERSATION_REASONS, MESSAGE_DIRECTIONS } from "@/lib/conversations";
+import { CARE_CHANNELS, CARE_ENDED_HOW, CARE_REASONS, MESSAGE_DIRECTIONS } from "@/lib/care-values";
 import { SIGNIN_FAILURE_REASONS, SIGNIN_METHODS } from "@/lib/signin-method-client";
 
 type Spec =
@@ -200,13 +200,15 @@ export const EVENTS = {
    */
   member_hover_card_opened: { surface: oneOf("chat", "streaks", "big_sisters"), has_message: bool() },
 
-  // Conversations (app/(admin)/admin/conversations): staff's ongoing reach-outs to members. Never the member, the notes or the next step.
-  /** A staff member started a conversation: its `reason` and `channel`, and whether the member wrote first. */
-  conversation_started: { reason: oneOf(...CONVERSATION_REASONS), channel: oneOf(...CONVERSATION_CHANNELS), member_wrote_first: bool() },
-  /** A staff member logged a message in a conversation: `direction` is who wrote it. */
-  conversation_message_logged: { direction: oneOf(...MESSAGE_DIRECTIONS) },
-  /** A staff member closed a conversation: its `outcome` and how many whole days it was open. */
-  conversation_closed: { outcome: oneOf(...CONVERSATION_OUTCOMES), days_open: int(3650) },
+  // Hedgie Care (app/(admin)/admin/care): staff's reach-outs to members, one engagement per period. Never the member, the notes or the next step.
+  /** A staff member started an engagement: its `reason` and `channel`, and whether the member wrote first. */
+  care_engagement_started: { reason: oneOf(...CARE_REASONS), channel: oneOf(...CARE_CHANNELS), member_wrote_first: bool() },
+  /** A staff member logged a message in an engagement: `direction` is who wrote it. */
+  care_message_logged: { direction: oneOf(...MESSAGE_DIRECTIONS) },
+  /** A staff member closed an engagement: `ended_how` is her read of how it went, `days_open` how many whole days it was open. */
+  care_engagement_closed: { ended_how: oneOf(...CARE_ENDED_HOW), days_open: int(3650) },
+  /** A staff member renewed an engagement into a new period: `days_open` is how long the one they renewed had run. */
+  care_engagement_renewed: { days_open: int(3650) },
 
   /**
    * A server action finished (lib/analytics/server.ts: `withAction`): `action` is which one, `ok`

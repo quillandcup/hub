@@ -56,8 +56,19 @@ export const ORG_TIMEZONE = appConfig.orgTimezone;
 /** Minutes after writing a staff note during which its author can edit it (app.config.ts `adminNoteEditMinutes`). */
 export const ADMIN_NOTE_EDIT_MINUTES: number = appConfig.adminNoteEditMinutes;
 
-/** Days without a message from either side before a conversation counts as "gone quiet" (app.config.ts `conversationQuietDays`). */
-export const CONVERSATION_QUIET_DAYS: number = appConfig.conversationQuietDays;
+/** Hedgie Care (lib/care.ts): the length of one engagement, in days (app.config.ts `careEngagementDays`). */
+export const CARE_ENGAGEMENT_DAYS: number = appConfig.careEngagementDays;
+
+/** Days after an engagement's period ends that it waits for her to renew or close it before it counts as lapsed (`careLapseGraceDays`). */
+export const CARE_LAPSE_GRACE_DAYS: number = appConfig.careLapseGraceDays;
+
+/** Days without a message from either side before "waiting on them" becomes "gone quiet" (`careQuietDays`). */
+export const CARE_QUIET_DAYS: number = appConfig.careQuietDays;
+
+/** The measured windows (`careBeforeDays`, `careAfterFromDays`, `careAfterToDays`). */
+export const CARE_BEFORE_DAYS: number = appConfig.careBeforeDays;
+export const CARE_AFTER_FROM_DAYS: number = appConfig.careAfterFromDays;
+export const CARE_AFTER_TO_DAYS: number = appConfig.careAfterToDays;
 
 /** Where members are told to email for help. */
 export const SUPPORT_EMAIL = appConfig.supportEmail;
