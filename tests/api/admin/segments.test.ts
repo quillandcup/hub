@@ -94,6 +94,44 @@ describe('Admin Segments API', () => {
     expect(Array.isArray(body.sources)).toBe(true)
   })
 
+  it('POST /sync adds the members enrolled in a program, and a second run adds nobody new', async () => {
+    const headers = { ...getTestAuthHeaders(), 'Content-Type': 'application/json' }
+    const { data: segment } = await supabase.from('segments').insert({ name: `Sync ${ts}` }).select('id').single()
+    const { data: program, error: programError } = await supabase
+      .from('programs')
+      .insert({ name: `Sync program ${ts}`, slug: `sync-program-${ts}` })
+      .select('id')
+      .single()
+    if (!segment || !program) throw new Error(`Setup failed: ${programError?.message}`)
+    try {
+      const { data: cohort, error: cohortError } = await supabase
+        .from('program_cohorts')
+        .insert({ program_id: program.id, name: 'Cohort', starts_at: '2027-01-01', expires_at: '2027-03-01' })
+        .select('id')
+        .single()
+      if (!cohort) throw new Error(`Setup failed: ${cohortError?.message}`)
+      await supabase.from('member_program_enrollments').insert([
+        { cohort_id: cohort.id, member_id: memberAId },
+        { cohort_id: cohort.id, member_id: memberBId },
+      ])
+      await supabase.from('segment_members').insert({ segment_id: segment.id, member_id: memberAId })
+
+      const url = `${base}/api/admin/segments/${segment.id}/sync`
+      const first = await apiFetch(url, { method: 'POST', headers, body: JSON.stringify({ type: 'program', id: program.id }) })
+      expect(first.status).toBe(200)
+      expect((await first.json()).summary).toEqual({ found: 2, added: 1, already_in_segment: 1 })
+
+      const second = await apiFetch(url, { method: 'POST', headers, body: JSON.stringify({ type: 'program', id: program.id }) })
+      expect((await second.json()).summary).toEqual({ found: 2, added: 0, already_in_segment: 2 })
+
+      const missing = await apiFetch(url, { method: 'POST', headers, body: JSON.stringify({ type: 'program', id: 'prog_AAAAAAAAAAA1' }) })
+      expect(missing.status).toBe(404)
+    } finally {
+      await supabase.from('segments').delete().eq('id', segment.id)
+      await supabase.from('programs').delete().eq('id', program.id)
+    }
+  })
+
   // ── Full lifecycle ───────────────────────────────────────────────────────
 
   describe('lifecycle', () => {
