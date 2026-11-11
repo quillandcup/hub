@@ -735,6 +735,10 @@ Statement timeouts (57014) kept hitting unrelated queries in production: the adm
 
 **Related: the nightly changelog drafter.** A prototype exists (`pnpm changelog:draft`, `lib/changelog/draft.ts`, `docs/CHANGELOG_PROCESS.md`, "Drafting entries"): it groups merged PRs into story drafts but guesses the grouping from PR titles and bodies. A feature manifest would make the grouping deterministic (PRs touching a feature's paths belong to its story), so build stage 1 first. **Still open:** `LIVE_FLAGS` (`lib/changelog/live-flags.ts`) starts empty, so every flagged PR is held until someone lists its flag (fill it from the audit log, read locally; CI must never read the production database), and the drafter does not yet pull in all of a long-flagged feature's earlier PRs by flag key), run it on a schedule in CI (a `claude -p` step with `ANTHROPIC_API_KEY` as an Actions secret, opening a draft PR), have it write the demo scene and capture the screenshots (needs the demo stack in a CI runner), run the member reader review on the draft, and read the day a flag went on for everyone from the audit log instead of leaving it to a human.
 
+### Outbound User-Agent: the clients that could not be augmented
+
+`docs/OUTBOUND_REQUESTS.md` lists what sends our identity. Still sending only their library's own User-Agent: the Sentry SDK's transport (no option to add to it), and the token request Google's auth library makes for the service account (`google-auth-library` builds it itself; only the Calendar calls carry our directive). Deferred because neither talks to a host that asks who we are; worth revisiting if Google or Sentry ever blocks on it. Start at `lib/google-calendar/client.ts` (a custom `GoogleAuth` transporter) and `instrumentation-client.ts` / `sentry.*.config.ts` (`transport` option).
+
 ## Security & Access Control
 
 ### Community manager: narrower billing reads, Activity Log, and the write page

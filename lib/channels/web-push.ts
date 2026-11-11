@@ -1,7 +1,7 @@
 import { createRepos, type Repos } from "@/lib/data/repos";
 import webpush, { WebPushError } from "web-push";
 import { isAllowedPushEndpoint } from "@/lib/push-endpoint";
-import { SUPPORT_EMAIL } from "@/lib/config";
+import { OUTBOUND_USER_AGENT, SUPPORT_EMAIL } from "@/lib/config";
 import { membersWithFeature } from "@/lib/features.server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { notificationKind, isNotificationKind } from "@/lib/notifications/registry";
@@ -65,6 +65,7 @@ export const webPushChannel: ChannelAdapter = {
       TTL: ttlSeconds(message, now),
       urgency: isTimeSensitive(message, now) ? ("high" as const) : ("normal" as const),
       timeout: REQUEST_TIMEOUT_MS,
+      headers: { "User-Agent": OUTBOUND_USER_AGENT },
     };
 
     const results = await Promise.allSettled(
@@ -129,6 +130,7 @@ export async function sendDiagnosticPush(
     TTL: delivery.ttlSeconds,
     urgency: delivery.urgency,
     timeout: REQUEST_TIMEOUT_MS,
+    headers: { "User-Agent": OUTBOUND_USER_AGENT },
   };
   const body = JSON.stringify(payload);
   const results = await Promise.allSettled(

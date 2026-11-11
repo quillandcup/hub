@@ -1,4 +1,4 @@
-import { WebClient } from "@slack/web-api";
+import { createSlackClient } from "@/lib/slack-client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createRepos } from "@/lib/data/repos";
 import type { Db } from "@/lib/data/db";
@@ -65,7 +65,7 @@ export async function updateChatMessageInSlack(
     // mrkdwn (the member edits that text), sent as it is. An underline or a list has no mrkdwn, so a message that has one
     // goes as rich-text blocks (its text, minus the underline, is the fallback); any other update sends no blocks, which
     // drops the old rich-text blocks, so the new text is what shows (and a removed underline or list is gone).
-    const client = new WebClient(token);
+    const client = createSlackClient(token);
     // New files are uploaded as the member without sharing them anywhere (no channel_id), then attached by the edit:
     // chat.update's file_ids lists the message's files, so the ones it already has are named again beside the new ones.
     let fileIds: string[] | undefined;
@@ -120,7 +120,7 @@ export async function deleteChatMessageInSlack(
   if (!writer.slack) return { ok: true };
   const { token, channel, ts } = writer.slack;
   try {
-    const result = await new WebClient(token).chat.delete({ channel, ts });
+    const result = await createSlackClient(token).chat.delete({ channel, ts });
     return result.ok ? { ok: true } : { ok: false, error: "Slack didn't delete it. Try again in a moment." };
   } catch (error) {
     if (isDeadTokenError(error)) {
@@ -144,7 +144,7 @@ export async function deleteChatFileInSlack(
   if (!writer.ok) return writer;
   if (!writer.slack) return { ok: true };
   try {
-    const result = await new WebClient(writer.slack.token).files.delete({ file: opts.fileId });
+    const result = await createSlackClient(writer.slack.token).files.delete({ file: opts.fileId });
     return result.ok ? { ok: true } : { ok: false, error: "Slack didn't delete the file. Try again in a moment." };
   } catch (error) {
     if (isDeadTokenError(error)) {

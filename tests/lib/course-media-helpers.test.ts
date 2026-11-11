@@ -1,3 +1,4 @@
+import { OUTBOUND_USER_AGENT } from "@/lib/config";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fingerprintSource } from "@/lib/courses/media";
 import { getAssetStatus } from "@/lib/mux";
@@ -10,7 +11,7 @@ describe("fingerprintSource", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     expect(await fingerprintSource("https://kajabi.test/v?sig=1")).toBe('163577856|"abc"|Tue, 14 Oct 2026 12:00:00 GMT');
-    expect(fetchMock).toHaveBeenCalledWith("https://kajabi.test/v?sig=1", { headers: { Range: "bytes=0-0" } });
+    expect(fetchMock).toHaveBeenCalledWith("https://kajabi.test/v?sig=1", { headers: { Range: "bytes=0-0", "User-Agent": OUTBOUND_USER_AGENT } });
   });
 
   it("falls back to Content-Length when the server ignores the range, and tolerates missing headers", async () => {

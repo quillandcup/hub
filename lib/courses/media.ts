@@ -2,6 +2,7 @@ import { visibleLessonIds } from "@/lib/courses/visible";
 import type { Repos } from "@/lib/data/repos";
 import type { VideoRecord } from "@/lib/data/courses";
 import type { MuxAssetStatus, MuxVideoQuality } from "@/lib/mux";
+import { outboundFetch } from "@/lib/http/outbound";
 
 type MediaPlanRepos = Pick<Repos, "courses" | "kajabiCourses">;
 
@@ -103,7 +104,7 @@ export async function planCourseVideos(repos: MediaPlanRepos, courseKajabiId: st
  * tell whether the same media id now points at different bytes.
  */
 export async function fingerprintSource(url: string): Promise<string> {
-  const response = await fetch(url, { headers: { Range: "bytes=0-0" } });
+  const response = await outboundFetch(url, { headers: { Range: "bytes=0-0" } });
   if (!response.ok && response.status !== 206) throw new Error(`source answered ${response.status}`);
   const total = response.headers.get("content-range")?.split("/")[1] ?? response.headers.get("content-length") ?? "";
   return [total, response.headers.get("etag") ?? "", response.headers.get("last-modified") ?? ""].join("|");

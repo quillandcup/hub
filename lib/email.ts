@@ -1,5 +1,6 @@
 import { EMAIL_FROM, isProduction } from "@/lib/config";
 import { clock } from "@/lib/clock";
+import { outboundFetch } from "@/lib/http/outbound";
 
 /**
  * Whether outbound emails sent via this module go to EMAIL_DEV_ADDRESS instead of their real
@@ -73,7 +74,7 @@ export async function sendEmail(params: SendEmailParams): Promise<void> {
   });
 
   for (let attempt = 1; ; attempt++) {
-    const response = await fetch(RESEND_URL, {
+    const response = await outboundFetch(RESEND_URL, {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body,

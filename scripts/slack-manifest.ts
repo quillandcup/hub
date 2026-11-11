@@ -22,6 +22,7 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
+import { outboundFetch } from "@/lib/http/outbound";
 
 const MANIFEST_FILE = "slack-app-manifest.yml";
 const REFRESH_TOKEN_SECRET = "SLACK_CONFIG_REFRESH_TOKEN";
@@ -51,7 +52,7 @@ async function slack(
   params: Record<string, string>,
   token?: string,
 ): Promise<SlackResponse> {
-  const res = await fetch(`https://slack.com/api/${method}`, {
+  const res = await outboundFetch(`https://slack.com/api/${method}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",

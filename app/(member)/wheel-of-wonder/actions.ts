@@ -2,7 +2,7 @@
 
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { createRepos } from "@/lib/data/repos";
-import { WebClient } from "@slack/web-api";
+import { createSlackClient } from "@/lib/slack-client";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { getCurrentUser } from "@/lib/auth";
@@ -153,7 +153,7 @@ async function spinWheelImpl(): Promise<WheelSpinResponse> {
   const { pool, viewerSlackUserId } = await loadCandidatePool(effectiveIdentity.memberId);
   if (pool.length === 0) return { noOneAvailable: true };
 
-  const slack = new WebClient(slackToken);
+  const slack = createSlackClient(slackToken);
 
   const winner = await pickWheelMatch(
     pool,
@@ -221,7 +221,7 @@ async function introduceOnSlackImpl(winnerMemberId: string): Promise<WheelIntroR
   const winner = pool.find((c) => c.memberId === winnerMemberId);
   if (!winner?.slackUserId) return { error: "Couldn't find that member on Slack" };
 
-  const slack = new WebClient(slackToken);
+  const slack = createSlackClient(slackToken);
 
   let url = "https://quillandcup.slack.com";
   let teamId: string | undefined;

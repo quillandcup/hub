@@ -1,4 +1,5 @@
 import { WebClient } from "@slack/web-api";
+import { createSlackClient } from "@/lib/slack-client";
 import { APP_URL, isProduction } from "@/lib/config";
 import { getSlackBotToken } from "@/lib/slack-bot-token";
 
@@ -44,7 +45,7 @@ export async function sendSlackDM(params: SendSlackDMParams): Promise<void> {
     slackUserId = devUserId;
   }
 
-  const slack = new WebClient(token);
+  const slack = createSlackClient(token);
   await slack.chat.postMessage({ channel: slackUserId, text, blocks, unfurl_links: false, unfurl_media: false });
 }
 
@@ -66,7 +67,7 @@ export async function postToSlackChannel(params: { channel: string; text: string
   }
   const token = await getSlackBotToken();
   if (!token) throw new Error("No Slack bot token is configured");
-  const slack = new WebClient(token);
+  const slack = createSlackClient(token);
   await slack.chat.postMessage({ channel: params.channel, text: params.text, blocks: params.blocks, unfurl_links: false, unfurl_media: false });
   return true;
 }
@@ -98,7 +99,7 @@ export async function notifyStaffNewBook(params: NotifyStaffNewBookParams): Prom
     purchaseUrl ? `<${purchaseUrl}|Where to buy>  ·  <${memberLink}|View member>` : `<${memberLink}|View member>`,
   ].join("\n");
 
-  const slack = new WebClient(token);
+  const slack = createSlackClient(token);
   await slack.chat.postMessage({ channel, text, unfurl_links: false, unfurl_media: false });
 }
 
@@ -129,6 +130,6 @@ export async function notifyStaffNewAward(params: NotifyStaffNewAwardParams): Pr
     url ? `<${url}|Details>  ·  <${memberLink}|View member>` : `<${memberLink}|View member>`,
   ].join("\n");
 
-  const slack = new WebClient(token);
+  const slack = createSlackClient(token);
   await slack.chat.postMessage({ channel, text, unfurl_links: false, unfurl_media: false });
 }

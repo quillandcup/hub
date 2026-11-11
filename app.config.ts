@@ -14,6 +14,12 @@ export const appConfig = {
   appName: "Quill & Cup Hub",
 
   /**
+   * The product token in the User-Agent every outbound request sends (lib/config.ts `OUTBOUND_USER_AGENT`,
+   * docs/OUTBOUND_REQUESTS.md). An HTTP token: letters, digits and `-._` only, no spaces, so it is not `appName`.
+   */
+  userAgentProduct: "HedgieHub",
+
+  /**
    * Canonical production URL, no trailing slash. Used for links in Slack messages, iCal event
    * UIDs (changing the host makes every calendar subscriber see duplicate events), the
    * Checkly monitors' target, and pg_cron's calls (via Vault `app_url`).

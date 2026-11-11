@@ -15,6 +15,7 @@ import { readFileSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
 import appConfig from "../app.config";
 import { orgSettingsBody, parseSentryConfig, planOrgSettings, type OrgSettingChange } from "../lib/sentry-config";
+import { outboundFetch } from "@/lib/http/outbound";
 
 const CONFIG_FILE = "sentry-config.yml";
 
@@ -26,7 +27,7 @@ function fail(message: string): never {
 async function org(method: "GET" | "PUT", body?: unknown): Promise<Record<string, unknown>> {
   const token = process.env.SENTRY_CONFIG_TOKEN;
   if (!token) fail("SENTRY_CONFIG_TOKEN is not set");
-  const res = await fetch(`${appConfig.sentry.apiUrl}/api/0/organizations/${appConfig.sentry.org}/`, {
+  const res = await outboundFetch(`${appConfig.sentry.apiUrl}/api/0/organizations/${appConfig.sentry.org}/`, {
     method,
     headers: { Authorization: `Bearer ${token}`, ...(body ? { "Content-Type": "application/json" } : {}) },
     body: body ? JSON.stringify(body) : undefined,

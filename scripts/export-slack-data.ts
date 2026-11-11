@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 
 import { config } from 'dotenv';
-import { WebClient } from '@slack/web-api';
+import { createSlackClient } from "@/lib/slack-client";
 import { writeFileSync, mkdirSync } from 'fs';
 import { parse } from 'json2csv';
 
@@ -15,7 +15,7 @@ if (!SLACK_BOT_TOKEN) {
   process.exit(1);
 }
 
-const slack = new WebClient(SLACK_BOT_TOKEN);
+const slack = createSlackClient(SLACK_BOT_TOKEN);
 
 interface ExportOptions {
   daysBack: number;

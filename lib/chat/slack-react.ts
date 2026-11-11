@@ -1,4 +1,4 @@
-import { WebClient } from "@slack/web-api";
+import { createSlackClient } from "@/lib/slack-client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createRepos } from "@/lib/data/repos";
 import type { Db } from "@/lib/data/db";
@@ -28,7 +28,7 @@ export async function syncReactionToSlack(
   const connection = await getSlackUserToken(service, opts.memberId);
   if (!connection) return false;
 
-  const slack = new WebClient(connection.token);
+  const slack = createSlackClient(connection.token);
   const args = { channel: message.slackChannelId, timestamp: message.slackTs, name: opts.emoji };
   try {
     if (opts.active) await slack.reactions.add(args);

@@ -1,4 +1,4 @@
-import { WebClient } from "@slack/web-api";
+import { createSlackClient } from "@/lib/slack-client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import * as Sentry from "@sentry/nextjs";
 import { clock } from "@/lib/clock";
@@ -71,7 +71,7 @@ const usable = (s: Stored): boolean => s.expiresAt === null || s.expiresAt - clo
 /** Exchange the refresh token for a new credential and store it, retrying the save: the old refresh token is spent. A save that never works is logged and the new token is used anyway. */
 async function refreshAndSave(service: SupabaseClient, current: Stored): Promise<Stored> {
   if (!current.refreshToken) throw new Error("the stored Slack bot token has no refresh token");
-  const result = await new WebClient().oauth.v2.access({
+  const result = await createSlackClient().oauth.v2.access({
     client_id: process.env.SLACK_CLIENT_ID ?? "",
     client_secret: process.env.SLACK_CLIENT_SECRET ?? "",
     grant_type: "refresh_token",

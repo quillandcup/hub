@@ -13,6 +13,8 @@
  * happens within one admin-initiated import, not a background sync.
  */
 
+import { outboundFetch } from "@/lib/http/outbound";
+
 const PICKER_API_BASE = "https://photospicker.googleapis.com/v1";
 const OAUTH_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -50,7 +52,7 @@ export async function exchangeCodeForToken(
   redirectUri: string
 ): Promise<{ accessToken: string; expiresInSeconds: number }> {
   const { clientId, clientSecret } = getClientCredentials();
-  const response = await fetch(OAUTH_TOKEN_URL, {
+  const response = await outboundFetch(OAUTH_TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -77,7 +79,7 @@ export interface PickerSession {
 }
 
 async function pickerFetch(path: string, accessToken: string, init?: RequestInit) {
-  const response = await fetch(`${PICKER_API_BASE}${path}`, {
+  const response = await outboundFetch(`${PICKER_API_BASE}${path}`, {
     ...init,
     headers: { Authorization: `Bearer ${accessToken}`, ...(init?.headers ?? {}) },
   });
@@ -96,7 +98,7 @@ export async function getPickerSession(accessToken: string, sessionId: string): 
 }
 
 export async function deletePickerSession(accessToken: string, sessionId: string): Promise<void> {
-  await fetch(`${PICKER_API_BASE}/sessions/${sessionId}`, {
+  await outboundFetch(`${PICKER_API_BASE}/sessions/${sessionId}`, {
     method: "DELETE",
     headers: { Authorization: `Bearer ${accessToken}` },
   });
@@ -141,7 +143,7 @@ export async function downloadMediaItemBytes(
   baseUrl: string,
   accessToken: string
 ): Promise<{ bytes: Buffer; contentType: string }> {
-  const response = await fetch(`${baseUrl}=d`, {
+  const response = await outboundFetch(`${baseUrl}=d`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   if (!response.ok) {
