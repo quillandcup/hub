@@ -534,7 +534,7 @@ describe("openSlackDm", () => {
 });
 
 describe("pullDmsForCoveredMembers", () => {
-  useFakeClock(() => Date.parse("2026-11-03T12:00:00Z"));
+  const fake = useFakeClock(() => Date.parse("2026-11-03T12:00:00Z"));
   const DM_SCOPES = ["im:read", "im:history", "im:write", "mpim:history", "files:read"];
   const OTHER = "mbr_AAAAAAAAAAH1";
   const later = () => Date.parse("2026-11-03T12:00:00Z") + 60_000;
@@ -569,6 +569,18 @@ describe("pullDmsForCoveredMembers", () => {
     const result = await pullDmsForCoveredMembers(service, { deadline: Date.parse("2026-11-03T11:59:00Z") });
     expect(result).toEqual({ members: 2, conversations: 0, messages: 0, deferred: 2, incomplete: 0, errors: [] });
     expect(m.list).not.toHaveBeenCalled();
+  });
+
+  it("gives each member a fair share of the time, so a slow first member does not starve the second", async () => {
+    m.list.mockResolvedValue({ channels: ["D1", "D2", "D3"].map((id) => ({ id, user: "UX" })) });
+    m.history.mockImplementation(async () => {
+      fake.clock.advance(40_000);
+      return { messages: [{ ts: "1762170000.000100", user: "UX", text: "hi" }], has_more: false };
+    });
+    const result = await pullDmsForCoveredMembers(service, { deadline: fake.clock.now() + 100_000 });
+    // The first member's 50 s share ends after two conversations; the second is still started (and reads what the first left).
+    expect(result).toMatchObject({ members: 2, deferred: 0, incomplete: 1 });
+    expect(m.history).toHaveBeenCalledTimes(3);
   });
 
   it("reports what went wrong for a member and goes on with the next", async () => {
