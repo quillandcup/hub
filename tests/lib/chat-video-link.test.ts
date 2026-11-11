@@ -58,6 +58,22 @@ describe("sharedVideoSlackLine", () => {
   });
 });
 
+describe("stripSharedVideoLink, the line among the text", () => {
+  const line = `${CHAT_LINK} · ${LESSON_LINK}`;
+
+  it("removes the line wherever the pasted address was, keeping the text either side", () => {
+    expect(stripSharedVideoLink(`Before\n${line}\nAfter`)).toBe("Before\nAfter");
+    expect(stripSharedVideoLink(`${line}\nAfter`)).toBe("After");
+    expect(stripSharedVideoLink(`Before\n${line}`)).toBe("Before");
+    expect(stripSharedVideoLink(`A\n${line}\nB\n${line}\nC`)).toBe("A\nB\nC");
+  });
+
+  it("leaves a link with another label or an address inside a sentence alone", () => {
+    const text = `see ${line} for more\nnext line`;
+    expect(stripSharedVideoLink(text)).toBe(text);
+  });
+});
+
 describe("stripSharedVideoLink", () => {
   it.each([
     ["both links", `\n${CHAT_LINK} · ${LESSON_LINK}`],
