@@ -68,7 +68,7 @@ jobs:
       # `cache: pnpm` here caches pnpm's store, keyed on pnpm-lock.yaml -- `vercel build`
       # below runs its own install internally (and there is no way to skip it), so this is
       # what speeds it up.
-      - uses: pnpm/action-setup@v6.1.0
+      - uses: pnpm/action-setup@v6.1.1
         if: steps.guard.outputs.proceed == 'true'
 
       - uses: actions/setup-node@v7
