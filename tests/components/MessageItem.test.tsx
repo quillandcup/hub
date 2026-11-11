@@ -7,7 +7,7 @@ import type { ChatMessageView } from "@/lib/chat/load";
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("@/app/(member)/chat/actions", () => ({ toggleChatReaction: vi.fn(), editChatMessage: vi.fn(), deleteChatMessage: vi.fn() }));
 vi.mock("@/components/member/MemberHoverCard", () => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
-vi.mock("@/components/chat/MessageFiles", () => ({ default: () => null }));
+vi.mock("@/components/chat/MessageFiles", () => ({ default: ({ files }: { files: unknown[] }) => (files.length > 0 ? <div data-testid="message-files" /> : null) }));
 vi.mock("@/components/chat/ChatVideo", () => ({ default: ({ messageId }: { messageId: string }) => <div data-testid="chat-video">{messageId}</div> }));
 import MessageItem, { systemNoticeText } from "@/components/chat/MessageItem";
 import { optimisticView } from "@/lib/chat/list-events";
@@ -53,6 +53,15 @@ describe("MessageItem shared video", () => {
     cleanup();
     mount(base());
     expect(screen.queryByTestId("chat-video")).not.toBeInTheDocument();
+  });
+});
+
+describe("MessageItem shared video with files", () => {
+  it("shows the video before the message's files", () => {
+    mount(base({ sharesVideo: true, hasFiles: true, files: [{ id: "F1", name: "a.png", mimetype: "image/png", size: 1, width: null, height: null }] as never }));
+    const video = screen.getByTestId("chat-video");
+    const files = screen.getByTestId("message-files");
+    expect(video.compareDocumentPosition(files) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
 

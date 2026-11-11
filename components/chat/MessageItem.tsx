@@ -162,8 +162,8 @@ export default function MessageItem({
             {message.mine && <RetryButton channelId={channelId} messageId={message.id} />}
           </p>
         )}
-        {message.contentState === "ok" && <MessageFiles messageId={message.id} files={message.files} canDelete={message.mine} />}
         {message.sharesVideo && <ChatVideo messageId={message.id} />}
+        {message.contentState === "ok" && <MessageFiles messageId={message.id} files={message.files} canDelete={message.mine} />}
         {message.contentState === "ok" && message.unfurls && message.unfurls.length > 0 && (
           <MessageUnfurls
             unfurls={message.unfurls}
