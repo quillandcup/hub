@@ -40,14 +40,14 @@ export const STAFF_FEATURES = [
   "prickle.ignore_names",
   "prickle.alias_form",
   "prickle.insights_link",
-  "conversations.write",
+  "care.write",
 ] as const;
 export type StaffFeature = (typeof STAFF_FEATURES)[number];
 
 /** What a community manager may see or do beyond reading the page. Add a feature here to grant it. */
 export const COMMUNITY_MANAGER_FEATURES: readonly StaffFeature[] = [
-  // Her ongoing reach-outs to members: she is the first staff role that writes (docs/CONVERSATIONS.md).
-  "conversations.write",
+  // Hedgie Care, her reach-outs to members: she is the first staff role that writes (docs/HEDGIE_CARE.md).
+  "care.write",
 ];
 
 /** The features this role has: all for an admin, the list above for a community manager, none otherwise. */
@@ -73,7 +73,8 @@ const EXACT_PATHS = [
   "/admin/members",
   "/admin/insights/slack-engagement",
   "/admin/insights/resubscriptions",
-  "/admin/conversations", // the one page she writes to (the `conversations.write` feature)
+  "/admin/care", // Hedgie Care, the one place she writes (the `care.write` feature)
+  "/admin/care/earlier",
 ] as const;
 
 /**

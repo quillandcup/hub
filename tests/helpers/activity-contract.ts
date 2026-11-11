@@ -134,5 +134,58 @@ export function defineActivityContract(name: string, setup: () => ActivityContra
       expect(await ctx.repo().introducedIn([a, b], "start-here")).toEqual(new Set([a]));
       expect(await ctx.repo().introducedIn([], "start-here")).toEqual(new Set());
     });
+
+    describe("what a member did in a stretch of time", () => {
+      const prickle = (member: 0 | 1, at: string, prickleId: string) =>
+        activity(member, { type: "prickle_attended", category: "event", source: "prickle_attendance", occurredAt: at, relatedId: prickleId });
+      const post = (member: 0 | 1, at: string, type = "slack_message") =>
+        activity(member, { type, category: "communication", source: "slack", occurredAt: at, relatedId: ctx.unique("post") });
+
+      it("counts distinct prickles and Slack messages from the start up to, not including, the end", async () => {
+        const [a, b] = ctx.memberIds;
+        const [p1, p2, p3] = [ctx.unique("prkl"), ctx.unique("prkl"), ctx.unique("prkl")];
+        await ctx.repo().record(prickle(0, "2097-04-01T00:00:00Z", p1)); // on the start: counted
+        await ctx.repo().record(prickle(0, "2097-04-02T10:00:00Z", p1)); // the same prickle again (left and rejoined): once
+        await ctx.repo().record(prickle(0, "2097-04-10T10:00:00Z", p2));
+        await ctx.repo().record(prickle(0, "2097-05-01T00:00:00Z", p3)); // on the end: not counted
+        await ctx.repo().record(prickle(0, "2097-03-31T23:59:59Z", ctx.unique("prkl"))); // just before: not counted
+        await ctx.repo().record(post(0, "2097-04-05T10:00:00Z"));
+        await ctx.repo().record(post(0, "2097-04-06T10:00:00Z", "slack_thread_reply"));
+        await ctx.repo().record(post(0, "2097-04-07T10:00:00Z", "slack_reaction")); // a reaction is not a message
+        await ctx.repo().record(post(1, "2097-04-05T10:00:00Z")); // someone else
+        await ctx.repo().record(activity(0, { occurredAt: "2097-04-08T10:00:00Z" })); // another kind of activity
+
+        expect(await ctx.repo().countsBetween(a, "2097-04-01T00:00:00Z", "2097-05-01T00:00:00Z")).toEqual({ pricklesAttended: 2, slackMessages: 2 });
+        expect(await ctx.repo().countsBetween(b, "2097-04-01T00:00:00Z", "2097-05-01T00:00:00Z")).toEqual({ pricklesAttended: 0, slackMessages: 1 });
+        expect(await ctx.repo().countsBetween(a, "2098-01-01T00:00:00Z", "2098-02-01T00:00:00Z")).toEqual({ pricklesAttended: 0, slackMessages: 0 });
+        expect(await ctx.repo().countsBetween(a, "2097-05-01T00:00:00Z", "2097-04-01T00:00:00Z")).toEqual({ pricklesAttended: 0, slackMessages: 0 });
+      });
+
+      it("counts past 1000 rows in a window", async () => {
+        const a = ctx.memberIds[0];
+        const start = Date.parse("2097-06-01T00:00:00Z");
+        const rows = Array.from({ length: 1205 }, (_, i) => post(0, new Date(start + i * 60_000).toISOString()));
+        await ctx.repo().recordMany(rows);
+        await ctx.repo().record(post(0, "2097-06-03T00:00:00Z")); // outside
+
+        expect(await ctx.repo().countsBetween(a, "2097-06-01T00:00:00Z", "2097-06-02T00:00:00Z")).toEqual({ pricklesAttended: 0, slackMessages: 1205 });
+      });
+
+      it("finds the first prickle and the first Slack post, whatever the date", async () => {
+        const [a, b] = ctx.memberIds;
+        await ctx.repo().record(prickle(0, "2097-02-10T10:00:00Z", ctx.unique("prkl")));
+        await ctx.repo().record(prickle(0, "2097-01-10T10:00:00Z", ctx.unique("prkl")));
+        await ctx.repo().record(post(0, "2097-03-10T10:00:00Z", "slack_thread_reply"));
+        await ctx.repo().record(post(0, "2097-02-20T10:00:00Z"));
+        await ctx.repo().record(post(0, "2097-01-01T10:00:00Z", "slack_reaction")); // not a post
+
+        const first = await ctx.repo().firsts(a);
+        expect([first.firstPrickleAt && new Date(first.firstPrickleAt).toISOString(), first.firstSlackPostAt && new Date(first.firstSlackPostAt).toISOString()]).toEqual([
+          "2097-01-10T10:00:00.000Z",
+          "2097-02-20T10:00:00.000Z",
+        ]);
+        expect(await ctx.repo().firsts(b)).toEqual({ firstPrickleAt: null, firstSlackPostAt: null });
+      });
+    });
   });
 }

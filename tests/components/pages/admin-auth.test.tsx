@@ -391,7 +391,7 @@ describe("every admin server action calls requireAdminAction(), or requireStaffA
   // Action modules a community manager may call, each export opening with requireStaffAction() and then asking for
   // its staff feature (lib/staff-access.ts), with the reason. Everything else stays admin-only.
   const STAFF_ACTION_FILES: Record<string, string> = {
-    "app/(admin)/admin/conversations/actions.ts": "the community manager writes her conversations (feature conversations.write)",
+    "app/(admin)/admin/care/actions.ts": "the community manager writes Hedgie Care (feature care.write)",
   };
 
   it.each(actions.filter(([id]) => !(id in NOT_ADMIN_ONLY)))("%s", (id, body) => {

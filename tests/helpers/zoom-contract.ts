@@ -372,7 +372,10 @@ export function defineZoomContract(name: string, setup: () => ZoomContractContex
       expect(rows.map((m) => m.message_id).sort()).toEqual(["m1", "m2"]);
       expect(rows.find((m) => m.message_id === "m1")).toEqual(expect.objectContaining({ message_text: "text of m1", sender_name: "Ada Example", recipient_type: "everyone", has_files: false, sender_email: null }));
       expect(rows.find((m) => m.message_id === "m2")).toEqual(expect.objectContaining({ recipient_type: "guest", recipient_email: "bea@example.test", has_files: true }));
-      expect(rows.map((m) => m.id)).toEqual([...rows.map((m) => m.id)].sort());
+      // Ordered by id, and the same way every time. (Not compared with a JS sort: the ids are random mixed-case text and
+      // Postgres orders them by its collation, which differs from code-unit order, so that comparison failed about half the runs.)
+      const again = (await ctx.repo().chatMessagesSince(at(24, 8, 30))).filter((m) => m.meeting_uuid === meeting);
+      expect(again.map((m) => m.id)).toEqual(rows.map((m) => m.id));
       expect((await ctx.repo().chatMessagesSince(at(24, 0))).filter((m) => m.meeting_uuid === meeting)).toHaveLength(3);
     });
   });

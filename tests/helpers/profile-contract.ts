@@ -72,6 +72,23 @@ export function defineProfileContract(name: string, setup: () => ProfileContract
       expect(admins).not.toContain(ids.m);
     });
 
+    it("lists the profiles with any of the given roles, by email, and nobody for no roles", async () => {
+      const tag = ctx.unique("roles").replace(/\s+/g, "-").toLowerCase();
+      const ids = await ctx.seed([
+        { key: "c", email: `${tag}-c@example.test`, role: "community_manager" },
+        { key: "a", email: `${tag}-a@example.test`, role: "admin" },
+        { key: "m", email: `${tag}-m@example.test` },
+      ]);
+
+      const ours = (await ctx.repo().byRoles(["admin", "community_manager"])).filter((p) => p.email.startsWith(tag));
+      expect(ours).toEqual([
+        { id: ids.a, email: `${tag}-a@example.test`, role: "admin" },
+        { id: ids.c, email: `${tag}-c@example.test`, role: "community_manager" },
+      ]);
+      expect((await ctx.repo().byRoles(["community_manager"])).filter((p) => p.email.startsWith(tag)).map((p) => p.id)).toEqual([ids.c]);
+      expect(await ctx.repo().byRoles([])).toEqual([]);
+    });
+
     it("reads several users' profiles, and everyone's", async () => {
       const ids = await ctx.seed([
         { key: "a", email: email("one") },

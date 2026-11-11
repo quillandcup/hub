@@ -53,6 +53,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "conversations-became-hedgie-care",
+    date: "2026-11-11",
+    audience: "engineering",
+    category: "improved",
+    title: "Hedgie Care: the community manager's tracker, one engagement per reach-out period",
+    summary: "The Conversations tracker became Hedgie Care: each reach-out is an engagement with a period, renewals link to the one before, and how it went is measured from the member's own activity.",
+    body: [
+      "`/admin/care` (`docs/HEDGIE_CARE.md`) replaces `/admin/conversations`, which was never announced and had no rows. The table is now `care_engagements` (id prefix `care_`): one row is one period, with `period_ends_on`, `renewed_from` (the engagement a renewal continues) and `ended_how`, her own read of how it went. The staff feature is `care.write`, the audit entity `care_engagement`, the timeline source `care`, and the events `care_engagement_started`, `care_message_logged`, `care_engagement_closed` and `care_engagement_renewed`. Tabs are paths: `/admin/care` (Active) and `/admin/care/earlier` (closed and lapsed).",
+      "Nothing about the status is stored and no job moves it (`lib/care.ts`): needs reply, waiting, gone quiet, review due and lapsed follow from the dates and who spoke last. A member who wrote last stays on \"needs reply\" until she acts, however old the period, so no one is quietly dropped. The period length, the grace window, the quiet window and the three measured windows are settings in `app.config.ts` (`careEngagementDays` and the others), read through `lib/config.ts`. The period's last day is an Eastern calendar day, computed with calendar arithmetic so a daylight saving change cannot move it. Renewing is one database function (`renew_care_engagement`), safe against a double click.",
+      "Results are counted when she opens them, never stored: prickles attended (distinct prickles), Slack messages, firsts and the distinct members they talked with other than staff, in a window before, during and after. They come from new repository methods (`ActivityRepository.countsBetween` and `firsts`, and the new `MemberInteractionRepository`), and a community manager may now read `member_interactions` (read only; it holds who and when, never what was said).",
+      "Renewing asks for a short reason (it becomes the new period's note) and shows the results at that moment; closing offers four endings (handed to someone else, no reply, back in the community, ran its course), each with a one-line definition, and a renewal shows as \"Period N\". Every engagement has an owner (`owned_by`; a new one continues the owner of the member's latest, a renewal keeps it, anyone with `care.write` can reassign), with a Mine / Everyone filter and avatar chips on both tabs. The page opens with the lapsed and review-due counts and whose they are. The results also show whether they were a member at the end of each window (the Membership Timeline's engine, `memberStatusTimeline`; a member on hiatus has not left) and which programs started in it. Reminders to owners and alerts on lapse are not built (`docs/TODO.md`).",
+    ].join("\n\n"),
+  },
+  {
     slug: "conversations-and-staff-write-access",
     date: "2026-11-11",
     audience: "engineering",

@@ -47,7 +47,8 @@ import { InMemoryAdminWorkQueueRepository, SupabaseAdminWorkQueueRepository, typ
 import { InMemoryWheelOfWonderRepository, SupabaseWheelOfWonderRepository, type WheelOfWonderRepository } from "./wheel-of-wonder";
 import { InMemoryChatLinkPreviewRepository, SupabaseChatLinkPreviewRepository, type ChatLinkPreviewRepository } from "./chat-link-previews";
 import { InMemoryChatVideoRepository, SupabaseChatVideoRepository, type ChatVideoRepository } from "./chat-videos";
-import { InMemoryConversationRepository, SupabaseConversationRepository, type ConversationRepository } from "./conversations";
+import { InMemoryCareRepository, SupabaseCareRepository, type CareRepository } from "./care";
+import { InMemoryMemberInteractionRepository, SupabaseMemberInteractionRepository, type MemberInteractionRepository } from "./member-interactions";
 import { InMemoryAccessEventRepository, SupabaseAccessEventRepository, type AccessEventRepository } from "./access-events";
 import { InMemorySegmentRepository, SupabaseSegmentRepository, type SegmentRepository } from "./segments";
 import { InMemoryFeatureFlagRepository, SupabaseFeatureFlagRepository, type FeatureFlagRepository } from "./feature-flags";
@@ -90,7 +91,8 @@ export interface Repos {
   chat: ChatRepository;
   chatDrafts: ChatDraftRepository;
   chatVideos: ChatVideoRepository;
-  conversations: ConversationRepository;
+  care: CareRepository;
+  memberInteractions: MemberInteractionRepository;
   chatLinkPreviews: ChatLinkPreviewRepository;
   adminNotes: AdminNoteRepository;
   kajabiCourses: KajabiCourseRepository;
@@ -151,7 +153,8 @@ export function createRepos(db: Db): Repos {
     chat: new SupabaseChatRepository(db),
     chatDrafts: new SupabaseChatDraftRepository(db),
     chatVideos: new SupabaseChatVideoRepository(db),
-    conversations: new SupabaseConversationRepository(db),
+    care: new SupabaseCareRepository(db),
+    memberInteractions: new SupabaseMemberInteractionRepository(db),
     chatLinkPreviews: new SupabaseChatLinkPreviewRepository(db),
     adminNotes: new SupabaseAdminNoteRepository(db),
     kajabiCourses: new SupabaseKajabiCourseRepository(db),
@@ -212,7 +215,8 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     chat: new InMemoryChatRepository(dataset),
     chatDrafts: new InMemoryChatDraftRepository(dataset),
     chatVideos: new InMemoryChatVideoRepository(dataset),
-    conversations: new InMemoryConversationRepository(dataset),
+    care: new InMemoryCareRepository(dataset),
+    memberInteractions: new InMemoryMemberInteractionRepository(dataset),
     chatLinkPreviews: new InMemoryChatLinkPreviewRepository(dataset),
     adminNotes: new InMemoryAdminNoteRepository(dataset),
     kajabiCourses: new InMemoryKajabiCourseRepository(dataset),

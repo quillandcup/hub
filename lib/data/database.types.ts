@@ -2069,6 +2069,87 @@ export type Database = {
         }
         Relationships: []
       }
+      care_engagements: {
+        Row: {
+          channel: string
+          closed_at: string | null
+          created_at: string
+          deleted_at: string | null
+          ended_how: string | null
+          follow_up_on: string | null
+          id: string
+          last_member_message_at: string | null
+          last_staff_message_at: string | null
+          member_id: string
+          next_step: string | null
+          notes: string | null
+          opened_at: string
+          opened_by: string | null
+          owned_by: string | null
+          period_ends_on: string
+          reason: string
+          renewed_from: string | null
+          updated_at: string
+        }
+        Insert: {
+          channel: string
+          closed_at?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          ended_how?: string | null
+          follow_up_on?: string | null
+          id?: string
+          last_member_message_at?: string | null
+          last_staff_message_at?: string | null
+          member_id: string
+          next_step?: string | null
+          notes?: string | null
+          opened_at?: string
+          opened_by?: string | null
+          owned_by?: string | null
+          period_ends_on: string
+          reason: string
+          renewed_from?: string | null
+          updated_at?: string
+        }
+        Update: {
+          channel?: string
+          closed_at?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          ended_how?: string | null
+          follow_up_on?: string | null
+          id?: string
+          last_member_message_at?: string | null
+          last_staff_message_at?: string | null
+          member_id?: string
+          next_step?: string | null
+          notes?: string | null
+          opened_at?: string
+          opened_by?: string | null
+          owned_by?: string | null
+          period_ends_on?: string
+          reason?: string
+          renewed_from?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "care_engagements_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "care_engagements_renewed_from_fkey"
+            columns: ["renewed_from"]
+            isOneToOne: false
+            referencedRelation: "care_engagements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chat_channel_members: {
         Row: {
           channel_id: string
@@ -2703,71 +2784,6 @@ export type Database = {
             columns: ["prickle_id"]
             isOneToOne: true
             referencedRelation: "prickles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      conversations: {
-        Row: {
-          channel: string
-          closed_at: string | null
-          created_at: string
-          deleted_at: string | null
-          follow_up_on: string | null
-          id: string
-          last_member_message_at: string | null
-          last_staff_message_at: string | null
-          member_id: string
-          next_step: string | null
-          notes: string | null
-          opened_at: string
-          opened_by: string | null
-          outcome: string | null
-          reason: string
-          updated_at: string
-        }
-        Insert: {
-          channel: string
-          closed_at?: string | null
-          created_at?: string
-          deleted_at?: string | null
-          follow_up_on?: string | null
-          id?: string
-          last_member_message_at?: string | null
-          last_staff_message_at?: string | null
-          member_id: string
-          next_step?: string | null
-          notes?: string | null
-          opened_at?: string
-          opened_by?: string | null
-          outcome?: string | null
-          reason: string
-          updated_at?: string
-        }
-        Update: {
-          channel?: string
-          closed_at?: string | null
-          created_at?: string
-          deleted_at?: string | null
-          follow_up_on?: string | null
-          id?: string
-          last_member_message_at?: string | null
-          last_staff_message_at?: string | null
-          member_id?: string
-          next_step?: string | null
-          notes?: string | null
-          opened_at?: string
-          opened_by?: string | null
-          outcome?: string | null
-          reason?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "conversations_member_id_fkey"
-            columns: ["member_id"]
-            isOneToOne: false
-            referencedRelation: "members"
             referencedColumns: ["id"]
           },
         ]
@@ -7654,6 +7670,42 @@ export type Database = {
       remove_member_data: {
         Args: { p_keep_public?: boolean; p_member_id: string }
         Returns: Json
+      }
+      renew_care_engagement: {
+        Args: {
+          p_at: string
+          p_id: string
+          p_notes: string
+          p_opened_by: string
+          p_period_ends_on: string
+        }
+        Returns: {
+          channel: string
+          closed_at: string | null
+          created_at: string
+          deleted_at: string | null
+          ended_how: string | null
+          follow_up_on: string | null
+          id: string
+          last_member_message_at: string | null
+          last_staff_message_at: string | null
+          member_id: string
+          next_step: string | null
+          notes: string | null
+          opened_at: string
+          opened_by: string | null
+          owned_by: string | null
+          period_ends_on: string
+          reason: string
+          renewed_from: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "care_engagements"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       reorder_course_children: {
         Args: {

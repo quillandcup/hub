@@ -67,9 +67,9 @@ const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]
     [["startLessonFileUpload", "course_lesson_file_upload_started"], ["finishLessonFileUpload", "course_lesson_file_added"], ["removeLessonFile", "course_lesson_file_removed"]],
   ],
   [
-    () => import("@/app/(admin)/admin/conversations/actions"),
-    "app/(admin)/admin/conversations/actions.ts",
-    [["startConversation", "conversation_started"], ["logConversationMessage", "conversation_message_logged"], ["updateConversation", "conversation_updated"], ["closeConversation", "conversation_closed"], ["deleteConversation", "conversation_deleted"]],
+    () => import("@/app/(admin)/admin/care/actions"),
+    "app/(admin)/admin/care/actions.ts",
+    [["startEngagement", "care_engagement_started"], ["logCareMessage", "care_message_logged"], ["updateEngagement", "care_engagement_updated"], ["closeEngagement", "care_engagement_closed"], ["renewEngagement", "care_engagement_renewed"], ["deleteEngagement", "care_engagement_deleted"]],
   ],
   [() => import("@/app/(admin)/admin/courses/take-over-actions"), "app/(admin)/admin/courses/take-over-actions.ts", [["takeOverCourse", "course_taken_over"]]],
   [() => import("@/app/api/feedback/route"), "app/api/feedback/route.ts", [["POST", "feedback_submitted"]]],
