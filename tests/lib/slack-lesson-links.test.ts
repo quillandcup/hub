@@ -257,15 +257,16 @@ describe("rewriteInSlack (the Slack copy of a converted message)", () => {
     expect(updateInSlack.mock.calls[0][1].body.startsWith("Shared a lesson video: Show up\n<")).toBe(true);
   });
 
-  it("leaves a message with files alone (an edit would drop them)", async () => {
+  it("rewrites a message with files too, naming its files again so Slack keeps them", async () => {
     stored();
-    dataset.chatMessageContents[0].files = [{ id: "F1", name: "a.png", mimetype: "image/png" }] as never;
+    dataset.chatMessageContents[0].files = [{ id: "F1", name: "a.png", mimetype: "image/png" }, { id: "F2", name: "b.png", mimetype: "image/png" }] as never;
     expect(await shareLessonLinkBySlackTs(repos, "C_HOSTS", "1.1", rewrite)).toBe("shared");
-    // Nothing is sent to Slack, so its copy keeps its files, and the Hub's copy keeps them and the text as they were.
-    expect(updateInSlack).not.toHaveBeenCalled();
-    const kept = dataset.chatMessageContents[0];
-    expect(kept.files).toHaveLength(1);
-    expect(kept.body).toBe(`look <${address(OPEN_LESSON)}|here> &amp; more`);
+
+    expect(updateInSlack).toHaveBeenCalledTimes(1);
+    expect(updateInSlack.mock.calls[0][1].keepFileIds).toEqual(["F1", "F2"]);
+    expect(updateInSlack.mock.calls[0][1].body).toContain("|Watch it in Hub Chat>");
+    // The Hub's own copy is untouched until Slack's echo arrives.
+    expect(dataset.chatMessageContents[0].files).toHaveLength(2);
   });
 
   it("keeps the card when Slack refuses or throws", async () => {

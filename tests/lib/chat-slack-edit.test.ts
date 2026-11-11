@@ -191,6 +191,19 @@ describe("updateChatMessageInSlack", () => {
     expect(update).toHaveBeenCalledWith({ channel: "C_HOSTS", ts: "1700000000.000100", text: "text", blocks: [], attachments: [] }, "xoxp-fern");
   });
 
+  it("names the message's files in the edit when asked, and says so when Slack answers with fewer", async () => {
+    row = { ...ROW, origin: "slack", posted_via: null };
+    update.mockResolvedValue({ ok: true, message: { files: [{ id: "F1" }, { id: "F2" }] } });
+    await updateChatMessageInSlack(service, { ...EDIT, body: "text", keepFileIds: ["F1", "F2"] });
+    expect(update).toHaveBeenCalledWith({ channel: "C_HOSTS", ts: "1700000000.000100", text: "text", blocks: [], file_ids: ["F1", "F2"] }, "xoxp-fern");
+
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    update.mockResolvedValue({ ok: true, message: { files: [{ id: "F1" }] } });
+    await expect(updateChatMessageInSlack(service, { ...EDIT, body: "text", keepFileIds: ["F1", "F2"] })).resolves.toEqual({ ok: true });
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("files after the edit"), EDIT.messageId, 1, 2);
+    log.mockRestore();
+  });
+
   it("needs the member's own Slack connection for a message written in Slack", async () => {
     row = { ...ROW, origin: "slack", posted_via: null };
     getSlackUserToken.mockResolvedValueOnce(null);
