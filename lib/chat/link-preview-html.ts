@@ -15,6 +15,10 @@ export const MAX_TITLE = 300;
 export const MAX_DESCRIPTION = 600;
 export const MAX_SITE_NAME = 100;
 export const MAX_URL = 2000;
+/** How much of the head is parsed. */
+export const MAX_HEAD_CHARS = 128 * 1024;
+/** And how many `<` it may hold. */
+export const MAX_HEAD_TAGS = 6000;
 
 export interface PagePreview {
   title: string | null;
@@ -100,7 +104,15 @@ function walk(n: Node, visit: (n: Node) => void, depth = 0): void {
 /** The part of the document worth parsing: everything before the body starts. */
 function headOf(html: string): string {
   const end = /<\/head\s*>|<body[\s>]/i.exec(html);
-  return end ? html.slice(0, end.index) : html;
+  // Real heads are small and the tags worth reading come early, while a parser's time grows faster than its input (thousands of unclosed
+  // elements nest ever deeper), so what it is given is cut by size and by number of tags.
+  const head = (end ? html.slice(0, end.index) : html).slice(0, MAX_HEAD_CHARS);
+  let at = -1;
+  for (let tags = 0; tags < MAX_HEAD_TAGS; tags++) {
+    at = head.indexOf("<", at + 1);
+    if (at === -1) return head;
+  }
+  return head.slice(0, at);
 }
 
 /** Reads the preview out of a page's HTML. `pageUrl` is where it was served from, for resolving a relative picture address. */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanText, decodePage, httpsImageUrl, parsePagePreview, MAX_DESCRIPTION, MAX_TITLE } from "@/lib/chat/link-preview-html";
+import { cleanText, decodePage, httpsImageUrl, parsePagePreview, MAX_DESCRIPTION, MAX_HEAD_CHARS, MAX_HEAD_TAGS, MAX_TITLE } from "@/lib/chat/link-preview-html";
 
 const PAGE = "https://example.test/articles/one";
 const html = (head: string, body = "<p>hello</p>") => `<!doctype html><html><head>${head}</head><body>${body}</body></html>`;
@@ -70,11 +70,15 @@ describe("parsePagePreview", () => {
     expect(Date.now() - started).toBeLessThan(2000);
   });
 
-  it("survives a hostile head: thousands of tags, very deep nesting", () => {
-    const many = `<meta name="x" content="y">`.repeat(20_000) + `<meta property="og:title" content="After many">`;
+  it("survives a hostile head: thousands of tags, very deep nesting, and stops reading past 128 KB", () => {
+    const many = `<meta name="x" content="y">`.repeat(3_000) + `<meta property="og:title" content="After many">`;
     expect(parsePagePreview(html(many), PAGE).title).toBe("After many");
-    const deep = "<div>".repeat(20_000);
+    const started = Date.now();
+    const deep = "<div>".repeat(40_000);
     expect(() => parsePagePreview(html(`<meta property="og:title" content="Deep">${deep}`), PAGE)).not.toThrow();
+    expect(parsePagePreview(html(`<meta name="x" content="${"y".repeat(MAX_HEAD_CHARS)}"><meta property="og:title" content="Too late">`), PAGE).title).toBeNull();
+    expect(parsePagePreview(html(`<meta name="x" content="y">`.repeat(MAX_HEAD_TAGS) + `<meta property="og:title" content="Past the tag limit">`), PAGE).title).toBeNull();
+    expect(Date.now() - started).toBeLessThan(3000);
   });
 
   it("caps long texts", () => {

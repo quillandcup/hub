@@ -33,7 +33,7 @@ export default function RemoveUnfurlButton({ channelId, messageId, removeKey, so
             } else setError(result.error);
           })
         }
-        className="absolute right-1 top-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-900/70 text-sm leading-none text-white opacity-0 transition-opacity hover:bg-slate-900 focus-visible:opacity-100 group-hover:opacity-100 disabled:opacity-50 [@media(hover:none)]:opacity-100"
+        className="absolute right-1 top-1 inline-flex size-6 items-center justify-center rounded-full bg-slate-900/70 text-sm leading-none text-white opacity-0 transition-opacity hover:bg-slate-900 focus-visible:opacity-100 group-hover:opacity-100 disabled:opacity-50 [@media(hover:none)]:opacity-100"
       >
         <span aria-hidden="true">×</span>
       </button>

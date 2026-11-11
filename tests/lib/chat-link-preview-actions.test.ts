@@ -19,7 +19,13 @@ vi.mock("@/lib/features.server", () => ({
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ rpc: m.rpc }) }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 vi.mock("@/lib/data/repos", async () => ({ ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")), createRepos: () => m.repos }));
-vi.mock("@/lib/analytics/server", () => ({ withAction: async (_name: string, run: () => unknown) => run(), recordAction: m.record }));
+vi.mock("@/lib/analytics/server", () => ({
+  withAction: async (name: string, run: () => Promise<unknown>, classify?: (result: unknown) => unknown) => {
+    const result = await run();
+    if (classify) m.record(name, classify(result));
+    return result;
+  },
+}));
 vi.mock("@/lib/slack-connect", () => ({ getSlackConnectionStatus: async () => ({ connected: true }) }));
 vi.mock("@/lib/chat/slack-post", () => ({ sendChatMessageToSlack: vi.fn(async () => "sent") }));
 vi.mock("@/lib/chat/slack-edit", () => ({ updateChatMessageInSlack: async () => ({ ok: true }), deleteChatMessageInSlack: vi.fn(), deleteChatFileInSlack: vi.fn() }));

@@ -37,7 +37,7 @@ import {
 } from "@/lib/chat/load";
 import type { ChatTextContext } from "@/components/chat/ChatText";
 
-import { recordAction, withAction } from "@/lib/analytics/server";
+import { withAction } from "@/lib/analytics/server";
 import { refreshLinkPreviews } from "@/lib/chat/link-previews";
 import { chatCaller, postingCaller } from "@/lib/chat/caller";
 import { isHubOnlyMessage } from "@/lib/chat/hub-only";
@@ -345,9 +345,15 @@ async function previewLinksAfterSend(caller: NonNullable<Awaited<ReturnType<type
     if (!(await effectiveMemberHasFeature("chat_link_previews", caller.identity, await getUserFeaturePreviews(caller.userId)))) return;
     const { looked } = await refreshLinkPreviews(createRepos(createServiceRoleClient()).chatLinkPreviews, messageId, body, { ownOrigin: new URL(APP_URL).origin });
     if (looked.length === 0) return;
-    const ok = looked.some((d) => d.status === "ok");
     // What happened, never which address: the detail is a word, not a link.
-    await recordAction("chat_link_previews_built", { ok, detail: ok ? (looked.some((d) => d.kind === "image") ? "image" : "link") : looked.some((d) => d.status === "blocked") ? "blocked" : "failed" });
+    await withAction(
+      "chat_link_previews_built",
+      async () => looked,
+      (drafts) => {
+        const ok = drafts.some((d) => d.status === "ok");
+        return { ok, detail: ok ? (drafts.some((d) => d.kind === "image") ? "image" : "link") : drafts.some((d) => d.status === "blocked") ? "blocked" : "failed" };
+      }
+    );
   } catch (error) {
     console.error("[chat] link previews of %s failed:", messageId, error instanceof Error ? error.message : "unknown error");
   }
