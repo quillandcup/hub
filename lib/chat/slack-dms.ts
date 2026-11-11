@@ -530,8 +530,11 @@ export interface NightlyDmPullResult {
 /**
  * The nightly backstop for live delivery (Slack's events can be missed, and a member who never opens chat is
  * never pulled): pull the DMs of every member the `slack_dm_bridge` feature covers who has a working
- * connection with the DM scopes, ignoring the interval. One member at a time, oldest pull first, and no new
- * member after `deadline` (a clock time, ms) so the run ends inside its function time; the rest are next run's.
+ * connection with the DM scopes, ignoring the interval. One member at a time, and no new member after `deadline`
+ * (a clock time, ms) so the run ends inside its function time; the rest are next run's. Each member gets a fair share
+ * of the time left (what an earlier member didn't use carries over), so one member with hundreds of DMs, waiting out
+ * Slack's rate limit, can't take the whole run: they are cut short (`incomplete`) and the next run, which skips what
+ * was just read, carries on.
  */
 export async function pullDmsForCoveredMembers(service: SupabaseClient, opts: { deadline: number }): Promise<NightlyDmPullResult> {
   const repos = createRepos(service);
@@ -544,7 +547,8 @@ export async function pullDmsForCoveredMembers(service: SupabaseClient, opts: { 
       break;
     }
     try {
-      const pulled = await pullMemberDms(service, memberId, { force: true, patient: true, lookbackDays: NIGHTLY_LOOKBACK_DAYS, fileCopies: NIGHTLY_FILE_COPIES, deadline: opts.deadline });
+      const share = (opts.deadline - clock.now()) / (covered.length - index);
+      const pulled = await pullMemberDms(service, memberId, { force: true, patient: true, lookbackDays: NIGHTLY_LOOKBACK_DAYS, fileCopies: NIGHTLY_FILE_COPIES, deadline: clock.now() + share });
       if (!pulled) continue;
       if (pulled.incomplete) result.incomplete += 1;
       result.conversations += pulled.conversations;
