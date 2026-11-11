@@ -15,7 +15,10 @@ vi.mock("@/lib/analytics/server", () => ({
 }));
 
 // The admin actions check the caller before they report; here the caller is always an admin.
-vi.mock("@/lib/admin-auth", () => ({ requireAdminAction: vi.fn(async () => ({ ok: true, user: { id: "user-admin", email: "admin@example.test" }, supabase: {} })) }));
+vi.mock("@/lib/admin-auth", () => ({
+  requireAdminAction: vi.fn(async () => ({ ok: true, user: { id: "user-admin", email: "admin@example.test" }, supabase: {} })),
+  requireStaffAction: vi.fn(async () => ({ ok: true, user: { id: "user-admin", email: "admin@example.test" }, supabase: {}, role: "admin", realRole: "admin" })),
+}));
 
 const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]][] = [
   [() => import("@/app/(member)/prickles/checkin-actions"), "app/(member)/prickles/checkin-actions.ts", [["saveCheckin", "checkin_saved"], ["saveCheckinHalf", "checkin_half_saved"]]],
@@ -62,6 +65,11 @@ const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]
     () => import("@/app/(admin)/admin/courses/lesson-file-actions"),
     "app/(admin)/admin/courses/lesson-file-actions.ts",
     [["startLessonFileUpload", "course_lesson_file_upload_started"], ["finishLessonFileUpload", "course_lesson_file_added"], ["removeLessonFile", "course_lesson_file_removed"]],
+  ],
+  [
+    () => import("@/app/(admin)/admin/conversations/actions"),
+    "app/(admin)/admin/conversations/actions.ts",
+    [["startConversation", "conversation_started"], ["logConversationMessage", "conversation_message_logged"], ["updateConversation", "conversation_updated"], ["closeConversation", "conversation_closed"], ["deleteConversation", "conversation_deleted"]],
   ],
   [() => import("@/app/(admin)/admin/courses/take-over-actions"), "app/(admin)/admin/courses/take-over-actions.ts", [["takeOverCourse", "course_taken_over"]]],
   [() => import("@/app/api/feedback/route"), "app/api/feedback/route.ts", [["POST", "feedback_submitted"]]],

@@ -13,6 +13,7 @@
  */
 
 import { OUTCOME_ACTIONS } from "@/lib/analytics/actions";
+import { CONVERSATION_CHANNELS, CONVERSATION_OUTCOMES, CONVERSATION_REASONS, MESSAGE_DIRECTIONS } from "@/lib/conversations";
 import { SIGNIN_FAILURE_REASONS, SIGNIN_METHODS } from "@/lib/signin-method-client";
 
 type Spec =
@@ -198,6 +199,14 @@ export const EVENTS = {
    * `surface` is the page it was on, `has_message` whether the card offered a Message button.
    */
   member_hover_card_opened: { surface: oneOf("chat", "streaks", "big_sisters"), has_message: bool() },
+
+  // Conversations (app/(admin)/admin/conversations): staff's ongoing reach-outs to members. Never the member, the notes or the next step.
+  /** A staff member started a conversation: its `reason` and `channel`, and whether the member wrote first. */
+  conversation_started: { reason: oneOf(...CONVERSATION_REASONS), channel: oneOf(...CONVERSATION_CHANNELS), member_wrote_first: bool() },
+  /** A staff member logged a message in a conversation: `direction` is who wrote it. */
+  conversation_message_logged: { direction: oneOf(...MESSAGE_DIRECTIONS) },
+  /** A staff member closed a conversation: its `outcome` and how many whole days it was open. */
+  conversation_closed: { outcome: oneOf(...CONVERSATION_OUTCOMES), days_open: int(3650) },
 
   /**
    * A server action finished (lib/analytics/server.ts: `withAction`): `action` is which one, `ok`

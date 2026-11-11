@@ -40,7 +40,7 @@ vi.mock("@/components/UserMenu", () => ({
 vi.mock("@/components/FeedbackWidget", () => ({ default: () => null }));
 vi.mock("@/components/SignOutButton", () => ({ default: () => <button>Sign Out</button> }));
 
-import { requireAdminAction, requireAdminPage, requireStaffPage } from "@/lib/admin-auth";
+import { requireAdminAction, requireAdminPage, requireStaffAction, requireStaffPage } from "@/lib/admin-auth";
 import { isCommunityManagerPath } from "@/lib/staff-access";
 import AdminLayout from "@/app/(admin)/layout";
 import AdminWheelOfWonderPage from "@/app/(admin)/admin/wheel-of-wonder/page";
@@ -261,6 +261,51 @@ describe("requireAdminAction", () => {
   });
 });
 
+describe("requireStaffAction", () => {
+  it("returns an admin with their role and the client", async () => {
+    signInAs(ADMIN_USER, null);
+    await expect(requireStaffAction()).resolves.toMatchObject({ ok: true, user: ADMIN_USER, role: "admin", realRole: "admin" });
+  });
+
+  it("returns a community manager, which requireAdminAction refuses", async () => {
+    signInAs(CM_USER, null);
+    await expect(requireStaffAction()).resolves.toMatchObject({ ok: true, user: CM_USER, role: "community_manager", realRole: "community_manager" });
+    await expect(requireAdminAction()).resolves.toEqual({ ok: false, error: "Not authorized" });
+  });
+
+  it("allows an admin in sudo mode", async () => {
+    signInAs(ADMIN_USER, SUDO_IDENTITY);
+    await expect(requireStaffAction()).resolves.toMatchObject({ ok: true, role: "admin" });
+  });
+
+  it("treats an admin previewing the community manager as that role, so what the role may not do is refused", async () => {
+    preview.role = "community_manager";
+    signInAs(ADMIN_USER, null);
+    await expect(requireStaffAction()).resolves.toMatchObject({ ok: true, role: "community_manager", realRole: "admin" });
+  });
+
+  it("leaves a real community manager as themselves even with the preview cookie set", async () => {
+    preview.role = "community_manager";
+    signInAs(CM_USER, null);
+    await expect(requireStaffAction()).resolves.toMatchObject({ ok: true, role: "community_manager", realRole: "community_manager" });
+  });
+
+  it("rejects a signed-out caller, and a member or a user with no profile row", async () => {
+    signInAs(null);
+    await expect(requireStaffAction()).resolves.toEqual({ ok: false, error: "Not authenticated" });
+    signInAs(MEMBER_USER, null);
+    await expect(requireStaffAction()).resolves.toEqual({ ok: false, error: "Not authorized" });
+    signInAs({ id: "user-no-profile" }, null);
+    await expect(requireStaffAction()).resolves.toEqual({ ok: false, error: "Not authorized" });
+  });
+
+  it("rejects when the profile can't be read", async () => {
+    useFakeSupabase({ user_profiles: () => ({ error: { message: "database is down" } }) });
+    signInAs(CM_USER, null);
+    await expect(requireStaffAction()).resolves.toEqual({ ok: false, error: "Not authorized" });
+  });
+});
+
 describe("merge-fix dismiss actions", () => {
   it.each([
     ["dismissGroup", dismissGroup],
@@ -310,7 +355,7 @@ describe("every admin page calls requireAdminPage(), or requireStaffPage() when 
   });
 });
 
-describe("every admin server action calls requireAdminAction()", () => {
+describe("every admin server action calls requireAdminAction(), or requireStaffAction() where a community manager may write", () => {
   // Server actions are directly callable POST endpoints: the page's guard doesn't cover them.
   // Admin-only action modules outside app/(admin) are listed explicitly.
   const ADMIN_ACTION_FILES_ELSEWHERE = ["app/actions/sudo.ts"];
@@ -343,7 +388,15 @@ describe("every admin server action calls requireAdminAction()", () => {
     );
   });
 
-  it.each(actions.filter(([id]) => !(id in NOT_ADMIN_ONLY)))("%s", (_id, body) => {
-    expect(body).toMatch(/await requireAdminAction\(\)/);
+  // Action modules a community manager may call, each export opening with requireStaffAction() and then asking for
+  // its staff feature (lib/staff-access.ts), with the reason. Everything else stays admin-only.
+  const STAFF_ACTION_FILES: Record<string, string> = {
+    "app/(admin)/admin/conversations/actions.ts": "the community manager writes her conversations (feature conversations.write)",
+  };
+
+  it.each(actions.filter(([id]) => !(id in NOT_ADMIN_ONLY)))("%s", (id, body) => {
+    const staffAction = id.split("#")[0] in STAFF_ACTION_FILES;
+    expect(body).toMatch(staffAction ? /await requireStaffAction\(\)/ : /await requireAdminAction\(\)/);
+    if (staffAction) expect(body).toMatch(/staffCan\(auth\.role, "[a-z_.]+"\)/);
   });
 });

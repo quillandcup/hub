@@ -95,3 +95,33 @@ export async function requireAdminAction(): Promise<AdminActionAuth> {
   if (await getStaffPreviewRole()) return { ok: false, error: "Not authorized" };
   return { ok: true, user, supabase };
 }
+
+export type StaffActionAuth =
+  | { ok: true; user: AuthUser; supabase: Awaited<ReturnType<typeof createClient>>; role: StaffRole; realRole: StaffRole }
+  | { ok: false; error: "Not authenticated" | "Not authorized" };
+
+/**
+ * Staff check for a server action a community manager may also call (a page that lists them in
+ * lib/staff-access.ts and gives them a write control through `STAFF_FEATURES`). Same shape as
+ * requireAdminAction(), but lets an admin and a community manager in:
+ *
+ *   const auth = await requireStaffAction();
+ *   if (!auth.ok) return { error: auth.error };
+ *
+ * `role` is the one to check a feature against (`staffCan(auth.role, ...)`): an admin previewing a lower
+ * role is that role here, as in requireStaffPage(), so what the role may not do is refused while
+ * previewing. The returned client is the signed-in user's, so row-level security still decides the data.
+ * Reads `user_profiles.role`, never the token claim. Actions that stay admin-only keep
+ * requireAdminAction(), which refuses a community manager.
+ */
+export async function requireStaffAction(): Promise<StaffActionAuth> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "Not authenticated" };
+
+  const supabase = await createClient();
+  const profile = await createRepos(supabase).profiles.byId(user.id).catch(() => null);
+  if (profile?.role !== "admin" && profile?.role !== COMMUNITY_MANAGER_ROLE) return { ok: false, error: "Not authorized" };
+
+  const role = (profile.role === "admin" && (await getStaffPreviewRole())) || profile.role;
+  return { ok: true, user, supabase, role, realRole: profile.role };
+}

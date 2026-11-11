@@ -2,8 +2,9 @@
  * Who may open which part of the admin area.
  *
  * `admin` opens all of it. `community_manager` (a member who is a semi-volunteer, paid in comps)
- * opens only the read-only pages below. Anything not listed here is admin-only, so a new admin page
- * is closed to a community manager until someone adds it on purpose.
+ * opens only the pages below, read-only except where a feature (`COMMUNITY_MANAGER_FEATURES`) lets her
+ * write. Anything not listed here is admin-only, so a new admin page is closed to a community manager
+ * until someone adds it on purpose.
  *
  * This module is plain (no server imports), so the proxy can use it for its optimistic pre-filter.
  * The secure check is `requireStaffPage()` in each page (lib/admin-auth.ts); the data itself is
@@ -39,11 +40,15 @@ export const STAFF_FEATURES = [
   "prickle.ignore_names",
   "prickle.alias_form",
   "prickle.insights_link",
+  "conversations.write",
 ] as const;
 export type StaffFeature = (typeof STAFF_FEATURES)[number];
 
 /** What a community manager may see or do beyond reading the page. Add a feature here to grant it. */
-export const COMMUNITY_MANAGER_FEATURES: readonly StaffFeature[] = [];
+export const COMMUNITY_MANAGER_FEATURES: readonly StaffFeature[] = [
+  // Her ongoing reach-outs to members: she is the first staff role that writes (docs/CONVERSATIONS.md).
+  "conversations.write",
+];
 
 /** The features this role has: all for an admin, the list above for a community manager, none otherwise. */
 export function staffFeaturesFor(role: string | null | undefined): readonly StaffFeature[] {
@@ -68,6 +73,7 @@ const EXACT_PATHS = [
   "/admin/members",
   "/admin/insights/slack-engagement",
   "/admin/insights/resubscriptions",
+  "/admin/conversations", // the one page she writes to (the `conversations.write` feature)
 ] as const;
 
 /**

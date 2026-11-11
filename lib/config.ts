@@ -56,6 +56,9 @@ export const ORG_TIMEZONE = appConfig.orgTimezone;
 /** Minutes after writing a staff note during which its author can edit it (app.config.ts `adminNoteEditMinutes`). */
 export const ADMIN_NOTE_EDIT_MINUTES: number = appConfig.adminNoteEditMinutes;
 
+/** Days without a message from either side before a conversation counts as "gone quiet" (app.config.ts `conversationQuietDays`). */
+export const CONVERSATION_QUIET_DAYS: number = appConfig.conversationQuietDays;
+
 /** Where members are told to email for help. */
 export const SUPPORT_EMAIL = appConfig.supportEmail;
 
