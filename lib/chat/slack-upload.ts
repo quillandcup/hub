@@ -1,6 +1,6 @@
 import { bodyToBlocks, isInvalidBlocks, needsBlocks, stripUnderline } from "@/lib/chat/rich-blocks";
 import { reportRefusedBlocks } from "@/lib/chat/blocks-refused";
-import { WebClient } from "@slack/web-api";
+import { createSlackClient } from "@/lib/slack-client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { clock } from "@/lib/clock";
 import { createRepos } from "@/lib/data/repos";
@@ -52,7 +52,7 @@ export function uploadedFileIds(result: unknown): string[] {
 
 /** The ts of the message a file was shared in, once Slack has shared it (it can take a moment). */
 export async function lookupFileMessageTs(botToken: string, fileId: string, slackChannelId: string): Promise<string | null> {
-  const client = new WebClient(botToken);
+  const client = createSlackClient(botToken);
   for (let attempt = 0; attempt < TS_LOOKUP_ATTEMPTS; attempt++) {
     if (attempt > 0) await clock.sleep(TS_LOOKUP_WAIT_MS);
     try {
@@ -91,7 +91,7 @@ export async function sendChatFilesToSlack(ctx: FileSendContext): Promise<"sent"
     // The text that goes with the files is the comment, which is mrkdwn and so has no underline or list. Slack takes rich-text
     // blocks instead of a comment (and ignores them when there is one), so a message with either goes that way.
     const upload = (token: string, withBlocks: boolean) =>
-      new WebClient(token).filesUploadV2({
+      createSlackClient(token).filesUploadV2({
         channel_id: slackChannelId,
         thread_ts: ctx.threadTs,
         ...(withBlocks ? { blocks: bodyToBlocks(ctx.body, { plain: true }) } : { initial_comment: ctx.escape(stripUnderline(ctx.body)) || undefined }),

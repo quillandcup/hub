@@ -6,6 +6,7 @@
  */
 
 import { asJson } from "@/lib/data/json";
+import { outboundFetch } from "@/lib/http/outbound";
 
 const KAJABI_API_BASE = 'https://api.kajabi.com';
 
@@ -209,7 +210,7 @@ export class KajabiClient {
       client_secret: this.clientSecret,
     });
 
-    const response = await fetch(`${KAJABI_API_BASE}/v1/oauth/token`, {
+    const response = await outboundFetch(`${KAJABI_API_BASE}/v1/oauth/token`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -246,7 +247,7 @@ export class KajabiClient {
 
     console.log(`[Kajabi API] ${options.method || 'GET'} ${url}`);
 
-    const response = await fetch(url, {
+    const response = await outboundFetch(url, {
       ...options,
       headers: {
         'Authorization': `Bearer ${token}`,

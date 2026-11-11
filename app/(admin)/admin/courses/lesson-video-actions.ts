@@ -11,6 +11,7 @@ import { createDirectUpload, createMuxClient, getAssetStatus, getUploadStatus, s
 import { storeImage } from "@/lib/media/library";
 import { formatClock } from "@/lib/courses/watch-stats";
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import { outboundFetch } from "@/lib/http/outbound";
 
 /**
  * The video of a Hub-owned lesson, uploaded from the browser straight to Mux (a direct upload: the file
@@ -126,7 +127,7 @@ async function frameImpl(auth: Auth, courseId: string, lessonId: string, seconds
 
     // The still Mux makes of the video at that moment, fetched with a short-lived signed address and kept in the library.
     const [token] = await signThumbnailTokens(createMuxClient(), video.mux_playback_id, [seconds], { width: FRAME_WIDTH });
-    const response = await fetch(`${STILL_BASE}/${video.mux_playback_id}/thumbnail.jpg?token=${token}`);
+    const response = await outboundFetch(`${STILL_BASE}/${video.mux_playback_id}/thumbnail.jpg?token=${token}`);
     if (!response.ok) throw new Error(`Mux answered ${response.status} for the still`);
     const stored = await storeImage(createRepos(service).media, service.storage, {
       bytes: Buffer.from(await response.arrayBuffer()),

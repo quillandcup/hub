@@ -1,6 +1,6 @@
 import { randomBytes, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
-import { WebClient } from "@slack/web-api";
+import { createSlackClient } from "@/lib/slack-client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createRepos } from "@/lib/data/repos";
 import { APP_URL } from "@/lib/config";
@@ -130,7 +130,7 @@ const expiryFrom = (expiresIn?: number): string | null =>
 
 /** Trades the code Slack redirected back with for the member's user token. */
 export async function exchangeSlackCode(code: string): Promise<SlackGrant> {
-  const result = await new WebClient().oauth.v2.access({
+  const result = await createSlackClient().oauth.v2.access({
     client_id: process.env.SLACK_CLIENT_ID ?? "",
     client_secret: process.env.SLACK_CLIENT_SECRET ?? "",
     code,
@@ -287,7 +287,7 @@ export async function getSlackUserToken(service: SupabaseClient, memberId: strin
         if (!latest) return null;
         if (!isExpiring(latest)) return asToken(latest);
         try {
-          const result = await new WebClient().oauth.v2.access({
+          const result = await createSlackClient().oauth.v2.access({
             client_id: process.env.SLACK_CLIENT_ID ?? "",
             client_secret: process.env.SLACK_CLIENT_SECRET ?? "",
             grant_type: "refresh_token",
@@ -328,7 +328,7 @@ export function isDeadTokenError(error: unknown): boolean {
 export async function disconnectSlack(service: SupabaseClient, memberId: string): Promise<void> {
   const connection = await getSlackUserToken(service, memberId);
   if (connection) {
-    await new WebClient(connection.token).auth.revoke().catch((error) => console.error("auth.revoke failed:", error));
+    await createSlackClient(connection.token).auth.revoke().catch((error) => console.error("auth.revoke failed:", error));
   }
   const { error } = await service.rpc("slack_connection_revoke", { p_member: memberId });
   if (error) throw error;

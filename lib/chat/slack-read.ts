@@ -1,4 +1,4 @@
-import { WebClient } from "@slack/web-api";
+import { createSlackClient } from "@/lib/slack-client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createRepos } from "@/lib/data/repos";
 import { chatSlackWritesEnabled } from "@/lib/chat/slack-post";
@@ -34,7 +34,7 @@ const errorCode = (error: unknown): string | undefined => (error as { data?: { e
 const isRateLimited = (error: unknown): boolean => (error as { code?: string } | null)?.code === "slack_webapi_rate_limited_error";
 
 /** A member's own client, failing fast on a rate limit instead of sleeping inside a server action. */
-const userClient = (token: string) => new WebClient(token, { rejectRateLimitedCalls: true, retryConfig: { retries: 0 } });
+const userClient = (token: string) => createSlackClient(token, { rejectRateLimitedCalls: true, retryConfig: { retries: 0 } });
 
 /**
  * The member has read a conversation in the Hub through `through` (a message's created_at): move

@@ -2,7 +2,8 @@ import { copySlackAvatars } from "@/lib/chat/avatar-copy";
 import { copyEmojiImages } from "@/lib/chat/emoji-copy";
 import { invalidateChatLookups } from "@/lib/chat/invalidate-lookups";
 import { createRepos } from "@/lib/data/repos";
-import { WebClient } from '@slack/web-api';
+import { WebClient } from "@slack/web-api";
+import { createSlackClient } from "@/lib/slack-client";
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/supabase/api-auth';
@@ -80,7 +81,7 @@ export async function POST(request: NextRequest) {
 
     console.log(`Fetching ${daysBack} days of Slack data from API`);
 
-    const slack = new WebClient(SLACK_BOT_TOKEN);
+    const slack = createSlackClient(SLACK_BOT_TOKEN);
 
     // Calculate date range
     const oldest = Math.floor(clock.now() / 1000) - (daysBack * 24 * 60 * 60);

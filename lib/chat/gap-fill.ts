@@ -1,4 +1,5 @@
 import { WebClient } from "@slack/web-api";
+import { createSlackClient } from "@/lib/slack-client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createRepos } from "@/lib/data/repos";
 import { chatSlackWritesEnabled } from "@/lib/chat/slack-post";
@@ -237,7 +238,7 @@ export async function fillMessageGap(
   const channel = await mirroredChannel(service, opts.channelId);
   if (!channel) return NOT_DONE;
   return run(service, claim(service, opts.source, "message", opts.channelId, opts.ts), async () => {
-    const slack = opts.slack ?? new WebClient(await getSlackBotToken());
+    const slack = opts.slack ?? createSlackClient(await getSlackBotToken());
     const result: any = await slack.reactions.get({ channel: opts.channelId, timestamp: opts.ts, full: true });
     const message = result.message as SlackMsg | undefined;
     if (!message) return { messages: 0, reactions: 0, seen: 0 };
@@ -257,7 +258,7 @@ export async function fillThreadIfRootMissing(
   const channel = await mirroredChannel(service, opts.channelId);
   if (!channel || (await chatHasMessage(service, opts.channelId, opts.threadTs))) return NOT_DONE;
   return run(service, claim(service, opts.source, "thread", opts.channelId, opts.threadTs), async () => {
-    const slack = opts.slack ?? new WebClient(await getSlackBotToken());
+    const slack = opts.slack ?? createSlackClient(await getSlackBotToken());
     return storeAndProject(service, opts.channelId, channel, await fetchThread(slack, opts.channelId, opts.threadTs));
   });
 }
@@ -275,7 +276,7 @@ export async function catchUpChannel(
   const channel = await mirroredChannel(service, opts.channelId);
   if (!channel) return NOT_DONE;
   return run(service, claim(service, opts.source, "channel", opts.channelId, null), async () => {
-    const slack = opts.slack ?? new WebClient(await getSlackBotToken());
+    const slack = opts.slack ?? createSlackClient(await getSlackBotToken());
     const newestTs = await createRepos(service).slackMessages.newestTimestamp(opts.channelId);
     const nowSeconds = Math.floor(clock.now() / 1000);
     // From the newest message we have, or the lookback window if that is further back (see CATCH_UP_LOOKBACK_SECONDS).

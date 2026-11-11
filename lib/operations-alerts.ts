@@ -1,4 +1,4 @@
-import { WebClient } from "@slack/web-api";
+import { createSlackClient } from "@/lib/slack-client";
 import * as Sentry from "@sentry/nextjs";
 import appConfig from "../app.config";
 import { isProduction, SLACK_ALERTS_CHANNEL_ID } from "@/lib/config";
@@ -157,7 +157,7 @@ export async function sendOperationsAlert(repos: Pick<Repos, "rateLimit">, alert
   try {
     const token = await getSlackBotToken();
     if (!token) throw new Error("SLACK_BOT_TOKEN is not configured");
-    await new WebClient(token).chat.postMessage({
+    await createSlackClient(token).chat.postMessage({
       channel: SLACK_ALERTS_CHANNEL_ID,
       text: `🚨 ${text}`,
       unfurl_links: false,

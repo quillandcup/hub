@@ -1,4 +1,5 @@
 import { WebClient } from "@slack/web-api";
+import { createSlackClient } from "@/lib/slack-client";
 import type { Repos } from "@/lib/data/repos";
 import { chatSlackWritesEnabled } from "@/lib/chat/slack-post";
 import { isDeadTokenError } from "@/lib/slack-connect";
@@ -79,7 +80,7 @@ export async function inviteToSlackChannel(opts: { channel: string; userIds: str
   const token = await getSlackBotToken();
   if (!opts.slack && !token) return { ok: false, error: MISSING_BOT };
   try {
-    const slack = opts.slack ?? new WebClient(token);
+    const slack = opts.slack ?? createSlackClient(token);
     await slack.conversations.invite({ channel: opts.channel, users: opts.userIds.join(",") });
     return { ok: true };
   } catch (error) {
@@ -97,7 +98,7 @@ export async function kickFromSlackChannel(opts: { channel: string; userId: stri
   const token = await getSlackBotToken();
   if (!opts.slack && !token) return { ok: false, error: MISSING_BOT };
   try {
-    const slack = opts.slack ?? new WebClient(token);
+    const slack = opts.slack ?? createSlackClient(token);
     await slack.conversations.kick({ channel: opts.channel, user: opts.userId });
     return { ok: true };
   } catch (error) {
@@ -106,7 +107,7 @@ export async function kickFromSlackChannel(opts: { channel: string; userId: stri
       // Slack uses this for "the person isn't in it" (fine: that is what we wanted) and for "the bot isn't in it"
       // (not fine: nothing was removed). Ask which.
       try {
-        const slack = opts.slack ?? new WebClient(token);
+        const slack = opts.slack ?? createSlackClient(token);
         const info = await slack.conversations.info({ channel: opts.channel });
         if (info.channel && "is_member" in info.channel && info.channel.is_member) return { ok: true };
       } catch (infoError) {
@@ -139,7 +140,7 @@ function asMemberFailure(code: string | undefined, error: unknown, notInChannelT
 export async function leaveSlackChannelAsMember(opts: { channel: string; token: string; slack?: WebClient }): Promise<AsMemberResult> {
   if (!chatSlackWritesEnabled()) return { ok: false, error: "People in Slack can only be removed from the live Hub." };
   try {
-    const slack = opts.slack ?? new WebClient(opts.token);
+    const slack = opts.slack ?? createSlackClient(opts.token);
     await slack.conversations.leave({ channel: opts.channel });
     return { ok: true };
   } catch (error) {
@@ -158,7 +159,7 @@ export async function leaveSlackChannelAsMember(opts: { channel: string; token: 
 export async function kickAsMember(opts: { channel: string; userId: string; token: string; slack?: WebClient }): Promise<AsMemberResult> {
   if (!chatSlackWritesEnabled()) return { ok: false, error: "People in Slack can only be removed from the live Hub." };
   try {
-    const slack = opts.slack ?? new WebClient(opts.token);
+    const slack = opts.slack ?? createSlackClient(opts.token);
     await slack.conversations.kick({ channel: opts.channel, user: opts.userId });
     return { ok: true };
   } catch (error) {
@@ -176,7 +177,7 @@ export async function inviteAsMember(opts: { channel: string; userIds: string[];
   if (opts.userIds.length === 0) return { ok: true };
   if (!chatSlackWritesEnabled()) return { ok: false, error: "People in Slack can only be added from the live Hub." };
   try {
-    const slack = opts.slack ?? new WebClient(opts.token);
+    const slack = opts.slack ?? createSlackClient(opts.token);
     await slack.conversations.invite({ channel: opts.channel, users: opts.userIds.join(",") });
     return { ok: true };
   } catch (error) {
@@ -193,7 +194,7 @@ export async function inviteAsMember(opts: { channel: string; userIds: string[];
 export async function joinAsMember(opts: { channel: string; token: string; slack?: WebClient }): Promise<AsMemberResult> {
   if (!chatSlackWritesEnabled()) return { ok: false, error: "People in Slack can only be added from the live Hub." };
   try {
-    const slack = opts.slack ?? new WebClient(opts.token);
+    const slack = opts.slack ?? createSlackClient(opts.token);
     await slack.conversations.join({ channel: opts.channel });
     return { ok: true };
   } catch (error) {

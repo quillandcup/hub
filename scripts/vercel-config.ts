@@ -20,6 +20,7 @@
 import { readFileSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
 import { PROJECT_CONFIG_FILE as CONFIG_FILE, skewMaxAgeSeconds } from "./skew-protection-config";
+import { outboundFetch } from "@/lib/http/outbound";
 
 const API = "https://api.vercel.com";
 const RULE_LIMIT = 10;
@@ -103,7 +104,7 @@ async function tracingConfig(method: "GET" | "PUT", body?: unknown): Promise<Tra
     projectId: requireEnv("VERCEL_PROJECT_ID"),
     teamId: requireEnv("VERCEL_ORG_ID"),
   });
-  const res = await fetch(`${API}/v1/drains/tracing/config?${query}`, {
+  const res = await outboundFetch(`${API}/v1/drains/tracing/config?${query}`, {
     method,
     headers: {
       Authorization: `Bearer ${requireEnv("VERCEL_TOKEN")}`,
@@ -140,7 +141,7 @@ function printDiff(live: Rule[], local: Rule[]): number {
 /** The project's Skew Protection maximum age in seconds, as the live project has it (null when it has none set). */
 async function projectSkewMaxAge(method: "GET" | "PATCH", seconds?: number): Promise<number | null> {
   const query = new URLSearchParams({ teamId: requireEnv("VERCEL_ORG_ID") });
-  const res = await fetch(`${API}/v9/projects/${encodeURIComponent(requireEnv("VERCEL_PROJECT_ID"))}?${query}`, {
+  const res = await outboundFetch(`${API}/v9/projects/${encodeURIComponent(requireEnv("VERCEL_PROJECT_ID"))}?${query}`, {
     method,
     headers: {
       Authorization: `Bearer ${requireEnv("VERCEL_TOKEN")}`,

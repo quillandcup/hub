@@ -1,4 +1,4 @@
-import { WebClient } from "@slack/web-api";
+import { createSlackClient } from "@/lib/slack-client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { clock } from "@/lib/clock";
 import { forgetSlackBotToken } from "@/lib/slack-bot-token";
@@ -62,7 +62,7 @@ export type BotInstallResult = { ok: true; botUser: string | null; expiresAt: Da
 export async function completeBotInstall(service: SupabaseClient, code: string): Promise<BotInstallResult> {
   let result;
   try {
-    result = await new WebClient().oauth.v2.access({
+    result = await createSlackClient().oauth.v2.access({
       client_id: process.env.SLACK_CLIENT_ID ?? "",
       client_secret: process.env.SLACK_CLIENT_SECRET ?? "",
       code,

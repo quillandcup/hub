@@ -94,6 +94,58 @@ export const EMAIL_FROM = `${appConfig.email.fromName} <${appConfig.email.fromAd
 export const APP_URL = appConfig.appUrl.replace(/\/+$/, "");
 
 /**
+ * The User-Agent of every request this app makes to a server that is not ours (docs/OUTBOUND_REQUESTS.md).
+ * RFC 9110 form: `product/version (comment)`. Wikimedia and others refuse requests with none, and ask for a
+ * name and a way to reach us. Carries nothing about a member. The pieces come from app.config.ts and the
+ * deployed commit (`deployment.commitSha`, not package.json's version), `dev` when there is none.
+ */
+const TOKEN_CHARS = /[^A-Za-z0-9!#$%&'*+.^_`|~-]/g;
+
+/** A string reduced to an RFC 9110 `token`: other characters become `-`, never empty. */
+export function uaToken(value: string): string {
+  return value.replace(TOKEN_CHARS, "-").replace(/^-+|-+$/g, "") || "x";
+}
+
+/** Text for the parenthesised comment: printable ASCII without parentheses or a backslash, trimmed to `max`. */
+export function uaComment(value: string, max = 200): string {
+  return value.replace(/[^\x20-\x7e]/g, "").replace(/[()\\]/g, "").trim().slice(0, max);
+}
+
+export function buildUserAgent(parts: { product: string; version?: string; url: string; contact: string }): string {
+  const version = uaToken(parts.version || "dev").slice(0, 40);
+  return `${uaToken(parts.product)}/${version} (${uaComment(`+${parts.url}; ${parts.contact}`)})`;
+}
+
+/** Our product token and version, for SDKs that take the two parts (Slack's `addAppMetadata`, Stripe's `appInfo`). */
+export const OUTBOUND_PRODUCT = {
+  name: uaToken(appConfig.userAgentProduct),
+  version: uaToken(deployment.commitSha?.slice(0, 7) || "dev").slice(0, 40),
+};
+
+/** The comment part of the User-Agent, for SDKs that build the string from directives (googleapis). */
+export const OUTBOUND_COMMENT = uaComment(`+${APP_URL}; ${SUPPORT_EMAIL}`);
+
+export const OUTBOUND_USER_AGENT = buildUserAgent({
+  product: OUTBOUND_PRODUCT.name,
+  version: OUTBOUND_PRODUCT.version,
+  url: APP_URL,
+  contact: SUPPORT_EMAIL,
+});
+
+/**
+ * The User-Agent with extra product tokens in front of the comment, to say which integration or purpose a
+ * request is for (`userAgentWith("slack-import/1")` gives `HedgieHub/abc1234 slack-import/1 (+url; contact)`).
+ * Each token is `name` or `name/version`; anything not allowed in an HTTP token becomes `-`.
+ */
+export function userAgentWith(...tokens: string[]): string {
+  const extra = tokens
+    .filter(Boolean)
+    .map((t) => t.split("/").slice(0, 2).map(uaToken).join("/"));
+  const i = OUTBOUND_USER_AGENT.indexOf(" (");
+  return [OUTBOUND_USER_AGENT.slice(0, i), ...extra].join(" ") + OUTBOUND_USER_AGENT.slice(i);
+}
+
+/**
  * Supabase configuration
  */
 export const supabase = {

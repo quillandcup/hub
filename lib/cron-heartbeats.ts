@@ -138,6 +138,8 @@ export const CRON_HEARTBEATS = {
   },
 } as const satisfies Record<string, CronHeartbeat>;
 
+import { outboundFetch } from "./http/outbound";
+
 export type CronHeartbeatJob = keyof typeof CRON_HEARTBEATS;
 
 /**
@@ -151,7 +153,7 @@ export async function pingCronHeartbeat(job: CronHeartbeatJob): Promise<void> {
   const url = process.env[CRON_HEARTBEATS[job].envVar];
   if (!url) return;
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    const res = await outboundFetch(url, { signal: AbortSignal.timeout(5000) });
     if (!res.ok) console.warn(`[Heartbeat] ${job} ping returned ${res.status}`);
   } catch (error) {
     console.warn(`[Heartbeat] ${job} ping failed:`, error);

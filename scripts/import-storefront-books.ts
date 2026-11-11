@@ -25,6 +25,7 @@ import { storeImage } from "../lib/media/library";
 import { bookCoverUrlFor } from "../lib/bookCover";
 import { loadLayeredEnv } from "./load-layered-env";
 import { parseBookSpec } from "./import-storefront-books-spec";
+import { outboundFetch } from "@/lib/http/outbound";
 
 const USAGE = "Usage: pnpm books:import --spec <file> [--env <file>] [--apply]";
 
@@ -72,7 +73,7 @@ async function main() {
       console.log(`  "${spec.title}": already on the shelf (${onShelf.id}), skipped`);
       continue;
     }
-    const response = await fetch(spec.coverUrl);
+    const response = await outboundFetch(spec.coverUrl);
     if (!response.ok) {
       console.log(`  "${spec.title}": cover download failed (${response.status}), skipped`);
       continue;

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { randomUUID } from "crypto";
-import { WebClient } from "@slack/web-api";
+import { createSlackClient } from "@/lib/slack-client";
 import { createClient } from "@/lib/supabase/server";
 import { createRepos } from "@/lib/data/repos";
 import { getCurrentUser } from "@/lib/auth";
@@ -148,7 +148,7 @@ async function notifySlack(params: {
 
   const text = `*${TYPE_LABELS[feedbackType]}* from ${submitter}\n${message}\n<${pageUrl}|View page>`;
 
-  const slack = new WebClient(token);
+  const slack = createSlackClient(token);
   if (buffer) {
     await slack.filesUploadV2({
       channel_id: channel,

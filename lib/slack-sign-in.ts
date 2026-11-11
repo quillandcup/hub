@@ -1,7 +1,7 @@
 import { createRepos } from "@/lib/data/repos";
 import { createHash, randomBytes } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { WebClient } from "@slack/web-api";
+import { createSlackClient } from "@/lib/slack-client";
 import {
   SLACK_CODE_ALPHABET,
   SLACK_CODE_LENGTH,
@@ -94,7 +94,7 @@ async function fetchSlackEmail(slackUserId: string): Promise<string | null> {
     return null;
   }
   try {
-    const result = await new WebClient(token).users.info({ user: slackUserId });
+    const result = await createSlackClient(token).users.info({ user: slackUserId });
     const user = result.user;
     if (!user || user.deleted || user.is_bot) return null;
     return user.profile?.email?.trim().toLowerCase() || null;
@@ -410,7 +410,7 @@ export async function sendSlackSignInMessage(service: SupabaseClient, slackUserI
   const issued = await issueSlackSignIn(service, { slackUserId, origin, ttlMinutes: slackSignInTtlMinutes(resolution) });
 
   const text = `Your one-time Hedgie Hub sign-in link (works once, until ${expiryMarkup(issued)}):\n${issued.url}\n\nOr enter this code on the sign-in page: \`${formatSlackSignInCode(issued.code)}\`\n\nOn iPhone: press and hold the link and tap *Open in Browser* to open it outside Slack.`;
-  await new WebClient(botToken).chat.postMessage({
+  await createSlackClient(botToken).chat.postMessage({
     channel: slackUserId,
     text,
     unfurl_links: false,
@@ -456,7 +456,7 @@ export async function publishSlackHome(service: SupabaseClient, slackUserId: str
   }
   const prepared = await prepareSlackSignIn(service, slackUserId, origin, { withRefresh: true });
   if (!prepared) return;
-  await new WebClient(token).views.publish({
+  await createSlackClient(token).views.publish({
     user_id: slackUserId,
     view: { type: "home", blocks: prepared.blocks },
   });

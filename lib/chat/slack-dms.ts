@@ -1,4 +1,5 @@
 import { WebClient } from "@slack/web-api";
+import { createSlackClient } from "@/lib/slack-client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createRepos } from "@/lib/data/repos";
 import { chatSlackWritesEnabled } from "@/lib/chat/slack-post";
@@ -103,7 +104,7 @@ export async function pullMemberDms(
 
   const repos = createRepos(service);
   // On opening chat: fail fast on a rate limit instead of sleeping inside a request. The nightly run waits (Slack's Retry-After).
-  const slack = new WebClient(connection.token, opts.patient ? {} : { rejectRateLimitedCalls: true, retryConfig: { retries: 0 } });
+  const slack = createSlackClient(connection.token, opts.patient ? {} : { rejectRateLimitedCalls: true, retryConfig: { retries: 0 } });
   const result: DmPullResult = { conversations: 0, messages: 0, errors: [], incomplete: false };
   const lookbackSeconds = (opts.lookbackDays ?? OPEN_LOOKBACK_DAYS) * 86400;
   try {
@@ -494,7 +495,7 @@ export async function openSlackDm(service: SupabaseClient, memberId: string, oth
   const otherSlackId = (await repos.chat.slackUserIdsByMember([otherMemberId])).get(otherMemberId);
   if (!otherSlackId) return { ok: false, reason: "unknown_person" };
 
-  const slack = new WebClient(connection.token, { rejectRateLimitedCalls: true, retryConfig: { retries: 0 } });
+  const slack = createSlackClient(connection.token, { rejectRateLimitedCalls: true, retryConfig: { retries: 0 } });
   // Opening a DM counts as pulling the member's DMs: a Slack DM is in the chat of the members who have pulled (project_slack_dm).
   await service.rpc("chat_claim_slack_dm_pull", { p_member: memberId, p_min_seconds: 0 });
   try {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { WebClient } from "@slack/web-api";
+import { createSlackClient } from "@/lib/slack-client";
 import { verifySlackSignature } from "@/lib/slack-signature";
 import {
   parseCheckinAnswer,
@@ -159,7 +159,7 @@ async function handleCheckinAnswer(payload: any, answer: CheckinAnswer) {
   const blocks = withSavedAnswer(payload.message?.blocks, answer);
   const token = await getSlackBotToken();
   if (channelId && messageTs && blocks && token) {
-    await new WebClient(token).chat.update({ channel: channelId, ts: messageTs, text: payload.message?.text ?? "", blocks });
+    await createSlackClient(token).chat.update({ channel: channelId, ts: messageTs, text: payload.message?.text ?? "", blocks });
   }
 }
 
@@ -186,7 +186,7 @@ async function handleSubmit(payload: any, half: CheckinHalfKind, prickleId: stri
   const messageTs = payload.message?.ts as string | undefined;
   const token = await getSlackBotToken();
   if (channelId && messageTs && token) {
-    await new WebClient(token).chat.update({ channel: channelId, ts: messageTs, ...closedDmBlocks(half, prickleId) });
+    await createSlackClient(token).chat.update({ channel: channelId, ts: messageTs, ...closedDmBlocks(half, prickleId) });
   }
 }
 
@@ -196,7 +196,7 @@ async function replaceWithGoneNote(payload: any) {
   const messageTs = payload.message?.ts as string | undefined;
   const token = await getSlackBotToken();
   if (channelId && messageTs && token) {
-    await new WebClient(token).chat.update({ channel: channelId, ts: messageTs, ...goneDmBlocks() });
+    await createSlackClient(token).chat.update({ channel: channelId, ts: messageTs, ...goneDmBlocks() });
   }
 }
 
@@ -221,7 +221,7 @@ async function handleDismiss(payload: any, half: CheckinHalfKind, prickleId: str
   const token = await getSlackBotToken();
   if (channelId && messageTs && token) {
     const text = `Skipped this ${half === "checkin" ? "check-in" : "check-out"}.`;
-    await new WebClient(token).chat.update({ channel: channelId, ts: messageTs, text, blocks: [{ type: "section", text: { type: "mrkdwn", text } }] });
+    await createSlackClient(token).chat.update({ channel: channelId, ts: messageTs, text, blocks: [{ type: "section", text: { type: "mrkdwn", text } }] });
   }
 }
 
@@ -288,7 +288,7 @@ async function handleWritingQuickLog(payload: any, action: any, { projectId, pri
   if (channelId && messageTs) {
     const token = await getSlackBotToken();
     if (token) {
-      const slack = new WebClient(token);
+      const slack = createSlackClient(token);
       const measureLabel = MEASURE_LABELS[measure as WritingMeasure] ?? measure;
       const confirmation = `✅ Logged ${amount} ${measureLabel.toLowerCase()} — nice work!`;
       await slack.chat.update({

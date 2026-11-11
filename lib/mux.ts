@@ -1,4 +1,6 @@
 import Mux from "@mux/ts";
+import { VERSION as MUX_SDK_VERSION } from "@mux/ts/version";
+import { OUTBOUND_USER_AGENT } from "@/lib/config";
 import type { CourseMuxApi } from "@/lib/courses/media";
 
 /**
@@ -18,6 +20,8 @@ export function createMuxClient(): Mux {
     jwtSigningKey: process.env.MUX_SIGNING_KEY_ID,
     jwtPrivateKey: process.env.MUX_SIGNING_KEY_PRIVATE,
     webhookSecret: process.env.MUX_WEBHOOK_SECRET,
+    // `defaultHeaders` replaces the SDK's own `User-Agent` (`Mux/JS <version>`), so keep that clause after ours.
+    defaultHeaders: { "User-Agent": `${OUTBOUND_USER_AGENT} Mux/JS ${MUX_SDK_VERSION}` },
   });
 }
 

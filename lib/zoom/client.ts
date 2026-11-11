@@ -1,3 +1,5 @@
+import { outboundFetch } from "@/lib/http/outbound";
+
 interface ZoomTokenResponse {
   access_token: string;
   token_type: string;
@@ -64,7 +66,7 @@ export class ZoomClient {
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        const response = await fetch(url, options);
+        const response = await outboundFetch(url, options);
 
         // If rate limited, wait and retry
         if (response.status === 429) {

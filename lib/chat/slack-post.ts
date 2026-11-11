@@ -1,4 +1,5 @@
 import { WebClient } from "@slack/web-api";
+import { createSlackClient } from "@/lib/slack-client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { clock } from "@/lib/clock";
 import { createRepos } from "@/lib/data/repos";
@@ -109,7 +110,7 @@ export async function sendChatMessageToSlack(supabase: SupabaseClient, messageId
 
   let result: Awaited<ReturnType<WebClient["chat"]["postMessage"]>>;
   try {
-    const client = new WebClient(connection.token);
+    const client = createSlackClient(connection.token);
     const post = (blocks: boolean) =>
       client.chat.postMessage({
         channel: slackChannelId,

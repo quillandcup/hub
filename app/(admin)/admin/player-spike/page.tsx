@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import Mux from "@mux/ts"
+import { createMuxClient } from "@/lib/mux"
 import { requireAdminPage } from "@/lib/admin-auth"
 import PlayerSpike from "./PlayerSpike"
 
@@ -20,12 +20,7 @@ export default async function PlayerSpikePage({ searchParams }: PageProps<"/admi
 
   let signedSource: { playbackId: string; tokens: { playback: string; poster: string; storyboard: string } } | null = null
   if (signedId) {
-    const mux = new Mux({
-      tokenId: process.env.MUX_TOKEN_ID,
-      tokenSecret: process.env.MUX_TOKEN_SECRET,
-      jwtSigningKey: process.env.MUX_SIGNING_KEY_ID,
-      jwtPrivateKey: process.env.MUX_SIGNING_KEY_PRIVATE,
-    })
+    const mux = createMuxClient()
     const tokens = await mux.jwt.signPlaybackId(signedId, { type: ["video", "thumbnail", "storyboard"], expiration: "1h" })
     const playback = tokens["playback-token"]
     const poster = tokens["thumbnail-token"]

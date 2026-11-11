@@ -9,7 +9,7 @@
 // Targets whatever the env files say (.env.prod via the package script). Output is counts only.
 
 import { createClient } from "@supabase/supabase-js";
-import { WebClient } from "@slack/web-api";
+import { createSlackClient } from "@/lib/slack-client";
 import { createRepos } from "@/lib/data/repos";
 import type { Database } from "@/lib/data/database.types";
 import { getSlackBotToken } from "@/lib/slack-bot-token";
@@ -40,7 +40,7 @@ async function main() {
 
   const repos = createRepos(createClient<Database>(url, key));
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-  const result = await closeAnsweredCheckinDms(repos, new WebClient(token), { since, dryRun: !apply });
+  const result = await closeAnsweredCheckinDms(repos, createSlackClient(token), { since, dryRun: !apply });
   console.log(apply ? "Applied:" : "Dry run:", JSON.stringify(result));
 }
 

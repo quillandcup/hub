@@ -6,6 +6,7 @@
  */
 
 import Stripe from 'stripe';
+import { APP_URL, OUTBOUND_PRODUCT } from '@/lib/config';
 
 /**
  * Helper to fetch all items from a paginated Stripe list
@@ -50,6 +51,8 @@ export class StripeClientWrapper {
 
     this.stripe = new Stripe(apiKey, {
       apiVersion: '2026-08-26.dahlia',
+      // Stripe adds this to its own User-Agent clause (docs/OUTBOUND_REQUESTS.md).
+      appInfo: { name: OUTBOUND_PRODUCT.name, version: OUTBOUND_PRODUCT.version, url: APP_URL },
     });
   }
 

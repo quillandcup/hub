@@ -1,4 +1,5 @@
 import { google } from "googleapis";
+import { OUTBOUND_COMMENT, OUTBOUND_PRODUCT } from "@/lib/config";
 
 /**
  * Google Calendar API client for fetching prickle events
@@ -22,7 +23,12 @@ export class GoogleCalendarClient {
       scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
     });
 
-    this.calendar = google.calendar({ version: "v3", auth });
+    // googleapis builds its User-Agent from these directives and adds its own `google-api-nodejs-client` clause.
+    this.calendar = google.calendar({
+      version: "v3",
+      auth,
+      userAgentDirectives: [{ product: OUTBOUND_PRODUCT.name, version: OUTBOUND_PRODUCT.version, comment: OUTBOUND_COMMENT }],
+    });
   }
 
   /**

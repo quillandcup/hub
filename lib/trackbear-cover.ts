@@ -4,6 +4,7 @@ import type { MediaRepository } from "@/lib/data/media";
 import { storeImage } from "@/lib/media/library";
 import { TRACKBEAR_ORIGIN } from "@/lib/trackbear-import";
 import type { CoverCopier } from "@/lib/trackbear-import-runner";
+import { outboundFetch } from "@/lib/http/outbound";
 
 // TrackBear names uploaded covers "<uuid>.<ext>" (server/api/v1/project.ts handleUploadCover).
 // Anything else is refused rather than interpolated into a fetch URL.
@@ -24,7 +25,7 @@ export function makeTrackbearCoverCopier(media: MediaRepository, storage: Supaba
 
     let source: Buffer;
     try {
-      const res = await fetch(`${TRACKBEAR_ORIGIN}/uploads/covers/${coverFilename}`, {
+      const res = await outboundFetch(`${TRACKBEAR_ORIGIN}/uploads/covers/${coverFilename}`, {
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       if (!res.ok) return { error: `couldn't download it from TrackBear (HTTP ${res.status}); upload it by hand.` };

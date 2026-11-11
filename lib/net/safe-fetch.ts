@@ -2,9 +2,8 @@ import { lookup as dnsLookup } from "node:dns/promises";
 import http from "node:http";
 import https from "node:https";
 import { isIP } from "node:net";
-import appConfig from "../../app.config";
 import { clock } from "@/lib/clock";
-import { APP_URL, SUPPORT_EMAIL } from "@/lib/config";
+import { OUTBOUND_USER_AGENT } from "@/lib/config";
 
 /**
  * Fetching an address somebody else chose (a Slack app's picture, a book cover a member typed) without letting it reach
@@ -134,7 +133,7 @@ export type SafeGetResult =
  * Who we say we are to a server that isn't ours. Some hosts (Wikimedia) refuse a request with no User-Agent and ask for
  * one that names the app and a contact; it carries nothing about the member.
  */
-export const DEFAULT_USER_AGENT = `${appConfig.appName.replace(/[^\w .-]/g, "").replace(/ +/g, " ")}/1.0 (+${APP_URL}; ${SUPPORT_EMAIL})`;
+export const DEFAULT_USER_AGENT = OUTBOUND_USER_AGENT;
 
 export interface SafeGetOptions {
   /** Sent on every hop; defaults to DEFAULT_USER_AGENT. */

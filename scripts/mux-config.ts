@@ -21,6 +21,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
 import appConfig from "../app.config";
 import { devWebhookAddress, envValue, parseMuxConfig, planRestriction, planWebhook, restrictionBody, restrictionEnvAdvice, setEnvValue, unmanagedWebhooks, webhookAddress, type LiveRestriction, type LiveWebhook, describeAddress, looksLikeTunnel, sameAddress } from "../lib/mux-config";
+import { outboundFetch } from "@/lib/http/outbound";
 
 const API = "https://api.mux.com";
 const [command, ...flags] = process.argv.slice(2);
@@ -53,7 +54,7 @@ async function mux<T>(
   path: string,
   body?: unknown,
 ): Promise<{ status: number; data: T | undefined }> {
-  const res = await fetch(`${API}${path}`, {
+  const res = await outboundFetch(`${API}${path}`, {
     method,
     headers: {
       Authorization: `Basic ${Buffer.from(`${auth.id}:${auth.secret}`).toString("base64")}`,

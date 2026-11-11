@@ -9,7 +9,7 @@
 // loads .env.prod and .env.shared). docs/SECRET_ROTATION.md, "The bot's rotating token", has the recovery order.
 
 import { createClient } from "@supabase/supabase-js";
-import { WebClient } from "@slack/web-api";
+import { createSlackClient } from "@/lib/slack-client";
 import { createInterface } from "node:readline/promises";
 import { botTokenStatus, seedBotToken } from "../lib/slack-bot-token";
 
@@ -50,7 +50,7 @@ async function main() {
       console.error("✗ Those don't look like a rotating bot token pair (xoxe.xoxb-... and xoxe-...). Nothing stored.");
       process.exit(1);
     }
-    const check = await new WebClient(accessToken).auth.test();
+    const check = await createSlackClient(accessToken).auth.test();
     if (!check.ok) throw new Error("Slack rejected that access token. Nothing stored.");
     await seedBotToken(service, accessToken, refreshToken);
     console.log(`✓ Stored. Slack says it is ${check.user} in ${check.team}; the first use will refresh it, so the next token is stored by the app itself.`);
