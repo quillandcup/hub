@@ -11,6 +11,7 @@ export default function LessonMediaPanel({
   playbackId,
   tokens,
   posterUrl,
+  lessonId,
   statsHref,
   lessonUrl,
   thumbnailLink,
@@ -22,6 +23,8 @@ export default function LessonMediaPanel({
   playbackId: string;
   tokens: PlaybackTokens;
   posterUrl: string | null;
+  /** The Hub lesson: lets a tab left open past the links' hour fetch fresh ones. Absent when the lesson isn't in the Hub yet. */
+  lessonId?: string | null;
   statsHref: string | null;
   lessonUrl: string | null;
   thumbnailLink: { url: string; imageUrl: string; title: string } | null;
@@ -35,7 +38,7 @@ export default function LessonMediaPanel({
   return (
     <div>
       {/* No watch tracking: this is an admin looking at the lesson, not a viewing. */}
-      <LessonPlayer title={title} playbackId={playbackId} tokens={tokens} posterUrl={posterUrl} onTime={setSeconds} />
+      <LessonPlayer title={title} playbackId={playbackId} tokens={tokens} posterUrl={posterUrl} lessonId={lessonId ?? undefined} onTime={setSeconds} />
       <div className="mt-3">
         <VideoActions statsHref={statsHref} lessonUrl={lessonUrl} seconds={seconds} thumbnailLink={thumbnailLink} thumbnailLinkBlocked={thumbnailLinkBlocked} chatShare={chatShare} />
       </div>
