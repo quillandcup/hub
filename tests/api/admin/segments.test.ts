@@ -59,6 +59,41 @@ describe('Admin Segments API', () => {
     expect(res.status).toBe(401)
   })
 
+  // ── Sync from a course, program or event ─────────────────────────────────
+
+  it('POST /sync and GET /sources return 401 without auth', async () => {
+    const sync = await apiFetch(`${base}/api/admin/segments/seg_x/sync`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'course', id: 'x' }),
+    })
+    expect(sync.status).toBe(401)
+    expect((await apiFetch(`${base}/api/admin/segments/sources`)).status).toBe(401)
+  })
+
+  it('POST /sync rejects a missing source and a segment that does not exist', async () => {
+    const headers = { ...getTestAuthHeaders(), 'Content-Type': 'application/json' }
+    const bad = await apiFetch(`${base}/api/admin/segments/seg_AAAAAAAAAAA1/sync`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ type: 'badge', id: 'x' }),
+    })
+    expect(bad.status).toBe(400)
+    const missing = await apiFetch(`${base}/api/admin/segments/seg_AAAAAAAAAAA1/sync`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ type: 'course', id: 'x' }),
+    })
+    expect(missing.status).toBe(404)
+  })
+
+  it('GET /sources lists courses, programs and events', async () => {
+    const res = await apiFetch(`${base}/api/admin/segments/sources`, { headers: getTestAuthHeaders() })
+    const body = await res.json()
+    expect(body.error).toBeUndefined()
+    expect(Array.isArray(body.sources)).toBe(true)
+  })
+
   // ── Full lifecycle ───────────────────────────────────────────────────────
 
   describe('lifecycle', () => {

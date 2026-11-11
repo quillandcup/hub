@@ -86,6 +86,9 @@ function getSortValue(segment: Segment, column: SortColumn): SortValue {
   }
 }
 
+type SourceChoice = { type: "course" | "program" | "event"; id: string; name: string };
+const SOURCE_TYPE_LABELS: [SourceChoice["type"], string][] = [["course", "Courses"], ["program", "Programs"], ["event", "Events"]];
+
 export default function PreviewsClient({ allMembers }: { allMembers: SegmentMember[] }) {
   const timeZone = useTimeZone();
   const [segments, setSegments] = useState<Segment[]>([]);
@@ -110,6 +113,10 @@ export default function PreviewsClient({ allMembers }: { allMembers: SegmentMemb
   const [inviting, setInviting] = useState(false);
   const [inviteResults, setInviteResults] = useState<InviteResult[] | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [sources, setSources] = useState<SourceChoice[]>([]);
+  const [sourceKey, setSourceKey] = useState("");
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   const [flags, setFlags] = useState<FlagRow[]>([]);
   const [flagsLoading, setFlagsLoading] = useState(true);
@@ -227,7 +234,46 @@ export default function PreviewsClient({ allMembers }: { allMembers: SegmentMemb
     }
   }
 
+  async function loadSources() {
+    if (sources.length > 0) return;
+    try {
+      const res = await fetch("/api/admin/segments/sources");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load courses, programs and events");
+      setSources(data.sources);
+    } catch (err: unknown) {
+      setDetailError(err instanceof Error ? err.message : "Failed to load courses, programs and events");
+    }
+  }
+
+  async function syncFromSource() {
+    const source = sources.find((s) => `${s.type}:${s.id}` === sourceKey);
+    if (!activeSegment || !source) return;
+    setSyncing(true);
+    setSyncMessage(null);
+    setDetailError(null);
+    try {
+      const res = await fetch(`/api/admin/segments/${activeSegment.id}/sync`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: source.type, id: source.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to sync");
+      setSyncMessage(`Added ${data.summary.added} (${data.summary.already_in_segment} already in the segment)`);
+      const refreshed = await fetch(`/api/admin/segments/${activeSegment.id}`).then((r) => r.json());
+      setMembers(refreshed.members);
+      await fetchSegments();
+    } catch (err: unknown) {
+      setDetailError(err instanceof Error ? err.message : "Failed to sync");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   function closeSegment() {
+    setSourceKey("");
+    setSyncMessage(null);
     setActiveSegment(null);
     setMembers([]);
   }
@@ -590,6 +636,38 @@ export default function PreviewsClient({ allMembers }: { allMembers: SegmentMemb
               >
                 {adding ? "Adding..." : "Add to Segment"}
               </button>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1" htmlFor="segment-sync-source">
+                Add everyone with access to a course, program or event
+              </label>
+              <div className="flex items-center gap-2">
+                <select
+                  id="segment-sync-source"
+                  value={sourceKey}
+                  onFocus={loadSources}
+                  onChange={(e) => setSourceKey(e.target.value)}
+                  className="flex-1 min-w-0 text-sm px-2 py-1 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800"
+                >
+                  <option value="">Choose one...</option>
+                  {SOURCE_TYPE_LABELS.map(([type, label]) => (
+                    <optgroup key={type} label={label}>
+                      {sources.filter((s) => s.type === type).map((s) => (
+                        <option key={`${s.type}:${s.id}`} value={`${s.type}:${s.id}`}>{s.name}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+                <button
+                  onClick={syncFromSource}
+                  disabled={syncing || !sourceKey}
+                  className="text-xs px-3 py-1 bg-plum-600 hover:bg-plum-700 disabled:bg-plum-400 text-white rounded font-medium transition-colors"
+                >
+                  {syncing ? "Syncing..." : "Sync"}
+                </button>
+              </div>
+              {syncMessage && <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">{syncMessage}</p>}
             </div>
 
             {addResults && (
