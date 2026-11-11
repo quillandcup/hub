@@ -3,9 +3,9 @@
  * the quoted message in the sharer's `attachments` with `is_share` / `is_msg_unfurl`. This module turns one such
  * attachment into a small typed value and decides what a viewer may see of it. Pure: no database, no React.
  *
- * Privacy (docs/SLACK_BRIDGED_CHAT.md, "Shared messages"): the quoted text is NOT shown because Slack embedded it. It is
- * shown only when the loader re-resolved the source message in the Hub *as the viewer* and found it readable
- * (`sharedMessageSource`). Anything else is a stub that says nothing about the source's text, author or channel name.
+ * Privacy (docs/SLACK_BRIDGED_CHAT.md, "Shared Slack messages"): the embedded copy is shown to everyone who can read the
+ * sharing message, as in Slack: the sharer chose to share it, and the copy sits in the sharer's own content row. Looking
+ * the original up in the Hub (`sharedMessageSource`) only adds a link or a note.
  */
 
 /** Share cards drawn per message; the rest are ignored. */
@@ -23,7 +23,7 @@ export interface SharedMessageFile {
 }
 
 export interface SharedMessage {
-  /** Slack's embedded copy of the text, still in Slack markup (`&amp;`, `<@U1>`), for ChatText. Never shown unless the source is readable. */
+  /** Slack's embedded copy of the text, still in Slack markup (`&amp;`, `<@U1>`), for ChatText. */
   text: string;
   /** Who wrote it, as Slack named them. */
   authorName: string;
@@ -37,7 +37,7 @@ export interface SharedMessage {
   postedAt: string | null;
   /** Slack ids of the source conversation: how the loader finds the Hub copy. */
   slackChannelId: string | null;
-  /** The channel as Slack named it; withheld from a viewer who can't read the source. */
+  /** The channel as Slack named it. */
   channelName: string | null;
   /** The message's own Slack permalink (https, on slack.com) for "Open in Slack". */
   slackUrl: string | null;
@@ -173,36 +173,34 @@ export function parseSharedMessages(attachments: unknown): SharedMessage[] {
   return out;
 }
 
+
 /**
  * What the loader found when it looked the source message up in the Hub *as the viewer* (their row-level security, so
- * `chat_can_read_content` applied). The three answers are kept apart on purpose:
- * - `readable`: the Hub has the message and the viewer may read it.
- * - `hidden`: the Hub has the conversation but the viewer may not read it (private, a DM, restricted): or the lookup failed.
- * - `not_mirrored`: the Hub has no copy (the source conversation isn't bridged, or the message is older than the import).
+ * `chat_can_read_content` applied). It only ever adds to the card, it never gates it:
+ * - `readable`: the Hub has the message and the viewer may read it (or it was deleted).
+ * - `hidden`: the Hub has the conversation but the viewer may not read it, or the lookup failed.
+ * - `not_mirrored`: the Hub has no copy (the conversation isn't bridged, or the message is older than the import).
  */
 export type SharedSourceLookup =
-  | { state: "readable"; channelId: string; messageId: string; deleted: boolean; text?: string }
+  | { state: "readable"; channelId: string; messageId: string; deleted: boolean }
   | { state: "hidden" }
   | { state: "not_mirrored" };
 
-/** What the card may show. `text` is only ever set for `readable`. */
-export type SharedMessageSource =
-  | { kind: "readable"; hubUrl: string; deleted: boolean; text: string }
-  | { kind: "private" }
-  | { kind: "elsewhere" };
+/** The extras around Slack's embedded copy: a Hub link only when the viewer can open the original, and whether it was deleted. */
+export interface SharedMessageSource {
+  /** `/chat/<channel>?m=<id>`, or null when the viewer can't open the original in the Hub. */
+  hubUrl: string | null;
+  /** The original was deleted in the Hub; the card still shows the copy, with a note. */
+  deleted: boolean;
+}
 
 /**
- * Decides what a viewer sees of a share. Fail closed: no lookup (undefined), `hidden` and `not_mirrored` never carry the
- * quoted text. The Hub's current text wins over Slack's embedded copy, which goes stale when the source is edited.
+ * Decides the links around a share. The quoted text is always the embedded copy: whoever may read the sharing message
+ * may read the copy inside it (same row, same policy), and the sharer chose to share it. The copy is the message as it was
+ * shared, as in Slack, so it is not swapped for the Hub's current text. Fails closed on the link only.
  */
-export function sharedMessageSource(shared: SharedMessage, lookup: SharedSourceLookup | undefined): SharedMessageSource {
-  if (!lookup || lookup.state === "hidden") return { kind: "private" };
-  if (lookup.state === "not_mirrored") return { kind: "elsewhere" };
-  if (!/^[A-Za-z0-9_-]+$/.test(lookup.channelId) || !/^[A-Za-z0-9_-]+$/.test(lookup.messageId)) return { kind: "private" };
-  return {
-    kind: "readable",
-    hubUrl: `/chat/${lookup.channelId}?m=${lookup.messageId}`,
-    deleted: lookup.deleted,
-    text: lookup.deleted ? "" : lookup.text ?? shared.text,
-  };
+export function sharedMessageSource(lookup: SharedSourceLookup | undefined): SharedMessageSource {
+  if (!lookup || lookup.state !== "readable") return { hubUrl: null, deleted: false };
+  if (!/^[A-Za-z0-9_-]+$/.test(lookup.channelId) || !/^[A-Za-z0-9_-]+$/.test(lookup.messageId)) return { hubUrl: null, deleted: false };
+  return lookup.deleted ? { hubUrl: null, deleted: true } : { hubUrl: `/chat/${lookup.channelId}?m=${lookup.messageId}`, deleted: false };
 }

@@ -55,35 +55,39 @@ async function shareOf(repos: Pick<Repos, "attendance" | "chat" | "chatVideos" |
 }
 
 describe("buildMessageViews: shared Slack messages", () => {
-  it("shows the Hub's current text and a Hub link for a source the viewer can read", async () => {
+  it("links the original when the viewer can read it in the Hub, and the card keeps the embedded copy", async () => {
     const u = await shareOf(createInMemoryRepos(dataset()), share("CPUBLIC", "1700000000.000100"));
-    expect(u.source).toEqual({ kind: "readable", hubUrl: "/chat/chn_AAAAAAAAAAA1?m=msg_AAAAAAAAAAA1", deleted: false, text: "Hub copy, edited" });
+    expect(u.source).toEqual({ hubUrl: "/chat/chn_AAAAAAAAAAA1?m=msg_AAAAAAAAAAA1", deleted: false });
+    expect(u.shared?.text).toBe("the quoted words");
   });
 
-  it("gives a stub with no text for a source whose content the viewer can't read", async () => {
+  it("still carries the embedded copy, with no Hub link, for a source the viewer can't read", async () => {
     const u = await shareOf(createInMemoryRepos(dataset()), share("CPRIVATE", "1700000001.000100"));
-    expect(u.source).toEqual({ kind: "private" });
-    expect(JSON.stringify(u.source)).not.toContain("quoted");
+    expect(u.source).toEqual({ hubUrl: null, deleted: false });
+    expect(u.shared?.text).toBe("the quoted words");
   });
 
-  it("marks a deleted source deleted, with no text", async () => {
+  it("marks a deleted original deleted, with no link", async () => {
     const u = await shareOf(createInMemoryRepos(dataset()), share("CPUBLIC", "1700000002.000100"));
-    expect(u.source).toMatchObject({ kind: "readable", deleted: true, text: "" });
+    expect(u.source).toEqual({ hubUrl: null, deleted: true });
+    expect(u.shared?.text).toBe("the quoted words");
   });
 
-  it("treats a source the Hub doesn't have as elsewhere, never showing Slack's copy", async () => {
+  it("shows the copy with no Hub link when the Hub doesn't have the original", async () => {
     const u = await shareOf(createInMemoryRepos(dataset()), share("CUNKNOWN", "1700000009.000100"));
-    expect(u.source).toEqual({ kind: "elsewhere" });
+    expect(u.source).toEqual({ hubUrl: null, deleted: false });
+    expect(u.shared?.text).toBe("the quoted words");
   });
 
-  it("fails closed to the private stub when the lookup throws", async () => {
+  it("still shows the copy, with no link, when the lookup throws", async () => {
     const repos = createInMemoryRepos(dataset());
     repos.chat.sharedSourcesBySlackRef = async () => {
       throw new Error("boom");
     };
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     const u = await shareOf(repos, share("CPUBLIC", "1700000000.000100"));
-    expect(u.source).toEqual({ kind: "private" });
+    expect(u.source).toEqual({ hubUrl: null, deleted: false });
+    expect(u.shared?.text).toBe("the quoted words");
     spy.mockRestore();
   });
 
