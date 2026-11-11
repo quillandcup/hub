@@ -24,8 +24,8 @@ import { parseChatFiles } from "@/lib/chat/files";
  * Slack account rewrites it (`rewriteInSlack`, below).
  */
 
-/** Called once a message became a card, with the text the Slack copy should have (the pasted address taken out); never throws. */
-export type OnShared = (shared: { messageId: string; memberId: string; text: string }) => Promise<void>;
+/** Called once a message became a card, with the text either side of the pasted address (which is taken out); never throws. */
+export type OnShared = (shared: { messageId: string; memberId: string; before: string; after: string }) => Promise<void>;
 
 /**
  * The Slack copy of a converted message, as the Hub Chat paste would have sent it: the pasted address out, "Watch it in Hub Chat" and
@@ -35,7 +35,7 @@ export type OnShared = (shared: { messageId: string; memberId: string; text: str
  */
 export const rewriteInSlack =
   (supabase: SupabaseClient): OnShared =>
-  async ({ messageId, memberId, text }) => {
+  async ({ messageId, memberId, before, after }) => {
     try {
       const repos = createRepos(supabase as unknown as Db);
       const row = await repos.chat.outboxMessage(messageId);
@@ -44,14 +44,16 @@ export const rewriteInSlack =
       if (parseChatFiles(row.files).length > 0) return;
       const line = await sharedVideoSlackLine(repos, messageId, row.slackChannelId);
       if (!line) return;
-      // As a message sent from the Hub says "Shared a lesson video: <title>" when the address was all there was.
-      let lead = text;
-      if (!lead.trim()) {
+      // The links stand where the address was: text before it stays before, text after it stays after. With no text at all, a message
+      // sent from the Hub says "Shared a lesson video: <title>" first, so this does too.
+      const links = line.replace(/^\n/, "");
+      const parts = [before.trim(), links, after.trim()].filter((part) => part !== "");
+      if (parts.length === 1) {
         const lessonId = (await repos.chatVideos.lessonIdsOf([messageId])).get(messageId);
         const title = lessonId ? (await repos.courses.lessonById(lessonId))?.title : null;
-        lead = title ? escapeForSlack(sharedVideoDefaultText(title)) : "";
+        if (title) parts.unshift(escapeForSlack(sharedVideoDefaultText(title)));
       }
-      const result = await updateChatMessageInSlack(supabase, { messageId, memberId, body: `${lead}${line}`.replace(/^\n/, ""), dropPreviews: true });
+      const result = await updateChatMessageInSlack(supabase, { messageId, memberId, body: parts.join("\n"), dropPreviews: true });
       if (!result.ok) console.error("[chat] rewriting the Slack copy of message %s failed: %s", messageId, result.error);
     } catch (error) {
       console.error("[chat] rewriting the Slack copy of message %s failed:", messageId, error instanceof Error ? error.message : error);
@@ -85,9 +87,9 @@ export async function shareLessonLinkInMessage(repos: Repos, message: { id: stri
     // The message already has its video (another event or the nightly run got there first): fine.
     return "skipped";
   }
-  // The text without the pasted address, from the message as stored (Slack's escapes kept: it goes back to Slack as it is).
-  const text = extractLessonLink(message.body, APP_URL)?.body ?? link.body;
-  await onShared?.({ messageId: message.id, memberId: author, text }).catch(() => {});
+  // The text either side of the pasted address, from the message as stored (Slack's escapes kept: it goes back to Slack as it is).
+  const raw = extractLessonLink(message.body, APP_URL) ?? link;
+  await onShared?.({ messageId: message.id, memberId: author, before: raw.before, after: raw.after }).catch(() => {});
   return "shared";
 }
 

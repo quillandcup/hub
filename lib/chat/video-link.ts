@@ -52,7 +52,10 @@ export async function sharedVideoSlackLine(
 const CHAT_LINK = "<https?://[^|>\\s]*/chat/[^|>\\s/?]+\\?(?:m|thread)=msg_[^|>\\s]+\\|" + CHAT_LABEL + ">";
 const LESSON_LINK = "<https?://[^|>\\s]*/courses/[^|>\\s/]+/lessons/[^|>\\s/]+\\|" + LESSON_LABEL + ">";
 const FIRST_VERSION_LINK = "<https?://[^|>\\s]*/courses/[^|>\\s/]+/lessons/[^|>\\s/]+\\|Watch the video>";
-const SLACK_LINK_LINE = new RegExp(`(?:^|\\n)(?:${CHAT_LINK}(?: · ${LESSON_LINK})?|${LESSON_LINK}|${FIRST_VERSION_LINK})\\s*$`);
+const LINE = `(?:${CHAT_LINK}(?: · ${LESSON_LINK})?|${LESSON_LINK}|${FIRST_VERSION_LINK})`;
+const SLACK_LINK_LINE = new RegExp(`(?:^|\\n)${LINE}\\s*$`);
+// The line where the pasted address was: on a line of its own among the message's text (the rewrite puts it there).
+const SLACK_LINK_LINE_INSIDE = new RegExp(`(?:^|\\n)${LINE}[ \\t]*(?=\\n)`, "g");
 
-/** `body` without the trailing Slack link line (alone on the first line when the pasted address was the whole message), for a message that shares a video (the card replaces it). */
-export const stripSharedVideoLink = (body: string) => body.replace(SLACK_LINK_LINE, "");
+/** `body` without the Slack link line (at the end, or among the text where the address was), for a message that shares a video (the card replaces it). */
+export const stripSharedVideoLink = (body: string) => body.replace(SLACK_LINK_LINE, "").replace(SLACK_LINK_LINE_INSIDE, "").replace(/^\n+/, "");
