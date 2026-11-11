@@ -558,6 +558,14 @@ describe("pullDmsForCoveredMembers", () => {
     expect(rpcCalls("chat_claim_slack_dm_pull").map(([, args]) => args.p_min_seconds)).toEqual([0, 0]);
   });
 
+  it("takes the member whose DMs were pulled longest ago first", async () => {
+    const connections = (m.dataset as InMemoryDataset).slackConnections;
+    connections.find((c) => c.member_id === MEMBER)!.dms_pulled_at = "2026-11-03T00:00:00Z";
+    connections.find((c) => c.member_id === GALE)!.dms_pulled_at = "2026-11-01T00:00:00Z";
+    await pullDmsForCoveredMembers(service, { deadline: later() });
+    expect(rpcCalls("chat_claim_slack_dm_pull").map(([, args]) => args.p_member)).toEqual([GALE, MEMBER]);
+  });
+
   it("leaves out members the feature doesn't cover", async () => {
     m.covered = new Set([GALE]);
     const result = await pullDmsForCoveredMembers(service, { deadline: later() });

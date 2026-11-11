@@ -77,7 +77,7 @@ defineMemberProfileContract("InMemoryMemberProfileRepository", () => {
         connected_at: "2026-01-01T00:00:00Z",
         revoked_at: options.revoked ? "2026-02-01T00:00:00Z" : null,
         expires_at: null,
-        read_pulled_at: null, dms_pulled_at: null,
+        read_pulled_at: null, dms_pulled_at: options.dmsPulledAt ?? null,
         access_secret_id: null,
         refresh_secret_id: null,
       });

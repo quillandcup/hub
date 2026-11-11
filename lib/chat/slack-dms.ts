@@ -531,7 +531,7 @@ export interface NightlyDmPullResult {
 /**
  * The nightly backstop for live delivery (Slack's events can be missed, and a member who never opens chat is
  * never pulled): pull the DMs of every member the `slack_dm_bridge` feature covers who has a working
- * connection with the DM scopes, ignoring the interval. One member at a time, and no new member after `deadline`
+ * connection with the DM scopes, ignoring the interval. One member at a time, the one pulled longest ago first, and no new member after `deadline`
  * (a clock time, ms) so the run ends inside its function time; the rest are next run's. Each member gets a fair share
  * of the time left (what an earlier member didn't use carries over), so one member with hundreds of DMs, waiting out
  * Slack's rate limit, can't take the whole run: they are cut short (`incomplete`) and the next run, which skips what
@@ -540,7 +540,9 @@ export interface NightlyDmPullResult {
 export async function pullDmsForCoveredMembers(service: SupabaseClient, opts: { deadline: number }): Promise<NightlyDmPullResult> {
   const repos = createRepos(service);
   const connected = await repos.memberProfile.memberIdsWithSlackScopes(SLACK_DM_SCOPES);
-  const covered = [...(await membersWithFeatureForOutreach(repos, "slack_dm_bridge", connected))];
+  // Keeps the order of `connected`: the member whose DMs were pulled longest ago first.
+  const featured = await membersWithFeatureForOutreach(repos, "slack_dm_bridge", connected);
+  const covered = connected.filter((id) => featured.has(id));
   const result: NightlyDmPullResult = { members: covered.length, conversations: 0, messages: 0, deferred: 0, incomplete: 0, errors: [] };
   for (const [index, memberId] of covered.entries()) {
     if (clock.now() >= opts.deadline) {

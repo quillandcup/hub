@@ -95,6 +95,7 @@ defineMemberProfileContract("SupabaseMemberProfileRepository", () => ({
       slack_user_id: slackUserId,
       scopes: options.scopes ?? [],
       revoked_at: options.revoked ? new Date().toISOString() : null,
+      dms_pulled_at: options.dmsPulledAt ?? null,
     });
     must(error);
   },

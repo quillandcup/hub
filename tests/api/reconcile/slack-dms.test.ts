@@ -66,6 +66,14 @@ describe('GET /api/reconcile/slack-dms', () => {
     expect(pingCronHeartbeat).not.toHaveBeenCalled()
   })
 
+  it('for the backfill button, neither alerts nor pings on a partial run (it repeats until done)', async () => {
+    vi.mocked(pullDmsForCoveredMembers).mockResolvedValue({ ...clean, deferred: 2, incomplete: 1, errors: ['member x: boom'] })
+    const response = await GET(new Request('http://localhost:3000/api/reconcile/slack-dms?backfill=1') as unknown as NextRequest)
+    expect(await response.json()).toMatchObject({ deferred: 2, incomplete: 1, errors: ['member x: boom'] })
+    expect(sendOperationsAlert).not.toHaveBeenCalled()
+    expect(pingCronHeartbeat).not.toHaveBeenCalled()
+  })
+
   it('alerts and answers 500 when the run fails outright', async () => {
     vi.mocked(pullDmsForCoveredMembers).mockRejectedValue(new Error('db down'))
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})

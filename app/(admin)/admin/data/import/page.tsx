@@ -5,6 +5,7 @@ import ZoomImportAndProcessForm from "./ZoomImportAndProcessForm";
 import CalendarImportForm from "./CalendarImportForm";
 import SlackApiImportForm from "./SlackApiImportForm";
 import ApplyAliasesButton from "./ApplyAliasesButton";
+import SlackDmBackfillButton from "./SlackDmBackfillButton";
 import ManualReprocessingSection from "./ManualReprocessingSection";
 import KajabiApiImportForm from "./KajabiApiImportForm";
 import StripeImportForm from "./StripeImportForm";
@@ -109,6 +110,9 @@ export default async function ImportPage() {
 
             <SlackApiImportForm />
           </div>
+
+          {/* Slack DMs, with each member's own connection */}
+          <SlackDmBackfillButton />
 
           {/* Zoom Attendance Import & Process */}
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">

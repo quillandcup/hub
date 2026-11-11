@@ -61,7 +61,7 @@ export interface MemberProfileRepository {
   slackUserConnectedByOther(slackUserId: string, memberId: string): Promise<boolean>;
   /** Slack user id to member id for every member who connected Slack, revoked ones included (the Slack id still belongs to them). Paginated. */
   slackUserLinks(): Promise<Map<string, string>>;
-  /** The members with a working (not revoked) connection that was granted every one of these scopes, by member id. Paginated. */
+  /** The members with a working (not revoked) connection that was granted every one of these scopes, the one whose DMs were pulled longest ago first (never pulled first, then by member id). Paginated. */
   memberIdsWithSlackScopes(scopes: string[]): Promise<string[]>;
 }
 
@@ -182,7 +182,7 @@ export class SupabaseMemberProfileRepository implements MemberProfileRepository 
 
   async memberIdsWithSlackScopes(scopes: string[]) {
     const rows = await fetchAllRows<Pick<Row<"member_slack_connections">, "member_id">>((from, to) =>
-      this.db.from("member_slack_connections").select("member_id").is("revoked_at", null).contains("scopes", scopes).order("member_id").range(from, to),
+      this.db.from("member_slack_connections").select("member_id").is("revoked_at", null).contains("scopes", scopes).order("dms_pulled_at", { ascending: true, nullsFirst: true }).order("member_id").range(from, to),
     );
     return rows.map((r) => r.member_id);
   }
@@ -291,7 +291,7 @@ export class InMemoryMemberProfileRepository implements MemberProfileRepository 
   async memberIdsWithSlackScopes(scopes: string[]) {
     return this.data.slackConnections
       .filter((c) => c.revoked_at === null && scopes.every((s) => c.scopes.includes(s)))
-      .map((c) => c.member_id)
-      .sort();
+      .sort((a, b) => (a.dms_pulled_at ?? "").localeCompare(b.dms_pulled_at ?? "") || a.member_id.localeCompare(b.member_id))
+      .map((c) => c.member_id);
   }
 }
