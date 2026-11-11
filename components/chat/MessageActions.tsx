@@ -221,17 +221,6 @@ export default function MessageActions({
             style={{ top: menuPos?.top ?? 0, left: menuPos?.left ?? 0, visibility: menuPos ? "visible" : "hidden" }}
             className="fixed z-50 w-48 rounded-lg border border-slate-200 bg-white py-1 text-sm shadow dark:border-slate-700 dark:bg-slate-900"
           >
-            <li role="none">
-              <button
-                type="button"
-                role="menuitem"
-                data-track="chat-copy-link"
-                onClick={() => void copy("Link", `${window.location.origin}${messagePermalink(channelId, messageId)}`)}
-                className="block w-full px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-slate-800"
-              >
-                Copy link
-              </button>
-            </li>
             {canChange && body && (
               <li role="none">
                 <button
@@ -248,22 +237,18 @@ export default function MessageActions({
                 </button>
               </li>
             )}
-            {canChange && (
-              <li role="none">
-                <button
-                  type="button"
-                  role="menuitem"
-                  data-track="chat-menu-delete"
-                  onClick={() => {
-                    setOpen(null);
-                    window.dispatchEvent(new CustomEvent(MESSAGE_CHANGE_EVENT, { detail: { messageId, what: "delete" } }));
-                  }}
-                  className="block w-full px-3 py-1.5 text-left text-red-600 dark:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-                >
-                  Delete message
-                </button>
-              </li>
-            )}
+            {canChange && body && <li role="separator" className="my-1 border-t border-slate-200 dark:border-slate-700" />}
+            <li role="none">
+              <button
+                type="button"
+                role="menuitem"
+                data-track="chat-copy-link"
+                onClick={() => void copy("Link", `${window.location.origin}${messagePermalink(channelId, messageId)}`)}
+                className="block w-full px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                Copy link
+              </button>
+            </li>
             {body && (
               <li role="none">
                 <button
@@ -277,6 +262,23 @@ export default function MessageActions({
                   className="block w-full px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-slate-800"
                 >
                   Copy message
+                </button>
+              </li>
+            )}
+            {canChange && <li role="separator" className="my-1 border-t border-slate-200 dark:border-slate-700" />}
+            {canChange && (
+              <li role="none">
+                <button
+                  type="button"
+                  role="menuitem"
+                  data-track="chat-menu-delete"
+                  onClick={() => {
+                    setOpen(null);
+                    window.dispatchEvent(new CustomEvent(MESSAGE_CHANGE_EVENT, { detail: { messageId, what: "delete" } }));
+                  }}
+                  className="block w-full px-3 py-1.5 text-left text-red-600 dark:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  Delete message
                 </button>
               </li>
             )}
