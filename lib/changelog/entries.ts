@@ -53,6 +53,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "sync-segments-from-course-program-event",
+    date: "2026-11-11",
+    audience: "engineering",
+    category: "new",
+    title: "Previews: fill a segment from the people with access to a course, program or event",
+    summary: "The segment dialog on the Previews page can add everyone with access to a course, program or event to a segment, so a feature flag linked to that segment reaches them.",
+    body: [
+      "Manage on a segment, pick a course, program or event and press Sync (`POST /api/admin/segments/[id]/sync`, the choices from `GET /api/admin/segments/sources`). It only adds: members already in the segment, added by hand or from another source, stay, and running it again later picks up whoever got access since. It does not run on its own.",
+      "Who counts is read in `lib/segment-sources.ts`: a course's `course_access` rows that have started and not ended, anyone enrolled in any cohort of a program, an event's attendees. A flag still reaches people through the existing flag-to-segment link, so there is no schema change.",
+    ].join("\n\n"),
+  },
+  {
     slug: "conversations-became-hedgie-care",
     date: "2026-11-11",
     audience: "engineering",
