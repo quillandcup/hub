@@ -57,5 +57,16 @@ const SLACK_LINK_LINE = new RegExp(`(?:^|\\n)${LINE}\\s*$`);
 // The line where the pasted address was: on a line of its own among the message's text (the rewrite puts it there).
 const SLACK_LINK_LINE_INSIDE = new RegExp(`(?:^|\\n)${LINE}[ \\t]*(?=\\n)`, "g");
 
-/** `body` without the Slack link line (at the end, or among the text where the address was), for a message that shares a video (the card replaces it). */
-export const stripSharedVideoLink = (body: string) => body.replace(SLACK_LINK_LINE, "").replace(SLACK_LINK_LINE_INSIDE, "").replace(/^\n+/, "");
+const TITLE_LINE = "Shared a lesson video: [^\\n]*";
+const TITLE_BEFORE_LINE = new RegExp(`(?:^|\\n)${TITLE_LINE}(?=\\n${LINE})`);
+
+/**
+ * `body` without the Slack link line (at the end, or among the text where the address was), for a message that shares a video (the card
+ * replaces it). The rewrite also names the lesson above that line ("Shared a lesson video: <title>"), which the card already says, so it goes
+ * too when there is other text; with none, it stays as the message's text, as for a share sent from the Hub.
+ */
+export const stripSharedVideoLink = (body: string) => {
+  const strip = (text: string) => text.replace(SLACK_LINK_LINE, "").replace(SLACK_LINK_LINE_INSIDE, "").replace(/^\n+/, "");
+  const withoutTitle = strip(body.replace(TITLE_BEFORE_LINE, ""));
+  return withoutTitle.trim() !== "" ? withoutTitle : strip(body);
+};

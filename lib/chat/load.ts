@@ -1,7 +1,7 @@
 import type { StageTimer } from "@/lib/chat/timing";
 import { emojiNamesIn, mentionedChannelIds, mentionedUserIds } from "@/lib/chat/render";
 import { blocksToBody } from "@/lib/chat/rich-blocks";
-import { parseUnfurls, unfurlTexts, type Unfurl } from "@/lib/chat/unfurls";
+import { parseUnfurls, unfurlTexts, withoutLessonPreview, type Unfurl } from "@/lib/chat/unfurls";
 import { proxyUnfurlImages } from "@/lib/chat/unfurl-images";
 import { withLinkPreviews } from "@/lib/chat/link-preview-cards";
 import type { LinkPreview } from "@/lib/data/chat-link-previews";
@@ -645,7 +645,7 @@ export async function buildMessageViews(
     // Pictures on other people's servers go through our own route, so those servers never see who looked (lib/chat/unfurl-images.ts).
     // Only a message that is shown gets proxy addresses; the logo is position 0 and counts whether or not it is used below.
     const proxied = parsed
-      ? proxyUnfurlImages(row.id, withLinkPreviews(parsed.unfurls.map((u) => (u.kind === "share" ? withShareSource(u, sharedSources) : u)), hiddenCards ? linkPreviews.get(row.id) : undefined, hiddenCards?.get(row.id)), bot?.icon ?? null)
+      ? proxyUnfurlImages(row.id, withLinkPreviews(withoutLessonPreview(parsed.unfurls, sharedLesson).map((u) => (u.kind === "share" ? withShareSource(u, sharedSources) : u)), hiddenCards ? linkPreviews.get(row.id) : undefined, hiddenCards?.get(row.id)), bot?.icon ?? null)
       : null;
     const author =
       (row.author_member_id ? profiles.get(row.author_member_id) : undefined) ??

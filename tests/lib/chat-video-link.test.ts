@@ -68,6 +68,17 @@ describe("stripSharedVideoLink, the line among the text", () => {
     expect(stripSharedVideoLink(`A\n${line}\nB\n${line}\nC`)).toBe("A\nB\nC");
   });
 
+  it("drops the lesson's title line above it when there is other text, and keeps it when there is none", () => {
+    const title = "Shared a lesson video: Welcome to The Ready Writer";
+    expect(stripSharedVideoLink(`Before\n${title}\n${line}\nAfter`)).toBe("Before\nAfter");
+    expect(stripSharedVideoLink(`${title}\n${line}\nAfter`)).toBe("After");
+    expect(stripSharedVideoLink(`Before\n${title}\n${line}`)).toBe("Before");
+    // The message's only text: it is what the message says, as in a share sent from the Hub.
+    expect(stripSharedVideoLink(`${title}\n${line}`)).toBe(title);
+    // The same words with no links line after them are the member's own text.
+    expect(stripSharedVideoLink(`${title}\nmore`)).toBe(`${title}\nmore`);
+  });
+
   it("leaves a link with another label or an address inside a sentence alone", () => {
     const text = `see ${line} for more\nnext line`;
     expect(stripSharedVideoLink(text)).toBe(text);
