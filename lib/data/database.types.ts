@@ -2148,6 +2148,88 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_hidden_unfurls: {
+        Row: {
+          created_at: string
+          id: string
+          key: string
+          message_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          key: string
+          message_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          key?: string
+          message_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_hidden_unfurls_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "chat_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_link_previews: {
+        Row: {
+          description: string | null
+          fetched_at: string
+          final_url: string | null
+          id: string
+          image_url: string | null
+          kind: string
+          message_id: string
+          position: number
+          site_name: string | null
+          status: string
+          title: string | null
+          url: string
+        }
+        Insert: {
+          description?: string | null
+          fetched_at?: string
+          final_url?: string | null
+          id?: string
+          image_url?: string | null
+          kind?: string
+          message_id: string
+          position: number
+          site_name?: string | null
+          status: string
+          title?: string | null
+          url: string
+        }
+        Update: {
+          description?: string | null
+          fetched_at?: string
+          final_url?: string | null
+          id?: string
+          image_url?: string | null
+          kind?: string
+          message_id?: string
+          position?: number
+          site_name?: string | null
+          status?: string
+          title?: string | null
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_link_previews_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "chat_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chat_message_contents: {
         Row: {
           attachments: Json | null

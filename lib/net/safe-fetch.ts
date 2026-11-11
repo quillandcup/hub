@@ -146,6 +146,10 @@ export interface SafeGetOptions {
   accept?: string;
   /** Called with each response's headers before the body is read; return false to stop (no body is downloaded). */
   acceptResponse?: (headers: Record<string, string | undefined>) => boolean;
+  /** After `acceptResponse`: return false to succeed without downloading the body (the headers were the answer; `bytes` is empty). */
+  wantBody?: (headers: Record<string, string | undefined>) => boolean;
+  /** Past `maxBytes`, stop reading and return what was read, instead of failing (a page's head is all that is wanted). */
+  truncate?: boolean;
 }
 
 /** GET an address that is not ours to trust. Never throws. */
@@ -194,8 +198,12 @@ export async function safeGet(input: string | URL, opts: SafeGetOptions): Promis
         response.destroy();
         return fail("bad_status", "not what was asked for");
       }
+      if (opts.wantBody && !opts.wantBody(response.headers)) {
+        response.destroy();
+        return { ok: true, bytes: Buffer.alloc(0), contentType: response.headers["content-type"] ?? null, finalUrl: url.href };
+      }
       const declared = Number(response.headers["content-length"]);
-      if (Number.isFinite(declared) && declared > opts.maxBytes) {
+      if (!opts.truncate && Number.isFinite(declared) && declared > opts.maxBytes) {
         response.destroy();
         return fail("too_large", "larger than the limit");
       }
@@ -203,6 +211,11 @@ export async function safeGet(input: string | URL, opts: SafeGetOptions): Promis
       let total = 0;
       for await (const chunk of response.body) {
         total += chunk.length;
+        if (total > opts.maxBytes && opts.truncate) {
+          chunks.push(chunk.subarray(0, chunk.length - (total - opts.maxBytes)));
+          response.destroy();
+          break;
+        }
         if (total > opts.maxBytes) {
           response.destroy();
           return fail("too_large", "larger than the limit");
@@ -253,4 +266,37 @@ export async function fetchImage(url: string | URL, opts: { userAgent?: string }
   if (!got.ok) return got;
   const contentType = sniffImageType(got.bytes);
   return contentType ? { ok: true, bytes: got.bytes, contentType } : { ok: false, reason: "not_image", detail: "not an allowed image type" };
+}
+
+// ---- pages -------------------------------------------------------------------------------------------------------
+
+export const MAX_PAGE_BYTES = 512 * 1024;
+export const PAGE_TIMEOUT_MS = 8_000;
+
+export type FetchPageResult =
+  | { ok: true; kind: "html"; bytes: Buffer; contentType: string; finalUrl: string }
+  /** The address is itself a picture (the headers said so; nothing was downloaded). The picture route checks the bytes when it is shown. */
+  | { ok: true; kind: "image"; finalUrl: string }
+  | { ok: false; reason: SafeGetFailure; detail: string };
+
+const IMAGE_TYPE = /^image\/(png|jpeg|gif|webp|avif)\s*(;|$)/i;
+const HTML_TYPE = /^(text\/html|application\/xhtml\+xml)\s*(;|$)/i;
+
+/**
+ * A web page somebody linked, for its preview: https only, text/html (or a direct raster picture, answered from the headers
+ * alone), at most the first 512 KB (the head of a page comes first; the rest is dropped, not an error), every redirect re-checked.
+ */
+export async function fetchPage(url: string | URL): Promise<FetchPageResult> {
+  const got = await safeGet(url, {
+    maxBytes: MAX_PAGE_BYTES,
+    timeoutMs: PAGE_TIMEOUT_MS,
+    allowHttp: false,
+    accept: "text/html,application/xhtml+xml,image/png,image/jpeg,image/gif,image/webp,image/avif",
+    truncate: true,
+    acceptResponse: (h) => HTML_TYPE.test(h["content-type"] ?? "") || IMAGE_TYPE.test(h["content-type"] ?? ""),
+    wantBody: (h) => !IMAGE_TYPE.test(h["content-type"] ?? ""),
+  });
+  if (!got.ok) return got;
+  if (IMAGE_TYPE.test(got.contentType ?? "")) return { ok: true, kind: "image", finalUrl: got.finalUrl };
+  return { ok: true, kind: "html", bytes: got.bytes, contentType: got.contentType ?? "text/html", finalUrl: got.finalUrl };
 }

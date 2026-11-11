@@ -165,8 +165,14 @@ export default function MessageItem({
         {message.contentState === "ok" && <MessageFiles messageId={message.id} files={message.files} canDelete={message.mine} />}
         {message.sharesVideo && <ChatVideo messageId={message.id} />}
         {message.contentState === "ok" && message.unfurls && message.unfurls.length > 0 && (
-          <MessageUnfurls unfurls={message.unfurls} ctx={ctx} permalink={message.slackPermalink ?? null} />
+          <MessageUnfurls
+            unfurls={message.unfurls}
+            ctx={ctx}
+            permalink={message.slackPermalink ?? null}
+            removable={canEdit && message.mine && !message.system && !isPendingId(message.id) ? { channelId, messageId: message.id } : undefined}
+          />
         )}
+
         {message.hasFiles && message.contentState === "ok" && message.files.length === 0 && (
           <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">📎 Includes files the Hub couldn&apos;t load.</p>
         )}

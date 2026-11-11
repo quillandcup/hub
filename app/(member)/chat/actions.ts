@@ -37,7 +37,8 @@ import {
 } from "@/lib/chat/load";
 import type { ChatTextContext } from "@/components/chat/ChatText";
 
-import { withAction } from "@/lib/analytics/server";
+import { recordAction, withAction } from "@/lib/analytics/server";
+import { refreshLinkPreviews } from "@/lib/chat/link-previews";
 import { chatCaller, postingCaller } from "@/lib/chat/caller";
 import { isHubOnlyMessage } from "@/lib/chat/hub-only";
 import { getCoursesCaller } from "@/lib/courses/caller";
@@ -335,6 +336,24 @@ async function stagedFilesFor(memberId: string, uploads: StagedUpload[]): Promis
 }
 
 /**
+ * Link previews for a message the member wrote in the Hub (docs/SLACK_BRIDGED_CHAT.md, "Link previews"), run after the response so the
+ * send never waits for another site. Behind `chat_link_previews` for the sender; for anyone else nothing is fetched and the link stays
+ * plain text. Looks only at addresses it has not looked at, so an edit that keeps a link does not fetch it again. Never throws.
+ */
+async function previewLinksAfterSend(caller: NonNullable<Awaited<ReturnType<typeof postingCaller>>>, messageId: string, body: string): Promise<void> {
+  try {
+    if (!(await effectiveMemberHasFeature("chat_link_previews", caller.identity, await getUserFeaturePreviews(caller.userId)))) return;
+    const { looked } = await refreshLinkPreviews(createRepos(createServiceRoleClient()).chatLinkPreviews, messageId, body, { ownOrigin: new URL(APP_URL).origin });
+    if (looked.length === 0) return;
+    const ok = looked.some((d) => d.status === "ok");
+    // What happened, never which address: the detail is a word, not a link.
+    await recordAction("chat_link_previews_built", { ok, detail: ok ? (looked.some((d) => d.kind === "image") ? "image" : "link") : looked.some((d) => d.status === "blocked") ? "blocked" : "failed" });
+  } catch (error) {
+    console.error("[chat] link previews of %s failed:", messageId, error instanceof Error ? error.message : "unknown error");
+  }
+}
+
+/**
  * The signed-in member posts `body` to a conversation (or as a reply in a thread). The message is
  * written first, as the member (chat_post_message checks they are in the conversation and that it
  * is bridged and open), then sent to Slack after the response (as them if they connected Slack,
@@ -405,6 +424,7 @@ async function sendChatMessageImpl(channelId: string, body: string, threadRootId
   await createRepos(supabase).chatDrafts.clear(caller.identity.memberId, { channelId, threadRootId: threadRootId ?? null }).catch((e) => console.error("chat draft clear failed:", e));
   // Tell the members it is for (their direct message, a mention, a channel they follow), after the response.
   after(() => notifyChatMessage(createRepos(createServiceRoleClient()), messageId));
+  after(() => previewLinksAfterSend(caller, messageId, text));
   if (hubOnly) return { ok: true, id: messageId };
   after(async () => {
     try {
@@ -596,6 +616,8 @@ async function editChatMessageImpl(messageId: string, body: string, uploads: Sta
 
   const { error } = await supabase.rpc("chat_edit_message", { p_message_id: messageId, p_body: text });
   if (error) return { ok: false, error: changeError(error, "edit") };
+  // An edit that adds or changes a link gets its preview; one that keeps the same links fetches nothing.
+  after(() => previewLinksAfterSend(caller, messageId, text));
 
   if (bytes.length > 0) {
     const files = added.map((f, i) => ({ id: fileIds[i], name: f.name, mimetype: f.mimetype, size: f.size }));
@@ -631,6 +653,27 @@ async function deleteChatMessageImpl(messageId: string): Promise<ChangeChatResul
 
   const { error } = await supabase.rpc("chat_delete_message", { p_message_id: messageId });
   if (error) return { ok: false, error: changeError(error, "delete") };
+  return { ok: true };
+}
+
+/**
+ * The author removes a card (a link preview, or one of Slack's unfurls) from their own message, like the X on a preview in Slack. Slack's
+ * cannot be taken away in Slack from here, so the Hub records the removal and stops drawing the card (docs/SLACK_BRIDGED_CHAT.md, "Link previews").
+ * The write is the author's own, as themselves: row-level security lets only the author of the message (a Slack author matched to a member
+ * counts) write it, so another member's call is refused. The key names the card (`unfurlKey`); the database refuses anything but an address or a position.
+ * An edit that fetches the preview again finds the mark by its address, so the card does not come back.
+ */
+async function hideChatUnfurlImpl(messageId: string, key: string): Promise<ChangeChatResult> {
+  if (!isId(messageId, "msg") || typeof key !== "string" || key.length > 2100 || !/^(url:https?:\/\/\S+|idx:\d{1,2})$/.test(key)) return { ok: false, error: "Something went wrong." };
+  const caller = await postingCaller();
+  if (!caller) return { ok: false, error: "Editing isn't available to you yet." };
+  try {
+    await createRepos(await createClient()).chatLinkPreviews.hide(messageId, key);
+  } catch (error) {
+    // Not the author, or the message is gone: the database says no. The key can hold an address, so only the message is named.
+    console.error("[chat] removing a card of %s failed:", messageId, error instanceof Error ? error.message : "unknown error");
+    return { ok: false, error: "That preview can't be removed." };
+  }
   return { ok: true };
 }
 
@@ -672,6 +715,10 @@ export async function editChatMessage(...args: Parameters<typeof editChatMessage
 
 export async function deleteChatMessage(...args: Parameters<typeof deleteChatMessageImpl>): ReturnType<typeof deleteChatMessageImpl> {
   return withAction("chat_message_deleted", () => deleteChatMessageImpl(...args));
+}
+
+export async function hideChatUnfurl(...args: Parameters<typeof hideChatUnfurlImpl>): ReturnType<typeof hideChatUnfurlImpl> {
+  return withAction("chat_unfurl_hidden", () => hideChatUnfurlImpl(...args));
 }
 
 export async function deleteChatFile(...args: Parameters<typeof deleteChatFileImpl>): ReturnType<typeof deleteChatFileImpl> {

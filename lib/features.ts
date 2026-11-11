@@ -1,4 +1,4 @@
-export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat_dms' | 'chat_videos' | 'slack_dm_bridge' | 'big_sisters' | 'prickle_reminders' | 'checkin_dropins' | 'hosting' | 'writing_journey' | 'mux_playback_restriction' | 'mux_data' | 'changelog_digest' | 'chat_notifications';
+export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat_dms' | 'chat_videos' | 'slack_dm_bridge' | 'big_sisters' | 'prickle_reminders' | 'checkin_dropins' | 'hosting' | 'writing_journey' | 'mux_playback_restriction' | 'mux_data' | 'changelog_digest' | 'chat_notifications' | 'chat_link_previews';
 
 export interface FeaturePreview {
   key: FeatureKey;
@@ -46,6 +46,11 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     key: 'chat_videos',
     name: 'Chat videos',
     description: 'Share a course lesson\'s video into a chat conversation, with a button on the lesson page. This decides who can share; any member who can read the message can see the card. Only members with access to the course can play it; everyone else sees that it is part of a course. In Slack the message shows a link to the lesson.',
+  },
+  {
+    key: 'chat_link_previews',
+    name: 'Chat link previews',
+    description: 'A link in a message you send from Hub Chat gets a preview card under it (the page\'s title, description, site and picture; or the picture itself when the link points straight at one). This decides whose messages get previews: the Hub looks at the page once, right after the message is sent (never when someone reads it), and everyone who can read the message sees the card. Messages that come from Slack already carry Slack\'s own previews. For everyone else nothing is fetched and the link stays plain text',
   },
   {
     key: 'slack_dm_bridge',
