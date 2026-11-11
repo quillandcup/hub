@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { botOf } from "@/lib/chat/load";
 import { withLinkPreviews } from "@/lib/chat/link-preview-cards";
+import { cachedUnfurlImage } from "@/lib/chat/unfurl-image-cache";
 import { unfurlImageUrls } from "@/lib/chat/unfurl-images";
 import { parseUnfurls } from "@/lib/chat/unfurls";
 import { createRepos } from "@/lib/data/repos";
 import { isId } from "@/lib/ids";
-import { fetchImage } from "@/lib/net/safe-fetch";
 import { hitRateLimits } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
@@ -29,7 +29,7 @@ const unavailable = () => NextResponse.json({ error: "Not available" }, { status
  * so the host that serves it never learns who looked (docs/SLACK_BRIDGED_CHAT.md, "Pictures"). The request names a message and
  * a position, never an address: the message is read as the viewer (row-level security decides whether they can read it at
  * all), its pictures are listed in the order the renderer used (lib/chat/unfurl-images.ts), and the one at that position is fetched
- * by `fetchImage`, which refuses anything but a public https address and anything but a raster image. What goes back is the
+ * by `fetchImage` (behind the stored-copy cache of lib/chat/unfurl-image-cache.ts, read only after those checks), which refuses anything but a public https address and anything but a raster image. What goes back is the
  * bytes and a type we sniffed ourselves, never a header from the other end.
  */
 export async function GET(request: NextRequest) {
@@ -69,7 +69,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429, headers: { "Cache-Control": "no-store", "Retry-After": String(LIMIT.windowSeconds) } });
   }
 
-  const image = await fetchImage(url);
+  // Only now, after the viewer's own read of the message and the rate limit, do bytes come from our copy or the host.
+  const image = await cachedUnfurlImage(createServiceRoleClient().storage, url);
   if (!image.ok) {
     // The reason is one of our own codes; the address can carry a token, so it is not logged.
     // The upstream status (a number) says whether a host refused us (403) or lost the file (404).

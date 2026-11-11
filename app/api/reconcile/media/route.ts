@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { createRepos } from "@/lib/data/repos";
+import { sweepUnfurlImages } from "@/lib/chat/unfurl-image-cache";
 import { sweepMedia } from "@/lib/media/sweep";
 import { pingCronHeartbeat } from "@/lib/cron-heartbeats";
 
@@ -21,9 +22,11 @@ export async function GET(request: NextRequest) {
   try {
     const service = createServiceRoleClient();
     const result = await sweepMedia(createRepos(service).media, service.storage);
-    console.log("[Reconciliation] Media sweep complete:", result);
+    // Same nightly slot: week-old stored copies of chat pictures (lib/chat/unfurl-image-cache.ts).
+    const unfurlImages = await sweepUnfurlImages(service.storage);
+    console.log("[Reconciliation] Media sweep complete:", result, "unfurl pictures:", unfurlImages);
     await pingCronHeartbeat("reconcile-media");
-    return NextResponse.json({ success: true, reconciliation: "media", ...result });
+    return NextResponse.json({ success: true, reconciliation: "media", ...result, unfurlImages });
   } catch (error: any) {
     console.error("[Reconciliation] Error sweeping media:", error);
     return NextResponse.json({ error: error.message || "Failed to sweep media" }, { status: 500 });

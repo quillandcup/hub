@@ -10,12 +10,15 @@ import { createInMemoryRepos } from "@/lib/data/repos";
 import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import { FakeStorage } from "../helpers/fake-storage";
+import { resetUnfurlImageMemory } from "@/lib/chat/unfurl-image-cache";
 import { setNetHooks, type Transport, type TransportRequest } from "@/lib/net/safe-fetch";
 
 const MESSAGE = "msg_AAAAAAAAAAA1";
 const PUBLIC = "93.184.216.34";
 const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(16)]);
 
+let storage = new FakeStorage();
 let repos = createInMemoryRepos();
 vi.mock("@/lib/data/repos", async () => ({
   ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
@@ -56,8 +59,11 @@ const known = () => Object.fromEntries(["big", "small", "second", "logo"].map((n
 beforeEach(() => {
   vi.mocked(getCurrentUser).mockResolvedValue({ id: "user-1", email: "member@example.com" });
   vi.mocked(createClient).mockResolvedValue({} as never);
-  vi.mocked(createServiceRoleClient).mockReturnValue({} as never);
+  vi.mocked(createServiceRoleClient).mockReturnValue({ storage } as never);
   setMessage();
+  storage = new FakeStorage();
+  vi.mocked(createServiceRoleClient).mockReturnValue({ storage } as never);
+  resetUnfurlImageMemory();
   upstream = known();
   requests = [];
   resolves = { "img.example.test": [PUBLIC] };
@@ -206,6 +212,49 @@ describe("GET /api/chat/unfurl-image", () => {
     const res = await get(`?m=${MESSAGE}&i=0`);
     expect(res.status).toBe(429);
     expect(requests).toEqual([]);
+  });
+
+  describe("the stored copy", () => {
+    it("fetches a picture once and serves the next viewer from the copy, with the same headers", async () => {
+      await get(`?m=${MESSAGE}&i=1`);
+      requests = [];
+      const res = await get(`?m=${MESSAGE}&i=1`);
+      expect(requests).toEqual([]);
+      expect(res.status).toBe(200);
+      expect(Buffer.from(await res.arrayBuffer())).toEqual(png);
+      expect(res.headers.get("content-type")).toBe("image/png");
+      expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+      expect(res.headers.get("content-security-policy")).toBe("default-src 'none'; sandbox");
+      expect(res.headers.get("cache-control")).toMatch(/^private, max-age=\d+$/);
+    });
+
+    it("still checks the viewer on a hit: an unreadable, deleted or missing message is a 404 even when its picture is stored", async () => {
+      await get(`?m=${MESSAGE}&i=1`);
+      expect(storage.objects.size).toBe(1);
+      requests = [];
+      for (const over of [{ hidden: true }, { deleted: true }, { attachments: [] }]) {
+        setMessage(over);
+        expect((await get(`?m=${MESSAGE}&i=1`)).status).toBe(404);
+      }
+      setMessage();
+      vi.mocked(getCurrentUser).mockResolvedValue(null);
+      expect((await get(`?m=${MESSAGE}&i=1`)).status).toBe(401);
+      expect(requests).toEqual([]);
+    });
+
+    it("still rate limits on a hit", async () => {
+      await get(`?m=${MESSAGE}&i=1`);
+      vi.spyOn(repos.rateLimit, "hit").mockResolvedValue(false);
+      expect((await get(`?m=${MESSAGE}&i=1`)).status).toBe(429);
+    });
+
+    it("stores nothing for a refused picture, and leaves a failing host alone for a while", async () => {
+      upstream["https://img.example.test/small.png"] = { body: Buffer.from("<html>"), headers: { "content-type": "image/png" } };
+      expect((await get(`?m=${MESSAGE}&i=1`)).status).toBe(502);
+      expect((await get(`?m=${MESSAGE}&i=1`)).status).toBe(502);
+      expect(requests).toHaveLength(1);
+      expect(storage.objects.size).toBe(0);
+    });
   });
 });
 
