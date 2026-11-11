@@ -6,6 +6,17 @@ type MemberStatusRepos = Pick<Repos, "aliases" | "billing" | "memberStatus" | "m
 
 export type MemberStatus = "lead" | "active" | "on_hiatus" | "cancelled";
 
+/** A member's membership state over time: the state at any instant, and when they first stopped being active after one. */
+export type MemberStatusTimeline = {
+  statusAt: (at: Date) => MemberStatus;
+  /**
+   * The first moment after `after`, up to and including `until`, that they went on hiatus (`on_hiatus`) or left (`cancelled`):
+   * the start of the first hiatus or gap in the membership timeline that begins in that stretch. Null when none did. A
+   * member who came back later still has the first one, so an early lapse stays visible.
+   */
+  firstLapse: (after: Date, until: Date) => { status: "on_hiatus" | "cancelled"; at: Date } | null;
+};
+
 /**
  * A member's membership state at any instant, from the same history `recomputeMemberStatus` reads (the Membership
  * Timeline's engine, `buildMembershipTimeline`), so "was a member then" is derived, never assumed: a member on hiatus is
@@ -16,12 +27,12 @@ export type MemberStatus = "lead" | "active" | "on_hiatus" | "cancelled";
 export async function memberStatusTimeline(
   repos: MemberStatusRepos,
   memberId: string
-): Promise<{ statusAt: (at: Date) => MemberStatus } | null> {
+): Promise<MemberStatusTimeline | null> {
   const member = await repos.members.byId(memberId);
   if (!member) return null;
 
   // Staff are always active regardless of subscription/hiatus state (see reprocess_members_atomic's staff_role handling).
-  if (member.staffRole) return { statusAt: () => "active" };
+  if (member.staffRole) return { statusAt: () => "active", firstLapse: () => null };
 
   const [emailAliasRows, hiatusRows, enrollments, overrideRows] = await Promise.all([
     repos.aliases.emailsOf(memberId),
@@ -44,6 +55,20 @@ export async function memberStatusTimeline(
 
   const segments = buildMembershipTimeline(membershipHistory, hiatusRows, programOverrides, overrideRows);
   return {
+    firstLapse(after, until) {
+      // Moments they stopped being active: a hiatus or a gap beginning, or an active stretch ending with nothing after it (the
+      // timeline drops a trailing open-ended gap, so a final cancellation shows only as the end of the last active stretch).
+      const events: { status: "on_hiatus" | "cancelled"; at: Date }[] = [];
+      for (const seg of segments) {
+        if (seg.state !== "active") events.push({ status: seg.state === "hiatus" ? "on_hiatus" : "cancelled", at: seg.startDate });
+        else if (seg.endDate && !segments.some((other) => other.startDate.getTime() === seg.endDate!.getTime())) events.push({ status: "cancelled", at: seg.endDate });
+      }
+      return (
+        events
+          .filter((e) => e.at.getTime() > after.getTime() && e.at.getTime() <= until.getTime())
+          .sort((x, y) => x.at.getTime() - y.at.getTime())[0] ?? null
+      );
+    },
     statusAt(at) {
       const instant = at.getTime();
       const current = segments.find((s) => s.startDate.getTime() <= instant && (s.endDate === null || s.endDate.getTime() > instant));

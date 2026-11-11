@@ -1,5 +1,9 @@
 import {
+  careCheckpoints,
   careWindows,
+  commitmentLength,
+  type CareCheckpoint,
+  type CareFirstLapse,
   type CareMembership,
   type CareResults,
   type CareTimes,
@@ -53,18 +57,31 @@ export async function careExcludedMemberIds(repos: Pick<Repos, "staff" | "member
   return excluded;
 }
 
+/** A program's start and end as instants: a plain date is the start of that Eastern day. */
+function programWindow(e: { startsAt: string; expiresAt: string }): [number, number] {
+  return [startInstant(e.startsAt), startInstant(e.expiresAt)];
+}
+
+const MS_PER_DAY = 86_400_000;
+
 /**
- * What the member did before, during and after an engagement, from their own activity (docs/HEDGIE_CARE.md, "Measuring
- * her influence"). Computed on request, never stored, so any window can be recomputed for any date. A window that has
- * not passed is counted up to now (during) or not at all (after, `counts: null`). These are descriptions, not proof the
- * outreach caused them.
+ * What the member did before, during and after an engagement, from their own activity, and how they stayed afterwards
+ * (docs/HEDGIE_CARE.md, "Measuring her influence"). Computed on request, never stored, so any window can be recomputed for any
+ * date. A window that has not passed is counted up to now (during) or not at all (after, `counts: null`); a retention
+ * checkpoint that has not passed is `not_yet`. These are descriptions, not proof the outreach caused them.
+ *
+ * Retention is derived from membership history, never assumed: active, on hiatus (not the same as gone) or cancelled at each
+ * checkpoint (`careRetentionCheckpointDays`), plus the first time after it opened that they went on hiatus or left, so a
+ * day-31 lapse is visible even if they came back. Commitment is the programs they were enrolled in, with each cohort's own
+ * length; a subscription's billing interval is not read (docs/TODO.md).
  */
 export async function loadCareResults(
   repos: ResultRepos,
   privileged: CarePrivilegedRepos,
   engagement: Pick<CareEngagementRow, "member_id" | "opened_by"> & CareTimes,
   now: Date,
-  settings?: CareWindowSettings
+  settings?: CareWindowSettings,
+  checkpointDays?: readonly number[]
 ): Promise<CareResults> {
   const windows = careWindows(engagement, now, settings);
   const names = Object.keys(windows) as CareWindowName[];
@@ -74,6 +91,7 @@ export async function loadCareResults(
     memberStatusTimeline(privileged, engagement.member_id),
     privileged.programs.enrollmentsOf(engagement.member_id),
   ]);
+  const programLabel = (e: { programName: string; startsAt: string; expiresAt: string }) => `${e.programName}, ${commitmentLength(e.startsAt, e.expiresAt)}`;
 
   const result = async (window: CareWindow): Promise<CareWindowResult> => {
     if (window.state === "not_yet") return { window, counts: null };
@@ -81,7 +99,6 @@ export async function loadCareResults(
       repos.activities.countsBetween(engagement.member_id, window.from, window.to),
       repos.memberInteractions.counterpartsBetween(engagement.member_id, window.from, window.to),
     ]);
-    const lastInstant = new Date(Math.min(Date.parse(window.to) - 1, now.getTime()));
     const from = Date.parse(window.from);
     const to = Date.parse(window.to);
     return {
@@ -91,12 +108,32 @@ export async function loadCareResults(
         firstPrickle: inWindow(firsts.firstPrickleAt, window),
         firstSlackPost: inWindow(firsts.firstSlackPostAt, window),
         peopleConnected: [...counterparts].filter((id) => !excluded.has(id)).length,
-        membershipAtEnd: timeline ? MEMBERSHIP_OF[timeline.statusAt(lastInstant)] : "not_a_member",
-        programsStarted: [...new Set(enrollments.filter((e) => startInstant(e.startsAt) >= from && startInstant(e.startsAt) < to).map((e) => e.programName))].sort(),
+        programsStarted: [...new Set(enrollments.filter((e) => startInstant(e.startsAt) >= from && startInstant(e.startsAt) < to).map(programLabel))].sort(),
       },
     };
   };
 
+  const checkpoint = (c: { days: number; at: Date; state: "complete" | "not_yet" }): CareCheckpoint => {
+    if (c.state === "not_yet") return { days: c.days, at: c.at.toISOString(), state: c.state, membership: null, programs: null };
+    const at = c.at.getTime();
+    return {
+      days: c.days,
+      at: c.at.toISOString(),
+      state: c.state,
+      membership: timeline ? MEMBERSHIP_OF[timeline.statusAt(c.at)] : "not_a_member",
+      programs: [...new Set(enrollments.filter((e) => programWindow(e)[0] <= at && at < programWindow(e)[1]).map(programLabel))].sort(),
+    };
+  };
+
+  const opened = new Date(engagement.opened_at);
+  const lapse = timeline?.firstLapse(opened, now) ?? null;
+  const firstLapse: CareFirstLapse | null = lapse
+    ? { status: lapse.status, at: lapse.at.toISOString(), daysAfterStart: Math.max(0, Math.floor((lapse.at.getTime() - opened.getTime()) / MS_PER_DAY)) }
+    : null;
+
   const results = await Promise.all(names.map((name) => result(windows[name])));
-  return Object.fromEntries(names.map((name, i) => [name, results[i]])) as CareResults;
+  return {
+    windows: Object.fromEntries(names.map((name, i) => [name, results[i]])) as CareResults["windows"],
+    retention: { checkpoints: careCheckpoints(engagement, now, checkpointDays).map(checkpoint), firstLapse },
+  };
 }

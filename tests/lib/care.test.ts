@@ -9,8 +9,10 @@ import {
   CARE_REASON_LABELS,
   CARE_SETTINGS,
   CARE_WINDOW_SETTINGS,
+  careCheckpoints,
   careStatus,
   careWindows,
+  commitmentLength,
   daysAgoLabel,
   endOfOrgDay,
   isActiveStatus,
@@ -29,7 +31,15 @@ import {
   sortEarlier,
   type CareTimes,
 } from "@/lib/care";
-import { CARE_AFTER_FROM_DAYS, CARE_AFTER_TO_DAYS, CARE_BEFORE_DAYS, CARE_ENGAGEMENT_DAYS, CARE_LAPSE_GRACE_DAYS, CARE_QUIET_DAYS } from "@/lib/config";
+import {
+  CARE_AFTER_FROM_DAYS,
+  CARE_AFTER_TO_DAYS,
+  CARE_BEFORE_DAYS,
+  CARE_ENGAGEMENT_DAYS,
+  CARE_LAPSE_GRACE_DAYS,
+  CARE_QUIET_DAYS,
+  CARE_RETENTION_CHECKPOINT_DAYS,
+} from "@/lib/config";
 
 const settings = { engagementDays: 30, lapseGraceDays: 14, quietDays: 14 };
 
@@ -362,5 +372,39 @@ describe("periodNumber", () => {
   it("stops at an ancestor that is not among the rows, and at a cycle", () => {
     expect(of("care_AAAAAAAAAAA4")).toBe(1);
     expect(of("care_AAAAAAAAAAA5")).toBe(2);
+  });
+});
+
+describe("careCheckpoints", () => {
+  const ends = { period_ends_on: "2026-03-31" };
+
+  it("reads the checkpoint days from config, soonest first, each an Eastern calendar day after the period's last day", () => {
+    const checkpoints = careCheckpoints(ends, new Date("2030-01-01T00:00:00Z"));
+    expect(checkpoints.map((c) => c.days)).toEqual([...CARE_RETENTION_CHECKPOINT_DAYS].sort((a, b) => a - b));
+    expect(CARE_RETENTION_CHECKPOINT_DAYS.length).toBeGreaterThan(0);
+  });
+
+  it("starts the day after the last day plus N days, in Eastern time, across daylight saving", () => {
+    const [d60, d90, d180] = careCheckpoints(ends, new Date("2030-01-01T00:00:00Z"), [180, 60, 90]);
+    expect(d60.at.toISOString()).toBe("2026-05-31T04:00:00.000Z"); // Mar 31 + 61 days, EDT
+    expect(d90.at.toISOString()).toBe("2026-06-30T04:00:00.000Z");
+    expect(d180.at.toISOString()).toBe("2026-09-28T04:00:00.000Z");
+    // a period ending Aug 31 has its day 90 on Nov 30 (EST: the clocks changed in between), the 91st day counting from the day after
+    expect(careCheckpoints({ period_ends_on: "2026-08-31" }, new Date("2030-01-01T00:00:00Z"), [90])[0].at.toISOString()).toBe("2026-11-30T05:00:00.000Z");
+  });
+
+  it("is not yet until the moment, to the millisecond", () => {
+    expect(careCheckpoints(ends, new Date("2026-05-31T03:59:59.999Z"), [60])[0].state).toBe("not_yet");
+    expect(careCheckpoints(ends, new Date("2026-05-31T04:00:00.000Z"), [60])[0].state).toBe("complete");
+  });
+});
+
+describe("commitmentLength", () => {
+  it("says days for a short program and months from two months on, from the cohort's own dates", () => {
+    expect(commitmentLength("2026-03-01", "2026-03-15")).toBe("14 days");
+    expect(commitmentLength("2026-03-01", "2026-03-02")).toBe("1 day");
+    expect(commitmentLength("2026-03-01", "2026-08-28")).toBe("6 months");
+    expect(commitmentLength("2026-01-01", "2026-12-31")).toBe("12 months");
+    expect(commitmentLength("2026-05-01", "2026-04-01")).toBe("0 days");
   });
 });

@@ -11,6 +11,7 @@ import {
   CARE_ENGAGEMENT_DAYS,
   CARE_LAPSE_GRACE_DAYS,
   CARE_QUIET_DAYS,
+  CARE_RETENTION_CHECKPOINT_DAYS,
   ORG_TIMEZONE,
 } from "@/lib/config";
 import { addDays, orgYmd, type Ymd } from "@/lib/org-week";
@@ -212,13 +213,13 @@ export function careWindows(
   };
 }
 
-/** Whether they were a member at the end of a window: derived from membership history, a member on hiatus is not gone. */
+/** Whether they were active, on hiatus or cancelled at a moment: derived from membership history; a member on hiatus has not left (and is not counted as having stayed either). */
 export type CareMembership = "member" | "on_hiatus" | "not_a_member";
 
 export const CARE_MEMBERSHIP_LABELS: Record<CareMembership, string> = {
-  member: "Member",
+  member: "Active",
   on_hiatus: "On hiatus",
-  not_a_member: "Not a member",
+  not_a_member: "Cancelled",
 };
 
 /** What was counted in one window. `counts` is null where the window is `not_yet`. */
@@ -234,14 +235,58 @@ export type CareWindowResult = {
     firstSlackPost: boolean;
     /** Distinct members they interacted with (DMs, thread replies, mentions, reactions), not counting staff. */
     peopleConnected: number;
-    /** Their membership at the end of the window (the end so far for one still running), from the membership history. */
-    membershipAtEnd: CareMembership;
-    /** The programs they were enrolled in from a start date inside the window (names). */
+    /** The programs whose cohort started inside the window, each with its own length ("Example Program, 6 months"). */
     programsStarted: string[];
   } | null;
 };
 
-export type CareResults = Record<CareWindowName, CareWindowResult>;
+/**
+ * One checkpoint of the graded retention view: `days` after the period's last day, whether they were active, on hiatus or
+ * cancelled then. Three distinct states, never a single weighted number (any weighting for a cohort view is config).
+ * `membership` and `programs` are null while the checkpoint is `not_yet`.
+ */
+export type CareCheckpoint = {
+  days: number;
+  /** The instant: the start of the Eastern day `days` days after the period's last day. */
+  at: string;
+  state: "complete" | "not_yet";
+  membership: CareMembership | null;
+  /** The programs they were enrolled in at that moment, each with its length (the commitment held), or none. */
+  programs: string[] | null;
+};
+
+/** The first time, after the engagement opened, that they went on hiatus or left, even if they came back. */
+export type CareFirstLapse = { status: "on_hiatus" | "cancelled"; at: string; daysAfterStart: number };
+
+export type CareRetention = {
+  checkpoints: CareCheckpoint[];
+  /** Null when they have not gone on hiatus or left since it opened. */
+  firstLapse: CareFirstLapse | null;
+};
+
+export type CareResults = { windows: Record<CareWindowName, CareWindowResult>; retention: CareRetention };
+
+/** The checkpoint instants and whether each has passed: `days` after the period's last day, by Eastern calendar day. */
+export function careCheckpoints(
+  engagement: Pick<CareTimes, "period_ends_on">,
+  now: Date,
+  days: readonly number[] = CARE_RETENTION_CHECKPOINT_DAYS
+): { days: number; at: Date; state: "complete" | "not_yet" }[] {
+  return [...days]
+    .sort((a, b) => a - b)
+    .map((n) => {
+      const at = zonedTimeToUtc(addDays(engagement.period_ends_on, 1 + n), "00:00", ORG_TIMEZONE);
+      return { days: n, at, state: at.getTime() <= now.getTime() ? ("complete" as const) : ("not_yet" as const) };
+    });
+}
+
+/** How long a program (a cohort's own start and end dates) is, for the commitment it was: "6 months" from 60 days on, else days. */
+export function commitmentLength(startsAt: string, expiresAt: string): string {
+  const days = Math.max(0, Math.round((Date.parse(expiresAt) - Date.parse(startsAt)) / MS_PER_DAY));
+  if (days < 60) return `${days} day${days === 1 ? "" : "s"}`;
+  const months = Math.round(days / 30.4);
+  return `${months} months`;
+}
 
 /**
  * Which period of a chain of renewals this engagement is (the first is 1): one more than the number of engagements it was

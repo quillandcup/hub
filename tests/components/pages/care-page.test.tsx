@@ -111,11 +111,21 @@ function seed() {
 
 const RESULTS = (() => {
   const window = (name: "before" | "during" | "after", state: "complete" | "so_far" | "not_yet") => ({ name, from: "2026-02-01T05:00:00.000Z", to: "2026-03-01T05:00:00.000Z", state });
-  const counts = (n: number) => ({ pricklesAttended: n, slackMessages: n + 1, firstPrickle: n === 2, firstSlackPost: false, peopleConnected: n + 2, membershipAtEnd: n === 2 ? "on_hiatus" : "member", programsStarted: n === 2 ? ["Example Program"] : [] });
+  const counts = (n: number) => ({ pricklesAttended: n, slackMessages: n + 1, firstPrickle: n === 2, firstSlackPost: false, peopleConnected: n + 2, programsStarted: n === 2 ? ["Example Program, 6 months"] : [] });
   return {
-    before: { window: window("before", "complete"), counts: counts(1) },
-    during: { window: window("during", "so_far"), counts: counts(2) },
-    after: { window: window("after", "not_yet"), counts: null },
+    windows: {
+      before: { window: window("before", "complete"), counts: counts(1) },
+      during: { window: window("during", "so_far"), counts: counts(2) },
+      after: { window: window("after", "not_yet"), counts: null },
+    },
+    retention: {
+      checkpoints: [
+        { days: 60, at: "2026-05-31T04:00:00.000Z", state: "complete", membership: "on_hiatus", programs: ["Example Program, 6 months"] },
+        { days: 90, at: "2026-06-30T04:00:00.000Z", state: "complete", membership: "member", programs: [] },
+        { days: 180, at: "2026-09-28T04:00:00.000Z", state: "not_yet", membership: null, programs: null },
+      ],
+      firstLapse: { status: "on_hiatus", at: "2026-04-01T04:00:00.000Z", daysAfterStart: 31 },
+    },
   };
 })();
 
@@ -345,7 +355,7 @@ describe("the controls", () => {
     const ada = cards()[0];
 
     await user.click(within(ada).getByRole("button", { name: "Renew" }));
-    expect(await within(ada).findByRole("table")).toBeInTheDocument(); // the measured results, loaded for the decision
+    expect((await within(ada).findAllByRole("table")).length).toBe(2); // the measured results, loaded for the decision
     expect(actions.getEngagementResults).toHaveBeenCalledWith("care_AAAAAAAAAAA2");
     expect(actions.renewEngagement).not.toHaveBeenCalled();
 
@@ -405,7 +415,7 @@ describe("the controls", () => {
     const ada = cards()[0];
 
     await user.click(within(ada).getByRole("button", { name: "Close" }));
-    expect(await within(ada).findByRole("table")).toBeInTheDocument();
+    expect((await within(ada).findAllByRole("table")).length).toBe(2);
     await user.click(within(ada).getByRole("button", { name: "Close engagement" }));
     expect(within(ada).getByRole("alert")).toHaveTextContent("Pick how it ended.");
     expect(actions.closeEngagement).not.toHaveBeenCalled();
@@ -457,25 +467,35 @@ describe("the results", () => {
     expect(actions.getEngagementResults).not.toHaveBeenCalled();
     await user.click(within(ada).getByRole("button", { name: "Results" }));
 
-    expect(await within(ada).findByRole("table")).toBeInTheDocument();
+    expect(await within(ada).findAllByRole("table")).toHaveLength(2);
     expect(actions.getEngagementResults).toHaveBeenCalledWith("care_AAAAAAAAAAA2");
-    const rows = within(ada).getAllByRole("row");
+    const [windows, staying] = within(ada).getAllByRole("table");
+    const rows = within(windows).getAllByRole("row");
     expect(rows).toHaveLength(4); // header and three windows
     expect(within(rows[1]).getByText("Before")).toBeInTheDocument();
-    expect(within(rows[1]).getByText("Member")).toBeInTheDocument();
     expect(within(rows[1]).getAllByText("None")).toHaveLength(2); // no firsts in the window, and no programs started
     expect(within(rows[2]).getByText(/so far/)).toBeInTheDocument();
     expect(within(rows[2]).getByText("first prickle")).toBeInTheDocument();
-    expect(within(rows[2]).getByText("On hiatus")).toBeInTheDocument();
-    expect(within(rows[2]).getByText("Example Program")).toBeInTheDocument();
+    expect(within(rows[2]).getByText("Example Program, 6 months")).toBeInTheDocument();
     expect(within(rows[3]).getByText("Not yet")).toBeInTheDocument();
+
+    // How they stayed: three distinct states at each checkpoint, "Not yet" for one that has not passed.
+    const checkpoints = within(staying).getAllByRole("row");
+    expect(checkpoints).toHaveLength(4);
+    expect(within(checkpoints[1]).getByText("60 days after the period")).toBeInTheDocument();
+    expect(within(checkpoints[1]).getByText("On hiatus")).toBeInTheDocument();
+    expect(within(checkpoints[1]).getByText("Example Program, 6 months")).toBeInTheDocument();
+    expect(within(checkpoints[2]).getByText("Active")).toBeInTheDocument();
+    expect(within(checkpoints[3]).getByText("Not yet")).toBeInTheDocument();
+    expect(within(ada).getByText(/First went on hiatus: 31 days after it started/)).toBeInTheDocument();
+    expect(within(ada).getByText(/even if they came back/)).toBeInTheDocument();
     expect(within(ada).getByText(/read each one as a story, not a score/)).toBeInTheDocument();
     expect(within(ada).getByText(/do not show the outreach caused it/)).toBeInTheDocument();
 
     await user.click(within(ada).getByRole("button", { name: "Results" }));
-    expect(within(ada).queryByRole("table")).not.toBeInTheDocument();
+    expect(within(ada).queryAllByRole("table")).toHaveLength(0);
     await user.click(within(ada).getByRole("button", { name: "Results" }));
-    expect(within(ada).getByRole("table")).toBeInTheDocument();
+    expect(within(ada).getAllByRole("table")).toHaveLength(2);
     expect(actions.getEngagementResults).toHaveBeenCalledTimes(1);
   });
 
@@ -487,7 +507,7 @@ describe("the results", () => {
     await userEvent.setup().click(within(cards()[0]).getByRole("button", { name: "Results" }));
 
     expect(await within(cards()[0]).findByRole("alert")).toHaveTextContent("Couldn't work out the results.");
-    expect(within(cards()[0]).queryByRole("table")).not.toBeInTheDocument();
+    expect(within(cards()[0]).queryAllByRole("table")).toHaveLength(0);
   });
 });
 

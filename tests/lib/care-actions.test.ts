@@ -446,9 +446,12 @@ describe("getEngagementResults", () => {
 
     expect("results" in answer).toBe(true);
     if (!("results" in answer)) return;
-    expect(answer.results.before.counts).toMatchObject({ pricklesAttended: 1, firstPrickle: true });
-    expect(answer.results.during.counts).toMatchObject({ pricklesAttended: 1, firstPrickle: false });
-    expect(answer.results.after.counts).toBeNull();
+    expect(answer.results.windows.before.counts).toMatchObject({ pricklesAttended: 1, firstPrickle: true });
+    expect(answer.results.windows.during.counts).toMatchObject({ pricklesAttended: 1, firstPrickle: false });
+    expect(answer.results.windows.after.counts).toBeNull();
+    expect(answer.results.retention.checkpoints.length).toBeGreaterThan(0);
+    expect(answer.results.retention.checkpoints.every((c) => c.state === "not_yet")).toBe(true);
+    expect(answer.results.retention.firstLapse).toBeNull();
   });
 
   it("refuses a bad id, an unknown engagement and a plain member", async () => {

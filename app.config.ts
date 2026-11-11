@@ -51,6 +51,8 @@ export const appConfig = {
    * `careQuietDays`: days with nothing from either side before "waiting on them" becomes "gone quiet".
    * `careBeforeDays`, `careAfterFromDays`, `careAfterToDays`: the measured windows. Before is this many days before it
    * opened; after is from `careAfterFromDays` to `careAfterToDays` days after the period ended.
+   * `careRetentionCheckpointDays`: the days after the period's last day at which the results say whether the member was
+   * active, on hiatus or cancelled (the graded retention view). Starting points for the owner to confirm.
    */
   careEngagementDays: 30,
   careLapseGraceDays: 14,
@@ -58,6 +60,7 @@ export const appConfig = {
   careBeforeDays: 28,
   careAfterFromDays: 30,
   careAfterToDays: 60,
+  careRetentionCheckpointDays: [60, 90, 180],
 
   /** Support address shown to members (settings, /no-access, the auth email footer). */
   supportEmail: "support@quillandcup.com",
