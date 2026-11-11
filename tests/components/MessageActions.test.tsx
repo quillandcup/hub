@@ -101,6 +101,14 @@ describe("MessageActions menu", () => {
     ]);
   });
 
+  it("orders the menu like Slack: Edit, then the copies, then Delete last, in separated sections", async () => {
+    render(<MessageActions {...props} canChange />);
+    await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+    const items = screen.getAllByRole("menuitem").map((el) => el.textContent);
+    expect(items).toEqual(["Edit message", "Copy link", "Copy message", "Delete message"]);
+    expect(screen.getAllByRole("separator")).toHaveLength(2);
+  });
+
   it("shows 'Message copied' for 1.5 s with a single timer, restarts it on a second copy, and leaves none behind on unmount", async () => {
     Object.defineProperty(navigator, "clipboard", { value: { writeText: vi.fn().mockResolvedValue(undefined) }, configurable: true });
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
