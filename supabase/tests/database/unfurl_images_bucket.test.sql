@@ -1,4 +1,4 @@
--- pgTAP tests for 20270618000000_unfurl_images_bucket.sql: the chat picture cache is a private, size- and
+-- pgTAP tests for 20270623000000_unfurl_images_bucket.sql: the chat picture cache is a private, size- and
 -- type-limited bucket that no API user can reach directly. Rolled back; run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;

@@ -6,7 +6,7 @@ import { fetchImage, sniffImageType, type FetchImageResult } from "@/lib/net/saf
 type Storage = Pick<SupabaseClient["storage"], "from">;
 type FailureReason = Extract<FetchImageResult, { ok: false }>["reason"];
 
-/** The private bucket (supabase/migrations/20270618000000_unfurl_images_bucket.sql): service role only, raster types, 5 MB. */
+/** The private bucket (supabase/migrations/20270623000000_unfurl_images_bucket.sql): service role only, raster types, 5 MB. */
 export const UNFURL_IMAGE_BUCKET = "unfurl-images";
 /** A copy is kept this long, then the nightly sweep removes it and the next viewer fetches it again (so a changed picture shows up). */
 export const UNFURL_IMAGE_TTL_DAYS = 7;
