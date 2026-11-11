@@ -8,7 +8,8 @@ import { membersWithFeature } from "@/lib/features.server";
 import { createRepos } from "@/lib/data/repos";
 import type { Db } from "@/lib/data/db";
 import { updateChatMessageInSlack } from "@/lib/chat/slack-edit";
-import { sharedVideoSlackLine } from "@/lib/chat/video-link";
+import { sharedVideoDefaultText, sharedVideoSlackLine } from "@/lib/chat/video-link";
+import { escapeForSlack } from "@/lib/chat/slack-post";
 import { parseChatFiles } from "@/lib/chat/files";
 
 /**
@@ -43,7 +44,14 @@ export const rewriteInSlack =
       if (parseChatFiles(row.files).length > 0) return;
       const line = await sharedVideoSlackLine(repos, messageId, row.slackChannelId);
       if (!line) return;
-      const result = await updateChatMessageInSlack(supabase, { messageId, memberId, body: `${text}${line}`.replace(/^\n/, ""), dropPreviews: true });
+      // As a message sent from the Hub says "Shared a lesson video: <title>" when the address was all there was.
+      let lead = text;
+      if (!lead.trim()) {
+        const lessonId = (await repos.chatVideos.lessonIdsOf([messageId])).get(messageId);
+        const title = lessonId ? (await repos.courses.lessonById(lessonId))?.title : null;
+        lead = title ? escapeForSlack(sharedVideoDefaultText(title)) : "";
+      }
+      const result = await updateChatMessageInSlack(supabase, { messageId, memberId, body: `${lead}${line}`.replace(/^\n/, ""), dropPreviews: true });
       if (!result.ok) console.error("[chat] rewriting the Slack copy of message %s failed: %s", messageId, result.error);
     } catch (error) {
       console.error("[chat] rewriting the Slack copy of message %s failed:", messageId, error instanceof Error ? error.message : error);

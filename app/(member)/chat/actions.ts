@@ -42,6 +42,7 @@ import { chatCaller, postingCaller } from "@/lib/chat/caller";
 import { isHubOnlyMessage } from "@/lib/chat/hub-only";
 import { getCoursesCaller } from "@/lib/courses/caller";
 import { extractLessonLink } from "@/lib/chat/lesson-links";
+import { sharedVideoDefaultText } from "@/lib/chat/video-link";
 import { APP_URL } from "@/lib/config";
 import { canOpenLessons, loadMemberCourseAccess } from "@/lib/courses/member";
 /**
@@ -363,7 +364,7 @@ async function sendChatMessageImpl(channelId: string, body: string, threadRootId
     if (pasted && check?.ok) {
       // The open-share marker counts only from an admin acting as themselves; from anyone else the share is just closed.
       share = { lessonId: pasted.lessonId, openToChannel: pasted.openToChannel && check.isAdminActing };
-      text = pasted.body || `Shared a lesson video: ${check.lessonTitle}`;
+      text = pasted.body || sharedVideoDefaultText(check.lessonTitle);
     }
   }
 
@@ -455,7 +456,7 @@ async function shareLessonVideoImpl(channelId: string, lessonId: string, note: s
   if (!check.ok) return check;
   if (openToChannel && !check.isAdminActing) return { ok: false, error: POST_ERRORS.not_allowed };
 
-  return sendChatMessageImpl(channelId, note.trim() || `Shared a lesson video: ${check.lessonTitle}`, undefined, [], { lessonId, openToChannel });
+  return sendChatMessageImpl(channelId, note.trim() || sharedVideoDefaultText(check.lessonTitle), undefined, [], { lessonId, openToChannel });
 }
 
 export type ToggleReactionResult = { ok: true; active: boolean } | { ok: false; error: string };
