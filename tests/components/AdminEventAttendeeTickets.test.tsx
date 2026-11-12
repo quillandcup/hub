@@ -112,7 +112,7 @@ describe("how an attendee got in", () => {
     await userEvent.selectOptions(await screen.findByLabelText("How Ada Example got in"), "gifted");
 
     expect(writes).toEqual([]);
-    expect(screen.getByText("Who gave this ticket?")).toBeInTheDocument();
+    expect(screen.getByText("Who gave this ticket? Pick them to save it as gifted.")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "pick giver" }));
 
     await waitFor(() => expect(writes).toHaveLength(1));
@@ -130,12 +130,12 @@ describe("how an attendee got in", () => {
     await userEvent.selectOptions(select, "gifted");
     await userEvent.selectOptions(select, "comped");
     expect(writes).toEqual([]);
-    expect(screen.queryByText("Who gave this ticket?")).toBeNull();
+    expect(screen.queryByText(/Who gave this ticket\?/)).toBeNull();
 
     await userEvent.selectOptions(select, "gifted");
     await userEvent.keyboard("{Escape}");
     expect(writes).toEqual([]);
-    expect(screen.queryByText("Who gave this ticket?")).toBeNull();
+    expect(screen.queryByText(/Who gave this ticket\?/)).toBeNull();
     expect(select).toHaveValue("comped");
   });
 
@@ -153,7 +153,8 @@ describe("how an attendee got in", () => {
     );
     render(<EventDetailClient eventId={EVENT.id} />);
 
-    expect(await screen.findByText("Who gave this ticket?")).toBeInTheDocument();
+    // Only a giver who was deleted or merged away leaves a gifted ticket with none: the prompt says so.
+    expect(await screen.findByText(/No giver on record: the member who gave this ticket may have been deleted or merged/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "pick giver" }));
 
     await waitFor(() => expect(writes).toHaveLength(1));
@@ -176,8 +177,13 @@ describe("how an attendee got in", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: "clear giver" }));
 
-    expect(screen.queryByText("Who gave this ticket?")).toBeNull();
+    expect(screen.queryByText(/Who gave this ticket\?/)).toBeNull();
+    expect(screen.getByText(/A gifted ticket needs a giver\. To remove it, change the source above/)).toBeInTheDocument();
     expect(writes).toEqual([]);
+
+    // Picking a giver again takes the hint away.
+    await userEvent.click(screen.getByRole("button", { name: "pick giver" }));
+    await waitFor(() => expect(screen.queryByText(/A gifted ticket needs a giver/)).toBeNull());
   });
 
   it("keeps Add attendee disabled for a gifted ticket until a giver is picked", async () => {
