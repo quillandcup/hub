@@ -53,6 +53,43 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "link-previews-in-hub-chat",
+    date: "2026-11-12",
+    audience: "product",
+    category: "new",
+    title: "Links in Hub Chat show a preview",
+    summary: "When you paste a link into a Hub Chat message, a preview card appears with the page's title, a short description and a picture. A link to an image shows the image, and people reading in Slack see a preview too.",
+    body: [
+      "Paste a link and the preview appears right under your message.",
+      [
+        "- **People reading in Slack see a preview too.**",
+        "- **Previews Slack makes also show in Hub Chat.** When someone pastes a link in Slack, its preview appears here as well.",
+        "- **Only the person who wrote a message can remove its preview with the X** in the corner of the card in Hub Chat. On a message written in Hub Chat, a preview removed here also disappears in Slack, and one removed in Slack also disappears here, right away.",
+        "- **Only people who can read a message see its previews**, and the pictures in them load through the Hub, so the site a link points to doesn't see who looked.",
+      ].join("\n"),
+      "Previews are made when you send a message, for the first three links in it. Some sites don't offer one, and then the link stays a plain link.",
+    ].join("\n\n"),
+  },
+  {
+    slug: "where-pictures-come-from",
+    date: "2026-11-12",
+    audience: "engineering",
+    category: "improved",
+    title: "Where pictures come from: the picture proxy, the media library, and the hosts we load directly",
+    summary: "Pictures under chat messages are fetched by the Hub, our own uploads are served by the media library, and a few trusted hosts such as Gravatar and Slack's profile pictures are loaded directly. This entry says which is which, and why.",
+    body: [
+      "Related to the product entry on link previews in Hub chat and to \"Pictures under chat messages go through the Hub\". Which path a picture takes depends on who controls the address:",
+      [
+        "- **An address someone else chose** (a link preview's picture, an app's card or logo, a quoted message's author): the picture proxy, `GET /api/chat/unfurl-image?m=<message>&k=<key>`. The viewer's own read of the message decides access, the key is a hash of an address taken from the message (never from the request), the fetch is `fetchImage` (`lib/net/safe-fetch.ts`: https only, port 443, resolved once and pinned to a public address, 5 MB, type from the first bytes, no SVG), and one copy is kept for 7 days in the private `unfurl-images` bucket, swept by the nightly `/api/reconcile/media` run. No image host learns who looked.",
+        "- **Our own uploads** (book covers and other library images): the media library, served at `/api/media/<id>/<preset>` from the original in the private `media` bucket. All of the live book covers now point there; none of them touch the proxy. Legacy covers were moved in by `scripts/adopt-book-covers.ts`, which now downloads through the same pinned fetch (https only).",
+        "- **Member profile photos**: `members.photo_url`, rebuilt by member processing from Kajabi's avatar, then Slack's photo (our copy in the `slack-avatars` bucket), then Gravatar. A photo that has to outlast its source is kept in the public `member-photos` bucket and remembered in `member_profile_overrides.photo_path`, which processing prefers; `pnpm photos:adopt` moved the ones that were on Kajabi's CDN there (88 of them). Today the photos are on Gravatar or our own storage.",
+        "- **Loaded directly from the host, on purpose**: Gravatar (member photos by email: a service members have chosen and one we keep supporting), Slack's profile pictures for people not matched to a member (`avatars.slack-edge.com`, `a.slack-edge.com`: the host that already knows them), Mux lesson stills, Google profile photos and the analytics beacons. These are the hosts in `csp.imageHosts` in `app.config.ts`, which is what the report-only `img-src` allows; a host that is missing shows up as a Content-Security-Policy issue in Sentry. Kajabi's CDN is on the list only until its photos and covers are gone.",
+      ].join("\n"),
+      "For a new feature: an address that comes from a user or a message goes through the proxy; our own uploads go through the media library; a vendor picture of a known person may load directly if its host is added to `csp.imageHosts`. Never take an address from a query string. Our own requests send the shared outbound User-Agent (see \"Every outbound request says who we are\"), because hosts such as Wikimedia refuse requests without one.",
+      "Not done, in `docs/TODO.md`: proxied pictures are not re-encoded, a card still resizes once when its picture arrives, and the Content-Security-Policy is report-only until its reports are clean.",
+    ].join("\n\n"),
+  },
+  {
     slug: "lesson-videos-in-chat-building-blocks",
     date: "2026-11-11",
     audience: "engineering",
@@ -156,13 +193,30 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     ].join("\n\n"),
   },
   {
+    slug: "outbound-user-agent",
+    date: "2026-11-10",
+    audience: "engineering",
+    category: "improved",
+    title: "Every outbound request says who we are: one User-Agent",
+    summary: "The Hub's requests to other services now send one consistent, valid User-Agent with a version and a way to reach us, and the SDKs we use add it next to their own.",
+    body: [
+      "Some hosts refuse a request with no User-Agent (Wikimedia answers 403, which is why a link-preview picture once failed to load), and others ask for a name and a contact so they can reach us instead of blocking us. Node's default says neither. So the requests we make to servers that are not ours now send one User-Agent, defined once. Related to \"Where pictures come from\".",
+      "**The format**, in the form RFC 9110 gives (`product/version (comment)`), is `OUTBOUND_USER_AGENT` in `lib/config.ts`:",
+      "```\nHedgieHub/<version> (+<app url>; <support email>)\n```",
+      "- `HedgieHub`: the product, `userAgentProduct` in `app.config.ts`. A product has to be an HTTP token (no spaces, no `&`), so it is not the app's display name; `uaToken` turns any character a token can't hold into `-`.\n- `<version>`: the first 7 characters of the deployed commit (`VERCEL_GIT_COMMIT_SHA`, read as `deployment.commitSha` in `lib/config.ts`), so a host's log says which build made the request; `dev` when there is no commit (local runs, scripts). It is not `package.json`'s version, which isn't kept up. At most 40 characters.\n- `<app url>`: `appUrl` in `app.config.ts` (`APP_URL`), a page a host can open to see who we are.\n- `<support email>`: `supportEmail` in `app.config.ts` (`SUPPORT_EMAIL`), where a host can reach us instead of blocking us.\n- The comment is printable ASCII only: parentheses, backslashes and anything else are dropped, at most 200 characters. It carries nothing about a member.\n- A request can say which feature it is for: `userAgentWith(\"slack-import/1\")` gives `HedgieHub/<version> slack-import/1 (+<app url>; <support email>)`.",
+      "**Covered:** raw `fetch` calls to other hosts (Resend, Kajabi, Zoom, Google Photos, TrackBear, Mux stills, course media, Checkly heartbeats and the admin scripts) through `outboundFetch` (`lib/http/outbound.ts`); the picture and cover downloads (`lib/net/safe-fetch.ts`). Clients that build their own User-Agent get our part added next to theirs, never in place of it: Slack's `addAppMetadata` puts `HedgieHub/<version>` in front (name and version only, so Slack doesn't get the contact), Stripe's `appInfo` takes the name, version and URL, googleapis' `userAgentDirectives` take the product, version and comment, Mux gets ours followed by its own `Mux/JS <version>`, and web-push takes a `headers` option.",
+      "**Not covered**, in `docs/TODO.md`: the Sentry SDK's transport and the token request Google's auth library makes, which send only their library's own. Exempt by design: our own Supabase project and routes, browser-side `fetch` (the browser sets it) and Checkly's own checks.",
+      "**Adding an integration:** a raw `fetch` to someone else's host goes through `outboundFetch`; an SDK gets our part wired once, where its client is built, and never replaces the SDK's own clause. `tests/lib/outbound-user-agent.test.ts` fails when a new external fetch call is added without the wrapper, and when a new Slack client is built outside `createSlackClient`. Details: `docs/OUTBOUND_REQUESTS.md`.",
+    ].join("\n\n"),
+  },
+  {
     slug: "chat-picture-proxy-and-csp",
     date: "2026-11-10",
     audience: "engineering",
     category: "improved",
     title: "Pictures under chat messages go through the Hub, and the app sends a Content-Security-Policy in report-only mode",
     summary: "Link previews, app cards and logos in chat are fetched by the Hub instead of by each viewer's browser, and every page now reports which pictures a stricter policy would block.",
-    body: "Related to the product entry on Slack link previews and app cards in Hub chat. `GET /api/chat/unfurl-image?m=<message>&i=<position>` reads the message as the viewer (row-level security applies; a deleted message is a 404), lists its pictures with the same walk the renderer used (`lib/chat/unfurl-images.ts`) and fetches the one at that position, so the browser never names an address and no image host learns who looked. The fetch is `lib/net/safe-fetch.ts`: https only, ports 80 and 443, the name is resolved once and the connection is pinned to a public address (no DNS rebinding), every redirect hop is checked again, 5 MB cap while streaming, a time budget on `lib/clock.ts`, and the type is decided by the first bytes (PNG, JPEG, GIF, WebP, AVIF; SVG refused). The book-cover import shares its address checks. `next.config.ts` now sends `Content-Security-Policy-Report-Only` (`lib/csp.ts`: `img-src`, `object-src`, `base-uri`, `form-action`, `frame-ancestors`; violations go to Sentry); enforcing it, and covering scripts and styles with nonces, are in `docs/TODO.md`.",
+    body: "Related to the product entry on link previews in Hub chat, and to \"Where pictures come from\" (the map of which images take which path). `GET /api/chat/unfurl-image?m=<message>&k=<key>` reads the message as the viewer (row-level security applies; a deleted message is a 404), lists its pictures with the same walk the renderer used (`lib/chat/unfurl-images.ts`) and fetches the one whose key (the first 16 hex digits of the sha256 of its address) matches, so the browser never names an address and no image host learns who looked. (It first used the picture's position in the list, which shifted when Slack's copy of a message arrived and briefly showed the app's logo; a position is now a 404.) The fetch is `lib/net/safe-fetch.ts`: https only, port 443, the name is resolved once and the connection is pinned to a public address (no DNS rebinding), every redirect hop is checked again, 5 MB cap while streaming, a time budget on `lib/clock.ts`, and the type is decided by the first bytes (PNG, JPEG, GIF, WebP, AVIF; SVG refused). The book-cover import shares its address checks. `next.config.ts` now sends `Content-Security-Policy-Report-Only` (`lib/csp.ts`: `img-src`, `object-src`, `base-uri`, `form-action`, `frame-ancestors`; violations go to Sentry); enforcing it, and covering scripts and styles with nonces, are in `docs/TODO.md`.",
   },
   {
     slug: "see-your-image-before-you-save-it",
