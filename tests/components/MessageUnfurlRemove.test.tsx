@@ -13,6 +13,7 @@ import type { ChatTextContext } from "@/components/chat/ChatText";
 import { previewToCard } from "@/lib/chat/link-preview-cards";
 import { withLinkPreviews } from "@/lib/chat/link-preview-cards";
 import { parseUnfurls } from "@/lib/chat/unfurls";
+import { parseSharedMessage } from "@/lib/chat/shared-message";
 
 const ctx: ChatTextContext = { userNames: {}, userMembers: {}, channelIds: {}, channelNames: {}, customEmoji: {} };
 const MESSAGE = "msg_AAAAAAAAAAA9";
@@ -134,5 +135,70 @@ describe("the X on a card", () => {
     const blocks = withLinkPreviews(parseUnfurls({ blocks: [{ type: "header", text: { type: "plain_text", text: "Deploy" } }] }, { bot: true, body: "" }).unfurls, undefined);
     render(<MessageUnfurls unfurls={blocks} ctx={ctx} permalink={null} removable={{ channelId: CHANNEL, messageId: MESSAGE }} />);
     expect(screen.queryByRole("button", { name: "Remove preview" })).toBeNull();
+  });
+});
+
+describe("the X on a shared Slack message", () => {
+  const MESSAGE_PERMALINK = "https://example.slack.com/archives/C1/p1700000000000100";
+  const share = (extra: Record<string, unknown> = {}) =>
+    withLinkPreviews(
+      parseUnfurls({ attachments: [{ is_share: true, text: "quoted", author_name: "Ada Example", ts: "1700000000.000100", from_url: MESSAGE_PERMALINK, original_url: MESSAGE_PERMALINK, ...extra }] }, { bot: false, body: "x" }).unfurls.map((u) =>
+        u.kind === "share" ? { ...u, shared: parseSharedMessage(u.attachment)!, source: { hubUrl: null, deleted: false } } : u
+      ),
+      undefined
+    );
+
+  it("is not there unless the viewer is the author (sudo and other members pass no removable)", () => {
+    render(<MessageUnfurls unfurls={share()} ctx={ctx} permalink={null} />);
+    expect(screen.getByTestId("shared-message-card")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove preview" })).toBeNull();
+  });
+
+  it("is a keyboard-reachable button for the author, and removes under the permalink", async () => {
+    render(<MessageUnfurls unfurls={share()} ctx={ctx} permalink={null} removable={{ channelId: CHANNEL, messageId: MESSAGE }} />);
+    const button = screen.getByRole("button", { name: "Remove preview" });
+    expect(button.className).toContain("focus-visible:opacity-100");
+    button.focus();
+    expect(button).toHaveFocus();
+    fireEvent.click(button);
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+    expect(hideChatUnfurl).toHaveBeenCalledWith(MESSAGE, `url:${MESSAGE_PERMALINK}`);
+  });
+
+  it("falls back to the permalink when Slack sent no original address, and has no X when it sent no address at all", () => {
+    expect(share({ original_url: undefined })[0]).toMatchObject({ removeKey: `url:${MESSAGE_PERMALINK}` });
+    render(<MessageUnfurls unfurls={share({ original_url: undefined, from_url: undefined })} ctx={ctx} permalink={null} removable={{ channelId: CHANNEL, messageId: MESSAGE }} />);
+    expect(screen.getByTestId("shared-message-card")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove preview" })).toBeNull();
+  });
+
+  it("says calmly that Slack may still show it when the Slack copy could not be updated", async () => {
+    hideChatUnfurl.mockResolvedValue({ ok: true, slack: "failed" });
+    render(<MessageUnfurls unfurls={share()} ctx={ctx} permalink={null} removable={{ channelId: CHANNEL, messageId: MESSAGE }} />);
+    fireEvent.click(screen.getByRole("button", { name: "Remove preview" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Removed here. It may still show in Slack.");
+  });
+
+  it("shows the action's refusal", async () => {
+    hideChatUnfurl.mockResolvedValue({ ok: false, error: "That preview can't be removed." });
+    render(<MessageUnfurls unfurls={share()} ctx={ctx} permalink={null} removable={{ channelId: CHANNEL, messageId: MESSAGE }} />);
+    fireEvent.click(screen.getByRole("button", { name: "Remove preview" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("That preview can't be removed.");
+  });
+
+  it("is drawn in the viewer's zone", () => {
+    render(<MessageUnfurls unfurls={share()} ctx={ctx} permalink={null} timeZone="America/Los_Angeles" />);
+    expect(document.querySelector("time")).toHaveTextContent("Nov 14, 2:13 PM");
+  });
+
+  it("goes when the author removed it: the loader's list and the picture route's list both drop it", () => {
+    const attachments = [{ is_share: true, text: "quoted", author_icon: "https://example.test/a.png", from_url: MESSAGE_PERMALINK }];
+    const parsed = parseUnfurls({ attachments }, { bot: false, body: "x" }).unfurls;
+    expect(withLinkPreviews(parsed, undefined, new Set([`url:${MESSAGE_PERMALINK}`]))).toEqual([]);
+    expect(withLinkPreviews(parsed, undefined, new Set())).toHaveLength(1);
+  });
+
+  it("is gone when Slack's attachment is gone (removed in Slack)", () => {
+    expect(withLinkPreviews(parseUnfurls({ attachments: [] }, { bot: false, body: "x" }).unfurls, undefined)).toEqual([]);
   });
 });

@@ -5,6 +5,7 @@ import {
   httpsUrl,
   parseSharedMessage,
   parseSharedMessages,
+  shareRemoveKey,
   sharedMessageSource,
 } from "@/lib/chat/shared-message";
 
@@ -122,5 +123,18 @@ describe("sharedMessageSource (never a gate)", () => {
 
   it("refuses ids that could escape the path", () => {
     expect(sharedMessageSource({ state: "readable", channelId: "../x", messageId: "m", deleted: false })).toEqual({ hubUrl: null, deleted: false });
+  });
+});
+
+describe("shareRemoveKey", () => {
+  it("prefers the written link, then the permalink, and gives none without an https address or for a non-share", () => {
+    expect(shareRemoveKey({ is_share: true, original_url: "https://a.example.test/x", from_url: "https://b.slack.com/archives/C1/p1" })).toBe("url:https://a.example.test/x");
+    expect(shareRemoveKey({ is_msg_unfurl: true, from_url: "https://b.slack.com/archives/C1/p1" })).toBe("url:https://b.slack.com/archives/C1/p1");
+    expect(shareRemoveKey({ is_share: true, from_url: "javascript:alert(1)" })).toBeNull();
+    expect(shareRemoveKey({ is_share: true })).toBeNull();
+    expect(shareRemoveKey({ title: "x", from_url: "https://b.slack.com/x" })).toBeNull();
+  });
+  it("shows no second author line when it repeats the name", () => {
+    expect(parseSharedMessage({ is_share: true, text: "hi", author_name: "Ada  Example", author_subname: "ada example" })?.authorSubname).toBeNull();
   });
 });

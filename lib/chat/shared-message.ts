@@ -116,6 +116,21 @@ function quotedText(a: Json): string {
   return typeof a.fallback === "string" ? a.fallback : "";
 }
 
+/**
+ * The key that removes this share (`url:<address>`, how the author's removal is stored and what Slack's attachment is matched on
+ * when the message was written in the Hub): the link as it was written, else the message's permalink. Null when the attachment
+ * carries no usable https address, so such a card has no X.
+ */
+export function shareRemoveKey(a: unknown): string | null {
+  if (!isSharedMessage(a)) return null;
+  const att = a as Json;
+  for (const candidate of [att.original_url, att.from_url, att.title_link]) {
+    const u = httpsUrl(candidate);
+    if (u && u.length <= 2000) return `url:${u}`;
+  }
+  return null;
+}
+
 /** Does this attachment quote another Slack message? */
 export function isSharedMessage(a: unknown): boolean {
   return isObj(a) && (a.is_share === true || a.is_msg_unfurl === true);
@@ -146,10 +161,14 @@ export function parseSharedMessage(a: unknown): SharedMessage | null {
   const text = raw.slice(0, MAX_SHARED_TEXT);
   if (!text.trim() && files.length === 0) return null;
   const ts = str(att.ts, 32);
+  const authorName = str(att.author_name) ?? str(att.author_subname) ?? "Someone";
+  // Slack often sends the same name as both `author_name` and `author_subname`; the second line only shows when it adds something.
+  const subname = str(att.author_name) ? str(att.author_subname) : null;
+  const sameWords = (a: string, b: string) => a.replace(/\s+/g, " ").toLowerCase() === b.replace(/\s+/g, " ").toLowerCase();
   return {
     text,
-    authorName: str(att.author_name) ?? str(att.author_subname) ?? "Someone",
-    authorSubname: str(att.author_name) ? str(att.author_subname) : null,
+    authorName,
+    authorSubname: subname && !sameWords(subname, authorName) ? subname : null,
     authorIcon: httpsUrl(att.author_icon),
     ts,
     postedAt: slackTsToIso(ts),

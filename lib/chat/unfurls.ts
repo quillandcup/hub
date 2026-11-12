@@ -58,6 +58,8 @@ export interface ShareUnfurl {
   attachment: Record<string, unknown>;
   shared?: SharedMessage;
   source?: SharedMessageSource;
+  /** What removes this card from its message (`unfurlKey`); set by the loader, absent when the attachment has no usable address. */
+  removeKey?: string;
 }
 
 /** Text of a block: Slack mrkdwn, or plain text that is shown as it is. */
