@@ -150,6 +150,13 @@ describe("celebrations", () => {
     expect(call.text).toContain("/members/member-1");
   });
 
+  it("uses a kind's override channel and falls back to the shared one", async () => {
+    const { celebrationChannel, SLACK_CELEBRATIONS_CHANNEL_ID } = await import("@/lib/config");
+    expect(celebrationChannel("book", { book: "C_BOOKS" })).toBe("C_BOOKS");
+    expect(celebrationChannel("award", { book: "C_BOOKS" })).toBe(SLACK_CELEBRATIONS_CHANNEL_ID);
+    expect(celebrationChannel("award", {})).toBe(SLACK_CELEBRATIONS_CHANNEL_ID);
+  });
+
   it("posts nothing outside production", async () => {
     process.env.SLACK_TEST_MODE = "true";
     const { celebrateNewAward } = await importSlackModule();
