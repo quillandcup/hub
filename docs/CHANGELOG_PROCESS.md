@@ -4,17 +4,18 @@ What's new and fixed in the Hedgie Hub, for members. One source, three readers.
 
 - **Source:** `lib/changelog/entries.ts`, a typed list. Add an entry in the same PR as the change it describes, so it goes live with the deploy that ships the feature.
 - **In the app:** `/changelog` (list) and `/changelog/<slug>` (one entry, with its own link), reached from the **?** menu in the top bar.
-- **In the admin space:** `/admin/changelog` (list, with month headings) and `/admin/changelog/<slug>`: every entry, product and engineering, with search and filters for category and audience (Product / Engineering / All). The member page has the same search and the category filter. There is no generated `CHANGELOG.md`; `tests/lib/changelog.test.ts` fails when an entry is malformed or shows an image that is not there.
+- **In the admin space:** `/admin/changelog` (list, with month headings) and `/admin/changelog/<slug>`: every entry, product, staff and engineering, with search and filters for category and audience (Product / Staff / Engineering / All). The member page has the same search and the category filter. There is no generated `CHANGELOG.md`; `tests/lib/changelog.test.ts` fails when an entry is malformed or shows an image that is not there.
 - **Digest:** a weekly "What's new" notification (kind `changelog_digest`, "News about the Hub" in Settings → Notifications), so each member chooses Slack, in-app, email or browser push. `/api/internal/changelog-digest` runs Tuesdays 14:00 UTC from `vercel.json` (`lib/changelog/digest.ts`).
 - **Announcements channel:** the same run posts the new entries (excerpt, screenshot, link to `/changelog`) to the channel in `app.config.ts` (`slack.changelogChannelId`). That is a shared-room post, a direct Slack post like the Wheel of Wonder intro, not a notifier send. It is open to every member, so an entry's text must be fit for all of them. Outside production nothing is posted (`SLACK_TEST_MODE`); it is logged.
 
 **Writing guidance for people and agents** lives in `.claude/rules/changelog-writing.md`, and `.claude/skills/member-reader-review` reviews copy as a busy member would read it (run it before publishing a batch of entries).
 
-## Two audiences
+## Three audiences
 
 Every entry has an `audience`:
 
 - **`product`**: what a member can now do or what got fixed. It shows on the What's new pages (with its own link), in the weekly digest, and in the announcements post, and on the admin Changelog. This is the main thing.
+- **`staff`**: a tool staff use (Hedgie Care, for the community manager and admins): what it is and what the team can do with it, in plain words for the team. It appears **only on the admin Changelog** (`/admin/changelog`, filter "Staff"): never on a member page, in the weekly digest or in the announcements post (the member side is an allowlist of `product`, `listProductChangelog`, and tests fail if a staff entry leaks). Unlike `engineering`, a staff entry **may carry screenshots**, from the fictional demo community only, taken with a `@changelog` scene and `pnpm changelog:capture <slug>` like a product entry (below). A feature members are also told about gets a separate `product` entry written for them, when it launches.
 - **`engineering`**: platform improvements (CI, test frameworks, the repository pattern, safety checks) or the lower-level detail behind a product update (the notifier and its routing behind a notification feature). It appears **only on the admin Changelog**, with its body, tagged "Engineering": no member page, no notification. It has no screenshots (the validator refuses them). Say in the body which product entry it relates to, if any.
 
 **Backfilled history never notifies.** `changelogDigestStartsOn` in `app.config.ts` is the first day an entry can go out in the digest or the channel post; entries dated before it are on the pages only. Set it to the day the digest goes live when adding a batch of past entries.
@@ -36,7 +37,7 @@ An entry's screenshots are **frozen at ship time**: taken once from the demo com
 
 To take them:
 
-1. Add the entry to `lib/changelog/entries.ts` (a `product` one).
+1. Add the entry to `lib/changelog/entries.ts` (a `product` or a `staff` one; an `engineering` entry has no screenshots and `captureProblem` refuses it).
 2. Write a scene at `demo/scenes/changelog/<slug>.spec.ts`, tagged `@changelog` in its test title, that signs in as a demo persona, drives the feature and calls `shot()` (see `whats-new-changelog.spec.ts`). Like every scene it also runs the page checks (accessibility, overflow, console), so it doubles as a test of the feature: the first run on this page found a contrast bug.
 3. With the demo stack up (`pnpm demo:stack up`), the demo app running (`pnpm demo:app`; another port with `DEMO_APP_URL`) and the community seeded (`pnpm demo:seed`), run `pnpm changelog:capture <slug>`. It runs that scene on desktop light and writes the screenshots into `public/changelog/<slug>/` as **WebP, at most 1200 px wide** (about a quarter of the PNG: the repo keeps every version of every image forever, so they are kept small). Reference them as `.webp`.
 4. Open every image and check it shows no real data, delete the ones the entry doesn't use, then reference them from the entry and commit them.

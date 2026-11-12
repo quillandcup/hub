@@ -103,6 +103,18 @@ describe("changelog pages", () => {
     expect(screen.getByRole("heading", { name: e.title })).toBeInTheDocument();
   });
 
+  it("never shows a staff entry: no link, no search hit, and its slug is a 404", async () => {
+    signInAs(USER, null);
+    const staff = CHANGELOG_ENTRIES.filter((e) => e.audience === "staff");
+    expect(staff.length).toBeGreaterThan(0);
+    await renderServerPage(ChangelogPage, { params: Promise.resolve({}), searchParams: Promise.resolve({ q: staff[0].title.split(" ")[0] }) });
+    const hrefs = screen.queryAllByRole("link").map((a) => a.getAttribute("href"));
+    for (const e of staff) expect(hrefs).not.toContain(`/changelog/${e.slug}`);
+    expect(listProductChangelog().map((e) => e.slug)).not.toContain(staff[0].slug);
+    expect(generateStaticParams().map((p) => p.slug)).not.toContain(staff[0].slug);
+    await expect(ChangelogEntryPage({ params: Promise.resolve({ slug: staff[0].slug }), searchParams: Promise.resolve({}) })).rejects.toThrow("404");
+  });
+
   it("gives an engineering entry no page", async () => {
     signInAs(USER, null);
     const eng = CHANGELOG_ENTRIES.find((e) => e.audience === "engineering");

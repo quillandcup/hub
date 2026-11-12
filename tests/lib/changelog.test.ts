@@ -107,6 +107,25 @@ describe("audiences", () => {
     expect(changelogSince(null, [product, eng]).map((e) => e.slug)).toEqual(["product-one"]);
   });
 
+  const staff = entry({ slug: "staff-one", date: "2026-11-04", audience: "staff", title: "A staff tool", summary: "What the team can do.", body: "![the page](/changelog/staff-one/page.png)" });
+
+  it("never lets a staff entry reach a member: not the list, not the digest feed, not a page", () => {
+    expect(listProductChangelog([product, eng, staff]).map((e) => e.slug)).toEqual(["product-one"]);
+    expect(changelogSince(null, [product, staff]).map((e) => e.slug)).toEqual(["product-one"]);
+    expect(findChangelogEntry("staff-one", [product, staff])).toBeNull();
+    // The admin Changelog still has it, and filters to it.
+    expect(listChangelog([product, eng, staff]).map((e) => e.slug)).toEqual(["staff-one", "eng-one", "product-one"]);
+    expect(findAnyChangelogEntry("staff-one", [product, staff])?.title).toBe("A staff tool");
+    expect(filterByAudience([product, eng, staff], "staff").map((e) => e.slug)).toEqual(["staff-one"]);
+    expect(parseAudienceFilter("staff")).toBe("staff");
+  });
+
+  it("allows staff screenshots in the entry's own folder, and engineering none", () => {
+    expect(validateChangelog([staff])).toEqual([]);
+    expect(validateChangelog([{ ...staff, image: { src: "/changelog/staff-one/page.png", alt: "The page" } }])).toEqual([]);
+    expect(validateChangelog([{ ...staff, body: "![x](/changelog/other/page.png)" }]).join("\n")).toContain("must be /changelog/staff-one/");
+  });
+
   it("gives an engineering entry no page: its slug finds nothing", () => {
     expect(findChangelogEntry("eng-one", [product, eng])).toBeNull();
     expect(findChangelogEntry("product-one", [product, eng])?.title).toBe("A thing");
@@ -115,7 +134,7 @@ describe("audiences", () => {
 
   it("refuses an unknown audience and screenshots on an engineering entry", () => {
     const problems = validateChangelog([
-      entry({ slug: "a", audience: "staff" as never }),
+      entry({ slug: "a", audience: "nonsense" as never }),
       entry({ slug: "b", audience: "engineering", body: "![x](/changelog/b/x.png)" }),
       entry({ slug: "c", audience: "engineering", image: { src: "/changelog/c/x.png", alt: "x" } }),
     ]).join("\n");
@@ -169,7 +188,7 @@ describe("searching and grouping", () => {
 
   it("reads the audience filter and applies it", () => {
     expect(parseAudienceFilter("engineering")).toBe("engineering");
-    for (const bad of [undefined, "", "staff", "toString", "PRODUCT"]) expect(parseAudienceFilter(bad as string | undefined)).toBeNull();
+    for (const bad of [undefined, "", "everyone", "toString", "PRODUCT"]) expect(parseAudienceFilter(bad as string | undefined)).toBeNull();
     expect(filterByAudience(entries, "engineering").map((e) => e.slug)).toEqual(["courses"]);
     expect(filterByAudience(entries, null)).toHaveLength(3);
   });
