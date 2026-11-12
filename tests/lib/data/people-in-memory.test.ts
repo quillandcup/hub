@@ -22,6 +22,7 @@ const members = [
   { id: "mbr_AAAAAAAAAAA2", name: "Bo Example", email: "bo@example.test" },
   { id: "mbr_AAAAAAAAAAA3", name: "Cy Example", email: "cy@example.test" },
   { id: "mbr_AAAAAAAAAAA4", name: "Dee Example", email: "dee@example.test" },
+  { id: "mbr_AAAAAAAAAAA5", name: "Eli Example", email: "eli@example.test" },
 ];
 const dataset = () => new InMemoryDataset({ members: members.map((m) => ({ ...m })) });
 
@@ -43,6 +44,11 @@ defineStaffContract("InMemoryStaffRepository", () => {
         updated_at: null,
       }));
       return data.staff.map((s) => s.id);
+    },
+    seedAccounts: async (accounts) => {
+      data.userProfiles = accounts.map((a) => ({ id: `acct-${a.memberIndex}`, email: members[a.memberIndex].email, role: a.role }));
+      for (const m of data.members) m.userId = null;
+      for (const a of accounts) data.members[a.memberIndex].userId = `acct-${a.memberIndex}`;
     },
   };
 });

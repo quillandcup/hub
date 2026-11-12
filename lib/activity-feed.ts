@@ -55,10 +55,11 @@ export interface ResolvedRef {
 
 /**
  * Audit entity types behind the Privacy view: who changed which channels staff can
- * read. Break-glass grants and content reads join this list when they exist
- * (docs/SLACK_BRIDGED_CHAT.md, "Access control").
+ * read, and who opened the messages of a member's Hedgie Care plans (`care_dm_read`, written by
+ * `care_log_messages_read`; the entry names the reader and the member, never any text). Break-glass
+ * grants and reads join this list when they exist (docs/SLACK_BRIDGED_CHAT.md, "Access control").
  */
-export const PRIVACY_ENTITY_TYPES: readonly string[] = ["restricted_slack_channel"];
+export const PRIVACY_ENTITY_TYPES: readonly string[] = ["restricted_slack_channel", "care_dm_read"];
 
 export type FeedView = "audit" | "all" | "privacy";
 
@@ -345,6 +346,7 @@ const ENTITY_LABELS: Record<string, string> = {
   wheel_of_wonder_match: "Wheel of Wonder match",
   member_ask_me_about: "“Ask me about” topics",
   restricted_slack_channel: "restricted Slack channel",
+  care_dm_read: "read of a member's care plan messages",
   segment_member: "segment membership",
   feature_flag: "feature",
   feature_flag_segment: "feature flag segment",
@@ -429,6 +431,8 @@ function specialAuditPhrase(row: ActivityFeedRow): string | null {
     const what = row.entity_type === "course_lesson_order" ? "lessons" : "modules";
     return `reordered the${count} ${what}${row.description ? ` in “${formatValue(row.description)}”` : ""}`;
   }
+  // An admin or community manager opened a member's Hedgie Care plan messages (the member is the row's subject). Only the fact is recorded, never the text.
+  if (row.entity_type === "care_dm_read") return "opened a member's Hedgie Care plan messages (the messages are not recorded)";
   if (row.entity_type === "restricted_slack_channel") {
     const channel = row.description ? `#${formatValue(row.description)}` : "a Slack channel";
     if (row.event_type === "insert") return `restricted staff access to messages in ${channel}`;

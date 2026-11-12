@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findOwnDm, findOwnDmWith, loadCareDmTab, ownDirectMessages, ownSlackIdentity, projectCareFromDms, staffMemberIds, trackedChannelIds } from "@/lib/care-dm";
+import { findOwnDm, findOwnDmWith, loadCareDmTab, ownDirectMessages, ownSlackIdentity, projectCareFromDms, trackedChannelIds } from "@/lib/care-dm";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos, type Repos } from "@/lib/data/repos";
 import { SLACK_DM_SCOPES } from "@/lib/slack-connect";
@@ -157,9 +157,9 @@ describe("ownSlackIdentity", () => {
   });
 });
 
-describe("staffMemberIds", () => {
-  it("is the staff table's members and the members behind admin and community manager accounts", async () => {
-    expect(await staffMemberIds(world().repos)).toEqual(new Set([STAFF_MEMBER, ADMIN_MEMBER, CM, OTHER_CM]));
+describe("staff members (StaffRepository.memberIds, the one definition)", () => {
+  it("is the staff table's members and the members behind admin, assistant and community manager accounts", async () => {
+    expect(await world().repos.staff.memberIds()).toEqual(new Set([STAFF_MEMBER, ADMIN_MEMBER, CM, OTHER_CM]));
   });
 });
 

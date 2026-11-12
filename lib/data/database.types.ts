@@ -7228,6 +7228,10 @@ export type Database = {
           user_id: string
         }[]
       }
+      care_log_messages_read: {
+        Args: { p_member_id: string }
+        Returns: boolean
+      }
       chat_add_message_files: {
         Args: { p_files: Json; p_message_id: string }
         Returns: undefined
@@ -7266,6 +7270,7 @@ export type Database = {
           slack_user_id: string
         }[]
       }
+      chat_dm_in_care_plan: { Args: { p_channel_id: string }; Returns: boolean }
       chat_edit_message: {
         Args: { p_body: string; p_message_id: string }
         Returns: undefined
@@ -7960,6 +7965,7 @@ export type Database = {
         Args: { p_key: string }
         Returns: undefined
       }
+      staff_member_ids: { Args: never; Returns: string[] }
       sync_event_badge_awards: {
         Args: { p_event_id: string }
         Returns: undefined

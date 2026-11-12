@@ -26,6 +26,7 @@ import {
   loadMemberCard,
 } from "@/lib/chat/load";
 import AvatarStack from "@/components/AvatarStack";
+import CarePlanNotice from "@/components/chat/CarePlanNotice";
 import Composer from "@/components/chat/Composer";
 import JoinPrompt from "@/components/chat/JoinPrompt";
 import ThreadList from "@/components/chat/ThreadList";
@@ -159,7 +160,12 @@ export default async function ChatChannelPage({
     // A failed read just hides the control.
     return createRepos(supabase).chat.notifySettingOf(channel.id, identity.memberId).catch(() => null);
   };
-  const [{ page, root, threadPage }, preferredZone, people, readMarker, channels, memberCard, postingOn, drafts, notifySetting] = await Promise.all([
+  // A one-on-one DM tracked in a Hedgie Care plan: everyone in it is told the team can read what is sent during a plan. A failed read shows no notice.
+  const carePlanQuery = async (): Promise<boolean> => {
+    if (sudoHidden || channel.kind !== "dm") return false;
+    return createRepos(supabase).chat.dmInCarePlan(channel.id).catch(() => false);
+  };
+  const [{ page, root, threadPage }, preferredZone, people, readMarker, channels, memberCard, postingOn, drafts, notifySetting, inCarePlan] = await Promise.all([
     timer.time("messages", messagesQuery()),
     // Times are in the reader's zone; "browser" means not detected yet, so the organization's.
     timer.time("timezone", getUserTimezonePreference()),
@@ -171,6 +177,7 @@ export default async function ChatChannelPage({
     // A failed read just means no draft is put back.
     timer.time("drafts", draftsQuery().catch(() => ({ conversation: null, thread: null, conversationFiles: [], threadFiles: [] }))),
     timer.time("notifySetting", notifySettingQuery()),
+    timer.time("carePlan", carePlanQuery()),
   ]);
   timer.mark("parallel");
   const timeZone = isValidTimeZone(preferredZone) ? preferredZone : ORG_TIMEZONE;
@@ -225,6 +232,7 @@ export default async function ChatChannelPage({
             </Link>
           )}
         </header>
+        {inCarePlan && <CarePlanNotice />}
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-2">
           {sudoHidden ? (

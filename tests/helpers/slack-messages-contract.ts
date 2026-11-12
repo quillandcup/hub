@@ -82,6 +82,34 @@ export function defineSlackMessageContract(name: string, setup: () => SlackMessa
       expect(await ctx.repo().lastWritesIn(Array.from({ length: 150 }, (_, i) => ctx.unique(`none${i}`)))).toEqual([]);
     });
 
+    it("reads a conversation's live messages with their full text between two moments, newest first and at most the limit: not deleted ones, Slack notices or other conversations", async () => {
+      const [dm, other, staff, ada] = [ctx.unique("dm"), ctx.unique("other"), ctx.unique("staff"), ctx.unique("ada")];
+      const long = `${"a long message ".repeat(80)} with <@U123> &amp; more`;
+      await ctx.seed({
+        messages: [
+          message(dm, staff, 1, { text: "before the window" }),
+          message(dm, ada, 2, { text: long }),
+          message(dm, staff, 3, { text: "a file", files: [{ id: "F1" }] as never }),
+          message(dm, ada, 4, { text: "deleted", deleted_at: DAY(5) }),
+          message(dm, staff, 4, { text: "joined", message_type: "channel_join" }),
+          message(dm, staff, 6, { text: "last in the window" }),
+          message(dm, ada, 7, { text: "the end is not included" }),
+          message(other, ada, 3, { text: "another conversation" }),
+        ],
+      });
+
+      const found = await ctx.repo().dmMessagesBetween(dm, DAY(2), DAY(7), 10);
+
+      expect(found.map((m) => [m.user_id, m.text, m.has_files, ms(m.occurred_at)])).toEqual([
+        [staff, "last in the window", false, ms(DAY(6))],
+        [staff, "a file", true, ms(DAY(3))],
+        [ada, long, false, ms(DAY(2))],
+      ]);
+      expect(found[2].text).toBe(long);
+      expect((await ctx.repo().dmMessagesBetween(dm, DAY(2), DAY(7), 2)).map((m) => m.text)).toEqual(["last in the window", "a file"]);
+      expect(await ctx.repo().dmMessagesBetween(dm, DAY(8), DAY(9), 10)).toEqual([]);
+    });
+
     it("counts each user's messages, deleted ones included, from the metadata view", async () => {
       const [channel, ada, grace] = [ctx.unique("c"), ctx.unique("ada"), ctx.unique("grace")];
       await ctx.seed({

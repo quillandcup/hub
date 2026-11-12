@@ -23,6 +23,7 @@ import {
   type CareResults,
   type MessageDirection,
 } from "@/lib/care";
+import { loadCareMessages, type CareMessagesPage } from "@/lib/care-messages";
 import { loadCareResults } from "@/lib/care-results";
 import { isCareOwner } from "@/lib/care-owners";
 import { careOwnerOf } from "@/lib/care-dm-rules";
@@ -490,6 +491,32 @@ export async function getEngagementResults(id: string): Promise<{ error: string 
   } catch (error) {
     console.error("[care] results failed:", error instanceof Error ? error.message : error);
     return { error: "Couldn't work out the results." };
+  }
+}
+
+/**
+ * The messages of a member's care plans, a page at a time (docs/HEDGIE_CARE.md, "Plan messages"): the full text of the DM(s) tracked for
+ * the member's plans, sent inside the plans' windows, read with the service role. Staff only (`care.write`: admins and community
+ * managers, never an assistant). The read is put on record in the audit log with the reader's own client BEFORE anything is read, and
+ * nothing is shown if it cannot be. Which conversations and messages is decided in `lib/care-messages.ts` from the database, never from
+ * what is passed here (a member id and a cursor).
+ */
+export async function getCareMessages(memberId: string, before?: string | null): Promise<{ error: string } | { page: CareMessagesPage }> {
+  const auth = await requireStaffAction();
+  if (!auth.ok) return { error: auth.error };
+  if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
+  if (!isId(memberId, "mbr")) return { error: "That member isn't available." };
+  try {
+    if (!(await createRepos(auth.supabase).care.logMessagesRead(memberId))) return { error: NOT_AUTHORIZED };
+  } catch (error) {
+    console.error("[care] recording a read of plan messages failed:", error instanceof Error ? error.message : error);
+    return { error: "Couldn't record that you opened these messages, so they are not shown. Try again." };
+  }
+  try {
+    return { page: await loadCareMessages(getServiceRepos(), memberId, { before: typeof before === "string" ? before : null }) };
+  } catch (error) {
+    console.error("[care] plan messages failed:", error instanceof Error ? error.message : error);
+    return { error: "Couldn't load the messages." };
   }
 }
 

@@ -179,6 +179,33 @@ describe("/privacy page", () => {
     expect(chat.getByText(/when you last read it/)).toBeInTheDocument();
   });
 
+  it("tells members that the messages sent during a Hedgie Care plan can be read by admins and community managers, and what keeps it narrow", async () => {
+    await renderServerPage(PrivacyPage, {});
+    const chat = section("chat");
+    // The table: DMs outside a plan keep break-glass; the plan messages have a row of their own.
+    const dmRow = chat.getByText(/^One-on-one Slack DMs, and group DMs without Billie Bot, as they reach the Hub/).closest("tr")!;
+    expect(within(dmRow).getByText(/No, except break-glass access/)).toBeInTheDocument();
+    const planRow = chat.getByText(/^One-on-one Slack DMs tracked in a Hedgie Care plan/).closest("tr")!;
+    expect(within(planRow).getByText(/Yes, admins and community managers can read them in Hedgie Care/)).toBeInTheDocument();
+    // The section the note in Hub Chat links to (#care-plan-messages).
+    const heading = chat.getByRole("heading", { name: "Messages in a Hedgie Care plan" });
+    expect(heading).toHaveAttribute("id", "care-plan-messages");
+    const paragraphs = [heading.nextElementSibling!, heading.nextElementSibling!.nextElementSibling!, heading.nextElementSibling!.nextElementSibling!.nextElementSibling!];
+    const text = paragraphs.map((p) => p.textContent!).join(" ").replace(/\s+/g, " ");
+    expect(text).toMatch(/Starting a care plan tracks the staff member's one-on-one Slack DM with you, when the Hub has it, and she can stop tracking it/);
+    expect(text).toMatch(/admins and community managers can read, in Hedgie Care, the messages sent in that DM from the start of each of your plans to its end, or until now while a plan is open/);
+    expect(text).toMatch(/includes your earlier plans, even ones another staff member held/);
+    expect(text).toMatch(/full messages, as they were sent; deleted messages are not shown/);
+    expect(text).toMatch(/other direct messages with staff are treated like direct messages between members, so staff can read them only through break-glass access/);
+    expect(text).toMatch(/we record who looked and whose plan it was, but not the messages, and Hub Chat shows a short note at the top/);
+    expect(text).toMatch(/Slack's own app shows no note/);
+    expect(text).toMatch(/assistants cannot/);
+    // The short version and the Slack DM section name the exception.
+    const summary = within(screen.getByRole("heading", { name: "The short version" }).closest("aside")!);
+    expect(summary.getByText(/with one exception:\s+the messages sent during a Hedgie Care plan/)).toBeInTheDocument();
+    expect(chat.getByText(/except for the messages sent during a Hedgie Care plan/)).toBeInTheDocument();
+  });
+
   it("folds the long chat explanations into collapsed details", async () => {
     await renderServerPage(PrivacyPage, {});
     const titles = [...document.querySelectorAll("details > summary")].map((s) => s.textContent);

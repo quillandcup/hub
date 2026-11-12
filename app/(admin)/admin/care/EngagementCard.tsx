@@ -26,6 +26,7 @@ import type { CareOwner } from "@/lib/care-owners";
 import { formatDateOnly } from "@/lib/formatters";
 import CareFacts from "./CareFacts";
 import type { EngagementCardData } from "./card";
+import CarePlanMessages from "./CarePlanMessages";
 import EngagementResults from "./EngagementResults";
 import {
   changeEngagementStart,
@@ -53,7 +54,7 @@ const STATUS_STYLE: Record<CareStatus, string> = {
   closed: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
 };
 
-type Panel = "edit" | "close" | "renew" | "results" | "reassign" | "start";
+type Panel = "edit" | "close" | "renew" | "results" | "messages" | "reassign" | "start";
 
 /** One care plan: who, why, where it stands, and the few things she does with it (log a reply, renew, hand it over, set a follow-up, change its start, close, see results). */
 export default function EngagementCard({ card, canWrite, owners }: { card: EngagementCardData; canWrite: boolean; owners: readonly CareOwner[] }) {
@@ -249,6 +250,9 @@ export default function EngagementCard({ card, canWrite, owners }: { card: Engag
           <button type="button" className={BUTTON} disabled={pending} onClick={() => open("results")}>
             Results
           </button>
+          <button type="button" data-track="care-plan-messages" className={BUTTON} disabled={pending} onClick={() => open("messages")}>
+            Messages
+          </button>
           <button type="button" className={BUTTON} disabled={pending} onClick={() => open("reassign")}>
             Reassign
           </button>
@@ -283,6 +287,8 @@ export default function EngagementCard({ card, canWrite, owners }: { card: Engag
           {resultsBlock}
         </>
       )}
+
+      {canWrite && panel === "messages" && <CarePlanMessages memberId={card.memberId} />}
 
       {canWrite && panel === "start" && (
         <div className="mt-3 space-y-2">

@@ -22,6 +22,7 @@ const preview = vi.hoisted(() => ({ role: null as string | null }));
 vi.mock("@/lib/staff-preview.server", () => ({ getStaffPreviewRole: async () => preview.role }));
 
 const CM_USER = { id: "user-community-manager", email: "cm@example.test" };
+const ASSISTANT = { id: "user-assistant", email: "assistant@example.test" };
 const OWNER_B = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"; // another admin
 const NOT_STAFF = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"; // a member with a profile
 const ADA = "mbr_AAAAAAAAAAA1";
@@ -39,6 +40,7 @@ import {
   changeEngagementStart,
   closeEngagement,
   deleteEngagement,
+  getCareMessages,
   getEngagementResults,
   logCareMessage,
   reassignEngagement,
@@ -95,6 +97,7 @@ beforeEach(() => {
       { id: CM_USER.id, email: CM_USER.email, role: "community_manager" },
       { id: OWNER_B, email: "owner-b@example.test", role: "admin" },
       { id: NOT_STAFF, email: "plain-b@example.test", role: "member" },
+      { id: ASSISTANT.id, email: ASSISTANT.email, role: "assistant" },
     ],
   });
   repos = createInMemoryRepos(data);
@@ -110,6 +113,7 @@ describe("who may write Hedgie Care", () => {
     ["renewEngagement", () => renewEngagement("care_AAAAAAAAAAA1", "a plan")],
     ["reassignEngagement", () => reassignEngagement("care_AAAAAAAAAAA1", OWNER_B)],
     ["getEngagementResults", () => getEngagementResults("care_AAAAAAAAAAA1")],
+    ["getCareMessages", () => getCareMessages(ADA)],
     ["deleteEngagement", () => deleteEngagement("care_AAAAAAAAAAA1")],
     ["trackCareDm", () => trackCareDm("D0ADA0001")],
     ["untrackCareDm", () => untrackCareDm("D0ADA0001")],
@@ -1055,5 +1059,83 @@ describe("tracking Slack DMs", () => {
       await expect(changeEngagementStart(onlyEngagement().id, "2026-03-18")).resolves.toEqual({ success: true });
       expect(log).toHaveBeenCalledWith("[care] filling in from tracked DMs after a start change failed:", "connection reset");
     });
+  });
+});
+
+describe("getCareMessages", () => {
+  const CM_MEMBER = "mbr_CCCCCCCCCCC1";
+  const DM = "D0CMADA01";
+  beforeEach(() => {
+    data.members.push({ id: CM_MEMBER, name: "Cam Example", email: "cm@example.test", userId: CM_USER.id });
+    data.chatSlackAuthors.push({ slack_user_id: "U0ADA", member_id: ADA }, { slack_user_id: "U0CM", member_id: CM_MEMBER });
+    data.careEngagements.push({ ...engagementRow("care_AAAAAAAAAAA1", ADA, "2026-03-01T10:00:00.000Z"), opened_by: CM_USER.id, owned_by: CM_USER.id, channel: "slack_dm" });
+    data.careTrackedDms.push({ id: "caredm_AAAAAAAAAAA1", tracked_by: CM_USER.id, slack_channel_id: DM, member_id: ADA, created_at: "2026-03-01T00:00:00.000Z", deleted_at: null });
+    data.slackMessages.push(
+      { channel_id: DM, message_ts: "1772361600.000100", user_id: "U0CM", occurred_at: "2026-03-01T12:00:00.000Z", text: "Hello, how is the book going?" },
+      { channel_id: DM, message_ts: "1772365200.000100", user_id: "U0ADA", occurred_at: "2026-03-01T13:00:00.000Z", text: "Slowly, thank you!" }
+    );
+  });
+  useFakeClock(() => Date.parse("2026-03-20T15:00:00Z"));
+
+  it("gives a community manager the member's plan messages, and puts the read on record first", async () => {
+    signInAs(CM_USER);
+    const record = vi.spyOn(repos.care, "logMessagesRead");
+    const answer = await getCareMessages(ADA);
+
+    expect(record).toHaveBeenCalledWith(ADA);
+    if (!("page" in answer)) throw new Error("expected a page");
+    expect(answer.page.tracked).toBe(true);
+    expect(answer.page.messages.map((m) => [m.author, m.fromMember, m.text])).toEqual([
+      ["Ada E.", true, "Slowly, thank you!"],
+      ["Cam Example", false, "Hello, how is the book going?"],
+    ]);
+  });
+
+  it("lets an admin read too", async () => {
+    signInAs(ADMIN_USER);
+    expect(await getCareMessages(ADA)).toMatchObject({ page: { tracked: true } });
+  });
+
+  it("refuses an assistant, a plain member and a signed-out caller, reading nothing", async () => {
+    const read = vi.spyOn(repos.slackMessages, "dmMessagesBetween");
+    for (const [user, error] of [[ASSISTANT, "Not authorized"], [MEMBER_USER, "Not authorized"], [null, "Not authenticated"]] as const) {
+      signInAs(user);
+      await expect(getCareMessages(ADA)).resolves.toEqual({ error });
+    }
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it("works for an admin previewing as a community manager (who has the feature), and refuses an id that is not a member's", async () => {
+    signInAs(ADMIN_USER);
+    preview.role = "community_manager";
+    expect(COMMUNITY_MANAGER_FEATURES).toContain("care.write");
+    expect(await getCareMessages(ADA)).toMatchObject({ page: expect.anything() });
+    await expect(getCareMessages("not-a-member")).resolves.toEqual({ error: "That member isn't available." });
+    await expect(getCareMessages("care_AAAAAAAAAAA1")).resolves.toEqual({ error: "That member isn't available." });
+  });
+
+  it("shows nothing when the read cannot be put on record, or when no entry applies", async () => {
+    signInAs(CM_USER);
+    const read = vi.spyOn(repos.slackMessages, "dmMessagesBetween");
+    vi.spyOn(repos.care, "logMessagesRead").mockRejectedValueOnce(new Error("audit down"));
+    expect(await getCareMessages(ADA)).toEqual({ error: "Couldn't record that you opened these messages, so they are not shown. Try again." });
+    vi.spyOn(repos.care, "logMessagesRead").mockResolvedValueOnce(false);
+    expect(await getCareMessages(ADA)).toEqual({ error: "Not authorized" });
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it("answers an error, not the text, when the messages cannot be loaded", async () => {
+    signInAs(CM_USER);
+    vi.spyOn(repos.slackMessages, "dmMessagesBetween").mockRejectedValueOnce(new Error("secret text in an error"));
+    const answer = await getCareMessages(ADA);
+    expect(answer).toEqual({ error: "Couldn't load the messages." });
+  });
+
+  it("passes a cursor on, and ignores one that is not text", async () => {
+    signInAs(CM_USER);
+    const older = await getCareMessages(ADA, "2026-03-01T12:30:00.000Z");
+    if (!("page" in older)) throw new Error("expected a page");
+    expect(older.page.messages.map((m) => m.text)).toEqual(["Hello, how is the book going?"]);
+    expect(await getCareMessages(ADA, 5 as never)).toMatchObject({ page: { messages: expect.any(Array) } });
   });
 });

@@ -116,6 +116,12 @@ export interface CareRepository {
   close(id: string, endedHow: string, at: string): Promise<CareEngagementRow | null>;
   /** Marks an engagement deleted. False when there is none. */
   softDelete(id: string, at: string): Promise<boolean>;
+  /**
+   * Puts on record, in the audit log, that the signed-in admin or community manager opened this member's care plan messages (one entry per
+   * reader and member per hour; it holds no text). True when it is on record, false when no entry applies (a member that does not exist, a
+   * reader who is not staff). Call it with the reader's own client, before the messages are read. Throws on a database error.
+   */
+  logMessagesRead(memberId: string): Promise<boolean>;
   /** Gives an engagement (open or closed) to another staff user, or to nobody. The engagement, or null when there is none. The caller checks the user is staff. */
   reassign(id: string, ownedBy: string | null): Promise<CareEngagementRow | null>;
 }
@@ -341,6 +347,12 @@ export class SupabaseCareRepository implements CareRepository {
     return data;
   }
 
+  async logMessagesRead(memberId: string) {
+    const { data, error } = await this.db.rpc("care_log_messages_read", { p_member_id: memberId });
+    if (error) throw new Error(error.message);
+    return data === true;
+  }
+
   async reassign(id: string, ownedBy: string | null) {
     const { data, error } = await this.db.from("care_engagements").update({ owned_by: ownedBy }).eq("id", id).is("deleted_at", null).select("*").maybeSingle();
     if (error) throw new Error(error.message);
@@ -519,6 +531,11 @@ export class InMemoryCareRepository implements CareRepository {
     if (!row) return null;
     Object.assign(row, { closed_at: at, ended_how: endedHow, updated_at: new Date().toISOString() });
     return { ...row };
+  }
+
+  /** The twin has no signed-in reader, so who may be logged and the once-an-hour rule are the database's (pgTAP). */
+  async logMessagesRead(memberId: string) {
+    return this.data.members.some((m) => m.id === memberId);
   }
 
   async reassign(id: string, ownedBy: string | null) {

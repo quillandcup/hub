@@ -121,6 +121,11 @@ const HOSTS = id(2);
 const SECRET = id(3);
 const QUIET = id(4);
 const GROUP = id(5);
+/** A one-on-one Slack DM the member is in. */
+const DM = id(6);
+/** The conversations the database says are tracked in a Hedgie Care plan (rpc chat_dm_in_care_plan). */
+let carePlanConversations: string[] = [];
+let carePlanLookupFails = false;
 
 const channel = (cid: string, extra: Record<string, unknown>) => ({
   id: cid, kind: "channel", visibility: "public", restricted: false, name: null, archived_at: null, slack_channel_id: null,
@@ -132,8 +137,9 @@ const CHANNELS = [
   channel(SECRET, { name: "secret", visibility: "private", slack_channel_id: "C_SECRET" }),
   channel(QUIET, { name: "quiet", visibility: "private", restricted: true, slack_channel_id: "C_QUIET" }),
   channel(GROUP, { kind: "group_dm", visibility: "private", restricted: true, slack_channel_id: "G_GROUP" }),
+  channel(DM, { kind: "dm", visibility: "private", restricted: true, slack_channel_id: "D_DM" }),
 ];
-const JOINED = [HOSTS, QUIET, GROUP];
+const JOINED = [HOSTS, QUIET, GROUP, DM];
 
 const msg = (n: number, extra: Record<string, unknown> = {}) => ({
   id: id(100 + n),
@@ -158,6 +164,11 @@ const eqArg = (q: FakeQuery, col: string) => q.calls.find((c) => c.method === "e
 
 const fakeTables = (): FakeTables => ({
   "rpc:chat_unread_counts": () => ({ data: unread }),
+  "rpc:chat_dm_in_care_plan": (q) => {
+    if (carePlanLookupFails) return { data: null, error: { message: "db down" } };
+    const asked = (q.calls.find((c) => c.method === "args")?.args[0] as { p_channel_id: string } | undefined)?.p_channel_id;
+    return { data: carePlanConversations.includes(asked ?? "") };
+  },
   chat_channels: (q) => {
     const wanted = eqArg(q, "id");
     return { data: wanted ? CHANNELS.filter((c) => c.id === wanted) : CHANNELS };
@@ -218,6 +229,8 @@ beforeEach(() => {
   afterCallbacks.length = 0;
   catchUpChannel.mockClear();
   staffRole = "member";
+  carePlanConversations = [];
+  carePlanLookupFails = false;
   readMarker = null;
   chatNotificationsOn = false;
   markerError = false;
@@ -822,5 +835,47 @@ describe("chat index", () => {
     render(await ChatIndexPage({ searchParams: Promise.resolve({}) }));
     expect(screen.getByRole("heading", { name: "Chat" })).toBeInTheDocument();
     expect(screen.getByText(/read-only view of our Slack conversations/)).toBeInTheDocument();
+  });
+});
+
+describe("a direct message tracked in a Hedgie Care plan", () => {
+  it("tells everyone in it that the team can read what is sent during a plan, with a link to the explanation", async () => {
+    carePlanConversations = [DM];
+    messages = [msg(1)];
+    await renderChannel(DM);
+
+    expect(screen.getByText(/Our community manager and admins can read what is sent in this conversation during a Hedgie Care plan, our way of staying in touch with members\./)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "How we handle messages" })).toHaveAttribute("href", "/privacy#care-plan-messages");
+  });
+
+  it("shows no notice on any other conversation: an untracked DM, a group message, a channel", async () => {
+    carePlanConversations = [DM, GROUP, GENERAL];
+    messages = [msg(1)];
+    // The database says a group message or channel is not one; here the page must not ask about those at all.
+    for (const cid of [GROUP, GENERAL]) {
+      await renderChannel(cid);
+      expect(screen.queryByText(/during a Hedgie Care plan/)).not.toBeInTheDocument();
+      cleanup();
+    }
+    carePlanConversations = [];
+    await renderChannel(DM);
+    expect(screen.queryByText(/during a Hedgie Care plan/)).not.toBeInTheDocument();
+    expect(fake.queries.some((q) => q.table === "rpc:chat_dm_in_care_plan")).toBe(true);
+  });
+
+  it("does not ask about a group message or channel, and shows no notice when the lookup fails", async () => {
+    await renderChannel(GROUP);
+    expect(fake.queries.some((q) => q.table === "rpc:chat_dm_in_care_plan")).toBe(false);
+    cleanup();
+    carePlanConversations = [DM];
+    carePlanLookupFails = true;
+    await renderChannel(DM);
+    expect(screen.queryByText(/during a Hedgie Care plan/)).not.toBeInTheDocument();
+  });
+
+  it("shows no notice in sudo, where direct messages are hidden", async () => {
+    carePlanConversations = [DM];
+    signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
+    await expect(renderChannel(DM)).rejects.toThrow("404");
   });
 });

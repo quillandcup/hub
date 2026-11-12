@@ -2,9 +2,12 @@ import { afterAll } from "vitest";
 import type { Db } from "@/lib/data/db";
 import { SupabaseChatRepository } from "@/lib/data/chat";
 import { defineChatContract } from "@/tests/helpers/chat-contract";
+import { createRunUser } from "@/tests/helpers/people-fixtures";
 import { getTestSupabaseAdminClient } from "@/tests/helpers/supabase";
 
-const db = getTestSupabaseAdminClient() as unknown as Db;
+const admin = getTestSupabaseAdminClient();
+const db = admin as unknown as Db;
+const createdUsers: string[] = [];
 const RUN = `${Date.now()}`;
 const PREFIX = `CT${RUN}`;
 let counter = 0;
@@ -29,6 +32,7 @@ afterAll(async () => {
   await clear();
   if (createdGapFills.length > 0) await db.from("chat_gap_fills").delete().in("id", createdGapFills);
   if (createdMembers.length > 0) await db.from("members").delete().in("id", createdMembers);
+  for (const id of createdUsers) await admin.auth.admin.deleteUser(id);
 });
 
 defineChatContract("SupabaseChatRepository", () => ({
@@ -145,6 +149,18 @@ defineChatContract("SupabaseChatRepository", () => ({
     }
     channelIds = ids;
     return ids;
+  },
+  seedCareTracking: async (c) => {
+    // Two staff accounts per run, made once: the one who tracks, and someone else.
+    while (createdUsers.length < 2) createdUsers.push(await createRunUser(admin, `chat-contract-care-${createdUsers.length}`, RUN));
+    const [tracker, other] = createdUsers;
+    const member = memberIds[c.member];
+    const tracked = await db.from("care_tracked_dms").insert({ tracked_by: tracker, slack_channel_id: c.slackChannelId, member_id: member, deleted_at: c.untracked ? "2026-11-02T00:00:00Z" : null });
+    if (tracked.error) throw new Error(tracked.error.message);
+    if (c.owner === "none") return;
+    const owner = c.owner === "tracker" ? tracker : other;
+    const plan = await db.from("care_engagements").insert({ member_id: member, reason: "introduction", channel: "slack_dm", opened_by: owner, owned_by: owner, period_ends_on: "2026-12-01" });
+    if (plan.error) throw new Error(plan.error.message);
   },
   seedMemberships: async (rows) => {
     const { error } = await db.from("chat_channel_members").insert(

@@ -23,21 +23,25 @@ const CONNECT_HREF = `/api/oauth/slack/start?${RETURN_PARAM}=${encodeURIComponen
 /**
  * What Hedgie Care reads of Slack, in plain words. Each claim is the code's: the projection reads who wrote and when through
  * `SlackMessageRepository.lastWritesIn` (no text, files or payload); the Hub's Slack connection already pulls a connected
- * member's DMs for Hub Chat (`lib/chat/slack-dms.ts`) and this adds nothing to that; the tracked list is row-level secured
- * to its owner; staff are never offered; the times a DM filled in stay when it is no longer tracked; a DM is tracked because
- * its owner has a care plan with the member (starting one tracks it).
+ * member's DMs for Hub Chat (`lib/chat/slack-dms.ts`) and this adds nothing to that; the messages sent in a tracked DM during a
+ * care plan are shown in full to admins and community managers in the member's plans (`lib/care-messages.ts`: the DMs tracked by
+ * the owners of the member's plans, live ones only, so a DM she stops tracking no longer shows its messages), earlier plans
+ * included; the tracked list itself is row-level secured to its owner; staff are never offered; the times a DM filled in stay when
+ * it is no longer tracked; a DM is tracked because its owner has a care plan with the member (starting one tracks it).
  */
 function PrivacyNote() {
   return (
     <div className="mb-4 space-y-1">
       <p className={NOTE}>
-        Hedgie Care reads who wrote and when in your DM with a member you have a care plan with, never what was said. The Hub&apos;s
+        Hedgie Care reads who wrote and when in your DM with a member you have a care plan with, to fill in who spoke last. The Hub&apos;s
         Slack connection already brings your direct messages in for Hub Chat, and this adds nothing to that. Starting a care plan
-        tracks your DM with them, and who spoke last on the plan comes from it.
+        tracks your DM with them.
       </p>
       <p className={NOTE}>
-        Other staff, admins included, don&apos;t see which DMs you track. Who spoke last shows on the care plan, which everyone who
-        opens Hedgie Care can see. DMs with staff are never listed. If you stop tracking a DM, nothing new comes from it; what it
+        The messages sent in a tracked DM during a care plan can be read, in full, by admins and community managers in that member&apos;s
+        care plans in Hedgie Care, including their earlier plans, whoever held them. Beyond those messages, other staff don&apos;t see
+        which DMs you track. Who spoke last shows on the care plan, which everyone who opens Hedgie Care can see. DMs with staff are
+        never listed. If you stop tracking a DM, nothing new comes from it and its messages are no longer shown in Hedgie Care; what it
         already filled in stays.
       </p>
     </div>
@@ -141,8 +145,8 @@ function planPart({ row, canWrite, today, pending, onToggle }: { row: CareDmRow;
   return {
     label: `In a care plan: ${plan.ordinal} plan, ${CARE_STATUS_LABELS[plan.status].toLowerCase()}`,
     note: plan.tracked
-      ? "Who wrote last on the care plan comes from this DM. Stopping tracking stops the care plan reading it."
-      : "You stopped tracking this DM, so the care plan does not read it. Reading it again brings who wrote last up to date.",
+      ? "Who wrote last on the care plan comes from this DM, and its messages show in the plan's Messages. Stopping tracking stops the care plan reading it, and its messages are no longer shown in Hedgie Care."
+      : "You stopped tracking this DM, so the care plan does not read it and its messages are not shown in Hedgie Care. Reading it again brings who wrote last up to date and shows them again.",
     actions: (
       <>
         <Link href={planHref(row, plan.tab)} className={SMALL_LINK}>

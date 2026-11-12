@@ -96,6 +96,19 @@ defineChatContract("InMemoryChatRepository", () => {
       channelIds = ids;
       return ids;
     },
+    seedCareTracking: async (c) => {
+      const tracker = "11111111-1111-4111-8111-111111111111";
+      const other = "22222222-2222-4222-8222-222222222222";
+      const member = memberIds[c.member];
+      data.careTrackedDms.push({ id: `caredm_${String(++n).padStart(12, "A")}`, tracked_by: tracker, slack_channel_id: c.slackChannelId, member_id: member, created_at: "2026-11-01T00:00:00Z", deleted_at: c.untracked ? "2026-11-02T00:00:00Z" : null });
+      if (c.owner === "none") return;
+      const owner = c.owner === "tracker" ? tracker : other;
+      data.careEngagements.push({
+        id: `care_${String(++n).padStart(12, "A")}`, member_id: member, reason: "introduction", channel: "slack_dm", opened_by: owner, owned_by: owner,
+        opened_at: "2026-11-01T00:00:00Z", closed_at: null, period_ends_on: "2026-12-01", last_staff_message_at: null, last_member_message_at: null,
+        notes: null, next_step: null, follow_up_on: null, ended_how: null, renewed_from: null, created_at: "2026-11-01T00:00:00Z", updated_at: "2026-11-01T00:00:00Z", deleted_at: null,
+      });
+    },
     seedMemberships: async (rows) => {
       data.chatChannelMembers = rows.map((r) => ({
         channel_id: channelIds[r.channel],
