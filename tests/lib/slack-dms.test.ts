@@ -580,7 +580,7 @@ describe("pullDmsForCoveredMembers", () => {
   const OTHER = "mbr_AAAAAAAAAAH1";
   const later = () => Date.parse("2026-11-03T12:00:00Z") + 60_000;
   const connection = (member_id: string, scopes: string[], revoked_at: string | null = null) =>
-    ({ member_id, slack_user_id: `U_${member_id}`, team_id: null, scopes, connected_at: "2026-11-01T00:00:00Z", revoked_at, expires_at: null, read_pulled_at: null, dms_pulled_at: null, access_secret_id: null, refresh_secret_id: null }) as never;
+    ({ member_id, slack_user_id: `U_${member_id}`, team_id: null, scopes, connected_at: "2026-11-01T00:00:00Z", revoked_at, expires_at: null, read_pulled_at: null, dms_completed_at: null, dms_pulled_at: null, access_secret_id: null, refresh_secret_id: null }) as never;
 
   beforeEach(() => {
     m.dataset = new InMemoryDataset({
@@ -595,7 +595,7 @@ describe("pullDmsForCoveredMembers", () => {
     const result = await pullDmsForCoveredMembers(service, { deadline: later() });
     // The member without every scope and the revoked connection are left out; the other two are pulled (each with a token mock).
     // Both pull the same Slack channel, so its one message is stored once.
-    expect(result).toEqual({ members: 2, conversations: 2, messages: 1, deferred: 0, incomplete: 0, errors: [] });
+    expect(result).toEqual({ members: 2, conversations: 2, messages: 1, deferred: 0, done: 0, incomplete: 0, errors: [] });
     expect(rpcCalls("chat_claim_slack_dm_pull").map(([, args]) => args.p_min_seconds)).toEqual([0, 0]);
   });
 
@@ -607,6 +607,37 @@ describe("pullDmsForCoveredMembers", () => {
     expect(rpcCalls("chat_claim_slack_dm_pull").map(([, args]) => args.p_member)).toEqual([GALE, MEMBER]);
   });
 
+  it("remembers a member whose pull finished, and does not list their conversations again within the window", async () => {
+    await pullDmsForCoveredMembers(service, { deadline: later() });
+    const connections = (m.dataset as InMemoryDataset).slackConnections;
+    expect(connections.filter((c) => c.dms_completed_at).map((c) => c.member_id).sort()).toEqual([GALE, MEMBER].sort());
+
+    m.list.mockClear();
+    fake.clock.advance(60 * 60 * 1000);
+    const again = await pullDmsForCoveredMembers(service, { deadline: fake.clock.now() + 200_000 });
+    expect(again).toMatchObject({ members: 2, done: 2, deferred: 0, incomplete: 0 });
+    expect(m.list).not.toHaveBeenCalled();
+
+    // After the freshness window they are pulled again (the nightly run, a day later, always is).
+    fake.clock.advance(6 * 60 * 60 * 1000);
+    const later6 = await pullDmsForCoveredMembers(service, { deadline: fake.clock.now() + 200_000 });
+    expect(later6).toMatchObject({ done: 0 });
+    expect(m.list).toHaveBeenCalled();
+  });
+
+  it("does not mark a member who was cut short, or whose pull had errors", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    m.list.mockRejectedValue(Object.assign(new Error("rate limited"), { code: "slack_webapi_rate_limited_error", retryAfter: 600 }));
+    const result = await pullDmsForCoveredMembers(service, { deadline: fake.clock.now() + 100_000 });
+    expect(result.incomplete).toBe(2);
+    expect((m.dataset as InMemoryDataset).slackConnections.some((c) => c.dms_completed_at)).toBe(false);
+
+    m.list.mockReset().mockRejectedValue({ data: { error: "missing_scope" } });
+    await pullDmsForCoveredMembers(service, { deadline: fake.clock.now() + 100_000 });
+    expect((m.dataset as InMemoryDataset).slackConnections.some((c) => c.dms_completed_at)).toBe(false);
+    warn.mockRestore();
+  });
+
   it("leaves out members the feature doesn't cover", async () => {
     m.covered = new Set([GALE]);
     const result = await pullDmsForCoveredMembers(service, { deadline: later() });
@@ -616,7 +647,7 @@ describe("pullDmsForCoveredMembers", () => {
 
   it("stops starting members when the time is up, and says how many are left", async () => {
     const result = await pullDmsForCoveredMembers(service, { deadline: Date.parse("2026-11-03T11:59:00Z") });
-    expect(result).toEqual({ members: 2, conversations: 0, messages: 0, deferred: 2, incomplete: 0, errors: [] });
+    expect(result).toEqual({ members: 2, conversations: 0, messages: 0, deferred: 2, done: 0, incomplete: 0, errors: [] });
     expect(m.list).not.toHaveBeenCalled();
   });
 

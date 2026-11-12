@@ -83,7 +83,7 @@ describe('Slack User Matching', () => {
             access_secret_id: null,
             refresh_secret_id: null,
             expires_at: null,
-            read_pulled_at: null, dms_pulled_at: null,
+            read_pulled_at: null, dms_completed_at: null, dms_pulled_at: null,
             team_id: null,
           },
         ],

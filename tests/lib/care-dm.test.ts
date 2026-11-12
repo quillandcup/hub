@@ -30,7 +30,7 @@ const connection = (member_id: string, slack_user_id: string, over: Record<strin
   access_secret_id: null,
   refresh_secret_id: null,
   expires_at: null,
-  dms_pulled_at: null,
+  dms_completed_at: null, dms_pulled_at: null,
   read_pulled_at: null,
   ...over,
 });

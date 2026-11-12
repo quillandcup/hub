@@ -10,6 +10,7 @@ export const MAX_FAILED_RUNS = 3;
 
 interface RunResult {
   members: number;
+  done?: number;
   conversations: number;
   messages: number;
   deferred: number;
@@ -142,7 +143,7 @@ export default function SlackDmBackfillButton() {
           </p>
           {last && (
             <p>
-              Last run: {last.members} members, {last.deferred} not started, {last.incomplete} partly read.
+              Last run: {last.members} members, {last.done ?? 0} already done, {last.deferred} not started, {last.incomplete} partly read.
             </p>
           )}
         </div>

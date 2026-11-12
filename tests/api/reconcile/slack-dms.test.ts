@@ -20,7 +20,7 @@ import { requireAdmin } from '@/lib/supabase/api-auth'
 import { pingCronHeartbeat } from '@/lib/cron-heartbeats'
 
 const request = () => new Request('http://localhost:3000/api/reconcile/slack-dms') as unknown as NextRequest
-const clean = { members: 3, conversations: 9, messages: 40, deferred: 0, incomplete: 0, errors: [] as string[] }
+const clean = { members: 3, conversations: 9, messages: 40, deferred: 0, done: 0, incomplete: 0, errors: [] as string[] }
 const careDone = { tracked: 4, engagements: 3, moved: 2, incomplete: false }
 
 describe('GET /api/reconcile/slack-dms', () => {
