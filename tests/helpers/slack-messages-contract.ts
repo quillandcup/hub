@@ -327,7 +327,7 @@ export function defineSlackMessageContract(name: string, setup: () => SlackMessa
 
     it("tells which message timestamps of a channel are stored, the newest one, and who wrote them", async () => {
       const [channel, other, ada, grace] = [ctx.unique("c"), ctx.unique("o"), ctx.unique("ada"), ctx.unique("grace")];
-      const first = message(channel, ada, 60, { message_ts: "1700000000.000100" });
+      const first = message(channel, ada, 60, { message_ts: "1700000000.000100", raw_payload: { text: "a &amp; b", blocks: [] } });
       const second = message(channel, grace, 60, { message_ts: "1700000500.000100", deleted_at: DAY(61) });
       const elsewhere = message(other, ada, 60, { message_ts: "1700000900.000100" });
       await ctx.seed({ messages: [first, second, elsewhere] });
@@ -343,6 +343,11 @@ export function defineSlackMessageContract(name: string, setup: () => SlackMessa
       const authors = await ctx.repo().authorsByTs(channel, [first.message_ts, second.message_ts, elsewhere.message_ts, ...many]);
       expect([...authors]).toEqual([[first.message_ts, ada], [second.message_ts, grace]]);
       expect((await ctx.repo().authorsByTs(channel, [])).size).toBe(0);
+
+      const payload = await ctx.repo().rawPayload(channel, first.message_ts);
+      expect(payload).toEqual({ text: "a &amp; b", blocks: [] });
+      expect(await ctx.repo().rawPayload(channel, second.message_ts)).toBeNull(); // deleted
+      expect(await ctx.repo().rawPayload(channel, "1.000001")).toBeNull();
     });
 
     it("keeps files: records them once, finds the ones without a copy, updates, and lists deleted ones with bytes", async () => {

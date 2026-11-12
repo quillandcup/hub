@@ -141,6 +141,8 @@ export interface SlackMessageRepository {
   newestTimestamp(channelId: string): Promise<string | null>;
   /** message ts -> the Slack user who wrote it, for these messages of one channel (those we have). Chunked. Service role. */
   authorsByTs(channelId: string, messageTs: string[]): Promise<Map<string, string>>;
+  /** The message object Slack last sent for one message (`raw_payload`: text, blocks, attachments...), or null when we have no such live message. Content: service role. */
+  rawPayload(channelId: string, messageTs: string): Promise<Record<string, unknown> | null>;
 
   /** Records files seen on messages. A file we already have is left as it is (never overwrites its copy). Chunked. */
   recordFiles(files: NewSlackFile[]): Promise<void>;
@@ -337,6 +339,12 @@ export class SupabaseSlackMessageRepository implements SlackMessageRepository {
       must(await this.bronze.from("slack_messages").select("message_ts, user_id").eq("channel_id", channelId).in("message_ts", part)) ?? []
     );
     return new Map(rows.map((r) => [r.message_ts, r.user_id]));
+  }
+
+  async rawPayload(channelId: string, messageTs: string) {
+    const row = must(await this.bronze.from("slack_messages").select("raw_payload").eq("channel_id", channelId).eq("message_ts", messageTs).is("deleted_at", null).maybeSingle());
+    const payload = row?.raw_payload;
+    return typeof payload === "object" && payload !== null && !Array.isArray(payload) ? (payload as Record<string, unknown>) : null;
   }
 
   private get files() {
@@ -540,6 +548,12 @@ export class InMemorySlackMessageRepository implements SlackMessageRepository {
   async authorsByTs(channelId: string, messageTs: string[]) {
     const wanted = new Set(messageTs);
     return new Map(this.data.slackMessages.filter((m) => m.channel_id === channelId && wanted.has(m.message_ts)).map((m) => [m.message_ts, m.user_id]));
+  }
+
+  async rawPayload(channelId: string, messageTs: string) {
+    const m = this.data.slackMessages.find((x) => x.channel_id === channelId && x.message_ts === messageTs && !x.deleted_at);
+    const payload = m?.raw_payload;
+    return typeof payload === "object" && payload !== null && !Array.isArray(payload) ? (payload as Record<string, unknown>) : null;
   }
 
   private fileRow(f: SlackFileSeed): SlackFile {

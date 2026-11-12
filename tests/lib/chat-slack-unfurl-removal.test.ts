@@ -41,8 +41,13 @@ vi.mock("@/lib/data/repos", async () => {
   return { ...actual, createRepos: () => actual.createInMemoryRepos(dataset) };
 });
 
-function seed(opts: { origin?: string; attachments?: unknown; author?: string; slackTs?: string | null; files?: unknown; previews?: object[] } = {}) {
+const TS = "1700000000.000100";
+/** What Slack holds for the message: the Bronze copy of its payload, already Slack-escaped. */
+const SLACK_PAYLOAD = { type: "message", ts: TS, text: "look &amp; see &lt;b&gt; <@U_ADA> <#C_HOSTS|hosts>", blocks: [{ type: "rich_text", elements: [] }] };
+
+function seed(opts: { origin?: string; attachments?: unknown; author?: string; slackTs?: string | null; files?: unknown; previews?: object[]; payload?: unknown } = {}) {
   dataset = new InMemoryDataset({
+    slackMessages: "payload" in opts && opts.payload === undefined ? [] : [{ channel_id: "C_HOSTS", message_ts: TS, user_id: "U_FERN", occurred_at: "2023-11-14T22:13:20Z", raw_payload: "payload" in opts ? opts.payload : SLACK_PAYLOAD } as never],
     chatChannels: [{ id: CHANNEL, slack_channel_id: "C_HOSTS" } as never],
     chatMessages: [{ id: MESSAGE, channel_id: CHANNEL, origin: opts.origin ?? "app", author_member_id: opts.author ?? FERN, posted_via: "user_token", slack_ts: opts.slackTs === undefined ? "1700000000.000100" : opts.slackTs, deleted_at: null } as never],
     chatMessageContents: [{ message_id: MESSAGE, body: "look & see", attachments: "attachments" in opts ? opts.attachments : [slackCard(ONE)], files: opts.files ?? null } as never],
@@ -55,7 +60,11 @@ const call = (k = key(ONE)) => removeSlackUnfurl(supabase, { messageId: MESSAGE,
 beforeEach(() => {
   config.isProduction = true;
   getSlackUserToken.mockReset().mockResolvedValue({ token: "xoxp-fern", slackUserId: "U_FERN" });
-  update.mockReset().mockResolvedValue({ ok: true });
+  // Slack's own rule, as seen in production: an update that names neither text nor blocks is refused.
+  update.mockReset().mockImplementation(async (a: { text?: string; blocks?: unknown[] }) => {
+    if (a.text === undefined && !a.blocks) throw { data: { error: "no_text" } };
+    return { ok: true };
+  });
   alert.mockReset().mockResolvedValue(undefined);
   vi.spyOn(console, "error").mockImplementation(() => {});
   seed();
@@ -63,14 +72,47 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("removeSlackUnfurl", () => {
-  it("takes the only preview off the Slack copy with the member's own token, naming no text, and tags the update as ours", async () => {
+  it("takes the only preview off the Slack copy with the member's own token, sending the message's own text and blocks back, and tags the update as ours", async () => {
     await expect(call()).resolves.toBe("updated");
     expect(update).toHaveBeenCalledTimes(1);
-    expect(update).toHaveBeenCalledWith({ channel: "C_HOSTS", ts: "1700000000.000100", attachments: [], metadata: hubMessageMetadata(MESSAGE) }, "xoxp-fern");
-    // No text or blocks: the message keeps its own, nothing is re-escaped or reparsed.
-    expect(Object.keys(update.mock.calls[0][0])).not.toContain("text");
-    expect(Object.keys(update.mock.calls[0][0])).not.toContain("blocks");
+    expect(update).toHaveBeenCalledWith(
+      { channel: "C_HOSTS", ts: TS, text: SLACK_PAYLOAD.text, blocks: SLACK_PAYLOAD.blocks, parse: "none", attachments: [], metadata: hubMessageMetadata(MESSAGE) },
+      "xoxp-fern"
+    );
     expect(alert).not.toHaveBeenCalled();
+  });
+
+  it("passes Slack's text through byte for byte: entities, mentions and channel tokens are neither escaped again nor resolved", async () => {
+    const text = "a &amp; b &lt;c&gt; &amp;amp; <@U_ADA> <#C_HOSTS|hosts> <!here> <https://example.test/one.jpg|pic>";
+    seed({ payload: { ...SLACK_PAYLOAD, text, blocks: undefined } });
+    await call();
+    expect(update.mock.calls[0][0].text).toBe(text);
+  });
+
+  it("sends only the text when the message has no blocks, and only the blocks when it has no text", async () => {
+    seed({ payload: { text: "plain" } });
+    await call();
+    expect(update.mock.calls[0][0]).toMatchObject({ text: "plain" });
+    expect(update.mock.calls[0][0]).not.toHaveProperty("blocks");
+    seed({ payload: { text: "", blocks: SLACK_PAYLOAD.blocks } });
+    await call();
+    expect(update.mock.calls[1][0].blocks).toEqual(SLACK_PAYLOAD.blocks);
+    expect(update.mock.calls[1][0]).not.toHaveProperty("text");
+  });
+
+  it("is what Slack's no_text refusal asks for: a call with no content is rejected by the fake, the corrected one is accepted", async () => {
+    await expect(update({ channel: "C", ts: "1", attachments: [] })).rejects.toEqual({ data: { error: "no_text" } });
+    await expect(call()).resolves.toBe("updated");
+  });
+
+  it("fails cleanly, sending nothing and alerting with a distinct reason, when Bronze has no such message or no content in it", async () => {
+    seed({ payload: undefined });
+    await expect(call()).resolves.toBe("failed");
+    expect(alert).toHaveBeenLastCalledWith(expect.anything(), { type: "slack_unfurl_removal_failed", reason: "no_slack_copy" });
+    seed({ payload: { type: "message", ts: TS } });
+    await expect(call()).resolves.toBe("failed");
+    expect(alert).toHaveBeenLastCalledWith(expect.anything(), { type: "slack_unfurl_removal_failed", reason: "no_slack_content" });
+    expect(update).not.toHaveBeenCalled();
   });
 
   it("keeps the other previews of the message, with the documented fields only", async () => {
