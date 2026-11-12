@@ -11,3 +11,6 @@ CREATE INDEX event_attendees_ticket_giver_id_idx ON event_attendees (ticket_give
 
 COMMENT ON COLUMN event_attendees.ticket_giver_id IS
   'The member who gave this attendee their ticket. Only meaningful with ticket_source = gifted; the free-text ticket_note keeps the reason. Deleting the giver clears the link and keeps the attendee. Staff only.';
+
+INSERT INTO public.member_data_handling (table_name, column_name, action, why)
+VALUES ('event_attendees', 'ticket_giver_id', 'null', 'who gave an attendee their ticket: the attendee keeps the row and loses the link');
