@@ -226,7 +226,9 @@ export const isSlackDmChannelId = (channelId: unknown): boolean => typeof channe
  * channel or an older group DM, which only the stored conversation can tell apart (`isGroupDm`). Null when the event
  * names no type: leave the column alone then, so a row an import already typed keeps its type.
  */
-export async function slackEventChannelType(event: { channel_type?: unknown }, isGroupDm: () => Promise<boolean>): Promise<string | null> {
+export async function slackEventChannelType(event: { channel_type?: unknown; channel?: unknown }, isGroupDm: () => Promise<boolean>): Promise<string | null> {
+  // The bot's own posts into a DM carry no type, but a `D…` id is a 1:1 DM by itself.
+  if (event.channel_type === undefined && isSlackDmChannelId(event.channel)) return "im";
   switch (event.channel_type) {
     case "im":
       return "im";

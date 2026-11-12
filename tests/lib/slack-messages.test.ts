@@ -176,6 +176,11 @@ describe('slackEventChannelType', () => {
     expect(await slackEventChannelType({ channel_type: 'group' }, async () => true)).toBe('mpim')
   })
 
+  it('knows a 1:1 DM from its id when the event names no type (the bot\'s own posts)', async () => {
+    expect(await slackEventChannelType({ channel: 'D01ABC2DEF3' }, never)).toBe('im')
+    expect(await slackEventChannelType({ channel: 'C01ABC2DEF3' }, never)).toBeNull()
+  })
+
   it('says nothing when the event names no type, and asks nothing of the database for the others', async () => {
     const lookup = vi.fn(async () => true)
     expect(await slackEventChannelType({}, lookup)).toBeNull()
