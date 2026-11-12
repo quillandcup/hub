@@ -154,6 +154,10 @@ export async function seed(now: Date = new Date()) {
   const { error: hostingFlagError } = await admin.from("feature_flags").upsert({ feature_key: "hosting", enabled_globally: true }, { onConflict: "feature_key" });
   if (hostingFlagError) throw new Error(`feature_flags: ${hostingFlagError.message}`);
 
+  // Link previews in Hub Chat are behind a flag (on for everyone in production).
+  const { error: previewFlagError } = await admin.from("feature_flags").upsert({ feature_key: "chat_link_previews", enabled_globally: true }, { onConflict: "feature_key" });
+  if (previewFlagError) throw new Error(`feature_flags: ${previewFlagError.message}`);
+
   // Chat: the features on, and a few days of conversation in four channels.
   await seedChat(admin, now, env.supabaseUrl);
 
