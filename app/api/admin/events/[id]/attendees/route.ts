@@ -28,6 +28,13 @@ export async function POST(
   if (ticket?.giverId && ticket.giverId === body.memberId) return NextResponse.json({ error: SET_TICKET_REFUSALS.self_gift }, { status: 400 });
   if (ticket?.giverId && ticket.source !== "gifted") return NextResponse.json({ error: SET_TICKET_REFUSALS.not_gifted }, { status: 400 });
 
+  if (ticket?.source === "gifted") {
+    if (!ticket.giverId) return NextResponse.json({ error: SET_TICKET_REFUSALS.giver_required }, { status: 400 });
+    // Check the giver before the add, so a bad giver leaves nothing half-done.
+    const giver = await createRepos(supabase).members.byId(ticket.giverId);
+    if (!giver) return NextResponse.json({ error: SET_TICKET_REFUSALS.unknown_giver }, { status: 400 });
+  }
+
   const { error } = await supabase.rpc("add_event_attendee", {
     p_event_id: id,
     p_member_id: body.memberId,

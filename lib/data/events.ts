@@ -692,7 +692,7 @@ export class SupabaseEventRepository implements EventRepository {
     if (ticket.giverId && ticket.giverId === memberId) return "self_gift";
     const { data: current, error: readError } = await this.db
       .from("event_attendees")
-      .select("ticket_source")
+      .select("ticket_source, ticket_giver_id")
       .eq("event_id", eventId)
       .eq("member_id", memberId)
       .maybeSingle();
@@ -700,6 +700,13 @@ export class SupabaseEventRepository implements EventRepository {
     if (!current) return "not_attendee";
     const source = ticket.source !== undefined ? ticket.source : recordedTicketSource(current.ticket_source);
     if (ticket.giverId && source !== "gifted") return "not_gifted";
+    // A gifted ticket needs a giver, checked here and not by a CHECK constraint: the link is ON DELETE SET NULL
+    // (deleting or merging a member nulls it), which a CHECK would make fail. Only a request that touches the
+    // source or the giver is held to it, so a note edit on an older gifted row without a giver still saves.
+    if (source === "gifted" && (ticket.source !== undefined || ticket.giverId !== undefined)) {
+      const giver = ticket.giverId !== undefined ? ticket.giverId : current.ticket_giver_id;
+      if (!giver) return "giver_required";
+    }
     const { error } = await this.db
       .from("event_attendees")
       .update({
@@ -1077,6 +1084,11 @@ export class InMemoryEventRepository implements EventRepository {
     if (ticket.giverId) {
       if (source !== "gifted") return "not_gifted";
       if (!this.data.members.some((m) => m.id === ticket.giverId)) return "unknown_giver";
+    }
+    // Same rule as the Supabase class (see there for why it is not a CHECK constraint).
+    if (source === "gifted" && (ticket.source !== undefined || ticket.giverId !== undefined)) {
+      const giver = ticket.giverId !== undefined ? ticket.giverId : row.ticket_giver_id;
+      if (!giver) return "giver_required";
     }
     if (ticket.source !== undefined) row.ticket_source = ticket.source;
     if (ticket.note !== undefined) row.ticket_note = ticket.note;

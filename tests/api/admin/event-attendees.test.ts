@@ -185,7 +185,7 @@ describe('Event Attendees + Badge Linking', () => {
     const added = await apiFetch(attendees, { method: 'POST', headers, body: JSON.stringify({ memberId: memberBId, ticketSource: 'comped', ticketNote: 'covered by staff' }) })
     expect(added.status).toBe(201)
 
-    const patched = await apiFetch(`${attendees}/${memberBId}`, { method: 'PATCH', headers, body: JSON.stringify({ ticketSource: 'gifted' }) })
+    const patched = await apiFetch(`${attendees}/${memberBId}`, { method: 'PATCH', headers, body: JSON.stringify({ ticketSource: 'gifted', ticketGiverId: memberAId }) })
     expect(patched.status).toBe(200)
 
     const { attendees: listed } = await (await apiFetch(`${baseUrl}/api/admin/events/${eventId}`, { headers: getTestAuthHeaders() })).json()
