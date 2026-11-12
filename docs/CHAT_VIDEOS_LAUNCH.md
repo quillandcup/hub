@@ -1,20 +1,24 @@
-# Lesson videos in chat: what to publish when the flag goes on
+# Lesson videos in chat: launch notes
 
-`chat_videos` (`lib/features.ts`) is not on for everyone yet, so the member-facing pieces are written and waiting: publishing them now would describe something most members cannot use (`.claude/rules/changelog-writing.md`: a flagged feature ships the day the flag goes on for everyone). The PR that holds them is opened as a draft for that reason.
+`chat_videos` went on for everyone on 2026-11-12 at 5:40 PM Eastern (production audit log, `feature_flag` row). This file records what was published for it and what is still open.
 
-## What is already written (2026-11-12)
+## Published with the launch
 
-- The engineering entry `lesson-videos-in-chat-building-blocks` (admin changelog only), already live.
-- The product entry `lesson-videos-in-chat` in `lib/changelog/entries.ts`, with three screenshots in `public/changelog/lesson-videos-in-chat/` (a card in a conversation, what someone without the course sees, the share box). Taken from the demo community with `demo/scenes/changelog/lesson-videos-in-chat.spec.ts`; the seed has one lesson with a ready (made-up) video and a craft-talk message that shares it (`demo/courses-seed.ts`, `seedChatVideoShare` in `demo/chat-seed.ts`), and the flag on for the demo. Its date is a placeholder.
-- The help article `help/share-a-lesson-video-in-chat.md` (listed in `HELP_ORDER`, `lib/help.ts`), with its screenshots from `demo/scenes/share-a-lesson-video-in-chat.spec.ts`.
-- The member reader review (`.claude/skills/member-reader-review`) ran on the entry and the article; its fixes are applied: say plainly that watching is recorded and who can see it, "replies under a message" for "thread", "Delete your message", Hub Chat explained, and which place plays the video.
+- The engineering entry `lesson-videos-in-chat-building-blocks` (admin changelog only).
+- The product entry `lesson-videos-in-chat` (marked major: the first feature that works only in Hub Chat), with three screenshots in `public/changelog/lesson-videos-in-chat/` taken from the demo community with `demo/scenes/changelog/lesson-videos-in-chat.spec.ts`. The demo seed has one lesson with a ready (made-up) video and a craft-talk message that shares it (`demo/courses-seed.ts`, `seedChatVideoShare` in `demo/chat-seed.ts`).
+- The help article `help/share-a-lesson-video-in-chat.md` (in `HELP_ORDER`), with `demo/scenes/share-a-lesson-video-in-chat.spec.ts` for its screenshots.
+- `chat_videos` in `LIVE_FLAGS` (`lib/changelog/live-flags.ts`).
+- The copy went through the member reader review (`.claude/skills/member-reader-review`).
 
-## The day the flag goes on for everyone
+## Why it is in Hub Chat only (the owner's context, in the entry)
 
-1. Read the day from the production audit log (read-only): `audit_log` rows with `entity_type = 'feature_flag'` where `enabled_globally` goes true. Set it as the `date` of the product entry.
-2. Merge the draft PR the same day (take it out of draft). The deploy publishes the entry, the article and the screenshots together.
-3. Add `chat_videos` to `LIVE_FLAGS` (`lib/changelog/live-flags.ts`) so the drafter stops holding PRs that name it.
-4. Look at `/privacy` against the section below, and decide whether to add "and, for a video shared in chat, which message it was in" to the Course videos row.
+The team has wanted lesson videos in conversations for years. Slack never allowed it with a good experience: it cannot keep track of what a member has watched, or pick a long video back up where they stopped. Hub Chat can, so this is the first feature that works only there, and a reason to move conversations from Slack to Hub Chat. The entry says so plainly and promises only what works: keeping place and tracking watched parts. Marking the lesson complete when the video ends does not work in chat yet (`docs/TODO.md`, "Mark a lesson complete when its video is watched in chat"), so the copy does not mention it.
+
+## Still open
+
+- `/privacy`: decide whether to add "and, for a video shared in chat, which message it was in" to the Course videos row (below).
+- Completing the lesson from chat (the TODO entry above).
+- Kajabi images for the draft courses (`docs/TODO.md`).
 
 ## Check `/privacy` before the flag goes wide
 

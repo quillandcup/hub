@@ -245,6 +245,10 @@ The past events page (`app/(member)/events/past/page.tsx`, `PAST_EVENTS_FROM`) h
 
 Production (2026-11-10): lesson thumbnails are all copied into the media library, but 77 module posters and 7 course covers still show Kajabi's own address, because `courseImageSrc` (`lib/courses/image-urls.ts`) falls back to the original link until a copy exists. All of them belong to 7 courses that are still drafts (nothing member-visible is hot-linked), and the per-course "Copy images" step (`copyCourseImages`, `lib/courses/images.ts`) has not been run for them. Once Kajabi is cancelled their links die and copying is no longer possible. Do: run "Copy images" for every course while Kajabi is still paid for, re-run the count (course/module/lesson rows with a `*_url` and no `*_asset_id`, read-only against production) until it is 0, then remove the Kajabi-address fallback from `courseImageSrc` so nothing can hot-link again.
 
+### Mark a lesson complete when its video is watched in chat
+
+The reason chat videos live in Hub Chat and not in Slack is that Hub Chat can keep track of what a member watched, resume a long video where they stopped and mark the lesson complete when the video is done. The first two work (`video_watch_segments` with `chat_message_id`, resume from `lessonPosition`). The third does not: on the lesson page `AutoCompleteAtWatchedMark` (`components/courses/LessonPlayer.tsx`) completes the lesson at about 90% of the video, but it does nothing outside a lesson completion provider, and `ChatVideo` (`components/chat/ChatVideo.tsx`) has none, and `/api/courses/watch` leaves `completed_at` alone. Watching the whole video in a chat message therefore leaves the lesson unfinished. Do it where the member has the course (never for a share opened to everyone, where they have no progress to complete), through the same mark-complete action the lesson page uses, and say so in the entry `lesson-videos-in-chat` and the help article once it works. The changelog copy deliberately does not promise it.
+
 ## Infrastructure & Deployment
 
 ### A Docs-Only Merge Can Leave an Earlier Code Merge Undeployed
