@@ -348,6 +348,11 @@ export function defineSlackMessageContract(name: string, setup: () => SlackMessa
       expect(payload).toEqual({ text: "a &amp; b", blocks: [] });
       expect(await ctx.repo().rawPayload(channel, second.message_ts)).toBeNull(); // deleted
       expect(await ctx.repo().rawPayload(channel, "1.000001")).toBeNull();
+
+      const many2 = await ctx.repo().rawPayloads(channel, [first.message_ts, second.message_ts, elsewhere.message_ts, "1.000001", ...many]);
+      expect([...many2.keys()]).toEqual([first.message_ts]); // live ones of this channel only
+      expect(many2.get(first.message_ts)).toEqual({ text: "a &amp; b", blocks: [] });
+      expect((await ctx.repo().rawPayloads(channel, [])).size).toBe(0);
     });
 
     it("keeps files: records them once, finds the ones without a copy, updates, and lists deleted ones with bytes", async () => {
