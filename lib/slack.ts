@@ -1,6 +1,6 @@
 import { WebClient } from "@slack/web-api";
 import { createSlackClient } from "@/lib/slack-client";
-import { APP_URL, SLACK_CELEBRATIONS_CHANNEL_ID, isProduction } from "@/lib/config";
+import { APP_URL, celebrationChannel, isProduction } from "@/lib/config";
 import { getSlackBotToken } from "@/lib/slack-bot-token";
 
 /**
@@ -81,7 +81,7 @@ export interface CelebrateNewBookParams {
 }
 
 /**
- * Celebrates a new book in the community's cheering channel (SLACK_CELEBRATIONS_CHANNEL_ID) when a member adds one --
+ * Celebrates a new book in the community's cheering channel (app.config.ts `slack.celebrationsChannelId`) when a member adds one --
  * the standalone "Add a Book" flow or the book step of publishing a tracked project. Links to the member's public
  * profile, never an admin page, since everyone in the channel sees it. Posts only in production (postToSlackChannel).
  */
@@ -94,7 +94,7 @@ export async function celebrateNewBook(params: CelebrateNewBookParams): Promise<
     purchaseUrl ? `<${purchaseUrl}|Where to buy>  ·  <${memberLink}|View member>` : `<${memberLink}|View member>`,
   ].join("\n");
 
-  await postToSlackChannel({ channel: SLACK_CELEBRATIONS_CHANNEL_ID, text });
+  await postToSlackChannel({ channel: celebrationChannel("book"), text });
 }
 
 export interface CelebrateNewAwardParams {
@@ -116,5 +116,5 @@ export async function celebrateNewAward(params: CelebrateNewAwardParams): Promis
     url ? `<${url}|Details>  ·  <${memberLink}|View member>` : `<${memberLink}|View member>`,
   ].join("\n");
 
-  await postToSlackChannel({ channel: SLACK_CELEBRATIONS_CHANNEL_ID, text });
+  await postToSlackChannel({ channel: celebrationChannel("award"), text });
 }
