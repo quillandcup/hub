@@ -44,8 +44,21 @@ describe('segment sources', () => {
     expect(await segmentSourceChoices(repos())).toEqual([
       { type: 'course', id: 'c1', name: 'Course One' },
       { type: 'program', id: 'p1', name: 'Program One' },
-      { type: 'event', id: 'e1', name: 'Event One' },
+      { type: 'event', id: 'e1', name: 'Event One · Thu, Dec 31, 2026, 7:00 PM EST' },
     ])
+  })
+
+  it('tells events with the same title apart by their Eastern date and time', async () => {
+    const same = repos({
+      events: {
+        choices: async () => [
+          { id: 'e1', title: 'Pitch Prickle', starts_at: '2026-12-04T20:00:00Z' },
+          { id: 'e2', title: 'Pitch Prickle', starts_at: '2026-07-10T19:00:00Z' },
+        ],
+      },
+    })
+    const names = (await segmentSourceChoices(same)).filter((c) => c.type === 'event').map((c) => c.name)
+    expect(names).toEqual(['Pitch Prickle · Fri, Dec 4, 2026, 3:00 PM EST', 'Pitch Prickle · Fri, Jul 10, 2026, 3:00 PM EDT'])
   })
 
   it('counts only course access that has started and not ended', async () => {

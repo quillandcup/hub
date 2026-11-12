@@ -1,4 +1,5 @@
 import { clock } from "@/lib/clock";
+import { ORG_TIMEZONE } from "@/lib/config";
 import type { Repos } from "@/lib/data/repos";
 
 type SourceRepos = Pick<Repos, "courses" | "courseProgress" | "programs" | "events">;
@@ -17,13 +18,24 @@ export function isSegmentSourceType(value: unknown): value is SegmentSourceType 
   return typeof value === "string" && (SEGMENT_SOURCE_TYPES as readonly string[]).includes(value);
 }
 
-/** Every course, program and event an admin can sync a segment from, for a picker. */
+const eventWhen = new Intl.DateTimeFormat("en-US", {
+  timeZone: ORG_TIMEZONE,
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+  timeZoneName: "short",
+});
+
+/** Every course, program and event an admin can sync a segment from, for a picker. An event carries its Eastern date and time, since many share a title (every Pitch Prickle). */
 export async function segmentSourceChoices(repos: SourceRepos): Promise<SegmentSourceChoice[]> {
   const [courses, programs, events] = await Promise.all([repos.courses.courses(), repos.programs.names(), repos.events.choices()]);
   return [
     ...courses.map((c) => ({ type: "course" as const, id: c.id, name: c.title })),
     ...programs.map((p) => ({ type: "program" as const, id: p.id, name: p.name })),
-    ...events.map((e) => ({ type: "event" as const, id: e.id, name: e.title })),
+    ...events.map((e) => ({ type: "event" as const, id: e.id, name: `${e.title} · ${eventWhen.format(new Date(e.starts_at))}` })),
   ];
 }
 
