@@ -1,3 +1,4 @@
+import type { KnownBlock } from "@slack/web-api";
 import { createSlackClient } from "@/lib/slack-client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createRepos } from "@/lib/data/repos";
@@ -116,16 +117,19 @@ export async function updateChatMessageInSlack(
 }
 
 /**
- * Replace only the link previews (legacy attachments) of one of the member's Hub messages in Slack: the author removed a card. The
- * call names no text and no blocks, so the message keeps its own as they are (nothing is re-escaped or reparsed, which is also what
- * keeps Slack from building the previews again); `metadata` is the same tag the post carried, so the `message_changed` that
- * follows is recognized as ours. An empty list removes every preview. The files are named again, as `updateChatMessageInSlack` does,
- * so the update cannot drop them. Only a message written in the Hub (origin app) is touched: one written in Slack is its author's to
+ * Replace only the link previews (legacy attachments) of one of the member's Hub messages in Slack: the author removed a card.
+ * `chat.update` refuses a call that names neither text nor blocks (`no_text`, seen in production), and one that names `text` without
+ * `blocks` drops the message's blocks, so the message's CURRENT content goes back unchanged: `content.text` and `content.blocks` are
+ * what Slack itself holds (the Bronze `raw_payload`), already Slack-escaped, so nothing is escaped, parsed or rebuilt here.
+ * `parse: "none"` is `chat.postMessage`'s default, which the post used; `chat.update` would otherwise reset it to `client`.
+ * `metadata` is the same tag the post carried, so the `message_changed` that follows is recognized as ours. `attachments` is the
+ * previews that stay (an empty list removes every preview). The files are named again, as `updateChatMessageInSlack` does, so the
+ * update cannot drop them. Only a message written in the Hub (origin app) is touched: one written in Slack is its author's to
  * change there. `{ ok: true }` with nothing done when the message never reached Slack.
  */
 export async function setChatPreviewsInSlack(
   supabase: SupabaseClient,
-  opts: { messageId: string; memberId: string; attachments: Record<string, unknown>[]; keepFileIds?: string[] }
+  opts: { messageId: string; memberId: string; content: { text?: string; blocks?: unknown[] }; attachments: Record<string, unknown>[]; keepFileIds?: string[] }
 ): Promise<SlackWriteResult> {
   const writer = await writerFor(supabase, opts.messageId, opts.memberId, "edited");
   if (!writer.ok) return { ...writer, code: "not_allowed" };
@@ -136,6 +140,9 @@ export async function setChatPreviewsInSlack(
     const result = await createSlackClient(token).chat.update({
       channel,
       ts,
+      ...(opts.content.text !== undefined ? { text: opts.content.text } : {}),
+      ...(opts.content.blocks ? { blocks: opts.content.blocks as KnownBlock[] } : {}),
+      parse: "none",
       attachments: opts.attachments,
       metadata: hubMessageMetadata(opts.messageId),
       ...(opts.keepFileIds?.length ? { file_ids: opts.keepFileIds } : {}),

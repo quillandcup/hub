@@ -17,6 +17,9 @@ import { sendOperationsAlert } from "@/lib/operations-alerts";
  * matched to the removed card by its address (`original_url`, `from_url` or `title_link`, normalized like the Hub's own de-duplication).
  * The others are sent back so a message with several previews loses only the one removed; they go back with the documented fields only.
  *
+ * `chat.update` insists on text or blocks, so the message's current text and blocks go back as Slack holds them (Bronze `raw_payload`);
+ * if Bronze has no such message, or no content in it, nothing is sent and the reason is alerted (`no_slack_copy`, `no_slack_content`).
+ *
  * Messages written in Slack are never touched: Slack lets the author remove those there. Logs reasons, never an address.
  */
 
@@ -50,6 +53,13 @@ export function splitAttachments(attachments: unknown, addresses: Set<string>): 
   return { removed, keep };
 }
 
+/** Logs and alerts a failure of ours (a reason in lower-case words, never an address) and answers `failed`. */
+async function fail(repos: ReturnType<typeof createRepos>, messageId: string, reason: string): Promise<"failed"> {
+  console.error("[chat] taking a preview off the Slack copy of %s failed: %s", messageId, reason);
+  await sendOperationsAlert(repos, { type: "slack_unfurl_removal_failed", reason }).catch(() => {});
+  return "failed";
+}
+
 export async function removeSlackUnfurl(supabase: SupabaseClient, opts: { messageId: string; memberId: string; key: string }): Promise<SlackUnfurlRemoval> {
   try {
     // A card with no address (`idx:`) is an app's, which a message written in the Hub does not have; nothing to match in Slack.
@@ -72,8 +82,14 @@ export async function removeSlackUnfurl(supabase: SupabaseClient, opts: { messag
 
     const { removed, keep } = splitAttachments(context.attachments, addresses);
     if (removed === 0) return "not_needed";
+    // chat.update needs the message's text or blocks; they go back as Slack holds them, from Bronze (service role: the caller was checked
+    // as the author above). Hub's own body is not used: it is not Slack's escaped form.
+    const payload = row.slackChannelId ? await repos.slackMessages.rawPayload(row.slackChannelId, row.slackTs) : null;
+    const text = typeof payload?.text === "string" && payload.text !== "" ? payload.text : undefined;
+    const blocks = Array.isArray(payload?.blocks) && payload.blocks.length > 0 ? payload.blocks : undefined;
+    if (!payload || (text === undefined && !blocks)) return await fail(repos, opts.messageId, payload ? "no_slack_content" : "no_slack_copy");
     const files = parseChatFiles(row.files).map((f) => f.id);
-    const result = await setChatPreviewsInSlack(supabase, { messageId: opts.messageId, memberId: opts.memberId, attachments: keep, keepFileIds: files });
+    const result = await setChatPreviewsInSlack(supabase, { messageId: opts.messageId, memberId: opts.memberId, content: { text, blocks }, attachments: keep, keepFileIds: files });
     if (result.ok) return "updated";
 
     console.error("[chat] taking a preview off the Slack copy of %s failed: %s", opts.messageId, result.code ?? "unknown");
