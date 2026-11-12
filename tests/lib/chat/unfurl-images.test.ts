@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseUnfurls } from "@/lib/chat/unfurls";
-import { proxyUnfurlImages, unfurlImageSrc, unfurlImageUrls } from "@/lib/chat/unfurl-images";
+import { proxyUnfurlImages, unfurlImageSrc, unfurlImageUrls, unfurlPictureKey } from "@/lib/chat/unfurl-images";
 
 const MESSAGE = "msg_AAAAAAAAAAA1";
 const img = (n: string) => `https://img.example.test/${n}.png`;
@@ -29,16 +29,25 @@ describe("unfurl pictures", () => {
     const withShared = unfurls.map((u) => (u.kind === "share" ? { ...u, shared: { text: "quoted", authorName: "Ada Example", authorSubname: null, authorIcon: img("author"), ts: "1.1", postedAt: null, slackChannelId: "C1", channelName: null, slackUrl: null, footer: null, files: [] } } : u));
     const proxied = proxyUnfurlImages(MESSAGE, withShared as never, img("logo"));
 
-    expect(proxied.botIcon).toBe(unfurlImageSrc(MESSAGE, 0));
-    expect(unfurlImageSrc(MESSAGE, 3)).toBe(`/api/chat/unfurl-image?m=${MESSAGE}&i=3`);
+    expect(proxied.botIcon).toBe(unfurlImageSrc(MESSAGE, unfurlPictureKey(img("logo"))));
+    expect(unfurlImageSrc(MESSAGE, "0123456789abcdef")).toBe(`/api/chat/unfurl-image?m=${MESSAGE}&k=0123456789abcdef`);
+    expect(unfurlPictureKey(img("one"))).toMatch(/^[0-9a-f]{16}$/);
     const text = JSON.stringify(proxied.unfurls);
     // the quoted message's raw attachment travels untouched but is never drawn; everything that is drawn is ours
     expect(JSON.stringify(proxied.unfurls.map((u) => (u.kind === "share" ? { ...u, attachment: null } : u)))).not.toContain("img.example.test");
-    // the same positions the route computes from the original
-    const positions = [...text.matchAll(/&i=(\d+)/g)].map((m) => Number(m[1]));
-    expect(positions.sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    // every picture is named by a hash of its own address: the same name the route computes from the original
+    const keys = [...text.matchAll(/&k=([0-9a-f]{16})/g)].map((m) => m[1]);
+    const expected = ["one", "one-thumb", "author", "two", "accessory", "ctx", "block"].map((n) => unfurlPictureKey(img(n)));
+    expect(keys.sort()).toEqual(expected.sort());
     const share = proxied.unfurls.find((u) => u.kind === "share");
-    expect(share && "shared" in share && share.shared?.authorIcon).toBe(unfurlImageSrc(MESSAGE, 3));
+    expect(share && "shared" in share && share.shared?.authorIcon).toBe(unfurlImageSrc(MESSAGE, unfurlPictureKey(img("author"))));
+  });
+
+  it("names a picture the same whatever is listed before it (the app's logo arriving later must not move it)", () => {
+    const { unfurls } = parseUnfurls({ attachments: [{ title: "One", image_url: img("one") }] }, { bot: false, body: "x" });
+    const without = proxyUnfurlImages(MESSAGE, unfurls, null).unfurls;
+    const withLogo = proxyUnfurlImages(MESSAGE, unfurls, img("logo")).unfurls;
+    expect(withLogo).toEqual(without);
   });
 
   it("counts a quoted message's author picture even before the loader has looked the message up", () => {
