@@ -14,6 +14,7 @@
  *   (`requireStaffAction()` or the staff page, and `care.write`) and hands the service repositories in.
  */
 import { daysAgoLabel } from "@/lib/care";
+import { resolveDmLinks, type DmLink } from "@/lib/care-dm-link";
 import { clock } from "@/lib/clock";
 import { CARE_OWNER_ROLES } from "@/lib/care-owners";
 import { derivedMessageTimes, lastWriter, type DmLastWrites } from "@/lib/care-dm-rules";
@@ -107,6 +108,8 @@ export type CareDmRow = {
   lastLabel: string | null;
   /** Who wrote last: she did, or they did. */
   lastBy: "you" | "them" | null;
+  /** "Open the DM": Hub Chat when she can open it there, else Slack (`lib/care-dm-link.ts`). */
+  link: DmLink;
 };
 
 /** Why the list isn't shown, and what to do about it. */
@@ -145,7 +148,7 @@ async function writesByChannel(service: Pick<Repos, "slackMessages">, dms: reado
 export async function loadCareDmTab(
   service: CareDmServiceRepos,
   user: StaffIdentity,
-  options: { bridgeOn: boolean; trackedChannelIds: ReadonlySet<string>; now: Date }
+  options: { bridgeOn: boolean; trackedChannelIds: ReadonlySet<string>; now: Date; slackTeamId?: string | null }
 ): Promise<CareDmTab> {
   const own = await ownSlackIdentity(service, user);
   if (!own.memberId) return { state: "unavailable", reason: "no_member" };
@@ -155,7 +158,11 @@ export async function loadCareDmTab(
 
   const dms = await ownDirectMessages(service, own.slackUserId, own.memberId);
   if (dms.length === 0) return { state: "ready", rows: [] };
-  const [writes, members] = await Promise.all([writesByChannel(service, dms, own.slackUserId), service.members.byIds([...new Set(dms.map((dm) => dm.memberId))])]);
+  const [writes, members, links] = await Promise.all([
+    writesByChannel(service, dms, own.slackUserId),
+    service.members.byIds([...new Set(dms.map((dm) => dm.memberId))]),
+    resolveDmLinks({ chat: service.chat, selfMemberId: own.memberId, slackTeamId: options.slackTeamId }, dms.map((dm) => dm.channelId)),
+  ]);
   const byId = new Map(members.map((m) => [m.id, m]));
   const rows: CareDmRow[] = [];
   for (const dm of dms) {
@@ -172,6 +179,7 @@ export async function loadCareDmTab(
       lastAt: last?.at ?? null,
       lastLabel: last ? daysAgoLabel(last.at, options.now) : null,
       lastBy: last ? (last.who === "staff" ? "you" : "them") : null,
+      link: links.get(dm.channelId)!,
     });
   }
   return { state: "ready", rows: rows.sort(byLastThenName) };

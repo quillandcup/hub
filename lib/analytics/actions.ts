@@ -98,6 +98,7 @@ export const OUTCOME_ACTIONS = [
   "care_engagement_started",
   "care_message_logged",
   "care_engagement_updated",
+  "care_start_date_changed",
   "care_engagement_closed",
   "care_engagement_renewed",
   "care_engagement_reassigned",

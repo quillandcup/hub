@@ -19,14 +19,15 @@ import { searchCareMembers, startEngagement } from "./actions";
 const FIELD = "w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-sm";
 const LABEL = "block text-sm font-medium mb-1";
 
-/** Starts an engagement: who, why, where, and an optional note. She reached out, or they wrote to her first. */
-export default function StartEngagementForm() {
+/** Starts a care period: who, why, where, the day it started and an optional note. She reached out, or they wrote to her first. */
+export default function StartEngagementForm({ today }: { today: string }) {
   const [member, setMember] = useState<SearchItem | null>(null);
   const [reason, setReason] = useState("");
   const [channel, setChannel] = useState("slack_dm");
   const [memberWroteFirst, setMemberWroteFirst] = useState(false);
   const [notes, setNotes] = useState("");
   const [followUpOn, setFollowUpOn] = useState("");
+  const [startedOn, setStartedOn] = useState(today);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -34,22 +35,24 @@ export default function StartEngagementForm() {
     e.preventDefault();
     if (!member) return setError("Pick a member.");
     if (!isCareReason(reason) || !isCareChannel(channel)) return setError("Pick why you are reaching out.");
+    if (!startedOn) return setError("Pick the day it started.");
     setError(null);
     startTransition(async () => {
-      const result = await startEngagement({ memberId: member.id, reason, channel, memberWroteFirst, notes, followUpOn });
+      const result = await startEngagement({ memberId: member.id, startedOn, reason, channel, memberWroteFirst, notes, followUpOn });
       if ("error" in result) return setError(result.error);
-      track("care_engagement_started", { reason, channel, member_wrote_first: memberWroteFirst });
+      track("care_engagement_started", { reason, channel, member_wrote_first: memberWroteFirst, backdated: startedOn < today });
       setMember(null);
       setReason("");
       setMemberWroteFirst(false);
       setNotes("");
       setFollowUpOn("");
+      setStartedOn(today);
     });
   }
 
   return (
     <form onSubmit={submit} className="@container rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-      <h2 className="text-lg font-semibold">Start an engagement</h2>
+      <h2 className="text-lg font-semibold">Start a care period</h2>
       <div className="mt-3 grid grid-cols-1 gap-4 @pair:grid-cols-2">
         <div>
           <span className={LABEL} id="care-member-label">
@@ -92,6 +95,10 @@ export default function StartEngagementForm() {
             ))}
           </select>
         </div>
+        <div>
+          <DatePicker id="care-started-on" label="When did this start?" value={startedOn} onChange={setStartedOn} max={today} />
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Today, or the day you first wrote if you are catching up. The care period runs from this day.</p>
+        </div>
         <DatePicker id="care-follow-up" label="Follow up on" value={followUpOn} onChange={setFollowUpOn} />
         <div className="@pair:col-span-2">
           <label htmlFor="care-notes" className={LABEL}>
@@ -123,7 +130,7 @@ export default function StartEngagementForm() {
         disabled={pending}
         className="mt-4 rounded-lg bg-plum-600 px-4 py-2 text-sm font-medium text-white hover:bg-plum-700 disabled:opacity-50"
       >
-        {pending ? "Starting…" : "Start engagement"}
+        {pending ? "Starting…" : "Start care period"}
       </button>
     </form>
   );

@@ -92,6 +92,19 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     ].join("\n\n"),
   },
   {
+    slug: "hedgie-care-feedback",
+    date: "2026-11-12",
+    audience: "engineering",
+    category: "improved",
+    title: "Hedgie Care: start in the past, score and last participation on each row, Open the DM",
+    summary: "The community manager can enter a conversation with the day it really started, sees each member's engagement score then and now and when they last took part, and can jump to a tracked DM. The unit is now called a care period on the page.",
+    body: [
+      "Starting a care period asks \"When did this start?\" (the shared `DatePicker`, an Eastern calendar day, today by default and never after it), and \"Change start date\" on a row fixes ones entered with today's date (`changeEngagementStart`, `CareRepository.changeStart`, a `care.write` action wrapped in `withAction`, event `care_start_date_changed`). An earlier day is stored as noon Eastern in `opened_at`, with the first message placed at the start of that day so a real DM from that morning can replace it; the last day moves with the start and keeps the period's own length; a start can't cross the care period it continues, its renewal or its close (`lib/care.ts`); the audit log shows one delta of `opened_at` and `period_ends_on`. Tracked Slack DMs from the new day on count towards who wrote last. No migration.",
+      "Each row and the Results panel show the member's engagement score and tier when the care period started and now (`engagementScoreAt`, `lib/care-scores.ts`, one batched `ActivityRepository.engagementRowsForWindows` for the whole page) and their last own activity in the community (`lib/care-participation.ts`, `ActivityRepository.lastParticipation`: `actor_kind = 'member'` and a listed type, never logins, feedback or anything staff or the system wrote). \"Open the DM\" (`lib/care-dm-link.ts`) goes to the DM in Hub Chat when she is in it there, else to Slack's `app_redirect`, with the workspace id from the optional `SLACK_TEAM_ID`.",
+      "\"Engagement period\" read as confusing next to the engagement score, so every word on the page now says care period; tables, columns, routes and events keep their names. The text of tracked DMs is deliberately not shown in the tracker (`docs/TODO.md`, \"Hedgie Care: what is left\").",
+    ].join("\n\n"),
+  },
+  {
     slug: "hedgie-care-slack-dms",
     date: "2026-11-11",
     audience: "engineering",

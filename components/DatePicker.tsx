@@ -8,6 +8,8 @@ interface DatePickerProps {
   onChange: (value: string) => void;
   /** Earliest pickable day, YYYY-MM-DD. */
   min?: string;
+  /** Latest pickable day, YYYY-MM-DD. */
+  max?: string;
   disabled?: boolean;
   required?: boolean;
   className?: string;
@@ -21,7 +23,7 @@ const inputClass =
  * this instead of a bare `<input type="date">` so a fuller calendar picker can replace it in one
  * place. Values are always YYYY-MM-DD strings.
  */
-export default function DatePicker({ id, label, value, onChange, min, disabled, required, className = "" }: DatePickerProps) {
+export default function DatePicker({ id, label, value, onChange, min, max, disabled, required, className = "" }: DatePickerProps) {
   return (
     <div className={className}>
       <label htmlFor={id} className="block text-sm font-medium mb-1">
@@ -32,6 +34,7 @@ export default function DatePicker({ id, label, value, onChange, min, disabled, 
         type="date"
         value={value}
         min={min}
+        max={max}
         disabled={disabled}
         required={required}
         onChange={(e) => onChange(e.target.value)}

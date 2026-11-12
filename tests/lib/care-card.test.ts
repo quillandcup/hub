@@ -100,4 +100,42 @@ describe("toEngagementCard", () => {
       expect(toEngagementCard(row({ owned_by: null, opened_by: owner }), NOW, { slackTracked: tracked }).fromSlack).toBe(true);
     });
   });
+  it("carries the Eastern day it started and today's, not the UTC date", () => {
+    // 23:30 Eastern on Mar 17 is already Mar 18 in UTC; "now" is 21:00 Eastern on Mar 19 (Mar 20 in UTC).
+    const late = new Date("2026-03-20T01:00:00.000Z");
+    expect(toEngagementCard(row({ opened_at: "2026-03-18T03:30:00.000Z" }), late)).toMatchObject({ startedOn: "2026-03-17", today: "2026-03-19" });
+  });
+
+  it("carries the scores for its care period, or none", () => {
+    const scores = new Map([["care_AAAAAAAAAAA1", { then: { score: 4, tier: "at_risk" as const }, now: { score: 60, tier: "highly_engaged" as const } }]]);
+    expect(toEngagementCard(row(), NOW, { scores }).scores).toEqual(scores.get("care_AAAAAAAAAAA1"));
+    expect(toEngagementCard(row({ id: "care_AAAAAAAAAAA2" }), NOW, { scores }).scores).toBeNull();
+    expect(toEngagementCard(row(), NOW).scores).toBeNull();
+  });
+
+  it("words the member's last participation by Eastern day, what it was and how long ago, null when there is none, and says so when it could not be read", () => {
+    const participation = new Map([["mbr_AAAAAAAAAAA1", { occurredAt: "2026-03-19T02:00:00.000Z", type: "prickle_attended", label: "a prickle" }]]); // 22:00 Eastern on Mar 18
+    expect(toEngagementCard(row(), NOW, { participation }).lastParticipation).toEqual({ dateLabel: "3/18/2026", what: "a prickle", agoLabel: "yesterday" });
+    expect(toEngagementCard(row({ member_id: "mbr_AAAAAAAAAAA2" }), NOW, { participation }).lastParticipation).toBeNull();
+    expect(toEngagementCard(row(), NOW).lastParticipation).toBe("unavailable"); // the read failed or was not made
+  });
+
+  describe("dmLink", () => {
+    const owner = "11111111-1111-4111-8111-111111111111";
+    const link = { href: "/chat/chn_AAAAAAAAAAA1", kind: "hub_chat" as const };
+    const tracked = { userId: owner, memberIds: new Set(["mbr_AAAAAAAAAAA1"]), links: new Map([["mbr_AAAAAAAAAAA1", link]]) };
+
+    it("is given for a Slack DM care period she owns with a member whose DM she tracks, open or closed", () => {
+      expect(toEngagementCard(row(), NOW, { slackTracked: tracked }).dmLink).toEqual(link);
+      expect(toEngagementCard(row({ closed_at: ago(1), ended_how: "no_reply" }), NOW, { slackTracked: tracked }).dmLink).toEqual(link);
+    });
+
+    it("is not given for another channel, someone else's, a DM she does not track, or when there is no link", () => {
+      expect(toEngagementCard(row({ channel: "email" }), NOW, { slackTracked: tracked }).dmLink).toBeNull();
+      expect(toEngagementCard(row(), NOW, { slackTracked: { ...tracked, userId: "22222222-2222-4222-8222-222222222222" } }).dmLink).toBeNull();
+      expect(toEngagementCard(row(), NOW, { slackTracked: { ...tracked, memberIds: new Set() } }).dmLink).toBeNull();
+      expect(toEngagementCard(row(), NOW, { slackTracked: { ...tracked, links: new Map() } }).dmLink).toBeNull();
+      expect(toEngagementCard(row(), NOW).dmLink).toBeNull();
+    });
+  });
 });

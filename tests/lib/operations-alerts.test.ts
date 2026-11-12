@@ -5,7 +5,8 @@ const sendEmail = vi.hoisted(() => vi.fn(async () => {}));
 const captureException = vi.hoisted(() => vi.fn());
 
 vi.mock("@slack/web-api", () => ({ WebClient: class { chat = { postMessage }; } }));
-vi.mock("@/lib/config", () => ({ isProduction: true, SLACK_ALERTS_CHANNEL_ID: "C0CA91G8LGH" }));
+// The rest of the config stays real: the repositories this file builds load modules that read it when they are imported.
+vi.mock("@/lib/config", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/config")>()), isProduction: true, SLACK_ALERTS_CHANNEL_ID: "C0CA91G8LGH" }));
 vi.mock("@/lib/email", () => ({ sendEmail }));
 vi.mock("@sentry/nextjs", () => ({ captureException }));
 

@@ -10,7 +10,9 @@ const mocks = vi.hoisted(() => ({
   reprocess: vi.fn(),
 }));
 
-vi.mock("@/lib/config", () => ({
+// The rest of the config stays real: the repositories this file builds load modules that read it when they are imported.
+vi.mock("@/lib/config", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/config")>()),
   APP_URL: "https://app.example.test",
   get isProduction() {
     return mocks.config.isProduction;

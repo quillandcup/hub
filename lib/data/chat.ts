@@ -209,6 +209,8 @@ export interface ChatRepository {
   bridgeState(channelId: string): Promise<BridgeState | null>;
   /** The Hub id of the channel that mirrors this Slack channel, or null when none does. */
   idBySlackChannel(slackChannelId: string): Promise<string | null>;
+  /** The Hub conversations that mirror these Slack conversations, by Slack conversation id; one the caller can't see, or that is not mirrored, is absent. Chunked. */
+  idsBySlackChannels(slackChannelIds: string[]): Promise<Map<string, string>>;
 
   // --- message reads ---
   /** Top-level messages of a conversation, newest first, at most `limit`; with `before`, only those created earlier. */
@@ -459,6 +461,16 @@ export class SupabaseChatRepository implements ChatRepository {
     const { data, error } = await this.db.from("chat_channels").select("id").eq("slack_channel_id", slackChannelId).maybeSingle();
     if (error) throw new Error(error.message);
     return data?.id ?? null;
+  }
+
+  async idsBySlackChannels(slackChannelIds: string[]) {
+    const out = new Map<string, string>();
+    for (const part of chunk([...new Set(slackChannelIds)], ID_CHUNK)) {
+      const { data, error } = await this.db.from("chat_channels").select("id, slack_channel_id").in("slack_channel_id", part);
+      if (error) throw new Error(error.message);
+      for (const row of data ?? []) if (row.slack_channel_id) out.set(row.slack_channel_id, row.id);
+    }
+    return out;
   }
 
   // --- message reads ---
@@ -1082,6 +1094,11 @@ export class InMemoryChatRepository implements ChatRepository {
 
   async idBySlackChannel(slackChannelId: string) {
     return this.data.chatChannels.find((c) => c.slack_channel_id === slackChannelId)?.id ?? null;
+  }
+
+  async idsBySlackChannels(slackChannelIds: string[]) {
+    const wanted = new Set(slackChannelIds);
+    return new Map(this.data.chatChannels.flatMap((c) => (c.slack_channel_id && wanted.has(c.slack_channel_id) ? [[c.slack_channel_id, c.id] as [string, string]] : [])));
   }
 
   // --- message reads ---
