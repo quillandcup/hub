@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: PageProps<"/admin/changelog/[
   return { title: entry ? `${entry.title} · Changelog` : "Changelog" };
 }
 
-/** One changelog entry, product or engineering (an engineering entry has no member page). */
+/** One changelog entry of any audience (only a product entry has a member page). */
 export default async function AdminChangelogEntryPage({ params }: PageProps<"/admin/changelog/[slug]">) {
   await requireAdminPage();
 

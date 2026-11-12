@@ -24,7 +24,7 @@ const chipOff = `${chip} border border-slate-300 bg-white text-slate-700 hover:b
 
 /**
  * Search and filters for a changelog page, as plain links and a GET form (the page stays a server component, a filtered view can be
- * shared). Members get a search box and New / Improved / Fixed; the admin page (`withAudience`) adds Product / Engineering / All.
+ * shared). Members get a search box and New / Improved / Fixed; the admin page (`withAudience`) adds Product / Staff / Engineering / All.
  */
 export default function ChangelogFilters({ basePath, state, withAudience = false }: { basePath: string; state: ChangelogFilterState; withAudience?: boolean }) {
   const categories = [{ label: "All", value: null }, ...Object.entries(CHANGELOG_CATEGORIES).map(([value, label]) => ({ label, value: value as ChangelogCategory }))];

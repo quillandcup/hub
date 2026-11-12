@@ -12,7 +12,7 @@ const majorBadge = (
 );
 
 /**
- * Every changelog entry, product and engineering (`lib/changelog/entries.ts`): what members see on What's new plus the engineering
+ * Every changelog entry, product, staff and engineering (`lib/changelog/entries.ts`): what members see on What's new plus the engineering
  * history that members never do. Search, filter by category, and by audience (the filter members' page does not have).
  */
 export default async function AdminChangelogPage({ searchParams }: PageProps<"/admin/changelog">) {
@@ -33,7 +33,7 @@ export default async function AdminChangelogPage({ searchParams }: PageProps<"/a
         <Link href="/changelog" className="text-plum-700 dark:text-plum-300 underline">
           What&apos;s new
         </Link>{" "}
-        and the engineering behind it. {entries.length} {entries.length === 1 ? "entry" : "entries"}.
+        the tools staff use, and the engineering behind it. {entries.length} {entries.length === 1 ? "entry" : "entries"}.
       </p>
 
       <ChangelogFilters basePath="/admin/changelog" state={{ q, show, audience }} withAudience />

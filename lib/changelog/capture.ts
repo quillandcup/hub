@@ -47,12 +47,12 @@ export function capturedImages(dir: string): string[] {
     .sort();
 }
 
-/** Why a slug can't be captured, or null when it can: it must name a product entry (engineering entries show no screenshots) with a scene. */
+/** Why a slug can't be captured, or null when it can: it must name a product or staff entry (engineering entries show no screenshots) with a scene. */
 export function captureProblem(slug: string, entries: readonly ChangelogEntry[] = CHANGELOG_ENTRIES, root: string = process.cwd()): string | null {
   if (!isChangelogSlug(slug)) return `"${slug}" is not a changelog slug (lowercase words and hyphens)`;
   const entry = entries.find((e) => e.slug === slug);
   if (!entry) return `No changelog entry has the slug "${slug}": add the entry to lib/changelog/entries.ts first`;
-  if (entry.audience !== "product") return `"${slug}" is an engineering entry, which has no screenshots`;
+  if (entry.audience === "engineering") return `"${slug}" is an engineering entry, which has no screenshots`;
   if (!existsSync(path.join(root, sceneFile(slug)))) return `No scene at ${sceneFile(slug)}: write one (see demo/scenes/changelog/ for an example)`;
   return null;
 }
@@ -66,7 +66,7 @@ export function entryImagePaths(entry: ChangelogEntry): string[] {
 /** Images an entry shows that are not in public/ (a typo, or a capture that was never committed). */
 export function missingImageFiles(entries: readonly ChangelogEntry[] = CHANGELOG_ENTRIES, root: string = process.cwd()): string[] {
   return entries
-    .filter((e) => e.audience === "product")
+    .filter((e) => e.audience !== "engineering")
     .flatMap((e) => entryImagePaths(e).map((src) => ({ slug: e.slug, src })))
     .filter(({ src }) => !existsSync(path.join(root, "public", src)))
     .map(({ slug, src }) => `${slug}: ${src}`);
