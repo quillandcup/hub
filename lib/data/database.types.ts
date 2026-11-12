@@ -3246,6 +3246,7 @@ export type Database = {
           event_id: string
           id: string
           member_id: string
+          ticket_giver_id: string | null
           ticket_note: string | null
           ticket_source: string | null
         }
@@ -3255,6 +3256,7 @@ export type Database = {
           event_id: string
           id?: string
           member_id: string
+          ticket_giver_id?: string | null
           ticket_note?: string | null
           ticket_source?: string | null
         }
@@ -3264,6 +3266,7 @@ export type Database = {
           event_id?: string
           id?: string
           member_id?: string
+          ticket_giver_id?: string | null
           ticket_note?: string | null
           ticket_source?: string | null
         }
@@ -3285,6 +3288,13 @@ export type Database = {
           {
             foreignKeyName: "event_attendees_member_id_fkey"
             columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_attendees_ticket_giver_id_fkey"
+            columns: ["ticket_giver_id"]
             isOneToOne: false
             referencedRelation: "members"
             referencedColumns: ["id"]

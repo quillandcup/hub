@@ -1,5 +1,5 @@
 import { createRepos } from "@/lib/data/repos";
-import { parseTicketInput } from "@/lib/event-tickets";
+import { parseTicketInput, SET_TICKET_REFUSALS } from "@/lib/event-tickets";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -44,14 +44,15 @@ export async function PATCH(
   if (!ticket) return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
   if ("error" in ticket) return NextResponse.json({ error: ticket.error }, { status: 400 });
 
-  let found: boolean;
+  let result;
   try {
-    found = await createRepos(supabase).events.setAttendeeTicket(id, memberId, ticket);
+    result = await createRepos(supabase).events.setAttendeeTicket(id, memberId, ticket);
   } catch (error) {
     console.error("Error updating event attendee ticket:", error);
     return NextResponse.json({ error: "Failed to update the ticket" }, { status: 500 });
   }
-  if (!found) return NextResponse.json({ error: "Not an attendee of this event" }, { status: 404 });
+  if (result === "not_attendee") return NextResponse.json({ error: "Not an attendee of this event" }, { status: 404 });
+  if (result !== "set") return NextResponse.json({ error: SET_TICKET_REFUSALS[result] }, { status: 400 });
 
   return NextResponse.json({ success: true });
 }

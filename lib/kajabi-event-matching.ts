@@ -64,6 +64,18 @@ export interface MultiTicketBuyer {
   tickets: number;
   first_bought: string | null;
   is_attendee: boolean;
+  /** The attendees recorded as gifted by this buyer (their "gifted by" names them). */
+  passed_to: string[];
+  /** Tickets that should be someone else's and no gifted attendee names the buyer for: an attendee keeps one, a non-attendee keeps none. */
+  unexplained: number;
+}
+
+/** A buyer who is not an attendee because every ticket they bought went to someone else. */
+export interface PassedOnTicket {
+  giver_id: string;
+  giver_name: string;
+  tickets: number;
+  receivers: string[];
 }
 
 export interface EventKajabiMatches {
@@ -71,8 +83,8 @@ export interface EventKajabiMatches {
   offersLinked: boolean;
   /** Buyers of two or more tickets (active purchases of the same offer), most tickets first. */
   multiTicketBuyers: MultiTicketBuyer[];
-  /** How many attendees are recorded as gifted, to set against the extra tickets. */
-  giftedAttendees: number;
+  /** Buyers who are not attendees because their tickets went to gifted attendees; they are left out of `buyers`. */
+  passedOn: PassedOnTicket[];
   buyers: EventTicketBuyer[];
   unmatched: UnmatchedBuyer[];
   attendeesWithoutTicket: AttendeeWithoutTicket[];
@@ -95,7 +107,7 @@ export async function findKajabiMatchesForEvent(
   contactOfferIds?: (kajabiContactId: string) => Promise<string[] | null>
 ): Promise<EventKajabiMatches> {
   const offerIds = await repos.events.offerIdsOf(eventId);
-  if (offerIds.length === 0) return { offersLinked: false, multiTicketBuyers: [], giftedAttendees: 0, buyers: [], unmatched: [], attendeesWithoutTicket: [] };
+  if (offerIds.length === 0) return { offersLinked: false, multiTicketBuyers: [], passedOn: [], buyers: [], unmatched: [], attendeesWithoutTicket: [] };
 
   const [offers, purchases, attendees] = await Promise.all([
     repos.billing.kajabiOffersByIds(offerIds),
@@ -125,15 +137,36 @@ export async function findKajabiMatchesForEvent(
     target.set(key, acc);
   }
 
+  // Who gave tickets to whom: the gifted attendees that name a giver, by giver.
+  const receiversOf = new Map<string, string[]>();
+  for (const a of attendees) {
+    if (a.ticket_source !== "gifted" || !a.ticket_giver) continue;
+    const list = receiversOf.get(a.ticket_giver.id) ?? [];
+    list.push(a.member ? getMemberDisplayName(a.member) : "Unknown");
+    receiversOf.set(a.ticket_giver.id, list);
+  }
+  const activeTickets = (acc: Accum) => {
+    const perOffer = new Map<string, number>();
+    for (const p of acc.purchases) if (p.deactivated_at === null) perOffer.set(p.kajabi_offer_id ?? "", (perOffer.get(p.kajabi_offer_id ?? "") ?? 0) + 1);
+    return Math.max(0, ...perOffer.values());
+  };
+
   const earliest = (acc: Accum) => acc.purchases.map(resolveMatchDate).filter((d): d is string => !!d).sort()[0] ?? null;
 
   const buyers: EventTicketBuyer[] = [];
+  const passedOn: PassedOnTicket[] = [];
   // The names each buyer goes by (legal and shown), to compare with attendees that have no ticket.
   const legalNames = new Map<string, string[]>();
   for (const [memberId, acc] of byMember) {
     if (attendeeIds.has(memberId)) continue;
     const member = memberById.get(memberId)!;
     const display = getMemberDisplayName({ name: member.name, display_name: member.displayName });
+    const tickets = activeTickets(acc);
+    const receivers = receiversOf.get(memberId) ?? [];
+    if (tickets > 0 && receivers.length >= tickets) {
+      passedOn.push({ giver_id: memberId, giver_name: display, tickets, receivers });
+      continue;
+    }
     buyers.push({
       member_id: memberId,
       member_name: display,
@@ -148,6 +181,7 @@ export async function findKajabiMatchesForEvent(
     });
     legalNames.set(memberId, [member.name, display]);
   }
+  passedOn.sort((a, b) => a.giver_name.localeCompare(b.giver_name));
   buyers.sort((a, b) => (a.purchase_date ?? "").localeCompare(b.purchase_date ?? "") || a.member_name.localeCompare(b.member_name));
 
   const unmatched: UnmatchedBuyer[] = Array.from(byUnmatchedEmail, ([key, acc]) => ({
@@ -184,10 +218,12 @@ export async function findKajabiMatchesForEvent(
   // payments here, so the extra one is for someone else, whoever the buyer is.
   const multiTicketBuyers: MultiTicketBuyer[] = [];
   const addMulti = (acc: Accum, id: string | null, name: string) => {
-    const perOffer = new Map<string, number>();
-    for (const p of acc.purchases) if (p.deactivated_at === null) perOffer.set(p.kajabi_offer_id ?? "", (perOffer.get(p.kajabi_offer_id ?? "") ?? 0) + 1);
-    const tickets = Math.max(0, ...perOffer.values());
-    if (tickets > 1) multiTicketBuyers.push({ member_id: id, name, tickets, first_bought: earliest(acc), is_attendee: id !== null && attendeeIds.has(id) });
+    const tickets = activeTickets(acc);
+    if (tickets <= 1) return;
+    const isAttendee = id !== null && attendeeIds.has(id);
+    const passedTo = id ? (receiversOf.get(id) ?? []) : [];
+    const extras = isAttendee ? tickets - 1 : tickets;
+    multiTicketBuyers.push({ member_id: id, name, tickets, first_bought: earliest(acc), is_attendee: isAttendee, passed_to: passedTo, unexplained: Math.max(0, extras - passedTo.length) });
   };
   for (const [memberId, acc] of byMember) {
     const member = memberById.get(memberId);
@@ -196,8 +232,7 @@ export async function findKajabiMatchesForEvent(
   for (const [key, acc] of byUnmatchedEmail) addMulti(acc, null, key.startsWith("customer:") ? "(no email on the Kajabi customer)" : key);
   multiTicketBuyers.sort((a, b) => b.tickets - a.tickets || (a.first_bought ?? "").localeCompare(b.first_bought ?? "") || a.name.localeCompare(b.name));
 
-  const giftedAttendees = attendees.filter((a) => a.ticket_source === "gifted").length;
-  return { offersLinked: true, multiTicketBuyers, giftedAttendees, buyers, unmatched, attendeesWithoutTicket };
+  return { offersLinked: true, multiTicketBuyers, passedOn, buyers, unmatched, attendeesWithoutTicket };
 }
 
 /**

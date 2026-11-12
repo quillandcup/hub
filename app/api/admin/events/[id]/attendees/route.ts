@@ -1,5 +1,5 @@
 import { createRepos } from "@/lib/data/repos";
-import { parseTicketInput } from "@/lib/event-tickets";
+import { parseTicketInput, SET_TICKET_REFUSALS } from "@/lib/event-tickets";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -25,6 +25,9 @@ export async function POST(
   const ticket = parseTicketInput(body);
   if (ticket && "error" in ticket) return NextResponse.json({ error: ticket.error }, { status: 400 });
 
+  if (ticket?.giverId && ticket.giverId === body.memberId) return NextResponse.json({ error: SET_TICKET_REFUSALS.self_gift }, { status: 400 });
+  if (ticket?.giverId && ticket.source !== "gifted") return NextResponse.json({ error: SET_TICKET_REFUSALS.not_gifted }, { status: 400 });
+
   const { error } = await supabase.rpc("add_event_attendee", {
     p_event_id: id,
     p_member_id: body.memberId,
@@ -39,7 +42,11 @@ export async function POST(
   // Metadata about the ticket, set after the atomic add (the function's signature stays as it is).
   if (ticket) {
     try {
-      await createRepos(supabase).events.setAttendeeTicket(id, body.memberId, ticket);
+      const result = await createRepos(supabase).events.setAttendeeTicket(id, body.memberId, ticket);
+      if (result !== "set") {
+        const message = result === "not_attendee" ? "Added, but the ticket could not be recorded" : SET_TICKET_REFUSALS[result];
+        return NextResponse.json({ error: message }, { status: result === "not_attendee" ? 500 : 400 });
+      }
     } catch (ticketError) {
       console.error("Error recording event attendee ticket:", ticketError);
       return NextResponse.json({ error: "Added, but the ticket could not be recorded" }, { status: 500 });

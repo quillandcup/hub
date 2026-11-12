@@ -69,6 +69,7 @@ export async function GET(
     purchasedInKajabi: purchasers.has(a.member_id),
     ticketSource: a.ticket_source,
     ticketNote: a.ticket_note,
+    ticketGiver: a.ticket_giver ? { id: a.ticket_giver.id, name: getMemberDisplayName(a.ticket_giver) } : null,
     memberName: a.member ? getMemberDisplayName(a.member) : "Unknown",
     memberRealName: a.member && getMemberDisplayName(a.member) !== a.member.name ? a.member.name : undefined,
     memberEmail: a.member?.email ?? "",

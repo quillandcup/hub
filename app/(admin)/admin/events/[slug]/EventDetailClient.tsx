@@ -31,6 +31,8 @@ interface Attendee {
   memberEmail: string;
   ticketSource: TicketSource | null;
   ticketNote: string | null;
+  /** Who gave the ticket (a gifted attendee); null when not recorded. */
+  ticketGiver?: { id: string; name: string } | null;
   /** Holds an active purchase of the event's linked Kajabi offers (derived by the server). */
   purchasedInKajabi: boolean;
 }
@@ -66,6 +68,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [addingTicketSource, setAddingTicketSource] = useState<TicketSource | "">("");
   const [addingTicketNote, setAddingTicketNote] = useState("");
+  const [addingGiver, setAddingGiver] = useState<Member | null>(null);
 
   useEffect(() => {
     fetch("/api/members")
@@ -113,6 +116,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
           memberId: addingMember.id,
           ...(addingTicketSource && { ticketSource: addingTicketSource }),
           ...(addingTicketNote.trim() && { ticketNote: addingTicketNote }),
+          ...(addingTicketSource === "gifted" && addingGiver && { ticketGiverId: addingGiver.id }),
         }),
       });
       const body = await response.json();
@@ -120,6 +124,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
       setAddingMember(null);
       setAddingTicketSource("");
       setAddingTicketNote("");
+      setAddingGiver(null);
       await fetchData();
     } catch (err: any) {
       setError(err.message);
@@ -129,7 +134,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
   };
 
   /** Saves the ticket fields it is given (the source, the note, or both); null clears one. */
-  const saveTicket = async (memberId: string, ticket: { ticketSource?: TicketSource | null; ticketNote?: string | null }) => {
+  const saveTicket = async (memberId: string, ticket: { ticketSource?: TicketSource | null; ticketNote?: string | null; ticketGiverId?: string | null }) => {
     setError(null);
     try {
       const response = await fetch(`/api/admin/events/${eventId}/attendees/${memberId}`, {
@@ -289,7 +294,10 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
           <select
             aria-label="How they got in"
             value={addingTicketSource}
-            onChange={(e) => setAddingTicketSource(e.target.value as TicketSource | "")}
+            onChange={(e) => {
+              setAddingTicketSource(e.target.value as TicketSource | "");
+              if (e.target.value !== "gifted") setAddingGiver(null);
+            }}
             className="px-2 py-1.5 border border-gray-300 dark:border-slate-700 rounded text-sm bg-white dark:bg-slate-900"
           >
             <option value="">Ticket: not recorded</option>
@@ -299,6 +307,16 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
               </option>
             ))}
           </select>
+          {addingTicketSource === "gifted" && (
+            <div className="w-56">
+              <MemberSearch
+                members={allMembers.filter((m) => m.id !== addingMember?.id)}
+                selectedMemberId={addingGiver?.id ?? null}
+                onSelect={setAddingGiver}
+                placeholder="Gifted by..."
+              />
+            </div>
+          )}
           <input
             type="text"
             aria-label="Ticket note"
@@ -335,6 +353,17 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                   )}
                 </span>
                 <span className="flex items-center gap-3">
+                {attendee.ticketSource === "gifted" && (
+                  <div className="w-56" aria-label={`Gifted by, ${attendee.memberName}`}>
+                    <MemberSearch
+                      members={allMembers.filter((m) => m.id !== attendee.memberId)}
+                      selectedMemberId={attendee.ticketGiver?.id ?? null}
+                      selectedMemberName={attendee.ticketGiver?.name}
+                      onSelect={(m) => saveTicket(attendee.memberId, { ticketGiverId: m?.id ?? null })}
+                      placeholder="Gifted by..."
+                    />
+                  </div>
+                )}
                 {attendee.ticketSource && (
                   <input
                     key={`${attendee.id}:${attendee.ticketNote ?? ""}`}

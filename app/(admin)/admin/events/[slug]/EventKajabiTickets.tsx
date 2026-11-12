@@ -165,6 +165,8 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
 
   const shown = available.filter((o) => `${o.name} ${o.detail}`.toLowerCase().includes(filter.trim().toLowerCase())).slice(0, 100);
 
+  const unexplainedTickets = matches?.multiTicketBuyers.reduce((sum, b) => sum + b.unexplained, 0) ?? 0;
+
   return (
     <section className="bg-white dark:bg-slate-900 rounded-lg shadow p-6 mb-6">
       <h2 className="text-lg font-semibold mb-1">Kajabi tickets</h2>
@@ -298,9 +300,30 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
             </div>
           )}
 
+          {matches.passedOn.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold mb-1">Tickets passed on ({matches.passedOn.length})</h3>
+              <ul className="text-sm space-y-0.5">
+                {matches.passedOn.map((passed) => (
+                  <li key={passed.giver_id}>
+                    <Link href={`/admin/members/${passed.giver_id}`} className="font-medium text-plum-600 dark:text-plum-400 hover:underline">
+                      {passed.giver_name}
+                    </Link>
+                    {` -> ${passed.receivers.join(", ")}`}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                These buyers gave every ticket to a gifted attendee, so they are not listed as missing from the roster.
+              </p>
+            </div>
+          )}
+
           {matches.multiTicketBuyers.length > 0 && (
             <div>
-              <h3 className="text-sm font-semibold mb-1">Bought more than one ticket ({matches.multiTicketBuyers.length})</h3>
+              <h3 className="text-sm font-semibold mb-1">Bought more than one ticket
+                {unexplainedTickets > 0 && ` (${unexplainedTickets} not accounted for)`}
+              </h3>
               <ul className="text-sm space-y-0.5">
                 {matches.multiTicketBuyers.map((buyer) => (
                   <li key={buyer.member_id ?? buyer.name}>
@@ -314,12 +337,17 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
                     <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
                       {[`${buyer.tickets} tickets`, buyer.first_bought?.slice(0, 10), buyer.is_attendee ? "attendee" : "not an attendee"].filter(Boolean).join(" · ")}
                     </span>
+                    {buyer.passed_to.length > 0 && (
+                      <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">{`-> gave to ${buyer.passed_to.join(", ")}`}</span>
+                    )}
+                    {buyer.unexplained > 0 && (
+                      <span className="ml-2 text-xs font-medium text-amber-700 dark:text-amber-400">{`${buyer.unexplained} not accounted for`}</span>
+                    )}
                   </li>
                 ))}
               </ul>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                {`${matches.multiTicketBuyers.reduce((sum, b) => sum + b.tickets - 1, 0)} extra, ${matches.giftedAttendees} attendee${matches.giftedAttendees === 1 ? "" : "s"} recorded as gifted. `}
-                An extra ticket is usually a gift for someone else: set the recipient to Gifted in the list below, with the buyer in the note.
+                An extra ticket is usually a gift for someone else: set the recipient to Gifted in the list below and pick who gave it.
               </p>
             </div>
           )}

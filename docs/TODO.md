@@ -1314,7 +1314,10 @@ Two possible definitions:
 
 **Resolved:** an event can be linked to the Kajabi offers that sell it (`community_event_offers`, `EventRepository`), and "Find Kajabi matches" on the admin event page lists buyers who are not attendees (to add as `purchased`), purchases with no member, and attendees with no purchase and no recorded source (`lib/kajabi-event-matching.ts`). Use it on each past retreat as the one-time backfill review.
 
+**Resolved (gifted by):** a gifted attendee has a structured giver, `event_attendees.ticket_giver_id` (a member; cleared with the source, never the attendee's own id, repointed by a member merge). "Find Kajabi matches" uses it: a buyer who is not an attendee and whose every ticket went to a gifted attendee moves to "Tickets passed on" instead of "Bought a ticket, not an attendee", and each multi-ticket buyer shows who the extras went to and how many are not accounted for.
+
 **Still open:**
+- Existing gifted rows keep their free-text note and have no structured giver yet, so the matcher explains nothing for them. A reviewed one-off, run by hand from the notes (no names in a migration or script), can fill `ticket_giver_id`; the admin event page can also set it row by row.
 - Add buyers automatically: in the Kajabi processing step (pull-based, repeatable), for linked offers, with a ledger of handled purchases so an attendee staff removed is not re-added, refunded or deactivated purchases flagged rather than added or removed, and a feature flag that starts in dry run (`liveFor`, as `lib/member-reminders.ts`).
 - Backfill the older retreats from the organizers' notes (comped and gifted tickets for the 2024 and 2025 virtual retreats were missing from the roster when compared in prod). Do it by hand in the admin event page once the organizers confirm which retreat each ticket was for; no member names in a migration or script.
 - Run that comparison on a schedule and tell staff (an admin alert), so a gap shows up before a member asks.

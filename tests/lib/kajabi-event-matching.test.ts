@@ -52,7 +52,7 @@ function repos(over: Record<string, unknown> = {}) {
 describe("findKajabiMatchesForEvent", () => {
   it("says so when no offer is linked", async () => {
     const result = await findKajabiMatchesForEvent(repos({ eventOffers: [] }), EVENT);
-    expect(result).toEqual({ offersLinked: false, multiTicketBuyers: [], giftedAttendees: 0, buyers: [], unmatched: [], attendeesWithoutTicket: [] });
+    expect(result).toEqual({ offersLinked: false, multiTicketBuyers: [], passedOn: [], buyers: [], unmatched: [], attendeesWithoutTicket: [] });
   });
 
   it("lists buyers of the linked offers who are not attendees, by display name, through email aliases", async () => {
@@ -165,6 +165,56 @@ describe("findKajabiMatchesForEvent", () => {
       expect(attendeesWithoutTicket[0].possible_duplicate).toBeNull();
     });
   });
+  describe("tickets passed on", () => {
+    const gifted = (member: string, giver: string | null, id: string) => ({ id, event_id: EVENT, member_id: member, ticket_source: "gifted", ticket_giver_id: giver });
+
+    it("takes a non-attendee buyer whose every ticket went to a gifted attendee out of the buyers", async () => {
+      const r = repos({
+        kajabiPurchases: [purchase("p1", "c1", FULL), purchase("p2", "c2", FULL)],
+        eventAttendees: [gifted("mbr_AAAAAAAAAAA3", "mbr_AAAAAAAAAAA1", "a1")],
+      });
+
+      const { buyers, passedOn } = await findKajabiMatchesForEvent(r, EVENT);
+
+      expect(buyers.map((b) => b.member_id)).toEqual(["mbr_AAAAAAAAAAA2"]);
+      expect(passedOn).toEqual([{ giver_id: "mbr_AAAAAAAAAAA1", giver_name: "Ada E", tickets: 1, receivers: ["Cy Example"] }]);
+    });
+
+    it("keeps a buyer who passed on only some of their tickets, and reports the rest as unexplained", async () => {
+      const r = repos({
+        kajabiPurchases: [purchase("p1", "c2", FULL), purchase("p2", "c2", FULL)],
+        eventAttendees: [gifted("mbr_AAAAAAAAAAA3", "mbr_AAAAAAAAAAA2", "a1")],
+      });
+
+      const { buyers, passedOn, multiTicketBuyers } = await findKajabiMatchesForEvent(r, EVENT);
+
+      expect(passedOn).toEqual([]);
+      expect(buyers.map((b) => b.member_id)).toEqual(["mbr_AAAAAAAAAAA2"]);
+      expect(multiTicketBuyers.map((b) => [b.passed_to, b.unexplained])).toEqual([[["Cy Example"], 1]]);
+    });
+
+    it("explains nothing for a gifted attendee with no giver recorded", async () => {
+      const r = repos({
+        kajabiPurchases: [purchase("p1", "c1", FULL)],
+        eventAttendees: [gifted("mbr_AAAAAAAAAAA3", null, "a1")],
+      });
+
+      const { buyers, passedOn } = await findKajabiMatchesForEvent(r, EVENT);
+
+      expect(passedOn).toEqual([]);
+      expect(buyers).toHaveLength(1);
+    });
+
+    it("does not treat a giver of a non-gifted attendee as having passed a ticket on", async () => {
+      const r = repos({
+        kajabiPurchases: [purchase("p1", "c1", FULL)],
+        eventAttendees: [{ id: "a1", event_id: EVENT, member_id: "mbr_AAAAAAAAAAA3", ticket_source: "comped", ticket_giver_id: "mbr_AAAAAAAAAAA1" }],
+      });
+
+      expect((await findKajabiMatchesForEvent(r, EVENT)).passedOn).toEqual([]);
+    });
+  });
+
   describe("buyers of more than one ticket", () => {
     it("lists each buyer of two or more active purchases of the same offer, attendee or not, most tickets first", async () => {
       const r = repos({
@@ -184,14 +234,33 @@ describe("findKajabiMatchesForEvent", () => {
         ],
       });
 
-      const { multiTicketBuyers, giftedAttendees } = await findKajabiMatchesForEvent(r, EVENT);
+      const { multiTicketBuyers } = await findKajabiMatchesForEvent(r, EVENT);
 
       expect(multiTicketBuyers.map((b) => [b.name, b.tickets, b.is_attendee, b.first_bought?.slice(0, 10)])).toEqual([
         ["Bo Example", 3, false, "2097-01-10"],
         ["Ada E", 2, true, "2097-01-08"],
         ["stranger@example.com", 2, false, "2097-01-10"],
       ]);
-      expect(giftedAttendees).toBe(1);
+      // No gifted attendee names a giver, so every extra is unexplained.
+      expect(multiTicketBuyers.map((b) => [b.passed_to, b.unexplained])).toEqual([[[], 3], [[], 1], [[], 2]]);
+    });
+
+    it("explains an attendee buyer's extra ticket by the attendee who names them as giver, and reports the rest", async () => {
+      const r = repos({
+        kajabiPurchases: [purchase("p1", "c1", FULL), purchase("p2", "c1", FULL), purchase("p3", "c1", FULL), purchase("p4", "c2", FULL), purchase("p5", "c2", FULL)],
+        eventAttendees: [
+          { id: "a1", event_id: EVENT, member_id: "mbr_AAAAAAAAAAA1", ticket_source: null },
+          { id: "a2", event_id: EVENT, member_id: "mbr_AAAAAAAAAAA4", ticket_source: "gifted", ticket_giver_id: "mbr_AAAAAAAAAAA1" },
+          { id: "a3", event_id: EVENT, member_id: "mbr_AAAAAAAAAAA3", ticket_source: "gifted" },
+        ],
+      });
+
+      const { multiTicketBuyers } = await findKajabiMatchesForEvent(r, EVENT);
+
+      expect(multiTicketBuyers.map((b) => [b.name, b.passed_to, b.unexplained])).toEqual([
+        ["Ada E", ["Di Example"], 1],
+        ["Bo Example", [], 2],
+      ]);
     });
 
     it("does not count a deactivated purchase, nor one purchase each of two different offers", async () => {
