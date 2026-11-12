@@ -13,7 +13,7 @@
  */
 
 import { OUTCOME_ACTIONS } from "@/lib/analytics/actions";
-import { CARE_CHANNELS, CARE_ENDED_HOW, CARE_REASONS, MESSAGE_DIRECTIONS } from "@/lib/care-values";
+import { CARE_ENDED_HOW, CARE_REASONS, MESSAGE_DIRECTIONS } from "@/lib/care-values";
 import { SIGNIN_FAILURE_REASONS, SIGNIN_METHODS } from "@/lib/signin-method-client";
 
 type Spec =
@@ -201,8 +201,8 @@ export const EVENTS = {
   member_hover_card_opened: { surface: oneOf("chat", "streaks", "big_sisters"), has_message: bool() },
 
   // Hedgie Care (app/(admin)/admin/care): staff's reach-outs to members, one engagement per care plan. Never the member, the notes or the next step.
-  /** A staff member started an engagement: its `reason` and `channel`, and whether the member wrote first. */
-  care_engagement_started: { reason: oneOf(...CARE_REASONS), channel: oneOf(...CARE_CHANNELS), member_wrote_first: bool(), backdated: bool() },
+  /** A staff member started a care plan: its `reason`, and whether the start day was an earlier one. */
+  care_engagement_started: { reason: oneOf(...CARE_REASONS), backdated: bool() },
   /** A staff member changed the day an engagement started: `days_moved` is how many days it moved (earlier or later). */
   care_start_date_changed: { days_moved: int(3650) },
   /** A staff member logged a message in an engagement: `direction` is who wrote it. */

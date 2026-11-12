@@ -41,7 +41,7 @@ describe("SupabaseCareRepository database errors", () => {
     ["list", () => repo.list()],
     ["forMember", () => repo.forMember(member)],
     ["byId", () => repo.byId(id)],
-    ["open", () => repo.open({ memberId: member, reason: "welcome", channel: "slack_dm", openedBy: null, periodEndsOn: "2026-03-31" })],
+    ["open", () => repo.open({ memberId: member, reason: "welcome", openedBy: null, periodEndsOn: "2026-03-31" })],
     ["logMessage", () => repo.logMessage(id, "member", at)],
     ["moveMessageTimesForward", () => repo.moveMessageTimesForward(id, { staffAt: at })],
     ["update", () => repo.update(id, { notes: "x" })],
@@ -161,17 +161,18 @@ describe("SupabaseCareRepository queries", () => {
   });
 
   it("answers a duplicate open engagement with the one that is open", async () => {
-    const existing = { id, member_id: member, channel: "slack_dm" };
+    const existing = { id, member_id: member };
     const { db, queries } = scriptedDb([
       { data: null, error: { message: "duplicate key value", code: "23505" } },
       { data: existing, error: null },
     ]);
 
-    const result = await new SupabaseCareRepository(db).open({ memberId: member, reason: "welcome", channel: "slack_dm", openedBy: null, periodEndsOn: "2026-03-31" });
+    const result = await new SupabaseCareRepository(db).open({ memberId: member, reason: "welcome", openedBy: null, periodEndsOn: "2026-03-31" });
 
     expect(result).toEqual({ ok: false, reason: "already_open", engagement: existing });
     expect(queries[1].calls).toContainEqual({ method: "eq", args: ["member_id", member] });
-    expect(queries[1].calls).toContainEqual({ method: "eq", args: ["channel", "slack_dm"] });
+    expect(queries[1].calls.some((c) => c.method === "eq" && c.args[0] === "channel")).toBe(false); // a care plan is the member's, whatever the channel
+    expect(queries[0].calls[0]).toEqual({ method: "insert", args: [expect.not.objectContaining({ channel: expect.anything() })] });
   });
 
   it("throws the original error when the open engagement is gone by the time it looks", async () => {
@@ -179,7 +180,7 @@ describe("SupabaseCareRepository queries", () => {
       { data: null, error: { message: "duplicate key value", code: "23505" } },
       { data: null, error: null },
     ]);
-    await expect(new SupabaseCareRepository(db).open({ memberId: member, reason: "welcome", channel: "slack_dm", openedBy: null, periodEndsOn: "2026-03-31" })).rejects.toThrow("duplicate key value");
+    await expect(new SupabaseCareRepository(db).open({ memberId: member, reason: "welcome", openedBy: null, periodEndsOn: "2026-03-31" })).rejects.toThrow("duplicate key value");
   });
 
   it("throws when looking up the open engagement fails", async () => {
@@ -187,16 +188,16 @@ describe("SupabaseCareRepository queries", () => {
       { data: null, error: { message: "duplicate key value", code: "23505" } },
       { data: null, error: { message: "lookup failed" } },
     ]);
-    await expect(new SupabaseCareRepository(db).open({ memberId: member, reason: "welcome", channel: "slack_dm", openedBy: null, periodEndsOn: "2026-03-31" })).rejects.toThrow("lookup failed");
+    await expect(new SupabaseCareRepository(db).open({ memberId: member, reason: "welcome", openedBy: null, periodEndsOn: "2026-03-31" })).rejects.toThrow("lookup failed");
   });
 
   it("opens with her message at the start unless the member wrote first", async () => {
     const hers = scriptedDb([{ data: { id }, error: null }]);
-    await new SupabaseCareRepository(hers.db).open({ memberId: member, reason: "welcome", channel: "email", openedBy: null, periodEndsOn: "2026-03-31", openedAt: at });
+    await new SupabaseCareRepository(hers.db).open({ memberId: member, reason: "welcome", openedBy: null, periodEndsOn: "2026-03-31", openedAt: at });
     expect(hers.queries[0].calls[0]).toEqual({ method: "insert", args: [expect.objectContaining({ last_staff_message_at: at, last_member_message_at: null })] });
 
     const theirs = scriptedDb([{ data: { id }, error: null }]);
-    await new SupabaseCareRepository(theirs.db).open({ memberId: member, reason: "welcome", channel: "email", openedBy: null, periodEndsOn: "2026-03-31", openedAt: at, firstMessageFrom: "member" });
+    await new SupabaseCareRepository(theirs.db).open({ memberId: member, reason: "welcome", openedBy: null, periodEndsOn: "2026-03-31", openedAt: at, firstMessageFrom: "member" });
     expect(theirs.queries[0].calls[0]).toEqual({ method: "insert", args: [expect.objectContaining({ last_staff_message_at: null, last_member_message_at: at })] });
   });
 
@@ -247,11 +248,11 @@ describe("SupabaseCareRepository queries", () => {
 
   it("opens with the owner given, or whoever opened it when none is named", async () => {
     const named = scriptedDb([{ data: { id }, error: null }]);
-    await new SupabaseCareRepository(named.db).open({ memberId: member, reason: "welcome", channel: "email", openedBy: "u1", ownedBy: "u2", periodEndsOn: "2026-03-31" });
+    await new SupabaseCareRepository(named.db).open({ memberId: member, reason: "welcome", openedBy: "u1", ownedBy: "u2", periodEndsOn: "2026-03-31" });
     expect(named.queries[0].calls[0]).toEqual({ method: "insert", args: [expect.objectContaining({ opened_by: "u1", owned_by: "u2" })] });
 
     const unnamed = scriptedDb([{ data: { id }, error: null }]);
-    await new SupabaseCareRepository(unnamed.db).open({ memberId: member, reason: "welcome", channel: "email", openedBy: "u1", periodEndsOn: "2026-03-31" });
+    await new SupabaseCareRepository(unnamed.db).open({ memberId: member, reason: "welcome", openedBy: "u1", periodEndsOn: "2026-03-31" });
     expect(unnamed.queries[0].calls[0]).toEqual({ method: "insert", args: [expect.objectContaining({ owned_by: "u1" })] });
   });
 

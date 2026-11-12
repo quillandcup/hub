@@ -8,7 +8,6 @@ const card = (over: Partial<EngagementCardData>): EngagementCardData => ({
   memberName: "Ada Example",
   legalName: null,
   reason: "check_in",
-  channel: "slack_dm",
   status: "waiting",
   endedHow: null,
   openedAt: "2026-03-01T15:00:00Z",

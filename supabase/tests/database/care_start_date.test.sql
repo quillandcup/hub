@@ -1,7 +1,7 @@
 -- pgTAP tests for changing when a Hedgie Care care period started (docs/HEDGIE_CARE.md, "Starting in the past, and changing
 -- a start"): no migration was needed, the update is the existing grant and policy, so this pins what that update does. A
 -- community manager may move a start, the audit log records the intent once as a delta of opened_at and period_ends_on (and
--- nothing for the message bookkeeping that moves with it), and a move does not touch the one-open-per-member-and-channel rule.
+-- nothing for the message bookkeeping that moves with it), and a move does not touch the one-open-per-member rule.
 -- Rolled back; run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
@@ -35,11 +35,11 @@ SELECT lives_ok(
 SELECT is(
   (SELECT period_ends_on::text FROM public.care_engagements WHERE id = 'care_CareDateA01'), '2026-04-09', 'the last day moved with it');
 
--- One open per member and channel still holds after a move.
+-- One open per member still holds after a move.
 SELECT throws_ok(
   $$INSERT INTO public.care_engagements (member_id, opened_by, reason, channel, period_ends_on)
     VALUES ('mbr_CareDateAAA1', '00000000-0000-4000-a000-00000000cd01', 'welcome', 'slack_dm', current_date + 30)$$,
-  '23505', NULL, 'a second open care period on the same channel is still refused');
+  '23505', NULL, 'a second open care period for the member is still refused');
 RESET ROLE;
 
 -- An admin moves a different one's start (a different actor, so the trigger does not fold it into the insert row, which it

@@ -11,7 +11,7 @@ const row = (over: Partial<CareEngagementWithMember> = {}): CareEngagementWithMe
   member_id: "mbr_AAAAAAAAAAA1",
   opened_by: null,
   reason: "introduction",
-  channel: "slack_dm",
+  channel: "other", // the deprecated column, still on the row
   opened_at: ago(4),
   period_ends_on: "2026-04-15",
   owned_by: "11111111-1111-4111-8111-111111111111",
@@ -87,15 +87,15 @@ describe("toEngagementCard", () => {
     const owner = "11111111-1111-4111-8111-111111111111";
     const tracked = { userId: owner, memberIds: new Set(["mbr_AAAAAAAAAAA1"]) };
 
-    it("is set for an open Slack DM engagement she owns with a member whose DM she tracks, and for no one else's", () => {
+    it("is set for an open care plan she owns with a member whose DM she tracks, and for no one else's", () => {
       expect(toEngagementCard(row(), NOW, { slackTracked: tracked }).fromSlack).toBe(true);
       expect(toEngagementCard(row(), NOW).fromSlack).toBe(false);
       expect(toEngagementCard(row(), NOW, { slackTracked: { ...tracked, userId: "22222222-2222-4222-8222-222222222222" } }).fromSlack).toBe(false);
       expect(toEngagementCard(row(), NOW, { slackTracked: { ...tracked, memberIds: new Set() } }).fromSlack).toBe(false);
     });
 
-    it("is not set for another channel or a closed engagement, and follows who opened it when it has no owner", () => {
-      expect(toEngagementCard(row({ channel: "email" }), NOW, { slackTracked: tracked }).fromSlack).toBe(false);
+    it("is not set for a closed care plan, is set whatever the deprecated channel column says, and follows who opened it when it has no owner", () => {
+      expect(toEngagementCard(row({ channel: "email" }), NOW, { slackTracked: tracked }).fromSlack).toBe(true);
       expect(toEngagementCard(row({ closed_at: ago(1), ended_how: "no_reply" }), NOW, { slackTracked: tracked }).fromSlack).toBe(false);
       expect(toEngagementCard(row({ owned_by: null, opened_by: owner }), NOW, { slackTracked: tracked }).fromSlack).toBe(true);
     });
@@ -125,13 +125,12 @@ describe("toEngagementCard", () => {
     const link = { href: "/chat/chn_AAAAAAAAAAA1", kind: "hub_chat" as const };
     const tracked = { userId: owner, memberIds: new Set(["mbr_AAAAAAAAAAA1"]), links: new Map([["mbr_AAAAAAAAAAA1", link]]) };
 
-    it("is given for a Slack DM care plan she owns with a member whose DM she tracks, open or closed", () => {
+    it("is given for a care plan she owns with a member whose DM she tracks, open or closed", () => {
       expect(toEngagementCard(row(), NOW, { slackTracked: tracked }).dmLink).toEqual(link);
       expect(toEngagementCard(row({ closed_at: ago(1), ended_how: "no_reply" }), NOW, { slackTracked: tracked }).dmLink).toEqual(link);
     });
 
-    it("is not given for another channel, someone else's, a DM she does not track, or when there is no link", () => {
-      expect(toEngagementCard(row({ channel: "email" }), NOW, { slackTracked: tracked }).dmLink).toBeNull();
+    it("is not given for someone else's, a DM she does not track, or when there is no link", () => {
       expect(toEngagementCard(row(), NOW, { slackTracked: { ...tracked, userId: "22222222-2222-4222-8222-222222222222" } }).dmLink).toBeNull();
       expect(toEngagementCard(row(), NOW, { slackTracked: { ...tracked, memberIds: new Set() } }).dmLink).toBeNull();
       expect(toEngagementCard(row(), NOW, { slackTracked: { ...tracked, links: new Map() } }).dmLink).toBeNull();

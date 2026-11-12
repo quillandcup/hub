@@ -5,7 +5,6 @@ import { clock } from "@/lib/clock";
 import { careStatus, isActiveStatus, sortActive, sortEarlier } from "@/lib/care";
 import { loadCareDmTab, ownSlackIdentity, projectCareFromDms, type CareDmTab } from "@/lib/care-dm";
 import { resolveDmLinks, slackTeamId, type DmLink } from "@/lib/care-dm-link";
-import { membersWhoseNewCareFollowsDm } from "@/lib/care-dm-rules";
 import { loadCareScores } from "@/lib/care-scores";
 import { loadCareOwners } from "@/lib/care-owners";
 import { createRepos } from "@/lib/data/repos";
@@ -16,9 +15,10 @@ import { staffCan } from "@/lib/staff-access";
 import { createClient } from "@/lib/supabase/server";
 import { careAttention } from "./attention";
 import CareAttention from "./CareAttention";
-import { toEngagementCard } from "./card";
+import { toEngagementCard, type EngagementCardData } from "./card";
 import { ActiveList, EarlierList } from "./CareLists";
 import CareDmList from "./CareDmList";
+import MemberOnly from "./MemberOnly";
 import StartEngagementForm from "./StartEngagementForm";
 import { CARE_TAB_LABELS, CARE_TITLE, type CareTabId } from "./tabs";
 
@@ -26,23 +26,24 @@ import { CARE_TAB_LABELS, CARE_TITLE, type CareTabId } from "./tabs";
  * Hedgie Care, rendered by /admin/care (Active) and /admin/care/earlier with that tab open. Both tabs' data loads here, so
  * switching is instant. The route pages call requireStaffPage() and pass the user in.
  */
-export default async function CarePage({ tab, staff }: { tab: CareTabId; staff: StaffUser }) {
+export default async function CarePage({ tab, staff, memberId }: { tab: CareTabId; staff: StaffUser; /** Show only this member's care plans (the DMs tab links here). */ memberId?: string }) {
   const now = new Date(clock.now());
   const repos = createRepos(await createClient());
   const service = getServiceRepos();
   const canWrite = staffCan(staff.role, "care.write");
-  // Her tracked Slack DMs first (docs/HEDGIE_CARE.md): they fill in who spoke last on her Slack DM engagements, and the
-  // list below reads the result. Only her own tracked DMs are looked at, and only when she has some; a failure is logged
+  // Her DMs first (docs/HEDGIE_CARE.md): she tracks her DM with a member she holds a care plan with (a plan she holds whose
+  // DM is not tracked yet, and that she never stopped tracking, is tracked now), and the tracked DMs fill in who spoke
+  // last on those plans. The list below reads the result. Only her own plans and DMs are looked at; a failure is logged
   // and the page still opens with what it has.
-  const tracked = await repos.careDms.forUser(staff.id).catch((error) => {
-    console.error("[care] reading tracked DMs failed:", error instanceof Error ? error.message : error);
-    return [];
-  });
-  if (canWrite && tracked.length > 0) {
+  if (canWrite) {
     await projectCareFromDms({ care: repos.care, careDms: repos.careDms, service }, { userId: staff.id }).catch((error) =>
       console.error("[care] filling in from tracked DMs failed:", error instanceof Error ? error.message : error)
     );
   }
+  const tracked = await repos.careDms.forUser(staff.id).catch((error) => {
+    console.error("[care] reading tracked DMs failed:", error instanceof Error ? error.message : error);
+    return [];
+  });
   // Who may own one: user_profiles is read with the service role (a community manager's own client can't read other
   // users' profiles); only ids, names and roles are used.
   const [rows, owners] = await Promise.all([repos.care.list({ includeClosed: true }), loadCareOwners(repos, service)]);
@@ -82,12 +83,17 @@ export default async function CarePage({ tab, staff }: { tab: CareTabId; staff: 
   ).map((row) => toEngagementCard(row, now, options));
   const earlier = sortEarlier(rows.filter((row) => !isActiveStatus(careStatus(row, now)))).map((row) => toEngagementCard(row, now, options));
   const attention = careAttention([...active, ...earlier]);
+  // One member's care plans, when asked for (the link from the DMs tab); the counts above stay for everyone.
+  const only = (cards: EngagementCardData[]) => (memberId ? cards.filter((card) => card.memberId === memberId) : cards);
+  const shownMember = memberId ? [...active, ...earlier].find((card) => card.memberId === memberId)?.memberName ?? null : null;
   // The DM list reads Slack's Bronze for every DM she has: only built when its tab is the one asked for.
   const dmTab: CareDmTab | null =
     tab === "dms"
       ? await loadCareDmTab(service, staff, {
           bridgeOn: (await getUserFeaturePreviews(staff.id)).includes("slack_dm_bridge"),
           trackedChannelIds: new Set(tracked.map((dm) => dm.channelId)),
+          plans: rows,
+          owners,
           now,
           slackTeamId: slackTeamId(),
         })
@@ -120,8 +126,9 @@ export default async function CarePage({ tab, staff }: { tab: CareTabId; staff: 
               title: CARE_TAB_LABELS.active,
               content: (
                 <div className="space-y-6">
-                  {canWrite && <StartEngagementForm today={orgYmd(now)} slackDmMemberIds={[...membersWhoseNewCareFollowsDm(staff.id, new Set(tracked.map((dm) => dm.memberId)), rows)]} />}
-                  <ActiveList cards={active} canWrite={canWrite} owners={owners} meId={staff.id} />
+                  {canWrite && <StartEngagementForm today={orgYmd(now)} />}
+                  <MemberOnly name={shownMember} base="/admin/care" show={!!memberId} />
+                  <ActiveList cards={only(active)} canWrite={canWrite} owners={owners} meId={staff.id} />
                 </div>
               ),
             },
@@ -129,13 +136,18 @@ export default async function CarePage({ tab, staff }: { tab: CareTabId; staff: 
               id: "earlier",
               label: attention.lapsed > 0 ? `${CARE_TAB_LABELS.earlier} (${attention.lapsed} lapsed)` : CARE_TAB_LABELS.earlier,
               title: CARE_TAB_LABELS.earlier,
-              content: <EarlierList cards={earlier} canWrite={canWrite} owners={owners} meId={staff.id} />,
+              content: (
+                <>
+                  <MemberOnly name={shownMember} base="/admin/care/earlier" show={!!memberId} />
+                  <EarlierList cards={only(earlier)} canWrite={canWrite} owners={owners} meId={staff.id} />
+                </>
+              ),
             },
             {
               id: "dms",
               label: CARE_TAB_LABELS.dms,
               title: CARE_TAB_LABELS.dms,
-              content: <CareDmList data={dmTab} canWrite={canWrite} />,
+              content: <CareDmList data={dmTab} canWrite={canWrite} today={orgYmd(now)} />,
             },
           ]}
         />

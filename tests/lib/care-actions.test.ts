@@ -51,14 +51,14 @@ import {
 } from "@/app/(admin)/admin/care/actions";
 import { SLACK_DM_SCOPES } from "@/lib/slack-connect";
 
-const start = (over: Record<string, unknown> = {}) => startEngagement({ memberId: ADA, reason: "writing_check_in", channel: "slack_dm", ...over });
+const start = (over: Record<string, unknown> = {}) => startEngagement({ memberId: ADA, reason: "writing_check_in", ...over });
 const engagementRow = (id: string, member: string, openedAt: string) => ({
   id,
   member_id: member,
   opened_by: null,
   owned_by: null,
   reason: "check_in",
-  channel: "email",
+  channel: "other",
   opened_at: openedAt,
   period_ends_on: "2026-12-31",
   renewed_from: null,
@@ -130,7 +130,8 @@ describe("who may write Hedgie Care", () => {
   it("lets a community manager start one, as herself", async () => {
     signInAs(CM_USER);
     await expect(start({ notes: "  said hello  " })).resolves.toEqual({ success: true });
-    expect(onlyEngagement()).toMatchObject({ member_id: ADA, opened_by: CM_USER.id, reason: "writing_check_in", channel: "slack_dm", notes: "said hello" });
+    expect(onlyEngagement()).toMatchObject({ member_id: ADA, opened_by: CM_USER.id, reason: "writing_check_in", notes: "said hello" });
+    expect(onlyEngagement().channel).toBe("other"); // the deprecated column is left to its default: nothing writes it
     expect(revalidatePath).toHaveBeenCalledWith("/admin/care");
   });
 
@@ -167,15 +168,10 @@ describe("who may write Hedgie Care", () => {
 describe("startEngagement", () => {
   beforeEach(() => signInAs(CM_USER));
 
-  it("starts with her message, or with theirs when they wrote first", async () => {
+  it("starts with her message: who spoke first is not asked, a tracked DM or the log buttons say so later", async () => {
     await start();
     expect(onlyEngagement()).toMatchObject({ last_member_message_at: null });
     expect(onlyEngagement().last_staff_message_at).not.toBeNull();
-
-    data.careEngagements = [];
-    await start({ memberWroteFirst: true });
-    expect(onlyEngagement().last_staff_message_at).toBeNull();
-    expect(onlyEngagement().last_member_message_at).not.toBeNull();
   });
 
   it("writes the opening to the member's timeline as staff, with nothing she typed", async () => {
@@ -189,26 +185,25 @@ describe("startEngagement", () => {
       actor_user_id: CM_USER.id,
       engagement_value: 0,
       related_id: onlyEngagement().id,
-      description: "A writing check-in · Slack DM",
+      description: "A writing check-in",
     });
     expect(JSON.stringify(row)).not.toContain("private words");
   });
 
-  it("refuses a second open engagement on the same channel, and starts one on another", async () => {
+  it("refuses a second open care plan with the same member, however it is started, and starts one with another member", async () => {
     await start();
     const second = await start({ reason: "welcome" });
-    expect(second).toEqual({ error: expect.stringContaining("already an open care plan") });
+    expect(second).toEqual({ error: "There is already an open care plan with them. Log a message there, or renew it." });
     expect(data.careEngagements).toHaveLength(1);
     expect(data.activities.filter((a) => a.source === "care")).toHaveLength(1);
 
-    await expect(start({ channel: "email" })).resolves.toEqual({ success: true });
+    await expect(start({ memberId: BO })).resolves.toEqual({ success: true });
     expect(data.careEngagements).toHaveLength(2);
   });
 
   it("checks what it is given", async () => {
     await expect(start({ memberId: "not-an-id" })).resolves.toEqual({ error: "Pick a member." });
     await expect(start({ reason: "gossip" })).resolves.toEqual({ error: "Pick why you are reaching out." });
-    await expect(start({ channel: "fax" })).resolves.toEqual({ error: "Pick where you are reaching out." });
     await expect(start({ notes: "x".repeat(1001) })).resolves.toEqual({ error: "The note can be at most 1000 characters." });
     await expect(start({ nextStep: "x".repeat(281) })).resolves.toEqual({ error: "The next step can be at most 280 characters." });
     await expect(start({ notes: 42 })).resolves.toEqual({ error: "Check the note." });
@@ -266,11 +261,6 @@ describe("backdating a care plan", () => {
     expect(data.activities.find((a) => a.source === "care")?.occurred_at).toBe("2026-03-13T16:00:00.000Z");
   });
 
-  it("applies the day to their message too when they wrote first", async () => {
-    await start({ startedOn: "2026-03-13", memberWroteFirst: true });
-    expect(onlyEngagement()).toMatchObject({ last_member_message_at: "2026-03-13T04:00:00.000Z", last_staff_message_at: null });
-  });
-
   it("refuses a day after today and a day that is not real, and saves nothing", async () => {
     await expect(start({ startedOn: "2026-03-21" })).resolves.toEqual({ error: "The start can't be in the future. Pick today or an earlier day." });
     await expect(start({ startedOn: "2026-02-30" })).resolves.toEqual({ error: "That isn't a real day. Pick the day it started." });
@@ -300,7 +290,7 @@ describe("backdating a care plan", () => {
     expect(onlyEngagement()).toMatchObject({ opened_at: "2026-11-01T17:00:00.000Z", period_ends_on: "2026-12-01" });
   });
 
-  it("still leaves one open care plan per member and channel", async () => {
+  it("still leaves one open care plan per member", async () => {
     await start({ startedOn: "2026-03-13" });
     await expect(start({ startedOn: "2026-03-14" })).resolves.toEqual({ error: expect.stringContaining("already an open care plan") });
     expect(data.careEngagements).toHaveLength(1);
@@ -494,7 +484,7 @@ describe("the rest of an engagement's life", () => {
 
     const closing = data.activities.filter((a) => a.source === "care" && a.activity_type === "care_closed");
     expect(closing).toHaveLength(1);
-    expect(closing[0]).toMatchObject({ member_id: ADA, actor_kind: "staff", engagement_value: 0, description: "A writing check-in · Slack DM: Back in the community" });
+    expect(closing[0]).toMatchObject({ member_id: ADA, actor_kind: "staff", engagement_value: 0, description: "A writing check-in: Back in the community" });
 
     await expect(closeEngagement(id, "no_reply")).resolves.toEqual({ error: "That care plan is already closed or gone." });
     expect(data.activities.filter((a) => a.activity_type === "care_closed")).toHaveLength(1);
@@ -580,7 +570,7 @@ describe("renewEngagement", () => {
     const [old, next] = data.careEngagements;
     expect(old).toMatchObject({ id, ended_how: "renewed" });
     expect(old.closed_at).not.toBeNull();
-    expect(next).toMatchObject({ member_id: ADA, opened_by: CM_USER.id, renewed_from: id, closed_at: null, owned_by: CM_USER.id, notes: "a plan", reason: "writing_check_in", channel: "slack_dm" });
+    expect(next).toMatchObject({ member_id: ADA, opened_by: CM_USER.id, renewed_from: id, closed_at: null, owned_by: CM_USER.id, notes: "a plan", reason: "writing_check_in" });
     expect(next.period_ends_on >= old.period_ends_on).toBe(true);
 
     const rows = data.activities.filter((a) => a.source === "care" && a.activity_type === "care_renewed");
@@ -642,7 +632,7 @@ describe("getEngagementResults", () => {
       opened_by: CM_USER.id,
       owned_by: CM_USER.id,
       reason: "check_in",
-      channel: "slack_dm",
+      channel: "other",
       opened_at: OPENED,
       period_ends_on: "2026-03-31",
       renewed_from: null,
@@ -798,20 +788,45 @@ describe("tracking Slack DMs", () => {
     signInAs(CM_USER);
   }
 
+  /** A care plan of hers (or someone else's) with a member that nothing tracked a DM for: how she gets one without starting it here. */
+  const plan = (member: string, over: Record<string, unknown> = {}) =>
+    data.careEngagements.push({ ...engagementRow(`care_PLAN${data.careEngagements.length}AAAAAAA`.slice(0, 17), member, "2026-03-01T15:00:00.000Z"), owned_by: CM_USER.id, opened_by: CM_USER.id, channel: "other", ...over });
+
   describe("trackCareDm", () => {
-    it("tracks one of her DMs with a member, as herself, and says nothing is wrong", async () => {
+    it("tracks one of her DMs with a member she has a care plan with, as herself, and says nothing is wrong", async () => {
       world();
+      plan(ADA);
       await expect(trackCareDm(D.ada)).resolves.toEqual({ success: true });
       expect(data.careTrackedDms).toHaveLength(1);
       expect(data.careTrackedDms[0]).toMatchObject({ tracked_by: CM_USER.id, slack_channel_id: D.ada, member_id: ADA, deleted_at: null });
       expect(revalidatePath).toHaveBeenCalledWith("/admin/care/dms");
     });
 
-    it("fills in who spoke last on her open Slack DM engagement at once", async () => {
-      world({ bridge: false });
-      await start(); // no bridge yet: nothing is tracked, nothing filled in
+    it("also tracks it for a member whose care plans with her have all ended: the DM stays tracked after a plan closes", async () => {
+      world();
+      plan(ADA, { closed_at: "2026-03-05T00:00:00.000Z", ended_how: "ran_its_course" });
+      await expect(trackCareDm(D.ada)).resolves.toEqual({ success: true });
+      expect(data.careTrackedDms).toHaveLength(1);
+    });
+
+    it("refuses a DM with a member she has no care plan with, and says to start one", async () => {
+      world();
+      await expect(trackCareDm(D.ada)).resolves.toEqual({ error: "Start a care plan with them first." });
+      expect(data.careTrackedDms).toEqual([]);
+    });
+
+    it("refuses a DM with a member whose only care plans are someone else's", async () => {
+      world();
+      plan(ADA, { owned_by: ADMIN_USER.id, opened_by: ADMIN_USER.id });
+      plan(ADA, { owned_by: ADMIN_USER.id, opened_by: ADMIN_USER.id, closed_at: "2026-03-05T00:00:00.000Z", ended_how: "no_reply" });
+      await expect(trackCareDm(D.ada)).resolves.toEqual({ error: "Start a care plan with them first." });
+      expect(data.careTrackedDms).toEqual([]);
+    });
+
+    it("fills in who spoke last on her open care plan at once, when she reads the DM again", async () => {
+      world();
+      plan(ADA);
       expect(onlyEngagement().last_member_message_at).toBeNull();
-      data.featureFlags.push({ feature_key: "slack_dm_bridge", enabled_globally: true, created_at: "2026-01-01T00:00:00.000Z", updated_at: "2026-01-01T00:00:00.000Z" });
 
       await trackCareDm(D.ada);
 
@@ -820,6 +835,7 @@ describe("tracking Slack DMs", () => {
 
     it("tracking it again is not an error and adds nothing", async () => {
       world();
+      plan(ADA);
       await trackCareDm(D.ada);
       await expect(trackCareDm(D.ada)).resolves.toEqual({ success: true });
       expect(data.careTrackedDms).toHaveLength(1);
@@ -849,11 +865,13 @@ describe("tracking Slack DMs", () => {
 
     it("refuses when she has no Slack account connected", async () => {
       world({ connected: false });
+      plan(ADA);
       await expect(trackCareDm(D.ada)).resolves.toEqual({ error: "That DM isn't one you can track." });
     });
 
     it("says it could not track it when the database fails, without its message or anything from Slack", async () => {
       world();
+      plan(ADA);
       const log = vi.spyOn(console, "error").mockImplementation(() => {});
       vi.spyOn(repos.careDms, "track").mockRejectedValueOnce(new Error("connection reset"));
       await expect(trackCareDm(D.ada)).resolves.toEqual({ error: "Couldn't track that DM." });
@@ -897,7 +915,7 @@ describe("tracking Slack DMs", () => {
     });
   });
 
-  describe("starting a Slack DM engagement", () => {
+  describe("starting a care plan", () => {
     it("tracks her DM with that member when she has one, and fills in who spoke last from it", async () => {
       world();
       await expect(start({ memberId: ADA })).resolves.toEqual({ success: true });
@@ -907,18 +925,43 @@ describe("tracking Slack DMs", () => {
       expect(onlyEngagement().last_member_message_at).not.toBeNull();
     });
 
-    it("tracks nothing when she has no DM with them, when the engagement is on another channel, or when the bridge is off", async () => {
+    it("tracks it whatever the Slack DM bridge says: starting is her choice, and a DM is only in Bronze for a member whose DMs are pulled", async () => {
+      world({ bridge: false });
+      await start({ memberId: ADA });
+      expect(data.careTrackedDms).toHaveLength(1);
+    });
+
+    it("tracks it again even when she stopped tracking it before: starting a plan is a fresh choice", async () => {
+      world();
+      await start({ memberId: ADA });
+      await untrackCareDm(D.ada);
+      data.careEngagements = [];
+
+      await start({ memberId: ADA });
+
+      expect(data.careTrackedDms.filter((dm) => dm.deleted_at === null)).toHaveLength(1);
+    });
+
+    it("tracks nothing when she has no DM with them, or no Slack account connected", async () => {
       world();
       await start({ memberId: NO_DM_MEMBER });
       expect(data.careEngagements).toHaveLength(1);
       expect(data.careTrackedDms).toEqual([]);
-      await start({ memberId: BO, channel: "email" });
-      expect(data.careTrackedDms).toEqual([]);
 
-      world({ bridge: false });
+      world({ connected: false });
       await start({ memberId: ADA });
-      expect(data.careTrackedDms).toEqual([]);
       expect(data.careEngagements).toHaveLength(1);
+      expect(data.careTrackedDms).toEqual([]);
+    });
+
+    it("does not track her DM for a plan someone else will hold: it continues the owner of the member's latest plan, and her tracking would not fill it", async () => {
+      world();
+      plan(ADA, { owned_by: ADMIN_USER.id, opened_by: ADMIN_USER.id, closed_at: "2026-03-05T00:00:00.000Z", ended_how: "ran_its_course" });
+
+      await expect(start({ memberId: ADA })).resolves.toEqual({ success: true });
+
+      expect(data.careEngagements.find((c) => c.closed_at === null)!.owned_by).toBe(ADMIN_USER.id);
+      expect(data.careTrackedDms).toEqual([]);
     });
 
     it("never tracks a DM with a staff member, even when she starts an engagement with one", async () => {
@@ -935,7 +978,7 @@ describe("tracking Slack DMs", () => {
       await expect(start({ memberId: ADA })).resolves.toEqual({ success: true });
 
       expect(data.careEngagements).toHaveLength(1);
-      expect(log).toHaveBeenCalledWith("[care] tracking the DM of a new engagement failed:", "connection reset");
+      expect(log).toHaveBeenCalledWith("[care] tracking the DM of a new care plan failed:", "connection reset");
     });
 
     it("lets her untrack it afterwards", async () => {

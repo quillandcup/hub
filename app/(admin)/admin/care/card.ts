@@ -21,7 +21,6 @@ export type EngagementCardData = {
   /** The legal name, only when it differs, small and muted beside the display name. */
   legalName: string | null;
   reason: string;
-  channel: string;
   status: CareStatus;
   endedHow: string | null;
   openedAt: string;
@@ -54,7 +53,7 @@ export type EngagementCardData = {
   scores: CareScores | null;
   /** Their latest own activity anywhere in the community; null when none is recorded, "unavailable" when it could not be read. Not the DM: that is `lastSpeaker`. */
   lastParticipation: ParticipationCard | "unavailable" | null;
-  /** "Open the DM", for a Slack DM care plan whose DM the signed-in staff user tracks and owns; null otherwise. */
+  /** "Open the DM", for a care plan whose DM the signed-in staff user tracks and owns; null otherwise. */
   dmLink: DmLink | null;
 };
 
@@ -65,8 +64,8 @@ export type CardOptions = {
   /** The rows the page loaded, by id, to count which period of a chain this is. */
   byId?: ReadonlyMap<string, { renewed_from: string | null }>;
   /**
-   * The signed-in staff user and the members whose Slack DM they track. An open Slack DM engagement they own with one of
-   * those members is marked `fromSlack`. (Nobody can read another staff member's tracked list, so an engagement someone
+   * The signed-in staff user and the members whose Slack DM they track. An open care plan they own with one of
+   * those members is marked `fromSlack`. (Nobody can read another staff member's tracked list, so a care plan someone
    * else owns carries no hint.)
    */
   slackTracked?: { userId: string; memberIds: ReadonlySet<string>; /** "Open the DM" by member id. */ links?: ReadonlyMap<string, DmLink> };
@@ -87,7 +86,6 @@ export function toEngagementCard(row: CareEngagementWithMember, now: Date, optio
     memberName: shown,
     legalName: row.member && shown !== row.member.name ? row.member.name : null,
     reason: row.reason,
-    channel: row.channel,
     status: careStatus(row, now, settings),
     endedHow: row.ended_how,
     openedAt: row.opened_at,
