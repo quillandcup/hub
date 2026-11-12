@@ -144,6 +144,13 @@ Today a person posts "Remaining Prickle Times for TUESDAY, JULY 21" in #prickle-
 - **Open questions**: keep the existing text ("Wanna prickle at a time not posted? ...") verbatim? Post earlier-than-morning prickles for the next day? Edit the post when a prickle is added or cancelled later in the day? Does the one-off or irregular event (monthly goal review) go in it? Pop-ups hosted in secondary rooms need the "Secondary Zoom Rooms" item above.
 - **Test**: with the fake clock (`useFakeClock`), post once per day, skip a second run, and use the link in effect that day. Include a test with more than 1000 prickles' worth of pagination only if the query isn't date-bounded.
 
+### Map every Kajabi offer to one Hub resource
+
+`/admin/offers` lists each Kajabi offer with the events, courses and programs that point at it, and flags offers with none (not in the Hub yet: the open items before leaving Kajabi) or several. It is read-only: the links are still edited on the event, program and course pages, and the three use different keys (events: `community_event_offers` by offer id, one event per offer; courses: `bronze.kajabi_course_offers`, imported; programs: `programs.kajabi_offer_names` by name).
+
+- **Still open:** unify the three into one offer-to-resource table so an offer can be assigned from the Offers page and "exactly one" is enforced; link programs by offer id rather than name; a way to mark an offer as retired/not migrating so it leaves the open list; membership offers (`MEMBERSHIP_PRODUCT_NAMES` in `lib/membership.ts`) and Stripe products have no Hub resource yet and show as unmapped.
+- **Start at:** `lib/offer-coverage.ts`, `app/(admin)/admin/offers/page.tsx`.
+
 ### Kajabi Data Expansion
 
 **Current state:** Kajabi API sync (`/api/sync/kajabi`, runs daily at 3am via Vercel Cron) fetches contacts, customers, purchases, and offers into Bronze, then processes Silver. Goal is to own the full member lifecycle.
