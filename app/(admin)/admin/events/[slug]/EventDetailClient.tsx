@@ -74,7 +74,8 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
 
   const fetchData = useCallback(async () => {
     try {
-      setLoading(true);
+      // "Loading..." is for the first load only (the state starts true): a refresh after a save
+      // must not replace the page, which would also drop the Kajabi tickets panel's state.
       const response = await fetch(`/api/admin/events/${eventId}`);
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Failed to fetch event");
