@@ -13,7 +13,7 @@ vi.mock("@/lib/chat/names", () => ({
 import { buildPreview, previewLinksIn, refreshLinkPreviews, MAX_PREVIEW_LINKS } from "@/lib/chat/link-previews";
 import { previewToCard, unfurlKey, withLinkPreviews } from "@/lib/chat/link-preview-cards";
 import { buildMessageViews, type MessageRow } from "@/lib/chat/load";
-import { unfurlImageUrls } from "@/lib/chat/unfurl-images";
+import { unfurlImageSrc, unfurlImageUrls, unfurlPictureKey } from "@/lib/chat/unfurl-images";
 import { parseUnfurls, type CardUnfurl } from "@/lib/chat/unfurls";
 import { InMemoryChatLinkPreviewRepository, type LinkPreview } from "@/lib/data/chat-link-previews";
 import { InMemoryDataset } from "@/lib/data/in-memory";
@@ -174,7 +174,7 @@ describe("loading a Hub message with previews", () => {
 
     const card = out.views[0].unfurls?.[0] as CardUnfurl;
     expect(card).toMatchObject({ kind: "card", title: "Tom & <Jerry>", text: "A *plain* & simple text", hubPreview: true, serviceName: "Example", removeKey: "url:https://example.test/post", titleLink: "https://example.test/post" });
-    expect(card.imageUrl).toBe(`/api/chat/unfurl-image?m=${MESSAGE}&i=0`);
+    expect(card.imageUrl).toBe(unfurlImageSrc(MESSAGE, unfurlPictureKey("https://example.test/cover.png")));
   });
 
   it("leaves a message with failed or no previews as it was", async () => {

@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { botOf } from "@/lib/chat/load";
 import { withLinkPreviews } from "@/lib/chat/link-preview-cards";
 import { cachedUnfurlImage } from "@/lib/chat/unfurl-image-cache";
-import { unfurlImageUrls } from "@/lib/chat/unfurl-images";
+import { unfurlImageUrls, unfurlPictureKey } from "@/lib/chat/unfurl-images";
 import { parseUnfurls } from "@/lib/chat/unfurls";
 import { createRepos } from "@/lib/data/repos";
 import { isId } from "@/lib/ids";
@@ -27,16 +27,16 @@ const unavailable = () => NextResponse.json({ error: "Not available" }, { status
 /**
  * A picture under a Slack message (link preview, app card, app logo, author of a quoted message), fetched for the viewer
  * so the host that serves it never learns who looked (docs/SLACK_BRIDGED_CHAT.md, "Pictures"). The request names a message and
- * a position, never an address: the message is read as the viewer (row-level security decides whether they can read it at
- * all), its pictures are listed in the order the renderer used (lib/chat/unfurl-images.ts), and the one at that position is fetched
+ * a picture key, never an address: the message is read as the viewer (row-level security decides whether they can read it at
+ * all), its pictures are listed in the order the renderer used (lib/chat/unfurl-images.ts), and the one with that key is fetched
  * by `fetchImage` (behind the stored-copy cache of lib/chat/unfurl-image-cache.ts, read only after those checks), which refuses anything but a public https address and anything but a raster image. What goes back is the
  * bytes and a type we sniffed ourselves, never a header from the other end.
  */
 export async function GET(request: NextRequest) {
   const messageId = request.nextUrl.searchParams.get("m");
-  const indexParam = request.nextUrl.searchParams.get("i");
-  if (!messageId || !isId(messageId, "msg") || !indexParam || !/^\d{1,3}$/.test(indexParam)) return notFound();
-  const index = Number(indexParam);
+  const keyParam = request.nextUrl.searchParams.get("k");
+  // `i` (a position) is what pages drawn before keys asked with; it shifts with the message's state and served the wrong picture, so it is refused.
+  if (!messageId || !isId(messageId, "msg") || !keyParam || !/^[0-9a-f]{16}$/.test(keyParam)) return notFound();
 
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: { "Cache-Control": "no-store" } });
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
 
   const bot = botOf(content.bot);
   const parsed = parseUnfurls({ attachments: content.attachments, blocks: content.blocks }, { bot: bot !== null, body: content.body });
-  const url = unfurlImageUrls(withLinkPreviews(parsed.unfurls, previews.get(messageId), hidden.get(messageId)), bot?.icon ?? null)[index];
+  const url = unfurlImageUrls(withLinkPreviews(parsed.unfurls, previews.get(messageId), hidden.get(messageId)), bot?.icon ?? null).find((u) => unfurlPictureKey(u) === keyParam);
   if (!url) return notFound();
 
   if (!(await hitRateLimits(createRepos(createServiceRoleClient()), [{ bucket: `chat_unfurl_images:user:${user.id}`, ...LIMIT }]))) {
@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
   if (!image.ok) {
     // The reason is one of our own codes; the address can carry a token, so it is not logged.
     // The upstream status (a number) says whether a host refused us (403) or lost the file (404).
-    console.error("[chat] unfurl picture of %s (#%d) not served: %s%s", messageId, index, image.reason, image.status ? ` (upstream HTTP ${image.status})` : "");
+    console.error("[chat] unfurl picture of %s (%s) not served: %s%s", messageId, keyParam, image.reason, image.status ? ` (upstream HTTP ${image.status})` : "");
     return unavailable();
   }
   return new NextResponse(new Uint8Array(image.bytes), {

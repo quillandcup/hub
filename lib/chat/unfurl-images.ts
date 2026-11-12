@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { Unfurl, UnfurlBlock } from "@/lib/chat/unfurls";
 import { parseSharedMessage } from "@/lib/chat/shared-message";
 
@@ -6,18 +7,27 @@ import { parseSharedMessage } from "@/lib/chat/shared-message";
  * message) live on other people's servers. Loading them straight from the page tells each of those servers who looked and
  * when, so they go through our own route instead (`/api/chat/unfurl-image`, app/api/chat/unfurl-image/route.ts).
  *
- * The route is told a message and a position, never an address: it reads the message as the viewer, lists its pictures
- * with the same walk used here, and fetches the one at that position. So the browser can't make the server fetch an address
- * of its choosing. `walkUnfurlImages` is that one walk: the loader rewrites with it and the route lists with it, so a
- * position means the same picture on both sides. Position 0 is the app's logo when the message has one; after that the
- * pictures come in the order they are drawn.
+ * The route is told a message and a key, never an address: it reads the message as the viewer, lists its pictures
+ * with the same walk used here, and fetches the one whose key matches. So the browser can't make the server fetch an address
+ * of its choosing. `walkUnfurlImages` is that one walk: the loader rewrites with it and the route lists with it.
+ *
+ * A picture is named by a hash of its source address, never by its position. A position shifts whenever the list changes
+ * (the app's logo, which Slack's echo of a message posted through the Hub adds as position 0 a moment after it is sent;
+ * a card Slack or the Hub adds before it), so a page drawn a moment earlier asked for the wrong picture, and the browser
+ * kept the answer for a day. A key means the same picture in every state of the message, and a key that is no longer in
+ * the list is a 404 (the card shows no picture).
  */
 
 export const UNFURL_IMAGE_PATH = "/api/chat/unfurl-image";
 
-/** The address the page loads a message's `index`-th picture from. */
-export function unfurlImageSrc(messageId: string, index: number): string {
-  return `${UNFURL_IMAGE_PATH}?m=${encodeURIComponent(messageId)}&i=${index}`;
+/** The stable name of a picture: the first 16 hex digits of sha256 of its source address. */
+export function unfurlPictureKey(url: string): string {
+  return createHash("sha256").update(url).digest("hex").slice(0, 16);
+}
+
+/** The address the page loads the picture with this key from. */
+export function unfurlImageSrc(messageId: string, key: string): string {
+  return `${UNFURL_IMAGE_PATH}?m=${encodeURIComponent(messageId)}&k=${key}`;
 }
 
 type Visit = (url: string) => string;
@@ -65,6 +75,5 @@ export function unfurlImageUrls(unfurls: Unfurl[], botIcon: string | null): stri
 
 /** The cards and logo with every external picture replaced by our route's address for it. */
 export function proxyUnfurlImages(messageId: string, unfurls: Unfurl[], botIcon: string | null): { botIcon: string | null; unfurls: Unfurl[] } {
-  let i = 0;
-  return walkUnfurlImages(unfurls, botIcon, () => unfurlImageSrc(messageId, i++));
+  return walkUnfurlImages(unfurls, botIcon, (url) => unfurlImageSrc(messageId, unfurlPictureKey(url)));
 }

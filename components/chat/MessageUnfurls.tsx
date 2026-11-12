@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import RemoveUnfurlButton from "@/components/chat/RemoveUnfurlButton";
+import UnfurlPicture from "@/components/chat/UnfurlPicture";
 import SharedMessageCard from "@/components/chat/SharedMessageCard";
 import ChatText, { type ChatTextContext } from "@/components/chat/ChatText";
 import type { BlockImage, BlocksUnfurl, BlockText, CardUnfurl, LinkButton, Unfurl, UnfurlBlock } from "@/lib/chat/unfurls";
@@ -27,10 +28,9 @@ function A({ href, children, className = LINK, track = "chat-unfurl-link" }: { h
   );
 }
 
-function Picture({ image, className }: { image: BlockImage; className: string }) {
-  // Slack's own picture addresses, on other people's servers: no referrer, and the page doesn't wait for them.
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src={image.url} alt={image.alt} loading="lazy" referrerPolicy="no-referrer" className={className} />;
+function Picture({ image, className, reserve = false }: { image: BlockImage; className: string; reserve?: boolean }) {
+  // Pictures are on other people's servers: no referrer, the page doesn't wait for them, and one that fails shows nothing (UnfurlPicture).
+  return <UnfurlPicture src={image.url} alt={image.alt} className={className} reserve={reserve} />;
 }
 
 function Mrkdwn({ text, ctx }: { text: string; ctx: ChatTextContext }) {
@@ -99,18 +99,17 @@ function Card({ card, ctx, removable }: { card: CardUnfurl; ctx: ChatTextContext
           {card.imageUrl &&
             (card.hubPreview && card.titleLink ? (
               // The picture of a preview the Hub made opens the page too; with a title beside it, the title is the link for keyboards and screen readers.
-              <a
-                href={card.titleLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                data-track="chat-link-preview"
-                className="mt-1 block"
-                {...(card.title ? { tabIndex: -1, "aria-hidden": true } : { "aria-label": "Open picture" })}
-              >
-                <Picture image={{ url: card.imageUrl, alt: "" }} className="max-h-72 max-w-full rounded" />
-              </a>
+              <UnfurlPicture
+                src={card.imageUrl}
+                alt=""
+                className="max-h-72 max-w-full rounded"
+                reserve
+                link={{ href: card.titleLink, props: card.title ? { tabIndex: -1, "aria-hidden": true } : { "aria-label": "Open picture" } }}
+              />
             ) : (
-              <Picture image={{ url: card.imageUrl, alt: card.title ?? "" }} className="mt-1 max-h-72 max-w-full rounded" />
+              <div className="mt-1">
+                <Picture image={{ url: card.imageUrl, alt: card.title ?? "" }} className="max-h-72 max-w-full rounded" reserve />
+              </div>
             ))}
           {card.footer && <p className={MUTED}>{card.footer}</p>}
         </div>
