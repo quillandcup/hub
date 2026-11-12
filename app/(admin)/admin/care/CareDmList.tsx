@@ -21,25 +21,23 @@ const CONNECT_HREF = `/api/oauth/slack/start?${RETURN_PARAM}=${encodeURIComponen
 /**
  * What Hedgie Care reads of Slack, in plain words. Each claim is the code's: the projection reads who wrote and when through
  * `SlackMessageRepository.lastWritesIn` (no text, files or payload); the Hub's Slack connection already pulls a connected
- * member's DMs for Hub Chat (`lib/chat/slack-dms.ts`) and this adds nothing to that; the tracked list is row-level secured
- * to its owner; staff are never offered; the times an untracked DM filled in stay.
+ * member's DMs for Hub Chat (`lib/chat/slack-dms.ts`) and this adds nothing to that; the messages sent in a tracked DM during a
+ * care plan are shown in full to admins and community managers in the member's plans (`lib/care-messages.ts`: the DMs tracked by
+ * the owners of the member's plans, live ones only, so an untracked DM's messages are no longer shown), earlier plans included; the
+ * tracked list itself is row-level secured to its owner; staff are never offered; the times an untracked DM filled in stay.
  */
 function PrivacyNote() {
   return (
     <div className="mb-4 space-y-1">
       <p className={NOTE}>
-        Hedgie Care reads who wrote and when in the DMs you track, never what was said. The Hub&apos;s Slack connection already
-        brings your direct messages in for Hub Chat, and this adds nothing to that: only the DMs you track here fill in who spoke
-        last on your Slack DM care periods.
+        Hedgie Care reads who wrote and when in the DMs you track to fill in who spoke last on your Slack DM care plans. The Hub&apos;s
+        Slack connection already brings your direct messages in for Hub Chat, and this adds nothing to that.
       </p>
       <p className={NOTE}>
-        Other staff, admins included, don&apos;t see which DMs you track. Who spoke last shows on the care period, which everyone who
-        opens Hedgie Care can see. DMs with staff are never listed. Untracking a DM stops new times coming from it; what it already
-        filled in stays.
-      </p>
-      <p className={NOTE}>
-        A DM with someone from the team in it, like these, can be read by the team in Hub Chat, as the privacy page says. Hedgie
-        Care itself still reads only who wrote and when.
+        The messages sent in a tracked DM during a care plan can be read, in full, by admins and community managers in that member&apos;s
+        care plans in Hedgie Care, including their earlier plans, whoever held them. Beyond those messages, other staff don&apos;t see
+        which DMs you track. DMs with staff are never listed. Untracking a DM stops new times coming from it and its messages are no
+        longer shown in Hedgie Care; what it already filled in stays.
       </p>
     </div>
   );

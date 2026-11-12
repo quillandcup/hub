@@ -39,7 +39,7 @@ const clearBy = async (table: string, column: string) => {
 };
 
 beforeAll(async () => {
-  members = await createRunMembers(db, "people-repo", RUN, 4);
+  members = await createRunMembers(db, "people-repo", RUN, 5);
   userId = await createRunUser(admin, "people-repo-user", RUN);
 });
 

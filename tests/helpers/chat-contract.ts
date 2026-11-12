@@ -46,8 +46,11 @@ export type ChatContractContext = {
   seedChannelRows: (channels: SeedChannelRow[]) => Promise<Record<string, string>>;
   /** Puts members (by index into `seedMembers`' ids) in channels (by key). */
   seedMemberships: (rows: SeedMembership[]) => Promise<void>;
-  /** Makes the member (by index into `seedMembers`' ids) a staff member: linked in the staff table. */
-  seedStaff: (memberIndex: number) => Promise<void>;
+  /**
+   * Tracks a Slack DM with the member (by index into `seedMembers`' ids) for Hedgie Care, as one staff user, who owns a care plan of
+   * that member (`owner: "tracker"`) or whose plan of that member is owned by someone else (`"someone_else"`); `untracked` stops tracking it.
+   */
+  seedCareTracking: (c: { slackChannelId: string; member: number; owner: "tracker" | "someone_else" | "none"; untracked?: boolean }) => Promise<void>;
   /** Adds messages (channel by key); returns their ids by key. */
   seedChannelMessages: (rows: SeedChannelMessage[]) => Promise<Record<string, string>>;
   /** The Hub-written notice lines in a channel, with their text. */
@@ -438,33 +441,33 @@ export function defineChatContract(name: string, setup: () => ChatContractContex
         expect(await repo.presentMembers(ids.a, [m0, m1, m2])).toEqual(new Set([m0, m1]));
       });
 
-      it("knows whether a direct or group message has a staff member in it now", async () => {
-        await ctx.seedMembers(3);
-        await ctx.seedStaff(1);
+      it("knows whether a Slack DM is tracked in a Hedgie Care plan of its member", async () => {
+        await ctx.seedMembers(4);
+        const [t1, t2, t3, t4, t5] = [ctx.unique("D"), ctx.unique("D"), ctx.unique("D"), ctx.unique("D"), ctx.unique("D")];
         const ids = await ctx.seedChannelRows([
-          { key: "withStaff", kind: "dm", visibility: "private", restricted: true, name: null },
-          { key: "plain", kind: "dm", visibility: "private", restricted: true, name: null },
-          { key: "group", kind: "group_dm", visibility: "private", restricted: true, name: null },
-          { key: "left", kind: "group_dm", visibility: "private", restricted: true, name: null },
-          { key: "channel", name: ctx.unique("n") },
+          { key: "tracked", kind: "dm", visibility: "private", restricted: true, name: null, slackChannelId: t1 },
+          { key: "notOwner", kind: "dm", visibility: "private", restricted: true, name: null, slackChannelId: t2 },
+          { key: "untracked", kind: "dm", visibility: "private", restricted: true, name: null, slackChannelId: t3 },
+          { key: "noPlan", kind: "dm", visibility: "private", restricted: true, name: null, slackChannelId: t4 },
+          { key: "group", kind: "group_dm", visibility: "private", restricted: true, name: null, slackChannelId: t5 },
+          { key: "plain", kind: "dm", visibility: "private", restricted: true, name: null, slackChannelId: ctx.unique("D") },
         ]);
-        await ctx.seedMemberships([
-          { channel: "withStaff", member: 0 }, { channel: "withStaff", member: 1 },
-          { channel: "plain", member: 0 }, { channel: "plain", member: 2 },
-          { channel: "group", member: 0 }, { channel: "group", member: 2 }, { channel: "group", member: 1 },
-          { channel: "left", member: 0 }, { channel: "left", member: 1, leftAt: "2026-03-01T00:00:00Z" },
-          { channel: "channel", member: 0 }, { channel: "channel", member: 1 },
-        ]);
+        await ctx.seedCareTracking({ slackChannelId: t1, member: 0, owner: "tracker" });
+        await ctx.seedCareTracking({ slackChannelId: t2, member: 1, owner: "someone_else" });
+        await ctx.seedCareTracking({ slackChannelId: t3, member: 2, owner: "tracker", untracked: true });
+        await ctx.seedCareTracking({ slackChannelId: t4, member: 3, owner: "none" });
+        await ctx.seedCareTracking({ slackChannelId: t5, member: 2, owner: "none" });
         const repo = ctx.repo();
 
-        expect(await repo.dmIncludesStaff(ids.withStaff)).toBe(true);
-        expect(await repo.dmIncludesStaff(ids.group)).toBe(true);
-        expect(await repo.dmIncludesStaff(ids.plain)).toBe(false);
-        // The staff member left the conversation: it no longer includes staff.
-        expect(await repo.dmIncludesStaff(ids.left)).toBe(false);
-        // A channel is never a staff direct message, whoever is in it; an unknown conversation is no.
-        expect(await repo.dmIncludesStaff(ids.channel)).toBe(false);
-        expect(await repo.dmIncludesStaff(NONE)).toBe(false);
+        expect(await repo.dmInCarePlan(ids.tracked)).toBe(true);
+        // Tracked by someone who owns none of the member's plans, no longer tracked, or no plan at all: not in a plan.
+        expect(await repo.dmInCarePlan(ids.notOwner)).toBe(false);
+        expect(await repo.dmInCarePlan(ids.untracked)).toBe(false);
+        expect(await repo.dmInCarePlan(ids.noPlan)).toBe(false);
+        // Only a one-on-one DM, and only one that is tracked.
+        expect(await repo.dmInCarePlan(ids.group)).toBe(false);
+        expect(await repo.dmInCarePlan(ids.plain)).toBe(false);
+        expect(await repo.dmInCarePlan(NONE)).toBe(false);
       });
 
       it("asks about many conversations and members at once (more than one request's worth)", async () => {

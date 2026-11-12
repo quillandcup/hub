@@ -20,15 +20,15 @@ export interface StaffRepository {
   linkMembers(links: StaffMemberLink[]): Promise<void>;
   /**
    * The ids of the members who are staff: THE definition, used wherever the question is asked (Hedgie Care leaves them out of
-   * the DMs it offers; the team can read a direct message one of them is in). A member linked in `staff`, or the member behind an
-   * admin or community manager account. Service role in the database (the function behind it, `staff_member_ids`, refuses a
+   * the DMs it offers). A member linked in the `staff` roster, or the member behind an admin, assistant or community manager
+   * account (`user_profiles.role`). Who may READ something is a separate question, decided by role where it is asked. Service role in the database (the function behind it, `staff_member_ids`, refuses a
    * signed-in user); the staff list is a handful of people, so it is read in one call.
    */
   memberIds(): Promise<Set<string>>;
 }
 
 /** The roles of the accounts whose members are staff: the in-memory twin's copy of `staff_member_ids()`; the contract suite keeps them equal. */
-const STAFF_ACCOUNT_ROLES = ["admin", "community_manager"];
+const STAFF_ACCOUNT_ROLES = ["admin", "assistant", "community_manager"];
 
 const byNameThenId = (a: StaffRow, b: StaffRow) => compareText(a.name, b.name) || compareText(a.id, b.id);
 

@@ -42,6 +42,7 @@ const actions = vi.hoisted(() => ({
   reassignEngagement: vi.fn(),
   deleteEngagement: vi.fn(),
   getEngagementResults: vi.fn(),
+  getCareMessages: vi.fn(),
   searchCareMembers: vi.fn(),
   trackCareDm: vi.fn(),
   untrackCareDm: vi.fn(),
@@ -274,6 +275,7 @@ describe("the Active tab", () => {
       expect(screen.queryByRole("button", { name: "They replied" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Renew" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Results" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Messages" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
     });
   });
@@ -515,6 +517,84 @@ describe("the results", () => {
 
     expect(await within(cards()[0]).findByRole("alert")).toHaveTextContent("Couldn't work out the results.");
     expect(within(cards()[0]).queryAllByRole("table")).toHaveLength(0);
+  });
+});
+
+describe("the messages in a member's care plans", () => {
+  const PLAN_NEW = { id: "care_AAAAAAAAAAA2", openedAt: "2026-03-10T10:00:00.000Z", closedAt: null, ownerName: "Cam Example" };
+  const PLAN_OLD = { id: "care_AAAAAAAAAAB9", openedAt: "2026-02-01T10:00:00.000Z", closedAt: "2026-02-20T10:00:00.000Z", ownerName: "Olly Example" };
+  const message = (key: string, planId: string, at: string, over: Record<string, unknown> = {}) => ({ key, planId, at, fromMember: false, author: "Cam Example", text: key, hasFiles: false, ...over });
+
+  it("opens from the Messages button, shows the full text grouped by plan with who and when, and says it is on record", async () => {
+    const long = `${"a very long message ".repeat(30)}end`;
+    actions.getCareMessages.mockResolvedValue({
+      page: {
+        plans: [PLAN_NEW, PLAN_OLD],
+        messages: [message("newest", PLAN_NEW.id, "2026-03-11T15:00:00.000Z", { fromMember: true, author: "Ada E.", text: "Thanks!\nSecond line", hasFiles: true }), message("long", PLAN_NEW.id, "2026-03-10T15:00:00.000Z", { text: long }), message("earlier", PLAN_OLD.id, "2026-02-02T15:00:00.000Z")],
+        olderBefore: null,
+        tracked: true,
+      },
+    });
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+    const user = userEvent.setup();
+    const ada = cards()[0];
+
+    expect(actions.getCareMessages).not.toHaveBeenCalled();
+    await user.click(within(ada).getByRole("button", { name: "Messages" }));
+
+    expect(await within(ada).findByText(/Everything sent in the DM\(s\) tracked for this member/)).toBeInTheDocument();
+    expect(within(ada).getByText(/recorded in the audit log, without the messages/)).toBeInTheDocument();
+    expect(actions.getCareMessages).toHaveBeenCalledWith(ada.querySelector("a[href^='/admin/members/']")!.getAttribute("href")!.split("/").pop(), null);
+    const headings = within(ada).getAllByRole("heading", { level: 4 }).map((h) => h.textContent);
+    expect(headings[0]).toMatch(/^Care plan started .*, still open, owner Cam Example$/);
+    expect(headings[1]).toMatch(/closed .*, owner Olly Example$/);
+    expect(within(ada).getByText(long)).toBeInTheDocument();
+    expect(within(ada).getByText(/Thanks!\s*Second line/)).toBeInTheDocument();
+    expect(within(ada).getByText("(with a file)")).toBeInTheDocument();
+    expect(within(ada.querySelector("section")!).getByText("Ada E.")).toBeInTheDocument();
+    expect(within(ada).queryByRole("button", { name: "Older messages" })).not.toBeInTheDocument();
+  });
+
+  it("loads older messages a page at a time, adding them to the plans without repeating one", async () => {
+    actions.getCareMessages
+      .mockResolvedValueOnce({ page: { plans: [PLAN_NEW, PLAN_OLD], messages: [message("m2", PLAN_NEW.id, "2026-03-11T15:00:00.000Z")], olderBefore: "2026-03-11T15:00:00.000Z", tracked: true } })
+      .mockResolvedValueOnce({ page: { plans: [PLAN_NEW, PLAN_OLD], messages: [message("m2", PLAN_NEW.id, "2026-03-11T15:00:00.000Z"), message("m1", PLAN_OLD.id, "2026-02-02T15:00:00.000Z")], olderBefore: null, tracked: true } });
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+    const user = userEvent.setup();
+    const ada = cards()[0];
+    await user.click(within(ada).getByRole("button", { name: "Messages" }));
+    expect(await within(ada).findByText("m2")).toBeInTheDocument();
+    expect(within(ada).queryByText("m1")).not.toBeInTheDocument();
+
+    await user.click(within(ada).getByRole("button", { name: "Older messages" }));
+
+    expect(await within(ada).findByText("m1")).toBeInTheDocument();
+    expect(within(ada).getAllByText("m2")).toHaveLength(1);
+    expect(actions.getCareMessages).toHaveBeenLastCalledWith(expect.any(String), "2026-03-11T15:00:00.000Z");
+    expect(within(ada).queryByRole("button", { name: "Older messages" })).not.toBeInTheDocument();
+  });
+
+  it("says when no DM is tracked for the member's plans, when a plan had no messages, and shows an error instead of text", async () => {
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+    const user = userEvent.setup();
+    const ada = cards()[0];
+
+    actions.getCareMessages.mockResolvedValueOnce({ page: { plans: [PLAN_NEW], messages: [], olderBefore: null, tracked: false } });
+    await user.click(within(ada).getByRole("button", { name: "Messages" }));
+    expect(await within(ada).findByText(/No DM with this member is tracked for their care plans/)).toBeInTheDocument();
+    await user.click(within(ada).getByRole("button", { name: "Messages" }));
+
+    actions.getCareMessages.mockResolvedValueOnce({ page: { plans: [PLAN_NEW], messages: [], olderBefore: null, tracked: true } });
+    await user.click(within(ada).getByRole("button", { name: "Messages" }));
+    expect(await within(ada).findByText(/No messages were sent in the tracked DMs during these care plans/)).toBeInTheDocument();
+    await user.click(within(ada).getByRole("button", { name: "Messages" }));
+
+    actions.getCareMessages.mockResolvedValueOnce({ error: "Couldn't record that you opened these messages, so they are not shown. Try again." });
+    await user.click(within(ada).getByRole("button", { name: "Messages" }));
+    expect(await within(ada).findByRole("alert")).toHaveTextContent(/so they are not shown/);
   });
 });
 
@@ -930,12 +1010,13 @@ describe("the Your DMs tab", () => {
     signInAs(CM_USER);
     await renderServerRoute(dmsPage, undefined as never);
 
-    expect(screen.getByText(/reads who wrote and when in the DMs you track, never what was said/)).toBeInTheDocument();
+    expect(screen.getByText(/reads who wrote and when in the DMs you track to fill in who spoke last/)).toBeInTheDocument();
     expect(screen.getByText(/already brings your direct messages in for Hub Chat/)).toBeInTheDocument();
-    expect(screen.getByText(/Other staff, admins included, don.t see which DMs you track/)).toBeInTheDocument();
+    // The team reads the messages of a tracked DM inside a member's plans; the list of what she tracks stays hers.
+    expect(screen.getByText(/can be read, in full, by admins and community managers in that member.s\s+care plans in Hedgie Care, including their earlier plans, whoever held them/)).toBeInTheDocument();
+    expect(screen.getByText(/Beyond those messages, other staff don.t see\s+which DMs you track/)).toBeInTheDocument();
     expect(screen.getByText(/DMs with staff are never listed/)).toBeInTheDocument();
-    // The team can read these in Hub Chat (the privacy page says so), and Hedgie Care itself stays metadata only.
-    expect(screen.getByText(/can be read by the team in Hub Chat, as the privacy page says\. Hedgie\s+Care itself still reads only who wrote and when/)).toBeInTheDocument();
+    expect(screen.getByText(/its messages are no\s+longer shown in Hedgie Care/)).toBeInTheDocument();
   });
 
   it("marks the DMs she tracks, and tracks and untracks with a click, counting how many she tracks and nothing else", async () => {

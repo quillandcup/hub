@@ -33,6 +33,8 @@ export interface CareTrackedDmRepository {
   forUser(userId: string): Promise<TrackedDm[]>;
   /** Every live tracked DM of every staff member (service role), by user then channel. Paginated. */
   allLive(): Promise<TrackedDm[]>;
+  /** Every staff member's live tracking of DMs with this member (service role), by user then channel: whose DMs hold the messages of the member's care plans. */
+  forMember(memberId: string): Promise<TrackedDm[]>;
   /** Every staff member's live tracking of this Slack DM (service role), by user. */
   forChannel(channelId: string): Promise<TrackedDm[]>;
   /** Starts tracking a DM as `trackedBy`. Tracking one already tracked is not an error: it answers the existing row with `created: false`. */
@@ -60,6 +62,13 @@ export class SupabaseCareTrackedDmRepository implements CareTrackedDmRepository 
   async allLive() {
     const rows = await fetchAllRows<Row<"care_tracked_dms">>((from, to) =>
       this.db.from("care_tracked_dms").select("*").is("deleted_at", null).order("tracked_by").order("slack_channel_id").order("id").range(from, to)
+    );
+    return rows.map(toDm);
+  }
+
+  async forMember(memberId: string) {
+    const rows = await fetchAllRows<Row<"care_tracked_dms">>((from, to) =>
+      this.db.from("care_tracked_dms").select("*").eq("member_id", memberId).is("deleted_at", null).order("tracked_by").order("slack_channel_id").order("id").range(from, to)
     );
     return rows.map(toDm);
   }
@@ -138,6 +147,13 @@ export class InMemoryCareTrackedDmRepository implements CareTrackedDmRepository 
 
   async allLive() {
     return this.live()
+      .sort(byKeyThenId<Row<"care_tracked_dms">>((r) => `${r.tracked_by}|${r.slack_channel_id}`, (r) => r.id))
+      .map(toDm);
+  }
+
+  async forMember(memberId: string) {
+    return this.live()
+      .filter((r) => r.member_id === memberId)
       .sort(byKeyThenId<Row<"care_tracked_dms">>((r) => `${r.tracked_by}|${r.slack_channel_id}`, (r) => r.id))
       .map(toDm);
   }

@@ -9,7 +9,7 @@
  *   from a channel id someone supplies, so another person's DM can't appear, even to an admin. The projection re-checks
  *   that both people of a tracked DM are in the Slack conversation before it reads a word of metadata.
  * - **Staff are never offered.** A counterpart who is staff (`StaffRepository.memberIds()`: `staff.member_id`, or a member
- *   behind an admin or community manager account; the one definition, also what decides which DMs the whole team can read) is dropped.
+ *   behind an admin, assistant or community manager account; the one definition) is dropped.
  * - The Bronze reads need the service role (Slack content is service role only), so every caller checks who is asking first
  *   (`requireStaffAction()` or the staff page, and `care.write`) and hands the service repositories in.
  */

@@ -53,6 +53,21 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "messages-in-a-hedgie-care-plan",
+    date: "2026-11-12",
+    audience: "product",
+    category: "improved",
+    title: "Messages in a Hedgie Care plan can be read by admins and community managers",
+    summary:
+      "When a staff member's one-on-one Slack DM with you is part of a Hedgie Care plan, admins and community managers can read the messages sent during the plan. Hub Chat now shows a note at the top of those conversations.",
+    body: [
+      "Hedgie Care is how our community manager and admins keep in touch with members. Each time is recorded as a care plan, with a start and an end.",
+      "When a staff member's one-on-one Slack DM with you is tracked for a plan, admins and community managers can read the messages sent in it during that plan, including your earlier plans. Hub Chat shows a short note at the top of such a conversation, for everyone in it. Slack itself shows no note, so keep it in mind when you message the team there.",
+      "Every time someone opens these messages, we record who looked and whose plan it was, but not the messages.",
+      "Other direct messages with staff, and those between members, can be read only through special access, for something like a safety or conduct report. Deleted messages are not shown. The [privacy page](/privacy#care-plan-messages) has the details.",
+    ].join("\n\n"),
+  },
+  {
     slug: "link-previews-in-hub-chat",
     date: "2026-11-12",
     audience: "product",

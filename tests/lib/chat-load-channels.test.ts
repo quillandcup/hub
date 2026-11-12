@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import type { ChatChannelMemberSeed, ChatChannelSeed } from "@/lib/data/chat";
 import { createInMemoryRepos } from "@/lib/data/repos";
-import { loadChannelForMember, loadChannelMembers, loadChatChannels, staffDmReaderCheck } from "@/lib/chat/load";
+import { loadChannelForMember, loadChannelMembers, loadChatChannels } from "@/lib/chat/load";
 
 // The channel and membership reads come from the chat repository (in memory here); `failing` names
 // repository methods that throw, to check what an unreadable list shows.
@@ -13,9 +13,6 @@ let failing: string[];
 let slackMembers: { channel_id: string; user_id: string; left_at?: string | null }[] = [];
 let slackChannels: { channel_id: string; name: string; is_im?: boolean; is_mpim?: boolean; token_only?: boolean }[] = [];
 let slackAuthors: { slack_user_id: string; member_id: string }[] = [];
-/** Members linked in the staff table, and sign-in accounts by user id (role). */
-let staffMembers: string[] = [];
-let profiles: { id: string; email: string; role: string }[] = [];
 
 function repos() {
   const twins = createInMemoryRepos(
@@ -30,8 +27,6 @@ function repos() {
       slackChannelMembers: slackMembers as never,
       slackChannels: slackChannels as never,
       chatSlackAuthors: slackAuthors as never,
-      staff: staffMembers.map((member_id, i) => ({ id: `staff-${i}`, name: `Staff ${i}`, email: `staff-${i}@example.test`, role: "staff", hire_date: null, member_id, notes: null, created_at: null, updated_at: null })),
-      userProfiles: profiles,
       slackUsers: [
         { user_id: "U_STRANGER", real_name: "Stella Stranger", name: "stella" },
         { user_id: "U_BOT", real_name: "Billie Bot", name: "billie", is_bot: true },
@@ -56,8 +51,6 @@ beforeEach(() => {
   slackMembers = [];
   slackChannels = [];
   slackAuthors = [];
-  staffMembers = [];
-  profiles = [];
   channels = [
     { id: GENERAL, kind: "channel", visibility: "public", restricted: false, name: "general", slack_channel_id: "C_GENERAL" },
     { id: HOSTS, kind: "channel", visibility: "private", restricted: false, name: "hosts", slack_channel_id: "C_HOSTS" },
@@ -122,8 +115,6 @@ describe("loadChannelForMember", () => {
       joined: true,
       slackChannelId: "C_HOSTS",
       lastMessageAt: null,
-      includesStaff: false,
-      staffRead: false,
     });
     await expect(loadChannelForMember(repos(), GENERAL, HAZEL, false)).resolves.toMatchObject({ label: "#general", joined: false });
     await expect(loadChannelForMember(repos(), OLD, FERN, false)).resolves.toMatchObject({ archived: true });
@@ -183,95 +174,6 @@ describe("loadChannelForMember", () => {
     failing = ["activeMembership"];
     await expect(loadChannelForMember(repos(), GENERAL, FERN, false)).resolves.toMatchObject({ joined: false });
     await expect(loadChannelForMember(repos(), HOSTS, FERN, false)).resolves.toBeNull();
-  });
-});
-
-describe("direct messages with a member of the team in them", () => {
-  const STAFF_DM = "chn_AAAAAAAAAAS1";
-  const PLAIN_DM = "chn_AAAAAAAAAAS2";
-  const STAFF_GROUP = "chn_AAAAAAAAAAS3";
-  const reader = async () => true;
-  const notReader = async () => false;
-  beforeEach(() => {
-    // Gale is staff (the staff table). Fern is in a DM with her and in a DM with Hazel; Hazel is in neither staff DM.
-    staffMembers = [GALE];
-    channels.push(
-      { id: STAFF_DM, kind: "dm", visibility: "private", restricted: true, name: null, slack_channel_id: "D_STAFF" },
-      { id: PLAIN_DM, kind: "dm", visibility: "private", restricted: true, name: null, slack_channel_id: "D_PLAIN" },
-      { id: STAFF_GROUP, kind: "group_dm", visibility: "private", restricted: true, name: null }
-    );
-    memberships.push(
-      { channel_id: STAFF_DM, member_id: FERN }, { channel_id: STAFF_DM, member_id: GALE },
-      { channel_id: PLAIN_DM, member_id: FERN }, { channel_id: PLAIN_DM, member_id: HAZEL },
-      { channel_id: STAFF_GROUP, member_id: FERN }, { channel_id: STAFF_GROUP, member_id: GALE }
-    );
-  });
-
-  it("says a conversation includes staff when asked for the notice, and not otherwise (the check is skipped on the common path)", async () => {
-    await expect(loadChannelForMember(repos(), STAFF_DM, FERN, false, { staffNotice: true })).resolves.toMatchObject({ includesStaff: true, staffRead: false, joined: true });
-    await expect(loadChannelForMember(repos(), STAFF_GROUP, FERN, false, { staffNotice: true })).resolves.toMatchObject({ includesStaff: true });
-    await expect(loadChannelForMember(repos(), PLAIN_DM, FERN, false, { staffNotice: true })).resolves.toMatchObject({ includesStaff: false });
-    await expect(loadChannelForMember(repos(), HOSTS, FERN, false, { staffNotice: true })).resolves.toMatchObject({ includesStaff: false });
-    await expect(loadChannelForMember(repos(), STAFF_DM, FERN, false)).resolves.toMatchObject({ includesStaff: false });
-  });
-
-  it("sees a staff member who is only in Slack's list of the conversation (she has not pulled it)", async () => {
-    const SLACK_DM = "chn_AAAAAAAAAAS4";
-    channels.push({ id: SLACK_DM, kind: "dm", visibility: "private", restricted: true, name: null, slack_channel_id: "D_SLACKSTAFF" });
-    memberships.push({ channel_id: SLACK_DM, member_id: FERN });
-    slackMembers.push({ channel_id: "D_SLACKSTAFF", user_id: "U_FERN" }, { channel_id: "D_SLACKSTAFF", user_id: "U_GALE" });
-    slackAuthors.push({ slack_user_id: "U_FERN", member_id: FERN }, { slack_user_id: "U_GALE", member_id: GALE });
-    await expect(loadChannelForMember(repos(), SLACK_DM, FERN, false, { staffNotice: true })).resolves.toMatchObject({ includesStaff: true });
-  });
-
-  it("opens a staff-involved conversation for a staff reader who is not in it: read-only, joined false", async () => {
-    await expect(loadChannelForMember(repos(), STAFF_DM, HAZEL, false, { isStaffReader: reader })).resolves.toMatchObject({
-      id: STAFF_DM,
-      joined: false,
-      staffRead: true,
-      includesStaff: true,
-    });
-    await expect(loadChannelForMember(repos(), STAFF_GROUP, HAZEL, false, { isStaffReader: reader })).resolves.toMatchObject({ staffRead: true });
-  });
-
-  it("does not open a conversation without staff in it, a private channel, or one for someone who is not a staff reader", async () => {
-    await expect(loadChannelForMember(repos(), PLAIN_DM, GALE, false, { isStaffReader: reader })).resolves.toBeNull();
-    await expect(loadChannelForMember(repos(), SECRET, HAZEL, false, { isStaffReader: reader })).resolves.toBeNull();
-    await expect(loadChannelForMember(repos(), STAFF_DM, HAZEL, false, { isStaffReader: notReader })).resolves.toBeNull();
-    await expect(loadChannelForMember(repos(), STAFF_DM, HAZEL, false)).resolves.toBeNull();
-    await expect(loadChannelForMember(repos(), STAFF_DM, HAZEL, false, { staffNotice: true })).resolves.toBeNull();
-  });
-
-  it("does not open one in sudo, and counts a failed check as no", async () => {
-    await expect(loadChannelForMember(repos(), STAFF_DM, HAZEL, true, { isStaffReader: reader })).resolves.toBeNull();
-    failing = ["dmIncludesStaff"];
-    await expect(loadChannelForMember(repos(), STAFF_DM, HAZEL, false, { isStaffReader: reader })).resolves.toBeNull();
-    // A member in their own conversation is not locked out by it: the notice just is not shown.
-    await expect(loadChannelForMember(repos(), STAFF_DM, FERN, false, { staffNotice: true })).resolves.toMatchObject({ joined: true, includesStaff: false });
-  });
-
-  it("asks who the reader is only when needed, from the profile, and only admins and community managers read", async () => {
-    profiles = [
-      { id: "u-admin", email: "a@example.test", role: "admin" },
-      { id: "u-cm", email: "c@example.test", role: "community_manager" },
-      { id: "u-assistant", email: "s@example.test", role: "assistant" },
-      { id: "u-member", email: "m@example.test", role: "member" },
-    ];
-    const twins = repos();
-    expect(await staffDmReaderCheck(twins, "u-admin")()).toBe(true);
-    expect(await staffDmReaderCheck(twins, "u-cm")()).toBe(true);
-    expect(await staffDmReaderCheck(twins, "u-assistant")()).toBe(false);
-    expect(await staffDmReaderCheck(twins, "u-member")()).toBe(false);
-    expect(await staffDmReaderCheck(twins, "u-nobody")()).toBe(false);
-
-    // One lookup per check, however often it is asked.
-    const lookup = vi.fn(async () => ({ role: "admin" }));
-    const check = staffDmReaderCheck({ profiles: { byId: lookup } } as never, "u-admin");
-    await check();
-    await check();
-    expect(lookup).toHaveBeenCalledTimes(1);
-    // A profile that cannot be read is not a reader.
-    expect(await staffDmReaderCheck({ profiles: { byId: async () => { throw new Error("down"); } } } as never, "u-admin")()).toBe(false);
   });
 });
 

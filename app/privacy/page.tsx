@@ -22,29 +22,28 @@ export const PRIVACY_EFFECTIVE = "2026-11-12";
  * resources one by one (what a delete keeps, for instance), so it does not need an edit for every new
  * feature. What is true of the code today (checked 2026-11-03):
  *
- * - Chat: staff read chat content only where RLS lets them (`chat_can_read_content`): public and non-restricted private
- *   channels for admins, and (since 2026-11-12) a direct message or group message **with a staff member in it** for every
- *   admin and community manager, with no grant (`chat_staff_can_read_dm`, `chat_dm_has_staff`: a member linked in `staff`
- *   or behind an admin or community manager account, in the conversation now; `StaffRepository.memberIds` is the one
- *   definition). That rule is derived, not stored: `restricted` stays true for every DM. A direct message with no staff
- *   member in it, and a restricted channel, have no admin read path at all; the break-glass section is the commitment
- *   for those. Admins' read access covers every conversation's metadata (`chat_can_see_channel`: members, who wrote and
- *   reacted and when, `last_read_at`) but never a deleted message's content (`chat_message_contents` policy requires
- *   `deleted_at IS NULL`); files follow the content policy. A community manager sees no chat except the staff-involved
- *   direct messages. Hub Chat tells everyone in a staff-involved conversation (`components/chat/StaffDmNotice.tsx`), and a
- *   team member who opens one without being in it leaves an audit entry (`chat_log_staff_dm_read`, entity `staff_dm_read`,
- *   shown in the Activity Log's Privacy view; one per reader and conversation per hour; no text). Slack's own app shows
- *   no such line, and the page says so. There is no in-app break-glass tool yet: anything done under that section is done
- *   by hand and has to follow what it promises (docs/SLACK_BRIDGED_CHAT.md).
+ * - Chat: staff read chat content only where RLS lets admins (`chat_can_read_content`: public and
+ *   non-restricted private channels); restricted channels, DMs and group DMs have no admin read path at all;
+ *   admins' read access covers every conversation's metadata (`chat_can_see_channel`: members, who wrote and
+ *   reacted and when, `last_read_at`) but never a deleted message's content (`chat_message_contents` policy
+ *   requires `deleted_at IS NULL`); files follow the content policy. The break-glass section is the
+ *   commitment for the rare case, not a screen: there is no in-app tool yet, so anything done under it is done
+ *   by hand and has to follow what that section promises (docs/SLACK_BRIDGED_CHAT.md).
  * - One-on-one Slack DMs (the `slack_dm_bridge` feature, docs/SLACK_BRIDGED_CHAT.md): for a member it is on for, their
  *   own Slack token lists and reads their DMs (when they open chat, on a live event, nightly; `lib/chat/slack-dms.ts`,
  *   `lib/chat/slack-dm-events.ts`, `/api/reconcile/slack-dms`), into Bronze (service role only, never shown to admins as text) and
  *   the chat as a private, restricted `dm` conversation: the Hub members in it who have pulled their own DMs (each is
- *   added by their own pull, `slack_dm_member_pulled`; the other person only once theirs finds it) can read it, admins see only
- *   that it exists and its metadata, unless a staff member is in it (above; staff are found from Slack's own list of who is in it,
- *   so one who has not pulled counts), sudo never shows it. A DM with a
+ *   added by their own pull, `slack_dm_member_pulled`; the other person only once theirs finds it) can read it, admins see only that it exists and its metadata, sudo never shows it. A DM with a
  *   non-member keeps their messages under their Slack name; nothing else about them. The page's DM statements must
  *   change with that code, in particular if a pull ever starts to cover a member the feature doesn't.
+ * - Hedgie Care plan messages (decided 2026-11-12, docs/HEDGIE_CARE.md "Plan messages"): the one exception to the above. Admins and
+ *   community managers (never an assistant: `requireStaffAction()`, `care.write`) see, inside Hedgie Care, the full text of the
+ *   one-on-one Slack DM(s) a staff member tracks with a member (`care_tracked_dms`), sent in the window of each of that member's care
+ *   plans (the plan's start to its close, or now while open), across all the member's plans and owners; read with the service role from
+ *   Bronze by `lib/care-messages.ts`, deleted messages left out. No chat policy changed: a DM with a staff member is otherwise
+ *   break-glass only. Opening them writes an audit entry (`care_dm_read`, `care_log_messages_read`; one per reader and member per hour,
+ *   no text) shown in the Activity Log's Privacy view, and a tracked DM shows a note at the top in Hub Chat (`CarePlanNotice`).
+ *   Slack's own app shows no such note, and the page says so.
  * - Usage log: what is recorded and when (`lib/analytics/events.ts`, `lib/analytics/receive.ts`), the consent
  *   rule (`components/ConsentBanner.tsx`, `lib/analytics/consent.ts`), the visit cookie
  *   (`lib/analytics/session-cookie.ts`), notification sends and opens (`lib/notifications/notify.ts`,
@@ -98,8 +97,8 @@ export default async function PrivacyPage() {
           </li>
           <li>
             Staff can see who talks with whom, where and when, and what is said in the channels that reach the Hub. Restricted
-            channels and direct messages between members are open to them only through break-glass access. A direct message
-            with a member of the Quill &amp; Cup team in it can be read by the whole team.
+            channels, group DMs and your one-on-one Slack DMs are open to them only through break-glass access, with one exception:
+            the messages sent during a Hedgie Care plan, below.
           </li>
           <li>
             The Hub brings your one-on-one Slack DMs into Hub Chat as we roll it out to every member, and keeps them. See
@@ -272,16 +271,16 @@ export default async function PrivacyPage() {
             <Row where="Public channels" activity="Yes" content="Yes, same as every member" />
             <Row where="Private channels that include Billie Bot" activity="Yes" content="Yes, unless the channel is marked restricted" />
             <Row where="Restricted private channels" activity="Yes" content="No, except break-glass access (below)" />
+            <Row where="Group DMs that include Billie Bot" activity="Yes" content="No, except break-glass access (below)" />
             <Row
-              where="Direct messages and group DMs with a member of the Quill & Cup team in them, whether written in the Hub or in Slack"
-              activity="Yes"
-              content="Yes, the whole team can read them (see “Messages with the Quill & Cup team”, below)"
-            />
-            <Row where="Group DMs that include Billie Bot and none of the team" activity="Yes" content="No, except break-glass access (below)" />
-            <Row
-              where="Direct messages between members only: one-on-one Slack DMs, and group DMs without Billie Bot, as they reach the Hub, and DMs written in the Hub"
+              where="One-on-one Slack DMs, and group DMs without Billie Bot, as they reach the Hub (apart from the messages in a Hedgie Care plan, next row)"
               activity="Yes"
               content="No, except break-glass access (below)"
+            />
+            <Row
+              where="One-on-one Slack DMs tracked in a Hedgie Care plan: the messages sent during the plan"
+              activity="Yes"
+              content="Yes, admins and community managers can read them in Hedgie Care (see “Messages in a Hedgie Care plan”, below)"
             />
             <Row where="Private channels without Billie Bot" activity="Not yet. Planned: yes" content="Not yet. Planned: restricted, so break-glass access only" />
           </tbody>
@@ -293,23 +292,30 @@ export default async function PrivacyPage() {
           group DMs the Hub mirrors, and the copy is removed if the file is deleted.
         </p>
 
-        <h3 id="staff-messages" className={`${SUBHEADING} scroll-mt-6`}>
-          Messages with the Quill &amp; Cup team
+        <h3 id="care-plan-messages" className={`${SUBHEADING} scroll-mt-6`}>
+          Messages in a Hedgie Care plan
         </h3>
         <p>
-          A direct message or group DM with a member of the Quill &amp; Cup team in it (one of our staff, an admin or a community
-          manager) is treated differently from one between members: the whole team can read it. That is every admin and every
-          community manager, with no break-glass access, and it covers messages written in the Hub and Slack messages that
-          reach the Hub. Hub Chat says so at the top of such a conversation, for everyone in it. When someone from the team
-          reads one without being in it, that is recorded in a log of who looked (the audit log): which conversation and when, but not
-          the messages. It lasts while a team member is in the conversation; if they leave, it is treated like a direct message
-          between members again. Deleted messages stay out of reach, as everywhere else. Slack&apos;s own app shows no note at the top of a
-          conversation, so keep this in mind when you message the team there.
+          Hedgie Care is how our community manager and admins keep in touch with members: to say hello, check in on your writing or
+          welcome you back. Each time is recorded as a care plan, with a start and an end.
+        </p>
+        <p>
+          When a staff member&apos;s one-on-one Slack DM with you is tracked for a plan, admins and community managers can read, in
+          Hedgie Care, the messages sent in that DM from the start of the plan to its end, or until now while it is open. That includes
+          your earlier plans, even ones another staff member held. They read the full messages, as they were sent; deleted messages are
+          not shown. A staff member can choose to track the DM, and it is tracked when she starts a plan by Slack DM and has a DM with you.
+        </p>
+        <p>
+          Messages sent outside a plan are not shown there, and other direct messages with staff are treated like direct messages between
+          members, so staff can read them only through break-glass access (below). Each time someone opens these messages, we record who
+          looked and whose plan it was, but not the messages, and Hub Chat shows a short note at the top of such a conversation. Slack&apos;s
+          own app shows no note, so keep this in mind when you message the team there. Only admins and community managers can read them:
+          assistants cannot.
         </p>
 
         <Detail title="Break-glass access">
           In rare cases, such as a safety or conduct report, an admin may need to read the content of a specific
-          restricted channel, group DM or direct message between members. We will do that only for that one conversation and only for as long as it
+          restricted channel or group DM. We will do that only for that one conversation and only for as long as it
           takes, and we will record who looked, why and when. You won&apos;t receive an automatic notification when
           this happens.
         </Detail>
@@ -336,9 +342,8 @@ export default async function PrivacyPage() {
           <strong>Who can see them.</strong> You, and the other person if they are a Hub member (they see the same conversation in their own chat once their own DMs are brought in). If
           they aren&apos;t a member, their messages are kept in your conversation under their Slack name, and we keep nothing
           else about them. Staff can see that the conversation exists, who is in it, who wrote and when, but they can read the
-          text only through break-glass access, as for a restricted channel. The exception is a conversation with a member of
-          the Quill &amp; Cup team in it, which the whole team can read (see &ldquo;Messages with the Quill &amp; Cup team&rdquo; above).
-          Viewing the Hub as you never shows them.
+          text only through break-glass access, as for a restricted channel, except for the messages sent during a Hedgie Care plan
+          (see &ldquo;Messages in a Hedgie Care plan&rdquo; above). Viewing the Hub as you never shows them.
           <br />
           <br />
           <strong>Stopping it.</strong> There is no separate switch for DMs. Disconnecting Slack in Settings stops the Hub

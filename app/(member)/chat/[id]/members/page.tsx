@@ -5,16 +5,15 @@ import { createClient } from "@/lib/supabase/server";
 import { createRepos } from "@/lib/data/repos";
 import { requireChat } from "@/lib/chat/access";
 import { isId } from "@/lib/ids";
-import { loadChannelForMember, loadChannelMembers, staffDmReaderCheck } from "@/lib/chat/load";
+import { loadChannelForMember, loadChannelMembers } from "@/lib/chat/load";
 import { membershipAbilities } from "@/lib/chat/membership-abilities";
 import MembersManager from "@/components/chat/MembersManager";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   if (!isId(id, "chn")) return { title: "Members · Chat" };
-  const { user, identity } = await requireChat();
-  const repos = createRepos(await createClient());
-  const channel = await loadChannelForMember(repos, id, identity.memberId, identity.isSudo, { isStaffReader: staffDmReaderCheck(repos, user.id) });
+  const { identity } = await requireChat();
+  const channel = await loadChannelForMember(createRepos(await createClient()), id, identity.memberId, identity.isSudo);
   return { title: channel ? `Members · ${channel.label} · Chat` : "Members · Chat" };
 }
 
@@ -29,7 +28,7 @@ export default async function ChatMembersPage({ params }: { params: Promise<{ id
   if (!isId(id, "chn")) notFound();
 
   const supabase = await createClient();
-  const channel = await loadChannelForMember(createRepos(supabase), id, identity.memberId, identity.isSudo, { isStaffReader: staffDmReaderCheck(createRepos(supabase), user.id) });
+  const channel = await loadChannelForMember(createRepos(supabase), id, identity.memberId, identity.isSudo);
   if (!channel) notFound();
   const [people, profile, bridge] = await Promise.all([
     loadChannelMembers(createRepos(supabase), channel.id),

@@ -7228,6 +7228,10 @@ export type Database = {
           user_id: string
         }[]
       }
+      care_log_messages_read: {
+        Args: { p_member_id: string }
+        Returns: boolean
+      }
       chat_add_message_files: {
         Args: { p_files: Json; p_message_id: string }
         Returns: undefined
@@ -7241,10 +7245,6 @@ export type Database = {
         Returns: boolean
       }
       chat_can_see_channel: { Args: { p_channel_id: string }; Returns: boolean }
-      chat_channel_includes_staff: {
-        Args: { p_channel_id: string }
-        Returns: boolean
-      }
       chat_claim_slack_dm_pull: {
         Args: { p_member: string; p_min_seconds: number }
         Returns: boolean
@@ -7270,7 +7270,7 @@ export type Database = {
           slack_user_id: string
         }[]
       }
-      chat_dm_has_staff: { Args: { p_channel_id: string }; Returns: boolean }
+      chat_dm_in_care_plan: { Args: { p_channel_id: string }; Returns: boolean }
       chat_edit_message: {
         Args: { p_body: string; p_message_id: string }
         Returns: undefined
@@ -7280,10 +7280,6 @@ export type Database = {
         Returns: string
       }
       chat_is_channel_member: {
-        Args: { p_channel_id: string }
-        Returns: boolean
-      }
-      chat_log_staff_dm_read: {
         Args: { p_channel_id: string }
         Returns: boolean
       }
@@ -7333,10 +7329,6 @@ export type Database = {
       }
       chat_slack_bot_summary: { Args: { p_payload: Json }; Returns: Json }
       chat_slack_files_summary: { Args: { p_files: Json }; Returns: Json }
-      chat_staff_can_read_dm: {
-        Args: { p_channel_id: string }
-        Returns: boolean
-      }
       chat_toggle_reaction: {
         Args: { p_emoji: string; p_message_id: string }
         Returns: boolean
@@ -7570,7 +7562,6 @@ export type Database = {
         Args: { target_month: string }
         Returns: boolean
       }
-      is_staff_member: { Args: { p_member: string }; Returns: boolean }
       last_access_by_user: {
         Args: never
         Returns: {

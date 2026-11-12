@@ -158,7 +158,7 @@ describe("ownSlackIdentity", () => {
 });
 
 describe("staff members (StaffRepository.memberIds, the one definition)", () => {
-  it("is the staff table's members and the members behind admin and community manager accounts", async () => {
+  it("is the staff table's members and the members behind admin, assistant and community manager accounts", async () => {
     expect(await world().repos.staff.memberIds()).toEqual(new Set([STAFF_MEMBER, ADMIN_MEMBER, CM, OTHER_CM]));
   });
 });

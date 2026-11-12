@@ -24,23 +24,6 @@ import type { ChannelRecord } from "@/lib/data/chat";
 export type ChatLoadRepos = Pick<Repos, "attendance" | "chat" | "chatLinkPreviews" | "chatVideos" | "directory" | "memberProfile">;
 
 /**
- * The roles that may read a direct message with a staff member in it without being in it: every admin and every community
- * manager (docs/SLACK_BRIDGED_CHAT.md, "Access control"). The database decides too (RLS, `chat_staff_can_read_dm`); this
- * only keeps the page from offering what the database would refuse.
- */
-export const STAFF_DM_READER_ROLES: readonly string[] = ["admin", "community_manager"];
-
-/**
- * A lazy check that the signed-in user is a staff reader, read from their profile (never the token's role claim, which can be an
- * hour stale), and only when it is asked, so the common path (a member in their own conversation) costs nothing.
- */
-export function staffDmReaderCheck(repos: Pick<Repos, "profiles">, userId: string): () => Promise<boolean> {
-  let answer: Promise<boolean> | undefined;
-  return () => (answer ??= repos.profiles.byId(userId).then((p) => STAFF_DM_READER_ROLES.includes(p?.role ?? "")).catch(() => false));
-}
-
-
-/**
  * What the chat pages read. Everything goes through the caller's own Supabase client, so RLS
  * (chat_can_see_channel / chat_can_read_content) decides what comes back; the scoping here is
  * on top of that, for what a *member's* chat should list: public channels plus the
@@ -69,13 +52,6 @@ export interface ChannelSummary {
   slackChannelId: string | null;
   /** When it last had a message: direct and group messages are listed by it, newest first, as in Slack. */
   lastMessageAt: string | null;
-  /**
-   * A direct or group message with a member of the team in it, which the whole team can read (decided 2026-11-12, /privacy). Set only
-   * by `loadChannelForMember`, for the conversation being opened; Hub Chat says so at the top of it.
-   */
-  includesStaff?: boolean;
-  /** The viewer is an admin or community manager reading a staff-involved conversation they are not in. Set only by `loadChannelForMember`. */
-  staffRead?: boolean;
 }
 
 
@@ -241,27 +217,16 @@ export async function loadChannelMembers(repos: ChatLoadRepos, channelId: string
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/** What a reading page asks `loadChannelForMember` for beyond the member's own conversations. */
-export interface ChannelReadOptions {
-  /** Pass for the pages that only read: when the viewer is not in a private direct message, a staff reader may still open one with staff in it. */
-  isStaffReader?: () => Promise<boolean>;
-  /** Also find out whether the conversation has a staff member in it (`includesStaff`), for the notice at the top of the page. */
-  staffNotice?: boolean;
-}
-
 /**
  * One conversation for the member, or null when they have no business in it: not found under
  * RLS, a private conversation they are not in (admins included: staff reading others' private
- * conversations is not what the member chat is for, with one exception: a direct or group message
- * with a staff member in it, which every admin and community manager may read, see `ChannelReadOptions`),
- * or a DM while viewing as a member.
+ * conversations is not what the member chat is for), or a DM while viewing as a member.
  */
 export async function loadChannelForMember(
   repos: ChatLoadRepos,
   channelId: string,
   memberId: string,
-  isSudo: boolean,
-  options: ChannelReadOptions = {}
+  isSudo: boolean
 ): Promise<ChannelSummary | null> {
   // The channel and the member's place in it don't depend on each other, so read them together.
   // (A failed read of either is "not there", as it always has been.)
@@ -272,12 +237,7 @@ export async function loadChannelForMember(
   ]);
   if (!channel) return null;
   if (isSudo && channel.kind !== "channel") return null;
-  // A staff reader's way in: a direct or group message with a staff member in it, which they are not in. RLS agrees (chat_staff_can_read_dm).
-  const outsider = channel.visibility === "private" && !membership;
-  const askIncludesStaff = channel.kind !== "channel" && (options.staffNotice === true || (outsider && options.isStaffReader !== undefined));
-  const includesStaff = askIncludesStaff ? await chat.dmIncludesStaff(channel.id).catch(() => false) : false;
-  const staffRead = outsider && includesStaff && options.isStaffReader !== undefined && (await options.isStaffReader());
-  if (outsider && !staffRead) return null;
+  if (channel.visibility === "private" && !membership) return null;
 
   const labels = channel.kind === "channel" ? new Map<string, string>() : await groupDmLabels(repos, [channel.id], memberId, undefined, new Map([[channel.id, channel.kind]]));
   return {
@@ -290,8 +250,6 @@ export async function loadChannelForMember(
     joined: Boolean(membership),
     slackChannelId: channel.slack_channel_id,
     lastMessageAt: channel.last_message_at,
-    includesStaff,
-    staffRead,
   };
 }
 

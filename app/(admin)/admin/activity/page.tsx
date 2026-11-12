@@ -19,7 +19,7 @@ export const maxDuration = 60;
 const VIEW_SUMMARIES: Record<FeedView, string> = {
   audit: "Changes made in Hedgie Hub by staff and the system, and anything an admin did while viewing as a member.",
   all: "Everything: changes, member activity (prickles, Slack, outreach, logins) and page visits.",
-  privacy: "Changes to who can read message content: Slack channels restricted from staff, restrictions lifted, and team members who opened a direct message with the team that they are not in.",
+  privacy: "Changes to who can read message content: Slack channels restricted from staff, restrictions lifted, and who opened a member's Hedgie Care plan messages.",
 };
 
 type SupabaseServer = Awaited<ReturnType<typeof createClient>>;

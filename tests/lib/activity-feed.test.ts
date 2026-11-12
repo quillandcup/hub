@@ -259,11 +259,11 @@ describe("describeRow for member actions", () => {
     expect(restriction("delete")).toBe("lifted the restriction on messages in #inner-circle");
   });
 
-  it("reads a team member's opening of a direct message with the team as a sentence, and files it under Privacy", () => {
-    expect(describeRow(row({ entity_type: "staff_dm_read", event_type: "insert", data: {} }))).toBe(
-      "opened a direct message with the team that they are not in (the messages are not recorded)"
+  it("reads the opening of a member's care plan messages as a sentence, and files it under Privacy", () => {
+    expect(describeRow(row({ entity_type: "care_dm_read", event_type: "insert", data: {} }))).toBe(
+      "opened a member's Hedgie Care plan messages (the messages are not recorded)"
     );
-    expect(PRIVACY_ENTITY_TYPES).toContain("staff_dm_read");
+    expect(PRIVACY_ENTITY_TYPES).toContain("care_dm_read");
   });
 });
 

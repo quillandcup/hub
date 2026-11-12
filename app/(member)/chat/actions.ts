@@ -29,7 +29,6 @@ import {
   buildMessageViews,
   chatTextContext,
   loadChannelForMember,
-  staffDmReaderCheck,
   loadChatChannels,
   loadMessage,
   loadMessages,
@@ -157,7 +156,7 @@ export async function loadOlderChat(channelId: string, before: string): Promise<
   const { identity } = caller;
 
   const supabase = await createClient();
-  const channel = await loadChannelForMember(createRepos(supabase), channelId, identity.memberId, identity.isSudo, { isStaffReader: staffDmReaderCheck(createRepos(supabase), caller.userId) });
+  const channel = await loadChannelForMember(createRepos(supabase), channelId, identity.memberId, identity.isSudo);
   if (!channel || (identity.isSudo && channel.restricted)) return null;
 
   const page = await loadMessages(createRepos(supabase), channel.id, { before });
@@ -187,7 +186,7 @@ export async function loadLatestChat(channelId: string, alsoMessageIds: string[]
   const afterAuth = performance.now();
 
   const supabase = await createClient();
-  const channel = await loadChannelForMember(createRepos(supabase), channelId, identity.memberId, identity.isSudo, { isStaffReader: staffDmReaderCheck(createRepos(supabase), caller.userId) });
+  const channel = await loadChannelForMember(createRepos(supabase), channelId, identity.memberId, identity.isSudo);
   if (!channel || (identity.isSudo && channel.restricted)) return null;
   const afterChannel = performance.now();
 
@@ -254,7 +253,7 @@ export async function loadThreadChat(channelId: string, threadRootId: string, al
   const { identity } = caller;
 
   const supabase = await createClient();
-  const channel = await loadChannelForMember(createRepos(supabase), channelId, identity.memberId, identity.isSudo, { isStaffReader: staffDmReaderCheck(createRepos(supabase), caller.userId) });
+  const channel = await loadChannelForMember(createRepos(supabase), channelId, identity.memberId, identity.isSudo);
   if (!channel || (identity.isSudo && channel.restricted)) return null;
 
   const [root, replies] = await Promise.all([

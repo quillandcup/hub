@@ -3,7 +3,6 @@ import type { Db, Row } from "./db";
 import type { Json } from "./database.types";
 import type { InMemoryDataset } from "./in-memory";
 import { inChunks } from "./query";
-import { staffMemberIdsOf } from "./staff";
 
 /** A stored row, as the database has it, with only the named columns required: a test or seed names just what it cares about. */
 type Seed<T, K extends keyof T> = Pick<T, K> & Partial<Omit<T, K>>;
@@ -254,17 +253,12 @@ export interface ChatRepository {
    */
   dmCounterparts(memberId: string): Promise<Map<string, string[]>>;
   /**
-   * Whether this direct or group message has a staff member in it now (`StaffRepository.memberIds` is who counts): a member in the
-   * conversation, or, for a Slack one, anyone Slack lists in it. That is what lets the whole team read it, and what the notice in
-   * Hub Chat says. False for a channel, and for a conversation the caller cannot see.
+   * Whether this Slack DM is tracked in a Hedgie Care plan of its member, open or past: a live tracked DM for its Slack
+   * conversation, whose member has a care plan owned by the person who tracks it (the owner, else who opened it). The team can read the
+   * messages sent in a plan (docs/HEDGIE_CARE.md), and Hub Chat says so at the top of the conversation. False for a channel, a
+   * group message, and a conversation the caller cannot see.
    */
-  dmIncludesStaff(channelId: string): Promise<boolean>;
-  /**
-   * Puts on record, in the audit log, that the signed-in admin or community manager opened a staff-involved direct message they are
-   * not in (one entry per person and conversation per hour; the entry holds no text). True when the read is on record, false when no
-   * entry applies (they are in it, or may not read it). Throws on a database error: a read without its trail should not go ahead.
-   */
-  logStaffRead(channelId: string): Promise<boolean>;
+  dmInCarePlan(channelId: string): Promise<boolean>;
   /** Which of these members are in the conversation now. */
   presentMembers(channelId: string, memberIds: string[]): Promise<Set<string>>;
   /** Where the member has read up to (their marker, else when they joined), or null when they are not in the conversation. */
@@ -671,14 +665,8 @@ export class SupabaseChatRepository implements ChatRepository {
     return data;
   }
 
-  async dmIncludesStaff(channelId: string) {
-    const { data, error } = await this.db.rpc("chat_channel_includes_staff", { p_channel_id: channelId });
-    if (error) throw new Error(error.message);
-    return data === true;
-  }
-
-  async logStaffRead(channelId: string) {
-    const { data, error } = await this.db.rpc("chat_log_staff_dm_read", { p_channel_id: channelId });
+  async dmInCarePlan(channelId: string) {
+    const { data, error } = await this.db.rpc("chat_dm_in_care_plan", { p_channel_id: channelId });
     if (error) throw new Error(error.message);
     return data === true;
   }
@@ -1300,21 +1288,15 @@ export class InMemoryChatRepository implements ChatRepository {
     return m ? { source: m.source ?? "slack" } : null;
   }
 
-  async dmIncludesStaff(channelId: string) {
+  async dmInCarePlan(channelId: string) {
     const channel = this.data.chatChannels.find((c) => c.id === channelId);
-    const kind = channel?.kind ?? "channel";
-    if (!channel || (kind !== "dm" && kind !== "group_dm")) return false;
-    const staff = staffMemberIdsOf(this.data);
-    if (this.active(channelId).some((m) => staff.has(m.member_id))) return true;
-    const slackId = channel.slack_channel_id;
-    if (!slackId) return false;
-    const authors = new Map(this.data.chatSlackAuthors.map((a) => [a.slack_user_id, a.member_id] as const));
-    return this.data.slackChannelMembers.some((m) => m.channel_id === slackId && !m.left_at && staff.has(authors.get(m.user_id) ?? ""));
-  }
-
-  /** The twin has no signed-in caller, so the checks on who is reading and the once-an-hour rule are the database's (pgTAP); it answers whether the conversation is one the team may read. */
-  async logStaffRead(channelId: string) {
-    return this.dmIncludesStaff(channelId);
+    const slackId = channel?.slack_channel_id;
+    if (!channel || (channel.kind ?? "channel") !== "dm" || !slackId) return false;
+    return this.data.careTrackedDms
+      .filter((t) => t.slack_channel_id === slackId && t.deleted_at === null)
+      .some((t) =>
+        this.data.careEngagements.some((e) => e.member_id === t.member_id && e.deleted_at === null && (e.owned_by ?? e.opened_by) === t.tracked_by)
+      );
   }
 
   async dmCounterparts(memberId: string) {

@@ -22,6 +22,7 @@ const members = [
   { id: "mbr_AAAAAAAAAAA2", name: "Bo Example", email: "bo@example.test" },
   { id: "mbr_AAAAAAAAAAA3", name: "Cy Example", email: "cy@example.test" },
   { id: "mbr_AAAAAAAAAAA4", name: "Dee Example", email: "dee@example.test" },
+  { id: "mbr_AAAAAAAAAAA5", name: "Eli Example", email: "eli@example.test" },
 ];
 const dataset = () => new InMemoryDataset({ members: members.map((m) => ({ ...m })) });
 
