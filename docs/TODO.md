@@ -1251,6 +1251,15 @@ Billie Bot (this app's own Slack bot) can't invite itself back into a private ch
 
 ## Gamification / Badges
 
+### More Celebrations in #hedgiehype
+New books and awards are celebrated in #hedgiehype (`celebrateNewBook`, `celebrateNewAward` in `lib/slack.ts`). Other wins worth cheering in the same channel, each posted the same way (through `postToSlackChannel`, escaped, display name, link to the public `/members/<id>` page, never an admin page):
+- **Badges**: a member earns one, the Published Author badge first (`lib/badges.ts`).
+- **Writing goals**: a goal finished or a project published (`lib/writing-journey.ts`, `lib/writing-projects.ts`).
+- **Anniversaries**: membership anniversaries (the admin Hedgieversaries page, `lib/member-tenure.ts`).
+- **Big Sister outcomes**: a trial member who stays on after the 30 days. Whether a trial converted is derived from membership history in `lib/mentorship.ts`, never stored.
+
+Deferred because each needs a decision on privacy first: anniversaries and mentorship outcomes are personal, so ask members (an opt-in, or a setting) before posting, and honor the usage-statistics opt-out where it applies. Start with badges and writing goals. A new automated sender starts in dry run behind a feature flag (`CLAUDE.md`, "Notification Messages: Links, Copy, Rollout"). Each kind is a name in `slack.celebrationChannelOverrides` (`app.config.ts`), so one that gets noisy can move to its own channel without code. Related: "Staff channel posts as admin notification kinds" above.
+
 ### Community Builder Leaderboard
 Recognize members who contribute most to community engagement — inspired by Long Angle's leaderboard (https://my.longangle.com/leaderboard). **Note:** Long Angle's own leaderboard ranks by number of members invited/referred, not general engagement — worth deciding whether to mirror that directly (an invites leaderboard) or broaden to community engagement generally.
 
