@@ -3,7 +3,7 @@ import type { EngagementCardData } from "./card";
 
 /** What the score counts, word for word as the code does (`lib/member-engagement.ts`). */
 export const SCORE_HELP =
-  "Points for what the member did in the 30 days before the day shown, never more than 100. A prickle is worth 10; other activity is worth a few points each. Under 10 is at risk, 10 to 49 is active, 50 or more is highly engaged. Then is the day the care period started. Now is today.";
+  "Points for what the member did in the 30 days before the day shown, never more than 100. A prickle is worth 10; other activity is worth a few points each. Under 10 is at risk, 10 to 49 is active, 50 or more is highly engaged. Then is the day the care plan started. Now is today.";
 
 /** What \"last in the community\" counts, word for word as the code does (`lib/care-participation.ts`). */
 export const PARTICIPATION_HELP =
@@ -12,11 +12,11 @@ export const PARTICIPATION_HELP =
 /** "18 (At risk) then, 42 (Active) now" for the row and the results. */
 export function scoreSentence(scores: NonNullable<EngagementCardData["scores"]>): string {
   const part = (s: { score: number; tier: keyof typeof CARE_SCORE_TIER_LABELS }) => `${s.score} (${CARE_SCORE_TIER_LABELS[s.tier]})`;
-  return `${part(scores.then)} when the care period started, ${part(scores.now)} now`;
+  return `${part(scores.then)} when the care plan started, ${part(scores.now)} now`;
 }
 
 /**
- * The two facts she used to type into the note: the member's engagement score when the care period started and now, and the
+ * The two facts she used to type into the note: the member's engagement score when the care plan started and now, and the
  * last time they took part in the community. Neither is the DM: who spoke last is shown on its own line, labelled "Last
  * message".
  */

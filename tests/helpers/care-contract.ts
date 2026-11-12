@@ -70,7 +70,7 @@ export function defineCareContract(name: string, setup: () => CareContractContex
         expect(c.id).toMatch(/^care_[1-9A-HJ-NP-Za-km-z]{12}$/);
       });
 
-      it("puts the first message where it is told to, which is the start of an earlier day for a care period entered after the fact", async () => {
+      it("puts the first message where it is told to, which is the start of an earlier day for a care plan entered after the fact", async () => {
         const hers = await opened(ada, { openedAt: "2026-03-01T17:00:00.000Z", firstMessageAt: "2026-03-01T05:00:00.000Z" });
         const theirs = await opened(bo, { openedAt: "2026-03-01T17:00:00.000Z", firstMessageAt: "2026-03-01T05:00:00.000Z", firstMessageFrom: "member" });
 
@@ -264,7 +264,7 @@ export function defineCareContract(name: string, setup: () => CareContractContex
         expect(iso(refused.limit)).toBe("2026-03-10T12:00:00.000Z");
       });
 
-      it("will not start a renewal before the care period it continues, or the earlier one after its renewal", async () => {
+      it("will not start a renewal before the care plan it continues, or the earlier one after its renewal", async () => {
         const first = await opened(ada);
         const renewed = await ctx.repo().renew(first.id, { ...renewInput, openedBy: ctx.openedBy });
         if (!renewed.ok) throw new Error("unreachable");

@@ -91,7 +91,7 @@ describe("followsTrackedDm: whose DM fills in an engagement", () => {
   const tracked = { userId: ME, memberIds: new Set(["mbr_AAAAAAAAAAA1"]) };
   const base = { channel: "slack_dm", member_id: "mbr_AAAAAAAAAAA1", owned_by: ME, opened_by: "user-other" };
 
-  it("is true for a Slack DM care period she owns with a member whose DM she tracks", () => {
+  it("is true for a Slack DM care plan she owns with a member whose DM she tracks", () => {
     expect(followsTrackedDm(base, tracked)).toBe(true);
   });
 
@@ -115,7 +115,7 @@ describe("membersWhoseNewCareFollowsDm: a new period takes the latest one's owne
   const B = "mbr_AAAAAAAAAAA2";
   const period = (id: string, member_id: string, owned_by: string | null, opened_at: string) => ({ id, member_id, owned_by, opened_at });
 
-  it("counts a tracked member with no care period yet, since she would own it", () => {
+  it("counts a tracked member with no care plan yet, since she would own it", () => {
     expect([...membersWhoseNewCareFollowsDm(ME, new Set([A]), [])]).toEqual([A]);
   });
 

@@ -37,7 +37,7 @@ export type NewCareEngagement = {
   openedAt?: string;
   /** Who wrote the first message: she did, unless the member wrote to her first. */
   firstMessageFrom?: MessageDirection;
-  /** When that first message is recorded: when it was opened, unless given (a care period started on an earlier day puts it at the start of that day). */
+  /** When that first message is recorded: when it was opened, unless given (a care plan started on an earlier day puts it at the start of that day). */
   firstMessageAt?: string;
   notes?: string | null;
   nextStep?: string | null;

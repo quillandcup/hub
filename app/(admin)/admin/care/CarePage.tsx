@@ -102,7 +102,7 @@ export default async function CarePage({ tab, staff }: { tab: CareTabId; staff: 
           </Link>
           <h1 className="text-2xl font-bold">{CARE_TITLE}</h1>
           <p className="mt-1 text-slate-600 dark:text-slate-400">
-            Members you are reaching out to, one care period for each stretch of time, and where each one stands.
+            Members you are reaching out to, one care plan for each stretch of time, and where each one stands.
           </p>
         </div>
       </header>

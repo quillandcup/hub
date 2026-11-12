@@ -20,9 +20,9 @@ const FIELD = "w-full px-3 py-2 border border-slate-300 dark:border-slate-700 ro
 const LABEL = "block text-sm font-medium mb-1";
 
 /**
- * Starts a care period: who, why, where, the day it started and an optional note. She reached out, or they wrote to her first.
+ * Starts a care plan: who, why, where, the day it started and an optional note. She reached out, or they wrote to her first.
  *
- * `slackDmMemberIds` are the members whose Slack DM she tracks and whose new Slack DM care period would follow it (she is
+ * `slackDmMemberIds` are the members whose Slack DM she tracks and whose new Slack DM care plan would follow it (she is
  * the owner it would get). For one of them on the Slack DM channel the DM says who wrote first, so the "They wrote to me
  * first" tick is replaced by a line saying so. A member she has a DM with but has not tracked yet (starting tracks it) can't
  * be told apart from one with no DM without a Slack lookup, so for them the tick stays: it is a placeholder the DM replaces.
@@ -63,7 +63,7 @@ export default function StartEngagementForm({ today, slackDmMemberIds = [] }: { 
 
   return (
     <form onSubmit={submit} className="@container rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-      <h2 className="text-lg font-semibold">Start a care period</h2>
+      <h2 className="text-lg font-semibold">Start a care plan</h2>
       <div className="mt-3 grid grid-cols-1 gap-4 @pair:grid-cols-2">
         <div>
           <span className={LABEL} id="care-member-label">
@@ -108,7 +108,7 @@ export default function StartEngagementForm({ today, slackDmMemberIds = [] }: { 
         </div>
         <div>
           <DatePicker id="care-started-on" label="When did this start?" value={startedOn} onChange={setStartedOn} max={today} />
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Today, or the day you first wrote if you are catching up. The care period runs from this day.</p>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Today, or the day you first wrote if you are catching up. The care plan runs from this day.</p>
         </div>
         <DatePicker id="care-follow-up" label="Follow up on" value={followUpOn} onChange={setFollowUpOn} />
         <div className="@pair:col-span-2">

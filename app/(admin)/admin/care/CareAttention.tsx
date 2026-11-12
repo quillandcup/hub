@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Attention } from "./attention";
 
 /**
- * What is overdue, for everyone who opens the page: the number of care periods waiting for a renewal or a close ("Review
+ * What is overdue, for everyone who opens the page: the number of care plans waiting for a renewal or a close ("Review
  * due") and the ones that waited too long ("Lapsed"), and, when anything is overdue, whose they are. Lapse is an
  * accountability signal, so it is shown, not hidden under a tab.
  */
@@ -28,13 +28,13 @@ export default function CareAttention({ attention }: { attention: Attention }) {
           Review due: {reviewDue}
         </Link>
         <p className="text-sm text-slate-600 dark:text-slate-400">
-          {lapsed + reviewDue === 0 ? "Nothing is overdue." : "A care period is over: renew it or close it. Lapsed ones waited past the grace window."}
+          {lapsed + reviewDue === 0 ? "Nothing is overdue." : "A care plan is over: renew it or close it. Lapsed ones waited past the grace window."}
         </p>
       </div>
       {byOwner.length > 0 && (
         <div className="mt-3 overflow-x-auto">
           <table className="w-full min-w-[20rem] text-left text-sm">
-            <caption className="sr-only">Overdue care periods by owner</caption>
+            <caption className="sr-only">Overdue care plans by owner</caption>
             <thead>
               <tr className="border-b border-slate-200 text-slate-600 dark:border-slate-800 dark:text-slate-400">
                 <th scope="col" className="py-1 pr-3 font-medium">Owner</th>

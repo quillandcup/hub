@@ -74,6 +74,7 @@ const engagementRow = (id: string, member: string, openedAt: string) => ({
   updated_at: openedAt,
 });
 const onlyEngagementId = () => data.careEngagements[0].id;
+const onlyEngagementOf = (id: string) => data.careEngagements.find((c) => c.id === id)!;
 const onlyEngagement = () => {
   expect(data.careEngagements).toHaveLength(1);
   return data.careEngagements[0];
@@ -196,7 +197,7 @@ describe("startEngagement", () => {
   it("refuses a second open engagement on the same channel, and starts one on another", async () => {
     await start();
     const second = await start({ reason: "welcome" });
-    expect(second).toEqual({ error: expect.stringContaining("already an open care period") });
+    expect(second).toEqual({ error: expect.stringContaining("already an open care plan") });
     expect(data.careEngagements).toHaveLength(1);
     expect(data.activities.filter((a) => a.source === "care")).toHaveLength(1);
 
@@ -224,7 +225,7 @@ describe("startEngagement", () => {
   it("says it could not start when the database fails, without its message", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.spyOn(repos.care, "open").mockRejectedValueOnce(new Error("connection reset"));
-    await expect(start()).resolves.toEqual({ error: "Couldn't start the care period." });
+    await expect(start()).resolves.toEqual({ error: "Couldn't start the care plan." });
   });
 
   it("still starts when the timeline mirror fails", async () => {
@@ -235,7 +236,7 @@ describe("startEngagement", () => {
   });
 });
 
-describe("backdating a care period", () => {
+describe("backdating a care plan", () => {
   useFakeClock(() => Date.parse("2026-03-20T15:00:00Z"));
   /** Moves the pinned clock to an exact instant. */
   const at = (iso: string) => setClock(new FakeClock(Date.parse(iso)));
@@ -299,9 +300,9 @@ describe("backdating a care period", () => {
     expect(onlyEngagement()).toMatchObject({ opened_at: "2026-11-01T17:00:00.000Z", period_ends_on: "2026-12-01" });
   });
 
-  it("still leaves one open care period per member and channel", async () => {
+  it("still leaves one open care plan per member and channel", async () => {
     await start({ startedOn: "2026-03-13" });
-    await expect(start({ startedOn: "2026-03-14" })).resolves.toEqual({ error: expect.stringContaining("already an open care period") });
+    await expect(start({ startedOn: "2026-03-14" })).resolves.toEqual({ error: expect.stringContaining("already an open care plan") });
     expect(data.careEngagements).toHaveLength(1);
   });
 });
@@ -326,6 +327,59 @@ describe("changeEngagementStart", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/admin/care");
   });
 
+  describe("the member's timeline row", () => {
+    const careRows = (type: string) => data.activities.filter((a) => a.source === "care" && a.activity_type === type);
+
+    it("moves to the new day with the start, and only the row of the care plan that moved", async () => {
+      await start({ memberId: BO }); // another member's care plan keeps its row
+      const bo = data.careEngagements.find((c) => c.member_id === BO)!;
+      expect(careRows("care_started")).toHaveLength(2);
+      const mine = () => careRows("care_started").find((a) => a.related_id === id)!;
+      expect(mine().occurred_at).toBe("2026-03-20T15:00:00.000Z");
+
+      await expect(changeEngagementStart(id, "2026-03-10")).resolves.toEqual({ success: true });
+
+      expect(mine().occurred_at).toBe("2026-03-10T16:00:00.000Z");
+      expect(mine().occurred_at).toBe(onlyEngagementOf(id).opened_at);
+      expect(careRows("care_started").find((a) => a.related_id === bo.id)!.occurred_at).toBe("2026-03-20T15:00:00.000Z");
+      expect(mine()).toMatchObject({ title: "Hedgie Care started", member_id: ADA });
+    });
+
+    it("moves the row of a renewal, which is where a renewed care plan's start is written, and leaves the close row", async () => {
+      const first = onlyEngagement();
+      await changeEngagementStart(id, "2026-03-01");
+      await renewEngagement(id, "keep going");
+      const renewal = data.careEngagements.find((c) => c.renewed_from === id)!;
+      const closeRow = careRows("care_closed").map((a) => a.occurred_at);
+
+      await expect(changeEngagementStart(renewal.id, "2026-03-10")).resolves.toEqual({ success: true });
+
+      expect(careRows("care_renewed").find((a) => a.related_id === renewal.id)!.occurred_at).toBe("2026-03-10T16:00:00.000Z");
+      expect(careRows("care_started").find((a) => a.related_id === first.id)!.occurred_at).toBe("2026-03-01T17:00:00.000Z");
+      expect(careRows("care_closed").map((a) => a.occurred_at)).toEqual(closeRow);
+    });
+
+    it("leaves the row alone when the start did not change, and when it is refused", async () => {
+      await changeEngagementStart(id, "2026-03-20");
+      await changeEngagementStart(id, "2026-03-21");
+      expect(careRows("care_started")[0].occurred_at).toBe("2026-03-20T15:00:00.000Z");
+    });
+
+    it("still moves the start when the timeline row cannot be moved, and says nothing is wrong", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      vi.spyOn(repos.activities, "moveOccurredAt").mockRejectedValueOnce(new Error("timeline down"));
+      await expect(changeEngagementStart(id, "2026-03-10")).resolves.toEqual({ success: true });
+      expect(onlyEngagement().opened_at).toBe("2026-03-10T16:00:00.000Z");
+      expect(console.error).toHaveBeenCalledWith("[care] moving the timeline row after a start change failed:", "timeline down");
+    });
+
+    it("does nothing when the care plan has no timeline row", async () => {
+      data.activities.splice(0, data.activities.length);
+      await expect(changeEngagementStart(id, "2026-03-10")).resolves.toEqual({ success: true });
+      expect(data.activities.filter((a) => a.source === "care")).toEqual([]);
+    });
+  });
+
   it("keeps the length the period had when the setting is different now", async () => {
     onlyEngagement().period_ends_on = "2026-05-04"; // a 45-day period
     await changeEngagementStart(id, "2026-03-10");
@@ -338,47 +392,47 @@ describe("changeEngagementStart", () => {
     expect(onlyEngagement()).toEqual(before);
   });
 
-  it("refuses a day after today, a day that is not real, something that is not an id, and a care period that is gone", async () => {
+  it("refuses a day after today, a day that is not real, something that is not an id, and a care plan that is gone", async () => {
     await expect(changeEngagementStart(id, "2026-03-21")).resolves.toEqual({ error: "The start can't be in the future. Pick today or an earlier day." });
     await expect(changeEngagementStart(id, "2026-02-30")).resolves.toEqual({ error: "That isn't a real day. Pick the day it started." });
     await expect(changeEngagementStart(id, "")).resolves.toEqual({ success: true }); // none given means today
-    await expect(changeEngagementStart("nope", "2026-03-10")).resolves.toEqual({ error: "That care period is gone." });
-    await expect(changeEngagementStart("care_ZZZZZZZZZZZZ", "2026-03-10")).resolves.toEqual({ error: "That care period is gone." });
+    await expect(changeEngagementStart("nope", "2026-03-10")).resolves.toEqual({ error: "That care plan is gone." });
+    await expect(changeEngagementStart("care_ZZZZZZZZZZZZ", "2026-03-10")).resolves.toEqual({ error: "That care plan is gone." });
     expect(onlyEngagement().opened_at).toBe("2026-03-20T15:00:00.000Z");
   });
 
-  it("will not move the start of a renewal before the care period it continues, and says which day stops it", async () => {
+  it("will not move the start of a renewal before the care plan it continues, and says which day stops it", async () => {
     await changeEngagementStart(id, "2026-03-05");
     await renewEngagement(id, "a plan");
     const renewal = data.careEngagements.find((c) => c.renewed_from === id)!;
 
-    await expect(changeEngagementStart(renewal.id, "2026-03-04")).resolves.toEqual({ error: "The start can't be before the care period this one follows on from, which started on 3/5/2026." });
+    await expect(changeEngagementStart(renewal.id, "2026-03-04")).resolves.toEqual({ error: "The start can't be before the care plan this one follows on from, which started on 3/5/2026." });
     expect(renewal.opened_at).toBe("2026-03-20T15:00:00.000Z");
     // A renewal's start is the renewal day; it can move, but only inside the order of the chain.
     await expect(changeEngagementStart(renewal.id, "2026-03-12")).resolves.toEqual({ success: true });
     expect(renewal.period_ends_on).toBe(addDays("2026-03-12", CARE_ENGAGEMENT_DAYS));
   });
 
-  it("will not move a care period past the start of its renewal, and clamps a start on the renewal's own day to its time", async () => {
+  it("will not move a care plan past the start of its renewal, and clamps a start on the renewal's own day to its time", async () => {
     await renewEngagement(id, "a plan");
     const first = data.careEngagements.find((c) => c.id === id)!;
     const renewal = data.careEngagements.find((c) => c.renewed_from === id)!;
     first.opened_at = "2026-03-05T16:00:00.000Z";
     renewal.opened_at = first.closed_at = "2026-03-12T14:00:00.000Z"; // 10:00 Eastern
 
-    await expect(changeEngagementStart(id, "2026-03-13")).resolves.toEqual({ error: "The start can't be after this care period was renewed, on 3/12/2026. Change the start of the next care period first." });
+    await expect(changeEngagementStart(id, "2026-03-13")).resolves.toEqual({ error: "The start can't be after this care plan was renewed, on 3/12/2026. Change the start of the next care plan first." });
     expect(first.opened_at).toBe("2026-03-05T16:00:00.000Z");
     // Its renewal's own day is fine: noon would be after the renewal's morning, so it starts when the renewal did.
     await expect(changeEngagementStart(id, "2026-03-12")).resolves.toEqual({ success: true });
     expect(first.opened_at).toBe("2026-03-12T14:00:00.000Z");
   });
 
-  it("will not move a closed care period to after it was closed", async () => {
+  it("will not move a closed care plan to after it was closed", async () => {
     await closeEngagement(id, "no_reply");
     onlyEngagement().opened_at = "2026-03-10T16:00:00.000Z";
     onlyEngagement().closed_at = "2026-03-15T16:00:00.000Z";
 
-    await expect(changeEngagementStart(id, "2026-03-16")).resolves.toEqual({ error: "The start can't be after this care period was closed, on 3/15/2026." });
+    await expect(changeEngagementStart(id, "2026-03-16")).resolves.toEqual({ error: "The start can't be after this care plan was closed, on 3/15/2026." });
     await expect(changeEngagementStart(id, "2026-03-12")).resolves.toEqual({ success: true });
   });
 
@@ -407,13 +461,13 @@ describe("the rest of an engagement's life", () => {
     await expect(logCareMessage(id, "member")).resolves.toEqual({ success: true });
     expect(onlyEngagement().last_member_message_at).not.toBeNull();
     await expect(logCareMessage(id, "staff")).resolves.toEqual({ success: true });
-    await expect(logCareMessage(id, "robot")).resolves.toEqual({ error: "That care period is gone." });
-    await expect(logCareMessage("nope", "member")).resolves.toEqual({ error: "That care period is gone." });
+    await expect(logCareMessage(id, "robot")).resolves.toEqual({ error: "That care plan is gone." });
+    await expect(logCareMessage("nope", "member")).resolves.toEqual({ error: "That care plan is gone." });
   });
 
   it("will not log into a closed engagement", async () => {
     await closeEngagement(id, "no_reply");
-    await expect(logCareMessage(id, "member")).resolves.toEqual({ error: "That care period is closed or gone." });
+    await expect(logCareMessage(id, "member")).resolves.toEqual({ error: "That care plan is closed or gone." });
   });
 
   it("updates the reason, notes, next step and follow-up day, and clears with empty text", async () => {
@@ -425,12 +479,12 @@ describe("the rest of an engagement's life", () => {
   });
 
   it("checks an update", async () => {
-    await expect(updateEngagement("nope", {})).resolves.toEqual({ error: "That care period is gone." });
+    await expect(updateEngagement("nope", {})).resolves.toEqual({ error: "That care plan is gone." });
     await expect(updateEngagement(id, { reason: "gossip" })).resolves.toEqual({ error: "Pick why you are reaching out." });
     await expect(updateEngagement(id, { notes: "x".repeat(1001) })).resolves.toEqual({ error: "The note can be at most 1000 characters." });
     await expect(updateEngagement(id, { nextStep: "x".repeat(281) })).resolves.toEqual({ error: "The next step can be at most 280 characters." });
     await expect(updateEngagement(id, { followUpOn: "tomorrow" })).resolves.toEqual({ error: "Pick a real day for the follow-up." });
-    await expect(updateEngagement("care_ZZZZZZZZZZZZ", { notes: "x" })).resolves.toEqual({ error: "That care period is gone." });
+    await expect(updateEngagement("care_ZZZZZZZZZZZZ", { notes: "x" })).resolves.toEqual({ error: "That care plan is gone." });
   });
 
   it("closes with how it ended, once, and puts it on the member's timeline", async () => {
@@ -442,7 +496,7 @@ describe("the rest of an engagement's life", () => {
     expect(closing).toHaveLength(1);
     expect(closing[0]).toMatchObject({ member_id: ADA, actor_kind: "staff", engagement_value: 0, description: "A writing check-in · Slack DM: Back in the community" });
 
-    await expect(closeEngagement(id, "no_reply")).resolves.toEqual({ error: "That care period is already closed or gone." });
+    await expect(closeEngagement(id, "no_reply")).resolves.toEqual({ error: "That care plan is already closed or gone." });
     expect(data.activities.filter((a) => a.activity_type === "care_closed")).toHaveLength(1);
   });
 
@@ -453,22 +507,22 @@ describe("the rest of an engagement's life", () => {
 
   it("refuses a close without a real ending", async () => {
     await expect(closeEngagement(id, "vanished")).resolves.toEqual({ error: "Pick how it ended." });
-    await expect(closeEngagement("nope", "no_reply")).resolves.toEqual({ error: "That care period is gone." });
+    await expect(closeEngagement("nope", "no_reply")).resolves.toEqual({ error: "That care plan is gone." });
     expect(onlyEngagement().closed_at).toBeNull();
   });
 
   it("removes an engagement from the list", async () => {
     await expect(deleteEngagement(id)).resolves.toEqual({ success: true });
     expect(onlyEngagement().deleted_at).not.toBeNull();
-    await expect(deleteEngagement(id)).resolves.toEqual({ error: "That care period is gone." });
-    await expect(deleteEngagement("nope")).resolves.toEqual({ error: "That care period is gone." });
+    await expect(deleteEngagement(id)).resolves.toEqual({ error: "That care plan is gone." });
+    await expect(deleteEngagement("nope")).resolves.toEqual({ error: "That care plan is gone." });
   });
 
   it.each([
     ["logCareMessage", "logMessage", () => logCareMessage(id, "member"), "Couldn't save that."],
     ["updateEngagement", "update", () => updateEngagement(id, { notes: "x" }), "Couldn't save the change."],
-    ["closeEngagement", "close", () => closeEngagement(id, "no_reply"), "Couldn't close the care period."],
-    ["deleteEngagement", "softDelete", () => deleteEngagement(id), "Couldn't remove the care period."],
+    ["closeEngagement", "close", () => closeEngagement(id, "no_reply"), "Couldn't close the care plan."],
+    ["deleteEngagement", "softDelete", () => deleteEngagement(id), "Couldn't remove the care plan."],
   ] as const)("%s says so when the database fails, without its message", async (_name, method, call, message) => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.spyOn(repos.care, method).mockRejectedValueOnce(new Error("connection reset"));
@@ -546,13 +600,13 @@ describe("renewEngagement", () => {
   });
 
   it("checks the id, and answers a closed or missing engagement", async () => {
-    await expect(renewEngagement("nope", "a plan")).resolves.toEqual({ error: "That care period is gone." });
+    await expect(renewEngagement("nope", "a plan")).resolves.toEqual({ error: "That care plan is gone." });
     await closeEngagement(id, "no_reply");
     await expect(renewEngagement(id, "a plan")).resolves.toEqual({ error: expect.stringContaining("already renewed, closed or gone") });
   });
 
   it("needs a reason, which becomes the new period's note, and keeps the old note on the old period", async () => {
-    await expect(renewEngagement(id, "   ")).resolves.toEqual({ error: "Say why you are renewing: what is the plan?" });
+    await expect(renewEngagement(id, "   ")).resolves.toEqual({ error: "Say why you are renewing: what will you do next?" });
     await expect(renewEngagement(id, "x".repeat(1001))).resolves.toEqual({ error: "The reason can be at most 1000 characters." });
     await expect(renewEngagement(id, 42 as never)).resolves.toEqual({ error: "Check the reason." });
     expect(data.careEngagements).toHaveLength(1); // nothing happened
@@ -572,7 +626,7 @@ describe("renewEngagement", () => {
   it("says it could not renew when the database fails, without its message", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.spyOn(repos.care, "renew").mockRejectedValueOnce(new Error("connection reset"));
-    await expect(renewEngagement(id, "a plan")).resolves.toEqual({ error: "Couldn't renew the care period." });
+    await expect(renewEngagement(id, "a plan")).resolves.toEqual({ error: "Couldn't renew the care plan." });
   });
 });
 
@@ -623,8 +677,8 @@ describe("getEngagementResults", () => {
   });
 
   it("refuses a bad id, an unknown engagement and a plain member", async () => {
-    await expect(getEngagementResults("nope")).resolves.toEqual({ error: "That care period is gone." });
-    await expect(getEngagementResults("care_ZZZZZZZZZZZZ")).resolves.toEqual({ error: "That care period is gone." });
+    await expect(getEngagementResults("nope")).resolves.toEqual({ error: "That care plan is gone." });
+    await expect(getEngagementResults("care_ZZZZZZZZZZZZ")).resolves.toEqual({ error: "That care plan is gone." });
     signInAs(MEMBER_USER);
     await expect(getEngagementResults(id)).resolves.toEqual({ error: "Not authorized" });
   });
@@ -689,8 +743,8 @@ describe("reassignEngagement", () => {
     await expect(reassignEngagement(id, "cccccccc-cccc-4ccc-8ccc-cccccccccccc")).resolves.toEqual({ error: "Pick someone on the team." }); // no profile
     await expect(reassignEngagement(id, "not-a-user")).resolves.toEqual({ error: "Pick who it goes to." });
     await expect(reassignEngagement(id, undefined as never)).resolves.toEqual({ error: "Pick who it goes to." });
-    await expect(reassignEngagement("nope", OWNER_B)).resolves.toEqual({ error: "That care period is gone." });
-    await expect(reassignEngagement("care_ZZZZZZZZZZZZ", OWNER_B)).resolves.toEqual({ error: "That care period is gone." });
+    await expect(reassignEngagement("nope", OWNER_B)).resolves.toEqual({ error: "That care plan is gone." });
+    await expect(reassignEngagement("care_ZZZZZZZZZZZZ", OWNER_B)).resolves.toEqual({ error: "That care plan is gone." });
     expect(onlyEngagement().owned_by).toBe(CM_USER.id);
   });
 
@@ -891,7 +945,7 @@ describe("tracking Slack DMs", () => {
       expect(data.careTrackedDms[0].deleted_at).not.toBeNull();
     });
   });
-  describe("backdated care periods and the DMs they pick up", () => {
+  describe("backdated care plans and the DMs they pick up", () => {
     useFakeClock(() => Date.parse("2026-03-20T15:00:00Z"));
     const adaWrote = "2026-03-18T14:00:00.000Z";
     const camWrote = "2026-03-18T15:00:00.000Z";
@@ -902,13 +956,13 @@ describe("tracking Slack DMs", () => {
       data.slackMessages = [dmMessage(D.ada, U.ada, adaWrote), dmMessage(D.ada, U.cm, camWrote)];
     }
 
-    it("a care period started today does not count yesterday's DMs", async () => {
+    it("a care plan started today does not count yesterday's DMs", async () => {
       worldWithEarlierDms();
       await start({ memberId: ADA });
       expect(onlyEngagement().last_member_message_at).toBeNull();
     });
 
-    it("a care period started on the day of those DMs counts them: who spoke last comes from the DM", async () => {
+    it("a care plan started on the day of those DMs counts them: who spoke last comes from the DM", async () => {
       worldWithEarlierDms();
       await expect(start({ memberId: ADA, startedOn: "2026-03-18" })).resolves.toEqual({ success: true });
 
@@ -931,7 +985,7 @@ describe("tracking Slack DMs", () => {
       expect(onlyEngagement().last_member_message_at).toBeNull();
     });
 
-    it("moving the start of an existing care period earlier picks the earlier DMs up", async () => {
+    it("moving the start of an existing care plan earlier picks the earlier DMs up", async () => {
       worldWithEarlierDms();
       await start({ memberId: ADA }); // today: nothing counts yet
       expect(onlyEngagement().last_member_message_at).toBeNull();

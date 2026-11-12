@@ -50,11 +50,11 @@ export type EngagementCardData = {
   followUpDue: boolean;
   nextStep: string | null;
   notes: string | null;
-  /** The member's engagement score (and tier) when the care period started and now; null when it could not be worked out. */
+  /** The member's engagement score (and tier) when the care plan started and now; null when it could not be worked out. */
   scores: CareScores | null;
   /** Their latest own activity anywhere in the community; null when none is recorded, "unavailable" when it could not be read. Not the DM: that is `lastSpeaker`. */
   lastParticipation: ParticipationCard | "unavailable" | null;
-  /** "Open the DM", for a Slack DM care period whose DM the signed-in staff user tracks and owns; null otherwise. */
+  /** "Open the DM", for a Slack DM care plan whose DM the signed-in staff user tracks and owns; null otherwise. */
   dmLink: DmLink | null;
 };
 
@@ -70,7 +70,7 @@ export type CardOptions = {
    * else owns carries no hint.)
    */
   slackTracked?: { userId: string; memberIds: ReadonlySet<string>; /** "Open the DM" by member id. */ links?: ReadonlyMap<string, DmLink> };
-  /** Engagement scores by care period id (`loadCareScores`). */
+  /** Engagement scores by care plan id (`loadCareScores`). */
   scores?: ReadonlyMap<string, CareScores>;
   /** Each member's latest participation (`ActivityRepository.lastParticipation`). */
   participation?: ReadonlyMap<string, Participation>;
