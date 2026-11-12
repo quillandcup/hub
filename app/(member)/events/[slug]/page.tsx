@@ -17,7 +17,7 @@ import { AddEventToCalendar } from "@/app/(member)/my-prickles/AddToCalendar";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  const event = await createRepos(await createClient()).events.visibleBySlug(slug).catch(() => null);
+  const event = await createRepos(await createClient()).events.visibleBySlug(slug);
   return { title: event?.title ?? "Event" };
 }
 

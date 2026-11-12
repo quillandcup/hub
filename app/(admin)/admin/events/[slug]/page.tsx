@@ -11,7 +11,7 @@ import { isId } from "@/lib/ids";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  const event = await createRepos(await createClient()).events.bySlug(slug).catch(() => null);
+  const event = await createRepos(await createClient()).events.bySlug(slug);
   return { title: event?.title ?? "Event" };
 }
 
