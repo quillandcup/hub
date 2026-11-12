@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import DatePicker from "@/components/DatePicker";
 import type { EventKajabiMatches } from "@/lib/kajabi-event-matching";
 
 interface OfferRow {
@@ -9,6 +10,19 @@ interface OfferRow {
   name: string;
   /** Internal title, price and id: what tells offers with the same name apart. */
   detail: string;
+  /** The purchase days (YYYY-MM-DD, inclusive) this event counts, on a linked offer; null = open. */
+  purchasedFrom?: string | null;
+  purchasedUntil?: string | null;
+  /** Other events the offer is linked to; it can be linked here too, for its own dates. */
+  otherEvents?: { title: string }[];
+}
+
+/** "purchases from 2026-02-01 until 2026-03-15", or null when every purchase counts. */
+function windowLabel(from: string | null | undefined, until: string | null | undefined): string | null {
+  if (from && until) return `purchases from ${from} until ${until}`;
+  if (from) return `purchases from ${from}`;
+  if (until) return `purchases until ${until}`;
+  return null;
 }
 
 /** What Kajabi said about an attendee with no purchase; says "these offers" when the event has several linked. */
@@ -53,6 +67,11 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
   const [available, setAvailable] = useState<OfferRow[]>([]);
   const [filter, setFilter] = useState("");
   const [choice, setChoice] = useState("");
+  const [from, setFrom] = useState("");
+  const [until, setUntil] = useState("");
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editFrom, setEditFrom] = useState("");
+  const [editUntil, setEditUntil] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [matches, setMatches] = useState<EventKajabiMatches | null>(null);
@@ -92,11 +111,25 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
   const link = async () => {
     if (!choice) return;
     const ok = await call(
-      () => fetch(`/api/admin/events/${eventId}/offers`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kajabiOfferId: choice }) }),
+      () => fetch(`/api/admin/events/${eventId}/offers`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kajabiOfferId: choice, ...(from ? { purchasedFrom: from } : {}), ...(until ? { purchasedUntil: until } : {}) }) }),
       "Failed to link the offer"
     );
     if (ok) {
       setChoice("");
+      setFrom("");
+      setUntil("");
+      setMatches(null);
+      await loadOffers();
+    }
+  };
+
+  const saveWindow = async (offerId: string) => {
+    const ok = await call(
+      () => fetch(`/api/admin/events/${eventId}/offers/${offerId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ purchasedFrom: editFrom || null, purchasedUntil: editUntil || null }) }),
+      "Failed to change the purchase dates"
+    );
+    if (ok) {
+      setEditing(null);
       setMatches(null);
       await loadOffers();
     }
@@ -179,25 +212,57 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
       {linked.length > 0 && (
         <ul className="mb-3 divide-y divide-gray-200 dark:divide-slate-800">
           {linked.map((offer) => (
-            <li key={offer.kajabiOfferId} className="flex items-center justify-between py-1.5 text-sm">
-              <span>
-                {offer.name}
-                <span className="ml-2 text-xs text-gray-500 dark:text-slate-400">{offer.detail}</span>
-              </span>
-              <button
-                type="button"
-                onClick={() => unlink(offer.kajabiOfferId)}
-                disabled={busy}
-                className="text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
-              >
-                Unlink
-              </button>
+            <li key={offer.kajabiOfferId} className="py-1.5 text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <span>
+                  {offer.name}
+                  <span className="ml-2 text-xs text-gray-500 dark:text-slate-400">{offer.detail}</span>
+                  {windowLabel(offer.purchasedFrom, offer.purchasedUntil) && (
+                    <span className="ml-2 text-xs text-plum-700 dark:text-plum-300">{windowLabel(offer.purchasedFrom, offer.purchasedUntil)}</span>
+                  )}
+                </span>
+                <span className="flex gap-3 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditing(editing === offer.kajabiOfferId ? null : offer.kajabiOfferId);
+                      setEditFrom(offer.purchasedFrom ?? "");
+                      setEditUntil(offer.purchasedUntil ?? "");
+                    }}
+                    disabled={busy}
+                    aria-label={`Edit purchase dates for ${offer.name}`}
+                    className="text-xs text-plum-700 dark:text-plum-300 hover:underline disabled:opacity-50"
+                  >
+                    Purchase dates
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => unlink(offer.kajabiOfferId)}
+                    disabled={busy}
+                    className="text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
+                  >
+                    Unlink
+                  </button>
+                </span>
+              </div>
+              {editing === offer.kajabiOfferId && (
+                <div className="mt-2 flex flex-wrap items-end gap-2">
+                  <DatePicker id={`edit-from-${offer.kajabiOfferId}`} label="Purchases from" value={editFrom} onChange={setEditFrom} />
+                  <DatePicker id={`edit-until-${offer.kajabiOfferId}`} label="Purchases until" value={editUntil} onChange={setEditUntil} min={editFrom || undefined} />
+                  <button type="button" onClick={() => saveWindow(offer.kajabiOfferId)} disabled={busy} className="px-3 py-2 bg-plum-600 text-white rounded hover:bg-plum-700 text-sm disabled:opacity-50">
+                    Save dates
+                  </button>
+                  <button type="button" onClick={() => { setEditFrom(""); setEditUntil(""); }} disabled={busy} className="px-3 py-2 text-sm text-gray-600 dark:text-slate-400 hover:underline">
+                    Clear dates
+                  </button>
+                </div>
+              )}
             </li>
           ))}
         </ul>
       )}
 
-      <div className="flex flex-wrap items-center gap-2 mb-3">
+      <div className="flex flex-wrap items-end gap-2 mb-3">
         <input
           type="text"
           aria-label="Filter Kajabi offers"
@@ -215,10 +280,12 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
           <option value="">Choose an offer…</option>
           {shown.map((offer) => (
             <option key={offer.kajabiOfferId} value={offer.kajabiOfferId}>
-              {offer.name} ({offer.detail})
+              {offer.name} ({offer.detail}){offer.otherEvents && offer.otherEvents.length > 0 ? ` - also linked to ${offer.otherEvents.map((e) => e.title).join(", ")}` : ""}
             </option>
           ))}
         </select>
+        <DatePicker id="offer-purchased-from" label="Purchases from" value={from} onChange={setFrom} />
+        <DatePicker id="offer-purchased-until" label="Purchases until" value={until} onChange={setUntil} min={from || undefined} />
         <button
           type="button"
           onClick={link}
