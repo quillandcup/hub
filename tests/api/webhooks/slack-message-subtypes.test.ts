@@ -61,7 +61,7 @@ describe('Slack webhook: message subtypes', () => {
     const { data, error } = await supabase
       .schema('bronze')
       .from('slack_messages')
-      .select('message_ts, user_id, text, message_type, edited_at, deleted_at')
+      .select('message_ts, user_id, text, message_type, channel_type, edited_at, deleted_at')
       .eq('channel_id', channelId)
       .order('message_ts')
     if (error) throw error
@@ -82,6 +82,18 @@ describe('Slack webhook: message subtypes', () => {
     await supabase.schema('bronze').from('slack_messages').delete().eq('channel_id', channelId)
     // Join and leave notices are recorded as membership history.
     await supabase.schema('bronze').from('slack_channel_member_events').delete().eq('channel_id', channelId)
+  })
+
+  it('types a live message by the event\'s conversation type, and leaves a stored type alone when an event names none', async () => {
+    await send({ type: 'message', ts: originalTs, user: 'UAUTHOR', text: 'hi', channel_type: 'channel' })
+    expect((await rows())[0].channel_type).toBe('public_channel')
+
+    await send({ type: 'message', ts: `${nowSec - 500}.000100`, user: 'UAUTHOR', text: 'in a group', channel_type: 'group' })
+    expect((await rows())[1].channel_type).toBe('private_channel')
+
+    await send({ type: 'message', ts: originalTs, user: 'UAUTHOR', text: 'hi again' })
+    const [first] = await rows()
+    expect(first).toMatchObject({ text: 'hi again', channel_type: 'public_channel' })
   })
 
   it('applies an edit to the original message instead of storing a new row', async () => {

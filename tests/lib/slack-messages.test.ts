@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import {
   addSlackMessage,
+  slackEventChannelType,
   isKeptSlackMessage,
   isSlackSystemMessage,
   slackMessageText,
@@ -161,3 +162,25 @@ describe('addSlackMessage tombstones', () => {
     expect(reactions).toEqual([]);
   });
 });
+
+describe('slackEventChannelType', () => {
+  const never = async () => false
+  it('names a live event\'s conversation the way the import does', async () => {
+    expect(await slackEventChannelType({ channel_type: 'im' }, never)).toBe('im')
+    expect(await slackEventChannelType({ channel_type: 'mpim' }, never)).toBe('mpim')
+    expect(await slackEventChannelType({ channel_type: 'channel' }, never)).toBe('public_channel')
+  })
+
+  it('tells a private channel from an older group DM by the stored conversation', async () => {
+    expect(await slackEventChannelType({ channel_type: 'group' }, never)).toBe('private_channel')
+    expect(await slackEventChannelType({ channel_type: 'group' }, async () => true)).toBe('mpim')
+  })
+
+  it('says nothing when the event names no type, and asks nothing of the database for the others', async () => {
+    const lookup = vi.fn(async () => true)
+    expect(await slackEventChannelType({}, lookup)).toBeNull()
+    expect(await slackEventChannelType({ channel_type: 'something-new' }, lookup)).toBeNull()
+    expect(await slackEventChannelType({ channel_type: 'im' }, lookup)).toBe('im')
+    expect(lookup).not.toHaveBeenCalled()
+  })
+})
