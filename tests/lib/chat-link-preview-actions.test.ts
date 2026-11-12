@@ -30,6 +30,8 @@ vi.mock("@/lib/slack-connect", () => ({ getSlackConnectionStatus: async () => ({
 vi.mock("@/lib/chat/slack-post", () => ({ sendChatMessageToSlack: vi.fn(async () => "sent") }));
 vi.mock("@/lib/chat/slack-edit", () => ({ updateChatMessageInSlack: async () => ({ ok: true }), deleteChatMessageInSlack: vi.fn(), deleteChatFileInSlack: vi.fn() }));
 vi.mock("@/lib/chat/load", () => ({}));
+const removeSlackUnfurl = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/chat/slack-unfurl-removal", () => ({ removeSlackUnfurl }));
 vi.mock("@/lib/chat/notifications", () => ({ notifyChatMessage: vi.fn(), resolveChatNotifications: vi.fn() }));
 
 import { editChatMessage, hideChatUnfurl, sendChatMessage } from "@/app/(member)/chat/actions";
@@ -66,6 +68,7 @@ beforeEach(() => {
   m.afterCallbacks.length = 0;
   m.hasFeature.mockReset().mockResolvedValue(true);
   m.record.mockReset();
+  removeSlackUnfurl.mockReset().mockResolvedValue("not_needed");
   m.rpc.mockReset().mockResolvedValue({ data: MESSAGE, error: null });
   m.repos = createInMemoryRepos(new InMemoryDataset({ chatChannels: [{ id: CHANNEL, slack_channel_id: "C1", bridge_mode: "app_only" } as never], chatMessages: [{ id: MESSAGE, channel_id: CHANNEL, deleted_at: null }] }));
   setNetHooks({ resolve: async () => [{ address: "93.184.216.34" }], transport });
@@ -133,9 +136,29 @@ describe("link previews after a message is sent", () => {
 
 describe("hideChatUnfurl", () => {
   it("records the removal as the author's own write", async () => {
-    await expect(hideChatUnfurl(MESSAGE, "url:https://example.test/post")).resolves.toEqual({ ok: true });
-    await expect(hideChatUnfurl(MESSAGE, "idx:2")).resolves.toEqual({ ok: true });
+    await expect(hideChatUnfurl(MESSAGE, "url:https://example.test/post")).resolves.toEqual({ ok: true, slack: "not_needed" });
+    await expect(hideChatUnfurl(MESSAGE, "idx:2")).resolves.toEqual({ ok: true, slack: "not_needed" });
     expect([...((await repos().chatLinkPreviews.hiddenKeys([MESSAGE])).get(MESSAGE) ?? [])].sort()).toEqual(["idx:2", "url:https://example.test/post"]);
+  });
+
+  it("then takes Slack's preview off as the author, and tells the card whether that worked, whatever Slack says", async () => {
+    removeSlackUnfurl.mockResolvedValueOnce("updated");
+    await expect(hideChatUnfurl(MESSAGE, "url:https://example.test/post")).resolves.toEqual({ ok: true, slack: "updated" });
+    expect(removeSlackUnfurl).toHaveBeenCalledWith(expect.anything(), { messageId: MESSAGE, memberId: "member-fern", key: "url:https://example.test/post" });
+    removeSlackUnfurl.mockResolvedValueOnce("failed");
+    await expect(hideChatUnfurl(MESSAGE, "url:https://example.test/two")).resolves.toEqual({ ok: true, slack: "failed" });
+    // The Hub's own marks stand in both cases.
+    expect([...((await repos().chatLinkPreviews.hiddenKeys([MESSAGE])).get(MESSAGE) ?? [])].sort()).toEqual(["url:https://example.test/post", "url:https://example.test/two"]);
+  });
+
+  it("does not touch Slack when the Hub refuses the removal or the key is not ours", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    repos().chatLinkPreviews.hide = async () => {
+      throw new Error("new row violates row-level security policy");
+    };
+    await hideChatUnfurl(MESSAGE, "url:https://example.test/post");
+    await hideChatUnfurl("nope", "idx:1");
+    expect(removeSlackUnfurl).not.toHaveBeenCalled();
   });
 
   it("refuses a message id or a key that is not one of ours", async () => {

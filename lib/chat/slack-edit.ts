@@ -17,7 +17,7 @@ import { getSlackUserToken, isDeadTokenError } from "@/lib/slack-connect";
  * never says something Slack doesn't.
  */
 
-export type SlackWriteResult = { ok: true; fileIds?: string[] } | { ok: false; error: string };
+export type SlackWriteResult = { ok: true; fileIds?: string[] } | { ok: false; error: string; /** Why, for logs and alerts (Slack's error code or one of ours); never shown to a member. */ code?: string };
 
 /**
  * Which token may change this message, or why none can: null `token` with no error means the
@@ -112,6 +112,43 @@ export async function updateChatMessageInSlack(
     if (code === "message_not_found") return { ok: false, error: "That message is no longer in Slack." };
     if (code === "cant_update_message" || code === "edit_window_closed") return { ok: false, error: "Slack won't let this message be edited any more." };
     return { ok: false, error: "Slack didn't take the edit. Try again in a moment." };
+  }
+}
+
+/**
+ * Replace only the link previews (legacy attachments) of one of the member's Hub messages in Slack: the author removed a card. The
+ * call names no text and no blocks, so the message keeps its own as they are (nothing is re-escaped or reparsed, which is also what
+ * keeps Slack from building the previews again); `metadata` is the same tag the post carried, so the `message_changed` that
+ * follows is recognized as ours. An empty list removes every preview. The files are named again, as `updateChatMessageInSlack` does,
+ * so the update cannot drop them. Only a message written in the Hub (origin app) is touched: one written in Slack is its author's to
+ * change there. `{ ok: true }` with nothing done when the message never reached Slack.
+ */
+export async function setChatPreviewsInSlack(
+  supabase: SupabaseClient,
+  opts: { messageId: string; memberId: string; attachments: Record<string, unknown>[]; keepFileIds?: string[] }
+): Promise<SlackWriteResult> {
+  const writer = await writerFor(supabase, opts.messageId, opts.memberId, "edited");
+  if (!writer.ok) return { ...writer, code: "not_allowed" };
+  if (!writer.slack) return { ok: true };
+  if (writer.slack.native) return { ok: false, error: "That message was written in Slack.", code: "slack_origin" };
+  const { token, channel, ts } = writer.slack;
+  try {
+    const result = await createSlackClient(token).chat.update({
+      channel,
+      ts,
+      attachments: opts.attachments,
+      metadata: hubMessageMetadata(opts.messageId),
+      ...(opts.keepFileIds?.length ? { file_ids: opts.keepFileIds } : {}),
+    });
+    return result.ok ? { ok: true } : { ok: false, error: "Slack didn't take the change.", code: "not_ok" };
+  } catch (error) {
+    if (isDeadTokenError(error)) {
+      await supabase.rpc("slack_connection_revoke", { p_member: opts.memberId });
+      return { ok: false, error: "Reconnect Slack in Settings: this message was posted as you.", code: "token_dead" };
+    }
+    const code = slackError(error);
+    console.error("chat.update (previews) failed for %s:", opts.messageId, code ?? "unknown error");
+    return { ok: false, error: "Slack didn't take the change.", code: code ?? "unknown" };
   }
 }
 

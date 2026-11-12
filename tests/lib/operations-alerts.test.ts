@@ -220,3 +220,15 @@ describe("slack_blocks_refused alert", () => {
     expect(postMessage).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("slack_unfurl_removal_failed alert", () => {
+  it("says what Slack kept and why, rate limited per reason, without a message id or address", async () => {
+    const { repos, hit } = allowing();
+    await sendOperationsAlert(repos, { type: "slack_unfurl_removal_failed", reason: "ratelimited" });
+    expect(hit).toHaveBeenCalledWith("operations_alert:slack_unfurl_removal_failed:ratelimited", 600, 1);
+    const [{ text }] = postMessage.mock.calls[0];
+    expect(text).toContain("(ratelimited)");
+    expect(text).toContain("taking a preview off the Slack copy");
+    expect(text).not.toMatch(/msg_|https?:/);
+  });
+});
