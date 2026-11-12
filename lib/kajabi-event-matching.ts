@@ -237,3 +237,23 @@ async function checkGrants(
     })
   );
 }
+
+/**
+ * The members who hold an active purchase of one of the event's linked offers. An attendee in this
+ * set was bought a ticket in Kajabi, so the admin page can say "Purchased" without anyone writing it
+ * down (it is derived from Kajabi, not stored, so a cancelled purchase stops counting). Empty when no
+ * offer is linked.
+ */
+export async function purchasersOfEvent(repos: EventRepos, eventId: string): Promise<Set<string>> {
+  const offerIds = await repos.events.offerIdsOf(eventId);
+  if (offerIds.length === 0) return new Set();
+  const purchases = (await repos.billing.kajabiPurchases({ offerIds })).filter((p) => p.deactivated_at === null);
+  const { emailByCustomerId, memberByEmail } = await membersForPurchases(repos, purchases);
+  const ids = new Set<string>();
+  for (const p of purchases) {
+    const email = p.kajabi_customer_id ? emailByCustomerId.get(p.kajabi_customer_id) : undefined;
+    const member = email ? memberByEmail.get(email) : undefined;
+    if (member) ids.add(member.id);
+  }
+  return ids;
+}

@@ -1,5 +1,6 @@
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { createRepos } from "@/lib/data/repos";
+import { purchasersOfEvent } from "@/lib/kajabi-event-matching";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 import type { Db, Update } from "@/lib/data/db";
@@ -53,9 +54,19 @@ export async function GET(
     return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to load event" }, { status: 500 });
   }
 
+  // Who bought a ticket in Kajabi (derived, not stored); the page shows "Purchased" for them. A failure
+  // here only leaves the page showing what was recorded by hand.
+  let purchasers = new Set<string>();
+  try {
+    purchasers = await purchasersOfEvent(repos, id);
+  } catch (error) {
+    console.error("Error reading the event's Kajabi purchasers:", error);
+  }
+
   const attendeeRows = attendees.map((a) => ({
     id: a.id,
     memberId: a.member_id,
+    purchasedInKajabi: purchasers.has(a.member_id),
     ticketSource: a.ticket_source,
     ticketNote: a.ticket_note,
     memberName: a.member ? getMemberDisplayName(a.member) : "Unknown",
