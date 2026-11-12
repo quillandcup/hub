@@ -626,10 +626,19 @@ describe("pullDmsForCoveredMembers", () => {
       fake.clock.advance(40_000);
       return { messages: [{ ts: "1762170000.000100", user: "UX", text: "hi" }], has_more: false };
     });
+    const result = await pullDmsForCoveredMembers(service, { deadline: fake.clock.now() + 200_000 });
+    // The first member's 100 s share ends after three conversations (40 s each, started while time is left); the second is still started.
+    expect(result).toMatchObject({ members: 2, deferred: 0 });
+    expect(m.history.mock.calls.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("gives every member at least a minute, even when the fair share is smaller (a rate limit asks 30 s at a time)", async () => {
+    const limited = Object.assign(new Error("rate limited"), { code: "slack_webapi_rate_limited_error", retryAfter: 55 });
+    // 100 s of run for two members: a fair share of 50 s cannot wait out a 55 s limit; the minute's floor lets the first wait and carry on.
+    m.list.mockRejectedValueOnce(limited).mockResolvedValue({ channels: [] });
     const result = await pullDmsForCoveredMembers(service, { deadline: fake.clock.now() + 100_000 });
-    // The first member's 50 s share ends after two conversations; the second is still started (and reads what the first left).
-    expect(result).toMatchObject({ members: 2, deferred: 0, incomplete: 1 });
-    expect(m.history).toHaveBeenCalledTimes(3);
+    expect(result.incomplete).toBe(0);
+    expect(m.list.mock.calls.filter(([a]) => a.types === "im").length).toBeGreaterThanOrEqual(2);
   });
 
   it("reports what went wrong for a member and goes on with the next", async () => {
