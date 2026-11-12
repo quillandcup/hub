@@ -2092,7 +2092,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          channel: string
+          channel?: string
           closed_at?: string | null
           created_at?: string
           deleted_at?: string | null

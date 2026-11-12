@@ -300,10 +300,10 @@ export default async function PrivacyPage() {
           welcome you back. Each time is recorded as a care plan, with a start and an end.
         </p>
         <p>
-          When a staff member&apos;s one-on-one Slack DM with you is tracked for a plan, admins and community managers can read, in
-          Hedgie Care, the messages sent in that DM from the start of the plan to its end, or until now while it is open. That includes
-          your earlier plans, even ones another staff member held. They read the full messages, as they were sent; deleted messages are
-          not shown. A staff member can choose to track the DM, and it is tracked when she starts a plan by Slack DM and has a DM with you.
+          Starting a care plan tracks the staff member&apos;s one-on-one Slack DM with you, when the Hub has it, and she can stop
+          tracking it. While it is tracked, admins and community managers can read, in Hedgie Care, the messages sent in that DM from
+          the start of each of your plans to its end, or until now while a plan is open. That includes your earlier plans, even ones
+          another staff member held. They read the full messages, as they were sent; deleted messages are not shown.
         </p>
         <p>
           Messages sent outside a plan are not shown there, and other direct messages with staff are treated like direct messages between

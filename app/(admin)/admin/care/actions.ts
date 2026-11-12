@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { requireStaffAction } from "@/lib/admin-auth";
 import { withAction } from "@/lib/analytics/server";
 import {
-  CARE_CHANNEL_LABELS,
   CARE_ENDED_HOW_LABELS,
   CARE_NEXT_STEP_MAX,
   CARE_NOTES_MAX,
@@ -15,12 +14,10 @@ import {
   periodEndsOn,
   startDayProblem,
   type StartChangeRefusal,
-  isCareChannel,
   isCareId,
   isCareReason,
   isCloseOption,
   isMessageDirection,
-  type CareChannel,
   type CareEndedHow,
   type CareReason,
   type CareResults,
@@ -29,6 +26,7 @@ import {
 import { loadCareMessages, type CareMessagesPage } from "@/lib/care-messages";
 import { loadCareResults } from "@/lib/care-results";
 import { isCareOwner } from "@/lib/care-owners";
+import { careOwnerOf } from "@/lib/care-dm-rules";
 import { findOwnDm, findOwnDmWith, projectCareFromDms, type CareDmServiceRepos, type StaffIdentity } from "@/lib/care-dm";
 import { clock } from "@/lib/clock";
 import { formatDateOnly } from "@/lib/formatters";
@@ -90,8 +88,8 @@ function refusalMessage(reason: StartChangeRefusal, limit: string): string {
   return `The start can't be after this care plan was closed, on ${on}.`;
 }
 
-function reasonLabel(reason: string, channel: string): string {
-  return `${CARE_REASON_LABELS[reason as CareReason] ?? reason} · ${CARE_CHANNEL_LABELS[channel as CareChannel] ?? channel}`;
+function reasonLabel(reason: string): string {
+  return CARE_REASON_LABELS[reason as CareReason] ?? reason;
 }
 
 type TimelineKind = "started" | "renewed" | "closed";
@@ -108,7 +106,7 @@ async function mirrorToTimeline(repos: Repos, userId: string, row: CareEngagemen
       type: `care_${kind}`,
       category: "communication",
       title: closed ? "Hedgie Care closed" : kind === "renewed" ? "Hedgie Care renewed" : "Hedgie Care started",
-      description: closed ? `${reasonLabel(row.reason, row.channel)}: ${CARE_ENDED_HOW_LABELS[row.ended_how as CareEndedHow] ?? row.ended_how}` : reasonLabel(row.reason, row.channel),
+      description: closed ? `${reasonLabel(row.reason)}: ${CARE_ENDED_HOW_LABELS[row.ended_how as CareEndedHow] ?? row.ended_how}` : reasonLabel(row.reason),
       actorKind: "staff",
       actorUserId: userId,
       engagementValue: 0, // our action, not the member's engagement
@@ -124,21 +122,17 @@ export type StartEngagementInput = {
   /** The Eastern calendar day it started (YYYY-MM-DD), today or earlier; today when not given. */
   startedOn?: string;
   reason: string;
-  channel: string;
-  /** The member wrote first (they messaged her), rather than her reaching out. */
-  memberWroteFirst?: boolean;
   notes?: string | null;
   nextStep?: string | null;
   followUpOn?: string | null;
 };
 
-/** What starting a Slack DM engagement needs to find and track the DM: Bronze reads (service role) and the signed-in user, once the bridge is on for them. */
+/** What starting a care plan needs to find and track her DM with the member: Bronze reads (service role) and the signed-in user. */
 type DmTracking = { service: CareDmServiceRepos; user: StaffIdentity };
 
 async function startImpl(repos: Repos, userId: string, input: StartEngagementInput, dms?: DmTracking): Promise<CareActionResult> {
   if (!isId(input.memberId, "mbr")) return { error: "Pick a member." };
   if (!isCareReason(input.reason)) return { error: "Pick why you are reaching out." };
-  if (!isCareChannel(input.channel)) return { error: "Pick where you are reaching out." };
   const notes = text(input.notes, CARE_NOTES_MAX, "note");
   if ("error" in notes) return notes;
   const nextStep = text(input.nextStep, CARE_NEXT_STEP_MAX, "next step");
@@ -158,13 +152,11 @@ async function startImpl(repos: Repos, userId: string, input: StartEngagementInp
     result = await repos.care.open({
       memberId: input.memberId,
       reason: input.reason,
-      channel: input.channel,
       periodEndsOn: periodEndsOn(openedAt),
       openedBy: userId,
       ownedBy: latest?.owned_by ?? userId,
       openedAt: openedAt.toISOString(),
       firstMessageAt: careFirstMessageInstant(started.value, now).toISOString(),
-      firstMessageFrom: input.memberWroteFirst ? "member" : "staff",
       notes: notes.value,
       nextStep: nextStep.value,
       followUpOn: followUpOn.value,
@@ -173,17 +165,20 @@ async function startImpl(repos: Repos, userId: string, input: StartEngagementInp
     console.error("[care] open failed:", error instanceof Error ? error.message : error);
     return { error: "Couldn't start the care plan." };
   }
-  if (!result.ok) return { error: "There is already an open care plan with them on that channel. Log a message there, or renew it." };
+  if (!result.ok) return { error: "There is already an open care plan with them. Log a message there, or renew it." };
 
   await mirrorToTimeline(repos, userId, result.engagement, "started");
-  if (dms && input.channel === "slack_dm") await trackDmWithMember(repos, dms, input.memberId);
+  // Who holds it follows the member's latest plan (continuity), so it is hers only when she is that owner: her DM is read for
+  // a plan she owns and for no one else's.
+  if (dms && careOwnerOf(result.engagement) === userId) await trackDmWithMember(repos, dms, input.memberId);
   revalidate();
   return { success: true };
 }
 
 /**
- * Starting an engagement on Slack DM tracks her 1:1 DM with that member, if she has one in Bronze (she can untrack it), and
- * brings who spoke last up to date from it. Best effort: the engagement is the record, so a failure here is logged (the error
+ * Starting a care plan tracks her 1:1 DM with that member, if she has one in Bronze, whatever the plan is about (she can stop
+ * tracking it), and brings who spoke last up to date from it. Starting is a choice, so it tracks even a DM she stopped tracking
+ * before. Best effort: the engagement is the record, so a failure here is logged (the error
  * message only, never anything from Slack) and the start still succeeds.
  */
 async function trackDmWithMember(repos: Repos, dms: DmTracking, memberId: string) {
@@ -193,7 +188,7 @@ async function trackDmWithMember(repos: Repos, dms: DmTracking, memberId: string
     await repos.careDms.track({ trackedBy: dms.user.id, channelId: dm.channelId, memberId });
     await projectCareFromDms({ care: repos.care, careDms: repos.careDms, service: dms.service }, { userId: dms.user.id });
   } catch (error) {
-    console.error("[care] tracking the DM of a new engagement failed:", error instanceof Error ? error.message : error);
+    console.error("[care] tracking the DM of a new care plan failed:", error instanceof Error ? error.message : error);
   }
 }
 
@@ -267,7 +262,7 @@ async function changeStartImpl(repos: Repos, service: CareDmServiceRepos & Pick<
   }
   // A start that moved earlier may bring earlier Slack DMs into reach (they count from the start of the day it opened), so
   // look at her tracked DMs again now. Best effort, and forward-only like every derivation; the page does it too when it opens.
-  if (result.changed && result.engagement.channel === "slack_dm") {
+  if (result.changed) {
     await projectCareFromDms({ care: repos.care, careDms: repos.careDms, service }, { userId }).catch((error) =>
       console.error("[care] filling in from tracked DMs after a start change failed:", error instanceof Error ? error.message : error)
     );
@@ -348,6 +343,8 @@ async function trackDmImpl(repos: Repos, service: CareDmServiceRepos, user: Staf
     // Only a DM she is in, with a member who is not staff: the list is built the same way, so nothing else can be tracked.
     const dm = await findOwnDm(service, user, channelId);
     if (!dm) return { error: "That DM isn't one you can track." };
+    // A DM is tracked because a care plan of hers exists with the member (open or past): never a DM of a member she has none with.
+    if (!(await repos.care.forMember(dm.memberId)).some((plan) => careOwnerOf(plan) === user.id)) return { error: "Start a care plan with them first." };
     await repos.careDms.track({ trackedBy: user.id, channelId, memberId: dm.memberId });
     await projectCareFromDms({ care: repos.care, careDms: repos.careDms, service }, { userId: user.id });
   } catch (error) {
@@ -380,7 +377,7 @@ export async function searchCareMembers(query: string) {
   return found.map((m) => memberSearchItem(m));
 }
 
-/** Starts an engagement with a member (she reached out, or they wrote to her). One open engagement per member and channel. */
+/** Starts a care plan with a member. One open care plan per member. */
 export async function startEngagement(input: StartEngagementInput): Promise<CareActionResult> {
   const auth = await requireStaffAction();
   if (!auth.ok) return { error: auth.error };
@@ -388,9 +385,8 @@ export async function startEngagement(input: StartEngagementInput): Promise<Care
   return withAction(
     "care_engagement_started",
     async () => {
-      // A Slack DM engagement tracks her DM with the member when the bridge is on for her.
-      const bridgeOn = input.channel === "slack_dm" && (await getUserFeaturePreviews(auth.user.id)).includes("slack_dm_bridge");
-      return startImpl(createRepos(auth.supabase), auth.user.id, input, bridgeOn ? { service: getServiceRepos(), user: auth.user } : undefined);
+      // Starting tracks her DM with the member if the Hub has one (a DM is only in Bronze for a member whose DMs are pulled).
+      return startImpl(createRepos(auth.supabase), auth.user.id, input, { service: getServiceRepos(), user: auth.user });
     },
     (r) => ({ ok: "success" in r })
   );
@@ -456,7 +452,11 @@ export async function deleteEngagement(id: string): Promise<CareActionResult> {
   return withAction("care_engagement_deleted", () => deleteImpl(createRepos(auth.supabase), id), (r) => ({ ok: "success" in r }));
 }
 
-/** Tracks one of her 1:1 Slack DMs with a member, so who spoke last fills in on her Slack DM engagements with them. */
+/**
+ * Tracks one of her 1:1 Slack DMs with a member she has a care plan with, so who spoke last fills in on it. Only for a member with a
+ * plan of hers, open or past: the DMs tab has no "Track" for anyone else (it offers "Start a care plan"); this is how she
+ * starts reading a DM again after she stopped tracking it.
+ */
 export async function trackCareDm(channelId: string): Promise<CareActionResult> {
   const auth = await requireStaffAction();
   if (!auth.ok) return { error: auth.error };

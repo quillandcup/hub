@@ -4,10 +4,12 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { DataTablePager } from "@/components/DataTablePager";
 import { track } from "@/lib/analytics/client";
+import { CARE_STATUS_LABELS } from "@/lib/care";
 import type { CareDmRow, CareDmTab, CareDmUnavailable } from "@/lib/care-dm";
 import { RETURN_PARAM } from "@/lib/gates";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import { trackCareDm, untrackCareDm } from "./actions";
+import StartEngagementForm from "./StartEngagementForm";
 
 const NOTE = "text-sm text-slate-600 dark:text-slate-400";
 const EMPTY = "rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-600 dark:border-slate-700 dark:text-slate-400";
@@ -23,21 +25,24 @@ const CONNECT_HREF = `/api/oauth/slack/start?${RETURN_PARAM}=${encodeURIComponen
  * `SlackMessageRepository.lastWritesIn` (no text, files or payload); the Hub's Slack connection already pulls a connected
  * member's DMs for Hub Chat (`lib/chat/slack-dms.ts`) and this adds nothing to that; the messages sent in a tracked DM during a
  * care plan are shown in full to admins and community managers in the member's plans (`lib/care-messages.ts`: the DMs tracked by
- * the owners of the member's plans, live ones only, so an untracked DM's messages are no longer shown), earlier plans included; the
- * tracked list itself is row-level secured to its owner; staff are never offered; the times an untracked DM filled in stay.
+ * the owners of the member's plans, live ones only, so a DM she stops tracking no longer shows its messages), earlier plans
+ * included; the tracked list itself is row-level secured to its owner; staff are never offered; the times a DM filled in stay when
+ * it is no longer tracked; a DM is tracked because its owner has a care plan with the member (starting one tracks it).
  */
 function PrivacyNote() {
   return (
     <div className="mb-4 space-y-1">
       <p className={NOTE}>
-        Hedgie Care reads who wrote and when in the DMs you track to fill in who spoke last on your Slack DM care plans. The Hub&apos;s
-        Slack connection already brings your direct messages in for Hub Chat, and this adds nothing to that.
+        Hedgie Care reads who wrote and when in your DM with a member you have a care plan with, to fill in who spoke last. The Hub&apos;s
+        Slack connection already brings your direct messages in for Hub Chat, and this adds nothing to that. Starting a care plan
+        tracks your DM with them.
       </p>
       <p className={NOTE}>
         The messages sent in a tracked DM during a care plan can be read, in full, by admins and community managers in that member&apos;s
         care plans in Hedgie Care, including their earlier plans, whoever held them. Beyond those messages, other staff don&apos;t see
-        which DMs you track. Who spoke last shows on the care plan, which everyone who opens Hedgie Care can see. DMs with staff are never listed. Untracking a DM stops new times coming from it and its messages are no
-        longer shown in Hedgie Care; what it already filled in stays.
+        which DMs you track. Who spoke last shows on the care plan, which everyone who opens Hedgie Care can see. DMs with staff are
+        never listed. If you stop tracking a DM, nothing new comes from it and its messages are no longer shown in Hedgie Care; what it
+        already filled in stays.
       </p>
     </div>
   );
@@ -59,10 +64,10 @@ const UNAVAILABLE: Record<CareDmUnavailable, { text: string; connect?: string }>
 };
 
 /**
- * "Your DMs with members": her own 1:1 Slack DMs, each with a switch for tracking. `data` is null when this tab is not the one the
+ * "Your DMs with members": her own 1:1 Slack DMs, each with what the member's care plans make of it and what to do next. `data` is null when this tab is not the one the
  * server loaded (the list is read only when asked for), with a link that opens it.
  */
-export default function CareDmList({ data, canWrite }: { data: CareDmTab | null; canWrite: boolean }) {
+export default function CareDmList({ data, canWrite, today }: { data: CareDmTab | null; canWrite: boolean; /** Today's Eastern day, the latest a care plan can start. */ today: string }) {
   if (data === null) {
     return (
       <section aria-label="Your DMs with members">
@@ -93,13 +98,79 @@ export default function CareDmList({ data, canWrite }: { data: CareDmTab | null;
       </section>
     );
   }
-  return <DmRows initial={data.rows} canWrite={canWrite} />;
+  return <DmRows initial={data.rows} canWrite={canWrite} today={today} />;
 }
 
-type Filter = "all" | "tracked";
+type Filter = "all" | "in_plan";
 
-function DmRows({ initial, canWrite }: { initial: CareDmRow[]; canWrite: boolean }) {
-  const [tracked, setTracked] = useState(() => new Set(initial.filter((r) => r.tracked).map((r) => r.channelId)));
+/** Where a care plan is, as the link that opens it: its tab, narrowed to the member (a plan's id never goes in an address). */
+const planHref = (row: CareDmRow, tab: "active" | "earlier") => `/admin/care${tab === "earlier" ? "/earlier" : ""}?member=${row.memberId}`;
+
+const SMALL_LINK = "text-sm font-medium text-plum-700 underline dark:text-plum-300";
+
+/** The plan line of a row ("In a care plan: first plan, waiting on them") and what it offers, from `careDmPlanState`. */
+function planPart({ row, canWrite, today, pending, onToggle }: { row: CareDmRow; canWrite: boolean; today: string; pending: boolean; onToggle: (row: CareDmRow) => void }) {
+  const plan = row.plan;
+  const member = { id: row.memberId, name: row.memberName, detail: row.legalName };
+  if (plan.kind === "none") {
+    return {
+      label: "No care plan",
+      actions: canWrite && <StartEngagementForm today={today} member={member} look="row" />,
+    };
+  }
+  if (plan.kind === "earlier_plan") {
+    return {
+      label: "Earlier care plan",
+      actions: (
+        <>
+          <Link href={`/admin/care/earlier?member=${row.memberId}`} className={SMALL_LINK}>
+            Earlier plans
+          </Link>
+          {canWrite && <StartEngagementForm today={today} member={member} label="Start a new care plan" look="row" />}
+        </>
+      ),
+    };
+  }
+  if (plan.kind === "held_by_other") {
+    return {
+      label: plan.ownerName ? `Care plan held by ${plan.ownerName}` : "Care plan with no owner",
+      note: "Your DM does not fill in their care plan.",
+      actions: (
+        <Link href={planHref(row, plan.tab)} className={SMALL_LINK}>
+          See the care plan
+        </Link>
+      ),
+    };
+  }
+  return {
+    label: `In a care plan: ${plan.ordinal} plan, ${CARE_STATUS_LABELS[plan.status].toLowerCase()}`,
+    note: plan.tracked
+      ? "Who wrote last on the care plan comes from this DM, and its messages show in the plan's Messages. Stopping tracking stops the care plan reading it, and its messages are no longer shown in Hedgie Care."
+      : "You stopped tracking this DM, so the care plan does not read it and its messages are not shown in Hedgie Care. Reading it again brings who wrote last up to date and shows them again.",
+    actions: (
+      <>
+        <Link href={planHref(row, plan.tab)} className={SMALL_LINK}>
+          See the care plan
+        </Link>
+        {canWrite && (
+          <button
+            type="button"
+            data-track={plan.tracked ? "care-dm-untrack" : "care-dm-track"}
+            aria-label={`${plan.tracked ? "Stop tracking" : "Read again"} your DM with ${row.memberName}`}
+            disabled={pending}
+            onClick={() => onToggle(row)}
+            className="text-sm text-slate-600 underline hover:text-slate-900 disabled:opacity-50 dark:text-slate-400 dark:hover:text-slate-200"
+          >
+            {plan.tracked ? "Stop tracking this DM" : "Read this DM again"}
+          </button>
+        )}
+      </>
+    ),
+  };
+}
+
+function DmRows({ initial, canWrite, today }: { initial: CareDmRow[]; canWrite: boolean; today: string }) {
+  const inPlan = (r: CareDmRow) => r.plan.kind === "in_plan";
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -107,21 +178,20 @@ function DmRows({ initial, canWrite }: { initial: CareDmRow[]; canWrite: boolean
 
   const needle = query.trim().toLowerCase();
   const rows = initial.filter(
-    (r) => (filter === "all" || tracked.has(r.channelId)) && (!needle || r.memberName.toLowerCase().includes(needle) || (r.legalName ?? "").toLowerCase().includes(needle))
+    (r) => (filter === "all" || inPlan(r)) && (!needle || r.memberName.toLowerCase().includes(needle) || (r.legalName ?? "").toLowerCase().includes(needle))
   );
   const table = useDataTable<CareDmRow, never>({ rows, getSortValue: () => null, pageSize: 25, resetKey: `${filter}:${needle}` });
 
+  /** Stops tracking a DM, or starts reading it again (only offered on a plan she holds; the server checks that too). */
   function toggle(row: CareDmRow) {
+    if (row.plan.kind !== "in_plan") return;
     setError(null);
-    const on = !tracked.has(row.channelId);
+    const on = !row.plan.tracked;
+    const now = initial.filter((r) => r.plan.kind === "in_plan" && r.plan.tracked).length;
     startTransition(async () => {
       const result = await (on ? trackCareDm(row.channelId) : untrackCareDm(row.channelId));
       if ("error" in result) return setError(result.error);
-      const next = new Set(tracked);
-      if (on) next.add(row.channelId);
-      else next.delete(row.channelId);
-      setTracked(next);
-      track(on ? "care_dm_tracked" : "care_dm_untracked", { dms_tracked: next.size });
+      track(on ? "care_dm_tracked" : "care_dm_untracked", { dms_tracked: Math.max(0, now + (on ? 1 : -1)) });
     });
   }
 
@@ -145,7 +215,7 @@ function DmRows({ initial, canWrite }: { initial: CareDmRow[]; canWrite: boolean
               className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900"
             />
             <div className="flex gap-2" role="group" aria-label="Show">
-              {(["all", "tracked"] as const).map((f) => (
+              {(["all", "in_plan"] as const).map((f) => (
                 <button
                   key={f}
                   type="button"
@@ -155,7 +225,7 @@ function DmRows({ initial, canWrite }: { initial: CareDmRow[]; canWrite: boolean
                     filter === f ? "border-plum-600 bg-plum-600 text-white" : "border-slate-300 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
                   }`}
                 >
-                  {f === "all" ? `All (${initial.length})` : `Tracked (${tracked.size})`}
+                  {f === "all" ? `All (${initial.length})` : `In a care plan (${initial.filter(inPlan).length})`}
                 </button>
               ))}
             </div>
@@ -170,51 +240,38 @@ function DmRows({ initial, canWrite }: { initial: CareDmRow[]; canWrite: boolean
           ) : (
             <>
               <ul className="space-y-2">
-                {table.rows.map((row) => (
-                  <li key={row.channelId} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
-                    <div>
-                      <Link href={`/admin/members/${row.memberId}`} className="font-medium text-plum-700 hover:underline dark:text-plum-300">
-                        {row.memberName}
-                      </Link>
-                      {row.legalName && <span className="ml-2 text-xs text-slate-600 dark:text-slate-400">{row.legalName}</span>}
-                      <p className={NOTE}>
-                        {row.lastBy && row.lastLabel
-                          ? `${row.lastBy === "you" ? "You" : "They"} wrote last, ${row.lastLabel}`
-                          : "No messages in the Hub yet"}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                    {row.link.kind === "hub_chat" ? (
-                      <Link href={row.link.href} title="Opens the DM in Hub Chat" className="text-sm font-medium text-plum-700 underline dark:text-plum-300">
-                        Open the DM
-                      </Link>
-                    ) : (
-                      <a
-                        href={row.link.href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title="Opens the DM in Slack"
-                        className="text-sm font-medium text-plum-700 underline dark:text-plum-300"
-                      >
-                        Open the DM
-                      </a>
-                    )}
-                    {canWrite && (
-                      <button
-                        type="button"
-                        data-track={tracked.has(row.channelId) ? "care-dm-untrack" : "care-dm-track"}
-                        aria-pressed={tracked.has(row.channelId)}
-                        aria-label={`${tracked.has(row.channelId) ? "Stop tracking" : "Track"} your DM with ${row.memberName}`}
-                        disabled={pending}
-                        onClick={() => toggle(row)}
-                        className={tracked.has(row.channelId) ? `${BUTTON} border-plum-600 text-plum-700 dark:text-plum-300` : BUTTON}
-                      >
-                        {tracked.has(row.channelId) ? "Tracking" : "Track"}
-                      </button>
-                    )}
-                    </div>
-                  </li>
-                ))}
+                {table.rows.map((row) => {
+                  const part = planPart({ row, canWrite, today, pending, onToggle: toggle });
+                  return (
+                    <li key={row.channelId} className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <Link href={`/admin/members/${row.memberId}`} className="font-medium text-plum-700 hover:underline dark:text-plum-300">
+                            {row.memberName}
+                          </Link>
+                          {row.legalName && <span className="ml-2 text-xs text-slate-600 dark:text-slate-400">{row.legalName}</span>}
+                          <p className={NOTE}>{part.label}</p>
+                          <p className={NOTE}>
+                            {row.lastBy && row.lastLabel ? `${row.lastBy === "you" ? "You" : "They"} wrote last, ${row.lastLabel}` : "No messages in the Hub yet"}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3">
+                          {row.link.kind === "hub_chat" ? (
+                            <Link href={row.link.href} title="Opens the DM in Hub Chat" className={SMALL_LINK}>
+                              Open the DM
+                            </Link>
+                          ) : (
+                            <a href={row.link.href} target="_blank" rel="noopener noreferrer" title="Opens the DM in Slack" className={SMALL_LINK}>
+                              Open the DM
+                            </a>
+                          )}
+                          {part.actions}
+                        </div>
+                      </div>
+                      {part.note && <p className={`${NOTE} mt-1`}>{part.note}</p>}
+                    </li>
+                  );
+                })}
               </ul>
               <DataTablePager table={table} itemLabel="DMs" />
             </>

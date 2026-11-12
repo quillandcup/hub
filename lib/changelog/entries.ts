@@ -19,11 +19,14 @@ export type ChangelogCategory = keyof typeof CHANGELOG_CATEGORIES;
 
 /**
  * Who an entry is for. `product` entries are what members see: the What's new pages, the weekly digest, the
- * announcements post, and the admin Changelog. `engineering` entries (platform improvements, or the lower-level detail behind
- * a product update) appear only on the admin Changelog (`/admin/changelog`), with their body, and have no member page or notification.
+ * announcements post, and the admin Changelog. `staff` entries are about a tool staff use (Hedgie Care): only on the admin
+ * Changelog (`/admin/changelog`), never on a member page, in the digest or in the announcements post, and they may carry
+ * screenshots. `engineering` entries (platform improvements, or the lower-level detail behind a product update) appear only on
+ * the admin Changelog with their body, and have no screenshots.
  */
 export const CHANGELOG_AUDIENCES = {
   product: "Product",
+  staff: "Staff",
   engineering: "Engineering",
 } as const;
 
@@ -53,19 +56,26 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
-    slug: "messages-in-a-hedgie-care-plan",
+    slug: "lesson-videos-in-chat",
     date: "2026-11-12",
     audience: "product",
-    category: "improved",
-    title: "Messages in a Hedgie Care plan can be read by admins and community managers",
-    summary:
-      "When a staff member's one-on-one Slack DM with you is part of a Hedgie Care plan, admins and community managers can read the messages sent during the plan. Hub Chat now shows a note at the top of those conversations.",
+    category: "new",
+    major: true,
+    title: "Watch a course lesson right in Hub Chat",
+    summary: "Share a lesson's video in any conversation and everyone who has the course can watch it right there. It's the first thing in the Hub that works only in Hub Chat, because Slack can't remember where you stopped.",
+    image: { src: "/changelog/lesson-videos-in-chat/01-video-card.webp", alt: "A conversation in Hub Chat with a lesson video shown as a picture you press to play" },
     body: [
-      "Hedgie Care is how our community manager and admins keep in touch with members. Each time is recorded as a care plan, with a start and an end.",
-      "When a staff member's one-on-one Slack DM with you is tracked for a plan, admins and community managers can read the messages sent in it during that plan, including your earlier plans. Hub Chat shows a short note at the top of such a conversation, for everyone in it. Slack itself shows no note, so keep it in mind when you message the team there.",
-      "Every time someone opens these messages, we record who looked and whose plan it was, but not the messages.",
-      "Other direct messages with staff, and those between members, can be read only through special access, for something like a safety or conduct report. Deleted messages are not shown. The [privacy page](/privacy#care-plan-messages) has the details.",
-    ].join("\n\n"),
+      "A lesson's video can now sit inside a chat message, as a picture you press once to play. It works in channels, in replies under a message, and in private messages.",
+      "We've wanted this for years. Slack never let us do it well: it can't keep track of what you've watched, or pick a long video back up where you left off. Hub Chat can, so this is the first feature that works only in Hub Chat. If you mostly chat in Slack, this is a good reason to try the same conversation here.",
+      "- On a lesson, choose **Share this video in chat**, or **Copy link to paste in chat** and paste it into any message in Hub Chat or in Slack. It plays in Hub Chat; Slack shows links back to the Hub.",
+      "![The share box under a lesson's video](/changelog/lesson-videos-in-chat/01-share-box.webp)",
+      "- It shows the lesson, its course and its picture. If you have the course, it plays right in the message, from where you left off; if not, it says the video is part of a course and nothing plays.",
+      "![A lesson video shared in a conversation](/changelog/lesson-videos-in-chat/01-video-card.webp)",
+      "![What someone without the course sees](/changelog/lesson-videos-in-chat/01-no-course.webp)",
+      "- In Slack, if you've connected your Slack account, the message you pasted is changed, under your name, to say what was shared, with links to watch it in Hub Chat or open the lesson. Slack shows it as edited.",
+      "- Delete the message and the video is gone from the conversation right away.",
+      "Watching a video in chat records where you stopped and which parts you watched, as it does on the lesson page. Quill & Cup admins can see this in the course statistics. Other members can't.",
+    ].join("\n"),
   },
   {
     slug: "link-previews-in-hub-chat",
@@ -84,6 +94,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
         "- **People reading in Slack see a preview too.**",
         "- **Previews Slack makes also show in Hub Chat.** When someone pastes a link in Slack, its preview appears here as well.",
         "- **Only the person who wrote a message can remove its preview with the X** in the corner of the card in Hub Chat. On a message written in Hub Chat, a preview removed here also disappears in Slack, and one removed in Slack also disappears here, right away.",
+        "- **A Slack message shared into a conversation shows in Hub Chat as a quoted message** with a link to the original, and the person who shared it can remove it with the X like any preview.",
         "- **Only people who can read a message see its previews**, and the pictures in them load through the Hub, so the site a link points to doesn't see who looked.",
       ].join("\n"),
       "Previews are made when you send a message, for the first three links in it. Some sites don't offer one, and then the link stays a plain link.",
@@ -119,7 +130,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "`chat_message_videos` (`ChatVideoRepository`) points one message at one lesson; the share and its message are written together by `chat_post_shared_video`, which checks the sharer. Playback links are minted per viewer by `/api/chat/videos/<message id>` after two checks: the viewer can read the message (the share is read as them, so row-level security applies the channel rule) and may watch the lesson (`mayWatchSharedVideo`: the course, or a share an admin opened to the conversation for an open lesson of a published course). The card before play is a second light route that mints nothing. Watching goes through the lesson player and `video_watch_segments`, tagged with the message so the course stats keep chat views apart.",
       "A pasted lesson address becomes the card in Hub Chat (`extractLessonLink`) and in a message written in Slack (webhook, and the nightly chat import for what it missed). The Slack copy is then rewritten as its author through their own connected account (`rewriteInSlack`): the address becomes the links line in the same place, with the lesson's title above it, previews cleared, files kept by naming them again in the edit. Hub Chat hides that line and Slack's own preview (`stripSharedVideoLink`, `withoutLessonPreview`).",
       "Deleting a message ends its share at once: the read policy requires a live message (migration `20270701000000`) and the repository returns nothing for a deleted one. Before that, a soft-deleted open share could still be played by anyone who knew the message id.",
-      "The detours it adds (sign in, connect Slack) are on the new gates standard (`lib/gates.ts`): the destination is captured when the visitor is stopped, carried through every step, and every gate page offers \"Not now\". Message permalinks (`?m=`) open the message itself and survive sign-in. The member-facing entry and the help article wait for the flag (`docs/CHAT_VIDEOS_LAUNCH.md`).",
+      "The detours it adds (sign in, connect Slack) are on the new gates standard (`lib/gates.ts`): the destination is captured when the visitor is stopped, carried through every step, and every gate page offers \"Not now\". Message permalinks (`?m=`) open the message itself and survive sign-in. The member-facing entry and the help article are `lesson-videos-in-chat` and `help/share-a-lesson-video-in-chat.md` (`docs/CHAT_VIDEOS_LAUNCH.md`).",
     ].join("\n\n"),
   },
   {
@@ -147,56 +158,25 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "Who counts is read in `lib/segment-sources.ts`: a course's `course_access` rows that have started and not ended, anyone enrolled in any cohort of a program, an event's attendees. A flag still reaches people through the existing flag-to-segment link, so there is no schema change.",
     ].join("\n\n"),
   },
+  // TODO(docs/TODO.md: "Hedgie Care screenshots for the staff changelog entry"): the date is set to the launch day; move it if the tracker ships later.
   {
-    slug: "hedgie-care-feedback",
+    slug: "hedgie-care",
     date: "2026-11-12",
-    audience: "engineering",
-    category: "improved",
-    title: "Hedgie Care: start in the past, score and last participation on each row, Open the DM",
-    summary: "The community manager can enter a conversation with the day it really started, sees each member's engagement score then and now and when they last took part, and can jump to a tracked DM. The unit is now called a care period on the page.",
-    body: [
-      "Starting a care period asks \"When did this start?\" (the shared `DatePicker`, an Eastern calendar day, today by default and never after it), and \"Change start date\" on a row fixes ones entered with today's date (`changeEngagementStart`, `CareRepository.changeStart`, a `care.write` action wrapped in `withAction`, event `care_start_date_changed`). An earlier day is stored as noon Eastern in `opened_at`, with the first message placed at the start of that day so a real DM from that morning can replace it; the last day moves with the start and keeps the period's own length; a start can't cross the care period it continues, its renewal or its close (`lib/care.ts`); the audit log shows one delta of `opened_at` and `period_ends_on`. Tracked Slack DMs from the new day on count towards who wrote last. No migration.",
-      "Each row and the Results panel show the member's engagement score and tier when the care period started and now (`engagementScoreAt`, `lib/care-scores.ts`, one batched `ActivityRepository.engagementRowsForWindows` for the whole page) and their last own activity in the community (`lib/care-participation.ts`, `ActivityRepository.lastParticipation`: `actor_kind = 'member'` and a listed type, never logins, feedback or anything staff or the system wrote). \"Open the DM\" (`lib/care-dm-link.ts`) goes to the DM in Hub Chat when she is in it there, else to Slack's `app_redirect`, with the workspace id from the optional `SLACK_TEAM_ID`.",
-      "\"Engagement period\" read as confusing next to the engagement score, so every word on the page now says care period; tables, columns, routes and events keep their names. The text of tracked DMs is deliberately not shown in the tracker (`docs/TODO.md`, \"Hedgie Care: what is left\").",
-    ].join("\n\n"),
-  },
-  {
-    slug: "hedgie-care-slack-dms",
-    date: "2026-11-11",
-    audience: "engineering",
+    audience: "staff",
     category: "new",
-    title: "Hedgie Care: tracked Slack DMs fill in who spoke last",
-    summary: "A staff member can choose which of their 1:1 Slack DMs with members to track; who wrote last in those DMs fills in the status of their Slack DM engagements, reading only who wrote and when.",
+    title: "Hedgie Care: keep track of your reach-outs to members, and see how they went",
+    summary: "Hedgie Care is where the community manager keeps her reach-outs to members: one care plan for each stretch of time, who spoke last, and how the member's own activity looked before, during and after.",
     body: [
-      "A new \"Your DMs\" tab on `/admin/care/dms` lists the staff member's own 1:1 Slack DMs with members, each with a Track switch (opt in, per DM). A DM with a staff member is never listed, group DMs are out of the first version, and starting an engagement on Slack DM tracks the DM with that member when there is one (it can be untracked). The tracked list is `care_tracked_dms` (id prefix `caredm_`, `CareTrackedDmRepository`): RLS lets a staff user read and change only their own rows, so an admin does not see another staff member's list, and it is deliberately not audited. Starting needs the `slack_dm_bridge` flag on for them and Slack connected with the DM scopes; the tab shows how to connect through the existing Slack connect flow.",
-      "Only who wrote and when is read, never text, files or a payload: `SlackMessageRepository.lastWritesIn` calls the `care_dm_last_messages` database function, which reads the content-free `slack_messages_meta` view and is callable by the service role only. The list is built from the DMs the staff member's own Slack account is in, and the projection re-checks that she and the member are the two people in a tracked conversation, so a row filed for someone else's DM reads nothing. For an open Slack DM engagement, the latest message each side wrote on or after the start of the Eastern day it opened sets `last_staff_message_at` and `last_member_message_at` (`lib/care-dm.ts`, `lib/care-dm-rules.ts`): threads and file shares count, deleted messages and Slack's join and leave notices do not, a time only moves forward (`CareRepository.moveMessageTimesForward`), and running it again changes nothing. It runs when the page opens, when a DM is tracked and after the nightly DM pull (`/api/reconcile/slack-dms`), and writes no audit rows. The rows show a small \"from Slack\" hint.",
-    ].join("\n\n"),
-  },
-  {
-    slug: "conversations-became-hedgie-care",
-    date: "2026-11-11",
-    audience: "engineering",
-    category: "improved",
-    title: "Hedgie Care: the community manager's tracker, one engagement per reach-out period",
-    summary: "The Conversations tracker became Hedgie Care: each reach-out is an engagement with a period, renewals link to the one before, and how it went is measured from the member's own activity.",
-    body: [
-      "`/admin/care` (`docs/HEDGIE_CARE.md`) replaces `/admin/conversations`, which was never announced and had no rows. The table is now `care_engagements` (id prefix `care_`): one row is one period, with `period_ends_on`, `renewed_from` (the engagement a renewal continues) and `ended_how`, her own read of how it went. The staff feature is `care.write`, the audit entity `care_engagement`, the timeline source `care`, and the events `care_engagement_started`, `care_message_logged`, `care_engagement_closed` and `care_engagement_renewed`. Tabs are paths: `/admin/care` (Active) and `/admin/care/earlier` (closed and lapsed).",
-      "Nothing about the status is stored and no job moves it (`lib/care.ts`): needs reply, waiting, gone quiet, review due and lapsed follow from the dates and who spoke last. A member who wrote last stays on \"needs reply\" until she acts, however old the period, so no one is quietly dropped. The period length, the grace window, the quiet window and the three measured windows are settings in `app.config.ts` (`careEngagementDays` and the others), read through `lib/config.ts`. The period's last day is an Eastern calendar day, computed with calendar arithmetic so a daylight saving change cannot move it. Renewing is one database function (`renew_care_engagement`), safe against a double click.",
-      "Results are counted when she opens them, never stored: prickles attended (distinct prickles), Slack messages, firsts and the distinct members they talked with other than staff, in a window before, during and after. They come from new repository methods (`ActivityRepository.countsBetween` and `firsts`, and the new `MemberInteractionRepository`), and a community manager may now read `member_interactions` (read only; it holds who and when, never what was said).",
-      "Renewing asks for a short reason (it becomes the new period's note) and shows the results at that moment; closing offers four endings (handed to someone else, no reply, back in the community, ran its course), each with a one-line definition, and a renewal shows as \"Period N\". Every engagement has an owner (`owned_by`; a new one continues the owner of the member's latest, a renewal keeps it, anyone with `care.write` can reassign), with a Mine / Everyone filter and avatar chips on both tabs. The page opens with the lapsed and review-due counts and whose they are. The results also read how they stayed from membership history (the Membership Timeline's engine, `memberStatusTimeline`): active, on hiatus or cancelled at each checkpoint after the period (`careRetentionCheckpointDays`), the first time they went on hiatus or left (so a day-31 lapse shows even if they came back), and the programs they started or held with each one's length. Reminders to owners and alerts on lapse are not built (`docs/TODO.md`).",
-    ].join("\n\n"),
-  },
-  {
-    slug: "conversations-and-staff-write-access",
-    date: "2026-11-11",
-    audience: "engineering",
-    category: "new",
-    title: "Conversations for the community manager, and the first staff write access",
-    summary: "A Conversations page where the community manager keeps track of her reach-outs to members, built on a new way for staff other than admins to write.",
-    body: [
-      "`/admin/conversations` (`docs/CONVERSATIONS.md`, step 1) replaces her spreadsheet with one row per conversation: member, reason (a hello, a welcome, a check-in, a writing check-in, encouragement), channel, who spoke last, a follow-up day, a next step and a short note. The status (needs reply, waiting on them, gone quiet, closed) is not stored: `lib/conversations.ts` derives it from the last-message times and a quiet window in `app.config.ts` (`conversationQuietDays`). For now she logs \"they replied\" and \"I replied\" by hand; steps 2 to 4 derive them from Slack DMs and email. No product entry: it is staff only.",
-      "It is the first table a community manager may write, so three things changed with it. `requireStaffAction()` (`lib/admin-auth.ts`) lets an admin or a community manager into a server action, and the action then asks for the `conversations.write` staff feature, which only she and admins have (`lib/staff-access.ts`). RLS lets `is_admin()` or `is_community_manager()` read, insert and update `conversations` (no delete: a removed conversation keeps its row), without widening `is_admin()`. And `audit_row_change()` now counts a community manager as staff: it used to classify only `admin` and `assistant` that way, so her writes would have been logged as a member's own action.",
-      "The data goes through `ConversationRepository` (`lib/data/conversations.ts`, with an in-memory twin and one contract suite). Opening and closing also write a `member_activities` row (source `conversations`, staff, engagement 0) so the member's timeline shows it, as outreach touches do; the audit log records the conversation's own change once, leaving out the last-message columns so logging a reply writes nothing.",
+      "Hedgie Care (`/admin/care`, `docs/HEDGIE_CARE.md`) replaces the spreadsheet of reach-outs. Admins and the community manager can open it; writing to it needs the `care.write` staff feature, which she and every admin have.",
+      "**A care plan** is one stretch of reaching out to one member. Press **Start a care plan**, pick the member, why you are reaching out (an introduction, a welcome, a check-in, a writing check-in, encouragement or something else), the day it really started (today, or an earlier day if you are catching up, never a later one) and a short note with nothing sensitive in it. A plan belongs to the member, not to a channel: a member has one open plan, whether you reach them in Slack, by email or in a prickle, so what you read about them stays in one place. A plan runs for 30 days from its start (the length is a setting, to be confirmed with her). \"Change start date\" fixes a plan entered with the wrong day; the end moves with it. When a plan ends there is simply no explicit plan for the member: you **renew** it (a new plan that continues the one before, \"second plan\", with a short reason and the results so far in front of you) or **close** it with how it ended: handed to someone else, no reply, back in the community, or ran its course.",
+      "**Where each one stands** is worked out, not typed: needs your reply, waiting on them, gone quiet, review due or lapsed. A member who wrote last stays on \"needs your reply\" until you answer, renew or close, however old the plan is. The Active tab lists what needs you; the Earlier tab holds closed and lapsed plans; a summary at the top counts what is overdue and whose it is.",
+      "**Tracked Slack DMs** fill in who spoke last. Starting a care plan tracks your own 1:1 Slack DM with that member when the Hub has one, and so does a plan you hold when you open Hedgie Care, unless you stopped tracking that DM before. The **Your DMs** tab (`/admin/care/dms`) shows, for each of your DMs with members, what their care plans say: no care plan (start one), in your care plan (see it; stop tracking this DM if you need to), an earlier care plan (start a new one) or held by someone else. Who spoke last is worked out from who wrote and when; DMs with staff are never offered, group DMs are not included, and other staff cannot see which DMs you track beyond the messages in a plan (next). On a plan that follows a tracked DM, the \"They replied\" and \"I replied\" buttons give way to \"Filled in from your Slack DM\", and **Open the DM** takes you to it. This needs Slack connected with direct message access and the `slack_dm_bridge` feature on for you. Where nothing is filled in, you log \"They replied\" and \"I replied\" yourself.",
+      "**Messages** (the button on a plan) shows the full messages of the member's tracked Slack DM(s), exactly as they were sent, from the start of each of their care plans to its close (or until now while it is open), newest plan first, a page at a time. It covers all of that member's plans, whoever held them, so a new owner sees the earlier ones; it reads the DMs tracked by the owners of the member's plans, so messages stay readable after a hand-over, and new ones appear once the new owner's own DM with the member is tracked. Messages outside a plan, deleted messages and files' contents are not shown. Admins and community managers can open it (assistants cannot), opening it is recorded in the audit log (who, whose plan, when; never the messages), and if the record cannot be written nothing is shown. Hub Chat tells both people in a tracked DM that our community manager and admins can read what is sent in it during a plan, and `/privacy` says so in \"Messages in a Hedgie Care plan\". If you stop tracking a DM, its messages are no longer shown in Hedgie Care.",
+      "**Owners.** Every plan has an owner (a new plan continues the owner of that member's latest one); anyone with write access can reassign it, and both tabs filter by Mine or Everyone.",
+      "**On every plan** you see the member's engagement score and tier when the plan started and now, and when they last took part in the community and in what (a prickle, a Slack message or reaction, a lesson, a writing log; never a login).",
+      "**Results** (the button on a plan) set the member's own activity before the plan, during it and 30 to 60 days after it ends: distinct prickles attended, Slack messages, whether their first prickle or first Slack post fell in the window, and how many other members they connected with. It also says whether they were active, on hiatus or cancelled 60, 90 and 180 days after the plan, when they first went on hiatus or left, the programs they hold and how long each runs, and the programs they started. These describe what happened; they do not prove the outreach caused it.",
+      "**What is recorded.** Starting, renewing and closing a plan appear on the member's timeline (the reason, never your note), and changes are in the audit log. Behind the scenes the table is `care_engagements`; routes, settings and events keep that name.",
+      "**Not built yet:** email filling in who wrote, reminders to owners when a plan is due, a comparison with members who had no reach-out, and importing the old spreadsheet. They are tracked in `docs/TODO.md`, \"Hedgie Care: what is left\".",
     ].join("\n\n"),
   },
   {
@@ -2796,7 +2776,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "`chat_message_contents.attachments` (legacy attachments, which is where Slack puts a link preview) and the Block Kit `blocks` of an app's message are now read by the chat loader and drawn under the message by `components/chat/MessageUnfurls.tsx`. `lib/chat/unfurls.ts` parses and sanitizes them: http(s) links only, https pictures only, capped lengths and counts, and Slack text still goes through the chat's own mrkdwn renderer so entities and mentions read correctly.",
       "Block Kit is a registry of per-type parsers and renderers (header, section, context, divider, image, link buttons). A block type without one shows one \"Open in Slack\" link. An app's message is drawn from its blocks, and its fallback text is hidden, only when it has no `rich_text` block; people's messages stay text.",
       "A new `chat_message_contents.bot` column ({name, icon}) is filled by a trigger from the Bronze payload, so apps show by their own name and logo instead of \"Slack app\" without opening Bronze to members. A `message_changed` that only adds a preview no longer clears the time of an earlier edit.",
-      "**Shared Slack messages** (`is_msg_unfurl` / `is_share`) are drawn as a quoted card (`lib/chat/shared-message.ts`, `components/chat/SharedMessageCard.tsx`) showing Slack's embedded copy to anyone who can read the sharing message: the sharer chose to share, as in Slack, which warns them first when the message is from a private channel. The copy sits in the same row as the sharer's text, so the same access rule gates it and it is not searchable. The Hub's own lookup of the original (`ChatRepository.sharedSourcesBySlackRef`, as the viewer) never gates anything; it only adds a \"View in Chat\" link, or a calm \"deleted\" note. A future Hub-side \"share a Hub message\" must warn the sharer before sending from a private conversation (`docs/TODO.md`, \"Chat: quote or share a Hub message\"). Built and live, but not yet confirmed in production by the owner. See `docs/SLACK_BRIDGED_CHAT.md`, \"Shared Slack messages\".",
+      "**Shared Slack messages** (`is_msg_unfurl` / `is_share`) are drawn as a quoted card (`lib/chat/shared-message.ts`, `components/chat/SharedMessageCard.tsx`) showing Slack's embedded copy to anyone who can read the sharing message: the sharer chose to share, as in Slack, which warns them first when the message is from a private channel. The copy sits in the same row as the sharer's text, so the same access rule gates it and it is not searchable. The Hub's own lookup of the original (`ChatRepository.sharedSourcesBySlackRef`, as the viewer) never gates anything; it only adds a \"View in Chat\" link, or a calm \"deleted\" note. A future Hub-side \"share a Hub message\" must warn the sharer before sending from a private conversation (`docs/TODO.md`, \"Chat: quote or share a Hub message\"). Confirmed by the owner in production on 2026-11-12: the card shows, \"View in Chat\" opens the original, and removing the share in Slack removes the card in the Hub. A follow-up polished the card: the author's name shows once (the second line only when it differs), the time is in the viewer's zone like the message rows (it had been in the organization's), the source channel is named under the author (from the attachment's channel name, else Slack's footer line), and the sharer gets the same X as other previews (keyed by the shared message's address; on a message written in the Hub it is taken off the Slack copy too). See `docs/SLACK_BRIDGED_CHAT.md`, \"Shared Slack messages\".",
     ].join("\n\n"),
   },
 ];

@@ -8,4 +8,4 @@ import type { FeatureKey } from "@/lib/features";
  * (docs/CHANGELOG_PROCESS.md, "Writing an entry"). A flag that is removed from `lib/features.ts` is live by definition:
  * delete its key here too (`tests/lib/changelog-live-flags.test.ts` fails on a key that no longer exists).
  */
-export const LIVE_FLAGS: readonly FeatureKey[] = ["chat_link_previews"];
+export const LIVE_FLAGS: readonly FeatureKey[] = ["chat_link_previews", "chat_videos"];

@@ -37,6 +37,12 @@ export interface CareTrackedDmRepository {
   forMember(memberId: string): Promise<TrackedDm[]>;
   /** Every staff member's live tracking of this Slack DM (service role), by user. */
   forChannel(channelId: string): Promise<TrackedDm[]>;
+  /**
+   * The Slack DMs each of these staff users stopped tracking and has not tracked again: the choices to respect, so nothing
+   * tracks one of them for her again on its own. By user id; a user with none has no entry. Read with the service role for
+   * several users (a signed-in client sees only its own rows).
+   */
+  untrackedChannels(userIds: readonly string[]): Promise<Map<string, Set<string>>>;
   /** Starts tracking a DM as `trackedBy`. Tracking one already tracked is not an error: it answers the existing row with `created: false`. */
   track(input: { trackedBy: string; channelId: string; memberId: string }): Promise<TrackResult>;
   /** Stops tracking a DM at `at` (the row is kept). False when it was not tracked. */
@@ -80,6 +86,22 @@ export class SupabaseCareTrackedDmRepository implements CareTrackedDmRepository 
     return rows.map(toDm);
   }
 
+  async untrackedChannels(userIds: readonly string[]) {
+    const out = new Map<string, Set<string>>();
+    if (userIds.length === 0) return out;
+    const rows = await fetchAllRows<Pick<Row<"care_tracked_dms">, "tracked_by" | "slack_channel_id" | "deleted_at">>((from, to) =>
+      this.db
+        .from("care_tracked_dms")
+        .select("tracked_by, slack_channel_id, deleted_at")
+        .in("tracked_by", [...userIds])
+        .order("tracked_by")
+        .order("slack_channel_id")
+        .order("id")
+        .range(from, to)
+    );
+    return untrackedFrom(rows);
+  }
+
   async track(input: { trackedBy: string; channelId: string; memberId: string }): Promise<TrackResult> {
     const { data, error } = await this.db
       .from("care_tracked_dms")
@@ -115,6 +137,19 @@ export class SupabaseCareTrackedDmRepository implements CareTrackedDmRepository 
     if (error) throw new Error(error.message);
     return data !== null;
   }
+}
+
+/** The channels with a deleted row and no live one, by user: every row of these users in, the answer out (shared by both implementations). */
+function untrackedFrom(rows: readonly Pick<Row<"care_tracked_dms">, "tracked_by" | "slack_channel_id" | "deleted_at">[]): Map<string, Set<string>> {
+  const live = new Set(rows.filter((r) => r.deleted_at === null).map((r) => `${r.tracked_by}|${r.slack_channel_id}`));
+  const out = new Map<string, Set<string>>();
+  for (const r of rows) {
+    if (r.deleted_at === null || live.has(`${r.tracked_by}|${r.slack_channel_id}`)) continue;
+    const set = out.get(r.tracked_by) ?? new Set<string>();
+    set.add(r.slack_channel_id);
+    out.set(r.tracked_by, set);
+  }
+  return out;
 }
 
 const BASE58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
@@ -163,6 +198,10 @@ export class InMemoryCareTrackedDmRepository implements CareTrackedDmRepository 
       .filter((r) => r.slack_channel_id === channelId)
       .sort(byKeyThenId<Row<"care_tracked_dms">>((r) => r.tracked_by, (r) => r.id))
       .map(toDm);
+  }
+
+  async untrackedChannels(userIds: readonly string[]) {
+    return untrackedFrom(this.data.careTrackedDms.filter((r) => userIds.includes(r.tracked_by)));
   }
 
   async track(input: { trackedBy: string; channelId: string; memberId: string }): Promise<TrackResult> {

@@ -1,5 +1,5 @@
 /**
- * What Slack DMs say about "who spoke last" in a Hedgie Care engagement (docs/HEDGIE_CARE.md, "Slack DMs fill it in").
+ * What Slack DMs say about "who spoke last" in a Hedgie Care care plan (docs/HEDGIE_CARE.md, "Slack DMs fill it in").
  * Pure: no database, no Slack. The reads and writes are in lib/care-dm.ts. Only times appear here, never message text.
  */
 import { ORG_TIMEZONE } from "@/lib/config";
@@ -58,34 +58,14 @@ export function lastWriter(writes: DmLastWrites): { who: "staff" | "member"; at:
 export const careOwnerOf = (engagement: { owned_by: string | null; opened_by: string | null }) => engagement.owned_by ?? engagement.opened_by;
 
 /**
- * Whether an engagement's "who spoke last" is kept up to date from the signed-in staff user's tracked Slack DM: it is on the
- * Slack DM channel, they own it, and they track a DM with that member. The same pairing the derivation (`lib/care-dm.ts`)
- * projects, so the "from Slack" hint and the hidden "They replied" / "I replied" buttons agree with what it fills in. (The
- * caller adds "open": a closed period is no longer derived.)
+ * Whether a care plan's "who spoke last" is kept up to date from the signed-in staff user's tracked Slack DM: they own it and
+ * track a DM with that member, whatever the plan is about (a care plan belongs to the member, not to a channel). The same
+ * pairing the derivation (`lib/care-dm.ts`) projects, so the "from Slack" hint and the hidden "They replied" / "I replied"
+ * buttons agree with what it fills in. (The caller adds "open": a closed plan is no longer derived.)
  */
 export function followsTrackedDm(
-  engagement: { channel: string; member_id: string; owned_by: string | null; opened_by: string | null },
+  engagement: { member_id: string; owned_by: string | null; opened_by: string | null },
   tracked: { userId: string; memberIds: ReadonlySet<string> }
 ): boolean {
-  return engagement.channel === "slack_dm" && careOwnerOf(engagement) === tracked.userId && tracked.memberIds.has(engagement.member_id);
-}
-
-/**
- * The members for whom a Slack DM care plan she starts now would follow her tracked DM. A new period takes the owner of
- * the member's latest one (newest start first, as `CareRepository.forMember` orders them), else the person starting it, so
- * a tracked DM only counts when that owner is her.
- */
-export function membersWhoseNewCareFollowsDm(
-  userId: string,
-  trackedMemberIds: ReadonlySet<string>,
-  engagements: readonly { member_id: string; owned_by: string | null; opened_at: string; id: string }[]
-): Set<string> {
-  const follows = new Set<string>();
-  for (const memberId of trackedMemberIds) {
-    const latest = engagements
-      .filter((e) => e.member_id === memberId)
-      .sort((a, b) => Date.parse(b.opened_at) - Date.parse(a.opened_at) || a.id.localeCompare(b.id))[0];
-    if ((latest?.owned_by ?? userId) === userId) follows.add(memberId);
-  }
-  return follows;
+  return careOwnerOf(engagement) === tracked.userId && tracked.memberIds.has(engagement.member_id);
 }

@@ -169,6 +169,7 @@ export default function MessageItem({
             unfurls={message.unfurls}
             ctx={ctx}
             permalink={message.slackPermalink ?? null}
+            timeZone={timeZone}
             removable={canEdit && message.mine && !message.system && !isPendingId(message.id) ? { channelId, messageId: message.id } : undefined}
           />
         )}

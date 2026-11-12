@@ -6,7 +6,6 @@ import DatePicker from "@/components/DatePicker";
 import EntitySearch from "@/components/EntitySearch";
 import { track } from "@/lib/analytics/client";
 import {
-  CARE_CHANNEL_LABELS,
   CARE_CLOSE_OPTIONS,
   CARE_ENDED_HOW_HELP,
   CARE_ENDED_HOW_LABELS,
@@ -15,7 +14,6 @@ import {
   CARE_REASONS,
   CARE_REASON_LABELS,
   CARE_STATUS_LABELS,
-  isCareChannel,
   isCareEndedHow,
   isCareReason,
   planOrdinal,
@@ -155,7 +153,6 @@ export default function EngagementCard({ card, canWrite, owners }: { card: Engag
     run(() => deleteEngagement(card.id));
   };
 
-  const channelLabel = isCareChannel(card.channel) ? CARE_CHANNEL_LABELS[card.channel] : card.channel;
   const reasonLabel = isCareReason(card.reason) ? CARE_REASON_LABELS[card.reason] : card.reason;
   const endedLabel = card.endedHow && isCareEndedHow(card.endedHow) ? CARE_ENDED_HOW_LABELS[card.endedHow] : card.endedHow;
   const ended = closed || card.status === "lapsed";
@@ -171,7 +168,7 @@ export default function EngagementCard({ card, canWrite, owners }: { card: Engag
           </Link>
           {card.legalName && <span className="ml-2 text-xs text-slate-600 dark:text-slate-400">{card.legalName}</span>}
           <p className="text-sm text-slate-600 dark:text-slate-400">
-            {reasonLabel} · {channelLabel} · {planOrdinal(card.period)} plan
+            {reasonLabel} · {planOrdinal(card.period)} plan
           </p>
           <p className="text-sm text-slate-600 dark:text-slate-400">Owner: {card.ownerName}</p>
         </div>
@@ -297,7 +294,7 @@ export default function EngagementCard({ card, canWrite, owners }: { card: Engag
         <div className="mt-3 space-y-2">
           <DatePicker id={`started-${card.id}`} label="When did this start?" value={startedOn} onChange={setStartedOn} max={card.today} />
           <p className="max-w-prose text-sm text-slate-600 dark:text-slate-400">
-            Today or an earlier day. The care plan stays the same length, so its last day moves with the start. {card.channel === "slack_dm" ? "If you track your Slack DM with them, DMs from that day on are used for who wrote last. " : ""}
+            Today or an earlier day. The care plan stays the same length, so its last day moves with the start. {card.fromSlack ? "Your Slack DM with them is used for who wrote last from that day on. " : ""}
             {card.renewed ? "The start can't be before the care plan this one follows on from. " : ""}
           </p>
           <button type="button" className={PRIMARY} disabled={pending} onClick={changeStart}>

@@ -1,4 +1,4 @@
--- pgTAP test for 20270705000000_care_plan_messages.sql: the one definition of a staff member, which chat DMs are tracked in a
+-- pgTAP test for 20270708000000_care_plan_messages.sql: the one definition of a staff member, which chat DMs are tracked in a
 -- Hedgie Care plan (the notice in Hub Chat), the audit entry for opening a member's plan messages, and that no chat read policy
 -- was widened for staff. Rolled back; run with `pnpm test:pgtap`.
 BEGIN;

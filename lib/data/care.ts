@@ -1,7 +1,6 @@
 import {
   CARE_NEXT_STEP_MAX,
   CARE_NOTES_MAX,
-  isCareChannel,
   isCareEndedHow,
   isCareReason,
   type MessageDirection,
@@ -13,7 +12,7 @@ import { byKeyThenId } from "./query";
 import type { Db, Row } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 
-/** An engagement as stored (`care_engagements`). `reason`, `channel` and `ended_how` are held to their sets by CHECK constraints. */
+/** An engagement as stored (`care_engagements`). `reason` and `ended_how` are held to their sets by CHECK constraints. (The `channel` column is deprecated: not read, not written, see docs/TODO.md.) */
 export type CareEngagementRow = Row<"care_engagements">;
 
 /** The slice of a member an engagement shows. Display name first, then the legal name (CLAUDE.md, "Display Names"). */
@@ -26,7 +25,6 @@ export type CareEngagementWithMember = CareEngagementRow & { member: CareMember 
 export type NewCareEngagement = {
   memberId: string;
   reason: string;
-  channel: string;
   /** The last day of the period (YYYY-MM-DD, org timezone): computed by the caller from config (`periodEndsOn`, lib/care.ts). */
   periodEndsOn: string;
   /** The staff member's auth user id; null for an import or a system caller. */
@@ -44,7 +42,7 @@ export type NewCareEngagement = {
   followUpOn?: string | null;
 };
 
-/** The outcome of opening: the database allows one open engagement per member and channel, which is a case, not a failure. */
+/** The outcome of opening: the database allows one open care plan per member, which is a case, not a failure. */
 export type OpenResult =
   | { ok: true; engagement: CareEngagementRow }
   | { ok: false; reason: "already_open"; engagement: CareEngagementRow };
@@ -89,7 +87,7 @@ export interface CareRepository {
   forMember(memberId: string): Promise<CareEngagementRow[]>;
   /** One engagement with its member, or null. */
   byId(id: string): Promise<CareEngagementWithMember | null>;
-  /** Opens an engagement. `already_open` (with the one that is) when the member has an open one on that channel. */
+  /** Opens an engagement. `already_open` (with the one that is) when the member already has an open one. */
   open(engagement: NewCareEngagement): Promise<OpenResult>;
   /**
    * Closes an open engagement as renewed and opens the next period (`renewed_from` the old one), in one transaction.
@@ -109,7 +107,7 @@ export interface CareRepository {
    * keeps the period's own length (`shiftedPeriodEnd`); the first message's time, if it is still the one opening wrote (the
    * opening instant, or the start of its day), moves to the start of the new day; the other last-message times are left alone. Refused (see `ChangeStartResult`) when it would
    * start before the engagement it continues, after the one that continued it, or after it was closed. Opening and closing
-   * dates, and so the one-open-per-member-and-channel rule, are not touched. The audit log shows `opened_at` and `period_ends_on`.
+   * dates, and so the one-open-per-member rule, are not touched. The audit log shows `opened_at` and `period_ends_on`.
    */
   changeStart(id: string, openedAt: string): Promise<ChangeStartResult>;
   /** Changes the reason, notes, next step or follow-up day. The engagement, or null when there is none. */
@@ -145,7 +143,6 @@ function insertOf(c: NewCareEngagement) {
   return {
     member_id: c.memberId,
     reason: c.reason,
-    channel: c.channel,
     opened_by: c.openedBy,
     owned_by: c.ownedBy === undefined ? c.openedBy : c.ownedBy,
     opened_at: openedAt,
@@ -238,7 +235,6 @@ export class SupabaseCareRepository implements CareRepository {
         .from("care_engagements")
         .select("*")
         .eq("member_id", engagement.memberId)
-        .eq("channel", engagement.channel)
         .is("closed_at", null)
         .is("deleted_at", null)
         .maybeSingle();
@@ -429,15 +425,15 @@ export class InMemoryCareRepository implements CareRepository {
   async open(engagement: NewCareEngagement): Promise<OpenResult> {
     if (!this.data.members.some((m) => m.id === engagement.memberId)) throw new Error("violates foreign key constraint on member_id");
     if (!isCareReason(engagement.reason)) throw new Error("violates check constraint on reason");
-    if (!isCareChannel(engagement.channel)) throw new Error("violates check constraint on channel");
     if (!DAY.test(engagement.periodEndsOn)) throw new Error("invalid input syntax for type date");
     this.checkText(engagement.notes, engagement.nextStep);
-    const existing = this.live().find((c) => c.member_id === engagement.memberId && c.channel === engagement.channel && c.closed_at === null);
+    const existing = this.live().find((c) => c.member_id === engagement.memberId && c.closed_at === null);
     if (existing) return { ok: false, reason: "already_open", engagement: { ...existing } };
     const now = new Date().toISOString();
     const row: CareEngagementRow = {
       id: this.nextId(),
       ...insertOf(engagement),
+      channel: "other", // the deprecated column's database default
       renewed_from: null,
       closed_at: null,
       ended_how: null,
@@ -462,7 +458,7 @@ export class InMemoryCareRepository implements CareRepository {
       opened_by: input.openedBy,
       owned_by: previous.owned_by,
       reason: previous.reason,
-      channel: previous.channel,
+      channel: "other",
       opened_at: input.at,
       period_ends_on: input.periodEndsOn,
       renewed_from: previous.id,

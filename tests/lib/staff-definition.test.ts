@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const read = (path: string) => readFileSync(path, "utf8");
-const MIGRATION = "supabase/migrations/20270705000000_care_plan_messages.sql";
+const MIGRATION = "supabase/migrations/20270708000000_care_plan_messages.sql";
 
 /**
  * "A staff member" is one definition: `staff_member_ids()` in the database (StaffRepository.memberIds is its only reader, with an

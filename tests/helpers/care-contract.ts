@@ -33,7 +33,6 @@ export function defineCareContract(name: string, setup: () => CareContractContex
       ctx.repo().open({
         memberId: id(member),
         reason: "check_in",
-        channel: "slack_dm",
         periodEndsOn: "2026-03-31",
         openedBy: ctx.openedBy,
         openedAt: "2026-03-01T15:00:00.000Z",
@@ -53,7 +52,6 @@ export function defineCareContract(name: string, setup: () => CareContractContex
         expect(c).toMatchObject({
           member_id: id(ada),
           reason: "check_in",
-          channel: "slack_dm",
           opened_by: ctx.openedBy,
           owned_by: ctx.openedBy,
           period_ends_on: "2026-03-31",
@@ -87,7 +85,7 @@ export function defineCareContract(name: string, setup: () => CareContractContex
         expect(c.last_staff_message_at).toBeNull();
       });
 
-      it("keeps one open engagement per member and channel, and answers with the one that is open", async () => {
+      it("keeps one open care plan per member, and answers with the one that is open", async () => {
         const first = await opened(ada);
 
         const again = await open(ada, { reason: "welcome" });
@@ -98,9 +96,8 @@ export function defineCareContract(name: string, setup: () => CareContractContex
         expect(await ctx.repo().forMember(id(ada))).toHaveLength(1);
       });
 
-      it("lets the same member have one on another channel, and another member one on the same channel", async () => {
+      it("lets another member have one while this one is open", async () => {
         await opened(ada);
-        expect((await open(ada, { channel: "email" })).ok).toBe(true);
         expect((await open(bo)).ok).toBe(true);
       });
 
@@ -113,9 +110,8 @@ export function defineCareContract(name: string, setup: () => CareContractContex
         expect((await open(ada)).ok).toBe(true);
       });
 
-      it("refuses a reason or channel outside the sets, text over the limits, a bad date and a member nobody has", async () => {
+      it("refuses a reason outside the set, text over the limits, a bad date and a member nobody has", async () => {
         await expect(open(ada, { reason: "gossip" })).rejects.toThrow();
-        await expect(open(ada, { channel: "carrier_pigeon" })).rejects.toThrow();
         await expect(open(ada, { notes: "x".repeat(1001) })).rejects.toThrow();
         await expect(open(ada, { nextStep: "x".repeat(281) })).rejects.toThrow();
         await expect(open(ada, { periodEndsOn: "next month" })).rejects.toThrow();
@@ -125,7 +121,7 @@ export function defineCareContract(name: string, setup: () => CareContractContex
     });
 
     describe("renewing", () => {
-      it("closes the period as renewed and opens the next one, linked, keeping reason, channel, owner and who spoke last, with why as its note", async () => {
+      it("closes the period as renewed and opens the next one, linked, keeping reason, owner and who spoke last, with why as its note", async () => {
         const first = await opened(ada, { notes: "first period", nextStep: "write back", followUpOn: "2026-03-08" });
         await ctx.repo().logMessage(first.id, "member", "2026-03-20T10:00:00.000Z");
 
@@ -137,7 +133,6 @@ export function defineCareContract(name: string, setup: () => CareContractContex
         expect(next).toMatchObject({
           member_id: id(ada),
           reason: "check_in",
-          channel: "slack_dm",
           opened_by: ctx.openedBy,
           owned_by: ctx.openedBy,
           period_ends_on: "2026-05-01",
@@ -315,7 +310,7 @@ export function defineCareContract(name: string, setup: () => CareContractContex
         expect(await ctx.repo().changeStart(ctx.missingId, noon("2026-02-20"))).toEqual({ ok: false, reason: "not_found" });
       });
 
-      it("leaves the one-open-per-member-and-channel rule as it was", async () => {
+      it("leaves the one-open-per-member rule as it was", async () => {
         const c = await opened(ada);
         await ctx.repo().changeStart(c.id, noon("2026-02-20"));
 

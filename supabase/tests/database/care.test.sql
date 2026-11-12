@@ -1,6 +1,6 @@
 -- pgTAP tests for 20270626000000_hedgie_care.sql: staff (admin and community manager) read and write care engagements, a
 -- plain member and a signed-out visitor do not, nothing is hard deleted by a user, one open engagement per member and
--- channel, a period has an end date and a close has a way it ended, renewing is one step that a double click cannot
+-- channel (now one open plan per member: see care_plans_per_member.test.sql), a period has an end date and a close has a way it ended, renewing is one step that a double click cannot
 -- repeat, a community manager may read member_interactions (and nothing more of it), and the audit log records her writes
 -- as staff without the message bookkeeping. The first build's `conversations` table is gone.
 -- Rolled back; run with `pnpm test:pgtap`.
@@ -8,7 +8,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(57);
+SELECT plan(58);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000cc01', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'cv-manager@example.test'),
@@ -23,7 +23,8 @@ ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
 INSERT INTO public.members (id, name, email, joined_at, status, user_id) VALUES
   ('mbr_CareAAAAAAA1', 'Ada Example', 'cv-ada@example.test', now(), 'active', NULL),
   ('mbr_CareAAAAAAA2', 'Bea Example', 'cv-bea@example.test', now(), 'active', NULL),
-  ('mbr_CareAAAAAAA3', 'Plain Member', 'cv-plain@example.test', now(), 'active', '00000000-0000-4000-a000-00000000cc02');
+  ('mbr_CareAAAAAAA3', 'Plain Member', 'cv-plain@example.test', now(), 'active', '00000000-0000-4000-a000-00000000cc02'),
+  ('mbr_CareAAAAAAA4', 'Dee Example', 'cv-dee@example.test', now(), 'active', NULL);
 
 -- Two interactions to read (service role writes, as the rebuild does).
 INSERT INTO public.member_interactions (member_a, member_b, kind, occurred_at, visibility) VALUES
@@ -66,11 +67,15 @@ SELECT throws_ok(
 SELECT throws_ok(
   $$INSERT INTO public.care_engagements (member_id, opened_by, reason, channel, period_ends_on)
     VALUES ('mbr_CareAAAAAAA1', '00000000-0000-4000-a000-00000000cc01', 'welcome', 'slack_dm', current_date + 30)$$,
-  '23505', NULL, 'a second open engagement with the same member on the same channel is refused');
+  '23505', NULL, 'a second open engagement with the same member is refused');
+SELECT throws_ok(
+  $$INSERT INTO public.care_engagements (member_id, opened_by, reason, channel, period_ends_on)
+    VALUES ('mbr_CareAAAAAAA1', '00000000-0000-4000-a000-00000000cc01', 'welcome', 'email', current_date + 30)$$,
+  '23505', NULL, 'and so is one on another channel: a care plan belongs to the member');
 SELECT lives_ok(
   $$INSERT INTO public.care_engagements (id, member_id, opened_by, owned_by, reason, channel, period_ends_on)
-    VALUES ('care_CareAAAAAA02', 'mbr_CareAAAAAAA1', '00000000-0000-4000-a000-00000000cc01', '00000000-0000-4000-a000-00000000cc01', 'introduction', 'email', current_date + 30)$$,
-  'another channel is a separate engagement');
+    VALUES ('care_CareAAAAAA02', 'mbr_CareAAAAAAA4', '00000000-0000-4000-a000-00000000cc01', '00000000-0000-4000-a000-00000000cc01', 'introduction', 'email', current_date + 30)$$,
+  'another member is a separate engagement');
 SELECT throws_ok(
   $$INSERT INTO public.care_engagements (member_id, opened_by, reason, channel, period_ends_on)
     VALUES ('mbr_CareAAAAAAA2', '00000000-0000-4000-a000-00000000cc01', 'gossip', 'slack_dm', current_date + 30)$$,
@@ -114,14 +119,14 @@ SELECT ok(
   (SELECT closed_at IS NOT NULL FROM public.care_engagements WHERE id = 'care_CareAAAAAA01'),
   'with its closing time');
 SELECT is(
-  (SELECT count(*)::int FROM public.care_engagements WHERE renewed_from = 'care_CareAAAAAA01' AND closed_at IS NULL AND member_id = 'mbr_CareAAAAAAA1' AND channel = 'slack_dm' AND reason = 'writing_check_in' AND owned_by = '00000000-0000-4000-a000-00000000cc01' AND notes = 'she answered and we have a plan' AND last_member_message_at IS NOT NULL),
-  1, 'the next period continues it: same member, channel, reason and owner, who spoke last kept, the note is why she renewed');
+  (SELECT count(*)::int FROM public.care_engagements WHERE renewed_from = 'care_CareAAAAAA01' AND closed_at IS NULL AND member_id = 'mbr_CareAAAAAAA1' AND reason = 'writing_check_in' AND owned_by = '00000000-0000-4000-a000-00000000cc01' AND notes = 'she answered and we have a plan' AND last_member_message_at IS NOT NULL),
+  1, 'the next period continues it: same member, reason and owner, who spoke last kept, the note is why she renewed');
 SELECT is(
   (SELECT count(*)::int FROM public.renew_care_engagement('care_CareAAAAAA01', current_date + 60, '00000000-0000-4000-a000-00000000cc01', now(), 'she answered and we have a plan')),
   0, 'a double click renews nothing the second time');
 SELECT is(
-  (SELECT count(*)::int FROM public.care_engagements WHERE member_id = 'mbr_CareAAAAAAA1' AND channel = 'slack_dm' AND closed_at IS NULL AND deleted_at IS NULL),
-  1, 'so there is still exactly one open period for the member and channel');
+  (SELECT count(*)::int FROM public.care_engagements WHERE member_id = 'mbr_CareAAAAAAA1' AND closed_at IS NULL AND deleted_at IS NULL),
+  1, 'so there is still exactly one open period for the member');
 SELECT throws_ok(
   $$SELECT * FROM public.renew_care_engagement('care_CareAAAAAA02', current_date + 60, '00000000-0000-4000-a000-00000000cc03', now(), 'x')$$,
   '42501', NULL, 'renewing cannot start a period in someone else''s name');

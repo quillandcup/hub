@@ -108,6 +108,23 @@ export function defineCareDmsContract(name: string, setup: () => CareDmsContract
       expect(await ctx.repo().forMember("mbr_ZZZZZZZZZZZZ")).toEqual([]);
     });
 
+    it("remembers the DMs a staff member stopped tracking, until she tracks them again, so nothing tracks one for her on its own", async () => {
+      const [a, b, c] = [ctx.channel("a"), ctx.channel("b"), ctx.channel("c")];
+      await ctx.repo().track({ trackedBy: mine(), channelId: a, memberId: ctx.members[ada].id });
+      await ctx.repo().track({ trackedBy: mine(), channelId: b, memberId: ctx.members[bo].id });
+      await ctx.repo().track({ trackedBy: theirs(), channelId: c, memberId: ctx.members[ada].id });
+      await ctx.repo().untrack(mine(), a, "2026-03-02T10:00:00.000Z");
+      await ctx.repo().untrack(mine(), b, "2026-03-02T10:00:00.000Z");
+      await ctx.repo().track({ trackedBy: mine(), channelId: b, memberId: ctx.members[bo].id }); // her own choice, again
+
+      const stopped = await ctx.repo().untrackedChannels([mine(), theirs()]);
+
+      expect([...(stopped.get(mine()) ?? [])]).toEqual([a]);
+      expect(stopped.has(theirs())).toBe(false);
+      expect((await ctx.repo().untrackedChannels([theirs()])).size).toBe(0);
+      expect((await ctx.repo().untrackedChannels([])).size).toBe(0);
+    });
+
     it("refuses an empty conversation id and a member nobody has", async () => {
       await expect(ctx.repo().track({ trackedBy: mine(), channelId: "", memberId: ctx.members[ada].id })).rejects.toThrow();
       await expect(ctx.repo().track({ trackedBy: mine(), channelId: ctx.channel("a"), memberId: "mbr_ZZZZZZZZZZZZ" })).rejects.toThrow();
