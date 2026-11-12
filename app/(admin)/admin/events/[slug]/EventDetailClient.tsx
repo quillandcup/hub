@@ -69,6 +69,8 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
   const [addingTicketSource, setAddingTicketSource] = useState<TicketSource | "">("");
   const [addingTicketNote, setAddingTicketNote] = useState("");
   const [addingGiver, setAddingGiver] = useState<Member | null>(null);
+  // The attendee whose dropdown was set to Gifted and who is waiting for a giver: nothing is saved until one is picked.
+  const [pendingGiftFor, setPendingGiftFor] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/members")
@@ -153,8 +155,17 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
   };
 
   // "Not recorded" clears the note as well: it says how they got in, so it goes with the source.
-  const handleTicketSource = (memberId: string, value: string) =>
-    saveTicket(memberId, isTicketSource(value) ? { ticketSource: value } : { ticketSource: null, ticketNote: null });
+  const handleTicketSource = (memberId: string, current: TicketSource | null, value: string) => {
+    if (value === "gifted") {
+      // A gifted ticket needs a giver, so the choice is saved together with it once the picker has one.
+      setPendingGiftFor(memberId);
+      return;
+    }
+    setPendingGiftFor(null);
+    // Back to what it already was: a cancel, nothing to save.
+    if (value === (current ?? "") || (value === "purchased" && !current)) return;
+    return saveTicket(memberId, isTicketSource(value) ? { ticketSource: value } : { ticketSource: null, ticketNote: null });
+  };
 
   const handleRemoveAttendee = async (memberId: string) => {
     setRemovingId(memberId);
@@ -328,11 +339,12 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
           />
           <button
             type="submit"
-            disabled={addingAttendee || !addingMember}
+            disabled={addingAttendee || !addingMember || (addingTicketSource === "gifted" && !addingGiver)}
             className="px-3 py-1.5 bg-plum-600 text-white rounded hover:bg-plum-700 text-sm disabled:opacity-50"
           >
             {addingAttendee ? "Adding..." : "Add attendee"}
           </button>
+          {addingTicketSource === "gifted" && !addingGiver && <p className="w-full text-xs text-slate-500 dark:text-slate-400">Pick who gave the ticket</p>}
         </form>
 
         {attendees.length === 0 ? (
@@ -353,13 +365,22 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                   )}
                 </span>
                 <span className="flex items-center gap-3">
-                {attendee.ticketSource === "gifted" && (
+                {(attendee.ticketSource === "gifted" || pendingGiftFor === attendee.memberId) && (
                   <div className="w-56" aria-label={`Gifted by, ${attendee.memberName}`}>
+                    {(pendingGiftFor === attendee.memberId || !attendee.ticketGiver) && (
+                      <p className="text-xs text-amber-700 dark:text-amber-400 mb-1">Who gave this ticket?</p>
+                    )}
                     <MemberSearch
                       members={allMembers.filter((m) => m.id !== attendee.memberId)}
                       selectedMemberId={attendee.ticketGiver?.id ?? null}
                       selectedMemberName={attendee.ticketGiver?.name}
-                      onSelect={(m) => saveTicket(attendee.memberId, { ticketGiverId: m?.id ?? null })}
+                      onSelect={(m) => {
+                        // Clearing is not offered: a gifted ticket always has a giver.
+                        if (!m) return;
+                        const becomingGifted = pendingGiftFor === attendee.memberId;
+                        setPendingGiftFor(null);
+                        return saveTicket(attendee.memberId, becomingGifted ? { ticketSource: "gifted", ticketGiverId: m.id } : { ticketGiverId: m.id });
+                      }}
                       placeholder="Gifted by..."
                     />
                   </div>
@@ -383,9 +404,12 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                 )}
                 <select
                   aria-label={`How ${attendee.memberName} got in`}
-                  value={attendee.ticketSource ?? (attendee.purchasedInKajabi ? "purchased" : "")}
+                  value={pendingGiftFor === attendee.memberId ? "gifted" : (attendee.ticketSource ?? (attendee.purchasedInKajabi ? "purchased" : ""))}
                   title={attendee.purchasedInKajabi ? "Bought in Kajabi" : undefined}
-                  onChange={(e) => handleTicketSource(attendee.memberId, e.target.value)}
+                  onChange={(e) => handleTicketSource(attendee.memberId, attendee.ticketSource, e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") setPendingGiftFor(null);
+                  }}
                   className="px-1 py-0.5 border border-gray-300 dark:border-slate-700 rounded text-xs bg-white dark:bg-slate-900"
                 >
                   {/* Purchased is derived from Kajabi, never stored: picking it clears a source recorded by hand. */}

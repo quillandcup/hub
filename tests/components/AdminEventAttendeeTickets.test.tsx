@@ -102,11 +102,94 @@ describe("how an attendee got in", () => {
 
   it("changes the source of an attendee without touching the note", async () => {
     render(<EventDetailClient eventId={EVENT.id} />);
+    await userEvent.selectOptions(await screen.findByLabelText("How Ada Example got in"), "");
+    await waitFor(() => expect(writes).toHaveLength(1));
+  });
+
+  it("choosing Gifted on a row saves nothing until a giver is picked, then saves both together", async () => {
+    render(<EventDetailClient eventId={EVENT.id} />);
 
     await userEvent.selectOptions(await screen.findByLabelText("How Ada Example got in"), "gifted");
 
+    expect(writes).toEqual([]);
+    expect(screen.getByText("Who gave this ticket?")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "pick giver" }));
+
     await waitFor(() => expect(writes).toHaveLength(1));
-    expect(writes[0]).toEqual({ url: `/api/admin/events/${EVENT.id}/attendees/${ADA.memberId}`, method: "PATCH", body: { ticketSource: "gifted" } });
+    expect(writes[0]).toEqual({
+      url: `/api/admin/events/${EVENT.id}/attendees/${ADA.memberId}`,
+      method: "PATCH",
+      body: { ticketSource: "gifted", ticketGiverId: "mbr_AAAAAAAAAAA3" },
+    });
+  });
+
+  it("cancels a pending Gifted choice without saving, by choosing another source or pressing Escape", async () => {
+    render(<EventDetailClient eventId={EVENT.id} />);
+    const select = await screen.findByLabelText("How Ada Example got in");
+
+    await userEvent.selectOptions(select, "gifted");
+    await userEvent.selectOptions(select, "comped");
+    expect(writes).toEqual([]);
+    expect(screen.queryByText("Who gave this ticket?")).toBeNull();
+
+    await userEvent.selectOptions(select, "gifted");
+    await userEvent.keyboard("{Escape}");
+    expect(writes).toEqual([]);
+    expect(screen.queryByText("Who gave this ticket?")).toBeNull();
+    expect(select).toHaveValue("comped");
+  });
+
+  it("prompts for the giver on a gifted row that has none, and saves just the giver", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (init?.method) writes.push({ url, method: init.method, body: JSON.parse(String(init.body)) });
+        if (url === "/api/members") return { ok: true, json: async () => ({ members: [] }) } as Response;
+        return {
+          ok: true,
+          json: async () => ({ event: EVENT, prickleId: "prkl_AAAAAAAAAAA1", hubSession: false, photos: [], badgeType: null, attendees: [{ ...ADA, ticketSource: "gifted" }] }),
+        } as Response;
+      }),
+    );
+    render(<EventDetailClient eventId={EVENT.id} />);
+
+    expect(await screen.findByText("Who gave this ticket?")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "pick giver" }));
+
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0].body).toEqual({ ticketGiverId: "mbr_AAAAAAAAAAA3" });
+  });
+
+  it("does not offer to clear the giver of a gifted ticket", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (init?.method) writes.push({ url, method: init.method, body: JSON.parse(String(init.body)) });
+        if (url === "/api/members") return { ok: true, json: async () => ({ members: [] }) } as Response;
+        return {
+          ok: true,
+          json: async () => ({ event: EVENT, prickleId: "prkl_AAAAAAAAAAA1", hubSession: false, photos: [], badgeType: null, attendees: [{ ...ADA, ticketSource: "gifted", ticketGiver: { id: "mbr_AAAAAAAAAAA3", name: "Cy Example" } }] }),
+        } as Response;
+      }),
+    );
+    render(<EventDetailClient eventId={EVENT.id} />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "clear giver" }));
+
+    expect(screen.queryByText("Who gave this ticket?")).toBeNull();
+    expect(writes).toEqual([]);
+  });
+
+  it("keeps Add attendee disabled for a gifted ticket until a giver is picked", async () => {
+    render(<EventDetailClient eventId={EVENT.id} />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "pick member" }));
+    await userEvent.selectOptions(screen.getByLabelText("How they got in"), "gifted");
+
+    expect(screen.getByRole("button", { name: "Add attendee" })).toBeDisabled();
+    expect(screen.getByText("Pick who gave the ticket")).toBeInTheDocument();
+    await userEvent.click(screen.getAllByRole("button", { name: "pick giver" })[0]);
+    expect(screen.getByRole("button", { name: "Add attendee" })).toBeEnabled();
   });
 
   it("clears the source and the note when set back to not recorded", async () => {
@@ -151,6 +234,7 @@ describe("how an attendee got in", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: "pick member" }));
     await userEvent.selectOptions(screen.getByLabelText("How they got in"), "gifted");
+    await userEvent.click(screen.getAllByRole("button", { name: "pick giver" })[0]);
     await userEvent.type(screen.getByLabelText("Ticket note"), "from a friend");
     await userEvent.click(screen.getByRole("button", { name: "Add attendee" }));
 
@@ -158,7 +242,7 @@ describe("how an attendee got in", () => {
     expect(writes[0]).toEqual({
       url: `/api/admin/events/${EVENT.id}/attendees`,
       method: "POST",
-      body: { memberId: "mbr_AAAAAAAAAAA2", ticketSource: "gifted", ticketNote: "from a friend" },
+      body: { memberId: "mbr_AAAAAAAAAAA2", ticketSource: "gifted", ticketNote: "from a friend", ticketGiverId: "mbr_AAAAAAAAAAA3" },
     });
   });
 
@@ -176,7 +260,7 @@ describe("how an attendee got in", () => {
     const select = await screen.findByLabelText("How Ada Example got in");
     vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, json: async () => ({ error: "Not an attendee of this event" }) }) as Response));
 
-    await userEvent.selectOptions(select, "comped");
+    await userEvent.selectOptions(select, "");
 
     expect(await screen.findByText("Not an attendee of this event")).toBeInTheDocument();
   });
@@ -280,7 +364,7 @@ describe("how an attendee got in", () => {
       expect(screen.queryByRole("button", { name: "pick giver" })).not.toBeInTheDocument();
     });
 
-    it("saves a chosen giver and clears it", async () => {
+    it("saves a chosen giver and never clears it", async () => {
       serve({ ...ADA, ticketSource: "gifted", ticketGiver: { id: "mbr_AAAAAAAAAAA3", name: "Cy E" } });
       render(<EventDetailClient eventId={EVENT.id} />);
 
@@ -289,8 +373,7 @@ describe("how an attendee got in", () => {
       expect(writes[0]).toEqual({ url: `/api/admin/events/${EVENT.id}/attendees/${ADA.memberId}`, method: "PATCH", body: { ticketGiverId: "mbr_AAAAAAAAAAA3" } });
 
       await userEvent.click(screen.getByRole("button", { name: "clear giver" }));
-      await waitFor(() => expect(writes).toHaveLength(2));
-      expect(writes[1].body).toEqual({ ticketGiverId: null });
+      expect(writes).toHaveLength(1);
     });
 
     it("hides the giver picker again once the source changes away from gifted", async () => {
