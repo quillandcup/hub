@@ -138,7 +138,7 @@ export default function SlackDmBackfillButton() {
         <div className="mt-4 text-sm text-slate-700 dark:text-slate-300 space-y-1" role="status">
           <p>
             Run {totals.runs}
-            {running ? " done, next one going" : ""}: {totals.conversations} conversations and {totals.messages} messages so far.
+            {running ? " done, next one going" : ""}: {totals.messages} new messages so far ({totals.conversations} conversation checks, counted again each run).
           </p>
           {last && (
             <p>
