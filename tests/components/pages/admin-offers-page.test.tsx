@@ -58,13 +58,13 @@ describe("/admin/offers", () => {
   it("links each offer to Kajabi, sorts from the headers and filters by state", async () => {
     loadOfferCoverage.mockResolvedValue([
       { offerId: "o1", name: "Zebra", status: null, kajabiUrl: "https://kajabi.example/o1", checkoutUrl: "https://shop.example/o1", resources: [] },
-      { offerId: "o2", name: "Apple", status: null, kajabiUrl: null, checkoutUrl: null, resources: [{ kind: "event", title: "E", href: "/admin/events/e" }] },
+      { offerId: "o2", name: "Apple", status: null, kajabiUrl: "https://kajabi.example/o2", checkoutUrl: null, resources: [{ kind: "event", title: "E", href: "/admin/events/e" }] },
     ]);
     await renderServerPage(AdminOffersPage, {});
     const zebra = screen.getByRole("row", { name: /Zebra/ });
     expect(within(zebra).getByRole("link", { name: "Edit" })).toHaveAttribute("href", "https://kajabi.example/o1");
     expect(within(zebra).getByRole("link", { name: "Checkout" })).toHaveAttribute("href", "https://shop.example/o1");
-    expect(within(screen.getByRole("row", { name: /Apple/ })).queryByRole("link", { name: "Edit" })).toBeNull();
+    expect(within(screen.getByRole("row", { name: /Apple/ })).queryByRole("link", { name: "Checkout" })).toBeNull();
 
     const names = () => screen.getAllByRole("row").slice(1).map((r) => r.textContent ?? "");
     expect(names()[0]).toMatch(/Zebra/); // open questions first by default

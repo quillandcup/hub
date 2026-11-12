@@ -42,10 +42,10 @@ describe("buildOfferCoverage", () => {
     expect(rows.at(-1)!.offerId).toBe("o2");
   });
 
-  it("links to the offer in Kajabi and to its checkout page when the record has them", () => {
-    expect(byId("o1").kajabiUrl).toBe(KAJABI_ADMIN_OFFER_URL.replace("{siteId}", "site1").replace("{offerId}", "o1"));
+  it("links every offer to its page in the Kajabi admin, and to its checkout page when the record has one", () => {
+    expect(byId("o1").kajabiUrl).toBe(KAJABI_ADMIN_OFFER_URL.replace("{offerId}", "o1"));
     expect(byId("o1").checkoutUrl).toBe("https://example.com/offers/abc");
-    expect(byId("o2").kajabiUrl).toBeNull();
+    expect(byId("o2").kajabiUrl).toBe(KAJABI_ADMIN_OFFER_URL.replace("{offerId}", "o2"));
     expect(byId("o2").checkoutUrl).toBeNull();
   });
 
@@ -96,5 +96,11 @@ describe("offerDetailOf", () => {
   it("leaves out an internal title that repeats the name, and copes with a record without attributes", () => {
     expect(offerDetailOf("42", "Same", { attributes: { internal_title: " Same " } })).toBe("#42");
     expect(offerDetailOf("42", null, null)).toBe("#42");
+  });
+});
+
+describe("the Kajabi admin link", () => {
+  it("is the offer's edit page by its id alone", () => {
+    expect(KAJABI_ADMIN_OFFER_URL).toBe("https://app.kajabi.com/admin/offers/{offerId}/edit");
   });
 });

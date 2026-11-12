@@ -19,8 +19,8 @@ export interface OfferCoverageRow {
   offerId: string;
   name: string;
   status: string | null;
-  /** The offer in the Kajabi admin, or null when its record has no site id. */
-  kajabiUrl: string | null;
+  /** The offer in the Kajabi admin. */
+  kajabiUrl: string;
   /** The offer's public checkout page, or null. */
   checkoutUrl: string | null;
   resources: OfferResource[];
@@ -55,12 +55,10 @@ export function offerDetailOf(offerId: string, name: string | null, data: unknow
   return [internal && internal !== name?.trim() ? internal : "", price, `#${offerId}`].filter(Boolean).join(" · ");
 }
 
-/** The site id and checkout page in Kajabi's record of an offer. */
-function kajabiLinksOf(data: unknown): { siteId: string | null; checkoutUrl: string | null } {
-  const record = data as { attributes?: { checkout_url?: unknown }; relationships?: { site?: { data?: { id?: unknown } } } } | null;
-  const siteId = record?.relationships?.site?.data?.id;
-  const checkoutUrl = record?.attributes?.checkout_url;
-  return { siteId: typeof siteId === "string" ? siteId : null, checkoutUrl: typeof checkoutUrl === "string" ? checkoutUrl : null };
+/** The public checkout page in Kajabi's record of an offer. */
+function checkoutUrlOf(data: unknown): string | null {
+  const checkoutUrl = (data as { attributes?: { checkout_url?: unknown } } | null)?.attributes?.checkout_url;
+  return typeof checkoutUrl === "string" ? checkoutUrl : null;
 }
 
 /** Every offer with the resources that point at it, unmapped first, then by name. */
@@ -78,9 +76,8 @@ export function buildOfferCoverage({ offers, eventLinks, courseLinks, programs }
     for (const p of programs) {
       if (o.name && p.kajabi_offer_names.includes(o.name)) resources.push({ kind: "program", title: p.name, href: `/admin/programs/${p.id}` });
     }
-    const { siteId, checkoutUrl } = kajabiLinksOf(o.data);
-    const kajabiUrl = siteId ? KAJABI_ADMIN_OFFER_URL.replace("{siteId}", siteId).replace("{offerId}", o.kajabi_offer_id) : null;
-    return { offerId: o.kajabi_offer_id, name, status: o.status, kajabiUrl, checkoutUrl, resources };
+    const kajabiUrl = KAJABI_ADMIN_OFFER_URL.replace("{offerId}", o.kajabi_offer_id);
+    return { offerId: o.kajabi_offer_id, name, status: o.status, kajabiUrl, checkoutUrl: checkoutUrlOf(o.data), resources };
   });
   const rank: Record<OfferCoverageState, number> = { multiple: 0, unmapped: 1, mapped: 2 };
   return rows.sort((a, b) => rank[coverageState(a)] - rank[coverageState(b)] || a.name.localeCompare(b.name));
