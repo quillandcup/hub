@@ -24,6 +24,7 @@ import { clock } from "@/lib/clock";
 import { removeChatFileBytes } from "@/lib/chat/file-cleanup";
 import { isId } from "@/lib/ids";
 import { createRepos } from "@/lib/data/repos";
+import { hideHubPreviewsRemovedInSlack } from "@/lib/chat/slack-side-unfurl-removal";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // Webhook should respond quickly
@@ -180,6 +181,7 @@ async function processSlackEvent(event: any) {
       try {
         // Typed on write, like the import and the pulls type theirs, so nothing downstream has to fall back to the payload.
         const channelType = await slackEventChannelType(event, async () => (await createRepos(supabase).slackWorkspace.channelById(event.channel))?.is_mpim === true);
+        await hideHubPreviewsRemovedInSlack(supabase, [{ channel_id: event.channel, message_ts: event.ts, raw_payload: event }]);
         await createRepos(supabase).slackMessages.upsertMessages([
           {
             channel_id: event.channel,
@@ -281,6 +283,9 @@ async function applyMessageEdit(supabase: SupabaseClient, event: any) {
     await applyMessageDelete(supabase, { ...event, deleted_ts: message.ts });
     return;
   }
+
+  // Before the new payload replaces the stored one: an attachment fewer on a Hub-written message is its author removing Slack's preview in Slack.
+  await hideHubPreviewsRemovedInSlack(supabase, [{ channel_id: event.channel, message_ts: message.ts, raw_payload: message }]);
 
   try {
     await createRepos(supabase).slackMessages.editMessage(event.channel, message.ts, {

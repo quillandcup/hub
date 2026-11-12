@@ -749,6 +749,21 @@ export function defineChatContract(name: string, setup: () => ChatContractContex
         expect(await ctx.repo().appMessageAuthor(ids.anon)).toBeNull();
         expect(await ctx.repo().appMessageAuthor(NONE)).toBeNull();
       });
+
+      it("finds the live Hub messages Slack holds under given timestamps, with their channel, and not Slack's own or deleted ones", async () => {
+        const { slack, chan, author } = await setup();
+        const ts = { app: ctx.unique("1."), slack: ctx.unique("2."), gone: ctx.unique("3.") };
+        const ids = await ctx.seedMessages(chan, [
+          { key: "app", origin: "app", slackTs: ts.app, status: "sent", authorMemberId: author, createdAt: T0 },
+          { key: "slack", origin: "slack", slackTs: ts.slack, authorMemberId: author, createdAt: T0 },
+          { key: "gone", origin: "app", slackTs: ts.gone, status: "sent", authorMemberId: author, createdAt: T0, deleted: true },
+        ]);
+
+        const found = await ctx.repo().appMessagesBySlackTs([ts.app, ts.slack, ts.gone, ctx.unique("9.")]);
+        expect(found).toHaveLength(1);
+        expect(found[0]).toMatchObject({ id: ids.app, slackTs: ts.app, slackChannelId: slack, authorMemberId: author });
+        expect(await ctx.repo().appMessagesBySlackTs([])).toEqual([]);
+      });
     });
 
     // --- content, authors and gap fills ---
