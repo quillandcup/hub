@@ -55,7 +55,7 @@ export function startDayProblem(startedOn: unknown, now: Date): "invalid" | "fut
 }
 
 /**
- * The instant a care period that started on `startedOn` (an Eastern calendar day, not in the future) is recorded as opened:
+ * The instant a care plan that started on `startedOn` (an Eastern calendar day, not in the future) is recorded as opened:
  * `now` when that day is today, else **noon Eastern** of that day. She enters a conversation by its day, not its time, and
  * noon is a time that exists on every day (a clock change happens at 2 a.m.), sits well inside the day (so the Eastern day it
  * lands on is never in doubt), and is where the Slack DM derivation, which counts messages from the start of that day,
@@ -71,7 +71,7 @@ export function startOfOrgDay(ymd: Ymd): Date {
 }
 
 /**
- * When the first message of a care period started on `startedOn` is recorded: now for today, else the **start of that Eastern
+ * When the first message of a care plan started on `startedOn` is recorded: now for today, else the **start of that Eastern
  * day**. The opening instant is noon for a past day, but the first message is only a placeholder for "somebody wrote that
  * day": putting it at midnight means a real DM from that morning, which counts from the start of the day, can still replace
  * it (a time only moves forward), instead of being hidden behind a made-up noon.
@@ -99,7 +99,7 @@ export function shiftedPeriodEnd(current: Pick<CareTimes, "opened_at" | "period_
   return addDays(orgYmd(newOpenedAt), length);
 }
 
-/** What surrounds a care period's start in its chain: when the one it continues started, when its renewal started, when it was closed. */
+/** What surrounds a care plan's start in its chain: when the one it continues started, when its renewal started, when it was closed. */
 export type StartAround = { previousOpenedAt: string | null; renewalOpenedAt: string | null; closedAt: string | null };
 
 /**
@@ -383,6 +383,14 @@ export function commitmentLength(startsAt: string, expiresAt: string): string {
   if (days < 60) return `${days} day${days === 1 ? "" : "s"}`;
   const months = Math.round(days / 30.4);
   return `${months} months`;
+}
+
+/** "first", "second", "third"...: the ordinal a care plan in a chain of renewals is called by (staff read "second plan", never "Period 2"). */
+export function planOrdinal(n: number): string {
+  const words = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"];
+  if (n >= 1 && n <= words.length) return words[n - 1];
+  const rule = new Intl.PluralRules("en", { type: "ordinal" }).select(n);
+  return `${n}${rule === "one" ? "st" : rule === "two" ? "nd" : rule === "few" ? "rd" : "th"}`;
 }
 
 /**

@@ -106,7 +106,7 @@ describe("toEngagementCard", () => {
     expect(toEngagementCard(row({ opened_at: "2026-03-18T03:30:00.000Z" }), late)).toMatchObject({ startedOn: "2026-03-17", today: "2026-03-19" });
   });
 
-  it("carries the scores for its care period, or none", () => {
+  it("carries the scores for its care plan, or none", () => {
     const scores = new Map([["care_AAAAAAAAAAA1", { then: { score: 4, tier: "at_risk" as const }, now: { score: 60, tier: "highly_engaged" as const } }]]);
     expect(toEngagementCard(row(), NOW, { scores }).scores).toEqual(scores.get("care_AAAAAAAAAAA1"));
     expect(toEngagementCard(row({ id: "care_AAAAAAAAAAA2" }), NOW, { scores }).scores).toBeNull();
@@ -125,7 +125,7 @@ describe("toEngagementCard", () => {
     const link = { href: "/chat/chn_AAAAAAAAAAA1", kind: "hub_chat" as const };
     const tracked = { userId: owner, memberIds: new Set(["mbr_AAAAAAAAAAA1"]), links: new Map([["mbr_AAAAAAAAAAA1", link]]) };
 
-    it("is given for a Slack DM care period she owns with a member whose DM she tracks, open or closed", () => {
+    it("is given for a Slack DM care plan she owns with a member whose DM she tracks, open or closed", () => {
       expect(toEngagementCard(row(), NOW, { slackTracked: tracked }).dmLink).toEqual(link);
       expect(toEngagementCard(row({ closed_at: ago(1), ended_how: "no_reply" }), NOW, { slackTracked: tracked }).dmLink).toEqual(link);
     });

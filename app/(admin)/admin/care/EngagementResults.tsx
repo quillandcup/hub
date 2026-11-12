@@ -21,7 +21,7 @@ function firsts({ counts }: CareWindowResult): string {
 const TH = "py-1 pr-3 font-medium";
 
 /**
- * A care period's results: three windows side by side (what they did before, while she was in touch, and a month or two
+ * A care plan's results: three windows side by side (what they did before, while she was in touch, and a month or two
  * after), then how they stayed: active, on hiatus or cancelled at each checkpoint after the period, the first time they went on
  * hiatus or left, and the programs they held. The three states are shown as they are, never as one weighted number.
  */
@@ -31,7 +31,7 @@ export default function EngagementResults({ results }: { results: CareResults })
     <div className="mt-3 space-y-4">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[40rem] text-left text-sm">
-          <caption className="sr-only">What the member did before, during and after this care period</caption>
+          <caption className="sr-only">What the member did before, during and after this care plan</caption>
           <thead>
             <tr className="border-b border-slate-200 text-slate-600 dark:border-slate-800 dark:text-slate-400">
               <th scope="col" className={TH}>Window</th>
@@ -76,7 +76,7 @@ export default function EngagementResults({ results }: { results: CareResults })
 
       <div className="overflow-x-auto">
         <table className="w-full min-w-[28rem] text-left text-sm">
-          <caption className="sr-only">Whether the member stayed, at each checkpoint after the care period</caption>
+          <caption className="sr-only">Whether the member stayed, at each checkpoint after the care plan</caption>
           <thead>
             <tr className="border-b border-slate-200 text-slate-600 dark:border-slate-800 dark:text-slate-400">
               <th scope="col" className={TH}>Staying</th>
@@ -88,7 +88,7 @@ export default function EngagementResults({ results }: { results: CareResults })
             {retention.checkpoints.map((c) => (
               <tr key={c.days} className="border-b border-slate-100 align-top dark:border-slate-800">
                 <th scope="row" className="py-1.5 pr-3 font-medium">
-                  {c.days} days after the care period
+                  {c.days} days after the care plan
                   <span className="block text-xs font-normal text-slate-600 dark:text-slate-400">{fullDay.format(new Date(c.at))}</span>
                 </th>
                 {c.membership ? (

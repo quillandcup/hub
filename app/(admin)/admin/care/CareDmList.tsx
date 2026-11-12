@@ -30,10 +30,10 @@ function PrivacyNote() {
       <p className={NOTE}>
         Hedgie Care reads who wrote and when in the DMs you track, never what was said. The Hub&apos;s Slack connection already
         brings your direct messages in for Hub Chat, and this adds nothing to that: only the DMs you track here fill in who spoke
-        last on your Slack DM care periods.
+        last on your Slack DM care plans.
       </p>
       <p className={NOTE}>
-        Other staff, admins included, don&apos;t see which DMs you track. Who spoke last shows on the care period, which everyone who
+        Other staff, admins included, don&apos;t see which DMs you track. Who spoke last shows on the care plan, which everyone who
         opens Hedgie Care can see. DMs with staff are never listed. Untracking a DM stops new times coming from it; what it already
         filled in stays.
       </p>
