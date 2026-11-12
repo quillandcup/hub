@@ -252,7 +252,7 @@ export function defineEventContract(name: string, setup: () => EventContractCont
         };
 
         expect(await ticketOf(ada)).toEqual([null, null]);
-        expect(await ctx.repo().setAttendeeTicket(ids.e, ada, { source: "comped", note: "covered by staff" })).toBe(true);
+        expect(await ctx.repo().setAttendeeTicket(ids.e, ada, { source: "comped", note: "covered by staff" })).toBe("set");
         expect(await ticketOf(ada)).toEqual(["comped", "covered by staff"]);
         expect(await ticketOf(bo)).toEqual([null, null]);
 
@@ -287,12 +287,55 @@ export function defineEventContract(name: string, setup: () => EventContractCont
         expect(await ctx.repo().moveAttendances(dup, keep)).toBe(0);
       });
 
+      it("records who gave a gifted ticket, clears it with the source, and refuses a self-gift or a giver without a gift", async () => {
+        const ids = await ctx.seed([{ key: "e", title: "Gifted guests", startsAt: "2097-03-01T09:00:00Z" }]);
+        const ada = await ctx.member({ name: "Ada Example", displayName: "Ada E", email: "ada@example.com" });
+        const bo = await ctx.member({ name: "Bo Example", displayName: null, email: "bo@example.com" });
+        await ctx.attend(ids.e, bo, "2097-01-01T00:00:00Z");
+        const giverOf = async () => (await ctx.repo().attendeesOf(ids.e)).find((x) => x.member_id === bo)!.ticket_giver;
+
+        expect(await giverOf()).toBeNull();
+        expect(await ctx.repo().setAttendeeTicket(ids.e, bo, { giverId: ada })).toBe("not_gifted");
+        expect(await ctx.repo().setAttendeeTicket(ids.e, bo, { source: "gifted", giverId: bo })).toBe("self_gift");
+        expect(await giverOf()).toBeNull();
+        expect(await ctx.repo().setAttendeeTicket(ids.e, bo, { source: "gifted", giverId: NONE })).toBe("unknown_giver");
+        expect(await ctx.repo().setAttendeeTicket(ids.e, bo, { source: "gifted", giverId: ada })).toBe("set");
+        expect(await giverOf()).toEqual({ id: ada, name: "Ada Example", display_name: "Ada E" });
+
+        // A note change leaves the giver alone; a source other than gifted clears it.
+        await ctx.repo().setAttendeeTicket(ids.e, bo, { note: "thank you" });
+        expect((await giverOf())?.id).toBe(ada);
+        await ctx.repo().setAttendeeTicket(ids.e, bo, { giverId: null });
+        expect(await giverOf()).toBeNull();
+        await ctx.repo().setAttendeeTicket(ids.e, bo, { giverId: ada });
+        await ctx.repo().setAttendeeTicket(ids.e, bo, { source: "comped" });
+        expect(await giverOf()).toBeNull();
+      });
+
+      it("moves the gifted-by link from one member to another, never leaving a member their own giver", async () => {
+        const ids = await ctx.seed([{ key: "e", title: "Merge guests", startsAt: "2097-03-01T09:00:00Z" }]);
+        const dup = await ctx.member({ name: "Ada Example", displayName: null, email: "ada@example.com" });
+        const keep = await ctx.member({ name: "Ada E", displayName: null, email: "ada.new@example.com" });
+        const bo = await ctx.member({ name: "Bo Example", displayName: null, email: "bo@example.com" });
+        await ctx.attend(ids.e, bo, "2097-01-01T00:00:00Z");
+        await ctx.attend(ids.e, keep, "2097-01-02T00:00:00Z");
+        await ctx.repo().setAttendeeTicket(ids.e, bo, { source: "gifted", giverId: dup });
+        await ctx.repo().setAttendeeTicket(ids.e, keep, { source: "gifted", giverId: dup });
+
+        expect(await ctx.repo().moveTicketGiver(dup, keep)).toBe(2);
+
+        const attendees = await ctx.repo().attendeesOf(ids.e);
+        expect(attendees.find((a) => a.member_id === bo)!.ticket_giver?.id).toBe(keep);
+        expect(attendees.find((a) => a.member_id === keep)!.ticket_giver).toBeNull();
+        expect(await ctx.repo().moveTicketGiver(dup, keep)).toBe(0);
+      });
+
       it("says so when the member is not an attendee of the event", async () => {
         const ids = await ctx.seed([{ key: "e", title: "No guests", startsAt: "2097-03-01T09:00:00Z" }]);
         const ada = await ctx.member({ name: "Ada Example", displayName: null, email: "ada@example.com" });
 
-        expect(await ctx.repo().setAttendeeTicket(ids.e, ada, { source: "comped" })).toBe(false);
-        expect(await ctx.repo().setAttendeeTicket(NONE, ada, { source: "comped" })).toBe(false);
+        expect(await ctx.repo().setAttendeeTicket(ids.e, ada, { source: "comped" })).toBe("not_attendee");
+        expect(await ctx.repo().setAttendeeTicket(NONE, ada, { source: "comped" })).toBe("not_attendee");
       });
 
       it("links Kajabi offers to an event, once each, and unlinks them", async () => {

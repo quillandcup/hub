@@ -26,6 +26,14 @@ describe("parseTicketInput", () => {
     expect(parseTicketInput({ ticketNote: "x".repeat(TICKET_NOTE_MAX_LENGTH + 1) })).toEqual({ error: expect.stringContaining("at most") });
   });
 
+  it("reads a giver, clears it with null or empty, and rejects anything that is not a member id", () => {
+    expect(parseTicketInput({ ticketGiverId: "mbr_AAAAAAAAAAA1" })).toEqual({ giverId: "mbr_AAAAAAAAAAA1" });
+    expect(parseTicketInput({ ticketGiverId: null })).toEqual({ giverId: null });
+    expect(parseTicketInput({ ticketGiverId: "" })).toEqual({ giverId: null });
+    expect(parseTicketInput({ ticketGiverId: "prkl_AAAAAAAAAAA1" })).toEqual({ error: "ticketGiverId must be a member id" });
+    expect(parseTicketInput({ ticketGiverId: 5 })).toEqual({ error: "ticketGiverId must be a member id" });
+  });
+
   it("knows the sources", () => {
     expect(isTicketSource("gifted")).toBe(true);
     expect(isTicketSource("donated")).toBe(false);

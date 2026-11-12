@@ -58,6 +58,8 @@ export async function POST(request: NextRequest) {
       // These cascade on delete too, so they must move before the delete below: a retreat
       // attendance with its badge, and the Big Sister matches and volunteer record.
       createRepos(supabase).events.moveAttendances(secondaryId, primaryId),
+      // The "gifted by" links to the secondary would be cleared by the delete (SET NULL).
+      createRepos(supabase).events.moveTicketGiver(secondaryId, primaryId),
       createRepos(supabase).badges.moveAwards(secondaryId, primaryId),
       createRepos(supabase).mentorship.moveMemberRecords(secondaryId, primaryId),
       createRepos(supabase).activities.reassign(secondaryId, primaryId),

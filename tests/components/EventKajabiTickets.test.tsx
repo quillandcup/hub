@@ -16,8 +16,8 @@ const AUTUMN = { kajabiOfferId: "o3", name: "Autumn Retreat", detail: "PAY IN FU
 
 const MATCHES = {
   offersLinked: true,
-  multiTicketBuyers: [] as { member_id: string | null; name: string; tickets: number; first_bought: string | null; is_attendee: boolean }[],
-  giftedAttendees: 0,
+  multiTicketBuyers: [] as { member_id: string | null; name: string; tickets: number; first_bought: string | null; is_attendee: boolean; passed_to: string[]; unexplained: number }[],
+  passedOn: [] as { giver_id: string; giver_name: string; tickets: number; receivers: string[] }[],
   buyers: [
     { member_id: "mbr_AAAAAAAAAAA1", member_name: "Ada E", member_real_name: "Ada Example", member_status: "active", offer_names: ["Summer Retreat"], purchase_date: "2097-01-10T12:00:00Z", amount_in_cents: 5000, purchase_count: 1, deactivated: false },
     { member_id: "mbr_AAAAAAAAAAA2", member_name: "Bo Example", member_real_name: null, member_status: "cancelled", offer_names: ["Summer Retreat"], purchase_date: "2097-01-11T12:00:00Z", amount_in_cents: 5000, purchase_count: 1, deactivated: true },
@@ -143,7 +143,7 @@ describe("Kajabi tickets on an event", () => {
   });
 
   it("says when everyone who bought is already an attendee", async () => {
-    matches = { offersLinked: true, multiTicketBuyers: [], giftedAttendees: 0, buyers: [], unmatched: [], attendeesWithoutTicket: [] };
+    matches = { offersLinked: true, multiTicketBuyers: [], passedOn: [], buyers: [], unmatched: [], attendeesWithoutTicket: [] };
     render(<EventKajabiTickets eventId={EVENT} onAttendeesChanged={vi.fn()} />);
 
     await userEvent.click(await screen.findByRole("button", { name: "Find Kajabi matches" }));
@@ -168,23 +168,47 @@ describe("Kajabi tickets on an event", () => {
     // "Ada E" is both the buyer's name and the target of the attendee's hint.
     expect(screen.getAllByRole("link", { name: "Ada E" }).map((a) => a.getAttribute("href"))).toContain("/admin/members/mbr_AAAAAAAAAAA1");
   });
-  it("lists who bought more than one ticket, with the extra ones and how many are recorded as gifted", async () => {
+  it("lists who bought more than one ticket: who the extras went to, and only the ones not accounted for as a count", async () => {
     matches = {
       ...MATCHES,
-      giftedAttendees: 1,
       multiTicketBuyers: [
-        { member_id: "mbr_AAAAAAAAAAA1", name: "Ada E", tickets: 2, first_bought: "2097-01-10T12:00:00Z", is_attendee: true },
-        { member_id: null, name: "stranger@example.com", tickets: 3, first_bought: null, is_attendee: false },
+        { member_id: "mbr_AAAAAAAAAAA1", name: "Ada E", tickets: 2, first_bought: "2097-01-10T12:00:00Z", is_attendee: true, passed_to: ["Di Example"], unexplained: 0 },
+        { member_id: null, name: "stranger@example.com", tickets: 3, first_bought: null, is_attendee: false, passed_to: [], unexplained: 3 },
       ],
     };
     render(<EventKajabiTickets eventId={EVENT} onAttendeesChanged={vi.fn()} />);
 
     await userEvent.click(await screen.findByRole("button", { name: "Find Kajabi matches" }));
 
-    expect(await screen.findByText("Bought more than one ticket (2)")).toBeInTheDocument();
+    expect(await screen.findByText("Bought more than one ticket (3 not accounted for)")).toBeInTheDocument();
     expect(screen.getByText("2 tickets · 2097-01-10 · attendee")).toBeInTheDocument();
-    expect(screen.getByText("3 tickets · not an attendee")).toBeInTheDocument();
-    expect(screen.getByText(/3 extra, 1 attendee recorded as gifted\./)).toBeInTheDocument();
+    expect(screen.getByText("-> gave to Di Example")).toBeInTheDocument();
+    expect(screen.getByText("3 not accounted for")).toBeInTheDocument();
+    expect(screen.queryByText(/recorded as gifted/)).not.toBeInTheDocument();
+  });
+
+  it("shows no count when every extra ticket is explained", async () => {
+    matches = {
+      ...MATCHES,
+      multiTicketBuyers: [{ member_id: "mbr_AAAAAAAAAAA1", name: "Ada E", tickets: 2, first_bought: null, is_attendee: true, passed_to: ["Di Example"], unexplained: 0 }],
+    };
+    render(<EventKajabiTickets eventId={EVENT} onAttendeesChanged={vi.fn()} />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Find Kajabi matches" }));
+
+    expect(await screen.findByText("Bought more than one ticket")).toBeInTheDocument();
+    expect(screen.queryByText(/not accounted for/)).not.toBeInTheDocument();
+  });
+
+  it("lists tickets passed on, giver to receivers", async () => {
+    matches = { ...MATCHES, passedOn: [{ giver_id: "mbr_AAAAAAAAAAA2", giver_name: "Bo Example", tickets: 1, receivers: ["Cy Example"] }] };
+    render(<EventKajabiTickets eventId={EVENT} onAttendeesChanged={vi.fn()} />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Find Kajabi matches" }));
+
+    expect(await screen.findByText("Tickets passed on (1)")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Bo Example" }).map((a) => a.getAttribute("href"))).toContain("/admin/members/mbr_AAAAAAAAAAA2");
+    expect(screen.getByText("-> Cy Example")).toBeInTheDocument();
   });
 
   it("says what Kajabi knows about each attendee with no purchase", async () => {

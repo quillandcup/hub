@@ -1,5 +1,5 @@
 import { ORG_TIMEZONE } from "@/lib/config";
-import { recordedTicketSource, type TicketInput, type TicketSource } from "@/lib/event-tickets";
+import { recordedTicketSource, type SetTicketResult, type TicketInput, type TicketSource } from "@/lib/event-tickets";
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
 import { inChunks } from "./query";
 import type { Db, Insert, Row, Update } from "./db";
@@ -193,8 +193,15 @@ export interface EventRepository {
   attendeesOf(eventId: string): Promise<EventAttendeeEntry[]>;
   /** Moves every event attendance of one member to another (a member merge). Events the target already attends are left alone: the source's row for them is dropped with the source. Returns how many moved. */
   moveAttendances(fromMemberId: string, toMemberId: string): Promise<number>;
-  /** Records how an attendee got in; only the fields given change, null clears one. False when the member isn't an attendee of the event. */
-  setAttendeeTicket(eventId: string, memberId: string, ticket: TicketInput): Promise<boolean>;
+  /**
+   * Records how an attendee got in; only the fields given change, null clears one. A giver is kept only
+   * while the source is gifted: setting the source to anything else (or clearing it) clears the giver.
+   * Refuses, changing nothing, when the member isn't an attendee, a member would be their own giver, a
+   * giver is given without a gifted source, or the giver is not a member.
+   */
+  setAttendeeTicket(eventId: string, memberId: string, ticket: TicketInput): Promise<SetTicketResult>;
+  /** Moves the "gifted by" link of every attendee from one member to another (a member merge); returns how many moved. Without it deleting the duplicate would clear them. */
+  moveTicketGiver(fromMemberId: string, toMemberId: string): Promise<number>;
   /** The Kajabi offer ids that sell this event, oldest link first. */
   offerIdsOf(eventId: string): Promise<string[]>;
   /** Every linked offer id with the event it sells (an offer sells one event). */
@@ -331,6 +338,8 @@ export interface EventAttendeeEntry {
   /** How they got in; null when not recorded. */
   ticket_source: TicketSource | null;
   ticket_note: string | null;
+  /** Who gave the ticket (only with a gifted source); null when not recorded or the giver is gone. */
+  ticket_giver: { id: string; name: string; display_name: string | null } | null;
   member: { name: string; display_name: string | null; email: string } | null;
 }
 
@@ -643,18 +652,27 @@ export class SupabaseEventRepository implements EventRepository {
   }
 
   async attendeesOf(eventId: string) {
-    type Embedded = { id: string; member_id: string; ticket_source: string | null; ticket_note: string | null; members: EventAttendeeEntry["member"] };
+    type Embedded = {
+      id: string;
+      member_id: string;
+      ticket_source: string | null;
+      ticket_note: string | null;
+      members: EventAttendeeEntry["member"];
+      giver: EventAttendeeEntry["ticket_giver"];
+    };
     const rows = await fetchAllRows<Embedded>(
       (from, to) =>
         this.db
           .from("event_attendees")
-          .select("id, member_id, ticket_source, ticket_note, members(name, display_name, email)")
+          .select(
+            "id, member_id, ticket_source, ticket_note, members!event_attendees_member_id_fkey(name, display_name, email), giver:members!event_attendees_ticket_giver_id_fkey(id, name, display_name)"
+          )
           .eq("event_id", eventId)
           .order("created_at", { ascending: true })
           .order("id")
           .range(from, to)
     );
-    return rows.map((r) => ({ id: r.id, member_id: r.member_id, ticket_source: recordedTicketSource(r.ticket_source), ticket_note: r.ticket_note, member: r.members }));
+    return rows.map((r) => ({ id: r.id, member_id: r.member_id, ticket_source: recordedTicketSource(r.ticket_source), ticket_note: r.ticket_note, ticket_giver: r.giver, member: r.members }));
   }
 
   async moveAttendances(fromMemberId: string, toMemberId: string) {
@@ -670,18 +688,42 @@ export class SupabaseEventRepository implements EventRepository {
     return ids.length;
   }
 
-  async setAttendeeTicket(eventId: string, memberId: string, ticket: TicketInput) {
-    const { data, error } = await this.db
+  async setAttendeeTicket(eventId: string, memberId: string, ticket: TicketInput): Promise<SetTicketResult> {
+    if (ticket.giverId && ticket.giverId === memberId) return "self_gift";
+    const { data: current, error: readError } = await this.db
+      .from("event_attendees")
+      .select("ticket_source")
+      .eq("event_id", eventId)
+      .eq("member_id", memberId)
+      .maybeSingle();
+    if (readError) throw new Error(readError.message);
+    if (!current) return "not_attendee";
+    const source = ticket.source !== undefined ? ticket.source : recordedTicketSource(current.ticket_source);
+    if (ticket.giverId && source !== "gifted") return "not_gifted";
+    const { error } = await this.db
       .from("event_attendees")
       .update({
         ...(ticket.source !== undefined && { ticket_source: ticket.source }),
         ...(ticket.note !== undefined && { ticket_note: ticket.note }),
+        ...(ticket.giverId !== undefined && { ticket_giver_id: ticket.giverId }),
+        ...(ticket.source !== undefined && ticket.source !== "gifted" && { ticket_giver_id: null }),
       })
       .eq("event_id", eventId)
-      .eq("member_id", memberId)
-      .select("id");
+      .eq("member_id", memberId);
+    if (error) {
+      if (error.code === "23503") return "unknown_giver";
+      throw new Error(error.message);
+    }
+    return "set";
+  }
+
+  async moveTicketGiver(fromMemberId: string, toMemberId: string) {
+    const { data, error } = await this.db.from("event_attendees").update({ ticket_giver_id: toMemberId }).eq("ticket_giver_id", fromMemberId).select("id");
     if (error) throw new Error(error.message);
-    return (data ?? []).length > 0;
+    // The duplicate had given the survivor a ticket: a member is never their own giver.
+    const { error: selfError } = await this.db.from("event_attendees").update({ ticket_giver_id: null }).eq("member_id", toMemberId).eq("ticket_giver_id", toMemberId);
+    if (selfError) throw new Error(selfError.message);
+    return (data ?? []).length;
   }
 
   async offerIdsOf(eventId: string) {
@@ -984,13 +1026,14 @@ export class InMemoryEventRepository implements EventRepository {
     return this.data.eventAttendees
       .flatMap((a) =>
         a.event_id === eventId && a.member_id
-          ? [{ id: a.id ?? "", member_id: a.member_id, created_at: a.created_at ?? "", ticket_source: recordedTicketSource(a.ticket_source), ticket_note: a.ticket_note ?? null }]
+          ? [{ id: a.id ?? "", member_id: a.member_id, created_at: a.created_at ?? "", ticket_source: recordedTicketSource(a.ticket_source), ticket_note: a.ticket_note ?? null, giverId: a.ticket_giver_id ?? null }]
           : []
       )
       .sort((a, b) => (a.created_at !== b.created_at ? (a.created_at < b.created_at ? -1 : 1) : a.id < b.id ? -1 : 1))
       .map((a) => {
         const m = this.data.members.find((x) => x.id === a.member_id);
-        return { id: a.id, member_id: a.member_id, ticket_source: a.ticket_source, ticket_note: a.ticket_note, member: m ? { name: m.name, display_name: m.displayName ?? null, email: m.email ?? "" } : null };
+        const g = a.giverId ? this.data.members.find((x) => x.id === a.giverId) : undefined;
+        return { id: a.id, member_id: a.member_id, ticket_source: a.ticket_source, ticket_note: a.ticket_note, ticket_giver: g ? { id: g.id, name: g.name, display_name: g.displayName ?? null } : null, member: m ? { name: m.name, display_name: m.displayName ?? null, email: m.email ?? "" } : null };
       });
   }
 
@@ -1026,12 +1069,30 @@ export class InMemoryEventRepository implements EventRepository {
     return moved;
   }
 
-  async setAttendeeTicket(eventId: string, memberId: string, ticket: TicketInput) {
+  async setAttendeeTicket(eventId: string, memberId: string, ticket: TicketInput): Promise<SetTicketResult> {
+    if (ticket.giverId && ticket.giverId === memberId) return "self_gift";
     const row = this.data.eventAttendees.find((a) => a.event_id === eventId && a.member_id === memberId);
-    if (!row) return false;
+    if (!row) return "not_attendee";
+    const source = ticket.source !== undefined ? ticket.source : recordedTicketSource(row.ticket_source);
+    if (ticket.giverId) {
+      if (source !== "gifted") return "not_gifted";
+      if (!this.data.members.some((m) => m.id === ticket.giverId)) return "unknown_giver";
+    }
     if (ticket.source !== undefined) row.ticket_source = ticket.source;
     if (ticket.note !== undefined) row.ticket_note = ticket.note;
-    return true;
+    if (ticket.giverId !== undefined) row.ticket_giver_id = ticket.giverId;
+    if (ticket.source !== undefined && ticket.source !== "gifted") row.ticket_giver_id = null;
+    return "set";
+  }
+
+  async moveTicketGiver(fromMemberId: string, toMemberId: string) {
+    let moved = 0;
+    for (const a of this.data.eventAttendees) {
+      if (a.ticket_giver_id !== fromMemberId) continue;
+      a.ticket_giver_id = a.member_id === toMemberId ? null : toMemberId;
+      moved++;
+    }
+    return moved;
   }
 
   async visibilityByCalendarEvent(calendarEventIds: string[]) {

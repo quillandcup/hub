@@ -40,6 +40,7 @@ beforeEach(() => {
       { id: "a1", event_id: SPRING, member_id: DUP, ticket_source: "gifted" },
       { id: "a2", event_id: ARKANSAS, member_id: DUP },
       { id: "a3", event_id: ARKANSAS, member_id: KEEP },
+      { id: "a4", event_id: SPRING, member_id: OTHER, ticket_source: "gifted", ticket_giver_id: DUP },
     ],
     memberBadges: [
       { id: "b1", memberId: DUP, badgeTypeId: TYPE, occurredAt: "2023-04-01", note: null, eventId: SPRING, awardedBy: null },
@@ -67,6 +68,12 @@ describe("POST /api/admin/members/merge keeps retreats, badges and Big Sister re
     expect(attendeesOfKeep.map((a) => a.event_id).sort()).toEqual([SPRING, ARKANSAS]);
     expect(attendeesOfKeep.find((a) => a.event_id === SPRING)?.ticket_source).toBe("gifted");
     expect(dataset.memberBadges.filter((b) => b.memberId === KEEP).map((b) => b.eventId).sort()).toEqual([SPRING, ARKANSAS]);
+  });
+
+  it("repoints the gifted-by link of tickets the duplicate gave, so deleting the duplicate does not clear it", async () => {
+    await merge();
+
+    expect(dataset.eventAttendees.find((a) => a.id === "a4")?.ticket_giver_id).toBe(KEEP);
   });
 
   it("moves the duplicate's Big Sister matches and volunteer record", async () => {
