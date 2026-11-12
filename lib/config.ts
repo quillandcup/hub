@@ -75,6 +75,7 @@ export const CARE_RETENTION_CHECKPOINT_DAYS: readonly number[] = appConfig.careR
 
 /** Where members are told to email for help. */
 export const SUPPORT_EMAIL = appConfig.supportEmail;
+export const KAJABI_ADMIN_OFFER_URL = appConfig.kajabiAdminOfferUrl;
 
 /** Whether book covers are served to visitors who aren't signed in (app.config.ts `bookshelfPublic`). */
 export const BOOKSHELF_PUBLIC: boolean = appConfig.bookshelfPublic;

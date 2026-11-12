@@ -1,8 +1,14 @@
 import { describe, it, expect } from "vitest";
+import { KAJABI_ADMIN_OFFER_URL } from "@/lib/config";
 import { buildOfferCoverage, coverageState, loadOfferCoverage } from "@/lib/offer-coverage";
 
 const offers = [
-  { kajabi_offer_id: "o1", name: "Summer Retreat", status: "active" },
+  {
+    kajabi_offer_id: "o1",
+    name: "Summer Retreat",
+    status: "active",
+    data: { attributes: { checkout_url: "https://example.com/offers/abc" }, relationships: { site: { data: { id: "site1" } } } },
+  },
   { kajabi_offer_id: "o2", name: "Ready Writer", status: "active" },
   { kajabi_offer_id: "o3", name: "180 Program", status: "active" },
   { kajabi_offer_id: "o4", name: "Orphan Offer", status: null },
@@ -34,6 +40,13 @@ describe("buildOfferCoverage", () => {
     expect(rows[0].offerId).toBe("o1");
     expect(rows.map((r) => coverageState(r))).toEqual(["multiple", "unmapped", "unmapped", "mapped", "mapped"]);
     expect(rows.at(-1)!.offerId).toBe("o2");
+  });
+
+  it("links to the offer in Kajabi and to its checkout page when the record has them", () => {
+    expect(byId("o1").kajabiUrl).toBe(KAJABI_ADMIN_OFFER_URL.replace("{siteId}", "site1").replace("{offerId}", "o1"));
+    expect(byId("o1").checkoutUrl).toBe("https://example.com/offers/abc");
+    expect(byId("o2").kajabiUrl).toBeNull();
+    expect(byId("o2").checkoutUrl).toBeNull();
   });
 
   it("falls back to the id for an offer without a name and never matches it to a program", () => {

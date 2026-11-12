@@ -144,7 +144,7 @@ export const SITE_PAGES: SitePage[] = [
   admin({ title: "Hedgie Care: earlier", href: "/admin/care/earlier", section: "Member Programs", keywords: ["closed", "lapsed", "past engagements", "reach out"], communityManager: true }),
   admin({ title: "At-Risk Members", href: "/admin/at-risk", section: "Member Programs", nav: { icon: "⚠️" }, keywords: ["churn", "lapsing"], communityManager: true }),
   admin({ title: "Courses", href: "/admin/courses", section: "Education", nav: { icon: "📚", activeFor: ["/admin/courses/"] }, keywords: ["lessons", "kajabi", "ready writer", "publish", "launch"] }),
-  admin({ title: "Kajabi Offers", href: "/admin/offers", section: "Education", nav: { icon: "🏷️" }, keywords: ["offers", "mapping", "migrate", "kajabi", "products", "tickets"] }),
+  admin({ title: "Kajabi Offers", href: "/admin/offers", section: "Sales & Marketing", nav: { icon: "🏷️" }, keywords: ["offers", "mapping", "migrate", "kajabi", "products", "tickets"] }),
   admin({ title: "Programs", href: "/admin/programs", section: "Education", nav: { icon: "🎓" }, keywords: ["cohorts"], feature: "program_cohorts" }),
   admin({ title: "Network", href: "/admin/members/network", section: "Community", nav: { icon: "🕸️" }, keywords: ["graph"] }),
   admin({ title: "Badges", href: "/admin/badges", section: "Community", nav: { icon: "🏅" } }),
