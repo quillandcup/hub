@@ -14,7 +14,8 @@ vi.mock('next/navigation', () => ({
 
 import { SortableTh } from '@/components/SortableTh'
 import { DataTablePager } from '@/components/DataTablePager'
-import { useDataTable, useServerDataTable, type DataTable } from '@/lib/hooks/useDataTable'
+import { DataTableSearch } from '@/components/DataTableSearch'
+import { matchesSearch, useDataTable, useServerDataTable, type DataTable } from '@/lib/hooks/useDataTable'
 import { AUTO_PAGINATE_THRESHOLD } from '@/lib/pagination'
 
 interface Row {
@@ -71,8 +72,56 @@ function ClientHarness({ count, paginate }: { count: number; paginate?: 'auto' |
   )
 }
 
+function SearchHarness({ count, withSearch = true }: { count: number; withSearch?: boolean }) {
+  const table = useDataTable<Row, Col>({
+    rows: makeRows(count),
+    getSortValue,
+    defaultSort: { column: 'name', direction: 'asc' },
+    search: withSearch ? (r) => r.name : undefined,
+  })
+  return (
+    <>
+      <DataTableSearch table={table} label="Search items" />
+      <Table table={table} />
+    </>
+  )
+}
+
 const names = () => screen.getAllByRole('cell').map((c) => c.textContent)
 const next = () => userEvent.click(screen.getByRole('button', { name: /next/i }))
+
+describe('matchesSearch', () => {
+  it('needs every word, in any order and case, and matches everything when empty', () => {
+    expect(matchesSearch('Summer Retreat 2024', 'retreat summer')).toBe(true)
+    expect(matchesSearch('Summer Retreat 2024', 'summer winter')).toBe(false)
+    expect(matchesSearch('Summer Retreat 2024', '   ')).toBe(true)
+  })
+})
+
+describe('useDataTable search', () => {
+  it('narrows the rows across every page, and returns to page 1', async () => {
+    render(<SearchHarness count={120} />)
+    await next()
+    expect(screen.getByText('Page 2 of 3')).toBeInTheDocument()
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Search items' }), '119 item')
+    expect(names()).toEqual(['Item 119']) // a row from page 3, found from page 2, with the words in any order
+    expect(screen.queryByRole('navigation', { name: /pagination/i })).toBeNull()
+  })
+
+  it('shows every row again when the query is cleared', async () => {
+    render(<SearchHarness count={5} />)
+    const box = screen.getByRole('searchbox', { name: 'Search items' })
+    await userEvent.type(box, 'nothing like it')
+    expect(screen.queryAllByRole('cell')).toHaveLength(0)
+    await userEvent.clear(box)
+    expect(names()).toHaveLength(5)
+  })
+
+  it('renders no search box for a table without search', () => {
+    render(<SearchHarness count={5} withSearch={false} />)
+    expect(screen.queryByRole('searchbox')).toBeNull()
+  })
+})
 
 describe('useDataTable (client mode)', () => {
   it(`shows every row and no pager at exactly ${AUTO_PAGINATE_THRESHOLD} rows`, () => {

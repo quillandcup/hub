@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { DataTablePager } from "@/components/DataTablePager";
+import { DataTableSearch } from "@/components/DataTableSearch";
 import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import { coverageState, type OfferCoverageRow, type OfferCoverageState } from "@/lib/offer-coverage";
@@ -28,6 +29,8 @@ export default function OffersTable({ rows }: { rows: OfferCoverageRow[] }) {
   const table = useDataTable<OfferCoverageRow, Column>({
     rows: shown,
     resetKey: filter,
+    // Name, id, state and the resources it maps to.
+    search: (row) => [row.name, row.offerId, STATE_LABEL[coverageState(row)], ...row.resources.flatMap((r) => [r.kind, r.title])].join(" "),
     defaultSort: { column: "state", direction: "asc" },
     getSortValue: (row, column) => {
       if (column === "offer") return row.name.toLowerCase();
@@ -38,7 +41,8 @@ export default function OffersTable({ rows }: { rows: OfferCoverageRow[] }) {
 
   return (
     <>
-      <div className="mb-3 flex items-center gap-2 text-sm">
+      <div className="mb-3 flex flex-wrap items-center gap-3 text-sm">
+        <DataTableSearch table={table} label="Search offers" />
         <label htmlFor="offer-state-filter">Show</label>
         <select
           id="offer-state-filter"
