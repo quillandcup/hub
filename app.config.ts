@@ -140,8 +140,8 @@ export const appConfig = {
    */
   kajabiPhotoHosts: ["kajabi-storefronts-production.kajabi-cdn.com"],
 
-  /** An offer's edit page in the Kajabi admin, for the admin Offers page; `{siteId}` and `{offerId}` are filled in. */
-  kajabiAdminOfferUrl: "https://app.kajabi.com/admin/sites/{siteId}/offers/{offerId}/edit",
+  /** An offer's edit page in the Kajabi admin, for the admin Offers page; `{offerId}` is filled in. */
+  kajabiAdminOfferUrl: "https://app.kajabi.com/admin/offers/{offerId}/edit",
 
   csp: {
     imageHosts: [
