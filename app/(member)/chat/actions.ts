@@ -15,6 +15,7 @@ import { notifyChatMessage, resolveChatNotifications } from "@/lib/chat/notifica
 import { removeChatFileBytes } from "@/lib/chat/file-cleanup";
 import { keepCopies } from "@/lib/chat/slack-upload";
 import type { Json } from "@/lib/data/database.types";
+import { removeSlackUnfurl, type SlackUnfurlRemoval } from "@/lib/chat/slack-unfurl-removal";
 import { deleteChatFileInSlack, deleteChatMessageInSlack, updateChatMessageInSlack } from "@/lib/chat/slack-edit";
 import { getSlackConnectionStatus } from "@/lib/slack-connect";
 import { isId } from "@/lib/ids";
@@ -663,13 +664,17 @@ async function deleteChatMessageImpl(messageId: string): Promise<ChangeChatResul
 }
 
 /**
- * The author removes a card (a link preview, or one of Slack's unfurls) from their own message, like the X on a preview in Slack. Slack's
- * cannot be taken away in Slack from here, so the Hub records the removal and stops drawing the card (docs/SLACK_BRIDGED_CHAT.md, "Link previews").
+ * The author removes a card (a link preview, or one of Slack's unfurls) from their own message, like the X on a preview in Slack. The Hub
+ * records the removal and stops drawing the card; for a message written in the Hub it then also takes Slack's preview of that link off the
+ * Slack copy, best effort (`removeSlackUnfurl`: a failure leaves the Hub removal standing and says `slack: "failed"` so the card can say so).
+ * A message written in Slack is left to its author in Slack (docs/SLACK_BRIDGED_CHAT.md, "Link previews").
  * The write is the author's own, as themselves: row-level security lets only the author of the message (a Slack author matched to a member
  * counts) write it, so another member's call is refused. The key names the card (`unfurlKey`); the database refuses anything but an address or a position.
  * An edit that fetches the preview again finds the mark by its address, so the card does not come back.
  */
-async function hideChatUnfurlImpl(messageId: string, key: string): Promise<ChangeChatResult> {
+export type HideChatUnfurlResult = { ok: true; slack: SlackUnfurlRemoval } | { ok: false; error: string };
+
+async function hideChatUnfurlImpl(messageId: string, key: string): Promise<HideChatUnfurlResult> {
   if (!isId(messageId, "msg") || typeof key !== "string" || key.length > 2100 || !/^(url:https?:\/\/\S+|idx:\d{1,2})$/.test(key)) return { ok: false, error: "Something went wrong." };
   const caller = await postingCaller();
   if (!caller) return { ok: false, error: "Editing isn't available to you yet." };
@@ -680,7 +685,9 @@ async function hideChatUnfurlImpl(messageId: string, key: string): Promise<Chang
     console.error("[chat] removing a card of %s failed:", messageId, error instanceof Error ? error.message : "unknown error");
     return { ok: false, error: "That preview can't be removed." };
   }
-  return { ok: true };
+  // The Hub's own removal stands whatever Slack says. Service role: the author's token is looked up for them, never another member's.
+  const slack = await removeSlackUnfurl(createServiceRoleClient(), { messageId, memberId: caller.identity.memberId, key });
+  return { ok: true, slack };
 }
 
 /** The author removes one attachment from their own Hub message: in Slack first, then the Hub's file list. */

@@ -15,6 +15,7 @@ export type OperationsAlert =
   | { type: "cron_partial_failure"; job: string; problems: string[] }
   | { type: "slack_bot_token_failed"; problem: "refresh_failed" | "not_stored" | "expired"; detail?: string }
   | { type: "slack_blocks_refused"; where: "post" | "edit" | "upload" }
+  | { type: "slack_unfurl_removal_failed"; reason: string }
   | { type: "ambiguous_slack_member_match"; collisions: ReadonlyArray<{ reason: string; slackUserIds: string[]; memberIds: string[] }> };
 
 /** Where the course video path broke: Mux's webhook couldn't be recorded, Mux couldn't prepare a video, or a member's player errored. */
@@ -119,6 +120,15 @@ function alertDetails(alert: OperationsAlert): { bucket: string; title: string; 
       title: `Slack refused a ${what}'s blocks`,
       // No message id here: it is a Hub id, and this goes to Slack. The Sentry event has it.
       text: `Slack refused the rich-text blocks (invalid_blocks) for a ${what}, so it was sent as plain text without its list or underline. The blocks our conversion built (bodyToBlocks in lib/chat/rich-blocks.ts) are something Slack does not accept. Find the Sentry event tagged chat_blocks_refused=${alert.where} (it has the message id and Slack's error) and the "Slack refused the blocks" line in the Vercel logs; reproduce with that message's text.`,
+    };
+  }
+
+  if (alert.type === "slack_unfurl_removal_failed") {
+    return {
+      bucket: `operations_alert:slack_unfurl_removal_failed:${alert.reason}`,
+      title: "Slack kept a link preview an author removed",
+      // No message id or address: this goes to Slack. The Vercel log line has the message id.
+      text: `A member removed a link preview from a message they wrote in Hub Chat, and the update that takes it off the Slack copy failed (${alert.reason}). The Hub no longer shows the card; Slack readers may still see it. Look for "taking a preview off the Slack copy" in the Vercel logs (lib/chat/slack-unfurl-removal.ts).`,
     };
   }
 

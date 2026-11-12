@@ -25,7 +25,7 @@ beforeEach(() => {
   refresh.mockReset();
   track.mockReset();
   pokeChat.mockReset().mockReturnValue(false);
-  hideChatUnfurl.mockReset().mockResolvedValue({ ok: true });
+  hideChatUnfurl.mockReset().mockResolvedValue({ ok: true, slack: "not_needed" });
 });
 
 describe("a link preview the Hub made", () => {
@@ -72,7 +72,7 @@ describe("the X on a card", () => {
 
     await waitFor(() => expect(refresh).toHaveBeenCalled());
     expect(hideChatUnfurl).toHaveBeenCalledWith(MESSAGE, "url:https://example.test/post");
-    expect(track).toHaveBeenCalledWith("chat_unfurl_removed", { source: "hub" });
+    expect(track).toHaveBeenCalledWith("chat_unfurl_removed", { source: "hub", slack: "not_needed" });
     expect(JSON.stringify(track.mock.calls)).not.toContain("example.test");
   });
 
@@ -83,7 +83,28 @@ describe("the X on a card", () => {
     fireEvent.click(screen.getByRole("button", { name: "Remove preview" }));
 
     await waitFor(() => expect(hideChatUnfurl).toHaveBeenCalledWith(MESSAGE, "url:https://slack-card.example.test/"));
-    expect(track).toHaveBeenCalledWith("chat_unfurl_removed", { source: "slack" });
+    expect(track).toHaveBeenCalledWith("chat_unfurl_removed", { source: "slack", slack: "not_needed" });
+  });
+
+  it("says calmly that Slack may still show the card when the Slack copy could not be updated, then lets the card go", async () => {
+    const real = globalThis.setTimeout;
+    const later: (() => void)[] = [];
+    // Only the component's own 3.5 second pause is captured; Testing Library's polling keeps its real timers.
+    const spy = vi.spyOn(globalThis, "setTimeout").mockImplementation(((fn: () => void, ms?: number, ...rest: unknown[]) => (ms === 3500 ? (later.push(fn), 0 as never) : real(fn, ms, ...rest))) as never);
+    try {
+      hideChatUnfurl.mockResolvedValue({ ok: true, slack: "failed" });
+      render(<MessageUnfurls unfurls={hubCard()} ctx={ctx} permalink={null} removable={{ channelId: CHANNEL, messageId: MESSAGE }} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Remove preview" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent("Removed here. It may still show in Slack.");
+      expect(track).toHaveBeenCalledWith("chat_unfurl_removed", { source: "hub", slack: "failed" });
+      expect(refresh).not.toHaveBeenCalled();
+
+      later.forEach((fn) => fn());
+      expect(refresh).toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("shows why it failed and records nothing", async () => {
