@@ -26,7 +26,7 @@ export function helpImageObjectPath(scene: string, file: string, version: string
  * The order articles appear in the index, from first steps to hosting. A new article is added here on purpose
  * (a test fails until it is); any article not listed sorts after these, by name.
  */
-export const HELP_ORDER = ["join-a-prickle", "plan-your-month", "become-a-host", "start-a-pup", "run-a-prickle"];
+export const HELP_ORDER = ["join-a-prickle", "plan-your-month", "share-a-lesson-video-in-chat", "become-a-host", "start-a-pup", "run-a-prickle"];
 
 const HELP_DIR = path.join(process.cwd(), "help");
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
