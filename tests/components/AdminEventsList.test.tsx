@@ -75,6 +75,19 @@ describe("admin events list", () => {
     expect(screen.getByText("Old retreat")).toBeInTheDocument();
     await userEvent.clear(screen.getByLabelText("Search events"));
     await userEvent.type(screen.getByLabelText("Search events"), "zzz");
-    expect(screen.getByText("No events match your search.")).toBeInTheDocument();
+    expect(screen.getByText("No events match your filters.")).toBeInTheDocument();
+  });
+
+  it("filters to events overlapping a date range and clears it", async () => {
+    render(<EventsClient />);
+    await screen.findByText("Soon");
+    await userEvent.type(screen.getByLabelText("From"), "2020-05-02");
+    await userEvent.type(screen.getByLabelText("To"), "2021-12-31");
+    await waitFor(() => expect(screen.queryByText("Soon")).not.toBeInTheDocument());
+    expect(screen.getByText("Old retreat")).toBeInTheDocument();
+    expect(screen.getByText("Recent past")).toBeInTheDocument();
+    expect(screen.queryByText("Far future")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByText("Clear dates"));
+    expect(screen.getByText("Soon")).toBeInTheDocument();
   });
 });

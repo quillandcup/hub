@@ -14,6 +14,7 @@ import { EVENT_TYPE_OPTIONS } from "@/lib/events-filter";
 import MediaPicker from "@/components/media/MediaPicker";
 import MemberSearch from "@/components/MemberSearch";
 import { ORG_TIMEZONE } from "@/lib/config";
+import DatePicker from "@/components/DatePicker";
 
 interface EventRow {
   id: string;
@@ -116,9 +117,16 @@ export default function EventsClient() {
       .catch(() => {});
   }, []);
   const [query, setQuery] = useState("");
+  // Events that overlap this range of days (YYYY-MM-DD); empty means open-ended.
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    const ordered = orderForAdmin(events);
+    const ordered = orderForAdmin(events).filter((e) => {
+      const start = e.starts_at.slice(0, 10);
+      const end = (e.ends_at || e.starts_at).slice(0, 10);
+      return (!from || end >= from) && (!to || start <= to);
+    });
     if (!needle) return ordered;
     return ordered.filter((e) =>
       [
@@ -131,12 +139,12 @@ export default function EventsClient() {
         .toLowerCase()
         .includes(needle),
     );
-  }, [events, query]);
+  }, [events, query, from, to]);
   const table = useDataTable<EventRow, SortColumn>({
     rows: visible,
     getSortValue,
     defaultSort: null,
-    resetKey: query,
+    resetKey: `${query}|${from}|${to}`,
   });
   const { sortColumn, sortDirection, handleSort } = table;
 
@@ -205,7 +213,7 @@ export default function EventsClient() {
         </div>
       )}
 
-      <div className="mb-4 flex flex-wrap items-center gap-3">
+      <div className="mb-4 flex flex-wrap items-end gap-3">
         <input
           type="search"
           value={query}
@@ -214,6 +222,20 @@ export default function EventsClient() {
           aria-label="Search events"
           className="flex-1 min-w-[12rem] px-3 py-2 border border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 rounded"
         />
+        <DatePicker id="events-from" label="From" value={from} onChange={setFrom} />
+        <DatePicker id="events-to" label="To" value={to} onChange={setTo} min={from || undefined} />
+        {(from || to) && (
+          <button
+            type="button"
+            onClick={() => {
+              setFrom("");
+              setTo("");
+            }}
+            className="px-3 py-2 text-sm text-plum-600 dark:text-plum-400 hover:underline"
+          >
+            Clear dates
+          </button>
+        )}
         {!showForm && (
           <button
             onClick={() => setShowForm(true)}
@@ -413,7 +435,7 @@ export default function EventsClient() {
             {visible.length === 0 ? (
               <tr>
                 <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
-                  {events.length === 0 ? "No events found." : "No events match your search."}
+                  {events.length === 0 ? "No events found." : "No events match your filters."}
                 </td>
               </tr>
             ) : (

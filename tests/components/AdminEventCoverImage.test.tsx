@@ -39,7 +39,7 @@ afterEach(() => {
 });
 
 async function fillAndSubmit(container: HTMLElement) {
-  const [starts, ends] = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="date"]'));
+  const [starts, ends] = Array.from(container.querySelectorAll<HTMLInputElement>('form input[type="date"]'));
   await userEvent.type(screen.getByPlaceholderText(/Virginia Retreat/), "Cover Test");
   await userEvent.type(starts, "2097-06-01");
   await userEvent.type(ends, "2097-06-01");

@@ -69,7 +69,7 @@ afterEach(() => {
 describe("admin create event form: the host", () => {
   async function fill(container: HTMLElement) {
     await userEvent.click(await screen.findByRole("button", { name: "Add Event" }));
-    const [starts, ends] = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="date"]'));
+    const [starts, ends] = Array.from(container.querySelectorAll<HTMLInputElement>('form input[type="date"]'));
     await userEvent.type(screen.getByPlaceholderText(/Virginia Retreat/), "Craft Workshop");
     await userEvent.type(starts, "2097-06-01");
     await userEvent.type(ends, "2097-06-01");
@@ -109,7 +109,7 @@ describe("admin create event form", () => {
   it("offers the new kinds and sends who it's for and how people join", async () => {
     const { container } = render(<EventsClient />);
     await userEvent.click(await screen.findByRole("button", { name: "Add Event" }));
-    const [starts, ends] = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="date"]'));
+    const [starts, ends] = Array.from(container.querySelectorAll<HTMLInputElement>('form input[type="date"]'));
 
     await userEvent.type(screen.getByPlaceholderText(/Virginia Retreat/), "Craft Workshop");
     await userEvent.selectOptions(screen.getAllByRole("combobox")[0], "workshop");
