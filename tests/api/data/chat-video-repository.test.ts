@@ -15,6 +15,8 @@ const clear = async () => {
   if (!messages) return;
   const { error } = await db.from("chat_message_videos").delete().in("message_id", messages);
   if (error) throw new Error(error.message);
+  const undeleted = await db.from("chat_messages").update({ deleted_at: null }).in("id", messages);
+  if (undeleted.error) throw new Error(undeleted.error.message);
 };
 
 beforeAll(async () => {
@@ -53,6 +55,10 @@ defineChatVideoContract("SupabaseChatVideoRepository", () => ({
   },
   get lessons() {
     return lessons;
+  },
+  softDelete: async (messageId) => {
+    const { error } = await db.from("chat_messages").update({ deleted_at: new Date().toISOString() }).eq("id", messageId);
+    if (error) throw new Error(error.message);
   },
   clear,
 }));

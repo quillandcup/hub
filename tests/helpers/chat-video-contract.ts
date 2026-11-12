@@ -7,7 +7,9 @@ export type ChatVideoContractContext = {
   messages: [string, string, string];
   /** Two course lessons that exist. */
   lessons: [string, string];
-  /** Removes the shares this context made. */
+  /** Soft-deletes a message the way the app does (`deleted_at` set; the share row stays). */
+  softDelete: (messageId: string) => Promise<void>;
+  /** Removes the shares this context made, and undeletes the messages. */
   clear: () => Promise<void>;
 };
 
@@ -56,6 +58,16 @@ export function defineChatVideoContract(name: string, setup: () => ChatVideoCont
       expect(await ctx.repo().shareOf(ctx.messages[0])).toEqual({ lessonId: ctx.lessons[0], openToChannel: false });
       expect(await ctx.repo().shareOf(ctx.messages[1])).toEqual({ lessonId: ctx.lessons[1], openToChannel: true });
       expect(await ctx.repo().shareOf(ctx.messages[2])).toBeNull();
+    });
+
+    it("shares nothing once the message is deleted: no lesson, no share, whatever it was open to", async () => {
+      await ctx.repo().attach(ctx.messages[0], ctx.lessons[0], true);
+      await ctx.repo().attach(ctx.messages[1], ctx.lessons[1]);
+      await ctx.softDelete(ctx.messages[0]);
+
+      expect(await ctx.repo().shareOf(ctx.messages[0])).toBeNull();
+      expect([...(await ctx.repo().lessonIdsOf(ctx.messages)).entries()]).toEqual([[ctx.messages[1], ctx.lessons[1]]]);
+      expect(await ctx.repo().shareOf(ctx.messages[1])).toEqual({ lessonId: ctx.lessons[1], openToChannel: false });
     });
 
     it("answers an empty list with an empty map", async () => {

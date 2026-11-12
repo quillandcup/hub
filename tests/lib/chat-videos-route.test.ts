@@ -29,11 +29,12 @@ vi.mock("@/lib/data/repos", async () => ({
 }));
 
 /** The share row, a lesson and its video, each overridable: a missing row stands for what row-level security hides. */
-const setup = (over: { shared?: boolean; open?: boolean; draftCourse?: boolean; lessonState?: string; videoId?: string | null; videoStatus?: string; thumbnail?: boolean | "asset" } = {}) => {
-  const { shared = true, open = false, draftCourse = false, lessonState = "open", videoId = "video_AAAAAAAAAAA1", videoStatus = "ready", thumbnail = false } = over;
+const setup = (over: { shared?: boolean; open?: boolean; draftCourse?: boolean; lessonState?: string; videoId?: string | null; videoStatus?: string; thumbnail?: boolean | "asset"; deleted?: boolean } = {}) => {
+  const { shared = true, open = false, draftCourse = false, lessonState = "open", videoId = "video_AAAAAAAAAAA1", videoStatus = "ready", thumbnail = false, deleted = false } = over;
   repos = createInMemoryRepos(
     new InMemoryDataset({
       courses: [{ id: "crs_AAAAAAAAAAA1", slug: "c", title: "The Ready Writer", is_draft: draftCourse } as never],
+      chatMessages: deleted ? [{ id: MESSAGE, channel_id: "chn_AAAAAAAAAAA1", deleted_at: "2026-01-02T00:00:00Z" } as never] : [],
       chatMessageVideos: shared ? [{ id: "cmv_AAAAAAAAAAA1", message_id: MESSAGE, lesson_id: LESSON, open_to_channel: open, created_at: "2026-01-01T00:00:00Z" }] : [],
       courseLessons: [{ id: LESSON, course_id: "crs_AAAAAAAAAAA1", title: "Show up for the page", state: lessonState, video_id: videoId, thumbnail_url: thumbnail === true ? "https://cdn.example.test/t.jpg" : null, thumbnail_asset_id: thumbnail === "asset" ? "media_AAAAAAAAAAA1" : null } as never],
       videos: [{ id: "video_AAAAAAAAAAA1", status: videoStatus, mux_playback_id: "pb123" } as never],
@@ -63,6 +64,12 @@ describe("POST /api/chat/videos/[messageId]", () => {
     expect((await call("nope")).status).toBe(404);
     vi.mocked(getCoursesCaller).mockResolvedValue(null);
     expect((await call()).status).toBe(401);
+  });
+
+  it("is a 404 for a deleted message, even one an admin opened to the whole channel, and mints nothing", async () => {
+    setup({ deleted: true, open: true });
+    expect((await call()).status).toBe(404);
+    expect(signPlaybackTokens).not.toHaveBeenCalled();
   });
 
   it("is a 404 for a message that shares no video, or one the caller can't read", async () => {
@@ -193,6 +200,11 @@ describe("POST /api/chat/videos/[messageId]", () => {
 
 describe("GET /api/chat/videos/[messageId] (what the card shows before anyone presses play)", () => {
   const card = (messageId = MESSAGE) => GET(new NextRequest("http://localhost/api/chat/videos/x"), { params: Promise.resolve({ messageId }) });
+
+  it("is a 404 for a deleted message: its card names nothing either", async () => {
+    setup({ deleted: true, open: true });
+    expect((await card()).status).toBe(404);
+  });
 
   it("gives the lesson's title, its course, its thumbnail and that the viewer can watch, and mints nothing", async () => {
     setup({ thumbnail: "asset" });
