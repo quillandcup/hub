@@ -3,15 +3,18 @@ import { Tabs } from "@/components/Tabs";
 import type { StaffUser } from "@/lib/admin-auth";
 import { clock } from "@/lib/clock";
 import { careStatus, isActiveStatus, sortActive, sortEarlier } from "@/lib/care";
+import { loadCareDmTab, projectCareFromDms, type CareDmTab } from "@/lib/care-dm";
 import { loadCareOwners } from "@/lib/care-owners";
 import { createRepos } from "@/lib/data/repos";
 import { getServiceRepos } from "@/lib/data/server";
+import { getUserFeaturePreviews } from "@/lib/features.server";
 import { staffCan } from "@/lib/staff-access";
 import { createClient } from "@/lib/supabase/server";
 import { careAttention } from "./attention";
 import CareAttention from "./CareAttention";
 import { toEngagementCard } from "./card";
 import { ActiveList, EarlierList } from "./CareLists";
+import CareDmList from "./CareDmList";
 import StartEngagementForm from "./StartEngagementForm";
 import { CARE_TAB_LABELS, CARE_TITLE, type CareTabId } from "./tabs";
 
@@ -22,18 +25,40 @@ import { CARE_TAB_LABELS, CARE_TITLE, type CareTabId } from "./tabs";
 export default async function CarePage({ tab, staff }: { tab: CareTabId; staff: StaffUser }) {
   const now = new Date(clock.now());
   const repos = createRepos(await createClient());
+  const service = getServiceRepos();
+  const canWrite = staffCan(staff.role, "care.write");
+  // Her tracked Slack DMs first (docs/HEDGIE_CARE.md): they fill in who spoke last on her Slack DM engagements, and the
+  // list below reads the result. Only her own tracked DMs are looked at, and only when she has some; a failure is logged
+  // and the page still opens with what it has.
+  const tracked = await repos.careDms.forUser(staff.id).catch((error) => {
+    console.error("[care] reading tracked DMs failed:", error instanceof Error ? error.message : error);
+    return [];
+  });
+  if (canWrite && tracked.length > 0) {
+    await projectCareFromDms({ care: repos.care, careDms: repos.careDms, service }, { userId: staff.id }).catch((error) =>
+      console.error("[care] filling in from tracked DMs failed:", error instanceof Error ? error.message : error)
+    );
+  }
   // Who may own one: user_profiles is read with the service role (a community manager's own client can't read other
   // users' profiles); only ids, names and roles are used.
-  const [rows, owners] = await Promise.all([repos.care.list({ includeClosed: true }), loadCareOwners(repos, getServiceRepos())]);
+  const [rows, owners] = await Promise.all([repos.care.list({ includeClosed: true }), loadCareOwners(repos, service)]);
   const byId = new Map(rows.map((row) => [row.id, row]));
-  const options = { owners, byId };
+  const options = { owners, byId, slackTracked: { userId: staff.id, memberIds: new Set(tracked.map((dm) => dm.memberId)) } };
   const active = sortActive(
     rows.filter((row) => isActiveStatus(careStatus(row, now))),
     now
   ).map((row) => toEngagementCard(row, now, options));
   const earlier = sortEarlier(rows.filter((row) => !isActiveStatus(careStatus(row, now)))).map((row) => toEngagementCard(row, now, options));
   const attention = careAttention([...active, ...earlier]);
-  const canWrite = staffCan(staff.role, "care.write");
+  // The DM list reads Slack's Bronze for every DM she has: only built when its tab is the one asked for.
+  const dmTab: CareDmTab | null =
+    tab === "dms"
+      ? await loadCareDmTab(service, staff, {
+          bridgeOn: (await getUserFeaturePreviews(staff.id)).includes("slack_dm_bridge"),
+          trackedChannelIds: new Set(tracked.map((dm) => dm.channelId)),
+          now,
+        })
+      : null;
 
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
@@ -72,6 +97,12 @@ export default async function CarePage({ tab, staff }: { tab: CareTabId; staff: 
               label: attention.lapsed > 0 ? `${CARE_TAB_LABELS.earlier} (${attention.lapsed} lapsed)` : CARE_TAB_LABELS.earlier,
               title: CARE_TAB_LABELS.earlier,
               content: <EarlierList cards={earlier} canWrite={canWrite} owners={owners} meId={staff.id} />,
+            },
+            {
+              id: "dms",
+              label: CARE_TAB_LABELS.dms,
+              title: CARE_TAB_LABELS.dms,
+              content: <CareDmList data={dmTab} canWrite={canWrite} />,
             },
           ]}
         />

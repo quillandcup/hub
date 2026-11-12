@@ -82,4 +82,22 @@ describe("toEngagementCard", () => {
   it("takes the settings from the caller when given them", () => {
     expect(toEngagementCard(row({ last_staff_message_at: ago(4) }), NOW, { settings: { ...settings, quietDays: 3 } }).status).toBe("gone_quiet");
   });
+
+  describe("fromSlack: kept up to date from the owner's tracked Slack DM", () => {
+    const owner = "11111111-1111-4111-8111-111111111111";
+    const tracked = { userId: owner, memberIds: new Set(["mbr_AAAAAAAAAAA1"]) };
+
+    it("is set for an open Slack DM engagement she owns with a member whose DM she tracks, and for no one else's", () => {
+      expect(toEngagementCard(row(), NOW, { slackTracked: tracked }).fromSlack).toBe(true);
+      expect(toEngagementCard(row(), NOW).fromSlack).toBe(false);
+      expect(toEngagementCard(row(), NOW, { slackTracked: { ...tracked, userId: "22222222-2222-4222-8222-222222222222" } }).fromSlack).toBe(false);
+      expect(toEngagementCard(row(), NOW, { slackTracked: { ...tracked, memberIds: new Set() } }).fromSlack).toBe(false);
+    });
+
+    it("is not set for another channel or a closed engagement, and follows who opened it when it has no owner", () => {
+      expect(toEngagementCard(row({ channel: "email" }), NOW, { slackTracked: tracked }).fromSlack).toBe(false);
+      expect(toEngagementCard(row({ closed_at: ago(1), ended_how: "no_reply" }), NOW, { slackTracked: tracked }).fromSlack).toBe(false);
+      expect(toEngagementCard(row({ owned_by: null, opened_by: owner }), NOW, { slackTracked: tracked }).fromSlack).toBe(true);
+    });
+  });
 });

@@ -49,6 +49,9 @@ export type SlackMemberEventSeed = Required<Pick<SlackMemberEvent, "channel_id" 
   raw_payload?: unknown;
 };
 
+/** A 1:1 Slack DM one person is in: its Slack conversation id and everyone in it now (two people; one for a DM with oneself). */
+export type SlackDirectMessage = { channel_id: string; participants: string[] };
+
 /** What the emoji sync writes: `bronze.slack_custom_emoji`'s columns. */
 export type NewSlackEmoji = Database["bronze"]["Tables"]["slack_custom_emoji"]["Insert"];
 
@@ -99,6 +102,12 @@ export interface SlackWorkspaceRepository {
   insertChannelIfAbsent(channel: NewSlackChannel): Promise<boolean>;
   /** The Slack user ids currently in a conversation (not marked as left). */
   currentMemberUserIds(channelId: string): Promise<string[]>;
+  /**
+   * The 1:1 DMs this Slack user is in now (`is_im` conversations they are a current participant of; group DMs are not
+   * included), with everyone in each, by channel id. Whoever's token read a DM recorded both people in it, so the list
+   * does not depend on whose connection pulled it. Paginated and chunked. Nobody else's DM is ever in the answer.
+   */
+  directMessagesOf(slackUserId: string): Promise<SlackDirectMessage[]>;
   /** Whether the conversation is a group DM that only members' own tokens read (the bot is not in it). False when unknown. */
   isTokenOnlyGroupDm(channelId: string): Promise<boolean>;
   /** When a member's own token last read each of these conversations (those never read are left out). Chunked. */
@@ -210,6 +219,25 @@ export class SupabaseSlackWorkspaceRepository implements SlackWorkspaceRepositor
       this.membersTable.select("user_id").eq("channel_id", channelId).is("left_at", null).order("user_id").range(from, to)
     );
     return rows.map((r) => r.user_id);
+  }
+
+  async directMessagesOf(slackUserId: string) {
+    const mine = await fetchAllRows<{ channel_id: string }>((from, to) =>
+      this.membersTable.select("channel_id").eq("user_id", slackUserId).is("left_at", null).order("channel_id").range(from, to)
+    );
+    const out: SlackDirectMessage[] = [];
+    for (const ids of chunk(mine.map((m) => m.channel_id), USER_CHUNK)) {
+      const ims = must(await this.channelsTable.select("channel_id").in("channel_id", ids).eq("is_im", true)) ?? [];
+      const imIds = ims.map((c) => c.channel_id);
+      if (imIds.length === 0) continue;
+      const people = await fetchAllRows<{ channel_id: string; user_id: string }>((from, to) =>
+        this.membersTable.select("channel_id, user_id").in("channel_id", imIds).is("left_at", null).order("channel_id").order("user_id").range(from, to)
+      );
+      for (const channelId of imIds) {
+        out.push({ channel_id: channelId, participants: people.filter((p) => p.channel_id === channelId).map((p) => p.user_id) });
+      }
+    }
+    return out.sort((a, b) => compareText(a.channel_id, b.channel_id));
   }
 
   async isTokenOnlyGroupDm(channelId: string) {
@@ -410,6 +438,15 @@ export class InMemorySlackWorkspaceRepository implements SlackWorkspaceRepositor
 
   async currentMemberUserIds(channelId: string) {
     return this.data.slackChannelMembers.filter((m) => m.channel_id === channelId && !m.left_at).map((m) => m.user_id).sort();
+  }
+
+  async directMessagesOf(slackUserId: string) {
+    const ims = new Set(this.data.slackChannels.filter((c) => c.is_im === true).map((c) => c.channel_id));
+    const current = this.data.slackChannelMembers.filter((m) => !m.left_at);
+    const mine = new Set(current.filter((m) => m.user_id === slackUserId && ims.has(m.channel_id)).map((m) => m.channel_id));
+    return [...mine]
+      .sort(compareText)
+      .map((channel_id) => ({ channel_id, participants: current.filter((m) => m.channel_id === channel_id).map((m) => m.user_id).sort(compareText) }));
   }
 
   async isTokenOnlyGroupDm(channelId: string) {

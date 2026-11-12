@@ -69,7 +69,7 @@ const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]
   [
     () => import("@/app/(admin)/admin/care/actions"),
     "app/(admin)/admin/care/actions.ts",
-    [["startEngagement", "care_engagement_started"], ["logCareMessage", "care_message_logged"], ["updateEngagement", "care_engagement_updated"], ["closeEngagement", "care_engagement_closed"], ["renewEngagement", "care_engagement_renewed"], ["deleteEngagement", "care_engagement_deleted"]],
+    [["startEngagement", "care_engagement_started"], ["logCareMessage", "care_message_logged"], ["updateEngagement", "care_engagement_updated"], ["closeEngagement", "care_engagement_closed"], ["renewEngagement", "care_engagement_renewed"], ["deleteEngagement", "care_engagement_deleted"], ["trackCareDm", "care_dm_tracked"], ["untrackCareDm", "care_dm_untracked"]],
   ],
   [() => import("@/app/(admin)/admin/courses/take-over-actions"), "app/(admin)/admin/courses/take-over-actions.ts", [["takeOverCourse", "course_taken_over"]]],
   [() => import("@/app/api/feedback/route"), "app/api/feedback/route.ts", [["POST", "feedback_submitted"]]],

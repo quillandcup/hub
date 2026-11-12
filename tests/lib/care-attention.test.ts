@@ -20,6 +20,7 @@ const card = (over: Partial<EngagementCardData>): EngagementCardData => ({
   renewed: false,
   lastActivityLabel: "today",
   lastSpeaker: null,
+  fromSlack: false,
   closedLabel: null,
   followUpOn: null,
   followUpDue: false,

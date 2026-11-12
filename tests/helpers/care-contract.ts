@@ -251,6 +251,52 @@ export function defineCareContract(name: string, setup: () => CareContractContex
       });
     });
 
+    describe("moving message times forward (what Slack DMs derive)", () => {
+      it("sets a time that is later than the stored one, or when none is stored, and says how many moved", async () => {
+        const c = await opened(ada); // her message at the start; none from them
+
+        expect(await ctx.repo().moveMessageTimesForward(c.id, { staffAt: "2026-03-02T10:00:00.000Z", memberAt: "2026-03-03T10:00:00.000Z" })).toBe(2);
+
+        const after = (await ctx.repo().byId(c.id))!;
+        expect([iso(after.last_staff_message_at), iso(after.last_member_message_at)]).toEqual(["2026-03-02T10:00:00.000Z", "2026-03-03T10:00:00.000Z"]);
+      });
+
+      it("never moves a time back, and applying the same one twice changes nothing", async () => {
+        const c = await opened(ada);
+        await ctx.repo().logMessage(c.id, "member", "2026-03-05T10:00:00.000Z");
+
+        expect(await ctx.repo().moveMessageTimesForward(c.id, { staffAt: "2026-03-01T09:00:00.000Z", memberAt: "2026-03-04T10:00:00.000Z" })).toBe(0);
+        expect(await ctx.repo().moveMessageTimesForward(c.id, { memberAt: "2026-03-05T10:00:00.000Z" })).toBe(0);
+        expect(await ctx.repo().moveMessageTimesForward(c.id, { staffAt: "2026-03-06T10:00:00.000Z" })).toBe(1);
+        expect(await ctx.repo().moveMessageTimesForward(c.id, { staffAt: "2026-03-06T10:00:00.000Z" })).toBe(0);
+
+        const after = (await ctx.repo().byId(c.id))!;
+        expect([iso(after.last_staff_message_at), iso(after.last_member_message_at)]).toEqual(["2026-03-06T10:00:00.000Z", "2026-03-05T10:00:00.000Z"]);
+      });
+
+      it("moves only the side given, and nothing for no times", async () => {
+        const c = await opened(ada);
+
+        expect(await ctx.repo().moveMessageTimesForward(c.id, {})).toBe(0);
+        expect(await ctx.repo().moveMessageTimesForward(c.id, { memberAt: "2026-03-02T10:00:00.000Z" })).toBe(1);
+
+        const after = (await ctx.repo().byId(c.id))!;
+        expect([iso(after.last_staff_message_at), iso(after.last_member_message_at)]).toEqual(["2026-03-01T15:00:00.000Z", "2026-03-02T10:00:00.000Z"]);
+      });
+
+      it("leaves a closed engagement, a removed one and one nobody has alone", async () => {
+        const closed = await opened(ada);
+        await ctx.repo().close(closed.id, "ran_its_course", "2026-03-04T10:00:00.000Z");
+        const removed = await opened(bo);
+        await ctx.repo().softDelete(removed.id, "2026-03-04T10:00:00.000Z");
+
+        expect(await ctx.repo().moveMessageTimesForward(closed.id, { memberAt: "2026-03-05T10:00:00.000Z" })).toBe(0);
+        expect(await ctx.repo().moveMessageTimesForward(removed.id, { memberAt: "2026-03-05T10:00:00.000Z" })).toBe(0);
+        expect(await ctx.repo().moveMessageTimesForward(ctx.missingId, { memberAt: "2026-03-05T10:00:00.000Z" })).toBe(0);
+        expect((await ctx.repo().byId(closed.id))!.last_member_message_at).toBeNull();
+      });
+    });
+
     describe("updating", () => {
       it("changes only what is given, and clears a field given null", async () => {
         const c = await opened(ada, { notes: "first", nextStep: "write back", followUpOn: "2026-03-08" });

@@ -48,6 +48,7 @@ import { InMemoryWheelOfWonderRepository, SupabaseWheelOfWonderRepository, type 
 import { InMemoryChatLinkPreviewRepository, SupabaseChatLinkPreviewRepository, type ChatLinkPreviewRepository } from "./chat-link-previews";
 import { InMemoryChatVideoRepository, SupabaseChatVideoRepository, type ChatVideoRepository } from "./chat-videos";
 import { InMemoryCareRepository, SupabaseCareRepository, type CareRepository } from "./care";
+import { InMemoryCareTrackedDmRepository, SupabaseCareTrackedDmRepository, type CareTrackedDmRepository } from "./care-dms";
 import { InMemoryMemberInteractionRepository, SupabaseMemberInteractionRepository, type MemberInteractionRepository } from "./member-interactions";
 import { InMemoryAccessEventRepository, SupabaseAccessEventRepository, type AccessEventRepository } from "./access-events";
 import { InMemorySegmentRepository, SupabaseSegmentRepository, type SegmentRepository } from "./segments";
@@ -92,6 +93,7 @@ export interface Repos {
   chatDrafts: ChatDraftRepository;
   chatVideos: ChatVideoRepository;
   care: CareRepository;
+  careDms: CareTrackedDmRepository;
   memberInteractions: MemberInteractionRepository;
   chatLinkPreviews: ChatLinkPreviewRepository;
   adminNotes: AdminNoteRepository;
@@ -154,6 +156,7 @@ export function createRepos(db: Db): Repos {
     chatDrafts: new SupabaseChatDraftRepository(db),
     chatVideos: new SupabaseChatVideoRepository(db),
     care: new SupabaseCareRepository(db),
+    careDms: new SupabaseCareTrackedDmRepository(db),
     memberInteractions: new SupabaseMemberInteractionRepository(db),
     chatLinkPreviews: new SupabaseChatLinkPreviewRepository(db),
     adminNotes: new SupabaseAdminNoteRepository(db),
@@ -216,6 +219,7 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     chatDrafts: new InMemoryChatDraftRepository(dataset),
     chatVideos: new InMemoryChatVideoRepository(dataset),
     care: new InMemoryCareRepository(dataset),
+    careDms: new InMemoryCareTrackedDmRepository(dataset),
     memberInteractions: new InMemoryMemberInteractionRepository(dataset),
     chatLinkPreviews: new InMemoryChatLinkPreviewRepository(dataset),
     adminNotes: new InMemoryAdminNoteRepository(dataset),

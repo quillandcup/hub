@@ -176,6 +176,14 @@ export default function EngagementCard({ card, canWrite, owners }: { card: Engag
             : card.lastSpeaker === "staff"
               ? `You wrote ${card.lastActivityLabel}`
               : `Started ${card.lastActivityLabel}`}
+        {card.fromSlack && !closed && (
+          <span
+            title="Kept up to date from your tracked Slack DM with them, so you don't need to log replies here"
+            className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+          >
+            from Slack
+          </span>
+        )}
         <span> · {card.periodOver ? "Period ended" : "Period ends"} {formatDateOnly(card.periodEndsOn)}</span>
         {card.followUpOn && !ended && <span> · Follow up {formatDateOnly(card.followUpOn)}</span>}
       </p>

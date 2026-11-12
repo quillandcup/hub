@@ -75,6 +75,7 @@ const EXACT_PATHS = [
   "/admin/insights/resubscriptions",
   "/admin/care", // Hedgie Care, the one place she writes (the `care.write` feature)
   "/admin/care/earlier",
+  "/admin/care/dms",
 ] as const;
 
 /**

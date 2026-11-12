@@ -10,7 +10,7 @@ function failingDb(code?: string): Db {
   for (const m of ["select", "insert", "update", "upsert", "delete", "eq", "in", "gte", "lte", "is", "or", "not", "order", "range", "limit", "overrideTypes"]) chain[m] = () => chain;
   chain.maybeSingle = async () => answer;
   chain.then = (resolve: (v: unknown) => unknown) => resolve(answer);
-  const client = { from: () => chain, schema: () => client };
+  const client = { from: () => chain, schema: () => client, rpc: async () => answer };
   return client as unknown as Db;
 }
 
@@ -38,6 +38,7 @@ describe("SupabaseSlackWorkspaceRepository on a database error", () => {
     ["liveEmojiNames", () => repo.liveEmojiNames()],
     ["markEmojiRemoved", () => repo.markEmojiRemoved(["wave"], "2026-01-01T00:00:00Z")],
     ["emojiByNames", () => repo.emojiByNames(["wave"])],
+    ["directMessagesOf", () => repo.directMessagesOf("U1")],
   ])("%s throws the database's error", async (_name, run) => {
     await expect(run()).rejects.toThrow("database is down");
   });
@@ -58,6 +59,7 @@ describe("SupabaseSlackMessageRepository on a database error", () => {
     ["liveMessagesBetween", () => repo.liveMessagesBetween("2026-01-01T00:00:00Z", "2026-01-02T00:00:00Z")],
     ["liveReactionsBetween", () => repo.liveReactionsBetween("2026-01-01T00:00:00Z", "2026-01-02T00:00:00Z")],
     ["liveMessageTimes", () => repo.liveMessageTimes()],
+    ["lastWritesIn", () => repo.lastWritesIn(["D1"])],
     ["upsertMessages", () => repo.upsertMessages([{ channel_id: "C1", message_ts: "1.1", user_id: "U1", occurred_at: "2026-01-01T00:00:00Z", raw_payload: {} }])],
     ["upsertReactions", () => repo.upsertReactions([{ channel_id: "C1", message_ts: "1.1", user_id: "U1", reaction: "tada", occurred_at: "2026-01-01T00:00:00Z", raw_payload: {} }])],
     ["editMessage", () => repo.editMessage("C1", "1.1", { text: "x", edited_at: null, reply_count: 0, reply_users_count: 0, files: null, raw_payload: {} })],

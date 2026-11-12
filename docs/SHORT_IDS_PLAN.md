@@ -70,7 +70,7 @@ tail is cryptic; nobody minds either).
 | `programs` | `prg_` | `course_lesson_files` | `file_` |
 | `chat_messages` | `msg_` | `media_assets` | `media_` |
 
-**Tier 2: short but readable (58).** Not worth debating one by one; the rule is what gets
+**Tier 2: short but readable (59).** Not worth debating one by one; the rule is what gets
 reviewed. Pronounceable and close to the table's own words, so the prefix is obvious
 (`fdbk_` for `feedback`, not `fee_`); the `member_` part of a name is dropped, since much of
 the data model is about members anyway (`member_activities` is `act_`, `member_badges` is
@@ -109,6 +109,7 @@ uniqueness against Tier 1.
 | `member_reminder_log` | `remlog_` | `wheel_of_wonder_matches` | `wowm_` |
 | `member_status_overrides` | `stovr_` | `writing_goals` | `wgoal_` |
 | `mentorships` | `mntr_` | `writing_progress_entries` | `wprog_` |
+| `care_tracked_dms` | `caredm_` | | |
 
 **`bronze`**
 

@@ -32,6 +32,8 @@ export type EngagementCardData = {
   lastActivityLabel: string;
   /** Who spoke last, for the line under the name; null when nobody has been logged. */
   lastSpeaker: "member" | "staff" | null;
+  /** Who spoke last is kept up to date from the owner's tracked Slack DM with them, so logging a reply by hand isn't needed. */
+  fromSlack: boolean;
   closedLabel: string | null;
   followUpOn: string | null;
   followUpDue: boolean;
@@ -45,10 +47,16 @@ export type CardOptions = {
   owners?: readonly CareOwner[];
   /** The rows the page loaded, by id, to count which period of a chain this is. */
   byId?: ReadonlyMap<string, { renewed_from: string | null }>;
+  /**
+   * The signed-in staff user and the members whose Slack DM they track. An open Slack DM engagement they own with one of
+   * those members is marked `fromSlack`. (Nobody can read another staff member's tracked list, so an engagement someone
+   * else owns carries no hint.)
+   */
+  slackTracked?: { userId: string; memberIds: ReadonlySet<string> };
 };
 
 export function toEngagementCard(row: CareEngagementWithMember, now: Date, options: CardOptions = {}): EngagementCardData {
-  const { settings, owners = [], byId = new Map() } = options;
+  const { settings, owners = [], byId = new Map(), slackTracked } = options;
   const shown = row.member ? getMemberDisplayName(row.member) : "A member who is no longer here";
   return {
     id: row.id,
@@ -68,6 +76,12 @@ export function toEngagementCard(row: CareEngagementWithMember, now: Date, optio
     renewed: row.renewed_from !== null,
     lastActivityLabel: daysAgoLabel(lastActivityAt(row), now),
     lastSpeaker: memberWroteLast(row) ? "member" : row.last_staff_message_at ? "staff" : null,
+    fromSlack:
+      !!slackTracked &&
+      row.channel === "slack_dm" &&
+      row.closed_at === null &&
+      (row.owned_by ?? row.opened_by) === slackTracked.userId &&
+      slackTracked.memberIds.has(row.member_id),
     closedLabel: row.closed_at ? daysAgoLabel(row.closed_at, now) : null,
     followUpOn: row.follow_up_on,
     followUpDue: row.closed_at === null && isFollowUpDue(row.follow_up_on, now),

@@ -43,8 +43,11 @@ import {
   renewEngagement,
   searchCareMembers,
   startEngagement,
+  trackCareDm,
+  untrackCareDm,
   updateEngagement,
 } from "@/app/(admin)/admin/care/actions";
+import { SLACK_DM_SCOPES } from "@/lib/slack-connect";
 
 const start = (over: Record<string, unknown> = {}) => startEngagement({ memberId: ADA, reason: "writing_check_in", channel: "slack_dm", ...over });
 const engagementRow = (id: string, member: string, openedAt: string) => ({
@@ -104,6 +107,8 @@ describe("who may write Hedgie Care", () => {
     ["reassignEngagement", () => reassignEngagement("care_AAAAAAAAAAA1", OWNER_B)],
     ["getEngagementResults", () => getEngagementResults("care_AAAAAAAAAAA1")],
     ["deleteEngagement", () => deleteEngagement("care_AAAAAAAAAAA1")],
+    ["trackCareDm", () => trackCareDm("D0ADA0001")],
+    ["untrackCareDm", () => untrackCareDm("D0ADA0001")],
   ];
 
   it.each(calls)("%s refuses a signed-out caller", async (_name, call) => {
@@ -530,5 +535,197 @@ describe("reassignEngagement", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.spyOn(repos.care, "reassign").mockRejectedValueOnce(new Error("connection reset"));
     await expect(reassignEngagement(id, OWNER_B)).resolves.toEqual({ error: "Couldn't hand it over." });
+  });
+});
+
+describe("tracking Slack DMs", () => {
+  const CM_MEMBER = "mbr_CCCCCCCCCCC1";
+  const STAFF_MEMBER = "mbr_SSSSSSSSSSS1";
+  const NO_DM_MEMBER = "mbr_AAAAAAAAAAA9";
+  const U = { cm: "U0CM00001", ada: "U0ADA0001", bo: "U0BO00001", staff: "U0STAFF01" };
+  const D = { ada: "D0ADA0001", bo: "D0BO00001", staff: "D0STAFF01", others: "D0OTHERS1" };
+  const SECRET_TEXT = "words that must never be read";
+  const members = (userId: string | null) => [
+    { id: CM_MEMBER, name: "Cam Example", email: "cm@example.test", userId },
+    { id: ADA, name: "Ada Example", displayName: "Ada E.", email: "ada@example.test" },
+    { id: BO, name: "Bo Example", email: "bo@example.test" },
+    { id: STAFF_MEMBER, name: "Sam Staffer", email: "staffer@example.test" },
+    { id: NO_DM_MEMBER, name: "Di Example", email: "di@example.test" },
+  ];
+  const memberships = (channel_id: string, ...users: string[]) => users.map((user_id) => ({ channel_id, user_id, left_at: null, imported_at: "2026-01-01T00:00:00.000Z" }));
+  const dmMessage = (channel_id: string, user_id: string, occurred_at: string) => ({ channel_id, message_ts: `${Date.parse(occurred_at) / 1000}.000100`, user_id, occurred_at, text: SECRET_TEXT });
+
+  function world({ bridge = true, connected = true }: { bridge?: boolean; connected?: boolean } = {}) {
+    data = new InMemoryDataset({
+      members: members(CM_USER.id),
+      userProfiles: [
+        { id: CM_USER.id, email: CM_USER.email, role: "community_manager" },
+        { id: ADMIN_USER.id, email: ADMIN_USER.email!, role: "admin" },
+      ],
+      staff: [{ id: "staff_AAAAAAAAAAA1", email: "staffer@example.test", name: "Sam Staffer", role: "host", member_id: STAFF_MEMBER, hire_date: null, notes: null, created_at: null, updated_at: null }],
+      chatSlackAuthors: [
+        { slack_user_id: U.cm, member_id: CM_MEMBER },
+        { slack_user_id: U.ada, member_id: ADA },
+        { slack_user_id: U.bo, member_id: BO },
+        { slack_user_id: U.staff, member_id: STAFF_MEMBER },
+      ],
+      slackConnections: connected
+        ? [{ member_id: CM_MEMBER, slack_user_id: U.cm, team_id: null, scopes: [...SLACK_DM_SCOPES], connected_at: "2026-01-01T00:00:00.000Z", revoked_at: null, access_secret_id: null, refresh_secret_id: null, expires_at: null, dms_pulled_at: null, read_pulled_at: null }]
+        : [],
+      slackChannels: [D.ada, D.bo, D.staff, D.others].map((channel_id) => ({ channel_id, name: "", is_im: true, is_private: true })),
+      slackChannelMembers: [...memberships(D.ada, U.cm, U.ada), ...memberships(D.bo, U.bo, U.cm), ...memberships(D.staff, U.cm, U.staff), ...memberships(D.others, U.ada, U.bo)],
+      slackMessages: [dmMessage(D.ada, U.ada, new Date(Date.now() + 3600_000).toISOString())],
+      featureFlags: bridge ? [{ feature_key: "slack_dm_bridge", enabled_globally: true, created_at: "2026-01-01T00:00:00.000Z", updated_at: "2026-01-01T00:00:00.000Z" }] : [],
+    });
+    repos = createInMemoryRepos(data);
+    signInAs(CM_USER);
+  }
+
+  describe("trackCareDm", () => {
+    it("tracks one of her DMs with a member, as herself, and says nothing is wrong", async () => {
+      world();
+      await expect(trackCareDm(D.ada)).resolves.toEqual({ success: true });
+      expect(data.careTrackedDms).toHaveLength(1);
+      expect(data.careTrackedDms[0]).toMatchObject({ tracked_by: CM_USER.id, slack_channel_id: D.ada, member_id: ADA, deleted_at: null });
+      expect(revalidatePath).toHaveBeenCalledWith("/admin/care/dms");
+    });
+
+    it("fills in who spoke last on her open Slack DM engagement at once", async () => {
+      world({ bridge: false });
+      await start(); // no bridge yet: nothing is tracked, nothing filled in
+      expect(onlyEngagement().last_member_message_at).toBeNull();
+      data.featureFlags.push({ feature_key: "slack_dm_bridge", enabled_globally: true, created_at: "2026-01-01T00:00:00.000Z", updated_at: "2026-01-01T00:00:00.000Z" });
+
+      await trackCareDm(D.ada);
+
+      expect(onlyEngagement().last_member_message_at).not.toBeNull();
+    });
+
+    it("tracking it again is not an error and adds nothing", async () => {
+      world();
+      await trackCareDm(D.ada);
+      await expect(trackCareDm(D.ada)).resolves.toEqual({ success: true });
+      expect(data.careTrackedDms).toHaveLength(1);
+    });
+
+    it.each([
+      ["someone else's DM", D.others],
+      ["a DM with a staff member", D.staff],
+      ["a conversation nobody has", "D0NOSUCH01"],
+    ])("refuses %s", async (_label, channel) => {
+      world();
+      await expect(trackCareDm(channel)).resolves.toEqual({ error: "That DM isn't one you can track." });
+      expect(data.careTrackedDms).toEqual([]);
+    });
+
+    it.each([[undefined], [""], ["d0lowercase"], ["D0 WITH SPACE"], [42], [`D${"0".repeat(60)}`]])("refuses a value that is not a Slack conversation id (%s)", async (value) => {
+      world();
+      await expect(trackCareDm(value as never)).resolves.toEqual({ error: "That DM isn't available." });
+      expect(data.careTrackedDms).toEqual([]);
+    });
+
+    it("refuses when the Slack DM bridge is not on for her", async () => {
+      world({ bridge: false });
+      await expect(trackCareDm(D.ada)).resolves.toEqual({ error: "Slack DMs aren't switched on for you yet." });
+      expect(data.careTrackedDms).toEqual([]);
+    });
+
+    it("refuses when she has no Slack account connected", async () => {
+      world({ connected: false });
+      await expect(trackCareDm(D.ada)).resolves.toEqual({ error: "That DM isn't one you can track." });
+    });
+
+    it("says it could not track it when the database fails, without its message or anything from Slack", async () => {
+      world();
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      vi.spyOn(repos.careDms, "track").mockRejectedValueOnce(new Error("connection reset"));
+      await expect(trackCareDm(D.ada)).resolves.toEqual({ error: "Couldn't track that DM." });
+      expect(JSON.stringify(log.mock.calls)).not.toContain(SECRET_TEXT);
+    });
+  });
+
+  describe("untrackCareDm", () => {
+    it("stops tracking one, keeps the row, and leaves the times it already filled in", async () => {
+      world();
+      await start(); // tracks her DM with Ada
+      const filled = onlyEngagement().last_member_message_at;
+      expect(filled).not.toBeNull();
+
+      await expect(untrackCareDm(D.ada)).resolves.toEqual({ success: true });
+
+      expect(data.careTrackedDms).toHaveLength(1);
+      expect(data.careTrackedDms[0].deleted_at).not.toBeNull();
+      expect(onlyEngagement().last_member_message_at).toBe(filled);
+      expect(revalidatePath).toHaveBeenCalledWith("/admin/care/dms");
+    });
+
+    it("says so when it was not tracked, and refuses a value that is not a conversation id", async () => {
+      world();
+      await expect(untrackCareDm(D.ada)).resolves.toEqual({ error: "That DM isn't tracked." });
+      await expect(untrackCareDm("nope" as never)).resolves.toEqual({ error: "That DM isn't available." });
+    });
+
+    it("is not allowed to untrack someone else's: only her own row is touched", async () => {
+      world();
+      data.careTrackedDms.push({ id: "caredm_AAAAAAAAAAA1", tracked_by: ADMIN_USER.id, slack_channel_id: D.ada, member_id: ADA, created_at: "2026-01-01T00:00:00.000Z", deleted_at: null });
+      await expect(untrackCareDm(D.ada)).resolves.toEqual({ error: "That DM isn't tracked." });
+      expect(data.careTrackedDms[0].deleted_at).toBeNull();
+    });
+
+    it("says it could not stop tracking it when the database fails", async () => {
+      world();
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      vi.spyOn(repos.careDms, "untrack").mockRejectedValueOnce(new Error("connection reset"));
+      await expect(untrackCareDm(D.ada)).resolves.toEqual({ error: "Couldn't stop tracking that DM." });
+    });
+  });
+
+  describe("starting a Slack DM engagement", () => {
+    it("tracks her DM with that member when she has one, and fills in who spoke last from it", async () => {
+      world();
+      await expect(start({ memberId: ADA })).resolves.toEqual({ success: true });
+
+      expect(data.careTrackedDms).toHaveLength(1);
+      expect(data.careTrackedDms[0]).toMatchObject({ tracked_by: CM_USER.id, slack_channel_id: D.ada, member_id: ADA });
+      expect(onlyEngagement().last_member_message_at).not.toBeNull();
+    });
+
+    it("tracks nothing when she has no DM with them, when the engagement is on another channel, or when the bridge is off", async () => {
+      world();
+      await start({ memberId: NO_DM_MEMBER });
+      expect(data.careEngagements).toHaveLength(1);
+      expect(data.careTrackedDms).toEqual([]);
+      await start({ memberId: BO, channel: "email" });
+      expect(data.careTrackedDms).toEqual([]);
+
+      world({ bridge: false });
+      await start({ memberId: ADA });
+      expect(data.careTrackedDms).toEqual([]);
+      expect(data.careEngagements).toHaveLength(1);
+    });
+
+    it("never tracks a DM with a staff member, even when she starts an engagement with one", async () => {
+      world();
+      await expect(start({ memberId: STAFF_MEMBER })).resolves.toEqual({ success: true });
+      expect(data.careTrackedDms).toEqual([]);
+    });
+
+    it("still starts the engagement when tracking the DM fails, and logs only the error", async () => {
+      world();
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      vi.spyOn(repos.careDms, "track").mockRejectedValueOnce(new Error("connection reset"));
+
+      await expect(start({ memberId: ADA })).resolves.toEqual({ success: true });
+
+      expect(data.careEngagements).toHaveLength(1);
+      expect(log).toHaveBeenCalledWith("[care] tracking the DM of a new engagement failed:", "connection reset");
+    });
+
+    it("lets her untrack it afterwards", async () => {
+      world();
+      await start({ memberId: ADA });
+      await expect(untrackCareDm(D.ada)).resolves.toEqual({ success: true });
+      expect(data.careTrackedDms[0].deleted_at).not.toBeNull();
+    });
   });
 });
