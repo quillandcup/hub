@@ -4721,6 +4721,7 @@ export type Database = {
         Row: {
           access_secret_id: string | null
           connected_at: string
+          dms_completed_at: string | null
           dms_pulled_at: string | null
           expires_at: string | null
           member_id: string
@@ -4734,6 +4735,7 @@ export type Database = {
         Insert: {
           access_secret_id?: string | null
           connected_at?: string
+          dms_completed_at?: string | null
           dms_pulled_at?: string | null
           expires_at?: string | null
           member_id: string
@@ -4747,6 +4749,7 @@ export type Database = {
         Update: {
           access_secret_id?: string | null
           connected_at?: string
+          dms_completed_at?: string | null
           dms_pulled_at?: string | null
           expires_at?: string | null
           member_id?: string

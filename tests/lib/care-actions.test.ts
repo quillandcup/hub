@@ -570,7 +570,7 @@ describe("tracking Slack DMs", () => {
         { slack_user_id: U.staff, member_id: STAFF_MEMBER },
       ],
       slackConnections: connected
-        ? [{ member_id: CM_MEMBER, slack_user_id: U.cm, team_id: null, scopes: [...SLACK_DM_SCOPES], connected_at: "2026-01-01T00:00:00.000Z", revoked_at: null, access_secret_id: null, refresh_secret_id: null, expires_at: null, dms_pulled_at: null, read_pulled_at: null }]
+        ? [{ member_id: CM_MEMBER, slack_user_id: U.cm, team_id: null, scopes: [...SLACK_DM_SCOPES], connected_at: "2026-01-01T00:00:00.000Z", revoked_at: null, access_secret_id: null, refresh_secret_id: null, expires_at: null, dms_completed_at: null, dms_pulled_at: null, read_pulled_at: null }]
         : [],
       slackChannels: [D.ada, D.bo, D.staff, D.others].map((channel_id) => ({ channel_id, name: "", is_im: true, is_private: true })),
       slackChannelMembers: [...memberships(D.ada, U.cm, U.ada), ...memberships(D.bo, U.bo, U.cm), ...memberships(D.staff, U.cm, U.staff), ...memberships(D.others, U.ada, U.bo)],
