@@ -57,6 +57,39 @@ export interface DmPullResult {
 const errorCode = (error: unknown): string | undefined => (error as { data?: { error?: string } } | null)?.data?.error;
 const isRateLimited = (error: unknown): boolean => (error as { code?: string } | null)?.code === "slack_webapi_rate_limited_error";
 
+/**
+ * The nightly run's client: a call Slack rate limits waits out its Retry-After and tries again, but never past `deadline`
+ * (a clock time, ms). The SDK's own waiting knows no deadline, and a run that sleeps past the function's time limit is
+ * killed with nothing to report. Past the deadline the rate-limit error is thrown, and the caller ends the member `incomplete`.
+ */
+export function waitOutRateLimits(slack: WebClient, deadline: number | undefined): WebClient {
+  const retrying = <T>(call: () => Promise<T>): Promise<T> => {
+    const attempt = async (): Promise<T> => {
+      try {
+        return await call();
+      } catch (error) {
+        const retryAfter = (error as { retryAfter?: number } | null)?.retryAfter;
+        if (!isRateLimited(error) || typeof retryAfter !== "number") throw error;
+        const waitMs = retryAfter * 1000;
+        if (deadline !== undefined && clock.now() + waitMs >= deadline) throw error;
+        await clock.sleep(waitMs);
+        return attempt();
+      }
+    };
+    return attempt();
+  };
+  const wrap = <T extends object>(target: T): T =>
+    new Proxy(target, {
+      get(object, property) {
+        const value = (object as Record<string | symbol, unknown>)[property];
+        if (typeof value === "function") return (...args: unknown[]) => retrying(async () => (value as (...a: unknown[]) => unknown).apply(object, args));
+        if (value !== null && typeof value === "object") return wrap(value as object);
+        return value;
+      },
+    });
+  return wrap(slack);
+}
+
 type SlackMessage = Record<string, any>;
 
 interface SlackIm {
@@ -103,8 +136,9 @@ export async function pullMemberDms(
   if (!connection) return null;
 
   const repos = createRepos(service);
-  // On opening chat: fail fast on a rate limit instead of sleeping inside a request. The nightly run waits (Slack's Retry-After).
-  const slack = createSlackClient(connection.token, opts.patient ? {} : { rejectRateLimitedCalls: true, retryConfig: { retries: 0 } });
+  // On opening chat: fail fast on a rate limit instead of sleeping inside a request. The nightly run waits (Slack's Retry-After), within its deadline.
+  const client = createSlackClient(connection.token, { rejectRateLimitedCalls: true, retryConfig: { retries: 0 } });
+  const slack = opts.patient ? waitOutRateLimits(client, opts.deadline) : client;
   const result: DmPullResult = { conversations: 0, messages: 0, errors: [], incomplete: false };
   const lookbackSeconds = (opts.lookbackDays ?? OPEN_LOOKBACK_DAYS) * 86400;
   try {
@@ -142,7 +176,11 @@ export async function pullMemberDms(
     await copyPendingDmFiles(service, repos, connection.token, dmIds, { max: opts.fileCopies ?? OPEN_FILE_COPIES, deadline: opts.deadline });
   } catch (error) {
     if (isDeadTokenError(error)) await service.rpc("slack_connection_revoke", { p_member: memberId });
-    else if (isRateLimited(error) || errorCode(error) === "missing_scope") {
+    else if (opts.patient && isRateLimited(error)) {
+      // Out of time while Slack's limit held us back: not a failure, the next run carries on.
+      console.warn("pullMemberDms ran into Slack's rate limit for member %s and is out of time", memberId);
+      result.incomplete = true;
+    } else if (isRateLimited(error) || errorCode(error) === "missing_scope") {
       console.warn("pullMemberDms stopped for member %s: %s", memberId, errorCode(error) ?? "rate limited");
       result.errors.push(`member ${memberId}: stopped on ${errorCode(error) ?? "a rate limit"}`);
     } else {
