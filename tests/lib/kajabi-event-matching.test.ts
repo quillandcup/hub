@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
-import { findKajabiMatchesForEvent } from "@/lib/kajabi-event-matching";
+import { findKajabiMatchesForEvent, purchasersOfEvent } from "@/lib/kajabi-event-matching";
 import { eventSeed } from "@/tests/helpers/event-fixtures";
 
 const EVENT = "evt_AAAAAAAAAAA1";
@@ -261,6 +261,34 @@ describe("findKajabiMatchesForEvent", () => {
       expect(calls).toBe(25);
       expect(peak).toBeLessThanOrEqual(4);
       expect(attendeesWithoutTicket.filter((a) => a.kajabi_offer === "unknown")).toHaveLength(5);
+    });
+  });
+  describe("purchasersOfEvent", () => {
+    it("is the members with an active purchase of a linked offer, through email aliases", async () => {
+      const r = repos({
+        kajabiPurchases: [
+          purchase("p1", "c1", FULL),
+          purchase("p2", "c2", DEPOSIT),
+          purchase("p3", "c3", FULL),
+          purchase("p4", "c4", FULL),
+          purchase("p5", "c1", "offer_other"),
+        ],
+      });
+
+      // c3 resolves to Cy through an alias; c4 has no member; the unlinked offer is ignored.
+      expect([...(await purchasersOfEvent(r, EVENT))].sort()).toEqual(["mbr_AAAAAAAAAAA1", "mbr_AAAAAAAAAAA2", "mbr_AAAAAAAAAAA3"]);
+    });
+
+    it("leaves out a member whose only purchase was deactivated", async () => {
+      const r = repos({
+        kajabiPurchases: [purchase("p1", "c1", FULL, { deactivated_at: "2097-02-01T00:00:00Z" }), purchase("p2", "c2", FULL)],
+      });
+
+      expect([...(await purchasersOfEvent(r, EVENT))]).toEqual(["mbr_AAAAAAAAAAA2"]);
+    });
+
+    it("is empty when no offer is linked", async () => {
+      expect((await purchasersOfEvent(repos({ eventOffers: [], kajabiPurchases: [purchase("p1", "c1", FULL)] }), EVENT)).size).toBe(0);
     });
   });
 });

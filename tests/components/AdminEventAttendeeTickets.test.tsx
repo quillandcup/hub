@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 
@@ -186,5 +186,30 @@ describe("how an attendee got in", () => {
     expect(screen.queryByText("Loading...")).not.toBeInTheDocument();
     expect(screen.getByLabelText("How Ada Example got in")).toBeInTheDocument();
     refresh!();
+  });
+  it("shows an attendee who bought in Kajabi as Purchased, with no Not recorded choice, until a source is recorded", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url === "/api/members") return { ok: true, json: async () => ({ members: [] }) } as Response;
+        const bought = { ...ADA, ticketSource: null, ticketNote: null, purchasedInKajabi: true };
+        const comped = { ...ADA, id: "a2", memberId: "mbr_AAAAAAAAAAA2", memberName: "Bo Example", purchasedInKajabi: false };
+        const unknown = { ...ADA, id: "a3", memberId: "mbr_AAAAAAAAAAA3", memberName: "Cy Example", ticketSource: null, ticketNote: null, purchasedInKajabi: false };
+        return {
+          ok: true,
+          json: async () => ({ event: EVENT, prickleId: "prkl_AAAAAAAAAAA1", hubSession: false, photos: [], badgeType: null, attendees: [bought, comped, unknown] }),
+        } as Response;
+      }),
+    );
+    render(<EventDetailClient eventId={EVENT.id} />);
+
+    const adaSelect = await screen.findByLabelText("How Ada Example got in");
+    expect(adaSelect).toHaveValue("purchased");
+    expect(within(adaSelect).queryByRole("option", { name: "Not recorded" })).not.toBeInTheDocument();
+    // No note field for a source nobody recorded.
+    expect(screen.queryByLabelText("Ticket note for Ada Example")).not.toBeInTheDocument();
+    // Someone with no purchase keeps Not recorded, and a recorded source is shown as recorded.
+    expect(screen.getByLabelText("How Cy Example got in")).toHaveValue("");
+    expect(screen.getByLabelText("How Bo Example got in")).toHaveValue("comped");
   });
 });

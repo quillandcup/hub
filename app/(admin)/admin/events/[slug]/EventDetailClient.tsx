@@ -31,6 +31,8 @@ interface Attendee {
   memberEmail: string;
   ticketSource: TicketSource | null;
   ticketNote: string | null;
+  /** Holds an active purchase of the event's linked Kajabi offers (derived by the server). */
+  purchasedInKajabi: boolean;
 }
 
 interface BadgeTypeLink {
@@ -352,11 +354,13 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                 )}
                 <select
                   aria-label={`How ${attendee.memberName} got in`}
-                  value={attendee.ticketSource ?? ""}
+                  value={attendee.ticketSource ?? (attendee.purchasedInKajabi ? "purchased" : "")}
+                  title={attendee.purchasedInKajabi ? "Bought in Kajabi" : undefined}
                   onChange={(e) => handleTicketSource(attendee.memberId, e.target.value)}
                   className="px-1 py-0.5 border border-gray-300 dark:border-slate-700 rounded text-xs bg-white dark:bg-slate-900"
                 >
-                  <option value="">Not recorded</option>
+                  {/* A Kajabi purchase is a fact, not a choice: such an attendee is Purchased unless recorded otherwise. */}
+                  {!attendee.purchasedInKajabi && <option value="">Not recorded</option>}
                   {TICKET_SOURCES.map((source) => (
                     <option key={source} value={source}>
                       {TICKET_SOURCE_LABELS[source]}
