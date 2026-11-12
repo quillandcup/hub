@@ -1486,6 +1486,10 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 ## UI Enhancements
 
+### Move the hand-written table search boxes onto `DataTableSearch`, and add a server-mode search _(Needs Scheduling)_
+
+`useDataTable` takes `search: (row) => text` and `DataTableSearch` is the input (first user: `/admin/offers`; rule in `.claude/rules/reuse-ui-components.md`). Still on their own input and filter loop: the events list (`app/(admin)/admin/events/EventsClient.tsx`, which also searches on the server with dates), the Hedgie Care DM list (`CareDmList.tsx`) and the course outline (`BuilderOutline.tsx`). `useServerDataTable` has no search: a server table keeps the query in the URL (`?q=`) and the server filters, so it needs the same input wired to `push` and the page's query to read `q`. Worth doing when one of those pages is touched next; start from `lib/hooks/useDataTable.ts` and `components/DataTableSearch.tsx`.
+
 ### Event places left: count extra tickets, pick the right offer, show "you're in" _(Needs Scheduling)_
 
 Places left on an event (`lib/event-signup.ts`, `docs/CALENDAR_EVENTS.md`, "Places left and sign-up from the linked offers") counts each person once, so a buyer of two tickets (the second may be a gift for someone who is not a member) takes one place, and the Sign up button uses the first linked offer's checkout when an event has several (deposit, payment plan, full price). Worth doing when a retreat sells out with extra tickets, or offers differ by price: count active purchases of the full-price offer per ticket, or let staff mark which linked offer is the one to send members to. The page also does not yet tell a member who already has a place that they are in; start from `eventSignups` and the member's own attendee or purchase row.

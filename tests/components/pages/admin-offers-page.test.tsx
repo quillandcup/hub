@@ -71,6 +71,16 @@ describe("/admin/offers", () => {
     await userEvent.click(screen.getByRole("columnheader", { name: /Offer/ }));
     expect(names()[0]).toMatch(/Apple/);
 
+    // Search matches the name, the id, the state and the resources, and works with the state filter.
+    await userEvent.type(screen.getByRole("searchbox", { name: "Search offers" }), "event");
+    expect(screen.queryByText("Zebra")).toBeNull();
+    expect(screen.getByText("Apple")).toBeInTheDocument();
+    await userEvent.clear(screen.getByRole("searchbox", { name: "Search offers" }));
+    await userEvent.type(screen.getByRole("searchbox", { name: "Search offers" }), "o1");
+    expect(screen.getByText("Zebra")).toBeInTheDocument();
+    expect(screen.queryByText("Apple")).toBeNull();
+    await userEvent.clear(screen.getByRole("searchbox", { name: "Search offers" }));
+
     await userEvent.selectOptions(screen.getByLabelText("Show"), "mapped");
     expect(screen.queryByText("Zebra")).toBeNull();
     expect(screen.getByText("Apple")).toBeInTheDocument();

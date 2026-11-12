@@ -19,6 +19,12 @@ import { AUTO_PAGINATE_THRESHOLD, DEFAULT_PAGE_SIZE, pageBounds, parseSortParams
 //   {table.rows.map(...)}
 //   <DataTablePager table={table} itemLabel="members" />
 //
+// Search is part of it: give the hook `search: (row) => "text to match"` and put
+// <DataTableSearch table={table} label="Search members" /> above the table. Every
+// word typed must appear in the row's text (any case); the table goes back to
+// page 1 as the query changes. Filters stay with each table (they differ), and
+// pass their own `resetKey`. Server tables search through their own URL query.
+//
 // Client mode (useDataTable) sorts all rows in memory and auto-paginates once
 // there are more than AUTO_PAGINATE_THRESHOLD of them — below that there's no
 // pager and every row shows. Server mode (useServerDataTable) takes one page
@@ -44,6 +50,16 @@ export interface DataTable<TRow, TColumn extends string> {
   total: number;
   // null when everything fits on one page; <DataTablePager> renders nothing then.
   pagination: DataTablePagination | null;
+  // The search box's state; absent when the table has no search (<DataTableSearch> renders nothing then).
+  search?: { query: string; onChange: (query: string) => void };
+}
+
+/** True when every word of `query` appears in `text`, ignoring case. An empty query matches everything. */
+export function matchesSearch(text: string, query: string): boolean {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const haystack = text.toLowerCase();
+  return words.every((word) => haystack.includes(word));
 }
 
 function sortPropsFor<TColumn extends string>(
@@ -59,8 +75,10 @@ function sortPropsFor<TColumn extends string>(
 }
 
 interface UseDataTableOptions<TRow, TColumn extends string> {
-  // Already filtered; sorting and paging happen here.
+  // Already filtered by the table's own filters; searching, sorting and paging happen here.
   rows: TRow[];
+  // The text a row is searched by. Leave out for a table without a search box.
+  search?: (row: TRow) => string;
   getSortValue: (row: TRow, column: TColumn) => SortValue;
   // Sort shown before any header click (and after a column's third click).
   defaultSort?: SortConfig<TColumn> | null;
@@ -80,7 +98,8 @@ interface UseDataTableOptions<TRow, TColumn extends string> {
 }
 
 export function useDataTable<TRow, TColumn extends string>({
-  rows,
+  rows: allRows,
+  search: getSearchText,
   getSortValue,
   defaultSort = null,
   pageSize: initialPageSize = DEFAULT_PAGE_SIZE,
@@ -88,6 +107,11 @@ export function useDataTable<TRow, TColumn extends string>({
   resetKey = "",
   reveal,
 }: UseDataTableOptions<TRow, TColumn>): DataTable<TRow, TColumn> {
+  const [query, setQuery] = useState("");
+  const rows = useMemo(
+    () => (getSearchText && query.trim() ? allRows.filter((row) => matchesSearch(getSearchText(row), query)) : allRows),
+    [allRows, getSearchText, query]
+  );
   const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<TRow, TColumn>({
     rows,
     getSortValue,
@@ -98,7 +122,7 @@ export function useDataTable<TRow, TColumn extends string>({
   // Page 1, or the page holding the revealed row.
   const landingPage = (size: number) => (revealIndex >= 0 ? Math.floor(revealIndex / size) + 1 : 1);
 
-  const fullResetKey = `${sortColumn}:${sortDirection}:${resetKey}:${reveal?.key ?? ""}:${revealIndex >= 0}`;
+  const fullResetKey = `${sortColumn}:${sortDirection}:${resetKey}:${query}:${reveal?.key ?? ""}:${revealIndex >= 0}`;
   const [state, setState] = useState(() => ({
     page: landingPage(initialPageSize),
     pageSize: initialPageSize,
@@ -126,6 +150,7 @@ export function useDataTable<TRow, TColumn extends string>({
     sortProps: sortPropsFor(sortColumn, sortDirection, handleSort),
     rows: visibleRows,
     total: sortedRows.length,
+    search: getSearchText ? { query, onChange: setQuery } : undefined,
     pagination: paginated
       ? {
           page: bounds.page,
