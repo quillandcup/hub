@@ -46,9 +46,17 @@ vi.mock("@/app/(member)/events/[slug]/EventDetailClient", () => ({
   ),
 }));
 
-import EventDetailPage from "@/app/(member)/events/[slug]/page";
+import EventDetailPage, { generateMetadata } from "@/app/(member)/events/[slug]/page";
 
 const params = (slug: string) => ({ params: Promise.resolve({ slug }) });
+
+describe("event tab title", () => {
+  it("is the event's title, or Event for a removed or unknown one", async () => {
+    expect(await generateMetadata(params("spring-retreat"))).toEqual({ title: "Spring Retreat" });
+    expect(await generateMetadata(params("secret"))).toEqual({ title: "Event" });
+    expect(await generateMetadata(params("nope"))).toEqual({ title: "Event" });
+  });
+});
 
 beforeEach(() => {
   resetServerPageMocks();

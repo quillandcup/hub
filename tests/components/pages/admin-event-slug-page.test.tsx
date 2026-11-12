@@ -23,7 +23,7 @@ vi.mock("@/lib/data/repos", async () => ({
   createRepos: () => createInMemoryRepos(dataset),
 }));
 
-import EventPage from "@/app/(admin)/admin/events/[slug]/page";
+import EventPage, { generateMetadata } from "@/app/(admin)/admin/events/[slug]/page";
 import ImportPhotosPage from "@/app/(admin)/admin/events/[slug]/import-photos/page";
 
 const ID = "evt_AAAAAAAAAAA1";
@@ -46,6 +46,11 @@ describe("admin event page at /admin/events/<slug>", () => {
 
     await renderServerPage(EventPage, params("quiet-one"));
     expect(screen.getByRole("heading", { name: "Quiet One" })).toBeInTheDocument();
+  });
+
+  it("titles the tab with the event's title, or Event when there is none", async () => {
+    expect(await generateMetadata(params("spring-retreat"))).toEqual({ title: "Spring Retreat" });
+    expect(await generateMetadata(params("nope"))).toEqual({ title: "Event" });
   });
 
   it("is a 404 for a slug no event has", async () => {

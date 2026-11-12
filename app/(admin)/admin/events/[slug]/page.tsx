@@ -9,9 +9,11 @@ import EventDetailClient from "./EventDetailClient";
 import { requireAdminPage } from "@/lib/admin-auth";
 import { isId } from "@/lib/ids";
 
-export const metadata: Metadata = {
-  title: "Event",
-};
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const event = await createRepos(await createClient()).events.bySlug(slug).catch(() => null);
+  return { title: event?.title ?? "Event" };
+}
 
 export default async function EventDetailPage({
   params,
