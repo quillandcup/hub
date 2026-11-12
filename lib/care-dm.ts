@@ -17,7 +17,7 @@ import { daysAgoLabel } from "@/lib/care";
 import { resolveDmLinks, type DmLink } from "@/lib/care-dm-link";
 import { clock } from "@/lib/clock";
 import { CARE_OWNER_ROLES } from "@/lib/care-owners";
-import { derivedMessageTimes, lastWriter, type DmLastWrites } from "@/lib/care-dm-rules";
+import { careOwnerOf, derivedMessageTimes, lastWriter, type DmLastWrites } from "@/lib/care-dm-rules";
 import type { CareEngagementWithMember } from "@/lib/data/care";
 import { hasDmScopes } from "@/lib/slack-connect";
 import { getMemberDisplayName } from "@/lib/member-display-name";
@@ -252,7 +252,7 @@ export async function projectCareFromDms(
 
   const engagements = (await care.list()).filter((e) => e.channel === "slack_dm" && e.closed_at === null);
   if (engagements.length === 0) return result;
-  const ownerOf = (e: CareEngagementWithMember) => e.owned_by ?? e.opened_by;
+  const ownerOf = (e: CareEngagementWithMember) => careOwnerOf(e);
 
   // Only the tracked DMs that an open Slack DM engagement of the same owner and member could use.
   const wanted = tracked.filter((dm) => engagements.some((e) => ownerOf(e) === dm.trackedBy && e.member_id === dm.memberId));
