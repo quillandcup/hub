@@ -8,6 +8,7 @@ import { clock } from "@/lib/clock";
 import { slackChannelType } from "@/lib/slack-capture";
 import { markRemovedSlackReactions } from "@/lib/slack-reactions";
 import { addSlackMessage } from "@/lib/slack-messages";
+import { hideHubPreviewsRemovedInSlack, type IncomingSlackMessage } from "@/lib/chat/slack-side-unfurl-removal";
 import { getSlackBotToken } from "@/lib/slack-bot-token";
 
 /**
@@ -155,6 +156,7 @@ export async function storeAndProject(
   const newReactions = uniqueReactions.filter((r) => !knownReactions.has(`${r.message_ts}|${r.reaction}|${r.user_id}`)).length;
 
   const importedAt = new Date(clock.now()).toISOString();
+  await hideHubPreviewsRemovedInSlack(service, uniqueMessages as IncomingSlackMessage[]);
   await bronze.upsertMessages(uniqueMessages.map((m) => ({ ...m, imported_at: importedAt })));
   await bronze.upsertReactions(uniqueReactions.map((r) => ({ ...r, imported_at: importedAt })));
 

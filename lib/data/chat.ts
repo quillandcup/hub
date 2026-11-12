@@ -2,6 +2,7 @@ import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
 import type { Db, Row } from "./db";
 import type { Json } from "./database.types";
 import type { InMemoryDataset } from "./in-memory";
+import { inChunks } from "./query";
 
 /** A stored row, as the database has it, with only the named columns required: a test or seed names just what it cares about. */
 type Seed<T, K extends keyof T> = Pick<T, K> & Partial<Omit<T, K>>;
@@ -288,6 +289,11 @@ export interface ChatRepository {
   markReactionSynced(opts: { messageId: string; emoji: string; memberId: string }): Promise<void>;
   /** The member who wrote an app (Hub) message, or null when it isn't one or has no author. */
   appMessageAuthor(messageId: string): Promise<string | null>;
+  /**
+   * The live messages written in the Hub (origin app) that Slack holds under these timestamps, with their channel's Slack id. A timestamp is
+   * only unique within a conversation, so the caller matches `slackChannelId` too. Chunked. Service role.
+   */
+  appMessagesBySlackTs(slackTs: string[]): Promise<SlackMessageTarget[]>;
 
   // --- content, authors and gap fills ---
 
@@ -835,6 +841,20 @@ export class SupabaseChatRepository implements ChatRepository {
       .eq("member_id", opts.memberId)
       .is("slack_user_id", null);
     if (error) throw new Error(error.message);
+  }
+
+  async appMessagesBySlackTs(slackTs: string[]) {
+    const rows = await inChunks(slackTs, 100, async (part) => {
+      const { data, error } = await this.db
+        .from("chat_messages")
+        .select(`${TARGET_COLUMNS}, chat_channels(slack_channel_id)`)
+        .eq("origin", "app")
+        .is("deleted_at", null)
+        .in("slack_ts", part);
+      if (error) throw new Error(error.message);
+      return data ?? [];
+    });
+    return rows.map(toTarget);
   }
 
   async appMessageAuthor(messageId: string) {
@@ -1415,6 +1435,11 @@ export class InMemoryChatRepository implements ChatRepository {
     for (const r of this.data.chatReactions) {
       if (r.message_id === opts.messageId && r.emoji === opts.emoji && r.member_id === opts.memberId && !r.slack_user_id) r.synced_to_slack = true;
     }
+  }
+
+  async appMessagesBySlackTs(slackTs: string[]) {
+    const wanted = new Set(slackTs);
+    return this.data.chatMessages.filter((m) => (m.origin ?? "slack") === "app" && !m.deleted_at && m.slack_ts && wanted.has(m.slack_ts)).map((m) => this.target(m));
   }
 
   async appMessageAuthor(messageId: string) {

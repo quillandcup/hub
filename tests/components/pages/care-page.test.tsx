@@ -760,7 +760,7 @@ function seedSlack({ bridge = true, connection = "ok" }: { bridge?: boolean; con
       access_secret_id: null,
       refresh_secret_id: null,
       expires_at: null,
-      dms_pulled_at: null,
+      dms_completed_at: null, dms_pulled_at: null,
       read_pulled_at: null,
     });
   }

@@ -151,6 +151,14 @@ export async function findKajabiMatchesForEvent(
     return Math.max(0, ...perOffer.values());
   };
 
+  // Tickets paid for, deactivated ones included: a purchase with its access revoked (a member who
+  // lapsed before the retreat) was still paid for, and its ticket could be given to someone else.
+  const paidTickets = (acc: Accum) => {
+    const perOffer = new Map<string, number>();
+    for (const p of acc.purchases) perOffer.set(p.kajabi_offer_id ?? "", (perOffer.get(p.kajabi_offer_id ?? "") ?? 0) + 1);
+    return Math.max(0, ...perOffer.values());
+  };
+
   const earliest = (acc: Accum) => acc.purchases.map(resolveMatchDate).filter((d): d is string => !!d).sort()[0] ?? null;
 
   const buyers: EventTicketBuyer[] = [];
@@ -161,7 +169,7 @@ export async function findKajabiMatchesForEvent(
     if (attendeeIds.has(memberId)) continue;
     const member = memberById.get(memberId)!;
     const display = getMemberDisplayName({ name: member.name, display_name: member.displayName });
-    const tickets = activeTickets(acc);
+    const tickets = paidTickets(acc);
     const receivers = receiversOf.get(memberId) ?? [];
     if (tickets > 0 && receivers.length >= tickets) {
       passedOn.push({ giver_id: memberId, giver_name: display, tickets, receivers });

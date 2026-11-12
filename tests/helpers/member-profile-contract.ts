@@ -177,6 +177,21 @@ export function defineMemberProfileContract(name: string, setup: () => MemberPro
         expect(await repo.memberIdsWithSlackScopes(["im:history"])).toEqual([id(cy), id(bo), id(ada)]);
       });
 
+      it("remembers when a member's DM pull finished completely, for working connections only", async () => {
+        const repo = ctx.repo();
+        await ctx.seedSlackConnection(id(ada), "U_CONTRACT_A", { scopes: ["im:history"] });
+        await ctx.seedSlackConnection(id(cy), "U_CONTRACT_C", { scopes: ["im:history"], revoked: true });
+        expect((await repo.dmsCompletedAt()).size).toBe(0);
+
+        await repo.markDmsCompleted(id(ada), "2026-11-12T10:00:00.000Z");
+        await repo.markDmsCompleted(id(cy), "2026-11-12T10:00:00.000Z");
+        await repo.markDmsCompleted(id(bo), "2026-11-12T10:00:00.000Z"); // no connection at all: nothing happens
+
+        const completed = await repo.dmsCompletedAt();
+        expect([...completed.keys()]).toEqual([id(ada)]);
+        expect(new Date(completed.get(id(ada))!).toISOString()).toBe("2026-11-12T10:00:00.000Z");
+      });
+
       it("maps every connected Slack user to its member, revoked connections included", async () => {
         const repo = ctx.repo();
         await ctx.seedSlackConnection(id(ada), "U_CONTRACT_A");

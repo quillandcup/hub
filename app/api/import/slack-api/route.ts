@@ -23,6 +23,7 @@ import {
   type StoredThreadReplies,
 } from '@/lib/slack-messages';
 import { clock } from '@/lib/clock';
+import { hideHubPreviewsRemovedInSlack } from '@/lib/chat/slack-side-unfurl-removal';
 import { createServiceRoleClient } from '@/lib/supabase/service';
 import {
   copySlackFiles,
@@ -189,6 +190,8 @@ export async function POST(request: NextRequest) {
     // (small batches, two at a time: see the repositories' upserts)
     await createRepos(supabase).slackWorkspace.upsertChannels(channels.map(c => ({ ...c, imported_at: importTimestamp })));
     invalidateChatLookups();
+    // Before the fetched payloads replace the stored ones: a preview Slack no longer shows on a Hub-written message was removed there.
+    await hideHubPreviewsRemovedInSlack(supabase, allMessages);
     await createRepos(supabase).slackMessages.upsertMessages(allMessages.map(m => ({ ...m, imported_at: importTimestamp })));
     await createRepos(supabase).slackMessages.upsertReactions(allReactions.map(r => ({ ...r, imported_at: importTimestamp })));
 

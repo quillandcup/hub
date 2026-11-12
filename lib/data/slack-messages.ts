@@ -143,6 +143,8 @@ export interface SlackMessageRepository {
   authorsByTs(channelId: string, messageTs: string[]): Promise<Map<string, string>>;
   /** The message object Slack last sent for one message (`raw_payload`: text, blocks, attachments...), or null when we have no such live message. Content: service role. */
   rawPayload(channelId: string, messageTs: string): Promise<Record<string, unknown> | null>;
+  /** The same for several messages of one channel, by ts (messages we have no live copy of are absent). Chunked. Content: service role. */
+  rawPayloads(channelId: string, messageTs: string[]): Promise<Map<string, Record<string, unknown>>>;
 
   /** Records files seen on messages. A file we already have is left as it is (never overwrites its copy). Chunked. */
   recordFiles(files: NewSlackFile[]): Promise<void>;
@@ -345,6 +347,15 @@ export class SupabaseSlackMessageRepository implements SlackMessageRepository {
     const row = must(await this.bronze.from("slack_messages").select("raw_payload").eq("channel_id", channelId).eq("message_ts", messageTs).is("deleted_at", null).maybeSingle());
     const payload = row?.raw_payload;
     return typeof payload === "object" && payload !== null && !Array.isArray(payload) ? (payload as Record<string, unknown>) : null;
+  }
+
+  async rawPayloads(channelId: string, messageTs: string[]) {
+    const rows = await inChunks(messageTs, TS_CHUNK, async (part) =>
+      must(await this.bronze.from("slack_messages").select("message_ts, raw_payload").eq("channel_id", channelId).in("message_ts", part).is("deleted_at", null)) ?? []
+    );
+    const out = new Map<string, Record<string, unknown>>();
+    for (const r of rows) if (typeof r.raw_payload === "object" && r.raw_payload !== null && !Array.isArray(r.raw_payload)) out.set(r.message_ts, r.raw_payload as Record<string, unknown>);
+    return out;
   }
 
   private get files() {
@@ -554,6 +565,16 @@ export class InMemorySlackMessageRepository implements SlackMessageRepository {
     const m = this.data.slackMessages.find((x) => x.channel_id === channelId && x.message_ts === messageTs && !x.deleted_at);
     const payload = m?.raw_payload;
     return typeof payload === "object" && payload !== null && !Array.isArray(payload) ? (payload as Record<string, unknown>) : null;
+  }
+
+  async rawPayloads(channelId: string, messageTs: string[]) {
+    const wanted = new Set(messageTs);
+    const out = new Map<string, Record<string, unknown>>();
+    for (const m of this.data.slackMessages) {
+      const payload = m.raw_payload;
+      if (m.channel_id === channelId && wanted.has(m.message_ts) && !m.deleted_at && typeof payload === "object" && payload !== null && !Array.isArray(payload)) out.set(m.message_ts, payload as Record<string, unknown>);
+    }
+    return out;
   }
 
   private fileRow(f: SlackFileSeed): SlackFile {

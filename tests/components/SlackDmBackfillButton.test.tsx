@@ -27,7 +27,7 @@ describe("SlackDmBackfillButton", () => {
     await waitFor(() => expect(screen.getByText(/Everyone is read/)).toBeInTheDocument());
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(fetchMock).toHaveBeenCalledWith("/api/reconcile/slack-dms?backfill=1");
-    expect(screen.getByRole("status")).toHaveTextContent("17 conversations and 28 messages so far");
+    expect(screen.getByRole("status")).toHaveTextContent("28 new messages so far (17 conversation checks");
     expect(screen.getByText(/3 runs/)).toBeInTheDocument();
   });
 

@@ -63,6 +63,10 @@ export interface MemberProfileRepository {
   slackUserLinks(): Promise<Map<string, string>>;
   /** The members with a working (not revoked) connection that was granted every one of these scopes, the one whose DMs were pulled longest ago first (never pulled first, then by member id). Paginated. */
   memberIdsWithSlackScopes(scopes: string[]): Promise<string[]>;
+  /** When each member with a working connection last had a DM pull that finished completely (never-completed members are absent). Paginated. */
+  dmsCompletedAt(): Promise<Map<string, string>>;
+  /** Records that this member's DM pull just finished completely (nothing left unread for lack of time, no errors). Does nothing without a working connection. */
+  markDmsCompleted(memberId: string, at: string): Promise<void>;
 }
 
 export class SupabaseMemberProfileRepository implements MemberProfileRepository {
@@ -186,6 +190,18 @@ export class SupabaseMemberProfileRepository implements MemberProfileRepository 
     );
     return rows.map((r) => r.member_id);
   }
+
+  async dmsCompletedAt() {
+    const rows = await fetchAllRows<Pick<Row<"member_slack_connections">, "member_id" | "dms_completed_at">>((from, to) =>
+      this.db.from("member_slack_connections").select("member_id, dms_completed_at").is("revoked_at", null).not("dms_completed_at", "is", null).order("member_id").range(from, to),
+    );
+    return new Map(rows.map((r) => [r.member_id, r.dms_completed_at as string]));
+  }
+
+  async markDmsCompleted(memberId: string, at: string) {
+    const { error } = await this.db.from("member_slack_connections").update({ dms_completed_at: at }).eq("member_id", memberId).is("revoked_at", null);
+    if (error) throw new Error(error.message);
+  }
 }
 
 /** In-memory twin over an `InMemoryDataset`. */
@@ -293,5 +309,14 @@ export class InMemoryMemberProfileRepository implements MemberProfileRepository 
       .filter((c) => c.revoked_at === null && scopes.every((s) => c.scopes.includes(s)))
       .sort((a, b) => (a.dms_pulled_at ?? "").localeCompare(b.dms_pulled_at ?? "") || a.member_id.localeCompare(b.member_id))
       .map((c) => c.member_id);
+  }
+
+  async dmsCompletedAt() {
+    return new Map(this.data.slackConnections.filter((c) => c.revoked_at === null && c.dms_completed_at).map((c) => [c.member_id, c.dms_completed_at as string]));
+  }
+
+  async markDmsCompleted(memberId: string, at: string) {
+    const row = this.data.slackConnections.find((c) => c.member_id === memberId && c.revoked_at === null);
+    if (row) row.dms_completed_at = at;
   }
 }

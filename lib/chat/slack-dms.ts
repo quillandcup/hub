@@ -44,6 +44,12 @@ const NIGHTLY_FRESH_SECONDS = 6 * 60 * 60;
 const RECENT_DAYS = 30;
 /** Conversations never read before that one pull of a member opening chat takes on; a member with hundreds is caught up over several pulls. */
 const OPEN_NEW_CONVERSATIONS = 20;
+/**
+ * The least time a member in the nightly run gets, whatever the fair share says. Slack's rate limit is shared by every member's
+ * token and asks for 30 s at a time, so a share of a few seconds (200 s over 24 members) can never wait one out: every
+ * member gave up at once and the run made no progress. Members the run has no time for are first next run (the pull order).
+ */
+const NIGHTLY_MEMBER_MIN_SLICE_MS = 60_000;
 
 export interface DmPullResult {
   conversations: number;
@@ -188,6 +194,8 @@ export async function pullMemberDms(
       result.errors.push(`member ${memberId}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
+  // A nightly pull that got through everything is remembered, so the next run does not list this member's conversations again.
+  if (opts.patient && !result.incomplete && result.errors.length === 0) await repos.memberProfile.markDmsCompleted(memberId, new Date(clock.now()).toISOString());
   return result;
 }
 
@@ -561,6 +569,8 @@ export interface NightlyDmPullResult {
   messages: number;
   /** Members left for the next run because the time ran out. */
   deferred: number;
+  /** Members not pulled because their last pull finished completely within the freshness window (counted in `members`). */
+  done: number;
   /** Members whose pull ran out of time part way (their later conversations wait for the next run). */
   incomplete: number;
   errors: string[];
@@ -571,9 +581,10 @@ export interface NightlyDmPullResult {
  * never pulled): pull the DMs of every member the `slack_dm_bridge` feature covers who has a working
  * connection with the DM scopes, ignoring the interval. One member at a time, the one pulled longest ago first, and no new member after `deadline`
  * (a clock time, ms) so the run ends inside its function time; the rest are next run's. Each member gets a fair share
- * of the time left (what an earlier member didn't use carries over), so one member with hundreds of DMs, waiting out
- * Slack's rate limit, can't take the whole run: they are cut short (`incomplete`) and the next run, which skips what
- * was just read, carries on.
+ * of the time left (what an earlier member didn't use carries over), but never less than a minute (see
+ * `NIGHTLY_MEMBER_MIN_SLICE_MS`), so one member with hundreds of DMs, waiting out Slack's rate limit, can't take the whole
+ * run: they are cut short (`incomplete`) and the next run, which skips what was just read, carries on. With many members
+ * the run has time for only some; the rest are `deferred` and come first next time.
  */
 export async function pullDmsForCoveredMembers(service: SupabaseClient, opts: { deadline: number }): Promise<NightlyDmPullResult> {
   const repos = createRepos(service);
@@ -581,15 +592,21 @@ export async function pullDmsForCoveredMembers(service: SupabaseClient, opts: { 
   // Keeps the order of `connected`: the member whose DMs were pulled longest ago first.
   const featured = await membersWithFeatureForOutreach(repos, "slack_dm_bridge", connected);
   const covered = connected.filter((id) => featured.has(id));
-  const result: NightlyDmPullResult = { members: covered.length, conversations: 0, messages: 0, deferred: 0, incomplete: 0, errors: [] };
-  for (const [index, memberId] of covered.entries()) {
+  // A member whose pull finished completely a moment ago is not listed again: that listing is what Slack's shared rate limit slows down.
+  const completedAt = await repos.memberProfile.dmsCompletedAt();
+  const todo = covered.filter((id) => {
+    const at = completedAt.get(id);
+    return at === undefined || clock.now() - Date.parse(at) >= NIGHTLY_FRESH_SECONDS * 1000;
+  });
+  const result: NightlyDmPullResult = { members: covered.length, conversations: 0, messages: 0, deferred: 0, done: covered.length - todo.length, incomplete: 0, errors: [] };
+  for (const [index, memberId] of todo.entries()) {
     if (clock.now() >= opts.deadline) {
-      result.deferred = covered.length - index;
+      result.deferred = todo.length - index;
       break;
     }
     try {
-      const share = (opts.deadline - clock.now()) / (covered.length - index);
-      const pulled = await pullMemberDms(service, memberId, { force: true, patient: true, lookbackDays: NIGHTLY_LOOKBACK_DAYS, fileCopies: NIGHTLY_FILE_COPIES, deadline: clock.now() + share });
+      const share = Math.max((opts.deadline - clock.now()) / (todo.length - index), NIGHTLY_MEMBER_MIN_SLICE_MS);
+      const pulled = await pullMemberDms(service, memberId, { force: true, patient: true, lookbackDays: NIGHTLY_LOOKBACK_DAYS, fileCopies: NIGHTLY_FILE_COPIES, deadline: Math.min(opts.deadline, clock.now() + share) });
       if (!pulled) continue;
       if (pulled.incomplete) result.incomplete += 1;
       result.conversations += pulled.conversations;

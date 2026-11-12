@@ -180,6 +180,28 @@ describe("findKajabiMatchesForEvent", () => {
       expect(passedOn).toEqual([{ giver_id: "mbr_AAAAAAAAAAA1", giver_name: "Ada E", tickets: 1, receivers: ["Cy Example"] }]);
     });
 
+    it("counts a deactivated purchase as a ticket that was paid for and could be given away", async () => {
+      // Access was revoked (a lapsed member), but the payment went through and the ticket went to someone.
+      const r = repos({
+        kajabiPurchases: [purchase("p1", "c1", FULL, { deactivated_at: "2097-01-20T00:00:00Z" }), purchase("p2", "c2", FULL)],
+        eventAttendees: [gifted("mbr_AAAAAAAAAAA3", "mbr_AAAAAAAAAAA1", "a1")],
+      });
+
+      const { buyers, passedOn } = await findKajabiMatchesForEvent(r, EVENT);
+
+      expect(buyers.map((b) => b.member_id)).toEqual(["mbr_AAAAAAAAAAA2"]);
+      expect(passedOn).toEqual([{ giver_id: "mbr_AAAAAAAAAAA1", giver_name: "Ada E", tickets: 1, receivers: ["Cy Example"] }]);
+    });
+
+    it("still lists a deactivated purchase nobody received, for review", async () => {
+      const r = repos({ kajabiPurchases: [purchase("p1", "c1", FULL, { deactivated_at: "2097-01-20T00:00:00Z" })] });
+
+      const { buyers, passedOn } = await findKajabiMatchesForEvent(r, EVENT);
+
+      expect(passedOn).toEqual([]);
+      expect(buyers.map((b) => [b.member_id, b.deactivated])).toEqual([["mbr_AAAAAAAAAAA1", true]]);
+    });
+
     it("keeps a buyer who passed on only some of their tickets, and reports the rest as unexplained", async () => {
       const r = repos({
         kajabiPurchases: [purchase("p1", "c2", FULL), purchase("p2", "c2", FULL)],
