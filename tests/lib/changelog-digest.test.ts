@@ -78,6 +78,11 @@ describe("digestCandidates: who and what is never notified", () => {
     expect(digestCandidates(NOW, [first, eng]).map((e) => e.slug)).toEqual(["first"]);
   });
 
+  it("leaves out staff entries, which are for the admin Changelog only", () => {
+    const staff = entry({ slug: "staff", date: "2026-11-09", audience: "staff" });
+    expect(digestCandidates(NOW, [first, staff]).map((e) => e.slug)).toEqual(["first"]);
+  });
+
   it("never reaches before the configured start day, so backfilled history is not sent", () => {
     const history = entry({ slug: "history", date: "2026-10-20" });
     // Inside the 30-day window, but before the start day.

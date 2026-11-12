@@ -13,7 +13,7 @@ export function changelogEntryPath(slug: string): string | null {
   return match ? `/changelog/${match[0]}` : null;
 }
 
-/** Every entry, product and engineering, newest first; entries of the same day keep the order they were written in (later in the file is newer). */
+/** Every entry, whatever its audience (product, staff, engineering), newest first; entries of the same day keep the order they were written in (later in the file is newer). */
 export function listChangelog(entries: readonly ChangelogEntry[] = CHANGELOG_ENTRIES): ChangelogEntry[] {
   return entries
     .map((entry, index) => ({ entry, index }))
@@ -21,7 +21,10 @@ export function listChangelog(entries: readonly ChangelogEntry[] = CHANGELOG_ENT
     .map(({ entry }) => entry);
 }
 
-/** What members see (the pages, the digest, the announcements post): the product entries, newest first. Engineering entries are for staff, on the admin Changelog. */
+/**
+ * What members see (the pages, the digest, the announcements post): the product entries, newest first. An allowlist on purpose: staff and
+ * engineering entries (and any audience added later) are for the admin Changelog and can never reach a member.
+ */
 export function listProductChangelog(entries: readonly ChangelogEntry[] = CHANGELOG_ENTRIES): ChangelogEntry[] {
   return listChangelog(entries).filter((e) => e.audience === "product");
 }
@@ -37,7 +40,7 @@ export function filterByCategory(entries: readonly ChangelogEntry[], category: C
   return category ? entries.filter((e) => e.category === category) : [...entries];
 }
 
-/** The `?for=` filter on the admin changelog: one audience, or null for both. */
+/** The `?for=` filter on the admin changelog: one audience, or null for all of them. */
 export function parseAudienceFilter(value: string | string[] | undefined): ChangelogAudience | null {
   const one = Array.isArray(value) ? value[0] : value;
   return one !== undefined && Object.hasOwn(CHANGELOG_AUDIENCES, one) ? (one as ChangelogAudience) : null;
@@ -62,7 +65,7 @@ export function searchChangelog(entries: readonly ChangelogEntry[], query: strin
   });
 }
 
-/** Any entry by slug, product or engineering (the admin pages show both), or null. */
+/** Any entry by slug, whatever its audience (the admin pages show them all), or null. */
 export function findAnyChangelogEntry(slug: string, entries: readonly ChangelogEntry[] = CHANGELOG_ENTRIES): ChangelogEntry | null {
   return entries.find((e) => e.slug === slug) ?? null;
 }
@@ -78,7 +81,7 @@ export function groupByMonth(entries: readonly ChangelogEntry[]): { month: strin
   });
 }
 
-/** A product entry by slug, or null: an engineering entry has no page, so its slug is a 404 like any unknown one. */
+/** A product entry by slug, or null: a staff or engineering entry has no member page, so its slug is a 404 like any unknown one. */
 export function findChangelogEntry(slug: string, entries: readonly ChangelogEntry[] = CHANGELOG_ENTRIES): ChangelogEntry | null {
   return entries.find((e) => e.slug === slug && e.audience === "product") ?? null;
 }
@@ -106,7 +109,7 @@ export function validateChangelog(entries: readonly ChangelogEntry[] = CHANGELOG
     if (!(e.category in CHANGELOG_CATEGORIES)) problems.push(`${where}: unknown category`);
     if (!(e.audience in CHANGELOG_AUDIENCES)) problems.push(`${where}: unknown audience`);
     if (e.major && e.audience !== "product") problems.push(`${where}: only a product entry can be major`);
-    // An engineering entry has no page, digest or post to show a screenshot in.
+    // An engineering entry has no screenshots (a staff entry may: it is shown on the admin Changelog only).
     if (e.audience === "engineering" && (e.image || /!\[[^\]]*\]\(/.test(e.body))) problems.push(`${where}: an engineering entry has no screenshots`);
     if (!e.title.trim()) problems.push(`${where}: empty title`);
     if (!e.summary.trim()) problems.push(`${where}: empty summary`);
@@ -114,7 +117,7 @@ export function validateChangelog(entries: readonly ChangelogEntry[] = CHANGELOG
     if (!e.body.trim()) problems.push(`${where}: empty body`);
     if (e.image && !isChangelogImagePath(e.slug, e.image.src)) problems.push(`${where}: image must be /changelog/${e.slug}/<file>`);
     if (e.image && !e.image.alt.trim()) problems.push(`${where}: image needs alt text`);
-    if (e.audience === "product") for (const m of e.body.matchAll(/!\[[^\]]*\]\(([^)]*)\)/g)) {
+    if (e.audience !== "engineering") for (const m of e.body.matchAll(/!\[[^\]]*\]\(([^)]*)\)/g)) {
       if (!isChangelogImagePath(e.slug, m[1])) problems.push(`${where}: body image ${m[1]} must be /changelog/${e.slug}/<file>`);
     }
   }
