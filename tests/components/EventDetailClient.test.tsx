@@ -167,3 +167,28 @@ describe("EventDetailClient cover image", () => {
     expect(container.querySelector("img")).toBeNull();
   });
 });
+
+describe("EventDetailClient sign-up", () => {
+  const retreat = { ...EVENT, registration: "application", capacity: 5, selection: "first_come" };
+  const labels = () => Array.from(screen.getByRole("list", { name: "Who it's for" }).querySelectorAll("li")).map((li) => li.textContent);
+
+  it("links to the offer's checkout and says how many places are left", () => {
+    render(<EventDetailClient event={retreat} photos={[]} signup={{ checkoutUrl: "https://checkout.example.com/x", spotsLeft: 2, soldOut: false }} />);
+    expect(labels()).toContain("2 of 5 places left");
+    const link = screen.getByRole("link", { name: "Sign up" });
+    expect(link).toHaveAttribute("href", "https://checkout.example.com/x");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("says sold out and offers no sign-up link", () => {
+    render(<EventDetailClient event={retreat} photos={[]} signup={{ checkoutUrl: "https://checkout.example.com/x", spotsLeft: 0, soldOut: true }} />);
+    expect(labels()).toContain("Sold out!");
+    expect(screen.queryByRole("link", { name: "Sign up" })).not.toBeInTheDocument();
+  });
+
+  it("shows the plain places and no link without an offer", () => {
+    render(<EventDetailClient event={retreat} photos={[]} />);
+    expect(labels()).toContain("5 places");
+    expect(screen.queryByRole("link", { name: "Sign up" })).not.toBeInTheDocument();
+  });
+});

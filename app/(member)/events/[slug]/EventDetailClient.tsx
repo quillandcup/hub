@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import PrickleDescription from "@/components/PrickleDescription";
 import PhotoLightbox from "@/components/PhotoLightbox";
 import { audienceSummary } from "@/lib/event-audience";
+import type { EventSignup } from "@/lib/event-signup";
 import { locationDisplay } from "@/lib/location-display";
 import { eventDisplayName } from "@/lib/event-name";
 import { EVENT_TYPE_LABELS, type EventType } from "@/lib/events-filter";
@@ -47,6 +48,7 @@ export default function EventDetailClient({
   event,
   photos,
   calendarControl,
+  signup = null,
   coverImage = null,
   timeZone = "UTC",
 }: {
@@ -56,6 +58,8 @@ export default function EventDetailClient({
   timeZone?: string;
   /** "Add to my calendar", rendered by the page for upcoming events. */
   calendarControl?: ReactNode;
+  /** Where to sign up and how many places are left, for an upcoming event that sells tickets. */
+  signup?: EventSignup | null;
   /** The picture picked from the media library, shown above the title. */
   coverImage?: { src: string; alt: string } | null;
 }) {
@@ -64,7 +68,7 @@ export default function EventDetailClient({
   // The days and time of day as this member reads them, as the Events list does; nothing for an event with no time.
   const { startDate, endDate, timed } = eventDays(event, timeZone);
   const timeText = timed && event.start_time ? withSecondary(formatTimeSpan(event.start_time, event.end_time, timeZone), event.start_time, timeZone) : "";
-  const audience = audienceSummary(event);
+  const audience = audienceSummary({ ...event, spotsLeft: signup?.spotsLeft });
   const where = locationDisplay(event.location);
   const lightboxPhotos = photos.map((p) => ({ id: p.id, src: `/api/events/${event.id}/photos/${p.id}?w=1600` }));
 
@@ -99,6 +103,17 @@ export default function EventDetailClient({
               </li>
             ))}
           </ul>
+        )}
+        {signup?.checkoutUrl && !signup.soldOut && (
+          <a
+            data-track="event-sign-up"
+            href={signup.checkoutUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 inline-block px-5 py-2 rounded-lg bg-plum-600 text-white font-medium hover:bg-plum-700"
+          >
+            Sign up
+          </a>
         )}
         {calendarControl && <div className="mt-3">{calendarControl}</div>}
       </div>

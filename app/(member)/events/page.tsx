@@ -10,6 +10,8 @@ import { EVENT_PRICKLE_WINDOW_DAYS, fetchUpcomingEventPrickles } from "@/lib/eve
 import EventsBrowser, { type EventRow } from "./EventsBrowser";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { eventDisplayName } from "@/lib/event-name";
+import { getServiceRepos } from "@/lib/data/server";
+import { eventSignups } from "@/lib/event-signup";
 
 export const metadata: Metadata = {
   title: "Events",
@@ -40,6 +42,13 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
   ]);
   const badgeIconOf = new Map(badgeTypes.flatMap((b) => (b.event_id ? [[b.event_id, b.icon] as const] : [])));
 
+  // Places left for the upcoming events that take sign-ups, read with the service role (offers and purchases are staff-only); only counts reach the page.
+  const signupIds = events.filter((e) => !e.deleted_at && e.registration !== "none" && e.ends_at >= today).map((e) => e.id);
+  const signups = await eventSignups(
+    getServiceRepos(),
+    (await repos.events.byIds(signupIds)).map((e) => ({ id: e.id, capacity: e.capacity })),
+  );
+
   // A hidden event isn't listed, and neither is the prickle it stands for.
   const rows: EventRow[] = events.filter((e) => !e.deleted_at).map((e) => ({
     id: e.id,
@@ -56,6 +65,8 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
     badge_icon: badgeIconOf.get(e.id) ?? null,
     image_id: e.imageId,
     cover_photo_id: e.coverPhotoId,
+    spots_left: signups.get(e.id)?.spotsLeft ?? null,
+    sold_out: signups.get(e.id)?.soldOut ?? false,
   }));
 
   return (
