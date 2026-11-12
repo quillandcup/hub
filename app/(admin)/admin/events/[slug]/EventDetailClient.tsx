@@ -71,6 +71,8 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
   const [addingGiver, setAddingGiver] = useState<Member | null>(null);
   // The attendee whose dropdown was set to Gifted and who is waiting for a giver: nothing is saved until one is picked.
   const [pendingGiftFor, setPendingGiftFor] = useState<string | null>(null);
+  // The attendee whose giver somebody tried to clear in the picker (it can't be: the server refuses a gifted ticket without one).
+  const [giverClearTriedFor, setGiverClearTriedFor] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/members")
@@ -156,6 +158,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
 
   // "Not recorded" clears the note as well: it says how they got in, so it goes with the source.
   const handleTicketSource = (memberId: string, current: TicketSource | null, value: string) => {
+    setGiverClearTriedFor(null);
     if (value === "gifted") {
       // A gifted ticket needs a giver, so the choice is saved together with it once the picker has one.
       setPendingGiftFor(memberId);
@@ -367,16 +370,31 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                 <span className="flex items-center gap-3">
                 {(attendee.ticketSource === "gifted" || pendingGiftFor === attendee.memberId) && (
                   <div className="w-56" aria-label={`Gifted by, ${attendee.memberName}`}>
-                    {(pendingGiftFor === attendee.memberId || !attendee.ticketGiver) && (
-                      <p className="text-xs text-amber-700 dark:text-amber-400 mb-1">Who gave this ticket?</p>
+                    {pendingGiftFor === attendee.memberId ? (
+                      <p className="text-xs text-amber-700 dark:text-amber-400 mb-1">Who gave this ticket? Pick them to save it as gifted.</p>
+                    ) : (
+                      !attendee.ticketGiver && (
+                        <p className="text-xs text-amber-700 dark:text-amber-400 mb-1">
+                          No giver on record: the member who gave this ticket may have been deleted or merged. Pick who gave it.
+                        </p>
+                      )
+                    )}
+                    {giverClearTriedFor === attendee.memberId && (
+                      <p className="text-xs text-amber-700 dark:text-amber-400 mb-1">
+                        A gifted ticket needs a giver. To remove it, change the source above (Comped or Not recorded).
+                      </p>
                     )}
                     <MemberSearch
                       members={allMembers.filter((m) => m.id !== attendee.memberId)}
                       selectedMemberId={attendee.ticketGiver?.id ?? null}
                       selectedMemberName={attendee.ticketGiver?.name}
                       onSelect={(m) => {
-                        // Clearing is not offered: a gifted ticket always has a giver.
-                        if (!m) return;
+                        // Clearing is refused: a gifted ticket always has a giver. Say why instead of doing nothing.
+                        if (!m) {
+                          setGiverClearTriedFor(attendee.memberId);
+                          return;
+                        }
+                        setGiverClearTriedFor(null);
                         const becomingGifted = pendingGiftFor === attendee.memberId;
                         setPendingGiftFor(null);
                         return saveTicket(attendee.memberId, becomingGifted ? { ticketSource: "gifted", ticketGiverId: m.id } : { ticketGiverId: m.id });

@@ -231,12 +231,18 @@ export default function EngagementCard({ card, canWrite, owners }: { card: Engag
         <div className="mt-3 flex flex-wrap gap-2">
           {!closed && (
             <>
-              <button type="button" data-track="care-they-replied" className={BUTTON} disabled={pending} onClick={() => logMessage("member")}>
-                They replied
-              </button>
-              <button type="button" data-track="care-i-replied" className={BUTTON} disabled={pending} onClick={() => logMessage("staff")}>
-                I replied
-              </button>
+              {card.fromSlack ? (
+                <span className="self-center text-sm text-slate-600 dark:text-slate-400">Filled in from your Slack DM</span>
+              ) : (
+                <>
+                  <button type="button" data-track="care-they-replied" className={BUTTON} disabled={pending} onClick={() => logMessage("member")}>
+                    They replied
+                  </button>
+                  <button type="button" data-track="care-i-replied" className={BUTTON} disabled={pending} onClick={() => logMessage("staff")}>
+                    I replied
+                  </button>
+                </>
+              )}
               <button type="button" data-track="care-renew" className={BUTTON} disabled={pending} onClick={() => open("renew")}>
                 Renew
               </button>
@@ -263,6 +269,12 @@ export default function EngagementCard({ card, canWrite, owners }: { card: Engag
             Remove
           </button>
         </div>
+      )}
+
+      {canWrite && !closed && (
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+          Renew starts the next care period. Close ends this one and asks how it ended.
+        </p>
       )}
 
       {canWrite && panel === "results" && (
