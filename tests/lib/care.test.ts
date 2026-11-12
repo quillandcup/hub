@@ -16,7 +16,6 @@ import {
   daysAgoLabel,
   endOfOrgDay,
   isActiveStatus,
-  isCareChannel,
   isCareEndedHow,
   isCareId,
   isCareReason,
@@ -70,8 +69,6 @@ describe("the value sets", () => {
   it("accepts only members of each set", () => {
     expect(isCareReason("introduction")).toBe(true);
     expect(isCareReason("hello")).toBe(false);
-    expect(isCareChannel("slack_dm")).toBe(true);
-    expect(isCareChannel("fax")).toBe(false);
     expect(isCareEndedHow("renewed")).toBe(true);
     expect(isCareEndedHow(null)).toBe(false);
     expect(isMessageDirection("staff")).toBe(true);

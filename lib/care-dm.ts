@@ -18,7 +18,10 @@ import { resolveDmLinks, type DmLink } from "@/lib/care-dm-link";
 import { clock } from "@/lib/clock";
 import { CARE_OWNER_ROLES } from "@/lib/care-owners";
 import { careOwnerOf, derivedMessageTimes, lastWriter, type DmLastWrites } from "@/lib/care-dm-rules";
+import { careDmPlanState, type CareDmPlan, type CareDmPlanState } from "@/lib/care-dm-state";
+import type { CareOwner } from "@/lib/care-owners";
 import type { CareEngagementWithMember } from "@/lib/data/care";
+import type { TrackedDm } from "@/lib/data/care-dms";
 import { hasDmScopes } from "@/lib/slack-connect";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import type { Repos } from "@/lib/data/repos";
@@ -101,7 +104,10 @@ export type CareDmRow = {
   memberName: string;
   /** The legal name, only when it differs. */
   legalName: string | null;
+  /** Whether she tracks this DM now (the care plan reads it for who wrote last). */
   tracked: boolean;
+  /** What the member's care plans make of this row, and so what it offers (`lib/care-dm-state.ts`). */
+  plan: CareDmPlanState;
   /** When anyone last wrote in it (ISO), or null when Bronze has no message. */
   lastAt: string | null;
   /** "3 days ago", worked out on the server; null with no message. */
@@ -143,12 +149,13 @@ async function writesByChannel(service: Pick<Repos, "slackMessages">, dms: reado
 /**
  * The "Your DMs with members" list for a signed-in staff user. `bridgeOn` is whether the Slack DM bridge feature is on for
  * them (the caller reads their flags); `service` reads Bronze, `trackedChannelIds` is their own tracked list read with their
- * own client. Scoped to their Slack user, so it never holds anyone else's DM.
+ * own client, `plans` every care plan the page loaded (each row says what the member's plans make of it, `careDmPlanState`)
+ * and `owners` names who holds a plan someone else owns. Scoped to their Slack user, so it never holds anyone else's DM.
  */
 export async function loadCareDmTab(
   service: CareDmServiceRepos,
   user: StaffIdentity,
-  options: { bridgeOn: boolean; trackedChannelIds: ReadonlySet<string>; now: Date; slackTeamId?: string | null }
+  options: { bridgeOn: boolean; trackedChannelIds: ReadonlySet<string>; plans: readonly CareDmPlan[]; owners?: readonly CareOwner[]; now: Date; slackTeamId?: string | null }
 ): Promise<CareDmTab> {
   const own = await ownSlackIdentity(service, user);
   if (!own.memberId) return { state: "unavailable", reason: "no_member" };
@@ -164,6 +171,8 @@ export async function loadCareDmTab(
     resolveDmLinks({ chat: service.chat, selfMemberId: own.memberId, slackTeamId: options.slackTeamId }, dms.map((dm) => dm.channelId)),
   ]);
   const byId = new Map(members.map((m) => [m.id, m]));
+  const plansOf = new Map<string, CareDmPlan[]>();
+  for (const plan of options.plans) plansOf.set(plan.member_id, [...(plansOf.get(plan.member_id) ?? []), plan]);
   const rows: CareDmRow[] = [];
   for (const dm of dms) {
     const member = byId.get(dm.memberId);
@@ -176,6 +185,7 @@ export async function loadCareDmTab(
       memberName: shown,
       legalName: shown !== member.name ? member.name : null,
       tracked: options.trackedChannelIds.has(dm.channelId),
+      plan: careDmPlanState({ userId: user.id, plans: plansOf.get(dm.memberId) ?? [], tracked: options.trackedChannelIds.has(dm.channelId), now: options.now, owners: options.owners }),
       lastAt: last?.at ?? null,
       lastLabel: last ? daysAgoLabel(last.at, options.now) : null,
       lastBy: last ? (last.who === "staff" ? "you" : "them") : null,
@@ -192,7 +202,7 @@ export async function findOwnDm(service: CareDmServiceRepos, user: StaffIdentity
   return (await ownDirectMessages(service, own.slackUserId, own.memberId)).find((dm) => dm.channelId === channelId) ?? null;
 }
 
-/** Her own DM with this member, if she has one (the auto-track when she starts a Slack DM engagement). */
+/** Her own DM with this member, if she has one (what starting a care plan with them tracks). */
 export async function findOwnDmWith(service: CareDmServiceRepos, user: StaffIdentity, memberId: string): Promise<OwnDm | null> {
   const own = await ownSlackIdentity(service, user);
   if (!own.slackUserId) return null;
@@ -205,56 +215,105 @@ export async function trackedChannelIds(careDms: Pick<Repos, "careDms">["careDms
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
-// The projection: tracked DMs -> an open engagement's "who spoke last".
+// The projection: tracked DMs -> an open care plan's "who spoke last".
 // ---------------------------------------------------------------------------------------------------------------------
 
 /** Which tracked DMs to project: one staff user's, one Slack DM's (a live message arrived), or everyone's (the nightly run). */
 export type ProjectionScope = { userId: string } | { channelId: string } | "all";
 
 export type ProjectionResult = {
-  /** Tracked DMs looked at. */
+  /** Tracked DMs looked at (after the ones tracked for an owner's open plans, below). */
   tracked: number;
-  /** Open Slack DM engagements those matched. */
+  /** DMs tracked by this run because their owner holds an open care plan with the member and had not stopped tracking it. */
+  autoTracked: number;
+  /** Open care plans those matched. */
   engagements: number;
-  /** Times moved forward (a staff or a member time on an engagement). */
+  /** Times moved forward (a staff or a member time on a care plan). */
   moved: number;
   /** Stopped before the end because the time given was up (the next run carries on: it only ever moves times forward). */
   incomplete: boolean;
 };
 
+type ProjectionDeps = { care: Pick<Repos, "care">["care"]; careDms: Pick<Repos, "careDms">["careDms"]; service: CareDmServiceRepos };
+
 /**
- * Sets `last_staff_message_at` / `last_member_message_at` on OPEN Slack DM engagements from the DMs their owner tracks.
+ * Tracks the DM of an owner of an open care plan with the member, when she has a 1:1 DM with them in Bronze, does not track
+ * it yet and has never stopped tracking it (a stop is her choice: nothing tracks it for her again). A care plan is the reason
+ * a DM is tracked, so this is how one that was not tracked at the start (a DM that reached Bronze later, a plan started
+ * before the DM was pulled) comes in. Never a DM with staff (`ownDirectMessages` leaves them out). Returns the rows it added.
+ */
+async function trackOwnersDms(deps: ProjectionDeps, scope: ProjectionScope, tracked: readonly TrackedDm[], engagements: readonly CareEngagementWithMember[], outOfTime: () => boolean): Promise<{ added: TrackedDm[]; incomplete: boolean }> {
+  const { careDms, service } = deps;
+  // Owner -> the members they hold an open plan with and track no DM of.
+  const missing = new Map<string, Set<string>>();
+  for (const engagement of engagements) {
+    const owner = careOwnerOf(engagement);
+    if (!owner || (scope !== "all" && "userId" in scope && owner !== scope.userId)) continue;
+    if (tracked.some((dm) => dm.trackedBy === owner && dm.memberId === engagement.member_id)) continue;
+    missing.set(owner, (missing.get(owner) ?? new Set()).add(engagement.member_id));
+  }
+  if (missing.size === 0) return { added: [], incomplete: false };
+
+  const ownerIds = [...missing.keys()];
+  const [stopped, profiles] = await Promise.all([careDms.untrackedChannels(ownerIds), service.profiles.byIds(ownerIds)]);
+  const emails = new Map(profiles.map((p) => [p.id, p.email]));
+  const added: TrackedDm[] = [];
+  for (const [owner, memberIds] of missing) {
+    if (outOfTime()) return { added, incomplete: true };
+    const own = await ownSlackIdentity(service, { id: owner, email: emails.get(owner) });
+    if (!own.slackUserId) continue;
+    for (const dm of await ownDirectMessages(service, own.slackUserId, own.memberId)) {
+      if (!memberIds.has(dm.memberId) || stopped.get(owner)?.has(dm.channelId)) continue;
+      added.push((await careDms.track({ trackedBy: owner, channelId: dm.channelId, memberId: dm.memberId })).dm);
+    }
+  }
+  return { added, incomplete: false };
+}
+
+/**
+ * Sets `last_staff_message_at` / `last_member_message_at` on OPEN care plans from the DM their owner has with the member.
  *
- * The rule (docs/HEDGIE_CARE.md): for an open engagement with channel `slack_dm`, owned by the staff user who tracks the DM
- * with that member (`owned_by`, else who opened it), the staff side is the latest message the staff user's Slack account wrote
- * in that DM and the member side the latest the member's wrote; thread replies and file shares count, deleted messages and
- * Slack's join and leave notices do not, anyone else in the conversation is ignored. Only a message on or after the start of
- * the Eastern day the engagement opened counts (`dmCountsFrom`), and a time only ever moves FORWARD (`moveMessageTimesForward`),
- * so running it again, or after a manual "they replied", changes nothing it should not. It is rebuildable from Bronze at any
- * time. No audit rows: those two columns are left out of the audit trigger.
+ * The rule (docs/HEDGIE_CARE.md): a care plan belongs to the member, not to a channel, so for an open plan owned by the staff
+ * user who tracks the DM with that member (`owned_by`, else who opened it), the staff side is the latest message the staff
+ * user's Slack account wrote in that DM and the member side the latest the member's wrote; thread replies and file shares count,
+ * deleted messages and Slack's join and leave notices do not, anyone else in the conversation is ignored. Only a message on or
+ * after the start of the Eastern day the plan opened counts (`dmCountsFrom`), and a time only ever moves FORWARD
+ * (`moveMessageTimesForward`), so running it again, or after a manual "they replied", changes nothing it should not. It is
+ * rebuildable from Bronze at any time. No audit rows: those two columns are left out of the audit trigger.
  *
- * `care` writes the engagements (a staff member's own client when she opens the page: RLS lets staff update; the service role
+ * First it tracks the owner's DM with the member when she holds an open plan and has a DM but no tracking and no earlier choice
+ * to stop (`trackOwnersDms`); that is not done for a single Slack DM's live message (`{ channelId }`), which only reads what is
+ * already tracked.
+ *
+ * `care` writes the plans (a staff member's own client when she opens the page: RLS lets staff update; the service role
  * in the nightly run and the webhook); `careDms` reads the tracked list (her own, or everyone's with the service role);
  * `service` reads Bronze. A tracked DM whose conversation does not have both people in it is skipped, so a row that names a
  * channel that is not theirs reads nothing.
  */
-export async function projectCareFromDms(
-  deps: { care: Pick<Repos, "care">["care"]; careDms: Pick<Repos, "careDms">["careDms"]; service: CareDmServiceRepos },
-  scope: ProjectionScope,
-  options: { deadline?: number } = {}
-): Promise<ProjectionResult> {
+export async function projectCareFromDms(deps: ProjectionDeps, scope: ProjectionScope, options: { deadline?: number } = {}): Promise<ProjectionResult> {
   const { care, careDms, service } = deps;
-  const result: ProjectionResult = { tracked: 0, engagements: 0, moved: 0, incomplete: false };
+  const result: ProjectionResult = { tracked: 0, autoTracked: 0, engagements: 0, moved: 0, incomplete: false };
   const outOfTime = () => options.deadline !== undefined && clock.now() >= options.deadline;
-  const tracked = scope === "all" ? await careDms.allLive() : "userId" in scope ? await careDms.forUser(scope.userId) : await careDms.forChannel(scope.channelId);
+  let tracked = scope === "all" ? await careDms.allLive() : "userId" in scope ? await careDms.forUser(scope.userId) : await careDms.forChannel(scope.channelId);
   result.tracked = tracked.length;
-  if (tracked.length === 0) return result;
 
-  const engagements = (await care.list()).filter((e) => e.channel === "slack_dm" && e.closed_at === null);
+  const engagements = (await care.list()).filter((e) => e.closed_at === null);
   if (engagements.length === 0) return result;
   const ownerOf = (e: CareEngagementWithMember) => careOwnerOf(e);
 
-  // Only the tracked DMs that an open Slack DM engagement of the same owner and member could use.
+  if (scope === "all" || "userId" in scope) {
+    const auto = await trackOwnersDms(deps, scope, tracked, engagements, outOfTime);
+    tracked = [...tracked, ...auto.added];
+    result.autoTracked = auto.added.length;
+    result.tracked = tracked.length;
+    if (auto.incomplete) {
+      result.incomplete = true;
+      return result;
+    }
+  }
+  if (tracked.length === 0) return result;
+
+  // Only the tracked DMs that an open care plan of the same owner and member could use.
   const wanted = tracked.filter((dm) => engagements.some((e) => ownerOf(e) === dm.trackedBy && e.member_id === dm.memberId));
   if (wanted.length === 0) return result;
 

@@ -48,14 +48,15 @@ const actions = vi.hoisted(() => ({
 }));
 vi.mock("@/app/(admin)/admin/care/actions", () => actions);
 
+import { InMemorySlackMessageRepository } from "@/lib/data/slack-messages";
 import CareIndex from "@/app/(admin)/admin/care/page";
 import CareEarlierPage from "@/app/(admin)/admin/care/earlier/page";
 import CareDmsPage from "@/app/(admin)/admin/care/dms/page";
 import { SLACK_DM_SCOPES } from "@/lib/slack-connect";
 
 const CM_USER = { id: "user-community-manager", email: "cm@example.test" };
-const activePage = () => CareIndex({ searchParams: Promise.resolve({}) } as never);
-const earlierPage = () => CareEarlierPage();
+const activePage = (searchParams: Record<string, string> = {}) => CareIndex({ searchParams: Promise.resolve(searchParams) } as never);
+const earlierPage = (searchParams: Record<string, string> = {}) => CareEarlierPage({ searchParams: Promise.resolve(searchParams) } as never);
 const dmsPage = () => CareDmsPage();
 
 const NOW = Date.parse("2026-03-20T12:00:00.000Z");
@@ -67,7 +68,7 @@ const row = (id: string, member: string, over: Record<string, unknown> = {}) => 
   opened_by: null,
   owned_by: CM_USER.id,
   reason: "check_in",
-  channel: "slack_dm",
+  channel: "other", // the deprecated column: nothing reads it
   opened_at: ago(10),
   period_ends_on: "2026-04-10",
   renewed_from: null,
@@ -87,6 +88,8 @@ const row = (id: string, member: string, over: Record<string, unknown> = {}) => 
 const ADA = "mbr_AAAAAAAAAAA1";
 const BO = "mbr_AAAAAAAAAAA2";
 const CY = "mbr_AAAAAAAAAAA3";
+const DI = "mbr_AAAAAAAAAAA4";
+const EV = "mbr_AAAAAAAAAAA5";
 
 function seed() {
   dataset = new InMemoryDataset({
@@ -94,6 +97,8 @@ function seed() {
       { id: ADA, name: "Ada Example", displayName: "Ada E.", email: "ada@example.test" },
       { id: BO, name: "Bo Example", email: "bo@example.test" },
       { id: CY, name: "Cy Example", email: "cy@example.test" },
+      { id: DI, name: "Di Example", email: "di@example.test" },
+      { id: EV, name: "Ev Example", email: "ev@example.test" },
       { id: "mbr_AAAAAAAAAAA8", name: "Cam Manager", email: "cam@example.test", userId: CM_USER.id },
       { id: "mbr_AAAAAAAAAAA9", name: "Abe Admin", email: "abe@example.test", userId: ADMIN_USER.id },
     ],
@@ -110,8 +115,8 @@ function seed() {
     row("care_AAAAAAAAAAA4", CY, { channel: "email", closed_at: ago(3), ended_how: "back_in_community" }), // closed lately
     row("care_AAAAAAAAAAA5", BO, { channel: "email", closed_at: ago(90), ended_how: "no_reply" }), // closed long ago
     row("care_AAAAAAAAAAA6", BO, { channel: "prickle", deleted_at: ago(1) }), // removed: not listed
-    row("care_AAAAAAAAAAA7", ADA, { period_ends_on: "2026-03-15", last_staff_message_at: ago(8) }), // period over, inside the grace: review due
-    row("care_AAAAAAAAAAA8", CY, { owned_by: ADMIN_USER.id, channel: "prickle", period_ends_on: "2026-02-01", opened_at: ago(60), last_staff_message_at: ago(55) }), // lapsed
+    row("care_AAAAAAAAAAA7", DI, { period_ends_on: "2026-03-15", last_staff_message_at: ago(8) }), // period over, inside the grace: review due
+    row("care_AAAAAAAAAAA8", EV, { owned_by: ADMIN_USER.id, channel: "prickle", period_ends_on: "2026-02-01", opened_at: ago(60), last_staff_message_at: ago(55) }), // lapsed
   );
 }
 
@@ -170,7 +175,7 @@ describe("the Active tab", () => {
 
     expect(screen.getByRole("heading", { name: "Hedgie Care" })).toBeInTheDocument();
     const names = cards().map((c) => within(c).getAllByRole("link")[0].textContent);
-    expect(names).toEqual(["Ada E.", "Ada E.", "Cy Example", "Bo Example"]);
+    expect(names).toEqual(["Ada E.", "Di Example", "Cy Example", "Bo Example"]);
     expect(within(cards()[0]).getByText("Needs your reply")).toBeInTheDocument();
     expect(within(cards()[1]).getByText("Review due")).toBeInTheDocument();
     expect(within(cards()[2]).getByText("Gone quiet")).toBeInTheDocument();
@@ -199,7 +204,7 @@ describe("the Active tab", () => {
     expect(within(ada).getByText(/· Follow up \w+/)).toBeInTheDocument();
     expect(within(ada).getByText("Next: Ask about chapter two")).toBeInTheDocument();
     expect(within(ada).getByText("Mentioned her draft.")).toBeInTheDocument();
-    expect(within(ada).getByText("A check-in · Email · first plan")).toBeInTheDocument();
+    expect(within(ada).getByText("A check-in · first plan")).toBeInTheDocument();
     expect(within(ada).getByText("Owner: Cam Manager")).toBeInTheDocument();
     expect(within(cards()[3]).getByText("Owner: Abe Admin")).toBeInTheDocument();
     expect(within(cards()[3]).getByText(/Last message: you wrote 2 days ago/)).toBeInTheDocument();
@@ -527,7 +532,7 @@ describe("the results", () => {
   });
 });
 
-describe("starting an engagement", () => {
+describe("starting a care plan", () => {
   const openPage = async () => {
     signInAs(CM_USER);
     await renderServerRoute(activePage, undefined as never);
@@ -595,72 +600,15 @@ describe("starting an engagement", () => {
     expect(screen.getByText("You are asking how their writing is going.")).toBeInTheDocument();
   });
 
-  describe("the 'They wrote to me first' tick", () => {
-    const pickBo = async (user: ReturnType<typeof userEvent.setup>) => {
-      await user.type(screen.getByRole("combobox", { name: "Member" }), "bo");
-      await user.click(await screen.findByRole("option", { name: /Bo Example/ }));
-      await user.click(screen.getByRole("radio", { name: /A welcome/ }));
-    };
-    const trackBo = (over: { ownedBy?: string } = {}) => {
-      seedSlack();
-      dataset.careTrackedDms.push({ id: "caredm_AAAAAAAAAAA1", tracked_by: CM_USER.id, slack_channel_id: D.bo, member_id: BO, created_at: ago(2), deleted_at: null });
-      // Bo's earlier care plans decide who would own a new one.
-      dataset.careEngagements.splice(0, dataset.careEngagements.length, row("care_AAAAAAAAAAA1", BO, { channel: "email", closed_at: ago(5), ended_how: "no_reply", owned_by: over.ownedBy ?? CM_USER.id }));
-    };
-    const tick = () => screen.queryByLabelText("They wrote to me first");
-    const line = () => screen.queryByText("Your Slack DM with them tells who wrote first.");
-
-    it("is there for a Slack DM before a member is picked, and for a member whose DM is not tracked", async () => {
-      const user = await open();
-      expect(tick()).toBeInTheDocument();
-      expect(line()).not.toBeInTheDocument();
-      await pickBo(user);
-      expect(screen.getByLabelText("Where")).toHaveValue("slack_dm");
-      expect(tick()).toBeInTheDocument();
-      expect(line()).not.toBeInTheDocument();
-    });
-
-    it("is replaced by a line for a Slack DM with a member whose DM she tracks, and comes back for another channel", async () => {
-      trackBo();
-      const user = await open();
-      await pickBo(user);
-      expect(tick()).not.toBeInTheDocument();
-      expect(line()).toBeInTheDocument();
-
-      await user.selectOptions(screen.getByLabelText("Where"), "email");
-      expect(tick()).toBeInTheDocument();
-      expect(line()).not.toBeInTheDocument();
-      await user.selectOptions(screen.getByLabelText("Where"), "prickle");
-      expect(tick()).toBeInTheDocument();
-    });
-
-    it("stays when the tracked DM would not feed the new care plan, since the member's latest one belongs to someone else", async () => {
-      trackBo({ ownedBy: ADMIN_USER.id });
-      const user = await open();
-      await pickBo(user);
-      expect(tick()).toBeInTheDocument();
-      expect(line()).not.toBeInTheDocument();
-    });
-
-    it("is not sent as ticked once the DM says who wrote first", async () => {
-      trackBo();
-      const user = await open();
-      await pickBo(user);
-      await user.selectOptions(screen.getByLabelText("Where"), "email");
-      await user.click(tick()!);
-      await user.selectOptions(screen.getByLabelText("Where"), "slack_dm");
-      await user.click(screen.getByRole("button", { name: "Start plan" }));
-
-      expect(actions.startEngagement).toHaveBeenCalledWith(expect.objectContaining({ memberId: BO, channel: "slack_dm", memberWroteFirst: false }));
-      await waitFor(() => expect(track).toHaveBeenCalledWith("care_engagement_started", expect.objectContaining({ channel: "slack_dm", member_wrote_first: false })));
-    });
-
-    it("still starts a Slack DM care plan for a member with no DM, with the tick available", async () => {
-      const user = await open();
-      await pickBo(user);
-      await user.click(tick()!);
-      await user.click(screen.getByRole("button", { name: "Start plan" }));
-      expect(actions.startEngagement).toHaveBeenCalledWith(expect.objectContaining({ memberId: BO, channel: "slack_dm", memberWroteFirst: true }));
+  describe("the form asks nothing about where, or who wrote first", () => {
+    it("has no channel selector and no 'They wrote to me first' tick: a care plan belongs to the member, and a tracked DM or the log buttons say who spoke", async () => {
+      await open();
+      expect(screen.queryByLabelText("Where")).not.toBeInTheDocument();
+      expect(screen.queryByLabelText("They wrote to me first")).not.toBeInTheDocument();
+      expect(screen.queryByText(/tells who wrote first/)).not.toBeInTheDocument();
+      expect(screen.getByLabelText("When did this start?")).toBeInTheDocument();
+      expect(screen.getByLabelText("Follow up on")).toBeInTheDocument();
+      expect(screen.getByLabelText("Note")).toBeInTheDocument();
     });
   });
 
@@ -680,19 +628,17 @@ describe("starting an engagement", () => {
     expect(actions.startEngagement).not.toHaveBeenCalled();
   });
 
-  it("finds a member, starts the engagement with what was filled in, closes the dialog and opens empty next time", async () => {
+  it("finds a member, starts the care plan with what was filled in, closes the dialog and opens empty next time", async () => {
     const user = await open();
 
     await user.type(screen.getByRole("combobox", { name: "Member" }), "bo");
     await user.click(await screen.findByRole("option", { name: /Bo Example/ }));
     await user.click(screen.getByRole("radio", { name: /A welcome/ }));
-    await user.selectOptions(screen.getByLabelText("Where"), "email");
-    await user.click(screen.getByLabelText("They wrote to me first"));
     await user.type(screen.getByLabelText("Note"), "Joined last week");
     await user.click(screen.getByRole("button", { name: "Start plan" }));
 
-    expect(actions.startEngagement).toHaveBeenCalledWith({ memberId: BO, startedOn: "2026-03-20", reason: "welcome", channel: "email", memberWroteFirst: true, notes: "Joined last week", followUpOn: "" });
-    await waitFor(() => expect(track).toHaveBeenCalledWith("care_engagement_started", { reason: "welcome", channel: "email", member_wrote_first: true, backdated: false }));
+    expect(actions.startEngagement).toHaveBeenCalledWith({ memberId: BO, startedOn: "2026-03-20", reason: "welcome", notes: "Joined last week", followUpOn: "" });
+    await waitFor(() => expect(track).toHaveBeenCalledWith("care_engagement_started", { reason: "welcome", backdated: false }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: "Start a care plan" }));
     expect(screen.getByLabelText("Note")).toHaveValue("");
@@ -712,7 +658,7 @@ describe("starting an engagement", () => {
     await user.click(screen.getByRole("button", { name: "Start plan" }));
 
     expect(actions.startEngagement).toHaveBeenCalledWith(expect.objectContaining({ memberId: BO, startedOn: "2026-03-13" }));
-    await waitFor(() => expect(track).toHaveBeenCalledWith("care_engagement_started", { reason: "welcome", channel: "slack_dm", member_wrote_first: false, backdated: true }));
+    await waitFor(() => expect(track).toHaveBeenCalledWith("care_engagement_started", { reason: "welcome", backdated: true }));
     // After starting, the dialog closes and the day is today again for the next one.
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: "Start a care plan" }));
@@ -732,7 +678,7 @@ describe("starting an engagement", () => {
   });
 
   it("keeps what was typed and says why when the server refuses", async () => {
-    actions.startEngagement.mockResolvedValue({ error: "There is already an open care plan with them on that channel. Log a message there, or renew it." });
+    actions.startEngagement.mockResolvedValue({ error: "There is already an open care plan with them. Log a message there, or renew it." });
     const user = await open();
 
     await user.type(screen.getByRole("combobox", { name: "Member" }), "bo");
@@ -794,7 +740,7 @@ describe("the owner filter", () => {
 
     expect(cards()).toHaveLength(4);
     await user.click(screen.getByRole("button", { name: "Mine" }));
-    expect(cards().map((c) => within(c).getAllByRole("link")[0].textContent)).toEqual(["Ada E.", "Ada E.", "Cy Example"]);
+    expect(cards().map((c) => within(c).getAllByRole("link")[0].textContent)).toEqual(["Ada E.", "Di Example", "Cy Example"]);
     expect(window.location.search).toBe("?owner=me");
     expect(screen.getByRole("button", { name: "All (3)" })).toBeInTheDocument();
 
@@ -953,13 +899,55 @@ function seedSlack({ bridge = true, connection = "ok" }: { bridge?: boolean; con
   if (bridge) dataset.featureFlags.push({ feature_key: "slack_dm_bridge", enabled_globally: true, created_at: ago(30), updated_at: ago(30) });
 }
 
+describe("one member's care plans (?member=)", () => {
+  it("shows only that member's care plans on the Active tab, says so with a way back, and leaves the tab counts alone", async () => {
+    signInAs(CM_USER);
+    await renderServerRoute(() => activePage({ member: BO }), undefined as never);
+
+    expect(cards().map((c) => within(c).getAllByRole("link")[0].textContent)).toEqual(["Bo Example"]);
+    expect(screen.getByText("Showing Bo Example's care plans.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Show everyone" })).toHaveAttribute("href", "/admin/care");
+    expect(screen.getByRole("tab", { name: "Active (4)" })).toBeInTheDocument();
+  });
+
+  it("does the same on the Earlier tab, and says so when the member has no care plan at all", async () => {
+    signInAs(CM_USER);
+    const first = await renderServerRoute(() => earlierPage({ member: EV }), undefined as never);
+    expect(cards().map((c) => within(c).getAllByRole("link")[0].textContent)).toEqual(["Ev Example"]);
+    expect(screen.getByRole("link", { name: "Show everyone" })).toHaveAttribute("href", "/admin/care/earlier");
+    first.unmount();
+
+    await renderServerRoute(() => earlierPage({ member: "mbr_ZZZZZZZZZZZZ" }), undefined as never);
+    expect(screen.getByText("That member has no care plans.")).toBeInTheDocument();
+  });
+
+  it("ignores a value that is not a member id, and a list of them", async () => {
+    signInAs(CM_USER);
+    const first = await renderServerRoute(() => activePage({ member: "care_AAAAAAAAAAA1" }), undefined as never);
+    expect(cards()).toHaveLength(4);
+    expect(screen.queryByRole("link", { name: "Show everyone" })).not.toBeInTheDocument();
+    first.unmount();
+
+    await renderServerRoute(() => activePage({ member: [BO, ADA] as never }), undefined as never);
+    expect(cards()).toHaveLength(4);
+  });
+});
+
 describe("the Your DMs tab", () => {
   beforeEach(() => {
     actions.trackCareDm.mockResolvedValue({ success: true });
     actions.untrackCareDm.mockResolvedValue({ success: true });
   });
 
-  const rows = () => screen.getAllByRole("listitem").filter((li) => li.querySelector("a[href^='/admin/members/']") && li.querySelector("button[aria-pressed]"));
+  // A row of the tab: a member's link and the way into the DM (the plan cards on the other tabs have no such link).
+  const rows = () => screen.getAllByRole("listitem").filter((li) => li.querySelector("a[href^='/admin/members/']") && li.querySelector("a[title^='Opens the DM']"));
+  const openTab = async () => {
+    signInAs(CM_USER);
+    await renderServerRoute(dmsPage, undefined as never);
+    return userEvent.setup();
+  };
+  /** Bo's plans in the seed: an open one held by Abe. */
+  const boPlans = (...plans: ReturnType<typeof row>[]) => dataset.careEngagements.splice(0, dataset.careEngagements.length, ...dataset.careEngagements.filter((c) => c.member_id !== BO), ...plans);
 
   it("is the third tab, at its own path, and opens for a community manager and an admin but not a member", async () => {
     seedSlack();
@@ -980,8 +968,7 @@ describe("the Your DMs tab", () => {
 
   it("lists only her own DMs with members: newest first, by display name, who wrote last, and not a staff member's or other people's", async () => {
     seedSlack();
-    signInAs(CM_USER);
-    await renderServerRoute(dmsPage, undefined as never);
+    await openTab();
 
     expect(rows().map((r) => r.querySelector("a")?.textContent)).toEqual(["Ada E.", "Bo Example"]);
     expect(within(rows()[0]).getByText("Ada Example")).toBeInTheDocument();
@@ -996,66 +983,154 @@ describe("the Your DMs tab", () => {
 
   it("says, in plain words, what is and is not read", async () => {
     seedSlack();
-    signInAs(CM_USER);
-    await renderServerRoute(dmsPage, undefined as never);
+    await openTab();
 
-    expect(screen.getByText(/reads who wrote and when in the DMs you track, never what was said/)).toBeInTheDocument();
+    expect(screen.getByText(/reads who wrote and when in your DM with a member you have a care plan with, never what was said/)).toBeInTheDocument();
     expect(screen.getByText(/already brings your direct messages in for Hub Chat/)).toBeInTheDocument();
+    expect(screen.getByText(/Starting a care plan tracks your DM with them/)).toBeInTheDocument();
     expect(screen.getByText(/Other staff, admins included, don.t see which DMs you track/)).toBeInTheDocument();
     expect(screen.getByText(/DMs with staff are never listed/)).toBeInTheDocument();
   });
 
-  it("marks the DMs she tracks, and tracks and untracks with a click, counting how many she tracks and nothing else", async () => {
-    seedSlack();
-    dataset.careTrackedDms.push({ id: "caredm_AAAAAAAAAAA1", tracked_by: CM_USER.id, slack_channel_id: D.bo, member_id: BO, created_at: ago(2), deleted_at: null });
-    signInAs(CM_USER);
-    await renderServerRoute(dmsPage, undefined as never);
-    const user = userEvent.setup();
+  describe("what each row says about the member's care plans, and what it offers", () => {
+    it("in a care plan of hers: its place and status, a link to it, the DM tracked for her on opening the page, and a quiet way to stop", async () => {
+      seedSlack();
+      await openTab();
 
-    expect(within(rows()[0]).getByRole("button", { name: "Track your DM with Ada E." })).toHaveAttribute("aria-pressed", "false");
-    expect(within(rows()[1]).getByRole("button", { name: "Stop tracking your DM with Bo Example" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Tracked (1)" })).toBeInTheDocument();
+      const ada = rows()[0];
+      expect(within(ada).getByText("In a care plan: first plan, needs your reply")).toBeInTheDocument();
+      expect(within(ada).getByRole("link", { name: "See the care plan" })).toHaveAttribute("href", `/admin/care?member=${ADA}`);
+      expect(within(ada).getByText(/Who wrote last on the care plan comes from this DM\. Stopping tracking stops the care plan reading it\./)).toBeInTheDocument();
+      expect(within(ada).getByRole("button", { name: "Stop tracking your DM with Ada E." })).toHaveTextContent("Stop tracking this DM");
+      expect(dataset.careTrackedDms.filter((d) => d.deleted_at === null).map((d) => [d.tracked_by, d.slack_channel_id, d.member_id])).toEqual([[CM_USER.id, D.ada, ADA]]);
+      expect(within(ada).queryByRole("button", { name: /Start/ })).not.toBeInTheDocument();
+    });
 
-    await user.click(within(rows()[0]).getByRole("button", { name: "Track your DM with Ada E." }));
-    await waitFor(() => expect(within(rows()[0]).getByRole("button", { name: "Stop tracking your DM with Ada E." })).toHaveAttribute("aria-pressed", "true"));
-    expect(actions.trackCareDm).toHaveBeenCalledWith(D.ada);
-    expect(track).toHaveBeenCalledWith("care_dm_tracked", { dms_tracked: 2 });
-    expect(screen.getByRole("button", { name: "Tracked (2)" })).toBeInTheDocument();
+    it("someone else holds the open care plan: says who by display name, links to it, and has no track or start button at all", async () => {
+      seedSlack();
+      await openTab();
 
-    await user.click(within(rows()[1]).getByRole("button", { name: "Stop tracking your DM with Bo Example" }));
-    await waitFor(() => expect(within(rows()[1]).getByRole("button", { name: "Track your DM with Bo Example" })).toBeInTheDocument());
-    expect(actions.untrackCareDm).toHaveBeenCalledWith(D.bo);
-    expect(track).toHaveBeenCalledWith("care_dm_untracked", { dms_tracked: 1 });
-    expect(JSON.stringify(track.mock.calls)).not.toMatch(/Ada|Bo |D0|mbr_/);
-  });
+      const bo = rows()[1];
+      expect(within(bo).getByText("Care plan held by Abe Admin")).toBeInTheDocument();
+      expect(within(bo).getByText("Your DM does not fill in their care plan.")).toBeInTheDocument();
+      expect(within(bo).getByRole("link", { name: "See the care plan" })).toHaveAttribute("href", `/admin/care?member=${BO}`);
+      expect(within(bo).queryByRole("button")).not.toBeInTheDocument();
+      expect(dataset.careTrackedDms.map((d) => d.member_id)).not.toContain(BO); // her DM with Bo is not tracked for a plan she does not hold
+    });
 
-  it("shows why it could not track one, and leaves the switch as it was", async () => {
-    seedSlack();
-    actions.trackCareDm.mockResolvedValue({ error: "Couldn't track that DM." });
-    signInAs(CM_USER);
-    await renderServerRoute(dmsPage, undefined as never);
+    it("no care plan: says so and offers to start one, with no bare Track", async () => {
+      seedSlack();
+      boPlans();
+      await openTab();
 
-    await userEvent.setup().click(within(rows()[0]).getByRole("button", { name: "Track your DM with Ada E." }));
+      const bo = rows()[1];
+      expect(within(bo).getByText("No care plan")).toBeInTheDocument();
+      expect(within(bo).getByRole("button", { name: "Start a care plan" })).toBeInTheDocument();
+      expect(within(bo).queryByRole("button", { name: /Track/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Track your DM/ })).not.toBeInTheDocument();
+    });
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't track that DM.");
-    expect(within(rows()[0]).getByRole("button", { name: "Track your DM with Ada E." })).toHaveAttribute("aria-pressed", "false");
-    expect(track).not.toHaveBeenCalled();
-  });
+    it("an ended plan only: says earlier care plan, offers a new one and a link to the earlier ones, and the DM stays as it was", async () => {
+      seedSlack();
+      boPlans(row("care_AAAAAAAAAAA9", BO, { closed_at: ago(4), ended_how: "ran_its_course" }));
+      dataset.careTrackedDms.push({ id: "caredm_AAAAAAAAAAA1", tracked_by: CM_USER.id, slack_channel_id: D.bo, member_id: BO, created_at: ago(20), deleted_at: null });
+      await openTab();
 
-  it("finds a DM by name, narrows to the tracked ones, and says when nothing matches", async () => {
-    seedSlack();
-    dataset.careTrackedDms.push({ id: "caredm_AAAAAAAAAAA1", tracked_by: CM_USER.id, slack_channel_id: D.bo, member_id: BO, created_at: ago(2), deleted_at: null });
-    signInAs(CM_USER);
-    await renderServerRoute(dmsPage, undefined as never);
-    const user = userEvent.setup();
+      const bo = rows()[1];
+      expect(within(bo).getByText("Earlier care plan")).toBeInTheDocument();
+      expect(within(bo).getByRole("button", { name: "Start a new care plan" })).toBeInTheDocument();
+      expect(within(bo).getByRole("link", { name: "Earlier plans" })).toHaveAttribute("href", `/admin/care/earlier?member=${BO}`);
+      expect(dataset.careTrackedDms.filter((d) => d.slack_channel_id === D.bo && d.deleted_at === null)).toHaveLength(1); // not untracked when the plan ended
+    });
 
-    await user.type(screen.getByRole("searchbox", { name: "Find a DM by name" }), "ada ex");
-    expect(rows().map((r) => r.querySelector("a")?.textContent)).toEqual(["Ada E."]); // by legal name too
-    await user.clear(screen.getByRole("searchbox", { name: "Find a DM by name" }));
-    await user.click(screen.getByRole("button", { name: "Tracked (1)" }));
-    expect(rows().map((r) => r.querySelector("a")?.textContent)).toEqual(["Bo Example"]);
-    await user.type(screen.getByRole("searchbox", { name: "Find a DM by name" }), "zzz");
-    expect(screen.getByText("Nothing here.")).toBeInTheDocument();
+    it("a tracked DM with no care plan behind it, left from testing, shows as no care plan and breaks nothing", async () => {
+      seedSlack();
+      boPlans();
+      dataset.careTrackedDms.push({ id: "caredm_AAAAAAAAAAA1", tracked_by: CM_USER.id, slack_channel_id: D.bo, member_id: BO, created_at: ago(20), deleted_at: null });
+      await openTab();
+
+      const bo = rows()[1];
+      expect(within(bo).getByText("No care plan")).toBeInTheDocument();
+      expect(within(bo).getByRole("button", { name: "Start a care plan" })).toBeInTheDocument();
+      expect(within(bo).queryByRole("button", { name: /Stop tracking/ })).not.toBeInTheDocument();
+      expect(dataset.careTrackedDms.find((d) => d.slack_channel_id === D.bo)!.deleted_at).toBeNull(); // nothing is cleaned up
+    });
+
+    it("a plan that lapsed links to the Earlier tab", async () => {
+      seedSlack();
+      boPlans(row("care_AAAAAAAAAAA9", BO, { owned_by: CM_USER.id, period_ends_on: "2026-01-01", opened_at: ago(70), last_staff_message_at: ago(60) }));
+      dataset.careTrackedDms.push({ id: "caredm_AAAAAAAAAAA1", tracked_by: CM_USER.id, slack_channel_id: D.bo, member_id: BO, created_at: ago(20), deleted_at: null });
+      await openTab();
+
+      expect(within(rows()[1]).getByText(/In a care plan: first plan, lapsed/)).toBeInTheDocument();
+      expect(within(rows()[1]).getByRole("link", { name: "See the care plan" })).toHaveAttribute("href", `/admin/care/earlier?member=${BO}`);
+    });
+
+    it("starts a care plan from a row: the dialog is for that member, asks no member, and starts it with that member's id", async () => {
+      seedSlack();
+      boPlans();
+      const user = await openTab();
+
+      await user.click(within(rows()[1]).getByRole("button", { name: "Start a care plan" }));
+      const dialog = screen.getByRole("dialog", { name: "Start a care plan" });
+      expect(within(dialog).getByText("Bo Example")).toBeInTheDocument();
+      expect(within(dialog).queryByRole("combobox", { name: "Member" })).not.toBeInTheDocument();
+      await user.click(within(dialog).getByRole("radio", { name: /A welcome/ }));
+      await user.click(within(dialog).getByRole("button", { name: "Start plan" }));
+
+      expect(actions.startEngagement).toHaveBeenCalledWith(expect.objectContaining({ memberId: BO, reason: "welcome", startedOn: "2026-03-20" }));
+      expect(track).toHaveBeenCalledWith("care_engagement_started", { reason: "welcome", backdated: false });
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    });
+
+    it("a DM she stopped tracking on a plan she holds is not tracked again on opening the page, and says so with a way to read it again", async () => {
+      seedSlack();
+      dataset.careTrackedDms.push({ id: "caredm_AAAAAAAAAAA1", tracked_by: CM_USER.id, slack_channel_id: D.ada, member_id: ADA, created_at: ago(20), deleted_at: ago(5) });
+      const user = await openTab();
+
+      const ada = rows()[0];
+      expect(within(ada).getByText(/You stopped tracking this DM, so the care plan does not read it/)).toBeInTheDocument();
+      expect(dataset.careTrackedDms.filter((d) => d.deleted_at === null)).toEqual([]);
+      await user.click(within(ada).getByRole("button", { name: "Read again your DM with Ada E." }));
+      expect(actions.trackCareDm).toHaveBeenCalledWith(D.ada);
+      expect(track).toHaveBeenCalledWith("care_dm_tracked", { dms_tracked: 1 });
+    });
+
+    it("stops tracking with a click, counting how many she tracks and nothing else", async () => {
+      seedSlack();
+      const user = await openTab();
+
+      await user.click(within(rows()[0]).getByRole("button", { name: "Stop tracking your DM with Ada E." }));
+
+      expect(actions.untrackCareDm).toHaveBeenCalledWith(D.ada);
+      await waitFor(() => expect(track).toHaveBeenCalledWith("care_dm_untracked", { dms_tracked: 0 }));
+      expect(JSON.stringify(track.mock.calls)).not.toMatch(/Ada|Bo |D0|mbr_/);
+    });
+
+    it("shows why it could not stop tracking one, and reports nothing", async () => {
+      seedSlack();
+      actions.untrackCareDm.mockResolvedValue({ error: "Couldn't stop tracking that DM." });
+      const user = await openTab();
+
+      await user.click(within(rows()[0]).getByRole("button", { name: "Stop tracking your DM with Ada E." }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't stop tracking that DM.");
+      expect(track).not.toHaveBeenCalled();
+    });
+
+    it("finds a DM by name, narrows to the ones in a care plan, and says when nothing matches", async () => {
+      seedSlack();
+      const user = await openTab();
+
+      expect(screen.getByRole("button", { name: "In a care plan (1)" })).toBeInTheDocument();
+      await user.type(screen.getByRole("searchbox", { name: "Find a DM by name" }), "ada ex");
+      expect(rows().map((r) => r.querySelector("a")?.textContent)).toEqual(["Ada E."]); // by legal name too
+      await user.clear(screen.getByRole("searchbox", { name: "Find a DM by name" }));
+      await user.click(screen.getByRole("button", { name: "In a care plan (1)" }));
+      expect(rows().map((r) => r.querySelector("a")?.textContent)).toEqual(["Ada E."]);
+      await user.type(screen.getByRole("searchbox", { name: "Find a DM by name" }), "zzz");
+      expect(screen.getByText("Nothing here.")).toBeInTheDocument();
+    });
   });
 
   it("pages a long list", async () => {
@@ -1067,22 +1142,23 @@ describe("the Your DMs tab", () => {
       dataset.slackChannels.push({ channel_id: `D0PAT${i}`, name: "", is_im: true, is_private: true });
       dataset.slackChannelMembers.push(...inChannel(`D0PAT${i}`, U.cm, `U0PAT${i}`));
     }
-    signInAs(CM_USER);
-    await renderServerRoute(dmsPage, undefined as never);
+    await openTab();
 
     expect(rows()).toHaveLength(25);
     expect(screen.getByRole("button", { name: "All (32)" })).toBeInTheDocument();
   });
 
-  it("has no switches without the write feature", async () => {
+  it("has no buttons without the write feature, only the links", async () => {
     seedSlack();
+    boPlans(row("care_AAAAAAAAAAA9", BO, { closed_at: ago(4), ended_how: "ran_its_course" }));
     const granted = [...COMMUNITY_MANAGER_FEATURES];
     (COMMUNITY_MANAGER_FEATURES as StaffFeature[]).splice(0);
     try {
-      signInAs(CM_USER);
-      await renderServerRoute(dmsPage, undefined as never);
+      await openTab();
       expect(screen.getByText("Ada E.")).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: /Track your DM/ })).not.toBeInTheDocument();
+      expect(within(rows()[0]).getByRole("link", { name: "See the care plan" })).toBeInTheDocument();
+      for (const row of rows()) expect(within(row).queryByRole("button")).not.toBeInTheDocument();
+      expect(dataset.careTrackedDms).toEqual([]); // and nothing was tracked for her: reading is not allowed to her either
     } finally {
       (COMMUNITY_MANAGER_FEATURES as StaffFeature[]).push(...granted);
     }
@@ -1091,8 +1167,7 @@ describe("the Your DMs tab", () => {
   it("explains an empty list", async () => {
     seedSlack();
     dataset.slackChannelMembers.length = 0;
-    signInAs(CM_USER);
-    await renderServerRoute(dmsPage, undefined as never);
+    await openTab();
     expect(screen.getByText(/No direct messages with members yet/)).toBeInTheDocument();
   });
 
@@ -1129,17 +1204,21 @@ describe("the Your DMs tab", () => {
     });
   });
 
-  it("reads her DMs only when this tab is the one asked for: from another tab it is a link that opens it", async () => {
+  it("lists her DMs only when this tab is the one asked for: from another tab it is a link that opens it, and only the DM of her own care plan is read", async () => {
     seedSlack();
-    const reads: string[] = [];
-    const original = dataset.slackMessages;
-    Object.defineProperty(dataset, "slackMessages", { get: () => (reads.push("read"), original), set: () => {} });
+    const asked: string[][] = [];
+    const original = InMemorySlackMessageRepository.prototype.lastWritesIn;
+    vi.spyOn(InMemorySlackMessageRepository.prototype, "lastWritesIn").mockImplementation(function (this: InMemorySlackMessageRepository, channelIds: string[]) {
+      asked.push(channelIds);
+      return original.call(this, channelIds);
+    });
     signInAs(CM_USER);
     await renderServerRoute(activePage, undefined as never);
     await userEvent.setup().click(screen.getByRole("tab", { name: "Your DMs" }));
 
     expect(screen.getByRole("link", { name: "Open your DMs" })).toHaveAttribute("href", "/admin/care/dms");
-    expect(reads).toEqual([]);
+    // Who wrote last is read for the DM that fills in her care plan with Ada: not for her other DMs (Bo's plan is someone else's).
+    expect(asked).toEqual([[D.ada]]);
   });
 });
 
@@ -1159,8 +1238,21 @@ describe("Slack DMs on the engagement list", () => {
     expect(screen.getByRole("button", { name: "Needs your reply (1)" })).toBeInTheDocument();
   });
 
-  it("does not look at DMs she does not track, and shows no hint for an engagement that does not follow one", async () => {
+  it("tracks her DM with the member of a care plan she holds when she opens the page, and fills it in, whatever the plan is about", async () => {
     seedSlack();
+    dataset.careEngagements.splice(0, dataset.careEngagements.length, row("care_AAAAAAAAAAA1", ADA, { reason: "writing_check_in", last_staff_message_at: ago(10) }));
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+
+    expect(dataset.careTrackedDms.map((d) => [d.tracked_by, d.slack_channel_id, d.member_id])).toEqual([[CM_USER.id, D.ada, ADA]]);
+    const card = cards()[0];
+    expect(within(card).getByText("from Slack")).toBeInTheDocument();
+    expect(within(card).getByText("Needs your reply")).toBeInTheDocument();
+  });
+
+  it("does not look at a DM she stopped tracking, and shows no hint for the plan: that was her choice", async () => {
+    seedSlack();
+    dataset.careTrackedDms.push({ id: "caredm_AAAAAAAAAAA1", tracked_by: CM_USER.id, slack_channel_id: D.ada, member_id: ADA, created_at: ago(20), deleted_at: ago(5) });
     dataset.careEngagements.splice(0, dataset.careEngagements.length, row("care_AAAAAAAAAAA1", ADA, { last_staff_message_at: ago(10) }));
     signInAs(CM_USER);
     await renderServerRoute(activePage, undefined as never);
@@ -1168,18 +1260,18 @@ describe("Slack DMs on the engagement list", () => {
     const card = cards()[0];
     expect(within(card).getByText("Waiting on them")).toBeInTheDocument();
     expect(within(card).queryByText("from Slack")).not.toBeInTheDocument();
+    expect(dataset.careTrackedDms.filter((d) => d.deleted_at === null)).toEqual([]);
   });
 
-  it("shows the hint only on her own open Slack DM engagements with a member whose DM she tracks", async () => {
+  it("shows the hint only on her own open care plans with a member whose DM she tracks", async () => {
     seedSlack();
     dataset.careTrackedDms.push({ id: "caredm_AAAAAAAAAAA1", tracked_by: CM_USER.id, slack_channel_id: D.ada, member_id: ADA, created_at: ago(2), deleted_at: null });
     dataset.careEngagements.splice(
       0,
       dataset.careEngagements.length,
-      row("care_AAAAAAAAAAA1", ADA, { channel: "email" }), // another channel
-      row("care_AAAAAAAAAAA2", BO, {}), // a DM she does not track
-      row("care_AAAAAAAAAAA3", ADA, { channel: "prickle" }),
-      row("care_AAAAAAAAAAA4", ADA, { owned_by: ADMIN_USER.id, channel: "slack_dm" }) // someone else's
+      row("care_AAAAAAAAAAA1", CY, {}), // she has no DM with them
+      row("care_AAAAAAAAAAA2", ADA, { owned_by: ADMIN_USER.id }), // her tracked DM, but someone else's plan
+      row("care_AAAAAAAAAAA3", ADA, { closed_at: ago(3), ended_how: "no_reply" }) // closed: no longer filled in
     );
     signInAs(CM_USER);
     await renderServerRoute(activePage, undefined as never);
@@ -1190,7 +1282,7 @@ describe("Slack DMs on the engagement list", () => {
   describe("the reply buttons", () => {
     const REPLY_BUTTONS = ["They replied", "I replied"];
 
-    it("hides They replied and I replied on a Slack DM care plan she tracks, and says why, but keeps the rest", async () => {
+    it("hides They replied and I replied on a care plan whose DM she tracks, and says why, but keeps the rest", async () => {
       seedSlack();
       dataset.careTrackedDms.push({ id: "caredm_AAAAAAAAAAA1", tracked_by: CM_USER.id, slack_channel_id: D.ada, member_id: ADA, created_at: ago(2), deleted_at: null });
       dataset.careEngagements.splice(0, dataset.careEngagements.length, row("care_AAAAAAAAAAA1", ADA, { last_staff_message_at: ago(10) }));
@@ -1207,22 +1299,23 @@ describe("Slack DMs on the engagement list", () => {
       }
     });
 
-    it("keeps them on a Slack DM she has not tracked, and on every other channel", async () => {
+    it("keeps them where no DM of hers fills the plan: a member she has no DM with, a DM she stopped tracking, and a plan someone else holds", async () => {
       seedSlack();
-      dataset.careTrackedDms.push({ id: "caredm_AAAAAAAAAAA1", tracked_by: CM_USER.id, slack_channel_id: D.ada, member_id: ADA, created_at: ago(2), deleted_at: null });
+      dataset.careTrackedDms.push(
+        { id: "caredm_AAAAAAAAAAA1", tracked_by: CM_USER.id, slack_channel_id: D.ada, member_id: ADA, created_at: ago(2), deleted_at: null },
+        { id: "caredm_AAAAAAAAAAA2", tracked_by: CM_USER.id, slack_channel_id: D.bo, member_id: BO, created_at: ago(9), deleted_at: ago(3) }
+      );
       dataset.careEngagements.splice(
         0,
         dataset.careEngagements.length,
-        row("care_AAAAAAAAAAA1", BO, {}), // a Slack DM she does not track
-        row("care_AAAAAAAAAAA2", ADA, { channel: "email" }),
-        row("care_AAAAAAAAAAA3", ADA, { channel: "prickle" }),
-        row("care_AAAAAAAAAAA4", ADA, { channel: "other" }),
-        row("care_AAAAAAAAAAA5", ADA, { owned_by: ADMIN_USER.id }) // her tracked DM, but someone else's care plan
+        row("care_AAAAAAAAAAA1", BO, {}), // a DM she stopped tracking
+        row("care_AAAAAAAAAAA2", CY, {}), // no DM with them
+        row("care_AAAAAAAAAAA3", ADA, { owned_by: ADMIN_USER.id }) // her tracked DM, but someone else's care plan
       );
       signInAs(CM_USER);
       await renderServerRoute(activePage, undefined as never);
 
-      expect(cards()).toHaveLength(5);
+      expect(cards()).toHaveLength(3);
       for (const card of cards()) {
         for (const name of REPLY_BUTTONS) expect(within(card).getByRole("button", { name })).toBeInTheDocument();
         expect(within(card).queryByText("Filled in from your Slack DM")).not.toBeInTheDocument();
@@ -1230,7 +1323,7 @@ describe("Slack DMs on the engagement list", () => {
     });
 
     it("still logs a reply by hand where the buttons are shown", async () => {
-      dataset.careEngagements.splice(0, dataset.careEngagements.length, row("care_AAAAAAAAAAA1", ADA, { channel: "email" }));
+      dataset.careEngagements.splice(0, dataset.careEngagements.length, row("care_AAAAAAAAAAA1", ADA));
       signInAs(CM_USER);
       await renderServerRoute(activePage, undefined as never);
       await userEvent.setup().click(within(cards()[0]).getByRole("button", { name: "They replied" }));
@@ -1320,19 +1413,20 @@ describe("changing when a care plan started", () => {
     expect(actions.changeEngagementStart).not.toHaveBeenCalled();
   });
 
-  it("mentions the tracked DM only for a Slack DM, and the order of a renewal only for a renewal", async () => {
-    dataset.careEngagements.splice(0, dataset.careEngagements.length, row("care_AAAAAAAAAAA1", ADA, { renewed_from: "care_AAAAAAAAAAA0" }), row("care_AAAAAAAAAAA2", BO, { channel: "email" }));
+  it("mentions the tracked DM only when one fills in the plan, and the order of a renewal only for a renewal", async () => {
+    seedSlack();
+    dataset.careEngagements.splice(0, dataset.careEngagements.length, row("care_AAAAAAAAAAA1", ADA, { renewed_from: "care_AAAAAAAAAAA0" }), row("care_AAAAAAAAAAA2", CY));
     signInAs(CM_USER);
     await renderServerRoute(activePage, undefined as never);
     const user = userEvent.setup();
 
-    const [renewal, email] = cards();
+    const [renewal, plain] = cards();
     await user.click(within(renewal).getByRole("button", { name: "Change start date" }));
-    expect(within(renewal).getByText(/If you track your Slack DM with them, DMs from that day on are used/)).toBeInTheDocument();
+    expect(within(renewal).getByText(/Your Slack DM with them is used for who wrote last from that day on/)).toBeInTheDocument();
     expect(within(renewal).getByText(/The start can't be before the care plan this one follows on from/)).toBeInTheDocument();
-    await user.click(within(email).getByRole("button", { name: "Change start date" }));
-    expect(within(email).queryByText(/If you track your Slack DM/)).not.toBeInTheDocument();
-    expect(within(email).queryByText(/continues/)).not.toBeInTheDocument();
+    await user.click(within(plain).getByRole("button", { name: "Change start date" }));
+    expect(within(plain).queryByText(/Your Slack DM with them/)).not.toBeInTheDocument();
+    expect(within(plain).queryByText(/continues/)).not.toBeInTheDocument();
   });
 });
 
@@ -1420,7 +1514,7 @@ describe("Open the DM", () => {
   };
   afterEach(() => vi.unstubAllEnvs());
 
-  it("opens the DM in Hub Chat on the engagement when she is in it there, and on the DMs tab", async () => {
+  it("opens the DM in Hub Chat on the care plan when she is in it there, and on the DMs tab", async () => {
     seedSlack();
     trackAda();
     dataset.chatChannels.push({ id: CHANNEL, slack_channel_id: D.ada, kind: "dm", visibility: "private" });
@@ -1456,14 +1550,14 @@ describe("Open the DM", () => {
     expect(document.body.innerHTML).not.toContain(SECRET_TEXT);
   });
 
-  it("is only on a Slack DM engagement she owns with a member whose DM she tracks", async () => {
+  it("is only on a care plan she owns with a member whose DM she tracks", async () => {
     seedSlack();
-    dataset.careTrackedDms.push({ id: "caredm_AAAAAAAAAAA1", tracked_by: CM_USER.id, slack_channel_id: D.ada, member_id: ADA, created_at: ago(2), deleted_at: null });
+    dataset.careTrackedDms.push({ id: "caredm_AAAAAAAAAAA1", tracked_by: CM_USER.id, slack_channel_id: D.bo, member_id: BO, created_at: ago(9), deleted_at: ago(3) });
     dataset.careEngagements.splice(
       0,
       dataset.careEngagements.length,
-      row("care_AAAAAAAAAAA1", ADA, { channel: "email" }), // another channel
-      row("care_AAAAAAAAAAA2", BO, {}), // a DM she does not track
+      row("care_AAAAAAAAAAA1", CY, {}), // no DM with them
+      row("care_AAAAAAAAAAA2", BO, {}), // a DM she stopped tracking
       row("care_AAAAAAAAAAA3", ADA, { owned_by: ADMIN_USER.id }) // someone else's
     );
     signInAs(CM_USER);
@@ -1490,7 +1584,7 @@ describe("Open the DM", () => {
     signInAs(CM_USER);
     await renderServerRoute(dmsPage, undefined as never);
 
-    const rows = screen.getAllByRole("listitem").filter((li) => li.querySelector("a[href^='/admin/members/']") && li.querySelector("button[aria-pressed]"));
+    const rows = screen.getAllByRole("listitem").filter((li) => li.querySelector("a[href^='/admin/members/']") && li.querySelector("a[title^='Opens the DM']"));
     expect(within(rows[0]).getByRole("link", { name: "Open the DM" })).toHaveAttribute("href", `/chat/${CHANNEL}`); // Ada: in Hub Chat
     expect(within(rows[1]).getByRole("link", { name: "Open the DM" })).toHaveAttribute("href", `https://slack.com/app_redirect?channel=${D.bo}`); // Bo: Slack
   });

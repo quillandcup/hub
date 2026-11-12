@@ -1,5 +1,5 @@
 /**
- * Hedgie Care's value sets (docs/HEDGIE_CARE.md): the reasons, channels and endings an engagement can have, their labels and
+ * Hedgie Care's value sets (docs/HEDGIE_CARE.md): the reasons and endings a care plan can have, their labels and
  * the guards for them. No imports, so the repository, the tracking plan and the page can all take them without pulling in
  * the config or the date helpers. The same lists are the `CHECK` constraints of `care_engagements` (the migration): change
  * them in both places.
@@ -26,17 +26,6 @@ export const CARE_REASON_HELP: Record<CareReason, string> = {
   writing_check_in: "You are asking how their writing is going.",
   encouragement: "They are having a hard time or doing well, and you want to cheer them on.",
   other: "None of these fit.",
-};
-
-/** Where it happens. */
-export const CARE_CHANNELS = ["slack_dm", "prickle", "email", "other"] as const;
-export type CareChannel = (typeof CARE_CHANNELS)[number];
-
-export const CARE_CHANNEL_LABELS: Record<CareChannel, string> = {
-  slack_dm: "Slack DM",
-  prickle: "In a prickle",
-  email: "Email",
-  other: "Somewhere else",
 };
 
 /** How an engagement ended: her own read of it. `renewed` is set only by renewing (the next period continues it). */
@@ -79,9 +68,6 @@ export type MessageDirection = (typeof MESSAGE_DIRECTIONS)[number];
 
 export function isCareReason(value: unknown): value is CareReason {
   return typeof value === "string" && (CARE_REASONS as readonly string[]).includes(value);
-}
-export function isCareChannel(value: unknown): value is CareChannel {
-  return typeof value === "string" && (CARE_CHANNELS as readonly string[]).includes(value);
 }
 export function isCareEndedHow(value: unknown): value is CareEndedHow {
   return typeof value === "string" && (CARE_ENDED_HOW as readonly string[]).includes(value);

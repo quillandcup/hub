@@ -76,12 +76,11 @@ afterAll(async () => {
   if (userId) await admin.auth.admin.deleteUser(userId);
 });
 
-describe("projecting tracked Slack DMs into a Hedgie Care engagement", () => {
+describe("projecting tracked Slack DMs into a Hedgie Care care plan", () => {
   it("fills in who spoke last, is idempotent, rebuilds from Bronze, writes no audit rows and reads only metadata", async () => {
     const opened = await repos().care.open({
       memberId: members[1].id,
       reason: "check_in",
-      channel: "slack_dm",
       periodEndsOn: "2026-04-10",
       openedBy: userId,
       openedAt: "2026-03-10T15:00:00.000Z",
@@ -102,7 +101,7 @@ describe("projecting tracked Slack DMs into a Hedgie Care engagement", () => {
 
     const first = await projectCareFromDms({ care: repos().care, careDms: repos().careDms, service: repos() }, { userId });
 
-    expect(first).toMatchObject({ tracked: 1, engagements: 1, moved: 2, incomplete: false });
+    expect(first).toMatchObject({ tracked: 1, autoTracked: 0, engagements: 1, moved: 2, incomplete: false });
     expect(await times()).toEqual(["2026-03-11T10:00:00.000Z", "2026-03-11T14:00:00.000Z"]);
 
     const again = await projectCareFromDms({ care: repos().care, careDms: repos().careDms, service: repos() }, { userId });
@@ -119,7 +118,7 @@ describe("projecting tracked Slack DMs into a Hedgie Care engagement", () => {
   });
 
   it("never reads a DM that is not hers, even when a tracked row names it", async () => {
-    const forBo = await repos().care.open({ memberId: members[2].id, reason: "check_in", channel: "slack_dm", periodEndsOn: "2026-04-10", openedBy: userId, openedAt: "2026-03-10T15:00:00.000Z" });
+    const forBo = await repos().care.open({ memberId: members[2].id, reason: "check_in", periodEndsOn: "2026-04-10", openedBy: userId, openedAt: "2026-03-10T15:00:00.000Z" });
     if (!forBo.ok) throw new Error("expected the engagement to open");
     // The table's own policy only checks whose row it is: this row names a DM between Ada and Bo.
     await repos().careDms.track({ trackedBy: userId, channelId: dm.others, memberId: members[2].id });
@@ -129,6 +128,23 @@ describe("projecting tracked Slack DMs into a Hedgie Care engagement", () => {
     expect(result.moved).toBe(0);
     const e = (await repos().care.byId(forBo.engagement.id))!;
     expect(iso(e.last_member_message_at)).toBeNull();
+  });
+
+  it("tracks her DM with the member of an open care plan on its own, once, and never again after she stopped tracking it", async () => {
+    // Ada's care plan from the first test is still open; nothing is tracked for her any more.
+    check((await db.from("care_tracked_dms").delete().eq("tracked_by", userId).eq("member_id", members[1].id)).error);
+    const live = async () => (await repos().careDms.forUser(userId)).filter((d) => d.memberId === members[1].id).map((d) => d.channelId);
+
+    const first = await projectCareFromDms({ care: repos().care, careDms: repos().careDms, service: repos() }, { userId });
+    expect(first.autoTracked).toBe(1);
+    expect(await live()).toEqual([dm.ada]);
+    expect(await projectCareFromDms({ care: repos().care, careDms: repos().careDms, service: repos() }, "all")).toMatchObject({ autoTracked: 0 });
+
+    // She stops tracking it: the row is kept (soft deleted), and nothing tracks it for her again.
+    expect(await repos().careDms.untrack(userId, dm.ada, new Date().toISOString())).toBe(true);
+    expect(await repos().careDms.untrackedChannels([userId])).toEqual(new Map([[userId, new Set([dm.ada])]]));
+    expect(await projectCareFromDms({ care: repos().care, careDms: repos().careDms, service: repos() }, "all")).toMatchObject({ autoTracked: 0 });
+    expect(await live()).toEqual([]);
   });
 
   it("asks the database for who and when only: the function returns no text", async () => {
