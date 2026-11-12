@@ -161,4 +161,30 @@ describe("how an attendee got in", () => {
 
     expect(await screen.findByText("Not an attendee of this event")).toBeInTheDocument();
   });
+  it("keeps the page on screen while it refreshes after a save, instead of flashing Loading", async () => {
+    let refresh: (() => void) | undefined;
+    let eventLoads = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url === "/api/members") return { ok: true, json: async () => ({ members: [] }) } as Response;
+        if (init?.method === "PATCH") return { ok: true, json: async () => ({ success: true }) } as Response;
+        const body = { event: EVENT, prickleId: "prkl_AAAAAAAAAAA1", hubSession: false, photos: [], badgeType: null, attendees: [ADA] };
+        // The first load answers at once; the refresh after the save answers only when the test says so.
+        if (++eventLoads > 1) await new Promise<void>((resolve) => (refresh = resolve));
+        return { ok: true, json: async () => body } as Response;
+      }),
+    );
+    render(<EventDetailClient eventId={EVENT.id} />);
+    const note = await screen.findByLabelText("Ticket note for Ada Example");
+
+    await userEvent.clear(note);
+    await userEvent.type(note, "gifted by Joanne");
+    await userEvent.tab();
+    await waitFor(() => expect(refresh).toBeDefined());
+
+    expect(screen.queryByText("Loading...")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("How Ada Example got in")).toBeInTheDocument();
+    refresh!();
+  });
 });
