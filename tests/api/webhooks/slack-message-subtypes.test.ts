@@ -211,7 +211,7 @@ describe('Slack webhook: message subtypes', () => {
     await send({ type: 'message', ts: botTs, bot_id: 'BDEPLOYBOT', text: '' })
 
     expect(await rows()).toEqual([
-      { message_ts: botTs, user_id: 'BDEPLOYBOT', text: '', message_type: 'message', edited_at: null, deleted_at: null },
+      { message_ts: botTs, user_id: 'BDEPLOYBOT', text: '', message_type: 'message', channel_type: null, edited_at: null, deleted_at: null },
     ])
   })
 
