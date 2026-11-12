@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import DatePicker from "@/components/DatePicker";
 import EntitySearch, { type SearchItem } from "@/components/EntitySearch";
+import Modal from "@/components/Modal";
 import { track } from "@/lib/analytics/client";
 import {
   CARE_CHANNELS,
@@ -20,14 +21,52 @@ const FIELD = "w-full px-3 py-2 border border-slate-300 dark:border-slate-700 ro
 const LABEL = "block text-sm font-medium mb-1";
 
 /**
- * Starts a care plan: who, why, where, the day it started and an optional note. She reached out, or they wrote to her first.
+ * "Start a care plan" button at the top of the Active tab. The form opens in a dialog, so it does not push the care plans
+ * down; closing it (Escape, the close button, a click outside) drops what was typed, and starting one closes it.
+ */
+export default function StartEngagementForm({ today, slackDmMemberIds = [] }: { today: string; slackDmMemberIds?: readonly string[] }) {
+  const [open, setOpen] = useState(false);
+  // A start in flight can't be walked away from: she would not see whether it worked.
+  const busy = useRef(false);
+  const setBusy = useCallback((b: boolean) => {
+    busy.current = b;
+  }, []);
+  return (
+    <div className="flex justify-end">
+      <button
+        type="button"
+        data-track="care-start-open"
+        onClick={() => setOpen(true)}
+        className="rounded-lg bg-plum-600 px-4 py-2 text-sm font-medium text-white hover:bg-plum-700"
+      >
+        Start a care plan
+      </button>
+      <Modal isOpen={open} onClose={() => !busy.current && setOpen(false)} title="Start a care plan" maxWidth="2xl">
+        <StartForm today={today} slackDmMemberIds={slackDmMemberIds} onBusy={setBusy} onStarted={() => setOpen(false)} />
+      </Modal>
+    </div>
+  );
+}
+
+/**
+ * The form: who, why, where, the day it started and an optional note. She reached out, or they wrote to her first.
  *
  * `slackDmMemberIds` are the members whose Slack DM she tracks and whose new Slack DM care plan would follow it (she is
  * the owner it would get). For one of them on the Slack DM channel the DM says who wrote first, so the "They wrote to me
  * first" tick is replaced by a line saying so. A member she has a DM with but has not tracked yet (starting tracks it) can't
  * be told apart from one with no DM without a Slack lookup, so for them the tick stays: it is a placeholder the DM replaces.
  */
-export default function StartEngagementForm({ today, slackDmMemberIds = [] }: { today: string; slackDmMemberIds?: readonly string[] }) {
+function StartForm({
+  today,
+  slackDmMemberIds,
+  onBusy,
+  onStarted,
+}: {
+  today: string;
+  slackDmMemberIds: readonly string[];
+  onBusy: (busy: boolean) => void;
+  onStarted: () => void;
+}) {
   const [member, setMember] = useState<SearchItem | null>(null);
   const [reason, setReason] = useState("");
   const [channel, setChannel] = useState("slack_dm");
@@ -37,6 +76,10 @@ export default function StartEngagementForm({ today, slackDmMemberIds = [] }: { 
   const [startedOn, setStartedOn] = useState(today);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    onBusy(pending);
+  }, [pending, onBusy]);
 
   const dmTellsWhoWroteFirst = channel === "slack_dm" && !!member && slackDmMemberIds.includes(member.id);
 
@@ -52,19 +95,13 @@ export default function StartEngagementForm({ today, slackDmMemberIds = [] }: { 
       const result = await startEngagement({ memberId: member.id, startedOn, reason, channel, memberWroteFirst: wroteFirst, notes, followUpOn });
       if ("error" in result) return setError(result.error);
       track("care_engagement_started", { reason, channel, member_wrote_first: wroteFirst, backdated: startedOn < today });
-      setMember(null);
-      setReason("");
-      setMemberWroteFirst(false);
-      setNotes("");
-      setFollowUpOn("");
-      setStartedOn(today);
+      onStarted();
     });
   }
 
   return (
-    <form onSubmit={submit} className="@container rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-      <h2 className="text-lg font-semibold">Start a care plan</h2>
-      <div className="mt-3 grid grid-cols-1 gap-4 @pair:grid-cols-2">
+    <form onSubmit={submit} className="@container">
+      <div className="grid grid-cols-1 gap-4 @pair:grid-cols-2">
         <div>
           <span className={LABEL} id="care-member-label">
             Member
@@ -145,7 +182,7 @@ export default function StartEngagementForm({ today, slackDmMemberIds = [] }: { 
         disabled={pending}
         className="mt-4 rounded-lg bg-plum-600 px-4 py-2 text-sm font-medium text-white hover:bg-plum-700 disabled:opacity-50"
       >
-        {pending ? "Starting…" : "Start tracking"}
+        {pending ? "Starting…" : "Start plan"}
       </button>
     </form>
   );
