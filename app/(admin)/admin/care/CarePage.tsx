@@ -5,6 +5,7 @@ import { clock } from "@/lib/clock";
 import { careStatus, isActiveStatus, sortActive, sortEarlier } from "@/lib/care";
 import { loadCareDmTab, ownSlackIdentity, projectCareFromDms, type CareDmTab } from "@/lib/care-dm";
 import { resolveDmLinks, slackTeamId, type DmLink } from "@/lib/care-dm-link";
+import { membersWhoseNewCareFollowsDm } from "@/lib/care-dm-rules";
 import { loadCareScores } from "@/lib/care-scores";
 import { loadCareOwners } from "@/lib/care-owners";
 import { createRepos } from "@/lib/data/repos";
@@ -101,7 +102,7 @@ export default async function CarePage({ tab, staff }: { tab: CareTabId; staff: 
           </Link>
           <h1 className="text-2xl font-bold">{CARE_TITLE}</h1>
           <p className="mt-1 text-slate-600 dark:text-slate-400">
-            Members you are reaching out to, one care period for each stretch of time, and where each one stands.
+            Members you are reaching out to, one care plan for each stretch of time, and where each one stands.
           </p>
         </div>
       </header>
@@ -119,7 +120,7 @@ export default async function CarePage({ tab, staff }: { tab: CareTabId; staff: 
               title: CARE_TAB_LABELS.active,
               content: (
                 <div className="space-y-6">
-                  {canWrite && <StartEngagementForm today={orgYmd(now)} />}
+                  {canWrite && <StartEngagementForm today={orgYmd(now)} slackDmMemberIds={[...membersWhoseNewCareFollowsDm(staff.id, new Set(tracked.map((dm) => dm.memberId)), rows)]} />}
                   <ActiveList cards={active} canWrite={canWrite} owners={owners} meId={staff.id} />
                 </div>
               ),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { derivedMessageTimes, dmCountsFrom, lastWriter } from "@/lib/care-dm-rules";
+import { careOwnerOf, derivedMessageTimes, dmCountsFrom, followsTrackedDm, lastWriter, membersWhoseNewCareFollowsDm } from "@/lib/care-dm-rules";
 
 const engagement = (over: Partial<{ opened_at: string; last_staff_message_at: string | null; last_member_message_at: string | null }> = {}) => ({
   opened_at: "2026-03-10T15:00:00.000Z", // 11:00 Eastern (daylight time)
@@ -83,5 +83,53 @@ describe("lastWriter", () => {
   it("is null when neither has written, and names her on a tie", () => {
     expect(lastWriter({ staffAt: null, memberAt: null })).toBeNull();
     expect(lastWriter({ staffAt: "2026-03-03T10:00:00.000Z", memberAt: "2026-03-03T10:00:00.000Z" })?.who).toBe("staff");
+  });
+});
+
+describe("followsTrackedDm: whose DM fills in an engagement", () => {
+  const ME = "user-staff-1";
+  const tracked = { userId: ME, memberIds: new Set(["mbr_AAAAAAAAAAA1"]) };
+  const base = { channel: "slack_dm", member_id: "mbr_AAAAAAAAAAA1", owned_by: ME, opened_by: "user-other" };
+
+  it("is true for a Slack DM care plan she owns with a member whose DM she tracks", () => {
+    expect(followsTrackedDm(base, tracked)).toBe(true);
+  });
+
+  it("takes the opener as the owner when nobody owns it", () => {
+    expect(careOwnerOf({ owned_by: null, opened_by: ME })).toBe(ME);
+    expect(followsTrackedDm({ ...base, owned_by: null, opened_by: ME }, tracked)).toBe(true);
+    expect(followsTrackedDm({ ...base, owned_by: null, opened_by: "user-other" }, tracked)).toBe(false);
+  });
+
+  it("is false for another channel, another owner, or a member whose DM is not tracked", () => {
+    expect(followsTrackedDm({ ...base, channel: "email" }, tracked)).toBe(false);
+    expect(followsTrackedDm({ ...base, channel: "prickle" }, tracked)).toBe(false);
+    expect(followsTrackedDm({ ...base, owned_by: "user-other" }, tracked)).toBe(false);
+    expect(followsTrackedDm({ ...base, member_id: "mbr_AAAAAAAAAAA2" }, tracked)).toBe(false);
+  });
+});
+
+describe("membersWhoseNewCareFollowsDm: a new period takes the latest one's owner", () => {
+  const ME = "user-staff-1";
+  const A = "mbr_AAAAAAAAAAA1";
+  const B = "mbr_AAAAAAAAAAA2";
+  const period = (id: string, member_id: string, owned_by: string | null, opened_at: string) => ({ id, member_id, owned_by, opened_at });
+
+  it("counts a tracked member with no care plan yet, since she would own it", () => {
+    expect([...membersWhoseNewCareFollowsDm(ME, new Set([A]), [])]).toEqual([A]);
+  });
+
+  it("counts a member whose latest period is hers, however old the earlier ones, and not one whose latest belongs to someone else", () => {
+    const rows = [
+      period("care_1", A, "user-other", "2026-01-01T15:00:00.000Z"),
+      period("care_2", A, ME, "2026-02-01T15:00:00.000Z"),
+      period("care_3", B, ME, "2026-01-01T15:00:00.000Z"),
+      period("care_4", B, "user-other", "2026-02-01T15:00:00.000Z"),
+    ];
+    expect([...membersWhoseNewCareFollowsDm(ME, new Set([A, B]), rows)]).toEqual([A]);
+  });
+
+  it("treats a latest period with no owner as hers, like the start action, and ignores members she does not track", () => {
+    expect([...membersWhoseNewCareFollowsDm(ME, new Set([A]), [period("care_1", A, null, "2026-01-01T15:00:00.000Z"), period("care_2", B, "user-other", "2026-01-01T15:00:00.000Z")])]).toEqual([A]);
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useEffect, useId } from "react";
+import { ReactNode, useEffect, useId, useRef } from "react";
 
 interface ModalProps {
   isOpen: boolean;
@@ -34,6 +34,19 @@ export default function Modal({
   fill = false,
 }: ModalProps) {
   const titleId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  // Focus goes into the dialog when it opens (unless something inside already took it, such as an autofocused
+  // field) and back to whatever opened it when it closes.
+  useEffect(() => {
+    if (!isOpen) return;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const dialog = dialogRef.current;
+    if (dialog && !dialog.contains(document.activeElement)) dialog.focus();
+    return () => {
+      if (opener?.isConnected) opener.focus();
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -52,10 +65,12 @@ export default function Modal({
       onClick={onClose}
     >
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`bg-white dark:bg-slate-900 rounded-lg shadow-xl w-full overflow-hidden ${
+        className={`focus:outline-none bg-white dark:bg-slate-900 rounded-lg shadow-xl w-full overflow-hidden ${
           fill ? "flex h-[94vh] max-w-[96vw] flex-col" : `${maxWidthClasses[maxWidth]} max-h-[80vh]`
         }`}
         onClick={(e) => e.stopPropagation()}

@@ -49,4 +49,32 @@ describe("Modal", () => {
     await userEvent.setup().keyboard("{Escape}");
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  it("moves focus into the dialog and gives it back to the opener on close", () => {
+    const opener = document.createElement("button");
+    document.body.appendChild(opener);
+    opener.focus();
+    const { rerender } = render(
+      <Modal isOpen onClose={() => {}} title="Video stats">
+        <button>inside</button>
+      </Modal>,
+    );
+    expect(screen.getByRole("dialog")).toHaveFocus();
+    rerender(
+      <Modal isOpen={false} onClose={() => {}} title="Video stats">
+        <button>inside</button>
+      </Modal>,
+    );
+    expect(opener).toHaveFocus();
+    opener.remove();
+  });
+
+  it("leaves focus alone when something inside already took it", () => {
+    render(
+      <Modal isOpen onClose={() => {}} title="Video stats">
+        <input aria-label="Name" autoFocus />
+      </Modal>,
+    );
+    expect(screen.getByLabelText("Name")).toHaveFocus();
+  });
 });

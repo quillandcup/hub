@@ -41,6 +41,25 @@ export function defineActivityContract(name: string, setup: () => ActivityContra
       expect(await ctx.repo().relatedIdsWritten("writing_progress", [related])).toEqual(new Set());
     });
 
+    it("moves the day of the rows a source wrote for one related id, of the given types only, and says how many moved", async () => {
+      const [related, other] = [ctx.unique("move"), ctx.unique("move-other")];
+      const row = (extra: Partial<NewActivity>) => activity(0, { occurredAt: "2097-02-01T10:00:00Z", engagementValue: 5, ...extra });
+      await ctx.repo().record(row({ relatedId: related, type: "writing_progress_logged" }));
+      await ctx.repo().record(row({ relatedId: related, type: "writing_goal_set" })); // another type of the same thing
+      await ctx.repo().record(row({ relatedId: other })); // another thing
+      await ctx.repo().record(row({ relatedId: related, source: "some_other_source" })); // another source
+
+      expect(await ctx.repo().moveOccurredAt("writing_progress", related, ["writing_progress_logged"], "2097-01-20T10:00:00Z")).toBe(1);
+      expect(await ctx.repo().moveOccurredAt("writing_progress", ctx.unique("none"), ["writing_progress_logged"], "2097-01-20T10:00:00Z")).toBe(0);
+      expect(await ctx.repo().moveOccurredAt("writing_progress", related, [], "2097-01-20T10:00:00Z")).toBe(0);
+
+      const rows = await ctx.repo().engagementRowsForWindows([{ memberId: ctx.memberIds[0], endIso: "2097-02-10T00:00:00Z" }]);
+      const days = (rows.get(`${ctx.memberIds[0]}|2097-02-10T00:00:00.000Z`) ?? []).map((r) => `${r.activity_type}@${r.occurred_at.slice(0, 10)}`).sort();
+      expect(days.filter((d) => d.startsWith("writing_progress_logged@2097-01-20"))).toHaveLength(1);
+      expect(days.filter((d) => d.startsWith("writing_progress_logged@2097-02-01"))).toHaveLength(2); // the other thing's and the other source's
+      expect(days.filter((d) => d.startsWith("writing_goal_set@2097-02-01"))).toHaveLength(1);
+    });
+
     it("removes what a source wrote for several related ids at once, and only that source's", async () => {
       const [a, b, keep] = [ctx.unique("many1"), ctx.unique("many2"), ctx.unique("many3")];
       for (const related of [a, b, keep]) await ctx.repo().record(activity(0, { relatedId: related }));

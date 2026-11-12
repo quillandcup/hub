@@ -47,6 +47,8 @@ interface DemoMessage {
   gif?: boolean;
   reactions?: { emoji: string; by: string[] }[];
   replies?: DemoReply[];
+  /** The preview card the Hub would have stored for the link in `body` (the demo can't run the fetch the server does after a send). */
+  linkPreview?: { url: string; title: string; description: string; siteName: string; imageUrl: string };
 }
 
 interface DemoChannel {
@@ -173,6 +175,18 @@ export const DEMO_CHANNELS: DemoChannel[] = [
         hoursAgo: 2,
         body: DEMO_SHARED_VIDEO_MESSAGE,
         reactions: [{ emoji: "bread", by: [who("briony")] }],
+      },
+      {
+        by: who("member"),
+        hoursAgo: 4,
+        body: "research for my lighthouse bakery: this is the keeper's cottage I keep picturing 🏠 https://lighthouse-keepers.example.com/bass-harbor-cottage",
+        linkPreview: {
+          url: "https://lighthouse-keepers.example.com/bass-harbor-cottage",
+          title: "Life at the Light: a keeper's cottage on the Maine coast",
+          description: "Photographs and a few diary pages from a family who tended a harbor light, with the bread they baked every morning.",
+          siteName: "Lighthouse Keepers' Notebook",
+          imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/52/Bass_Harbor_Head_Lighthouse%2C_NOAA%2C_2003.jpg/960px-Bass_Harbor_Head_Lighthouse%2C_NOAA%2C_2003.jpg",
+        },
       },
       {
         by: who("host"),
@@ -348,6 +362,23 @@ export async function seedChat(admin: SupabaseClient, now: Date, supabaseUrl: st
           .single();
         if (replyError || !row) throw new Error(`chat reply ${channel.name}: ${replyError?.message}`);
         contents.push({ message_id: row.id, body: reply.body });
+      }
+
+      if (message.linkPreview) {
+        const preview = message.linkPreview;
+        const { error: previewError } = await admin.from("chat_link_previews").insert({
+          message_id: root.id,
+          position: 0,
+          url: preview.url,
+          final_url: preview.url,
+          kind: "link",
+          status: "ok",
+          title: preview.title,
+          description: preview.description,
+          site_name: preview.siteName,
+          image_url: preview.imageUrl,
+        });
+        if (previewError) throw new Error(`chat_link_previews: ${previewError.message}`);
       }
 
       const { error: contentError } = await admin.from("chat_message_contents").insert(contents);

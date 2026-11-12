@@ -82,6 +82,12 @@ export interface ActivityRepository {
   removeFor(source: string, relatedId: string): Promise<void>;
   /** Removes the rows a source wrote for any of these related ids, chunked. */
   removeForMany(source: string, relatedIds: string[]): Promise<void>;
+  /**
+   * Moves the rows of the given types that a source wrote for one related id to another day (ISO): the timeline row of a
+   * thing whose date was corrected (a Hedgie Care plan's start). Only `occurred_at` changes. Returns how many rows moved
+   * (0 when the log has none: the row is best effort). Needs a client that may update the log (service role).
+   */
+  moveOccurredAt(source: string, relatedId: string, types: readonly string[], occurredAt: string): Promise<number>;
   /** Moves every activity of one member to another (a merge). */
   reassign(fromMemberId: string, toMemberId: string): Promise<void>;
 
@@ -236,6 +242,19 @@ export class SupabaseActivityRepository implements ActivityRepository {
   async removeFor(source: string, relatedId: string) {
     const { error } = await this.db.from("member_activities").delete().eq("related_id", relatedId).eq("source", source);
     if (error) throw new Error(error.message);
+  }
+
+  async moveOccurredAt(source: string, relatedId: string, types: readonly string[], occurredAt: string) {
+    if (types.length === 0) return 0;
+    const { data, error } = await this.db
+      .from("member_activities")
+      .update({ occurred_at: occurredAt })
+      .eq("source", source)
+      .eq("related_id", relatedId)
+      .in("activity_type", [...types])
+      .select("id");
+    if (error) throw new Error(error.message);
+    return data?.length ?? 0;
   }
 
   async removeForMany(source: string, relatedIds: string[]) {
@@ -492,6 +511,12 @@ export class InMemoryActivityRepository implements ActivityRepository {
 
   async removeFor(source: string, relatedId: string) {
     this.data.activities = this.data.activities.filter((a) => !(a.source === source && a.related_id === relatedId));
+  }
+
+  async moveOccurredAt(source: string, relatedId: string, types: readonly string[], occurredAt: string) {
+    const rows = this.data.activities.filter((a) => a.source === source && a.related_id === relatedId && types.includes(a.activity_type));
+    for (const a of rows) a.occurred_at = occurredAt;
+    return rows.length;
   }
 
   async removeForMany(source: string, relatedIds: string[]) {
