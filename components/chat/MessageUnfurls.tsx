@@ -200,7 +200,7 @@ function Blocks({ unfurl, ctx, permalink }: { unfurl: BlocksUnfurl } & BlockProp
 }
 
 /** The cards under a message, after its text and files. */
-export default function MessageUnfurls({ unfurls, ctx, permalink, removable }: { unfurls: Unfurl[]; ctx: ChatTextContext; permalink: string | null; removable?: Removable }) {
+export default function MessageUnfurls({ unfurls, ctx, permalink, removable, timeZone }: { unfurls: Unfurl[]; ctx: ChatTextContext; permalink: string | null; removable?: Removable; timeZone?: string }) {
   if (unfurls.length === 0) return null;
   return (
     <>
@@ -211,7 +211,7 @@ export default function MessageUnfurls({ unfurls, ctx, permalink, removable }: {
           case "blocks":
             return <Blocks key={i} unfurl={u} ctx={ctx} permalink={permalink} />;
           case "share":
-            return u.shared && u.source ? <SharedMessageCard key={i} shared={u.shared} source={u.source} ctx={ctx} /> : null;
+            return u.shared && u.source ? <SharedMessageCard key={i} shared={u.shared} source={u.source} ctx={ctx} timeZone={timeZone} removable={removable && u.removeKey ? { ...removable, removeKey: u.removeKey } : undefined} /> : null;
         }
       })}
     </>

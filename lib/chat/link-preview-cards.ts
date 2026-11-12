@@ -1,6 +1,7 @@
 import { cleanText, MAX_SITE_NAME, MAX_TITLE } from "@/lib/chat/link-preview-html";
 import { safeImageUrl, safeLinkUrl, type CardUnfurl, type Unfurl } from "@/lib/chat/unfurls";
 import type { LinkPreview } from "@/lib/data/chat-link-previews";
+import { shareRemoveKey } from "@/lib/chat/shared-message";
 import { isDuplicateOfHubPreview, previewedAddresses } from "@/lib/chat/unfurl-dedupe";
 
 /**
@@ -54,6 +55,7 @@ function blankCard(): CardUnfurl {
  * message's cards. Only cards can be removed: an app's blocks are the message itself.
  */
 export function unfurlKey(u: Unfurl, index: number): string | null {
+  if (u.kind === "share") return shareRemoveKey(u.attachment);
   if (u.kind !== "card") return null;
   if (u.removeKey) return u.removeKey;
   const address = u.fromUrl ?? u.titleLink;

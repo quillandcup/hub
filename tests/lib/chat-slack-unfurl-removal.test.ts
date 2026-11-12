@@ -22,6 +22,8 @@ import { InMemoryDataset } from "@/lib/data/in-memory";
 
 import { hubMessageMetadata } from "@/lib/chat/slack-post";
 import { removeSlackUnfurl, splitAttachments } from "@/lib/chat/slack-unfurl-removal";
+import { shareRemoveKey } from "@/lib/chat/shared-message";
+import { normalizeLinkForMatch } from "@/lib/chat/unfurl-dedupe";
 import { withLinkPreviews } from "@/lib/chat/link-preview-cards";
 import { parseUnfurls } from "@/lib/chat/unfurls";
 
@@ -200,6 +202,22 @@ describe("splitAttachments", () => {
     const { removed, keep } = splitAttachments([slackCard(ONE), "junk", slackCard(TWO), slackCard(ONE)], new Set(["example.test/one.jpg"]));
     expect(removed).toBe(2);
     expect(keep.map((a) => a.from_url)).toEqual([TWO]);
+  });
+});
+
+describe("splitAttachments with a shared Slack message", () => {
+  const PERMALINK = "https://example.slack.com/archives/C1/p1700000000000100";
+  const share = { id: 2, is_share: true, is_msg_unfurl: true, from_url: PERMALINK, original_url: PERMALINK, text: "quoted", author_name: "Ada Example", ts: "1700000000.000100" };
+  it("matches the share by the key the Hub stores for it, and keeps the other previews", () => {
+    const key = shareRemoveKey(share)!;
+    expect(key).toBe(`url:${PERMALINK}`);
+    const { removed, keep } = splitAttachments([slackCard(ONE), share, slackCard(TWO)], new Set([normalizeLinkForMatch(key.slice(4))!]));
+    expect(removed).toBe(1);
+    expect(keep.map((a) => a.from_url)).toEqual([ONE, TWO]);
+  });
+  it("matches by the permalink alone when Slack sent no original address", () => {
+    const { original_url: _unused, ...bare } = share;
+    expect(splitAttachments([bare], new Set([normalizeLinkForMatch(PERMALINK)!])).removed).toBe(1);
   });
 });
 
