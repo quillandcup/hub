@@ -91,6 +91,14 @@ export const SLACK_ALERTS_CHANNEL_ID = appConfig.slack.alertsChannelId;
 /** Channel the weekly changelog digest is posted to, or "" for none (app.config.ts `slack.changelogChannelId`). */
 export const SLACK_CHANGELOG_CHANNEL_ID: string = appConfig.slack.changelogChannelId;
 
+/** Channel members' wins (new books, awards) are celebrated in (app.config.ts `slack.celebrationsChannelId`). */
+export const SLACK_CELEBRATIONS_CHANNEL_ID: string = appConfig.slack.celebrationsChannelId;
+
+/** The channel one kind of celebration goes to: its override in app.config.ts `slack.celebrationChannelOverrides`, else the shared one. */
+export function celebrationChannel(kind: string, overrides: Record<string, string> = appConfig.slack.celebrationChannelOverrides): string {
+  return overrides[kind] || SLACK_CELEBRATIONS_CHANNEL_ID;
+}
+
 /** First day (YYYY-MM-DD) a changelog entry can be notified in the digest or the channel post (app.config.ts `changelogDigestStartsOn`). */
 export const CHANGELOG_DIGEST_STARTS_ON: string = appConfig.changelogDigestStartsOn;
 

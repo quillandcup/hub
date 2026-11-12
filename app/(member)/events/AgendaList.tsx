@@ -26,6 +26,9 @@ export interface EventRow {
   /** The cover picked from the media library; it wins over the first imported photo. */
   image_id?: string | null;
   cover_photo_id: string | null;
+  /** Places left when the event has a capacity and sells tickets through an offer; null when there is nothing to count. */
+  spots_left?: number | null;
+  sold_out?: boolean;
 }
 
 

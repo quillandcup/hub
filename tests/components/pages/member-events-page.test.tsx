@@ -31,9 +31,10 @@ vi.mock("@/lib/event-prickles", async (importActual) => ({
   ]),
 }));
 vi.mock("@/app/(member)/events/EventsBrowser", () => ({
-  default: (props: { initialMonth: string; months: { id: string }[]; eventPrickles: { title: string }[]; events: { title: string; cover_photo_id: string | null; image_id?: string | null; badge_icon?: string | null }[] }) => (
+  default: (props: { initialMonth: string; months: { id: string }[]; eventPrickles: { title: string }[]; events: { title: string; spots_left?: number | null; sold_out?: boolean; cover_photo_id: string | null; image_id?: string | null; badge_icon?: string | null }[] }) => (
     <div data-testid="browser" data-month={props.initialMonth} data-months={props.months.map((m) => m.id).join(",")}>
       |{props.eventPrickles.map((p) => p.title).join(",")}|{props.events.map((e) => e.title).join(",")}
+      <span data-testid="spots">{props.events.map((e) => `${e.spots_left ?? "none"}/${e.sold_out ? "sold" : "open"}`).join(",")}</span>
       <span data-testid="icons">{props.events.map((e) => e.badge_icon ?? "none").join(",")}</span>
       <span data-testid="covers">{props.events.map((e) => e.cover_photo_id ?? "none").join(",")}</span>
       <span data-testid="images">{props.events.map((e) => e.image_id ?? "none").join(",")}</span>
@@ -61,6 +62,25 @@ describe("member Events page", () => {
     await renderServerPage(EventsPage, { searchParams: Promise.resolve({}) });
 
     expect(screen.getByTestId("browser")).toHaveTextContent("|Query Letters 101,Pitch Night|Spring Retreat");
+  });
+
+  it("tells the browser the places left on an upcoming event that sells tickets, and sold out when none are", async () => {
+    dataset = new InMemoryDataset({
+      ...eventSeed([{ ...RETREAT, registration: "application", capacity: 1 }]),
+      eventOffers: [{ event_id: RETREAT.id, kajabi_offer_id: "offer_1" }],
+      kajabiOffers: [{ kajabi_offer_id: "offer_1", name: "Spring Retreat" }],
+      kajabiCustomers: [{ kajabi_customer_id: "c1", email: "ada@example.com" }],
+      kajabiPurchases: [{ kajabi_purchase_id: "p1", kajabi_customer_id: "c1", kajabi_offer_id: "offer_1", deactivated_at: null }],
+    } as never);
+
+    await renderServerPage(EventsPage, { searchParams: Promise.resolve({}) });
+
+    expect(screen.getByTestId("spots")).toHaveTextContent("0/sold");
+  });
+
+  it("has no count for an event with no offer", async () => {
+    await renderServerPage(EventsPage, { searchParams: Promise.resolve({}) });
+    expect(screen.getByTestId("spots")).toHaveTextContent("none/open");
   });
 
   it("uses an event's first visible photo as its cover", async () => {

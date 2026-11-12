@@ -7,6 +7,7 @@ import { locationDisplay } from "@/lib/location-display";
 import { useWithSecondaryTime } from "@/components/SecondaryTimezone";
 import EventArt from "@/components/EventArt";
 import { eventCoverUrl } from "@/lib/event-cover";
+import { spotsLabel } from "@/lib/event-signup";
 import { EVENT_TYPE_LABELS, eventTier, type EventTier, type EventType } from "@/lib/events-filter";
 import { agendaWeeks, cleanEventTitle, eventDays, formatTimeSpan, type AgendaMonth } from "@/lib/events-agenda";
 import type { EventPrickle } from "@/lib/event-prickles";
@@ -139,6 +140,7 @@ function EventCard({
   const withSecondary = useWithSecondaryTime();
   const where = locationDisplay(event.location);
   const needsSignUp = !!event.registration && event.registration !== "none";
+  const spots = spotsLabel({ spotsLeft: event.spots_left ?? null, soldOut: !!event.sold_out });
   const time = timed ? formatTimeSpan(event.start_time, event.end_time, timeZone) : "";
   const when = [fmtDateRange(startDate, endDate), time && event.start_time ? withSecondary(time, event.start_time, timeZone) : time, where && !where.href ? where.text : null]
     .filter(Boolean)
@@ -163,6 +165,9 @@ function EventCard({
         </p>
         <h3 className="font-semibold mt-0.5">{cleanEventTitle(event.title)}</h3>
         <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">{when}</p>
+        {spots && (
+          <p className={`text-sm font-semibold mt-1 ${event.sold_out ? "text-red-700 dark:text-red-400" : "text-plum-700 dark:text-plum-300"}`}>{spots}</p>
+        )}
         {event.focus && <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">{event.focus}</p>}
       </div>
     </Link>

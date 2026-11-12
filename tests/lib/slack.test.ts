@@ -22,7 +22,6 @@ beforeEach(() => {
   delete process.env.SLACK_TEST_MODE;
   delete process.env.SLACK_DEV_USER_ID;
   delete process.env.VERCEL_ENV;
-  delete process.env.SLACK_NEW_BOOKS_CHANNEL_ID;
 });
 
 afterEach(() => {
@@ -104,69 +103,66 @@ describe("sendSlackDM", () => {
   });
 });
 
-describe("notifyStaffNewBook", () => {
-  it("no-ops when SLACK_NEW_BOOKS_CHANNEL_ID is unset", async () => {
-    const { notifyStaffNewBook } = await importSlackModule();
-
-    await notifyStaffNewBook({
-      title: "My Book",
-      memberId: "member-1",
-      memberName: "Member One",
-      purchaseUrl: "https://example.com/buy",
-    });
-
-    expect(postMessage).not.toHaveBeenCalled();
+describe("celebrations", () => {
+  beforeEach(() => {
+    process.env.VERCEL_ENV = "production";
+    process.env.SLACK_TEST_MODE = "false";
   });
 
-  it("no-ops when SLACK_BOT_TOKEN is unset", async () => {
-    delete process.env.SLACK_BOT_TOKEN;
-    process.env.SLACK_NEW_BOOKS_CHANNEL_ID = "C_NEW_BOOKS";
-    const { notifyStaffNewBook } = await importSlackModule();
+  it("posts a new book to the celebrations channel with a public profile link", async () => {
+    const { celebrateNewBook } = await importSlackModule();
+    const { SLACK_CELEBRATIONS_CHANNEL_ID } = await import("@/lib/config");
 
-    await notifyStaffNewBook({
-      title: "My Book",
-      memberId: "member-1",
-      memberName: "Member One",
-      purchaseUrl: "https://example.com/buy",
-    });
-
-    expect(postMessage).not.toHaveBeenCalled();
-  });
-
-  it("posts to the configured channel with title, member name, and links when both env vars are set", async () => {
-    process.env.SLACK_NEW_BOOKS_CHANNEL_ID = "C_NEW_BOOKS";
-    const { notifyStaffNewBook } = await importSlackModule();
-
-    await notifyStaffNewBook({
-      title: "My Book",
-      memberId: "member-1",
-      memberName: "Member One",
-      purchaseUrl: "https://example.com/buy",
-    });
+    await celebrateNewBook({ title: "Q&A <beta>", memberId: "member-1", memberName: "Ada Example", purchaseUrl: "https://example.com/buy" });
 
     expect(postMessage).toHaveBeenCalledTimes(1);
     const call = postMessage.mock.calls[0][0];
-    expect(call.channel).toBe("C_NEW_BOOKS");
-    expect(call.text).toContain("My Book");
-    expect(call.text).toContain("Member One");
+    expect(call.channel).toBe(SLACK_CELEBRATIONS_CHANNEL_ID);
+    expect(call.text).toContain("Q&amp;A &lt;beta&gt;");
+    expect(call.text).toContain("Ada Example");
     expect(call.text).toContain("https://example.com/buy");
-    expect(call.text).toContain("/admin/members/member-1");
+    expect(call.text).toContain("/members/member-1");
+    expect(call.text).not.toContain("/admin/");
+    expect(call.unfurl_links).toBe(false);
   });
 
-  it("still links to the member when no purchase URL is available", async () => {
-    process.env.SLACK_NEW_BOOKS_CHANNEL_ID = "C_NEW_BOOKS";
-    const { notifyStaffNewBook } = await importSlackModule();
+  it("still links to the member when a book has no purchase URL", async () => {
+    const { celebrateNewBook } = await importSlackModule();
 
-    await notifyStaffNewBook({
-      title: "My Book",
-      memberId: "member-1",
-      memberName: "Member One",
-      purchaseUrl: null,
-    });
+    await celebrateNewBook({ title: "My Book", memberId: "member-1", memberName: "Ada Example", purchaseUrl: null });
 
-    expect(postMessage).toHaveBeenCalledTimes(1);
     const call = postMessage.mock.calls[0][0];
     expect(call.text).not.toContain("Where to buy");
-    expect(call.text).toContain("/admin/members/member-1");
+    expect(call.text).toContain("/members/member-1");
+  });
+
+  it("posts an award win with escaped names and a public profile link", async () => {
+    const { celebrateNewAward } = await importSlackModule();
+    const { SLACK_CELEBRATIONS_CHANNEL_ID } = await import("@/lib/config");
+
+    await celebrateNewAward({ awardName: "Best <Poem>", workTitle: "Tom & Jerry", memberId: "member-1", memberName: "Ada Example", url: "https://example.com/win" });
+
+    const call = postMessage.mock.calls[0][0];
+    expect(call.channel).toBe(SLACK_CELEBRATIONS_CHANNEL_ID);
+    expect(call.text).toContain("Best &lt;Poem&gt;");
+    expect(call.text).toContain("Tom &amp; Jerry");
+    expect(call.text).toContain("https://example.com/win");
+    expect(call.text).toContain("/members/member-1");
+  });
+
+  it("uses a kind's override channel and falls back to the shared one", async () => {
+    const { celebrationChannel, SLACK_CELEBRATIONS_CHANNEL_ID } = await import("@/lib/config");
+    expect(celebrationChannel("book", { book: "C_BOOKS" })).toBe("C_BOOKS");
+    expect(celebrationChannel("award", { book: "C_BOOKS" })).toBe(SLACK_CELEBRATIONS_CHANNEL_ID);
+    expect(celebrationChannel("award", {})).toBe(SLACK_CELEBRATIONS_CHANNEL_ID);
+  });
+
+  it("posts nothing outside production", async () => {
+    process.env.SLACK_TEST_MODE = "true";
+    const { celebrateNewAward } = await importSlackModule();
+
+    await celebrateNewAward({ awardName: "Best Poem", workTitle: "Work", memberId: "member-1", memberName: "Ada Example" });
+
+    expect(postMessage).not.toHaveBeenCalled();
   });
 });

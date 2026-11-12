@@ -30,13 +30,13 @@ vi.mock("next/cache", () => ({
 }));
 
 vi.mock("@/lib/slack", () => ({
-  notifyStaffNewAward: vi.fn().mockResolvedValue(undefined),
+  celebrateNewAward: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { addAward, deleteAward, getMyAwards, updateAward, type AwardInput } from "@/app/(member)/awards/actions";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
-import { notifyStaffNewAward } from "@/lib/slack";
+import { celebrateNewAward } from "@/lib/slack";
 import { revalidatePath } from "next/cache";
 
 const MEMBER = "mbr_AAAAAAAAAAA1";
@@ -86,7 +86,7 @@ describe("addAward", () => {
     expect(await addAward({ ...VALID_INPUT, awardName: "  Best Poem  ", category: " Poetry ", url: "https://example.com/win" })).toEqual({ success: true });
 
     expect(data.awards).toEqual([expect.objectContaining({ member_id: MEMBER, award_name: "Best Poem", category: "Poetry", url: "https://example.com/win", notes: null })]);
-    expect(notifyStaffNewAward).toHaveBeenCalledWith(expect.objectContaining({ awardName: "Best Poem", memberId: MEMBER }));
+    expect(celebrateNewAward).toHaveBeenCalledWith(expect.objectContaining({ awardName: "Best Poem", memberId: MEMBER }));
     expect(revalidatePath).toHaveBeenCalledWith("/awards");
   });
 
@@ -94,7 +94,7 @@ describe("addAward", () => {
     mocks.repos.awards.add = vi.fn().mockRejectedValue(new Error("boom"));
 
     expect(await addAward(VALID_INPUT)).toEqual({ error: "boom" });
-    expect(notifyStaffNewAward).not.toHaveBeenCalled();
+    expect(celebrateNewAward).not.toHaveBeenCalled();
   });
 
   it("refuses a visitor who is not signed in", async () => {

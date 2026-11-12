@@ -119,6 +119,16 @@ describe('EventsBrowser', () => {
     expect(within(screen.getByRole('region', { name: 'Special events' })).getByText(/Educational · Sign-up required/)).toBeInTheDocument()
   })
 
+  it('says how many places are left, or that it is sold out, on a card', () => {
+    const open = { ...event('open', 'in_person_retreat', '2026-10-20', '2026-10-22', 'required'), spots_left: 3 }
+    const full = { ...event('full', 'in_person_retreat', '2026-10-24', '2026-10-26', 'required'), spots_left: 0, sold_out: true }
+    renderBrowser({ events: [open, full, event('none', 'in_person_retreat', '2026-10-28', '2026-10-29', 'required')] })
+    const special = within(screen.getByRole('region', { name: 'Special events' }))
+    expect(special.getByText('3 places left')).toBeInTheDocument()
+    expect(special.getByText('Sold out!')).toBeInTheDocument()
+    expect(special.queryAllByText(/places? left/)).toHaveLength(1)
+  })
+
   it('shows the badge icon of a retreat on its card in place of the kind\'s symbol', () => {
     renderBrowser({ events: [{ ...event('autumn', 'virtual_retreat', '2026-10-20'), badge_icon: '💡' }] })
     expect(within(screen.getByTestId('event-art')).getByText('💡')).toBeInTheDocument()

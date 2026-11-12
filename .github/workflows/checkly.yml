@@ -43,7 +43,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v6.1.0
+      - uses: pnpm/action-setup@v6.1.1
       - uses: checkly/checkly-action@v1
         with:
           command: test
@@ -69,7 +69,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v6.1.0
+      - uses: pnpm/action-setup@v6.1.1
       - run: pnpm install --frozen-lockfile
       # `checkly deploy` prints each heartbeat's ping URL, and anyone holding one can mark that job
       # healthy. The logs are public, so redact the secret part of the URL before it reaches them.

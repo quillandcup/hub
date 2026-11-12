@@ -239,20 +239,6 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     destinations: vercelAllEnvs,
   },
   {
-    name: "SLACK_NEW_BOOKS_CHANNEL_ID",
-    group: "Slack",
-    description: "Channel ID for new-book staff notifications. Optional.",
-    type: "config",
-    destinations: vercelAllEnvs,
-  },
-  {
-    name: "SLACK_NEW_AWARDS_CHANNEL_ID",
-    group: "Slack",
-    description: "Channel ID for new-award staff notifications. Optional.",
-    type: "config",
-    destinations: vercelAllEnvs,
-  },
-  {
     name: "SLACK_DEV_USER_ID",
     group: "Slack",
     description: "Slack member ID that redirected test-mode DMs go to.",

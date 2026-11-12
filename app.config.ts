@@ -89,6 +89,10 @@ export const appConfig = {
      * new changelog entries with a link to /changelog. Leave empty to post nowhere.
      */
     changelogChannelId: "C01PGFFQGQ0",
+    /** Where wins are cheered (#hedgiehype, open to all members): new books and awards. */
+    celebrationsChannelId: "C02L0FEFVGQ",
+    /** Move one kind of celebration to its own channel (kind -> channel id); kinds not listed use celebrationsChannelId. Kinds: book, award. */
+    celebrationChannelOverrides: {} as Record<string, string>,
   },
 
   /**

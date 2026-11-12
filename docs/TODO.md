@@ -144,6 +144,13 @@ Today a person posts "Remaining Prickle Times for TUESDAY, JULY 21" in #prickle-
 - **Open questions**: keep the existing text ("Wanna prickle at a time not posted? ...") verbatim? Post earlier-than-morning prickles for the next day? Edit the post when a prickle is added or cancelled later in the day? Does the one-off or irregular event (monthly goal review) go in it? Pop-ups hosted in secondary rooms need the "Secondary Zoom Rooms" item above.
 - **Test**: with the fake clock (`useFakeClock`), post once per day, skip a second run, and use the link in effect that day. Include a test with more than 1000 prickles' worth of pagination only if the query isn't date-bounded.
 
+### Map every Kajabi offer to one Hub resource
+
+`/admin/offers` lists each Kajabi offer with the events, courses and programs that point at it, and flags offers with none (not in the Hub yet: the open items before leaving Kajabi) or several. It is read-only: the links are still edited on the event, program and course pages, and the three use different keys (events: `community_event_offers` by offer id, one event per offer; courses: `bronze.kajabi_course_offers`, imported; programs: `programs.kajabi_offer_names` by name).
+
+- **Still open:** unify the three into one offer-to-resource table so an offer can be assigned from the Offers page and "exactly one" is enforced; link programs by offer id rather than name; a way to mark an offer as retired/not migrating so it leaves the open list; membership offers (`MEMBERSHIP_PRODUCT_NAMES` in `lib/membership.ts`) and Stripe products have no Hub resource yet and show as unmapped.
+- **Start at:** `lib/offer-coverage.ts`, `app/(admin)/admin/offers/page.tsx`.
+
 ### Kajabi Data Expansion
 
 **Current state:** Kajabi API sync (`/api/sync/kajabi`, runs daily at 3am via Vercel Cron) fetches contacts, customers, purchases, and offers into Bronze, then processes Silver. Goal is to own the full member lifecycle.
@@ -975,7 +982,7 @@ One system for everything the Hub sends members, instead of each feature hand-ro
 **Still to build:**
 - Inbound on the channel layer: a shared shape for replies (member, channel, conversation ref, text or action) so Messaging and interactive notifications don't each parse provider webhooks. Today only Slack replies exist, handled in `app/api/webhooks/slack/interactions/route.ts`.
 - Move remaining hand-rolled member messages onto `createNotifier`: payment-failure DMs (below), Host Confirmation Flow (CRM section). Wheel of Wonder's group intro and the Slack sign-in DM stay direct: one is a shared room, the other a transactional reply the member just asked for.
-- Staff channel posts as admin notification kinds, so each admin picks their channels: new book (`notifyStaffNewBook`), new award (`notifyStaffNewAward`), new feedback (`app/api/feedback/route.ts`). They post to a shared Slack channel today.
+- Staff channel posts as admin notification kinds, so each admin picks their channels: new feedback (`app/api/feedback/route.ts`). They post to a shared Slack channel today.
 - A `notifications` outbox with async fan-out, once a channel is slow or needs retries (email, push)
 - Quiet hours / time zone, and per-member frequency caps across kinds
 - Escalation and dedupe: don't email what was already seen in-app; delay-then-send (e.g. email only if a DM is still unread after N minutes)
@@ -1251,6 +1258,15 @@ Billie Bot (this app's own Slack bot) can't invite itself back into a private ch
 
 ## Gamification / Badges
 
+### More Celebrations in #hedgiehype
+New books and awards are celebrated in #hedgiehype (`celebrateNewBook`, `celebrateNewAward` in `lib/slack.ts`). Other wins worth cheering in the same channel, each posted the same way (through `postToSlackChannel`, escaped, display name, link to the public `/members/<id>` page, never an admin page):
+- **Badges**: a member earns one, the Published Author badge first (`lib/badges.ts`).
+- **Writing goals**: a goal finished or a project published (`lib/writing-journey.ts`, `lib/writing-projects.ts`).
+- **Anniversaries**: membership anniversaries (the admin Hedgieversaries page, `lib/member-tenure.ts`).
+- **Big Sister outcomes**: a trial member who stays on after the 30 days. Whether a trial converted is derived from membership history in `lib/mentorship.ts`, never stored.
+
+Deferred because each needs a decision on privacy first: anniversaries and mentorship outcomes are personal, so ask members (an opt-in, or a setting) before posting, and honor the usage-statistics opt-out where it applies. Start with badges and writing goals. A new automated sender starts in dry run behind a feature flag (`CLAUDE.md`, "Notification Messages: Links, Copy, Rollout"). Each kind is a name in `slack.celebrationChannelOverrides` (`app.config.ts`), so one that gets noisy can move to its own channel without code. Related: "Staff channel posts as admin notification kinds" above.
+
 ### Community Builder Leaderboard
 Recognize members who contribute most to community engagement — inspired by Long Angle's leaderboard (https://my.longangle.com/leaderboard). **Note:** Long Angle's own leaderboard ranks by number of members invited/referred, not general engagement — worth deciding whether to mirror that directly (an invites leaderboard) or broaden to community engagement generally.
 
@@ -1462,6 +1478,10 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 ## UI Enhancements
 
+### Event places left: count extra tickets, pick the right offer, show "you're in" _(Needs Scheduling)_
+
+Places left on an event (`lib/event-signup.ts`, `docs/CALENDAR_EVENTS.md`, "Places left and sign-up from the linked offers") counts each person once, so a buyer of two tickets (the second may be a gift for someone who is not a member) takes one place, and the Sign up button uses the first linked offer's checkout when an event has several (deposit, payment plan, full price). Worth doing when a retreat sells out with extra tickets, or offers differ by price: count active purchases of the full-price offer per ticket, or let staff mark which linked offer is the one to send members to. The page also does not yet tell a member who already has a place that they are in; start from `eventSignups` and the member's own attendee or purchase row.
+
 ### Move the last hand-built tooltips onto a shared `Tooltip` _(Needs Scheduling)_
 
 `ReasonBadges` and the chat `ReactionHoverCard` are the two remaining hand-built tooltips (allowlisted in `tests/lib/tooltips.test.ts`; both are display:none or unmounted at rest, so they can't widen a page). Move them onto a shared `Tooltip` primitive that `InfoTip` builds on, then empty the allowlist. The phone-width overflow check is built: `demo/scenes/phone-overflow.spec.ts` (`pnpm demo:phone-overflow`, runs with the other scenes in the help-screenshots workflow); extend its page list as pages are added.
@@ -1481,6 +1501,10 @@ The Activity Log links a check-in, check-out or attendance to its prickle, an au
 ### Retire the per-user feature checkboxes on Users, and the `/admin/segments` redirect _(Needs Scheduling)_
 
 Segments became the Previews page (`/admin/previews`), which also turns a flag on or off per person (`PATCH /api/admin/users/[id]` with `features`). The Users page still edits the same previews in its row editor, on purpose, for a transition period. Once Previews is the habit, drop the Feature Flags column and checkboxes from `app/(admin)/admin/users/UsersClient.tsx`, and delete the redirect at `app/(admin)/admin/segments/page.tsx` (plus its `EXCLUDED` line in `tests/lib/site-pages.test.ts`) when no old links remain. Also open: the Previews page lists people from `/api/admin/users`, which loads every account; if that gets slow, give Previews its own search endpoint.
+
+### Sync a segment from one program cohort, not only the whole program _(Not Needed Yet)_
+
+The segment sync on Previews (`lib/segment-sources.ts`, `POST /api/admin/segments/[id]/sync`) offers a program as one choice that adds everyone ever enrolled in any of its cohorts, including cohorts that ended long ago. For a flag preview you may want just one cohort, such as the group in the program now. Deferred because it may not be needed: nobody has asked for it, and the whole-program choice covers the cases so far. If it is, add a `cohort` source type next to course, program and event: list each cohort under its program labeled with its name and dates (`program_cohorts`: `name`, `starts_at`, `expires_at`, as events carry their date so repeats can be told apart), and read its members with `ProgramRepository.memberIdsInCohort`. Leave "all cohorts" as it is. A "current cohorts only" shortcut would need a rule about expiry dates, so skip it unless asked.
 
 ### Pasted mentions: open a profile on click _(Needs Scheduling)_
 

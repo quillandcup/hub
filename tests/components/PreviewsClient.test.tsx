@@ -25,7 +25,10 @@ beforeEach(() => {
     user('u2', 'bea@example.test', [], 'Bea Example'),
   ]
   fetchMock = vi.fn((url: string, init?: RequestInit) => {
-    if (url === '/api/admin/segments') return json({ segments: [] })
+    if (url === '/api/admin/segments') return json({ segments: [{ id: 'seg1', name: 'Spring', memberCount: 0, created_at: '2027-01-01T00:00:00Z' }] })
+    if (url === '/api/admin/segments/seg1') return json({ segment: { id: 'seg1', name: 'Spring' }, members: [] })
+    if (url === '/api/admin/segments/sources') return json({ sources: [{ type: 'course', id: 'c1', name: 'Course One' }] })
+    if (url === '/api/admin/segments/seg1/sync' && init?.method === 'POST') return json({ summary: { found: 3, added: 2, already_in_segment: 1 } })
     if (url === '/api/admin/feature-flags') return json({ flags: [FLAG] })
     if (url === '/api/admin/users') return json({ users })
     if (url.startsWith('/api/admin/users/') && init?.method === 'PATCH') return json({ success: true })
@@ -68,5 +71,50 @@ describe('PreviewsClient per-person previews', () => {
     await waitFor(() => expect(patches()).toEqual([['/api/admin/users/u2', { features: ['events'] }]]))
     const chips = await screen.findByRole('button', { name: 'Turn Events off for Bea Example' })
     expect(within(chips.parentElement!).getByText('Bea Example')).toBeInTheDocument()
+  })
+})
+
+describe('PreviewsClient sync from a course, program or event', () => {
+  it('adds everyone with access to the chosen source to the segment', async () => {
+    const u = userEvent.setup()
+    render(<PreviewsClient allMembers={[]} />)
+    await u.click(await screen.findByRole('button', { name: 'Manage' }))
+    const select = await screen.findByLabelText(/Add everyone with access/)
+    await u.click(select)
+    await u.selectOptions(select, await screen.findByRole('option', { name: 'Course One' }))
+    await u.click(screen.getByRole('button', { name: 'Sync' }))
+
+    expect(await screen.findByText('Added 2 (1 already in the segment)')).toBeInTheDocument()
+    const call = fetchMock.mock.calls.find(([url]) => url === '/api/admin/segments/seg1/sync')!
+    expect(JSON.parse(call[1].body)).toEqual({ type: 'course', id: 'c1' })
+  })
+
+  async function openSync(u: ReturnType<typeof userEvent.setup>) {
+    render(<PreviewsClient allMembers={[]} />)
+    await u.click(await screen.findByRole('button', { name: 'Manage' }))
+    const select = await screen.findByLabelText(/Add everyone with access/)
+    await u.click(select)
+    return select
+  }
+
+  it('says so when the courses, programs and events cannot be loaded', async () => {
+    const base = fetchMock.getMockImplementation()! as (url: string, init?: RequestInit) => Promise<Response>
+    fetchMock.mockImplementation((url: string, init?: RequestInit) =>
+      url === '/api/admin/segments/sources' ? json({ error: 'No sources today' }, false) : base(url, init)
+    )
+    await openSync(userEvent.setup())
+    expect(await screen.findByText('No sources today')).toBeInTheDocument()
+  })
+
+  it('says so when the sync fails', async () => {
+    const base = fetchMock.getMockImplementation()! as (url: string, init?: RequestInit) => Promise<Response>
+    fetchMock.mockImplementation((url: string, init?: RequestInit) =>
+      url === '/api/admin/segments/seg1/sync' ? json({ error: 'That course was not found' }, false) : base(url, init)
+    )
+    const u = userEvent.setup()
+    const select = await openSync(u)
+    await u.selectOptions(select, await screen.findByRole('option', { name: 'Course One' }))
+    await u.click(screen.getByRole('button', { name: 'Sync' }))
+    expect(await screen.findByText('That course was not found')).toBeInTheDocument()
   })
 })

@@ -111,7 +111,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: pnpm/action-setup@v6.1.0
+      - uses: pnpm/action-setup@v6.1.1
 
 
       - uses: actions/setup-node@v7
@@ -172,7 +172,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: pnpm/action-setup@v6.1.0
+      - uses: pnpm/action-setup@v6.1.1
 
 
       - uses: actions/setup-node@v7
@@ -236,7 +236,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: pnpm/action-setup@v6.1.0
+      - uses: pnpm/action-setup@v6.1.1
 
 
       - uses: actions/setup-node@v7
@@ -482,7 +482,7 @@ jobs:
         with:
           fetch-depth: 0 # the new-lines check diffs against the PR's base branch
 
-      - uses: pnpm/action-setup@v6.1.0
+      - uses: pnpm/action-setup@v6.1.1
 
 
       - uses: actions/setup-node@v7
@@ -642,7 +642,7 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: pnpm/action-setup@v6.1.0
+      - uses: pnpm/action-setup@v6.1.1
 
 
       - uses: actions/setup-node@v7
@@ -707,7 +707,7 @@ jobs:
         env:
           BEFORE: ${{ github.event.before }}
 
-      - uses: pnpm/action-setup@v6.1.0
+      - uses: pnpm/action-setup@v6.1.1
 
 
       - uses: actions/setup-node@v7
@@ -755,7 +755,7 @@ jobs:
         env:
           BEFORE: ${{ github.event.before }}
 
-      - uses: pnpm/action-setup@v6.1.0
+      - uses: pnpm/action-setup@v6.1.1
 
 
       - uses: actions/setup-node@v7

@@ -67,6 +67,31 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     ].join("\n\n"),
   },
   {
+    slug: "event-places-left-and-sign-up",
+    date: "2026-11-11",
+    audience: "product",
+    category: "improved",
+    title: "See how many places are left on an event, and sign up from its page",
+    summary: "Events with limited places now say how many are left, or \"Sold out!\" once they are full, and an upcoming event you can buy a ticket for has a Sign up button.",
+    body: [
+      "On the Events page, a retreat or other event with limited places now shows how many places are left, or \"Sold out!\" when none are.",
+      "Open the event and you will see the same on its page, with a **Sign up** button that takes you to the ticket page. When it is sold out, the button goes away.",
+      "Places are counted from tickets bought as well as from the people already on the list, so the last place shows as taken as soon as it is paid for.",
+    ].join("\n\n"),
+  },
+  {
+    slug: "sync-segments-from-course-program-event",
+    date: "2026-11-11",
+    audience: "engineering",
+    category: "new",
+    title: "Previews: fill a segment from the people with access to a course, program or event",
+    summary: "The segment dialog on the Previews page can add everyone with access to a course, program or event to a segment, so a feature flag linked to that segment reaches them.",
+    body: [
+      "Manage on a segment, pick a course, program or event and press Sync (`POST /api/admin/segments/[id]/sync`, the choices from `GET /api/admin/segments/sources`). It only adds: members already in the segment, added by hand or from another source, stay, and running it again later picks up whoever got access since. It does not run on its own.",
+      "Who counts is read in `lib/segment-sources.ts`: a course's `course_access` rows that have started and not ended, anyone enrolled in any cohort of a program, an event's attendees. A flag still reaches people through the existing flag-to-segment link, so there is no schema change.",
+    ].join("\n\n"),
+  },
+  {
     slug: "conversations-became-hedgie-care",
     date: "2026-11-11",
     audience: "engineering",

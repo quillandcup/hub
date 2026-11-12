@@ -96,13 +96,17 @@ export function audienceSummary(event: {
   registration: string;
   capacity: number | null;
   selection: string;
+  /** Places still free, when known (an event that sells tickets): "Sold out!" or "3 of 12 places left" replaces "12 places". */
+  spotsLeft?: number | null;
 }): string[] {
   const parts: string[] = [];
   if (event.guests_allowed) parts.push("Guests welcome");
   if (event.registration === "signup") parts.push("Sign-up required");
   if (event.registration === "application") parts.push("Application required");
   if (event.capacity !== null) {
-    parts.push(`${event.capacity} ${event.capacity === 1 ? "place" : "places"}`);
+    if (event.spotsLeft === undefined || event.spotsLeft === null) parts.push(`${event.capacity} ${event.capacity === 1 ? "place" : "places"}`);
+    else if (event.spotsLeft <= 0) parts.push("Sold out!");
+    else parts.push(`${event.spotsLeft} of ${event.capacity} ${event.capacity === 1 ? "place" : "places"} left`);
     const selection = SELECTION_LABELS[event.selection as SelectionMode];
     if (event.registration !== "none" && selection) parts.push(selection);
   }

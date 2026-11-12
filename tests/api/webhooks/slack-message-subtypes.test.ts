@@ -61,7 +61,7 @@ describe('Slack webhook: message subtypes', () => {
     const { data, error } = await supabase
       .schema('bronze')
       .from('slack_messages')
-      .select('message_ts, user_id, text, message_type, edited_at, deleted_at')
+      .select('message_ts, user_id, text, message_type, channel_type, edited_at, deleted_at')
       .eq('channel_id', channelId)
       .order('message_ts')
     if (error) throw error
@@ -82,6 +82,18 @@ describe('Slack webhook: message subtypes', () => {
     await supabase.schema('bronze').from('slack_messages').delete().eq('channel_id', channelId)
     // Join and leave notices are recorded as membership history.
     await supabase.schema('bronze').from('slack_channel_member_events').delete().eq('channel_id', channelId)
+  })
+
+  it('types a live message by the event\'s conversation type, and leaves a stored type alone when an event names none', async () => {
+    await send({ type: 'message', ts: originalTs, user: 'UAUTHOR', text: 'hi', channel_type: 'channel' })
+    expect((await rows())[0].channel_type).toBe('public_channel')
+
+    await send({ type: 'message', ts: `${nowSec - 500}.000100`, user: 'UAUTHOR', text: 'in a group', channel_type: 'group' })
+    expect((await rows())[1].channel_type).toBe('private_channel')
+
+    await send({ type: 'message', ts: originalTs, user: 'UAUTHOR', text: 'hi again' })
+    const [first] = await rows()
+    expect(first).toMatchObject({ text: 'hi again', channel_type: 'public_channel' })
   })
 
   it('applies an edit to the original message instead of storing a new row', async () => {
@@ -125,6 +137,21 @@ describe('Slack webhook: message subtypes', () => {
     expect((data!.raw_payload as { attachments: unknown }).attachments).toEqual(attachments)
     expect(new Date(data!.edited_at!).toISOString()).toBe(new Date(parseFloat(editTs) * 1000).toISOString())
     expect(projectSlackActivity).toHaveBeenCalled()
+  })
+
+  it('stores the preview Slack adds to a message the Hub posted (it carries our metadata), so the Hub can draw it when it has no preview of its own', async () => {
+    await storeOriginal()
+    const unfurlTs = `${nowSec - 50}.000100`
+    const attachments = [{ title: 'Hub-posted link', title_link: 'https://example.com/b', original_url: 'https://example.com/b', id: 1 }]
+    const metadata = { event_type: 'hub_message', event_payload: { app_message_id: 'msg_AAAAAAAAAAA1' } }
+    await send({
+      type: 'message', subtype: 'message_changed', hidden: true, ts: unfurlTs, event_ts: unfurlTs,
+      message: { type: 'message', ts: originalTs, user: 'UAUTHOR', text: 'first draft', metadata, attachments },
+    })
+
+    const { data, error } = await supabase.schema('bronze').from('slack_messages').select('raw_payload').eq('channel_id', channelId).eq('message_ts', originalTs).single()
+    expect(error).toBeNull()
+    expect((data!.raw_payload as { attachments: unknown }).attachments).toEqual(attachments)
   })
 
   it('ignores an edit to a message we never stored (the nightly import brings it in)', async () => {
@@ -199,7 +226,7 @@ describe('Slack webhook: message subtypes', () => {
     await send({ type: 'message', ts: botTs, bot_id: 'BDEPLOYBOT', text: '' })
 
     expect(await rows()).toEqual([
-      { message_ts: botTs, user_id: 'BDEPLOYBOT', text: '', message_type: 'message', edited_at: null, deleted_at: null },
+      { message_ts: botTs, user_id: 'BDEPLOYBOT', text: '', message_type: 'message', channel_type: null, edited_at: null, deleted_at: null },
     ])
   })
 
