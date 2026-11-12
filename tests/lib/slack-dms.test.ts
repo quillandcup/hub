@@ -40,7 +40,7 @@ vi.mock("@/lib/data/repos", async () => {
 const notifyPulled = vi.hoisted(() => vi.fn(async () => {}));
 vi.mock("@/lib/chat/notifications", () => ({ notifyPulledMessages: notifyPulled }));
 
-import { openSlackDm, pullDmsForCoveredMembers, pullMemberDms, SLACK_DM_PULL_INTERVAL_SECONDS } from "@/lib/chat/slack-dms";
+import { openSlackDm, pullDmsForCoveredMembers, pullMemberDms, SLACK_DM_PULL_INTERVAL_SECONDS, waitOutRateLimits } from "@/lib/chat/slack-dms";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { InMemorySlackWorkspaceRepository } from "@/lib/data/slack-workspace";
 
@@ -389,6 +389,47 @@ describe("what a pull keeps up with: replies, reactions, edits and deletions", (
       await pullMemberDms(service, MEMBER);
       expect(ds().slackMessages.filter((r) => r.deleted_at)).toHaveLength(0);
     });
+  });
+});
+
+describe("waiting out Slack's rate limit", () => {
+  const fake = useFakeClock(() => Date.parse("2026-11-03T12:00:00Z"));
+  const limited = (retryAfter = 30) => Object.assign(new Error("rate limited"), { code: "slack_webapi_rate_limited_error", retryAfter });
+
+  it("waits Retry-After and tries again, as many times as the time allows", async () => {
+    m.list.mockRejectedValueOnce(limited()).mockRejectedValueOnce(limited(20)).mockResolvedValue({ channels: [{ id: "D1" }] });
+    const client = waitOutRateLimits({ conversations: { list: m.list } } as never, fake.clock.now() + 300_000);
+    await expect(client.conversations.list({ types: "im" })).resolves.toEqual({ channels: [{ id: "D1" }] });
+    expect(m.list).toHaveBeenCalledTimes(3);
+    expect(fake.clock.slept).toBe(50_000);
+  });
+
+  it("gives up with the rate-limit error when waiting would pass the deadline, without sleeping", async () => {
+    m.list.mockRejectedValue(limited(30));
+    const client = waitOutRateLimits({ conversations: { list: m.list } } as never, fake.clock.now() + 20_000);
+    await expect(client.conversations.list({})).rejects.toMatchObject({ code: "slack_webapi_rate_limited_error" });
+    expect(fake.clock.slept).toBe(0);
+  });
+
+  it("passes any other error straight through", async () => {
+    m.list.mockRejectedValue(new Error("boom"));
+    const client = waitOutRateLimits({ conversations: { list: m.list } } as never, undefined);
+    await expect(client.conversations.list({})).rejects.toThrow("boom");
+    expect(m.list).toHaveBeenCalledTimes(1);
+  });
+
+  it("ends the member incomplete, with no error, when the nightly pull is rate limited out of time", async () => {
+    m.list.mockRejectedValue(limited(30));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await expect(pullMemberDms(service, MEMBER, { force: true, patient: true, deadline: fake.clock.now() + 10_000 })).resolves.toEqual({ conversations: 0, messages: 0, incomplete: true, errors: [] });
+    warn.mockRestore();
+  });
+
+  it("still reports a rate limit as an error when opening chat (it never waits there)", async () => {
+    m.list.mockRejectedValue(limited(30));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await expect(pullMemberDms(service, MEMBER)).resolves.toMatchObject({ incomplete: false, errors: [`member ${MEMBER}: stopped on a rate limit`] });
+    warn.mockRestore();
   });
 });
 

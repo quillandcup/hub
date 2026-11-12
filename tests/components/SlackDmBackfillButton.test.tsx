@@ -3,14 +3,14 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
-import SlackDmBackfillButton, { MAX_BACKFILL_RUNS, MAX_STALLED_RUNS } from "@/app/(admin)/admin/data/import/SlackDmBackfillButton";
+import SlackDmBackfillButton, { MAX_BACKFILL_RUNS, MAX_FAILED_RUNS, MAX_STALLED_RUNS } from "@/app/(admin)/admin/data/import/SlackDmBackfillButton";
 
 const run = (extra: Record<string, unknown> = {}) => ({ members: 4, conversations: 10, messages: 20, deferred: 0, incomplete: 0, errors: [] as string[], ...extra });
 const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
 
 function stubRuns(...responses: unknown[]) {
   const fetchMock = vi.fn();
-  for (const r of responses) fetchMock.mockResolvedValueOnce(r);
+  for (const r of responses) (r instanceof Error ? fetchMock.mockRejectedValueOnce(r) : fetchMock.mockResolvedValueOnce(r));
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
 }
@@ -48,11 +48,23 @@ describe("SlackDmBackfillButton", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("shows the server's message when a run fails", async () => {
-    stubRuns({ ok: false, status: 500, json: async () => ({ error: "db down" }) });
+  it("carries on after a run fails outright, and says so", async () => {
+    const fetchMock = stubRuns(ok(run({ deferred: 1 })), new TypeError("Failed to fetch"), ok(run({ conversations: 3 })))
     render(<SlackDmBackfillButton />);
     await click();
-    await waitFor(() => expect(screen.getByText("db down")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/Everyone is read/)).toBeInTheDocument());
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    await userEvent.setup().click(screen.getByText("1 errors"));
+    expect(screen.getByText("Run 2 failed (Failed to fetch); trying again.")).toBeInTheDocument();
+  });
+
+  it("gives up with the server's message after several failed runs in a row", async () => {
+    const failing = { ok: false, status: 500, json: async () => ({ error: "db down" }) };
+    const fetchMock = stubRuns(...Array.from({ length: MAX_FAILED_RUNS + 1 }, () => failing));
+    render(<SlackDmBackfillButton />);
+    await click();
+    await waitFor(() => expect(screen.getByText(/runs in a row failed\. Last: db down/)).toBeInTheDocument());
+    expect(fetchMock).toHaveBeenCalledTimes(MAX_FAILED_RUNS);
     expect(screen.getByRole("button", { name: "Pull everyone's DMs" })).toBeEnabled();
   });
 

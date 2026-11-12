@@ -5,6 +5,8 @@ import { useRef, useState } from "react";
 /** Most runs one click makes (each is up to ~200 s), and how many in a row may read nothing before it gives up. */
 export const MAX_BACKFILL_RUNS = 40;
 export const MAX_STALLED_RUNS = 3;
+/** Runs in a row that may fail outright (a timeout, a dropped connection) before it gives up: the next run carries on where it stopped. */
+export const MAX_FAILED_RUNS = 3;
 
 interface RunResult {
   members: number;
@@ -45,11 +47,24 @@ export default function SlackDmBackfillButton() {
     let sum: Totals = { ...EMPTY, errors: [] };
     setTotals(sum);
     let stalled = 0;
+    let failed = 0;
     try {
       for (let run = 1; run <= MAX_BACKFILL_RUNS; run++) {
-        const response = await fetch("/api/reconcile/slack-dms?backfill=1");
-        const body = (await response.json().catch(() => ({}))) as Partial<RunResult> & { error?: string };
-        if (!response.ok) throw new Error(body.error ?? `Run ${run} failed (HTTP ${response.status})`);
+        let body: Partial<RunResult> & { error?: string };
+        try {
+          const response = await fetch("/api/reconcile/slack-dms?backfill=1");
+          body = (await response.json().catch(() => ({}))) as Partial<RunResult> & { error?: string };
+          if (!response.ok) throw new Error(body.error ?? `Run ${run} failed (HTTP ${response.status})`);
+        } catch (err) {
+          // A run that dies (the function's time limit, a dropped connection) leaves what it read stored: try the next.
+          failed += 1;
+          const reason = err instanceof Error ? err.message : "An error occurred";
+          if (failed >= MAX_FAILED_RUNS) throw new Error(`${failed} runs in a row failed. Last: ${reason}`);
+          sum = { ...sum, errors: [...sum.errors, `Run ${run} failed (${reason}); trying again.`] };
+          setTotals(sum);
+          continue;
+        }
+        failed = 0;
         if (body.skipped) {
           setOutcome({ tone: "error", text: `Nothing to do: ${body.skipped}.` });
           return;
