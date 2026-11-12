@@ -71,6 +71,25 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     ].join("\n\n"),
   },
   {
+    slug: "where-pictures-come-from",
+    date: "2026-11-12",
+    audience: "engineering",
+    category: "improved",
+    title: "Where pictures come from: the picture proxy, the media library, and the hosts we load directly",
+    summary: "Pictures under chat messages are fetched by the Hub, our own uploads are served by the media library, and a few trusted hosts such as Gravatar and Slack's profile pictures are loaded directly. This entry says which is which, and why.",
+    body: [
+      "Related to the product entry on link previews in Hub chat and to \"Pictures under chat messages go through the Hub\". Which path a picture takes depends on who controls the address:",
+      [
+        "- **An address someone else chose** (a link preview's picture, an app's card or logo, a quoted message's author): the picture proxy, `GET /api/chat/unfurl-image?m=<message>&k=<key>`. The viewer's own read of the message decides access, the key is a hash of an address taken from the message (never from the request), the fetch is `fetchImage` (`lib/net/safe-fetch.ts`: https only, port 443, resolved once and pinned to a public address, 5 MB, type from the first bytes, no SVG), and one copy is kept for 7 days in the private `unfurl-images` bucket, swept by the nightly `/api/reconcile/media` run. No image host learns who looked.",
+        "- **Our own uploads** (book covers and other library images): the media library, served at `/api/media/<id>/<preset>` from the original in the private `media` bucket. All of the live book covers now point there; none of them touch the proxy. Legacy covers were moved in by `scripts/adopt-book-covers.ts`, which now downloads through the same pinned fetch (https only).",
+        "- **Member profile photos**: `members.photo_url`, rebuilt by member processing from Kajabi's avatar, then Slack's photo (our copy in the `slack-avatars` bucket), then Gravatar. A photo that has to outlast its source is kept in the public `member-photos` bucket and remembered in `member_profile_overrides.photo_path`, which processing prefers; `pnpm photos:adopt` moved the ones that were on Kajabi's CDN there (88 of them). Today the photos are on Gravatar or our own storage.",
+        "- **Loaded directly from the host, on purpose**: Gravatar (member photos by email: a service members have chosen and one we keep supporting), Slack's profile pictures for people not matched to a member (`avatars.slack-edge.com`, `a.slack-edge.com`: the host that already knows them), Mux lesson stills, Google profile photos and the analytics beacons. These are the hosts in `csp.imageHosts` in `app.config.ts`, which is what the report-only `img-src` allows; a host that is missing shows up as a Content-Security-Policy issue in Sentry. Kajabi's CDN is on the list only until its photos and covers are gone.",
+      ].join("\n"),
+      "For a new feature: an address that comes from a user or a message goes through the proxy; our own uploads go through the media library; a vendor picture of a known person may load directly if its host is added to `csp.imageHosts`. Never take an address from a query string. Every request we make ourselves (the proxy, the cover import, the page fetch for previews, the photo copy) sends the shared outbound User-Agent (`docs/OUTBOUND_REQUESTS.md`), because hosts such as Wikimedia refuse requests without one.",
+      "Not done, in `docs/TODO.md`: proxied pictures are not re-encoded, a card still resizes once when its picture arrives, and the Content-Security-Policy is report-only until its reports are clean.",
+    ].join("\n\n"),
+  },
+  {
     slug: "lesson-videos-in-chat-building-blocks",
     date: "2026-11-11",
     audience: "engineering",
@@ -167,7 +186,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "improved",
     title: "Pictures under chat messages go through the Hub, and the app sends a Content-Security-Policy in report-only mode",
     summary: "Link previews, app cards and logos in chat are fetched by the Hub instead of by each viewer's browser, and every page now reports which pictures a stricter policy would block.",
-    body: "Related to the product entry on Slack link previews and app cards in Hub chat. `GET /api/chat/unfurl-image?m=<message>&i=<position>` reads the message as the viewer (row-level security applies; a deleted message is a 404), lists its pictures with the same walk the renderer used (`lib/chat/unfurl-images.ts`) and fetches the one at that position, so the browser never names an address and no image host learns who looked. The fetch is `lib/net/safe-fetch.ts`: https only, ports 80 and 443, the name is resolved once and the connection is pinned to a public address (no DNS rebinding), every redirect hop is checked again, 5 MB cap while streaming, a time budget on `lib/clock.ts`, and the type is decided by the first bytes (PNG, JPEG, GIF, WebP, AVIF; SVG refused). The book-cover import shares its address checks. `next.config.ts` now sends `Content-Security-Policy-Report-Only` (`lib/csp.ts`: `img-src`, `object-src`, `base-uri`, `form-action`, `frame-ancestors`; violations go to Sentry); enforcing it, and covering scripts and styles with nonces, are in `docs/TODO.md`.",
+    body: "Related to the product entry on link previews in Hub chat, and to \"Where pictures come from\" (the map of which images take which path). `GET /api/chat/unfurl-image?m=<message>&k=<key>` reads the message as the viewer (row-level security applies; a deleted message is a 404), lists its pictures with the same walk the renderer used (`lib/chat/unfurl-images.ts`) and fetches the one whose key (the first 16 hex digits of the sha256 of its address) matches, so the browser never names an address and no image host learns who looked. (It first used the picture's position in the list, which shifted when Slack's copy of a message arrived and briefly showed the app's logo; a position is now a 404.) The fetch is `lib/net/safe-fetch.ts`: https only, port 443, the name is resolved once and the connection is pinned to a public address (no DNS rebinding), every redirect hop is checked again, 5 MB cap while streaming, a time budget on `lib/clock.ts`, and the type is decided by the first bytes (PNG, JPEG, GIF, WebP, AVIF; SVG refused). The book-cover import shares its address checks. `next.config.ts` now sends `Content-Security-Policy-Report-Only` (`lib/csp.ts`: `img-src`, `object-src`, `base-uri`, `form-action`, `frame-ancestors`; violations go to Sentry); enforcing it, and covering scripts and styles with nonces, are in `docs/TODO.md`.",
   },
   {
     slug: "see-your-image-before-you-save-it",
