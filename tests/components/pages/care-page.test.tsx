@@ -4,7 +4,7 @@
  * engagements under Earlier, and the controls that call the server actions. Data comes from the in-memory repository; the actions are stubbed.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { screen, within, waitFor } from "@testing-library/react";
+import { fireEvent, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
@@ -34,6 +34,7 @@ vi.mock("@/lib/analytics/client", () => ({ track }));
 
 const actions = vi.hoisted(() => ({
   startEngagement: vi.fn(),
+  changeEngagementStart: vi.fn(),
   logCareMessage: vi.fn(),
   updateEngagement: vi.fn(),
   closeEngagement: vi.fn(),
@@ -142,6 +143,7 @@ beforeEach(() => {
   preview.role = null;
   Object.values(actions).forEach((fn) => fn.mockReset());
   actions.startEngagement.mockResolvedValue({ success: true });
+  actions.changeEngagementStart.mockResolvedValue({ success: true });
   actions.logCareMessage.mockResolvedValue({ success: true });
   actions.updateEngagement.mockResolvedValue({ success: true });
   actions.closeEngagement.mockResolvedValue({ success: true });
@@ -191,8 +193,8 @@ describe("the Active tab", () => {
     await renderServerRoute(activePage, undefined as never);
 
     const ada = cards()[0];
-    expect(within(ada).getByText(/They wrote yesterday/)).toBeInTheDocument();
-    expect(within(ada).getByText(/Period ends/)).toBeInTheDocument();
+    expect(within(ada).getByText(/Last message: they wrote yesterday/)).toBeInTheDocument();
+    expect(within(ada).getByText(/Care period ends/)).toBeInTheDocument();
     expect(within(ada).getByText("Follow up due")).toBeInTheDocument();
     expect(within(ada).getByText(/· Follow up \w+/)).toBeInTheDocument();
     expect(within(ada).getByText("Next: Ask about chapter two")).toBeInTheDocument();
@@ -200,9 +202,9 @@ describe("the Active tab", () => {
     expect(within(ada).getByText("A check-in · Email · Period 1")).toBeInTheDocument();
     expect(within(ada).getByText("Owner: Cam Manager")).toBeInTheDocument();
     expect(within(cards()[3]).getByText("Owner: Abe Admin")).toBeInTheDocument();
-    expect(within(cards()[3]).getByText(/You wrote 2 days ago/)).toBeInTheDocument();
-    expect(within(cards()[1]).getByText("The period is over. Renew it if there is a plan, or close it.")).toBeInTheDocument();
-    expect(within(cards()[1]).getByText(/Period ended/)).toBeInTheDocument();
+    expect(within(cards()[3]).getByText(/Last message: you wrote 2 days ago/)).toBeInTheDocument();
+    expect(within(cards()[1]).getByText("The care period is over. Renew it if there is a plan, or close it.")).toBeInTheDocument();
+    expect(within(cards()[1]).getByText(/Care period ended/)).toBeInTheDocument();
   });
 
   it("narrows the list by status", async () => {
@@ -225,7 +227,7 @@ describe("the Active tab", () => {
     dataset.careEngagements.length = 0;
     signInAs(CM_USER);
     await renderServerRoute(activePage, undefined as never);
-    expect(screen.getByText("Nothing active. Start an engagement above.")).toBeInTheDocument();
+    expect(screen.getByText("Nothing active. Start a care period above.")).toBeInTheDocument();
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Waiting on them (0)" }));
     expect(screen.queryByText("Nothing here.")).not.toBeInTheDocument();
@@ -242,7 +244,7 @@ describe("the Active tab", () => {
   it("opens for an admin, and for an admin previewing the community manager", async () => {
     signInAs(ADMIN_USER);
     await renderServerRoute(activePage, undefined as never);
-    expect(screen.getByRole("heading", { name: "Start an engagement" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Start a care period" })).toBeInTheDocument();
   });
 
   it("sends a signed-out visitor to /login and a member to /no-access", async () => {
@@ -268,7 +270,7 @@ describe("the Active tab", () => {
       signInAs(CM_USER);
       await renderServerRoute(activePage, undefined as never);
       expect(cards()).toHaveLength(4);
-      expect(screen.queryByRole("heading", { name: "Start an engagement" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Start a care period" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "They replied" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Renew" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Results" })).not.toBeInTheDocument();
@@ -321,7 +323,7 @@ describe("the Earlier tab", () => {
     signInAs(CM_USER);
     await renderServerRoute(earlierPage, undefined as never);
     expect(cards()).toHaveLength(20);
-    expect(screen.getByText(/of 28 engagements/)).toBeInTheDocument();
+    expect(screen.getByText(/of 28 care periods/)).toBeInTheDocument();
   });
 });
 
@@ -346,12 +348,12 @@ describe("the controls", () => {
   });
 
   it("shows an error from the server and does not report it", async () => {
-    actions.logCareMessage.mockResolvedValue({ error: "That engagement is closed or gone." });
+    actions.logCareMessage.mockResolvedValue({ error: "That care period is closed or gone." });
     const user = await open();
 
     await user.click(within(cards()[0]).getByRole("button", { name: "They replied" }));
 
-    expect(await within(cards()[0]).findByRole("alert")).toHaveTextContent("That engagement is closed or gone.");
+    expect(await within(cards()[0]).findByRole("alert")).toHaveTextContent("That care period is closed or gone.");
     expect(track).not.toHaveBeenCalled();
   });
 
@@ -364,25 +366,25 @@ describe("the controls", () => {
     expect(actions.getEngagementResults).toHaveBeenCalledWith("care_AAAAAAAAAAA2");
     expect(actions.renewEngagement).not.toHaveBeenCalled();
 
-    await user.click(within(ada).getByRole("button", { name: "Renew engagement" }));
+    await user.click(within(ada).getByRole("button", { name: "Renew this care period" }));
     expect(within(ada).getByRole("alert")).toHaveTextContent("Say why you are renewing");
     expect(actions.renewEngagement).not.toHaveBeenCalled();
 
     await user.type(within(ada).getByLabelText("Why renew? What is the plan?"), "A writing sprint in April");
-    await user.click(within(ada).getByRole("button", { name: "Renew engagement" }));
+    await user.click(within(ada).getByRole("button", { name: "Renew this care period" }));
 
     expect(actions.renewEngagement).toHaveBeenCalledWith("care_AAAAAAAAAAA2", "A writing sprint in April");
     await waitFor(() => expect(track).toHaveBeenCalledWith("care_engagement_renewed", { days_open: 10 }));
   });
 
   it("shows why a renewal was refused and does not report it", async () => {
-    actions.renewEngagement.mockResolvedValue({ error: "That engagement is already renewed, closed or gone. Refresh the list." });
+    actions.renewEngagement.mockResolvedValue({ error: "That care period is already renewed, closed or gone. Refresh the list." });
     const user = await open();
     const ada = cards()[0];
 
     await user.click(within(ada).getByRole("button", { name: "Renew" }));
     await user.type(within(ada).getByLabelText("Why renew? What is the plan?"), "A plan");
-    await user.click(within(ada).getByRole("button", { name: "Renew engagement" }));
+    await user.click(within(ada).getByRole("button", { name: "Renew this care period" }));
 
     expect(await within(ada).findByRole("alert")).toHaveTextContent("already renewed");
     expect(track).not.toHaveBeenCalled();
@@ -421,7 +423,7 @@ describe("the controls", () => {
 
     await user.click(within(ada).getByRole("button", { name: "Close" }));
     expect((await within(ada).findAllByRole("table")).length).toBe(2);
-    await user.click(within(ada).getByRole("button", { name: "Close engagement" }));
+    await user.click(within(ada).getByRole("button", { name: "Close this care period" }));
     expect(within(ada).getByRole("alert")).toHaveTextContent("Pick how it ended.");
     expect(actions.closeEngagement).not.toHaveBeenCalled();
 
@@ -435,7 +437,7 @@ describe("the controls", () => {
     expect(within(ada).getByText(/If it is still alive and you have a plan, renew it instead/)).toBeInTheDocument();
 
     await user.click(within(ada).getByRole("radio", { name: /Back in the community/ }));
-    await user.click(within(ada).getByRole("button", { name: "Close engagement" }));
+    await user.click(within(ada).getByRole("button", { name: "Close this care period" }));
 
     expect(actions.closeEngagement).toHaveBeenCalledWith("care_AAAAAAAAAAA2", "back_in_community");
     await waitFor(() => expect(track).toHaveBeenCalledWith("care_engagement_closed", { ended_how: "back_in_community", days_open: 10 }));
@@ -487,7 +489,7 @@ describe("the results", () => {
     // How they stayed: three distinct states at each checkpoint, "Not yet" for one that has not passed.
     const checkpoints = within(staying).getAllByRole("row");
     expect(checkpoints).toHaveLength(4);
-    expect(within(checkpoints[1]).getByText("60 days after the period")).toBeInTheDocument();
+    expect(within(checkpoints[1]).getByText("60 days after the care period")).toBeInTheDocument();
     expect(within(checkpoints[1]).getByText("On hiatus")).toBeInTheDocument();
     expect(within(checkpoints[1]).getByText("Example Program, 6 months")).toBeInTheDocument();
     expect(within(checkpoints[2]).getByText("Active")).toBeInTheDocument();
@@ -534,7 +536,7 @@ describe("starting an engagement", () => {
   it("asks for a member first, then a reason", async () => {
     const user = await open();
 
-    await user.click(screen.getByRole("button", { name: "Start engagement" }));
+    await user.click(screen.getByRole("button", { name: "Start care period" }));
     expect(screen.getByRole("alert")).toHaveTextContent("Pick a member.");
     expect(actions.startEngagement).not.toHaveBeenCalled();
   });
@@ -548,24 +550,54 @@ describe("starting an engagement", () => {
     await user.selectOptions(screen.getByLabelText("Where"), "email");
     await user.click(screen.getByLabelText("They wrote to me first"));
     await user.type(screen.getByLabelText("Note"), "Joined last week");
-    await user.click(screen.getByRole("button", { name: "Start engagement" }));
+    await user.click(screen.getByRole("button", { name: "Start care period" }));
 
-    expect(actions.startEngagement).toHaveBeenCalledWith({ memberId: BO, reason: "welcome", channel: "email", memberWroteFirst: true, notes: "Joined last week", followUpOn: "" });
-    await waitFor(() => expect(track).toHaveBeenCalledWith("care_engagement_started", { reason: "welcome", channel: "email", member_wrote_first: true }));
+    expect(actions.startEngagement).toHaveBeenCalledWith({ memberId: BO, startedOn: "2026-03-20", reason: "welcome", channel: "email", memberWroteFirst: true, notes: "Joined last week", followUpOn: "" });
+    await waitFor(() => expect(track).toHaveBeenCalledWith("care_engagement_started", { reason: "welcome", channel: "email", member_wrote_first: true, backdated: false }));
     await waitFor(() => expect(screen.getByLabelText("Note")).toHaveValue(""));
   });
 
+  it("asks when it started, today by default and never after today, and sends the day she picks", async () => {
+    const user = await open();
+    const when = screen.getByLabelText("When did this start?");
+    expect(when).toHaveValue("2026-03-20"); // the Eastern day of the pinned clock
+    expect(when).toHaveAttribute("max", "2026-03-20");
+
+    await user.type(screen.getByRole("combobox", { name: "Member" }), "bo");
+    await user.click(await screen.findByRole("option", { name: /Bo Example/ }));
+    await user.click(screen.getByRole("radio", { name: /A welcome/ }));
+    fireEvent.change(when, { target: { value: "2026-03-13" } });
+    await user.click(screen.getByRole("button", { name: "Start care period" }));
+
+    expect(actions.startEngagement).toHaveBeenCalledWith(expect.objectContaining({ memberId: BO, startedOn: "2026-03-13" }));
+    await waitFor(() => expect(track).toHaveBeenCalledWith("care_engagement_started", { reason: "welcome", channel: "slack_dm", member_wrote_first: false, backdated: true }));
+    // After starting, the day goes back to today for the next one.
+    await waitFor(() => expect(screen.getByLabelText("When did this start?")).toHaveValue("2026-03-20"));
+  });
+
+  it("will not start without a day", async () => {
+    const user = await open();
+    await user.type(screen.getByRole("combobox", { name: "Member" }), "bo");
+    await user.click(await screen.findByRole("option", { name: /Bo Example/ }));
+    await user.click(screen.getByRole("radio", { name: /A welcome/ }));
+    fireEvent.change(screen.getByLabelText("When did this start?"), { target: { value: "" } });
+    await user.click(screen.getByRole("button", { name: "Start care period" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Pick the day it started.");
+    expect(actions.startEngagement).not.toHaveBeenCalled();
+  });
+
   it("keeps what was typed and says why when the server refuses", async () => {
-    actions.startEngagement.mockResolvedValue({ error: "There is already an open engagement with them on that channel. Log a message there, or renew it." });
+    actions.startEngagement.mockResolvedValue({ error: "There is already an open care period with them on that channel. Log a message there, or renew it." });
     const user = await open();
 
     await user.type(screen.getByRole("combobox", { name: "Member" }), "bo");
     await user.click(await screen.findByRole("option", { name: /Bo Example/ }));
     await user.click(screen.getByRole("radio", { name: /An introduction/ }));
     await user.type(screen.getByLabelText("Note"), "Hi there");
-    await user.click(screen.getByRole("button", { name: "Start engagement" }));
+    await user.click(screen.getByRole("button", { name: "Start care period" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("already an open engagement");
+    expect(await screen.findByRole("alert")).toHaveTextContent("already an open care period");
     expect(screen.getByLabelText("Note")).toHaveValue("Hi there");
     expect(track).not.toHaveBeenCalled();
   });
@@ -826,6 +858,8 @@ describe("the Your DMs tab", () => {
     expect(screen.getByText(/already brings your direct messages in for Hub Chat/)).toBeInTheDocument();
     expect(screen.getByText(/Other staff, admins included, don.t see which DMs you track/)).toBeInTheDocument();
     expect(screen.getByText(/DMs with staff are never listed/)).toBeInTheDocument();
+    // The team can read these in Hub Chat (the privacy page says so), and Hedgie Care itself stays metadata only.
+    expect(screen.getByText(/can be read by the team in Hub Chat, as the privacy page says\. Hedgie\s+Care itself still reads only who wrote and when/)).toBeInTheDocument();
   });
 
   it("marks the DMs she tracks, and tracks and untracks with a click, counting how many she tracks and nothing else", async () => {
@@ -977,7 +1011,7 @@ describe("Slack DMs on the engagement list", () => {
 
     const card = cards()[0];
     expect(within(card).getByText("Needs your reply")).toBeInTheDocument();
-    expect(within(card).getByText(/They wrote yesterday/)).toBeInTheDocument();
+    expect(within(card).getByText(/Last message: they wrote yesterday/)).toBeInTheDocument();
     expect(within(card).getByText("from Slack")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Needs your reply (1)" })).toBeInTheDocument();
   });
@@ -1027,5 +1061,247 @@ describe("Slack DMs on the engagement list", () => {
 
     expect(cards().length).toBeGreaterThan(0);
     expect(log).toHaveBeenCalledWith("[care] filling in from tracked DMs failed:", "bronze is down");
+  });
+});
+
+
+describe("changing when a care period started", () => {
+  const adaCard = () => cards()[0]; // Ada's Email care period: started 10 days ago (2026-03-10 in Eastern time)
+
+  it("shows the day it started next to the day it ends", async () => {
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+    expect(within(adaCard()).getByText(/· Started 3\/10\/2026/)).toBeInTheDocument();
+  });
+
+  it("opens a date with today as its limit, saves the day she picks, and reports how far it moved", async () => {
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+    const user = userEvent.setup();
+
+    await user.click(within(adaCard()).getByRole("button", { name: "Change start date" }));
+    const date = within(adaCard()).getByLabelText("When did this start?");
+    expect(date).toHaveValue("2026-03-10");
+    expect(date).toHaveAttribute("max", "2026-03-20");
+    expect(within(adaCard()).getByText(/The care period stays the same length, so its last day moves with the start/)).toBeInTheDocument();
+    fireEvent.change(date, { target: { value: "2026-03-05" } });
+    await user.click(within(adaCard()).getByRole("button", { name: "Save start date" }));
+
+    expect(actions.changeEngagementStart).toHaveBeenCalledWith("care_AAAAAAAAAAA2", "2026-03-05");
+    await waitFor(() => expect(track).toHaveBeenCalledWith("care_start_date_changed", { days_moved: 5 }));
+    await waitFor(() => expect(within(adaCard()).queryByLabelText("When did this start?")).not.toBeInTheDocument());
+  });
+
+  it("says why the server refused and keeps the panel open, without reporting a change", async () => {
+    actions.changeEngagementStart.mockResolvedValue({ error: "The start can't be before the care period this one follows on from, which started on 3/5/2026." });
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+    const user = userEvent.setup();
+
+    await user.click(within(adaCard()).getByRole("button", { name: "Change start date" }));
+    fireEvent.change(within(adaCard()).getByLabelText("When did this start?"), { target: { value: "2026-03-01" } });
+    await user.click(within(adaCard()).getByRole("button", { name: "Save start date" }));
+
+    expect(await within(adaCard()).findByRole("alert")).toHaveTextContent("The start can't be before the care period this one follows on from");
+    expect(track).not.toHaveBeenCalled();
+  });
+
+  it("will not save without a day, and is not offered to someone who cannot write", async () => {
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+    const user = userEvent.setup();
+    await user.click(within(adaCard()).getByRole("button", { name: "Change start date" }));
+    fireEvent.change(within(adaCard()).getByLabelText("When did this start?"), { target: { value: "" } });
+    await user.click(within(adaCard()).getByRole("button", { name: "Save start date" }));
+    expect(within(adaCard()).getByRole("alert")).toHaveTextContent("Pick the day it started.");
+    expect(actions.changeEngagementStart).not.toHaveBeenCalled();
+  });
+
+  it("mentions the tracked DM only for a Slack DM, and the order of a renewal only for a renewal", async () => {
+    dataset.careEngagements.splice(0, dataset.careEngagements.length, row("care_AAAAAAAAAAA1", ADA, { renewed_from: "care_AAAAAAAAAAA0" }), row("care_AAAAAAAAAAA2", BO, { channel: "email" }));
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+    const user = userEvent.setup();
+
+    const [renewal, email] = cards();
+    await user.click(within(renewal).getByRole("button", { name: "Change start date" }));
+    expect(within(renewal).getByText(/If you track your Slack DM with them, DMs from that day on are used/)).toBeInTheDocument();
+    expect(within(renewal).getByText(/The start can't be before the care period this one follows on from/)).toBeInTheDocument();
+    await user.click(within(email).getByRole("button", { name: "Change start date" }));
+    expect(within(email).queryByText(/If you track your Slack DM/)).not.toBeInTheDocument();
+    expect(within(email).queryByText(/continues/)).not.toBeInTheDocument();
+  });
+});
+
+describe("the engagement score and last time in the community", () => {
+  const activity = (member: string, type: string, at: string, points: number, over: Record<string, unknown> = {}) => ({
+    id: `act_${type}_${at}_${member}`.slice(0, 40),
+    member_id: member,
+    activity_type: type,
+    activity_category: "event",
+    title: type,
+    occurred_at: at,
+    source: "slack",
+    related_id: null,
+    description: null,
+    engagement_value: points,
+    actor_kind: "member",
+    actor_user_id: null,
+    acting_as_member_id: null,
+    duration_minutes: null,
+    prickle_id: null,
+    data: null,
+    created_at: at,
+    ...over,
+  });
+
+  it("shows the score when the care period started and now, with its tier, and when they last took part and in what", async () => {
+    dataset.activities.push(
+      activity(ADA, "slack_message", ago(20), 4), // inside the 30 days before it started, and before now
+      activity(ADA, "prickle_attended", ago(3), 10),
+      activity(ADA, "slack_reaction", ago(1), 2),
+      activity(ADA, "hedgie_hub_login", ago(0.1), 1), // a login scores a point but is not taking part
+      activity(ADA, "care_started", ago(0.05), 0, { actor_kind: "staff", source: "care" }) // staff: neither
+    );
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+
+    const ada = cards()[0];
+    expect(ada.textContent).toContain("Engagement score: 4 (At risk) when the care period started, 17 (Active) now");
+    expect(ada.textContent).toContain("Last in the community: 3/19/2026, a Slack reaction (yesterday)");
+  });
+
+  it("keeps the DM line apart from both and names them differently", async () => {
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+
+    const ada = cards()[0];
+    expect(within(ada).getByText(/Last message: they wrote yesterday/)).toBeInTheDocument();
+    expect(ada.textContent).toContain("Last in the community: none recorded");
+    expect(ada.textContent).toContain("Engagement score: 0 (At risk) when the care period started, 0 (At risk) now");
+  });
+
+  it("says what each one counts, as a tooltip on the row and in full in the results", async () => {
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+    const user = userEvent.setup();
+    const ada = cards()[0];
+
+    expect(within(ada).getByText("Engagement score")).toHaveAttribute("title", expect.stringContaining("never more than 100. A prickle is worth 10"));
+    expect(within(ada).getByText("Last in the community")).toHaveAttribute("title", expect.stringContaining("Not signing in, and nothing staff or the Hub did"));
+    expect(within(ada).queryByText(/Under 10 is at risk, 10 to 49 is active, 50 or more is highly engaged/)).not.toBeInTheDocument();
+
+    await user.click(within(ada).getByRole("button", { name: "Results" }));
+    expect(await within(ada).findByText(/Under 10 is at risk, 10 to 49 is active, 50 or more is highly engaged/)).toBeInTheDocument();
+    expect(within(ada).getAllByText(/Engagement score/).length).toBeGreaterThan(1);
+  });
+
+  it("still opens the page when the score cannot be worked out", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    Object.defineProperty(dataset, "activities", { get: () => { throw new Error("log is down"); }, set: () => {}, configurable: true });
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+
+    expect(cards()[0].textContent).toContain("Engagement score: not available");
+    expect(cards()[0].textContent).toContain("Last in the community: not available");
+    expect(log).toHaveBeenCalledWith("[care] working out scores failed:", "log is down");
+    expect(log).toHaveBeenCalledWith("[care] reading last participation failed:", "log is down");
+  });
+});
+
+describe("Open the DM", () => {
+  const CHANNEL = "chn_AAAAAAAAAAA1";
+  const trackAda = () => {
+    dataset.careTrackedDms.push({ id: "caredm_AAAAAAAAAAA1", tracked_by: CM_USER.id, slack_channel_id: D.ada, member_id: ADA, created_at: ago(2), deleted_at: null });
+    dataset.careEngagements.splice(0, dataset.careEngagements.length, row("care_AAAAAAAAAAA1", ADA));
+  };
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("opens the DM in Hub Chat on the engagement when she is in it there, and on the DMs tab", async () => {
+    seedSlack();
+    trackAda();
+    dataset.chatChannels.push({ id: CHANNEL, slack_channel_id: D.ada, kind: "dm", visibility: "private" });
+    dataset.chatChannelMembers.push({ channel_id: CHANNEL, member_id: CM_MEMBER, source: "slack", left_at: null });
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+
+    expect(within(cards()[0]).getByRole("link", { name: "Open the DM" })).toHaveAttribute("href", `/chat/${CHANNEL}`);
+  });
+
+  it("opens it in Slack when the Hub does not have it for her, naming the workspace only when it is configured", async () => {
+    seedSlack();
+    trackAda();
+    vi.stubEnv("SLACK_TEAM_ID", "T0TEST");
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+
+    const link = within(cards()[0]).getByRole("link", { name: "Open the DM" });
+    expect(link).toHaveAttribute("href", `https://slack.com/app_redirect?channel=${D.ada}&team=T0TEST`);
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("names no workspace when none is configured, and never puts text from the DM in the link", async () => {
+    seedSlack();
+    trackAda();
+    vi.stubEnv("SLACK_TEAM_ID", "");
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+
+    const link = within(cards()[0]).getByRole("link", { name: "Open the DM" });
+    expect(link).toHaveAttribute("href", `https://slack.com/app_redirect?channel=${D.ada}`);
+    expect(document.body.innerHTML).not.toContain(SECRET_TEXT);
+  });
+
+  it("is only on a Slack DM engagement she owns with a member whose DM she tracks", async () => {
+    seedSlack();
+    dataset.careTrackedDms.push({ id: "caredm_AAAAAAAAAAA1", tracked_by: CM_USER.id, slack_channel_id: D.ada, member_id: ADA, created_at: ago(2), deleted_at: null });
+    dataset.careEngagements.splice(
+      0,
+      dataset.careEngagements.length,
+      row("care_AAAAAAAAAAA1", ADA, { channel: "email" }), // another channel
+      row("care_AAAAAAAAAAA2", BO, {}), // a DM she does not track
+      row("care_AAAAAAAAAAA3", ADA, { owned_by: ADMIN_USER.id }) // someone else's
+    );
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+
+    expect(screen.queryAllByRole("link", { name: "Open the DM" })).toHaveLength(0);
+  });
+
+  it("is also on a closed care period of a tracked DM", async () => {
+    seedSlack();
+    trackAda();
+    dataset.careEngagements[0].closed_at = ago(1);
+    dataset.careEngagements[0].ended_how = "ran_its_course";
+    signInAs(CM_USER);
+    await renderServerRoute(earlierPage, undefined as never);
+
+    expect(within(cards()[0]).getByRole("link", { name: "Open the DM" })).toBeInTheDocument();
+  });
+
+  it("is on each row of the DMs tab", async () => {
+    seedSlack();
+    dataset.chatChannels.push({ id: CHANNEL, slack_channel_id: D.ada, kind: "dm", visibility: "private" });
+    dataset.chatChannelMembers.push({ channel_id: CHANNEL, member_id: CM_MEMBER, source: "slack", left_at: null });
+    signInAs(CM_USER);
+    await renderServerRoute(dmsPage, undefined as never);
+
+    const rows = screen.getAllByRole("listitem").filter((li) => li.querySelector("a[href^='/admin/members/']") && li.querySelector("button[aria-pressed]"));
+    expect(within(rows[0]).getByRole("link", { name: "Open the DM" })).toHaveAttribute("href", `/chat/${CHANNEL}`); // Ada: in Hub Chat
+    expect(within(rows[1]).getByRole("link", { name: "Open the DM" })).toHaveAttribute("href", `https://slack.com/app_redirect?channel=${D.bo}`); // Bo: Slack
+  });
+
+  it("does not stop the page opening when finding the links fails", async () => {
+    seedSlack();
+    trackAda();
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    Object.defineProperty(dataset, "chatChannels", { get: () => { throw new Error("chat is down"); }, set: () => {}, configurable: true });
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+
+    expect(cards().length).toBeGreaterThan(0);
+    expect(within(cards()[0]).queryByRole("link", { name: "Open the DM" })).not.toBeInTheDocument();
+    expect(log).toHaveBeenCalledWith("[care] resolving DM links failed:", "chat is down");
   });
 });

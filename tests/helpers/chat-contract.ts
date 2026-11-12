@@ -154,6 +154,15 @@ export function defineChatContract(name: string, setup: () => ChatContractContex
         expect(await ctx.repo().idBySlackChannel(slack)).toBe(ids.a);
         expect(await ctx.repo().idBySlackChannel(ctx.unique("unknown"))).toBeNull();
       });
+
+      it("finds the Hub conversations that mirror several Slack conversations at once", async () => {
+        const [a, b] = [ctx.unique("C"), ctx.unique("C")];
+        const ids = await ctx.seedChannels([{ key: "a", slackChannelId: a }, { key: "b", slackChannelId: b }, { key: "c", slackChannelId: ctx.unique("C") }]);
+        const filler = Array.from({ length: 250 }, (_, i) => ctx.unique(`nobody${i}`));
+
+        expect(await ctx.repo().idsBySlackChannels([b, a, a, ...filler])).toEqual(new Map([[a, ids.a], [b, ids.b]]));
+        expect(await ctx.repo().idsBySlackChannels([])).toEqual(new Map());
+      });
     });
 
     // --- message reads ---

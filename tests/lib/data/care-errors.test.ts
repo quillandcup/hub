@@ -19,7 +19,7 @@ function scriptedDb(answers: { data: unknown; error: { message: string; code?: s
       const query = { table, calls: [] as { method: string; args: unknown[] }[] };
       queries.push(query);
       const chain: Record<string, unknown> = {};
-      for (const m of ["select", "insert", "update", "eq", "is", "or", "order", "range"]) {
+      for (const m of ["select", "insert", "update", "eq", "is", "or", "order", "range", "limit"]) {
         chain[m] = (...args: unknown[]) => {
           query.calls.push({ method: m, args });
           return chain;
@@ -48,10 +48,65 @@ describe("SupabaseCareRepository database errors", () => {
     ["update with nothing to change", () => repo.update(id, {})],
     ["renew", () => repo.renew(id, { periodEndsOn: "2026-05-01", openedBy: null, at, reason: "a plan" })],
     ["close", () => repo.close(id, "no_reply", at)],
+    ["changeStart", () => repo.changeStart(id, at)],
     ["softDelete", () => repo.softDelete(id, at)],
     ["reassign", () => repo.reassign(id, "11111111-1111-4111-8111-111111111111")],
   ])("%s throws the database's error", async (_name, run) => {
     await expect(run()).rejects.toThrow("database is down");
+  });
+});
+
+describe("SupabaseCareRepository changeStart", () => {
+  const OPENED = "2026-03-01T15:00:00.000Z";
+  const NEW = "2026-02-20T17:00:00.000Z";
+  const current = { id, member_id: member, opened_at: OPENED, period_ends_on: "2026-03-31", renewed_from: "care_AAAAAAAAAAA0", closed_at: null, last_staff_message_at: OPENED, last_member_message_at: null, member: null };
+  // The order of the queries: the engagement, the one it continues, the one that continued it, then the update.
+  type Answer = { data: unknown; error: { message: string } | null };
+  const script = (over: { previous?: Answer; renewal?: Answer; update?: Answer } = {}): Answer[] => [
+    { data: current, error: null },
+    over.previous ?? { data: { opened_at: "2026-02-01T15:00:00.000Z" }, error: null },
+    over.renewal ?? { data: null, error: null },
+    over.update ?? { data: { ...current, opened_at: NEW }, error: null },
+  ];
+
+  it("writes the new start, the last day and the first message's time (the start of the new day), only if the start is still what it read", async () => {
+    const { db, queries } = scriptedDb(script());
+
+    const result = await new SupabaseCareRepository(db).changeStart(id, NEW);
+
+    expect(result).toMatchObject({ ok: true, changed: true });
+    const update = queries[3].calls;
+    expect(update).toContainEqual({ method: "update", args: [{ opened_at: NEW, period_ends_on: "2026-03-22", last_staff_message_at: "2026-02-20T05:00:00.000Z" }] });
+    expect(update).toContainEqual({ method: "eq", args: ["opened_at", OPENED] });
+    expect(update).toContainEqual({ method: "is", args: ["deleted_at", null] });
+  });
+
+  it("answers not_found when someone changed it in between", async () => {
+    const { db } = scriptedDb(script({ update: { data: null, error: null } }));
+    expect(await new SupabaseCareRepository(db).changeStart(id, NEW)).toEqual({ ok: false, reason: "not_found" });
+  });
+
+  it("writes nothing when it is refused or already on that day", async () => {
+    const refused = scriptedDb(script({ previous: { data: { opened_at: "2026-03-01T00:00:00.000Z" }, error: null } }));
+    expect(await new SupabaseCareRepository(refused.db).changeStart(id, "2026-02-20T17:00:00.000Z")).toEqual({ ok: false, reason: "before_previous", limit: "2026-03-01T00:00:00.000Z" });
+    expect(refused.queries).toHaveLength(3);
+
+    const same = scriptedDb(script());
+    expect(await new SupabaseCareRepository(same.db).changeStart(id, "2026-03-01T17:00:00.000Z")).toMatchObject({ ok: true, changed: false });
+    expect(same.queries).toHaveLength(3);
+  });
+
+  it("throws when looking at its neighbours or writing fails", async () => {
+    for (const over of [{ previous: { data: null, error: { message: "previous failed" } } }, { renewal: { data: null, error: { message: "renewal failed" } } }, { update: { data: null, error: { message: "write failed" } } }]) {
+      const { db } = scriptedDb(script(over));
+      await expect(new SupabaseCareRepository(db).changeStart(id, NEW)).rejects.toThrow(/failed/);
+    }
+  });
+
+  it("does not look for the one it continues when it continues nothing", async () => {
+    const { db, queries } = scriptedDb([{ data: { ...current, renewed_from: null }, error: null }, { data: null, error: null }, { data: { ...current, opened_at: NEW }, error: null }]);
+    await new SupabaseCareRepository(db).changeStart(id, NEW);
+    expect(queries.map((q) => q.table)).toEqual(["care_engagements", "care_engagements", "care_engagements"]);
   });
 });
 

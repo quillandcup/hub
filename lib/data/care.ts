@@ -6,6 +6,8 @@ import {
   isCareReason,
   type MessageDirection,
 } from "@/lib/care-values";
+import { orgYmd } from "@/lib/org-week";
+import { clampToChain, shiftedPeriodEnd, startChangeRefusal, startOfOrgDay, type StartChangeRefusal } from "@/lib/care";
 import { fetchAllRows } from "@/lib/supabase/paginate";
 import { byKeyThenId } from "./query";
 import type { Db, Row } from "./db";
@@ -33,8 +35,10 @@ export type NewCareEngagement = {
   ownedBy?: string | null;
   /** When it started; now when not given. */
   openedAt?: string;
-  /** Who wrote the first message, which is the moment it was opened: she did, unless the member wrote to her first. */
+  /** Who wrote the first message: she did, unless the member wrote to her first. */
   firstMessageFrom?: MessageDirection;
+  /** When that first message is recorded: when it was opened, unless given (a care period started on an earlier day puts it at the start of that day). */
+  firstMessageAt?: string;
   notes?: string | null;
   nextStep?: string | null;
   followUpOn?: string | null;
@@ -58,6 +62,16 @@ export type CarePatch = {
   nextStep?: string | null;
   followUpOn?: string | null;
 };
+
+/**
+ * Moving a start: the new opening instant is the caller's (`careStartInstant`, lib/care.ts). Answers with the changed engagement
+ * (`changed: false` when it already opened on that Eastern day, so the time of day stays), `not_found` for a missing, removed or
+ * just-changed engagement, or a refusal that keeps the chain of renewals in order, with the instant that limits it.
+ */
+export type ChangeStartResult =
+  | { ok: true; engagement: CareEngagementRow; changed: boolean }
+  | { ok: false; reason: "not_found" }
+  | { ok: false; reason: StartChangeRefusal; limit: string };
 
 /** Which engagements `list` returns: every open one, and the closed ones too when `includeClosed`. */
 export type CareListOptions = { includeClosed?: boolean };
@@ -90,6 +104,14 @@ export interface CareRepository {
    * Returns how many of the two times moved (0 when the engagement is closed or gone, or nothing was newer).
    */
   moveMessageTimesForward(id: string, times: { staffAt?: string; memberAt?: string }): Promise<number>;
+  /**
+   * Moves when an engagement (open or closed) started, for a conversation entered after the fact. The last day moves with it and
+   * keeps the period's own length (`shiftedPeriodEnd`); the first message's time, if it is still the one opening wrote (the
+   * opening instant, or the start of its day), moves to the start of the new day; the other last-message times are left alone. Refused (see `ChangeStartResult`) when it would
+   * start before the engagement it continues, after the one that continued it, or after it was closed. Opening and closing
+   * dates, and so the one-open-per-member-and-channel rule, are not touched. The audit log shows `opened_at` and `period_ends_on`.
+   */
+  changeStart(id: string, openedAt: string): Promise<ChangeStartResult>;
   /** Changes the reason, notes, next step or follow-up day. The engagement, or null when there is none. */
   update(id: string, patch: CarePatch): Promise<CareEngagementRow | null>;
   /** Closes an open engagement with how it ended. The closed engagement, or null when there is no open one. */
@@ -112,6 +134,7 @@ type WithMemberRow = CareEngagementRow & { member: CareMember | CareMember[] | n
 
 function insertOf(c: NewCareEngagement) {
   const openedAt = c.openedAt ?? new Date().toISOString();
+  const firstMessageAt = c.firstMessageAt ?? openedAt;
   const memberWroteFirst = c.firstMessageFrom === "member";
   return {
     member_id: c.memberId,
@@ -121,12 +144,19 @@ function insertOf(c: NewCareEngagement) {
     owned_by: c.ownedBy === undefined ? c.openedBy : c.ownedBy,
     opened_at: openedAt,
     period_ends_on: c.periodEndsOn,
-    last_staff_message_at: memberWroteFirst ? null : openedAt,
-    last_member_message_at: memberWroteFirst ? openedAt : null,
+    last_staff_message_at: memberWroteFirst ? null : firstMessageAt,
+    last_member_message_at: memberWroteFirst ? firstMessageAt : null,
     notes: c.notes ?? null,
     next_step: c.nextStep ?? null,
     follow_up_on: c.followUpOn ?? null,
   };
+}
+
+/** The stored row of an engagement read with its member embedded. */
+function withoutMember(engagement: CareEngagementWithMember): CareEngagementRow {
+  const row: Partial<CareEngagementWithMember> = { ...engagement };
+  delete row.member;
+  return row as CareEngagementRow;
 }
 
 function updateOf(patch: CarePatch) {
@@ -135,6 +165,32 @@ function updateOf(patch: CarePatch) {
     ...(patch.notes === undefined ? {} : { notes: patch.notes }),
     ...(patch.nextStep === undefined ? {} : { next_step: patch.nextStep }),
     ...(patch.followUpOn === undefined ? {} : { follow_up_on: patch.followUpOn }),
+  };
+}
+
+/** What a start change writes, or a refusal, from the engagement and the engagements on either side of it in its chain. */
+function startChange(
+  current: CareEngagementRow,
+  around: { previousOpenedAt: string | null; renewalOpenedAt: string | null },
+  openedAt: string
+): { refusal: { reason: StartChangeRefusal; limit: string } } | { same: true } | { changes: Pick<CareEngagementRow, "opened_at" | "period_ends_on"> & Partial<Pick<CareEngagementRow, "last_staff_message_at" | "last_member_message_at">> } {
+  if (orgYmd(new Date(openedAt)) === orgYmd(new Date(current.opened_at))) return { same: true };
+  const neighbours = { ...around, closedAt: current.closed_at };
+  const next = clampToChain(new Date(openedAt), neighbours);
+  const refusal = startChangeRefusal(next, neighbours);
+  if (refusal) return { refusal };
+  // The first message that opening wrote (at the opening instant, or the start of its day) moves with the start, to the start
+  // of the new day; a time that came from a log or a DM is not the opening and stays.
+  const placeholders = [Date.parse(current.opened_at), startOfOrgDay(orgYmd(new Date(current.opened_at))).getTime()];
+  const wasOpening = (at: string | null) => at !== null && placeholders.includes(Date.parse(at));
+  const newPlaceholder = startOfOrgDay(orgYmd(next)).toISOString();
+  return {
+    changes: {
+      opened_at: next.toISOString(),
+      period_ends_on: shiftedPeriodEnd(current, next),
+      ...(wasOpening(current.last_staff_message_at) ? { last_staff_message_at: newPlaceholder } : {}),
+      ...(wasOpening(current.last_member_message_at) ? { last_member_message_at: newPlaceholder } : {}),
+    },
   };
 }
 
@@ -235,6 +291,33 @@ export class SupabaseCareRepository implements CareRepository {
     if (times.staffAt) await move("last_staff_message_at", times.staffAt);
     if (times.memberAt) await move("last_member_message_at", times.memberAt);
     return moved;
+  }
+
+  async changeStart(id: string, openedAt: string): Promise<ChangeStartResult> {
+    const current = await this.byId(id);
+    if (!current) return { ok: false, reason: "not_found" };
+    const [previous, renewal] = await Promise.all([
+      current.renewed_from
+        ? this.db.from("care_engagements").select("opened_at").eq("id", current.renewed_from).is("deleted_at", null).maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      this.db.from("care_engagements").select("opened_at").eq("renewed_from", id).is("deleted_at", null).order("opened_at").limit(1).maybeSingle(),
+    ]);
+    if (previous.error) throw new Error(previous.error.message);
+    if (renewal.error) throw new Error(renewal.error.message);
+    const outcome = startChange(current, { previousOpenedAt: previous.data?.opened_at ?? null, renewalOpenedAt: renewal.data?.opened_at ?? null }, openedAt);
+    if ("refusal" in outcome) return { ok: false, ...outcome.refusal };
+    if ("same" in outcome) return { ok: true, engagement: withoutMember(current), changed: false };
+    // Conditional on the start it was read with: a second change in between answers not_found rather than overwriting it.
+    const { data, error } = await this.db
+      .from("care_engagements")
+      .update(outcome.changes)
+      .eq("id", id)
+      .eq("opened_at", current.opened_at)
+      .is("deleted_at", null)
+      .select("*")
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data ? { ok: true, engagement: data, changed: true } : { ok: false, reason: "not_found" };
   }
 
   async update(id: string, patch: CarePatch) {
@@ -410,6 +493,18 @@ export class InMemoryCareRepository implements CareRepository {
     }
     if (moved > 0) row.updated_at = new Date().toISOString();
     return moved;
+  }
+
+  async changeStart(id: string, openedAt: string): Promise<ChangeStartResult> {
+    const row = this.live().find((c) => c.id === id);
+    if (!row) return { ok: false, reason: "not_found" };
+    const previous = row.renewed_from ? this.live().find((c) => c.id === row.renewed_from) : undefined;
+    const renewals = this.live().filter((c) => c.renewed_from === id).sort((a, b) => Date.parse(a.opened_at) - Date.parse(b.opened_at));
+    const outcome = startChange(row, { previousOpenedAt: previous?.opened_at ?? null, renewalOpenedAt: renewals[0]?.opened_at ?? null }, openedAt);
+    if ("refusal" in outcome) return { ok: false, ...outcome.refusal };
+    if ("same" in outcome) return { ok: true, engagement: { ...row }, changed: false };
+    Object.assign(row, outcome.changes, { updated_at: new Date().toISOString() });
+    return { ok: true, engagement: { ...row }, changed: true };
   }
 
   async update(id: string, patch: CarePatch) {

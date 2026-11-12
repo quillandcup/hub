@@ -256,8 +256,8 @@ export function defineEventContract(name: string, setup: () => EventContractCont
         expect(await ticketOf(ada)).toEqual(["comped", "covered by staff"]);
         expect(await ticketOf(bo)).toEqual([null, null]);
 
-        await ctx.repo().setAttendeeTicket(ids.e, ada, { source: "gifted" });
-        expect(await ticketOf(ada)).toEqual(["gifted", "covered by staff"]);
+        expect(await ctx.repo().setAttendeeTicket(ids.e, ada, { source: "gifted" })).toBe("giver_required");
+        expect(await ticketOf(ada)).toEqual(["comped", "covered by staff"]);
 
         await ctx.repo().setAttendeeTicket(ids.e, ada, { source: null, note: null });
         expect(await ticketOf(ada)).toEqual([null, null]);
@@ -305,8 +305,14 @@ export function defineEventContract(name: string, setup: () => EventContractCont
         // A note change leaves the giver alone; a source other than gifted clears it.
         await ctx.repo().setAttendeeTicket(ids.e, bo, { note: "thank you" });
         expect((await giverOf())?.id).toBe(ada);
-        await ctx.repo().setAttendeeTicket(ids.e, bo, { giverId: null });
+        // A gifted ticket always has a giver: clearing it while gifted, or going gifted without one, is refused.
+        expect(await ctx.repo().setAttendeeTicket(ids.e, bo, { giverId: null })).toBe("giver_required");
+        expect((await giverOf())?.id).toBe(ada);
+        expect(await ctx.repo().setAttendeeTicket(ids.e, bo, { source: null, giverId: null })).toBe("set");
         expect(await giverOf()).toBeNull();
+        expect(await ctx.repo().setAttendeeTicket(ids.e, bo, { source: "gifted" })).toBe("giver_required");
+        expect(await ctx.repo().setAttendeeTicket(ids.e, bo, { source: "gifted", giverId: ada })).toBe("set");
+        expect(await ctx.repo().setAttendeeTicket(ids.e, bo, { source: "gifted", note: "again" })).toBe("set");
         await ctx.repo().setAttendeeTicket(ids.e, bo, { giverId: ada });
         await ctx.repo().setAttendeeTicket(ids.e, bo, { source: "comped" });
         expect(await giverOf()).toBeNull();

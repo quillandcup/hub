@@ -55,8 +55,28 @@ describe("ticket giver routes", () => {
     expect((await patch({ ticketGiverId: ADA })).status).toBe(200);
     expect((await eventBody()).attendees[0].ticketGiver).toEqual({ id: ADA, name: "Ada E" });
 
-    expect((await patch({ ticketGiverId: null })).status).toBe(200);
-    expect((await eventBody()).attendees[0].ticketGiver).toBeNull();
+    // A gifted ticket always has a giver, so clearing it alone is refused and the giver stays.
+    const cleared = await patch({ ticketGiverId: null });
+    expect(cleared.status).toBe(400);
+    expect((await cleared.json()).error).toBe("Pick who gave the ticket");
+    expect((await eventBody()).attendees[0].ticketGiver).toEqual({ id: ADA, name: "Ada E" });
+  });
+
+  it("needs a giver in the same request to set gifted, unless the row already has one", async () => {
+    await patch({ ticketSource: "comped" });
+    expect((await patch({ ticketSource: "gifted" })).status).toBe(400);
+    expect(dataset.eventAttendees[0].ticket_source).toBe("comped");
+    expect((await patch({ ticketSource: "gifted", ticketGiverId: ADA })).status).toBe(200);
+    expect((await patch({ ticketNote: "thanks" })).status).toBe(200);
+    expect(dataset.eventAttendees[0]).toMatchObject({ ticket_source: "gifted", ticket_giver_id: ADA });
+  });
+
+  it("refuses a gifted attendee without a giver, or with an unknown one, and adds nobody", async () => {
+    const noGiver = await add({ memberId: ADA, ticketSource: "gifted" });
+    expect(noGiver.status).toBe(400);
+    expect((await noGiver.json()).error).toBe("Pick who gave the ticket");
+    expect((await add({ memberId: ADA, ticketSource: "gifted", ticketGiverId: "mbr_ZZZZZZZZZZZ9" })).status).toBe(400);
+    expect(state.rpcCalls).toEqual([]);
   });
 
   it("answers 400, never 500, for a bad id, a self-gift, a giver without a gift and an unknown member", async () => {

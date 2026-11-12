@@ -99,6 +99,9 @@ function world(over: { messages?: ReturnType<typeof msg>[]; connectionOver?: Rec
       ...inChannel(DM.left, SLACK.cm, SLACK.ada).map((m) => (m.user_id === SLACK.cm ? { ...m, left_at: "2026-02-01T00:00:00.000Z" } : m)),
     ],
     slackMessages: over.messages ?? [],
+    // The Hub has her DM with Ada in Hub Chat (she is in it), and nothing for the one with Bo.
+    chatChannels: [{ id: "chn_AAAAAAAAAAA1", slack_channel_id: DM.ada, kind: "dm", visibility: "private" }],
+    chatChannelMembers: [{ channel_id: "chn_AAAAAAAAAAA1", member_id: CM, source: "slack", left_at: null }],
   });
   const repos = createInMemoryRepos(data);
   return { data, repos };
@@ -220,13 +223,13 @@ describe("loadCareDmTab", () => {
       ],
     });
 
-    const tab = await loadCareDmTab(repos, user, { ...on, trackedChannelIds: new Set([DM.bo]) });
+    const tab = await loadCareDmTab(repos, user, { ...on, trackedChannelIds: new Set([DM.bo]), slackTeamId: "T0TEST" });
 
     expect(tab).toEqual({
       state: "ready",
       rows: [
-        { channelId: DM.ada, memberId: ADA, memberName: "Ada E.", legalName: "Ada Example", tracked: false, lastAt: "2026-03-11T10:00:00.000Z", lastLabel: "yesterday", lastBy: "them" },
-        { channelId: DM.bo, memberId: BO, memberName: "Bo Example", legalName: null, tracked: true, lastAt: "2026-03-06T10:00:00.000Z", lastLabel: "6 days ago", lastBy: "you" },
+        { channelId: DM.ada, memberId: ADA, memberName: "Ada E.", legalName: "Ada Example", tracked: false, lastAt: "2026-03-11T10:00:00.000Z", lastLabel: "yesterday", lastBy: "them", link: { href: "/chat/chn_AAAAAAAAAAA1", kind: "hub_chat" } },
+        { channelId: DM.bo, memberId: BO, memberName: "Bo Example", legalName: null, tracked: true, lastAt: "2026-03-06T10:00:00.000Z", lastLabel: "6 days ago", lastBy: "you", link: { href: `https://slack.com/app_redirect?channel=${DM.bo}&team=T0TEST`, kind: "slack" } },
       ],
     });
   });

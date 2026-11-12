@@ -70,6 +70,16 @@ export function defineCareContract(name: string, setup: () => CareContractContex
         expect(c.id).toMatch(/^care_[1-9A-HJ-NP-Za-km-z]{12}$/);
       });
 
+      it("puts the first message where it is told to, which is the start of an earlier day for a care period entered after the fact", async () => {
+        const hers = await opened(ada, { openedAt: "2026-03-01T17:00:00.000Z", firstMessageAt: "2026-03-01T05:00:00.000Z" });
+        const theirs = await opened(bo, { openedAt: "2026-03-01T17:00:00.000Z", firstMessageAt: "2026-03-01T05:00:00.000Z", firstMessageFrom: "member" });
+
+        expect(iso(hers.opened_at)).toBe("2026-03-01T17:00:00.000Z");
+        expect(iso(hers.last_staff_message_at)).toBe("2026-03-01T05:00:00.000Z");
+        expect(iso(theirs.last_member_message_at)).toBe("2026-03-01T05:00:00.000Z");
+        expect(theirs.last_staff_message_at).toBeNull();
+      });
+
       it("opens one the member started: their message at the start, not hers", async () => {
         const c = await opened(bo, { firstMessageFrom: "member" });
 
@@ -183,6 +193,135 @@ export function defineCareContract(name: string, setup: () => CareContractContex
         const third = await ctx.repo().renew(second.engagement.id, { ...renewInput, periodEndsOn: "2026-06-01", at: "2026-05-02T12:00:00.000Z", openedBy: ctx.openedBy });
 
         expect(third).toMatchObject({ ok: true, engagement: { renewed_from: second.engagement.id, period_ends_on: "2026-06-01" } });
+      });
+    });
+
+    describe("changing the start", () => {
+      const noon = (day: string) => `${day}T17:00:00.000Z`; // noon Eastern in winter
+
+      it("moves the start and the last day with it, and the first message if it is the opening itself", async () => {
+        const c = await opened(ada); // opened 2026-03-01 10:00 Eastern, last day 2026-03-31 (30 days)
+        await ctx.repo().logMessage(c.id, "member", "2026-03-05T10:00:00.000Z");
+
+        const result = await ctx.repo().changeStart(c.id, noon("2026-02-20"));
+
+        expect(result.ok).toBe(true);
+        if (!result.ok) throw new Error("unreachable");
+        expect(result).toMatchObject({ changed: true, engagement: { id: c.id, period_ends_on: "2026-03-22" } });
+        expect(iso(result.engagement.opened_at)).toBe(noon("2026-02-20"));
+        expect(iso(result.engagement.last_staff_message_at)).toBe("2026-02-20T05:00:00.000Z"); // the start of the new Eastern day
+        expect(iso(result.engagement.last_member_message_at)).toBe("2026-03-05T10:00:00.000Z"); // hers to keep: not the opening
+        const stored = await ctx.repo().byId(c.id);
+        expect(iso(stored!.opened_at)).toBe(noon("2026-02-20"));
+        expect(stored!.period_ends_on).toBe("2026-03-22");
+      });
+
+      it("keeps the period's own length, whatever the setting is now", async () => {
+        const c = await opened(ada, { periodEndsOn: "2026-04-15" }); // 45 days from 2026-03-01
+
+        const result = await ctx.repo().changeStart(c.id, noon("2026-02-01"));
+
+        expect(result).toMatchObject({ ok: true, engagement: { period_ends_on: "2026-03-18" } });
+      });
+
+      it("can move a start later, and moves the opening message of a member who wrote first", async () => {
+        const c = await opened(bo, { firstMessageFrom: "member" });
+
+        const result = await ctx.repo().changeStart(c.id, noon("2026-03-03"));
+
+        if (!result.ok) throw new Error("unreachable");
+        expect(result.engagement.period_ends_on).toBe("2026-04-02");
+        expect(iso(result.engagement.last_member_message_at)).toBe("2026-03-03T05:00:00.000Z");
+        expect(result.engagement.last_staff_message_at).toBeNull();
+      });
+
+      it("moves a first message that was put at the start of its day, as opening an earlier day does", async () => {
+        const c = await opened(ada, { openedAt: "2026-03-01T17:00:00.000Z", firstMessageAt: "2026-03-01T05:00:00.000Z" });
+
+        const result = await ctx.repo().changeStart(c.id, noon("2026-02-20"));
+
+        if (!result.ok) throw new Error("unreachable");
+        expect(iso(result.engagement.last_staff_message_at)).toBe("2026-02-20T05:00:00.000Z");
+      });
+
+      it("changes nothing when it already started on that Eastern day, so the time of day stays", async () => {
+        const c = await opened(ada);
+
+        const result = await ctx.repo().changeStart(c.id, noon("2026-03-01"));
+
+        expect(result).toMatchObject({ ok: true, changed: false });
+        expect(iso((await ctx.repo().byId(c.id))!.opened_at)).toBe("2026-03-01T15:00:00.000Z");
+      });
+
+      it("changes a closed one too, as long as it still starts before it was closed", async () => {
+        const c = await opened(ada);
+        await ctx.repo().close(c.id, "no_reply", "2026-03-10T12:00:00.000Z");
+
+        expect((await ctx.repo().changeStart(c.id, noon("2026-02-25"))).ok).toBe(true);
+        expect(await ctx.repo().changeStart(c.id, noon("2026-03-11"))).toEqual({ ok: false, reason: "after_closed", limit: expect.any(String) });
+        const refused = await ctx.repo().changeStart(c.id, noon("2026-03-11"));
+        if (refused.ok || refused.reason === "not_found") throw new Error("unreachable");
+        expect(iso(refused.limit)).toBe("2026-03-10T12:00:00.000Z");
+      });
+
+      it("will not start a renewal before the care period it continues, or the earlier one after its renewal", async () => {
+        const first = await opened(ada);
+        const renewed = await ctx.repo().renew(first.id, { ...renewInput, openedBy: ctx.openedBy });
+        if (!renewed.ok) throw new Error("unreachable");
+
+        const before = await ctx.repo().changeStart(renewed.engagement.id, noon("2026-02-28"));
+        expect(before).toMatchObject({ ok: false, reason: "before_previous" });
+        if (before.ok || before.reason === "not_found") throw new Error("unreachable");
+        expect(iso(before.limit)).toBe("2026-03-01T15:00:00.000Z");
+
+        const after = await ctx.repo().changeStart(first.id, noon("2026-04-03"));
+        expect(after).toMatchObject({ ok: false, reason: "after_renewal" });
+        if (after.ok || after.reason === "not_found") throw new Error("unreachable");
+        expect(iso(after.limit)).toBe("2026-04-02T12:00:00.000Z");
+
+        // Nothing moved by the refusals; both can still move inside the chain's order.
+        expect(iso((await ctx.repo().byId(renewed.engagement.id))!.opened_at)).toBe("2026-04-02T12:00:00.000Z");
+        expect((await ctx.repo().changeStart(renewed.engagement.id, noon("2026-03-15"))).ok).toBe(true);
+        expect((await ctx.repo().changeStart(first.id, noon("2026-02-15"))).ok).toBe(true);
+      });
+
+      it("lets a start land on its neighbour's own day, at that neighbour's moment when noon would put it out of order", async () => {
+        const first = await opened(ada, { openedAt: "2026-03-01T15:00:00.000Z" }); // 10:00 Eastern
+        const renewed = await ctx.repo().renew(first.id, { ...renewInput, at: "2026-04-02T14:00:00.000Z", openedBy: ctx.openedBy }); // 10:00 Eastern
+        if (!renewed.ok) throw new Error("unreachable");
+
+        const onRenewalDay = await ctx.repo().changeStart(first.id, noon("2026-04-02"));
+        if (!onRenewalDay.ok) throw new Error("unreachable");
+        expect(iso(onRenewalDay.engagement.opened_at)).toBe("2026-04-02T14:00:00.000Z");
+
+        const onParentDay = await ctx.repo().changeStart(renewed.engagement.id, "2026-04-02T12:00:00.000Z"); // the day it already is: nothing to do
+        expect(onParentDay).toMatchObject({ ok: true, changed: false });
+      });
+
+      it("does not let a removed neighbour in the chain stop it", async () => {
+        const first = await opened(ada);
+        const renewed = await ctx.repo().renew(first.id, { ...renewInput, openedBy: ctx.openedBy });
+        if (!renewed.ok) throw new Error("unreachable");
+        await ctx.repo().softDelete(first.id, "2026-04-03T12:00:00.000Z");
+
+        expect((await ctx.repo().changeStart(renewed.engagement.id, noon("2026-02-01"))).ok).toBe(true);
+      });
+
+      it("answers not_found for one that is removed or that nobody has", async () => {
+        const c = await opened(ada);
+        await ctx.repo().softDelete(c.id, "2026-03-04T10:00:00.000Z");
+
+        expect(await ctx.repo().changeStart(c.id, noon("2026-02-20"))).toEqual({ ok: false, reason: "not_found" });
+        expect(await ctx.repo().changeStart(ctx.missingId, noon("2026-02-20"))).toEqual({ ok: false, reason: "not_found" });
+      });
+
+      it("leaves the one-open-per-member-and-channel rule as it was", async () => {
+        const c = await opened(ada);
+        await ctx.repo().changeStart(c.id, noon("2026-02-20"));
+
+        expect(await open(ada)).toMatchObject({ ok: false, reason: "already_open" });
+        expect((await ctx.repo().byId(c.id))!.closed_at).toBeNull();
+        expect((await ctx.repo().forMember(id(ada))).filter((x) => x.closed_at === null)).toHaveLength(1);
       });
     });
 

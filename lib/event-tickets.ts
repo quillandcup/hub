@@ -25,7 +25,7 @@ export function isTicketSource(value: unknown): value is TicketSource {
 }
 
 /** What `setAttendeeTicket` did: "set", or why it refused (nothing was changed). */
-export type SetTicketResult = "set" | "not_attendee" | "self_gift" | "not_gifted" | "unknown_giver";
+export type SetTicketResult = "set" | "not_attendee" | "self_gift" | "not_gifted" | "unknown_giver" | "giver_required";
 
 /** The ticket fields a request set: a key that is absent is left as it is, null clears it. */
 export interface TicketInput {
@@ -67,5 +67,6 @@ export const SET_TICKET_REFUSALS: Record<Exclude<SetTicketResult, "set" | "not_a
   self_gift: "A member can't be their own ticket giver",
   not_gifted: "A giver can only be set when the ticket is gifted",
   unknown_giver: "The giver is not a member",
+  giver_required: "Pick who gave the ticket",
 };
 

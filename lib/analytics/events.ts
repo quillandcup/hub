@@ -200,9 +200,11 @@ export const EVENTS = {
    */
   member_hover_card_opened: { surface: oneOf("chat", "streaks", "big_sisters"), has_message: bool() },
 
-  // Hedgie Care (app/(admin)/admin/care): staff's reach-outs to members, one engagement per period. Never the member, the notes or the next step.
+  // Hedgie Care (app/(admin)/admin/care): staff's reach-outs to members, one engagement per care period. Never the member, the notes or the next step.
   /** A staff member started an engagement: its `reason` and `channel`, and whether the member wrote first. */
-  care_engagement_started: { reason: oneOf(...CARE_REASONS), channel: oneOf(...CARE_CHANNELS), member_wrote_first: bool() },
+  care_engagement_started: { reason: oneOf(...CARE_REASONS), channel: oneOf(...CARE_CHANNELS), member_wrote_first: bool(), backdated: bool() },
+  /** A staff member changed the day an engagement started: `days_moved` is how many days it moved (earlier or later). */
+  care_start_date_changed: { days_moved: int(3650) },
   /** A staff member logged a message in an engagement: `direction` is who wrote it. */
   care_message_logged: { direction: oneOf(...MESSAGE_DIRECTIONS) },
   /** A staff member closed an engagement: `ended_how` is her read of how it went, `days_open` how many whole days it was open. */

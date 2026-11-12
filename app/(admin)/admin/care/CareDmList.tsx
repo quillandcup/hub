@@ -30,12 +30,16 @@ function PrivacyNote() {
       <p className={NOTE}>
         Hedgie Care reads who wrote and when in the DMs you track, never what was said. The Hub&apos;s Slack connection already
         brings your direct messages in for Hub Chat, and this adds nothing to that: only the DMs you track here fill in who spoke
-        last on your Slack DM engagements.
+        last on your Slack DM care periods.
       </p>
       <p className={NOTE}>
-        Other staff, admins included, don&apos;t see which DMs you track. Who spoke last shows on the engagement, which everyone who
+        Other staff, admins included, don&apos;t see which DMs you track. Who spoke last shows on the care period, which everyone who
         opens Hedgie Care can see. DMs with staff are never listed. Untracking a DM stops new times coming from it; what it already
         filled in stays.
+      </p>
+      <p className={NOTE}>
+        A DM with someone from the team in it, like these, can be read by the team in Hub Chat, as the privacy page says. Hedgie
+        Care itself still reads only who wrote and when.
       </p>
     </div>
   );
@@ -181,6 +185,22 @@ function DmRows({ initial, canWrite }: { initial: CareDmRow[]; canWrite: boolean
                           : "No messages in the Hub yet"}
                       </p>
                     </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                    {row.link.kind === "hub_chat" ? (
+                      <Link href={row.link.href} title="Opens the DM in Hub Chat" className="text-sm font-medium text-plum-700 underline dark:text-plum-300">
+                        Open the DM
+                      </Link>
+                    ) : (
+                      <a
+                        href={row.link.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Opens the DM in Slack"
+                        className="text-sm font-medium text-plum-700 underline dark:text-plum-300"
+                      >
+                        Open the DM
+                      </a>
+                    )}
                     {canWrite && (
                       <button
                         type="button"
@@ -194,6 +214,7 @@ function DmRows({ initial, canWrite }: { initial: CareDmRow[]; canWrite: boolean
                         {tracked.has(row.channelId) ? "Tracking" : "Track"}
                       </button>
                     )}
+                    </div>
                   </li>
                 ))}
               </ul>
