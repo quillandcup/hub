@@ -43,6 +43,8 @@ export interface CardUnfurl {
   serviceName: string | null;
   /** The site the preview is of, as an http(s) address. */
   fromUrl: string | null;
+  /** Slack's `original_url`: the link as it was written in the message (only when Slack gave one); used to match a Hub preview of the same link. */
+  originalUrl?: string;
   footer: string | null;
 }
 
@@ -176,6 +178,8 @@ function parseCard(a: Record<string, unknown>): CardUnfurl | null {
     fromUrl: safeLinkUrl(a.from_url) ?? safeLinkUrl(a.original_url),
     footer: plain(a.footer, 300),
   };
+  const originalUrl = safeLinkUrl(a.original_url);
+  if (originalUrl) card.originalUrl = originalUrl;
   // `fallback` is the plain-text stand-in for notifications, not something to draw: with nothing else, there is no card.
   const hasContent = card.title || card.text || card.pretext || card.fields.length > 0 || card.imageUrl || card.thumbUrl || card.footer || card.authorName;
   return hasContent ? card : null;

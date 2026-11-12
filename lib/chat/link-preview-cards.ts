@@ -1,6 +1,7 @@
 import { cleanText, MAX_SITE_NAME, MAX_TITLE } from "@/lib/chat/link-preview-html";
 import { safeImageUrl, safeLinkUrl, type CardUnfurl, type Unfurl } from "@/lib/chat/unfurls";
 import type { LinkPreview } from "@/lib/data/chat-link-previews";
+import { isDuplicateOfHubPreview, previewedAddresses } from "@/lib/chat/unfurl-dedupe";
 
 /**
  * Drawing a stored link preview (lib/chat/link-previews.ts makes them): the card the chat already knows, the key that removes it, and the
@@ -65,8 +66,14 @@ export function unfurlKey(u: Unfurl, index: number): string | null {
  * both use this, so a picture's position means the same on both sides and a removed card's picture is refused.
  */
 export function withLinkPreviews(unfurls: Unfurl[], previews: LinkPreview[] | undefined, hidden?: Set<string>): Unfurl[] {
-  const all = [...unfurls, ...(previews ?? []).flatMap((p) => previewToCard(p) ?? [])];
+  const hubCards = (previews ?? []).flatMap((p) => previewToCard(p) ?? []);
+  const all = [...unfurls, ...hubCards];
+  // A message written in the Hub is unfurled by Slack too: where the Hub has its own card for a link, Slack's card for that link is dropped
+  // (lib/chat/unfurl-dedupe.ts), so the reader sees one. The index below is the place before dropping, so an `idx:` mark keeps pointing at
+  // the same card whether or not Slack's duplicate has arrived yet.
+  const previewed = previewedAddresses(previews);
   return all.flatMap((u, i): Unfurl[] => {
+    if (u.kind === "card" && isDuplicateOfHubPreview(u, previewed)) return [];
     const key = unfurlKey(u, i);
     if (!key) return [u];
     return hidden?.has(key) ? [] : [{ ...u, removeKey: key } as Unfurl];

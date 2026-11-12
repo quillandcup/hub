@@ -5,6 +5,7 @@ import { clock } from "@/lib/clock";
 import { createRepos } from "@/lib/data/repos";
 import type { Db } from "@/lib/data/db";
 import { isProduction } from "@/lib/config";
+import { membersWithFeature } from "@/lib/features.server";
 import { getSlackUserToken, isDeadTokenError } from "@/lib/slack-connect";
 import { parseChatFiles } from "@/lib/chat/files";
 import { escapeForSlack } from "@/lib/chat/slack-escape";
@@ -35,6 +36,21 @@ export function hubMessageMetadata(messageId: string) {
  */
 export function chatSlackWritesEnabled(): boolean {
   return isProduction;
+}
+
+/**
+ * Whether Slack may build its own link previews for this member's message. A message a member wrote is conversation, so (unlike
+ * everything the app sends on its own, which never unfurls: CLAUDE.md, "Notification Messages") Slack readers should see it as an ordinary
+ * Slack message. Behind `chat_link_previews` for the sender, like the Hub's own previews, so a flag that is off changes nothing; a failed
+ * lookup means no unfurling rather than a lost message.
+ */
+export async function slackMayUnfurlFor(supabase: SupabaseClient, memberId: string): Promise<boolean> {
+  try {
+    return (await membersWithFeature(createRepos(supabase as unknown as Db), "chat_link_previews", [memberId])).has(memberId);
+  } catch (error) {
+    console.error("slackMayUnfurlFor: flag lookup failed for member %s:", memberId, error instanceof Error ? error.message : error);
+    return false;
+  }
 }
 
 export type SendResult = "sent" | "skipped" | "failed";
@@ -72,9 +88,10 @@ export async function sendChatMessageToSlack(supabase: SupabaseClient, messageId
 
   // Everything the post needs, read at once: the thread root's ts and the member's Slack connection.
   const authorMemberId = row.authorMemberId;
-  const [root, connection] = await Promise.all([
+  const [root, connection, unfurl] = await Promise.all([
     row.threadRootId ? chat.slackTarget(row.threadRootId) : Promise.resolve(null),
     getSlackUserToken(supabase, authorMemberId),
+    slackMayUnfurlFor(supabase, authorMemberId),
   ]);
 
   let threadTs: string | undefined;
@@ -118,8 +135,8 @@ export async function sendChatMessageToSlack(supabase: SupabaseClient, messageId
         // An underline or a list has no mrkdwn, so a message with one goes as rich-text blocks (its text, minus the underline, is the fallback).
         ...(blocks ? { blocks: bodyToBlocks(body, { plain: true }) } : {}),
         thread_ts: threadTs,
-        unfurl_links: false,
-        unfurl_media: false,
+        unfurl_links: unfurl,
+        unfurl_media: unfurl,
         metadata: hubMessageMetadata(messageId),
       });
     // The links are part of the text, so a shared video goes as plain text even when the words would otherwise need blocks.
