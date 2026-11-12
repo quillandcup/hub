@@ -1,4 +1,4 @@
--- pgTAP tests for 20270627000000_chat_message_videos_hide_deleted.sql: a deleted message shares no video with anyone who reads
+-- pgTAP tests for 20270701000000_chat_message_videos_hide_deleted.sql: a deleted message shares no video with anyone who reads
 -- the channel (not the member who shared it either), and a live one still does. Rolled back; run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;

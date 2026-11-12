@@ -34,7 +34,7 @@
 },
 ```
 
-Facts behind each line, so the reviewer can check them: the buttons are in `app/(member)/courses/ShareLessonInChat.tsx`; the card and one-click play are `components/chat/ChatVideo.tsx`; "without the course" is `mayWatchSharedVideo` (`lib/chat/video-access.ts`); the open-to-everyone share is admin-only and only for an open lesson of a published course; the Slack lines are `rewriteInSlack` (`lib/chat/slack-lesson-links.ts`); deleting is the policy and repository change in `20270627000000`; counting is `video_watch_segments` with `chat_message_id`, recorded only for a member's open lessons and not in sudo (`app/api/chat/videos/[messageId]/route.ts`). "Keeps your place" holds for a member who has the course. Do not add a claim about who can see what beyond this without checking it.
+Facts behind each line, so the reviewer can check them: the buttons are in `app/(member)/courses/ShareLessonInChat.tsx`; the card and one-click play are `components/chat/ChatVideo.tsx`; "without the course" is `mayWatchSharedVideo` (`lib/chat/video-access.ts`); the open-to-everyone share is admin-only and only for an open lesson of a published course; the Slack lines are `rewriteInSlack` (`lib/chat/slack-lesson-links.ts`); deleting is the policy and repository change in `20270701000000`; counting is `video_watch_segments` with `chat_message_id`, recorded only for a member's open lessons and not in sudo (`app/api/chat/videos/[messageId]/route.ts`). "Keeps your place" holds for a member who has the course. Do not add a claim about who can see what beyond this without checking it.
 
 ## Help article (draft, `help/share-a-lesson-video-in-chat.md`)
 
