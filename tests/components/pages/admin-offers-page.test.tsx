@@ -2,6 +2,7 @@
 /** The admin Kajabi Offers page: the coverage loader is mocked; the markup is real. */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderServerPage, resetServerPageMocks } from "@/tests/helpers/server-page";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
@@ -52,5 +53,26 @@ describe("/admin/offers", () => {
     const mapped = screen.getByRole("row", { name: /180 Program/ });
     expect(within(mapped).getByText("Mapped")).toBeInTheDocument();
     expect(within(mapped).getByRole("link", { name: "180" })).toHaveAttribute("href", "/admin/programs/p1");
+  });
+
+  it("links each offer to Kajabi, sorts from the headers and filters by state", async () => {
+    loadOfferCoverage.mockResolvedValue([
+      { offerId: "o1", name: "Zebra", status: null, kajabiUrl: "https://kajabi.example/o1", checkoutUrl: "https://shop.example/o1", resources: [] },
+      { offerId: "o2", name: "Apple", status: null, kajabiUrl: null, checkoutUrl: null, resources: [{ kind: "event", title: "E", href: "/admin/events/e" }] },
+    ]);
+    await renderServerPage(AdminOffersPage, {});
+    const zebra = screen.getByRole("row", { name: /Zebra/ });
+    expect(within(zebra).getByRole("link", { name: "Edit" })).toHaveAttribute("href", "https://kajabi.example/o1");
+    expect(within(zebra).getByRole("link", { name: "Checkout" })).toHaveAttribute("href", "https://shop.example/o1");
+    expect(within(screen.getByRole("row", { name: /Apple/ })).queryByRole("link", { name: "Edit" })).toBeNull();
+
+    const names = () => screen.getAllByRole("row").slice(1).map((r) => r.textContent ?? "");
+    expect(names()[0]).toMatch(/Zebra/); // open questions first by default
+    await userEvent.click(screen.getByRole("columnheader", { name: /Offer/ }));
+    expect(names()[0]).toMatch(/Apple/);
+
+    await userEvent.selectOptions(screen.getByLabelText("Show"), "mapped");
+    expect(screen.queryByText("Zebra")).toBeNull();
+    expect(screen.getByText("Apple")).toBeInTheDocument();
   });
 });
