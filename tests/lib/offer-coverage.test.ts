@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { KAJABI_ADMIN_OFFER_URL } from "@/lib/config";
-import { buildOfferCoverage, coverageState, loadOfferCoverage } from "@/lib/offer-coverage";
+import { buildOfferCoverage, coverageState, loadOfferCoverage, offerDetailOf } from "@/lib/offer-coverage";
 
 const offers = [
   {
@@ -84,5 +84,17 @@ describe("loadOfferCoverage", () => {
     expect(byId("o2").resources[0].href).toBe("/admin/courses/c1");
     expect(byId("o3").resources).toEqual([]);
     expect(byId("o4").resources).toEqual([]);
+  });
+});
+
+describe("offerDetailOf", () => {
+  it("joins the internal title, the price and the id", () => {
+    const data = { attributes: { internal_title: "PAY IN FULL for 2024", price_description: "$25.00 USD" } };
+    expect(offerDetailOf("42", "4 Month Payment Plan", data)).toBe("PAY IN FULL for 2024 · $25.00 USD · #42");
+  });
+
+  it("leaves out an internal title that repeats the name, and copes with a record without attributes", () => {
+    expect(offerDetailOf("42", "Same", { attributes: { internal_title: " Same " } })).toBe("#42");
+    expect(offerDetailOf("42", null, null)).toBe("#42");
   });
 });

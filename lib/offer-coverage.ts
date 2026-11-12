@@ -44,6 +44,17 @@ interface Inputs {
   programs: { id: string; name: string; kajabi_offer_names: string[] }[];
 }
 
+/**
+ * What tells two offers with the same title apart: Kajabi's internal title (when it differs), the price and the id.
+ * Shown beside the offer wherever an admin picks one.
+ */
+export function offerDetailOf(offerId: string, name: string | null, data: unknown): string {
+  const attributes = (data as { attributes?: { internal_title?: unknown; price_description?: unknown } } | null)?.attributes;
+  const internal = typeof attributes?.internal_title === "string" ? attributes.internal_title.trim() : "";
+  const price = typeof attributes?.price_description === "string" ? attributes.price_description.trim() : "";
+  return [internal && internal !== name?.trim() ? internal : "", price, `#${offerId}`].filter(Boolean).join(" · ");
+}
+
 /** The site id and checkout page in Kajabi's record of an offer. */
 function kajabiLinksOf(data: unknown): { siteId: string | null; checkoutUrl: string | null } {
   const record = data as { attributes?: { checkout_url?: unknown }; relationships?: { site?: { data?: { id?: unknown } } } } | null;
