@@ -10,7 +10,7 @@ import { projectChatMessage } from "@/lib/chat-projection";
 import { rewriteInSlack, shareLessonLinkBySlackTs } from "@/lib/chat/slack-lesson-links";
 import { notifyChatMessageBySlackTs } from "@/lib/chat/notifications";
 import { fillMessageGap, fillThreadIfRootMissing } from "@/lib/chat/gap-fill";
-import { isKeptSlackMessage, isSlackSystemMessage, slackMessageText, slackMessageUserId, slackTsToIso } from "@/lib/slack-messages";
+import { isKeptSlackMessage, isSlackSystemMessage, slackEventChannelType, slackMessageText, slackMessageUserId, slackTsToIso } from "@/lib/slack-messages";
 import {
   applySlackEmojiEvent,
   applySlackMembershipEvent,
@@ -178,9 +178,12 @@ async function processSlackEvent(event: any) {
     } else if (eventType === "message") {
       // UPSERT message to Bronze layer
       try {
+        // Typed on write, like the import and the pulls type theirs, so nothing downstream has to fall back to the payload.
+        const channelType = await slackEventChannelType(event, async () => (await createRepos(supabase).slackWorkspace.channelById(event.channel))?.is_mpim === true);
         await createRepos(supabase).slackMessages.upsertMessages([
           {
             channel_id: event.channel,
+            ...(channelType ? { channel_type: channelType } : {}),
             message_ts: event.ts,
             user_id: slackMessageUserId(event),
             text: slackMessageText(event),

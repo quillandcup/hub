@@ -219,3 +219,24 @@ export function addSlackMessage(
 
 /** A Slack 1:1 DM's conversation id (`D…`): one the bot is never in, so only a member's own token can read it or its files. */
 export const isSlackDmChannelId = (channelId: unknown): boolean => typeof channelId === "string" && /^D[A-Z0-9]+$/.test(channelId)
+
+/**
+ * What `bronze.slack_messages.channel_type` should say for a message delivered as a live event, from the event's own
+ * `channel_type` (`im`, `mpim`, `channel`, `group`), in the words the import and the pulls use. A `group` is a private
+ * channel or an older group DM, which only the stored conversation can tell apart (`isGroupDm`). Null when the event
+ * names no type: leave the column alone then, so a row an import already typed keeps its type.
+ */
+export async function slackEventChannelType(event: { channel_type?: unknown }, isGroupDm: () => Promise<boolean>): Promise<string | null> {
+  switch (event.channel_type) {
+    case "im":
+      return "im";
+    case "mpim":
+      return "mpim";
+    case "channel":
+      return "public_channel";
+    case "group":
+      return (await isGroupDm()) ? "mpim" : "private_channel";
+    default:
+      return null;
+  }
+}
