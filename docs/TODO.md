@@ -1310,7 +1310,7 @@ Two possible definitions:
 2. **Most frequent caller** — member who initiates the most PUPs (may need Zoom host data or a `called_by` field on prickles)
 
 ### Retreat attendees: use the ticket source _(Needs Scheduling)_
-`event_attendees.ticket_source` (purchased, comped, gifted) and `ticket_note` now record how an attendee got in; every existing row is still NULL. A comped or gifted ticket leaves no Kajabi purchase, which is how a summer 2026 attendee was missed and went without the badge.
+`event_attendees.ticket_source` (comped or gifted; a purchase is derived from Kajabi, never stored) and `ticket_note` now record how an attendee got in; every existing row is still NULL. A comped or gifted ticket leaves no Kajabi purchase, which is how a summer 2026 attendee was missed and went without the badge.
 
 **Resolved:** an event can be linked to the Kajabi offers that sell it (`community_event_offers`, `EventRepository`), and "Find Kajabi matches" on the admin event page lists buyers who are not attendees (to add as `purchased`), purchases with no member, and attendees with no purchase and no recorded source (`lib/kajabi-event-matching.ts`). Use it on each past retreat as the one-time backfill review.
 
@@ -1320,7 +1320,7 @@ Two possible definitions:
 - Run that comparison on a schedule and tell staff (an admin alert), so a gap shows up before a member asks.
 - Import each Kajabi contact's offers, so grants show up in Bronze like purchases. An offer granted from Kajabi's admin leaves no purchase, and the contact import keeps only a link to the contact's offers (`relationships.offers.links`), not the list. "Find Kajabi matches" now asks Kajabi live (`include=offers`, `contactOfferIds` in `lib/kajabi/client.ts`) for the few attendees with no purchase, but a nightly import would let every retreat and the auto-add see grants without live calls. Needs one `GET /v1/contacts/:id?include=offers` per contact (about a thousand, rate-limited) or a bulk shape if Kajabi has one; keep it in the nightly reconciliation ("Nothing through webhooks alone").
 - Show the source on the badge recipients page and in the member's admin profile if staff want it there.
-- Tighten the database to match the app: `event_attendees.ticket_source`'s CHECK (migration `20270504000000`) and its column comment still allow `donated`, which the app no longer offers (gifted covers it; no row uses it). Dropping the constraint needs the user's explicit squawk approval (`ban-drop-constraint`), so it was left for a migration that also has another reason to touch the table.
+- Tighten the database to match the app: `event_attendees.ticket_source`'s CHECK (migration `20270504000000`) and its column comment still allow `donated`, which the app no longer offers (gifted covers it; no row uses it), and `purchased`, which the app now ignores (it is derived from Kajabi; rows written by the old add button still hold it, harmlessly). Dropping the constraint needs the user's explicit squawk approval (`ban-drop-constraint`), so it was left for a migration that also has another reason to touch the table.
 
 **Why deferred:** the column and the admin controls were the part that stops the problem recurring; the backfill needs answers from the people who ran the retreats.
 

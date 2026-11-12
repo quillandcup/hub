@@ -359,8 +359,8 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                   onChange={(e) => handleTicketSource(attendee.memberId, e.target.value)}
                   className="px-1 py-0.5 border border-gray-300 dark:border-slate-700 rounded text-xs bg-white dark:bg-slate-900"
                 >
-                  {/* A Kajabi purchase is a fact, not a choice: such an attendee is Purchased unless recorded otherwise. */}
-                  {!attendee.purchasedInKajabi && <option value="">Not recorded</option>}
+                  {/* Purchased is derived from Kajabi, never stored: picking it clears a source recorded by hand. */}
+                  {attendee.purchasedInKajabi ? <option value="purchased">Purchased</option> : <option value="">Not recorded</option>}
                   {TICKET_SOURCES.map((source) => (
                     <option key={source} value={source}>
                       {TICKET_SOURCE_LABELS[source]}

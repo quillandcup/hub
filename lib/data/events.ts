@@ -1,5 +1,5 @@
 import { ORG_TIMEZONE } from "@/lib/config";
-import type { TicketInput, TicketSource } from "@/lib/event-tickets";
+import { recordedTicketSource, type TicketInput, type TicketSource } from "@/lib/event-tickets";
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
 import { inChunks } from "./query";
 import type { Db, Insert, Row, Update } from "./db";
@@ -654,7 +654,7 @@ export class SupabaseEventRepository implements EventRepository {
           .order("id")
           .range(from, to)
     );
-    return rows.map((r) => ({ id: r.id, member_id: r.member_id, ticket_source: r.ticket_source as TicketSource | null, /* the column's CHECK allows only these */ ticket_note: r.ticket_note, member: r.members }));
+    return rows.map((r) => ({ id: r.id, member_id: r.member_id, ticket_source: recordedTicketSource(r.ticket_source), ticket_note: r.ticket_note, member: r.members }));
   }
 
   async moveAttendances(fromMemberId: string, toMemberId: string) {
@@ -984,7 +984,7 @@ export class InMemoryEventRepository implements EventRepository {
     return this.data.eventAttendees
       .flatMap((a) =>
         a.event_id === eventId && a.member_id
-          ? [{ id: a.id ?? "", member_id: a.member_id, created_at: a.created_at ?? "", ticket_source: (a.ticket_source ?? null) as TicketSource | null, ticket_note: a.ticket_note ?? null }]
+          ? [{ id: a.id ?? "", member_id: a.member_id, created_at: a.created_at ?? "", ticket_source: recordedTicketSource(a.ticket_source), ticket_note: a.ticket_note ?? null }]
           : []
       )
       .sort((a, b) => (a.created_at !== b.created_at ? (a.created_at < b.created_at ? -1 : 1) : a.id < b.id ? -1 : 1))
