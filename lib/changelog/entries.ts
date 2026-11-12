@@ -53,6 +53,24 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "link-previews-in-hub-chat",
+    date: "2026-11-12",
+    audience: "product",
+    category: "new",
+    title: "Links in Hub Chat show a preview",
+    summary: "When you paste a link into a Hub Chat message, a preview card appears with the page's title, a short description and a picture. A link to an image shows the image, and people reading in Slack see a preview too.",
+    body: [
+      "Paste a link and the preview appears right under your message.",
+      [
+        "- **People reading in Slack see a preview too.**",
+        "- **Previews Slack makes also show in Hub Chat.** When someone pastes a link in Slack, its preview appears here as well.",
+        "- **Only the person who wrote a message can remove its preview**, with the X in the corner of the card. If the message was written in Hub Chat, the preview disappears in Hub Chat and in Slack. If it was written in Slack, it is hidden in Hub Chat only.",
+        "- **Only people who can read a message see its previews**, and the pictures in them load through the Hub, so the site a link points to doesn't see who looked.",
+      ].join("\n"),
+      "Previews are made when you send a message, for the first three links in it. Some sites don't offer one, and then the link stays a plain link.",
+    ].join("\n\n"),
+  },
+  {
     slug: "lesson-videos-in-chat-building-blocks",
     date: "2026-11-11",
     audience: "engineering",
