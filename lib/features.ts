@@ -55,7 +55,7 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
   {
     key: 'slack_dm_bridge',
     name: 'Slack DM bridge',
-    description: 'Brings your one-on-one Slack direct messages into Hub Chat, read with your own Slack token (reconnect Slack first so it has the direct message permissions). They are restricted like private channels: only you and the other person, and staff only through break-glass access. Read-only for now.',
+    description: 'Brings your one-on-one Slack direct messages into Hub Chat, read with your own Slack token (reconnect Slack first so it has the direct message permissions). They are restricted like private channels: only you and the other person; staff can read them only through break-glass access, unless a member of the Quill & Cup team is in the conversation, which the whole team can read. Read-only for now.',
   },
   {
     key: 'big_sisters',

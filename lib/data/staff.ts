@@ -18,7 +18,17 @@ export interface StaffRepository {
   all(): Promise<StaffRow[]>;
   /** Points each staff row at its member (or at none). Rows run in parallel; throws the first failure after all have finished. */
   linkMembers(links: StaffMemberLink[]): Promise<void>;
+  /**
+   * The ids of the members who are staff: THE definition, used wherever the question is asked (Hedgie Care leaves them out of
+   * the DMs it offers; the team can read a direct message one of them is in). A member linked in `staff`, or the member behind an
+   * admin or community manager account. Service role in the database (the function behind it, `staff_member_ids`, refuses a
+   * signed-in user); the staff list is a handful of people, so it is read in one call.
+   */
+  memberIds(): Promise<Set<string>>;
 }
+
+/** The roles of the accounts whose members are staff: the in-memory twin's copy of `staff_member_ids()`; the contract suite keeps them equal. */
+const STAFF_ACCOUNT_ROLES = ["admin", "community_manager"];
 
 const byNameThenId = (a: StaffRow, b: StaffRow) => compareText(a.name, b.name) || compareText(a.id, b.id);
 
@@ -36,6 +46,12 @@ export class SupabaseStaffRepository implements StaffRepository {
     const failed = results.find((r) => r.error);
     if (failed?.error) throw new Error(failed.error.message);
   }
+
+  async memberIds() {
+    const { data, error } = await this.db.rpc("staff_member_ids");
+    if (error) throw new Error(error.message);
+    return new Set(data ?? []);
+  }
 }
 
 /** In-memory twin over an `InMemoryDataset`. */
@@ -52,4 +68,16 @@ export class InMemoryStaffRepository implements StaffRepository {
       if (row) row.member_id = link.member_id;
     }
   }
+
+  async memberIds() {
+    return staffMemberIdsOf(this.data);
+  }
+}
+
+/** The staff members of a dataset (the twin of `staff_member_ids()`), for the twins that need to ask the same question. */
+export function staffMemberIdsOf(data: Pick<InMemoryDataset, "staff" | "userProfiles" | "members">): Set<string> {
+  const ids = new Set(data.staff.map((s) => s.member_id).filter((id): id is string => !!id));
+  const staffAccounts = new Set(data.userProfiles.filter((p) => STAFF_ACCOUNT_ROLES.includes(p.role ?? "member")).map((p) => p.id));
+  for (const m of data.members) if (m.userId && staffAccounts.has(m.userId)) ids.add(m.id);
+  return ids;
 }

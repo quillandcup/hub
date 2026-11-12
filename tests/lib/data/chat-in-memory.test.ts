@@ -96,6 +96,9 @@ defineChatContract("InMemoryChatRepository", () => {
       channelIds = ids;
       return ids;
     },
+    seedStaff: async (memberIndex) => {
+      data.staff = [{ id: crypto.randomUUID(), name: "Staff Example", email: `staff-${++n}@example.test`, role: "staff", hire_date: null, member_id: memberIds[memberIndex], notes: null, created_at: null, updated_at: null }];
+    },
     seedMemberships: async (rows) => {
       data.chatChannelMembers = rows.map((r) => ({
         channel_id: channelIds[r.channel],

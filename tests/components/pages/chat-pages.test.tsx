@@ -121,6 +121,10 @@ const HOSTS = id(2);
 const SECRET = id(3);
 const QUIET = id(4);
 const GROUP = id(5);
+/** A group message the member is not in, with a member of the team in it. */
+const TEAM_GROUP = id(6);
+/** Conversations the database says have a staff member in them (rpc chat_channel_includes_staff). */
+let staffConversations: string[] = [];
 
 const channel = (cid: string, extra: Record<string, unknown>) => ({
   id: cid, kind: "channel", visibility: "public", restricted: false, name: null, archived_at: null, slack_channel_id: null,
@@ -132,6 +136,7 @@ const CHANNELS = [
   channel(SECRET, { name: "secret", visibility: "private", slack_channel_id: "C_SECRET" }),
   channel(QUIET, { name: "quiet", visibility: "private", restricted: true, slack_channel_id: "C_QUIET" }),
   channel(GROUP, { kind: "group_dm", visibility: "private", restricted: true, slack_channel_id: "G_GROUP" }),
+  channel(TEAM_GROUP, { kind: "group_dm", visibility: "private", restricted: true, slack_channel_id: "G_TEAM" }),
 ];
 const JOINED = [HOSTS, QUIET, GROUP];
 
@@ -158,6 +163,11 @@ const eqArg = (q: FakeQuery, col: string) => q.calls.find((c) => c.method === "e
 
 const fakeTables = (): FakeTables => ({
   "rpc:chat_unread_counts": () => ({ data: unread }),
+  "rpc:chat_channel_includes_staff": (q) => {
+    const asked = (q.calls.find((c) => c.method === "args")?.args[0] as { p_channel_id: string } | undefined)?.p_channel_id;
+    return { data: staffConversations.includes(asked ?? "") };
+  },
+  "rpc:chat_log_staff_dm_read": { data: true },
   chat_channels: (q) => {
     const wanted = eqArg(q, "id");
     return { data: wanted ? CHANNELS.filter((c) => c.id === wanted) : CHANNELS };
@@ -218,6 +228,7 @@ beforeEach(() => {
   afterCallbacks.length = 0;
   catchUpChannel.mockClear();
   staffRole = "member";
+  staffConversations = [];
   readMarker = null;
   chatNotificationsOn = false;
   markerError = false;
@@ -822,5 +833,74 @@ describe("chat index", () => {
     render(await ChatIndexPage({ searchParams: Promise.resolve({}) }));
     expect(screen.getByRole("heading", { name: "Chat" })).toBeInTheDocument();
     expect(screen.getByText(/read-only view of our Slack conversations/)).toBeInTheDocument();
+  });
+});
+
+describe("direct messages with a member of the team in them", () => {
+  it("tells everyone in the conversation that the team can read it, with a link to the explanation", async () => {
+    staffConversations = [GROUP];
+    messages = [msg(1)];
+    await renderChannel(GROUP);
+
+    expect(screen.getByText(/Someone from the Quill & Cup team is in this conversation, so the team can read it\./)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "How we handle messages" })).toHaveAttribute("href", "/privacy#staff-messages");
+    // A member in it only gets the notice: nothing is logged, and they can still write.
+    expect(fake.queries.some((q) => q.table === "rpc:chat_log_staff_dm_read")).toBe(false);
+    expect(screen.queryByText(/You're reading this as a member of the team/)).not.toBeInTheDocument();
+  });
+
+  it("shows no notice in a conversation without staff in it, or in a channel", async () => {
+    messages = [msg(1)];
+    await renderChannel(GROUP);
+    expect(screen.queryByText(/Quill & Cup team is in this conversation/)).not.toBeInTheDocument();
+    cleanup();
+    staffConversations = [GENERAL];
+    await renderChannel(GENERAL);
+    expect(screen.queryByText(/Quill & Cup team is in this conversation/)).not.toBeInTheDocument();
+  });
+
+  it("lets an admin read one she is not in: read-only, on record before anything is shown, nothing marked read or caught up", async () => {
+    staffRole = "admin";
+    staffConversations = [TEAM_GROUP];
+    messages = [msg(1), msg(2)];
+    await renderChannel(TEAM_GROUP);
+
+    expect(screen.getByText("message 1")).toBeInTheDocument();
+    expect(screen.getByText(/You're reading this as a member of the team, and you're not in it\. That you opened it is recorded in the audit log, without the messages\./)).toBeInTheDocument();
+    const logged = fake.queries.findIndex((q) => q.table === "rpc:chat_log_staff_dm_read");
+    const read = fake.queries.findIndex((q) => q.table === "chat_messages");
+    expect(logged).toBeGreaterThanOrEqual(0);
+    expect(logged).toBeLessThan(read);
+    expect(fake.queries.find((q) => q.table === "rpc:chat_log_staff_dm_read")!.calls.find((c) => c.method === "args")!.args[0]).toEqual({ p_channel_id: TEAM_GROUP });
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(fake.queries.some((q) => q.table === "chat_drafts")).toBe(false);
+    expect(afterCallbacks).toHaveLength(0);
+  });
+
+  it("lets a community manager read one too, and stops the page when the read cannot be put on record", async () => {
+    staffRole = "community_manager";
+    staffConversations = [TEAM_GROUP];
+    messages = [msg(1)];
+    await renderChannel(TEAM_GROUP);
+    expect(screen.getByText("message 1")).toBeInTheDocument();
+    cleanup();
+
+    fake = useFakeSupabase({ ...fakeTables(), "rpc:chat_log_staff_dm_read": { data: null, error: { message: "audit down" } } });
+    await expect(renderChannel(TEAM_GROUP)).rejects.toThrow("audit down");
+  });
+
+  it("is a 404 for a member who is not in it, and for a conversation without staff in it, whatever the role", async () => {
+    staffConversations = [TEAM_GROUP];
+    await expect(renderChannel(TEAM_GROUP)).rejects.toThrow("404");
+    staffRole = "admin";
+    staffConversations = [];
+    await expect(renderChannel(TEAM_GROUP)).rejects.toThrow("404");
+  });
+
+  it("is a 404 in sudo even for an admin, where direct messages are hidden", async () => {
+    staffRole = "admin";
+    staffConversations = [TEAM_GROUP];
+    signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
+    await expect(renderChannel(TEAM_GROUP)).rejects.toThrow("404");
   });
 });

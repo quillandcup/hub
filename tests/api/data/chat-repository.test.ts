@@ -9,6 +9,7 @@ const RUN = `${Date.now()}`;
 const PREFIX = `CT${RUN}`;
 let counter = 0;
 const createdChannels: string[] = [];
+const createdStaff: string[] = [];
 
 // Channels go with everything that hangs off them (ON DELETE CASCADE).
 const clear = async () => {
@@ -28,6 +29,7 @@ let channelIds: Record<string, string> = {};
 afterAll(async () => {
   await clear();
   if (createdGapFills.length > 0) await db.from("chat_gap_fills").delete().in("id", createdGapFills);
+  if (createdStaff.length > 0) await db.from("staff").delete().in("id", createdStaff);
   if (createdMembers.length > 0) await db.from("members").delete().in("id", createdMembers);
 });
 
@@ -145,6 +147,15 @@ defineChatContract("SupabaseChatRepository", () => ({
     }
     channelIds = ids;
     return ids;
+  },
+  seedStaff: async (memberIndex) => {
+    const { data, error } = await db
+      .from("staff")
+      .insert({ name: `Chat Contract Staff ${RUN}`, email: `chat-contract-staff-${RUN}-${++counter}@example.com`, role: "staff", member_id: memberIds[memberIndex] })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    createdStaff.push(data!.id);
   },
   seedMemberships: async (rows) => {
     const { error } = await db.from("chat_channel_members").insert(

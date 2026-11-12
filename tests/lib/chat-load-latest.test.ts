@@ -42,6 +42,7 @@ vi.mock("@/lib/data/repos", async () => {
 });
 vi.mock("@/lib/chat/load", () => ({
   loadChannelForMember: m.loadChannelForMember,
+  staffDmReaderCheck: () => async () => false,
   loadMessage: m.loadMessage,
   loadMessages: m.loadMessages,
   loadMessagesByIds: m.loadMessagesByIds,

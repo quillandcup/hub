@@ -21,11 +21,13 @@ import {
   chatTextContext,
   loadChannelForMember,
   loadChannelMembers,
+  staffDmReaderCheck,
   loadMessage,
   loadMessages,
   loadMemberCard,
 } from "@/lib/chat/load";
 import AvatarStack from "@/components/AvatarStack";
+import StaffDmNotice from "@/components/chat/StaffDmNotice";
 import Composer from "@/components/chat/Composer";
 import JoinPrompt from "@/components/chat/JoinPrompt";
 import ThreadList from "@/components/chat/ThreadList";
@@ -40,16 +42,18 @@ import { isValidTimeZone } from "@/lib/time-zone";
 import ProfileCard from "@/components/chat/ProfileCard";
 
 // generateMetadata and the page both need the channel; keyed on plain values (not the client) so one request reads it once.
-const channelFor = cache(async (id: string, memberId: string, isSudo: boolean) =>
-  loadChannelForMember(createRepos(await createClient()), id, memberId, isSudo)
-);
+const channelFor = cache(async (id: string, memberId: string, isSudo: boolean, userId: string) => {
+  const repos = createRepos(await createClient());
+  // A staff reader may open a direct message with a staff member in it, and every viewer is told when one has (the notice).
+  return loadChannelForMember(repos, id, memberId, isSudo, { staffNotice: true, isStaffReader: staffDmReaderCheck(repos, userId) });
+});
 
 // The tab is titled with the conversation (channel, group or DM), most specific first.
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   if (!isId(id, "chn")) return { title: "Chat" };
-  const { identity } = await requireChat();
-  const channel = await channelFor(id, identity.memberId, identity.isSudo);
+  const { user, identity } = await requireChat();
+  const channel = await channelFor(id, identity.memberId, identity.isSudo, user.id);
   return { title: channel ? `${channel.label} · Chat` : "Chat" };
 }
 
@@ -77,16 +81,20 @@ export default async function ChatChannelPage({
   if (!isId(id, "chn")) notFound();
 
   const supabase = await createClient();
-  const channel = await channelFor(id, identity.memberId, identity.isSudo);
+  const channel = await channelFor(id, identity.memberId, identity.isSudo, user.id);
   if (!channel) notFound();
   timer.mark("channel");
 
   const sudoHidden = identity.isSudo && channel.restricted;
+  // An admin or community manager reading a direct message with a staff member in it that they are not in: read-only, and on record.
+  // The entry is written before a word is shown, and a failure to write it stops the page: no reading without a trail.
+  const staffRead = Boolean(channel.staffRead) && !sudoHidden;
+  if (staffRead) await createRepos(supabase).chat.logStaffRead(channel.id);
 
   // Opening a conversation catches it up with Slack after the page is sent: whatever the webhook never
   // delivered is fetched now, not at the nightly import (one fetch per conversation a minute, however
   // many members open it; recorded in chat_gap_fills). Not for an older page, and not in sudo.
-  if (!sudoHidden && !identity.isSudo && !before && channel.slackChannelId) {
+  if (!sudoHidden && !staffRead && !identity.isSudo && !before && channel.slackChannelId) {
     const slackChannelId = channel.slackChannelId;
     after(async () => {
       try {
@@ -116,13 +124,13 @@ export default async function ChatChannelPage({
     // Where the member had read up to when they opened this (the marker only moves when they leave,
     // so the line below stays put for the whole visit). Not in sudo (their marker isn't the viewed
     // member's) and not on an older page.
-    if (sudoHidden || identity.isSudo || before) return null;
+    if (sudoHidden || staffRead || identity.isSudo || before) return null;
     // A failed read shows no marker, as it always has.
     return createRepos(supabase).chat.readMarker(channel.id, identity.memberId).catch(() => null);
   };
   // Posting never happens in sudo, in a conversation the member is not in
   // or an archived one (chat_post_message checks the same again, and that the conversation is bridged).
-  const postingQuery = async (): Promise<boolean> => !(sudoHidden || identity.isSudo || channel.archived);
+  const postingQuery = async (): Promise<boolean> => !(sudoHidden || staffRead || identity.isSudo || channel.archived);
   // The conversation always shows its messages; a thread or a profile opens beside it.
   const messagesQuery = async () => {
     if (sudoHidden) return { page: null, root: null, threadPage: null };
@@ -138,7 +146,7 @@ export default async function ChatChannelPage({
   // The member's unsent text for this conversation's box and the open thread's. Not in sudo (their drafts are not the viewed member's).
   const draftsQuery = async () => {
     const none = { conversation: null, thread: null, conversationFiles: [], threadFiles: [] };
-    if (sudoHidden || identity.isSudo) return none;
+    if (sudoHidden || staffRead || identity.isSudo) return none;
     const repo = createRepos(supabase).chatDrafts;
     const [conversation, thread] = await Promise.all([
       repo.get(identity.memberId, { channelId: channel.id, threadRootId: null }),
@@ -154,7 +162,7 @@ export default async function ChatChannelPage({
   };
   // The notification setting of this conversation, for members who have chat notifications (not in sudo: it is the viewed member's own).
   const notifySettingQuery = async () => {
-    if (sudoHidden || identity.isSudo || !channel.joined) return null;
+    if (sudoHidden || staffRead || identity.isSudo || !channel.joined) return null;
     if (!(await effectiveMemberHasFeature("chat_notifications", identity, await getUserFeaturePreviews(user.id)))) return null;
     // A failed read just hides the control.
     return createRepos(supabase).chat.notifySettingOf(channel.id, identity.memberId).catch(() => null);
@@ -225,6 +233,7 @@ export default async function ChatChannelPage({
             </Link>
           )}
         </header>
+        {channel.includesStaff && !sudoHidden && <StaffDmNotice staffReader={staffRead} />}
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-2">
           {sudoHidden ? (
@@ -236,7 +245,7 @@ export default async function ChatChannelPage({
               <ChatLive
                 channelId={channel.id}
                 view={before ? "older" : "latest"}
-                markRead={!identity.isSudo}
+                markRead={!identity.isSudo && !staffRead}
                 renderedAt={renderedAt}
                 catchUpIds={messageViews.filter((v) => v.replyCount > 0).map((v) => v.id)}
                 latestAt={messageViews.length > 0 ? messageViews[messageViews.length - 1].createdAt : null}

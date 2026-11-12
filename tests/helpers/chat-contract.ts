@@ -46,6 +46,8 @@ export type ChatContractContext = {
   seedChannelRows: (channels: SeedChannelRow[]) => Promise<Record<string, string>>;
   /** Puts members (by index into `seedMembers`' ids) in channels (by key). */
   seedMemberships: (rows: SeedMembership[]) => Promise<void>;
+  /** Makes the member (by index into `seedMembers`' ids) a staff member: linked in the staff table. */
+  seedStaff: (memberIndex: number) => Promise<void>;
   /** Adds messages (channel by key); returns their ids by key. */
   seedChannelMessages: (rows: SeedChannelMessage[]) => Promise<Record<string, string>>;
   /** The Hub-written notice lines in a channel, with their text. */
@@ -425,6 +427,35 @@ export function defineChatContract(name: string, setup: () => ChatContractContex
         const pairs = await repo.activeMembersOf([ids.a, ids.b, NONE]);
         expect(pairs.map((p) => `${p.channel_id}/${p.member_id}`).sort()).toEqual([`${ids.a}/${m0}`, `${ids.a}/${m1}`, `${ids.b}/${m0}`].sort());
         expect(await repo.presentMembers(ids.a, [m0, m1, m2])).toEqual(new Set([m0, m1]));
+      });
+
+      it("knows whether a direct or group message has a staff member in it now", async () => {
+        await ctx.seedMembers(3);
+        await ctx.seedStaff(1);
+        const ids = await ctx.seedChannelRows([
+          { key: "withStaff", kind: "dm", visibility: "private", restricted: true, name: null },
+          { key: "plain", kind: "dm", visibility: "private", restricted: true, name: null },
+          { key: "group", kind: "group_dm", visibility: "private", restricted: true, name: null },
+          { key: "left", kind: "group_dm", visibility: "private", restricted: true, name: null },
+          { key: "channel", name: ctx.unique("n") },
+        ]);
+        await ctx.seedMemberships([
+          { channel: "withStaff", member: 0 }, { channel: "withStaff", member: 1 },
+          { channel: "plain", member: 0 }, { channel: "plain", member: 2 },
+          { channel: "group", member: 0 }, { channel: "group", member: 2 }, { channel: "group", member: 1 },
+          { channel: "left", member: 0 }, { channel: "left", member: 1, leftAt: "2026-03-01T00:00:00Z" },
+          { channel: "channel", member: 0 }, { channel: "channel", member: 1 },
+        ]);
+        const repo = ctx.repo();
+
+        expect(await repo.dmIncludesStaff(ids.withStaff)).toBe(true);
+        expect(await repo.dmIncludesStaff(ids.group)).toBe(true);
+        expect(await repo.dmIncludesStaff(ids.plain)).toBe(false);
+        // The staff member left the conversation: it no longer includes staff.
+        expect(await repo.dmIncludesStaff(ids.left)).toBe(false);
+        // A channel is never a staff direct message, whoever is in it; an unknown conversation is no.
+        expect(await repo.dmIncludesStaff(ids.channel)).toBe(false);
+        expect(await repo.dmIncludesStaff(NONE)).toBe(false);
       });
 
       it("asks about many conversations and members at once (more than one request's worth)", async () => {

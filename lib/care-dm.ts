@@ -8,14 +8,13 @@
  * - **Only her own DMs.** The list is built from the DMs her own Slack user is a participant of (`directMessagesOf`), never
  *   from a channel id someone supplies, so another person's DM can't appear, even to an admin. The projection re-checks
  *   that both people of a tracked DM are in the Slack conversation before it reads a word of metadata.
- * - **Staff are never offered.** A counterpart who is staff (`staff.member_id`, or a member behind an admin or community
- *   manager account) is dropped.
+ * - **Staff are never offered.** A counterpart who is staff (`StaffRepository.memberIds()`: `staff.member_id`, or a member
+ *   behind an admin or community manager account; the one definition, also what decides which DMs the whole team can read) is dropped.
  * - The Bronze reads need the service role (Slack content is service role only), so every caller checks who is asking first
  *   (`requireStaffAction()` or the staff page, and `care.write`) and hands the service repositories in.
  */
 import { daysAgoLabel } from "@/lib/care";
 import { clock } from "@/lib/clock";
-import { CARE_OWNER_ROLES } from "@/lib/care-owners";
 import { derivedMessageTimes, lastWriter, type DmLastWrites } from "@/lib/care-dm-rules";
 import type { CareEngagementWithMember } from "@/lib/data/care";
 import { hasDmScopes } from "@/lib/slack-connect";
@@ -54,13 +53,6 @@ export async function ownSlackIdentity(service: Pick<Repos, "members" | "memberP
   return { memberId: member.id, slackUserId: connection.slack_user_id, connected, hasDmScopes: connected && hasDmScopes((connection.scopes as string[] | null) ?? []) };
 }
 
-/** Member ids that are staff: the `staff` table's links, and the members behind admin and community manager accounts. */
-export async function staffMemberIds(service: Pick<Repos, "staff" | "profiles" | "members">): Promise<Set<string>> {
-  const [staff, accounts] = await Promise.all([service.staff.all(), service.profiles.byRoles([...CARE_OWNER_ROLES])]);
-  const behindAccounts = await service.members.idsByUserId(accounts.map((a) => a.id));
-  return new Set([...staff.map((s) => s.member_id).filter((id): id is string => !!id), ...behindAccounts.values()]);
-}
-
 /** One of her 1:1 DMs with a member who is not staff. */
 export type OwnDm = {
   /** The Slack DM conversation id. */
@@ -82,7 +74,7 @@ export async function ownDirectMessages(service: CareDmServiceRepos, slackUserId
   // A 1:1 has exactly two people in it, her and one other.
   const pairs = counterparts.filter((c) => c.size === 2 && c.others.length === 1).map((c) => ({ channelId: c.channelId, counterpartSlackId: c.others[0] }));
   if (pairs.length === 0) return [];
-  const [members, staff] = await Promise.all([service.chat.memberIdsBySlackUser(pairs.map((p) => p.counterpartSlackId)), staffMemberIds(service)]);
+  const [members, staff] = await Promise.all([service.chat.memberIdsBySlackUser(pairs.map((p) => p.counterpartSlackId)), service.staff.memberIds()]);
   const out: OwnDm[] = [];
   for (const pair of pairs) {
     const memberId = members.get(pair.counterpartSlackId);

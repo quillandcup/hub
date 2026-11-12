@@ -14,6 +14,7 @@ import {
   fetchRecordHistory,
   pageLabel,
   parseFeedFilters,
+  PRIVACY_ENTITY_TYPES,
   summarizePages,
   type ActivityFeedRow,
 } from "@/lib/activity-feed";
@@ -256,6 +257,13 @@ describe("describeRow for member actions", () => {
       describeRow(row({ entity_type: "restricted_slack_channel", event_type, description: "inner-circle", data: {} }));
     expect(restriction("insert")).toBe("restricted staff access to messages in #inner-circle");
     expect(restriction("delete")).toBe("lifted the restriction on messages in #inner-circle");
+  });
+
+  it("reads a team member's opening of a direct message with the team as a sentence, and files it under Privacy", () => {
+    expect(describeRow(row({ entity_type: "staff_dm_read", event_type: "insert", data: {} }))).toBe(
+      "opened a direct message with the team that they are not in (the messages are not recorded)"
+    );
+    expect(PRIVACY_ENTITY_TYPES).toContain("staff_dm_read");
   });
 });
 

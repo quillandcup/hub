@@ -17,7 +17,7 @@ import { membersWithFeatureForOutreach } from "@/lib/features.server";
  * Slack 1:1 DMs, read with the member's own token (docs/SLACK_BRIDGED_CHAT.md, "Slack 1:1 DMs through members'
  * own tokens"). The bot can't be in a DM, so this is the only way they reach the Hub: list the member's DMs,
  * store them in Bronze exactly like channel messages, and project them into chat as direct messages (kind
- * 'dm', private, restricted: staff only through break-glass access). Idempotent: Bronze is keyed on
+ * 'dm', private, restricted: staff only through break-glass access, unless a staff member is in it: then the whole team can read it, derived, see 20270705000000_staff_direct_messages_readable_by_team.sql). Idempotent: Bronze is keyed on
  * (channel, ts), and both people in a DM see the same Slack channel id, so two connected members share one copy.
  * Service role. Behind the `slack_dm_bridge` feature (the caller checks it per member).
  */

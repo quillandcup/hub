@@ -3,6 +3,7 @@ import type { Db, Row } from "./db";
 import type { Json } from "./database.types";
 import type { InMemoryDataset } from "./in-memory";
 import { inChunks } from "./query";
+import { staffMemberIdsOf } from "./staff";
 
 /** A stored row, as the database has it, with only the named columns required: a test or seed names just what it cares about. */
 type Seed<T, K extends keyof T> = Pick<T, K> & Partial<Omit<T, K>>;
@@ -250,6 +251,18 @@ export interface ChatRepository {
    * so the chat's own member list can't name them. Names only; the bots are left out.
    */
   dmCounterparts(memberId: string): Promise<Map<string, string[]>>;
+  /**
+   * Whether this direct or group message has a staff member in it now (`StaffRepository.memberIds` is who counts): a member in the
+   * conversation, or, for a Slack one, anyone Slack lists in it. That is what lets the whole team read it, and what the notice in
+   * Hub Chat says. False for a channel, and for a conversation the caller cannot see.
+   */
+  dmIncludesStaff(channelId: string): Promise<boolean>;
+  /**
+   * Puts on record, in the audit log, that the signed-in admin or community manager opened a staff-involved direct message they are
+   * not in (one entry per person and conversation per hour; the entry holds no text). True when the read is on record, false when no
+   * entry applies (they are in it, or may not read it). Throws on a database error: a read without its trail should not go ahead.
+   */
+  logStaffRead(channelId: string): Promise<boolean>;
   /** Which of these members are in the conversation now. */
   presentMembers(channelId: string, memberIds: string[]): Promise<Set<string>>;
   /** Where the member has read up to (their marker, else when they joined), or null when they are not in the conversation. */
@@ -644,6 +657,18 @@ export class SupabaseChatRepository implements ChatRepository {
       .maybeSingle();
     if (error) throw new Error(error.message);
     return data;
+  }
+
+  async dmIncludesStaff(channelId: string) {
+    const { data, error } = await this.db.rpc("chat_channel_includes_staff", { p_channel_id: channelId });
+    if (error) throw new Error(error.message);
+    return data === true;
+  }
+
+  async logStaffRead(channelId: string) {
+    const { data, error } = await this.db.rpc("chat_log_staff_dm_read", { p_channel_id: channelId });
+    if (error) throw new Error(error.message);
+    return data === true;
   }
 
   async dmCounterparts(memberId: string) {
@@ -1256,6 +1281,23 @@ export class InMemoryChatRepository implements ChatRepository {
   async activeMembership(channelId: string, memberId: string) {
     const m = this.active(channelId).find((x) => x.member_id === memberId);
     return m ? { source: m.source ?? "slack" } : null;
+  }
+
+  async dmIncludesStaff(channelId: string) {
+    const channel = this.data.chatChannels.find((c) => c.id === channelId);
+    const kind = channel?.kind ?? "channel";
+    if (!channel || (kind !== "dm" && kind !== "group_dm")) return false;
+    const staff = staffMemberIdsOf(this.data);
+    if (this.active(channelId).some((m) => staff.has(m.member_id))) return true;
+    const slackId = channel.slack_channel_id;
+    if (!slackId) return false;
+    const authors = new Map(this.data.chatSlackAuthors.map((a) => [a.slack_user_id, a.member_id] as const));
+    return this.data.slackChannelMembers.some((m) => m.channel_id === slackId && !m.left_at && staff.has(authors.get(m.user_id) ?? ""));
+  }
+
+  /** The twin has no signed-in caller, so the checks on who is reading and the once-an-hour rule are the database's (pgTAP); it answers whether the conversation is one the team may read. */
+  async logStaffRead(channelId: string) {
+    return this.dmIncludesStaff(channelId);
   }
 
   async dmCounterparts(memberId: string) {

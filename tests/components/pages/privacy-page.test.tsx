@@ -147,7 +147,7 @@ describe("/privacy page", () => {
     await renderServerPage(PrivacyPage, {});
     const chat = section("chat");
     expect(chat.getByRole("heading", { name: "What staff can see" })).toBeInTheDocument();
-    expect(chat.getByText(/^Group DMs that include Billie Bot/)).toBeInTheDocument();
+    expect(chat.getByText(/^Group DMs that include Billie Bot and none of the team/)).toBeInTheDocument();
     // What the page says about the chat has to be true of the app: no per-channel "staff can read this" note, and deleted messages don't count.
     expect(chat.queryByText(/Each channel in the Hub shows/)).not.toBeInTheDocument();
     expect(chat.getByText(/no longer count toward your activity/)).toBeInTheDocument();
@@ -157,7 +157,7 @@ describe("/privacy page", () => {
     expect(chat.getByText(/we will record who looked, why and when/)).toBeInTheDocument();
     expect(chat.getByText("Break-glass access")).toBeInTheDocument();
     // One-on-one Slack DMs: what is kept, who sees it, and that there is no separate switch (no objection promise).
-    expect(chat.getByText(/^One-on-one Slack DMs, and group DMs without Billie Bot, as they reach the Hub/)).toBeInTheDocument();
+    expect(chat.getByText(/^Direct messages between members only: one-on-one Slack DMs, and group DMs without Billie Bot, as they reach the Hub/)).toBeInTheDocument();
     // Private channels without Billie Bot are planned, not bridged yet, and the permission is asked for ahead of them.
     expect(chat.getByText(/^Private channels without Billie Bot/)).toBeInTheDocument();
     expect(chat.queryByText(/Slack group DMs or private channels without Billie Bot/)).not.toBeInTheDocument();
@@ -166,6 +166,7 @@ describe("/privacy page", () => {
     expect(chat.getByText(/the Hub brings yours into chat with your own Slack connection/)).toBeInTheDocument();
     expect(chat.getByText(/Slack only shows about 90 days of history/)).toBeInTheDocument();
     expect(chat.getByText(/they can read the\s+text only through break-glass access/)).toBeInTheDocument();
+    expect(chat.getByText(/The exception is a conversation with a member of\s+the Quill & Cup team in it/)).toBeInTheDocument();
     expect(chat.getByText(/There is no separate switch for DMs/)).toBeInTheDocument();
     expect(chat.getByText(/closes Hub Chat for you until you reconnect/)).toBeInTheDocument();
     // What was promised before and isn't any more.
@@ -177,6 +178,29 @@ describe("/privacy page", () => {
     expect(chat.queryByText(/and only as you/)).not.toBeInTheDocument();
     expect(chat.getByText("Viewing the Hub as you")).toBeInTheDocument();
     expect(chat.getByText(/when you last read it/)).toBeInTheDocument();
+  });
+
+  it("tells members that a direct message with a member of the team in it can be read by the whole team, and how that is kept honest", async () => {
+    await renderServerPage(PrivacyPage, {});
+    const chat = section("chat");
+    // The table: one row for the team's conversations, and the member-to-member rows keep break-glass.
+    const teamRow = chat.getByText(/^Direct messages and group DMs with a member of the Quill & Cup team in them/).closest("tr")!;
+    expect(within(teamRow).getByText(/Yes, the whole team can read them/)).toBeInTheDocument();
+    const memberRow = chat.getByText(/^Direct messages between members only/).closest("tr")!;
+    expect(within(memberRow).getByText(/No, except break-glass access/)).toBeInTheDocument();
+    // The section the notice in Hub Chat links to (#staff-messages).
+    const heading = chat.getByRole("heading", { name: "Messages with the Quill & Cup team" });
+    expect(heading).toHaveAttribute("id", "staff-messages");
+    const text = heading.nextElementSibling!.textContent!.replace(/\s+/g, " ");
+    expect(text).toMatch(/the whole team can read it\. That is every admin and every community manager, with no break-glass access/);
+    expect(text).toMatch(/Hub Chat says so at the top of such a conversation, for everyone in it/);
+    expect(text).toMatch(/recorded in a log of who looked \(the audit log\): which conversation and when, but not the messages/);
+    expect(text).toMatch(/Slack's own app shows no note at the top of a conversation/);
+    expect(text).toMatch(/Deleted messages stay out of reach/);
+    // The short version says the same in a sentence.
+    const summary = within(screen.getByRole("heading", { name: "The short version" }).closest("aside")!);
+    expect(summary.getByText(/direct messages between members are open to them only through break-glass access\. A direct message\s+with a member of the Quill & Cup team in it can be read by the whole team/)).toBeInTheDocument();
+    expect(summary.queryByText(/group DMs and your one-on-one Slack DMs are open to them only through break-glass/)).not.toBeInTheDocument();
   });
 
   it("folds the long chat explanations into collapsed details", async () => {

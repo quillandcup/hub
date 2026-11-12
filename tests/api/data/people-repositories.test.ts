@@ -23,6 +23,7 @@ const MISSING_UUID = "00000000-0000-4000-8000-000000000000";
 let members: PeopleMember[] = [];
 let userId = "";
 const staffIds: string[] = [];
+const accountIds: string[] = [];
 
 const ids = () => members.map((m) => m.id);
 const must = (error: { message: string } | null) => {
@@ -48,6 +49,7 @@ afterAll(async () => {
   await db.from("feedback").delete().like("message", `% ${RUN}`);
   await deleteRunMembers(db, members); // cascades to everything that hangs off a member
   if (userId) await admin.auth.admin.deleteUser(userId);
+  for (const id of accountIds) await admin.auth.admin.deleteUser(id);
 });
 
 defineStaffContract("SupabaseStaffRepository", () => ({
@@ -63,6 +65,16 @@ defineStaffContract("SupabaseStaffRepository", () => ({
     const created = rows.map((r) => data!.find((d) => d.email === r.email)!.id);
     staffIds.push(...created);
     return created;
+  },
+  seedAccounts: async (accounts) => {
+    // Earlier accounts go (the member's user_id is cleared with them), then each member signs in as a new one with the role.
+    for (const id of accountIds.splice(0)) await admin.auth.admin.deleteUser(id);
+    for (const a of accounts) {
+      const id = await createRunUser(admin, `people-repo-acct-${a.memberIndex}`, `${RUN}-${accountIds.length}`);
+      accountIds.push(id);
+      must((await db.from("user_profiles").upsert({ id, email: `people-repo-acct-${a.memberIndex}-${RUN}-${accountIds.length - 1}@example.com`, role: a.role })).error);
+      must((await db.from("members").update({ user_id: id }).eq("id", members[a.memberIndex].id)).error);
+    }
   },
 }));
 

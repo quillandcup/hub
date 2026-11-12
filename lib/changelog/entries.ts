@@ -53,6 +53,21 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "messages-with-the-team",
+    date: "2026-11-12",
+    audience: "product",
+    category: "improved",
+    title: "Messages with the Quill & Cup team can be read by the team",
+    summary:
+      "A direct message or group message with someone from the Quill & Cup team in it can now be read by the whole team, and Hub Chat says so at the top of it. Messages between members only are treated as before.",
+    body: [
+      "Until now we treated every direct message the same way: the team could see who was talking and when, but could read what was said only through special access, for something like a safety or conduct report.",
+      "From now on, a direct message or group message with someone from the Quill & Cup team in it (our staff, admins and community managers) can be read by the team: every admin and every community manager. That covers messages written in the Hub and Slack messages that reach the Hub. Hub Chat shows a short note at the top of such a conversation, for everyone in it. Slack itself shows no note, so keep it in mind when you message the team there.",
+      "When someone from the team opens one of these conversations without being in it, we record that in a log of who looked: which conversation and when, but not the messages.",
+      "Messages between members only are unchanged: the team sees who talked with whom and when, and can read the text only through special access. Deleted messages stay out of reach. The [privacy page](/privacy#staff-messages) has the details.",
+    ].join("\n\n"),
+  },
+  {
     slug: "lesson-videos-in-chat-building-blocks",
     date: "2026-11-11",
     audience: "engineering",

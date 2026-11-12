@@ -44,6 +44,11 @@ defineStaffContract("InMemoryStaffRepository", () => {
       }));
       return data.staff.map((s) => s.id);
     },
+    seedAccounts: async (accounts) => {
+      data.userProfiles = accounts.map((a) => ({ id: `acct-${a.memberIndex}`, email: members[a.memberIndex].email, role: a.role }));
+      for (const m of data.members) m.userId = null;
+      for (const a of accounts) data.members[a.memberIndex].userId = `acct-${a.memberIndex}`;
+    },
   };
 });
 
