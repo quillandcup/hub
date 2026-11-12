@@ -53,6 +53,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "lesson-videos-in-chat-building-blocks",
+    date: "2026-11-11",
+    audience: "engineering",
+    category: "new",
+    title: "Lesson videos in chat messages: the pieces behind the flag",
+    summary: "A chat message can share a course lesson's video, played in the message with the course's rules, from Hub Chat or a link pasted in Slack. It stays behind a feature flag for now.",
+    body: [
+      "`chat_message_videos` (`ChatVideoRepository`) points one message at one lesson; the share and its message are written together by `chat_post_shared_video`, which checks the sharer. Playback links are minted per viewer by `/api/chat/videos/<message id>` after two checks: the viewer can read the message (the share is read as them, so row-level security applies the channel rule) and may watch the lesson (`mayWatchSharedVideo`: the course, or a share an admin opened to the conversation for an open lesson of a published course). The card before play is a second light route that mints nothing. Watching goes through the lesson player and `video_watch_segments`, tagged with the message so the course stats keep chat views apart.",
+      "A pasted lesson address becomes the card in Hub Chat (`extractLessonLink`) and in a message written in Slack (webhook, and the nightly chat import for what it missed). The Slack copy is then rewritten as its author through their own connected account (`rewriteInSlack`): the address becomes the links line in the same place, with the lesson's title above it, previews cleared, files kept by naming them again in the edit. Hub Chat hides that line and Slack's own preview (`stripSharedVideoLink`, `withoutLessonPreview`).",
+      "Deleting a message ends its share at once: the read policy requires a live message (migration `20270627000000`) and the repository returns nothing for a deleted one. Before that, a soft-deleted open share could still be played by anyone who knew the message id.",
+      "The detours it adds (sign in, connect Slack) are on the new gates standard (`lib/gates.ts`): the destination is captured when the visitor is stopped, carried through every step, and every gate page offers \"Not now\". Message permalinks (`?m=`) open the message itself and survive sign-in. The member-facing entry and the help article wait for the flag (`docs/CHAT_VIDEOS_LAUNCH.md`).",
+    ].join("\n\n"),
+  },
+  {
     slug: "event-places-left-and-sign-up",
     date: "2026-11-11",
     audience: "product",
