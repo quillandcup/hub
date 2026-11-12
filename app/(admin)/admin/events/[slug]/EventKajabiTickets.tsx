@@ -284,8 +284,8 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
             </option>
           ))}
         </select>
-        <DatePicker id="offer-purchased-from" label="Purchases from" value={from} onChange={setFrom} />
-        <DatePicker id="offer-purchased-until" label="Purchases until" value={until} onChange={setUntil} min={from || undefined} />
+        {choice && <DatePicker id="offer-purchased-from" label="Purchases from" value={from} onChange={setFrom} />}
+        {choice && <DatePicker id="offer-purchased-until" label="Purchases until" value={until} onChange={setUntil} min={from || undefined} />}
         <button
           type="button"
           onClick={link}
