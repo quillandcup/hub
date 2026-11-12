@@ -48,6 +48,15 @@ describe("admin changelog list", () => {
     expect(shown.size).toBeGreaterThan(0);
   });
 
+  it("filters to staff entries, which the admin Changelog shows beside the others", async () => {
+    await renderServerPage(AdminChangelogPage, listProps({ for: "staff" }));
+    const audience = screen.getByRole("navigation", { name: "For" });
+    expect(within(audience).getByRole("link", { name: "Staff" })).toHaveAttribute("aria-current", "true");
+    const staff = CHANGELOG_ENTRIES.filter((e) => e.audience === "staff").map((e) => `/admin/changelog/${e.slug}`);
+    expect(staff.length).toBeGreaterThan(0);
+    expect(links().sort()).toEqual(staff.sort());
+  });
+
   it("says when nothing matches", async () => {
     await renderServerPage(AdminChangelogPage, listProps({ q: "zzzqqqxxx" }));
     expect(screen.getByText("Nothing matches that.")).toBeInTheDocument();
@@ -60,6 +69,14 @@ describe("admin changelog entry", () => {
     await renderServerPage(AdminChangelogEntryPage, entryProps(eng.slug));
     expect(requireAdminPage).toHaveBeenCalled();
     expect(screen.getByRole("heading", { name: eng.title, level: 1 })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "See it as members do" })).not.toBeInTheDocument();
+  });
+
+  it("shows a staff entry, which has no member page, without a link to one", async () => {
+    const staff = CHANGELOG_ENTRIES.find((e) => e.audience === "staff")!;
+    await renderServerPage(AdminChangelogEntryPage, entryProps(staff.slug));
+    expect(screen.getByRole("heading", { name: staff.title, level: 1 })).toBeInTheDocument();
+    expect(screen.getByText(/Staff · New/)).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "See it as members do" })).not.toBeInTheDocument();
   });
 

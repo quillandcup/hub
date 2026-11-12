@@ -57,6 +57,7 @@ describe("captureProblem", () => {
     expect(captureProblem("other", [entry()], root)).toContain("No changelog entry");
     expect(captureProblem("a-thing", [entry({ audience: "engineering" })], root)).toContain("engineering entry");
     expect(captureProblem("a-thing", [entry()], root)).toContain("No scene at");
+    expect(captureProblem("a-thing", [entry({ audience: "staff" })], root)).toContain("No scene at"); // a staff entry may have screenshots
     touch(sceneFile("a-thing"));
     expect(captureProblem("a-thing", [entry()], root)).toBeNull();
   });
@@ -68,7 +69,11 @@ describe("images an entry shows", () => {
     expect(entryImagePaths(e)).toEqual(["/changelog/a-thing/one.png", "/changelog/a-thing/two.png"]);
   });
 
-  it("reports the ones not in public/, for product entries only", () => {
+  it("reports a staff entry's missing screenshots too", () => {
+    expect(missingImageFiles([entry({ audience: "staff", body: "![a](/changelog/a-thing/nope.png)" })], root)).toEqual(["a-thing: /changelog/a-thing/nope.png"]);
+  });
+
+  it("reports the ones not in public/, for entries that show screenshots", () => {
     touch("public", "changelog", "a-thing", "one.png");
     const e = entry({ body: "![a](/changelog/a-thing/one.png) ![b](/changelog/a-thing/two.png)" });
     expect(missingImageFiles([e, entry({ slug: "eng", audience: "engineering" })], root)).toEqual(["a-thing: /changelog/a-thing/two.png"]);

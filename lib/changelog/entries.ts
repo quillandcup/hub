@@ -19,11 +19,14 @@ export type ChangelogCategory = keyof typeof CHANGELOG_CATEGORIES;
 
 /**
  * Who an entry is for. `product` entries are what members see: the What's new pages, the weekly digest, the
- * announcements post, and the admin Changelog. `engineering` entries (platform improvements, or the lower-level detail behind
- * a product update) appear only on the admin Changelog (`/admin/changelog`), with their body, and have no member page or notification.
+ * announcements post, and the admin Changelog. `staff` entries are about a tool staff use (Hedgie Care): only on the admin
+ * Changelog (`/admin/changelog`), never on a member page, in the digest or in the announcements post, and they may carry
+ * screenshots. `engineering` entries (platform improvements, or the lower-level detail behind a product update) appear only on
+ * the admin Changelog with their body, and have no screenshots.
  */
 export const CHANGELOG_AUDIENCES = {
   product: "Product",
+  staff: "Staff",
   engineering: "Engineering",
 } as const;
 
@@ -155,56 +158,24 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "Who counts is read in `lib/segment-sources.ts`: a course's `course_access` rows that have started and not ended, anyone enrolled in any cohort of a program, an event's attendees. A flag still reaches people through the existing flag-to-segment link, so there is no schema change.",
     ].join("\n\n"),
   },
+  // TODO(docs/TODO.md: "Hedgie Care screenshots for the staff changelog entry"): the date is set to the launch day; move it if the tracker ships later.
   {
-    slug: "hedgie-care-feedback",
+    slug: "hedgie-care",
     date: "2026-11-12",
-    audience: "engineering",
-    category: "improved",
-    title: "Hedgie Care: start a care plan in the past, score and last participation on each row, Open the DM",
-    summary: "The community manager can start a care plan on the day it really began, sees each member's engagement score then and now and when they last took part, and can jump to a tracked DM. The unit on the page is a care plan.",
-    body: [
-      "Starting a care plan asks \"When did this start?\" (the shared `DatePicker`, an Eastern calendar day, today by default and never after it), and \"Change start date\" on a row fixes ones entered with today's date (`changeEngagementStart`, `CareRepository.changeStart`, a `care.write` action wrapped in `withAction`, event `care_start_date_changed`). An earlier day is stored as noon Eastern in `opened_at`, with the first message placed at the start of that day so a real DM from that morning can replace it; the last day moves with the start and keeps the plan's own length; a start can't cross the care plan it continues, its renewal or its close (`lib/care.ts`); the audit log shows one delta of `opened_at` and `period_ends_on`; the row written to the member's timeline when the plan opened moves with it. Tracked Slack DMs from the new day on count towards who wrote last. No migration.",
-      "Each row and the Results panel show the member's engagement score and tier when the care plan started and now (`engagementScoreAt`, `lib/care-scores.ts`, one batched `ActivityRepository.engagementRowsForWindows` for the whole page) and their last own activity in the community (`lib/care-participation.ts`, `ActivityRepository.lastParticipation`: `actor_kind = 'member'` and a listed type, never logins, feedback or anything staff or the system wrote). \"Open the DM\" (`lib/care-dm-link.ts`) goes to the DM in Hub Chat when she is in it there, else to Slack's `app_redirect`, with the workspace id from the optional `SLACK_TEAM_ID`.",
-      "The unit is called a care plan on the page (first \"engagement period\", which read as confusing next to the engagement score, then \"care period\"): a plan has a start and an end, and when it ends there is simply no explicit plan. A plan in a chain of renewals is its ordinal, \"second plan\", not \"Period 2\". Tables, columns, routes, config keys and events (`care_engagements`, `/admin/care`, `careEngagementDays`) keep their names. The text of tracked DMs is deliberately not shown in the tracker (`docs/TODO.md`, \"Hedgie Care: what is left\").",
-    ].join("\n\n"),
-  },
-  {
-    slug: "hedgie-care-slack-dms",
-    date: "2026-11-11",
-    audience: "engineering",
+    audience: "staff",
     category: "new",
-    title: "Hedgie Care: tracked Slack DMs fill in who spoke last",
-    summary: "A staff member can choose which of their 1:1 Slack DMs with members to track; who wrote last in those DMs fills in the status of their Slack DM care plans, reading only who wrote and when.",
+    title: "Hedgie Care: keep track of your reach-outs to members, and see how they went",
+    summary: "Hedgie Care is where the community manager keeps her reach-outs to members: one care plan for each stretch of time, who spoke last, and how the member's own activity looked before, during and after.",
     body: [
-      "A new \"Your DMs\" tab on `/admin/care/dms` lists the staff member's own 1:1 Slack DMs with members, each with a Track switch (opt in, per DM). A DM with a staff member is never listed, group DMs are out of the first version, and starting a care plan on Slack DM tracks the DM with that member when there is one (it can be untracked). The tracked list is `care_tracked_dms` (id prefix `caredm_`, `CareTrackedDmRepository`): RLS lets a staff user read and change only their own rows, so an admin does not see another staff member's list, and it is deliberately not audited. Starting needs the `slack_dm_bridge` flag on for them and Slack connected with the DM scopes; the tab shows how to connect through the existing Slack connect flow.",
-      "Only who wrote and when is read, never text, files or a payload: `SlackMessageRepository.lastWritesIn` calls the `care_dm_last_messages` database function, which reads the content-free `slack_messages_meta` view and is callable by the service role only. The list is built from the DMs the staff member's own Slack account is in, and the projection re-checks that she and the member are the two people in a tracked conversation, so a row filed for someone else's DM reads nothing. For an open Slack DM care plan, the latest message each side wrote on or after the start of the Eastern day it opened sets `last_staff_message_at` and `last_member_message_at` (`lib/care-dm.ts`, `lib/care-dm-rules.ts`): threads and file shares count, deleted messages and Slack's join and leave notices do not, a time only moves forward (`CareRepository.moveMessageTimesForward`), and running it again changes nothing. It runs when the page opens, when a DM is tracked and after the nightly DM pull (`/api/reconcile/slack-dms`), and writes no audit rows. The rows show a small \"from Slack\" hint. On a plan the DM keeps up to date, the \"They replied\" and \"I replied\" buttons give way to \"Filled in from your Slack DM\" (`followsTrackedDm`, `lib/care-dm-rules.ts`: an open Slack DM plan she owns, with a DM she tracks), and the start form's \"They wrote to me first\" tick is replaced by a line saying the DM tells who wrote first.",
-    ].join("\n\n"),
-  },
-  {
-    slug: "conversations-became-hedgie-care",
-    date: "2026-11-11",
-    audience: "engineering",
-    category: "improved",
-    title: "Hedgie Care: the community manager's tracker, one care plan per reach-out",
-    summary: "Hedgie Care is the community manager's tracker of her reach-outs to members: each reach-out is a care plan with a start and an end, renewals link to the plan before, and how it went is measured from the member's own activity.",
-    body: [
-      "`/admin/care` (`docs/HEDGIE_CARE.md`) is the community manager's place for her reach-outs to members. It was first built as a Conversations page (one open-ended row per member and channel) that was never announced and had no rows, and was replaced before launch. One row of `care_engagements` (id prefix `care_`; the table, routes and events keep the name \"engagement\") is one care plan, with `period_ends_on`, `renewed_from` (the plan a renewal continues) and `ended_how`, her own read of how it went. The staff feature is `care.write`, the audit entity `care_engagement`, the timeline source `care`, and the events `care_engagement_started`, `care_message_logged`, `care_engagement_closed` and `care_engagement_renewed`. Tabs are paths: `/admin/care` (Active) and `/admin/care/earlier` (closed and lapsed).",
-      "Nothing about the status is stored and no job moves it (`lib/care.ts`): needs reply, waiting, gone quiet, review due and lapsed follow from the dates and who spoke last. A member who wrote last stays on \"needs reply\" until she acts, however old the plan, so no one is quietly dropped. The plan length, the grace window, the quiet window and the three measured windows are settings in `app.config.ts` (`careEngagementDays` and the others), read through `lib/config.ts`. A plan's last day is an Eastern calendar day, computed with calendar arithmetic so a daylight saving change cannot move it. Renewing is one database function (`renew_care_engagement`), safe against a double click.",
-      "Results are counted when she opens them, never stored: prickles attended (distinct prickles), Slack messages, firsts and the distinct members they talked with other than staff, in a window before, during and after. They come from new repository methods (`ActivityRepository.countsBetween` and `firsts`, and the new `MemberInteractionRepository`), and a community manager may now read `member_interactions` (read only; it holds who and when, never what was said).",
-      "Renewing asks for a short reason (it becomes the new plan's note) and shows the results at that moment; closing offers four endings (handed to someone else, no reply, back in the community, ran its course), each with a one-line definition, and a plan in a chain of renewals reads \"first plan\", \"second plan\". Every care plan has an owner (`owned_by`; a new one continues the owner of the member's latest, a renewal keeps it, anyone with `care.write` can reassign), with a Mine / Everyone filter and avatar chips on both tabs. The page opens with the lapsed and review-due counts and whose they are. The results also read how they stayed from membership history (the Membership Timeline's engine, `memberStatusTimeline`): active, on hiatus or cancelled at each checkpoint after the plan (`careRetentionCheckpointDays`), the first time they went on hiatus or left (so a day-31 lapse shows even if they came back), and the programs they started or held with each one's length. Reminders to owners and alerts on lapse are not built (`docs/TODO.md`).",
-    ].join("\n\n"),
-  },
-  {
-    slug: "conversations-and-staff-write-access",
-    date: "2026-11-11",
-    audience: "engineering",
-    category: "new",
-    title: "The first staff write access, built for the community manager's Hedgie Care tracker",
-    summary: "The community manager can now write to a table of her own, the care plans in Hedgie Care, through a new way for staff other than admins to write. The tracker was first called Conversations.",
-    body: [
-      "The community manager's reach-outs to members used to live in her spreadsheet. Hedgie Care (`/admin/care`, `docs/HEDGIE_CARE.md`; first built as a Conversations page, replaced before launch) is where she keeps them now, and it is the first table a community manager may write. No product entry: it is staff only. The tracker itself is the entry \"Hedgie Care: the community manager's tracker, one care plan per reach-out\".",
-      "Three things changed for that. `requireStaffAction()` (`lib/admin-auth.ts`) lets an admin or a community manager into a server action, and the action then asks for the `care.write` staff feature, which only she and admins have (`lib/staff-access.ts`). RLS lets `is_admin()` or `is_community_manager()` read, insert and update `care_engagements` (no delete: a removed care plan keeps its row), without widening `is_admin()`. And `audit_row_change()` now counts a community manager as staff: it used to classify only `admin` and `assistant` that way, so her writes would have been logged as a member's own action.",
-      "The data goes through `CareRepository` (`lib/data/care.ts`, with an in-memory twin and one contract suite). Starting, renewing and closing also write a `member_activities` row (source `care`, staff, engagement 0) so the member's timeline shows it, as outreach touches do; the audit log records the care plan's own change once, leaving out the last-message columns so logging a reply writes nothing.",
+      "Hedgie Care (`/admin/care`, `docs/HEDGIE_CARE.md`) replaces the spreadsheet of reach-outs. Admins and the community manager can open it; writing to it needs the `care.write` staff feature, which she and every admin have.",
+      "**A care plan** is one stretch of reaching out to one member. Press **Start a care plan**, pick the member, why you are reaching out (an introduction, a welcome, a check-in, a writing check-in, encouragement or something else), where (a Slack DM, in a prickle, email or somewhere else), the day it really started (today, or an earlier day if you are catching up, never a later one) and a short note with nothing sensitive in it. A plan runs for 30 days from its start (the length is a setting, to be confirmed with her). \"Change start date\" fixes a plan entered with the wrong day; the end moves with it. When a plan ends there is simply no explicit plan for the member: you **renew** it (a new plan that continues the one before, \"second plan\", with a short reason and the results so far in front of you) or **close** it with how it ended: handed to someone else, no reply, back in the community, or ran its course.",
+      "**Where each one stands** is worked out, not typed: needs your reply, waiting on them, gone quiet, review due or lapsed. A member who wrote last stays on \"needs your reply\" until you answer, renew or close, however old the plan is. The Active tab lists what needs you; the Earlier tab holds closed and lapsed plans; a summary at the top counts what is overdue and whose it is.",
+      "**Tracked Slack DMs** fill in who spoke last. On the **Your DMs** tab (`/admin/care/dms`) you choose, DM by DM, which of your own 1:1 Slack DMs with members to track. Only who wrote and when is read, never what was said; DMs with staff are never offered, group DMs are not included, and other staff cannot see which DMs you track. On a plan that follows a tracked DM, the \"They replied\" and \"I replied\" buttons give way to \"Filled in from your Slack DM\", and **Open the DM** takes you to it. This needs Slack connected with direct message access and the `slack_dm_bridge` feature on for you. Where nothing is filled in, you log \"They replied\" and \"I replied\" yourself.",
+      "**Owners.** Every plan has an owner (a new plan continues the owner of that member's latest one); anyone with write access can reassign it, and both tabs filter by Mine or Everyone.",
+      "**On every plan** you see the member's engagement score and tier when the plan started and now, and when they last took part in the community and in what (a prickle, a Slack message or reaction, a lesson, a writing log; never a login).",
+      "**Results** (the button on a plan) set the member's own activity before the plan, during it and 30 to 60 days after it ends: distinct prickles attended, Slack messages, whether their first prickle or first Slack post fell in the window, and how many other members they connected with. It also says whether they were active, on hiatus or cancelled 60, 90 and 180 days after the plan, when they first went on hiatus or left, the programs they hold and how long each runs, and the programs they started. These describe what happened; they do not prove the outreach caused it.",
+      "**What is recorded.** Starting, renewing and closing a plan appear on the member's timeline (the reason and channel, never your note), and changes are in the audit log. Behind the scenes the table is `care_engagements`; routes, settings and events keep that name.",
+      "**Not built yet:** email filling in who wrote, reminders to owners when a plan is due, a comparison with members who had no reach-out, and importing the old spreadsheet. They are tracked in `docs/TODO.md`, \"Hedgie Care: what is left\".",
     ].join("\n\n"),
   },
   {
