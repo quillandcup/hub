@@ -4,7 +4,7 @@
  * engagements under Earlier, and the controls that call the server actions. Data comes from the in-memory repository; the actions are stubbed.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, within, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
@@ -244,7 +244,16 @@ describe("the Active tab", () => {
   it("opens for an admin, and for an admin previewing the community manager", async () => {
     signInAs(ADMIN_USER);
     await renderServerRoute(activePage, undefined as never);
-    expect(screen.getByRole("heading", { name: "Start a care plan" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start a care plan" })).toBeInTheDocument();
+  });
+
+  it("puts the start button on the Active tab only, not on Earlier or the DMs tab", async () => {
+    signInAs(CM_USER);
+    await renderServerRoute(earlierPage, undefined as never);
+    expect(screen.queryByRole("button", { name: "Start a care plan" })).not.toBeInTheDocument();
+    cleanup();
+    await renderServerRoute(dmsPage, undefined as never);
+    expect(screen.queryByRole("button", { name: "Start a care plan" })).not.toBeInTheDocument();
   });
 
   it("sends a signed-out visitor to /login and a member to /no-access", async () => {
@@ -270,7 +279,7 @@ describe("the Active tab", () => {
       signInAs(CM_USER);
       await renderServerRoute(activePage, undefined as never);
       expect(cards()).toHaveLength(4);
-      expect(screen.queryByRole("heading", { name: "Start a care plan" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Start a care plan" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "They replied" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Renew" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Results" })).not.toBeInTheDocument();
@@ -519,11 +528,64 @@ describe("the results", () => {
 });
 
 describe("starting an engagement", () => {
-  const open = async () => {
+  const openPage = async () => {
     signInAs(CM_USER);
     await renderServerRoute(activePage, undefined as never);
     return userEvent.setup();
   };
+  // The form is in a dialog behind a button at the top of the Active tab.
+  const open = async () => {
+    const user = await openPage();
+    await user.click(screen.getByRole("button", { name: "Start a care plan" }));
+    return user;
+  };
+  const fillBo = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.type(screen.getByRole("combobox", { name: "Member" }), "bo");
+    await user.click(await screen.findByRole("option", { name: /Bo Example/ }));
+    await user.click(screen.getByRole("radio", { name: /A welcome/ }));
+  };
+
+  it("keeps the form out of the way until the button opens it, in a labelled dialog that takes focus", async () => {
+    const user = await openPage();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Note")).not.toBeInTheDocument();
+    const button = screen.getByRole("button", { name: "Start a care plan" });
+    expect(button).toHaveAttribute("data-track", "care-start-open");
+    // The button sits above the care plans, not below them.
+    expect(button.compareDocumentPosition(cards()[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    await user.click(button);
+    const dialog = screen.getByRole("dialog", { name: "Start a care plan" });
+    expect(dialog).toHaveAttribute("aria-modal", "true");
+    expect(dialog).toContainElement(document.activeElement as HTMLElement);
+    expect(within(dialog).getByRole("button", { name: "Start plan" })).toHaveAttribute("data-track", "care-start");
+  });
+
+  it("closes on Escape or the close button without saving, and gives focus back to the button", async () => {
+    const user = await open();
+    await user.type(screen.getByLabelText("Note"), "Half written");
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start a care plan" })).toHaveFocus();
+
+    await user.click(screen.getByRole("button", { name: "Start a care plan" }));
+    expect(screen.getByLabelText("Note")).toHaveValue("");
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(actions.startEngagement).not.toHaveBeenCalled();
+  });
+
+  it("can't be closed while a start is on its way", async () => {
+    let finish: (v: { success: true }) => void = () => {};
+    actions.startEngagement.mockReturnValue(new Promise((r) => (finish = r)));
+    const user = await open();
+    await fillBo(user);
+    await user.click(screen.getByRole("button", { name: "Start plan" }));
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    finish({ success: true });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
 
   it("explains each reason in a line, so two people pick the same one", async () => {
     await open();
@@ -587,7 +649,7 @@ describe("starting an engagement", () => {
       await user.selectOptions(screen.getByLabelText("Where"), "email");
       await user.click(tick()!);
       await user.selectOptions(screen.getByLabelText("Where"), "slack_dm");
-      await user.click(screen.getByRole("button", { name: "Start tracking" }));
+      await user.click(screen.getByRole("button", { name: "Start plan" }));
 
       expect(actions.startEngagement).toHaveBeenCalledWith(expect.objectContaining({ memberId: BO, channel: "slack_dm", memberWroteFirst: false }));
       await waitFor(() => expect(track).toHaveBeenCalledWith("care_engagement_started", expect.objectContaining({ channel: "slack_dm", member_wrote_first: false })));
@@ -597,7 +659,7 @@ describe("starting an engagement", () => {
       const user = await open();
       await pickBo(user);
       await user.click(tick()!);
-      await user.click(screen.getByRole("button", { name: "Start tracking" }));
+      await user.click(screen.getByRole("button", { name: "Start plan" }));
       expect(actions.startEngagement).toHaveBeenCalledWith(expect.objectContaining({ memberId: BO, channel: "slack_dm", memberWroteFirst: true }));
     });
   });
@@ -605,19 +667,20 @@ describe("starting an engagement", () => {
   it("calls the start button for what it does, not the heading's words", async () => {
     await open();
     expect(screen.getByRole("heading", { name: "Start a care plan" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Start tracking" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start plan" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Start care plan" })).not.toBeInTheDocument();
   });
 
   it("asks for a member first, then a reason", async () => {
     const user = await open();
 
-    await user.click(screen.getByRole("button", { name: "Start tracking" }));
+    await user.click(screen.getByRole("button", { name: "Start plan" }));
     expect(screen.getByRole("alert")).toHaveTextContent("Pick a member.");
+    expect(screen.getByRole("dialog")).toBeInTheDocument(); // a validation error keeps it open
     expect(actions.startEngagement).not.toHaveBeenCalled();
   });
 
-  it("finds a member, starts the engagement with what was filled in, and clears the form", async () => {
+  it("finds a member, starts the engagement with what was filled in, closes the dialog and opens empty next time", async () => {
     const user = await open();
 
     await user.type(screen.getByRole("combobox", { name: "Member" }), "bo");
@@ -626,11 +689,14 @@ describe("starting an engagement", () => {
     await user.selectOptions(screen.getByLabelText("Where"), "email");
     await user.click(screen.getByLabelText("They wrote to me first"));
     await user.type(screen.getByLabelText("Note"), "Joined last week");
-    await user.click(screen.getByRole("button", { name: "Start tracking" }));
+    await user.click(screen.getByRole("button", { name: "Start plan" }));
 
     expect(actions.startEngagement).toHaveBeenCalledWith({ memberId: BO, startedOn: "2026-03-20", reason: "welcome", channel: "email", memberWroteFirst: true, notes: "Joined last week", followUpOn: "" });
     await waitFor(() => expect(track).toHaveBeenCalledWith("care_engagement_started", { reason: "welcome", channel: "email", member_wrote_first: true, backdated: false }));
-    await waitFor(() => expect(screen.getByLabelText("Note")).toHaveValue(""));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Start a care plan" }));
+    expect(screen.getByLabelText("Note")).toHaveValue("");
+    expect(screen.getByRole("radio", { name: /A welcome/ })).not.toBeChecked();
   });
 
   it("asks when it started, today by default and never after today, and sends the day she picks", async () => {
@@ -643,12 +709,14 @@ describe("starting an engagement", () => {
     await user.click(await screen.findByRole("option", { name: /Bo Example/ }));
     await user.click(screen.getByRole("radio", { name: /A welcome/ }));
     fireEvent.change(when, { target: { value: "2026-03-13" } });
-    await user.click(screen.getByRole("button", { name: "Start tracking" }));
+    await user.click(screen.getByRole("button", { name: "Start plan" }));
 
     expect(actions.startEngagement).toHaveBeenCalledWith(expect.objectContaining({ memberId: BO, startedOn: "2026-03-13" }));
     await waitFor(() => expect(track).toHaveBeenCalledWith("care_engagement_started", { reason: "welcome", channel: "slack_dm", member_wrote_first: false, backdated: true }));
-    // After starting, the day goes back to today for the next one.
-    await waitFor(() => expect(screen.getByLabelText("When did this start?")).toHaveValue("2026-03-20"));
+    // After starting, the dialog closes and the day is today again for the next one.
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Start a care plan" }));
+    expect(screen.getByLabelText("When did this start?")).toHaveValue("2026-03-20");
   });
 
   it("will not start without a day", async () => {
@@ -657,7 +725,7 @@ describe("starting an engagement", () => {
     await user.click(await screen.findByRole("option", { name: /Bo Example/ }));
     await user.click(screen.getByRole("radio", { name: /A welcome/ }));
     fireEvent.change(screen.getByLabelText("When did this start?"), { target: { value: "" } });
-    await user.click(screen.getByRole("button", { name: "Start tracking" }));
+    await user.click(screen.getByRole("button", { name: "Start plan" }));
 
     expect(screen.getByRole("alert")).toHaveTextContent("Pick the day it started.");
     expect(actions.startEngagement).not.toHaveBeenCalled();
@@ -671,10 +739,11 @@ describe("starting an engagement", () => {
     await user.click(await screen.findByRole("option", { name: /Bo Example/ }));
     await user.click(screen.getByRole("radio", { name: /An introduction/ }));
     await user.type(screen.getByLabelText("Note"), "Hi there");
-    await user.click(screen.getByRole("button", { name: "Start tracking" }));
+    await user.click(screen.getByRole("button", { name: "Start plan" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("already an open care plan");
     expect(screen.getByLabelText("Note")).toHaveValue("Hi there");
+    expect(screen.getByRole("dialog", { name: "Start a care plan" })).toBeInTheDocument();
     expect(track).not.toHaveBeenCalled();
   });
 });
