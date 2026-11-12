@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { track } from "@/lib/analytics/client";
 import { SortableTh } from "@/components/SortableTh";
@@ -13,6 +13,7 @@ import { DEFAULT_AUDIENCE } from "@/lib/event-audience";
 import { EVENT_TYPE_OPTIONS } from "@/lib/events-filter";
 import MediaPicker from "@/components/media/MediaPicker";
 import MemberSearch from "@/components/MemberSearch";
+import { ORG_TIMEZONE } from "@/lib/config";
 
 interface EventRow {
   id: string;
@@ -34,8 +35,34 @@ function slugify(title: string): string {
     .replace(/(^-|-$)/g, "");
 }
 
-function fmtDate(d: string) {
-  return formatDateOnly(d);
+// One day reads as one date; a range only when it spans days.
+function fmtRange(start: string, end: string) {
+  const s = start.slice(0, 10);
+  const e = end.slice(0, 10);
+  return !e || s === e ? formatDateOnly(s) : `${formatDateOnly(s)} – ${formatDateOnly(e)}`;
+}
+
+// A location that is a meeting link (Zoom and the like) or a placeholder
+// says nothing about where; show it as "Online" or not at all.
+function fmtLocation(location: string | null): string {
+  const text = location?.trim() ?? "";
+  if (!text || /^[-–—]+$/.test(text)) return "";
+  if (/^https?:\/\//i.test(text) || /zoom\.us/i.test(text)) return "Online";
+  return text;
+}
+
+function todayInOrg(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: ORG_TIMEZONE }).format(new Date());
+}
+
+// Upcoming first, soonest on top; then past, most recent on top. Sorting by
+// date alone buries today under every future event.
+function orderForAdmin(events: EventRow[]): EventRow[] {
+  const today = todayInOrg();
+  const ended = (e: EventRow) => (e.ends_at || e.starts_at).slice(0, 10) < today;
+  const upcoming = events.filter((e) => !ended(e)).sort((a, b) => a.starts_at.localeCompare(b.starts_at));
+  const past = events.filter(ended).sort((a, b) => b.starts_at.localeCompare(a.starts_at));
+  return [...upcoming, ...past];
 }
 
 const emptyForm = {
@@ -88,10 +115,28 @@ export default function EventsClient() {
       .then((body) => setMembers(body.members || []))
       .catch(() => {});
   }, []);
+  const [query, setQuery] = useState("");
+  const visible = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    const ordered = orderForAdmin(events);
+    if (!needle) return ordered;
+    return ordered.filter((e) =>
+      [
+        e.title,
+        EVENT_TYPE_OPTIONS.find((t) => t.value === e.event_type)?.label ?? e.event_type,
+        fmtLocation(e.location),
+        fmtRange(e.starts_at, e.ends_at),
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(needle),
+    );
+  }, [events, query]);
   const table = useDataTable<EventRow, SortColumn>({
-    rows: events,
+    rows: visible,
     getSortValue,
     defaultSort: null,
+    resetKey: query,
   });
   const { sortColumn, sortDirection, handleSort } = table;
 
@@ -160,14 +205,24 @@ export default function EventsClient() {
         </div>
       )}
 
-      {!showForm && (
-        <button
-          onClick={() => setShowForm(true)}
-          className="mb-4 px-4 py-2 bg-plum-600 text-white rounded hover:bg-plum-700"
-        >
-          Add Event
-        </button>
-      )}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search events"
+          aria-label="Search events"
+          className="flex-1 min-w-[12rem] px-3 py-2 border border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 rounded"
+        />
+        {!showForm && (
+          <button
+            onClick={() => setShowForm(true)}
+            className="px-4 py-2 bg-plum-600 text-white rounded hover:bg-plum-700"
+          >
+            Add Event
+          </button>
+        )}
+      </div>
 
       {showForm && (
         <form onSubmit={handleSubmit} className="mb-6 p-4 border border-gray-200 dark:border-slate-700 rounded bg-gray-50 dark:bg-slate-800 space-y-3">
@@ -355,10 +410,10 @@ export default function EventsClient() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 dark:divide-slate-800">
-            {events.length === 0 ? (
+            {visible.length === 0 ? (
               <tr>
                 <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
-                  No events found.
+                  {events.length === 0 ? "No events found." : "No events match your search."}
                 </td>
               </tr>
             ) : (
@@ -376,11 +431,11 @@ export default function EventsClient() {
                       {event.deleted_at ? " · Removed" : ""}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-sm">
-                    {fmtDate(event.starts_at)} – {fmtDate(event.ends_at)}
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">
+                    {fmtRange(event.starts_at, event.ends_at)}
                   </td>
-                  <td className="px-4 py-3 text-sm">{event.location || "—"}</td>
-                  <td className="px-4 py-3 text-sm">{event.photo_count}</td>
+                  <td className="px-4 py-3 text-sm">{fmtLocation(event.location)}</td>
+                  <td className="px-4 py-3 text-sm">{event.photo_count > 0 ? event.photo_count : ""}</td>
                 </tr>
               ))
             )}
