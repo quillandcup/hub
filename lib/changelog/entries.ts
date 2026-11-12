@@ -64,7 +64,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       [
         "- **People reading in Slack see a preview too.**",
         "- **Previews Slack makes also show in Hub Chat.** When someone pastes a link in Slack, its preview appears here as well.",
-        "- **Only the person who wrote a message can remove its preview**, with the X in the corner of the card. If the message was written in Hub Chat, the preview disappears in Hub Chat and in Slack. If it was written in Slack, it is hidden in Hub Chat only.",
+        "- **Only the person who wrote a message can remove its preview**, with the X in the corner of the card in Hub Chat. If the message was written in Hub Chat, the preview disappears in Slack too.",
         "- **Only people who can read a message see its previews**, and the pictures in them load through the Hub, so the site a link points to doesn't see who looked.",
       ].join("\n"),
       "Previews are made when you send a message, for the first three links in it. Some sites don't offer one, and then the link stays a plain link.",
