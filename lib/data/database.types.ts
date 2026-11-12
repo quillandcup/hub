@@ -2150,6 +2150,41 @@ export type Database = {
           },
         ]
       }
+      care_tracked_dms: {
+        Row: {
+          created_at: string
+          deleted_at: string | null
+          id: string
+          member_id: string
+          slack_channel_id: string
+          tracked_by: string
+        }
+        Insert: {
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          member_id: string
+          slack_channel_id: string
+          tracked_by: string
+        }
+        Update: {
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          member_id?: string
+          slack_channel_id?: string
+          tracked_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "care_tracked_dms_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chat_channel_members: {
         Row: {
           channel_id: string
@@ -7171,6 +7206,14 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: true
         }
+      }
+      care_dm_last_messages: {
+        Args: { p_channel_ids: string[]; p_exclude_types: string[] }
+        Returns: {
+          channel_id: string
+          last_at: string
+          user_id: string
+        }[]
       }
       chat_add_message_files: {
         Args: { p_files: Json; p_message_id: string }

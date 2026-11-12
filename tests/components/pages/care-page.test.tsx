@@ -42,15 +42,20 @@ const actions = vi.hoisted(() => ({
   deleteEngagement: vi.fn(),
   getEngagementResults: vi.fn(),
   searchCareMembers: vi.fn(),
+  trackCareDm: vi.fn(),
+  untrackCareDm: vi.fn(),
 }));
 vi.mock("@/app/(admin)/admin/care/actions", () => actions);
 
 import CareIndex from "@/app/(admin)/admin/care/page";
 import CareEarlierPage from "@/app/(admin)/admin/care/earlier/page";
+import CareDmsPage from "@/app/(admin)/admin/care/dms/page";
+import { SLACK_DM_SCOPES } from "@/lib/slack-connect";
 
 const CM_USER = { id: "user-community-manager", email: "cm@example.test" };
 const activePage = () => CareIndex({ searchParams: Promise.resolve({}) } as never);
 const earlierPage = () => CareEarlierPage();
+const dmsPage = () => CareDmsPage();
 
 const NOW = Date.parse("2026-03-20T12:00:00.000Z");
 const ago = (days: number) => new Date(NOW - days * 86_400_000).toISOString();
@@ -719,5 +724,308 @@ describe("handing an engagement over", () => {
     expect(await within(ada).findByRole("option", { name: /Abe Admin/ })).toBeInTheDocument();
     expect(within(ada).queryByRole("option", { name: /Cam Manager/ })).not.toBeInTheDocument();
     expect(actions.reassignEngagement).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Slack DMs (docs/HEDGIE_CARE.md, "Slack DMs fill it in")
+// ---------------------------------------------------------------------------------------------------------------------
+
+const CM_MEMBER = "mbr_AAAAAAAAAAA8";
+const STAFF_MEMBER = "mbr_AAAAAAAAAAB1";
+const U = { cm: "U0CM00001", ada: "U0ADA0001", bo: "U0BO00001", staff: "U0STAFF01", other: "U0OTHER01" };
+const D = { ada: "D0ADA0001", bo: "D0BO00001", staff: "D0STAFF01", others: "D0OTHERS1" };
+const SECRET_TEXT = "a sentence nobody should read here";
+const dmMessage = (channel_id: string, user_id: string, occurred_at: string) => ({ channel_id, message_ts: `${Date.parse(occurred_at) / 1000}.000100`, user_id, occurred_at, text: SECRET_TEXT });
+const inChannel = (channel_id: string, ...users: string[]) => users.map((user_id) => ({ channel_id, user_id, left_at: null, imported_at: ago(30) }));
+
+/** The seeded world plus Slack: Cam (the community manager) connected with DM permissions, DMs with Ada, Bo and a staff member, and one between Ada and Bo. */
+function seedSlack({ bridge = true, connection = "ok" }: { bridge?: boolean; connection?: "ok" | "none" | "no_scopes" } = {}) {
+  dataset.members.push({ ...dataset.members[0], id: STAFF_MEMBER, name: "Sam Staffer", displayName: null, email: "sam@example.test", userId: null });
+  dataset.staff.push({ id: "staff_AAAAAAAAAAA1", email: "sam@example.test", name: "Sam Staffer", role: "host", member_id: STAFF_MEMBER, hire_date: null, notes: null, created_at: null, updated_at: null });
+  dataset.chatSlackAuthors.push(
+    { slack_user_id: U.cm, member_id: CM_MEMBER },
+    { slack_user_id: U.ada, member_id: ADA },
+    { slack_user_id: U.bo, member_id: BO },
+    { slack_user_id: U.staff, member_id: STAFF_MEMBER }
+  );
+  if (connection !== "none") {
+    dataset.slackConnections.push({
+      member_id: CM_MEMBER,
+      slack_user_id: U.cm,
+      team_id: null,
+      scopes: connection === "ok" ? [...SLACK_DM_SCOPES] : ["chat:write"],
+      connected_at: ago(30),
+      revoked_at: null,
+      access_secret_id: null,
+      refresh_secret_id: null,
+      expires_at: null,
+      dms_pulled_at: null,
+      read_pulled_at: null,
+    });
+  }
+  dataset.slackChannels.push(...[D.ada, D.bo, D.staff, D.others].map((channel_id) => ({ channel_id, name: "", is_im: true, is_private: true })));
+  dataset.slackChannelMembers.push(...inChannel(D.ada, U.cm, U.ada), ...inChannel(D.bo, U.bo, U.cm), ...inChannel(D.staff, U.cm, U.staff), ...inChannel(D.others, U.ada, U.bo));
+  dataset.slackMessages.push(
+    dmMessage(D.ada, U.ada, ago(1)),
+    dmMessage(D.ada, U.cm, ago(3)),
+    dmMessage(D.bo, U.cm, ago(6)),
+    dmMessage(D.staff, U.staff, ago(0.5)),
+    dmMessage(D.others, U.bo, ago(0.2))
+  );
+  if (bridge) dataset.featureFlags.push({ feature_key: "slack_dm_bridge", enabled_globally: true, created_at: ago(30), updated_at: ago(30) });
+}
+
+describe("the Your DMs tab", () => {
+  beforeEach(() => {
+    actions.trackCareDm.mockResolvedValue({ success: true });
+    actions.untrackCareDm.mockResolvedValue({ success: true });
+  });
+
+  const rows = () => screen.getAllByRole("listitem").filter((li) => li.querySelector("a[href^='/admin/members/']") && li.querySelector("button[aria-pressed]"));
+
+  it("is the third tab, at its own path, and opens for a community manager and an admin but not a member", async () => {
+    seedSlack();
+    signInAs(CM_USER);
+    const first = await renderServerRoute(activePage, undefined as never);
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Active (4)", "Earlier (1 lapsed)", "Your DMs"]);
+    first.unmount();
+
+    signInAs(ADMIN_USER);
+    await renderServerRoute(dmsPage, undefined as never);
+    expect(screen.getAllByRole("tab", { selected: true })[0]).toHaveTextContent("Your DMs");
+
+    signInAs(null);
+    await expectRedirect(dmsPage, undefined as never, "/login");
+    signInAs(MEMBER_USER);
+    await expectRedirect(dmsPage, undefined as never, "/no-access");
+  });
+
+  it("lists only her own DMs with members: newest first, by display name, who wrote last, and not a staff member's or other people's", async () => {
+    seedSlack();
+    signInAs(CM_USER);
+    await renderServerRoute(dmsPage, undefined as never);
+
+    expect(rows().map((r) => r.querySelector("a")?.textContent)).toEqual(["Ada E.", "Bo Example"]);
+    expect(within(rows()[0]).getByText("Ada Example")).toBeInTheDocument();
+    expect(within(rows()[0]).getByText("They wrote last, yesterday")).toBeInTheDocument();
+    expect(within(rows()[1]).getByText("You wrote last, 6 days ago")).toBeInTheDocument();
+    expect(within(rows()[0]).getByRole("link", { name: "Ada E." })).toHaveAttribute("href", `/admin/members/${ADA}`);
+    expect(screen.queryByText(/Sam Staffer/)).not.toBeInTheDocument();
+    expect(screen.queryByText(SECRET_TEXT)).not.toBeInTheDocument();
+    expect(document.body.innerHTML).not.toContain(D.others);
+    expect(document.body.innerHTML).not.toContain(D.staff);
+  });
+
+  it("says, in plain words, what is and is not read", async () => {
+    seedSlack();
+    signInAs(CM_USER);
+    await renderServerRoute(dmsPage, undefined as never);
+
+    expect(screen.getByText(/reads who wrote and when in the DMs you track, never what was said/)).toBeInTheDocument();
+    expect(screen.getByText(/already brings your direct messages in for Hub Chat/)).toBeInTheDocument();
+    expect(screen.getByText(/Other staff, admins included, don.t see which DMs you track/)).toBeInTheDocument();
+    expect(screen.getByText(/DMs with staff are never listed/)).toBeInTheDocument();
+  });
+
+  it("marks the DMs she tracks, and tracks and untracks with a click, counting how many she tracks and nothing else", async () => {
+    seedSlack();
+    dataset.careTrackedDms.push({ id: "caredm_AAAAAAAAAAA1", tracked_by: CM_USER.id, slack_channel_id: D.bo, member_id: BO, created_at: ago(2), deleted_at: null });
+    signInAs(CM_USER);
+    await renderServerRoute(dmsPage, undefined as never);
+    const user = userEvent.setup();
+
+    expect(within(rows()[0]).getByRole("button", { name: "Track your DM with Ada E." })).toHaveAttribute("aria-pressed", "false");
+    expect(within(rows()[1]).getByRole("button", { name: "Stop tracking your DM with Bo Example" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Tracked (1)" })).toBeInTheDocument();
+
+    await user.click(within(rows()[0]).getByRole("button", { name: "Track your DM with Ada E." }));
+    await waitFor(() => expect(within(rows()[0]).getByRole("button", { name: "Stop tracking your DM with Ada E." })).toHaveAttribute("aria-pressed", "true"));
+    expect(actions.trackCareDm).toHaveBeenCalledWith(D.ada);
+    expect(track).toHaveBeenCalledWith("care_dm_tracked", { dms_tracked: 2 });
+    expect(screen.getByRole("button", { name: "Tracked (2)" })).toBeInTheDocument();
+
+    await user.click(within(rows()[1]).getByRole("button", { name: "Stop tracking your DM with Bo Example" }));
+    await waitFor(() => expect(within(rows()[1]).getByRole("button", { name: "Track your DM with Bo Example" })).toBeInTheDocument());
+    expect(actions.untrackCareDm).toHaveBeenCalledWith(D.bo);
+    expect(track).toHaveBeenCalledWith("care_dm_untracked", { dms_tracked: 1 });
+    expect(JSON.stringify(track.mock.calls)).not.toMatch(/Ada|Bo |D0|mbr_/);
+  });
+
+  it("shows why it could not track one, and leaves the switch as it was", async () => {
+    seedSlack();
+    actions.trackCareDm.mockResolvedValue({ error: "Couldn't track that DM." });
+    signInAs(CM_USER);
+    await renderServerRoute(dmsPage, undefined as never);
+
+    await userEvent.setup().click(within(rows()[0]).getByRole("button", { name: "Track your DM with Ada E." }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't track that DM.");
+    expect(within(rows()[0]).getByRole("button", { name: "Track your DM with Ada E." })).toHaveAttribute("aria-pressed", "false");
+    expect(track).not.toHaveBeenCalled();
+  });
+
+  it("finds a DM by name, narrows to the tracked ones, and says when nothing matches", async () => {
+    seedSlack();
+    dataset.careTrackedDms.push({ id: "caredm_AAAAAAAAAAA1", tracked_by: CM_USER.id, slack_channel_id: D.bo, member_id: BO, created_at: ago(2), deleted_at: null });
+    signInAs(CM_USER);
+    await renderServerRoute(dmsPage, undefined as never);
+    const user = userEvent.setup();
+
+    await user.type(screen.getByRole("searchbox", { name: "Find a DM by name" }), "ada ex");
+    expect(rows().map((r) => r.querySelector("a")?.textContent)).toEqual(["Ada E."]); // by legal name too
+    await user.clear(screen.getByRole("searchbox", { name: "Find a DM by name" }));
+    await user.click(screen.getByRole("button", { name: "Tracked (1)" }));
+    expect(rows().map((r) => r.querySelector("a")?.textContent)).toEqual(["Bo Example"]);
+    await user.type(screen.getByRole("searchbox", { name: "Find a DM by name" }), "zzz");
+    expect(screen.getByText("Nothing here.")).toBeInTheDocument();
+  });
+
+  it("pages a long list", async () => {
+    seedSlack();
+    for (let i = 0; i < 30; i++) {
+      const member = `mbr_ZZZZZZZZZZ${String(i).padStart(2, "0")}`;
+      dataset.members.push({ ...dataset.members[0], id: member, name: `Pat ${String(i).padStart(2, "0")} Example`, displayName: null, email: `pat${i}@example.test`, userId: null });
+      dataset.chatSlackAuthors.push({ slack_user_id: `U0PAT${i}`, member_id: member });
+      dataset.slackChannels.push({ channel_id: `D0PAT${i}`, name: "", is_im: true, is_private: true });
+      dataset.slackChannelMembers.push(...inChannel(`D0PAT${i}`, U.cm, `U0PAT${i}`));
+    }
+    signInAs(CM_USER);
+    await renderServerRoute(dmsPage, undefined as never);
+
+    expect(rows()).toHaveLength(25);
+    expect(screen.getByRole("button", { name: "All (32)" })).toBeInTheDocument();
+  });
+
+  it("has no switches without the write feature", async () => {
+    seedSlack();
+    const granted = [...COMMUNITY_MANAGER_FEATURES];
+    (COMMUNITY_MANAGER_FEATURES as StaffFeature[]).splice(0);
+    try {
+      signInAs(CM_USER);
+      await renderServerRoute(dmsPage, undefined as never);
+      expect(screen.getByText("Ada E.")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Track your DM/ })).not.toBeInTheDocument();
+    } finally {
+      (COMMUNITY_MANAGER_FEATURES as StaffFeature[]).push(...granted);
+    }
+  });
+
+  it("explains an empty list", async () => {
+    seedSlack();
+    dataset.slackChannelMembers.length = 0;
+    signInAs(CM_USER);
+    await renderServerRoute(dmsPage, undefined as never);
+    expect(screen.getByText(/No direct messages with members yet/)).toBeInTheDocument();
+  });
+
+  describe("when it can't show the list", () => {
+    it("explains that the bridge is not on for her yet, without a connect button", async () => {
+      seedSlack({ bridge: false });
+      signInAs(CM_USER);
+      await renderServerRoute(dmsPage, undefined as never);
+      expect(screen.getByText(/aren.t switched on for your account yet/)).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: /Connect Slack/ })).not.toBeInTheDocument();
+      expect(screen.getByText(/reads who wrote and when/)).toBeInTheDocument();
+    });
+
+    it("sends her through the existing Slack connect flow and back to this tab when Slack is not connected", async () => {
+      seedSlack({ connection: "none" });
+      signInAs(CM_USER);
+      await renderServerRoute(dmsPage, undefined as never);
+      expect(screen.getByRole("link", { name: "Connect Slack" })).toHaveAttribute("href", "/api/oauth/slack/start?next=%2Fadmin%2Fcare%2Fdms");
+    });
+
+    it("asks her to reconnect when the connection lacks the DM permissions", async () => {
+      seedSlack({ connection: "no_scopes" });
+      signInAs(CM_USER);
+      await renderServerRoute(dmsPage, undefined as never);
+      expect(screen.getByRole("link", { name: "Reconnect Slack" })).toHaveAttribute("href", "/api/oauth/slack/start?next=%2Fadmin%2Fcare%2Fdms");
+    });
+
+    it("says an account with no member profile has no Slack to connect", async () => {
+      seedSlack();
+      dataset.members.find((m) => m.id === CM_MEMBER)!.userId = null;
+      signInAs(CM_USER);
+      await renderServerRoute(dmsPage, undefined as never);
+      expect(screen.getByText(/no member profile/)).toBeInTheDocument();
+    });
+  });
+
+  it("reads her DMs only when this tab is the one asked for: from another tab it is a link that opens it", async () => {
+    seedSlack();
+    const reads: string[] = [];
+    const original = dataset.slackMessages;
+    Object.defineProperty(dataset, "slackMessages", { get: () => (reads.push("read"), original), set: () => {} });
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+    await userEvent.setup().click(screen.getByRole("tab", { name: "Your DMs" }));
+
+    expect(screen.getByRole("link", { name: "Open your DMs" })).toHaveAttribute("href", "/admin/care/dms");
+    expect(reads).toEqual([]);
+  });
+});
+
+describe("Slack DMs on the engagement list", () => {
+  it("fills in who spoke last from a tracked DM when she opens the page, and the status follows", async () => {
+    seedSlack();
+    dataset.careTrackedDms.push({ id: "caredm_AAAAAAAAAAA1", tracked_by: CM_USER.id, slack_channel_id: D.ada, member_id: ADA, created_at: ago(2), deleted_at: null });
+    // Ada's engagement is on Slack DM, opened 10 days ago; she wrote 3 days ago, Ada yesterday.
+    dataset.careEngagements.splice(0, dataset.careEngagements.length, row("care_AAAAAAAAAAA1", ADA, { period_ends_on: "2026-04-10", last_staff_message_at: ago(10) }));
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+
+    const card = cards()[0];
+    expect(within(card).getByText("Needs your reply")).toBeInTheDocument();
+    expect(within(card).getByText(/They wrote yesterday/)).toBeInTheDocument();
+    expect(within(card).getByText("from Slack")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Needs your reply (1)" })).toBeInTheDocument();
+  });
+
+  it("does not look at DMs she does not track, and shows no hint for an engagement that does not follow one", async () => {
+    seedSlack();
+    dataset.careEngagements.splice(0, dataset.careEngagements.length, row("care_AAAAAAAAAAA1", ADA, { last_staff_message_at: ago(10) }));
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+
+    const card = cards()[0];
+    expect(within(card).getByText("Waiting on them")).toBeInTheDocument();
+    expect(within(card).queryByText("from Slack")).not.toBeInTheDocument();
+  });
+
+  it("shows the hint only on her own open Slack DM engagements with a member whose DM she tracks", async () => {
+    seedSlack();
+    dataset.careTrackedDms.push({ id: "caredm_AAAAAAAAAAA1", tracked_by: CM_USER.id, slack_channel_id: D.ada, member_id: ADA, created_at: ago(2), deleted_at: null });
+    dataset.careEngagements.splice(
+      0,
+      dataset.careEngagements.length,
+      row("care_AAAAAAAAAAA1", ADA, { channel: "email" }), // another channel
+      row("care_AAAAAAAAAAA2", BO, {}), // a DM she does not track
+      row("care_AAAAAAAAAAA3", ADA, { channel: "prickle" }),
+      row("care_AAAAAAAAAAA4", ADA, { owned_by: ADMIN_USER.id, channel: "slack_dm" }) // someone else's
+    );
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+
+    expect(screen.queryAllByText("from Slack")).toHaveLength(0);
+  });
+
+  it("does not stop the page opening when reading her tracked DMs fails", async () => {
+    seedSlack();
+    dataset.careTrackedDms.push({ id: "caredm_AAAAAAAAAAA1", tracked_by: CM_USER.id, slack_channel_id: D.ada, member_id: ADA, created_at: ago(2), deleted_at: null });
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const original = dataset.slackMessages;
+    Object.defineProperty(dataset, "slackMessages", {
+      get: () => {
+        throw new Error("bronze is down");
+      },
+      set: () => {},
+    });
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+    Object.defineProperty(dataset, "slackMessages", { value: original, writable: true, configurable: true });
+
+    expect(cards().length).toBeGreaterThan(0);
+    expect(log).toHaveBeenCalledWith("[care] filling in from tracked DMs failed:", "bronze is down");
   });
 });

@@ -23,11 +23,13 @@ import {
 } from "@/lib/care";
 import { loadCareResults } from "@/lib/care-results";
 import { isCareOwner } from "@/lib/care-owners";
+import { findOwnDm, findOwnDmWith, projectCareFromDms, type CareDmServiceRepos, type StaffIdentity } from "@/lib/care-dm";
 import { clock } from "@/lib/clock";
 import type { CareEngagementRow, CarePatch } from "@/lib/data/care";
 import { createRepos, type Repos } from "@/lib/data/repos";
 import { getServiceRepos } from "@/lib/data/server";
 import { isId, isUuid } from "@/lib/ids";
+import { getUserFeaturePreviews } from "@/lib/features.server";
 import { memberSearchItem } from "@/lib/member-search-item";
 import { staffCan } from "@/lib/staff-access";
 
@@ -42,7 +44,9 @@ export type CareActionResult = { error: string } | { success: true };
 const NOT_AUTHORIZED = "Not authorized";
 const MISSING = "That engagement is gone.";
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
-const PAGES = ["/admin/care", "/admin/care/earlier"];
+const PAGES = ["/admin/care", "/admin/care/earlier", "/admin/care/dms"];
+/** A Slack conversation id: capital letters and digits (a DM's starts with D). Anything else is not one of ours to look up. */
+const SLACK_CHANNEL_ID = /^[A-Z0-9]{3,40}$/;
 
 const nowIso = () => new Date(clock.now()).toISOString();
 const revalidate = () => PAGES.forEach((path) => revalidatePath(path));
@@ -105,7 +109,10 @@ export type StartEngagementInput = {
   followUpOn?: string | null;
 };
 
-async function startImpl(repos: Repos, userId: string, input: StartEngagementInput): Promise<CareActionResult> {
+/** What starting a Slack DM engagement needs to find and track the DM: Bronze reads (service role) and the signed-in user, once the bridge is on for them. */
+type DmTracking = { service: CareDmServiceRepos; user: StaffIdentity };
+
+async function startImpl(repos: Repos, userId: string, input: StartEngagementInput, dms?: DmTracking): Promise<CareActionResult> {
   if (!isId(input.memberId, "mbr")) return { error: "Pick a member." };
   if (!isCareReason(input.reason)) return { error: "Pick why you are reaching out." };
   if (!isCareChannel(input.channel)) return { error: "Pick where you are reaching out." };
@@ -141,8 +148,25 @@ async function startImpl(repos: Repos, userId: string, input: StartEngagementInp
   if (!result.ok) return { error: "There is already an open engagement with them on that channel. Log a message there, or renew it." };
 
   await mirrorToTimeline(repos, userId, result.engagement, "started");
+  if (dms && input.channel === "slack_dm") await trackDmWithMember(repos, dms, input.memberId);
   revalidate();
   return { success: true };
+}
+
+/**
+ * Starting an engagement on Slack DM tracks her 1:1 DM with that member, if she has one in Bronze (she can untrack it), and
+ * brings who spoke last up to date from it. Best effort: the engagement is the record, so a failure here is logged (the error
+ * message only, never anything from Slack) and the start still succeeds.
+ */
+async function trackDmWithMember(repos: Repos, dms: DmTracking, memberId: string) {
+  try {
+    const dm = await findOwnDmWith(dms.service, dms.user, memberId);
+    if (!dm) return;
+    await repos.careDms.track({ trackedBy: dms.user.id, channelId: dm.channelId, memberId });
+    await projectCareFromDms({ care: repos.care, careDms: repos.careDms, service: dms.service }, { userId: dms.user.id });
+  } catch (error) {
+    console.error("[care] tracking the DM of a new engagement failed:", error instanceof Error ? error.message : error);
+  }
 }
 
 async function logMessageImpl(repos: Repos, id: string, direction: string): Promise<CareActionResult> {
@@ -256,6 +280,35 @@ async function deleteImpl(repos: Repos, id: string): Promise<CareActionResult> {
   return { success: true };
 }
 
+async function trackDmImpl(repos: Repos, service: CareDmServiceRepos, user: StaffIdentity, channelId: unknown, bridgeOn: boolean): Promise<CareActionResult> {
+  if (typeof channelId !== "string" || !SLACK_CHANNEL_ID.test(channelId)) return { error: "That DM isn't available." };
+  if (!bridgeOn) return { error: "Slack DMs aren't switched on for you yet." };
+  try {
+    // Only a DM she is in, with a member who is not staff: the list is built the same way, so nothing else can be tracked.
+    const dm = await findOwnDm(service, user, channelId);
+    if (!dm) return { error: "That DM isn't one you can track." };
+    await repos.careDms.track({ trackedBy: user.id, channelId, memberId: dm.memberId });
+    await projectCareFromDms({ care: repos.care, careDms: repos.careDms, service }, { userId: user.id });
+  } catch (error) {
+    console.error("[care] tracking a DM failed:", error instanceof Error ? error.message : error);
+    return { error: "Couldn't track that DM." };
+  }
+  revalidate();
+  return { success: true };
+}
+
+async function untrackDmImpl(repos: Repos, userId: string, channelId: unknown): Promise<CareActionResult> {
+  if (typeof channelId !== "string" || !SLACK_CHANNEL_ID.test(channelId)) return { error: "That DM isn't available." };
+  try {
+    if (!(await repos.careDms.untrack(userId, channelId, nowIso()))) return { error: "That DM isn't tracked." };
+  } catch (error) {
+    console.error("[care] untracking a DM failed:", error instanceof Error ? error.message : error);
+    return { error: "Couldn't stop tracking that DM." };
+  }
+  revalidate();
+  return { success: true };
+}
+
 /** Finds members by name or email for the "start an engagement" picker. Staff with the write feature only. */
 export async function searchCareMembers(query: string) {
   const auth = await requireStaffAction();
@@ -271,7 +324,15 @@ export async function startEngagement(input: StartEngagementInput): Promise<Care
   const auth = await requireStaffAction();
   if (!auth.ok) return { error: auth.error };
   if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
-  return withAction("care_engagement_started", () => startImpl(createRepos(auth.supabase), auth.user.id, input), (r) => ({ ok: "success" in r }));
+  return withAction(
+    "care_engagement_started",
+    async () => {
+      // A Slack DM engagement tracks her DM with the member when the bridge is on for her.
+      const bridgeOn = input.channel === "slack_dm" && (await getUserFeaturePreviews(auth.user.id)).includes("slack_dm_bridge");
+      return startImpl(createRepos(auth.supabase), auth.user.id, input, bridgeOn ? { service: getServiceRepos(), user: auth.user } : undefined);
+    },
+    (r) => ({ ok: "success" in r })
+  );
 }
 
 /** Logs that the member replied (`member`) or that she did (`staff`), just now. */
@@ -320,6 +381,26 @@ export async function deleteEngagement(id: string): Promise<CareActionResult> {
   if (!auth.ok) return { error: auth.error };
   if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
   return withAction("care_engagement_deleted", () => deleteImpl(createRepos(auth.supabase), id), (r) => ({ ok: "success" in r }));
+}
+
+/** Tracks one of her 1:1 Slack DMs with a member, so who spoke last fills in on her Slack DM engagements with them. */
+export async function trackCareDm(channelId: string): Promise<CareActionResult> {
+  const auth = await requireStaffAction();
+  if (!auth.ok) return { error: auth.error };
+  if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
+  return withAction(
+    "care_dm_tracked",
+    async () => trackDmImpl(createRepos(auth.supabase), getServiceRepos(), auth.user, channelId, (await getUserFeaturePreviews(auth.user.id)).includes("slack_dm_bridge")),
+    (r) => ({ ok: "success" in r })
+  );
+}
+
+/** Stops tracking one of her Slack DMs. The times it already filled in stay; nothing new comes from it. */
+export async function untrackCareDm(channelId: string): Promise<CareActionResult> {
+  const auth = await requireStaffAction();
+  if (!auth.ok) return { error: auth.error };
+  if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
+  return withAction("care_dm_untracked", () => untrackDmImpl(createRepos(auth.supabase), auth.user.id, channelId), (r) => ({ ok: "success" in r }));
 }
 
 /** An engagement's measured results (before, during, after), counted on request from the member's own activity. */

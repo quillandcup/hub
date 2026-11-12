@@ -23,6 +23,7 @@ export function defineSlackWorkspaceContract(name: string, setup: () => SlackWor
       is_private: false,
       is_archived: false,
       is_mpim: false,
+      is_im: false,
       member_count: 3,
       ...extra,
     });
@@ -168,6 +169,38 @@ export function defineSlackWorkspaceContract(name: string, setup: () => SlackWor
       await ctx.repo().markMembersLeft(room, [ada], "2031-02-02T10:00:00.000Z");
       expect(await ctx.repo().currentMemberUserIds(room)).toEqual([grace]);
       expect(await ctx.repo().currentMemberUserIds(ctx.unique("empty"))).toEqual([]);
+    });
+
+    it("lists the 1:1 DMs a Slack user is in now, with everyone in each, and never a group DM, a channel or anyone else's DM", async () => {
+      const [me, ada, bea, cyd] = [ctx.unique("me"), ctx.unique("ada"), ctx.unique("bea"), ctx.unique("cyd")];
+      const dmAda = channel("dm-ada", { is_im: true, is_private: true });
+      const dmBea = channel("dm-bea", { is_im: true, is_private: true });
+      const dmSelf = channel("dm-self", { is_im: true, is_private: true });
+      const dmOthers = channel("dm-others", { is_im: true, is_private: true });
+      const dmLeft = channel("dm-left", { is_im: true, is_private: true });
+      const group = channel("group", { is_mpim: true, is_private: true });
+      const room = channel("room");
+      await ctx.seed({ channels: [dmAda, dmBea, dmSelf, dmOthers, dmLeft, group, room] });
+      const members = (channel_id: string, users: string[]) => users.map((user_id) => ({ channel_id, user_id, left_at: null, imported_at: "2031-02-01T10:00:00.000Z" }));
+      await ctx.repo().upsertMemberships([
+        ...members(dmAda.channel_id, [me, ada]),
+        ...members(dmBea.channel_id, [bea, me]),
+        ...members(dmSelf.channel_id, [me]),
+        ...members(dmOthers.channel_id, [ada, bea]),
+        ...members(dmLeft.channel_id, [me, cyd]),
+        ...members(group.channel_id, [me, ada, bea]),
+        ...members(room.channel_id, [me, ada]),
+      ]);
+      await ctx.repo().markMemberLeft(dmLeft.channel_id, me, "2031-02-02T10:00:00.000Z");
+
+      const dms = await ctx.repo().directMessagesOf(me);
+
+      expect(dms.map((d) => d.channel_id)).toEqual([dmAda.channel_id, dmBea.channel_id, dmSelf.channel_id].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)));
+      const byChannel = new Map(dms.map((d) => [d.channel_id, new Set(d.participants)]));
+      expect(byChannel.get(dmAda.channel_id)).toEqual(new Set([me, ada]));
+      expect(byChannel.get(dmBea.channel_id)).toEqual(new Set([me, bea]));
+      expect(byChannel.get(dmSelf.channel_id)).toEqual(new Set([me]));
+      expect((await ctx.repo().directMessagesOf(ctx.unique("nobody")))).toEqual([]);
     });
 
     it("keeps who is in a conversation: joins, comebacks and leaves", async () => {

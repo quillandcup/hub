@@ -17,6 +17,8 @@ const DAY = (n: number) => new Date(Date.UTC(2001, 2, n, 12)).toISOString();
 /** Postgres writes the same instant as `+00:00`, a twin as `Z`: compare instants. */
 const atMs = <T extends { occurred_at: string }>(row: T) => ({ ...row, occurred_at: Date.parse(row.occurred_at) });
 const ms = (iso: string) => Date.parse(iso);
+/** Code-unit order, as the repositories sort. */
+const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 const asNewMessage = (m: SlackMessageSeed): NewSlackMessage => ({ raw_payload: {}, ...m });
 const asNewReaction = (r: SlackReactionSeed): NewSlackReaction => ({ raw_payload: {}, ...r });
@@ -47,6 +49,37 @@ export function defineSlackMessageContract(name: string, setup: () => SlackMessa
       occurred_at: DAY(day),
       raw_payload: {},
       ...extra,
+    });
+
+    it("tells when each person last wrote in the asked-for conversations: threads and files count, deleted messages and Slack notices do not, and never any text", async () => {
+      const [dm, otherDm, notAsked, staff, ada, bot] = [ctx.unique("dm"), ctx.unique("other"), ctx.unique("not"), ctx.unique("staff"), ctx.unique("ada"), ctx.unique("bot")];
+      await ctx.seed({
+        messages: [
+          message(dm, staff, 1),
+          message(dm, ada, 2),
+          message(dm, ada, 3, { message_type: "file_share" }),
+          message(dm, staff, 4, { thread_ts: "1000000000.000100", message_type: "thread_broadcast" }),
+          message(dm, ada, 8, { deleted_at: DAY(9) }),
+          message(dm, staff, 10, { message_type: "channel_join" }),
+          message(dm, bot, 5),
+          message(otherDm, ada, 6),
+          message(notAsked, ada, 7),
+        ],
+      });
+
+      const writes = await ctx.repo().lastWritesIn([dm, otherDm, dm]);
+
+      expect(writes.map((w) => [w.channel_id, w.user_id, ms(w.last_at)])).toEqual(
+        [
+          [dm, staff, ms(DAY(4))],
+          [dm, ada, ms(DAY(3))],
+          [dm, bot, ms(DAY(5))],
+          [otherDm, ada, ms(DAY(6))],
+        ].sort((a, b) => cmp(String(a[0]), String(b[0])) || cmp(String(a[1]), String(b[1])))
+      );
+      expect(writes.every((w) => Object.keys(w).sort().join() === "channel_id,last_at,user_id")).toBe(true);
+      expect(await ctx.repo().lastWritesIn([])).toEqual([]);
+      expect(await ctx.repo().lastWritesIn(Array.from({ length: 150 }, (_, i) => ctx.unique(`none${i}`)))).toEqual([]);
     });
 
     it("counts each user's messages, deleted ones included, from the metadata view", async () => {

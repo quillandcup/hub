@@ -89,6 +89,9 @@ export type SlackReactionEngagementRow = {
 /** When a message happened, in which channel (what the archival candidates are judged by). */
 export type SlackMessageTime = { channel_id: string; occurred_at: string };
 
+/** When one person last wrote in one Slack conversation: who and when, never what (`lastWritesIn`). */
+export type SlackLastWrite = { channel_id: string; user_id: string; last_at: string };
+
 const SYSTEM_SUBTYPES: readonly string[] = SLACK_SYSTEM_SUBTYPES;
 
 /**
@@ -161,10 +164,19 @@ export interface SlackMessageRepository {
   threadMessages(channelId: string, threadTs: string[]): Promise<{ thread_ts: string; message_ts: string }[]>;
   /** Whether Bronze has any live message or reaction from `from` to `to` inclusive. */
   hasLiveActivityBetween(from: string, to: string): Promise<boolean>;
+  /**
+   * For each of these Slack conversations, when each person last wrote in it (a thread reply or a file share counts;
+   * deleted messages and the notices Slack posts itself do not): who and when, never the text, files or payload (Hedgie
+   * Care's tracked DMs, docs/HEDGIE_CARE.md). Service role only: the database function refuses a signed-in user,
+   * because these are people's private DMs. By channel then user. Chunked.
+   */
+  lastWritesIn(channelIds: string[]): Promise<SlackLastWrite[]>;
 }
 
 const TS_CHUNK = 100;
 const AUTHOR_CHUNK = 200;
+/** Conversations per call of the last-writes function (a few people each: well under the API's 1000 rows). */
+const LAST_WRITES_CHUNK = 100;
 const FILE_COLUMNS = "file_id, channel_id, message_ts, name, mimetype, size_bytes, storage_path, copy_error, deleted_at, raw_payload";
 
 const messageOrder = <Q extends { order(column: string): Q }>(q: Q) => q.order("occurred_at").order("channel_id").order("message_ts");
@@ -395,6 +407,15 @@ export class SupabaseSlackMessageRepository implements SlackMessageRepository {
     const [messages, reactions] = await Promise.all([live("slack_messages"), live("slack_reactions")]);
     return (must(messages)?.length ?? 0) > 0 || (must(reactions)?.length ?? 0) > 0;
   }
+
+  async lastWritesIn(channelIds: string[]) {
+    const out: SlackLastWrite[] = [];
+    for (const part of chunk([...new Set(channelIds)], LAST_WRITES_CHUNK)) {
+      const rows = must(await this.db.rpc("care_dm_last_messages", { p_channel_ids: part, p_exclude_types: [...SYSTEM_SUBTYPES] })) ?? [];
+      out.push(...rows.map((r) => ({ channel_id: r.channel_id, user_id: r.user_id, last_at: new Date(r.last_at).toISOString() })));
+    }
+    return out.sort((a, b) => compareText(a.channel_id, b.channel_id) || compareText(a.user_id, b.user_id));
+  }
 }
 
 /** In-memory twin over an `InMemoryDataset`. */
@@ -579,6 +600,19 @@ export class InMemorySlackMessageRepository implements SlackMessageRepository {
   async hasLiveActivityBetween(from: string, to: string) {
     const inRange = (r: { occurred_at: string; deleted_at?: string | null }) => !r.deleted_at && r.occurred_at >= from && r.occurred_at <= to;
     return this.data.slackMessages.some(inRange) || this.data.slackReactions.some(inRange);
+  }
+
+  async lastWritesIn(channelIds: string[]) {
+    const wanted = new Set(channelIds);
+    const latest = new Map<string, SlackLastWrite>();
+    for (const m of this.data.slackMessages) {
+      if (!wanted.has(m.channel_id) || !this.memberWritten(m)) continue;
+      const key = `${m.channel_id}|${m.user_id}`;
+      const at = new Date(m.occurred_at).toISOString();
+      const seen = latest.get(key);
+      if (!seen || at > seen.last_at) latest.set(key, { channel_id: m.channel_id, user_id: m.user_id, last_at: at });
+    }
+    return [...latest.values()].sort((a, b) => compareText(a.channel_id, b.channel_id) || compareText(a.user_id, b.user_id));
   }
 
   async liveMessageTimes() {

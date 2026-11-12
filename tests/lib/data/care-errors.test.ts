@@ -43,6 +43,7 @@ describe("SupabaseCareRepository database errors", () => {
     ["byId", () => repo.byId(id)],
     ["open", () => repo.open({ memberId: member, reason: "welcome", channel: "slack_dm", openedBy: null, periodEndsOn: "2026-03-31" })],
     ["logMessage", () => repo.logMessage(id, "member", at)],
+    ["moveMessageTimesForward", () => repo.moveMessageTimesForward(id, { staffAt: at })],
     ["update", () => repo.update(id, { notes: "x" })],
     ["update with nothing to change", () => repo.update(id, {})],
     ["renew", () => repo.renew(id, { periodEndsOn: "2026-05-01", openedBy: null, at, reason: "a plan" })],
@@ -163,6 +164,19 @@ describe("SupabaseCareRepository queries", () => {
     const s = scriptedDb([{ data: null, error: null }]);
     expect(await new SupabaseCareRepository(s.db).logMessage(id, "staff", at)).toBeNull();
     expect(s.queries[0].calls[0]).toEqual({ method: "update", args: [{ last_staff_message_at: at }] });
+  });
+
+  it("moves a time forward only where it is later or none is stored, on an open engagement, and counts what moved", async () => {
+    const both = scriptedDb([{ data: { id }, error: null }, { data: null, error: null }]);
+    expect(await new SupabaseCareRepository(both.db).moveMessageTimesForward(id, { staffAt: at, memberAt: at })).toBe(1);
+    expect(both.queries[0].calls[0]).toEqual({ method: "update", args: [{ last_staff_message_at: at }] });
+    expect(both.queries[0].calls).toContainEqual({ method: "or", args: [`last_staff_message_at.is.null,last_staff_message_at.lt.${at}`] });
+    expect(both.queries[0].calls).toContainEqual({ method: "is", args: ["closed_at", null] });
+    expect(both.queries[1].calls[0]).toEqual({ method: "update", args: [{ last_member_message_at: at }] });
+
+    const none = scriptedDb([]);
+    expect(await new SupabaseCareRepository(none.db).moveMessageTimesForward(id, {})).toBe(0);
+    expect(none.queries).toEqual([]);
   });
 
   it("hands an engagement over on any engagement that is not removed, and answers null when there is none", async () => {

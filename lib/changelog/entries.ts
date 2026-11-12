@@ -78,6 +78,18 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     ].join("\n\n"),
   },
   {
+    slug: "hedgie-care-slack-dms",
+    date: "2026-11-11",
+    audience: "engineering",
+    category: "new",
+    title: "Hedgie Care: tracked Slack DMs fill in who spoke last",
+    summary: "A staff member can choose which of their 1:1 Slack DMs with members to track; who wrote last in those DMs fills in the status of their Slack DM engagements, reading only who wrote and when.",
+    body: [
+      "A new \"Your DMs\" tab on `/admin/care/dms` lists the staff member's own 1:1 Slack DMs with members, each with a Track switch (opt in, per DM). A DM with a staff member is never listed, group DMs are out of the first version, and starting an engagement on Slack DM tracks the DM with that member when there is one (it can be untracked). The tracked list is `care_tracked_dms` (id prefix `caredm_`, `CareTrackedDmRepository`): RLS lets a staff user read and change only their own rows, so an admin does not see another staff member's list, and it is deliberately not audited. Starting needs the `slack_dm_bridge` flag on for them and Slack connected with the DM scopes; the tab shows how to connect through the existing Slack connect flow.",
+      "Only who wrote and when is read, never text, files or a payload: `SlackMessageRepository.lastWritesIn` calls the `care_dm_last_messages` database function, which reads the content-free `slack_messages_meta` view and is callable by the service role only. The list is built from the DMs the staff member's own Slack account is in, and the projection re-checks that she and the member are the two people in a tracked conversation, so a row filed for someone else's DM reads nothing. For an open Slack DM engagement, the latest message each side wrote on or after the start of the Eastern day it opened sets `last_staff_message_at` and `last_member_message_at` (`lib/care-dm.ts`, `lib/care-dm-rules.ts`): threads and file shares count, deleted messages and Slack's join and leave notices do not, a time only moves forward (`CareRepository.moveMessageTimesForward`), and running it again changes nothing. It runs when the page opens, when a DM is tracked and after the nightly DM pull (`/api/reconcile/slack-dms`), and writes no audit rows. The rows show a small \"from Slack\" hint.",
+    ].join("\n\n"),
+  },
+  {
     slug: "conversations-became-hedgie-care",
     date: "2026-11-11",
     audience: "engineering",

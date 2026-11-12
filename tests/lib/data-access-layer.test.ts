@@ -100,6 +100,8 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   chat_message_videos: [],
   // Hedgie Care's engagements (CareRepository, lib/data/care.ts): every query is moved.
   care_engagements: [],
+  // The DMs staff track for Hedgie Care (CareTrackedDmRepository, lib/data/care-dms.ts): every query is moved.
+  care_tracked_dms: [],
   // Who interacted with whom in chat (MemberInteractionRepository, lib/data/member-interactions.ts): every query is moved.
   member_interactions: [],
   // The preview cards of links in Hub-written messages (ChatLinkPreviewRepository, lib/data/chat-link-previews.ts): every query is moved.

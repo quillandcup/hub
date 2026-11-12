@@ -84,6 +84,12 @@ export interface CareRepository {
   renew(id: string, input: RenewInput): Promise<RenewResult>;
   /** Logs that the member (`member`) or staff (`staff`) wrote at `at`. The open engagement, or null when there is none such. */
   logMessage(id: string, direction: MessageDirection, at: string): Promise<CareEngagementRow | null>;
+  /**
+   * Moves the last-message times of an open engagement FORWARD only: a time replaces the stored one only when it is later
+   * (or none is stored), so applying the same or an older time changes nothing (what Slack DMs derive, docs/HEDGIE_CARE.md).
+   * Returns how many of the two times moved (0 when the engagement is closed or gone, or nothing was newer).
+   */
+  moveMessageTimesForward(id: string, times: { staffAt?: string; memberAt?: string }): Promise<number>;
   /** Changes the reason, notes, next step or follow-up day. The engagement, or null when there is none. */
   update(id: string, patch: CarePatch): Promise<CareEngagementRow | null>;
   /** Closes an open engagement with how it ended. The closed engagement, or null when there is no open one. */
@@ -208,6 +214,27 @@ export class SupabaseCareRepository implements CareRepository {
       .maybeSingle();
     if (error) throw new Error(error.message);
     return data;
+  }
+
+  async moveMessageTimesForward(id: string, times: { staffAt?: string; memberAt?: string }) {
+    let moved = 0;
+    const move = async (column: "last_staff_message_at" | "last_member_message_at", at: string) => {
+      const instant = new Date(at).toISOString();
+      const { data, error } = await this.db
+        .from("care_engagements")
+        .update(column === "last_staff_message_at" ? { last_staff_message_at: instant } : { last_member_message_at: instant })
+        .eq("id", id)
+        .is("closed_at", null)
+        .is("deleted_at", null)
+        .or(`${column}.is.null,${column}.lt.${instant}`)
+        .select("id")
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      if (data) moved += 1;
+    };
+    if (times.staffAt) await move("last_staff_message_at", times.staffAt);
+    if (times.memberAt) await move("last_member_message_at", times.memberAt);
+    return moved;
   }
 
   async update(id: string, patch: CarePatch) {
@@ -366,6 +393,23 @@ export class InMemoryCareRepository implements CareRepository {
     else row.last_staff_message_at = at;
     row.updated_at = new Date().toISOString();
     return { ...row };
+  }
+
+  async moveMessageTimesForward(id: string, times: { staffAt?: string; memberAt?: string }) {
+    const row = this.live().find((c) => c.id === id && c.closed_at === null);
+    if (!row) return 0;
+    let moved = 0;
+    const later = (stored: string | null, at: string) => stored === null || Date.parse(at) > Date.parse(stored);
+    if (times.staffAt && later(row.last_staff_message_at, times.staffAt)) {
+      row.last_staff_message_at = new Date(times.staffAt).toISOString();
+      moved += 1;
+    }
+    if (times.memberAt && later(row.last_member_message_at, times.memberAt)) {
+      row.last_member_message_at = new Date(times.memberAt).toISOString();
+      moved += 1;
+    }
+    if (moved > 0) row.updated_at = new Date().toISOString();
+    return moved;
   }
 
   async update(id: string, patch: CarePatch) {

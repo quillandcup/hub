@@ -18,6 +18,7 @@ describe("isCommunityManagerPath", () => {
     "/admin/at-risk/",
     "/admin/care",
     "/admin/care/earlier",
+    "/admin/care/dms",
   ])("opens %s", (path) => {
     expect(isCommunityManagerPath(path)).toBe(true);
   });
