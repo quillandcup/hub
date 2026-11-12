@@ -12,6 +12,8 @@ const card = (over: Partial<EngagementCardData>): EngagementCardData => ({
   status: "waiting",
   endedHow: null,
   openedAt: "2026-03-01T15:00:00Z",
+  startedOn: "2026-03-01",
+  today: "2026-03-20",
   periodEndsOn: "2026-03-31",
   ownerId: "11111111-1111-4111-8111-111111111111",
   ownerName: "Cam Example",
@@ -26,6 +28,9 @@ const card = (over: Partial<EngagementCardData>): EngagementCardData => ({
   followUpDue: false,
   nextStep: null,
   notes: null,
+  scores: null,
+  lastParticipation: null,
+  dmLink: null,
   ...over,
 });
 

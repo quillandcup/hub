@@ -38,6 +38,103 @@ export function periodEndsOn(openedAt: Date, engagementDays: number = CARE_ENGAG
   return addDays(orgYmd(openedAt), engagementDays);
 }
 
+/** A real calendar day written as "YYYY-MM-DD" (not "2026-02-30"). */
+export function isRealDay(value: unknown): value is Ymd {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+/**
+ * Why a chosen start day can't be used: `invalid` (not a real day) or `future` (after today, an Eastern calendar day). A
+ * period is only started or moved to a day that has begun; null when the day is fine.
+ */
+export function startDayProblem(startedOn: unknown, now: Date): "invalid" | "future" | null {
+  if (!isRealDay(startedOn)) return "invalid";
+  return startedOn > orgYmd(now) ? "future" : null;
+}
+
+/**
+ * The instant a care period that started on `startedOn` (an Eastern calendar day, not in the future) is recorded as opened:
+ * `now` when that day is today, else **noon Eastern** of that day. She enters a conversation by its day, not its time, and
+ * noon is a time that exists on every day (a clock change happens at 2 a.m.), sits well inside the day (so the Eastern day it
+ * lands on is never in doubt), and is where the Slack DM derivation, which counts messages from the start of that day,
+ * begins to look.
+ */
+export function careStartInstant(startedOn: Ymd, now: Date): Date {
+  return startedOn >= orgYmd(now) ? now : zonedTimeToUtc(startedOn, "12:00", ORG_TIMEZONE);
+}
+
+/** The start of an Eastern calendar day, as an instant (midnight; the 23- and 25-hour days still begin at midnight). */
+export function startOfOrgDay(ymd: Ymd): Date {
+  return zonedTimeToUtc(ymd, "00:00", ORG_TIMEZONE);
+}
+
+/**
+ * When the first message of a care period started on `startedOn` is recorded: now for today, else the **start of that Eastern
+ * day**. The opening instant is noon for a past day, but the first message is only a placeholder for "somebody wrote that
+ * day": putting it at midnight means a real DM from that morning, which counts from the start of the day, can still replace
+ * it (a time only moves forward), instead of being hidden behind a made-up noon.
+ */
+export function careFirstMessageInstant(startedOn: Ymd, now: Date): Date {
+  return startedOn >= orgYmd(now) ? now : startOfOrgDay(startedOn);
+}
+
+/** Whole calendar days from one day to a later one (pure date arithmetic: no clock change can add or remove an hour). */
+export function daysBetween(from: Ymd, to: Ymd): number {
+  const utc = (ymd: Ymd) => {
+    const [y, m, d] = ymd.split("-").map(Number);
+    return Date.UTC(y, m - 1, d);
+  };
+  return Math.round((utc(to) - utc(from)) / MS_PER_DAY);
+}
+
+/**
+ * The last day of a period whose start moves to `newOpenedAt`: the new Eastern day plus the length the period had (from the
+ * Eastern day it opened on to its last day), not the length now in the settings. A period that ran 30 days still runs 30, even
+ * if `careEngagementDays` has changed since; and she can't end up with a period that ends before it began.
+ */
+export function shiftedPeriodEnd(current: Pick<CareTimes, "opened_at" | "period_ends_on">, newOpenedAt: Date): Ymd {
+  const length = Math.max(0, daysBetween(orgYmd(new Date(current.opened_at)), current.period_ends_on));
+  return addDays(orgYmd(newOpenedAt), length);
+}
+
+/** What surrounds a care period's start in its chain: when the one it continues started, when its renewal started, when it was closed. */
+export type StartAround = { previousOpenedAt: string | null; renewalOpenedAt: string | null; closedAt: string | null };
+
+/**
+ * A chosen start that lands on the same Eastern day as the one before or the one after it in the chain, but on the wrong
+ * side of it by the hour (noon against a morning start), is moved to that boundary: the day is allowed, the time of day is
+ * whatever keeps the order. Any other start is returned as it is.
+ */
+export function clampToChain(next: Date, around: StartAround): Date {
+  const day = orgYmd(next);
+  const after = around.previousOpenedAt ? new Date(around.previousOpenedAt) : null;
+  const before = [around.renewalOpenedAt, around.closedAt].filter((t): t is string => !!t).map((t) => new Date(t)).sort((a, b) => a.getTime() - b.getTime())[0] ?? null;
+  if (after && next.getTime() < after.getTime() && orgYmd(after) === day) return after;
+  if (before && next.getTime() > before.getTime() && orgYmd(before) === day) return before;
+  return next;
+}
+
+/** Why a period's start can't move to a day: it would start before the period it continues, after its renewal, or after it was closed. */
+export type StartChangeRefusal = "before_previous" | "after_renewal" | "after_closed";
+
+/**
+ * Moving a start must keep the chain in order: not before the start of the period it continues (`renewed_from`), not after
+ * the start of the period that continued it, and not after it was closed. `null` when the start may move. Instants are
+ * compared as they are, so the same day is fine.
+ */
+export function startChangeRefusal(
+  newOpenedAt: Date,
+  around: StartAround
+): { reason: StartChangeRefusal; limit: string } | null {
+  const at = newOpenedAt.getTime();
+  if (around.previousOpenedAt && at < Date.parse(around.previousOpenedAt)) return { reason: "before_previous", limit: around.previousOpenedAt };
+  if (around.renewalOpenedAt && at > Date.parse(around.renewalOpenedAt)) return { reason: "after_renewal", limit: around.renewalOpenedAt };
+  if (around.closedAt && at > Date.parse(around.closedAt)) return { reason: "after_closed", limit: around.closedAt };
+  return null;
+}
+
 /** What an engagement's status follows from. */
 export type CareTimes = {
   closed_at: string | null;

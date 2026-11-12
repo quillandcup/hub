@@ -248,7 +248,7 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
   {
     name: "SLACK_TEAM_ID",
     group: "Slack",
-    description: "Workspace ID (T...) for slack:// links to the app's Home tab (Slack sign-in). Optional.",
+    description: "Workspace ID (T...) for slack:// links to the app's Home tab (Slack sign-in) and for the Slack Open the DM link in Hedgie Care. Optional.",
     type: "config",
     destinations: vercelAllEnvs,
   },

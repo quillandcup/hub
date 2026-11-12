@@ -25,9 +25,11 @@ import {
 } from "@/lib/care";
 import type { CareOwner } from "@/lib/care-owners";
 import { formatDateOnly } from "@/lib/formatters";
+import CareFacts from "./CareFacts";
 import type { EngagementCardData } from "./card";
 import EngagementResults from "./EngagementResults";
 import {
+  changeEngagementStart,
   closeEngagement,
   deleteEngagement,
   getEngagementResults,
@@ -52,9 +54,9 @@ const STATUS_STYLE: Record<CareStatus, string> = {
   closed: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
 };
 
-type Panel = "edit" | "close" | "renew" | "results" | "reassign";
+type Panel = "edit" | "close" | "renew" | "results" | "reassign" | "start";
 
-/** One engagement: who, why, where it stands, and the few things she does with it (log a reply, renew, hand it over, set a follow-up, close, see results). */
+/** One care period: who, why, where it stands, and the few things she does with it (log a reply, renew, hand it over, set a follow-up, change its start, close, see results). */
 export default function EngagementCard({ card, canWrite, owners }: { card: EngagementCardData; canWrite: boolean; owners: readonly CareOwner[] }) {
   const [panel, setPanel] = useState<Panel | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -67,6 +69,7 @@ export default function EngagementCard({ card, canWrite, owners }: { card: Engag
   const [followUpOn, setFollowUpOn] = useState(card.followUpOn ?? "");
   const [endedHow, setEndedHow] = useState("");
   const [renewWhy, setRenewWhy] = useState("");
+  const [startedOn, setStartedOn] = useState(card.startedOn);
 
   const closed = card.status === "closed";
   const daysOpen = () => Math.min(3650, Math.max(0, Math.floor((Date.now() - Date.parse(card.openedAt)) / 86_400_000)));
@@ -131,10 +134,22 @@ export default function EngagementCard({ card, canWrite, owners }: { card: Engag
     );
   };
 
+  const changeStart = () => {
+    if (!startedOn) return setError("Pick the day it started.");
+    const from = card.startedOn;
+    run(
+      () => changeEngagementStart(card.id, startedOn),
+      () => {
+        track("care_start_date_changed", { days_moved: Math.min(3650, Math.abs(Math.round((Date.parse(startedOn) - Date.parse(from)) / 86_400_000))) });
+        setPanel(null);
+      }
+    );
+  };
+
   const reassign = (ownerId: string) => run(() => reassignEngagement(card.id, ownerId), () => setPanel(null));
 
   const remove = () => {
-    if (!window.confirm("Remove this engagement from the lists?")) return;
+    if (!window.confirm("Remove this care period from the lists?")) return;
     run(() => deleteEngagement(card.id));
   };
 
@@ -172,10 +187,10 @@ export default function EngagementCard({ card, canWrite, owners }: { card: Engag
         {closed
           ? `${endedLabel ?? "Closed"}, closed ${card.closedLabel ?? ""}`.trim()
           : card.lastSpeaker === "member"
-            ? `They wrote ${card.lastActivityLabel}`
+            ? `Last message: they wrote ${card.lastActivityLabel}`
             : card.lastSpeaker === "staff"
-              ? `You wrote ${card.lastActivityLabel}`
-              : `Started ${card.lastActivityLabel}`}
+              ? `Last message: you wrote ${card.lastActivityLabel}`
+              : "No message logged yet"}
         {card.fromSlack && !closed && (
           <span
             title="Kept up to date from your tracked Slack DM with them, so you don't need to log replies here"
@@ -184,16 +199,32 @@ export default function EngagementCard({ card, canWrite, owners }: { card: Engag
             from Slack
           </span>
         )}
-        <span> · {card.periodOver ? "Period ended" : "Period ends"} {formatDateOnly(card.periodEndsOn)}</span>
+        <span> · Started {formatDateOnly(card.startedOn)}</span>
+        <span> · {card.periodOver ? "Care period ended" : "Care period ends"} {formatDateOnly(card.periodEndsOn)}</span>
         {card.followUpOn && !ended && <span> · Follow up {formatDateOnly(card.followUpOn)}</span>}
+        {card.dmLink && (
+          <>
+            {" · "}
+            {card.dmLink.kind === "hub_chat" ? (
+              <Link href={card.dmLink.href} title="Opens the DM in Hub Chat" className="font-medium text-plum-700 underline dark:text-plum-300">
+                Open the DM
+              </Link>
+            ) : (
+              <a href={card.dmLink.href} target="_blank" rel="noopener noreferrer" title="Opens the DM in Slack" className="font-medium text-plum-700 underline dark:text-plum-300">
+                Open the DM
+              </a>
+            )}
+          </>
+        )}
       </p>
+      <CareFacts card={card} />
       {card.nextStep && !ended && <p className="mt-1 text-sm">Next: {card.nextStep}</p>}
       {card.notes && <p className="mt-1 whitespace-pre-line text-sm text-slate-600 dark:text-slate-400">{card.notes}</p>}
       {card.status === "review_due" && (
-        <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">The period is over. Renew it if there is a plan, or close it.</p>
+        <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">The care period is over. Renew it if there is a plan, or close it.</p>
       )}
       {card.status === "lapsed" && (
-        <p className="mt-1 text-sm text-red-700 dark:text-red-300">The period ended and nobody renewed or closed it. Renew it if there is a plan, or close it.</p>
+        <p className="mt-1 text-sm text-red-700 dark:text-red-300">The care period ended and nobody renewed or closed it. Renew it if there is a plan, or close it.</p>
       )}
 
       {canWrite && (
@@ -220,6 +251,9 @@ export default function EngagementCard({ card, canWrite, owners }: { card: Engag
           <button type="button" className={BUTTON} disabled={pending} onClick={() => open("edit")}>
             Edit
           </button>
+          <button type="button" data-track="care-change-start" className={BUTTON} disabled={pending} onClick={() => open("start")}>
+            Change start date
+          </button>
           {!closed && (
             <button type="button" className={BUTTON} disabled={pending} onClick={() => open("close")}>
               Close
@@ -231,7 +265,27 @@ export default function EngagementCard({ card, canWrite, owners }: { card: Engag
         </div>
       )}
 
-      {canWrite && panel === "results" && resultsBlock}
+      {canWrite && panel === "results" && (
+        <>
+          <div className="mt-3">
+            <CareFacts card={card} withHelp />
+          </div>
+          {resultsBlock}
+        </>
+      )}
+
+      {canWrite && panel === "start" && (
+        <div className="mt-3 space-y-2">
+          <DatePicker id={`started-${card.id}`} label="When did this start?" value={startedOn} onChange={setStartedOn} max={card.today} />
+          <p className="max-w-prose text-sm text-slate-600 dark:text-slate-400">
+            Today or an earlier day. The care period stays the same length, so its last day moves with the start. {card.channel === "slack_dm" ? "If you track your Slack DM with them, DMs from that day on are used for who wrote last. " : ""}
+            {card.renewed ? "The start can't be before the care period this one follows on from. " : ""}
+          </p>
+          <button type="button" className={PRIMARY} disabled={pending} onClick={changeStart}>
+            Save start date
+          </button>
+        </div>
+      )}
 
       {canWrite && panel === "reassign" && (
         <div className="mt-3 max-w-sm">
@@ -249,7 +303,7 @@ export default function EngagementCard({ card, canWrite, owners }: { card: Engag
 
       {canWrite && panel === "renew" && (
         <div className="mt-3 space-y-3">
-          <p className="text-sm text-slate-700 dark:text-slate-300">Renewing starts a new period of the same length. Say why, so it is a decision and not a habit.</p>
+          <p className="text-sm text-slate-700 dark:text-slate-300">Renewing starts a new care period of the same length, from today. Say why, so it is a decision and not a habit.</p>
           {resultsBlock}
           <div>
             <label htmlFor={`renew-${card.id}`} className="mb-1 block text-sm font-medium">
@@ -258,7 +312,7 @@ export default function EngagementCard({ card, canWrite, owners }: { card: Engag
             <textarea id={`renew-${card.id}`} value={renewWhy} onChange={(e) => setRenewWhy(e.target.value)} maxLength={CARE_NOTES_MAX} rows={3} className={FIELD} />
           </div>
           <button type="button" className={PRIMARY} disabled={pending} onClick={renew}>
-            Renew engagement
+            Renew this care period
           </button>
         </div>
       )}
@@ -317,7 +371,7 @@ export default function EngagementCard({ card, canWrite, owners }: { card: Engag
           </fieldset>
           {resultsBlock}
           <button type="button" className={PRIMARY} disabled={pending} onClick={close}>
-            Close engagement
+            Close this care period
           </button>
         </div>
       )}

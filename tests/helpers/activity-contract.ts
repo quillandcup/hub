@@ -171,6 +171,104 @@ export function defineActivityContract(name: string, setup: () => ActivityContra
         expect(await ctx.repo().countsBetween(a, "2097-06-01T00:00:00Z", "2097-06-02T00:00:00Z")).toEqual({ pricklesAttended: 0, slackMessages: 1205 });
       });
 
+      it("counts a window's activity for a score: the 30 days up to its end, both ends included, rows worth nothing left out", async () => {
+        const [a, b] = ctx.memberIds;
+        const row = (member: 0 | 1, at: string, points: number, type = "slack_message") =>
+          activity(member, { type, category: "communication", source: "slack", occurredAt: at, relatedId: ctx.unique("pts"), engagementValue: points });
+        await ctx.repo().record(row(0, "2097-07-01T00:00:00Z", 3)); // exactly 30 days before the end: in
+        await ctx.repo().record(row(0, "2097-06-30T23:59:59Z", 5)); // a second before: out
+        await ctx.repo().record(row(0, "2097-07-15T10:00:00Z", 10, "prickle_attended"));
+        await ctx.repo().record(row(0, "2097-07-31T00:00:00Z", 2)); // exactly the end: in
+        await ctx.repo().record(row(0, "2097-07-31T00:00:01Z", 7)); // after the end: out
+        await ctx.repo().record(row(0, "2097-07-20T10:00:00Z", 0)); // worth nothing
+        await ctx.repo().record(row(1, "2097-07-20T10:00:00Z", 4)); // someone else
+
+        const rows = await ctx.repo().engagementRowsForWindows([
+          { memberId: a, endIso: "2097-07-31T00:00:00Z" },
+          { memberId: a, endIso: "2097-07-31T00:00:00.000Z" }, // the same window, written another way
+          { memberId: a, endIso: "2097-07-16T00:00:00Z" },
+          { memberId: b, endIso: "2097-07-31T00:00:00Z" },
+        ]);
+
+        const points = (member: string, end: string) => (rows.get(`${member}|${new Date(end).toISOString()}`) ?? []).map((r) => r.engagement_value ?? 0).sort((x, y) => x - y);
+        expect(points(a, "2097-07-31T00:00:00Z")).toEqual([2, 3, 10]);
+        expect(points(a, "2097-07-16T00:00:00Z")).toEqual([3, 5, 10]); // a different window sees the one the first left out
+        expect(points(b, "2097-07-31T00:00:00Z")).toEqual([4]);
+        expect((await ctx.repo().engagementRowsForWindows([])).size).toBe(0);
+      });
+
+      it("reads the rows of more than one request's worth of windows, and past 1000 rows", async () => {
+        const [a, b] = ctx.memberIds;
+        const start = Date.parse("2097-08-01T00:00:00Z");
+        await ctx.repo().recordMany(
+          Array.from({ length: 1205 }, (_, i) =>
+            activity(0, { type: "slack_message", category: "communication", source: "slack", occurredAt: new Date(start + i * 60_000).toISOString(), relatedId: ctx.unique("bulk"), engagementValue: 1 })
+          )
+        );
+        await ctx.repo().record(activity(1, { occurredAt: "2097-08-01T10:00:00Z", engagementValue: 6 }));
+        // 45 windows over two members: more than fit in one request.
+        const requests = Array.from({ length: 45 }, (_, i) => ({ memberId: i % 2 === 0 ? a : b, endIso: new Date(start + (i + 1) * 3_600_000 * 24).toISOString() }));
+
+        const rows = await ctx.repo().engagementRowsForWindows(requests);
+
+        expect(rows.size).toBe(45);
+        expect(rows.get(`${a}|${requests[0].endIso}`)).toHaveLength(1205);
+        expect(rows.get(`${b}|${requests[1].endIso}`)).toHaveLength(1);
+      });
+
+      describe("the last thing a member did themselves", () => {
+        const NOW = new Date("2097-09-30T12:00:00Z");
+        const own = (member: 0 | 1, type: string, at: string, over: Partial<NewActivity> = {}) =>
+          activity(member, { type, category: "event", source: over.source ?? "prickle_attendance", occurredAt: at, relatedId: ctx.unique("part"), actorKind: "member", ...over });
+
+        it("finds each member's latest participation of any kind, and nothing for a member with none", async () => {
+          const [a, b] = ctx.memberIds;
+          await ctx.repo().record(own(0, "prickle_attended", "2097-09-20T10:00:00Z"));
+          await ctx.repo().record(own(0, "slack_message", "2097-09-25T10:00:00Z", { source: "slack" }));
+          await ctx.repo().record(own(0, "lesson_completed", "2097-09-22T10:00:00Z", { source: "courses" }));
+
+          const found = await ctx.repo().lastParticipation([a, b], NOW);
+
+          expect(found.get(a)).toMatchObject({ type: "slack_message", label: "a Slack message" });
+          expect(new Date(found.get(a)!.occurredAt).toISOString()).toBe("2097-09-25T10:00:00.000Z");
+          expect(found.has(b)).toBe(false);
+          expect((await ctx.repo().lastParticipation([], NOW)).size).toBe(0);
+        });
+
+        it("does not count logins, what staff or the system wrote, or anything after now", async () => {
+          const [a] = ctx.memberIds;
+          await ctx.repo().record(own(0, "prickle_attended", "2097-09-01T10:00:00Z"));
+          await ctx.repo().record(own(0, "hedgie_hub_login", "2097-09-10T10:00:00Z", { source: "access_events" }));
+          await ctx.repo().record(own(0, "feedback_submitted", "2097-09-11T10:00:00Z", { source: "feedback" }));
+          await ctx.repo().record(own(0, "prickle_checkin_cleared", "2097-09-12T10:00:00Z", { source: "prickle_checkins" }));
+          await ctx.repo().record(own(0, "prickle_commitment_created", "2097-09-13T10:00:00Z", { source: "prickle_commitments", actorKind: "staff" }));
+          await ctx.repo().record(own(0, "care_started", "2097-09-14T10:00:00Z", { source: "care", actorKind: "staff" }));
+          await ctx.repo().record(own(0, "email_sent", "2097-09-15T10:00:00Z", { source: "resend", actorKind: "system" }));
+          await ctx.repo().record(own(0, "slack_message", "2097-10-05T10:00:00Z", { source: "slack" })); // after now
+
+          const found = await ctx.repo().lastParticipation([a], NOW);
+
+          expect(found.get(a)).toMatchObject({ type: "prickle_attended" });
+          expect(new Date(found.get(a)!.occurredAt).toISOString()).toBe("2097-09-01T10:00:00.000Z");
+        });
+
+        it("still finds a member whose last participation is long ago, and reads past 1000 rows in a window", async () => {
+          const [a, b] = ctx.memberIds;
+          await ctx.repo().record(own(0, "prickle_attended", "2093-02-01T10:00:00Z")); // years before now
+          const start = Date.parse("2097-09-29T00:00:00Z");
+          await ctx.repo().recordMany(
+            Array.from({ length: 1205 }, (_, i) =>
+              own(1, "slack_reaction", new Date(start + i * 60_000).toISOString(), { source: "slack", category: "communication" })
+            )
+          );
+
+          const found = await ctx.repo().lastParticipation([a, b], NOW);
+
+          expect(new Date(found.get(a)!.occurredAt).toISOString()).toBe("2093-02-01T10:00:00.000Z");
+          expect(new Date(found.get(b)!.occurredAt).toISOString()).toBe(new Date(start + 1204 * 60_000).toISOString());
+        });
+      });
+
       it("finds the first prickle and the first Slack post, whatever the date", async () => {
         const [a, b] = ctx.memberIds;
         await ctx.repo().record(prickle(0, "2097-02-10T10:00:00Z", ctx.unique("prkl")));

@@ -30,7 +30,7 @@ export function ActiveList({ cards, canWrite, owners, meId }: ListProps) {
   const shown = filter === "all" ? mine : mine.filter((c) => c.status === filter);
 
   return (
-    <section aria-label="Active engagements">
+    <section aria-label="Active care periods">
       <OwnerFilter cards={cards} owners={owners} meId={meId} choice={choice} onChoose={setChoice} />
       <div className="mb-3 flex flex-wrap gap-2" role="group" aria-label="Show">
         {ACTIVE_FILTERS.map((f) => (
@@ -40,7 +40,7 @@ export function ActiveList({ cards, canWrite, owners, meId }: ListProps) {
         ))}
       </div>
       {shown.length === 0 ? (
-        <p className={EMPTY}>{cards.length === 0 ? "Nothing active. Start an engagement above." : "Nothing here."}</p>
+        <p className={EMPTY}>{cards.length === 0 ? "Nothing active. Start a care period above." : "Nothing here."}</p>
       ) : (
         <ul className="space-y-3">
           {shown.map((card) => (
@@ -65,7 +65,7 @@ export function EarlierList({ cards, canWrite, owners, meId }: ListProps) {
   const table = useDataTable<EngagementCardData, never>({ rows: shown, getSortValue: () => null, pageSize: 20, resetKey: `${filter}:${choice}` });
 
   return (
-    <section aria-label="Earlier engagements">
+    <section aria-label="Earlier care periods">
       {cards.length === 0 ? (
         <p className={EMPTY}>Nothing has ended yet.</p>
       ) : (
@@ -87,7 +87,7 @@ export function EarlierList({ cards, canWrite, owners, meId }: ListProps) {
                   <EngagementCard key={card.id} card={card} canWrite={canWrite} owners={owners} />
                 ))}
               </ul>
-              <DataTablePager table={table} itemLabel="engagements" />
+              <DataTablePager table={table} itemLabel="care periods" />
             </>
           )}
         </>

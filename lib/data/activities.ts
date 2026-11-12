@@ -1,3 +1,5 @@
+import { latestParticipation, PARTICIPATION_TYPES, type Participation } from "@/lib/care-participation";
+import { ENGAGEMENT_WINDOW_DAYS } from "@/lib/member-engagement";
 import { pageBounds } from "@/lib/pagination";
 import type { SlackPageQuery, SlackSortColumn } from "@/lib/slack-activity-table";
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
@@ -35,6 +37,15 @@ export interface EngagementRow {
   engagement_value: number | null;
   occurred_at: string;
 }
+
+/** One member's score window: the 30 days up to `endIso`. */
+export interface EngagementWindowRequest {
+  memberId: string;
+  endIso: string;
+}
+
+/** The key of a window in the map `engagementRowsForWindows` returns. */
+export const engagementWindowKey = (r: EngagementWindowRequest) => `${r.memberId}|${new Date(r.endIso).toISOString()}`;
 
 /** What a member did in a stretch of time, from their activity log. */
 export interface ActivityCounts {
@@ -99,6 +110,41 @@ export interface ActivityRepository {
   countsBetween(memberId: string, fromIso: string, toIso: string): Promise<ActivityCounts>;
   /** When the activity log first shows a member at a prickle and posting in Slack, whatever the date. */
   firsts(memberId: string): Promise<ActivityFirsts>;
+  /**
+   * The latest thing each of these members did themselves in the community (`lib/care-participation.ts`: what counts is
+   * decided there), as of `now`. Batched: members in chunks, looking back a week, a month, three months, a year and then
+   * all time, each step only for the members not found yet, so a busy member costs little and a quiet one is still found.
+   * Paginated past 1000 rows. A member with none is absent.
+   */
+  lastParticipation(memberIds: string[], now: Date): Promise<Map<string, Participation>>;
+  /**
+   * The activity behind a score, for many windows at once: for each request the member's rows in the 30 days up to its end
+   * (both ends included) that carry points (a row worth nothing cannot change a score). Keyed by `engagementWindowKey`.
+   * Batched in chunks of windows, paginated past 1000 rows with a stable order.
+   */
+  engagementRowsForWindows(requests: EngagementWindowRequest[]): Promise<Map<string, EngagementRow[]>>;
+}
+
+/** Looking back from now for a member's last participation: days, then all time (null). */
+const PARTICIPATION_LOOKBACK_DAYS: (number | null)[] = [7, 30, 90, 365, null];
+/** Windows per request for `engagementRowsForWindows` (each becomes one `and(...)` branch of an `or`). */
+const WINDOWS_PER_REQUEST = 20;
+const DAY_MS = 86_400_000;
+
+const windowStart = (endIso: string) => new Date(Date.parse(endIso) - ENGAGEMENT_WINDOW_DAYS * DAY_MS).toISOString();
+
+/** Hands each request the rows of its member that fall in its window. */
+function rowsByWindow(requests: EngagementWindowRequest[], rows: readonly EngagementRow[]): Map<string, EngagementRow[]> {
+  const out = new Map<string, EngagementRow[]>();
+  for (const request of requests) {
+    const from = Date.parse(windowStart(request.endIso));
+    const to = Date.parse(request.endIso);
+    out.set(
+      engagementWindowKey(request),
+      rows.filter((r) => r.member_id === request.memberId && Date.parse(r.occurred_at) >= from && Date.parse(r.occurred_at) <= to)
+    );
+  }
+  return out;
 }
 
 const SLACK_MESSAGE_TYPES = ["slack_message", "slack_thread_reply"];
@@ -332,6 +378,51 @@ export class SupabaseActivityRepository implements ActivityRepository {
     return { firstPrickleAt, firstSlackPostAt };
   }
 
+  async lastParticipation(memberIds: string[], now: Date) {
+    type Row = { member_id: string; activity_type: string; actor_kind: string; occurred_at: string };
+    const found = new Map<string, Participation>();
+    let pending = [...new Set(memberIds)];
+    for (const days of PARTICIPATION_LOOKBACK_DAYS) {
+      if (pending.length === 0) break;
+      const since = days === null ? null : new Date(now.getTime() - days * DAY_MS).toISOString();
+      for (const ids of chunk(pending, ID_CHUNK)) {
+        const rows = await fetchAllRows<Row>((from, to) => {
+          const query = this.db
+            .from("member_activities")
+            .select("member_id, activity_type, actor_kind, occurred_at")
+            .in("member_id", ids)
+            .eq("actor_kind", "member")
+            .in("activity_type", [...PARTICIPATION_TYPES])
+            .lte("occurred_at", now.toISOString());
+          return (since === null ? query : query.gte("occurred_at", since)).order("id").range(from, to);
+        });
+        for (const [memberId, hit] of latestParticipation(rows)) found.set(memberId, hit);
+      }
+      pending = pending.filter((id) => !found.has(id));
+    }
+    return found;
+  }
+
+  async engagementRowsForWindows(requests: EngagementWindowRequest[]) {
+    const unique = [...new Map(requests.map((r) => [engagementWindowKey(r), r])).values()];
+    const out = new Map<string, EngagementRow[]>();
+    for (const part of chunk(unique, WINDOWS_PER_REQUEST)) {
+      const ranges = part.map((r) => `and(occurred_at.gte.${windowStart(r.endIso)},occurred_at.lte.${new Date(r.endIso).toISOString()})`).join(",");
+      const rows = await fetchAllRows<EngagementRow>((from, to) =>
+        this.db
+          .from("member_activities")
+          .select("member_id, activity_type, engagement_value, occurred_at")
+          .in("member_id", [...new Set(part.map((r) => r.memberId))])
+          .neq("engagement_value", 0)
+          .or(ranges)
+          .order("id")
+          .range(from, to)
+      );
+      for (const [key, list] of rowsByWindow(part, rows)) out.set(key, list);
+    }
+    return out;
+  }
+
   async relatedIdsWritten(source: string, relatedIds: string[]) {
     const written = new Set<string>();
     for (const ids of chunk(relatedIds, ID_CHUNK)) {
@@ -495,6 +586,18 @@ export class InMemoryActivityRepository implements ActivityRepository {
       return times.length ? times.reduce((a, b) => (new Date(b) < new Date(a) ? b : a)) : null;
     };
     return { firstPrickleAt: first(["prickle_attended"]), firstSlackPostAt: first(SLACK_MESSAGE_TYPES) };
+  }
+
+  async lastParticipation(memberIds: string[], now: Date) {
+    const wanted = new Set(memberIds);
+    return latestParticipation(this.data.activities.filter((a) => wanted.has(a.member_id) && Date.parse(a.occurred_at) <= now.getTime()));
+  }
+
+  async engagementRowsForWindows(requests: EngagementWindowRequest[]) {
+    const rows = this.data.activities
+      .filter((a) => a.engagement_value !== null && a.engagement_value !== 0)
+      .map((a) => ({ member_id: a.member_id, activity_type: a.activity_type, engagement_value: a.engagement_value, occurred_at: a.occurred_at }));
+    return rowsByWindow(requests, rows);
   }
 
   async relatedIdsWritten(source: string, relatedIds: string[]) {

@@ -1,8 +1,15 @@
 import { careStatus, daysAgoLabel, isFollowUpDue, lastActivityAt, memberWroteLast, periodNumber, type CareSettings, type CareStatus } from "@/lib/care";
+import type { DmLink } from "@/lib/care-dm-link";
+import type { Participation } from "@/lib/care-participation";
 import { ownerName, type CareOwner } from "@/lib/care-owners";
+import type { CareScores } from "@/lib/care-scores";
+import { formatDateOnly } from "@/lib/formatters";
 import type { CareEngagementWithMember } from "@/lib/data/care";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { orgYmd } from "@/lib/org-week";
+
+/** The latest thing a member did themselves in the community, worded for the row ("3/12/2026", "a prickle", "8 days ago"). */
+export type ParticipationCard = { dateLabel: string; what: string; agoLabel: string };
 
 /** One engagement as the page's client components need it: names resolved, status and "how long ago" worked out on the server. */
 export type EngagementCardData = {
@@ -17,6 +24,9 @@ export type EngagementCardData = {
   status: CareStatus;
   endedHow: string | null;
   openedAt: string;
+  /** The Eastern calendar day it started (a plain date), and today's, for the date picker's limit. */
+  startedOn: string;
+  today: string;
   /** The last day of the period (a plain date). */
   periodEndsOn: string;
   /** The period's last day is behind us (an Eastern calendar day), whether or not it was closed. */
@@ -39,6 +49,12 @@ export type EngagementCardData = {
   followUpDue: boolean;
   nextStep: string | null;
   notes: string | null;
+  /** The member's engagement score (and tier) when the care period started and now; null when it could not be worked out. */
+  scores: CareScores | null;
+  /** Their latest own activity anywhere in the community; null when none is recorded, "unavailable" when it could not be read. Not the DM: that is `lastSpeaker`. */
+  lastParticipation: ParticipationCard | "unavailable" | null;
+  /** "Open the DM", for a Slack DM care period whose DM the signed-in staff user tracks and owns; null otherwise. */
+  dmLink: DmLink | null;
 };
 
 export type CardOptions = {
@@ -52,11 +68,17 @@ export type CardOptions = {
    * those members is marked `fromSlack`. (Nobody can read another staff member's tracked list, so an engagement someone
    * else owns carries no hint.)
    */
-  slackTracked?: { userId: string; memberIds: ReadonlySet<string> };
+  slackTracked?: { userId: string; memberIds: ReadonlySet<string>; /** "Open the DM" by member id. */ links?: ReadonlyMap<string, DmLink> };
+  /** Engagement scores by care period id (`loadCareScores`). */
+  scores?: ReadonlyMap<string, CareScores>;
+  /** Each member's latest participation (`ActivityRepository.lastParticipation`). */
+  participation?: ReadonlyMap<string, Participation>;
 };
 
 export function toEngagementCard(row: CareEngagementWithMember, now: Date, options: CardOptions = {}): EngagementCardData {
-  const { settings, owners = [], byId = new Map(), slackTracked } = options;
+  const { settings, owners = [], byId = new Map(), slackTracked, scores, participation } = options;
+  const ownsTrackedDm = !!slackTracked && row.channel === "slack_dm" && (row.owned_by ?? row.opened_by) === slackTracked.userId && slackTracked.memberIds.has(row.member_id);
+  const last = participation?.get(row.member_id);
   const shown = row.member ? getMemberDisplayName(row.member) : "A member who is no longer here";
   return {
     id: row.id,
@@ -68,6 +90,8 @@ export function toEngagementCard(row: CareEngagementWithMember, now: Date, optio
     status: careStatus(row, now, settings),
     endedHow: row.ended_how,
     openedAt: row.opened_at,
+    startedOn: orgYmd(new Date(row.opened_at)),
+    today: orgYmd(now),
     periodEndsOn: row.period_ends_on,
     ownerId: row.owned_by,
     ownerName: ownerName(row.owned_by, owners),
@@ -76,16 +100,14 @@ export function toEngagementCard(row: CareEngagementWithMember, now: Date, optio
     renewed: row.renewed_from !== null,
     lastActivityLabel: daysAgoLabel(lastActivityAt(row), now),
     lastSpeaker: memberWroteLast(row) ? "member" : row.last_staff_message_at ? "staff" : null,
-    fromSlack:
-      !!slackTracked &&
-      row.channel === "slack_dm" &&
-      row.closed_at === null &&
-      (row.owned_by ?? row.opened_by) === slackTracked.userId &&
-      slackTracked.memberIds.has(row.member_id),
+    fromSlack: ownsTrackedDm && row.closed_at === null,
     closedLabel: row.closed_at ? daysAgoLabel(row.closed_at, now) : null,
     followUpOn: row.follow_up_on,
     followUpDue: row.closed_at === null && isFollowUpDue(row.follow_up_on, now),
     nextStep: row.next_step,
     notes: row.notes,
+    scores: scores?.get(row.id) ?? null,
+    lastParticipation: !participation ? "unavailable" : last ? { dateLabel: formatDateOnly(orgYmd(new Date(last.occurredAt))), what: last.label, agoLabel: daysAgoLabel(last.occurredAt, now) } : null,
+    dmLink: ownsTrackedDm ? (slackTracked?.links?.get(row.member_id) ?? null) : null,
   };
 }

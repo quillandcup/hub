@@ -22,7 +22,9 @@ export interface MemberEngagementMetrics {
   engagementTier: "highly_engaged" | "active" | "at_risk";
 }
 
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+/** The scoring window: the score is the points of the last 30 days. */
+export const ENGAGEMENT_WINDOW_DAYS = 30;
+const THIRTY_DAYS_MS = ENGAGEMENT_WINDOW_DAYS * 24 * 60 * 60 * 1000;
 const FIFTEEN_DAYS_MS = 15 * 24 * 60 * 60 * 1000;
 const PRICKLE_ACTIVITY_TYPE = "prickle_attended";
 
@@ -112,4 +114,20 @@ export function computeMemberEngagementMetrics(
   }
 
   return metrics;
+}
+
+/**
+ * A member's score and tier as of an instant: the same rules as above with `at` as the end of the 30-day window (the
+ * function above takes "now" as a parameter; this is the case where it is not now). Activity after `at` is ignored, so
+ * the score "then" never holds what came later. The rows should cover the 30 days up to `at`; extra rows outside it are ignored.
+ */
+export function engagementScoreAt(
+  memberId: string,
+  activities: EngagementActivityRow[],
+  at: Date
+): Pick<MemberEngagementMetrics, "engagementScore" | "engagementTier"> {
+  const upTo = at.getTime();
+  const inRange = activities.filter((a) => a.member_id === memberId && new Date(a.occurred_at).getTime() <= upTo);
+  const { engagementScore, engagementTier } = computeMemberEngagementMetrics([], [memberId], at, inRange).get(memberId)!;
+  return { engagementScore, engagementTier };
 }
