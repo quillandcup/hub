@@ -9,12 +9,20 @@ interface OfferRow {
   name: string;
 }
 
-const KAJABI_OFFER_NOTES = {
-  held: "Kajabi holds this offer for them without a purchase: likely granted (comped or gifted).",
-  not_held: "Kajabi shows no sign of this offer for them.",
-  unknown: "Couldn't check Kajabi.",
-  no_contact: "No Kajabi contact for this member.",
-} as const;
+/** What Kajabi said about an attendee with no purchase; says "these offers" when the event has several linked. */
+function kajabiOfferNote(kind: "held" | "not_held" | "unknown" | "no_contact", linkedCount: number): string {
+  const offers = linkedCount > 1 ? "any of the linked offers" : "this offer";
+  switch (kind) {
+    case "held":
+      return `Kajabi holds ${linkedCount > 1 ? "one of the linked offers" : "this offer"} for them without a purchase: likely granted (comped or gifted).`;
+    case "not_held":
+      return `Kajabi shows no sign of ${offers} for them.`;
+    case "unknown":
+      return "Couldn't check Kajabi.";
+    case "no_contact":
+      return "No Kajabi contact for this member.";
+  }
+}
 
 /** Says a buyer and an attendee with no ticket share a name: likely one person with two member records. */
 function DuplicateHint({ other }: { other: { member_id: string; member_name: string } }) {
@@ -137,7 +145,7 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
           fetch(`/api/admin/events/${eventId}/attendees`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ memberId, ticketSource: "purchased" }),
+            body: JSON.stringify({ memberId }),
           })
         )
       );
@@ -319,7 +327,7 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
                   <li key={attendee.member_id}>
                     {attendee.member_name}
                     {attendee.possible_duplicate && <DuplicateHint other={attendee.possible_duplicate} />}
-                    <span className="block text-xs text-slate-500 dark:text-slate-400">{KAJABI_OFFER_NOTES[attendee.kajabi_offer]}</span>
+                    <span className="block text-xs text-slate-500 dark:text-slate-400">{kajabiOfferNote(attendee.kajabi_offer, linked.length)}</span>
                   </li>
                 ))}
               </ul>

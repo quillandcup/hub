@@ -118,7 +118,7 @@ describe("Kajabi tickets on an event", () => {
 
     await waitFor(() => expect(onAttendeesChanged).toHaveBeenCalled());
     const adds = calls.filter((c) => c.method === "POST");
-    expect(adds).toEqual([{ url: `/api/admin/events/${EVENT}/attendees`, method: "POST", body: { memberId: "mbr_AAAAAAAAAAA1", ticketSource: "purchased" } }]);
+    expect(adds).toEqual([{ url: `/api/admin/events/${EVENT}/attendees`, method: "POST", body: { memberId: "mbr_AAAAAAAAAAA1" } }]);
   });
 
   it("can add a deactivated purchase once it is ticked, and counts failures", async () => {
@@ -192,7 +192,7 @@ describe("Kajabi tickets on an event", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Find Kajabi matches" }));
 
     expect(await screen.findByText(/likely granted \(comped or gifted\)/)).toBeInTheDocument();
-    expect(screen.getByText("Kajabi shows no sign of this offer for them.")).toBeInTheDocument();
+    expect(screen.getByText("Kajabi shows no sign of this offer for them.")).toBeInTheDocument(); // one offer linked
     expect(screen.getByText("Couldn't check Kajabi.")).toBeInTheDocument();
     expect(screen.getByText("No Kajabi contact for this member.")).toBeInTheDocument();
   });

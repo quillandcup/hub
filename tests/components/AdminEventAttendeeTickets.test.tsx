@@ -206,10 +206,30 @@ describe("how an attendee got in", () => {
     const adaSelect = await screen.findByLabelText("How Ada Example got in");
     expect(adaSelect).toHaveValue("purchased");
     expect(within(adaSelect).queryByRole("option", { name: "Not recorded" })).not.toBeInTheDocument();
+    expect(within(adaSelect).getByRole("option", { name: "Purchased" })).toBeInTheDocument();
     // No note field for a source nobody recorded.
     expect(screen.queryByLabelText("Ticket note for Ada Example")).not.toBeInTheDocument();
     // Someone with no purchase keeps Not recorded, and a recorded source is shown as recorded.
     expect(screen.getByLabelText("How Cy Example got in")).toHaveValue("");
     expect(screen.getByLabelText("How Bo Example got in")).toHaveValue("comped");
+  });
+  it("clears a source recorded by hand when Purchased is picked for someone who bought", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (init?.method) writes.push({ url, method: init.method, body: init.body ? JSON.parse(String(init.body)) : undefined });
+        if (url === "/api/members") return { ok: true, json: async () => ({ members: [] }) } as Response;
+        return {
+          ok: true,
+          json: async () => ({ event: EVENT, prickleId: "prkl_AAAAAAAAAAA1", hubSession: false, photos: [], badgeType: null, attendees: [{ ...ADA, purchasedInKajabi: true }] }),
+        } as Response;
+      }),
+    );
+    render(<EventDetailClient eventId={EVENT.id} />);
+
+    await userEvent.selectOptions(await screen.findByLabelText("How Ada Example got in"), "purchased");
+
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0].body).toEqual({ ticketSource: null, ticketNote: null });
   });
 });

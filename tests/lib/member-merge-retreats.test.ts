@@ -37,7 +37,7 @@ beforeEach(() => {
       { id: OTHER, name: "Other Member", email: "other@example.com" },
     ],
     eventAttendees: [
-      { id: "a1", event_id: SPRING, member_id: DUP, ticket_source: "purchased" },
+      { id: "a1", event_id: SPRING, member_id: DUP, ticket_source: "gifted" },
       { id: "a2", event_id: ARKANSAS, member_id: DUP },
       { id: "a3", event_id: ARKANSAS, member_id: KEEP },
     ],
@@ -65,7 +65,7 @@ describe("POST /api/admin/members/merge keeps retreats, badges and Big Sister re
 
     const attendeesOfKeep = dataset.eventAttendees.filter((a) => a.member_id === KEEP);
     expect(attendeesOfKeep.map((a) => a.event_id).sort()).toEqual([SPRING, ARKANSAS]);
-    expect(attendeesOfKeep.find((a) => a.event_id === SPRING)?.ticket_source).toBe("purchased");
+    expect(attendeesOfKeep.find((a) => a.event_id === SPRING)?.ticket_source).toBe("gifted");
     expect(dataset.memberBadges.filter((b) => b.memberId === KEEP).map((b) => b.eventId).sort()).toEqual([SPRING, ARKANSAS]);
   });
 

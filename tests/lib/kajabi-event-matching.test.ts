@@ -96,7 +96,7 @@ describe("findKajabiMatchesForEvent", () => {
   it("leaves out buyers who are already attendees", async () => {
     const r = repos({
       kajabiPurchases: [purchase("p1", "c1", FULL), purchase("p2", "c2", FULL)],
-      eventAttendees: [{ id: "a1", event_id: EVENT, member_id: "mbr_AAAAAAAAAAA1", ticket_source: "purchased" }],
+      eventAttendees: [{ id: "a1", event_id: EVENT, member_id: "mbr_AAAAAAAAAAA1", ticket_source: null }],
     });
 
     const { buyers } = await findKajabiMatchesForEvent(r, EVENT);
@@ -118,7 +118,7 @@ describe("findKajabiMatchesForEvent", () => {
     const r = repos({
       kajabiPurchases: [purchase("p1", "c1", FULL)],
       eventAttendees: [
-        { id: "a1", event_id: EVENT, member_id: "mbr_AAAAAAAAAAA1", ticket_source: "purchased" },
+        { id: "a1", event_id: EVENT, member_id: "mbr_AAAAAAAAAAA1", ticket_source: null },
         { id: "a2", event_id: EVENT, member_id: "mbr_AAAAAAAAAAA2", ticket_source: null },
         { id: "a3", event_id: EVENT, member_id: "mbr_AAAAAAAAAAA3", ticket_source: "comped" },
         { id: "a4", event_id: EVENT, member_id: "mbr_AAAAAAAAAAA4", ticket_source: "purchased" },
@@ -127,10 +127,11 @@ describe("findKajabiMatchesForEvent", () => {
 
     const { attendeesWithoutTicket } = await findKajabiMatchesForEvent(r, EVENT);
 
-    // Ada bought; Cy is comped; Bo has nothing recorded; Di says purchased but has no purchase.
+    // Ada bought; Cy is comped; Bo has nothing recorded; Di's stored "purchased" (older rows, and what
+    // the add button used to write) is ignored, so with no purchase behind it Di is listed too.
     expect(attendeesWithoutTicket.map((a) => [a.member_name, a.ticket_source])).toEqual([
       ["Bo Example", null],
-      ["Di Example", "purchased"],
+      ["Di Example", null],
     ]);
   });
   describe("the same person under two member records", () => {
@@ -178,7 +179,7 @@ describe("findKajabiMatchesForEvent", () => {
           purchase("p8", "c3", FULL),
         ],
         eventAttendees: [
-          { id: "a1", event_id: EVENT, member_id: "mbr_AAAAAAAAAAA1", ticket_source: "purchased" },
+          { id: "a1", event_id: EVENT, member_id: "mbr_AAAAAAAAAAA1", ticket_source: null },
           { id: "a2", event_id: EVENT, member_id: "mbr_AAAAAAAAAAA4", ticket_source: "gifted" },
         ],
       });

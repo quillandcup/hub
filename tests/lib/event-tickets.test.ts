@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TICKET_NOTE_MAX_LENGTH, isTicketSource, parseTicketInput } from "@/lib/event-tickets";
+import { TICKET_NOTE_MAX_LENGTH, isTicketSource, parseTicketInput, recordedTicketSource } from "@/lib/event-tickets";
 
 describe("parseTicketInput", () => {
   it("is undefined when the body does not mention a ticket", () => {
@@ -31,5 +31,18 @@ describe("parseTicketInput", () => {
     expect(isTicketSource("donated")).toBe(false);
     expect(isTicketSource("free")).toBe(false);
     expect(isTicketSource(undefined)).toBe(false);
+  });
+
+  it("does not record a purchase: that is derived from Kajabi", () => {
+    expect(isTicketSource("purchased")).toBe(false);
+    expect(parseTicketInput({ ticketSource: "purchased" })).toEqual({ error: expect.stringContaining("ticketSource must be one of") });
+  });
+
+  it("honors a stored comped or gifted source and treats anything else, such as an older stored purchased, as nothing recorded", () => {
+    expect(recordedTicketSource("comped")).toBe("comped");
+    expect(recordedTicketSource("gifted")).toBe("gifted");
+    expect(recordedTicketSource("purchased")).toBeNull();
+    expect(recordedTicketSource("donated")).toBeNull();
+    expect(recordedTicketSource(null)).toBeNull();
   });
 });
