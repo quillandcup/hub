@@ -35,8 +35,9 @@ vi.mock("@/app/(member)/my-prickles/AddToCalendar", () => ({
   AddEventToCalendar: ({ eventId, itemId }: { eventId: string; itemId: string | null }) => <div data-testid="calendar">{eventId}|{itemId}</div>,
 }));
 vi.mock("@/app/(member)/events/[slug]/EventDetailClient", () => ({
-  default: ({ event, photos, calendarControl, coverImage, timeZone }: { event: { title: string }; photos: { id: string }[]; calendarControl: React.ReactNode; coverImage: { src: string; alt: string } | null; timeZone: string }) => (
+  default: ({ event, photos, calendarControl, coverImage, timeZone, signup }: { event: { title: string }; photos: { id: string }[]; calendarControl: React.ReactNode; coverImage: { src: string; alt: string } | null; timeZone: string; signup: { checkoutUrl: string | null; spotsLeft: number | null; soldOut: boolean } | null }) => (
     <div>
+      <div data-testid="signup">{signup ? `${signup.checkoutUrl}|${signup.spotsLeft}|${signup.soldOut}` : "none"}</div>
       <div data-testid="zone">{timeZone}</div>
       <div data-testid="detail">{event.title}|{photos.map((p) => p.id).join(",")}</div>
       <div data-testid="cover">{coverImage ? `${coverImage.src}|${coverImage.alt}` : "none"}</div>
@@ -67,6 +68,23 @@ beforeEach(() => {
 });
 
 describe("member event detail page", () => {
+  it("passes the offer's checkout link and the places left, read from the linked offer and its buyers", async () => {
+    dataset = new InMemoryDataset({
+      ...eventSeed([{ id: "evnt_AAAAAAAAAAA1", slug: "spring-retreat", title: "Spring Retreat", starts_at: "2097-04-01", ends_at: "2097-04-03", capacity: 2 }]),
+      eventOffers: [{ event_id: "evnt_AAAAAAAAAAA1", kajabi_offer_id: "offer_1" }],
+      kajabiOffers: [{ kajabi_offer_id: "offer_1", name: "Spring Retreat", data: { attributes: { checkout_url: "https://checkout.example.com/spring" } } }],
+      kajabiCustomers: [{ kajabi_customer_id: "c1", email: "ada@example.com" }],
+      kajabiPurchases: [{ kajabi_purchase_id: "p1", kajabi_customer_id: "c1", kajabi_offer_id: "offer_1", deactivated_at: null }],
+    } as never);
+    await renderServerPage(EventDetailPage, params("spring-retreat"));
+    expect(screen.getByTestId("signup")).toHaveTextContent("https://checkout.example.com/spring|1|false");
+  });
+
+  it("passes no sign-up for an event with no offer", async () => {
+    await renderServerPage(EventDetailPage, params("spring-retreat"));
+    expect(screen.getByTestId("signup")).toHaveTextContent("none");
+  });
+
   it("shows the event with its visible photos in the order taken, and the calendar control for an upcoming one", async () => {
     await renderServerPage(EventDetailPage, params("spring-retreat"));
 

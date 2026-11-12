@@ -53,6 +53,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "event-places-left-and-sign-up",
+    date: "2026-11-11",
+    audience: "product",
+    category: "improved",
+    title: "See how many places are left on an event, and sign up from its page",
+    summary: "Events with limited places now say how many are left, or \"Sold out!\" once they are full, and an upcoming event you can buy a ticket for has a Sign up button.",
+    body: [
+      "On the Events page, a retreat or other event with limited places now shows how many places are left, or \"Sold out!\" when none are.",
+      "Open the event and you will see the same on its page, with a **Sign up** button that takes you to the ticket page. When it is sold out, the button goes away.",
+      "Places are counted from tickets bought as well as from the people already on the list, so the last place shows as taken as soon as it is paid for.",
+    ].join("\n\n"),
+  },
+  {
     slug: "sync-segments-from-course-program-event",
     date: "2026-11-11",
     audience: "engineering",

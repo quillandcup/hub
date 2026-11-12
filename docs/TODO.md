@@ -1471,6 +1471,10 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 ## UI Enhancements
 
+### Event places left: count extra tickets, pick the right offer, show "you're in" _(Needs Scheduling)_
+
+Places left on an event (`lib/event-signup.ts`, `docs/CALENDAR_EVENTS.md`, "Places left and sign-up from the linked offers") counts each person once, so a buyer of two tickets (the second may be a gift for someone who is not a member) takes one place, and the Sign up button uses the first linked offer's checkout when an event has several (deposit, payment plan, full price). Worth doing when a retreat sells out with extra tickets, or offers differ by price: count active purchases of the full-price offer per ticket, or let staff mark which linked offer is the one to send members to. The page also does not yet tell a member who already has a place that they are in; start from `eventSignups` and the member's own attendee or purchase row.
+
 ### Move the last hand-built tooltips onto a shared `Tooltip` _(Needs Scheduling)_
 
 `ReasonBadges` and the chat `ReactionHoverCard` are the two remaining hand-built tooltips (allowlisted in `tests/lib/tooltips.test.ts`; both are display:none or unmounted at rest, so they can't widen a page). Move them onto a shared `Tooltip` primitive that `InfoTip` builds on, then empty the allowlist. The phone-width overflow check is built: `demo/scenes/phone-overflow.spec.ts` (`pnpm demo:phone-overflow`, runs with the other scenes in the help-screenshots workflow); extend its page list as pages are added.

@@ -10,6 +10,8 @@ import { getUserTimezonePreference } from "@/lib/timezone";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { stripEventTag } from "@/lib/calendar-events";
 import { getEffectiveIdentity } from "@/lib/sudo";
+import { getServiceRepos } from "@/lib/data/server";
+import { eventSignups } from "@/lib/event-signup";
 import { getMyCalendarItems } from "@/app/(member)/my-prickles/calendar-feed-actions";
 import { AddEventToCalendar } from "@/app/(member)/my-prickles/AddToCalendar";
 
@@ -42,6 +44,8 @@ export default async function EventDetailPage({ params }: { params: Promise<{ sl
   // Upcoming (or ongoing) events can go in the member's synced calendar -- retreats included,
   // whether or not they've signed up; it's their calendar.
   const isUpcoming = event.ends_at >= new Date().toISOString().slice(0, 10);
+  // The offer's checkout link and the places left; read with the service role (staff-only data), nothing personal reaches the page.
+  const signup = isUpcoming ? ((await eventSignups(getServiceRepos(), [{ id: event.id, capacity: event.capacity }])).get(event.id) ?? null) : null;
   const calendarItemId =
     calendarItems.find((item) => item.kind === "event" && item.eventId === event.id)?.id ?? null;
   const calendarControl =
@@ -57,6 +61,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ sl
         photos={visiblePhotos}
         timeZone={timeZone}
         calendarControl={calendarControl}
+        signup={signup}
         coverImage={image && !image.deleted_at ? { src: mediaSrc(image.id, "event_hero"), alt: image.alt_text ?? "" } : null}
       />
     </div>

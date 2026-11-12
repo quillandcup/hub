@@ -69,6 +69,13 @@ describe("audienceSummary", () => {
     ]);
   });
 
+  it("shows places left, or sold out, when the count is known", () => {
+    const e = { ...base, registration: "signup", capacity: 5, selection: "first_come" };
+    expect(audienceSummary({ ...e, spotsLeft: 3 })).toEqual(["Sign-up required", "3 of 5 places left", "First come, first served"]);
+    expect(audienceSummary({ ...e, spotsLeft: 0 })).toEqual(["Sign-up required", "Sold out!", "First come, first served"]);
+    expect(audienceSummary({ ...e, spotsLeft: null })[1]).toBe("5 places");
+  });
+
   it("leaves out how places go when nobody registers, or the mode is unknown", () => {
     expect(audienceSummary({ ...base, capacity: 20 })).toEqual(["20 places"]);
     expect(audienceSummary({ ...base, registration: "signup", capacity: 20, selection: "mystery" })).toEqual(["Sign-up required", "20 places"]);
