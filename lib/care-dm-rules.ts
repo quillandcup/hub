@@ -54,7 +54,7 @@ export function lastWriter(writes: DmLastWrites): { who: "staff" | "member"; at:
   return { who: "member", at: writes.memberAt as string };
 }
 
-/** Who a care period belongs to: its owner, else whoever opened it (the one the derivation reads the DM of). */
+/** Who a care plan belongs to: its owner, else whoever opened it (the one the derivation reads the DM of). */
 export const careOwnerOf = (engagement: { owned_by: string | null; opened_by: string | null }) => engagement.owned_by ?? engagement.opened_by;
 
 /**
@@ -71,7 +71,7 @@ export function followsTrackedDm(
 }
 
 /**
- * The members for whom a Slack DM care period she starts now would follow her tracked DM. A new period takes the owner of
+ * The members for whom a Slack DM care plan she starts now would follow her tracked DM. A new period takes the owner of
  * the member's latest one (newest start first, as `CareRepository.forMember` orders them), else the person starting it, so
  * a tracked DM only counts when that owner is her.
  */

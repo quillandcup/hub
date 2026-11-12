@@ -195,17 +195,17 @@ describe("the Active tab", () => {
 
     const ada = cards()[0];
     expect(within(ada).getByText(/Last message: they wrote yesterday/)).toBeInTheDocument();
-    expect(within(ada).getByText(/Care period ends/)).toBeInTheDocument();
+    expect(within(ada).getByText(/Care plan ends/)).toBeInTheDocument();
     expect(within(ada).getByText("Follow up due")).toBeInTheDocument();
     expect(within(ada).getByText(/· Follow up \w+/)).toBeInTheDocument();
     expect(within(ada).getByText("Next: Ask about chapter two")).toBeInTheDocument();
     expect(within(ada).getByText("Mentioned her draft.")).toBeInTheDocument();
-    expect(within(ada).getByText("A check-in · Email · Period 1")).toBeInTheDocument();
+    expect(within(ada).getByText("A check-in · Email · first plan")).toBeInTheDocument();
     expect(within(ada).getByText("Owner: Cam Manager")).toBeInTheDocument();
     expect(within(cards()[3]).getByText("Owner: Abe Admin")).toBeInTheDocument();
     expect(within(cards()[3]).getByText(/Last message: you wrote 2 days ago/)).toBeInTheDocument();
-    expect(within(cards()[1]).getByText("The care period is over. Renew it if there is a plan, or close it.")).toBeInTheDocument();
-    expect(within(cards()[1]).getByText(/Care period ended/)).toBeInTheDocument();
+    expect(within(cards()[1]).getByText("The care plan is over. Renew it to keep going, or close it.")).toBeInTheDocument();
+    expect(within(cards()[1]).getByText(/Care plan ended/)).toBeInTheDocument();
   });
 
   it("narrows the list by status", async () => {
@@ -228,7 +228,7 @@ describe("the Active tab", () => {
     dataset.careEngagements.length = 0;
     signInAs(CM_USER);
     await renderServerRoute(activePage, undefined as never);
-    expect(screen.getByText("Nothing active. Start a care period above.")).toBeInTheDocument();
+    expect(screen.getByText("Nothing active. Start a care plan above.")).toBeInTheDocument();
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Waiting on them (0)" }));
     expect(screen.queryByText("Nothing here.")).not.toBeInTheDocument();
@@ -245,7 +245,7 @@ describe("the Active tab", () => {
   it("opens for an admin, and for an admin previewing the community manager", async () => {
     signInAs(ADMIN_USER);
     await renderServerRoute(activePage, undefined as never);
-    expect(screen.getByRole("heading", { name: "Start a care period" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Start a care plan" })).toBeInTheDocument();
   });
 
   it("sends a signed-out visitor to /login and a member to /no-access", async () => {
@@ -271,7 +271,7 @@ describe("the Active tab", () => {
       signInAs(CM_USER);
       await renderServerRoute(activePage, undefined as never);
       expect(cards()).toHaveLength(4);
-      expect(screen.queryByRole("heading", { name: "Start a care period" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Start a care plan" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "They replied" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Renew" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Results" })).not.toBeInTheDocument();
@@ -325,7 +325,7 @@ describe("the Earlier tab", () => {
     signInAs(CM_USER);
     await renderServerRoute(earlierPage, undefined as never);
     expect(cards()).toHaveLength(20);
-    expect(screen.getByText(/of 28 care periods/)).toBeInTheDocument();
+    expect(screen.getByText(/of 28 care plans/)).toBeInTheDocument();
   });
 });
 
@@ -350,12 +350,12 @@ describe("the controls", () => {
   });
 
   it("shows an error from the server and does not report it", async () => {
-    actions.logCareMessage.mockResolvedValue({ error: "That care period is closed or gone." });
+    actions.logCareMessage.mockResolvedValue({ error: "That care plan is closed or gone." });
     const user = await open();
 
     await user.click(within(cards()[0]).getByRole("button", { name: "They replied" }));
 
-    expect(await within(cards()[0]).findByRole("alert")).toHaveTextContent("That care period is closed or gone.");
+    expect(await within(cards()[0]).findByRole("alert")).toHaveTextContent("That care plan is closed or gone.");
     expect(track).not.toHaveBeenCalled();
   });
 
@@ -368,25 +368,25 @@ describe("the controls", () => {
     expect(actions.getEngagementResults).toHaveBeenCalledWith("care_AAAAAAAAAAA2");
     expect(actions.renewEngagement).not.toHaveBeenCalled();
 
-    await user.click(within(ada).getByRole("button", { name: "Renew this care period" }));
+    await user.click(within(ada).getByRole("button", { name: "Renew this care plan" }));
     expect(within(ada).getByRole("alert")).toHaveTextContent("Say why you are renewing");
     expect(actions.renewEngagement).not.toHaveBeenCalled();
 
-    await user.type(within(ada).getByLabelText("Why renew? What is the plan?"), "A writing sprint in April");
-    await user.click(within(ada).getByRole("button", { name: "Renew this care period" }));
+    await user.type(within(ada).getByLabelText("Why renew? What will you do next?"), "A writing sprint in April");
+    await user.click(within(ada).getByRole("button", { name: "Renew this care plan" }));
 
     expect(actions.renewEngagement).toHaveBeenCalledWith("care_AAAAAAAAAAA2", "A writing sprint in April");
     await waitFor(() => expect(track).toHaveBeenCalledWith("care_engagement_renewed", { days_open: 10 }));
   });
 
   it("shows why a renewal was refused and does not report it", async () => {
-    actions.renewEngagement.mockResolvedValue({ error: "That care period is already renewed, closed or gone. Refresh the list." });
+    actions.renewEngagement.mockResolvedValue({ error: "That care plan is already renewed, closed or gone. Refresh the list." });
     const user = await open();
     const ada = cards()[0];
 
     await user.click(within(ada).getByRole("button", { name: "Renew" }));
-    await user.type(within(ada).getByLabelText("Why renew? What is the plan?"), "A plan");
-    await user.click(within(ada).getByRole("button", { name: "Renew this care period" }));
+    await user.type(within(ada).getByLabelText("Why renew? What will you do next?"), "A plan");
+    await user.click(within(ada).getByRole("button", { name: "Renew this care plan" }));
 
     expect(await within(ada).findByRole("alert")).toHaveTextContent("already renewed");
     expect(track).not.toHaveBeenCalled();
@@ -399,7 +399,7 @@ describe("the controls", () => {
     const reviewDue = cards()[1];
     expect(within(reviewDue).getByText("Review due")).toBeInTheDocument();
     await user.click(within(reviewDue).getByRole("button", { name: "Renew" }));
-    expect(within(reviewDue).getByLabelText("Why renew? What is the plan?")).toBeInTheDocument();
+    expect(within(reviewDue).getByLabelText("Why renew? What will you do next?")).toBeInTheDocument();
   });
 
   it("edits the reason, follow-up, next step and note", async () => {
@@ -425,7 +425,7 @@ describe("the controls", () => {
 
     await user.click(within(ada).getByRole("button", { name: "Close" }));
     expect((await within(ada).findAllByRole("table")).length).toBe(2);
-    await user.click(within(ada).getByRole("button", { name: "Close this care period" }));
+    await user.click(within(ada).getByRole("button", { name: "Close this care plan" }));
     expect(within(ada).getByRole("alert")).toHaveTextContent("Pick how it ended.");
     expect(actions.closeEngagement).not.toHaveBeenCalled();
 
@@ -436,10 +436,10 @@ describe("the controls", () => {
     expect(labels[1]).toMatch(/^No reply.*never answered/);
     expect(labels[2]).toMatch(/^Back in the community.*took part again/);
     expect(labels[3]).toMatch(/^Ran its course.*later check-in date/);
-    expect(within(ada).getByText(/If it is still alive and you have a plan, renew it instead/)).toBeInTheDocument();
+    expect(within(ada).getByText(/If it is still alive and you know what comes next, renew it instead/)).toBeInTheDocument();
 
     await user.click(within(ada).getByRole("radio", { name: /Back in the community/ }));
-    await user.click(within(ada).getByRole("button", { name: "Close this care period" }));
+    await user.click(within(ada).getByRole("button", { name: "Close this care plan" }));
 
     expect(actions.closeEngagement).toHaveBeenCalledWith("care_AAAAAAAAAAA2", "back_in_community");
     await waitFor(() => expect(track).toHaveBeenCalledWith("care_engagement_closed", { ended_how: "back_in_community", days_open: 10 }));
@@ -491,7 +491,7 @@ describe("the results", () => {
     // How they stayed: three distinct states at each checkpoint, "Not yet" for one that has not passed.
     const checkpoints = within(staying).getAllByRole("row");
     expect(checkpoints).toHaveLength(4);
-    expect(within(checkpoints[1]).getByText("60 days after the care period")).toBeInTheDocument();
+    expect(within(checkpoints[1]).getByText("60 days after the care plan")).toBeInTheDocument();
     expect(within(checkpoints[1]).getByText("On hiatus")).toBeInTheDocument();
     expect(within(checkpoints[1]).getByText("Example Program, 6 months")).toBeInTheDocument();
     expect(within(checkpoints[2]).getByText("Active")).toBeInTheDocument();
@@ -622,7 +622,7 @@ describe("starting an engagement", () => {
     const trackBo = (over: { ownedBy?: string } = {}) => {
       seedSlack();
       dataset.careTrackedDms.push({ id: "caredm_AAAAAAAAAAA1", tracked_by: CM_USER.id, slack_channel_id: D.bo, member_id: BO, created_at: ago(2), deleted_at: null });
-      // Bo's earlier care periods decide who would own a new one.
+      // Bo's earlier care plans decide who would own a new one.
       dataset.careEngagements.splice(0, dataset.careEngagements.length, row("care_AAAAAAAAAAA1", BO, { channel: "email", closed_at: ago(5), ended_how: "no_reply", owned_by: over.ownedBy ?? CM_USER.id }));
     };
     const tick = () => screen.queryByLabelText("They wrote to me first");
@@ -652,7 +652,7 @@ describe("starting an engagement", () => {
       expect(tick()).toBeInTheDocument();
     });
 
-    it("stays when the tracked DM would not feed the new care period, since the member's latest one belongs to someone else", async () => {
+    it("stays when the tracked DM would not feed the new care plan, since the member's latest one belongs to someone else", async () => {
       trackBo({ ownedBy: ADMIN_USER.id });
       const user = await open();
       await pickBo(user);
@@ -673,7 +673,7 @@ describe("starting an engagement", () => {
       await waitFor(() => expect(track).toHaveBeenCalledWith("care_engagement_started", expect.objectContaining({ channel: "slack_dm", member_wrote_first: false })));
     });
 
-    it("still starts a Slack DM care period for a member with no DM, with the tick available", async () => {
+    it("still starts a Slack DM care plan for a member with no DM, with the tick available", async () => {
       const user = await open();
       await pickBo(user);
       await user.click(tick()!);
@@ -684,9 +684,9 @@ describe("starting an engagement", () => {
 
   it("calls the start button for what it does, not the heading's words", async () => {
     await open();
-    expect(screen.getByRole("heading", { name: "Start a care period" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Start a care plan" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Start tracking" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Start care period" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start care plan" })).not.toBeInTheDocument();
   });
 
   it("asks for a member first, then a reason", async () => {
@@ -744,7 +744,7 @@ describe("starting an engagement", () => {
   });
 
   it("keeps what was typed and says why when the server refuses", async () => {
-    actions.startEngagement.mockResolvedValue({ error: "There is already an open care period with them on that channel. Log a message there, or renew it." });
+    actions.startEngagement.mockResolvedValue({ error: "There is already an open care plan with them on that channel. Log a message there, or renew it." });
     const user = await open();
 
     await user.type(screen.getByRole("combobox", { name: "Member" }), "bo");
@@ -753,7 +753,7 @@ describe("starting an engagement", () => {
     await user.type(screen.getByLabelText("Note"), "Hi there");
     await user.click(screen.getByRole("button", { name: "Start tracking" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("already an open care period");
+    expect(await screen.findByRole("alert")).toHaveTextContent("already an open care plan");
     expect(screen.getByLabelText("Note")).toHaveValue("Hi there");
     expect(track).not.toHaveBeenCalled();
   });
@@ -1204,7 +1204,7 @@ describe("Slack DMs on the engagement list", () => {
   describe("the reply buttons", () => {
     const REPLY_BUTTONS = ["They replied", "I replied"];
 
-    it("hides They replied and I replied on a Slack DM care period she tracks, and says why, but keeps the rest", async () => {
+    it("hides They replied and I replied on a Slack DM care plan she tracks, and says why, but keeps the rest", async () => {
       seedSlack();
       dataset.careTrackedDms.push({ id: "caredm_AAAAAAAAAAA1", tracked_by: CM_USER.id, slack_channel_id: D.ada, member_id: ADA, created_at: ago(2), deleted_at: null });
       dataset.careEngagements.splice(0, dataset.careEngagements.length, row("care_AAAAAAAAAAA1", ADA, { last_staff_message_at: ago(10) }));
@@ -1231,7 +1231,7 @@ describe("Slack DMs on the engagement list", () => {
         row("care_AAAAAAAAAAA2", ADA, { channel: "email" }),
         row("care_AAAAAAAAAAA3", ADA, { channel: "prickle" }),
         row("care_AAAAAAAAAAA4", ADA, { channel: "other" }),
-        row("care_AAAAAAAAAAA5", ADA, { owned_by: ADMIN_USER.id }) // her tracked DM, but someone else's care period
+        row("care_AAAAAAAAAAA5", ADA, { owned_by: ADMIN_USER.id }) // her tracked DM, but someone else's care plan
       );
       signInAs(CM_USER);
       await renderServerRoute(activePage, undefined as never);
@@ -1252,13 +1252,13 @@ describe("Slack DMs on the engagement list", () => {
     });
   });
 
-  it("says in one line what Renew and Close do on an open care period, and not on a closed one", async () => {
+  it("says in one line what Renew and Close do on an open care plan, and not on a closed one", async () => {
     dataset.careEngagements.splice(0, dataset.careEngagements.length, row("care_AAAAAAAAAAA1", ADA), row("care_AAAAAAAAAAA2", BO, { closed_at: ago(3), ended_how: "no_reply" }));
     signInAs(CM_USER);
     await renderServerRoute(activePage, undefined as never);
     const open = cards().find((c) => within(c).queryByRole("button", { name: "Renew" }));
     expect(open).toBeDefined();
-    expect(within(open!).getByText("Renew starts the next care period. Close ends this one and asks how it ended.")).toBeInTheDocument();
+    expect(within(open!).getByText("Renew starts a new care plan for them. Close ends this one and asks how it ended.")).toBeInTheDocument();
   });
 
   it("does not stop the page opening when reading her tracked DMs fails", async () => {
@@ -1282,8 +1282,8 @@ describe("Slack DMs on the engagement list", () => {
 });
 
 
-describe("changing when a care period started", () => {
-  const adaCard = () => cards()[0]; // Ada's Email care period: started 10 days ago (2026-03-10 in Eastern time)
+describe("changing when a care plan started", () => {
+  const adaCard = () => cards()[0]; // Ada's Email care plan: started 10 days ago (2026-03-10 in Eastern time)
 
   it("shows the day it started next to the day it ends", async () => {
     signInAs(CM_USER);
@@ -1300,7 +1300,7 @@ describe("changing when a care period started", () => {
     const date = within(adaCard()).getByLabelText("When did this start?");
     expect(date).toHaveValue("2026-03-10");
     expect(date).toHaveAttribute("max", "2026-03-20");
-    expect(within(adaCard()).getByText(/The care period stays the same length, so its last day moves with the start/)).toBeInTheDocument();
+    expect(within(adaCard()).getByText(/The care plan stays the same length, so its last day moves with the start/)).toBeInTheDocument();
     fireEvent.change(date, { target: { value: "2026-03-05" } });
     await user.click(within(adaCard()).getByRole("button", { name: "Save start date" }));
 
@@ -1310,7 +1310,7 @@ describe("changing when a care period started", () => {
   });
 
   it("says why the server refused and keeps the panel open, without reporting a change", async () => {
-    actions.changeEngagementStart.mockResolvedValue({ error: "The start can't be before the care period this one follows on from, which started on 3/5/2026." });
+    actions.changeEngagementStart.mockResolvedValue({ error: "The start can't be before the care plan this one follows on from, which started on 3/5/2026." });
     signInAs(CM_USER);
     await renderServerRoute(activePage, undefined as never);
     const user = userEvent.setup();
@@ -1319,7 +1319,7 @@ describe("changing when a care period started", () => {
     fireEvent.change(within(adaCard()).getByLabelText("When did this start?"), { target: { value: "2026-03-01" } });
     await user.click(within(adaCard()).getByRole("button", { name: "Save start date" }));
 
-    expect(await within(adaCard()).findByRole("alert")).toHaveTextContent("The start can't be before the care period this one follows on from");
+    expect(await within(adaCard()).findByRole("alert")).toHaveTextContent("The start can't be before the care plan this one follows on from");
     expect(track).not.toHaveBeenCalled();
   });
 
@@ -1343,7 +1343,7 @@ describe("changing when a care period started", () => {
     const [renewal, email] = cards();
     await user.click(within(renewal).getByRole("button", { name: "Change start date" }));
     expect(within(renewal).getByText(/If you track your Slack DM with them, DMs from that day on are used/)).toBeInTheDocument();
-    expect(within(renewal).getByText(/The start can't be before the care period this one follows on from/)).toBeInTheDocument();
+    expect(within(renewal).getByText(/The start can't be before the care plan this one follows on from/)).toBeInTheDocument();
     await user.click(within(email).getByRole("button", { name: "Change start date" }));
     expect(within(email).queryByText(/If you track your Slack DM/)).not.toBeInTheDocument();
     expect(within(email).queryByText(/continues/)).not.toBeInTheDocument();
@@ -1372,7 +1372,7 @@ describe("the engagement score and last time in the community", () => {
     ...over,
   });
 
-  it("shows the score when the care period started and now, with its tier, and when they last took part and in what", async () => {
+  it("shows the score when the care plan started and now, with its tier, and when they last took part and in what", async () => {
     dataset.activities.push(
       activity(ADA, "slack_message", ago(20), 4), // inside the 30 days before it started, and before now
       activity(ADA, "prickle_attended", ago(3), 10),
@@ -1384,7 +1384,7 @@ describe("the engagement score and last time in the community", () => {
     await renderServerRoute(activePage, undefined as never);
 
     const ada = cards()[0];
-    expect(ada.textContent).toContain("Engagement score: 4 (At risk) when the care period started, 17 (Active) now");
+    expect(ada.textContent).toContain("Engagement score: 4 (At risk) when the care plan started, 17 (Active) now");
     expect(ada.textContent).toContain("Last in the community: 3/19/2026, a Slack reaction (yesterday)");
   });
 
@@ -1395,7 +1395,7 @@ describe("the engagement score and last time in the community", () => {
     const ada = cards()[0];
     expect(within(ada).getByText(/Last message: they wrote yesterday/)).toBeInTheDocument();
     expect(ada.textContent).toContain("Last in the community: none recorded");
-    expect(ada.textContent).toContain("Engagement score: 0 (At risk) when the care period started, 0 (At risk) now");
+    expect(ada.textContent).toContain("Engagement score: 0 (At risk) when the care plan started, 0 (At risk) now");
   });
 
   it("says what each one counts, as a tooltip on the row and in full in the results", async () => {
@@ -1486,7 +1486,7 @@ describe("Open the DM", () => {
     expect(screen.queryAllByRole("link", { name: "Open the DM" })).toHaveLength(0);
   });
 
-  it("is also on a closed care period of a tracked DM", async () => {
+  it("is also on a closed care plan of a tracked DM", async () => {
     seedSlack();
     trackAda();
     dataset.careEngagements[0].closed_at = ago(1);

@@ -200,7 +200,7 @@ export const EVENTS = {
    */
   member_hover_card_opened: { surface: oneOf("chat", "streaks", "big_sisters"), has_message: bool() },
 
-  // Hedgie Care (app/(admin)/admin/care): staff's reach-outs to members, one engagement per care period. Never the member, the notes or the next step.
+  // Hedgie Care (app/(admin)/admin/care): staff's reach-outs to members, one engagement per care plan. Never the member, the notes or the next step.
   /** A staff member started an engagement: its `reason` and `channel`, and whether the member wrote first. */
   care_engagement_started: { reason: oneOf(...CARE_REASONS), channel: oneOf(...CARE_CHANNELS), member_wrote_first: bool(), backdated: bool() },
   /** A staff member changed the day an engagement started: `days_moved` is how many days it moved (earlier or later). */

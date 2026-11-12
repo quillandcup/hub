@@ -18,6 +18,7 @@ import {
   isCareChannel,
   isCareEndedHow,
   isCareReason,
+  planOrdinal,
   isCloseOption,
   type CareResults,
   type CareStatus,
@@ -57,7 +58,7 @@ const STATUS_STYLE: Record<CareStatus, string> = {
 
 type Panel = "edit" | "close" | "renew" | "results" | "messages" | "reassign" | "start";
 
-/** One care period: who, why, where it stands, and the few things she does with it (log a reply, renew, hand it over, set a follow-up, change its start, close, see results). */
+/** One care plan: who, why, where it stands, and the few things she does with it (log a reply, renew, hand it over, set a follow-up, change its start, close, see results). */
 export default function EngagementCard({ card, canWrite, owners }: { card: EngagementCardData; canWrite: boolean; owners: readonly CareOwner[] }) {
   const [panel, setPanel] = useState<Panel | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -114,7 +115,7 @@ export default function EngagementCard({ card, canWrite, owners }: { card: Engag
     );
 
   const renew = () => {
-    if (!renewWhy.trim()) return setError("Say why you are renewing: what is the plan?");
+    if (!renewWhy.trim()) return setError("Say why you are renewing: what will you do next?");
     run(
       () => renewEngagement(card.id, renewWhy),
       () => {
@@ -150,7 +151,7 @@ export default function EngagementCard({ card, canWrite, owners }: { card: Engag
   const reassign = (ownerId: string) => run(() => reassignEngagement(card.id, ownerId), () => setPanel(null));
 
   const remove = () => {
-    if (!window.confirm("Remove this care period from the lists?")) return;
+    if (!window.confirm("Remove this care plan from the lists?")) return;
     run(() => deleteEngagement(card.id));
   };
 
@@ -170,7 +171,7 @@ export default function EngagementCard({ card, canWrite, owners }: { card: Engag
           </Link>
           {card.legalName && <span className="ml-2 text-xs text-slate-600 dark:text-slate-400">{card.legalName}</span>}
           <p className="text-sm text-slate-600 dark:text-slate-400">
-            {reasonLabel} · {channelLabel} · Period {card.period}
+            {reasonLabel} · {channelLabel} · {planOrdinal(card.period)} plan
           </p>
           <p className="text-sm text-slate-600 dark:text-slate-400">Owner: {card.ownerName}</p>
         </div>
@@ -201,7 +202,7 @@ export default function EngagementCard({ card, canWrite, owners }: { card: Engag
           </span>
         )}
         <span> · Started {formatDateOnly(card.startedOn)}</span>
-        <span> · {card.periodOver ? "Care period ended" : "Care period ends"} {formatDateOnly(card.periodEndsOn)}</span>
+        <span> · {card.periodOver ? "Care plan ended" : "Care plan ends"} {formatDateOnly(card.periodEndsOn)}</span>
         {card.followUpOn && !ended && <span> · Follow up {formatDateOnly(card.followUpOn)}</span>}
         {card.dmLink && (
           <>
@@ -222,10 +223,10 @@ export default function EngagementCard({ card, canWrite, owners }: { card: Engag
       {card.nextStep && !ended && <p className="mt-1 text-sm">Next: {card.nextStep}</p>}
       {card.notes && <p className="mt-1 whitespace-pre-line text-sm text-slate-600 dark:text-slate-400">{card.notes}</p>}
       {card.status === "review_due" && (
-        <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">The care period is over. Renew it if there is a plan, or close it.</p>
+        <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">The care plan is over. Renew it to keep going, or close it.</p>
       )}
       {card.status === "lapsed" && (
-        <p className="mt-1 text-sm text-red-700 dark:text-red-300">The care period ended and nobody renewed or closed it. Renew it if there is a plan, or close it.</p>
+        <p className="mt-1 text-sm text-red-700 dark:text-red-300">The care plan ended and nobody renewed or closed it. Renew it to keep going, or close it.</p>
       )}
 
       {canWrite && (
@@ -277,7 +278,7 @@ export default function EngagementCard({ card, canWrite, owners }: { card: Engag
 
       {canWrite && !closed && (
         <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-          Renew starts the next care period. Close ends this one and asks how it ended.
+          Renew starts a new care plan for them. Close ends this one and asks how it ended.
         </p>
       )}
 
@@ -296,8 +297,8 @@ export default function EngagementCard({ card, canWrite, owners }: { card: Engag
         <div className="mt-3 space-y-2">
           <DatePicker id={`started-${card.id}`} label="When did this start?" value={startedOn} onChange={setStartedOn} max={card.today} />
           <p className="max-w-prose text-sm text-slate-600 dark:text-slate-400">
-            Today or an earlier day. The care period stays the same length, so its last day moves with the start. {card.channel === "slack_dm" ? "If you track your Slack DM with them, DMs from that day on are used for who wrote last. " : ""}
-            {card.renewed ? "The start can't be before the care period this one follows on from. " : ""}
+            Today or an earlier day. The care plan stays the same length, so its last day moves with the start. {card.channel === "slack_dm" ? "If you track your Slack DM with them, DMs from that day on are used for who wrote last. " : ""}
+            {card.renewed ? "The start can't be before the care plan this one follows on from. " : ""}
           </p>
           <button type="button" className={PRIMARY} disabled={pending} onClick={changeStart}>
             Save start date
@@ -321,16 +322,16 @@ export default function EngagementCard({ card, canWrite, owners }: { card: Engag
 
       {canWrite && panel === "renew" && (
         <div className="mt-3 space-y-3">
-          <p className="text-sm text-slate-700 dark:text-slate-300">Renewing starts a new care period of the same length, from today. Say why, so it is a decision and not a habit.</p>
+          <p className="text-sm text-slate-700 dark:text-slate-300">Renewing starts a new care plan of the same length, from today. Say why, so it is a decision and not a habit.</p>
           {resultsBlock}
           <div>
             <label htmlFor={`renew-${card.id}`} className="mb-1 block text-sm font-medium">
-              Why renew? What is the plan?
+              Why renew? What will you do next?
             </label>
             <textarea id={`renew-${card.id}`} value={renewWhy} onChange={(e) => setRenewWhy(e.target.value)} maxLength={CARE_NOTES_MAX} rows={3} className={FIELD} />
           </div>
           <button type="button" className={PRIMARY} disabled={pending} onClick={renew}>
-            Renew this care period
+            Renew this care plan
           </button>
         </div>
       )}
@@ -374,7 +375,7 @@ export default function EngagementCard({ card, canWrite, owners }: { card: Engag
         <div className="mt-3 space-y-3">
           <fieldset>
             <legend className="mb-1 text-sm font-medium">How did it end?</legend>
-            <p className="mb-2 text-sm text-slate-600 dark:text-slate-400">The first one that fits. If it is still alive and you have a plan, renew it instead.</p>
+            <p className="mb-2 text-sm text-slate-600 dark:text-slate-400">The first one that fits. If it is still alive and you know what comes next, renew it instead.</p>
             <div className="space-y-2">
               {CARE_CLOSE_OPTIONS.map((option) => (
                 <label key={option} className="flex items-start gap-2 text-sm">
@@ -389,7 +390,7 @@ export default function EngagementCard({ card, canWrite, owners }: { card: Engag
           </fieldset>
           {resultsBlock}
           <button type="button" className={PRIMARY} disabled={pending} onClick={close}>
-            Close this care period
+            Close this care plan
           </button>
         </div>
       )}

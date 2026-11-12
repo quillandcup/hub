@@ -1,5 +1,5 @@
 /**
- * The engagement score on a Hedgie Care row: where the member stood when the care period started and where they stand now,
+ * The engagement score on a Hedgie Care row: where the member stood when the care plan started and where they stand now,
  * both from the same rules as the member's own page (`lib/member-engagement.ts`: points of the last 30 days, capped at 100,
  * and the tier that follows). Nothing is stored: it is worked out when the page opens, for every row in one batched read.
  */
@@ -17,7 +17,7 @@ export const CARE_SCORE_TIER_LABELS: Record<CareScoreTier, string> = {
 
 export type CareScore = { score: number; tier: CareScoreTier };
 
-/** The score when the care period started and the score now. */
+/** The score when the care plan started and the score now. */
 export type CareScores = { then: CareScore; now: CareScore };
 
 /**

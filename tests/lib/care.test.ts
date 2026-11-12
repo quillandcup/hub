@@ -27,6 +27,7 @@ import {
   memberWroteLast,
   periodEndsOn,
   periodNumber,
+  planOrdinal,
   sortActive,
   sortEarlier,
   type CareTimes,
@@ -406,5 +407,12 @@ describe("commitmentLength", () => {
     expect(commitmentLength("2026-03-01", "2026-08-28")).toBe("6 months");
     expect(commitmentLength("2026-01-01", "2026-12-31")).toBe("12 months");
     expect(commitmentLength("2026-05-01", "2026-04-01")).toBe("0 days");
+  });
+});
+
+describe("planOrdinal", () => {
+  it("says first to tenth in words and numbers after that", () => {
+    expect([1, 2, 3, 10].map(planOrdinal)).toEqual(["first", "second", "third", "tenth"]);
+    expect([11, 12, 13, 21, 22, 23, 24, 101].map(planOrdinal)).toEqual(["11th", "12th", "13th", "21st", "22nd", "23rd", "24th", "101st"]);
   });
 });

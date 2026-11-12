@@ -50,7 +50,7 @@ import { staffCan } from "@/lib/staff-access";
 export type CareActionResult = { error: string } | { success: true };
 
 const NOT_AUTHORIZED = "Not authorized";
-const MISSING = "That care period is gone.";
+const MISSING = "That care plan is gone.";
 const PAGES = ["/admin/care", "/admin/care/earlier", "/admin/care/dms"];
 /** A Slack conversation id: capital letters and digits (a DM's starts with D). Anything else is not one of ours to look up. */
 const SLACK_CHANNEL_ID = /^[A-Z0-9]{3,40}$/;
@@ -85,9 +85,9 @@ function startDay(value: unknown, now: Date): { value: string } | { error: strin
 /** Why a start can't move, in her words (`limit` is the instant that stops it). */
 function refusalMessage(reason: StartChangeRefusal, limit: string): string {
   const on = formatDateOnly(orgYmd(new Date(limit)));
-  if (reason === "before_previous") return `The start can't be before the care period this one follows on from, which started on ${on}.`;
-  if (reason === "after_renewal") return `The start can't be after this care period was renewed, on ${on}. Change the start of the next care period first.`;
-  return `The start can't be after this care period was closed, on ${on}.`;
+  if (reason === "before_previous") return `The start can't be before the care plan this one follows on from, which started on ${on}.`;
+  if (reason === "after_renewal") return `The start can't be after this care plan was renewed, on ${on}. Change the start of the next care plan first.`;
+  return `The start can't be after this care plan was closed, on ${on}.`;
 }
 
 function reasonLabel(reason: string, channel: string): string {
@@ -171,9 +171,9 @@ async function startImpl(repos: Repos, userId: string, input: StartEngagementInp
     });
   } catch (error) {
     console.error("[care] open failed:", error instanceof Error ? error.message : error);
-    return { error: "Couldn't start the care period." };
+    return { error: "Couldn't start the care plan." };
   }
-  if (!result.ok) return { error: "There is already an open care period with them on that channel. Log a message there, or renew it." };
+  if (!result.ok) return { error: "There is already an open care plan with them on that channel. Log a message there, or renew it." };
 
   await mirrorToTimeline(repos, userId, result.engagement, "started");
   if (dms && input.channel === "slack_dm") await trackDmWithMember(repos, dms, input.memberId);
@@ -200,7 +200,7 @@ async function trackDmWithMember(repos: Repos, dms: DmTracking, memberId: string
 async function logMessageImpl(repos: Repos, id: string, direction: string): Promise<CareActionResult> {
   if (!isCareId(id) || !isMessageDirection(direction)) return { error: MISSING };
   try {
-    if (!(await repos.care.logMessage(id, direction as MessageDirection, nowIso()))) return { error: "That care period is closed or gone." };
+    if (!(await repos.care.logMessage(id, direction as MessageDirection, nowIso()))) return { error: "That care plan is closed or gone." };
   } catch (error) {
     console.error("[care] log message failed:", error instanceof Error ? error.message : error);
     return { error: "Couldn't save that." };
@@ -243,7 +243,7 @@ async function updateImpl(repos: Repos, id: string, input: UpdateEngagementInput
   return { success: true };
 }
 
-async function changeStartImpl(repos: Repos, service: CareDmServiceRepos, userId: string, id: string, startedOn: unknown): Promise<CareActionResult> {
+async function changeStartImpl(repos: Repos, service: CareDmServiceRepos & Pick<Repos, "activities">, userId: string, id: string, startedOn: unknown): Promise<CareActionResult> {
   if (!isCareId(id)) return { error: MISSING };
   const now = new Date(clock.now());
   const started = startDay(startedOn === "" ? undefined : startedOn, now);
@@ -256,6 +256,15 @@ async function changeStartImpl(repos: Repos, service: CareDmServiceRepos, userId
     return { error: "Couldn't change the start date." };
   }
   if (!result.ok) return { error: result.reason === "not_found" ? MISSING : refusalMessage(result.reason, result.limit) };
+  // The row on the member's timeline that was written when this care plan opened (its start, or the renewal that made it)
+  // moves to the new day too. A community manager can insert timeline rows but not change them (RLS), so this is the service
+  // role, after the staff check. Best effort like the row itself: the care plan is the record. Only this care plan's start,
+  // never the member's membership.
+  if (result.changed) {
+    await service.activities
+      .moveOccurredAt("care", id, ["care_started", "care_renewed"], result.engagement.opened_at)
+      .catch((error) => console.error("[care] moving the timeline row after a start change failed:", error instanceof Error ? error.message : error));
+  }
   // A start that moved earlier may bring earlier Slack DMs into reach (they count from the start of the day it opened), so
   // look at her tracked DMs again now. Best effort, and forward-only like every derivation; the page does it too when it opens.
   if (result.changed && result.engagement.channel === "slack_dm") {
@@ -275,9 +284,9 @@ async function closeImpl(repos: Repos, userId: string, id: string, endedHow: str
     closed = await repos.care.close(id, endedHow, nowIso());
   } catch (error) {
     console.error("[care] close failed:", error instanceof Error ? error.message : error);
-    return { error: "Couldn't close the care period." };
+    return { error: "Couldn't close the care plan." };
   }
-  if (!closed) return { error: "That care period is already closed or gone." };
+  if (!closed) return { error: "That care plan is already closed or gone." };
 
   await mirrorToTimeline(repos, userId, closed, "closed");
   revalidate();
@@ -288,16 +297,16 @@ async function renewImpl(repos: Repos, userId: string, id: string, why: unknown)
   if (!isCareId(id)) return { error: MISSING };
   const reason = text(why, CARE_NOTES_MAX, "reason");
   if ("error" in reason) return reason;
-  if (!reason.value) return { error: "Say why you are renewing: what is the plan?" };
+  if (!reason.value) return { error: "Say why you are renewing: what will you do next?" };
   const now = new Date(clock.now());
   let result;
   try {
     result = await repos.care.renew(id, { periodEndsOn: periodEndsOn(now), openedBy: userId, at: now.toISOString(), reason: reason.value });
   } catch (error) {
     console.error("[care] renew failed:", error instanceof Error ? error.message : error);
-    return { error: "Couldn't renew the care period." };
+    return { error: "Couldn't renew the care plan." };
   }
-  if (!result.ok) return { error: "That care period is already renewed, closed or gone. Refresh the list." };
+  if (!result.ok) return { error: "That care plan is already renewed, closed or gone. Refresh the list." };
 
   await mirrorToTimeline(repos, userId, result.engagement, "renewed");
   revalidate();
@@ -326,7 +335,7 @@ async function deleteImpl(repos: Repos, id: string): Promise<CareActionResult> {
     if (!(await repos.care.softDelete(id, nowIso()))) return { error: MISSING };
   } catch (error) {
     console.error("[care] delete failed:", error instanceof Error ? error.message : error);
-    return { error: "Couldn't remove the care period." };
+    return { error: "Couldn't remove the care plan." };
   }
   revalidate();
   return { success: true };
@@ -387,7 +396,7 @@ export async function startEngagement(input: StartEngagementInput): Promise<Care
   );
 }
 
-/** Changes the day an engagement started (a conversation entered after the fact). Today or earlier; the care period's last day moves with it. */
+/** Changes the day an engagement started (a conversation entered after the fact). Today or earlier; the care plan's last day moves with it. */
 export async function changeEngagementStart(id: string, startedOn: string): Promise<CareActionResult> {
   const auth = await requireStaffAction();
   if (!auth.ok) return { error: auth.error };
@@ -423,7 +432,7 @@ export async function closeEngagement(id: string, endedHow: string): Promise<Car
   return withAction("care_engagement_closed", () => closeImpl(createRepos(auth.supabase), auth.user.id, id, endedHow), (r) => ({ ok: "success" in r }));
 }
 
-/** Renews an engagement: closes this period as renewed and opens the next, in one step. `reason` (what is the plan) is required and becomes the new period's note. */
+/** Renews an engagement: closes this period as renewed and opens the next, in one step. `reason` (what happens next) is required and becomes the new period's note. */
 export async function renewEngagement(id: string, reason: string): Promise<CareActionResult> {
   const auth = await requireStaffAction();
   if (!auth.ok) return { error: auth.error };

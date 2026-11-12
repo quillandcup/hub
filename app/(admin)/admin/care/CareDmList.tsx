@@ -36,7 +36,7 @@ function PrivacyNote() {
       <p className={NOTE}>
         The messages sent in a tracked DM during a care plan can be read, in full, by admins and community managers in that member&apos;s
         care plans in Hedgie Care, including their earlier plans, whoever held them. Beyond those messages, other staff don&apos;t see
-        which DMs you track. DMs with staff are never listed. Untracking a DM stops new times coming from it and its messages are no
+        which DMs you track. Who spoke last shows on the care plan, which everyone who opens Hedgie Care can see. DMs with staff are never listed. Untracking a DM stops new times coming from it and its messages are no
         longer shown in Hedgie Care; what it already filled in stays.
       </p>
     </div>

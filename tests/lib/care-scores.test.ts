@@ -39,7 +39,7 @@ describe("engagementScoreAt", () => {
 });
 
 describe("loadCareScores", () => {
-  it("works out the score when each care period started and now, from one batched read", async () => {
+  it("works out the score when each care plan started and now, from one batched read", async () => {
     const { repo, ready } = activityRepo([
       { member: ADA, at: "2026-02-20T10:00:00.000Z", points: 4 }, // before it opened: counts then, and now (within 30 days of now? no: 28 days) 
       { member: ADA, at: "2026-03-10T10:00:00.000Z", points: 30 }, // during: counts now only
@@ -64,7 +64,7 @@ describe("loadCareScores", () => {
     expect(scores.get("care_AAAAAAAAAAA2")).toEqual({ then: { score: 0, tier: "at_risk" }, now: { score: 12, tier: "active" } });
   });
 
-  it("answers for nothing, and for a care period that opened at this very moment (then is now)", async () => {
+  it("answers for nothing, and for a care plan that opened at this very moment (then is now)", async () => {
     const { repo, ready } = activityRepo([{ member: ADA, at: "2026-03-20T14:00:00.000Z", points: 20 }]);
     await ready;
     expect((await loadCareScores(repo, [], NOW)).size).toBe(0);
