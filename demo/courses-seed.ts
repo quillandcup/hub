@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import sharp from "sharp";
 import { lessonExcerpt } from "@/lib/courses/excerpt";
+import type { Db } from "@/lib/data/db";
+import { SupabaseMediaRepository } from "@/lib/data/media";
+import { storeImage } from "@/lib/media/library";
 
 /**
  * The demo community's courses: three invented ones, so the Courses scene can look at every state a page has
@@ -13,11 +17,34 @@ import { lessonExcerpt } from "@/lib/courses/excerpt";
  *  - "Outline Workshop": access ended, so the progress is kept and the lessons are closed.
  *  - "Plot Like a Pro": bought ahead of launch, so access starts next week.
  *
- * Replaced on every run. No video is ready: playback needs Mux, which the demo doesn't have, so lessons show the
- * "still being prepared" state a member sees between upload and Mux finishing.
+ * Replaced on every run. Almost no video is ready: playback needs Mux, which the demo doesn't have, so lessons show the
+ * "still being prepared" state a member sees between upload and Mux finishing. The one exception is the lesson a chat message
+ * shares (`DEMO_SHARED_LESSON`): its video is marked ready with a made-up playback id so the card in chat can say who may
+ * watch it; pressing play would fail, and no scene does.
  */
 
 export const DEMO_COURSE_SOURCE_PREFIX = "demo-";
+/** The lesson the craft-talk channel's shared video is (`seedChatVideoShare`, demo/chat-seed.ts). */
+export const DEMO_SHARED_LESSON = { courseKey: "current", lessonKey: "toast", title: "Give every scene a question" } as const;
+/** A plain picture for it: a gradient with the title, drawn from an SVG. Deterministic, so the media library keeps one copy. */
+const TOAST_PICTURE =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6b3a5e"/><stop offset="1" stop-color="#c58b9f"/></linearGradient></defs><rect width="1280" height="720" fill="url(#g)"/><text x="70" y="560" font-family="Georgia, serif" font-size="68" fill="#fff">Give every scene</text><text x="70" y="650" font-family="Georgia, serif" font-size="68" fill="#fff">a question</text></svg>';
+
+let pictureId: Promise<string> | undefined;
+/** The demo lesson picture as a library asset (stored once per run). */
+function demoPictureId(admin: SupabaseClient): Promise<string> {
+  pictureId ??= (async () => {
+    const stored = await storeImage(new SupabaseMediaRepository(admin as unknown as Db), admin.storage, {
+      bytes: await sharp(Buffer.from(TOAST_PICTURE)).png().toBuffer(),
+      title: "Give every scene a question",
+      tags: ["demo", "course"],
+    });
+    if (!stored.ok) throw new Error(`lesson picture: ${stored.error}`);
+    return stored.asset.id;
+  })();
+  return pictureId;
+}
+
 export const DEMO_COURSE_SLUGS = { current: "finish-your-first-draft", ended: "outline-workshop", upcoming: "plot-like-a-pro" } as const;
 
 type State = "open" | "coming_soon" | "hidden";
@@ -29,7 +56,10 @@ interface DemoLesson {
   /** Sanitized-subset HTML, as import would store it. */
   body?: string;
   minutes?: number;
-  video?: "preparing" | "errored";
+  /** "ready" is a video Mux has finished (a made-up playback id: the card and the lesson page show it, nothing plays). */
+  video?: "preparing" | "errored" | "ready";
+  /** The lesson gets the demo's picture (`TOAST_PICTURE`), kept in the media library as a lesson's own copy. */
+  picture?: boolean;
   file?: { filename: string; bytes: number };
   /** The demo member finished it. */
   done?: boolean;
@@ -59,6 +89,7 @@ const HOW_IT_WORKS =
 const PICK_PROJECT = "<h2>Pick your project</h2><p>Choose the one story you will finish. Write its working title and one sentence about who it is for at the top of your planner.</p><blockquote>A draft you finish beats ten you only dream about.</blockquote>";
 const DAILY_GOAL = "<h2>Set a daily word goal</h2><p>Small and steady wins. Start with a number you can hit on your worst day, and raise it only when it feels easy.</p><ol><li>Pick a number.</li><li>Write it where you will see it.</li><li>Stop when you reach it, or keep going.</li></ol>";
 const PROTECT_TIME = "<h2>Protect your writing time</h2><p>Put a writing slot on your calendar and treat it like an appointment. A <a href=\"https://example.com/prickles\">prickle</a> is a good way to keep it.</p>";
+const TOAST = "<h2>Give every scene a question</h2><p>Someone wants something and is stopped from getting it. It can be as small as making toast.</p>";
 const MIDDLE = "<h2>When the middle sags</h2><p>Every draft sags around the middle. Skip ahead to a scene you are excited to write, and come back to the gap later.</p>";
 
 const COURSES: DemoCourse[] = [
@@ -95,6 +126,7 @@ const COURSES: DemoCourse[] = [
             title: "Week 2: Keep going",
             lessons: [
               { key: "middle", title: "When the middle sags", body: MIDDLE, minutes: 7 },
+              { key: "toast", title: "Give every scene a question", body: TOAST, minutes: 6, video: "ready", picture: true },
               { key: "reward", title: "Celebrate small wins", state: "coming_soon", minutes: 5 },
             ],
           },
@@ -184,7 +216,13 @@ export async function seedCourses(admin: SupabaseClient, memberId: string, now: 
           const video = must(
             await admin
               .from("videos")
-              .insert({ status: lesson.video, source_kind: "upload", source_key: `${DEMO_COURSE_SOURCE_PREFIX}${course.key}-${lesson.key}`, duration_seconds: (lesson.minutes ?? 5) * 60 })
+              .insert({
+                status: lesson.video,
+                source_kind: "upload",
+                source_key: `${DEMO_COURSE_SOURCE_PREFIX}${course.key}-${lesson.key}`,
+                duration_seconds: (lesson.minutes ?? 5) * 60,
+                ...(lesson.video === "ready" ? { mux_playback_id: `demo-playback-${course.key}-${lesson.key}` } : {}),
+              })
               .select("id")
               .single(),
             `video ${lesson.key}`,
@@ -203,6 +241,7 @@ export async function seedCourses(admin: SupabaseClient, memberId: string, now: 
               body_html: lesson.body ?? null,
               excerpt: lessonExcerpt(lesson.body),
               video_id: videoId,
+              thumbnail_asset_id: lesson.picture ? await demoPictureId(admin) : null,
               duration_seconds: lesson.minutes ? lesson.minutes * 60 : null,
               source: "hub",
               source_key: `${DEMO_COURSE_SOURCE_PREFIX}${course.key}-${lesson.key}`,

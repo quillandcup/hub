@@ -23,7 +23,7 @@ import { ATTENDANCE_RATE, DEMO_JOIN, DEMO_PASSWORD, FILLER_MEMBERS, PERSONAS, de
 import { DEMO_TOPIC_PREFIX, attendanceRows } from "./attendance";
 import { eventCalendarRows, seedEventDetails, seedKajabiContact, withFormattedDescription } from "./rest-seed";
 import { addLivePrickleToCalendar, liveCalendarEvent, seedLiveRoom, withLapsedStreak } from "./live-seed";
-import { seedChat } from "./chat-seed";
+import { seedChat, seedChatVideoShare } from "./chat-seed";
 import { seedCourses } from "./courses-seed";
 import { seedAliases, seedBooks, seedGuestSpeaker, seedNewcomerTour, seedProfileLinks, seedWritingGoals } from "./member-content-seed";
 
@@ -163,6 +163,11 @@ export async function seed(now: Date = new Date()) {
 
   // Courses: the feature on, three invented ones in different states, and the demo member's progress.
   if (memberId) await seedCourses(admin, memberId, now);
+
+  // Chat videos (behind a feature flag that decides who can share): on for the demo, and one craft-talk message shares a lesson's video.
+  const { error: chatVideosFlagError } = await admin.from("feature_flags").upsert({ feature_key: "chat_videos", enabled_globally: true }, { onConflict: "feature_key" });
+  if (chatVideosFlagError) throw new Error(`feature_flags: ${chatVideosFlagError.message}`);
+  await seedChatVideoShare(admin);
 
   // The Zoom room members see under "On air" (append-only: add only when the demo's isn't the latest).
   const { data: latest } = await admin.from("prickle_join_settings").select("join_url").order("effective_from", { ascending: false }).limit(1);

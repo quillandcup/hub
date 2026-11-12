@@ -1,3 +1,4 @@
+import { DEMO_COURSE_SOURCE_PREFIX, DEMO_SHARED_LESSON } from "./courses-seed";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { COMMUNITY } from "@/lib/data/profiles/community";
 import { storeEmojiImage } from "@/lib/chat/emoji-copy";
@@ -33,6 +34,9 @@ interface DemoReply {
 /** An animated emoji the demo workspace "uploaded": reactions use it, and the animations-off scene checks it is a still. */
 export const DEMO_ANIMATED_EMOJI = "party_disc";
 /** A GIF attached to a message, with the file id it has in the Slack copy table. */
+/** The craft-talk message that shares a lesson's video; `seedChatVideoShare` finds it by this text once the courses exist. */
+export const DEMO_SHARED_VIDEO_MESSAGE = "this lesson made the toast thing click for me 🍞 watch it right here";
+
 const DEMO_GIF = { id: "FDEMO0000001", name: "party-disc.gif", size: 160 };
 
 interface DemoMessage {
@@ -165,6 +169,12 @@ export const DEMO_CHANNELS: DemoChannel[] = [
         body: "does anyone else read their draft out loud? I caught three clunky sentences in ten minutes today 🎧",
         reactions: [{ emoji: "ear", by: [who("regular1"), who("mabel")] }],
         replies: [{ by: who("regular1"), minutesAfter: 22, body: "every single time (poet problems). your ear catches what your eyes forgive 💫" }],
+      },
+      {
+        by: who("willa"),
+        hoursAgo: 2,
+        body: DEMO_SHARED_VIDEO_MESSAGE,
+        reactions: [{ emoji: "bread", by: [who("briony")] }],
       },
       {
         by: who("member"),
@@ -383,4 +393,22 @@ export async function seedChat(admin: SupabaseClient, now: Date, supabaseUrl: st
       }
     }
   }
+}
+
+/**
+ * Makes the craft-talk message above share the demo course's ready lesson video (`DEMO_SHARED_LESSON`), open to the channel
+ * so everyone in the conversation can see the card. Runs after the courses are seeded (the lesson must exist), and again on every seed.
+ */
+export async function seedChatVideoShare(admin: SupabaseClient) {
+  const { data: message, error: messageError } = await admin.from("chat_message_contents").select("message_id").eq("body", DEMO_SHARED_VIDEO_MESSAGE).maybeSingle();
+  if (messageError) throw new Error(`chat_message_contents: ${messageError.message}`);
+  const { data: lesson, error: lessonError } = await admin
+    .from("course_lessons")
+    .select("id")
+    .eq("source_key", `${DEMO_COURSE_SOURCE_PREFIX}${DEMO_SHARED_LESSON.courseKey}-${DEMO_SHARED_LESSON.lessonKey}`)
+    .maybeSingle();
+  if (lessonError) throw new Error(`course_lessons: ${lessonError.message}`);
+  if (!message || !lesson) throw new Error("chat video share: the demo message or lesson is missing");
+  const { error } = await admin.from("chat_message_videos").upsert({ message_id: message.message_id, lesson_id: lesson.id, open_to_channel: false }, { onConflict: "message_id" });
+  if (error) throw new Error(`chat_message_videos: ${error.message}`);
 }

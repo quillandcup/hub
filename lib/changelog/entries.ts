@@ -56,6 +56,28 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "lesson-videos-in-chat",
+    date: "2026-11-12",
+    audience: "product",
+    category: "new",
+    major: true,
+    title: "Watch a course lesson right in Hub Chat",
+    summary: "Share a lesson's video in any conversation and everyone who has the course can watch it right there. It's the first thing in the Hub that works only in Hub Chat, because Slack can't remember where you stopped.",
+    image: { src: "/changelog/lesson-videos-in-chat/01-video-card.webp", alt: "A conversation in Hub Chat with a lesson video shown as a picture you press to play" },
+    body: [
+      "A lesson's video can now sit inside a chat message, as a picture you press once to play. It works in channels, in replies under a message, and in private messages.",
+      "We've wanted this for years. Slack never let us do it well: it can't keep track of what you've watched, or pick a long video back up where you left off. Hub Chat can, so this is the first feature that works only in Hub Chat. If you mostly chat in Slack, this is a good reason to try the same conversation here.",
+      "- On a lesson, choose **Share this video in chat**, or **Copy link to paste in chat** and paste it into any message in Hub Chat or in Slack. It plays in Hub Chat; Slack shows links back to the Hub.",
+      "![The share box under a lesson's video](/changelog/lesson-videos-in-chat/01-share-box.webp)",
+      "- It shows the lesson, its course and its picture. If you have the course, it plays right in the message, from where you left off; if not, it says the video is part of a course and nothing plays.",
+      "![A lesson video shared in a conversation](/changelog/lesson-videos-in-chat/01-video-card.webp)",
+      "![What someone without the course sees](/changelog/lesson-videos-in-chat/01-no-course.webp)",
+      "- In Slack, if you've connected your Slack account, the message you pasted is changed, under your name, to say what was shared, with links to watch it in Hub Chat or open the lesson. Slack shows it as edited.",
+      "- Delete the message and the video is gone from the conversation right away.",
+      "Watching a video in chat records where you stopped and which parts you watched, as it does on the lesson page. Quill & Cup admins can see this in the course statistics. Other members can't.",
+    ].join("\n"),
+  },
+  {
     slug: "link-previews-in-hub-chat",
     date: "2026-11-12",
     audience: "product",
@@ -108,7 +130,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "`chat_message_videos` (`ChatVideoRepository`) points one message at one lesson; the share and its message are written together by `chat_post_shared_video`, which checks the sharer. Playback links are minted per viewer by `/api/chat/videos/<message id>` after two checks: the viewer can read the message (the share is read as them, so row-level security applies the channel rule) and may watch the lesson (`mayWatchSharedVideo`: the course, or a share an admin opened to the conversation for an open lesson of a published course). The card before play is a second light route that mints nothing. Watching goes through the lesson player and `video_watch_segments`, tagged with the message so the course stats keep chat views apart.",
       "A pasted lesson address becomes the card in Hub Chat (`extractLessonLink`) and in a message written in Slack (webhook, and the nightly chat import for what it missed). The Slack copy is then rewritten as its author through their own connected account (`rewriteInSlack`): the address becomes the links line in the same place, with the lesson's title above it, previews cleared, files kept by naming them again in the edit. Hub Chat hides that line and Slack's own preview (`stripSharedVideoLink`, `withoutLessonPreview`).",
       "Deleting a message ends its share at once: the read policy requires a live message (migration `20270701000000`) and the repository returns nothing for a deleted one. Before that, a soft-deleted open share could still be played by anyone who knew the message id.",
-      "The detours it adds (sign in, connect Slack) are on the new gates standard (`lib/gates.ts`): the destination is captured when the visitor is stopped, carried through every step, and every gate page offers \"Not now\". Message permalinks (`?m=`) open the message itself and survive sign-in. The member-facing entry and the help article wait for the flag (`docs/CHAT_VIDEOS_LAUNCH.md`).",
+      "The detours it adds (sign in, connect Slack) are on the new gates standard (`lib/gates.ts`): the destination is captured when the visitor is stopped, carried through every step, and every gate page offers \"Not now\". Message permalinks (`?m=`) open the message itself and survive sign-in. The member-facing entry and the help article are `lesson-videos-in-chat` and `help/share-a-lesson-video-in-chat.md` (`docs/CHAT_VIDEOS_LAUNCH.md`).",
     ].join("\n\n"),
   },
   {
