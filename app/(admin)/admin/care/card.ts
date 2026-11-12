@@ -1,5 +1,6 @@
 import { careStatus, daysAgoLabel, isFollowUpDue, lastActivityAt, memberWroteLast, periodNumber, type CareSettings, type CareStatus } from "@/lib/care";
 import type { DmLink } from "@/lib/care-dm-link";
+import { followsTrackedDm } from "@/lib/care-dm-rules";
 import type { Participation } from "@/lib/care-participation";
 import { ownerName, type CareOwner } from "@/lib/care-owners";
 import type { CareScores } from "@/lib/care-scores";
@@ -42,7 +43,7 @@ export type EngagementCardData = {
   lastActivityLabel: string;
   /** Who spoke last, for the line under the name; null when nobody has been logged. */
   lastSpeaker: "member" | "staff" | null;
-  /** Who spoke last is kept up to date from the owner's tracked Slack DM with them, so logging a reply by hand isn't needed. */
+  /** Who spoke last is kept up to date from the owner's tracked Slack DM with them, so logging a reply by hand isn't needed (the "They replied" / "I replied" buttons are hidden). */
   fromSlack: boolean;
   closedLabel: string | null;
   followUpOn: string | null;
@@ -77,7 +78,7 @@ export type CardOptions = {
 
 export function toEngagementCard(row: CareEngagementWithMember, now: Date, options: CardOptions = {}): EngagementCardData {
   const { settings, owners = [], byId = new Map(), slackTracked, scores, participation } = options;
-  const ownsTrackedDm = !!slackTracked && row.channel === "slack_dm" && (row.owned_by ?? row.opened_by) === slackTracked.userId && slackTracked.memberIds.has(row.member_id);
+  const ownsTrackedDm = !!slackTracked && followsTrackedDm(row, slackTracked);
   const last = participation?.get(row.member_id);
   const shown = row.member ? getMemberDisplayName(row.member) : "A member who is no longer here";
   return {

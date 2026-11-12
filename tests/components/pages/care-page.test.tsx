@@ -533,10 +533,86 @@ describe("starting an engagement", () => {
     expect(screen.getByText("You are asking how their writing is going.")).toBeInTheDocument();
   });
 
+  describe("the 'They wrote to me first' tick", () => {
+    const pickBo = async (user: ReturnType<typeof userEvent.setup>) => {
+      await user.type(screen.getByRole("combobox", { name: "Member" }), "bo");
+      await user.click(await screen.findByRole("option", { name: /Bo Example/ }));
+      await user.click(screen.getByRole("radio", { name: /A welcome/ }));
+    };
+    const trackBo = (over: { ownedBy?: string } = {}) => {
+      seedSlack();
+      dataset.careTrackedDms.push({ id: "caredm_AAAAAAAAAAA1", tracked_by: CM_USER.id, slack_channel_id: D.bo, member_id: BO, created_at: ago(2), deleted_at: null });
+      // Bo's earlier care periods decide who would own a new one.
+      dataset.careEngagements.splice(0, dataset.careEngagements.length, row("care_AAAAAAAAAAA1", BO, { channel: "email", closed_at: ago(5), ended_how: "no_reply", owned_by: over.ownedBy ?? CM_USER.id }));
+    };
+    const tick = () => screen.queryByLabelText("They wrote to me first");
+    const line = () => screen.queryByText("Your Slack DM with them tells who wrote first.");
+
+    it("is there for a Slack DM before a member is picked, and for a member whose DM is not tracked", async () => {
+      const user = await open();
+      expect(tick()).toBeInTheDocument();
+      expect(line()).not.toBeInTheDocument();
+      await pickBo(user);
+      expect(screen.getByLabelText("Where")).toHaveValue("slack_dm");
+      expect(tick()).toBeInTheDocument();
+      expect(line()).not.toBeInTheDocument();
+    });
+
+    it("is replaced by a line for a Slack DM with a member whose DM she tracks, and comes back for another channel", async () => {
+      trackBo();
+      const user = await open();
+      await pickBo(user);
+      expect(tick()).not.toBeInTheDocument();
+      expect(line()).toBeInTheDocument();
+
+      await user.selectOptions(screen.getByLabelText("Where"), "email");
+      expect(tick()).toBeInTheDocument();
+      expect(line()).not.toBeInTheDocument();
+      await user.selectOptions(screen.getByLabelText("Where"), "prickle");
+      expect(tick()).toBeInTheDocument();
+    });
+
+    it("stays when the tracked DM would not feed the new care period, since the member's latest one belongs to someone else", async () => {
+      trackBo({ ownedBy: ADMIN_USER.id });
+      const user = await open();
+      await pickBo(user);
+      expect(tick()).toBeInTheDocument();
+      expect(line()).not.toBeInTheDocument();
+    });
+
+    it("is not sent as ticked once the DM says who wrote first", async () => {
+      trackBo();
+      const user = await open();
+      await pickBo(user);
+      await user.selectOptions(screen.getByLabelText("Where"), "email");
+      await user.click(tick()!);
+      await user.selectOptions(screen.getByLabelText("Where"), "slack_dm");
+      await user.click(screen.getByRole("button", { name: "Start tracking" }));
+
+      expect(actions.startEngagement).toHaveBeenCalledWith(expect.objectContaining({ memberId: BO, channel: "slack_dm", memberWroteFirst: false }));
+      await waitFor(() => expect(track).toHaveBeenCalledWith("care_engagement_started", expect.objectContaining({ channel: "slack_dm", member_wrote_first: false })));
+    });
+
+    it("still starts a Slack DM care period for a member with no DM, with the tick available", async () => {
+      const user = await open();
+      await pickBo(user);
+      await user.click(tick()!);
+      await user.click(screen.getByRole("button", { name: "Start tracking" }));
+      expect(actions.startEngagement).toHaveBeenCalledWith(expect.objectContaining({ memberId: BO, channel: "slack_dm", memberWroteFirst: true }));
+    });
+  });
+
+  it("calls the start button for what it does, not the heading's words", async () => {
+    await open();
+    expect(screen.getByRole("heading", { name: "Start a care period" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start tracking" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start care period" })).not.toBeInTheDocument();
+  });
+
   it("asks for a member first, then a reason", async () => {
     const user = await open();
 
-    await user.click(screen.getByRole("button", { name: "Start care period" }));
+    await user.click(screen.getByRole("button", { name: "Start tracking" }));
     expect(screen.getByRole("alert")).toHaveTextContent("Pick a member.");
     expect(actions.startEngagement).not.toHaveBeenCalled();
   });
@@ -550,7 +626,7 @@ describe("starting an engagement", () => {
     await user.selectOptions(screen.getByLabelText("Where"), "email");
     await user.click(screen.getByLabelText("They wrote to me first"));
     await user.type(screen.getByLabelText("Note"), "Joined last week");
-    await user.click(screen.getByRole("button", { name: "Start care period" }));
+    await user.click(screen.getByRole("button", { name: "Start tracking" }));
 
     expect(actions.startEngagement).toHaveBeenCalledWith({ memberId: BO, startedOn: "2026-03-20", reason: "welcome", channel: "email", memberWroteFirst: true, notes: "Joined last week", followUpOn: "" });
     await waitFor(() => expect(track).toHaveBeenCalledWith("care_engagement_started", { reason: "welcome", channel: "email", member_wrote_first: true, backdated: false }));
@@ -567,7 +643,7 @@ describe("starting an engagement", () => {
     await user.click(await screen.findByRole("option", { name: /Bo Example/ }));
     await user.click(screen.getByRole("radio", { name: /A welcome/ }));
     fireEvent.change(when, { target: { value: "2026-03-13" } });
-    await user.click(screen.getByRole("button", { name: "Start care period" }));
+    await user.click(screen.getByRole("button", { name: "Start tracking" }));
 
     expect(actions.startEngagement).toHaveBeenCalledWith(expect.objectContaining({ memberId: BO, startedOn: "2026-03-13" }));
     await waitFor(() => expect(track).toHaveBeenCalledWith("care_engagement_started", { reason: "welcome", channel: "slack_dm", member_wrote_first: false, backdated: true }));
@@ -581,7 +657,7 @@ describe("starting an engagement", () => {
     await user.click(await screen.findByRole("option", { name: /Bo Example/ }));
     await user.click(screen.getByRole("radio", { name: /A welcome/ }));
     fireEvent.change(screen.getByLabelText("When did this start?"), { target: { value: "" } });
-    await user.click(screen.getByRole("button", { name: "Start care period" }));
+    await user.click(screen.getByRole("button", { name: "Start tracking" }));
 
     expect(screen.getByRole("alert")).toHaveTextContent("Pick the day it started.");
     expect(actions.startEngagement).not.toHaveBeenCalled();
@@ -595,7 +671,7 @@ describe("starting an engagement", () => {
     await user.click(await screen.findByRole("option", { name: /Bo Example/ }));
     await user.click(screen.getByRole("radio", { name: /An introduction/ }));
     await user.type(screen.getByLabelText("Note"), "Hi there");
-    await user.click(screen.getByRole("button", { name: "Start care period" }));
+    await user.click(screen.getByRole("button", { name: "Start tracking" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("already an open care period");
     expect(screen.getByLabelText("Note")).toHaveValue("Hi there");
@@ -1040,6 +1116,66 @@ describe("Slack DMs on the engagement list", () => {
     await renderServerRoute(activePage, undefined as never);
 
     expect(screen.queryAllByText("from Slack")).toHaveLength(0);
+  });
+
+  describe("the reply buttons", () => {
+    const REPLY_BUTTONS = ["They replied", "I replied"];
+
+    it("hides They replied and I replied on a Slack DM care period she tracks, and says why, but keeps the rest", async () => {
+      seedSlack();
+      dataset.careTrackedDms.push({ id: "caredm_AAAAAAAAAAA1", tracked_by: CM_USER.id, slack_channel_id: D.ada, member_id: ADA, created_at: ago(2), deleted_at: null });
+      dataset.careEngagements.splice(0, dataset.careEngagements.length, row("care_AAAAAAAAAAA1", ADA, { last_staff_message_at: ago(10) }));
+      signInAs(CM_USER);
+      await renderServerRoute(activePage, undefined as never);
+
+      const card = cards()[0];
+      for (const name of REPLY_BUTTONS) expect(within(card).queryByRole("button", { name })).not.toBeInTheDocument();
+      expect(within(card).getByText("Filled in from your Slack DM")).toBeInTheDocument();
+      expect(within(card).getByText("from Slack")).toBeInTheDocument();
+      expect(within(card).getByText(/Last message: they wrote yesterday/)).toBeInTheDocument();
+      for (const name of ["Renew", "Close", "Results", "Reassign", "Edit", "Change start date", "Remove"]) {
+        expect(within(card).getByRole("button", { name })).toBeInTheDocument();
+      }
+    });
+
+    it("keeps them on a Slack DM she has not tracked, and on every other channel", async () => {
+      seedSlack();
+      dataset.careTrackedDms.push({ id: "caredm_AAAAAAAAAAA1", tracked_by: CM_USER.id, slack_channel_id: D.ada, member_id: ADA, created_at: ago(2), deleted_at: null });
+      dataset.careEngagements.splice(
+        0,
+        dataset.careEngagements.length,
+        row("care_AAAAAAAAAAA1", BO, {}), // a Slack DM she does not track
+        row("care_AAAAAAAAAAA2", ADA, { channel: "email" }),
+        row("care_AAAAAAAAAAA3", ADA, { channel: "prickle" }),
+        row("care_AAAAAAAAAAA4", ADA, { channel: "other" }),
+        row("care_AAAAAAAAAAA5", ADA, { owned_by: ADMIN_USER.id }) // her tracked DM, but someone else's care period
+      );
+      signInAs(CM_USER);
+      await renderServerRoute(activePage, undefined as never);
+
+      expect(cards()).toHaveLength(5);
+      for (const card of cards()) {
+        for (const name of REPLY_BUTTONS) expect(within(card).getByRole("button", { name })).toBeInTheDocument();
+        expect(within(card).queryByText("Filled in from your Slack DM")).not.toBeInTheDocument();
+      }
+    });
+
+    it("still logs a reply by hand where the buttons are shown", async () => {
+      dataset.careEngagements.splice(0, dataset.careEngagements.length, row("care_AAAAAAAAAAA1", ADA, { channel: "email" }));
+      signInAs(CM_USER);
+      await renderServerRoute(activePage, undefined as never);
+      await userEvent.setup().click(within(cards()[0]).getByRole("button", { name: "They replied" }));
+      expect(actions.logCareMessage).toHaveBeenCalledWith("care_AAAAAAAAAAA1", "member");
+    });
+  });
+
+  it("says in one line what Renew and Close do on an open care period, and not on a closed one", async () => {
+    dataset.careEngagements.splice(0, dataset.careEngagements.length, row("care_AAAAAAAAAAA1", ADA), row("care_AAAAAAAAAAA2", BO, { closed_at: ago(3), ended_how: "no_reply" }));
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+    const open = cards().find((c) => within(c).queryByRole("button", { name: "Renew" }));
+    expect(open).toBeDefined();
+    expect(within(open!).getByText("Renew starts the next care period. Close ends this one and asks how it ended.")).toBeInTheDocument();
   });
 
   it("does not stop the page opening when reading her tracked DMs fails", async () => {
