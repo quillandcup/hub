@@ -42,7 +42,7 @@ function reset() {
       kajabiOffers: [
         { kajabi_offer_id: "o1", name: "Summer Retreat" },
         { kajabi_offer_id: "o2", name: "Winter Retreat" },
-        { kajabi_offer_id: "o3", name: "Autumn Retreat" },
+        { kajabi_offer_id: "o3", name: "Autumn Retreat", data: { attributes: { internal_title: "PAY IN FULL for Autumn", price_description: "$50.00 USD" } } },
       ],
       kajabiCustomers: [{ kajabi_customer_id: "c1", email: "ada@example.com" }],
       kajabiPurchases: [{ kajabi_purchase_id: "p1", kajabi_customer_id: "c1", kajabi_offer_id: "o1", amount_in_cents: 5000, deactivated_at: null }],
@@ -66,6 +66,15 @@ describe("event offers routes", () => {
     expect(body.linked.map((o: { name: string }) => o.name)).toEqual(["Summer Retreat"]);
     // Winter sells the other event, so it is not offered.
     expect(body.available.map((o: { name: string }) => o.name)).toEqual(["Autumn Retreat"]);
+  });
+
+  it("says what tells offers apart: the internal title, the price and the id", async () => {
+    await post(A, { kajabiOfferId: "o1" });
+
+    const body = await (await listOffers(req(`/api/admin/events/${A}/offers`), { params: Promise.resolve({ id: A }) })).json();
+
+    expect(body.available[0].detail).toBe("PAY IN FULL for Autumn · $50.00 USD · #o3");
+    expect(body.linked[0].detail).toBe("#o1");
   });
 
   it("links an offer, then refuses one that sells another event", async () => {

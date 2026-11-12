@@ -1,4 +1,5 @@
 import { createRepos } from "@/lib/data/repos";
+import { offerDetailOf } from "@/lib/offer-coverage";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -17,12 +18,17 @@ export async function GET(
   const repos = createRepos(auth.supabase);
   try {
     const [offers, linked] = await Promise.all([
-      repos.billing.kajabiOfferNames().then((names) => repos.billing.kajabiOffersByName(names)),
+      repos.billing.kajabiOfferRows(),
       repos.events.linkedOffers(),
     ]);
     const linkedTo = new Map(linked.map((l) => [l.kajabi_offer_id, l.event_id]));
     const rows = offers
-      .map((o) => ({ kajabiOfferId: o.kajabi_offer_id, name: o.name ?? "Unnamed offer", linkedEventId: linkedTo.get(o.kajabi_offer_id) ?? null }))
+      .map((o) => ({
+        kajabiOfferId: o.kajabi_offer_id,
+        name: o.name ?? "Unnamed offer",
+        detail: offerDetailOf(o.kajabi_offer_id, o.name, o.data),
+        linkedEventId: linkedTo.get(o.kajabi_offer_id) ?? null,
+      }))
       .sort((a, b) => a.name.localeCompare(b.name));
     return NextResponse.json({
       linked: rows.filter((o) => o.linkedEventId === id),

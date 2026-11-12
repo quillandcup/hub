@@ -11,8 +11,8 @@ vi.mock("next/link", () => ({
 import EventKajabiTickets from "@/app/(admin)/admin/events/[slug]/EventKajabiTickets";
 
 const EVENT = "evt_AAAAAAAAAAA1";
-const SUMMER = { kajabiOfferId: "o1", name: "Summer Retreat" };
-const AUTUMN = { kajabiOfferId: "o3", name: "Autumn Retreat" };
+const SUMMER = { kajabiOfferId: "o1", name: "Summer Retreat", detail: "#o1" };
+const AUTUMN = { kajabiOfferId: "o3", name: "Autumn Retreat", detail: "PAY IN FULL for Autumn · #o3" };
 
 const MATCHES = {
   offersLinked: true,
@@ -64,6 +64,16 @@ describe("Kajabi tickets on an event", () => {
     await userEvent.click(screen.getByRole("button", { name: "Link offer" }));
 
     await waitFor(() => expect(calls.find((c) => c.method === "POST")).toEqual({ url: `/api/admin/events/${EVENT}/offers`, method: "POST", body: { kajabiOfferId: "o3" } }));
+  });
+
+  it("shows each offer's internal title, price and id so same-named offers can be told apart, and filters on them", async () => {
+    render(<EventKajabiTickets eventId={EVENT} onAttendeesChanged={vi.fn()} />);
+    await screen.findByText("Summer Retreat");
+    expect(screen.getByText("#o1")).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Autumn Retreat (PAY IN FULL for Autumn · #o3)" })).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText("Filter Kajabi offers"), "pay in full");
+    expect(screen.getByRole("option", { name: /Autumn Retreat/ })).toBeInTheDocument();
   });
 
   it("filters the offers to choose from", async () => {

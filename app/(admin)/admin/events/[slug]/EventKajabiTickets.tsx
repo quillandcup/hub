@@ -7,6 +7,8 @@ import type { EventKajabiMatches } from "@/lib/kajabi-event-matching";
 interface OfferRow {
   kajabiOfferId: string;
   name: string;
+  /** Internal title, price and id: what tells offers with the same name apart. */
+  detail: string;
 }
 
 /** What Kajabi said about an attendee with no purchase; says "these offers" when the event has several linked. */
@@ -161,7 +163,7 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
     }
   };
 
-  const shown = available.filter((o) => o.name.toLowerCase().includes(filter.trim().toLowerCase())).slice(0, 100);
+  const shown = available.filter((o) => `${o.name} ${o.detail}`.toLowerCase().includes(filter.trim().toLowerCase())).slice(0, 100);
 
   return (
     <section className="bg-white dark:bg-slate-900 rounded-lg shadow p-6 mb-6">
@@ -176,7 +178,10 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
         <ul className="mb-3 divide-y divide-gray-200 dark:divide-slate-800">
           {linked.map((offer) => (
             <li key={offer.kajabiOfferId} className="flex items-center justify-between py-1.5 text-sm">
-              <span>{offer.name}</span>
+              <span>
+                {offer.name}
+                <span className="ml-2 text-xs text-gray-500 dark:text-slate-400">{offer.detail}</span>
+              </span>
               <button
                 type="button"
                 onClick={() => unlink(offer.kajabiOfferId)}
@@ -208,7 +213,7 @@ export default function EventKajabiTickets({ eventId, onAttendeesChanged }: { ev
           <option value="">Choose an offer…</option>
           {shown.map((offer) => (
             <option key={offer.kajabiOfferId} value={offer.kajabiOfferId}>
-              {offer.name}
+              {offer.name} ({offer.detail})
             </option>
           ))}
         </select>
