@@ -109,6 +109,24 @@ export async function seedWritingGoals(admin: Admin, memberId: string, now: Date
   if (error) throw new Error(`writing_goals: ${error.message}`);
 }
 
+/** Check-ins for the demo member on four past prickles, so the feeling question has "Frequently used" feelings. Replaces all of that member's check-ins. */
+export async function seedCheckinHistory(admin: Admin, memberId: string, now: Date) {
+  const { data: past, error: pastError } = await admin
+    .from("prickles")
+    .select("id")
+    .lt("start_time", new Date(now.getTime() - 3 * 60 * 60 * 1000).toISOString())
+    .order("start_time", { ascending: false })
+    .limit(4);
+  if (pastError) throw new Error(`prickles: ${pastError.message}`);
+  const feelings = [["joyful", "peaceful"], ["joyful", "joyful"], ["peaceful", "hopeful"], ["joyful", "content"]] as const;
+  const rows = (past ?? []).map((p, i) => ({ member_id: memberId, prickle_id: p.id, emotion_before: feelings[i][0], emotion_after: feelings[i][1] }));
+  if (rows.length === 0) return;
+  const { error: deleteError } = await admin.from("prickle_checkins").delete().eq("member_id", memberId);
+  if (deleteError) throw new Error(`prickle_checkins: ${deleteError.message}`);
+  const { error } = await admin.from("prickle_checkins").insert(rows);
+  if (error) throw new Error(`prickle_checkins: ${error.message}`);
+}
+
 /** Books with generated covers, registered in the media library as their owners' own images. */
 export async function seedBooks(admin: Admin, now: Date) {
   const ids = await memberIds(admin, [...new Set(DEMO_BOOKS.map((b) => b.owner))]);
