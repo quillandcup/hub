@@ -1315,6 +1315,10 @@ When the author of a Hub-written message removes one shared Slack message with t
 
 The policy has no `script-src`, `style-src` or `default-src`: Next's inline bootstrap scripts, the Google Analytics tag and inline styles need per-request nonces, which makes every page dynamic (`node_modules/next/dist/docs/01-app/02-guides/content-security-policy.md`, "Adding a nonce with Proxy"). Deferred because it changes rendering for the whole app and needs its own measurement (caching, PPR). Start in `proxy.ts` / `lib/supabase/middleware.ts`, then `lib/csp.ts`; add `connect-src`, `frame-src` and `media-src` once the script policy is in.
 
+### Mark unread: replies, the U shortcut, a real-database contract test
+
+"Mark unread" (`markChatUnread`, `chat_mark_unread`) is offered on top-level messages only, because the unread counts and the "New" line skip replies (a thread has no marker of its own). Still open: marking a reply unread (needs a per-thread marker), Slack's `U` keyboard shortcut on the hovered or focused message (the message menu has no key handling yet; start in `components/chat/MessageActions.tsx`), and running `ChatRepository.markUnread` against the real database in the shared contract suite (`tests/helpers/chat-contract.ts`): the database function is bound to the signed-in caller, so it is covered by pgTAP (`supabase/tests/database/chat_mark_unread.test.sql`) and the in-memory twin's own test instead.
+
 ## Slack Bot Channel Access
 
 ### Auto-invite Billie Bot into private channels using a personal Slack token

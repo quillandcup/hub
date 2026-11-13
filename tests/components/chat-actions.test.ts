@@ -15,11 +15,12 @@ vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").the
 const slackRead = vi.hoisted(() => ({
   after: [] as (() => unknown)[],
   push: vi.fn(async () => true),
+  pushUnread: vi.fn(async () => true),
   pull: vi.fn(async () => true),
 }));
 vi.mock("next/server", () => ({ after: (cb: () => unknown) => void slackRead.after.push(cb) }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({ service: true }) }));
-vi.mock("@/lib/chat/slack-read", () => ({ pushReadToSlack: slackRead.push, pullReadFromSlack: slackRead.pull }));
+vi.mock("@/lib/chat/slack-read", () => ({ pushReadToSlack: slackRead.push, pushUnreadToSlack: slackRead.pushUnread, pullReadFromSlack: slackRead.pull }));
 const dms = vi.hoisted(() => ({ pull: vi.fn(async () => ({ conversations: 0, messages: 0 })) }));
 vi.mock("@/lib/chat/slack-dms", () => ({ pullMemberDms: dms.pull }));
 const chatNotify = vi.hoisted(() => ({ resolve: vi.fn(async () => {}), notify: vi.fn(async () => ({ sent: [], dryRun: [] })) }));
@@ -30,7 +31,7 @@ vi.mock("@/lib/features.server", () => ({
   effectiveMemberHasFeature: async (key: string) => key === "slack_dm_bridge" && dmBridgeOn,
 }));
 
-const { markChatRead, syncChatReadFromSlack } = await import("@/app/(member)/chat/actions");
+const { markChatRead, markChatUnread, syncChatReadFromSlack } = await import("@/app/(member)/chat/actions");
 
 const CHANNEL = "chn_AAAAAAAAAAA1";
 let fake: FakeSupabase;
@@ -158,5 +159,54 @@ describe("syncChatReadFromSlack", () => {
     signInAs(null);
     await syncChatReadFromSlack(null);
     expect(slackRead.after).toHaveLength(0);
+  });
+});
+
+describe("markChatUnread", () => {
+  const MESSAGE = "msg_AAAAAAAAAAA1";
+  const MARKER = "2026-10-10T16:51:47.013064+00:00";
+  const unreadCalls = () => fake.queries.filter((q) => q.table === "rpc:chat_mark_unread");
+
+  beforeEach(() => {
+    slackRead.pushUnread.mockClear();
+    fake = useFakeSupabase({
+      "rpc:chat_mark_unread": () => ({ data: MARKER }),
+      "rpc:chat_unread_counts": () => ({ data: [{ channel_id: CHANNEL, unread: 3 }] }),
+    });
+  });
+
+  it("moves the marker back and answers the conversation's new unread count", async () => {
+    await expect(markChatUnread(CHANNEL, MESSAGE)).resolves.toEqual({ ok: true, unread: 3 });
+    expect(unreadCalls()[0].calls[0].args[0]).toEqual({ p_channel_id: CHANNEL, p_message_id: MESSAGE });
+  });
+
+  it("moves the member's Slack marker back too, after the response", async () => {
+    await markChatUnread(CHANNEL, MESSAGE);
+    expect(slackRead.pushUnread).not.toHaveBeenCalled();
+    await slackRead.after[0]();
+    expect(slackRead.pushUnread).toHaveBeenCalledWith({ service: true }, { memberId: MEMBER_IDENTITY.memberId, channelId: CHANNEL, messageId: MESSAGE, marker: MARKER });
+  });
+
+  it("refuses a bad id, signed out, and sudo, without touching anything", async () => {
+    expect((await markChatUnread("nope", MESSAGE)).ok).toBe(false);
+    expect((await markChatUnread(CHANNEL, "nope")).ok).toBe(false);
+    signInAs(null);
+    expect((await markChatUnread(CHANNEL, MESSAGE)).ok).toBe(false);
+    signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
+    expect((await markChatUnread(CHANNEL, MESSAGE)).ok).toBe(false);
+    expect(unreadCalls()).toHaveLength(0);
+    expect(slackRead.after).toHaveLength(0);
+  });
+
+  it("says so when the message isn't one the member can mark, or the database fails", async () => {
+    // The fake turns a null result into [], so an empty string stands for "no marker" here.
+    fake = useFakeSupabase({ "rpc:chat_mark_unread": () => ({ data: "" }) });
+    expect((await markChatUnread(CHANNEL, MESSAGE)).ok).toBe(false);
+    expect(slackRead.after).toHaveLength(0);
+    fake = useFakeSupabase({ "rpc:chat_mark_unread": () => ({ data: null, error: { message: "boom" } }) });
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect((await markChatUnread(CHANNEL, MESSAGE)).ok).toBe(false);
+    expect(log).toHaveBeenCalled();
+    log.mockRestore();
   });
 });

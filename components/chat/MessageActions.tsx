@@ -8,7 +8,8 @@ import { useTimeout } from "@/components/useTimeout";
 import EmojiPicker from "@/components/chat/EmojiPicker";
 import { useToggleReaction } from "@/components/chat/ReactionBar";
 import type { CustomEmoji } from "@/lib/chat/emoji";
-import { MESSAGE_CHANGE_EVENT } from "@/lib/chat/list-events";
+import { MARKED_UNREAD_EVENT, MESSAGE_CHANGE_EVENT, emitListEvent, type MarkedUnreadDetail } from "@/lib/chat/list-events";
+import { markChatUnread } from "@/app/(member)/chat/actions";
 import { messageToClipboard, type Names } from "@/lib/chat/clipboard";
 
 const buttonClass =
@@ -138,6 +139,18 @@ export default function MessageActions({
     setMenuPos({ top, left });
   }, [open]);
 
+  // "Mark unread": the unread line moves above this message at once, and the conversation is left
+  // unread when the reader goes (ChatLive and the sidebar listen for the event).
+  const [unreadError, setUnreadError] = useState<string | null>(null);
+  const markUnread = async () => {
+    setOpen(null);
+    setUnreadError(null);
+    const result = await markChatUnread(channelId, messageId).catch(() => null);
+    if (!result?.ok) return setUnreadError(result?.error ?? "Couldn't mark it unread. Try again.");
+    emitListEvent({ kind: "unread", channelId, firstUnreadId: messageId });
+    window.dispatchEvent(new CustomEvent<MarkedUnreadDetail>(MARKED_UNREAD_EVENT, { detail: { channelId, unread: result.unread } }));
+  };
+
   const copy = async (what: string, text: string, html?: string) => {
     setOpen(null);
     try {
@@ -238,6 +251,19 @@ export default function MessageActions({
               </li>
             )}
             {canChange && body && <li role="separator" className="my-1 border-t border-slate-200 dark:border-slate-700" />}
+            {canReply && (
+              <li role="none">
+                <button
+                  type="button"
+                  role="menuitem"
+                  data-track="chat-menu-mark-unread"
+                  onClick={() => void markUnread()}
+                  className="block w-full px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  Mark unread
+                </button>
+              </li>
+            )}
             <li role="none">
               <button
                 type="button"
@@ -286,9 +312,9 @@ export default function MessageActions({
           document.body
         )}
       </div>
-      {error && (
+      {(error || unreadError) && (
         <span role="alert" className="px-2 text-xs text-red-600 dark:text-red-400">
-          {error}
+          {error ?? unreadError}
         </span>
       )}
     </div>

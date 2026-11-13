@@ -56,6 +56,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "mark-unread-in-hub-chat",
+    date: "2026-11-13",
+    audience: "product",
+    category: "improved",
+    title: "Mark a message unread in Hub Chat, to come back to it later",
+    summary: "Read something you aren't ready to answer? Choose Mark unread on a message and it, and everything after it, shows as unread again until you come back.",
+    body: [
+      "Open the three dots on a message and choose **Mark unread**. That message and everything after it counts as new again: the conversation shows its number in the sidebar, and the next time you open it the \"New\" line sits above that message and you land right there.",
+      "The conversation stays unread while you're in it and when you leave, so you can read on and still find your place later. It only marks your own view, so nobody else sees a change.",
+      "If you've connected Slack, it moves your place in Slack too, so the message looks unread there as well.",
+    ].join("\n\n"),
+  },
+  {
     slug: "more-than-one-zoom-account",
     date: "2026-11-12",
     audience: "engineering",
