@@ -3,6 +3,7 @@ import { getCoursesCaller } from "@/lib/courses/caller";
 import { courseImageSrc } from "@/lib/courses/image-urls";
 import { canOpenLessons, loadMemberCourseAccess } from "@/lib/courses/member";
 import { mayWatchSharedVideo } from "@/lib/chat/video-access";
+import { lessonPath } from "@/lib/chat/video-link";
 import { createRepos } from "@/lib/data/repos";
 import { isId } from "@/lib/ids";
 import { createMuxClient, signPlaybackTokens } from "@/lib/mux";
@@ -106,9 +107,11 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     const tokens = await signPlaybackTokens(createMuxClient(), video.mux_playback_id, undefined, restrictionId);
     // Watching is recorded for members' open lessons, and not in sudo (an admin previewing leaves no viewing history).
     const record = lesson.state === "open" && !caller.identity.isSudo;
+    // The lesson's own page, for a viewer with the course; one who may watch only because an admin opened the share to the channel can't open it.
+    const course = hasCourse ? await repos.courses.courseById(lesson.course_id) : null;
     const position = record && hasCourse ? await createRepos(await createClient()).courseProgress.lessonPosition(caller.identity.memberId, lesson.id).catch(() => null) : null;
     return NextResponse.json(
-      { title: lesson.title, lessonId: lesson.id, playbackId: video.mux_playback_id, tokens, restricted: restrictionId !== null, record, resumeSeconds: resumeSeconds(position) },
+      { title: lesson.title, lessonId: lesson.id, lessonHref: course ? lessonPath(course.slug, lesson.id) : null, playbackId: video.mux_playback_id, tokens, restricted: restrictionId !== null, record, resumeSeconds: resumeSeconds(position) },
       { headers: NO_STORE },
     );
   } catch (error) {
