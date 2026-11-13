@@ -1186,15 +1186,7 @@ export type Database = {
           user_id?: string | null
           zoom_account?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "zoom_attendees_zoom_account_fkey"
-            columns: ["zoom_account"]
-            isOneToOne: false
-            referencedRelation: "zoom_accounts"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       zoom_chat_messages: {
         Row: {
@@ -1266,15 +1258,7 @@ export type Database = {
           sent_at?: string
           zoom_account?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "zoom_chat_messages_zoom_account_fkey"
-            columns: ["zoom_account"]
-            isOneToOne: false
-            referencedRelation: "zoom_accounts"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       zoom_meetings: {
         Row: {
@@ -1325,15 +1309,7 @@ export type Database = {
           updated_at?: string | null
           zoom_account?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "zoom_meetings_zoom_account_fkey"
-            columns: ["zoom_account"]
-            isOneToOne: false
-            referencedRelation: "zoom_accounts"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       zoom_participant_events: {
         Row: {
@@ -1381,15 +1357,7 @@ export type Database = {
           received_at?: string
           zoom_account?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "zoom_participant_events_zoom_account_fkey"
-            columns: ["zoom_account"]
-            isOneToOne: false
-            referencedRelation: "zoom_accounts"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
     }
     Views: {
