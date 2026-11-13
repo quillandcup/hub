@@ -142,7 +142,7 @@ export default function VideoActions({
             title={thumbnailLink ? undefined : thumbnailLinkBlocked}
             className={thumbnailLink ? `${ITEM} hover:bg-slate-50 dark:hover:bg-slate-800` : OFF}
           >
-            Copy for email
+            Copy with thumbnail
           </button>
           {chatShare && (
               <button
