@@ -27,13 +27,14 @@ body {
   }
 }
 
-/* The skin's glass (`--media-popover`) is white at 10%: over a bright frame its white text has almost no contrast, and it looks different over every frame.
-   A dark glass instead, for everything the skin draws with it (its fullscreen pill, menus and the "Open lesson" link below), at one place so they change
-   together. White on it is at least 4.5:1 over even a pure white frame. A viewer who asked for less transparency or more contrast keeps the skin's own
+/* The skin's glass (`--media-popover`) is white at 10%: over a bright frame its white text has almost no contrast, and it looks different over every frame
+   (a pill that moves from the card's picture to the player's darkened one visibly changes colour). A dark, nearly opaque glass instead, for everything
+   the skin draws with it (its fullscreen pill, menus and the "Open lesson" link below), at one place so they change together. White on it is well over 4.5:1
+   on any frame. A viewer who asked for less transparency or more contrast keeps the skin's own
    solid colours (its rules for those, which this does not override). */
 @media (prefers-reduced-transparency: no-preference) and (prefers-contrast: no-preference) and (forced-colors: none) {
   .media-skin {
-    --media-popover: oklch(0% 0 0 / 0.6);
+    --media-popover: oklch(0% 0 0 / 0.78);
   }
 }
 
@@ -57,13 +58,19 @@ body {
   -webkit-backdrop-filter: var(--media-backdrop-filter-surface);
   backdrop-filter: var(--media-backdrop-filter-surface);
   text-shadow: var(--media-text-shadow-dialog);
+  /* Set here, not inherited: the skin's container sets its own font and `-webkit-font-smoothing: auto` (heavier white-on-dark text) while the page is
+     `antialiased`, so an inherited label changed weight when the player took the card's place. */
+  font-family: var(--media-font-family, "Inter Variable", Inter, ui-sans-serif, system-ui, sans-serif);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   font-size: 0.875rem;
   font-weight: 500;
   line-height: 1;
   white-space: nowrap;
   text-decoration: none;
   outline: 2px solid transparent;
-  transition-property: background-color, color, outline-offset;
+  /* Hover and the move to icon-only are the only changes it animates, and the second as one motion (padding, gap and label together). */
+  transition-property: background-color, color, outline-offset, padding-inline, gap;
   transition-duration: var(--media-duration);
 }
 .lesson-open-link:hover,
@@ -80,33 +87,32 @@ body {
   height: 1rem;
   flex-shrink: 0;
 }
-/* Playing: just the icon (YouTube's "Watch on YouTube" becomes its logo once the video starts); paused or ended, the label comes back. */
+.lesson-open-link-label {
+  display: inline-block;
+  max-width: 8rem;
+  overflow: hidden;
+  opacity: 1;
+  transition-property: max-width, opacity;
+  transition-duration: var(--media-duration);
+}
+/* Icon only: playing (YouTube's "Watch on YouTube" becomes its logo once the video starts; paused or ended, the label comes back) and wherever the skin
+   itself is narrow, so it keeps clear of the big play button. The label stays in the page for screen readers; it is only collapsed. */
 .media-container:has(.media-play-button[data-started]:not([data-paused]):not([data-ended])) .lesson-open-link {
-  width: var(--media-control-size);
-  padding-inline: 0;
-  justify-content: center;
+  gap: 0;
+  padding-inline: calc((var(--media-control-size) - 1rem) / 2);
 }
 .media-container:has(.media-play-button[data-started]:not([data-paused]):not([data-ended])) .lesson-open-link-label {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
+  max-width: 0;
+  opacity: 0;
 }
 @container media-root (width < 32rem) {
   .lesson-open-link {
-    width: var(--media-control-size);
-    padding-inline: 0;
-    justify-content: center;
+    gap: 0;
+    padding-inline: calc((var(--media-control-size) - 1rem) / 2);
   }
   .lesson-open-link-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
+    max-width: 0;
+    opacity: 0;
   }
 }
 
