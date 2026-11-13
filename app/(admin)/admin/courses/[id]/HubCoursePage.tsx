@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createRepos } from "@/lib/data/repos";
 import { loadHubCourse, loadHubOutline } from "@/lib/courses/admin";
+import { loadDuplicatePreview } from "@/lib/courses/duplicate";
 import { ACCESS_OPTIONS, accessLabel } from "@/lib/courses/access-options";
 import { formatCourseDate } from "@/lib/courses/format";
 import { localDateOf } from "@/lib/prickle-writing";
@@ -10,11 +11,17 @@ import { ORG_TIMEZONE } from "@/lib/config";
 import BuilderOutline from "../BuilderOutline";
 import CoursePublishControl from "../CoursePublishControl";
 import CourseDetailsForm from "../CourseDetailsForm";
+import DuplicatePanel from "./DuplicatePanel";
 
 /** The admin page of a course the Hub owns (not one imported from Kajabi): its details, editable. */
 export default async function HubCoursePage({ id }: { id: string }) {
   const supabase = await createClient();
-  const [course, programs, outline] = await Promise.all([loadHubCourse(createRepos(supabase), id), createRepos(supabase).programs.names(), loadHubOutline(createRepos(supabase), id)]);
+  const [course, programs, outline, duplicate] = await Promise.all([
+    loadHubCourse(createRepos(supabase), id),
+    createRepos(supabase).programs.names(),
+    loadHubOutline(createRepos(supabase), id),
+    loadDuplicatePreview(createRepos(supabase), id),
+  ]);
   if (!course) notFound();
 
   const accessIndex = ACCESS_OPTIONS.findIndex((o) => accessLabel(o.value) === accessLabel(course.accessDuration));
@@ -54,6 +61,8 @@ export default async function HubCoursePage({ id }: { id: string }) {
         {/* A Hub-owned lesson is its own Hub lesson, so its preview link takes its own id. */}
         <BuilderOutline course={{ id: course.id, slug: course.slug, editable: true, ...outline, hubLessonIds: Object.fromEntries(Object.keys(outline.content).map((lessonId) => [lessonId, lessonId])) }} />
       </div>
+
+      {duplicate && <DuplicatePanel courseId={course.id} title={course.title} preview={duplicate} />}
     </div>
   );
 }

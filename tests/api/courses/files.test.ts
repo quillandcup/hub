@@ -159,6 +159,18 @@ describe('Course files step', () => {
     expect(await exists(tracker.storage_path)).toBe(false)
   })
 
+  it('keeps the stored object of a file Kajabi dropped while a duplicated lesson still lists it', async () => {
+    const second = (await rows()).find((r) => r.source_key.endsWith('-f-second'))!
+    const copyLesson = (await supabase.from('course_lessons').insert({ course_id: second.lesson_id ? (await supabase.from('course_lessons').select('course_id').eq('id', second.lesson_id).single()).data!.course_id : '', title: 'Copy', position: 99, publishing_option: 'draft', source: 'hub' }).select('id').single()).data!.id
+    await supabase.from('course_lesson_files').insert({ lesson_id: copyLesson, source_key: `up-${crypto.randomUUID()}`, filename: second.filename, storage_path: second.storage_path })
+    await bronze.from('kajabi_lesson_files').update({ deleted_at: NOW.toISOString() }).eq('kajabi_id', `${COURSE}-f-second`)
+
+    await copyCourseFiles(supabase, COURSE, NOW, download)
+
+    expect((await rows()).some((r) => r.source_key.endsWith('-f-second'))).toBe(false)
+    expect(await exists(second.storage_path)).toBe(true)
+  })
+
   it('reports a course that is not published as having nowhere to copy to', async () => {
     const plan = await planCourseFiles(createRepos(supabase), `${COURSE}-unpublished`, NOW)
     expect(plan.courseId).toBeNull()

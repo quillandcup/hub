@@ -175,6 +175,13 @@ describe("describeRow", () => {
     expect(describeRow(row({ entity_type: "course_lesson_order", description: null, data: {} }))).toBe("reordered the lessons");
   });
 
+  it("reads a duplicated course as one sentence with what it holds", () => {
+    const data = { copied_from: { old: null, new: "crs_AAAAAAAAAAA1" }, lessons_copied: { old: null, new: 12 } };
+    expect(describeRow(row({ entity_type: "course", event_type: "insert", description: "Plot Lab (copy)", data }))).toBe("duplicated a course as “Plot Lab (copy)” (12 lessons)");
+    expect(describeRow(row({ entity_type: "course", event_type: "insert", description: "X (copy)", data: { ...data, lessons_copied: { old: null, new: 1 } } }))).toBe("duplicated a course as “X (copy)” (1 lesson)");
+    expect(describeRow(row({ entity_type: "course", event_type: "insert", description: "X (copy)", data: { copied_from: data.copied_from } }))).toBe("duplicated a course as “X (copy)”");
+  });
+
   it("uses verbs for insert and delete and caps long field lists", () => {
     expect(describeRow(row({ event_type: "insert", data: { a: { old: null, new: 1 } } }))).toBe("added prickle type");
     expect(describeRow(row({ event_type: "delete" }))).toBe("removed prickle type");

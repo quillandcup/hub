@@ -101,6 +101,24 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     ].join("\n\n"),
   },
   {
+    slug: "duplicate-course",
+    date: "2026-11-12",
+    audience: "staff",
+    category: "new",
+    title: "Duplicate a course to try the course editor on a copy",
+    summary: "On any course's admin page, Duplicate course makes a draft copy you can edit in the Hub while the real course stays as it is in Kajabi.",
+    body: [
+      "Open a course in Admin, Courses and press **Duplicate course** (it is there for courses imported from Kajabi and for courses made in the Hub). The dialog says what is copied first. You land on the new course, called \"<name> (copy)\".",
+      [
+        "- **Copied:** the modules, submodules and lessons in the same order, with their text, pictures and downloads. Videos are not uploaded again: the lessons play the same videos as the original.",
+        "- **Not copied:** members' access and progress, comments, and the link to a program (link it yourself when the copy is ready).",
+        "- **A draft:** the copy and every module and lesson in it start as drafts, so members cannot see it until you publish it.",
+        "- **Kajabi never touches it:** the real course keeps syncing as before; the copy is yours to change. The duplicate lesson and duplicate module buttons in the outline now copy downloads too.",
+      ].join("\n"),
+      "The audit log records one entry for the new course, saying which course it was copied from.",
+    ].join("\n\n"),
+  },
+  {
     slug: "where-pictures-come-from",
     date: "2026-11-12",
     audience: "engineering",

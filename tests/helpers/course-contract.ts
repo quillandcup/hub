@@ -641,6 +641,114 @@ export function defineCourseContract(name: string, setup: () => CourseContractCo
       expect((await repo.modulesOf([deep.id], { includeHidden: true })).map((m) => m.source)).toEqual(["kajabi", "kajabi", "kajabi"]);
     });
 
+    it("duplicates a course as a draft the Hub owns: the tree in order with new ids, the same videos, nothing of members, and the original untouched", async () => {
+      const repo = ctx.courses();
+      const [member] = await ctx.members();
+      const kajabi = newCourse("dup", { source: "kajabi", source_key: ctx.unique("kj"), title: "Original", description: "About", access_duration: "30 days", program_id: null });
+      await ctx.seed.courses([kajabi]);
+      const videoId = await repo.createVideo({ source_kind: "upload", source_key: ctx.unique("upload") });
+      await ctx.seed.forget({ videos: [videoId] });
+      const top = moduleRow({ id: newCourseId("mod"), course_id: kajabi.id, title: "Top", position: 1, source: "kajabi", source_key: ctx.unique("km"), publishing_option: "published", state: "open" });
+      const sub = moduleRow({ id: newCourseId("mod"), course_id: kajabi.id, parent_id: top.id, title: "Sub", position: 1, source: "kajabi", source_key: ctx.unique("km"), publishing_option: "published", state: "open" });
+      await ctx.seed.modules([top, sub]);
+      const inTop = lessonRow({ id: newCourseId("les"), course_id: kajabi.id, module_id: top.id, title: "In top", position: 2, source: "kajabi", source_key: ctx.unique("kl"), publishing_option: "published", state: "open", video_id: videoId, body_html: "<p>Hi</p>" });
+      const inSub = lessonRow({ id: newCourseId("les"), course_id: kajabi.id, module_id: sub.id, title: "In sub", position: 5, source: "kajabi", source_key: ctx.unique("kl"), publishing_option: "published", state: "open" });
+      const loose = lessonRow({ id: newCourseId("les"), course_id: kajabi.id, module_id: null, title: "Loose", position: 3, source: "kajabi", source_key: ctx.unique("kl"), publishing_option: "published", state: "open" });
+      await ctx.seed.lessons([inTop, inSub, loose]);
+      const download = fileRow({ id: newCourseId("file"), lesson_id: inTop.id, filename: "sheet.pdf", source_key: ctx.unique("kf"), storage_path: `${ctx.unique("path")}/sheet.pdf`, position: 4 });
+      await ctx.seed.files([download]);
+      await ctx.seed.progress([progressRow({ member_id: member, lesson_id: inTop.id, completed_at: T(1) })]);
+      await ctx.seed.access([accessRow({ member_id: member, course_id: kajabi.id })]);
+
+      const copyId = await repo.duplicateCourse(kajabi.id);
+      await ctx.seed.forget({ courses: [copyId] });
+
+      expect(copyId).not.toBe(kajabi.id);
+      expect(await repo.courseById(copyId)).toMatchObject({ source: "hub", source_key: null, is_draft: true, program_id: null, title: "Original (copy)", slug: `${kajabi.slug}-copy`, description: "About" });
+      const modules = await repo.modulesOf([copyId], { includeHidden: true });
+      const lessons = await repo.lessonsOf([copyId], { includeHidden: true });
+      const idOf = (rows: { id: string; title: string }[], title: string) => rows.find((r) => r.title === title)!.id;
+      expect(modules).toHaveLength(2);
+      expect(modules.find((m) => m.title === "Top")).toMatchObject({ position: 1, parent_id: null });
+      expect(modules.find((m) => m.title === "Sub")).toMatchObject({ position: 1, parent_id: idOf(modules, "Top") });
+      expect(modules.every((m) => m.source === "hub" && m.source_key === null && m.publishing_option === "draft" && m.state === "hidden" && ![top.id, sub.id].includes(m.id))).toBe(true);
+      expect(lessons).toHaveLength(3);
+      expect(lessons.every((l) => l.source === "hub" && l.source_key === null && l.publishing_option === "draft" && l.state === "hidden" && ![inTop.id, inSub.id, loose.id].includes(l.id))).toBe(true);
+      expect(lessons.find((l) => l.title === "In top")).toMatchObject({ module_id: idOf(modules, "Top"), position: 2, video_id: videoId });
+      expect(lessons.find((l) => l.title === "In sub")).toMatchObject({ module_id: idOf(modules, "Sub"), position: 5 });
+      expect(lessons.find((l) => l.title === "Loose")).toMatchObject({ module_id: null, position: 3 });
+      expect((await repo.lessonBody(idOf(lessons, "In top")))?.body_html).toBe("<p>Hi</p>");
+
+      // The download is a row of its own (its own key) for the same stored object, on the copied lesson.
+      const copiedFiles = await repo.filesOfLessons(lessons.map((l) => l.id));
+      expect(copiedFiles).toHaveLength(1);
+      expect(copiedFiles[0]).toMatchObject({ lesson_id: idOf(lessons, "In top"), filename: "sheet.pdf", storage_path: download.storage_path, position: 4 });
+      expect(copiedFiles[0].id).not.toBe(download.id);
+      expect(copiedFiles[0].source_key).not.toBe(download.source_key);
+      expect(await repo.lessonFiles(inTop.id)).toHaveLength(1);
+      expect(await repo.storagePathShared(download.storage_path, download.id)).toBe(true);
+
+      // Nothing of members' came along, and the original is as it was.
+      expect(await ctx.progress().hasProgressIn(lessons.map((l) => l.id))).toBe(false);
+      expect(await ctx.progress().accessOfCourses([copyId])).toEqual([]);
+      expect(await repo.courseById(kajabi.id)).toMatchObject({ source: "kajabi", source_key: kajabi.source_key });
+      expect((await repo.modulesOf([kajabi.id], { includeHidden: true })).map((m) => m.source)).toEqual(["kajabi", "kajabi"]);
+      expect((await repo.lessonsOf([kajabi.id], { includeHidden: true })).length).toBe(3);
+      expect(await ctx.progress().hasProgressIn([inTop.id])).toBe(true);
+
+      // A second copy takes the next free address, and a copy can be copied too.
+      const second = await repo.duplicateCourse(kajabi.id);
+      const third = await repo.duplicateCourse(copyId);
+      await ctx.seed.forget({ courses: [second, third] });
+      expect((await repo.courseById(second))?.slug).toBe(`${kajabi.slug}-copy-2`);
+      expect((await repo.courseById(third))?.slug).toBe(`${kajabi.slug}-copy-copy`);
+    });
+
+    it("copies a lesson's downloads when the lesson or its module is duplicated, onto the same stored object", async () => {
+      const repo = ctx.courses();
+      const hub = newCourse("dup-files");
+      await ctx.seed.courses([hub]);
+      const mod = await repo.addModule({ course_id: hub.id, title: "M", position: 1, publishing_option: "draft", source: "hub" });
+      const lesson = await repo.addLesson({ course_id: hub.id, module_id: mod, title: "L", position: 1, publishing_option: "draft", source: "hub" });
+      const path = `${ctx.unique("path")}/a.pdf`;
+      const file = fileRow({ id: newCourseId("file"), lesson_id: lesson, filename: "a.pdf", storage_path: path, source_key: ctx.unique("kf") });
+      await ctx.seed.files([file]);
+      expect(await repo.storagePathShared(path, file.id)).toBe(false);
+
+      const lessonCopy = await repo.duplicateItem("lesson", lesson);
+      const copied = await repo.lessonFiles(lessonCopy);
+      expect(copied).toHaveLength(1);
+      expect(copied[0]).toMatchObject({ filename: "a.pdf", storage_path: path });
+      expect(copied[0].source_key).not.toBe(file.source_key);
+      expect(await repo.storagePathShared(path, file.id)).toBe(true);
+      expect(await repo.storagePathShared(path, copied[0].id)).toBe(true);
+
+      const moduleCopy = await repo.duplicateItem("module", mod);
+      const inCopy = await repo.lessonsOf([hub.id], { includeHidden: true });
+      const lessonsOfCopy = inCopy.filter((l) => l.module_id === moduleCopy);
+      expect(lessonsOfCopy).toHaveLength(2);
+      for (const l of lessonsOfCopy) expect((await repo.lessonFiles(l.id)).map((f) => f.storage_path)).toEqual([path]);
+      expect(new Set((await repo.filesOfLessons(inCopy.map((l) => l.id))).map((f) => f.source_key)).size).toBe(4);
+
+      // The object is unshared once only one row is left.
+      for (const l of inCopy.filter((x) => x.id !== lesson)) for (const f of await repo.lessonFiles(l.id)) await repo.deleteLessonFile(f.id);
+      expect(await repo.storagePathShared(path, file.id)).toBe(false);
+    });
+
+    it("won't duplicate a course that isn't there, or one whose modules nest deeper than the editor does", async () => {
+      const repo = ctx.courses();
+      const deep = newCourse("dup-deep", { source: "kajabi", source_key: ctx.unique("kj") });
+      await ctx.seed.courses([deep]);
+      const d1 = moduleRow({ id: newCourseId("mod"), course_id: deep.id, title: "D1", source: "kajabi", source_key: ctx.unique("km") });
+      const d2 = moduleRow({ id: newCourseId("mod"), course_id: deep.id, parent_id: d1.id, title: "D2", source: "kajabi", source_key: ctx.unique("km") });
+      const d3 = moduleRow({ id: newCourseId("mod"), course_id: deep.id, parent_id: d2.id, title: "D3", source: "kajabi", source_key: ctx.unique("km") });
+      await ctx.seed.modules([d1, d2, d3]);
+
+      expect(await repo.duplicateCourse(newCourseId("crs")).catch((e: Error) => e.message)).toBe("not_found");
+      expect(await repo.duplicateCourse(deep.id).catch((e: Error) => e.message)).toBe("too_deep");
+      expect(await repo.courseBySlug(`${deep.slug}-copy`)).toBeNull();
+    });
+
     it("records and clears the library image of a course, its banner, a module and a lesson", async () => {
       const course = newCourse("images");
       await ctx.seed.courses([course]);
