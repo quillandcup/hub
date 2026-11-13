@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Download, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { COURSE_FILES_BUCKET, formatBytes } from "@/lib/courses/file-format";
 import { finishLessonFileUpload, removeLessonFile, startLessonFileUpload } from "../../../lesson-file-actions";
@@ -9,14 +10,19 @@ import { finishLessonFileUpload, removeLessonFile, startLessonFileUpload } from 
 const BUTTON =
   "rounded border border-slate-300 px-3 py-1.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600";
 
+const ICON_BUTTON =
+  "flex h-7 w-7 items-center justify-center rounded text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-300 dark:hover:bg-slate-800";
+
 export interface LessonFile {
   id: string | null;
+  /** Where the file can be downloaded from, when the page has an address for it. */
+  href?: string | null;
   filename: string;
   sizeBytes: number | null;
 }
 
 /**
- * The downloads of a Hub-owned lesson: the files members can save, with Add files and Remove. Each chosen file
+ * The downloads of a Hub-owned lesson: the files members can save, each a compact row with download and remove icons, and Add files below. Each chosen file
  * goes straight to storage through a one-use signed upload and is then recorded for the lesson; files are sent
  * one after another, and one that fails is reported without stopping the rest.
  */
@@ -76,13 +82,20 @@ export default function LessonFilesField({ courseId, lessonId, files }: { course
         <ul className="space-y-2">
           {files.map((f) => (
             <li key={f.id ?? f.filename} className="flex items-center justify-between gap-3 rounded border border-slate-200 px-3 py-2 text-sm dark:border-slate-700">
-              <span className="min-w-0">
+              <span className="min-w-0 truncate">
                 {f.filename}
                 {formatBytes(f.sizeBytes) && <span className="ml-2 text-xs text-slate-600 dark:text-slate-400">{formatBytes(f.sizeBytes)}</span>}
               </span>
-              <button type="button" aria-label={`Remove ${f.filename}`} className={BUTTON} disabled={busy} onClick={() => void remove(f)}>
-                Remove
-              </button>
+              <span className="flex shrink-0 items-center gap-1">
+                {f.href && (
+                  <a href={f.href} download aria-label={`Download ${f.filename}`} title="Download" className={ICON_BUTTON}>
+                    <Download size={16} aria-hidden="true" />
+                  </a>
+                )}
+                <button type="button" aria-label={`Remove ${f.filename}`} title="Remove" className={ICON_BUTTON} disabled={busy} onClick={() => void remove(f)}>
+                  <X size={16} aria-hidden="true" />
+                </button>
+              </span>
             </li>
           ))}
         </ul>

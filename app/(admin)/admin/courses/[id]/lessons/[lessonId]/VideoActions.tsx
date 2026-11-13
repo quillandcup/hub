@@ -22,6 +22,7 @@ export default function VideoActions({
   thumbnailLink,
   thumbnailLinkBlocked,
   chatShare = false,
+  edit,
 }: {
   /** The lesson's watch stats; null when the lesson has no video in the Hub. */
   statsHref: string | null;
@@ -35,6 +36,8 @@ export default function VideoActions({
   thumbnailLinkBlocked?: string;
   /** Offer the "open to everyone" link (the `chat_videos` feature is on for this admin). */
   chatShare?: boolean;
+  /** A Hub-owned lesson: the items that change the video are live. `onCaptions` is absent until the video is ready. */
+  edit?: { busy: boolean; onReplace: () => void; onRemove: () => void; onCaptions?: () => void };
 }) {
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -121,9 +124,20 @@ export default function VideoActions({
               Video stats
             </button>
           )}
-          <button type="button" role="menuitem" disabled title={`${SOON} (the captions and transcript manager)`} className={OFF}>
-            Closed captions
-          </button>
+          {edit ? (
+            <>
+              <button type="button" role="menuitem" disabled={edit.busy} onClick={() => { setOpen(false); edit.onReplace(); }} className={edit.busy ? OFF : `${ITEM} hover:bg-slate-50 dark:hover:bg-slate-800`}>
+                Replace video
+              </button>
+              <button type="button" role="menuitem" disabled={!edit.onCaptions} onClick={() => { setOpen(false); edit.onCaptions?.(); }} title={edit.onCaptions ? undefined : "Captions can be added once the video is ready"} className={edit.onCaptions ? `${ITEM} hover:bg-slate-50 dark:hover:bg-slate-800` : OFF}>
+                Captions…
+              </button>
+            </>
+          ) : (
+            <button type="button" role="menuitem" disabled title={`${SOON} (the captions and transcript manager)`} className={OFF}>
+              Closed captions
+            </button>
+          )}
           <button
             type="button"
             role="menuitem"
@@ -160,9 +174,15 @@ export default function VideoActions({
             Download video
           </button>
           <div role="separator" className="my-1 border-t border-slate-200 dark:border-slate-700" />
-          <button type="button" role="menuitem" disabled title={SOON} className={`${OFF} text-red-700 dark:text-red-300`}>
-            Remove video
-          </button>
+          {edit ? (
+            <button type="button" role="menuitem" disabled={edit.busy} onClick={() => { setOpen(false); edit.onRemove(); }} className={`${edit.busy ? OFF : `${ITEM} hover:bg-slate-50 dark:hover:bg-slate-800`} text-red-700 dark:text-red-300`}>
+              Remove video
+            </button>
+          ) : (
+            <button type="button" role="menuitem" disabled title={SOON} className={`${OFF} text-red-700 dark:text-red-300`}>
+              Remove video
+            </button>
+          )}
         </div>
       )}
       {status && (

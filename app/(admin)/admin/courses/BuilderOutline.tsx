@@ -48,6 +48,7 @@ const ICONS = {
   folder: "M2.5 6a1.5 1.5 0 0 1 1.5-1.5h3.2l1.6 1.8H16A1.5 1.5 0 0 1 17.5 7.8V14A1.5 1.5 0 0 1 16 15.5H4A1.5 1.5 0 0 1 2.5 14z",
   video: "M3 6.5A1.5 1.5 0 0 1 4.5 5h7A1.5 1.5 0 0 1 13 6.5v7a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 3 13.5zM13 9l4-2v6l-4-2",
   edit: "M4 13.5V16h2.5l7-7L11 6.5zM12 5.5l2.5 2.5",
+  rename: "M7 4H5v12h2M13 4h2v12h-2M10 6v8",
   copy: "M7 7h8v8H7zM5 13V5h8",
   comment: "M4 5h12v8H9l-3 3v-3H4z",
   eye: "M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5zM10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z",
@@ -265,10 +266,11 @@ function LessonRow({ lesson, indent, sibling }: { lesson: ExplainedLesson; inden
   const [renaming, setRenaming] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const content = course.content[lesson.kajabiId];
-  const hubId = course.slug ? course.hubLessonIds[lesson.kajabiId] : undefined;
-  // A lesson has a builder page once it is in the Hub (published), under its own Hub id.
+  // A Hub-owned course's lessons are in the Hub from the start; an imported one's once the course is published.
+  const hubId = course.slug || course.editable ? course.hubLessonIds[lesson.kajabiId] : undefined;
+  // A lesson has a builder page once it is in the Hub, under its own Hub id.
   const builder = hubId ? `/admin/courses/${course.id}/lessons/${hubId}` : null;
-  const preview = hubId ? `/courses/${course.slug}/lessons/${hubId}` : null;
+  const preview = hubId && course.slug ? `/courses/${course.slug}/lessons/${hubId}` : null;
   return (
     <li
       className="group flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-slate-100 px-4 py-3 dark:border-slate-800"
@@ -284,7 +286,8 @@ function LessonRow({ lesson, indent, sibling }: { lesson: ExplainedLesson; inden
           {!builder ? (
             <span className="font-medium">{lesson.title}</span>
           ) : (
-            <Link href={builder} className="font-medium hover:underline">
+            // Double-clicking the title renames it in place (the same as Rename lesson); a single click opens the lesson.
+            <Link href={builder} onDoubleClick={editor ? (e) => { e.preventDefault(); setRenaming(true); } : undefined} className="font-medium hover:underline">
               {lesson.title}
             </Link>
           )}
@@ -297,7 +300,14 @@ function LessonRow({ lesson, indent, sibling }: { lesson: ExplainedLesson; inden
       <span className={HOVER_ACTIONS}>
         {editor ? (
           <>
-            <Action label="Rename lesson" icon="edit" onClick={() => setRenaming(true)} />
+            {builder ? (
+              <Link href={builder} aria-label="Edit lesson" title="Edit lesson" className="rounded p-1.5 text-slate-600 dark:text-slate-300">
+                <Icon path={ICONS.edit} />
+              </Link>
+            ) : (
+              <Action label="Edit lesson" icon="edit" />
+            )}
+            <Action label="Rename lesson" icon="rename" onClick={() => setRenaming(true)} />
             <Action label="Duplicate lesson" icon="copy" onClick={() => void editor.run(() => duplicateCourseItem(editor.courseId, "lesson", lesson.kajabiId))} />
             <Action label="Open lesson comments" icon="comment" />
           </>

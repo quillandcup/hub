@@ -1550,6 +1550,10 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 ## UI Enhancements
 
+### Lesson editor: image in the text, and the thumbnail's "Image actions" menu _(Needs Scheduling)_
+
+The Hub lesson editor (`app/(admin)/admin/courses/[id]/lessons/[lessonId]/`) now has a fuller text toolbar (text style, bold, italic, underline, strike, lists, quote, link, undo and redo), and its text saves with the page's Save. Still open: (1) inserting an image from the media library into the lesson text (the editor keeps images a lesson already has, but the toolbar can't add one; start from `components/media/MediaPicker.tsx` and the `Image` extension in `LessonTextEditor.tsx`, and check the lesson allowlist in `lib/courses/sanitize.ts` and how the image would be served to members); (2) the Lesson thumbnail card still shows `MediaPicker`'s own Change / Adjust crop / Remove buttons instead of one "Image actions" `ActionMenu` like Kajabi, because `MediaPicker` is shared by many screens and needs a variant prop first; (3) the lesson text editor is its own TipTap setup, not the Hub Chat message box (`components/chat/MessageBox.tsx`), which is built for short messages with mentions and emoji; unify them if a shared rich-text core is wanted.
+
 ### Move the hand-written table search boxes onto `DataTableSearch`, and add a server-mode search _(Needs Scheduling)_
 
 `useDataTable` takes `search: (row) => text` and `DataTableSearch` is the input (first user: `/admin/offers`; rule in `.claude/rules/reuse-ui-components.md`). Still on their own input and filter loop: the events list (`app/(admin)/admin/events/EventsClient.tsx`, which also searches on the server with dates), the Hedgie Care DM list (`CareDmList.tsx`) and the course outline (`BuilderOutline.tsx`). `useServerDataTable` has no search: a server table keeps the query in the URL (`?q=`) and the server filters, so it needs the same input wired to `push` and the page's query to read `q`. Worth doing when one of those pages is touched next; start from `lib/hooks/useDataTable.ts` and `components/DataTableSearch.tsx`.

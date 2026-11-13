@@ -3,7 +3,8 @@
 import { useState } from "react";
 import LessonPlayer, { type PlaybackTokens } from "@/components/courses/LessonPlayer";
 import VideoActions from "./VideoActions";
-import FrameThumbnailButton from "./FrameThumbnailButton";
+import LessonVideoControls from "./LessonVideoControls";
+import type { CaptionTrack } from "./LessonCaptions";
 
 /** The lesson's video with its Video actions menu, which needs to know where the player is. */
 export default function LessonMediaPanel({
@@ -18,6 +19,7 @@ export default function LessonMediaPanel({
   thumbnailLinkBlocked,
   chatShare = false,
   frameThumbnail = null,
+  captions = [],
 }: {
   title: string;
   playbackId: string;
@@ -33,6 +35,8 @@ export default function LessonMediaPanel({
   chatShare?: boolean;
   /** For a Hub-owned lesson: the course and lesson the current frame can become the thumbnail of. */
   frameThumbnail?: { courseId: string; lessonId: string } | null;
+  /** The video's caption tracks (a Hub-owned lesson, where the actions menu manages them). */
+  captions?: CaptionTrack[];
 }) {
   const [seconds, setSeconds] = useState(0);
   return (
@@ -40,9 +44,20 @@ export default function LessonMediaPanel({
       {/* No watch tracking: this is an admin looking at the lesson, not a viewing. */}
       <LessonPlayer title={title} playbackId={playbackId} tokens={tokens} posterUrl={posterUrl} lessonId={lessonId ?? undefined} onTime={setSeconds} />
       <div className="mt-3">
-        <VideoActions statsHref={statsHref} lessonUrl={lessonUrl} seconds={seconds} thumbnailLink={thumbnailLink} thumbnailLinkBlocked={thumbnailLinkBlocked} chatShare={chatShare} />
+        {frameThumbnail ? (
+          <LessonVideoControls
+            courseId={frameThumbnail.courseId}
+            lessonId={frameThumbnail.lessonId}
+            status="ready"
+            captions={captions}
+            seconds={seconds}
+            frameThumbnail
+            actions={{ statsHref, lessonUrl, thumbnailLink, thumbnailLinkBlocked, chatShare }}
+          />
+        ) : (
+          <VideoActions statsHref={statsHref} lessonUrl={lessonUrl} seconds={seconds} thumbnailLink={thumbnailLink} thumbnailLinkBlocked={thumbnailLinkBlocked} chatShare={chatShare} />
+        )}
       </div>
-      {frameThumbnail && <FrameThumbnailButton courseId={frameThumbnail.courseId} lessonId={frameThumbnail.lessonId} seconds={seconds} />}
     </div>
   );
 }
