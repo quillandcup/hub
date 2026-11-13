@@ -1,3 +1,4 @@
+import { overlapMessage, parseWindow } from "@/lib/event-offer-window";
 import { createRepos } from "@/lib/data/repos";
 import { offerDetailOf } from "@/lib/offer-coverage";
 import { requireAdmin } from "@/lib/supabase/api-auth";
@@ -17,18 +18,27 @@ export async function GET(
 
   const repos = createRepos(auth.supabase);
   try {
-    const [offers, linked] = await Promise.all([
+    const [offers, linked, events] = await Promise.all([
       repos.billing.kajabiOfferRows(),
       repos.events.linkedOffers(),
+      repos.events.listWithPhotoCounts(),
     ]);
-    const linkedTo = new Map(linked.map((l) => [l.kajabi_offer_id, l.event_id]));
+    const titleOf = new Map(events.map((e) => [e.id, e.title]));
     const rows = offers
-      .map((o) => ({
-        kajabiOfferId: o.kajabi_offer_id,
-        name: o.name ?? "Unnamed offer",
-        detail: offerDetailOf(o.kajabi_offer_id, o.name, o.data),
-        linkedEventId: linkedTo.get(o.kajabi_offer_id) ?? null,
-      }))
+      .map((o) => {
+        const links = linked.filter((l) => l.kajabi_offer_id === o.kajabi_offer_id);
+        const here = links.find((l) => l.event_id === id);
+        return {
+          kajabiOfferId: o.kajabi_offer_id,
+          name: o.name ?? "Unnamed offer",
+          detail: offerDetailOf(o.kajabi_offer_id, o.name, o.data),
+          linkedEventId: here ? id : null,
+          purchasedFrom: here?.purchased_from ?? null,
+          purchasedUntil: here?.purchased_until ?? null,
+          // Where else the offer is linked: it can be linked again with its own purchase dates.
+          otherEvents: links.filter((l) => l.event_id !== id).map((l) => ({ title: titleOf.get(l.event_id) ?? "another event", purchasedFrom: l.purchased_from, purchasedUntil: l.purchased_until })),
+        };
+      })
       .sort((a, b) => a.name.localeCompare(b.name));
     return NextResponse.json({
       linked: rows.filter((o) => o.linkedEventId === id),
@@ -50,10 +60,14 @@ export async function POST(
   const { id } = await params;
 
   const body = await request.json().catch(() => undefined);
-  const offerId = body && typeof body === "object" ? (body as { kajabiOfferId?: unknown }).kajabiOfferId : undefined;
+  const fields = body && typeof body === "object" ? (body as { kajabiOfferId?: unknown; purchasedFrom?: unknown; purchasedUntil?: unknown }) : {};
+  const offerId = fields.kajabiOfferId;
   if (typeof offerId !== "string" || !offerId.trim()) {
     return NextResponse.json({ error: "Missing required field: kajabiOfferId" }, { status: 400 });
   }
+
+  const parsed = parseWindow(fields);
+  if ("error" in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 });
 
   const repos = createRepos(auth.supabase);
   try {
@@ -62,9 +76,9 @@ export async function POST(
       return NextResponse.json({ error: "No such Kajabi offer" }, { status: 404 });
     }
     const createdBy = auth.user.id !== "service-role" && auth.user.id !== "cron" ? auth.user.id : null;
-    const result = await repos.events.linkOffer(id, offerId, createdBy);
+    const result = await repos.events.linkOffer(id, offerId, createdBy, parsed.window);
     if (!result.linked) {
-      return NextResponse.json({ error: "That offer already sells another event", eventId: result.eventId }, { status: 409 });
+      return NextResponse.json({ error: overlapMessage(result.reason), eventId: result.eventId }, { status: 409 });
     }
     return NextResponse.json({ success: true }, { status: 201 });
   } catch (error) {

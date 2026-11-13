@@ -5,7 +5,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(9);
+SELECT plan(14);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000e0a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'eventoffer-admin@example.test'),
@@ -56,6 +56,32 @@ SELECT is((SELECT count(*)::int FROM public.community_event_offers WHERE kajabi_
 
 DELETE FROM public.community_event_offers WHERE kajabi_offer_id = 'offer-2';
 SELECT is((SELECT count(*)::int FROM public.community_event_offers), 1, 'admin: unlinks an offer');
+
+-- Purchase windows (20270720): inclusive days, either end optional, a link per event and offer.
+SELECT lives_ok(
+  $$INSERT INTO public.community_event_offers (event_id, kajabi_offer_id, purchased_from, purchased_until) VALUES ('evt_EVOFFERAAAA1', 'offer-3', '2026-02-01', '2026-02-01')$$,
+  'admin: a window may be a single day'
+);
+SELECT throws_ok(
+  $$INSERT INTO public.community_event_offers (event_id, kajabi_offer_id, purchased_from, purchased_until) VALUES ('evt_EVOFFERAAAA1', 'offer-4', '2026-02-02', '2026-02-01')$$,
+  '23514', NULL,
+  'a window must not end before it starts'
+);
+SELECT lives_ok(
+  $$INSERT INTO public.community_event_offers (event_id, kajabi_offer_id, purchased_until) VALUES ('evt_EVOFFERAAAA1', 'offer-5', '2026-02-01')$$,
+  'admin: a window may have only an end'
+);
+SELECT throws_ok(
+  $$INSERT INTO public.community_event_offers (event_id, kajabi_offer_id) VALUES ('evt_EVOFFERAAAA1', 'offer-3')$$,
+  '23505', NULL,
+  'an event links an offer once'
+);
+UPDATE public.community_event_offers SET purchased_from = '2026-01-15' WHERE kajabi_offer_id = 'offer-3';
+SELECT is(
+  (SELECT purchased_from FROM public.community_event_offers WHERE kajabi_offer_id = 'offer-3'),
+  '2026-01-15'::date,
+  'admin: changes a window'
+);
 
 RESET ROLE;
 DELETE FROM public.community_events WHERE id = 'evt_EVOFFERAAAA1';

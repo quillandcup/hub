@@ -2722,6 +2722,8 @@ export type Database = {
           event_id: string
           id: string
           kajabi_offer_id: string
+          purchased_from: string | null
+          purchased_until: string | null
         }
         Insert: {
           created_at?: string
@@ -2729,6 +2731,8 @@ export type Database = {
           event_id: string
           id?: string
           kajabi_offer_id: string
+          purchased_from?: string | null
+          purchased_until?: string | null
         }
         Update: {
           created_at?: string
@@ -2736,6 +2740,8 @@ export type Database = {
           event_id?: string
           id?: string
           kajabi_offer_id?: string
+          purchased_from?: string | null
+          purchased_until?: string | null
         }
         Relationships: [
           {

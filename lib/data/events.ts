@@ -1,5 +1,6 @@
 import { ORG_TIMEZONE } from "@/lib/config";
 import { recordedTicketSource, type SetTicketResult, type TicketInput, type TicketSource } from "@/lib/event-tickets";
+import { windowsOverlap, type EventOfferLink, type OfferWindow } from "@/lib/event-offer-window";
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
 import { inChunks } from "./query";
 import type { Db, Insert, Row, Update } from "./db";
@@ -95,8 +96,15 @@ const calendarOf = (data: InMemoryDataset, prickleId: string): Prickle | undefin
 /** A Kajabi offer linked to an event, as the in-memory dataset keeps it. */
 export type EventOfferRow = Pick<Row<"community_event_offers">, "event_id" | "kajabi_offer_id"> & Partial<Omit<Row<"community_event_offers">, "event_id" | "kajabi_offer_id">>;
 
-/** The result of linking an offer: done, or the offer already sells another event. */
-export type LinkOfferResult = { linked: true } | { linked: false; eventId: string };
+/**
+ * The result of linking an offer: done, or refused because the offer is linked to another event for
+ * overlapping purchase days ("overlap"), or, until the database's old one-event-per-offer constraint
+ * is dropped, at all ("single_event"). `eventId` is that other event.
+ */
+export type LinkOfferResult = { linked: true } | { linked: false; eventId: string; reason: "overlap" | "single_event" };
+
+/** The result of changing a linked offer's window. */
+export type SetOfferWindowResult = { updated: true } | { updated: false; reason: "not_linked" } | { updated: false; reason: "overlap"; eventId: string };
 
 /** An attendee row as the in-memory dataset keeps it (only the event matters to the calendar sync). */
 export type EventAttendeeRow = Pick<Row<"event_attendees">, "event_id"> & Partial<Omit<Row<"event_attendees">, "event_id">>;
@@ -204,10 +212,18 @@ export interface EventRepository {
   moveTicketGiver(fromMemberId: string, toMemberId: string): Promise<number>;
   /** The Kajabi offer ids that sell this event, oldest link first. */
   offerIdsOf(eventId: string): Promise<string[]>;
-  /** Every linked offer id with the event it sells (an offer sells one event). */
-  linkedOffers(): Promise<{ kajabi_offer_id: string; event_id: string }[]>;
-  /** Links an offer to the event. Linking it again is a no-op; an offer that sells another event is refused. */
-  linkOffer(eventId: string, kajabiOfferId: string, createdBy: string | null): Promise<LinkOfferResult>;
+  /** The offers that sell this event with their purchase windows, oldest link first. */
+  offersOf(eventId: string): Promise<EventOfferLink[]>;
+  /** Every linked offer with its window and the event it sells. */
+  linkedOffers(): Promise<(EventOfferLink & { event_id: string })[]>;
+  /**
+   * Links an offer to the event, optionally for purchases inside a window. Linking it again is a no-op
+   * (use `setOfferWindow` to change the window). The same offer on another event is allowed only when
+   * the windows don't overlap (a null end is open, so two open-ended links overlap).
+   */
+  linkOffer(eventId: string, kajabiOfferId: string, createdBy: string | null, window?: Partial<OfferWindow>): Promise<LinkOfferResult>;
+  /** Sets (or clears, with nulls) the purchase window of a linked offer; refused when it would overlap the same offer on another event. */
+  setOfferWindow(eventId: string, kajabiOfferId: string, window: OfferWindow): Promise<SetOfferWindowResult>;
   /** Unlinks an offer; false when it was not linked to this event. */
   unlinkOffer(eventId: string, kajabiOfferId: string): Promise<boolean>;
   /** For each given calendar event that has an event, whether it is shown to members or hidden. Chunked. */
@@ -740,21 +756,58 @@ export class SupabaseEventRepository implements EventRepository {
     return rows.map((r) => r.kajabi_offer_id);
   }
 
-  async linkedOffers() {
-    return fetchAllRows<{ kajabi_offer_id: string; event_id: string }>((from, to) =>
-      this.db.from("community_event_offers").select("kajabi_offer_id, event_id").order("id").range(from, to)
+  async offersOf(eventId: string) {
+    return fetchAllRows<EventOfferLink>((from, to) =>
+      this.db.from("community_event_offers").select("kajabi_offer_id, purchased_from, purchased_until").eq("event_id", eventId).order("created_at").order("id").range(from, to)
     );
   }
 
-  async linkOffer(eventId: string, kajabiOfferId: string, createdBy: string | null): Promise<LinkOfferResult> {
-    const { error } = await this.db.from("community_event_offers").insert({ event_id: eventId, kajabi_offer_id: kajabiOfferId, created_by: createdBy });
+  async linkedOffers() {
+    return fetchAllRows<EventOfferLink & { event_id: string }>((from, to) =>
+      this.db.from("community_event_offers").select("kajabi_offer_id, event_id, purchased_from, purchased_until").order("id").range(from, to)
+    );
+  }
+
+  /** Another event's link of this offer whose window overlaps the given one, if any. */
+  private async overlappingLink(eventId: string, kajabiOfferId: string, window: OfferWindow) {
+    const { data, error } = await this.db.from("community_event_offers").select("event_id, purchased_from, purchased_until").eq("kajabi_offer_id", kajabiOfferId).neq("event_id", eventId);
+    if (error) throw new Error(error.message);
+    return (data ?? []).find((l) => windowsOverlap(l, window)) ?? null;
+  }
+
+  async linkOffer(eventId: string, kajabiOfferId: string, createdBy: string | null, window: Partial<OfferWindow> = {}): Promise<LinkOfferResult> {
+    const w: OfferWindow = { purchased_from: window.purchased_from ?? null, purchased_until: window.purchased_until ?? null };
+    const { data: here, error: hereError } = await this.db.from("community_event_offers").select("id").eq("event_id", eventId).eq("kajabi_offer_id", kajabiOfferId).limit(1);
+    if (hereError) throw new Error(hereError.message);
+    if ((here ?? []).length > 0) return { linked: true }; // already linked: change its window with setOfferWindow
+    const clash = await this.overlappingLink(eventId, kajabiOfferId, w);
+    if (clash) return { linked: false, eventId: clash.event_id, reason: "overlap" };
+    const { error } = await this.db.from("community_event_offers").insert({ event_id: eventId, kajabi_offer_id: kajabiOfferId, created_by: createdBy, ...w });
     if (!error) return { linked: true };
     if (error.code !== "23505") throw new Error(error.message);
-    // The offer is already linked: to this event (nothing to do) or to another one.
-    const { data, error: readError } = await this.db.from("community_event_offers").select("event_id").eq("kajabi_offer_id", kajabiOfferId).maybeSingle();
+    // Already linked to this event (nothing to do) or, while the database still allows one event per offer, to another.
+    const { data, error: readError } = await this.db.from("community_event_offers").select("event_id").eq("kajabi_offer_id", kajabiOfferId);
     if (readError) throw new Error(readError.message);
-    if (!data) throw new Error(error.message); // unlinked in between: let the caller retry
-    return data.event_id === eventId ? { linked: true } : { linked: false, eventId: data.event_id };
+    const rows = data ?? [];
+    if (rows.length === 0) throw new Error(error.message); // unlinked in between: let the caller retry
+    if (rows.some((r) => r.event_id === eventId)) return { linked: true };
+    return { linked: false, eventId: rows[0].event_id, reason: "single_event" };
+  }
+
+  async setOfferWindow(eventId: string, kajabiOfferId: string, window: OfferWindow): Promise<SetOfferWindowResult> {
+    const { data: here, error: hereError } = await this.db.from("community_event_offers").select("id").eq("event_id", eventId).eq("kajabi_offer_id", kajabiOfferId).limit(1);
+    if (hereError) throw new Error(hereError.message);
+    if ((here ?? []).length === 0) return { updated: false, reason: "not_linked" };
+    const clash = await this.overlappingLink(eventId, kajabiOfferId, window);
+    if (clash) return { updated: false, reason: "overlap", eventId: clash.event_id };
+    const { data, error } = await this.db
+      .from("community_event_offers")
+      .update({ purchased_from: window.purchased_from, purchased_until: window.purchased_until })
+      .eq("event_id", eventId)
+      .eq("kajabi_offer_id", kajabiOfferId)
+      .select("id");
+    if (error) throw new Error(error.message);
+    return (data ?? []).length > 0 ? { updated: true } : { updated: false, reason: "not_linked" };
   }
 
   async unlinkOffer(eventId: string, kajabiOfferId: string) {
@@ -1048,15 +1101,37 @@ export class InMemoryEventRepository implements EventRepository {
     return this.data.eventOffers.filter((o) => o.event_id === eventId).map((o) => o.kajabi_offer_id);
   }
 
-  async linkedOffers() {
-    return this.data.eventOffers.map((o) => ({ kajabi_offer_id: o.kajabi_offer_id, event_id: o.event_id }));
+  async offersOf(eventId: string) {
+    return this.data.eventOffers.filter((o) => o.event_id === eventId).map((o) => ({ kajabi_offer_id: o.kajabi_offer_id, purchased_from: o.purchased_from ?? null, purchased_until: o.purchased_until ?? null }));
   }
 
-  async linkOffer(eventId: string, kajabiOfferId: string, createdBy: string | null): Promise<LinkOfferResult> {
-    const existing = this.data.eventOffers.find((o) => o.kajabi_offer_id === kajabiOfferId);
-    if (existing) return existing.event_id === eventId ? { linked: true } : { linked: false, eventId: existing.event_id };
-    this.data.eventOffers.push({ event_id: eventId, kajabi_offer_id: kajabiOfferId, created_by: createdBy });
+  async linkedOffers() {
+    return this.data.eventOffers.map((o) => ({ kajabi_offer_id: o.kajabi_offer_id, event_id: o.event_id, purchased_from: o.purchased_from ?? null, purchased_until: o.purchased_until ?? null }));
+  }
+
+  private overlappingLink(eventId: string, kajabiOfferId: string, window: OfferWindow) {
+    return this.data.eventOffers.find(
+      (o) => o.kajabi_offer_id === kajabiOfferId && o.event_id !== eventId && windowsOverlap({ purchased_from: o.purchased_from ?? null, purchased_until: o.purchased_until ?? null }, window)
+    );
+  }
+
+  async linkOffer(eventId: string, kajabiOfferId: string, createdBy: string | null, window: Partial<OfferWindow> = {}): Promise<LinkOfferResult> {
+    const w: OfferWindow = { purchased_from: window.purchased_from ?? null, purchased_until: window.purchased_until ?? null };
+    if (this.data.eventOffers.some((o) => o.event_id === eventId && o.kajabi_offer_id === kajabiOfferId)) return { linked: true };
+    const clash = this.overlappingLink(eventId, kajabiOfferId, w);
+    if (clash) return { linked: false, eventId: clash.event_id, reason: "overlap" };
+    this.data.eventOffers.push({ event_id: eventId, kajabi_offer_id: kajabiOfferId, created_by: createdBy, ...w });
     return { linked: true };
+  }
+
+  async setOfferWindow(eventId: string, kajabiOfferId: string, window: OfferWindow): Promise<SetOfferWindowResult> {
+    const row = this.data.eventOffers.find((o) => o.event_id === eventId && o.kajabi_offer_id === kajabiOfferId);
+    if (!row) return { updated: false, reason: "not_linked" };
+    const clash = this.overlappingLink(eventId, kajabiOfferId, window);
+    if (clash) return { updated: false, reason: "overlap", eventId: clash.event_id };
+    row.purchased_from = window.purchased_from;
+    row.purchased_until = window.purchased_until;
+    return { updated: true };
   }
 
   async unlinkOffer(eventId: string, kajabiOfferId: string) {

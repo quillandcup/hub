@@ -355,7 +355,7 @@ export function defineEventContract(name: string, setup: () => EventContractCont
         expect(await ctx.repo().linkOffer(ids.a, "kaj-offer-2", null)).toEqual({ linked: true });
         // Linking it again is a no-op; an offer that sells another event is refused and names that event.
         expect(await ctx.repo().linkOffer(ids.a, "kaj-offer-1", null)).toEqual({ linked: true });
-        expect(await ctx.repo().linkOffer(ids.b, "kaj-offer-1", null)).toEqual({ linked: false, eventId: ids.a });
+        expect(await ctx.repo().linkOffer(ids.b, "kaj-offer-1", null)).toEqual({ linked: false, eventId: ids.a, reason: "overlap" });
 
         expect((await ctx.repo().offerIdsOf(ids.a)).sort()).toEqual(["kaj-offer-1", "kaj-offer-2"]);
         expect(await ctx.repo().offerIdsOf(ids.b)).toEqual([]);
@@ -367,6 +367,42 @@ export function defineEventContract(name: string, setup: () => EventContractCont
         expect(await ctx.repo().offerIdsOf(ids.a)).toEqual(["kaj-offer-2"]);
         // Free again for another event.
         expect(await ctx.repo().linkOffer(ids.b, "kaj-offer-1", null)).toEqual({ linked: true });
+      });
+
+      it("links an offer with a purchase window, edits it, and refuses overlapping links of one offer on two events", async () => {
+        const ids = await ctx.seed([
+          { key: "a", title: "Retreat A", startsAt: "2097-03-01T09:00:00Z" },
+          { key: "b", title: "Retreat B", startsAt: "2097-04-01T09:00:00Z" },
+        ]);
+        const repo = ctx.repo();
+
+        expect(await repo.linkOffer(ids.a, "kaj-win-1", null, { purchased_from: "2097-01-01", purchased_until: "2097-01-31" })).toEqual({ linked: true });
+        expect(await repo.linkOffer(ids.a, "kaj-win-2", null)).toEqual({ linked: true });
+        expect(await repo.offersOf(ids.a)).toEqual([
+          { kajabi_offer_id: "kaj-win-1", purchased_from: "2097-01-01", purchased_until: "2097-01-31" },
+          { kajabi_offer_id: "kaj-win-2", purchased_from: null, purchased_until: null },
+        ]);
+        const all = (await repo.linkedOffers()).find((l) => l.kajabi_offer_id === "kaj-win-1");
+        expect(all).toEqual({ kajabi_offer_id: "kaj-win-1", event_id: ids.a, purchased_from: "2097-01-01", purchased_until: "2097-01-31" });
+
+        // The same offer for the other event on days that overlap (or open-ended) is refused, naming that event.
+        expect(await repo.linkOffer(ids.b, "kaj-win-1", null, { purchased_from: "2097-01-31", purchased_until: null })).toEqual({ linked: false, eventId: ids.a, reason: "overlap" });
+        expect(await repo.linkOffer(ids.b, "kaj-win-1", null)).toEqual({ linked: false, eventId: ids.a, reason: "overlap" });
+        expect(await repo.offerIdsOf(ids.b)).toEqual([]);
+
+        // Days that don't overlap are allowed by the repository. Until the database drops its old one-event-per-offer
+        // constraint it may still refuse the row ("single_event"); then nothing was linked.
+        const later = await repo.linkOffer(ids.b, "kaj-win-1", null, { purchased_from: "2097-02-01", purchased_until: null });
+        expect([{ linked: true }, { linked: false, eventId: ids.a, reason: "single_event" }]).toContainEqual(later);
+
+        // Editing: change, reset, and refuse a change that would overlap; a link that isn't there is reported.
+        expect(await repo.setOfferWindow(ids.a, "kaj-win-1", { purchased_from: null, purchased_until: "2097-01-15" })).toEqual({ updated: true });
+        expect((await repo.offersOf(ids.a)).find((o) => o.kajabi_offer_id === "kaj-win-1")).toMatchObject({ purchased_from: null, purchased_until: "2097-01-15" });
+        expect(await repo.setOfferWindow(ids.a, "kaj-win-1", { purchased_from: "2097-01-01", purchased_until: "2097-01-31" })).toEqual({ updated: true });
+        expect(await repo.setOfferWindow(ids.b, "kaj-win-2", { purchased_from: null, purchased_until: null })).toEqual({ updated: false, reason: "not_linked" });
+        if ("linked" in later && later.linked) {
+          expect(await repo.setOfferWindow(ids.a, "kaj-win-1", { purchased_from: null, purchased_until: "2097-02-15" })).toEqual({ updated: false, reason: "overlap", eventId: ids.b });
+        }
       });
 
       it("deleting an event takes its photos and attendees with it", async () => {
