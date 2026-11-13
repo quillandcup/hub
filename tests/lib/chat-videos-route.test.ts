@@ -262,7 +262,7 @@ describe("GET /api/chat/videos/[messageId] (what the card shows before anyone pr
 
     expect(res.status).toBe(200);
     expect(res.headers.get("Cache-Control")).toBe("no-store");
-    expect(await res.json()).toEqual({ title: "Show up for the page", courseTitle: "The Ready Writer", thumbnailUrl: `/api/courses/image/lesson/${LESSON}`, canWatch: true });
+    expect(await res.json()).toEqual({ title: "Show up for the page", courseTitle: "The Ready Writer", thumbnailUrl: `/api/courses/image/lesson/${LESSON}`, lessonHref: `/courses/c/lessons/${LESSON}`, canWatch: true });
     expect(signPlaybackTokens).not.toHaveBeenCalled();
   });
 
@@ -278,7 +278,14 @@ describe("GET /api/chat/videos/[messageId] (what the card shows before anyone pr
   it("says a reader without the course can't watch it, and still names it (the sharer chose to put it in that conversation)", async () => {
     vi.mocked(canOpenLessons).mockReturnValue(false);
 
-    expect(await (await card()).json()).toMatchObject({ title: "Show up for the page", courseTitle: "The Ready Writer", canWatch: false });
+    expect(await (await card()).json()).toMatchObject({ title: "Show up for the page", courseTitle: "The Ready Writer", canWatch: false, lessonHref: null });
+  });
+
+  it("gives no lesson address to a reader who can watch only because the share was opened to the channel", async () => {
+    vi.mocked(canOpenLessons).mockReturnValue(false);
+    setup({ open: true });
+
+    expect(await (await card()).json()).toMatchObject({ canWatch: true, lessonHref: null });
   });
 
   it("says a reader without the course can watch it when an admin opened the share to the channel, but not for a draft course or a video that isn't ready", async () => {

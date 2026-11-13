@@ -52,10 +52,13 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     lesson.video_id ? repos.courses.videosByIds([lesson.video_id]).then((v) => v[0]) : Promise.resolve(undefined),
     loadMemberCourseAccess(repos, caller.scope, lesson.course_id),
   ]);
-  const watchable = video?.status === "ready" && Boolean(video.mux_playback_id) && (await mayWatchSharedVideo(repos, share, lesson, canOpenLessons(access)));
+  const hasCourse = canOpenLessons(access);
+  const watchable = video?.status === "ready" && Boolean(video.mux_playback_id) && (await mayWatchSharedVideo(repos, share, lesson, hasCourse));
   return NextResponse.json(
     {
       title: lesson.title,
+      // The lesson's own page, for a viewer with the course (the card links to it before anything is played); one who may watch only because the share was opened to the channel can't open it.
+      lessonHref: hasCourse && course ? lessonPath(course.slug, lesson.id) : null,
       courseTitle: course?.title ?? null,
       // The same picture the lesson page shows: our copy when there is one (what the course builder chose), else the original link.
       thumbnailUrl: courseImageSrc("lesson", lesson.id, lesson.thumbnail_asset_id, lesson.thumbnail_url),

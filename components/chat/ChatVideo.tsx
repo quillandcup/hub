@@ -11,6 +11,8 @@ interface CardInfo {
   title: string | null;
   courseTitle: string | null;
   thumbnailUrl: string | null;
+  /** The lesson's page, when this viewer has the course. */
+  lessonHref: string | null;
   canWatch: boolean | null;
 }
 
@@ -21,6 +23,24 @@ type State =
   | { kind: "error"; message: string };
 
 /** Under the title of a video whose lesson the member has completed (by watching it through, here or on the lesson page): says so, and nothing otherwise. */
+/**
+ * The way to the lesson's own page, in the corner of the card and of the player (YouTube's "Watch on YouTube"): there before anything is played,
+ * a smaller icon-only pill while the video plays. Drawn with the player skin's own tokens (`.lesson-open-link`, app/globals.css), so the
+ * wrapper brings those into scope when it sits on the card, outside the skin; inside the player it changes nothing.
+ */
+function OpenLessonLink({ href }: { href: string }) {
+  return (
+    <span className="media-skin contents">
+      <Link href={href} data-track="chat-video-open-lesson" className="lesson-open-link">
+        <svg viewBox="0 0 24 24" className="lesson-open-link-icon" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M7 17 17 7M8 7h9v9" />
+        </svg>
+        <span className="lesson-open-link-label">Open lesson</span>
+      </Link>
+    </span>
+  );
+}
+
 function CompleteNote() {
   const completion = useLessonCompletion();
   return (
@@ -31,7 +51,7 @@ function CompleteNote() {
   );
 }
 
-const NO_INFO: CardInfo = { title: null, courseTitle: null, thumbnailUrl: null, canWatch: null };
+const NO_INFO: CardInfo = { title: null, courseTitle: null, thumbnailUrl: null, lessonHref: null, canWatch: null };
 
 /**
  * A course lesson's video shared in a message. The card shows the lesson's thumbnail, title and course as soon as it appears (one light
@@ -51,7 +71,7 @@ export default function ChatVideo({ messageId }: { messageId: string }) {
     fetch(`/api/chat/videos/${messageId}`)
       .then(async (res) => (res.ok ? ((await res.json()) as Partial<CardInfo>) : null))
       .then((info) => {
-        if (alive && info) setCard({ title: info.title ?? null, courseTitle: info.courseTitle ?? null, thumbnailUrl: info.thumbnailUrl ?? null, canWatch: typeof info.canWatch === "boolean" ? info.canWatch : null });
+        if (alive && info) setCard({ title: info.title ?? null, courseTitle: info.courseTitle ?? null, thumbnailUrl: info.thumbnailUrl ?? null, lessonHref: info.lessonHref ?? null, canWatch: typeof info.canWatch === "boolean" ? info.canWatch : null });
       })
       .catch(() => {});
     return () => {
@@ -93,17 +113,7 @@ export default function ChatVideo({ messageId }: { messageId: string }) {
             autoPlay
             // The card's own thumbnail as the player's poster, so opening it doesn't swap to a different frame (Mux's, from two seconds in) before the video starts.
             posterUrl={card.thumbnailUrl && !imageFailed ? card.thumbnailUrl : null}
-            overlay={
-              state.lessonHref ? (
-                // Inside the player's skin, so it is drawn with the skin's own tokens like its fullscreen button (`.lesson-open-link`, app/globals.css).
-                <Link href={state.lessonHref} data-track="chat-video-open-lesson" className="lesson-open-link">
-                  <svg viewBox="0 0 24 24" className="lesson-open-link-icon" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M7 17 17 7M8 7h9v9" />
-                  </svg>
-                  <span className="lesson-open-link-label">Open lesson</span>
-                </Link>
-              ) : null
-            }
+            overlay={state.lessonHref ? <OpenLessonLink href={state.lessonHref} /> : null}
           />
     );
     return (
@@ -142,7 +152,8 @@ export default function ChatVideo({ messageId }: { messageId: string }) {
 
   const busy = state.kind === "loading";
   return (
-    <div className="mt-2 max-w-xl overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
+    // `media-root` is the container the skin's own breakpoint (and the link's) measures, so the card narrows the link at the same width the player does.
+    <div className="relative mt-2 max-w-xl overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 [container:media-root/inline-size]">
       <button
         type="button"
         onClick={open}
@@ -167,6 +178,7 @@ export default function ChatVideo({ messageId }: { messageId: string }) {
           <span className="block text-xs text-slate-600 dark:text-slate-400">{busy ? "Opening…" : subtitle}</span>
         </span>
       </button>
+      {card.lessonHref && <OpenLessonLink href={card.lessonHref} />}
       {state.kind === "error" && (
         <p role="alert" className="border-t border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
           {state.message}

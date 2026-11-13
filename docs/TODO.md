@@ -1939,6 +1939,14 @@ Deliberately not done:
 
 Next steps, in order: (1) the TTFB gap above; (2) cache the global reads (feature flags and their segment links, prickle types) with `unstable_cache`; (3) narrow the ranking's attendance history; (4) rerun the same load test (script idea: mint a session with the admin API for a test member, three concurrency steps, sample `pg_stat_activity` every few seconds) and compare. Not worth doing: raising `default_pool_size` alone.
 
+### Run the demo's accessibility checks over a bright video frame _(Needs Scheduling)_
+
+The player skin draws its screen controls (the fullscreen pill and the lesson page's "Open lesson" link, `.lesson-open-link` in `app/globals.css`) as glass: white at 10% (`--media-popover`) with a blur. Over a bright frame, a slide with a white background for instance, the pill has almost no contrast with its white text. The demo's lesson picture is a dark plum, so axe in `demo/scenes/share-a-lesson-video-in-chat.spec.ts` passes (measured 10:1 on desktop, 9.6:1 on a phone from the screenshots) and says nothing about the case a real course video will often be (the first real shared video was a white title slide). Axe also can't judge text over an image: it reports it as "incomplete", not a violation.
+
+Why deferred: the fix is a decision about the skin (a darker `--media-popover`, or a text shadow, for both controls at once, since the link takes the skin's tokens on purpose), and the check needs a second demo picture.
+
+Where to start: seed a second, bright picture for the shared lesson (`demo/courses-seed.ts`, `TOAST_PICTURE`) or serve one for the scene through `page.route`, run the scene's steps over it too, and assert the measured contrast of the pill's text against the pixels behind it from the screenshot (not only axe), at every size and scheme. Then fix `--media-popover` for the link and fullscreen together.
+
 ### Link the holder's name in the "already an alias" error
 Adding an alias that another member holds says `"AJ" is already an alias for <name>. Move it from there first.` (`lib/name-alias-conflict.ts`) as plain text, so the admin has to search for the holder. Deferred as a nit: the message is a string the identity page shows as is. Return the holder's id with the conflict and render the name as a link to `/admin/members/<id>` where the message is shown.
 

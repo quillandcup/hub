@@ -70,6 +70,20 @@ body {
   height: 1rem;
   flex-shrink: 0;
 }
+/* Playing: just the icon (YouTube's "Watch on YouTube" becomes its logo once the video starts); paused or ended, the label comes back. */
+.media-container:has(.media-play-button[data-started]:not([data-paused]):not([data-ended])) .lesson-open-link {
+  width: var(--media-control-size);
+  padding-inline: 0;
+  justify-content: center;
+}
+.media-container:has(.media-play-button[data-started]:not([data-paused]):not([data-ended])) .lesson-open-link-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 @container media-root (width < 32rem) {
   .lesson-open-link {
     width: var(--media-control-size);
