@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import LessonPlayer from "@/components/courses/LessonPlayer";
+import { SKIN_TOKENS } from "@/components/courses/skin-theme";
 import { LessonCompletionProvider, useLessonCompletion } from "@/components/courses/LessonCompletion";
 import type { PlaybackTokens } from "@/lib/mux";
 
@@ -29,7 +30,7 @@ type State =
  */
 function OpenLessonLink({ href }: { href: string }) {
   return (
-    <span className="media-skin contents">
+    <span className="media-skin contents" style={SKIN_TOKENS}>
       <Link href={href} target="_blank" rel="noopener noreferrer" data-track="chat-video-open-lesson" className="lesson-open-link">
         <svg viewBox="0 0 24 24" className="lesson-open-link-icon" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M7 17 17 7M8 7h9v9" />

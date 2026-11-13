@@ -27,6 +27,16 @@ body {
   }
 }
 
+/* The skin's glass (`--media-popover`) is white at 10%: over a bright frame its white text has almost no contrast, and it looks different over every frame.
+   A dark glass instead, for everything the skin draws with it (its fullscreen pill, menus and the "Open lesson" link below), at one place so they change
+   together. White on it is at least 4.5:1 over even a pure white frame. A viewer who asked for less transparency or more contrast keeps the skin's own
+   solid colours (its rules for those, which this does not override). */
+@media (prefers-reduced-transparency: no-preference) and (prefers-contrast: no-preference) and (forced-colors: none) {
+  .media-skin {
+    --media-popover: oklch(0% 0 0 / 0.6);
+  }
+}
+
 /* A link drawn over the lesson player's frame (ChatVideo's "Open lesson"). It sits inside the skin, so it uses the same tokens as the skin's own
    screen controls (the fullscreen button's glass pill below 32rem): a contrast change to those lands here too. Icon only where the skin is that
    narrow, so it keeps clear of the big play button; it is the top-left corner because the fullscreen pill takes the top-right. */

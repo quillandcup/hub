@@ -12,6 +12,7 @@ import { muxDataMetadata, type MuxDataConsent } from "@/lib/mux-data";
 import { courseImageUrl } from "@/lib/courses/image-urls";
 import { describePlaybackError, shouldRefreshToken, type PlaybackErrorInfo } from "@/lib/courses/playback-refresh";
 import { MAX_SEGMENTS_PER_BATCH, RESUME_MAX_FRACTION, type WatchSegmentInput } from "@/lib/courses/watch";
+import { SKIN_TOKENS } from "./skin-theme";
 import { AUTO_COMPLETE_FRACTION, useLessonCompletion } from "./LessonCompletion";
 
 export interface PlaybackTokens {
@@ -469,13 +470,7 @@ function BigPlayButton() {
   );
 }
 
-// The skin's public theming properties; plum is the Hub's plum-600 from tailwind.config.ts.
-const SKIN_THEME = {
-  aspectRatio: "16 / 9",
-  "--media-accent-color": "#a64d79",
-  "--media-accent-text-color": "#ffffff",
-  "--media-border-radius": "1rem",
-} as React.CSSProperties;
+const SKIN_THEME = { aspectRatio: "16 / 9", ...SKIN_TOKENS } as React.CSSProperties;
 
 /**
  * The themed lesson player: signed Mux playback, speed and captions remembered, resuming where the member left off, and recording what they watched. The poster is the
