@@ -109,7 +109,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     },
     summary: "When you paste a link into a Hub Chat message, a preview card appears with the page's title, a short description and a picture. A link to an image shows the image, and people reading in Slack see a preview too.",
     body: [
-      "Paste a link and the preview appears right under your message.\n\n![A Hub Chat message with a link and the preview card under it: the site name, title, a short description and a picture, with the X in the corner that only the message's author sees.](/changelog/link-previews-in-hub-chat/01-preview-card.webp)",
+      "Paste a link and the preview appears right under your message.\n\n![A Hub Chat message with a link and the preview card under it: the site name, title, a short description and a picture, with the X beside it that only the message's author sees.](/changelog/link-previews-in-hub-chat/01-preview-card.webp)",
       [
         "- **People reading in Slack see a preview too.**",
         "- **Previews Slack makes also show in Hub Chat.** When someone pastes a link in Slack, its preview appears here as well.",

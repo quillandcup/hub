@@ -26,7 +26,7 @@ describe("unfurl pictures", () => {
 
   it("rewrites every one to the route with the position the route will list it at, and leaves the rest alone", () => {
     const { unfurls } = parseUnfurls({ attachments, blocks }, { bot: true, body: "" });
-    const withShared = unfurls.map((u) => (u.kind === "share" ? { ...u, shared: { text: "quoted", authorName: "Ada Example", authorSubname: null, authorIcon: img("author"), ts: "1.1", postedAt: null, slackChannelId: "C1", channelName: null, slackUrl: null, footer: null, files: [] } } : u));
+    const withShared = unfurls.map((u) => (u.kind === "share" ? { ...u, shared: { text: "quoted", authorName: "Ada Example", authorSubname: null, authorIcon: img("author"), ts: "1.1", postedAt: null, slackChannelId: "C1", channelName: null, slackUrl: null, files: [] } } : u));
     const proxied = proxyUnfurlImages(MESSAGE, withShared as never, img("logo"));
 
     expect(proxied.botIcon).toBe(unfurlImageSrc(MESSAGE, unfurlPictureKey(img("logo"))));
