@@ -1,14 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { usePlayerSeconds } from "@/components/courses/PlayerTime";
 
-/** "Copy link" under a lesson's video: the lesson's address, which becomes the video card when pasted into a Hub Chat message. */
+/** "Copy link" under a lesson's video: the lesson's address (at the player's position when it is past the start), which becomes the video card when pasted into a Hub Chat message. */
 export default function CopyLessonLink({ url }: { url: string }) {
   const [status, setStatus] = useState<"copied" | "failed" | null>(null);
+  const seconds = usePlayerSeconds();
 
   async function copy() {
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(seconds > 0 ? `${url}?t=${seconds}` : url);
       setStatus("copied");
     } catch {
       setStatus("failed");

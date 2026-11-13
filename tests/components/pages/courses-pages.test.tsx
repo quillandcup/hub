@@ -44,7 +44,7 @@ vi.mock("@/lib/features.server", () => ({
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({}) }));
 vi.mock("@/app/(member)/courses/actions", () => ({ setLessonComplete: vi.fn(async () => ({})), clearMyLessonProgress: vi.fn(async () => ({})) }));
 
-import LessonPlayerMock from "@/components/courses/LessonPlayer";
+import { TimedLessonPlayer } from "@/components/courses/PlayerTime";
 import CoursesPage from "@/app/(member)/courses/page";
 import CoursePage, { generateMetadata as generateCourseMetadata } from "@/app/(member)/courses/[slug]/page";
 import ModulePage, { generateMetadata as generateModuleMetadata } from "@/app/(member)/courses/[slug]/modules/[moduleId]/page";
@@ -792,7 +792,7 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
           if (Array.isArray(node)) return node.map(find).find((k) => k !== undefined);
           if (!node || typeof node !== "object" || !("props" in node)) return undefined;
           const el = node as { type: unknown; key: string | null; props: { children?: unknown } };
-          return el.type === LessonPlayerMock ? el.key : find(el.props.children);
+          return el.type === TimedLessonPlayer ? el.key : find(el.props.children);
         };
         return find(await LessonPage(params(lessonId)));
       };
