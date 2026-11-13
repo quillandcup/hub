@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import Link from "next/link";
+import { placeMenu, type MenuPlacement } from "@/lib/menu-placement";
 
 export interface ActionMenuItem {
   key: string;
@@ -28,6 +29,8 @@ export default function ActionMenu({ label = "More actions", items }: { label?: 
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const [placement, setPlacement] = useState<MenuPlacement | null>(null);
   const menuId = useId();
 
   const enabledItems = () => Array.from(root.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])') ?? []);
@@ -40,6 +43,27 @@ export default function ActionMenu({ label = "More actions", items }: { label?: 
     };
     document.addEventListener("mousedown", onPointer);
     return () => document.removeEventListener("mousedown", onPointer);
+  }, [open]);
+
+  // Measure before paint and keep the panel inside the viewport (a trigger near the left edge of a
+  // phone would otherwise open it off screen).
+  useLayoutEffect(() => {
+    if (!open || !button.current || !panel.current) {
+      setPlacement(null);
+      return;
+    }
+    const place = () => {
+      const t = button.current!.getBoundingClientRect();
+      const width = document.documentElement.clientWidth || window.innerWidth;
+      setPlacement(placeMenu(t, { width: panel.current!.offsetWidth, height: panel.current!.offsetHeight }, { width, height: window.innerHeight }));
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
   }, [open]);
 
   const close = (refocus: boolean) => {
@@ -82,7 +106,7 @@ export default function ActionMenu({ label = "More actions", items }: { label?: 
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
         onClick={() => setOpen((o) => !o)}
-        className="rounded border border-slate-300 p-2 text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+        className="flex h-10 w-10 items-center justify-center rounded border border-slate-300 text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
       >
         <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
           <circle cx="10" cy="4" r="1.6" />
@@ -91,7 +115,16 @@ export default function ActionMenu({ label = "More actions", items }: { label?: 
         </svg>
       </button>
       {open && (
-        <div id={menuId} role="menu" aria-label={label} className="absolute right-0 z-20 mt-1 w-56 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+        <div
+          ref={panel}
+          id={menuId}
+          role="menu"
+          aria-label={label}
+          data-placement={placement ? (placement.above ? "above" : "below") : undefined}
+          // Fixed, placed from the trigger's viewport position: a row with overflow hidden can't clip it.
+          style={{ left: placement?.left ?? 0, top: placement?.top ?? 0, maxWidth: placement?.maxWidth }}
+          className="fixed z-50 w-56 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
+        >
           {items.map((item) => {
             const body = (
               <>

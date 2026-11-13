@@ -29,7 +29,7 @@ import CourseSettingsForm from "./CourseSettingsForm";
 import CourseVideosPanel from "./CourseVideosPanel";
 import { COURSE_TAB_LABELS, courseTabIds, type CourseTab } from "./course-tabs";
 
-const PANEL = "rounded-lg bg-white p-6 shadow dark:bg-slate-900";
+const PANEL = "rounded-lg bg-white p-3 shadow sm:p-6 dark:bg-slate-900";
 const CHIP = "rounded-full border border-slate-200 px-2.5 py-0.5 text-xs font-medium text-slate-600 dark:border-slate-700 dark:text-slate-300";
 
 /** The browser tab's title for one of the course page's tabs: the course first ("Plot Lab · Courses", "Details · Plot Lab · Courses" with the tab in the middle). */
@@ -134,7 +134,7 @@ export default async function CourseAdminPage({ idParam, tab }: { idParam: strin
   return (
     <>
       <CourseBuilderBanner />
-      <div className="@container container mx-auto max-w-5xl px-6 py-8">
+      <div className="@container container mx-auto max-w-5xl px-3 py-6 sm:px-6 sm:py-8">
         <CourseHeader
           title={course.title}
           courseId={id}
@@ -210,7 +210,7 @@ async function HubCourse({ id, basePath, tab }: { id: string; basePath: string; 
   if (tab === "roster" && !customers) notFound();
 
   return (
-    <div className="@container container mx-auto max-w-5xl px-6 py-8">
+    <div className="@container container mx-auto max-w-5xl px-3 py-6 sm:px-6 sm:py-8">
       <CourseHeader
         title={course.title}
         courseId={course.id}
@@ -219,8 +219,7 @@ async function HubCourse({ id, basePath, tab }: { id: string; basePath: string; 
         chip="In the Hub"
         summary={
           <>
-            Members open it at <code>/courses/{course.slug}</code>; {course.access.current} have access now, {course.access.upcoming} start later, {course.access.ended} have ended
-            {course.launchAt && `. It opens ${formatCourseDate(course.launchAt)}`}.
+            {[`${course.access.current} have access now`, `${course.access.upcoming} start later`, course.access.ended > 0 && `${course.access.ended} have ended`, course.launchAt && `opens ${formatCourseDate(course.launchAt)}`].filter(Boolean).join(" · ")}
           </>
         }
         duplicate={duplicate}
@@ -257,16 +256,16 @@ function CourseHeader({
       <Link href="/admin/courses" className="text-sm text-slate-600 hover:underline dark:text-slate-400">
         ← Courses
       </Link>
-      <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
+      <div className="mt-2 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <h1 className="text-3xl font-bold">{title}</h1>
+            <h1 className="text-2xl font-bold @pair:text-3xl">{title}</h1>
             <CourseStatusChip isDraft={isDraft} />
             <span className={CHIP}>{chip}</span>
           </div>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{summary}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <CourseActions courseId={courseId} title={title} duplicate={duplicate} takeOver={takeOver} />
           {inHub && <CoursePublishControl courseId={courseId} isDraft={isDraft} compact />}
         </div>

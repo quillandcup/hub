@@ -3,6 +3,7 @@
 import { createContext, useContext, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import ActionMenu, { type ActionMenuItem } from "@/components/ActionMenu";
 import Modal from "@/components/Modal";
 import type { ExplainedLesson, ExplainedModule } from "@/lib/courses/explain";
 import { moduleContents, moveBefore, moveBy } from "@/lib/courses/hub-outline";
@@ -94,7 +95,7 @@ function StatusPill({ title, option, kind, id }: { title: string; option: string
       value={option ?? ""}
       onChange={editor ? (e) => void editor.run(() => setCourseItemStatus(editor.courseId, kind, id, e.target.value)) : undefined}
       title={editor ? undefined : soon}
-      className={`shrink-0 appearance-none rounded-full border-0 px-3 py-1 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-100 ${PILL[option ?? "draft"] ?? PILL.draft}`}
+      className={`order-last min-h-10 shrink-0 appearance-none rounded-full border-0 px-3 py-1 text-xs font-semibold @split:order-none @split:min-h-0 disabled:cursor-not-allowed disabled:opacity-100 ${PILL[option ?? "draft"] ?? PILL.draft}`}
     >
       {!choices.some((c) => c.value === option) && <option value={option ?? ""}>{statusLabel(option)}</option>}
       {choices.map((c) => (
@@ -107,7 +108,19 @@ function StatusPill({ title, option, kind, id }: { title: string; option: string
   );
 }
 
-const ACTION = "flex items-center gap-1 rounded p-1.5 text-slate-600 disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-300";
+/**
+ * A row is one line: the title gets the room (up to two lines, then cut with the full text on hover),
+ * the status pill drops under it when there is no room beside it. `@container` is on the outline.
+ */
+const ROW_CLASS = "group flex flex-wrap items-center gap-x-2 gap-y-1 py-2 pr-2 @split:flex-nowrap @split:gap-x-3 @split:py-3";
+const TITLE = "line-clamp-2 break-words";
+
+/** A row's own state is already in its status pill; the reason is worth a line only when it explains something else (an item hidden by the module above it). */
+function rowNote(reason: string): string | null {
+  return reason === "Published" || / in (Kajabi|the Hub)$/.test(reason) ? null : reason;
+}
+
+const ACTION ="flex items-center gap-1 rounded p-1.5 text-slate-600 disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-300";
 
 /** An action: a working button when `onClick` is given, otherwise off with the reason on hover. */
 function Action({ label, icon, count, onClick, disabled }: { label: string; icon: keyof typeof ICONS; count?: number; onClick?: () => void; disabled?: boolean }) {
@@ -121,7 +134,52 @@ function Action({ label, icon, count, onClick, disabled }: { label: string; icon
   );
 }
 
-const HOVER_ACTIONS = "flex items-center opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100";
+/** The quick icons: only where the outline is wide (a narrow one gets the ⋯ menu), and always visible on a touch screen, which has no hover. */
+const HOVER_ACTIONS = "hidden items-center opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 @split:flex";
+
+/**
+ * One action of a row. The wide layout shows the ones with an `icon` as quick icons and the narrow one
+ * lists them all in the row's ⋯ menu, so both come from this one list. Without `onClick` or `href` it
+ * is off, with the reason as a tooltip (icon) or hint (menu).
+ */
+interface RowAction {
+  key: string;
+  label: string;
+  icon?: keyof typeof ICONS;
+  href?: string;
+  onClick?: () => void;
+  disabled?: boolean;
+  /** Off and not built yet: a quick icon says so, the menu leaves it out. */
+  quickOnly?: boolean;
+}
+
+function RowActions({ name, actions }: { name: string; actions: RowAction[] }) {
+  const { editor, soon } = useOutline();
+  const items: ActionMenuItem[] = actions.filter((a) => !a.quickOnly).map((a) => {
+    const working = !!a.onClick || !!a.href;
+    return { key: a.key, label: a.label, href: a.href, onSelect: a.onClick, disabled: !working || a.disabled || editor?.busy, hint: working ? undefined : soon, track: "admin-course-row-action" };
+  });
+  return (
+    <>
+      <span className={HOVER_ACTIONS}>
+        {actions
+          .filter((a) => a.icon)
+          .map((a) =>
+            a.href ? (
+              <Link key={a.key} href={a.href} aria-label={a.label} title={a.label} className="rounded p-1.5 text-slate-600 dark:text-slate-300">
+                <Icon path={ICONS[a.icon!]} />
+              </Link>
+            ) : (
+              <Action key={a.key} label={a.label} icon={a.icon!} onClick={a.onClick} disabled={a.disabled} />
+            )
+          )}
+      </span>
+      <span className="@split:hidden">
+        <ActionMenu label={`Actions for ${name}`} items={items} />
+      </span>
+    </>
+  );
+}
 
 /** What to reorder when something is dropped on a row: the row's own list and parent. */
 interface Sibling {
@@ -136,7 +194,7 @@ function DragHandle({ label, sibling }: { label: string; sibling?: Sibling }) {
   const { editor, soon } = useOutline();
   if (!editor || !sibling) {
     return (
-      <span role="img" aria-label={label} title={soon} className="-ml-1 w-4 shrink-0 cursor-not-allowed text-slate-400 opacity-0 transition-opacity group-hover:opacity-100">
+      <span role="img" aria-label={label} title={soon} className="-ml-1 hidden w-4 shrink-0 cursor-not-allowed text-slate-400 @split:block opacity-0 transition-opacity group-hover:opacity-100">
         <Icon path={ICONS.grip} />
       </span>
     );
@@ -153,7 +211,7 @@ function DragHandle({ label, sibling }: { label: string; sibling?: Sibling }) {
         e.dataTransfer.setData("text/plain", sibling.id); // Firefox won't start a drag without data
       }}
       onDragEnd={() => editor.drag.end()}
-      className="-ml-1 w-4 shrink-0 cursor-grab text-slate-400 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+      className="-ml-1 hidden w-4 shrink-0 cursor-grab text-slate-400 @split:block opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
     >
       <Icon path={ICONS.grip} />
     </span>
@@ -183,17 +241,14 @@ function dropProps(editor: Editor | null, sibling?: Sibling) {
 }
 
 /** Move up and Move down, for people who can't drag. */
-function MoveButtons({ sibling, what }: { sibling?: Sibling; what: string }) {
-  const { editor } = useOutline();
-  if (!editor || !sibling) return null;
+function moveActions(editor: Editor | null, sibling: Sibling | undefined, what: string): RowAction[] {
+  if (!editor || !sibling) return [];
   const move = (delta: -1 | 1) => void editor.run(() => reorderCourseItems(editor.courseId, sibling.kind, sibling.parentId, moveBy(sibling.ids, sibling.id, delta)));
   const index = sibling.ids.indexOf(sibling.id);
-  return (
-    <>
-      <Action label={`Move ${what} up`} icon="up" onClick={() => move(-1)} disabled={index <= 0} />
-      <Action label={`Move ${what} down`} icon="down" onClick={() => move(1)} disabled={index === sibling.ids.length - 1} />
-    </>
-  );
+  return [
+    { key: "up", label: `Move ${what} up`, icon: "up", onClick: () => move(-1), disabled: index <= 0 },
+    { key: "down", label: `Move ${what} down`, icon: "down", onClick: () => move(1), disabled: index === sibling.ids.length - 1 },
+  ];
 }
 
 /** A one-line text field that saves on Enter and cancels on Escape. */
@@ -271,10 +326,22 @@ function LessonRow({ lesson, indent, sibling }: { lesson: ExplainedLesson; inden
   // A lesson has a builder page once it is in the Hub, under its own Hub id.
   const builder = hubId ? `/admin/courses/${course.id}/lessons/${hubId}` : null;
   const preview = hubId && course.slug ? `/courses/${course.slug}/lessons/${hubId}` : null;
+  const note = [rowNote(lesson.reason), content && `text ${content.hasText ? "✓" : "–"} · video ${content.hasVideo ? "✓" : "–"}`].filter(Boolean).join(" · ");
+  const what = editor ? "lesson" : "video";
+  const previewLabel = `Open ${what} preview`;
+  const actions: RowAction[] = [
+    { key: "edit", label: editor ? "Edit lesson" : "Edit video", icon: "edit", href: builder ?? undefined },
+    ...(editor ? [{ key: "rename", label: "Rename lesson", icon: "rename" as const, onClick: () => setRenaming(true) }] : []),
+    { key: "duplicate", label: `Duplicate ${what}`, icon: "copy", onClick: editor ? () => void editor.run(() => duplicateCourseItem(editor.courseId, "lesson", lesson.kajabiId)) : undefined },
+    { key: "comments", label: `Open ${what} comments`, icon: "comment", quickOnly: true },
+    { key: "preview", label: previewLabel, icon: "eye", href: preview ?? undefined },
+    { key: "delete", label: `Delete ${what}`, icon: "trash", onClick: editor ? () => setConfirming(true) : undefined },
+    ...moveActions(editor, sibling, "lesson"),
+  ];
   return (
     <li
-      className="group flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-slate-100 px-4 py-3 dark:border-slate-800"
-      style={{ paddingLeft: `${1 + indent * 1.5}rem` }}
+      className={ROW_CLASS + " border-t border-slate-100 dark:border-slate-800"}
+      style={{ paddingLeft: `${0.75 + indent * 1}rem` }}
       {...dropProps(editor, sibling)}
     >
       <DragHandle label="Drag to reorder lesson" sibling={sibling} />
@@ -282,56 +349,19 @@ function LessonRow({ lesson, indent, sibling }: { lesson: ExplainedLesson; inden
       {renaming && editor ? (
         <NameField label="Lesson name" initial={lesson.title} submitLabel="Save" onSubmit={(title) => editor.run(() => renameCourseItem(editor.courseId, "lesson", lesson.kajabiId, title))} onCancel={() => setRenaming(false)} />
       ) : (
-        <span className="min-w-0 flex-1">
+        <span className="min-w-0 flex-1 basis-32">
           {!builder ? (
-            <span className="font-medium">{lesson.title}</span>
+            <span className={`${TITLE} font-medium`} title={lesson.title}>{lesson.title}</span>
           ) : (
             // Double-clicking the title renames it in place (the same as Rename lesson); a single click opens the lesson.
-            <Link href={builder} onDoubleClick={editor ? (e) => { e.preventDefault(); setRenaming(true); } : undefined} className="font-medium hover:underline">
+            <Link href={builder} title={lesson.title} onDoubleClick={editor ? (e) => { e.preventDefault(); setRenaming(true); } : undefined} className={`${TITLE} font-medium hover:underline`}>
               {lesson.title}
             </Link>
           )}
-          <span className="block text-xs text-slate-600 dark:text-slate-400">
-            {lesson.reason}
-            {content && ` · text ${content.hasText ? "✓" : "–"} · video ${content.hasVideo ? "✓" : "–"}`}
-          </span>
+          {note && <span className="block text-xs text-slate-600 dark:text-slate-400">{note}</span>}
         </span>
       )}
-      <span className={HOVER_ACTIONS}>
-        {editor ? (
-          <>
-            {builder ? (
-              <Link href={builder} aria-label="Edit lesson" title="Edit lesson" className="rounded p-1.5 text-slate-600 dark:text-slate-300">
-                <Icon path={ICONS.edit} />
-              </Link>
-            ) : (
-              <Action label="Edit lesson" icon="edit" />
-            )}
-            <Action label="Rename lesson" icon="rename" onClick={() => setRenaming(true)} />
-            <Action label="Duplicate lesson" icon="copy" onClick={() => void editor.run(() => duplicateCourseItem(editor.courseId, "lesson", lesson.kajabiId))} />
-            <Action label="Open lesson comments" icon="comment" />
-          </>
-        ) : (
-          <>
-            {builder && (
-              <Link href={builder} aria-label="Edit video" title="Edit video" className="rounded p-1.5 text-slate-600 dark:text-slate-300">
-                <Icon path={ICONS.edit} />
-              </Link>
-            )}
-            <Action label="Duplicate video" icon="copy" />
-            <Action label="Open video comments" icon="comment" />
-          </>
-        )}
-        {preview ? (
-          <Link href={preview} aria-label={editor ? "Open lesson preview" : "Open video preview"} title={editor ? "Open lesson preview" : "Open video preview"} className="rounded p-1.5 text-slate-600 dark:text-slate-300">
-            <Icon path={ICONS.eye} />
-          </Link>
-        ) : (
-          <Action label={editor ? "Open lesson preview" : "Open video preview"} icon="eye" />
-        )}
-        {editor ? <Action label="Delete lesson" icon="trash" onClick={() => setConfirming(true)} /> : <Action label="Delete video" icon="trash" />}
-        <MoveButtons sibling={sibling} what="lesson" />
-      </span>
+      <RowActions name={lesson.title} actions={actions} />
       <StatusPill title={lesson.title} option={lesson.publishingOption} kind="lesson" id={lesson.kajabiId} />
       {confirming && editor && (
         <DeleteDialog title={lesson.title} what="lesson" detail={null} onConfirm={() => editor.run(() => deleteCourseItem(editor.courseId, "lesson", lesson.kajabiId))} onClose={() => setConfirming(false)} />
@@ -383,33 +413,37 @@ function ModuleRow({
   const goes = [contents.lessons > 0 && `${contents.lessons} lesson${contents.lessons === 1 ? "" : "s"}`, contents.submodules > 0 && `${contents.submodules} submodule${contents.submodules === 1 ? "" : "s"}`].filter(Boolean);
   // A Hub-owned module has a member page to preview it on; an imported one has none we link to.
   const preview = course.slug && editor ? `/courses/${course.slug}/modules/${mod.kajabiId}` : null;
+  const note = rowNote(mod.reason);
+  const startAdding = (what: "lesson" | "submodule") => {
+    setMenu(false);
+    setOpen(true);
+    setAdding(what);
+  };
+  const actions: RowAction[] = [
+    { key: "edit", label: `Edit ${noun}`, icon: "edit", onClick: editor ? () => setRenaming(true) : undefined },
+    { key: "duplicate", label: `Duplicate ${noun}`, icon: "copy", onClick: editor ? () => void editor.run(() => duplicateCourseItem(editor.courseId, "module", mod.kajabiId)) : undefined },
+    { key: "preview", label: `Open ${noun} preview`, icon: "eye", href: preview ?? undefined },
+    // On a wide outline these are the Add content button; here they are menu items.
+    { key: "add-lesson", label: "Add lesson", onClick: editor ? () => startAdding("lesson") : undefined },
+    ...(submodule ? [] : [{ key: "add-submodule", label: "Add submodule", onClick: editor ? () => startAdding("submodule") : undefined }]),
+    { key: "delete", label: `Delete ${noun}`, icon: "trash", onClick: editor ? () => setConfirming(true) : undefined },
+    ...moveActions(editor, sibling, noun),
+  ];
   return (
-    <li className={submodule ? "border-t border-slate-100 dark:border-slate-800" : "overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700"} {...dropProps(editor, sibling)}>
-      <div className="group flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3" style={{ paddingLeft: `${1 + depth * 1.5}rem` }}>
+    <li className={submodule ?"border-t border-slate-100 dark:border-slate-800" : "overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700"} {...dropProps(editor, sibling)}>
+      <div className={ROW_CLASS} style={{ paddingLeft: `${0.75 + depth * 1}rem` }}>
         <DragHandle label={`Drag to reorder ${noun}`} sibling={sibling} />
         <Icon path={ICONS.folder} className="h-4 w-4 shrink-0 text-slate-500" />
         {renaming && editor ? (
           <NameField label={`${submodule ? "Submodule" : "Module"} name`} initial={mod.title} submitLabel="Save" onSubmit={(title) => editor.run(() => renameCourseItem(editor.courseId, "module", mod.kajabiId, title))} onCancel={() => setRenaming(false)} />
         ) : (
-          <span className="min-w-0 flex-1">
-            <span className="font-medium">{mod.title}</span>
-            <span className="block text-xs text-slate-600 dark:text-slate-400">{mod.reason}</span>
+          <span className="min-w-0 flex-1 basis-32">
+            <span className={`${TITLE} font-medium`} title={mod.title}>{mod.title}</span>
+            {note && <span className="block text-xs text-slate-600 dark:text-slate-400">{note}</span>}
           </span>
         )}
-        <span className={HOVER_ACTIONS}>
-          <Action label={`Edit ${noun}`} icon="edit" onClick={editor ? () => setRenaming(true) : undefined} />
-          <Action label={`Duplicate ${noun}`} icon="copy" onClick={editor ? () => void editor.run(() => duplicateCourseItem(editor.courseId, "module", mod.kajabiId)) : undefined} />
-          {preview ? (
-            <Link href={preview} aria-label={`Open ${noun} preview`} title={`Open ${noun} preview`} className="rounded p-1.5 text-slate-600 dark:text-slate-300">
-              <Icon path={ICONS.eye} />
-            </Link>
-          ) : (
-            <Action label={`Open ${noun} preview`} icon="eye" />
-          )}
-          <Action label={`Delete ${noun}`} icon="trash" onClick={editor ? () => setConfirming(true) : undefined} />
-          <MoveButtons sibling={sibling} what={noun} />
-        </span>
-        <span className="relative">
+        <RowActions name={mod.title} actions={actions} />
+        <span className="relative hidden @split:block">
           <button
             type="button"
             disabled={!editor || editor.busy}
@@ -436,7 +470,7 @@ function ModuleRow({
           )}
         </span>
         <StatusPill title={mod.title} option={mod.publishingOption} kind="module" id={mod.kajabiId} />
-        <button type="button" onClick={() => setOpen(!open)} aria-expanded={shown} aria-label={`${shown ? "Collapse" : "Expand"} ${mod.title}`} className="rounded p-1 text-slate-600 dark:text-slate-300">
+        <button type="button" onClick={() => setOpen(!open)} aria-expanded={shown} aria-label={`${shown ? "Collapse" : "Expand"} ${mod.title}`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded text-slate-600 @split:h-auto @split:w-auto @split:p-1 dark:text-slate-300">
           <Icon path={ICONS.chevron} className={`h-4 w-4 transition-transform ${shown ? "rotate-180" : ""}`} />
         </button>
       </div>
@@ -533,7 +567,7 @@ export default function BuilderOutline({ course }: { course: OutlineCourse }) {
   const looseIds = course.loose.map((l) => l.kajabiId);
   return (
     <OutlineContext.Provider value={{ course, editor, soon: course.editable ? SOON_HUB : SOON_IMPORTED }}>
-      <div>
+      <div className="@container">
         <label className="block">
           <span className="sr-only">Find module or lesson</span>
           <input
