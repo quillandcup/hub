@@ -106,9 +106,13 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     const tokens = await signPlaybackTokens(createMuxClient(), video.mux_playback_id, undefined, restrictionId);
     // Watching is recorded for members' open lessons, and not in sudo (an admin previewing leaves no viewing history).
     const record = lesson.state === "open" && !caller.identity.isSudo;
-    const position = record && hasCourse ? await createRepos(await createClient()).courseProgress.lessonPosition(caller.identity.memberId, lesson.id).catch(() => null) : null;
+    const progress = createRepos(await createClient()).courseProgress;
+    const position = record && hasCourse ? await progress.lessonPosition(caller.identity.memberId, lesson.id).catch(() => null) : null;
+    // Watching on to the end completes the lesson, as on the lesson page, for whoever has the course and is being recorded (the
+    // completion action checks access and sudo again). `completed` is where it stands now, so a lesson already done is not redone.
+    const completion = record && hasCourse ? { completed: (await progress.completedLessonIds(caller.identity.memberId, [lesson.id]).catch(() => new Set<string>())).has(lesson.id) } : null;
     return NextResponse.json(
-      { title: lesson.title, lessonId: lesson.id, playbackId: video.mux_playback_id, tokens, restricted: restrictionId !== null, record, resumeSeconds: resumeSeconds(position) },
+      { title: lesson.title, lessonId: lesson.id, playbackId: video.mux_playback_id, tokens, restricted: restrictionId !== null, record, resumeSeconds: resumeSeconds(position), completion },
       { headers: NO_STORE },
     );
   } catch (error) {

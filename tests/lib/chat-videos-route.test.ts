@@ -83,7 +83,7 @@ describe("POST /api/chat/videos/[messageId]", () => {
 
     expect(res.status).toBe(200);
     expect(res.headers.get("Cache-Control")).toBe("no-store");
-    expect(await res.json()).toEqual({ title: "Show up for the page", lessonId: LESSON, playbackId: "pb123", tokens: TOKENS, restricted: false, record: true, resumeSeconds: 0 });
+    expect(await res.json()).toEqual({ title: "Show up for the page", lessonId: LESSON, playbackId: "pb123", tokens: TOKENS, restricted: false, record: true, resumeSeconds: 0, completion: { completed: false } });
     expect(signPlaybackTokens).toHaveBeenCalledWith(expect.anything(), "pb123", undefined, null);
   });
 
@@ -94,6 +94,45 @@ describe("POST /api/chat/videos/[messageId]", () => {
     // A position barely into the video isn't worth resuming.
     await repos.courseProgress.savePosition("mbr_AAAAAAAAAAA1", LESSON, 3);
     expect(await (await call()).json()).toMatchObject({ resumeSeconds: 0 });
+  });
+
+  it("says whether watching on completes the lesson: for a viewer with the course who is being recorded, and whether it is already complete", async () => {
+    expect((await (await call()).json()).completion).toEqual({ completed: false });
+
+    await repos.courseProgress.setCompletion("mbr_AAAAAAAAAAA1", LESSON, "2026-01-01T00:00:00.000Z");
+    expect((await (await call()).json()).completion).toEqual({ completed: true });
+  });
+
+  it("offers no completion in sudo, for a lesson only staff can open, or to a reader without the course", async () => {
+    vi.mocked(getCoursesCaller).mockResolvedValue({
+      userId: "user-1",
+      identity: { memberId: "mbr_AAAAAAAAAAA1", memberName: "Ada Example", memberEmail: "ada@example.com", isSudo: true },
+      scope: { memberId: "mbr_AAAAAAAAAAA1", isAdminActing: false },
+    });
+    expect((await (await call()).json()).completion).toBeNull();
+
+    vi.mocked(getCoursesCaller).mockResolvedValue({
+      userId: "user-1",
+      identity: { memberId: "mbr_AAAAAAAAAAA1", memberName: "Ada Example", memberEmail: "ada@example.com", isSudo: false },
+      scope: { memberId: "mbr_AAAAAAAAAAA1", isAdminActing: false },
+    });
+    setup({ lessonState: "coming_soon" });
+    vi.mocked(getCoursesCaller).mockResolvedValue({
+      userId: "user-1",
+      identity: { memberId: "mbr_AAAAAAAAAAA1", memberName: "Ada Example", memberEmail: "ada@example.com", isSudo: false },
+      scope: { memberId: "mbr_AAAAAAAAAAA1", isAdminActing: true },
+    });
+    expect((await (await call()).json()).completion).toBeNull();
+
+    // Open to the whole channel, but the reader has no course: they watch, and nothing of theirs is completed.
+    setup({ open: true });
+    vi.mocked(canOpenLessons).mockReturnValue(false);
+    vi.mocked(getCoursesCaller).mockResolvedValue({
+      userId: "user-1",
+      identity: { memberId: "mbr_AAAAAAAAAAA1", memberName: "Ada Example", memberEmail: "ada@example.com", isSudo: false },
+      scope: { memberId: "mbr_AAAAAAAAAAA1", isAdminActing: false },
+    });
+    expect((await (await call()).json()).completion).toBeNull();
   });
 
   it("says not to record in sudo or for a lesson only staff can open", async () => {

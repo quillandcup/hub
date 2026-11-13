@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import LessonPlayer from "@/components/courses/LessonPlayer";
+import { LessonCompletionProvider, useLessonCompletion } from "@/components/courses/LessonCompletion";
 import type { PlaybackTokens } from "@/lib/mux";
 
 /** What the card shows before play, from GET /api/chat/videos/<message id>; `canWatch` null until it has answered (or when it couldn't). */
@@ -15,8 +16,19 @@ interface CardInfo {
 type State =
   | { kind: "idle" }
   | { kind: "loading" }
-  | { kind: "ready"; title: string; lessonId: string; playbackId: string; tokens: PlaybackTokens; restricted: boolean; record: boolean; resumeSeconds: number }
+  | { kind: "ready"; title: string; lessonId: string; playbackId: string; tokens: PlaybackTokens; restricted: boolean; record: boolean; resumeSeconds: number; completion: { completed: boolean } | null }
   | { kind: "error"; message: string };
+
+/** Under the title of a video whose lesson the member has completed (by watching it through, here or on the lesson page): says so, and nothing otherwise. */
+function CompleteNote() {
+  const completion = useLessonCompletion();
+  return (
+    <div className="px-3 pb-2" role="status">
+      {completion?.completed && <p className="text-xs text-slate-600 dark:text-slate-400">✓ Lesson complete</p>}
+      {completion?.error && <p className="text-xs text-red-600 dark:text-red-400">{completion.error}</p>}
+    </div>
+  );
+}
 
 const NO_INFO: CardInfo = { title: null, courseTitle: null, thumbnailUrl: null, canWatch: null };
 
@@ -59,30 +71,44 @@ export default function ChatVideo({ messageId }: { messageId: string }) {
         setState({ kind: "error", message: res.status === 429 ? "Too many videos opened just now. Try again in a few minutes." : "This video isn't available right now." });
         return;
       }
-      const body = (await res.json()) as { title: string; lessonId: string; playbackId: string; tokens: PlaybackTokens; restricted: boolean; record: boolean; resumeSeconds: number };
-      setState({ kind: "ready", ...body });
+      const body = (await res.json()) as { title: string; lessonId: string; playbackId: string; tokens: PlaybackTokens; restricted: boolean; record: boolean; resumeSeconds: number; completion?: { completed: boolean } | null };
+      setState({ kind: "ready", ...body, completion: body.completion ?? null });
     } catch {
       setState({ kind: "error", message: "This video isn't available right now." });
     }
   }
 
   if (state.kind === "ready") {
+    const player = (
+      <LessonPlayer
+        title={state.title}
+        playbackId={state.playbackId}
+        tokens={state.tokens}
+        restricted={state.restricted}
+        lessonId={state.lessonId}
+        chatMessageId={messageId}
+        resumeSeconds={state.resumeSeconds}
+        trackProgress={state.record}
+        autoPlay
+        // The card's own thumbnail as the player's poster, so opening it doesn't swap to a different frame (Mux's, from two seconds in) before the video starts.
+        posterUrl={card.thumbnailUrl && !imageFailed ? card.thumbnailUrl : null}
+      />
+    );
     return (
       <div className="mt-2 max-w-xl overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
-        <LessonPlayer
-          title={state.title}
-          playbackId={state.playbackId}
-          tokens={state.tokens}
-          restricted={state.restricted}
-          lessonId={state.lessonId}
-          chatMessageId={messageId}
-          resumeSeconds={state.resumeSeconds}
-          trackProgress={state.record}
-          autoPlay
-          // The card's own thumbnail as the player's poster, so opening it doesn't swap to a different frame (Mux's, from two seconds in) before the video starts.
-          posterUrl={card.thumbnailUrl && !imageFailed ? card.thumbnailUrl : null}
-        />
-        <p className="px-3 py-2 text-sm font-medium text-slate-800 dark:text-slate-100">{state.title}</p>
+        {state.completion ? (
+          // The same completion the lesson page keeps: the player completes the lesson once it is watched through (~90%).
+          <LessonCompletionProvider lessonId={state.lessonId} initiallyCompleted={state.completion.completed} readOnlyReason={null}>
+            {player}
+            <p className="px-3 pt-2 text-sm font-medium text-slate-800 dark:text-slate-100">{state.title}</p>
+            <CompleteNote />
+          </LessonCompletionProvider>
+        ) : (
+          <>
+            {player}
+            <p className="px-3 py-2 text-sm font-medium text-slate-800 dark:text-slate-100">{state.title}</p>
+          </>
+        )}
       </div>
     );
   }

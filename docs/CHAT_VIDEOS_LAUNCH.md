@@ -12,19 +12,17 @@
 
 ## Why it is in Hub Chat only (the owner's context, in the entry)
 
-The team has wanted lesson videos in conversations for years. Slack never allowed it with a good experience: it cannot keep track of what a member has watched, or pick a long video back up where they stopped. Hub Chat can, so this is the first feature that works only there, and a reason to move conversations from Slack to Hub Chat. The entry says so plainly and promises only what works: keeping place and tracking watched parts. Marking the lesson complete when the video ends does not work in chat yet (`docs/TODO.md`, "Mark a lesson complete when its video is watched in chat"), so the copy does not mention it.
+The team has wanted lesson videos in conversations for years. Slack never allowed it with a good experience: it cannot keep track of what a member has watched, or pick a long video back up where they stopped. Hub Chat can, so this is the first feature that works only there, and a reason to move conversations from Slack to Hub Chat. The entry says so plainly and promises only what works: keeping the place, recording which parts were watched, and (since the completion change) marking the lesson complete once nearly all of it is watched.
 
 ## Still open
 
-- `/privacy`: decide whether to add "and, for a video shared in chat, which message it was in" to the Course videos row (below).
-- Completing the lesson from chat (the TODO entry above).
 - Kajabi images for the draft courses (`docs/TODO.md`).
 
-## Check `/privacy` before the flag goes wide
+## `/privacy`
 
-Checked against the code on 2026-11-12. The owner decides the wording on `/privacy`; this is what the code does, for them to compare with the "Course videos" and "How well course videos play" rows.
+Checked against the code on 2026-11-12, and the Course videos row updated the same day to match: it now says that for a video shared in a chat message, which message it was watched in is recorded too, that turning usage statistics off does not change it (watching is part of how courses work, the same on the lesson page), and that the reason includes marking a lesson complete once it is watched.
 
-- **Watch history.** A view in a chat message is recorded exactly like a view on the lesson page: where the member stopped, which parts they watched, speed, captions, whether the tab was in view, device and browser (`WatchTracker` in `components/courses/LessonPlayer.tsx`, `/api/courses/watch`), for a member's open lessons and not in sudo. The one addition is `video_watch_segments.chat_message_id`: which chat message it was watched in, so the course stats can keep chat views apart. `/privacy` says course viewing is recorded "to pick up where you left off, and to learn which lessons work"; it does not mention that a view can be tied to a chat message. Like lesson viewing, it is not behind the "leave me out of statistics" switch (that switch covers the usage log, `lib/analytics/opt-out.ts`). Whether to say so is the owner's call; adding "and, for a video shared in chat, which message it was in" to the Course videos row would make it complete.
+- **Watch history.** A view in a chat message is recorded exactly like a view on the lesson page: where the member stopped, which parts they watched, speed, captions, whether the tab was in view, device and browser (`WatchTracker` in `components/courses/LessonPlayer.tsx`, `/api/courses/watch`), for a member's open lessons and not in sudo. The one addition is `video_watch_segments.chat_message_id`: which chat message it was watched in, so the course stats can keep chat views apart. `/privacy` says course viewing is recorded "to pick up where you left off, and to learn which lessons work"; it does not mention that a view can be tied to a chat message. Like lesson viewing, it is not behind the "leave me out of statistics" switch (that switch covers the usage log, `lib/analytics/opt-out.ts`).
 - **Playback quality.** The chat player is given no `muxData`, so nothing about how a chat video plays goes to the video provider's quality measurement, switch or not (`components/chat/ChatVideo.tsx`; the lesson page passes it only where usage statistics are on).
 - **Usage log.** Pressing the card is one click event (`data-track="chat-video-open"`) in the usage log, which the switch does cover.
 - **Who sees it.** Admins, in the course watch stats, kept apart from the lesson's own views. Other members see only the card (the lesson's title and its course), never who watched.

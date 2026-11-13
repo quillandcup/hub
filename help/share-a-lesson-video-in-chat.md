@@ -14,9 +14,9 @@ Choose **Copy link to paste in chat** on the lesson, then paste it into any mess
 
 ## Watching it
 
-Press the picture and the video plays right in the message, from where you left off. This only works in Hub Chat: Slack can't remember where you stopped or keep track of what you've watched. You need the course to watch it. If you don't have it, the message says the video is part of a course instead.
+Press the picture and the video plays right in the message, from where you left off. This only works in Hub Chat: Slack can't remember where you stopped, keep track of what you've watched, or mark the lesson complete. You need the course to watch it. If you don't have it, the message says the video is part of a course instead.
 
-Watching here records where you stopped and which parts you watched, as on the lesson page. Quill & Cup admins can see this in the course statistics. Other members can't.
+Watching here records where you stopped and which parts you watched, as on the lesson page. Once you've watched nearly all of the video, the lesson is marked complete, just as it is on the lesson page. You can still change that from the lesson. Quill & Cup admins can see this in the course statistics. Other members can't.
 
 ![A shared video in a conversation](img:share-a-lesson-video-in-chat/02-video-card.png)
 
