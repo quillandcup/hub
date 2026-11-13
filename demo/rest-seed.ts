@@ -249,7 +249,7 @@ async function seedTicketOffer(admin: Admin, key: string, prickleId: string, che
     .from("kajabi_offers")
     .upsert({ kajabi_offer_id: offerId, name: "Demo event ticket", status: "active", data: { attributes: { checkout_url: checkoutUrl } } }, { onConflict: "kajabi_offer_id" });
   if (offerError) throw new Error(`kajabi_offers ${key}: ${offerError.message}`);
-  const { error: linkError } = await admin.from("community_event_offers").upsert({ event_id: event.id, kajabi_offer_id: offerId }, { onConflict: "kajabi_offer_id" });
+  const { error: linkError } = await admin.from("community_event_offers").upsert({ event_id: event.id, kajabi_offer_id: offerId }, { onConflict: "event_id,kajabi_offer_id" });
   if (linkError) throw new Error(`community_event_offers ${key}: ${linkError.message}`);
 }
 

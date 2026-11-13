@@ -94,9 +94,9 @@ describe("/admin/courses/[id] for a Hub-owned course", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Plot Lab" })).toBeInTheDocument();
     expect(screen.getByText("Published")).toBeInTheDocument();
     expect(screen.getByText("In the Hub")).toBeInTheDocument();
-    expect(screen.getByText("/courses/plot-lab")).toBeInTheDocument();
-    expect(screen.getByText(/3 have access now, 2 start later,\s+1 have ended/)).toBeInTheDocument();
-    expect(screen.getByText(/It opens November 2, 2026/)).toBeInTheDocument();
+    // The one-line summary is short; the address is on the Details tab.
+    expect(screen.queryByText("/courses/plot-lab")).not.toBeInTheDocument();
+    expect(screen.getByText("3 have access now · 2 start later · 1 have ended · opens November 2, 2026")).toBeInTheDocument();
     unmount();
 
     await renderServerRoute(AdminCourseDetailsPage, params());

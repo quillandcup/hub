@@ -91,6 +91,25 @@ describe("ActionMenu", () => {
     expect(screen.getByRole("menuitem", { name: "Watch stats" })).toHaveAttribute("href", "/stats");
   });
 
+  it("keeps the panel inside the viewport for a trigger at the left edge", async () => {
+    const rect = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ left: 16, right: 56, top: 100, bottom: 140, width: 40, height: 40, x: 16, y: 100, toJSON: () => ({}) });
+    const width = vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(224);
+    const height = vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(120);
+    try {
+      setup();
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button", { name: "Course actions" }));
+      const menu = screen.getByRole("menu");
+      // Right-aligned would start at 56 - 224 < 0: it opens from the trigger's left edge instead.
+      expect(menu.style.left).toBe("16px");
+      expect(menu).toHaveAttribute("data-placement", "below");
+    } finally {
+      rect.mockRestore();
+      width.mockRestore();
+      height.mockRestore();
+    }
+  });
+
   it("renders nothing without items", () => {
     const { container } = render(<ActionMenu items={[]} />);
     expect(container).toBeEmptyDOMElement();
