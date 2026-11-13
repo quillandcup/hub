@@ -19,9 +19,10 @@ import { isId } from "@/lib/ids";
 import PageBanner from "@/components/PageBanner";
 import LessonSectionList from "../../../LessonSectionList";
 import LessonDownloads from "../../../LessonDownloads";
-import LessonPlayer, { type PlaybackTokens } from "@/components/courses/LessonPlayer";
+import { type PlaybackTokens } from "@/components/courses/LessonPlayer";
 import LessonViewed from "@/components/courses/LessonViewed";
 import { LessonCompletionProvider } from "@/components/courses/LessonCompletion";
+import { PlayerTimeProvider, TimedLessonPlayer } from "@/components/courses/PlayerTime";
 import MarkCompleteButton from "../../../MarkCompleteButton";
 import NextLessonPreview from "../../../NextLessonPreview";
 import { createRepos } from "@/lib/data/repos";
@@ -131,7 +132,7 @@ export default async function LessonPage({
     const muxData = tokens ? await muxDataConsentFor(caller.userId, caller.identity) : null;
     player =
       tokens && video.playbackId ? (
-        <LessonPlayer
+        <TimedLessonPlayer
           // A new player per lesson, so the watch tracker flushes the old lesson and starts clean on the next one.
           key={lesson.id}
           title={lesson.title}
@@ -218,6 +219,7 @@ export default async function LessonPage({
 
         {/* Completion is shared by the player (which sets it at ~90% watched), the button and the next-lesson card. */}
         <LessonCompletionProvider lessonId={lesson.id} initiallyCompleted={completed} readOnlyReason={readOnlyReason}>
+        <PlayerTimeProvider>
         <div className="mt-4 grid grid-cols-[minmax(0,1fr)] @outline:grid-cols-[minmax(0,1fr)_22rem]">
           {/* The video and this section's lessons are one component: a dark panel flush against the player, the same height. */}
           {player && (
@@ -288,6 +290,7 @@ export default async function LessonPage({
             </div>
           )}
         </div>
+        </PlayerTimeProvider>
         </LessonCompletionProvider>
       </div>
     </>
