@@ -2,7 +2,7 @@
 /** The public course preview: what a signed-out visitor or a link unfurler sees for a course address. Loader mocked; markup and metadata are real. */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
-import { expectRedirect, getCurrentUser, renderServerPage, resetServerPageMocks, signInAs, MEMBER_IDENTITY, MEMBER_USER } from "@/tests/helpers/server-page";
+import { expectPermanentRedirect, expectRedirect, getCurrentUser, permanentRedirect, renderServerPage, resetServerPageMocks, signInAs, MEMBER_IDENTITY, MEMBER_USER } from "@/tests/helpers/server-page";
 import { APP_URL } from "@/lib/config";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
@@ -61,6 +61,17 @@ describe("/course-preview/[slug]", () => {
   it("sends a visitor to the login page when the course isn't public (a draft, not open yet, unknown, or the feature not on for everyone)", async () => {
     publicCoursePreview.mockResolvedValue({ blocked: "course_not_live" });
     await expectRedirect(CoursePreviewPage, params(), "/login");
+  });
+
+  it("sends an old address, for a public course, permanently to the course's current address, keeping the query", async () => {
+    publicCoursePreview.mockResolvedValue(preview({ slug: "the-ready-writer" }));
+    await expectPermanentRedirect(CoursePreviewPage, { ...params("old-name"), searchParams: Promise.resolve({ ref: "slack", tag: ["a", "b"] }) }, "/courses/the-ready-writer?ref=slack&tag=a&tag=b");
+  });
+
+  it("sends an old address of a course that isn't public to the login page, not to the new address", async () => {
+    publicCoursePreview.mockResolvedValue({ blocked: "course_not_live" });
+    await expectRedirect(CoursePreviewPage, params("old-name"), "/login");
+    expect(permanentRedirect).not.toHaveBeenCalled();
   });
 
   it("sends someone who is signed in to the course itself", async () => {

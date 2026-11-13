@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCoursesCaller } from "@/lib/courses/caller";
 import { loadLessonView } from "@/lib/courses/member";
+import { courseRedirectSlug, withCourseAddress } from "@/lib/courses/address-redirect";
 import { COURSE_FILES_BUCKET } from "@/lib/courses/files";
 import { createRepos } from "@/lib/data/repos";
 import { createServiceRoleClient } from "@/lib/supabase/service";
@@ -15,7 +16,7 @@ const SIGNED_URL_SECONDS = 60;
  * preview coming-soon lessons), then redirect to a signed link that expires in a minute and saves
  * the file under its own name. Anything else is a plain 404, never revealing what exists.
  */
-export async function GET(_request: NextRequest, { params }: { params: Promise<{ slug: string; lessonId: string; fileId: string }> }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ slug: string; lessonId: string; fileId: string }> }) {
   const { slug, lessonId, fileId } = await params;
   if (!isId(lessonId, "les") || !isId(fileId, "file")) return new NextResponse("Not found", { status: 404 });
 
@@ -24,6 +25,12 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   const supabase = createServiceRoleClient();
   const lesson = await loadLessonView(createRepos(supabase), slug, lessonId, caller.scope);
+  if (lesson.kind === "not_found") {
+    // An address the course used to have: the same download at its current one (a link in an old lesson or a message keeps working).
+    const to = await courseRedirectSlug(createRepos(supabase), slug, caller.scope);
+    const target = to && withCourseAddress(`${request.nextUrl.pathname}${request.nextUrl.search}`, slug, to);
+    if (target) return NextResponse.redirect(new URL(target, request.nextUrl.origin), 308);
+  }
   if (lesson.kind !== "ok") return new NextResponse("Not found", { status: 404 });
 
   const file = await createRepos(supabase).courses.lessonFile(lessonId, fileId);

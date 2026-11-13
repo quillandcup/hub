@@ -255,6 +255,53 @@ export function defineCourseContract(name: string, setup: () => CourseContractCo
       await repo.createCourses([]);
     });
 
+    it("keeps the old addresses of a published or once-published Hub course, as redirects to the course", async () => {
+      const repo = ctx.courses();
+      const [a, b, c, d] = ["a", "b", "c", "d"].map((t) => ctx.unique(`addr-${t}`));
+
+      // Never published: a rename leaves nothing behind.
+      const draft = await repo.createCourse({ slug: a, title: "Draft", source: "hub", is_draft: true });
+      await ctx.seed.forget({ courses: [draft.id] });
+      expect(draft.first_published_at).toBeNull();
+      await repo.updateCourse(draft.id, { slug: b }, { source: "hub" });
+      expect(await repo.oldAddressesOf(draft.id)).toEqual([]);
+      expect(await repo.redirectedAddress(a)).toBeNull();
+
+      // Publishing stamps the first time; unpublishing keeps it, and the course counts as once-published.
+      const published = await repo.updateCourse(draft.id, { is_draft: false }, { source: "hub" });
+      expect(published?.first_published_at).not.toBeNull();
+      const stamp = instant(published!.first_published_at);
+      await repo.updateCourse(draft.id, { is_draft: true }, { source: "hub" });
+      expect(instant((await repo.courseById(draft.id))!.first_published_at)).toBe(stamp);
+
+      // A rename now keeps the old address; a second one points every earlier address at the newest.
+      await repo.updateCourse(draft.id, { slug: c }, { source: "hub" });
+      await repo.updateCourse(draft.id, { slug: d }, { source: "hub" });
+      expect(await repo.oldAddressesOf(draft.id)).toEqual([b, c].sort(compareText));
+      expect(await repo.redirectedAddress(b)).toBe(d);
+      expect(await repo.redirectedAddress(c)).toBe(d);
+      expect(await repo.redirectedAddress(d)).toBeNull();
+
+      // Nobody else can take an address a redirect holds, by create or by rename.
+      await expect(repo.createCourse({ slug: b, title: "Squatter", source: "hub" })).rejects.toMatchObject({ code: "23505" });
+      const other = await repo.createCourse({ slug: ctx.unique("addr-other"), title: "Other", source: "hub" });
+      await ctx.seed.forget({ courses: [other.id] });
+      await expect(repo.updateCourse(other.id, { slug: c })).rejects.toMatchObject({ code: "23505" });
+
+      // Back to an address it used before: canonical again, no redirect from it.
+      await repo.updateCourse(draft.id, { slug: b }, { source: "hub" });
+      expect(await repo.redirectedAddress(b)).toBeNull();
+      expect((await repo.courseBySlug(b))?.id).toBe(draft.id);
+      expect(await repo.oldAddressesOf(draft.id)).toEqual([c, d].sort(compareText));
+      expect(await repo.redirectedAddress(d)).toBe(b);
+
+      // An imported course's address is Kajabi's: no redirect.
+      const imported = await repo.createCourse({ slug: ctx.unique("addr-kj"), title: "Imported", source: "kajabi", source_key: ctx.unique("kj"), is_draft: false });
+      await ctx.seed.forget({ courses: [imported.id] });
+      await repo.updateCourse(imported.id, { slug: ctx.unique("addr-kj2") });
+      expect(await repo.oldAddressesOf(imported.id)).toEqual([]);
+    });
+
     it("upserts modules and lessons on their source key, keeping the columns a re-run leaves out, and deletes with what hangs off them", async () => {
       const course = newCourse("sync", { source: "kajabi", source_key: ctx.unique("kj") });
       await ctx.seed.courses([course]);

@@ -2,7 +2,7 @@
 /** The public lesson preview: what a signed-out visitor or a link unfurler sees for a lesson address. Loader mocked; markup and metadata are real. */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
-import { expectRedirect, getCurrentUser, renderServerPage, resetServerPageMocks, signInAs, MEMBER_IDENTITY, MEMBER_USER } from "@/tests/helpers/server-page";
+import { expectPermanentRedirect, expectRedirect, getCurrentUser, permanentRedirect, renderServerPage, resetServerPageMocks, signInAs, MEMBER_IDENTITY, MEMBER_USER } from "@/tests/helpers/server-page";
 import { APP_URL } from "@/lib/config";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
@@ -69,6 +69,17 @@ describe("/lesson-preview/[slug]/[lessonId]", () => {
     publicLessonPreview.mockResolvedValue(preview());
     await expectRedirect(LessonPreviewPage, params(), `/courses/the-ready-writer/lessons/${LESSON}`);
     expect(getCurrentUser).toHaveBeenCalled();
+  });
+
+  it("sends an old course address, for a public lesson, permanently to the lesson at the current one, keeping the query", async () => {
+    publicLessonPreview.mockResolvedValue(preview({ courseSlug: "the-ready-writer" }));
+    await expectPermanentRedirect(LessonPreviewPage, { ...params("old-name"), searchParams: Promise.resolve({ t: "90" }) }, `/courses/the-ready-writer/lessons/${LESSON}?t=90`);
+  });
+
+  it("sends a visitor to an old address of a lesson that isn't public to the login page, not to the new address", async () => {
+    publicLessonPreview.mockResolvedValue({ blocked: "course_not_live" });
+    await expectRedirect(LessonPreviewPage, params("old-name"), "/login");
+    expect(permanentRedirect).not.toHaveBeenCalled();
   });
 
   it("is a 404 for an address that isn't a lesson id, without reading anything", async () => {

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import DatePicker from "@/components/DatePicker";
 import { ACCESS_OPTIONS } from "@/lib/courses/access-options";
 import { slugifyTitle } from "@/lib/courses/visibility";
+import { suggestAddress } from "@/lib/courses/address-suggestion";
 import { MAX_DESCRIPTION, MAX_TITLE, type CourseDetailsErrors, type CourseDetailsInput } from "@/lib/courses/editor";
 import { createCourse, updateCourseDetails } from "./actions";
 
@@ -19,11 +20,14 @@ const FIELD =
  */
 export default function CourseDetailsForm({
   courseId,
+  everPublished = false,
   initial,
   programs,
 }: {
   /** The course being edited; absent to create a new one. */
   courseId?: string;
+  /** Published now or at any point: changing its address keeps the old one working (a redirect). A course that never was changes it freely. */
+  everPublished?: boolean;
   initial: CourseDetailsInput;
   programs: { id: string; name: string }[];
 }) {
@@ -33,6 +37,10 @@ export default function CourseDetailsForm({
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
   const set = <K extends keyof CourseDetailsInput>(key: K, value: CourseDetailsInput[K]) => setInput((prev) => ({ ...prev, [key]: value }));
+  // When the name changes and the address was just following the name, offer the address the new name would give: a
+  // suggestion to take, never a silent overwrite. A new course has no address yet (it comes from the name when empty).
+  const [baselineTitle, setBaselineTitle] = useState(initial.title);
+  const suggestion = courseId ? suggestAddress({ baselineTitle, title: input.title, slug: input.slug }) : null;
 
   const save = (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,7 +95,23 @@ export default function CourseDetailsForm({
               {...describe("slug", true)}
             />
           </label>
-          {hint("slug", <>Members open it at /courses/{input.slug.trim() || slugifyTitle(input.title) || "…"}.{courseId && " Changing it breaks links people already have."}</>)}
+          {hint("slug", <>Members open it at /courses/{input.slug.trim() || slugifyTitle(input.title) || "…"}.{courseId && everPublished && " Links to its old addresses keep working."}</>)}
+          {suggestion && (
+            <span aria-live="polite" className="mt-1 block text-xs">
+              The name changed.{" "}
+              <button
+                type="button"
+                data-track="course-address-use-suggestion"
+                onClick={() => {
+                  set("slug", suggestion);
+                  setBaselineTitle(input.title);
+                }}
+                className="font-medium text-plum-700 underline hover:text-plum-800 dark:text-plum-300"
+              >
+                Use {suggestion}
+              </button>
+            </span>
+          )}
           {error("slug")}
         </div>
         <div className="@pair:col-span-2">

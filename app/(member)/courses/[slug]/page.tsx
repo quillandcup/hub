@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireCoursesPage } from "@/lib/courses/caller";
 import { canOpenLessons, loadCourseView } from "@/lib/courses/member";
+import { redirectOldCourseAddress } from "@/lib/courses/address-redirect";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { SUPPORT_EMAIL } from "@/lib/config";
 import PageBanner from "@/components/PageBanner";
@@ -20,8 +21,13 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 export default async function CoursePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const caller = await requireCoursesPage();
-  const view = await loadCourseView(createRepos(createServiceRoleClient()), slug, caller.scope);
-  if (!view) notFound();
+  const repos = createRepos(createServiceRoleClient());
+  const view = await loadCourseView(repos, slug, caller.scope);
+  if (!view) {
+    // An address the course used to have goes to its current one.
+    await redirectOldCourseAddress(repos, slug, caller.scope, "");
+    notFound();
+  }
 
   const { course, access, outline, completed, progress } = view;
 

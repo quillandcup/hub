@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireCoursesPage } from "@/lib/courses/caller";
 import { canOpenLessons, loadCourseView } from "@/lib/courses/member";
+import { redirectOldCourseAddress } from "@/lib/courses/address-redirect";
 import { moduleView, nodeLessons, type OutlineLesson, type OutlineNode } from "@/lib/courses/outline";
 import { courseTitle, moduleTitles } from "@/lib/courses/page-title";
 import { courseImageUrl } from "@/lib/courses/image-urls";
@@ -92,8 +93,13 @@ function ModuleRow({ slug, node, completed, openable }: { slug: string; node: Ou
 export default async function ModulePage({ params }: { params: Promise<{ slug: string; moduleId: string }> }) {
   const { slug, moduleId } = await params;
   const caller = await requireCoursesPage();
-  const view = await loadCourseView(createRepos(createServiceRoleClient()), slug, caller.scope);
-  if (!view) notFound();
+  const repos = createRepos(createServiceRoleClient());
+  const view = await loadCourseView(repos, slug, caller.scope);
+  if (!view) {
+    // An address the course used to have goes to its current one.
+    await redirectOldCourseAddress(repos, slug, caller.scope, `/modules/${moduleId}`);
+    notFound();
+  }
   // Without access to open lessons, the course page says why.
   if (!view.outline || !canOpenLessons(view.access)) redirect(`/courses/${slug}`);
 
