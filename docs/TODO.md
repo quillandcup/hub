@@ -85,6 +85,20 @@ Some people who attend prickles have no Kajabi footprint at all (not a member, t
 - **Ad-hoc Kajabi Payments subscriptions aren't reconciled.** Some members pay through a custom product in Kajabi's Payments/Billing area (subscriptions/invoices, not the Offers catalog the sync was built around), so reconciliation shows them as `cancelled` despite an active paid subscription. Stopgap: a `gift` override per member. Real fix: sync Kajabi's Payments API.
 - Matching rule worth remembering: the date that decides whether a purchase falls in a cohort window is `created_at_kajabi`, falling back to `effective_start_at` only when null, never both (`lib/kajabi-cohort-matching.ts`).
 
+### Support several Stripe customers per member _(Needs Scheduling)_
+- **What is missing:** `members.stripe_customer_id` holds one customer. A retreat or course checkout can create a second Stripe customer for someone who already has one, so a member can have several. The members processing now links the one with a live subscription (`lib/stripe-customer-link.ts`), but the others are not linked to anyone.
+- **Why deferred:** the single column is read in many places; a link table is a larger change than fixing which customer is picked.
+- **Where to start:** a link table (member, customer) behind a repository, `lib/data/members.ts`, `app/api/process/members/route.ts`, and the hygiene pages under `app/(admin)/admin/hygiene/`.
+
+### Hygiene: live membership subscriptions whose customer is not linked to a member _(Needs Scheduling)_
+- **What is missing:** a check listing live Stripe subscriptions whose customer is not any member's `stripe_customer_id`. Deferred because it needs the multi-customer decision above first. Start from `app/(admin)/admin/hygiene/missing-member-data`.
+
+### Hygiene: linked customer has no live subscription but another customer on the same email does _(Needs Scheduling)_
+- **What is missing:** a check for members whose linked customer holds no live subscription while another customer with the same email has one. The members processing prevents new cases (`lib/stripe-customer-link.ts`); the check would catch any that slip through, such as an email that differs. Start from `app/(admin)/admin/hygiene/` and `BillingRepository`.
+
+### Hygiene: paused subscriptions on cancelled members _(Needs Scheduling)_
+- **What is missing:** a check for Stripe subscriptions in `paused` status whose member is cancelled, which may be a forgotten pause that should be ended. Start from `app/(admin)/admin/hygiene/` and `BillingRepository.stripeSubscriptionsWithStatus`.
+
 
 ---
 

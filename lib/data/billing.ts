@@ -44,7 +44,7 @@ export type KajabiPurchaseSummary = Pick<
   KajabiPurchaseRow,
   "kajabi_purchase_id" | "kajabi_customer_id" | "kajabi_offer_id" | "status" | "amount_in_cents" | "created_at_kajabi" | "effective_start_at" | "deactivated_at"
 >;
-export type StripeCustomerRef = Pick<StripeCustomerRow, "stripe_customer_id" | "email" | "name">;
+export type StripeCustomerRef = Pick<StripeCustomerRow, "stripe_customer_id" | "email" | "name" | "created_at_stripe">;
 export type StripeCustomerWithData = Pick<StripeCustomerRow, "stripe_customer_id" | "email" | "data">;
 export type StripeProductRef = Pick<StripeProductRow, "stripe_product_id" | "name">;
 export type StripeSubscriptionStatus = Pick<StripeSubscriptionRow, "stripe_customer_id" | "status">;
@@ -318,7 +318,7 @@ export class SupabaseBillingRepository implements BillingRepository {
   async stripeCustomers({ emails }: { emails?: string[] } = {}) {
     const read = (part?: string[]) =>
       fetchAllRows<StripeCustomerRef>((from, to) => {
-        let query = this.stripeCustomerTable.select("stripe_customer_id, email, name");
+        let query = this.stripeCustomerTable.select("stripe_customer_id, email, name, created_at_stripe");
         if (part) query = query.in("email", part);
         return query.order("stripe_customer_id").range(from, to);
       });
@@ -655,7 +655,7 @@ export class InMemoryBillingRepository implements BillingRepository {
     const wanted = emails && new Set(emails);
     return sortByKey(this.stripeCustomerRows(), (r) => r.stripe_customer_id)
       .filter((c) => !wanted || (c.email !== null && wanted.has(c.email)))
-      .map(({ stripe_customer_id, email, name }) => ({ stripe_customer_id, email, name }));
+      .map(({ stripe_customer_id, email, name, created_at_stripe }) => ({ stripe_customer_id, email, name, created_at_stripe }));
   }
 
   async stripeCustomersWithData() {

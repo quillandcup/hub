@@ -209,16 +209,16 @@ export function defineBillingContract(name: string, setup: () => BillingContract
     });
 
     it("reads Stripe customers, with the record or filtered by email", async () => {
-      const a: StripeCustomerSeed = { stripe_customer_id: ctx.unique("cus-a"), email: email("sa"), name: "Ada Example", data: { name: "Ada Example" } };
+      const a: StripeCustomerSeed = { stripe_customer_id: ctx.unique("cus-a"), email: email("sa"), name: "Ada Example", created_at_stripe: "2024-01-01T00:00:00+00:00", data: { name: "Ada Example" } };
       const b: StripeCustomerSeed = { stripe_customer_id: ctx.unique("cus-b"), email: null };
       await ctx.seed({ stripeCustomers: [b, a] });
       const ids = [a.stripe_customer_id, b.stripe_customer_id];
 
       expect(mine(await ctx.repo().stripeCustomers(), (r) => r.stripe_customer_id, ids)).toEqual([
-        { stripe_customer_id: a.stripe_customer_id, email: a.email, name: "Ada Example" },
-        { stripe_customer_id: b.stripe_customer_id, email: null, name: null },
+        { stripe_customer_id: a.stripe_customer_id, email: a.email, name: "Ada Example", created_at_stripe: "2024-01-01T00:00:00+00:00" },
+        { stripe_customer_id: b.stripe_customer_id, email: null, name: null, created_at_stripe: null },
       ].sort((x, y) => (x.stripe_customer_id < y.stripe_customer_id ? -1 : 1)));
-      expect(await ctx.repo().stripeCustomers({ emails: [a.email!, "nobody@example.test"] })).toEqual([{ stripe_customer_id: a.stripe_customer_id, email: a.email, name: "Ada Example" }]);
+      expect(await ctx.repo().stripeCustomers({ emails: [a.email!, "nobody@example.test"] })).toEqual([{ stripe_customer_id: a.stripe_customer_id, email: a.email, name: "Ada Example", created_at_stripe: "2024-01-01T00:00:00+00:00" }]);
       expect(await ctx.repo().stripeCustomers({ emails: [] })).toEqual([]);
       const withData = mine(await ctx.repo().stripeCustomersWithData(), (r) => r.stripe_customer_id, ids);
       expect(withData.find((r) => r.stripe_customer_id === a.stripe_customer_id)).toEqual({ stripe_customer_id: a.stripe_customer_id, email: a.email, data: { name: "Ada Example" } });
