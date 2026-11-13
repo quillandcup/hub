@@ -3,6 +3,8 @@ import type { NextRequest } from 'next/server'
 import { createHmac } from 'crypto'
 import { getTestSupabaseAdminClient } from '../../helpers/supabase'
 import { POST } from '@/app/api/webhooks/slack/route'
+// The webhook files an event under the workspace its team_id names: these events are the primary workspace's.
+process.env.SLACK_TEAM_ID ||= 'T_TEST_PRIMARY'
 
 /**
  * The webhook fills gaps in the chat from Slack: an event that refers to a message the chat doesn't

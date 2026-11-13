@@ -3,6 +3,8 @@ import type { NextRequest } from 'next/server'
 import { createHmac } from 'crypto'
 import { getTestSupabaseAdminClient } from '../../helpers/supabase'
 import { POST } from '@/app/api/webhooks/slack/route'
+// The webhook files an event under the workspace its team_id names: these events are the primary workspace's.
+process.env.SLACK_TEAM_ID ||= 'T_TEST_PRIMARY'
 
 /**
  * A reaction taken back in Slack is soft-deleted (deleted_at), not deleted:

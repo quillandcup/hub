@@ -28,6 +28,8 @@ vi.mock('next/server', async (importOriginal) => {
 vi.mock('@/lib/slack-activity-projection', () => ({ projectSlackActivity: vi.fn(() => Promise.resolve({ messages: 0, reactions: 0 })) }))
 
 import { projectSlackActivity } from '@/lib/slack-activity-projection'
+// The webhook files an event under the workspace its team_id names: these events are the primary workspace's.
+process.env.SLACK_TEAM_ID ||= 'T_TEST_PRIMARY'
 
 const channelId = `CSUBTYPES${Date.now()}`
 const nowSec = Math.floor(Date.now() / 1000)

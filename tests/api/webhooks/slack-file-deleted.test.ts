@@ -4,6 +4,8 @@ import { createHmac } from 'crypto'
 import { getTestSupabaseAdminClient } from '../../helpers/supabase'
 import { POST } from '@/app/api/webhooks/slack/route'
 import { removeFilesGoneFromSlack } from '@/lib/chat/file-cleanup'
+// The webhook files an event under the workspace its team_id names: these events are the primary workspace's.
+process.env.SLACK_TEAM_ID ||= 'T_TEST_PRIMARY'
 
 /**
  * A file deleted in Slack: the webhook (file_deleted) and the nightly import (tombstones and edited

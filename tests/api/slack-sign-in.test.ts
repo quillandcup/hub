@@ -67,6 +67,8 @@ import { GET as buttonGET } from '@/app/auth/slack/route'
 import { POST as commandsPOST } from '@/app/api/webhooks/slack/commands/route'
 import { POST as eventsPOST } from '@/app/api/webhooks/slack/route'
 import { POST as interactionsPOST } from '@/app/api/webhooks/slack/interactions/route'
+// The webhook files an event under the workspace its team_id names: these events are the primary workspace's.
+process.env.SLACK_TEAM_ID ||= 'T_TEST_PRIMARY'
 
 const SECRET = 'test-slack-secret'
 const ORIGIN = 'http://localhost:3000'
