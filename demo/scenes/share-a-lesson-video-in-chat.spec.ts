@@ -63,6 +63,13 @@ async function measuredContrast(page: Page, target: Locator): Promise<number> {
   }, png);
 }
 
+/** How the link's text is drawn: the player's container sets its own font and smoothing, and a label that differs between the card and the player looks bolder on click. */
+const textStyle = (target: Locator) =>
+  target.evaluate((el) => {
+    const c = getComputedStyle(el);
+    return [c.fontFamily, c.fontWeight, c.fontSize, c.letterSpacing, c.getPropertyValue("-webkit-font-smoothing")].join(" | ");
+  });
+
 /** A white lesson picture: the demo's own is a dark plum, and the case that matters is a white title slide. */
 const BRIGHT_PICTURE = '<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720"><rect width="1280" height="720" fill="#ffffff"/></svg>';
 
@@ -146,7 +153,9 @@ test("open lesson link over a bright frame", async ({ page, signInAs }, testInfo
   await expect(link).toBeVisible();
   await page.getByRole("heading", { name: /craft-talk/ }).hover();
   await shot(page, testInfo, "bright-card");
-  expect(await measuredContrast(page, link), "the link on the card over a bright picture").toBeGreaterThanOrEqual(4.5);
+  const cardText = await textStyle(link);
+  const onCard = await measuredContrast(page, link);
+  expect(onCard, "the link on the card over a bright picture").toBeGreaterThanOrEqual(4.5);
 
   await stubPlayback(page, DEMO_SHARED_LESSON.title, (await link.getAttribute("href")) ?? "");
   await card.click();
@@ -155,5 +164,9 @@ test("open lesson link over a bright frame", async ({ page, signInAs }, testInfo
   await expect(page.getByRole("alertdialog")).toBeHidden();
   await page.getByRole("heading", { name: /craft-talk/ }).hover();
   await shot(page, testInfo, "bright-player");
-  expect(await measuredContrast(page, link), "the link in the player over a bright picture").toBeGreaterThanOrEqual(4.5);
+  expect(await textStyle(link), "the link's text should be drawn the same in the player as on the card").toBe(cardText);
+  const inPlayer = await measuredContrast(page, link);
+  expect(inPlayer, "the link in the player over a bright picture").toBeGreaterThanOrEqual(4.5);
+  // The pill must not change colour when the player takes the card's place (it did when it was see-through: the player darkens the picture behind it).
+  expect(Math.abs(onCard - inPlayer) / Math.max(onCard, inPlayer), `the link's contrast on the card (${onCard.toFixed(1)}) and in the player (${inPlayer.toFixed(1)}) should match`).toBeLessThan(0.25);
 });
