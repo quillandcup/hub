@@ -1272,6 +1272,10 @@ The admin member page's Notifications tab (`app/(admin)/admin/members/[id]/Membe
 
 ## Hub Chat: Beyond the First Unfurl Pass
 
+### "Jump to latest" pill in chat _(Needs Scheduling)_
+
+The "N new messages" pill (`components/chat/NewMessagesBanner.tsx`) only covers the unread above the reader when they open a conversation. A message that arrives live while the reader has scrolled up waits silently (it does not change the pill's count, on purpose). Slack shows a "Jump to latest" pill for that. Deferred to keep the first pill small; start in `MessageList` (scroll position vs. the bottom) and `ChatLive`, which already knows when the reader is at the bottom.
+
 ### Full Block Kit, proxied pictures and interactivity in chat _(Needs Scheduling)_
 
 The first pass (`lib/chat/unfurls.ts`, `components/chat/MessageUnfurls.tsx`) draws legacy attachments (link previews, app cards) and a small Block Kit subset (header, section, context, divider, image, link buttons), and shows one "Open in Slack" link for any other block. Deferred, worth doing when members ask for it or a common app's cards read badly:

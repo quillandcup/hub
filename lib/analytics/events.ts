@@ -143,6 +143,9 @@ export const EVENTS = {
   /** A member cancelled the upload of a message's files while sending (components/chat/Composer.tsx): `count` files were attached. */
   chat_upload_cancelled: { count: int() },
 
+  /** The "N new messages" pill in a conversation was used (components/chat/NewMessagesBanner.tsx): jumped up to the New line, or dismissed. `count` is the number it showed. */
+  chat_new_messages_banner: { action: oneOf("jumped", "dismissed"), count: int() },
+
   /** A reaction was chosen in the full emoji picker (components/chat/EmojiPicker.tsx): `via` is its Frequently used row, browsing a category, or search; `custom` whether it was a workspace emoji. */
   chat_reaction_picked: { via: oneOf("recent", "browse", "search"), custom: bool() },
 

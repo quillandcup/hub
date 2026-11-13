@@ -3,6 +3,8 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import MessageItem from "@/components/chat/MessageItem";
 import UnreadDivider from "@/components/chat/UnreadDivider";
+import NewMessagesBanner from "@/components/chat/NewMessagesBanner";
+import { newMessagesSince } from "@/lib/chat/unread";
 import type { ChatTextContext } from "@/components/chat/ChatText";
 import type { ChatMessageView } from "@/lib/chat/load";
 import { focusedMessageDomId, scrollParent, scrollToHashMessage } from "@/lib/chat/scroll";
@@ -226,6 +228,7 @@ export default function MessageList({
           </button>
         )}
       </div>
+      {unreadId && <NewMessagesBanner key={unreadId} count={newMessagesSince(messages, unreadId)} />}
       {messages.length === 0 && <p className="py-3 text-sm text-slate-600 dark:text-slate-400">No messages here yet.</p>}
       {groupByDay(messages, timeZone, unreadId).map((day) => (
         <section key={day.key} aria-label={day.label}>
