@@ -8,7 +8,7 @@ export const OPEN_SHARE_VALUE = "open";
 
 /**
  * A course lesson's page address pasted into a chat message, so a member who is already on the lesson can take its video to
- * any conversation, thread or direct message (the lesson page's "Copy link to paste in chat"). Looks for the first
+ * any conversation, thread or direct message (the lesson page's "Copy link"). Looks for the first
  * address on our own origin shaped `/courses/<slug>/lessons/<lesson id>`, bare or as the message box stores a link
  * (`<url>` or `<url|label>`), with or without a query or fragment (`?t=95`). Returns the lesson id, the text without
  * that address (and the text before and after it), and whether the address carries the open-share marker (`?share=open`; only an admin sending it is

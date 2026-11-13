@@ -11,10 +11,9 @@ import { startSeconds } from "@/lib/courses/watch";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { createClient } from "@/lib/supabase/server";
 import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
-import { shareTargets } from "@/lib/chat/share-targets";
 import { lessonPath } from "@/lib/chat/video-link";
 import { APP_URL } from "@/lib/config";
-import ShareLessonInChat from "../../../ShareLessonInChat";
+import CopyLessonLink from "../../../CopyLessonLink";
 import { courseTitle, lessonTitles } from "@/lib/courses/page-title";
 import { isId } from "@/lib/ids";
 import PageBanner from "@/components/PageBanner";
@@ -116,14 +115,13 @@ export default async function LessonPage({
   // Watching is recorded for members' open lessons, and nowhere else (sudo, a staff preview) unless staff turn it on for a preview.
   const watchRecorded = !caller.identity.isSudo && (!preview || (caller.scope.isAdminActing && trackPreview));
 
-  // "Share in chat": the chat videos preview on, not in sudo (read-only), on a lesson whose video is ready. A failed channel read just leaves the copy button.
+  // "Copy link": the chat videos preview on, not in sudo (read-only), on a lesson whose video is ready. Pasted into a Hub Chat message, the address becomes the video card.
   let shareButton: React.ReactNode = null;
   if (video?.status === "ready" && !caller.identity.isSudo) {
     const own = await getUserFeaturePreviews(caller.userId);
-    const allOn = await effectiveMemberHasFeature("chat_videos", caller.identity, own);
-    const targets = allOn ? await shareTargets(createRepos(await createClient()), caller.identity.memberId).catch(() => []) : [];
-    // Also offered with nowhere to pick from: the copied link works in any thread or direct message.
-    if (allOn) shareButton = <ShareLessonInChat lessonId={lesson.id} targets={targets} shareUrl={`${APP_URL}${lessonPath(view.course.slug, lesson.id)}`} canOpenToChannel={caller.scope.isAdminActing} />;
+    if (await effectiveMemberHasFeature("chat_videos", caller.identity, own)) {
+      shareButton = <CopyLessonLink url={`${APP_URL}${lessonPath(view.course.slug, lesson.id)}`} />;
+    }
   }
 
   let player: React.ReactNode = null;

@@ -29,7 +29,7 @@ export default function LessonMediaPanel({
   lessonUrl: string | null;
   thumbnailLink: { url: string; imageUrl: string; title: string } | null;
   thumbnailLinkBlocked: string;
-  /** Offer the "paste in chat" links in the Video actions menu. */
+  /** Offer the "open to everyone" link in the Video actions menu. */
   chatShare?: boolean;
   /** For a Hub-owned lesson: the course and lesson the current frame can become the thumbnail of. */
   frameThumbnail?: { courseId: string; lessonId: string } | null;

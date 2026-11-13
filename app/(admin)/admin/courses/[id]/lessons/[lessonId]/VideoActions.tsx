@@ -33,7 +33,7 @@ export default function VideoActions({
   thumbnailLink?: { url: string; imageUrl: string; title: string } | null;
   /** Why there is no thumbnail link, shown on hover. */
   thumbnailLinkBlocked?: string;
-  /** Offer the two "paste in chat" links (the `chat_videos` feature is on for this admin). */
+  /** Offer the "open to everyone" link (the `chat_videos` feature is on for this admin). */
   chatShare?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -56,31 +56,25 @@ export default function VideoActions({
     };
   }, [open]);
 
-  async function copyTimestampUrl() {
+  /** The lesson's address, with the player's position when it has moved. Pasted into a Hub Chat message it becomes the video card (docs/SLACK_BRIDGED_CHAT.md, "Paste a lesson link, anywhere"). */
+  async function copyLink() {
     if (!lessonUrl) return;
     try {
       await navigator.clipboard.writeText(seconds > 0 ? `${lessonUrl}?t=${seconds}` : lessonUrl);
-      setStatus(seconds > 0 ? `Copied a link to ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}.` : "Copied a link to the lesson.");
+      const at = seconds > 0 ? ` at ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}` : "";
+      setStatus(chatShare ? `Copied the link${at}. Paste it into Hub Chat to share the video there.` : `Copied the link${at}.`);
     } catch {
       setStatus("Couldn't copy the link.");
     }
     setOpen(false);
   }
 
-  /**
-   * The lesson's address, to paste into any chat message (a thread or a direct message too), where it becomes the video card when the sender
-   * can share the lesson (docs/SLACK_BRIDGED_CHAT.md, "Paste a lesson link, anywhere"). The open form carries the marker that lets everyone
-   * in the conversation play it without the course; it only counts when an admin sends it.
-   */
-  async function copyChatLink(openToChannel: boolean) {
+  /** The same address with the marker that lets everyone in the conversation play it without the course; it only counts when an admin sends it. */
+  async function copyOpenLink() {
     if (!lessonUrl) return;
     try {
-      await navigator.clipboard.writeText(openToChannel ? `${lessonUrl}?${OPEN_SHARE_PARAM}=${OPEN_SHARE_VALUE}` : lessonUrl);
-      setStatus(
-        openToChannel
-          ? "Copied. Paste it into any chat message: everyone in that conversation can watch the video, even without the course."
-          : "Copied. Paste it into any chat message to share the video there; members with the course can play it.",
-      );
+      await navigator.clipboard.writeText(`${lessonUrl}?${OPEN_SHARE_PARAM}=${OPEN_SHARE_VALUE}`);
+      setStatus("Copied. Paste it into Hub Chat: everyone in that conversation can watch the video, even without the course.");
     } catch {
       setStatus("Couldn't copy the link.");
     }
@@ -133,12 +127,12 @@ export default function VideoActions({
           <button
             type="button"
             role="menuitem"
-            onClick={copyTimestampUrl}
+            onClick={copyLink}
             disabled={!lessonUrl}
             title={lessonUrl ? undefined : "This lesson isn't in the Hub yet"}
             className={lessonUrl ? `${ITEM} hover:bg-slate-50 dark:hover:bg-slate-800` : OFF}
           >
-            Copy timestamp URL
+            Copy link
           </button>
           <button
             type="button"
@@ -148,31 +142,19 @@ export default function VideoActions({
             title={thumbnailLink ? undefined : thumbnailLinkBlocked}
             className={thumbnailLink ? `${ITEM} hover:bg-slate-50 dark:hover:bg-slate-800` : OFF}
           >
-            Copy link with thumbnail
+            Copy for email
           </button>
           {chatShare && (
-            <>
               <button
                 type="button"
                 role="menuitem"
-                onClick={() => copyChatLink(false)}
-                disabled={!lessonUrl}
-                title={lessonUrl ? undefined : "This lesson isn't in the Hub yet"}
-                className={lessonUrl ? `${ITEM} hover:bg-slate-50 dark:hover:bg-slate-800` : OFF}
-              >
-                Copy link to paste in chat
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => copyChatLink(true)}
+                onClick={copyOpenLink}
                 disabled={!lessonUrl}
                 title={lessonUrl ? "Everyone in the conversation can watch it, even without the course" : "This lesson isn't in the Hub yet"}
                 className={lessonUrl ? `${ITEM} hover:bg-slate-50 dark:hover:bg-slate-800` : OFF}
               >
                 Copy link, open to everyone
               </button>
-            </>
           )}
           <button type="button" role="menuitem" disabled title="Needs downloadable (MP4) copies of the video turned on in Mux, which has a cost" className={OFF}>
             Download video
