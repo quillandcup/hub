@@ -1,7 +1,8 @@
 import { cache } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { permanentRedirect, redirect } from "next/navigation";
+import { searchSuffix } from "@/lib/courses/address-redirect";
 import { getCurrentUser } from "@/lib/auth";
 import { APP_URL } from "@/lib/config";
 import { coursePath } from "@/lib/courses/preview-path";
@@ -36,18 +37,20 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     description,
     // Not for search engines (a members' course); link unfurlers ignore this.
     robots: { index: false, follow: false },
-    openGraph: { title: preview.title, description, type: "website", url: `${APP_URL}${coursePath(slug)}`, images },
+    openGraph: { title: preview.title, description, type: "website", url: `${APP_URL}${coursePath(preview.slug)}`, images },
     twitter: { card: images ? "summary_large_image" : "summary", title: preview.title, description, images: images?.map((i) => i.url) },
   };
 }
 
-export default async function CoursePreviewPage({ params }: Params) {
+export default async function CoursePreviewPage({ params, searchParams }: Params & { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
   const { slug } = await params;
   // Someone who is signed in belongs on the course itself.
   if (await getCurrentUser()) redirect(coursePath(slug));
   const preview = await loadPreview(slug);
   // Not public (a draft, not open yet, an unknown course, the feature off): the login page, as before. The proxy has already remembered where they were headed.
   if (!preview) redirect("/login");
+  // An address the course used to have, and the course is public: on to its current address (only now, so a private course's new address isn't given away).
+  if (preview.slug !== slug) permanentRedirect(`${coursePath(preview.slug)}${searchSuffix(await searchParams)}`);
 
   return (
     <main className="mx-auto flex min-h-screen max-w-xl flex-col justify-center px-6 py-10">

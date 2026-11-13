@@ -127,6 +127,8 @@ export interface HubCourseDetail {
   programId: string | null;
   /** Not available to members yet. */
   isDraft: boolean;
+  /** Published now or at any point (`first_published_at`, or not a draft): changing its address keeps the old one working. */
+  everPublished: boolean;
   access: AccessCounts;
 }
 
@@ -144,6 +146,7 @@ export async function loadHubCourse(repos: AdminCourseRepos, id: string, now = n
     launchAt: data.launch_at,
     programId: data.program_id,
     isDraft: data.is_draft,
+    everPublished: data.first_published_at !== null || !data.is_draft,
     access: countAccess(access, now),
   };
 }

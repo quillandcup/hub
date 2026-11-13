@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireCoursesPage } from "@/lib/courses/caller";
 import { loadLessonView } from "@/lib/courses/member";
+import { redirectOldCourseAddress } from "@/lib/courses/address-redirect";
 import { lessonContext, lessonSection, nextModuleLesson, type OutlineLesson } from "@/lib/courses/outline";
 import { createMuxClient, signPlaybackTokens } from "@/lib/mux";
 import { restrictionIdForViewer } from "@/lib/mux-restriction.server";
@@ -105,9 +106,14 @@ export default async function LessonPage({
   const trackPreview = query?.track === "1";
   if (!isId(lessonId, "les")) notFound();
   const caller = await requireCoursesPage();
-  const result = await loadLessonView(createRepos(createServiceRoleClient()), slug, lessonId, caller.scope);
+  const repos = createRepos(createServiceRoleClient());
+  const result = await loadLessonView(repos, slug, lessonId, caller.scope);
 
-  if (result.kind === "not_found") notFound();
+  if (result.kind === "not_found") {
+    // An address the course used to have goes to its current one (nothing happens for any other missing page).
+    await redirectOldCourseAddress(repos, slug, caller.scope, `/lessons/${lessonId}`);
+    notFound();
+  }
   // Lessons that can't be opened (no access, ended access, coming soon for members) go back to the course page, which says why.
   if (result.kind !== "ok") redirect(`/courses/${slug}`);
 

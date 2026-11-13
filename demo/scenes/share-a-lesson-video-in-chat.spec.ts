@@ -1,6 +1,19 @@
+import type { Locator } from "playwright/test";
 import { expect, shot, test } from "../fixtures";
 import { DEMO_COURSE_SLUGS, DEMO_SHARED_LESSON } from "../courses-seed";
 import { demoChannelId } from "../video/slack-stand-in";
+
+/** What is under the middle of the element is the element: nothing (an overlay, a sibling) covers it, so it can be seen and clicked. */
+const isTopmost = (target: Locator) =>
+  target.evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+    return hit === el || el.contains(hit);
+  });
+
+/** Two boxes share no area. */
+const apart = (a: { x: number; y: number; width: number; height: number }, b: { x: number; y: number; width: number; height: number }) =>
+  a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y;
 
 /** The help article "Share a lesson video in chat": the copy-link row on a lesson, and the card it makes in a conversation. */
 test("share a lesson video in chat", async ({ page, signInAs }, testInfo) => {
@@ -17,7 +30,21 @@ test("share a lesson video in chat", async ({ page, signInAs }, testInfo) => {
   await expect(card).toBeVisible();
   await expect(card.locator("img")).toHaveJSProperty("complete", true);
   await card.scrollIntoViewIfNeeded();
+
+  // Before anything is played the card already carries the way to the lesson (like YouTube's "Watch on YouTube"): opaque with no hover, the
+  // topmost thing at its own centre (so it can be clicked), and clear of the card's big play square.
+  const cardLink = page.getByRole("link", { name: "Open lesson" });
+  await expect(cardLink).toBeVisible();
+  await page.getByRole("heading", { name: /craft-talk/ }).hover();
+  await expect(cardLink).toHaveCSS("opacity", "1");
+  expect(await isTopmost(cardLink)).toBe(true);
+  const [cardLinkBox, cardPlayBox] = await Promise.all([cardLink.boundingBox(), card.locator("span.bg-plum-600").boundingBox()]);
+  if (cardLinkBox && cardPlayBox) expect(apart(cardLinkBox, cardPlayBox), "the card's link and its play square overlap").toBe(true);
   await shot(page, testInfo, "video-card");
+  await cardLink.hover();
+  await shot(page, testInfo, "video-card-link-hover");
+  await cardLink.focus();
+  await shot(page, testInfo, "video-card-link-focus");
 
   // The player opened: the "Open lesson" link over its corner. The demo has no Mux, so the playback request is answered with made-up
   // links (the player itself can only show its error); what is under test is the link, which is the app's own.
@@ -49,19 +76,11 @@ test("share a lesson video in chat", async ({ page, signInAs }, testInfo) => {
 
   // Visible is not enough: the player's own overlays once sat on top of it, so nothing could be seen or clicked. The link must be what is
   // under its own centre, in every size and colour scheme (the point of `elementFromPoint`: it answers with the topmost element there).
-  const topmost = () =>
-    link.evaluate((el) => {
-      const box = el.getBoundingClientRect();
-      const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
-      return hit === el || el.contains(hit);
-    });
+  const topmost = () => isTopmost(link);
   expect(await topmost()).toBe(true);
-  // It must not sit on the player's big play square (the button itself spans the whole frame) (the label once ran into it on a phone).
+  // It must not sit on the player's big play square (the button itself spans the whole frame; the label once ran into it on a phone).
   const [linkBox, playBox] = await Promise.all([link.boundingBox(), page.getByRole("button", { name: "Play video" }).locator("span").first().boundingBox()]);
-  if (linkBox && playBox) {
-    const apart = linkBox.x + linkBox.width <= playBox.x || playBox.x + playBox.width <= linkBox.x || linkBox.y + linkBox.height <= playBox.y || playBox.y + playBox.height <= linkBox.y;
-    expect(apart, "the link and the play button overlap").toBe(true);
-  }
+  if (linkBox && playBox) expect(apart(linkBox, playBox), "the link and the play button overlap").toBe(true);
 
   // Resting, then with the pointer over the frame, then with keyboard focus: axe evaluates the link's contrast in each state (the
   // checks run on every `shot`), and the focus ring has to be on screen.

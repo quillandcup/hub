@@ -172,6 +172,7 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   courses: [],
   course_modules: [],
   course_lessons: [],
+  course_address_redirects: [],
   course_lesson_files: [],
   videos: [],
   video_text_tracks: [],
