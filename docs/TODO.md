@@ -1329,6 +1329,9 @@ Billie Bot (this app's own Slack bot) can't invite itself back into a private ch
 
 **If pursued:** probably a manual/on-demand admin action (e.g. a button on `/admin/hygiene` next to the stale-private-channel list, invoked with a short-lived personal token pasted in at the time) rather than another cron, given the personal-token risk above.
 
+### Support more than one Slack workspace
+Slack is wired for a single workspace (one bot token, no workspace column on any Bronze table, Slack ids assumed globally unique). The 180 Program workspace (shared with Ready Writer) should be tracked and counted in engagement, with its people matched to their existing Kajabi-backed members, and later sign-in, notifications and the chat bridge. Deferred: it is a four-PR change that touches production keys on large tables, and it was put on hold. Full findings, the decisions made and the plan are in `docs/SLACK_MULTI_WORKSPACE.md`; start with phase 1 (the `slack_workspaces` table, a per-workspace bot token and workspace ids on the Bronze tables). An unreviewed earlier attempt is on the branch `slack-multi-workspace-1`.
+
 ---
 
 ## Gamification / Badges
