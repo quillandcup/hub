@@ -16,10 +16,11 @@ Read-only. Make sure it shows only the change you intend. A `-` line is somethin
 
 `SLACK_CONFIG_TOKEN` is an app configuration **access** token from [api.slack.com/apps](https://api.slack.com/apps) → "Your App Configuration Tokens" (valid 12 hours). `SLACK_APP_ID` comes from `.env.shared`/`.env.prod`. `pnpm slack:manifest:push` does a manual push the same way.
 
-Two things a push can't do for you:
+Things a push can't do for you:
 
 - **Scope changes need a reinstall.** The job prints a warning when scopes changed; reinstall the app to the workspace (Install App → Reinstall) for them to take effect.
 - **Request URLs are verified by Slack.** That's why the job runs after the deploy.
+- **Unfurl domains need a reinstall too.** `unfurl_domains` (the Hub's host, for cards on links to the Hub; `docs/SLACK_BRIDGED_CHAT.md`, "Hub links in Slack") and the scopes `links:read` and `links:write` apply to the workspace only after the app is reinstalled. Keep the domain equal to the host in the request URLs: the manifest holds literal hosts and does not read `app.config.ts`.
 
 ## One-time setup
 

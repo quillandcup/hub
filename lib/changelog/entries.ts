@@ -56,6 +56,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "slack-cards-for-hub-links",
+    date: "2026-11-12",
+    audience: "engineering",
+    category: "new",
+    title: "The Slack app answers links to the Hub with a card that is safe for the whole conversation",
+    summary: "A link to the Hub typed in Slack gets a short card from the Hub's Slack app instead of the sign-in page Slack previews, saying only what anyone in that conversation may know.",
+    body: [
+      "The app registers the Hub's host as an unfurl domain, Slack sends it an event for each link on that host, and the Slack webhook answers it with `chat.unfurl` using the bot token. Slack then stops crawling those links itself, so the card is the whole preview. It relates to \"Links to Hub pages in chat are drawn as cards, decided for each reader\".",
+      "A Slack card is shown to everyone in the conversation and the event does not say who they are, so it is decided from the link alone and says less than the Hub's own card: a message in a public channel is \"A message from <name> in #<channel> in Hub Chat\" with no text, a prickle is its title and start, a member is a display name, and everything else (private or restricted channels, direct messages, missing pages) is \"Link to the Hub\". Until the cards flag is on for everyone every link gets the neutral card. Nothing is stored, so there is nothing to import.",
+      "The manifest gains `links:read`, `links:write`, the `link_shared` event and the domain; the new scopes and domain apply once the workspace reinstalls the app (`docs/SLACK_BRIDGED_CHAT.md`, \"Hub links in Slack\").",
+    ].join("\n\n"),
+  },
+  {
     slug: "chat-cards-for-hub-links",
     date: "2026-11-12",
     audience: "engineering",
