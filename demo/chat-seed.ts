@@ -220,6 +220,48 @@ export const DEMO_CHANNELS: DemoChannel[] = [
   },
 ];
 
+interface DemoConversation {
+  kind: "dm" | "group_dm";
+  /** The other members besides the demo member (community profile keys). */
+  with: string[];
+  readHoursAgo: number;
+  messages: { by: string; hoursAgo: number; body: string; reactions?: { emoji: string; by: string[] }[] }[];
+}
+
+/** The demo member's direct messages and group message, as the Slack bridge brings them in (private, restricted, unnamed; the sidebar labels them with the people in them). */
+export const DEMO_CONVERSATIONS: DemoConversation[] = [
+  {
+    kind: "dm",
+    with: ["regular2"],
+    readHoursAgo: 30,
+    messages: [
+      { by: "regular2", hoursAgo: 28, body: "psst, are you still up for swapping chapter one critiques this weekend? 📓" },
+      { by: "member", hoursAgo: 27, body: "yes please! I'll send mine tonight, fair warning: there is a lot of tea in it 🍵" },
+      { by: "regular2", hoursAgo: 3, body: "read it on the train. the lighthouse bakery is a delight 🥐 notes coming tomorrow", reactions: [{ emoji: "heart", by: ["member"] }] },
+    ],
+  },
+  {
+    kind: "dm",
+    with: ["host"],
+    readHoursAgo: 0,
+    messages: [
+      { by: "host", hoursAgo: 50, body: "so glad you joined the Sprint Prickle last night! 🌙" },
+      { by: "member", hoursAgo: 49, body: "it was great, 600 words in an hour. thank you for hosting 💛" },
+    ],
+  },
+  {
+    kind: "group_dm",
+    with: ["willa", "briony"],
+    readHoursAgo: 12,
+    messages: [
+      { by: "willa", hoursAgo: 14, body: "group chat for the Thursday read-aloud swap? 🎧" },
+      { by: "briony", hoursAgo: 13, body: "yes! I'll bring the first scene of my space-station mystery 🚀", reactions: [{ emoji: "tada", by: ["willa", "member"] }] },
+      { by: "member", hoursAgo: 12, body: "in. I'll read my lighthouse bakery opening, bring snacks 🧁" },
+      { by: "willa", hoursAgo: 1, body: "see you at 8, I'll make the call link ✨" },
+    ],
+  },
+];
+
 const DEMO_GIF_PATH = "demo/party-disc.gif";
 
 /**
@@ -390,6 +432,52 @@ export async function seedChat(admin: SupabaseClient, now: Date, supabaseUrl: st
       if (reactions.length > 0) {
         const { error: reactionError } = await admin.from("chat_reactions").insert(reactions);
         if (reactionError) throw new Error(`chat_reactions ${channel.name}: ${reactionError.message}`);
+      }
+    }
+  }
+
+  await seedConversations(admin, now, id, demoMember);
+}
+
+/** The demo member's direct messages and group message: restricted conversations with a Slack id of their own, so a re-run replaces them. */
+async function seedConversations(admin: SupabaseClient, now: Date, id: (name: string) => string, demoMember: string) {
+  const at = (hoursAgo: number) => new Date(now.getTime() - hoursAgo * 3_600_000).toISOString();
+  const { error: wipeError } = await admin.from("chat_channels").delete().in("kind", ["dm", "group_dm"]).like("slack_channel_id", `${DEMO_SLACK_PREFIX}%`);
+  if (wipeError) throw new Error(`chat conversations clear: ${wipeError.message}`);
+  const key = (k: string) => (k === "member" ? demoMember : id(who(k)));
+  let seq = 0;
+  for (const [index, convo] of DEMO_CONVERSATIONS.entries()) {
+    const { data: created, error } = await admin
+      .from("chat_channels")
+      .insert({
+        kind: convo.kind,
+        bridge_mode: "bridged",
+        slack_channel_id: `${DEMO_SLACK_PREFIX}${convo.kind === "dm" ? "D" : "G"}${String(index + 1).padStart(5, "0")}`,
+        visibility: "private",
+        restricted: true,
+        created_at: at(24 * 30),
+      })
+      .select("id")
+      .single();
+    if (error || !created) throw new Error(`chat_channels ${convo.kind}: ${error?.message}`);
+    const people = [demoMember, ...convo.with.map(key)];
+    const { error: memberError } = await admin.from("chat_channel_members").insert(
+      people.map((member_id) => ({ channel_id: created.id, member_id, source: "slack", joined_at: at(24 * 30), last_read_at: member_id === demoMember ? at(convo.readHoursAgo) : at(0) })),
+    );
+    if (memberError) throw new Error(`chat_channel_members ${convo.kind}: ${memberError.message}`);
+    for (const message of convo.messages) {
+      const { data: row, error: messageError } = await admin
+        .from("chat_messages")
+        .insert({ channel_id: created.id, author_member_id: key(message.by), origin: "slack", slack_ts: `${Math.floor(Date.parse(at(message.hoursAgo)) / 1000)}.${String(900000 + ++seq)}`, created_at: at(message.hoursAgo) })
+        .select("id")
+        .single();
+      if (messageError || !row) throw new Error(`chat_messages ${convo.kind}: ${messageError?.message}`);
+      const { error: contentError } = await admin.from("chat_message_contents").insert({ message_id: row.id, body: message.body });
+      if (contentError) throw new Error(`chat_message_contents ${convo.kind}: ${contentError.message}`);
+      const reactions = (message.reactions ?? []).flatMap((r) => r.by.map((by) => ({ message_id: row.id, channel_id: created.id, member_id: key(by), emoji: r.emoji, created_at: at(message.hoursAgo) })));
+      if (reactions.length > 0) {
+        const { error: reactionError } = await admin.from("chat_reactions").insert(reactions);
+        if (reactionError) throw new Error(`chat_reactions ${convo.kind}: ${reactionError.message}`);
       }
     }
   }
