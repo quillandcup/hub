@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import LessonPlayer from "@/components/courses/LessonPlayer";
 import { LessonCompletionProvider, useLessonCompletion } from "@/components/courses/LessonCompletion";
@@ -16,7 +17,7 @@ interface CardInfo {
 type State =
   | { kind: "idle" }
   | { kind: "loading" }
-  | { kind: "ready"; title: string; lessonId: string; playbackId: string; tokens: PlaybackTokens; restricted: boolean; record: boolean; resumeSeconds: number; completion: { completed: boolean } | null }
+  | { kind: "ready"; title: string; lessonId: string; lessonHref: string | null; playbackId: string; tokens: PlaybackTokens; restricted: boolean; record: boolean; resumeSeconds: number; completion: { completed: boolean } | null }
   | { kind: "error"; message: string };
 
 /** Under the title of a video whose lesson the member has completed (by watching it through, here or on the lesson page): says so, and nothing otherwise. */
@@ -71,41 +72,53 @@ export default function ChatVideo({ messageId }: { messageId: string }) {
         setState({ kind: "error", message: res.status === 429 ? "Too many videos opened just now. Try again in a few minutes." : "This video isn't available right now." });
         return;
       }
-      const body = (await res.json()) as { title: string; lessonId: string; playbackId: string; tokens: PlaybackTokens; restricted: boolean; record: boolean; resumeSeconds: number; completion?: { completed: boolean } | null };
-      setState({ kind: "ready", ...body, completion: body.completion ?? null });
+      const body = (await res.json()) as { title: string; lessonId: string; lessonHref?: string | null; playbackId: string; tokens: PlaybackTokens; restricted: boolean; record: boolean; resumeSeconds: number; completion?: { completed: boolean } | null };
+      setState({ kind: "ready", ...body, lessonHref: body.lessonHref ?? null, completion: body.completion ?? null });
     } catch {
       setState({ kind: "error", message: "This video isn't available right now." });
     }
   }
 
   if (state.kind === "ready") {
-    const player = (
-      <LessonPlayer
-        title={state.title}
-        playbackId={state.playbackId}
-        tokens={state.tokens}
-        restricted={state.restricted}
-        lessonId={state.lessonId}
-        chatMessageId={messageId}
-        resumeSeconds={state.resumeSeconds}
-        trackProgress={state.record}
-        autoPlay
-        // The card's own thumbnail as the player's poster, so opening it doesn't swap to a different frame (Mux's, from two seconds in) before the video starts.
-        posterUrl={card.thumbnailUrl && !imageFailed ? card.thumbnailUrl : null}
-      />
+    const media = (
+          <div className="group relative">
+          <LessonPlayer
+            title={state.title}
+            playbackId={state.playbackId}
+            tokens={state.tokens}
+            restricted={state.restricted}
+            lessonId={state.lessonId}
+            chatMessageId={messageId}
+            resumeSeconds={state.resumeSeconds}
+            trackProgress={state.record}
+            autoPlay
+            // The card's own thumbnail as the player's poster, so opening it doesn't swap to a different frame (Mux's, from two seconds in) before the video starts.
+            posterUrl={card.thumbnailUrl && !imageFailed ? card.thumbnailUrl : null}
+          />
+          {state.lessonHref && (
+            // Over the player's top corner like YouTube's "Watch on YouTube": shown on hover or keyboard focus where there is a pointer, always on touch screens.
+            <Link
+              href={state.lessonHref}
+              data-track="chat-video-open-lesson"
+              className="absolute right-2 top-2 rounded-md bg-black/70 px-2.5 py-1 text-xs font-medium text-white hover:bg-black/85 focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
+            >
+              Open lesson
+            </Link>
+          )}
+          </div>
     );
     return (
       <div className="mt-2 max-w-xl overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
         {state.completion ? (
           // The same completion the lesson page keeps: the player completes the lesson once it is watched through (~90%).
           <LessonCompletionProvider lessonId={state.lessonId} initiallyCompleted={state.completion.completed} readOnlyReason={null}>
-            {player}
+            {media}
             <p className="px-3 pt-2 text-sm font-medium text-slate-800 dark:text-slate-100">{state.title}</p>
             <CompleteNote />
           </LessonCompletionProvider>
         ) : (
           <>
-            {player}
+            {media}
             <p className="px-3 py-2 text-sm font-medium text-slate-800 dark:text-slate-100">{state.title}</p>
           </>
         )}

@@ -83,7 +83,7 @@ describe("POST /api/chat/videos/[messageId]", () => {
 
     expect(res.status).toBe(200);
     expect(res.headers.get("Cache-Control")).toBe("no-store");
-    expect(await res.json()).toEqual({ title: "Show up for the page", lessonId: LESSON, playbackId: "pb123", tokens: TOKENS, restricted: false, record: true, resumeSeconds: 0, completion: { completed: false } });
+    expect(await res.json()).toEqual({ title: "Show up for the page", lessonId: LESSON, lessonHref: `/courses/c/lessons/${LESSON}`, playbackId: "pb123", tokens: TOKENS, restricted: false, record: true, resumeSeconds: 0, completion: { completed: false } });
     expect(signPlaybackTokens).toHaveBeenCalledWith(expect.anything(), "pb123", undefined, null);
   });
 
@@ -180,7 +180,7 @@ describe("POST /api/chat/videos/[messageId]", () => {
       const res = await call();
 
       expect(res.status).toBe(200);
-      expect(await res.json()).toMatchObject({ playbackId: "pb123", record: true, resumeSeconds: 0 });
+      expect(await res.json()).toMatchObject({ playbackId: "pb123", record: true, resumeSeconds: 0, lessonHref: null });
     });
 
     it("still refuses a reader without the course when it isn't open to the channel", async () => {

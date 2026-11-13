@@ -35,7 +35,7 @@ import ChatVideo from "@/components/chat/ChatVideo";
 const MESSAGE = "msg_AAAAAAAAAAA1";
 const TOKENS = { playback: "p", poster: "s", storyboard: "b" };
 const WATCHABLE = { title: "Show up for the page", courseTitle: "The Ready Writer", thumbnailUrl: "/api/courses/image/lesson/les_AAAAAAAAAAA1", canWatch: true };
-const PLAYBACK = { title: "Show up for the page", lessonId: "les_AAAAAAAAAAA1", playbackId: "pb123", tokens: TOKENS, restricted: false, record: true, resumeSeconds: 95, completion: { completed: false } };
+const PLAYBACK = { title: "Show up for the page", lessonId: "les_AAAAAAAAAAA1", lessonHref: "/courses/ready/lessons/les_AAAAAAAAAAA1", playbackId: "pb123", tokens: TOKENS, restricted: false, record: true, resumeSeconds: 95, completion: { completed: false } };
 
 const fetchMock = vi.fn();
 /** The card info (GET) and the playback links (POST), each answered with a status and body. */
@@ -83,6 +83,20 @@ describe("ChatVideo", () => {
     expect(player).toHaveAttribute("data-message", MESSAGE);
     expect(player).toHaveAttribute("data-resume", "95");
     expect(player).toHaveAttribute("data-tracking", "true");
+  });
+
+  it("links the open player to the lesson's page, and has no link when the viewer can't open the lesson", async () => {
+    answers({ status: 200, body: WATCHABLE }, { status: 200, body: PLAYBACK });
+    const first = render(<ChatVideo messageId={MESSAGE} />);
+    await userEvent.click(await screen.findByRole("button", { name: /Play/ }));
+    expect(await screen.findByRole("link", { name: "Open lesson" })).toHaveAttribute("href", "/courses/ready/lessons/les_AAAAAAAAAAA1");
+    first.unmount();
+
+    answers({ status: 200, body: WATCHABLE }, { status: 200, body: { ...PLAYBACK, lessonHref: null } });
+    render(<ChatVideo messageId={MESSAGE} />);
+    await userEvent.click(await screen.findByRole("button", { name: /Play/ }));
+    await screen.findByTestId("player");
+    expect(screen.queryByRole("link", { name: "Open lesson" })).toBeNull();
   });
 
   it("gives the player the card's thumbnail as its poster, so opening it doesn't swap to a different frame first", async () => {
