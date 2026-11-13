@@ -56,6 +56,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "chat-cards-for-hub-links",
+    date: "2026-11-12",
+    audience: "engineering",
+    category: "new",
+    title: "Links to Hub pages in chat are drawn as cards, decided for each reader",
+    summary: "A link to a chat message, a prickle or a member's profile in Hub Chat is drawn as a card built for whoever is reading it, instead of the sign-in page Slack previews. It is behind a feature flag.",
+    body: [
+      "The Hub's pages sit behind sign-in, so a link preview made by the Hub's own page reader or by Slack's crawler could only ever show the login page. The card is asked for when it appears (`GET /api/chat/hub-links`), and every read is made as the reader, so row-level security applies the rule of the page the link goes to: a quoted message shows its text only to someone who can read it, and what a reader may not see comes back as the same neutral \"Link to the Hub\" as a message that does not exist. The author of the message can remove the card with the same X as other previews.",
+      "The Hub's own page reader never looks at the Hub's address any more, and when a card applies, Slack's preview of that link is left out. The decision is per reader (the `chat_link_cards` flag, asked only when a message has such a link), so with the flag off a message looks as before.",
+      "To add a kind of link, give `parseHubLink` its address shape and `loadHubLinkCard` its case; the steps are in `docs/SLACK_BRIDGED_CHAT.md`, \"Hub links\".",
+    ].join("\n\n"),
+  },
+  {
     slug: "direct-messages-in-hub-chat",
     date: "2026-11-12",
     audience: "product",

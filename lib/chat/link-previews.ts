@@ -1,6 +1,7 @@
 import { decodePage, parsePagePreview } from "@/lib/chat/link-preview-html";
-import { decodeEntities } from "@/lib/chat/render";
-import { safeImageUrl, safeLinkUrl } from "@/lib/chat/unfurls";
+import { safeImageUrl } from "@/lib/chat/unfurls";
+import { writtenLinks } from "@/lib/chat/written-links";
+import { APP_URL } from "@/lib/config";
 import type { ChatLinkPreviewRepository, LinkPreviewDraft } from "@/lib/data/chat-link-previews";
 import { fetchPage, type FetchPageResult } from "@/lib/net/safe-fetch";
 
@@ -16,24 +17,23 @@ export const MAX_PREVIEW_LINKS = 3;
 
 /** The addresses in the text that may get a preview, in order: https only, no duplicates, none in code, none of our own pages. */
 export function previewLinksIn(body: string, ownOrigin: string | null = null): string[] {
-  // Code is shown as written, and a link inside it is an example, not something being shared.
-  const text = body.replace(/```[\s\S]*?```/g, " ").replace(/`[^`\n]*`/g, " ");
-  const found: { at: number; url: string }[] = [];
-  // Slack's token for a link, `<https://example.com|label>`, and a bare address typed into the text.
-  for (const m of text.matchAll(/<(https?:\/\/[^<>|\s]+)(?:\|[^<>]*)?>|(https?:\/\/[^\s<>|]+)/gi)) {
-    const raw = m[1] ?? m[2];
-    // A bare address ends before the punctuation that follows it in a sentence.
-    const url = safeLinkUrl(decodeEntities(m[1] ? raw : raw.replace(/[.,;:!?)\]}'"]+$/, "")));
-    if (url) found.push({ at: m.index ?? 0, url });
-  }
   const out: string[] = [];
-  for (const { url } of found.sort((a, b) => a.at - b.at)) {
+  for (const url of writtenLinks(body)) {
     if (!url.startsWith("https://") || out.includes(url)) continue;
     if (ownOrigin && new URL(url).origin === ownOrigin) continue;
     out.push(url);
     if (out.length === MAX_PREVIEW_LINKS) break;
   }
   return out;
+}
+
+/** Whether an address is on the Hub's own origin (`APP_URL`, compared exactly). */
+export function isOwnAddress(url: string): boolean {
+  try {
+    return new URL(url).origin === new URL(APP_URL).origin;
+  } catch {
+    return false;
+  }
 }
 
 const empty = (url: string, position: number, status: "failed" | "blocked"): LinkPreviewDraft => ({
@@ -50,6 +50,8 @@ const empty = (url: string, position: number, status: "failed" | "blocked"): Lin
 
 /** Looks at one address and says what a card for it would hold. Never throws: a page that can't be read is a `failed` or `blocked` draft. */
 export async function buildPreview(url: string, position: number, fetchTheAddress: (url: string) => Promise<FetchPageResult> = fetchPage): Promise<LinkPreviewDraft> {
+  // Never our own pages: the server is not signed in, so what it would read is the login page (a link to the Hub gets its own card, lib/chat/hub-link-cards.ts).
+  if (isOwnAddress(url)) return empty(url, position, "blocked");
   let page: FetchPageResult;
   try {
     page = await fetchTheAddress(url);
@@ -77,7 +79,8 @@ export async function refreshLinkPreviews(
   opts: { ownOrigin?: string | null; fetchTheAddress?: (url: string) => Promise<FetchPageResult> } = {}
 ): Promise<{ looked: LinkPreviewDraft[] }> {
   try {
-    const links = previewLinksIn(body, opts.ownOrigin ?? null);
+    // Our own origin is never looked at, whatever the caller passed.
+    const links = previewLinksIn(body, opts.ownOrigin ?? new URL(APP_URL).origin);
     const already = await repo.looked(messageId);
     const fresh = links.map((url, position) => ({ url, position })).filter((l) => !already.has(l.url));
     const looked = await Promise.all(fresh.map((l) => buildPreview(l.url, l.position, opts.fetchTheAddress)));

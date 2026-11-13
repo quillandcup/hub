@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { catchUpChannel } from "@/lib/chat/gap-fill";
 import { requireChat } from "@/lib/chat/access";
+import { hubLinkCardsFor } from "@/lib/chat/hub-link-flag";
 import { parseBefore } from "@/lib/chat/format";
 import { isId } from "@/lib/ids";
 import { createStageTimer } from "@/lib/chat/timing";
@@ -176,7 +177,7 @@ export default async function ChatChannelPage({
   const timeZone = isValidTimeZone(preferredZone) ? preferredZone : ORG_TIMEZONE;
   const mainRows = page?.messages ?? [];
   const threadRows = root ? [root, ...(threadPage?.messages ?? [])] : [];
-  const { views, ...rendered } = await buildMessageViews(createRepos(supabase), channel, [...mainRows, ...threadRows], identity.memberId, timer);
+  const { views, ...rendered } = await buildMessageViews(createRepos(supabase), channel, [...mainRows, ...threadRows], identity.memberId, timer, { hubLinkCards: hubLinkCardsFor({ userId: user.id, identity }) });
   const ctx = chatTextContext(rendered, channels);
   timer.log(channel.kind === "channel" ? "channel" : "group");
   // Matched to their rows by id, not by position: a deleted message with no replies has a row but no view, so the

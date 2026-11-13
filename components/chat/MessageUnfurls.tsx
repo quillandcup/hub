@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import RemoveUnfurlButton, { type RemovePlacement } from "@/components/chat/RemoveUnfurlButton";
 import UnfurlPicture from "@/components/chat/UnfurlPicture";
+import HubLinkCard from "@/components/chat/HubLinkCard";
 import SharedMessageCard from "@/components/chat/SharedMessageCard";
 import ChatText, { type ChatTextContext } from "@/components/chat/ChatText";
 import type { BlockImage, BlocksUnfurl, BlockText, CardUnfurl, LinkButton, Unfurl, UnfurlBlock } from "@/lib/chat/unfurls";
@@ -235,6 +236,8 @@ export default function MessageUnfurls({ unfurls, ctx, permalink, removable, tim
             return <Card key={i} card={u} ctx={ctx} removable={removable} />;
           case "blocks":
             return <Blocks key={i} unfurl={u} ctx={ctx} permalink={permalink} />;
+          case "hub":
+            return <HubLinkCard key={i} unfurl={u} timeZone={timeZone} removable={removable} />;
           case "share":
             return u.shared && u.source ? <SharedMessageCard key={i} shared={u.shared} source={u.source} ctx={ctx} timeZone={timeZone} removable={removable && u.removeKey ? { ...removable, removeKey: u.removeKey } : undefined} /> : null;
         }

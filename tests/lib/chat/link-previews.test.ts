@@ -10,6 +10,7 @@ vi.mock("@/lib/chat/names", () => ({
   slackUserPhotos: async () => ({}),
 }));
 
+import { APP_URL } from "@/lib/config";
 import { buildPreview, previewLinksIn, refreshLinkPreviews, MAX_PREVIEW_LINKS } from "@/lib/chat/link-previews";
 import { previewToCard, unfurlKey, withLinkPreviews } from "@/lib/chat/link-preview-cards";
 import { buildMessageViews, type MessageRow } from "@/lib/chat/load";
@@ -237,5 +238,22 @@ describe("previewToCard and unfurlKey", () => {
     expect(unfurlKey(card, 2)).toBe("idx:2");
     expect(unfurlKey({ kind: "blocks", blocks: [] }, 0)).toBeNull();
     expect(unfurlKey({ kind: "share", attachment: {} }, 0)).toBeNull();
+  });
+});
+
+describe("the Hub's own origin is never looked at", () => {
+  it("is blocked by buildPreview without asking the fetcher, whoever calls it", async () => {
+    const asked: string[] = [];
+    const draft = await buildPreview(`${APP_URL}/prickles/prkl_AAAAAAAAAAA1`, 0, async (url) => (asked.push(url), page("")));
+    expect(draft.status).toBe("blocked");
+    expect(asked).toEqual([]);
+  });
+
+  it("is left out by refreshLinkPreviews even when the caller names no origin", async () => {
+    const repo = new InMemoryChatLinkPreviewRepository(new InMemoryDataset());
+    const asked: string[] = [];
+    const { looked } = await refreshLinkPreviews(repo, MESSAGE, `${APP_URL}/members/mbr_AAAAAAAAAAA1 https://a.test/one`, { fetchTheAddress: async (url) => (asked.push(url), page("")) });
+    expect(asked).toEqual(["https://a.test/one"]);
+    expect(looked).toHaveLength(1);
   });
 });
