@@ -127,7 +127,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     body: [
       "Which path a picture takes depends on who controls its address. Related to the product entry on link previews in Hub chat.",
       "- **An address someone else chose** (a link preview, an app's card or logo): the picture proxy (\"Pictures under chat messages go through the Hub\").\n- **Our own uploads** (book covers and other library images): the media library, served from the original in private storage (`docs/MEDIA_LIBRARY.md`).\n- **Member profile photos:** rebuilt by member processing from Kajabi, then Slack, then Gravatar; a photo that must outlast its source is kept in our storage (\"Member photos outlive their source\").\n- **Loaded directly, on purpose:** Gravatar, Slack's profile pictures for people not matched to a member, Mux stills, Google profile photos and analytics beacons. These are the hosts in `csp.imageHosts` in `app.config.ts`, which is also what the policy allows.",
-      "**For a new feature:** an address from a user or a message goes through the proxy; our own uploads go through the media library; a vendor picture of a known person may load directly if its host is added to `csp.imageHosts`. Never take an address from a query string. Not done: proxied pictures are not re-encoded, and the policy is still report-only (`docs/TODO.md`).",
+      "**For a new feature:** an address from a user or a message goes through the proxy; our own uploads go through the media library; a vendor picture of a known person may load directly if its host is added to `csp.imageHosts`. Never take an address from a query string.",
     ].join("\n\n"),
   },
   {
@@ -136,7 +136,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "engineering",
     category: "new",
     title: "Lesson videos in chat messages: the pieces behind the flag",
-    summary: "A chat message can share a course lesson's video, played in the message with the course's rules, from Hub Chat or a link pasted in Slack. It stays behind a feature flag for now.",
+    summary: "A chat message can share a course lesson's video, played in the message with the course's rules, from Hub Chat or a link pasted in Slack. It is behind a feature flag.",
     body: [
       "`chat_message_videos` (`ChatVideoRepository`) points one message at one lesson; the share and its message are written together by `chat_post_shared_video`, which checks the sharer. Playback links are minted per viewer by `/api/chat/videos/<message id>` after two checks: the viewer can read the message (the share is read as them, so row-level security applies the channel rule) and may watch the lesson (`mayWatchSharedVideo`: the course, or a share an admin opened to the conversation for an open lesson of a published course). The card before play is a second light route that mints nothing. Watching goes through the lesson player and `video_watch_segments`, tagged with the message so the course stats keep chat views apart.",
       "A pasted lesson address becomes the card in Hub Chat (`extractLessonLink`) and in a message written in Slack (webhook, and the nightly chat import for what it missed). The Slack copy is then rewritten as its author through their own connected account (`rewriteInSlack`): the address becomes the links line in the same place, with the lesson's title above it, previews cleared, files kept by naming them again in the edit. Hub Chat hides that line and Slack's own preview (`stripSharedVideoLink`, `withoutLessonPreview`).",
@@ -212,7 +212,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     body: [
       "Some hosts refuse a request with no User-Agent (Wikimedia answers 403), and others want a name and a contact so they can reach us instead of blocking us. So every request to a server that is not ours sends one User-Agent, defined once as `OUTBOUND_USER_AGENT` in `lib/config.ts`: `HedgieHub/<version> (+<app url>; <support email>)`.",
       "- `HedgieHub` is `userAgentProduct` in `app.config.ts` (it has to be an HTTP token, so it is not the display name).\n- `<version>` is the first 7 characters of the deployed commit, so a host's log says which build made the request; `dev` when there is none.\n- `<app url>` and `<support email>` come from `appUrl` and `supportEmail` in `app.config.ts`. The comment is plain ASCII and carries nothing about a member.\n- A request can name its feature: `userAgentWith(\"slack-import/1\")` adds `slack-import/1` after the version.",
-      "**Rule:** a raw request to someone else's host goes through `outboundFetch` (`lib/http/outbound.ts`); an SDK gets our part wired once, where its client is built, added next to the SDK's own and never replacing it. A test fails when a new unwrapped external call or a Slack client built outside `createSlackClient` appears. Not covered yet (`docs/TODO.md`): the Sentry transport and Google's token request. Detail: `docs/OUTBOUND_REQUESTS.md`.",
+      "**Rule:** a raw request to someone else's host goes through `outboundFetch` (`lib/http/outbound.ts`); an SDK gets our part wired once, where its client is built, added next to the SDK's own and never replacing it. A test fails when a new unwrapped external call or a Slack client built outside `createSlackClient` appears. The Sentry transport and Google's token request send only their library's own. Detail: `docs/OUTBOUND_REQUESTS.md`.",
     ].join("\n\n"),
   },
   {
@@ -236,8 +236,8 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "A Content-Security-Policy that reports what it would block",
     summary: "Every response now carries a Content-Security-Policy in report-only mode: browsers tell us which pictures a stricter policy would block, and nothing is blocked yet.",
     body: [
-      "Every response carries a report-only Content-Security-Policy, built by `buildCsp` in `lib/csp.ts` and sent from `next.config.ts`. It covers pictures, plugins, base address, form targets and framing; scripts and styles are not covered yet because that needs a nonce per request. Nothing is blocked: browsers report what a stricter policy would block.",
-      "- **Reports go to Sentry**, derived from the public DSN (no new environment variable). A report carries the page address and the blocked origin, never page content.\n- **The allowed picture hosts live in config** (`csp.imageHosts` in `app.config.ts`): trust a host there on purpose, or fix a stale stored address in the data. A host that only shows up because of a bad address is a data bug, not a list entry.\n- **Plan:** read the reports for a week or two, then enforce the same value, checking framing and form targets against real sign-in flows first.",
+      "Every response carries a report-only Content-Security-Policy, built by `buildCsp` in `lib/csp.ts` and sent from `next.config.ts`. It covers pictures, plugins, base address, form targets and framing; scripts and styles are not covered (that would need a nonce per request). Nothing is blocked: browsers report what a stricter policy would block.",
+      "- **Reports go to Sentry**, derived from the public DSN (no new environment variable). A report carries the page address and the blocked origin, never page content.\n- **The allowed picture hosts live in config** (`csp.imageHosts` in `app.config.ts`): trust a host there on purpose, or fix a stale stored address in the data. A host that only shows up because of a bad address is a data bug, not a list entry.",
     ].join("\n\n"),
   },
   {
@@ -250,7 +250,6 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     body: [
       "A member's photo is rebuilt on every members processing run from Kajabi, then Slack, then Gravatar, so a plain copy of a file would be reverted by the next run. The copy is therefore remembered as a member override that processing prefers, and the files live in our own public storage, small and keyed by content (`docs/MEDIA_LIBRARY.md`, \"Member photos\").",
       "- **General pattern:** when a derived field must outlive its source, store an override that the derivation prefers, rather than editing the derived value.\n- **`pnpm photos:adopt`** moves photos off the Kajabi CDN. It is a dry run unless given `--apply`, uses the shared safe download (\"One safe way to download an address somebody else chose\") and is safe to run again. It was applied in production on 2026-11-11.\n- **Still loaded directly:** Gravatar, and Slack photos for people not matched to a member (\"Where pictures come from\").",
-      "Cleanup once Kajabi is retired is in `docs/TODO.md`, \"After the Kajabi photos are copied: drop the Kajabi photo path\".",
     ].join("\n\n"),
   },
   {
@@ -2763,9 +2762,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Hub Chat draws Slack's link previews and app cards",
     summary: "Messages that Slack gave a link preview, and messages posted by apps such as deploy notices, now show as cards in Hub Chat, with the app's own name and logo.",
     body: [
-      "Hub Chat now draws what Slack sends natively: link previews, app messages and shared Slack messages. One parser (`lib/chat/unfurls.ts`) turns Slack's legacy attachments and Block Kit into a small set of typed unfurl variants (cards, blocks, shares), and renderers (`components/chat/MessageUnfurls.tsx`) draw them. Apps show under their own name and logo, not \"Slack app\".",
-      "- **Adding a block type** is one parser in `BLOCK_PARSERS` and one renderer in `BLOCK_RENDERERS`; the types make a missing renderer a compile error. Anything not understood falls back to a plain \"Open in Slack\" link, so nothing is silently lost.\n- **An app's message is drawn from its blocks; a person's message is drawn from its text**, so rich text is never replaced by a card.\n- **Everything from outside is cleaned in the parser** (link schemes, capped sizes), and every picture goes through the picture proxy (\"Pictures under chat messages go through the Hub\").\n- **A shared Slack message** shows Slack's embedded copy to anyone who can read the sharing message: the sharer chose to share, as in Slack. A future Hub-side share must warn the sharer before sending from a private conversation.",
-      "This makes interactive blocks and more block types cheap to add next (`docs/TODO.md`, \"Hub Chat: Beyond the First Unfurl Pass\"). Detail: `docs/SLACK_BRIDGED_CHAT.md`.",
+      "Hub Chat now draws what Slack sends natively: link previews, app messages and shared Slack messages. One parser (`parseUnfurls`, `lib/chat/unfurls.ts`) turns Slack's legacy attachments and Block Kit into a small set of typed unfurl variants (cards, blocks, shares), and renderers in `components/chat/MessageUnfurls.tsx` draw them. Apps show under their own name and logo, not \"Slack app\".",
+      "- **The hooks** are the parser registry (`BLOCK_PARSERS`) and the renderer registry (`BLOCK_RENDERERS`): a block type is one entry in each. Anything not understood falls back to a plain \"Open in Slack\" link, so nothing is silently lost.\n- **An app's message is drawn from its blocks; a person's message is drawn from its text.**\n- **Every picture goes through the picture proxy** (\"Pictures under chat messages go through the Hub\").\n- **A shared Slack message** shows Slack's embedded copy to anyone who can read the sharing message: the sharer chose to share, as in Slack.",
+      "How to add a block type or a new kind of unfurl: `docs/SLACK_BRIDGED_CHAT.md`, \"Adding a block type (or a new kind of unfurl)\".",
     ].join("\n\n"),
   },
 ];
