@@ -22,7 +22,6 @@ type State =
   | { kind: "ready"; title: string; lessonId: string; lessonHref: string | null; playbackId: string; tokens: PlaybackTokens; restricted: boolean; record: boolean; resumeSeconds: number; completion: { completed: boolean } | null }
   | { kind: "error"; message: string };
 
-/** Under the title of a video whose lesson the member has completed (by watching it through, here or on the lesson page): says so, and nothing otherwise. */
 /**
  * The way to the lesson's own page, in the corner of the card and of the player (YouTube's "Watch on YouTube"): there before anything is played,
  * a smaller icon-only pill while the video plays. Drawn with the player skin's own tokens (`.lesson-open-link`, app/globals.css), so the
@@ -31,7 +30,7 @@ type State =
 function OpenLessonLink({ href }: { href: string }) {
   return (
     <span className="media-skin contents">
-      <Link href={href} data-track="chat-video-open-lesson" className="lesson-open-link">
+      <Link href={href} target="_blank" rel="noopener noreferrer" data-track="chat-video-open-lesson" className="lesson-open-link">
         <svg viewBox="0 0 24 24" className="lesson-open-link-icon" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M7 17 17 7M8 7h9v9" />
         </svg>
@@ -41,6 +40,7 @@ function OpenLessonLink({ href }: { href: string }) {
   );
 }
 
+/** Under the title of a video whose lesson the member has completed (by watching it through, here or on the lesson page): says so, and nothing otherwise. */
 function CompleteNote() {
   const completion = useLessonCompletion();
   return (
