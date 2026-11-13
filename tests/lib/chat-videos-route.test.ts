@@ -103,6 +103,16 @@ describe("POST /api/chat/videos/[messageId]", () => {
     expect((await (await call()).json()).completion).toEqual({ completed: true });
   });
 
+  it("still plays when reading the member's progress fails: from the start, and not yet complete", async () => {
+    vi.spyOn(repos.courseProgress, "lessonPosition").mockRejectedValue(new Error("db down"));
+    vi.spyOn(repos.courseProgress, "completedLessonIds").mockRejectedValue(new Error("db down"));
+
+    const res = await call();
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ playbackId: "pb123", resumeSeconds: 0, completion: { completed: false } });
+  });
+
   it("offers no completion in sudo, for a lesson only staff can open, or to a reader without the course", async () => {
     vi.mocked(getCoursesCaller).mockResolvedValue({
       userId: "user-1",
