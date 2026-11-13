@@ -1254,9 +1254,9 @@ Hub Chat draws a Slack message that was shared (`docs/SLACK_BRIDGED_CHAT.md`, "S
 ### Changelog screenshots from the demo scenes
 **Resolved:** `pnpm changelog:capture <slug>` runs an entry's demo scene (`demo/scenes/changelog/<slug>.spec.ts`, tagged `@changelog`) on desktop light and writes the screenshots into `public/changelog/<slug>/` as small WebP files; the validator fails an entry whose image file is missing; the scheduled help-screenshots run skips `@changelog` scenes. See `docs/CHANGELOG_PROCESS.md`, "Screenshots". **Still open:** scenes for the entries after the first one are written as each entry ships; the capture needs the demo stack and app running by hand, so it is not part of CI.
 
-### Screenshot for the "Your signed-in devices are easier to recognize" entry, and unlabeled date fields in the goal form _(Needs Scheduling)_
+### Unlabeled date fields in the goal form _(Needs Scheduling)_
 
-The `settings-devices-list` changelog entry has no screenshot: the demo's sessions have no browser details or place, so Settings, Devices shows "Unknown device" and an empty Location, which contradicts the entry. Start by giving the demo member sessions and located visits in `demo/seed.ts` (see `getMySessions` and `lib/session-place.ts`), then add `demo/scenes/changelog/settings-devices-list.spec.ts` and run `pnpm changelog:capture settings-devices-list`. Also found while capturing: the goal form's two date inputs on a project page (Start date, End date) have no accessible label, so the scene's page checks fail unless run with `DEMO_CHECKS=report`; label them in `app/(member)/projects/[id]/ProjectDetailClient.tsx`. The stale comment in `app/(member)/settings/SessionsPanel.tsx` saying there is no location column should be updated at the same time.
+The goal form's two date inputs on a project page (Start date, End date) have no accessible label, so the `goals-follow-their-project-on-profile` changelog scene's page checks fail unless it is run with `DEMO_CHECKS=report`. Found while capturing that scene. Label them in `app/(member)/projects/[id]/ProjectDetailClient.tsx`, then run the scene without the override.
 
 ### Usual feelings in Find a Prickle's check-in _(Needs Scheduling)_
 
