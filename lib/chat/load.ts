@@ -466,9 +466,11 @@ export function loadReactionRows(repos: ChatLoadRepos, messageIds: string[]) {
 }
 
 /** Fills a share with what this viewer may see of the message it quotes. The embedded copy is always shown; a failed lookup (null) only means no Hub link. */
-export function withShareSource(u: Extract<Unfurl, { kind: "share" }>, sources: Map<string, SharedSourceRow> | null): Extract<Unfurl, { kind: "share" }> {
-  const shared = parseSharedMessage(u.attachment);
-  if (!shared) return u;
+export function withShareSource(u: Extract<Unfurl, { kind: "share" }>, sources: Map<string, SharedSourceRow> | null, channelNames: Record<string, string> = {}): Extract<Unfurl, { kind: "share" }> {
+  const parsed = parseSharedMessage(u.attachment);
+  if (!parsed) return u;
+  // The channel line is the Hub's own channel name by id (public channels), when Slack's attachment named none.
+  const shared = { ...parsed, channelName: parsed.channelName ?? (parsed.slackChannelId ? (channelNames[parsed.slackChannelId] ?? null) : null) };
   let lookup: SharedSourceLookup | undefined;
   if (sources) {
     const row = shared.slackChannelId && shared.ts ? sources.get(sharedSourceKey(shared.slackChannelId, shared.ts)) : undefined;
@@ -552,7 +554,7 @@ export async function buildMessageViews(
     t("b1.replyAuthors", loadReplyAuthors(repos, threadRoots)),
     t("b1.userMembers", slackUserMemberIds(mentioned)),
     t("b1.hubNames", slackUserHubNames(mentionedInNotices)),
-    t("b1.channelNames", slackChannelNames(rows.flatMap((r) => mentionedChannelIds(`${bodyOf(r) ?? ""}\n${unfurlText(r)}`)))),
+    t("b1.channelNames", slackChannelNames([...rows.flatMap((r) => mentionedChannelIds(`${bodyOf(r) ?? ""}\n${unfurlText(r)}`)), ...shareRefs.map((s) => s.slackChannelId)])),
     // A failed read only hides the card (the message and its text still show), so it never fails the page.
     t("b1.sharedVideos", repos.chatVideos.lessonIdsOf(rows.map((r) => r.id)).catch((e) => { console.error("chat shared videos failed:", e); return new Map<string, string>(); })),
     // The cards the Hub made for links in Hub-written messages, read as the viewer. A failed read only hides them.
@@ -661,7 +663,7 @@ export async function buildMessageViews(
     // Pictures on other people's servers go through our own route, so those servers never see who looked (lib/chat/unfurl-images.ts).
     // Only a message that is shown gets proxy addresses; the logo is position 0 and counts whether or not it is used below.
     const withPreviews = (parsed: { unfurls: Unfurl[] }) =>
-      withLinkPreviews(withoutLessonPreview(parsed.unfurls, sharedLesson).map((u) => (u.kind === "share" ? withShareSource(u, sharedSources) : u)), hiddenCards ? linkPreviews.get(row.id) : undefined, hiddenCards?.get(row.id));
+      withLinkPreviews(withoutLessonPreview(parsed.unfurls, sharedLesson).map((u) => (u.kind === "share" ? withShareSource(u, sharedSources, channelNames) : u)), hiddenCards ? linkPreviews.get(row.id) : undefined, hiddenCards?.get(row.id));
     // Links to the Hub get a card of their own (decided per viewer when it draws), and Slack's card for the same link, the sign-in page, goes.
     const hubLinks = hubCards && parsed && body ? hubLinkUnfurls(body, APP_URL) : [];
     const proxied = parsed

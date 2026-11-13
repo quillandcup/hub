@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import RemoveUnfurlButton from "@/components/chat/RemoveUnfurlButton";
+import RemoveUnfurlButton, { type RemovePlacement } from "@/components/chat/RemoveUnfurlButton";
 import UnfurlPicture from "@/components/chat/UnfurlPicture";
 import HubLinkCard from "@/components/chat/HubLinkCard";
 import SharedMessageCard from "@/components/chat/SharedMessageCard";
@@ -59,10 +59,35 @@ function Button({ button }: { button: LinkButton }) {
 
 // ---- legacy attachment ---------------------------------------------------------------------------------------------
 
+/** A card that is only a picture (a link straight to an image): no title, text, author, fields, thumbnail or footer. */
+function isPictureOnly(card: CardUnfurl): boolean {
+  return !!card.imageUrl && !card.title && !card.text && !card.authorName && card.fields.length === 0 && !card.thumbUrl && !card.footer;
+}
+
 function Card({ card, ctx, removable }: { card: CardUnfurl; ctx: ChatTextContext; removable?: Removable }) {
   const site = card.serviceName ?? null;
   // The previews the Hub made are told apart from Slack's in usage statistics, so we can see whether they are clicked.
   const track = card.hubPreview ? "chat-link-preview" : undefined;
+  const removeButton = (placement: RemovePlacement) =>
+    removable && card.removeKey ? (
+      <RemoveUnfurlButton channelId={removable.channelId} messageId={removable.messageId} removeKey={card.removeKey} source={card.hubPreview ? "hub" : "slack"} placement={placement} />
+    ) : null;
+  if (isPictureOnly(card)) {
+    // A link straight to a picture is shown as just the picture, with the X on its corner (as Slack does).
+    return (
+      <div className="@container mt-1.5 max-w-2xl">
+        {card.pretext && <Mrkdwn text={card.pretext} ctx={ctx} />}
+        <div className="group relative mt-1 inline-block max-w-full" data-testid="unfurl-picture-card">
+          {card.hubPreview && card.titleLink ? (
+            <UnfurlPicture src={card.imageUrl!} alt="" className="max-h-72 max-w-full rounded" reserve link={{ href: card.titleLink, props: { "aria-label": "Open picture" } }} />
+          ) : (
+            <Picture image={{ url: card.imageUrl!, alt: "" }} className="max-h-72 max-w-full rounded" reserve />
+          )}
+          {removeButton("corner")}
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="@container mt-1.5 max-w-2xl">
       {card.pretext && <Mrkdwn text={card.pretext} ctx={ctx} />}
@@ -115,7 +140,7 @@ function Card({ card, ctx, removable }: { card: CardUnfurl; ctx: ChatTextContext
           {card.footer && <p className={MUTED}>{card.footer}</p>}
         </div>
         {card.thumbUrl && <Picture image={{ url: card.thumbUrl, alt: "" }} className="h-16 w-16 shrink-0 rounded object-cover" />}
-        {removable && card.removeKey && <RemoveUnfurlButton channelId={removable.channelId} messageId={removable.messageId} removeKey={card.removeKey} source={card.hubPreview ? "hub" : "slack"} />}
+        {removeButton("gutter")}
       </div>
     </div>
   );

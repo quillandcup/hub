@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import MemberAvatar from "@/app/(member)/members/[id]/MemberAvatar";
+import CardClickArea from "@/components/chat/CardClickArea";
 import RemoveUnfurlButton from "@/components/chat/RemoveUnfurlButton";
 import { track } from "@/lib/analytics/client";
 import { formatChatTime } from "@/lib/chat/format";
@@ -26,10 +27,11 @@ export function forgetHubCards() {
   answers.clear();
 }
 
-const CARD = "group relative flex gap-3 rounded-r border-l-4 border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/40 py-2 pl-3 pr-3";
+const CARD = "group relative rounded-r border-l-4 border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/40 py-2 pl-3 pr-3 hover:bg-slate-100 dark:hover:bg-slate-800/70";
 const MUTED = "text-xs text-slate-600 dark:text-slate-400";
 const TITLE = "break-words text-sm font-semibold text-slate-900 dark:text-slate-100";
-const STRETCHED = "absolute inset-0 rounded-r focus-visible:outline focus-visible:outline-2 focus-visible:outline-plum-600 dark:focus-visible:outline-plum-400";
+/** The one link of the card, its ::after stretched over the whole box. */
+const LINK = "text-plum-600 underline dark:text-plum-400 after:absolute after:inset-0 after:rounded-r after:content-[''] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-plum-600 dark:focus-visible:after:ring-plum-400";
 
 /** The room a card keeps while it loads, by what it will be (a quoted message is taller than a title and a date). */
 const RESERVE: Record<HubLinkUnfurl["link"]["kind"], string> = { message: "h-24", prickle: "h-16", member: "h-16" };
@@ -82,72 +84,77 @@ export default function HubLinkCard({
   }
 
   const card = state.card;
-  const href = hubLinkPath(link);
-  const open = (label: string) => <Link href={href} aria-label={label} data-track="chat-hub-link-card" className={STRETCHED} />;
   const remove = removable && unfurl.removeKey ? <RemoveUnfurlButton channelId={removable.channelId} messageId={removable.messageId} removeKey={unfurl.removeKey} source="hub" /> : null;
+  const shell = (label: string, body: ReactNode) => (
+    <Shell href={hubLinkPath(link)} label={label} remove={remove}>
+      {body}
+    </Shell>
+  );
 
   switch (card.state) {
     case "message":
-      return (
-        <div className="@container mt-1.5 max-w-xl" data-testid="hub-link-card">
-          <div className={CARD}>
-            <div className="min-w-0 flex-1 space-y-1">
-              <div className="flex items-center gap-2">
-                <MemberAvatar name={card.authorName} photoUrl={card.authorPhotoUrl} size={20} />
-                <span className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{card.authorName}</span>
-                <time dateTime={card.postedAt} className={`shrink-0 ${MUTED}`}>
-                  {formatChatTime(card.postedAt, timeZone)}
-                </time>
-              </div>
-              {card.channelName && <p className={MUTED}>Posted in #{card.channelName}</p>}
-              {card.text && <p className="line-clamp-4 whitespace-pre-wrap break-words text-sm text-slate-800 dark:text-slate-200">{card.text}</p>}
-            </div>
-            {open(`Open the message from ${card.authorName} in Hub Chat`)}
-            {remove}
+      return shell(
+        "Open in Hub Chat",
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <MemberAvatar name={card.authorName} photoUrl={card.authorPhotoUrl} size={20} />
+            <span className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{card.authorName}</span>
+            <time dateTime={card.postedAt} className={`shrink-0 ${MUTED}`}>
+              {formatChatTime(card.postedAt, timeZone)}
+            </time>
           </div>
-        </div>
+          {card.channelName && <p className={MUTED}>Posted in #{card.channelName}</p>}
+          {card.text && <p className="line-clamp-4 whitespace-pre-wrap break-words text-sm text-slate-800 dark:text-slate-100">{card.text}</p>}
+        </div>,
       );
     case "prickle":
-      return (
-        <div className="@container mt-1.5 max-w-xl" data-testid="hub-link-card">
-          <div className={CARD}>
-            <div className="min-w-0 flex-1 space-y-0.5">
-              <p className={TITLE}>{card.title}</p>
-              <time dateTime={card.startTime} className={MUTED}>
-                {formatChatTime(card.startTime, timeZone)}
-              </time>
-            </div>
-            {open(`Open the prickle ${card.title}`)}
-            {remove}
-          </div>
-        </div>
+      return shell(
+        "Open the prickle",
+        <div className="space-y-0.5">
+          <p className={TITLE}>{card.title}</p>
+          <time dateTime={card.startTime} className={MUTED}>
+            {formatChatTime(card.startTime, timeZone)}
+          </time>
+        </div>,
       );
     case "member":
-      return (
-        <div className="@container mt-1.5 max-w-xl" data-testid="hub-link-card">
-          <div className={`${CARD} items-center`}>
-            <MemberAvatar name={card.name} photoUrl={card.photoUrl} size={32} />
-            <div className="min-w-0 flex-1">
-              <p className={TITLE}>{card.name}</p>
-              <p className={MUTED}>Member profile</p>
-            </div>
-            {open(`Open the profile of ${card.name}`)}
-            {remove}
+      return shell(
+        "View profile",
+        <div className="flex items-center gap-2">
+          <MemberAvatar name={card.name} photoUrl={card.photoUrl} size={32} />
+          <div className="min-w-0">
+            <p className={TITLE}>{card.name}</p>
+            <p className={MUTED}>Member profile</p>
           </div>
-        </div>
+        </div>,
       );
     case "stub":
-      return (
-        <div className="@container mt-1.5 max-w-xl" data-testid="hub-link-card">
-          <div className={CARD}>
-            <div className="min-w-0 flex-1 space-y-0.5">
-              <p className={TITLE}>Link to the Hub</p>
-              <p className={MUTED}>A page in the Hub.</p>
-            </div>
-            {open("Open this link to the Hub")}
-            {remove}
-          </div>
-        </div>
+      return shell(
+        "Open the link",
+        <div className="space-y-0.5">
+          <p className={TITLE}>Link to the Hub</p>
+          <p className={MUTED}>A page in the Hub.</p>
+        </div>,
       );
   }
+}
+
+/**
+ * The frame every state shares: one box that is a link to the page (the footer link's ::after is stretched over it, as on the quoted-message card), the
+ * text above it so it can be selected (`CardClickArea`), and the author's X in the left gutter.
+ */
+function Shell({ href, label, remove, children }: { href: string; label: string; remove: ReactNode; children: ReactNode }) {
+  return (
+    <div className="@container mt-1.5 max-w-xl" data-testid="hub-link-card">
+      <div className={CARD} data-stretched-card="">
+        <CardClickArea className="relative z-10">{children}</CardClickArea>
+        <div className={`mt-1 ${MUTED}`}>
+          <Link href={href} data-stretched-link="" data-track="chat-hub-link-card" className={LINK}>
+            {label}
+          </Link>
+        </div>
+        {remove}
+      </div>
+    </div>
+  );
 }

@@ -37,12 +37,10 @@ export interface SharedMessage {
   postedAt: string | null;
   /** Slack ids of the source conversation: how the loader finds the Hub copy. */
   slackChannelId: string | null;
-  /** The channel as Slack named it. */
+  /** The channel's name: Slack's own `channel_name` when the attachment has one (a real share usually has not), else filled by the loader from the Hub's channel list by id. Never the footer ("Slack Conversation"). */
   channelName: string | null;
   /** The message's own Slack permalink (https, on slack.com) for "Open in Slack". */
   slackUrl: string | null;
-  /** Slack's footer line (often "Posted in #channel"). */
-  footer: string | null;
   files: SharedMessageFile[];
 }
 
@@ -116,6 +114,16 @@ function quotedText(a: Json): string {
   return typeof a.fallback === "string" ? a.fallback : "";
 }
 
+const SLACK_ID = /^[A-Z0-9]{3,20}$/;
+/** The source channel's Slack id: `channel_id`, else the first `message_blocks[].channel`. */
+function channelIdOf(a: Json): string | null {
+  if (typeof a.channel_id === "string" && SLACK_ID.test(a.channel_id)) return a.channel_id;
+  if (Array.isArray(a.message_blocks)) {
+    for (const mb of a.message_blocks.slice(0, 2)) if (isObj(mb) && typeof mb.channel === "string" && SLACK_ID.test(mb.channel)) return mb.channel;
+  }
+  return null;
+}
+
 /**
  * The key that removes this share (`url:<address>`, how the author's removal is stored and what Slack's attachment is matched on
  * when the message was written in the Hub): the link as it was written, else the message's permalink. Null when the attachment
@@ -172,10 +180,9 @@ export function parseSharedMessage(a: unknown): SharedMessage | null {
     authorIcon: httpsUrl(att.author_icon),
     ts,
     postedAt: slackTsToIso(ts),
-    slackChannelId: typeof att.channel_id === "string" && /^[A-Z0-9]{3,20}$/.test(att.channel_id) ? att.channel_id : null,
+    slackChannelId: channelIdOf(att),
     channelName: str(att.channel_name, 80),
     slackUrl: slackPermalink(att.from_url),
-    footer: str(att.footer),
     files,
   };
 }

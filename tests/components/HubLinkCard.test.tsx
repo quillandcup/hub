@@ -51,9 +51,10 @@ describe("HubLinkCard", () => {
     // 15:30 UTC on 1 October is 8:30 AM in Los Angeles.
     expect(screen.getByText(/8:30\s?AM/)).toBeInTheDocument();
     // The whole card opens the message, by a path rebuilt from the ids.
-    const open = screen.getByRole("link", { name: "Open the message from Fern <&> Quillsby in Hub Chat" });
+    const open = screen.getByRole("link", { name: "Open in Hub Chat" });
     expect(open).toHaveAttribute("href", `/chat/${CHANNEL}?m=${TARGET}`);
-    expect(open).toHaveClass("absolute", "inset-0");
+    expect(open).toHaveAttribute("data-stretched-link");
+    expect(open).toHaveClass("after:absolute", "after:inset-0");
     expect(open).toHaveAttribute("data-track", "chat-hub-link-card");
     expect(track).toHaveBeenCalledWith("chat_hub_link_card_shown", { kind: "message", state: "card" });
   });
@@ -62,15 +63,16 @@ describe("HubLinkCard", () => {
     vi.stubGlobal("fetch", answer(MESSAGE_CARD));
     render(<HubLinkCard unfurl={unfurl()} />);
     const card = (await screen.findByTestId("hub-link-card")).firstElementChild!;
-    expect(card).toHaveClass("border-l-4", "border-slate-300", "dark:border-slate-600", "bg-slate-50", "dark:bg-slate-800/40");
-    expect(screen.getByText("Hello & welcome")).toHaveClass("dark:text-slate-200");
+    expect(card).toHaveClass("border-l-4", "border-slate-300", "dark:border-slate-600", "bg-slate-50", "dark:bg-slate-800/40", "dark:hover:bg-slate-800/70");
+    expect(card).toHaveAttribute("data-stretched-card");
+    expect(screen.getByText("Hello & welcome")).toHaveClass("dark:text-slate-100");
   });
 
   it("says only that it is a link to the Hub when the reader may not see the target", async () => {
     vi.stubGlobal("fetch", answer({ state: "stub" }));
     render(<HubLinkCard unfurl={unfurl()} />);
     expect(await screen.findByText("Link to the Hub")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open this link to the Hub" })).toHaveAttribute("href", `/chat/${CHANNEL}?m=${TARGET}`);
+    expect(screen.getByRole("link", { name: "Open the link" })).toHaveAttribute("href", `/chat/${CHANNEL}?m=${TARGET}`);
     expect(track).toHaveBeenCalledWith("chat_hub_link_card_shown", { kind: "message", state: "stub" });
   });
 
@@ -78,14 +80,14 @@ describe("HubLinkCard", () => {
     vi.stubGlobal("fetch", answer({ state: "prickle", title: "Monday Sprint", startTime: "2026-11-02T15:00:00Z" }));
     const prickle = render(<HubLinkCard unfurl={unfurl({ url: "https://hub.example.test/prickles/prkl_AAAAAAAAAAA1", link: { kind: "prickle", prickleId: "prkl_AAAAAAAAAAA1" } })} timeZone="UTC" />);
     expect(await screen.findByText("Monday Sprint")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open the prickle Monday Sprint" })).toHaveAttribute("href", "/prickles/prkl_AAAAAAAAAAA1");
+    expect(screen.getByRole("link", { name: "Open the prickle" })).toHaveAttribute("href", "/prickles/prkl_AAAAAAAAAAA1");
     prickle.unmount();
 
     forgetHubCards();
     vi.stubGlobal("fetch", answer({ state: "member", name: "Fern Quillsby", photoUrl: null }));
     render(<HubLinkCard unfurl={unfurl({ url: "https://hub.example.test/members/mbr_AAAAAAAAAAA1", link: { kind: "member", memberId: "mbr_AAAAAAAAAAA1" } })} />);
     expect(await screen.findByText("Fern Quillsby")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open the profile of Fern Quillsby" })).toHaveAttribute("href", "/members/mbr_AAAAAAAAAAA1");
+    expect(screen.getByRole("link", { name: "View profile" })).toHaveAttribute("href", "/members/mbr_AAAAAAAAAAA1");
   });
 
   it("draws nothing when it can't be had, so the link in the text is all there is", async () => {
