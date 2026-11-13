@@ -405,7 +405,7 @@ Each id must be well formed for its table (`isId`), and every one is a Tier 1 id
 
 **Loading.** The card keeps a reserved height while it asks (`animate-pulse`, one height per kind), the answer is kept for a minute so a redraw does not blink it, and when no answer can be had nothing is drawn. Usage: `chat_hub_link_card_shown` (kind and whether it showed the target or the stub) and `data-track="chat-hub-link-card"` on the link.
 
-**Slack readers.** Hub Chat's card is drawn from the address, so there is nothing to import and no webhook it depends on. What Slack readers see is Slack's own preview of the link, until the Slack app unfurls Hub links itself (stage 2, `docs/TODO.md`, "Slack: unfurl Hub links").
+**Slack readers.** Hub Chat's card is drawn from the address, so there is nothing to import and no webhook it depends on. What Slack readers see is decided separately, in "Hub links in Slack" below.
 
 ### Adding a kind of Hub link card
 
@@ -414,6 +414,36 @@ Each id must be well formed for its table (`isId`), and every one is a Tier 1 id
 3. **Say what the card shows.** In `lib/chat/hub-link-card.ts` add a `HubCard` state and a case in `loadHubLinkCard` that reads through the reader's repositories and returns `STUB` for anything missing or not theirs. Put in it only what the page itself shows every reader who may open it: no emails, no legal names, no ids that are not in the link. Add the case to `tests/lib/chat-hub-links-route.test.ts` for a reader, a reader without access, a missing target and sudo.
 4. **Draw it.** In `components/chat/HubLinkCard.tsx` add a `RESERVE` height and a `case` using the shared card classes (the light and dark tokens of the link preview card), the stretched link and the X. Add the kind to the `chat_hub_link_card_shown` event in `lib/analytics/events.ts`, and a case to `tests/components/HubLinkCard.test.tsx`.
 5. **Docs.** Add the kind to the list above.
+
+## Hub links in Slack (the Slack app unfurls links to the Hub)
+
+Hub Chat draws its own card for a link to the Hub ("Hub links", above), from the address alone: nothing here is needed for that. This is the Slack side, for people reading a Hub link in Slack: the Slack app registers the Hub's host as an unfurl domain, Slack sends a `link_shared` event for each such link, and the app answers with `chat.unfurl` using the bot token (`lib/chat/slack-link-shared.ts`, `lib/chat/slack-link-unfurl.ts`, called from the Slack webhook after its response).
+
+**What Slack documents** (docs.slack.dev, "Unfurling links in messages", `link_shared`, `chat.unfurl`):
+
+- `link_shared` needs `links:read`; `chat.unfurl` needs `links:write`; a bot token is recommended. The app registers up to five domains (`unfurl_domains` in the manifest, without protocol or path); adding or changing one means the workspace must **reinstall** the app. A subdomain in the registered name excludes the bare domain.
+- The event fires for links typed in the composer and for links in posted messages, and carries `channel`, `message_ts`, `links`, and (outside Enterprise Grid) an `unfurl_id` and a `source` (`composer` or `conversations_history`). Answer with `unfurl_id` and `source` where present (the only way for a conversation the bot is not in, or the composer), else `channel` and `ts`. `unfurls` is a map from each address to blocks or an attachment (no rich text blocks).
+- **A workspace with a Slack app handler for a domain stops using the classic crawler for it**: "If a workspace doesn't have a Slack app handler for a specific domain, unfurling will fall back to classic behavior". So once the domain is registered the Hub's links get no sign-in-page preview from Slack, only what the app answers. A link the app does not answer for has no preview.
+- Calling `chat.unfurl` again for the same message modifies the same attachment rather than adding another. Slack does not say whether that replaces an unfurl its crawler made **before** the domain was registered, so old messages may keep their old preview. Not tested.
+- **The event is not sent for messages posted by an app or integration, nor for the app's own messages.** The Hub posts a member's message with the member's own Slack token (the app's user token): whether Slack counts that as "the app's own message" is not documented. To be checked once with a real Hub-written link (`docs/TODO.md`, "Slack: unfurl Hub links in messages the Hub posts"). Links typed in Slack by people are the documented case.
+- Everyone in the conversation sees the app's unfurl. There is no per-reader unfurl.
+
+**What a card may say.** Because the whole conversation sees it, and the event does not say who they are, the card is decided from the link alone, with the service role (`slackCardText`), and says only what is safe for anyone in a Slack conversation:
+
+| Link | Card |
+| --- | --- |
+| A message in a **public, not restricted** channel that exists | "A message from <display name> in #<channel> in Hub Chat" (never the text) |
+| A message in a private or restricted channel, a direct or group message, a missing or deleted message | "Link to the Hub" |
+| A prickle | its title and start, in the organization's zone (the community's public schedule) |
+| A member profile | the display name only (no photo, no profile text, no email) |
+| Any other page on the Hub's host | "Link to the Hub" |
+| A link on another host | not answered |
+
+The text is sent as `plain_text` (so a name with `*`, `<` or `&` cannot add formatting, a mention or a link) with a context line that links to a path rebuilt from the parsed ids. No Tier 2 id is in any card. Until `chat_link_cards` is on **for everyone**, every card is the neutral one: that is also the rollout switch for what Slack readers learn from a link.
+
+**Nothing through webhooks alone.** The rule ("Nothing through webhooks alone", `CLAUDE.md`) is about data the Hub keeps. An unfurl keeps nothing: it is answered from the link when Slack asks, so there is nothing for a nightly import to catch up on. A missed event only means no preview for that one link.
+
+**The manifest.** `slack-app-manifest.yml` adds the bot scopes `links:read` and `links:write`, the bot event `link_shared` and `unfurl_domains` for the Hub's host. The manifest holds literal hosts for its request URLs and does not read `app.config.ts`, so the unfurl domain is written the same way (keep them equal). `SLACK_BOT_SCOPES` (`lib/slack-bot-install.ts`) lists the two scopes too, and a test keeps it equal to the manifest. Merging a change to the manifest pushes it to the live app (`docs/SLACK_MANIFEST.md`), and the new scopes and domain apply once the workspace admin reinstalls the app.
 
 ## Migration path
 
