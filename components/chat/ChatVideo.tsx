@@ -96,13 +96,18 @@ export default function ChatVideo({ messageId }: { messageId: string }) {
             posterUrl={card.thumbnailUrl && !imageFailed ? card.thumbnailUrl : null}
           />
           {state.lessonHref && (
-            // Over the player's top corner like YouTube's "Watch on YouTube": always visible, above the player's own overlays (z-30), with a light edge so it shows on a dark frame.
+            // Over the player's top-left corner like YouTube's "Watch on YouTube" (top-right is its fullscreen button on a small screen). Always visible,
+            // above the player's own overlays (z-30). Icon only on a small screen and the label from `sm`, the same step the player's big play button grows
+            // at, so the two never meet; the soft ring is that button's.
             <Link
               href={state.lessonHref}
               data-track="chat-video-open-lesson"
-              className="absolute right-2 top-2 z-40 rounded-md bg-black/70 ring-1 ring-white/40 px-2.5 py-1 text-xs font-medium text-white hover:bg-black/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+              className="absolute left-2 top-2 z-40 flex items-center gap-1.5 rounded-full bg-black/70 px-2.5 py-1.5 text-xs font-medium text-white ring-1 ring-white/30 backdrop-blur-sm hover:bg-black/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
             >
-              Open lesson
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M7 17 17 7M8 7h9v9" />
+              </svg>
+              <span className="sr-only sm:not-sr-only">Open lesson</span>
             </Link>
           )}
           </div>
