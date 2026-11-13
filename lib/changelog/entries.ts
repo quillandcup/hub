@@ -56,6 +56,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "more-than-one-zoom-account",
+    date: "2026-11-12",
+    audience: "engineering",
+    category: "new",
+    title: "More than one Zoom account: imports, webhooks and a keep-or-ignore rule for the extra ones",
+    summary: "The Hub can import meetings from several Zoom accounts. A secondary account's meetings stay in Bronze but reach prickles and attendance only once an admin keeps them.",
+    body: [
+      "Each account is a row with a default (keep or exclude) and the prefix of its credentials. The import and the nightly reconcile cover every account and skip one whose credentials are not set; the webhook accepts the secret of any configured account and records which one it came from. Bronze rows carry their account.",
+      "Exclusion is applied when Silver is read, in the Zoom repository: an instance decision beats a link's, which beats the account default, and the same function serves the twin and the review page. Reprocessing then adds or removes the prickle and attendance, so a changed decision is fully reproducible. Admins decide on Health Check, Zoom Meetings.",
+      "**For a new Zoom read:** go through `ZoomRepository` so the rule applies; don't read the Bronze tables directly. Detail and the owner's setup steps: `docs/ZOOM_ACCOUNTS.md`.",
+    ].join("\n\n"),
+  },
+  {
     slug: "chat-cards-for-hub-links",
     date: "2026-11-12",
     audience: "engineering",

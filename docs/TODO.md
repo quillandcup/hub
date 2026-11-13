@@ -90,6 +90,14 @@ Some people who attend prickles have no Kajabi footprint at all (not a member, t
 
 ## Data Import
 
+### Zoom accounts: registering an account and matching by host email
+- **What shipped:** several Zoom accounts feed the Hub, the secondary excluded until an admin keeps its meetings (`docs/ZOOM_ACCOUNTS.md`).
+- **No screen to register an account.** `zoom_accounts` rows are added with a one-off statement the owner runs (the doc has it). A small admin form (label, policy, credentials prefix, with a check that the env vars are set and a "test connection" button) would let staff do it. Deferred because there is one secondary account and it changes rarely; start from `ZoomRepository.createAccount` and the review page.
+- **Owner steps are outside the repo:** the Server-to-Server OAuth app on the second account, its webhook subscriptions and its `ZOOM_SECONDARY_*` values synced to Vercel.
+- **Matching a meeting to the account by host email** (for instance suggesting "keep" when the host is one of our hosts and the topic looks like a prickle) is not built: the review page shows topic, time and participant count and the admin decides. If the personal account's undecided list gets long, add a suggestion from `prickle_types` names and the calendar prickles that overlap the meeting.
+- **`latestMeetingStart()`** (the "attendance data through" date on the calendar page) still counts every Bronze meeting, kept or not.
+- **Not covered:** the nightly reconcile imports the last 90 days of every account in one run; if a second account's volume makes the run slow, give each account its own pass.
+
 ### Zoom in-meeting chat (spike running: decide whether to build on it)
 - **What shipped:** the `meeting.chat_message_sent` webhook handler (`/api/webhooks/zoom`, `lib/zoom-chat.ts`) records every in-meeting chat message in `bronze.zoom_chat_messages` through `ZoomRepository.recordChatMessage`. Text and the raw payload are service role only; admins read `bronze.zoom_chat_messages_meta` (sender, recipient of a private message, when, whether files): who talked to whom is metadata, like other interactions between members. It is a spike: nothing reads it yet.
 - **To turn on:** in the Zoom Marketplace app, subscribe to the "In-meeting chat message received" event (Meeting events). Without it nothing arrives. Not done by the PR; the app config is outside the repo.

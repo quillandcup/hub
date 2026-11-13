@@ -1144,6 +1144,7 @@ export type Database = {
           status: string | null
           topic: string | null
           user_id: string | null
+          zoom_account: string
         }
         Insert: {
           attentiveness_score?: number | null
@@ -1163,6 +1164,7 @@ export type Database = {
           status?: string | null
           topic?: string | null
           user_id?: string | null
+          zoom_account?: string
         }
         Update: {
           attentiveness_score?: number | null
@@ -1182,6 +1184,7 @@ export type Database = {
           status?: string | null
           topic?: string | null
           user_id?: string | null
+          zoom_account?: string
         }
         Relationships: []
       }
@@ -1207,6 +1210,7 @@ export type Database = {
           sender_session_id: string | null
           sender_type: string | null
           sent_at: string
+          zoom_account: string
         }
         Insert: {
           breakout_room_uuid?: string | null
@@ -1229,6 +1233,7 @@ export type Database = {
           sender_session_id?: string | null
           sender_type?: string | null
           sent_at: string
+          zoom_account?: string
         }
         Update: {
           breakout_room_uuid?: string | null
@@ -1251,6 +1256,7 @@ export type Database = {
           sender_session_id?: string | null
           sender_type?: string | null
           sent_at?: string
+          zoom_account?: string
         }
         Relationships: []
       }
@@ -1269,6 +1275,7 @@ export type Database = {
           start_time: string
           topic: string
           updated_at: string | null
+          zoom_account: string
         }
         Insert: {
           data: Json
@@ -1284,6 +1291,7 @@ export type Database = {
           start_time: string
           topic: string
           updated_at?: string | null
+          zoom_account?: string
         }
         Update: {
           data?: Json
@@ -1299,6 +1307,7 @@ export type Database = {
           start_time?: string
           topic?: string
           updated_at?: string | null
+          zoom_account?: string
         }
         Relationships: []
       }
@@ -1316,6 +1325,7 @@ export type Database = {
           participant_name: string | null
           raw_payload: Json
           received_at: string
+          zoom_account: string
         }
         Insert: {
           event: string
@@ -1330,6 +1340,7 @@ export type Database = {
           participant_name?: string | null
           raw_payload: Json
           received_at?: string
+          zoom_account?: string
         }
         Update: {
           event?: string
@@ -1344,6 +1355,7 @@ export type Database = {
           participant_name?: string | null
           raw_payload?: Json
           received_at?: string
+          zoom_account?: string
         }
         Relationships: []
       }
@@ -6882,6 +6894,77 @@ export type Database = {
             columns: ["member_id"]
             isOneToOne: false
             referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      zoom_accounts: {
+        Row: {
+          created_at: string
+          credentials_prefix: string
+          default_policy: string
+          host_email: string | null
+          id: string
+          label: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          credentials_prefix: string
+          default_policy?: string
+          host_email?: string | null
+          id?: string
+          label: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          credentials_prefix?: string
+          default_policy?: string
+          host_email?: string | null
+          id?: string
+          label?: string
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      zoom_meeting_decisions: {
+        Row: {
+          decided_at: string
+          decided_by: string | null
+          decision: string
+          id: string
+          scope: string
+          zoom_account: string
+          zoom_key: string
+        }
+        Insert: {
+          decided_at?: string
+          decided_by?: string | null
+          decision: string
+          id?: string
+          scope: string
+          zoom_account: string
+          zoom_key: string
+        }
+        Update: {
+          decided_at?: string
+          decided_by?: string | null
+          decision?: string
+          id?: string
+          scope?: string
+          zoom_account?: string
+          zoom_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zoom_meeting_decisions_zoom_account_fkey"
+            columns: ["zoom_account"]
+            isOneToOne: false
+            referencedRelation: "zoom_accounts"
             referencedColumns: ["id"]
           },
         ]

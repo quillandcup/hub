@@ -82,6 +82,8 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   // The ambiguous-name queue, the per-prickle ignores and the live join/leave events (ZoomRepository): every query is moved.
   ambiguous_zoom_names: [],
   ignored_zoom_appearances: [],
+  zoom_accounts: [],
+  zoom_meeting_decisions: [],
   zoom_participant_events: [],
   // The in-meeting chat the webhook saw (ZoomRepository): every query is moved.
   zoom_chat_messages: [],

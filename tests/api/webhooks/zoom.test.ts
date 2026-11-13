@@ -139,6 +139,8 @@ describe('Zoom Webhook', () => {
       expect(triggerZoomImport).toHaveBeenCalledWith({
         fromDate: '2026-04-26',
         toDate: '2026-04-26',
+        // The database is not reachable in this test: only the primary account is accepted
+        account: 'primary',
       })
     })
 

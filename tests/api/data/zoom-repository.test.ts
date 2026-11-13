@@ -23,6 +23,8 @@ const clear = async () => {
   ok(await db.schema("bronze").from("zoom_meetings").delete().like("meeting_uuid", `${PREFIX}%`));
   ok(await db.schema("bronze").from("zoom_participant_events").delete().like("meeting_uuid", `${PREFIX}%`));
   ok(await db.schema("bronze").from("zoom_chat_messages").delete().like("meeting_uuid", `${PREFIX}%`));
+  // Accounts last: Bronze rows reference them. Their decisions go with them (cascade).
+  ok(await db.from("zoom_accounts").delete().like("slug", `${PREFIX}%`));
   ok(await db.from("ignored_zoom_names").delete().like("zoom_name", `${PREFIX}%`));
   ok(await db.from("ignored_zoom_appearances").delete().like("zoom_name", `${PREFIX}%`));
   ok(await db.from("ambiguous_zoom_names").delete().like("zoom_name", `${PREFIX}%`));

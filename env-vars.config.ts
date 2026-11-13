@@ -143,6 +143,44 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     destinations: vercelAllEnvs,
   },
 
+  // A second Zoom account (credentials_prefix ZOOM_SECONDARY in `zoom_accounts`; see docs/ZOOM_ACCOUNTS.md). Optional: with
+  // any of these unset the account is skipped (logged), and the primary account's import and webhooks are unaffected.
+  {
+    name: "ZOOM_SECONDARY_ACCOUNT_ID",
+    group: "Zoom",
+    description: "Second Zoom account: account identifier (Server-to-Server OAuth app). Optional; the account is skipped when unset.",
+    type: "config",
+    destinations: vercelAllEnvs,
+  },
+  {
+    name: "ZOOM_SECONDARY_CLIENT_ID",
+    group: "Zoom",
+    description: "Second Zoom account: OAuth app client ID.",
+    type: "config",
+    destinations: vercelAllEnvs,
+  },
+  {
+    name: "ZOOM_SECONDARY_CLIENT_SECRET",
+    group: "Zoom",
+    description: "Second Zoom account: OAuth app client secret.",
+    type: "secret",
+    destinations: vercelAllEnvs,
+  },
+  {
+    name: "ZOOM_SECONDARY_WEBHOOK_SECRET_TOKEN",
+    group: "Zoom",
+    description: "Second Zoom account: verifies its webhook signatures (each Zoom app has its own secret token).",
+    type: "secret",
+    destinations: vercelAllEnvs,
+  },
+  {
+    name: "ZOOM_SECONDARY_USER_EMAIL",
+    group: "Zoom",
+    description: "Second Zoom account: the user whose meeting reports are imported.",
+    type: "config",
+    destinations: vercelAllEnvs,
+  },
+
   // --- Kajabi --------------------------------------------------------------------------------
   {
     name: "KAJABI_CLIENT_ID",

@@ -152,6 +152,8 @@ export const OUTCOME_ACTIONS = [
   "media_asset_deleted",
   "media_asset_copied_from_event",
   "big_sister_note_saved",
+  // Data hygiene (staff)
+  "zoom_meetings_decided",
 ] as const;
 
 export type OutcomeAction = (typeof OUTCOME_ACTIONS)[number];
