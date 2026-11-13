@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import LessonPlayer from "@/components/courses/LessonPlayer";
 import type { PlaybackTokens } from "@/lib/mux";
@@ -15,7 +16,7 @@ interface CardInfo {
 type State =
   | { kind: "idle" }
   | { kind: "loading" }
-  | { kind: "ready"; title: string; lessonId: string; playbackId: string; tokens: PlaybackTokens; restricted: boolean; record: boolean; resumeSeconds: number }
+  | { kind: "ready"; title: string; lessonId: string; lessonHref: string | null; playbackId: string; tokens: PlaybackTokens; restricted: boolean; record: boolean; resumeSeconds: number }
   | { kind: "error"; message: string };
 
 const NO_INFO: CardInfo = { title: null, courseTitle: null, thumbnailUrl: null, canWatch: null };
@@ -59,8 +60,8 @@ export default function ChatVideo({ messageId }: { messageId: string }) {
         setState({ kind: "error", message: res.status === 429 ? "Too many videos opened just now. Try again in a few minutes." : "This video isn't available right now." });
         return;
       }
-      const body = (await res.json()) as { title: string; lessonId: string; playbackId: string; tokens: PlaybackTokens; restricted: boolean; record: boolean; resumeSeconds: number };
-      setState({ kind: "ready", ...body });
+      const body = (await res.json()) as { title: string; lessonId: string; lessonHref?: string | null; playbackId: string; tokens: PlaybackTokens; restricted: boolean; record: boolean; resumeSeconds: number };
+      setState({ kind: "ready", ...body, lessonHref: body.lessonHref ?? null });
     } catch {
       setState({ kind: "error", message: "This video isn't available right now." });
     }
@@ -69,6 +70,7 @@ export default function ChatVideo({ messageId }: { messageId: string }) {
   if (state.kind === "ready") {
     return (
       <div className="mt-2 max-w-xl overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
+        <div className="group relative">
         <LessonPlayer
           title={state.title}
           playbackId={state.playbackId}
@@ -82,6 +84,17 @@ export default function ChatVideo({ messageId }: { messageId: string }) {
           // The card's own thumbnail as the player's poster, so opening it doesn't swap to a different frame (Mux's, from two seconds in) before the video starts.
           posterUrl={card.thumbnailUrl && !imageFailed ? card.thumbnailUrl : null}
         />
+        {state.lessonHref && (
+          // Over the player's top corner like YouTube's "Watch on YouTube": shown on hover or keyboard focus where there is a pointer, always on touch screens.
+          <Link
+            href={state.lessonHref}
+            data-track="chat-video-open-lesson"
+            className="absolute right-2 top-2 rounded-md bg-black/70 px-2.5 py-1 text-xs font-medium text-white hover:bg-black/85 focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
+          >
+            Open lesson
+          </Link>
+        )}
+        </div>
         <p className="px-3 py-2 text-sm font-medium text-slate-800 dark:text-slate-100">{state.title}</p>
       </div>
     );
