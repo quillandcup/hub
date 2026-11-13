@@ -7,6 +7,9 @@ import { renderServerRoute, resetServerPageMocks } from "@/tests/helpers/server-
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
+vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
+const loadCourseRoster = vi.fn();
+vi.mock("@/lib/courses/roster-data", () => ({ loadCourseRoster: (...a: unknown[]) => loadCourseRoster(...a) }));
 const requireAdminPage = vi.fn(async () => undefined);
 vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: () => requireAdminPage() }));
 const loadHubCourse = vi.fn();
@@ -31,9 +34,8 @@ vi.mock("@/lib/data/repos", () => ({
 }));
 const loadDuplicatePreview = vi.fn();
 vi.mock("@/lib/courses/duplicate", () => ({ loadDuplicatePreview: (...a: unknown[]) => loadDuplicatePreview(...a) }));
-vi.mock("@/app/(admin)/admin/courses/[id]/DuplicatePanel", () => ({
-  default: (props: { courseId: string; title: string }) => <div data-testid="duplicate" data-course={props.courseId} data-title={props.title} />,
-}));
+vi.mock("@/app/(admin)/admin/courses/duplicate-actions", () => ({ duplicateCourse: vi.fn() }));
+vi.mock("@/app/(admin)/admin/courses/take-over-actions", () => ({ takeOverCourse: vi.fn() }));
 vi.mock("@/app/(admin)/admin/courses/actions", () => ({ createCourse: vi.fn(), updateCourseDetails: vi.fn() }));
 vi.mock("@/app/(admin)/admin/courses/outline-actions", () => ({
   addCourseLesson: vi.fn(),
@@ -46,6 +48,8 @@ vi.mock("@/app/(admin)/admin/courses/outline-actions", () => ({
 
 import { buildHubOutline } from "@/lib/courses/hub-outline";
 import AdminCoursePage, { generateMetadata } from "@/app/(admin)/admin/courses/[id]/page";
+import AdminCourseDetailsPage from "@/app/(admin)/admin/courses/[id]/details/page";
+import AdminCourseMediaPage from "@/app/(admin)/admin/courses/[id]/media/page";
 
 const COURSE = "crs_AAAAAAAAAAA1";
 const params = (id = COURSE) => ({ params: Promise.resolve({ id }) });
@@ -64,6 +68,8 @@ const course = (over: Record<string, unknown> = {}) => ({
 
 beforeEach(() => {
   resetServerPageMocks();
+  loadCourseRoster.mockReset();
+  loadCourseRoster.mockResolvedValue({ course: { id: "c", title: "C" }, rows: [{}, {}, {}] });
   requireAdminPage.mockClear();
   loadHubCourse.mockReset();
   loadHubOutline.mockReset();
@@ -83,12 +89,17 @@ describe("/admin/courses/[id] for a Hub-owned course", () => {
 
   it("shows the course's address, who has access and when it opens, and the details to edit", async () => {
     loadHubCourse.mockResolvedValue(course());
-    await renderServerRoute(AdminCoursePage, params());
+    const { unmount } = await renderServerRoute(AdminCoursePage, params());
 
-    expect(screen.getByRole("heading", { name: "Plot Lab" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Plot Lab" })).toBeInTheDocument();
+    expect(screen.getByText("Published")).toBeInTheDocument();
+    expect(screen.getByText("In the Hub")).toBeInTheDocument();
     expect(screen.getByText("/courses/plot-lab")).toBeInTheDocument();
     expect(screen.getByText(/3 have access now, 2 start later,\s+1 have ended/)).toBeInTheDocument();
     expect(screen.getByText(/It opens November 2, 2026/)).toBeInTheDocument();
+    unmount();
+
+    await renderServerRoute(AdminCourseDetailsPage, params());
 
     const form = screen.getByRole("form", { name: "Course details" });
     expect(within(form).getByLabelText("Name")).toHaveValue("Plot Lab");
@@ -100,13 +111,31 @@ describe("/admin/courses/[id] for a Hub-owned course", () => {
     expect(within(form).getByRole("button", { name: "Save" })).toBeEnabled();
   });
 
-  it("offers to duplicate the course", async () => {
+  it("has the Outline and Details tabs only (no media tab until the Hub has media to manage), and no take over", async () => {
     loadDuplicatePreview.mockResolvedValue({ modules: 1, lessons: 2, withVideo: 0, downloads: 0, tooDeep: false });
     loadHubCourse.mockResolvedValue(course());
-    loadHubOutline.mockResolvedValue(buildHubOutline([], []));
     await renderServerRoute(AdminCoursePage, params());
-    expect(screen.getByTestId("duplicate")).toHaveAttribute("data-course", COURSE);
-    expect(screen.getByTestId("duplicate")).toHaveAttribute("data-title", "Plot Lab");
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Outline", "Details", "Customers (3)"]);
+    expect(screen.getByRole("tab", { name: "Outline" })).toHaveAttribute("aria-selected", "true");
+    await userEvent.click(screen.getByRole("button", { name: "Course actions" }));
+    expect(screen.queryByRole("menuitem", { name: /Take over/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Watch stats" })).toBeInTheDocument();
+  });
+
+  it("opens the Details tab at its own path, and has no Media tab", async () => {
+    loadHubCourse.mockResolvedValue(course());
+    await renderServerRoute(AdminCourseDetailsPage, params());
+    expect(screen.getByRole("tab", { name: "Details" })).toHaveAttribute("aria-selected", "true");
+    await expect(renderServerRoute(AdminCourseMediaPage, params())).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
+  });
+
+  it("offers to duplicate the course from the menu", async () => {
+    loadDuplicatePreview.mockResolvedValue({ modules: 1, lessons: 2, withVideo: 0, downloads: 0, tooDeep: false });
+    loadHubCourse.mockResolvedValue(course());
+    await renderServerRoute(AdminCoursePage, params());
+    await userEvent.click(screen.getByRole("button", { name: "Course actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Duplicate course" }));
+    expect(screen.getByRole("dialog", { name: "Duplicate this course?" })).toHaveTextContent(/Plot Lab \(copy\)/);
   });
 
   it("isn't the read-only Kajabi builder: no support notice, and the outline can be changed", async () => {
@@ -141,7 +170,7 @@ describe("/admin/courses/[id] for a Hub-owned course", () => {
 
   it("opens straight away with no day and no program set, and leaves access to be chosen when it isn't one of the options", async () => {
     loadHubCourse.mockResolvedValue(course({ launchAt: null, programId: null, description: null, accessDuration: "P2Y" }));
-    await renderServerRoute(AdminCoursePage, params());
+    await renderServerRoute(AdminCourseDetailsPage, params());
     const form = screen.getByRole("form", { name: "Course details" });
     expect(within(form).getByLabelText("Opens")).toHaveValue("");
     expect(within(form).getByLabelText("Program")).toHaveValue("");

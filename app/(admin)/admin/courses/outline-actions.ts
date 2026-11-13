@@ -44,7 +44,7 @@ function describe(error: DbError, what: string): string {
 }
 
 function revalidate(courseId: string) {
-  revalidatePath(`/admin/courses/${courseId}`);
+  revalidatePath(`/admin/courses/${courseId}`, "layout");
   revalidatePath("/courses", "layout");
 }
 

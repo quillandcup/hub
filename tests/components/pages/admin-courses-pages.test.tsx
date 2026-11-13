@@ -2,11 +2,14 @@
 /** The admin Courses pages: the list, and one course with every lesson explained. Loaders mocked; markup is real. */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, within } from "@testing-library/react";
-import { renderServerPage, resetServerPageMocks } from "@/tests/helpers/server-page";
+import { renderServerPage, renderServerRoute, resetServerPageMocks } from "@/tests/helpers/server-page";
 import { explainCourse } from "@/lib/courses/explain";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
+vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
+const loadCourseRoster = vi.fn();
+vi.mock("@/lib/courses/roster-data", () => ({ loadCourseRoster: (...a: unknown[]) => loadCourseRoster(...a) }));
 const requireAdminPage = vi.fn(async () => undefined);
 vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: () => requireAdminPage() }));
 
@@ -32,15 +35,11 @@ vi.mock("@/app/(admin)/admin/courses/[id]/CourseSettingsForm", () => ({
 
 const loadTakeOverPreview = vi.fn();
 vi.mock("@/lib/courses/take-over", () => ({ loadTakeOverPreview: (...a: unknown[]) => loadTakeOverPreview(...a) }));
-vi.mock("@/app/(admin)/admin/courses/[id]/TakeOverPanel", () => ({
-  default: (props: { courseId: string; title: string; preview: { lessons: number } }) => <div data-testid="take-over" data-course={props.courseId} data-title={props.title} data-lessons={props.preview.lessons} />,
-}));
+vi.mock("@/app/(admin)/admin/courses/take-over-actions", () => ({ takeOverCourse: vi.fn() }));
 
 const loadDuplicatePreview = vi.fn();
 vi.mock("@/lib/courses/duplicate", () => ({ loadDuplicatePreview: (...a: unknown[]) => loadDuplicatePreview(...a) }));
-vi.mock("@/app/(admin)/admin/courses/[id]/DuplicatePanel", () => ({
-  default: (props: { courseId: string; title: string; preview: { lessons: number } }) => <div data-testid="duplicate" data-course={props.courseId} data-title={props.title} data-lessons={props.preview.lessons} />,
-}));
+vi.mock("@/app/(admin)/admin/courses/duplicate-actions", () => ({ duplicateCourse: vi.fn() }));
 
 vi.mock("@/app/(admin)/admin/courses/CoursePublishControl", () => ({
   default: (props: { courseId: string; isDraft: boolean }) => <div data-testid="publish" data-course={props.courseId} data-draft={String(props.isDraft)} />,
@@ -48,6 +47,9 @@ vi.mock("@/app/(admin)/admin/courses/CoursePublishControl", () => ({
 
 import AdminCoursesPage from "@/app/(admin)/admin/courses/page";
 import AdminCoursePage, { generateMetadata } from "@/app/(admin)/admin/courses/[id]/page";
+import AdminCourseDetailsPage, { generateMetadata as detailsMetadata } from "@/app/(admin)/admin/courses/[id]/details/page";
+import AdminCourseMediaPage, { generateMetadata as mediaMetadata } from "@/app/(admin)/admin/courses/[id]/media/page";
+import userEvent from "@testing-library/user-event";
 
 const totals = { open: 0, coming_soon: 8, hidden: 45 };
 const row = (over = {}) => ({
@@ -63,6 +65,8 @@ const row = (over = {}) => ({
 
 beforeEach(() => {
   resetServerPageMocks();
+  loadCourseRoster.mockReset();
+  loadCourseRoster.mockResolvedValue({ course: { id: "c", title: "C" }, rows: [{}, {}, {}] });
   requireAdminPage.mockClear();
   loadAdminCourses.mockReset();
   loadAdminCourse.mockReset();
@@ -133,135 +137,178 @@ describe("/admin/courses/[id]", () => {
     return { course: row({ hub, isDraft: hub === null }), explained, content: { l1: { hasText: true, hasVideo: false } }, hubLessonIds: { l1: "hub-l1", l2: "hub-l2" }, videos: [], files: { files: [], stale: [], courseId: null }, details: { description: "Learn to write.", includesMembership: true }, lastImportedAt: "2026-11-03T15:30:00Z", ...over };
   };
   const params = { params: Promise.resolve({ id: "crs_AAAAAAAAAAA1" }) };
+  const menu = async () => {
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Course actions" }));
+    return user;
+  };
 
   it("is a 404 for an id that is not a course id", async () => {
-    await expect(Promise.resolve().then(() => AdminCoursePage({ params: Promise.resolve({ id: "2149594995" }) }))).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
+    await expect(renderServerRoute(AdminCoursePage, { params: Promise.resolve({ id: "2149594995" }) })).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
   });
 
-  it("is the course builder: the course as last imported, with its fields disabled and the support banner above", async () => {
+  it("checks the caller is an admin on every tab", async () => {
     loadAdminCourse.mockResolvedValue(detail());
-    await renderServerPage(AdminCoursePage, params);
-
-    expect(screen.getByText(/contact support at/)).toBeInTheDocument();
-    expect(screen.getByText(/Last imported from Kajabi November 3, 2026 at 10:30 AM/)).toBeInTheDocument();
-    const form = screen.getByRole("form", { name: "Course builder" });
-    expect(within(form).getByDisplayValue("The Ready Writer")).toBeDisabled();
-    expect(within(form).getByDisplayValue("the-ready-writer")).toBeDisabled();
-    expect(within(form).getByDisplayValue("Learn to write.")).toBeDisabled();
-    expect(within(form).getByText("Module 2")).toBeInTheDocument();
-    for (const control of form.querySelectorAll("input:not([type=search]), select, textarea, button")) {
-      if (control.textContent?.match(/(Expand|Collapse) all/) || control.getAttribute("aria-label")?.match(/^(Expand|Collapse) /)) continue;
-      if (control.closest("a")) continue;
-      expect(control, control.outerHTML).toBeDisabled();
+    for (const page of [AdminCoursePage, AdminCourseDetailsPage, AdminCourseMediaPage]) {
+      requireAdminPage.mockClear();
+      const { unmount } = await renderServerRoute(page, params);
+      expect(requireAdminPage).toHaveBeenCalled();
+      unmount();
     }
   });
 
-  it("puts the course's name first in the browser tab", async () => {
+  it("has a compact header: back link, name, state chips, access summary and the import date, with the support banner above", async () => {
+    loadAdminCourse.mockResolvedValue(detail());
+    await renderServerRoute(AdminCoursePage, params);
+
+    expect(screen.getByText(/contact support at/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "← Courses" })).toHaveAttribute("href", "/admin/courses");
+    expect(screen.getByRole("heading", { level: 1, name: "The Ready Writer" })).toBeInTheDocument();
+    expect(screen.getByText("Published")).toBeInTheDocument();
+    expect(screen.getByText("Imported from Kajabi")).toBeInTheDocument();
+    expect(screen.getByText(/0 have access now, 11 start later, 0 have ended/)).toBeInTheDocument();
+    expect(screen.getByText(/Last imported from Kajabi November 3, 2026 at 10:30 AM/)).toBeInTheDocument();
+    // The long explanation of how lessons open is in a tip, not the header.
+    expect(screen.getByRole("tooltip")).toHaveTextContent(/A lesson is open only when it and every module above it are Published in Kajabi/);
+  });
+
+  it("has the Outline, Details and Media tabs, and opens on the Outline: the read-only module tree", async () => {
+    loadAdminCourse.mockResolvedValue(detail());
+    await renderServerRoute(AdminCoursePage, params);
+
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Outline", "Details", "Media", "Customers (3)"]);
+    expect(screen.getByRole("tab", { name: "Outline" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByPlaceholderText("Find module or lesson…")).toBeInTheDocument();
+    expect(screen.getByText("Module 2")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add module" })).toBeDisabled();
+    // Only the open tab is mounted.
+    expect(screen.queryByTestId("videos")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("settings")).not.toBeInTheDocument();
+  });
+
+  it("opens on the tab its path names", async () => {
+    loadAdminCourse.mockResolvedValue(detail());
+    await renderServerRoute(AdminCourseDetailsPage, params);
+    expect(screen.getByRole("tab", { name: "Details" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByPlaceholderText("Find module or lesson…")).not.toBeInTheDocument();
+  });
+
+  it("puts the course's name first in the browser tab, then the tab's name", async () => {
     loadAdminCourseTitle.mockResolvedValue("The Ready Writer");
     expect(await generateMetadata({ params: Promise.resolve({ id: "crs_AAAAAAAAAAA1" }) })).toEqual({ title: "The Ready Writer · Courses" });
     loadAdminCourseTitle.mockResolvedValue(null);
     expect(await generateMetadata({ params: Promise.resolve({ id: "nope" }) })).toEqual({ title: "Courses" });
+    loadAdminCourseTitle.mockResolvedValue("The Ready Writer");
+    expect(await detailsMetadata(params)).toEqual({ title: "The Ready Writer · Details · Courses" });
+    expect(await mediaMetadata(params)).toEqual({ title: "The Ready Writer · Media · Courses" });
   });
 
   it("says when nothing has been imported yet", async () => {
     loadAdminCourse.mockResolvedValue(detail(undefined, { lastImportedAt: null }));
-    await renderServerPage(AdminCoursePage, params);
+    await renderServerRoute(AdminCoursePage, params);
     expect(screen.getByText(/Not imported from Kajabi yet/)).toBeInTheDocument();
   });
 
-  it("gives a published course its settings form with the launch day in the organisation's timezone", async () => {
+  it("shows the details as imported, disabled, and the settings form with the launch day in the organisation's timezone", async () => {
     loadAdminCourse.mockResolvedValue(detail());
-    await renderServerPage(AdminCoursePage, params);
+    await renderServerRoute(AdminCourseDetailsPage, params);
 
     expect(screen.getByTestId("settings")).toHaveAttribute("data-slug", "the-ready-writer");
     expect(screen.getByTestId("settings")).toHaveAttribute("data-access", "P1Y");
     expect(screen.getByTestId("settings")).toHaveAttribute("data-launch", "2026-11-02");
-    expect(screen.getByText(/11 start later/)).toBeInTheDocument();
+    const form = screen.getByRole("form", { name: "Course details as imported" });
+    expect(within(form).getByDisplayValue("The Ready Writer")).toBeDisabled();
+    expect(within(form).getByDisplayValue("the-ready-writer")).toBeDisabled();
+    expect(within(form).getByDisplayValue("Learn to write.")).toBeDisabled();
+    for (const control of form.querySelectorAll("input, select, textarea")) expect(control, control.outerHTML).toBeDisabled();
   });
 
-  it("links a published course to its watch stats and to who's where", async () => {
+  it("puts watch stats in the actions menu, not on the page", async () => {
     loadAdminCourse.mockResolvedValue(detail());
-    await renderServerPage(AdminCoursePage, params);
-    expect(screen.getByRole("link", { name: "Watch stats" })).toHaveAttribute("href", expect.stringMatching(/^\/admin\/courses\/.+\/stats$/));
-    expect(screen.getByRole("link", { name: "Who's where" })).toHaveAttribute("href", expect.stringMatching(/^\/admin\/courses\/.+\/roster$/));
+    await renderServerRoute(AdminCoursePage, params);
+    expect(screen.queryByRole("link", { name: "Watch stats" })).not.toBeInTheDocument();
+    await menu();
+    expect(screen.getByRole("menuitem", { name: "Watch stats" })).toHaveAttribute("href", "/admin/courses/crs_AAAAAAAAAAA1/stats");
+    expect(screen.queryByRole("menuitem", { name: "Who's where" })).not.toBeInTheDocument();
   });
 
-  it("lets staff publish a draft that has a Hub row, and still links its stats and roster", async () => {
+  it("lets staff publish a draft that has a Hub row", async () => {
     loadAdminCourse.mockResolvedValue({ ...detail(), course: row({ isDraft: true }) });
-    await renderServerPage(AdminCoursePage, params);
+    await renderServerRoute(AdminCoursePage, params);
+    expect(within(screen.getByRole("banner")).getByText("Draft")).toBeInTheDocument();
     expect(screen.getByTestId("publish")).toHaveAttribute("data-course", "crs_AAAAAAAAAAA1");
     expect(screen.getByTestId("publish")).toHaveAttribute("data-draft", "true");
-    expect(screen.getByRole("link", { name: "Watch stats" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Who's where" })).toBeInTheDocument();
   });
 
   it("offers to unpublish a published course", async () => {
     loadAdminCourse.mockResolvedValue(detail());
-    await renderServerPage(AdminCoursePage, params);
+    await renderServerRoute(AdminCoursePage, params);
     expect(screen.getByTestId("publish")).toHaveAttribute("data-draft", "false");
   });
 
-  it("offers to take an imported course over, with what that would change, once it is in the Hub", async () => {
+  it("offers to take an imported course over from the menu, once it is in the Hub, and opens what that would change", async () => {
     loadAdminCourse.mockResolvedValue(detail());
     loadTakeOverPreview.mockResolvedValue({ modules: 3, lessons: 12, withText: 0, withVideo: 0, downloads: 0, withoutSetting: 0, tooDeep: false });
-    await renderServerPage(AdminCoursePage, params);
-    expect(screen.getByTestId("take-over")).toHaveAttribute("data-course", "crs_AAAAAAAAAAA1");
-    expect(screen.getByTestId("take-over")).toHaveAttribute("data-title", "The Ready Writer");
-    expect(screen.getByTestId("take-over")).toHaveAttribute("data-lessons", "12");
+    await renderServerRoute(AdminCoursePage, params);
+    const user = await menu();
+    await user.click(screen.getByRole("menuitem", { name: "Take over from Kajabi" }));
+    expect(screen.getByRole("dialog", { name: "Take over from Kajabi?" })).toHaveTextContent(/3 modules and 12 lessons/);
   });
 
   it("offers nothing to take over for a course that is not in the Hub yet, or that has nothing to take over", async () => {
     loadAdminCourse.mockResolvedValue(detail(null));
-    loadTakeOverPreview.mockResolvedValue({ modules: 1, lessons: 1, withText: 0, withVideo: 0, downloads: 0, withoutSetting: 0, tooDeep: false });
-    const { unmount } = await renderServerPage(AdminCoursePage, params);
-    expect(screen.queryByTestId("take-over")).not.toBeInTheDocument();
+    const { unmount } = await renderServerRoute(AdminCoursePage, params);
+    await menu();
+    expect(screen.queryByRole("menuitem", { name: /Take over/ })).not.toBeInTheDocument();
     expect(loadTakeOverPreview).not.toHaveBeenCalled();
     unmount();
 
     loadAdminCourse.mockResolvedValue(detail());
     loadTakeOverPreview.mockResolvedValue(null);
-    await renderServerPage(AdminCoursePage, params);
-    expect(screen.queryByTestId("take-over")).not.toBeInTheDocument();
+    await renderServerRoute(AdminCoursePage, params);
+    await menu();
+    expect(screen.queryByRole("menuitem", { name: /Take over/ })).not.toBeInTheDocument();
   });
 
-  it("offers to duplicate a course that is in the Hub, imported or not, and nothing for one that is not in the Hub yet", async () => {
+  it("offers to duplicate a course that is in the Hub, and nothing for one that is not in the Hub yet", async () => {
     loadAdminCourse.mockResolvedValue(detail());
-    const { unmount } = await renderServerPage(AdminCoursePage, params);
-    expect(screen.getByTestId("duplicate")).toHaveAttribute("data-course", "crs_AAAAAAAAAAA1");
-    expect(screen.getByTestId("duplicate")).toHaveAttribute("data-title", "The Ready Writer");
-    expect(screen.getByTestId("duplicate")).toHaveAttribute("data-lessons", "7");
+    const { unmount } = await renderServerRoute(AdminCoursePage, params);
+    const user = await menu();
+    await user.click(screen.getByRole("menuitem", { name: "Duplicate course" }));
+    expect(screen.getByRole("dialog", { name: "Duplicate this course?" })).toHaveTextContent(/2 modules and 7 lessons/);
     unmount();
 
     loadAdminCourse.mockResolvedValue(detail(null));
-    await renderServerPage(AdminCoursePage, params);
-    expect(screen.queryByTestId("duplicate")).not.toBeInTheDocument();
+    await renderServerRoute(AdminCoursePage, params);
+    await menu();
+    expect(screen.queryByRole("menuitem", { name: "Duplicate course" })).not.toBeInTheDocument();
     expect(loadDuplicatePreview).toHaveBeenCalledTimes(1);
   });
 
-  it("links a course with no Hub row yet to neither", async () => {
+  it("keeps a course with no Hub row yet off the publish button", async () => {
     loadAdminCourse.mockResolvedValue(detail(null));
-    await renderServerPage(AdminCoursePage, params);
-    expect(screen.queryByRole("link", { name: "Watch stats" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Who's where" })).not.toBeInTheDocument();
+    await renderServerRoute(AdminCoursePage, params);
+    expect(screen.queryByTestId("publish")).not.toBeInTheDocument();
   });
 
-  it("gives the course's videos to the videos panel, with the slug only once it's published", async () => {
+  it("gives the course's videos to the videos panel on the Media tab, with the slug only once it's published", async () => {
     loadAdminCourse.mockResolvedValue(detail(undefined, { videos: [{ mediaId: "m1" }, { mediaId: "m2" }] }));
-    await renderServerPage(AdminCoursePage, params);
+    await renderServerRoute(AdminCourseMediaPage, params);
+    expect(screen.getByRole("tab", { name: "Media" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByTestId("videos")).toHaveAttribute("data-count", "2");
     expect(screen.getByTestId("videos")).toHaveAttribute("data-slug", "the-ready-writer");
   });
 
-  it("gives the course's downloads to the files panel", async () => {
+  it("gives the course's downloads to the files panel on the Media tab", async () => {
     loadAdminCourse.mockResolvedValue(detail(undefined, { files: { files: [{ kajabiFileId: "f1" }], stale: [], courseId: "c" } }));
-    await renderServerPage(AdminCoursePage, params);
+    await renderServerRoute(AdminCourseMediaPage, params);
     expect(screen.getByTestId("files")).toHaveAttribute("data-count", "1");
     expect(screen.getByTestId("files")).toHaveAttribute("data-slug", "the-ready-writer");
   });
 
   it("points a course with no Hub row yet at the import page instead of a form", async () => {
     loadAdminCourse.mockResolvedValue(detail(null));
-    await renderServerPage(AdminCoursePage, params);
+    await renderServerRoute(AdminCourseDetailsPage, params);
 
     expect(screen.queryByTestId("settings")).not.toBeInTheDocument();
     expect(screen.getByText(/Not in the Hub yet/)).toBeInTheDocument();

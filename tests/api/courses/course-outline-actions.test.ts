@@ -79,7 +79,7 @@ describe('Course outline actions', () => {
       expect(first.id).toMatch(/^mod_/)
       expect(await moduleRow(first.id!)).toMatchObject({ title: 'Module 1', position: 1, state: 'hidden', publishing_option: 'draft', source: 'hub', source_key: null, parent_id: null, course_id: ids.course })
       expect(await moduleRow(second.id!)).toMatchObject({ position: 2 })
-      expect(revalidatePath).toHaveBeenCalledWith(`/admin/courses/${ids.course}`)
+      expect(revalidatePath).toHaveBeenCalledWith(`/admin/courses/${ids.course}`, "layout")
       expect(revalidatePath).toHaveBeenCalledWith('/courses', 'layout')
       ids.m1 = first.id!
       ids.m2 = second.id!
@@ -142,7 +142,7 @@ describe('Course outline actions', () => {
 
       expect(await moveCourseLesson(course, one.id!, second.id!)).toEqual({ id: one.id })
       expect(await lesson(one.id!)).toMatchObject({ module_id: second.id, position: 2 })
-      expect(revalidatePath).toHaveBeenCalledWith(`/admin/courses/${course}`)
+      expect(revalidatePath).toHaveBeenCalledWith(`/admin/courses/${course}`, "layout")
 
       expect(await moveCourseLesson(course, one.id!, null)).toEqual({ id: one.id })
       expect((await lesson(one.id!))!.module_id).toBeNull()
@@ -186,7 +186,7 @@ describe('Course outline actions', () => {
 
       expect(await setLessonThumbnail(ids.course, added.id!, image)).toEqual({ id: added.id })
       expect(await thumb(added.id!)).toEqual({ thumbnail_asset_id: image, thumbnail_source: null, thumbnail_url: null })
-      expect(revalidatePath).toHaveBeenCalledWith(`/admin/courses/${ids.course}`)
+      expect(revalidatePath).toHaveBeenCalledWith(`/admin/courses/${ids.course}`, "layout")
 
       expect(await setLessonThumbnail(ids.course, added.id!, null)).toEqual({ id: added.id })
       expect(await thumb(added.id!)).toEqual({ thumbnail_asset_id: null, thumbnail_source: null, thumbnail_url: null })
@@ -245,7 +245,7 @@ describe('Course outline actions', () => {
       expect(row.body_html).toContain('<h2>Welcome</h2>')
       expect(row.body_html).not.toMatch(/script|onclick|javascript:/)
       expect(row.excerpt).toBe('Welcome Hello Hedgies bad')
-      expect(revalidatePath).toHaveBeenCalledWith(`/admin/courses/${ids.course}`)
+      expect(revalidatePath).toHaveBeenCalledWith(`/admin/courses/${ids.course}`, "layout")
       expect(revalidatePath).toHaveBeenCalledWith('/courses', 'layout')
     })
 
