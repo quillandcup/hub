@@ -88,11 +88,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Links to Hub pages in chat are drawn as cards, decided for each reader",
     summary: "A link to a chat message, a prickle or a member's profile in Hub Chat is drawn as a card built for whoever is reading it, instead of the sign-in page Slack previews. It is behind a feature flag.",
-    body: [
-      "The Hub's pages sit behind sign-in, so a link preview made by the Hub's own page reader or by Slack's crawler could only ever show the login page. The card is asked for when it appears (`GET /api/chat/hub-links`), and every read is made as the reader, so row-level security applies the rule of the page the link goes to: a quoted message shows its text only to someone who can read it, and what a reader may not see comes back as the same neutral \"Link to the Hub\" as a message that does not exist. The author of the message can remove the card with the same X as other previews.",
-      "The Hub's own page reader never looks at the Hub's address any more, and when a card applies, Slack's preview of that link is left out. The decision is per reader (the `chat_link_cards` flag, asked only when a message has such a link), so with the flag off a message looks as before.",
-      "To add a kind of link, give `parseHubLink` its address shape and `loadHubLinkCard` its case; the steps are in `docs/SLACK_BRIDGED_CHAT.md`, \"Hub links\".",
-    ].join("\n\n"),
+    body: "Hub pages sit behind sign-in, so a link preview made by the Hub's page reader or by Slack's crawler could only ever show the login page. The card is requested when it appears, and every read is made as the reader, so row-level security applies the rule of the page the link goes to. A quoted message shows its text only to someone who can read it, and anything a reader may not see comes back as the same neutral \"Link to the Hub\" as a message that does not exist. The author can remove the card with the same X as other previews.\n\nWhen a card applies, Slack's preview of that link is left out. The decision is per reader and behind a feature flag, so with the flag off a message looks as before. To add a kind of link, give `parseHubLink` its address shape and `loadHubLinkCard` its case; steps are in `docs/SLACK_BRIDGED_CHAT.md`, \"Hub links\".",
   },
   {
     slug: "chat-new-messages-banner",
@@ -216,11 +212,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "improved",
     title: "Where pictures come from: the picture proxy, the media library, and the hosts we load directly",
     summary: "Pictures under chat messages are fetched by the Hub, our own uploads are served by the media library, and a few trusted hosts such as Gravatar and Slack's profile pictures are loaded directly. This entry says which is which, and why.",
-    body: [
-      "Which path a picture takes depends on who controls its address. Related to the product entry on link previews in Hub chat.",
-      "- **An address someone else chose** (a link preview, an app's card or logo): the picture proxy (\"Pictures under chat messages go through the Hub\").\n- **Our own uploads** (book covers and other library images): the media library, served from the original in private storage (`docs/MEDIA_LIBRARY.md`).\n- **Member profile photos:** rebuilt by member processing from Kajabi, then Slack, then Gravatar; a photo that must outlast its source is kept in our storage (\"Member photos outlive their source\").\n- **Loaded directly, on purpose:** Gravatar, Slack's profile pictures for people not matched to a member, Mux stills, Google profile photos and analytics beacons. These are the hosts in `csp.imageHosts` in `app.config.ts`, which is also what the policy allows.",
-      "**For a new feature:** an address from a user or a message goes through the proxy; our own uploads go through the media library; a vendor picture of a known person may load directly if its host is added to `csp.imageHosts`. Never take an address from a query string.",
-    ].join("\n\n"),
+    body: "Which path a picture takes depends on who controls its address.\n\n- **An address someone else chose** (a link preview, an app's card or logo): the picture proxy.\n- **Our own uploads** (book covers and other library images): the media library, served from the original in private storage (`docs/MEDIA_LIBRARY.md`).\n- **Member profile photos:** rebuilt by member processing from Kajabi, then Slack, then Gravatar; a photo that must outlast its source is kept in our storage.\n- **Loaded directly, on purpose:** Gravatar, Slack's profile pictures for people not matched to a member, Mux stills, Google profile photos and analytics beacons. These are the hosts in `csp.imageHosts` in `app.config.ts`, which is also what the policy allows.\n\n**For a new feature:** an address from a user or a message goes through the proxy; our own uploads go through the media library; a vendor picture of a known person may load directly if its host is added to `csp.imageHosts`. Never take an address from a query string.",
   },
   {
     slug: "lesson-videos-in-chat-building-blocks",
@@ -229,12 +221,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Lesson videos in chat messages: the pieces behind the flag",
     summary: "A chat message can share a course lesson's video, played in the message with the course's rules, from Hub Chat or a link pasted in Slack. It is behind a feature flag.",
-    body: [
-      "`chat_message_videos` (`ChatVideoRepository`) points one message at one lesson; the share and its message are written together by `chat_post_shared_video`, which checks the sharer. Playback links are minted per viewer by `/api/chat/videos/<message id>` after two checks: the viewer can read the message (the share is read as them, so row-level security applies the channel rule) and may watch the lesson (`mayWatchSharedVideo`: the course, or a share an admin opened to the conversation for an open lesson of a published course). The card before play is a second light route that mints nothing. Watching goes through the lesson player and `video_watch_segments`, tagged with the message so the course stats keep chat views apart.",
-      "A pasted lesson address becomes the card in Hub Chat (`extractLessonLink`) and in a message written in Slack (webhook, and the nightly chat import for what it missed). The Slack copy is then rewritten as its author through their own connected account (`rewriteInSlack`): the address becomes the links line in the same place, with the lesson's title above it, previews cleared, files kept by naming them again in the edit. Hub Chat hides that line and Slack's own preview (`stripSharedVideoLink`, `withoutLessonPreview`).",
-      "Deleting a message ends its share at once: the read policy requires a live message (migration `20270701000000`) and the repository returns nothing for a deleted one. Before that, a soft-deleted open share could still be played by anyone who knew the message id.",
-      "The detours it adds (sign in, connect Slack) are on the new gates standard (`lib/gates.ts`): the destination is captured when the visitor is stopped, carried through every step, and every gate page offers \"Not now\". Message permalinks (`?m=`) open the message itself and survive sign-in. The member-facing entry and the help article are `lesson-videos-in-chat` and `help/share-a-lesson-video-in-chat.md` (`docs/CHAT_VIDEOS_LAUNCH.md`).",
-    ].join("\n\n"),
+    body: "A chat message can share one course lesson's video. The share and its message are written together by a checked database function, and a repository (`ChatVideoRepository`) points one message at one lesson. Playback links are minted per viewer, after two checks: the viewer can read the message (read as them, so row-level security applies the channel rule) and may watch the lesson (`mayWatchSharedVideo`). Watching goes through the lesson player, tagged with the message so course stats keep chat views apart.\n\nA pasted lesson address becomes the card in Hub Chat (`extractLessonLink`) and in a message written in Slack (webhook, and the nightly chat import for what it missed). The Slack copy is then rewritten as its author through their own connected account (`rewriteInSlack`), and Hub Chat hides the link line and Slack's own preview (`stripSharedVideoLink`, `withoutLessonPreview`). Deleting a message ends its share at once.\n\nThe sign-in and connect-Slack detours use the gates standard (`lib/gates.ts`): the destination is carried through every step and each gate page offers \"Not now\". Detail: `docs/CHAT_VIDEOS_LAUNCH.md` and `docs/SLACK_BRIDGED_CHAT.md`, \"Lesson videos in messages\".",
   },
   {
     slug: "event-places-left-and-sign-up",
@@ -259,10 +246,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Previews: fill a segment from the people with access to a course, program or event",
     summary: "The segment dialog on the Previews page can add everyone with access to a course, program or event to a segment, so a feature flag linked to that segment reaches them.",
-    body: [
-      "Manage on a segment, pick a course, program or event and press Sync (`POST /api/admin/segments/[id]/sync`, the choices from `GET /api/admin/segments/sources`). It only adds: members already in the segment, added by hand or from another source, stay, and running it again later picks up whoever got access since. It does not run on its own.",
-      "Who counts is read in `lib/segment-sources.ts`: a course's `course_access` rows that have started and not ended, anyone enrolled in any cohort of a program, an event's attendees. A flag still reaches people through the existing flag-to-segment link, so there is no schema change.",
-    ].join("\n\n"),
+    body: "In a segment's Manage dialog, pick a course, program or event and press Sync (`POST /api/admin/segments/[id]/sync`, choices from `GET /api/admin/segments/sources`). It only adds: members already in the segment stay, and running it again picks up whoever got access since. It does not run on its own.\n\nWho counts is read in `lib/segment-sources.ts`: members whose course access has started and not ended, anyone enrolled in any cohort of a program, an event's attendees. A feature flag still reaches people through the existing flag-to-segment link, so there is no schema change.",
   },
   // TODO(docs/TODO.md: "Hedgie Care screenshots for the staff changelog entry"): the date is set to the launch day; move it if the tracker ships later.
   {
@@ -274,7 +258,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     summary: "Hedgie Care is where the community manager keeps her reach-outs to members: one care plan for each stretch of time, who spoke last, and how the member's own activity looked before, during and after.",
     body: [
       "Hedgie Care (`/admin/care`, `docs/HEDGIE_CARE.md`) replaces the spreadsheet of reach-outs. Admins and the community manager can open it; writing to it needs the `care.write` staff feature, which she and every admin have.",
-      "**A care plan** is one stretch of reaching out to one member. Press **Start a care plan**, pick the member, why you are reaching out (an introduction, a welcome, a check-in, a writing check-in, encouragement or something else), the day it really started (today, or an earlier day if you are catching up, never a later one) and a short note with nothing sensitive in it. A plan belongs to the member, not to a channel: a member has one open plan, whether you reach them in Slack, by email or in a prickle, so what you read about them stays in one place. A plan runs for 30 days from its start (the length is a setting, to be confirmed with her). \"Change start date\" fixes a plan entered with the wrong day; the end moves with it. When a plan ends there is simply no explicit plan for the member: you **renew** it (a new plan that continues the one before, \"second plan\", with a short reason and the results so far in front of you) or **close** it with how it ended: handed to someone else, no reply, back in the community, or ran its course.",
+      "**A care plan** is one stretch of reaching out to one member. Press **Start a care plan**, pick the member, why you are reaching out (an introduction, a welcome, a check-in, a writing check-in, encouragement or something else), the day it really started (today, or an earlier day if you are catching up, never a later one) and a short note with nothing sensitive in it. A plan belongs to the member, not to a channel: a member has one open plan, whether you reach them in Slack, by email or in a prickle, so what you read about them stays in one place. A plan runs for 30 days from its start. \"Change start date\" fixes a plan entered with the wrong day; the end moves with it. When a plan ends there is simply no explicit plan for the member: you **renew** it (a new plan that continues the one before, \"second plan\", with a short reason and the results so far in front of you) or **close** it with how it ended: handed to someone else, no reply, back in the community, or ran its course.",
       "**Where each one stands** is worked out, not typed: needs your reply, waiting on them, gone quiet, review due or lapsed. A member who wrote last stays on \"needs your reply\" until you answer, renew or close, however old the plan is. The Active tab lists what needs you; the Earlier tab holds closed and lapsed plans; a summary at the top counts what is overdue and whose it is.",
       "**Tracked Slack DMs** fill in who spoke last. Starting a care plan tracks your own 1:1 Slack DM with that member when the Hub has one, and so does a plan you hold when you open Hedgie Care, unless you stopped tracking that DM before. The **Your DMs** tab (`/admin/care/dms`) shows, for each of your DMs with members, what their care plans say: no care plan (start one), in your care plan (see it; stop tracking this DM if you need to), an earlier care plan (start a new one) or held by someone else. Only who wrote and when is read, never what was said; DMs with staff are never offered, group DMs are not included, and other staff cannot see which DMs you track. On a plan that follows a tracked DM, the \"They replied\" and \"I replied\" buttons give way to \"Filled in from your Slack DM\", and **Open the DM** takes you to it. This needs Slack connected with direct message access and the `slack_dm_bridge` feature on for you. Where nothing is filled in, you log \"They replied\" and \"I replied\" yourself.",
       "**Owners.** Every plan has an owner (a new plan continues the owner of that member's latest one); anyone with write access can reassign it, and both tabs filter by Mine or Everyone.",
@@ -290,11 +274,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Hub Chat makes link previews for messages written in the Hub, and authors can remove any preview",
     summary: "A link in a message sent from the Hub gets a preview card (or the picture itself, for a link to an image), behind a feature flag, and the author can remove a preview, Slack's included, with an X on the card.",
-    body: [
-      "Slack builds no preview for messages the Hub posts, so the Hub makes its own: once, on the server, when the message is sent, behind a feature flag. Previews are never made when someone views a message and never from a viewer's request. The author can remove any preview, Hub's or Slack's, and the two sides stay in step.",
-      "- **Fetch at send time only**, through the shared safe download (\"One safe way to download an address somebody else chose\"); failures are remembered so a link is not asked for twice, and an edit only looks at links it added.\n- **One card per link:** where the Hub has its own preview, Slack's card for the same address is dropped; where it has none, Slack's is shown. A card already on screen is never swapped.\n- **Removal works both ways:** removing a card in the Hub removes it in Slack (best effort, with a visible note if it fails), and removing it in Slack hides the Hub's card.\n- **The one exception to the no-link-previews rule:** a member's own message is conversation, so it is posted to Slack with previews on when the flag is on for the sender. Automatic messages (DMs, notifications) still never unfurl.",
-      "Confirmed in production in both directions on 2026-11-12. Detail: `docs/SLACK_BRIDGED_CHAT.md`, \"Link previews for messages written in the Hub\".",
-    ].join("\n\n"),
+    body: "Slack builds no preview for messages the Hub posts, so the Hub makes its own, once, on the server, when the message is sent and the sender has the feature flag. Previews are never made when someone views a message. The author can remove any preview, Hub's or Slack's, and the two sides stay in step.\n\n- **Fetch at send time only**, through the shared safe download; failures are remembered so a link is not asked for twice, and an edit only looks at links it added.\n- **One card per link:** where the Hub has its own preview, Slack's card for the same address is dropped; where it has none, Slack's is shown. A card already on screen is never swapped.\n- **Removal works both ways:** removing a card in the Hub removes it in Slack (best effort, with a visible note if it fails), and removing it in Slack hides the Hub's card.\n- **The one exception to the no-link-previews rule:** a member's own message is conversation, so it is posted with previews on. Automatic messages never unfurl.\n\nConfirmed in production in both directions on 2026-11-12. Detail: `docs/SLACK_BRIDGED_CHAT.md`, \"Link previews for messages written in the Hub\".",
   },
   {
     slug: "outbound-user-agent",
@@ -303,11 +283,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "improved",
     title: "Every outbound request says who we are: one User-Agent",
     summary: "The Hub's requests to other services now send one consistent, valid User-Agent with a version and a way to reach us, and the SDKs we use add it next to their own.",
-    body: [
-      "Some hosts refuse a request with no User-Agent (Wikimedia answers 403), and others want a name and a contact so they can reach us instead of blocking us. So every request to a server that is not ours sends one User-Agent, defined once as `OUTBOUND_USER_AGENT` in `lib/config.ts`: `HedgieHub/<version> (+<app url>; <support email>)`.",
-      "- `HedgieHub` is `userAgentProduct` in `app.config.ts` (it has to be an HTTP token, so it is not the display name).\n- `<version>` is the first 7 characters of the deployed commit, so a host's log says which build made the request; `dev` when there is none.\n- `<app url>` and `<support email>` come from `appUrl` and `supportEmail` in `app.config.ts`. The comment is plain ASCII and carries nothing about a member.\n- A request can name its feature: `userAgentWith(\"slack-import/1\")` adds `slack-import/1` after the version.",
-      "**Rule:** a raw request to someone else's host goes through `outboundFetch` (`lib/http/outbound.ts`); an SDK gets our part wired once, where its client is built, added next to the SDK's own and never replacing it. A test fails when a new unwrapped external call or a Slack client built outside `createSlackClient` appears. The Sentry transport and Google's token request send only their library's own. Detail: `docs/OUTBOUND_REQUESTS.md`.",
-    ].join("\n\n"),
+    body: "Some hosts refuse a request with no User-Agent (Wikimedia answers 403), and others want a name and contact so they can reach us instead of blocking us. So every request to a server that is not ours sends one User-Agent, defined once as `OUTBOUND_USER_AGENT` in `lib/config.ts`: `HedgieHub/<version> (+<app url>; <support email>)`. The version is the first 7 characters of the deployed commit (`dev` when there is none), the product token, URL and email come from `app.config.ts`, and the comment carries nothing about a member. A request can name its feature with `userAgentWith(\"slack-import/1\")`.\n\n**Rule:** a raw request to someone else's host goes through `outboundFetch` (`lib/http/outbound.ts`); an SDK gets our part wired once, where its client is built, added next to the SDK's own and never replacing it. A test fails on a new unwrapped external call or a Slack client built outside `createSlackClient`. Detail: `docs/OUTBOUND_REQUESTS.md`.",
   },
   {
     slug: "safe-outbound-fetch",
@@ -316,11 +292,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "One safe way to download an address somebody else chose",
     summary: "Anything the server downloads from an address that came from a member, a message or an import now goes through one shared helper that refuses internal addresses, limits size and time, and checks what came back.",
-    body: [
-      "**Rule: any server-side download of an address that came from a user, a message or an import goes through `lib/net/safe-fetch.ts`**, never a bare request. It holds the safety rules once so each caller gets all of them (`fetchImage` and `fetchPage` sit on `safeGet`). For services we chose ourselves, see \"Every outbound request says who we are: one User-Agent\".",
-      "- **Only public https:** the name is resolved once, every answer must be a public address, and the connection is pinned to it, so a DNS server that answers differently the second time gets nothing.\n- **Bounded:** redirects are followed by hand and re-checked at every hop; size is capped while streaming and time is budgeted on the clock helper.\n- **Judged by content, not headers:** an image's type comes from its first bytes, and SVG is refused.\n- **Testable offline:** tests swap the name lookup and the socket (`setNetHooks`), so no test touches the network.",
-      "Used by the chat picture proxy, link-preview page reads, the book-cover import and member photo copies (\"Where pictures come from\"). Detail: `docs/OUTBOUND_REQUESTS.md`.",
-    ].join("\n\n"),
+    body: "**Rule: any server-side download of an address that came from a user, a message or an import goes through `lib/net/safe-fetch.ts`**, never a bare request. It holds the safety rules once (`fetchImage` and `fetchPage` sit on `safeGet`).\n\n- **Only public https:** the name is resolved once, every answer must be a public address, and the connection is pinned to it.\n- **Bounded:** redirects are followed by hand and re-checked at every hop; size is capped while streaming and time is budgeted on the clock helper.\n- **Judged by content, not headers:** an image's type comes from its first bytes, and SVG is refused.\n- **Testable offline:** tests swap the name lookup and the socket (`setNetHooks`).\n\nUsed by the chat picture proxy, link-preview page reads, the book-cover import and member photo copies. Detail: `docs/OUTBOUND_REQUESTS.md`.",
   },
   {
     slug: "content-security-policy-report-only",
@@ -353,11 +325,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "improved",
     title: "Pictures under chat messages go through the Hub, and the app sends a Content-Security-Policy in report-only mode",
     summary: "Link previews, app cards and logos in chat are fetched by the Hub instead of by each viewer's browser, and every page now reports which pictures a stricter policy would block.",
-    body: [
-      "**Rule: a picture someone else chose never loads from the viewer's browser.** Chat pictures (previews, app cards and logos) go through one route, the picture proxy, so no image host learns who looked and the Hub never trusts an address from a request. Which pictures take which path is in \"Where pictures come from\".",
-      "- **The request names no address.** It names a message and a key (a hash of the picture's address); the server finds the address in the message itself.\n- **Access is the viewer's own read of the message**, so row-level security decides, and a deleted message is a 404.\n- **Keyed by address, not by position.** A position in the list shifted when Slack's copy of a message arrived and briefly showed the wrong picture, so a position is now refused.\n- **One copy is kept for a week** in our storage and swept nightly, so the other site is asked once, not per viewer. The download rules are in \"One safe way to download an address somebody else chose\".",
-      "The Content-Security-Policy that reports what a stricter policy would block has its own entry (\"A Content-Security-Policy that reports what it would block\"). Detail: `docs/SLACK_BRIDGED_CHAT.md`, `docs/OUTBOUND_REQUESTS.md`.",
-    ].join("\n\n"),
+    body: "**Rule: a picture someone else chose never loads from the viewer's browser.** Chat pictures (previews, app cards, logos) go through one route, the picture proxy, so no image host learns who looked and the Hub never trusts an address from a request.\n\n- **The request names no address.** It names a message and a key (a hash of the picture's address); the server finds the address in the message itself.\n- **Access is the viewer's own read of the message**, so row-level security decides, and a deleted message is a 404.\n- **Keyed by address, not by position**, since positions shift when Slack's copy of a message arrives.\n- **One copy is kept for a week** in our storage and swept nightly, so the other site is asked once, not per viewer. Downloads use the shared safe fetch.\n\nEvery page also sends a Content-Security-Policy in report-only mode that reports what a stricter policy would block. Detail: `docs/SLACK_BRIDGED_CHAT.md`, `docs/OUTBOUND_REQUESTS.md`.",
   },
   {
     slug: "see-your-image-before-you-save-it",
@@ -376,7 +344,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "First app skeleton: Next.js, Tailwind and the product requirements doc",
     summary: "The repository starts as a Next.js App Router project with Tailwind, an internal landing page for stakeholders and a product requirements document rendered in the app.",
-    body: "The first working commit adds `app/page.tsx` (a roadmap, feature preview and tech stack page for stakeholders) and `docs/PRD.md`, which `app/prd/page.tsx` renders as formatted markdown with the Tailwind typography plugin. Tailwind, PostCSS and TypeScript are configured here. At this point it is an internal admin portal for staff, not a member-facing app, which shaped the early decisions: dashboards and data hygiene came before anything members would touch.",
+    body: "The repository began as a Next.js App Router project with Tailwind and TypeScript. It has an internal landing page for stakeholders (roadmap, feature preview, tech stack) and a product requirements document kept as markdown in docs/ and rendered in the app with the Tailwind typography plugin. It started as an internal admin portal for staff, not a member-facing app, which shaped the early choices: dashboards and data hygiene came before anything members would touch.",
   },
   {
     slug: "magic-link-auth-and-local-supabase",
@@ -385,7 +353,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Passwordless sign-in with Supabase magic links and a local Supabase stack",
     summary: "Sign-in is by emailed magic link only, with Next.js middleware protecting the dashboard and a Docker-based local Supabase with Mailpit for catching emails.",
-    body: "`/login` asks for an email and Supabase Auth sends a magic link; `app/auth/callback/route.ts` exchanges it for a session and redirects to `/dashboard`. Client and server Supabase helpers use `@supabase/ssr`, and middleware redirects anonymous visitors away from protected routes. Local development runs Supabase in Docker and reads the emails in Mailpit instead of sending real ones. `SETUP.md` documents the flow. No passwords exist anywhere, which kept the later invite-only decision simple.",
+    body: "Sign-in is by emailed magic link only: no passwords exist anywhere, which kept the later invite-only decision simple. The login page asks for an email, Supabase Auth sends the link, and a callback route exchanges it for a session. Client and server Supabase helpers use the SSR package, and middleware redirects anonymous visitors away from protected routes. Local development runs Supabase in Docker with Mailpit catching emails, so nothing real is sent. The rule: auth goes through Supabase Auth helpers, never hand-rolled sessions. See docs/SETUP.md for the local flow.",
   },
   {
     slug: "declarative-schema-and-prickles-naming",
@@ -394,7 +362,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Declarative database schema in Bronze, Silver and Gold layers; sessions become prickles",
     summary: "The data model is written as a declarative schema file organised as a medallion architecture, and the community's own word, prickle, replaces session in the schema and code.",
-    body: "`supabase/schemas/schema.sql` declares members, `zoom_attendees` (shaped like the Zoom API's participant report, with the full raw payload), prickles, attendance, member metrics and a CRM-style `member_activities` log with a flexible JSONB metadata column and a weighted engagement value. Hiatus periods live in `member_hiatus_history` as the single source of truth, with an `on_hiatus` status on members. Layers are Bronze (raw), Silver (transformed) and Gold (analytics views such as prickle popularity). A same-day migration then renamed `sessions` to `prickles`, including `session_id` to `prickle_id` and the popularity view, and the dashboard gained its first hedgehog mascot welcome. Migrations sit in `supabase/migrations`, generated from the schema file.",
+    body: "The data model is a declarative schema file organised as a medallion architecture: Bronze (raw, as the source said it), Silver (transformed) and Gold (analytics views). Migrations are generated from the schema file. Zoom participants are stored in the shape of the Zoom API's report with the full raw payload, and a CRM-style activity log carries flexible metadata and a weighted engagement value. Hiatus periods have one source of truth. The community's own word, prickle, replaced \"session\" throughout schema and code, so new work uses community vocabulary from the start. See docs/MEDALLION_ARCHITECTURE.md.",
   },
   {
     slug: "zoom-api-import",
@@ -403,7 +371,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Zoom import: API client with retry and an immutable attendee table",
     summary: "Zoom meetings and participants can be imported by date range into a raw attendees table, with backoff on rate limits and no duplicates when ranges overlap.",
-    body: "`lib/zoom/client.ts` does the OAuth flow and fetches meetings and participants; `POST /api/import/zoom` stores them in `zoom_attendees`, driven from an import page in the dashboard. Two hardening steps followed. The client retries 429 responses with exponential backoff (1s doubling up to 16s, five tries) and shorter backoff on transient network errors. The attendee table became effectively immutable: a unique constraint on meeting UUID, name and join time plus an upsert that ignores duplicates, so re-importing an overlapping range never doubles anyone. This is the opposite choice from the Kajabi snapshots, deliberately: a Zoom participant row is a fact, a Kajabi contact is a state.",
+    body: "Zoom meetings and participants are imported by date range into a raw attendee table. The client does the OAuth flow and retries rate-limit responses with exponential backoff (1s doubling up to 16s, five tries), and with shorter backoff on transient network errors. Re-importing an overlapping range never doubles anyone: the raw rows are effectively immutable, keyed on meeting, name and join time, and duplicates are ignored. That is deliberately the opposite of the Kajabi snapshots, because a Zoom participant row is a fact while a Kajabi contact is a state. Rule: choose append-only or snapshot per source by whether a row is a fact or a state.",
   },
   {
     slug: "kajabi-csv-import-and-snapshot-history",
@@ -412,7 +380,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Kajabi CSV imports stored as temporal snapshots",
     summary: "Member data comes in from Kajabi CSV exports that are auto-detected, and every import is kept as a dated snapshot so changes over time can be seen.",
-    body: "`POST /api/import/members` detects a Kajabi contacts export by its columns, and later a subscriptions export (customer email, status, subscription id; when one email has several subscriptions it picks Active over Paused over Canceled, and accepts two date formats). The raw rows go to `kajabi_members`, first as one row per email, then refactored the same evening to a history table: uuid primary key, `email`, `imported_at`, and the whole CSV row as JSONB, unique on email plus import time, and inserted rather than upserted. That keeps an audit trail and makes it possible to detect when tags or products changed, which is the basis for deriving hiatus periods. The subscriptions export was added because the contacts export left stale products on cancelled members.",
+    body: "Member data first came from Kajabi CSV exports. The import detects a contacts export or a subscriptions export by its columns. Every import is kept as a dated snapshot rather than overwriting, which gives an audit trail and makes it possible to see when tags or products changed; that history is the basis for deriving hiatus periods. For subscriptions with several rows per email, Active wins over Paused over Canceled, and two date formats are accepted. The subscriptions export exists because the contacts export left stale products on cancelled members. Rule: keep raw state as history and let processing pick the latest.",
   },
   {
     slug: "member-status-rules-from-kajabi",
@@ -421,7 +389,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "fixed",
     title: "Member status derived from Kajabi products and tags, with Offboarding first",
     summary: "Active, on hiatus and inactive are worked out from what a Kajabi contact has, and the Offboarding tag now wins over a lingering membership product.",
-    body: "The first rules in `app/api/process/members/route.ts`: a membership product means active; the member tag without the product means the member paused (hiatus); neither, or an Offboarding tag, means inactive. Two fixes came from real data. Hiatus members lose the product but keep the tag, so checking tags alone missed them. Cancelled members could keep the product, so the Offboarding tag is now checked before products. The dashboard's total members count stopped including inactive people. The same commit added the Supabase style rules under `.claude/rules` that later agents followed.",
+    body: "Active, on hiatus and inactive are derived from what a Kajabi contact holds. A membership product means active. The member tag without the product means the member paused. Neither, or an Offboarding tag, means inactive, and the Offboarding tag is checked before products because cancelled members can keep the product while paused members lose it but keep the tag. The dashboard's total member count excludes inactive people. Rule: status is derived from source data in the processing step, never typed by hand, and real data decides the order of checks.",
   },
   {
     slug: "member-name-matching-v1",
@@ -430,7 +398,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Name matching in SQL: email, alias, normalized and fuzzy",
     summary: "Zoom display names can be matched to members in four steps of decreasing confidence, using a manual alias table and trigram similarity.",
-    body: "A migration adds the `member_name_aliases` table, a `normalize_name()` function (case, whitespace, punctuation), `match_member_by_name()` and the `pg_trgm` extension. Priority is exact email, then manual alias, then normalized name (all high confidence), then trigram similarity of at least 0.4 (medium or low). Because Zoom attendees often join under a nickname, this ordering returns the most trustworthy match first and carries a confidence score forward. Tests covered each tier. Matching was briefly written into `zoom_attendees` and reverted the same day (see the medallion entry); the logic moved to TypeScript three days later.",
+    body: "Zoom display names are matched to members in decreasing confidence: exact email, then a manual alias, then a normalized name (all high confidence), then trigram similarity of at least 0.4 (medium or low). Attendees often join under a nickname, so the most trustworthy match is returned first and a confidence score travels with the result. A manual alias table lets staff teach the matcher. Tests cover each tier. The matching logic lives in application code, not the raw Zoom table, so raw tables stay exactly what the source said. See docs/MEMBER_MATCHING.md.",
   },
   {
     slug: "medallion-processing-members-and-attendance",
@@ -439,7 +407,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "improved",
     title: "Medallion split: imports write Bronze only, processing routes build Silver",
     summary: "Imports store raw data untouched and separate processing routes compute members and attendance, after matching logic was pulled back out of the raw Zoom table.",
-    body: "The rule written down in `supabase/ARCHITECTURE.md`: Bronze tables hold only what the source said, Silver is inferred. Matching columns added to `zoom_attendees` were reverted for that reason. `POST /api/process/members` now builds `members` from the latest `kajabi_members` snapshot per email; `POST /api/process/attendance` reads `zoom_attendees` in a date range, matches each to a member (email, alias, normalized, fuzzy), creates prickles from Zoom meetings (with a `zoom_meeting_uuid` and a `zoom` source) and writes `attendance` rows with a confidence score, skipping unmatched people and reporting match rates. The follow-up doc commit also records data-flow dependencies between routes and the idea of moving to streaming later. This split is the basis of everything that followed.",
+    body: "Imports store raw data untouched; separate processing routes compute members and attendance. The rule, written in the architecture doc: Bronze holds only what the source said, Silver is inferred. Matching columns that had been added to the raw Zoom table were reverted for that reason. Members processing builds members from the latest Kajabi snapshot per email. Attendance processing reads Zoom attendees in a date range, matches each to a member (email, alias, normalized, fuzzy), creates prickles from Zoom meetings and writes attendance with a confidence score, skipping unmatched people and reporting match rates. The data-flow dependencies between routes are documented, and so is the idea of moving to streaming. This split is the basis of everything that followed. See docs/MEDALLION_ARCHITECTURE.md.",
   },
   {
     slug: "first-engagement-dashboard-and-at-risk",
@@ -448,7 +416,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "First engagement dashboard with at-risk members",
     summary: "The admin dashboard shows member counts, recent prickles, top attendees and a list of active members who have not attended lately.",
-    body: "`app/dashboard/page.tsx` queries member stats (total, active, on hiatus), prickles in the last 30 days, attendance totals and the top ten attendees, plus an at-risk list: active members with no recent attendance, fixed to include those with zero attendance ever. A dedicated at-risk page lists them all. These were computed live in the page, which is what the Gold layer meant at the time.",
+    body: "The admin dashboard shows member counts (total, active, on hiatus), prickles in the last 30 days, attendance totals, the top ten attendees and an at-risk list of active members with no recent attendance, including those with none ever. A dedicated page lists them all. These were computed live in the page queries, which is what the Gold layer meant at the time.",
   },
   {
     slug: "name-matching-report-and-alias-tools",
@@ -457,7 +425,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Name matching tools: unmatched report, drag-and-drop game and alias search",
     summary: "Staff get pages that show which Zoom names did not match anyone and a quick way to link them to members as aliases.",
-    body: "`/dashboard/name-matching` started as a report (active members with zero attendance, Zoom names seen three or more times without a match, and possible matches by email) backed by `app/api/reports/name-matching/route.ts`, written to push the match rate beyond the roughly 92 percent the automatic rules achieved. It became an interactive drag-and-drop pairing page (`MatchingGame.tsx`) saving through `app/api/aliases/route.ts`, then gained `/dashboard/aliases`, a search-and-autocomplete form that can attach a name to any member, since writers can have several identities, pen names and emails. The unmatched list was changed to use the real match function instead of a lookalike query, so it cannot disagree with processing.",
+    body: "A name matching report lists active members with zero attendance, Zoom names seen three or more times without a match, and possible matches by email, written to push the match rate beyond the roughly 92 percent the automatic rules achieved. It became an interactive drag-and-drop pairing page and a search-and-autocomplete form that attaches a name to any member, since writers can have several identities, pen names and emails. The unmatched list calls the real match function instead of a lookalike query, so it cannot disagree with processing. See docs/MEMBER_MATCHING.md.",
   },
   {
     slug: "google-calendar-sync-bronze-to-silver",
@@ -466,7 +434,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Google Calendar sync into a Bronze events table, processed into prickles",
     summary: "The community calendar is read with a service account into raw calendar events, and a separate step turns those into prickles, so the schedule is rebuilt from source.",
-    body: "The first version used OAuth with a stored refresh token and upserted straight into prickles; it was replaced the same day by a Google service account (the calendar is shared with it, no token expiry or user interaction). The next refactor applied the medallion rule: `POST /api/sync/calendar` writes unmodified events (full event JSON, creator and organizer) to the Bronze `calendar_events` table, idempotently by upsert, defaulting to 30 days back and 90 forward, and `POST /api/process/calendar` transforms them to prickles. Processing extracts the prickle type and host from titles shaped like a type, then w/, then a host, and normalises type spellings. `docs/CALENDAR_SETUP.md` and `CALENDAR_SYNC.md` describe the setup and automation options.",
+    body: "The community calendar is read by a Google service account (the calendar is shared with it, so there is no token expiry or user interaction). A sync route writes unmodified events, full JSON with creator and organizer, to Bronze idempotently by upsert (30 days back and 90 forward by default), and a separate processing route turns them into prickles, so the schedule is always rebuilt from source. Processing extracts the prickle type and host from titles shaped like a type, \"w/\", then a host, and normalises type spellings. Rule: sync stores raw, processing infers. See docs/CALENDAR_SETUP.md and docs/CALENDAR_SYNC.md.",
   },
   {
     slug: "first-pagination-and-row-limit-lesson",
@@ -475,7 +443,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "fixed",
     title: "PostgREST row limit hit: raise-the-limit abandoned for real pagination",
     summary: "Calendar processing silently saw only 1000 events; the fix was to page through results in batches rather than keep raising the server limit.",
-    body: "Supabase's API returns at most `max_rows` rows no matter what `.limit()` asks for. The first fix raised `max_rows` in `supabase/config.toml` to 10000, then settled at 5000, but the real change was `/api/process/calendar` reading events in 1000-row batches with `.range()`. The reasoning recorded in the commit: a hardcoded ceiling is only a delay, while paging works for any volume. This became the project's standing rule (paginate anything that can exceed 1000 rows), and the next day regression tests were added for it.",
+    body: "Supabase returns at most a fixed number of rows per request regardless of the limit asked for, so calendar processing silently saw only 1000 events. Raising the server ceiling was tried and rejected: a hardcoded ceiling is only a delay. The fix was to read events in 1000-row batches with ranges, which works for any volume. This became the standing rule to paginate anything that can exceed 1000 rows, backed by regression tests. See CLAUDE.md, \"Database Query Limits\".",
   },
   {
     slug: "prickle-types-and-popup-prickles",
@@ -484,7 +452,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Prickle types table, host parsing and Pop-Up Prickles",
     summary: "Prickles now have a type from a lookup table, a host linked to a member, and unscheduled Zoom meetings become Pop-Up Prickles.",
-    body: "A migration removes the free-text title from prickles in favour of `type_id` pointing at a seeded `prickle_types` table (13 types, such as Progress, Pop-Up and Heads Down), with admin screens at `/dashboard/prickle-types`. `lib/prickle-types.ts` normalises variants of a type name and parses the type and host from calendar titles; events it cannot place go into an unmatched calendar events queue for staff to review. A Zoom meeting that overlaps a calendar prickle by at least 15 minutes is matched to it; one that does not becomes a Pop-Up Prickle (PUP). Later the same day `prickles.host` changed from text to a foreign key to members, which also enabled member detail pages with attendance history and a marker on prickles they hosted.",
+    body: "Prickles have a type from a seeded lookup table (13 types, such as Progress, Pop-Up and Heads Down) with admin screens to manage it, and a host linked to a member rather than free text, which enabled member pages with attendance history and a marker on prickles they hosted. A shared library normalises type names and parses type and host from calendar titles; events it cannot place go to a review queue for staff. A Zoom meeting that overlaps a calendar prickle by at least 15 minutes is matched to it; one that does not becomes a Pop-Up Prickle (PUP). Rule: types and hosts are data, resolved by one parser.",
   },
   {
     slug: "attendance-segmentation-rules",
@@ -502,7 +470,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Weekly calendar view, prickle detail page and host warnings",
     summary: "Staff can browse a seven-day calendar of prickles with attendance, open a prickle, and see warnings where a host is missing or late.",
-    body: "`app/dashboard/calendar` renders a week grid from prickles and attendance (Sunday-first), with a timezone selector, tooltips, an option to show or hide pop-ups, and detail pages at `/dashboard/prickles/[id]`. Host warnings flag prickles with no host or one who arrived late. Several fixes in the day dealt with Next.js 15 async `searchParams` and with week parameters parsed in the wrong timezone, a class of bug that recurs in later weeks.",
+    body: "Staff can browse a Sunday-first, seven-day calendar of prickles with attendance, a timezone selector, tooltips and a show/hide for pop-ups, and open a detail page per prickle. Host warnings flag prickles with no host or a host who arrived late. The week grid hit two recurring pitfalls: Next.js 15's async search params and week parameters parsed in the wrong timezone, a class of bug that recurs, so name the zone explicitly (see .claude/rules/dates-and-timezones.md).",
   },
   {
     slug: "dashboard-charts-and-kpis",
@@ -511,7 +479,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Dashboard charts and a short list of engagement KPIs",
     summary: "The dashboard gained attendance charts and was then trimmed to five key metrics.",
-    body: "Added a stacked weekly attendance bar chart with unique attendees and tooltips, a weekly engagement rate (measured over the last seven days rather than a calendar week) and median hours, and a blue and green palette for contrast. After trying several KPIs the dashboard was cut down to five. The data is still computed in the page queries rather than stored.",
+    body: "The dashboard has a stacked weekly attendance bar chart with unique attendees and tooltips, a weekly engagement rate (measured over the last seven days, not a calendar week) and median hours, in a blue and green palette for contrast. After trying several KPIs it was cut down to five. The numbers are computed in page queries rather than stored.",
   },
   {
     slug: "rls-invite-only-and-admin-shell",
@@ -520,7 +488,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Row Level Security on every table, invite-only sign-in and a navigation shell",
     summary: "All tables got RLS and a user profile with a role, public sign-up was turned off, and the admin area got a collapsible navigation.",
-    body: "A migration creates `user_profiles` (role admin, assistant or member), enables RLS on all Bronze, Silver and Gold tables, adds an `is_admin()` helper and a trigger that creates a profile on sign-up. At this stage every authenticated user was an admin with full access, with the policies written so they can be refined per role later; `docs/RLS_SECURITY.md` records the migration path. `enable_signup = false` in `supabase/config.toml` means accounts are created only by invitation (`docs/INVITING_USERS.md`). The navigation was reorganised into Data Hygiene and Data Management sections.",
+    body: "Every table has row level security, accounts exist only by invitation (public sign-up is off in config), and each user has a profile with a role of admin, assistant or member, created by a trigger on sign-up. At this stage every authenticated user was effectively an admin, with policies written so they can be refined per role later. An admin helper function backs the policies. The admin area got a collapsible navigation grouped into Data Hygiene and Data Management. See docs/RLS_SECURITY.md for the migration path and docs/INVITING_USERS.md.",
   },
   {
     slug: "vercel-supabase-deployment-guide",
@@ -529,7 +497,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Deployment to Vercel and a hosted Supabase project documented",
     summary: "A step-by-step guide covers creating the Supabase project, pushing migrations, configuring Vercel and a security checklist before going live.",
-    body: "`docs/DEPLOYMENT.md` and `.env.example` describe the project setup, which environment variables are needed and where to turn off public signups, plus troubleshooting. Fixes the same evening were for TypeScript errors in chart formatters and the host relationship that only the production build caught, which led later to a pre-commit build check.",
+    body: "A step-by-step guide covers creating the Supabase project, pushing migrations, configuring Vercel, the environment variables needed, turning off public sign-up and a security checklist before going live, with troubleshooting. Type errors that only the production build caught (chart formatters, a host relationship) showed why the build must be checked before commit, which led to the pre-commit build hook. See docs/DEPLOYMENT.md.",
   },
   {
     slug: "batch-processing-for-timeouts",
@@ -547,7 +515,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Pagination regression tests and the first CLAUDE.md architecture rules",
     summary: "After calendar processing silently dropped events past the first 1000, tests and project instructions were added so it could not happen again.",
-    body: "`tests/api/process-calendar-pagination.test.ts` checks behaviour (1500 events all processed) and the code shape (range-based pagination present, a single unpaginated query absent). `CLAUDE.md` was created with the database query limit rule, the API route performance rules and a code review checklist, so that agents working in the repo load them every session. A bug found later the same day was an unmatched-events query that loaded only events matching a list of ids; it was changed to page everything by date range, and batch deletes were chunked to stay under the limit of `.in()` filters.",
+    body: "After calendar processing silently dropped events past the first 1000, tests and project instructions were added so it cannot recur. The test checks behaviour (1500 events all processed) and code shape (range pagination present, a single unpaginated query absent). CLAUDE.md was created with the query limit rule, the API route performance rules and a review checklist so agents load them every session. The same pass paged an unmatched-events query by date range instead of an id list, and chunked batch deletes to stay under the limit of filters on id lists. See CLAUDE.md.",
   },
   {
     slug: "attendance-allows-leave-and-rejoin",
@@ -556,7 +524,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "improved",
     title: "Attendance keeps one row per stay: multiple records per member and prickle",
     summary: "The unique constraint on member and prickle was dropped so someone who leaves and rejoins a prickle has both stays recorded.",
-    body: "Deduplicating attendance on (member_id, prickle_id) first fixed an upsert failure (every row was rejected with Postgres error 21000 because two rows conflicted in one statement), but merging a stay from 9:00 to 9:30 with another at 11:00 to 11:30 would have reported a span of 150 minutes instead of 60. A migration drops the `attendance_member_id_prickle_id_key` constraint, processing uses plain inserts, and tests assert that counting uses `COUNT(DISTINCT prickle_id)` while time is the sum of the segments. The design rule is recorded in `CLAUDE.md` as a standing instruction not to reintroduce the constraint.",
+    body: "Someone can leave a prickle and rejoin, so attendance keeps one record per stay and there is no uniqueness on member and prickle. Deduplicating first fixed an upsert failure, but merging a 9:00-9:30 stay with an 11:00-11:30 stay would have reported 150 minutes instead of 60. Counting uses distinct prickles while time is the sum of the segments, and tests assert both. The rule is recorded in CLAUDE.md as a standing instruction never to reintroduce the constraint. See CLAUDE.md, \"Attendance Table Design\".",
   },
   {
     slug: "centralized-member-matching-library",
@@ -565,7 +533,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "improved",
     title: "One TypeScript library for matching names to members",
     summary: "The routes that matched Zoom names to members each did it their own way; a shared library with one priority order replaced them.",
-    body: "`lib/member-matching.ts` matches by email, then alias, then normalized name, in one place, with 18 tests and `docs/MEMBER_MATCHING.md`. It was introduced because a quarter of active members showed zero attendance purely from name mismatches. Seed aliases were added in a CSV for the common cases. On April 7 the SQL stored procedures were deleted in favour of this code, matching became case-insensitive, and a smart-matching step handled variants without needing an alias. The processing routes and the hygiene dashboard were moved to call the same function so the counts agree. A later fix trimmed trailing whitespace from Zoom names before the alias lookup, and calculated a meeting window from matched attendees only, which removed pop-ups with zero attendees.",
+    body: "Name-to-member matching lives in one library with one priority order: email, then alias, then normalized name, with smart matching for variants and case-insensitive comparison. It replaced per-route implementations and SQL procedures after a quarter of active members showed zero attendance purely from name mismatches. Seed aliases cover the common cases. Processing routes and the hygiene dashboard call the same function so their counts agree. Zoom names are trimmed before the alias lookup, and a meeting window comes from matched attendees only, which removed pop-ups with zero attendees. Rule: one matcher, called everywhere. See docs/MEMBER_MATCHING.md.",
   },
   {
     slug: "reprocessability-principle-and-tests",
@@ -574,7 +542,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Reprocessability: Silver is rebuilt from Bronze with delete and insert, with tests",
     summary: "Silver processing was changed to delete the affected rows and insert fresh ones, so a deleted source event disappears, and regression tests were added for it.",
-    body: "Selective inserts and updates had left orphans: an event deleted in Google Calendar stayed in prickles. A later change switched calendar and members processing (attendance already did) to DELETE then INSERT within the scope, and the principle was documented in `CLAUDE.md` with correct and incorrect examples and a status table. Tests under `tests/api/reprocessability` verify four things: first run creates rows, reprocessing after source deletion removes them, changed source updates them, and orphans are detected. To let those integration tests call the routes, the three `/api/process/*` routes accept the service role key in the Authorization header as well as cookies, with a helper in the tests. The members route later stopped deleting all members (see the April 23 entries), because it regenerated member ids.",
+    body: "Silver processing deletes the affected rows and inserts fresh ones, so an event deleted at the source disappears. Selective inserts and updates had left orphans. The principle is written in CLAUDE.md with correct and incorrect examples and a status table, and tests verify four things: a first run creates rows, reprocessing after source deletion removes them, changed source updates them, and orphans are detected. The process routes accept the service role key in the Authorization header as well as cookies so integration tests can call them. Identity tables such as members are the exception and upsert on a stable key, because deleting regenerated member ids. See docs/MEDALLION_ARCHITECTURE.md.",
   },
   {
     slug: "bronze-idempotency-tests-and-sync-race-fix",
@@ -583,7 +551,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Idempotency tests for every Bronze import, and a calendar sync race fixed",
     summary: "Each import (calendar, Zoom, members) is tested to be safe to run repeatedly, after a concurrent sync caused duplicate key errors in production.",
-    body: "Suites in `tests/api/idempotency/` check that a first import creates rows, a second with the same data creates none, changed data updates (upsert) or adds a new snapshot (append), and several cycles are stable. They cover three patterns: upsert on a natural key, upsert that ignores duplicates, and append-only snapshots. The race fix: the calendar sync checked for existing events first and then inserted, so two overlapping requests collided on `google_event_id`; the insert became an upsert on that key as the final guard. A test helper seeds reference tables, and `docs/TEST_INFRASTRUCTURE_PLAN.md` set out a phased plan (fixtures, mocked external APIs, per-suite databases) for the shared-database interference the tests suffered from.",
+    body: "Every import (calendar, Zoom, members) is tested to be safe to run repeatedly: a first import creates rows, a repeat creates none, changed data updates or appends a new snapshot, and several cycles stay stable. The suites cover the three Bronze patterns: upsert on a natural key, upsert that ignores duplicates, and append-only snapshots. A production race, where overlapping calendar syncs checked then inserted and collided, was fixed by making the write an upsert on the natural key as the final guard. A phased plan covers fixtures, mocked external APIs and per-suite databases for the shared-database interference the tests suffered from. See docs/TEST_INFRASTRUCTURE_PLAN.md.",
   },
   {
     slug: "staff-bronze-table",
@@ -592,7 +560,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Staff table so team members who are not in Kajabi still become members",
     summary: "Owners, staff and contractors are kept in their own table and combined with Kajabi contacts when members are processed.",
-    body: "The `staff` table is an internal source of truth for people who do not pay through Kajabi. Members processing reads two Bronze sources, `kajabi_members` and `staff`, into `members`, which gained a `source` column, a `staff_role` and a `user_id` that links to the auth user for admin access. Without it, staff who host or attend prickles showed up as unmatched Zoom names. The processing UI shows the breakdown by source, and a duplicate-by-email problem when combining the sources was fixed on April 10.",
+    body: "Owners, staff and contractors are kept in their own source table and combined with Kajabi contacts when members are processed, so people who do not pay through Kajabi still have a member record, with a source marker, a staff role and a link to their sign-in account for admin access. Without it, staff who host or attend prickles showed up as unmatched Zoom names. The processing UI shows the breakdown by source, and combining the sources deduplicates by email. Rule: every kind of person has one raw source feeding the single members record.",
   },
   {
     slug: "unmatched-calendar-events-queue-and-decisions",
@@ -601,7 +569,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "improved",
     title: "Staff decisions on unmatched calendar events survive reprocessing",
     summary: "Events staff resolve or ignore stay that way after the calendar is reprocessed, and prickles can have a fun title separate from their type.",
-    body: "Because processing now deletes and rebuilds prickles, the review queue would have asked the same questions after every run. Processing loads previous resolved and ignored decisions first: resolved events use the stored type, ignored events are skipped, and the UI reports auto-resolved and ignored counts. Related changes the same day: a partial-match fallback for type names, a `title` column for named prickles that is stored only when it differs from the type, fixing a type whose normalised name in seed data did not match what the normaliser produces, and unmatched event cleanup in batches. Orphaned aliases are removed when members are processed, since member ids changed on each run at the time.",
+    body: "Because processing rebuilds prickles, the review queue would have asked the same questions after every run. Processing first loads earlier resolved and ignored decisions: resolved events reuse the stored type, ignored events are skipped, and the UI reports auto-resolved and ignored counts. A partial-match fallback handles type names, a named prickle's own title is stored only when it differs from its type, and unmatched events are cleaned up in batches. Orphaned aliases are removed when members are processed. Rule: human decisions are Local data that survive every rebuild.",
   },
   {
     slug: "data-hygiene-dashboard-orphans-and-ignored-names",
@@ -610,7 +578,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Data hygiene dashboard: orphaned events and meetings, ignored Zoom names, host coverage",
     summary: "Staff get a health page that finds source data that never made it into prickles, with buttons that reprocess exactly the affected range.",
-    body: "Under `/hygiene` the dashboard counts calendar events that are in neither prickles nor the unmatched queue (found to come from events imported just outside the processed date range) and Zoom meetings with no prickle, each with a button that calls the matching `/api/process/*` route over the exact range instead of a guess; a fixed six-month fallback was removed in favour of a clear error. A bug was fixed where the orphaned-meetings count used every attendee's window while processing used only matched attendees, so the number never fell to zero after processing; a regression test was added. An `ignored_zoom_names` table with `/api/zoom/ignore` lets staff mark bots and test accounts so they leave the unmatched list, the unmatched page can show the prickles a name appeared in, and a host assignment percentage was added so missing hosts become visible. The URL structure was flattened into `/calendar`, `/data/*` and `/hygiene/*`.",
+    body: "A health page finds source data that never became prickles: calendar events in neither prickles nor the review queue (found to come from events imported just outside the processed range) and Zoom meetings with no prickle. Each has a button that reprocesses exactly the affected range, not a guess, and a clear error replaced a fixed six-month fallback. The orphan count uses the same matched-attendee window as processing, so the number can fall to zero. Staff can mark bots and test accounts as ignored so they leave the unmatched list, see which prickles a name appeared in, and track host assignment over prickles that need a host. Rule: a report must count the way processing counts.",
   },
   {
     slug: "reprocessing-boundary-fixes-overlap-queries",
@@ -619,7 +587,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "fixed",
     title: "Reprocessing fixed for meetings that cross midnight and for deleted source data",
     summary: "Processing now deletes and selects everything that overlaps the date range, and always cleans up before checking whether there is new data.",
-    body: "Three reprocessability bugs, each with a regression test. First, the range queries used containment (start and end both inside), so a prickle from 11:30 PM to 12:30 AM was neither deleted nor selected and orphans accumulated; they became overlap queries (starts before the range ends, ends after it starts). Second, date-only inputs such as 2026-04-07 meant midnight, so the range end was normalised to the start of the next day. Third, attendance processing returned early when no attendees were found, before its DELETE statements ran, so removing Bronze data never removed the Silver pop-ups; the deletes now run first. A `test seed` fix for prickle types was needed for those tests.",
+    body: "Three reprocessability bugs, each with a regression test. Range queries used containment (start and end both inside), so a prickle from 11:30 PM to 12:30 AM was neither deleted nor selected and orphans accumulated; they are now overlap queries (starts before the range ends, ends after it starts). Date-only inputs such as 2026-04-07 mean midnight, so the range end is normalised to the start of the next day. Attendance processing returned early when no attendees were found, before its deletes ran, so removing Bronze data never removed the Silver pop-ups; the deletes now run first. Rule: scope rebuilds by overlap and delete before any early exit.",
   },
   {
     slug: "member-pages-network-graph-and-attendance-calendar",
@@ -628,7 +596,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Member detail pages gain an attendance calendar and a network graph",
     summary: "A member page can show attendance as a month calendar, and a new page draws who attends prickles together as a graph.",
-    body: "`app/dashboard/members/[id]/AttendanceCalendar.tsx` adds a monthly grid with up to three prickles per day and a details panel for the chosen day, with list and calendar subtabs. `/dashboard/members/network` is a force-directed graph with its own physics simulation: node size from total attendance, edge thickness from co-attendance, the top 50 connections by default, search and click to focus one member, and pan and zoom controls. Fixes for hydration mismatches in the sidebar, a mobile navigation flicker and filtering of edges for calendar prickles accompanied it.",
+    body: "Member pages have a monthly attendance calendar with up to three prickles per day, a details panel for the chosen day and list and calendar subtabs. The network page is a force-directed graph with its own physics simulation: node size from total attendance, edge thickness from co-attendance, the top 50 connections by default, search and click to focus one member, and pan and zoom controls. Edges for calendar prickles are filtered, and fixes for hydration mismatches in the sidebar and a mobile navigation flicker came with it.",
   },
   {
     slug: "profile-theme-and-timezone-preferences",
@@ -637,7 +605,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Profile settings: theme in the browser, timezone in the database",
     summary: "Users can pick light, dark or system theme and a timezone, stored in different places on purpose.",
-    body: "Theme uses `next-themes` with class-based dark mode in Tailwind and is kept in localStorage because it is a device choice. The timezone preference is a `timezone_preference` column on `user_profiles` with an RLS policy so users can update their own row, set through a server action, with 40 or more zones grouped by region and defaulting to the browser's zone; calendars and timezone dropdowns use it as default. The reason for the split is documented in comments in the switcher components. The same day a bug where creating users in Studio failed was fixed: the profile-creating trigger runs as the auth admin role, which lacks the public schema in its search path, so the function now qualifies `public.user_profiles` and sets `search_path`.",
+    body: "Users choose light, dark or system theme and a timezone, stored in different places on purpose. Theme is a device choice kept in local storage with class-based dark mode. The timezone is an account preference users can update on their own row, set through a server action, with 40 or more zones grouped by region and defaulting to the browser's zone; calendars and timezone dropdowns use it as default. The reasoning is in comments in the switcher components. Functions run by the auth admin role, which lacks the public schema in its search path, must schema-qualify tables and pin their search path, or creating users fails.",
   },
   {
     slug: "kajabi-external-ids-and-api-options",
@@ -646,7 +614,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "improved",
     title: "Kajabi and Stripe ids merged across imports; automation options researched",
     summary: "Member records pick up both a Kajabi contact id and a Stripe customer id even though they come from different CSV exports.",
-    body: "Contacts exports carry the Kajabi contact id and subscriptions exports carry the Stripe customer id (as the provider id when the provider is Stripe), so using only the latest snapshot lost one of them. Processing now groups snapshots by email, takes the core fields from the latest, and the first non-null external id from any snapshot, which feeds Kajabi and Stripe links on the member page header. `docs/KAJABI_API_SETUP.md` and an analysis document compare three ways to stop exporting by hand: the Kajabi API, bulk export, and Zapier or Make versus a browser scraper.",
+    body: "Contacts exports carry the Kajabi contact id and subscriptions exports carry the Stripe customer id (as the provider id when the provider is Stripe), so using only the latest snapshot lost one of them. Processing groups snapshots by email, takes the core fields from the latest and the first non-null external id from any snapshot, which feeds the Kajabi and Stripe links on the member page header. A document compares three ways to stop exporting by hand: the Kajabi API, bulk export, and Zapier or Make versus a browser scraper. See docs/KAJABI_API_SETUP.md.",
   },
   {
     slug: "slack-bronze-tables-and-csv-export-import",
@@ -655,7 +623,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Slack data lands in Bronze: tables, an export script and a CSV import",
     summary: "Slack messages, reactions, channels and users are stored raw, loaded first from an exported set of CSV files.",
-    body: "A migration adds `slack_messages` (unique on channel and message timestamp, with a `deleted_at` soft delete), `slack_reactions` (unique per message, reaction and user), `slack_channels` and `slack_users`, plus an `ignored_slack_users` hygiene table and a `source` column on `member_name_aliases` for Slack aliases and Slack activity types. `scripts/export-slack-data.ts` (built on `@slack/web-api`, run with tsx) exports users, channels, messages and reactions and auto-joins public channels (a `channels:join` scope in the checked-in app manifest, which holds placeholders only). `POST /api/import/slack` parses the CSVs, including fields with embedded newlines, accepts the service role key for scripts, and `SlackImportForm` uploads four files at once. The unmatched users report, manual alias creation and skip-a-non-member APIs support the next step.",
+    body: "Slack messages, reactions, channels and users are stored raw in Bronze, loaded first from exported CSV files. An export script built on the Slack web API pulls users, channels, messages and reactions and joins public channels (the checked-in app manifest holds placeholders only). The import parses CSVs including fields with embedded newlines, accepts the service role key for scripts, and takes four files at once. Messages use a soft delete. Staff can hide non-member Slack users and attach aliases to Slack names, and the unmatched users report, manual alias creation and skip-a-non-member APIs support matching Slack accounts to members.",
   },
   {
     slug: "slack-processing-and-member-activity",
@@ -664,7 +632,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Slack processing into member activities, with matching and reprocessability tests",
     summary: "Slack messages and reactions become member activity rows, matched to members by a dedicated library, and shown on member pages.",
-    body: "`lib/slack-matching.ts` matches Slack users to members, and `POST /api/process/slack` follows the pipeline rules: paginated Bronze reads, in-memory matching, DELETE then INSERT into `member_activities` in chunks of 500, deleted messages and removed reactions skipped, an engagement value derived from message characteristics, and `maxDuration` of 300. Reprocessability, import idempotency and matching tests were added with it. On April 10 member pages gained a Slack Activity section (message and reaction counts, last 30 days, active channels, a recent feed with emoji rendering and links), and later filters by type and channel.",
+    body: "Slack messages and reactions become member activity rows, matched to members by a dedicated library, and appear on member pages. The processing route follows the pipeline rules: paginated Bronze reads, in-memory matching, delete then insert in chunks of 500, deleted messages and removed reactions skipped, an engagement value derived from message characteristics, and a maximum duration of 300 seconds. Member pages show message and reaction counts for the last 30 days, active channels and a recent feed with emoji rendering and links, filterable by type and channel. Reprocessability, idempotency and matching tests ship with it.",
   },
   {
     slug: "bronze-schema-and-prickle-attendance-rename",
@@ -673,7 +641,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "improved",
     title: "Bronze tables move into their own Postgres schema; attendance becomes prickle_attendance",
     summary: "Raw import tables now live in a bronze schema and each table is labelled Bronze, Local or Silver, so the layers are visible in the database.",
-    body: "Following the architecture-foundation spec, migrations create a `bronze` schema and move `kajabi_members`, `calendar_events`, the Zoom tables (adding a `zoom_meetings` table), `subscription_history` and the Slack tables into it, and `attendance` is renamed `prickle_attendance` (29 files of code updated in a separate commit). Table comments declare the layer: Bronze is raw data with idempotent imports, Local is operational data this app owns and never reprocesses, Silver is derived and reprocessable. PostgREST had to be told: the `bronze` schema was added to exposed schemas and the search path, queries use `.schema('bronze').from()`, and grants were added for the new tables.",
+    body: "Raw import tables live in a bronze schema and every table's comment declares its layer: Bronze is raw with idempotent imports, Local is operational data this app owns and never reprocesses, Silver is derived and reprocessable, so the layers are visible in the database itself. The attendance table was renamed to match the prickle vocabulary. PostgREST has to be told about the schema: it is exposed to the API and in the search path, queries name the schema explicitly, and new tables need grants. See docs/MEDALLION_ARCHITECTURE.md.",
   },
   {
     slug: "member-email-aliases-and-merged-identity",
@@ -682,7 +650,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Email aliases so one person with several addresses is one member",
     summary: "A member who appears in Kajabi under more than one email is merged into one record, with external ids combined.",
-    body: "The Local table `member_email_aliases` maps alternative emails to a canonical one. Members processing resolves aliases first, deduplicates by the canonical email and merges Kajabi and Stripe ids across all of a person's addresses. It follows the member identity management spec in the docs.",
+    body: "A member who appears in Kajabi under more than one email is merged into one record, with external ids combined. Alternative emails map to a canonical one in a Local alias table. Members processing resolves aliases first, deduplicates by canonical email and merges Kajabi and Stripe ids across all of a person's addresses. See docs/MEMBER_MATCHING.md.",
   },
   {
     slug: "auto-processing-dependency-triggers",
@@ -691,7 +659,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Imports and local changes now trigger Silver reprocessing automatically",
     summary: "After an import, or after staff change an alias, an ignored name or a prickle type, the affected Silver data is rebuilt without a button press.",
-    body: "`lib/processing/trigger.ts` knows which Silver layers depend on which source and runs them in order. Bronze imports reprocess the date range they covered; changes to Local tables (name aliases, ignored Zoom names, prickle types, bulk alias application) reprocess the last 90 days by default. The dependency map is an ordering constraint only: a later fix noted that members changing should not force prickles and attendance to reprocess. Hiatus processing (from `subscription_history` into `member_hiatus_history`) was added after members, and Slack processing was added too. The manual process buttons on import cards were replaced by a Manual Reprocessing section for custom ranges, and import responses now wait for processing and show its results. The Zoom import fixed its conflict key to meeting, participant id and join time and began filling `zoom_meetings`.",
+    body: "After an import, or after staff change an alias, an ignored name or a prickle type, the affected Silver data is rebuilt without a button press. A processing trigger library knows which Silver layers depend on which source and runs them in order. Bronze imports reprocess the date range they covered; Local changes (name aliases, ignored Zoom names, prickle types, bulk alias application) reprocess the last 90 days by default. The dependency map is an ordering constraint only: a member change need not force prickles and attendance to reprocess. Import responses wait for processing and show its results, and a Manual Reprocessing section handles custom ranges. See docs/MEDALLION_ARCHITECTURE.md.",
   },
   {
     slug: "default-hosts-and-missing-hosts-page",
@@ -700,7 +668,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Prickle types can require a host and name a default one",
     summary: "Staff can say which prickle types need a host and who hosts by default, so the host health metric counts only real gaps.",
-    body: "Migrations add `requires_host` and `default_host_id` to `prickle_types` and two more seeded types, and fix RLS policies for `prickle_attendance`, `member_name_aliases` and the Bronze tables so upserts work for signed-in users. Calendar processing falls back to the default host when a title has no host in it. A missing hosts page with member autocomplete lets staff assign defaults. The host assignment card now shows a percentage over only prickles requiring a host (93 percent instead of 53 in the commit's example). Shared `formatters` and a `Modal` component were extracted in the same pass.",
+    body: "Staff say which prickle types need a host and who hosts by default, so the host health metric counts only real gaps (93 percent instead of 53 in one example). Calendar processing falls back to the default host when a title names none. A missing-hosts page with member autocomplete lets staff assign defaults. Row level security was corrected so upserts work for signed-in users on the attendance, alias and Bronze tables, and shared formatters and a modal component were extracted. Rule: health metrics count only prickles that require a host.",
   },
   {
     slug: "daily-reconciliation-cron-jobs",
@@ -718,7 +686,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Webhook receivers for Google Calendar, Zoom and Slack with signature checks and tests",
     summary: "Live updates arrive at webhook endpoints that verify who sent them, write to Bronze and start processing without making the sender wait.",
-    body: "`/api/webhooks/calendar`, `/zoom` and `/slack` upsert to Bronze, fire Silver processing and answer 200 quickly; the Slack route uses the service role client because no user session exists. The first version only marked verification as a TODO. Three days later it was implemented: Google channel token, Zoom HMAC-SHA256 signature, and Slack HMAC-SHA256 with a five minute timestamp window, each degrading gracefully when a secret is unset. Tests use Mock Service Worker with fixtures based on official payload documentation (27 tests, four skipped pending a test database), with `docs/WEBHOOK_TESTING.md` and setup docs.",
+    body: "Live updates arrive at webhook endpoints for calendar, Zoom and Slack. Each verifies its sender (Google channel token, Zoom HMAC-SHA256 signature, Slack HMAC-SHA256 with a five minute timestamp window, each degrading gracefully when a secret is unset), writes to Bronze, starts Silver processing and answers 200 quickly. Handlers without a user session, such as Slack's, use the service role client. Tests use Mock Service Worker with fixtures based on the providers' payload documentation. Rule: verify before trusting, and webhooks are latency optimizations only (see the nightly reconciliation). See docs/WEBHOOK_TESTING.md.",
   },
   {
     slug: "atomic-reprocessing-functions",
@@ -727,7 +695,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "improved",
     title: "Atomic reprocessing in SQL functions so readers never see half-rebuilt data",
     summary: "Prickles, attendance and members are replaced inside one database transaction instead of a delete followed by separate inserts.",
-    body: "Migrations add `reprocess_prickles_atomic` (date-scoped calendar prickles), `reprocess_prickle_attendance_atomic` (date-scoped attendance and pop-ups, using CTEs to insert PUPs, map client-side temporary ids to real ones and insert attendance referencing both) and `reprocess_members_atomic`. They are split one function per migration file because the local migration runner cannot send several CREATE FUNCTION statements in one prepared statement; batch sizes were also reduced to stay under URI length limits. The processing routes call them through RPC.",
+    body: "Prickles, attendance and members are replaced inside one database transaction through RPC functions, so a failure never leaves a half-rebuilt table. The attendance function inserts pop-ups, maps client-side temporary ids to real ones and inserts attendance referencing both, using CTEs. Batch sizes stay under URI length limits, and each function sits in its own migration file because the local migration runner cannot send several function definitions in one prepared statement. Rule: Silver rebuilds are one atomic function per layer.",
   },
   {
     slug: "stable-member-ids-identity-vs-event-entities",
@@ -745,7 +713,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Pre-commit hook that runs the production build",
     summary: "A git hook runs the production build before each commit so type errors that only appear in a strict build are caught locally.",
-    body: "`scripts/install-hooks.sh` installs a hook running `npm run build` and blocking the commit if it fails, with `--no-verify` as an escape hatch. It was added after several deployments failed on type errors that the dev server had accepted (missing interface properties, null safety, mismatches), including two fixes on April 26.",
+    body: "A git hook runs the production build before each commit and blocks it on failure, with an escape hatch. It was added after several deployments failed on type errors the dev server had accepted (missing interface properties, null safety, mismatches). Linting and the hook are now managed in the repo with Husky.",
   },
   {
     slug: "kajabi-and-slack-api-imports",
@@ -754,7 +722,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Kajabi and Slack imported straight from their APIs",
     summary: "Production imports pull from the Kajabi and Slack APIs, and the CSV uploads moved to a separate testing page.",
-    body: "`lib/kajabi/client.ts` uses the OAuth client credentials flow, caching the access token until 90 percent of its life, with paginated JSON:API fetches and a required site filter. `POST /api/sync/kajabi` imports contacts and purchases. Kajabi has no subscriptions endpoint, so subscriptions are read from purchases (a null deactivation time means active, amounts converted from cents), and customers are fetched and joined by id because the purchase lacks the email that hiatus processing groups by; purchases with no customer are skipped with a warning. `POST /api/import/slack-api` imports messages and reactions for a 7, 30 or 90 day window, auto-joining public channels, with a five minute duration. Both write Bronze idempotently and trigger processing. `/data/import` now shows API imports, and `/data/import/testing` keeps the CSV forms for development. Several commits that day only added pagination logging while diagnosing a page of 100 records.",
+    body: "The Kajabi client uses the OAuth client credentials flow, caches the access token until 90 percent of its life and fetches paginated JSON:API pages with a required site filter. Kajabi has no subscriptions endpoint, so subscriptions are read from purchases (a null deactivation time means active, amounts converted from cents), and customers are fetched and joined by id because the purchase lacks the email that hiatus processing groups by; purchases with no customer are skipped with a warning. The Slack import covers messages and reactions for a 7, 30 or 90 day window, auto-joins public channels and allows five minutes. Both write Bronze idempotently and trigger processing. The import page shows API imports, and a testing page keeps the CSV forms for development. See docs/KAJABI_API_SETUP.md.",
   },
 {
     slug: "kajabi-bronze-tables-and-api-sync",
@@ -764,11 +732,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Kajabi data imported through its API into Bronze tables",
     summary:
       "Contacts, customers, purchases and offers from Kajabi now land in their own raw tables, fetched through Kajabi's API instead of CSV uploads.",
-    body: [
-      "Migrations added `kajabi_contacts`, `kajabi_customers`, `kajabi_purchases` and `kajabi_offers` in the Bronze schema, and the older `subscription_history` and `member_hiatus_history` tables were marked deprecated because purchases (and later Stripe subscriptions) replace them.",
-      "`lib/kajabi/client.ts` and `app/api/sync/kajabi/route.ts` talk to Kajabi with an OAuth 2.0 client-credentials token. Kajabi's responses are JSON:API with everything under `attributes`, every request needs a site filter or the API returns a 500, and the purchases endpoint gives no total page count, so paging stops when a page comes back short. A customer's email is not on the purchase, so the import fetches customers separately and joins on the customer id.",
-      "Subscriptions are purchases in Kajabi, not a separate resource, which is why the later membership logic reads purchases.",
-    ].join("\n\n"),
+    body: "Kajabi contacts, customers, purchases and offers land in their own raw tables, fetched through Kajabi's API with an OAuth 2.0 client-credentials token instead of CSV uploads; the older CSV-based tables were marked deprecated because purchases (and later Stripe subscriptions) replace them. Kajabi's responses are JSON:API with everything under attributes, every request needs a site filter or it returns 500, and purchases give no total page count, so paging stops when a page comes back short. Subscriptions are purchases in Kajabi, and a customer's email is not on the purchase, so customers are fetched separately and joined on the customer id. Membership logic reads purchases for that reason.",
   },
   {
     slug: "stripe-bronze-layer-and-upsert-functions",
@@ -778,11 +742,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Stripe customers, products and subscriptions imported into Bronze",
     summary:
       "A Stripe client and import route copy customers, products and subscriptions into raw tables, so we can tell active from paused or cancelled members.",
-    body: [
-      "Kajabi's API does not expose a paused subscription, so Stripe is treated as the authority for active, paused and cancelled. `lib/stripe/client.ts`, `app/api/sync/stripe/route.ts` and an import form on the data import page do the fetch; migrations create the Bronze Stripe tables.",
-      "The data was kept Bronze-only at first, and not merged into Silver until the reconciliation rules were settled.",
-      "Writes go through the SQL functions `upsert_stripe_customers`, `upsert_stripe_products` and `upsert_stripe_subscriptions`, because the PostgREST schema cache did not see the newly migrated tables right away. The subscription period dates were not on the root object in the Stripe API version used, so they were read with a cast, pending typings.",
-    ].join("\n\n"),
+    body: "A Stripe client and import copy customers, products and subscriptions into raw tables, because Kajabi's API does not expose a paused subscription, so Stripe is the authority for active, paused and cancelled. The data was kept Bronze-only until the reconciliation rules were settled. Writes go through SQL upsert functions, since the PostgREST schema cache did not see the newly migrated tables right away. The subscription period dates were not on the root object in the Stripe API version used, so they are read with a cast, pending typings. See docs/STRIPE_KAJABI_COMPARISON.md.",
   },
   {
     slug: "member-processing-from-kajabi-bronze",
@@ -792,10 +752,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Member processing rebuilt on the Kajabi Bronze tables",
     summary:
       "The members step now reads Kajabi contacts and purchases from Bronze, so it can be re-run from raw data at any time.",
-    body: [
-      "`app/api/process/members/route.ts` was rewritten to read `kajabi_contacts` and `kajabi_purchases` instead of the legacy CSV-import tables, which makes the Silver `members` table fully reprocessable from Bronze plus Local data.",
-      "In `lib/member-matching.ts`, a member alias now carries a `source` ('zoom' or 'slack'), and `matchAttendeeToMember` returns an explicit ambiguous result when more than one member fits, instead of null, so callers must handle that case.",
-    ].join("\n\n"),
+    body: "Members processing reads Kajabi contacts and purchases from Bronze instead of the legacy CSV-import tables, which makes the Silver members table fully reprocessable from Bronze plus Local data. In member matching, an alias carries its source (Zoom or Slack), and the matcher returns an explicit ambiguous result when more than one member fits instead of null, so callers must handle it.",
   },
   {
     slug: "member-status-overrides-and-ambiguous-zoom-names",
@@ -805,11 +762,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Local tables for status overrides and ambiguous Zoom names",
     summary:
       "Staff can record people who should count as active despite billing data (gifts, hiatus), and names that Zoom attendance cannot resolve to one member are tracked.",
-    body: [
-      "`member_status_overrides` is a Local-layer table, a source of truth like `member_name_aliases` and not derived from Bronze. It covers gifted or comped access (for example a program, hosting or compensation), hiatus, and other special cases. An admin page (`/dashboard/member-overrides` at the time) and `/api/member-overrides` manage it.",
-      "`ambiguous_zoom_names`, with an upsert function, records Zoom display names that match several members so they can be resolved by hand later.",
-      "`lib/supabase/api-auth.ts` gained a shared service-role bypass so integration tests can call protected routes without a browser session. A seed note: truncating `members` cascades into `prickle_types`, so the seed must re-create the Pop-Up Prickle type.",
-    ].join("\n\n"),
+    body: "Staff can record people who should count as active despite billing data (gifted or comped access such as a program, hosting or compensation, hiatus and other special cases) in a Local-layer source of truth, managed by an admin page and API, a source of truth like the name aliases and not derived from Bronze. Zoom display names that match several members are recorded with an upsert function so they can be resolved by hand later. A shared service-role bypass lets integration tests call protected routes without a browser session. Rule: hand-entered facts live in Local tables that processing reads and never overwrites.",
   },
   {
     slug: "kajabi-stripe-reconciliation-dashboard",
@@ -819,10 +772,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Reconciliation dashboard comparing Kajabi and Stripe",
     summary:
       "An admin report finds members whose Kajabi status and Stripe subscription disagree, so staff know where to act.",
-    body: [
-      "`/api/analyze/subscription-reconciliation` and a reconciliation page compare the two sources, limited to membership offers (payment plans and retreats are ignored on both sides). A paused Stripe subscription with an inactive Kajabi record is correct and is not flagged; only real mismatches are.",
-      "Matching goes by email to `kajabi_customers` and then to purchases by customer id, because `members.kajabi_id` turned out to be stale. The analysis was written up in docs/STRIPE_KAJABI_COMPARISON.md and related files. Tests for the overrides and reconciliation routes were added in the same stretch, using the real database with the service-role helper.",
-    ].join("\n\n"),
+    body: "An admin report finds members whose Kajabi status and Stripe subscription disagree, so staff know where to act. It compares the two sources for membership offers only (payment plans and retreats are ignored on both sides) and does not flag legitimate cases: a paused Stripe subscription with an inactive Kajabi record is correct. Matching goes by email through customers to purchases by customer id, because the stored Kajabi id turned out to be stale. Tests for the overrides and reconciliation routes use the real database with the service-role helper. See docs/STRIPE_KAJABI_COMPARISON.md.",
   },
   {
     slug: "react-email-auth-templates-and-mailpit-tests",
@@ -845,10 +795,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Project renamed to Hedgie Hub, Node pinned, Vercel Analytics added",
     summary:
       "The admin portal became Hedgie Hub (serving members and staff), Node 24 is pinned, and page views and web vitals are tracked in Vercel.",
-    body: [
-      "The package and docs moved from admin-portal to hub, with a new domain, because the app now serves members as well as staff. `.nvmrc` pins Node 24 LTS and the Vercel CLI was bumped to v54. The env sync script answers the git-branch prompt Vercel shows for preview environments.",
-      "Vercel Analytics and Speed Insights were added to the root layout.",
-    ].join("\n\n"),
+    body: "The admin portal became Hedgie Hub because the app serves members as well as staff; package and docs were renamed and a new domain used. Node 24 LTS is pinned in the repo and the Vercel CLI is at v54. The env sync script answers the git-branch prompt Vercel shows for preview environments. Vercel Analytics and Speed Insights are mounted in the root layout for page views and web vitals.",
   },
   {
     slug: "admin-and-member-route-groups-with-route-protection",
@@ -858,11 +805,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Admin and member route groups, with auth required by default",
     summary:
       "The app is split into an admin area and a member area, and everything except public routes now requires a signed-in user with the right role.",
-    body: [
-      "Admin pages moved into `app/(admin)/admin/` with their own layout and `AdminNavigation`; a `(member)` group got its own layout and `MemberNavigation`, a calendar of the member's own attendance, and profile pages. The root redirect sends admins to /admin and members to the calendar. Shared pieces (`UserMenu`, `SignOutButton`, `CalendarWeekView`) moved to `components/`.",
-      "`lib/supabase/middleware.ts` now redirects anonymous users on all non-public routes, but skips /api, which authenticates itself. A `requireAdmin()` helper in `lib/supabase/api-auth.ts` is applied to every non-webhook API handler. The default role in `user_profiles` changed from admin to member, and the middleware tolerates Supabase fetch failures.",
-      "A fix replaced `user_profiles` row-level security policies that recursed infinitely, and the profile trigger now schema-qualifies `public.user_profiles`.",
-    ].join("\n\n"),
+    body: "The app is split into an admin area and a member area, each with its own layout and navigation, and everything except public routes requires a signed-in user with the right role. The member area has a calendar of the member's own attendance and profile pages, and shared pieces (user menu, sign-out, week view) live in components. Middleware redirects anonymous users, skips the API (which authenticates itself) and tolerates Supabase fetch failures. A shared admin guard helper protects every non-webhook API handler. The default role is member, and row level security policies that recursed infinitely were replaced. The root redirect sends admins to the admin area and members to their calendar. See docs/RLS_SECURITY.md.",
   },
   {
     slug: "sudo-mode-signed-cookie-and-effective-identity",
@@ -872,10 +815,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Sudo mode: admins browse as a member, via a signed cookie",
     summary:
       "An admin can view the app as a chosen member; the choice is carried in a tamper-proof cookie and a banner shows it.",
-    body: [
-      "`lib/sudo.ts` signs a cookie of admin id, member id and an HMAC (using `SUDO_SECRET`, compared with `timingSafeEqual`). `getEffectiveIdentity(user)` returns the sudo'd member only when the cookie's admin id matches the signed-in user and that user's `user_profiles.role` is admin; otherwise the user's own member record. It returns `memberId`, `memberName`, `memberEmail` and `isSudo`.",
-      "`startSudo` and `exitSudo` server actions, a banner and a Sudo As entry in the user menu complete it. Exit clears the cookies unconditionally and validates the return URL. Member pages are expected to use the effective identity and not the raw auth user.",
-    ].join("\n\n"),
+    body: "Admins can browse as a member through a signed cookie holding the admin id, the member id and an HMAC (using a secret, compared in constant time). The effective-identity helper returns the sudo'd member only when the cookie's admin id matches the signed-in user and that user is an admin; otherwise the user's own member record. It returns the member id, name, email and an is-sudo flag. Start and exit sudo are server actions, with a banner and a Sudo As entry in the user menu; exit clears the cookies unconditionally and validates the return URL. Rule: member pages resolve the member through the effective identity, never the raw auth user. See CLAUDE.md, \"Member Identity Resolution\".",
   },
   {
     slug: "streak-computation-and-member-profile-pages",
@@ -885,10 +825,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Weekly streak computation and member profile pages",
     summary:
       "A tested streak utility counts consecutive weeks of attendance, and a member profile page shows attendance history and streaks.",
-    body: [
-      "`lib/streaks.ts` groups join times into weeks and returns the current and longest run. The current streak is zero once the last attended week is more than a week behind, with a grace-period boundary test. The `/members/[id]` page pages through all of a member's attendance (past the 1000-row limit) to compute it, and the sidebar gained My Profile.",
-      "Later, in June, `/streaks` added sister streaks and streaks scoped to a specific prickle day and time, using each member's own time zone.",
-    ].join("\n\n"),
+    body: "A tested utility groups join times into weeks and returns the current and longest run of consecutive attended weeks. The current streak drops to zero once the last attended week is more than a week behind, with a grace-period boundary test. The member profile page pages through all of a member's attendance, past the 1000-row limit, to compute it. Streaks have since grown sister streaks and streaks scoped to a specific prickle day and time, using each member's own time zone.",
   },
   {
     slug: "kajabi-profile-fields-in-silver-members",
@@ -898,11 +835,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Profile photo, bio and social links carried into members",
     summary:
       "Member processing now copies a profile photo, bio and social links from Kajabi onto the member record, and profile pages show them with an initials fallback.",
-    body: [
-      "A migration added the profile columns to `members` and the `reprocess_members_atomic` function fills them. When several Kajabi customers share an email, the most recently updated one wins. A `MemberAvatar` client component falls back to coloured initials, because a server component cannot attach an image error handler.",
-      "Social and photo URLs are sanitised to block javascript: links, the Kajabi avatar CDN base is resolved, and social handles are normalised. A Gravatar fallback was tried and reverted because the API never returns Gravatar URLs.",
-      "Prickle pages were consolidated into one shared `/prickles/[id]` with role-aware links that respect sudo and hide attendee emails from non-admins.",
-    ].join("\n\n"),
+    body: "Member processing copies a profile photo, bio and social links from Kajabi onto the member record, and profile pages show them with a coloured-initials fallback (a client component, since a server component cannot attach an image error handler). When several Kajabi customers share an email, the most recently updated wins. Social and photo URLs are sanitised to block javascript links, the Kajabi avatar CDN base is resolved and handles are normalised. Prickle pages share one detail page with role-aware links that respect sudo and hide attendee emails from non-admins.",
   },
   {
     slug: "feature-previews-for-admin-opt-in",
@@ -912,9 +845,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Feature previews: admins opt in to unfinished features",
     summary:
       "A per-user table and a settings modal let admins switch on features still being built, and navigation items and pages are hidden otherwise.",
-    body: [
-      "`user_feature_previews` stores each admin's choices, `lib/features.ts` and `lib/features.server.ts` define and read the features, and `/api/feature-previews` toggles them. Nav items and pages check the flag, so unfinished work can ship to production dark.",
-    ].join("\n\n"),
+    body: "Admins can switch on features still being built from a settings modal, stored per user. A features library defines and reads them, and navigation items and pages check the flag, so unfinished work can ship to production dark. This is the origin of the feature flag system used for gradual rollouts.",
   },
   {
     slug: "member-merge-and-duplicate-detection",
@@ -924,10 +855,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Merging duplicate members, with detection and conflict warnings",
     summary:
       "Admins can merge two member records from a member page, in bulk, or from a Merge and Fix page that finds likely duplicates.",
-    body: [
-      "All three entry points call `POST /api/admin/members/merge`. It moves attendance, activities, hiatus and override rows, hosted prickles, ambiguous-name references, name aliases and email aliases to the kept member, copies `kajabi_id`, `stripe_customer_id` and `user_id` when the kept member lacks them, deletes derived metrics (recomputed later) and finally deletes the duplicate. Foreign keys are handled in a fixed order, documented in docs/MEMBER_MERGE.md. When both members have different external ids the primary's wins and the response lists the conflicts.",
-      "`lib/member-duplicates.ts` (`detectDuplicates`, unit tested) groups by identical normalised name or email. On 21 June, an external-conflicts hygiene page and pre-merge warnings check Kajabi, Stripe and Slack. Reprocessing was changed so a secondary Kajabi contact cannot overwrite the primary. Staff are always active regardless of Kajabi. Dismissed duplicate groups later moved into the database, shared by all admins.",
-    ].join("\n\n"),
+    body: "Admins can merge two member records from a member page, in bulk, or from a Merge and Fix page that finds likely duplicates (same normalised name or email). All entry points use one merge route, which moves attendance, activities, hiatus and override rows, hosted prickles, ambiguous-name references, name and email aliases to the kept member, copies missing external ids, deletes derived metrics (recomputed later) and removes the duplicate, in a fixed foreign-key order. When both members have different external ids the primary's wins and the response lists the conflicts. An external-conflicts hygiene page and pre-merge warnings check Kajabi, Stripe and Slack, and reprocessing cannot let a secondary Kajabi contact overwrite the primary. Dismissed duplicate groups are shared by all admins. See docs/MEMBER_MERGE.md.",
   },
   {
     slug: "zoom-history-import-and-scoped-pagination-fixes",
@@ -937,10 +865,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Historical Zoom import and pagination fixes for 1000-row truncation",
     summary:
       "A script loads past Zoom meetings in batches, and several admin pages and reports that silently stopped at 1000 rows now page through everything.",
-    body: [
-      "The Zoom import gained a `skipProcessing` flag and a historical batch script (limited to 2026 because of the Zoom records API). Hygiene pages, the orphaned-meetings step and the report routes that silently truncated at Supabase's default 1000 rows now paginate, with a pagination test for attendance.",
-      "Tiny pop-up prickles (under five minutes with one attendee) are skipped, and process handlers are called directly from import routes to avoid Vercel deployment protection.",
-    ].join("\n\n"),
+    body: "A script loads past Zoom meetings in batches (limited to 2026 because of the Zoom records API), and the import has an option to skip processing. Admin pages and report routes that silently stopped at Supabase's default 1000 rows now paginate, with a pagination test for attendance. Pop-up prickles under five minutes with one attendee are skipped, and import routes call process handlers directly to avoid Vercel deployment protection. Rule: every report reads all rows. See CLAUDE.md, \"Database Query Limits\".",
   },
   {
     slug: "stable-prickle-ids-across-reprocessing",
@@ -950,10 +875,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Prickle ids stay the same when calendar and attendance are reprocessed",
     summary:
       "Reprocessing used to delete and recreate prickles with new ids, breaking links and attendance; prickles are now updated in place.",
-    body: [
-      "`reprocess_prickles_atomic` did DELETE then INSERT, so every run produced new uuids and broke /prickles URLs. Prickles now carry `calendar_event_id` (unique when set) and the function upserts on it, deleting only calendar prickles whose event is gone. Zoom-sourced pop-up prickles got the same treatment through `zoom_meeting_uuid`.",
-      "The first attempt made `zoom_meeting_uuid` alone unique, which was wrong: one Zoom meeting yields several segments. The final key is the composite (`zoom_meeting_uuid`, `start_time`, `end_time`), with the upsert repeating the partial-index predicate and duplicates merged by repointing attendance first. Reprocessability tests were updated, and an unrelated `::numeric` cast on the text `confidence_score` column was removed from the attendance function. This is the base of the rule that prickle ids are safe to link.",
-    ].join("\n\n"),
+    body: "Prickle ids are stable across reprocessing, so prickle URLs are safe to link and attendance is never orphaned. Delete-and-recreate gave every run new ids; prickles now upsert on their source key (the calendar event, or for Zoom pop-ups the meeting with its start and end times), and only prickles whose source is gone are deleted. One Zoom meeting can yield several segments, so the meeting alone is not a unique key. Duplicates are merged by repointing attendance first, and reprocessability tests cover it. See docs/MEDALLION_ARCHITECTURE.md.",
   },
   {
     slug: "attendance-reprocessed-after-member-changes",
@@ -963,9 +885,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Attendance rebuilt when member data or aliases change",
     summary:
       "Calendar prickles and attendance are reprocessed when aliases change, so historical attendance is matched to people added later.",
-    body: [
-      "Changing `member_name_aliases` now triggers calendar reprocessing so hosts re-match. Insights pages exclude future prickles and use a median, with a sparkline based on the chosen window. In early July, attendance matching started using `member_email_aliases` and processing every member regardless of status, and a member processing run schedules an attendance reprocess of the last 90 days in the background via `after()`. Integration tests cover that cascade.",
-    ].join("\n\n"),
+    body: "Calendar prickles and attendance are reprocessed when aliases change, so historical attendance is matched to people added later and hosts re-match. Attendance matching uses email aliases and covers every member regardless of status. A members processing run schedules an attendance reprocess of the last 90 days in the background, after the response is sent, and integration tests cover that cascade. Insights pages exclude future prickles and use a median, with a sparkline based on the chosen window.",
   },
 {
     slug: "membership-history-from-kajabi-billing",
@@ -974,10 +894,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "fixed",
     title: "Membership history built only from real membership subscriptions",
     summary: "A member's membership history now ignores one-off purchases and non-membership offers, follows email aliases, and starts from the date Kajabi first created the subscription.",
-    body: [
-      "The membership history for a member (`lib/kajabi/membership-history.ts`, extracted as `fetchMembershipHistory` so tests call the real implementation) had been counting non-subscription purchases and non-membership offers. A shared `isMembershipOffer` helper in `lib/membership` now decides what counts, with unit tests, and the query follows every customer id that belongs to a member's alias emails.",
-      "The start date uses `created_at_kajabi` rather than `effective_start_at`: Kajabi rewrites `effective_start_at` on each renewal, so it drifts to the latest billing cycle, while `created_at_kajabi` matches the \"Started on\" date in Kajabi and never changes. On 2026-07-06 the end date followed the same billing-based logic: each subscription ends where the next one starts, and only the latest one falls back to `deactivated_at`.",
-    ].join("\n\n"),
+    body: "A member's membership history counts only real memberships: a shared helper decides which offers count, one-off purchases and non-membership offers are ignored, and the query follows every customer id that belongs to a member's alias emails. The start date is when Kajabi first created the subscription, which matches the \"Started on\" date in Kajabi and never changes, while the effective start date Kajabi rewrites on each renewal drifts to the latest cycle. Each subscription ends where the next one starts, and only the latest falls back to its deactivation time. The history function is exported so tests call the real implementation.",
   },
   {
     slug: "auto-alias-on-kajabi-email-change",
@@ -986,10 +903,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Old email kept as an alias when a Kajabi contact changes address",
     summary: "When a member's email changes in Kajabi, the old address is now remembered as an alias so later imports that still use it resolve to the same member.",
-    body: [
-      "`reprocess_members_atomic` matches members by `kajabi_id`. When it sees a matched member whose email differs, a new migration makes it insert the old email as an alias with source `auto_detected`, and redirect any existing aliases that pointed at the old canonical email to the new one, so alias chains stay consistent.",
-      "A reprocessability test (`tests/api/reprocessability/member-email-change.test.ts`) covers the change. This matters because Zoom, Slack and Stripe data often still carry the old address.",
-    ].join("\n\n"),
+    body: "When a member's email changes in Kajabi, the old address is remembered as an alias so later imports that still use it resolve to the same member. Members processing matches by the Kajabi id; on seeing a different email it records the old one as an auto-detected alias and redirects existing aliases that pointed at the old canonical email to the new one, so alias chains stay consistent. A reprocessability test covers the change. This matters because Zoom, Slack and Stripe data often still carry the old address.",
   },
   {
     slug: "reconcile-crons-use-get-and-cron-secret",
@@ -998,10 +912,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "fixed",
     title: "Nightly reconcile jobs actually run: GET handlers, cron secret, Kajabi API",
     summary: "The three daily reconcile routes failed on Vercel Cron, and the members one did nothing; both are fixed.",
-    body: [
-      "Vercel Cron always calls with GET, but the `/api/reconcile/*` routes only exported POST, so every run answered 405. The shared auth helper (`lib/supabase/api-auth.ts`) also never checked the `CRON_SECRET` bearer token its README described; it now does, and `scripts/sync-to-vercel.sh` syncs the secret to production.",
-      "The members job was calling a reprocess of `kajabi_members`, a table with no Silver dependents, so it was a no-op. A new `triggerKajabiSync()` in `lib/processing/trigger.ts` (mirroring the calendar one) makes `/api/reconcile/members` call the Kajabi API sync that already existed, with unit tests for auth, success and error paths.",
-    ].join("\n\n"),
+    body: "The daily reconcile routes failed on Vercel Cron because cron always calls with GET and the routes only exported POST, so every run answered 405. The shared auth helper also never checked the bearer cron secret it documented; it now does, and the secret is synced to production. The members reconcile was a no-op because it reprocessed a table with no Silver dependents; it now triggers the Kajabi API sync, mirroring the calendar one, with unit tests for auth, success and error paths. Rule: scheduled routes export GET and verify the cron secret.",
   },
   {
     slug: "community-stats-and-resubscription-insights",
@@ -1010,10 +921,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Admin insight pages: Community Stats and resubscriptions",
     summary: "Two admin analysis pages landed on top of the Silver data: community writing and prickle statistics, and members who cancelled and came back.",
-    body: [
-      "Community Stats (first named Fun Stats, renamed throughout the codebase) shows community writing metrics, an analog-clock heatmap of when prickles happen, prickle types by session count, and a date filter with year, quarter and month to date presets.",
-      "`/admin/insights/resubscriptions` lists members who cancelled and rejoined, with a monthly cohort chart. The detection logic was extracted into a library function with integration tests, and resolves email aliases and duplicate Kajabi customer ids per email before grouping purchases. The page queries Supabase directly rather than fetching its own API route.",
-    ].join("\n\n"),
+    body: "Community Stats shows community writing metrics, an analog-clock heatmap of when prickles happen, prickle types by session count and a date filter with year, quarter and month to date presets. A resubscriptions insight lists members who cancelled and rejoined, with a monthly cohort chart; the detection logic is a library function with integration tests that resolves email aliases and duplicate Kajabi customer ids per email before grouping purchases. The page queries the database directly rather than fetching its own API route.",
   },
   {
     slug: "calendar-sync-prunes-deleted-events",
@@ -1022,10 +930,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "fixed",
     title: "Calendar import removes events deleted from Google Calendar",
     summary: "Deleted calendar events no longer linger in the Bronze layer and turn into ghost prickles.",
-    body: [
-      "The calendar sync only upserted, so an event deleted in Google Calendar stayed in `bronze.calendar_events` and was reprocessed into a ghost prickle. A `SECURITY DEFINER` function `delete_stale_calendar_events()` now removes rows in the synced date range whose Google event id is missing from the current response. It refuses to run on an empty id list, so an empty Google response cannot wipe the range, and the import reports a deleted count.",
-      "The same week the calendar routes were consolidated: the import route accepts explicit `fromDate`/`toDate`, `import/calendar` became canonical, the `sync/*` namespace was removed in favor of `import/*`, and all Bronze writes use the service role. On 2026-08-06 execute on the delete function was revoked from `anon` and `authenticated`, since only the admin-gated import route calls it.",
-    ].join("\n\n"),
+    body: "The calendar sync used to only upsert, so an event deleted in Google Calendar stayed in Bronze and was reprocessed into a ghost prickle. A security-definer database function now removes rows in the synced date range whose Google event id is missing from the current response. It refuses an empty id list, so an empty Google response cannot wipe the range, and the import reports a deleted count. Only the admin-gated import route calls it, so execute is revoked from the anonymous and authenticated roles. Calendar imports accept explicit from and to dates, the import namespace replaced the sync one, and all Bronze writes use the service role.",
   },
   {
     slug: "flaky-integration-tests-stabilized",
@@ -1034,7 +939,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "fixed",
     title: "Integration suite made deterministic",
     summary: "Wrong column names, missing required fields and tests that cleaned up each other's rows were fixed.",
-    body: "Several integration tests selected columns that did not exist (`zoom_name`, `created_at_stripe`), omitted NOT NULL fields, or used the wrong member status. Tests that shared far-future date ranges (2099-07) deleted each other's data, so they were moved apart, and a pagination test now compares a differential count instead of a baseline that concurrent tests could change.",
+    body: "Integration tests that selected columns that did not exist, omitted required fields or used the wrong member status were corrected. Tests that shared far-future date ranges (2099-07) deleted each other's data and were moved apart, and a pagination test compares a differential count instead of a baseline that concurrent tests could change. Rule: tests on the shared database use isolated data and never assume global counts.",
   },
   {
     slug: "admin-users-page-roles-and-linked-profiles",
@@ -1043,10 +948,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Admin users page: invites, roles, feature previews and linked profiles",
     summary: "Admins can manage portal users in one place: invite, change role, set feature previews, delete, and link a user to a staff record.",
-    body: [
-      "`/admin/users` (`app/api/admin/users`) lists auth users with role and enabled feature previews, with inline edits and a delete that blocks self-deletion. A follow-up added a Linked Profiles column: PATCH with `staffId` sets `staff.user_id` and `members.user_id` together, matching the member by email, so no reprocess is needed.",
-      "Tests in `tests/api/admin/users.test.ts` cover the auth guards, create/update/delete, feature-flag replace semantics and link/unlink. On 2026-08-27 a resend-invite button for pending users was added.",
-    ].join("\n\n"),
+    body: "An admin users page lists sign-in accounts with role and enabled feature previews, with inline edits, a delete that blocks self-deletion and a resend-invite button for pending users. A Linked Profiles column connects an account to its staff and member records in one update, matching the member by email, so no reprocess is needed. Route tests cover the auth guards, create, update and delete, feature-flag replace semantics and link and unlink. See docs/INVITING_USERS.md.",
   },
   {
     slug: "slack-engagement-insights",
@@ -1055,7 +957,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Slack engagement insights for admins",
     summary: "An admin page shows when Slack is busiest, which channels drive engagement and which have gone quiet.",
-    body: "`/admin/insights/slack-engagement` is backed by `lib/slack-engagement-stats.ts`: a day-and-hour heatmap, per-channel engagement with trend sparklines, and a list of dormant channels that are candidates for archival. It has a unit test file of its own (`tests/lib/slack-engagement-stats.test.ts`).",
+    body: "An admin page shows when Slack is busiest (a day-and-hour heatmap), per-channel engagement with trend sparklines, and a list of dormant channels that are candidates for archival. The stats live in one library with its own unit tests.",
   },
   {
     slug: "rls-enabled-on-exposed-tables-and-function-hardening",
@@ -1064,10 +966,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "fixed",
     title: "Row level security on 17 exposed tables, and Supabase advisories cleared",
     summary: "Tables that the public API could reach without row level security now require a signed-in user, and the remaining warning-level advisories were addressed.",
-    body: [
-      "A migration enabled RLS on 17 tables in the `public` and `bronze` schemas that Supabase flagged as readable and writable with the anon key. Five Slack and subscription tables had policies set in the dashboard without RLS switched on; the others had neither. All got the project's usual authenticated-only policy.",
-      "On 2026-08-06 a second migration pinned `search_path` on six functions, moved `pg_trgm` into the `extensions` schema, and restricted a `SECURITY DEFINER` function's execute grant. Two definer functions used by sign-up and the `is_admin()` policies were deliberately left alone to avoid breaking them, and the skipped advisories were documented in `docs/TODO.md`.",
-    ].join("\n\n"),
+    body: "A migration enabled row level security on 17 tables in the public and bronze schemas that Supabase flagged as readable and writable with the anon key (five Slack and subscription tables had policies set in the dashboard without RLS switched on; the others had neither), with the usual authenticated-only policy. A second pass pinned the search path on six functions, moved the trigram extension into its own schema and restricted a security-definer function's execute grant. Two definer functions used by sign-up and the admin policies were deliberately left alone to avoid breaking them, and the skipped advisories are documented. See docs/RLS_SECURITY.md.",
   },
   {
     slug: "engagement-metrics-computed-from-attendance",
@@ -1076,10 +975,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "fixed",
     title: "Member engagement computed from attendance and Slack activity",
     summary: "Admin member pages now derive last attended, recent counts and risk from real data instead of static seed rows.",
-    body: [
-      "`member_metrics` and `member_engagement` were never refreshed, so every member read Never/0/low risk. The shared `lib/member-engagement.ts` now computes last attended, 30-day and total prickle counts (distinct `prickle_id`, as the attendance design requires), an engagement score and a risk level from `prickle_attendance`.",
-      "On 2026-08-26 Slack activity from `member_activities` joined the score (last 30 days, capped at 100); risk stays based on prickle recency. A members list bug with `?filter=all` returning Bad Request and tri-state column sorting (`SortableTh`, `useTableSort`) landed alongside.",
-    ].join("\n\n"),
+    body: "Admin member pages derive last attended, recent counts and risk from real data. A shared engagement library computes last attended, 30-day and total prickle counts (distinct prickles, as the attendance design requires), an engagement score and a risk level from attendance; Slack activity from the last 30 days joins the score, capped at 100, while risk stays based on prickle recency. The earlier metrics tables were never refreshed, so every member read Never/0/low risk. Rule: engagement is computed from source data, never seeded.",
   },
   {
     slug: "slack-webhook-bronze-writes-fixed-and-daily-reconcile",
@@ -1088,10 +984,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "fixed",
     title: "Slack webhook Bronze writes repaired, plus a daily Slack reconcile job",
     summary: "Real-time Slack messages and reactions had not been stored since the webhook was built; they are now, and a nightly import backstops them.",
-    body: [
-      "`processSlackEvent` upserted a `raw_data` column that does not exist (the NOT NULL column is `raw_payload`) and never checked the result, so it logged success and triggered Silver reprocessing on data that was never written. It now uses `raw_payload`, checks every Bronze write and skips reprocessing on failure; webhook tests that had been skipped were enabled, with a regression test for the failure mode.",
-      "Slack was the one integration without a reconcile cron. `triggerSlackSync` and `/api/reconcile/slack` (daily in `vercel.json`) call the Slack API import in-process. The window was set to 90 days because Slack's free plan only exposes that much history, so drift older than that would be unrecoverable.",
-    ].join("\n\n"),
+    body: "Real-time Slack messages and reactions had not been stored since the webhook was built: the handler wrote to a column that does not exist and never checked the result, so it logged success and triggered reprocessing on data that was never written. It now writes the right column, checks every Bronze write and skips reprocessing on failure, with a regression test. Slack was also the one integration without a reconcile cron; it now has a daily one that calls the Slack import in-process over a 90-day window, because Slack's free plan only exposes that much history. Rule: check every write result, and never rely on webhooks alone.",
   },
   {
     slug: "webhook-reprocessing-after-and-paginated-member-processing",
@@ -1100,10 +993,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "fixed",
     title: "Webhook follow-up work kept alive with after(), Bronze fetches paginated",
     summary: "Background reprocessing and notifications no longer get killed when the response is sent, and member processing reads all Bronze rows.",
-    body: [
-      "The calendar and Zoom webhooks and the feedback Slack post started work without awaiting it, which Vercel could freeze once the response went out. They now use `after()` from `next/server`.",
-      "`/api/process/members` now paginates its Bronze reads past the 1000-row Supabase limit, with a reprocessability test over more than a page of rows.",
-    ].join("\n\n"),
+    body: "Background work started inside request handlers (reprocessing after the calendar and Zoom webhooks, the feedback Slack post) could be frozen by Vercel once the response went out. It now runs inside Next.js after(), which keeps the function alive. Members processing also paginates its Bronze reads past the 1000-row Supabase limit, with a reprocessability test over more than a page of rows. Rule: anything that must finish after the response goes in after(), and every bulk read paginates.",
   },
   {
     slug: "member-status-lifecycle-and-overrides",
@@ -1112,10 +1002,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "improved",
     title: "Member status lifecycle: lead, active, on hiatus, cancelled",
     summary: "Member status now separates people who never purchased from former members, and manual hiatus overrides survive reprocessing.",
-    body: [
-      "`members.status` was `active | inactive | on_hiatus`; `inactive` mixed never-purchased leads with real cancellations, and a hand-set `on_hiatus` was overwritten by the next nightly `reprocess_members_atomic`. The enum became `lead | active | on_hiatus | cancelled`, the previously unused `member_status_overrides` table is applied as a final step inside that function, and a shared `MemberStatusBadge` plus lead/cancelled filter tabs and dashboard counts were added.",
-      "A planned `is_trial`/`has_trialed` split was removed the next day because the Kajabi API does not expose trial information; trial detection later moved to Stripe data (see the tenure entry).",
-    ].join("\n\n"),
+    body: "Member status separates people who never purchased (lead) from former members (cancelled), alongside active and on hiatus. Before, a single inactive value mixed leads with real cancellations, and a hand-set hiatus was overwritten by the next nightly members rebuild; manual overrides are now applied as the final step of that rebuild, so they survive. A shared status badge, lead and cancelled filter tabs and dashboard counts follow from it. A trial flag was dropped because the Kajabi API does not expose trial information; trial detection uses Stripe data.",
   },
   {
     slug: "eslint-and-husky-pre-commit",
@@ -1124,7 +1011,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "ESLint flat config and a husky pre-commit hook",
     summary: "Linting and the pre-commit hook are now managed by the project itself rather than a hand-installed script.",
-    body: "`eslint.config.mjs` adds a flat config, and `.husky/pre-commit` replaces `scripts/install-hooks.sh`. Dependabot findings were also reduced by bumping `vercel` and adding package overrides (audit findings from 75 to 24). On 2026-08-26 the same pass gave every page a unique browser tab title through a root title template and per-page metadata.",
+    body: "Linting uses a flat ESLint config and the pre-commit hook is managed by Husky in the repo rather than a hand-installed script. Dependency security findings were reduced by bumping the Vercel CLI and adding package overrides (audit findings from 75 to 24), and every page has a unique browser tab title through a root title template and per-page metadata.",
   },
   {
     slug: "unmatched-slack-users-and-match-suggestions",
@@ -1133,10 +1020,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Data hygiene tools: unmatched Slack users and private channel access",
     summary: "Admins can match Slack accounts to members with suggested candidates and see private channels the Slack app can no longer read.",
-    body: [
-      "`/admin/hygiene/unmatched-slack` lists Slack users with no member and offers one-click alias creation. `suggestMemberMatches` in `lib/member-matching.ts` scores name similarity and email local parts, at token level as well as whole string (so a short Slack name is not buried by a long legal name) and requires both names to meet a length floor for substring matches. Active users sort first.",
-      "`lib/private-channel-access.ts` flags private channels whose Bronze row was not refreshed in the latest nightly import, as a proxy for the Slack app having lost access. It is detection only, because an app cannot invite itself back. Slack app was also renamed and its manifest synced with the live config, and ERD and sequence diagram docs were rewritten to match the then-current schema.",
-    ].join("\n\n"),
+    body: "An unmatched Slack users page lists Slack users with no member and offers one-click alias creation. The match suggestion function scores name similarity and email local parts at token level as well as whole string, so a short Slack name is not buried by a long legal name, and requires a length floor for substring matches. Active users sort first. A private-channel access check flags private channels whose Bronze row was not refreshed in the latest nightly import, as a proxy for the Slack app having lost access; it only detects, because an app cannot invite itself back. See docs/MEMBER_MATCHING.md.",
   },
   {
     slug: "feedback-widget",
@@ -1145,7 +1029,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Site-wide feedback widget with screenshots",
     summary: "Signed-in users can report a bug or idea from any page, and admins review it and see it in Slack.",
-    body: "`components/FeedbackWidget.tsx` is mounted in the member and admin layouts, captures a viewport screenshot, and posts to `/api/feedback`; admins review items at `/admin/feedback`, where a one-click sudo-as-reporter button and Escape-to-close lightbox were added. The Slack notification uses native file upload and runs inside `after()` so it is not dropped when the function freezes.",
+    body: "Signed-in users can report a bug or idea from any page. A widget mounted in the member and admin layouts captures a viewport screenshot and posts it; admins review items on a feedback page with a one-click sudo-as-reporter button and a lightbox that closes on Escape. The Slack notification uses native file upload and runs inside after() so it is not dropped when the function freezes.",
   },
   {
     slug: "access-events-sessions-and-force-sign-out",
@@ -1154,11 +1038,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Access history, session management and force sign-out",
     summary: "Admins can see when a user came back and what they visited, members can end their own other sessions, and admins can force a sign-out.",
-    body: [
-      "Middleware inserts an `access_events` row per authenticated request via `after()`, skipping prefetches. `get_access_sessions()` groups events into visits with a 30 minute gap and, from a later migration, joins them to the real `auth.sessions` row through a session id claim (`lib/supabase/session-claims.ts`).",
-      "Supabase Auth cannot list or revoke a single session, so `get_my_sessions()` and `revoke_my_session()` are `SECURITY DEFINER` functions scoped to `auth.uid()`, shown in the member profile, and a `revoke_user_sessions` function powers the admin Force sign-out (sudo cannot reach a member's real session). The server clients forward the real User-Agent and forwarded IP to Supabase Auth so sessions show the actual device.",
-      "A transient middleware auth-check timeout no longer redirects to /login, since the layouts re-verify the session themselves.",
-    ].join("\n\n"),
+    body: "Admins can see when a user came back and what they visited, members can end their own other sessions, and admins can force a sign-out. Middleware records one access event per authenticated request in after(), skipping prefetches; events are grouped into visits by a 30 minute gap and joined to the real auth session through a session claim. Supabase Auth cannot list or revoke a single session, so security-definer database functions scoped to the caller provide that, and sudo cannot reach a member's real session. Server clients forward the real user agent and IP so sessions show the actual device. A transient auth timeout in middleware no longer redirects to login, because the layouts re-verify the session.",
   },
   {
     slug: "member-dashboard-network-and-mobile-nav",
@@ -1167,7 +1047,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Member dashboard, network view and mobile drawer navigation",
     summary: "The member area gained a dashboard landing page, a network page and a hamburger menu on small screens.",
-    body: "`/dashboard` shows the next seven days of prickles with a highlighted set (hosting, active streak, a streak partner's usual slot) and became the post-login landing page. `/network` draws a radial SVG map of a member's streak connections. `MemberNavigation` swaps the permanent narrow sidebar for a drawer below `md`; the admin navigation got the same on 2026-08-29. Streak week boundaries now use the member's timezone instead of UTC (`lib/streaks.ts`).",
+    body: "The member area has a dashboard landing page showing the next seven days of prickles with a highlighted set (hosting, an active streak, a streak partner's usual slot) that is the post-login landing page, a network page that draws a member's streak connections as a radial SVG map, and a hamburger drawer below md in place of the permanent narrow sidebar, matched in the admin navigation. Streak week boundaries use the member's timezone instead of UTC.",
   },
   {
     slug: "prickle-picker-and-wheel-of-wonder",
@@ -1176,10 +1056,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Prickle Picker recommender and Wheel of Wonder matching",
     summary: "Two feature-flagged member tools landed: a prickle recommender and a weighted random member match.",
-    body: [
-      "`lib/prickle-picker.ts` is a pure scoring engine over historical attendance. `prickle_types` gained `purpose` and `solo_task_friendly`, and `prickle_host_vibes` stores host-tagged vibes. Both are behind the `prickle_picker` feature preview.",
-      "Wheel of Wonder (first built as Hedgie Roulette, renamed in code and the `wheel_of_wonder_matches` table the same day) weights candidates toward members with few connections and low recent Slack activity and only offers someone a live Slack presence check says is online. A match counts as a connection only after a real back-and-forth is seen in the Slack webhook, and an admin review page was added.",
-    ].join("\n\n"),
+    body: "Two feature-flagged member tools landed. The prickle picker is a pure scoring engine over historical attendance that recommends a prickle, using each prickle type's purpose, whether it suits solo work and host-tagged vibes. Wheel of Wonder weights candidates toward members with few connections and low recent Slack activity, offers only someone a live Slack presence check says is online, and counts a match as a connection only after a real back-and-forth is seen in the Slack webhook, with an admin review page. Rule: new member tools ship behind a feature preview flag.",
   },
   {
     slug: "member-managed-hosting-schedules",
@@ -1188,7 +1065,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Hosting: member-managed monthly prickle schedules",
     summary: "Hosts can plan their monthly prickle schedule themselves, and admins can review and lock it.",
-    body: "A migration creates the prickle schedule tables with RLS (a member manages only their own rows, admins bypass), and `lib/prickle-schedules.ts` holds the logic. `/hosting` has the member manager, `/admin/hosts` the admin view, and `/api/prickle-schedule-locks` locks a month. Integration tests cover the API, locks and the RLS rules, and a calendar-based bootstrap seeds the first month.",
+    body: "Hosts plan their monthly prickle schedule themselves on a hosting page, and admins review and lock a month on an admin hosts page. Row level security lets a member manage only their own rows while admins bypass it. A calendar-based bootstrap seeds the first month, and integration tests cover the API, locks and RLS rules. The logic lives in one schedules library.",
   },
   {
     slug: "writing-projects-tracking-phases",
@@ -1197,10 +1074,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Writing projects tracking: projects, entries, goals and habits",
     summary: "The data model and logic for members' writing progress landed in phases.",
-    body: [
-      "Phase 0 added member-owned Local layer tables (projects, dated progress entries, goals) with RLS like the schedules tables, `/writing` routes and a dashboard widget. Progress math handles add versus set-total entries and backdating, and target goals show a par-line pace.",
-      "Phase 2 made `GoalRow` a union of target and habit goals (streak, longest and typical streak, hit rate) rendered through one `GoalDisplay`, with entry tags, per-project CSV export, a cumulative chart and heatmap, and opt-in display on the member's profile. On 2026-08-31 prickles attended became a goal measure, derived from `prickle_attendance` and anchored to a snapshot of a schedule; re-anchoring archives the old goal and forks a new one.",
-    ].join("\n\n"),
+    body: "Members' writing progress shipped in phases. Member-owned Local-layer data (projects, dated progress entries, goals) uses row level security like the schedules, with writing routes and a dashboard widget. Progress math handles add versus set-total entries and backdating, and target goals show a par-line pace. Goals are either target or habit (streak, longest and typical streak, hit rate), shown through one component, with entry tags, per-project CSV export, a cumulative chart, a heatmap and opt-in display on the member's profile. Prickles attended is a goal measure derived from attendance and anchored to a snapshot of a schedule; re-anchoring archives the old goal and forks a new one.",
   },
   {
     slug: "member-tenure-and-join-date-derivation",
@@ -1209,10 +1083,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "improved",
     title: "Member tenure derived from billing history with join date overrides",
     summary: "First join date, time as a member and hiatus handling are computed from billing data, replacing a manual spreadsheet.",
-    body: [
-      "Tenure (first joined, most recent join, active months, excluding hiatus) is computed from Kajabi purchases and hiatus overrides, and drives an admin Hedgieversary page and hiatus touchpoints. Hiatus now reads from `member_status_overrides`, the table reprocessing uses.",
-      "Join date is the first real transaction: `buildMembershipStints` uses the matching Stripe subscription's `trial_end` when a real trial existed. Kajabi offers never expose trial length, so on 2026-08-30 trial detection moved to Stripe's `trial_start`/`trial_end` through one shared `isRealMembershipStint`, keyed by canonical email so Kajabi contact merges do not break it. The Stripe import now requests all statuses, since the default omitted cancelled subscriptions. `member_join_date_overrides` handles members from before the 2022 Kajabi migration.",
-    ].join("\n\n"),
+    body: "First join date, time as a member and hiatus handling are computed from billing data, replacing a manual spreadsheet, and drive the admin Hedgieversary page and hiatus touchpoints. Tenure is first joined, most recent join and active months excluding hiatus. Join date is the first real transaction; where a real trial existed it comes from the Stripe subscription's trial end, since Kajabi offers never expose trial length. One shared function decides what counts as a real membership stint, keyed by canonical email so Kajabi contact merges do not break it, and the Stripe import requests all statuses because the default omitted cancelled subscriptions. A join-date override table covers members from before the 2022 Kajabi migration. Hiatus is read from the overrides that reprocessing uses.",
   },
   {
     slug: "profile-badges-and-bookshelf",
@@ -1221,7 +1092,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Badge system with automated badges and a bookshelf import",
     summary: "A generic badge model landed, with some badges computed and others awarded by admins.",
-    body: "`badge_types`, `badge_levels` and an append-only `member_badges` log (level derived from award count) are managed at `/admin/badges`. Prickle milestones and Founding Hedgie are computed on the fly from attendance and tenure, never stored; Hostess and Published Author were later automated, with a Hedgie Bookshelf. Admins can see everyone who earned a badge, and retreat badge types were added. The member Profile page was renamed Settings the same day.",
+    body: "A generic badge model has badge types with levels and an append-only award log where the level derives from the award count, managed on an admin badges page. Prickle milestones and Founding Hedgie are computed on the fly from attendance and tenure and never stored; Hostess and Published Author are automated, with a Hedgie Bookshelf. Admins can see everyone who earned a badge, and retreat badge types exist. The member Profile page was renamed Settings.",
   },
 {
     slug: "trial-conversion-uses-stripe-cancel-time",
@@ -1230,10 +1101,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "fixed",
     title: "Trial conversion check uses Stripe's cancel time",
     summary: "Abandoned trials were being counted as real, billed memberships. The check now trusts Stripe for when a customer actually canceled.",
-    body: [
-      "`isRealMembershipStint` decided whether a Kajabi purchase was a real stint or an abandoned trial by checking that Kajabi's `deactivated_at` came after the trial end. Kajabi keeps a mid-trial cancellation \"active\" until the trial's natural end and only then sets `deactivated_at`, so almost every mid-trial cancel passed the check.",
-      "The check now prefers the matching Stripe subscription's `canceled_at`, which records the real cancel moment, and falls back to `deactivated_at` only when there is no Stripe match. Checked against production data at the time: 16 purchases across 16 members moved from \"real stint\" to \"abandoned trial\", and two of them explained unexplained multi-hundred-day gaps against the manually kept anniversary list.",
-    ].join("\n\n"),
+    body: "Whether a Kajabi purchase was a real membership stint or an abandoned trial was decided in `isRealMembershipStint` by checking that Kajabi's deactivation time came after the trial end. Kajabi keeps a mid-trial cancellation \"active\" until the trial's natural end and only then sets that time, so almost every mid-trial cancel passed the check.\n\nThe check now prefers the matching Stripe subscription's cancel time, which records the real cancel moment, and falls back to Kajabi's deactivation time only when there is no Stripe match. Checked against production data at the time, 16 purchases across 16 members moved from \"real stint\" to \"abandoned trial\", and two of them explained unexplained multi-hundred-day gaps against the manually kept anniversary list.",
   },
   {
     slug: "status-override-types-and-reconciliation-checks",
@@ -1242,10 +1110,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Distinct status override types and payment-legitimacy checks",
     summary: "Membership status overrides gained separate types for the 180 Program and for people who pay Stripe directly, plus a check for Kajabi access with no payment behind it.",
-    body: [
-      "`member_status_overrides` already had `gift` (free membership for a window). Two cases were being forced into it, which would have mislabeled real revenue as comps in any later comp reporting. A `180_program` type (one-time cohort purchase, six months included, then `cancelled` rather than `lead` if the window lapses) and a `direct_stripe` type (a paying customer on a subscription our Kajabi sync cannot see) were added as their own `override_type` values, with a migration that moved the one existing `gift` row that stood in for the second case.",
-      "The reconciliation page auto-detects `direct_stripe` candidates and, as the mirror image, flags Kajabi purchases on membership offers that have no transaction or a zero amount (`/api/analyze/kajabi-grants`). A multi-customer false positive in the Kajabi/Stripe mismatch check was fixed the same day. The grants check found no matches in production when it was built; it exists so a future manual grant does not become a new invisible category.",
-    ].join("\n\n"),
+    body: "Membership status overrides had one type, a gift (free membership for a window), and two cases were being forced into it, which would mislabel real revenue as comps in any comp reporting. They now have their own types: the 180 Program (a one-time cohort purchase, six months included, then cancelled rather than lead if the window lapses) and direct Stripe (a paying customer on a subscription our Kajabi sync cannot see).\n\nThe reconciliation page auto-detects direct-Stripe candidates and, as the mirror image, flags Kajabi purchases on membership offers that have no transaction or a zero amount (`/api/analyze/kajabi-grants`), so a manual grant does not become an invisible category. The Kajabi/Stripe mismatch check no longer flags customers who have several Stripe customers. The grants check found no matches in production when it was built.",
   },
   {
     slug: "program-cohort-tracking",
@@ -1254,10 +1119,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Program cohorts, enrollments and Kajabi purchase matching",
     summary: "Programs such as the 180 Program became real data (programs, cohorts, enrollments) with admin pages, and staff can enroll people from a reviewed list of matching Kajabi purchases.",
-    body: [
-      "Migration `create_program_cohort_tracking` adds programs, cohorts (with start and expiry dates) and enrollments, with admin pages under `/admin/programs` and routes under `/api/admin/program-cohorts`, `program-enrollments` and `programs`. `reprocess_members_atomic` was rebuilt to apply active enrollments: an active cohort now yields `active` status, ordered before hiatus so an active hiatus still wins. Two bugs found verifying that on a local stack were fixed (step ordering, and `EXTRACT(EPOCH ...)` applied to a DATE subtraction, which Postgres returns as an integer).",
-      "On 2026-09-05 a \"Find Kajabi matches\" action was added: `lib/kajabi-cohort-matching.ts` (later split into a pure, DB-free function with a regression test) lists members whose purchases of the program's configured offers have a transaction date or access-grant date inside the cohort window. It feeds a staff-reviewed bulk enroll rather than blind enrollment, because access dates can lag transaction dates by more than a week. Offer names are picked from the live Kajabi offer catalog, and the email-alias resolution that several matchers duplicated moved to `lib/email-aliases.ts`.",
-    ].join("\n\n"),
+    body: "Programs such as the 180 Program are real data: programs, cohorts (with start and expiry dates) and enrollments, with admin pages under `/admin/programs`. Members processing applies active enrollments: an active cohort yields `active` status, ordered before hiatus so an active hiatus still wins.\n\nStaff can enroll people from a reviewed list of matches. `lib/kajabi-cohort-matching.ts` is a pure, DB-free function that lists members whose purchases of the program's configured offers have a transaction or access-grant date inside the cohort window. It feeds a staff-reviewed bulk enroll rather than blind enrollment, because access dates can lag transaction dates by more than a week. Offer names are picked from the live Kajabi offer catalog, and email-alias resolution shared by several matchers lives in `lib/email-aliases.ts`.",
   },
   {
     slug: "membership-timeline-segments",
@@ -1266,10 +1128,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "improved",
     title: "Membership timeline as one non-overlapping segment list",
     summary: "The admin membership timeline is now built by a sweep-line that merges stints, hiatuses, programs and overrides, and member status is recomputed whenever a hiatus changes.",
-    body: [
-      "Hiatuses happen inside membership stints, not after them, so the old flat list of raw rows from each source put misleading captions under unrelated rows. `lib/membership-timeline.ts` now merges stints, hiatuses, program enrollments and status overrides into chronological segments with one rule: hiatus wins, then any active source, then a gap. Concurrent programs and overrides show as secondary tags instead of extra rows.",
-      "Follow-ups the same day: `lib/member-status.ts` recomputes and saves one member's status right after any hiatus mutation (before this, only the full `/api/process/members` run did, so the badge went stale), hiatus return dates became choosable and hiatus rows editable, and DATE columns (`member_hiatus_history`, cohort dates) are parsed with `parseDateOnly` so they no longer display a day early in zones behind UTC. A `Starts At` field was added to overrides, and its start/expiry got the same off-by-one fix on 2026-09-06.",
-    ].join("\n\n"),
+    body: "The admin membership timeline is built by a sweep-line that merges stints, hiatuses, program enrollments and status overrides into chronological segments (`lib/membership-timeline.ts`). One rule decides each stretch: hiatus wins, then any active source, then a gap. Concurrent programs and overrides show as secondary tags instead of extra rows, because hiatuses happen inside stints rather than after them.\n\n`lib/member-status.ts` recomputes and saves one member's status right after any hiatus change, so the badge never waits for a full processing run. Date-only values are parsed with `parseDateOnly` so they do not display a day early in zones behind UTC.",
   },
   {
     slug: "hygiene-dashboard-consolidation",
@@ -1290,10 +1149,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Activity log for attendance, outreach and logins",
     summary: "The member activity table now mirrors prickle attendance, outreach touches and sign-ins, so one table can answer what a member has been doing.",
-    body: [
-      "Migrations extend `member_activities` and add `reprocess`-safe mirrors: prickle attendance is mirrored into it atomically (`mirror_prickle_attendance_to_activities`), outreach touches are backfilled, `members.user_id` is backfilled, and a dedup index plus `get_recent_login_sessions` support login events (`lib/processing/login-events.ts`, `/api/reconcile/logins`, scheduled in `vercel.json`).",
-      "`lib/member-engagement.ts` was rewritten to read from the activity table instead of recomputing from each source. The design is described in `docs/ACTIVITY_AND_AUDIT_LOG.md`. Attendance reprocessability and Slack reprocess tests were extended for the mirror.",
-    ].join("\n\n"),
+    body: "The member activity table mirrors prickle attendance, outreach touches and sign-ins, so one table can answer what a member has been doing. Prickle attendance is mirrored atomically as part of its reprocess, outreach touches are backfilled, and sign-in events come from `lib/processing/login-events.ts` through `/api/reconcile/logins`, scheduled in `vercel.json`.\n\n`lib/member-engagement.ts` reads from the activity table instead of recomputing from each source. Design: `docs/ACTIVITY_AND_AUDIT_LOG.md`. Attendance reprocessability and Slack reprocess tests cover the mirror.",
   },
   {
     slug: "member-user-id-identity-link",
@@ -1302,10 +1158,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "fixed",
     title: "members.user_id becomes the durable login link",
     summary: "A member's login link was silently wiped on every Kajabi reprocess. It is now preserved and used first when working out who is signed in.",
-    body: [
-      "`reprocess_members_atomic` overwrote `members.user_id` unconditionally, and the payload only carried a value through `staff.user_id`, so the link was lost each run. Migration `retire_staff_user_id_add_member_id` adds `staff.member_id` as a maintained foreign key, retires `staff.user_id`, and makes the function keep an existing `members.user_id`. `getEffectiveIdentity` (`lib/sudo.ts`) now resolves by `user_id` first, which survives email changes, and falls back to email for older accounts.",
-      "Before that (2026-09-08) the admin Users page gained a Member picker independent of the Staff picker, since most people given login access are paying members rather than staff. Also on 2026-09-14: an editable legal name pushed to Kajabi's contact record so the next full reprocess does not overwrite it, and a default pen name (`member_display_name` migration, `lib/member-display-name.ts`).",
-    ].join("\n\n"),
+    body: "A member's login link was overwritten on every Kajabi reprocess, because the processing payload only carried it through staff records. The staff-to-member link is now a maintained foreign key, and members processing keeps an existing login link. `getEffectiveIdentity` (`lib/sudo.ts`) resolves by that link first, which survives email changes, and falls back to email for older accounts.\n\nThe admin Users page has a Member picker independent of the Staff picker, since most people given login access are paying members. An editable legal name is pushed to Kajabi's contact record so a full reprocess does not overwrite it, and a default pen name comes from `lib/member-display-name.ts`.",
   },
   {
     slug: "member-awards-table",
@@ -1314,7 +1167,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "member_awards table and self-reported award flow",
     summary: "Members can record outside awards and competition wins, modelled on the bookshelf self-report flow.",
-    body: "Migration `create_member_awards` plus a server action (`app/(member)/awards/actions.ts`), `AwardFormModal` and a panel on the Projects page, with validation in `lib/awardValidation.ts`. Each win posts to a staff Slack channel through `notifyStaffNewAward` in `lib/slack.ts`, gated on a channel env var that was added to the Vercel sync script and `.env.example`. Submission tracking, win-rate stats and a deadline list were deferred to `docs/TODO.md`.",
+    body: "Members can record outside awards and competition wins, modelled on the bookshelf self-report flow: a server action (`app/(member)/awards/actions.ts`), `AwardFormModal` and a panel on the Projects page, with validation in `lib/awardValidation.ts`. Each win posts to a staff Slack channel through `notifyStaffNewAward` in `lib/slack.ts`, gated on a channel environment variable.",
   },
   {
     slug: "supabase-auth-email-via-resend",
@@ -1323,7 +1176,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "improved",
     title: "Supabase auth emails sent through Resend, config as code",
     summary: "Production auth email settings are declared in config.toml and applied with supabase config push instead of a custom sync script.",
-    body: "A `[remotes.prod]` block in `supabase/config.toml` now holds production SMTP (Resend) and the email template settings, replacing `scripts/sync-email-templates.ts`. `npm run config:diff` and `config:push` were added, the email footers got a support line sent from a no-reply sender, the deprecated `[inbucket]` section was renamed `[local_smtp]`, and the domain and DNS plan was written into `docs/TODO.md`. A note that config push leaves undeclared settings unchanged was corrected on 2026-09-18.",
+    body: "Production auth email settings are declared in `supabase/config.toml` under `[remotes.prod]`: SMTP through Resend and the email template settings. They are applied with `supabase config push` (`pnpm config:diff` previews, `pnpm config:push` applies), which replaced a custom sync script. A push only writes declared settings, so undeclared ones keep their dashboard values. Email footers carry a support line and are sent from a no-reply sender, and the local mail section is `[local_smtp]`. Detail: CLAUDE.md, \"Supabase config as code\".",
   },
   {
     slug: "health-check-and-uptime-monitoring",
@@ -1332,10 +1185,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Health check endpoint, Sentry and Checkly uptime monitoring",
     summary: "A public health endpoint, error reporting and uptime plus certificate checks now watch the production site.",
-    body: [
-      "`/api/health` queries Supabase so an external monitor learns the database is reachable, not just that Next.js answers. Checkly monitors are code in `__checks__/` (an uptime check on the health route and an SSL check with a 14-day expiry warning, both every 10 minutes from two regions) with `checkly.config.ts`, deployed by `.github/workflows/checkly.yml`: `checkly test` on pull requests and `checkly deploy` on pushes to main, filtered to paths that affect the checks. Sentry DSNs are synced to every environment and the build auth token to production only; Google Analytics and the integration links doc were added the same day.",
-      "On 2026-09-23 Sentry's `includeLocalVariables` was turned off after traces showed the Node inspector it attaches added about 800 ms to every server render on Vercel (a login render went from roughly 850 ms to 40 ms). On 2026-09-25 the health route gained Server-Timing output and an optional `?timing=1` breakdown (DNS, TCP, TLS, warm repeat query) to chase slow Supabase calls after idle periods.",
-    ].join("\n\n"),
+    body: "The health route (`/api/health`) queries Supabase so an external monitor learns the database is reachable, not just that Next.js answers. It adds Server-Timing output and an optional `?timing=1` breakdown (DNS, TCP, TLS, warm repeat query) for chasing slow Supabase calls after idle periods. Checkly monitors are code in `__checks__/`: an uptime check on the health route and an SSL check with a 14-day expiry warning, both every 10 minutes from two regions, deployed by `.github/workflows/checkly.yml` (`checkly test` on pull requests, `checkly deploy` on pushes to main, filtered to paths that affect the checks). Sentry reports errors in every environment, and its local-variable capture is off because the Node inspector it attaches added about 800 ms to every server render on Vercel (a login render went from roughly 850 ms to 40 ms).",
   },
   {
     slug: "ci-test-build-migrate-deploy-pipeline",
@@ -1356,7 +1206,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "improved",
     title: "Faster CI and workarounds for Docker registry rate limits",
     summary: "CI start-up work now overlaps the build and pulls images from Docker Hub, cutting the database job from about six minutes to about two and a half.",
-    body: "`supabase start` is backgrounded and awaited after the production build, and the CI build used Turbopack. Measured on the job \"Test (db) and build\": 6m4s before, 2m29s after (some of the drop was runner variance, since the test step also got faster). Pulls from ghcr.io hit rate limits, so CI first authenticated, then retried with backoff, and finally forced the Supabase CLI to pull its local images from Docker Hub via `SUPABASE_INTERNAL_IMAGE_REGISTRY` set at step level. Checkout and setup-node actions moved to v5 and runners were pinned to ubuntu-24.04 ahead of the `ubuntu-latest` migration (a TODO to revisit the pin was added). The Stripe API version pin was updated to match SDK 22.6.2.",
+    body: "CI start-up work overlaps the build: `supabase start` is backgrounded and awaited after the production build, and CI builds with Turbopack. On \"Test (db) and build\" that took the job from 6m4s to 2m29s (some of it runner variance). Pulls from ghcr.io hit rate limits, so CI authenticates, retries with backoff, and forces the Supabase CLI to pull its local images from Docker Hub via `SUPABASE_INTERNAL_IMAGE_REGISTRY` set at step level. Runners are pinned to ubuntu-24.04 and the Stripe API version pin matches the SDK.",
   },
   {
     slug: "nextjs-16-and-turbopack",
@@ -1365,10 +1215,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "improved",
     title: "Upgrade to Next.js 16 and Turbopack production builds",
     summary: "The app moved from Next.js 15 to 16.3.6, with Turbopack as the production compiler.",
-    body: [
-      "The upgrade (PR 23) used the official codemods, then manual follow-ups: `middleware.ts` became `proxy.ts`; the removed `eslint.ignoreDuringBuilds` option was dropped; an explicit lint step was added to `ci.yml` because `next build` no longer lints; the React Compiler hook rules newly on in `eslint-config-next` were set to warn; and about 15 TypeScript errors that the stricter build typecheck surfaced were fixed. Two codemod side effects were reverted as out of scope (an `instant = false` opt-out on 69 files and an eslint 10 bump).",
-      "`package.json`'s `build` then switched to `next build --turbopack` (same day). The investigation behind it found Turbopack's shared first-load JS about 38 kB larger on every route, and two routes (`/admin` and `/projects/[id]`) carrying an extra 90-100 kB because it inlines a copy of recharts' `AreaChart` into each route chunk where webpack shares one. That was accepted as bounded to two authenticated routes. A Next 16 follow-up plan was recorded in `docs/TODO.md`.",
-    ].join("\n\n"),
+    body: "The app runs on Next.js 16 with Turbopack as the production compiler (`next build --turbopack`). `middleware.ts` became `proxy.ts`, the removed `eslint.ignoreDuringBuilds` option is gone, and `ci.yml` has an explicit lint step because `next build` no longer lints. React Compiler hook rules from `eslint-config-next` are set to warn.\n\nTurbopack's shared first-load JavaScript is about 38 kB larger on every route, and `/admin` and `/projects/[id]` carry an extra 90-100 kB because it inlines a copy of recharts' `AreaChart` into each route chunk where webpack shares one. That cost is bounded to two authenticated routes and accepted.",
   },
   {
     slug: "env-vars-manifest",
@@ -1389,10 +1236,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "My Prickles page and navigation built around intentions",
     summary: "The member navigation collapsed from about ten items to Home, My Burrow and Community, with a My Prickles page composed of tabs, including a full recurring schedule.",
-    body: [
-      "The nav was regrouped (My Writing, My Prickles and Streaks under My Burrow; Wheel of Wonder, Bookshelf and Events under Community; profile in the account menu) and added a My Prickles page composing attendance history, the prickle picker and hosting as tabs. The dashboard's upcoming-prickle ranking moved to `lib/upcoming-prickles.ts` so both pages share it. It also fixed the member layout and settings page resolving feature flags for admins only, which had hidden flagged pages from real members. On 2026-09-26 the standalone `/hosting`, `/prickle-picker` and `/calendar` routes were removed and their links pointed at the tabs.",
-      "An All Prickles tab (`lib/prickle-schedule.ts`) groups every recurring slot by type, day of week and hour, shows who hosts next and a historical average attendance, as a table localized to the viewer's zone and later a calendar that also shows past prickles. The Projects page became My Writing with Projects, Books and Awards tabs (2026-09-26).",
-    ].join("\n\n"),
+    body: "The member navigation is Home, My Burrow (My Writing, My Prickles, Streaks) and Community (Wheel of Wonder, Bookshelf, Events), with the profile in the account menu. My Prickles is one page of tabs: attendance history, the prickle picker, hosting and All Prickles. All Prickles (`lib/prickle-schedule.ts`) groups every recurring slot by type, day of week and hour, shows who hosts next and a historical average attendance, in the viewer's zone, as a table or a calendar that also shows past prickles. The dashboard's upcoming-prickle ranking lives in `lib/upcoming-prickles.ts` so both pages share it. My Writing has Projects, Books and Awards tabs. The member layout and settings page resolve feature flags for members, not only admins.",
   },
   {
     slug: "prickle-commitments-with-slots",
@@ -1401,9 +1245,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Commitments cover several slots and rank in Upcoming",
     summary: "A commitment can now hold several recurring slots, chosen from the All Prickles table or calendar, and committed prickles rank as a personal signal in Upcoming.",
-    body: [
-      "On 2026-09-26 an upcoming prickle that is a week of the viewer's active commitment got its own tier just under hosting and above streaks (priorities became the named `PRIORITY` constants), using `computeCommitmentProgress` in `lib/commitments.ts`. Migration `commitment_slots` (2026-09-27, listed because it landed with the 2026-09-26 batch) moves the slot into `prickle_commitment_slots` (one or more per commitment), adds an atomic `create_prickle_commitment` function, and replaces the one-active-commitment-per-slot index with an overlap trigger that allows renewals. RLS follows the `current_member_id()` and `is_admin()` convention, covered by `tests/api/commitments/rls.test.ts`.",
-    ].join("\n\n"),
+    body: "A commitment can hold one or more recurring slots, chosen from the All Prickles table or calendar. An upcoming prickle that is a week of the viewer's active commitment gets its own ranking tier just under hosting and above streaks (priorities are named `PRIORITY` constants), using `computeCommitmentProgress` in `lib/commitments.ts`. Creating a commitment with its slots is one atomic database function, and an overlap check replaces the one-active-commitment-per-slot rule so renewals are allowed. Row-level security follows the `current_member_id()` and `is_admin()` convention, covered by `tests/api/commitments/rls.test.ts`. Detail: `docs/COMMITMENTS.md`.",
   },
   {
     slug: "host-eligibility-first-join-rule",
@@ -1412,7 +1254,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "improved",
     title: "Hosting eligibility counted from first join and enforced on the server",
     summary: "The one-full-month rule before hosting now counts from a member's first join, and ineligible sign-ups are refused server-side.",
-    body: "Tenure counts from `first_joined_at` (falling back to `most_recent_joined_at`), so rejoiners after a cancel or hiatus do not wait again, which removed the hiatus-history query. `requestToHost` rejects ineligible members with a shared `hostEligibilityMessage` and no insert; members who already hosted or have a confirmed schedule are exempt. The admin Add Schedule form looks up the host email on blur and warns before saving; `GET /api/members?email=` returns `host_eligibility` for exact lookups. The profile Hosting card moved to a SQL aggregate, `get_hosted_prickle_attendance`, instead of paging every attendee row.",
+    body: "The one-full-month rule before hosting counts tenure from a member's first join (falling back to the most recent join), so rejoiners after a cancel or hiatus do not wait again. `requestToHost` rejects ineligible members with a shared `hostEligibilityMessage` and no insert; members who already hosted or have a confirmed schedule are exempt. The admin Add Schedule form looks up the host email on blur and warns before saving, and `GET /api/members?email=` returns host eligibility for exact lookups. The profile Hosting card uses a SQL aggregate instead of paging every attendee row.",
   },
   {
     slug: "row-level-security-audit",
@@ -1421,10 +1263,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "fixed",
     title: "Row-level security audit: writes, reads and self-promotion closed",
     summary: "A policy audit closed gaps where any signed-in member could write to admin tables, read other members' private rows, or make themselves an admin.",
-    body: [
-      "Self-promotion: the own-profile update policy plus table-wide UPDATE let a member change their own `user_profiles.role`. A column-level revoke would also have blocked admins, who change roles from their own session, so a BEFORE UPDATE trigger (`guard_user_profile_privileged_columns`) rejects changes to role, email or id unless the caller is an admin or a privileged database role, with a test in `tests/api/admin/user-profiles-role-escalation.test.ts`.",
-      "Writes: an audit of `pg_policies` across `public` and `bronze` found about 45 tables whose write policies only checked for an authenticated user. They became admin-only (`is_admin()`) or owner-or-admin (`current_member_id()`), including a trigger limiting a member's own `members` update to name and birthday; event, attendee and photo writes got their own migration and RLS test. Reads: `member_directory`, a trigger-synced view of public profile fields, replaced direct reads of other members' rows; `members` is now readable only for one's own row (or by admins), bronze tables and admin note tables are admin-read, and `member_activities` reads are own-rows. App queries moved to `member_directory` and computed relationships (`prickle_host`, `attendance_member`), and member pickers stopped sending every member's email to the browser. The search path was pinned and EXECUTE restricted on the `upsert_stripe_*` functions, which were dropped on 2026-09-27.",
-    ].join("\n\n"),
+    body: "A policy audit of `public` and `bronze` closed three gaps: any signed-in member could write to admin tables, read other members' private rows, or make themselves an admin.\n\n- **Self-promotion:** a trigger rejects changes to a profile's role, email or id unless the caller is an admin or a privileged database role (a column-level revoke would also have blocked admins, who change roles from their own session). Test: `tests/api/admin/user-profiles-role-escalation.test.ts`.\n- **Writes:** about 45 tables whose write policies only checked for an authenticated user became admin-only (`is_admin()`) or owner-or-admin (`current_member_id()`). A member's own update to their member record is limited to name and birthday.\n- **Reads:** other members' rows are read through `member_directory`, a trigger-synced view of public profile fields. Member records are readable only for one's own row or by admins, bronze and admin note tables are admin-read, and activity reads are own-rows. Member pickers no longer send every member's email to the browser.\n\nDetail: `docs/RLS_SECURITY.md`.",
   },
   {
     slug: "admin-route-protection-and-role-claim",
@@ -1433,10 +1272,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Admin routes protected in the proxy and next to the data",
     summary: "Admin pages and actions are checked at three layers, and the access token carries a role hint so the proxy needs no database read.",
-    body: [
-      "Following the Next.js authentication guide, `proxy.ts` makes an optimistic role check for `/admin`, `requireAdminPage()` runs in the admin layout and every admin page (layouts do not stop a page segment rendering), and each admin server action calls `requireAdminAction()` (the merge-fix dismiss actions previously accepted any signed-in user). Signed-in non-admins go to a terminal `/no-access` page, which avoids a `/admin` and `/dashboard` redirect loop for users without a member record. Conformance tests fail if an admin page or action skips its check.",
-      "Migration `add_role_to_access_token` adds a Supabase custom access token hook, `custom_access_token_hook`, that writes `user_profiles.role` into an `app_role` claim (not `role`, which PostgREST uses as the database role). The proxy reads it from the already verified token; the claim is only as fresh as the token, so the real authorization still reads `user_profiles`. The hook swallows lookup errors and omits the claim rather than blocking sign-in. On 2026-09-27 CI began pushing `supabase/config.toml` after migrations, so the hook function always exists before config that references it. A pgTAP test covers the hook.",
-    ].join("\n\n"),
+    body: "Admin pages and actions are checked at three layers, per the Next.js authentication guide. `proxy.ts` makes an optimistic role check for `/admin`; `requireAdminPage()` runs in the admin layout and every admin page (layouts do not stop a page segment rendering); each admin server action calls `requireAdminAction()`. Signed-in non-admins go to a terminal `/no-access` page, which avoids a redirect loop for users without a member record. Conformance tests fail if an admin page or action skips its check.\n\nA Supabase custom access token hook writes the role into an `app_role` claim (not `role`, which PostgREST uses as the database role), so the proxy reads it from the already verified token with no database read. The claim is only as fresh as the token, so real authorization still reads the profile role. The hook omits the claim rather than blocking sign-in. CI pushes `supabase/config.toml` after migrations, so the hook function exists before the config that references it. A pgTAP test covers the hook. Detail: CLAUDE.md, \"Admin Route Protection\".",
   },
   {
     slug: "data-table-sorting-and-pagination",
@@ -1445,7 +1281,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Shared table sorting and pagination, All Members paged in SQL",
     summary: "One hook now sorts and auto-paginates tables, and the admin members list pages in the database instead of loading everyone.",
-    body: "`lib/pagination.ts` parses page, page size (capped at 100) and whitelisted sort columns, and decides where paging happens (server-side for sources that can pass 1000 rows, client-side for bounded tables, none for a single 50-row page). `useDataTable` combines sorting with auto-pagination above 50 rows, `useServerDataTable` is the URL-backed server mode, and `DataTablePager` renders the footer only when needed; about 20 existing tables were migrated and empties now sort as a true reversal. `/admin/members` used to load every member (one unpaginated select, silently capped at 1000), the whole attendance history and 30 days of activity, and compute in JS; `admin_members_page` and `admin_member_filter_counts` SQL functions now do it.",
+    body: "One hook sorts and auto-paginates tables. `lib/pagination.ts` parses page, page size (capped at 100) and whitelisted sort columns, and decides where paging happens: server-side for sources that can pass 1000 rows, client-side for bounded tables, none for a single 50-row page. `useDataTable` combines sorting with auto-pagination above 50 rows, `useServerDataTable` is the URL-backed server mode, and `DataTablePager` renders the footer only when needed. The admin members list is paged and filtered in the database by SQL functions instead of loading every member, the whole attendance history and 30 days of activity, which an unpaginated select would also have capped silently at 1000. Empty values sort as a true reversal.",
   },
   {
     slug: "member-profile-overrides-and-trackbear-import",
@@ -1454,10 +1290,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Member profile overrides and TrackBear import",
     summary: "Members' own bio and social links are stored in the Hub and win over Kajabi, and writing projects can be imported from a TrackBear export.",
-    body: [
-      "TrackBear import (2026-09-25): members upload TrackBear's data export on the Projects page (`/api/projects/import/trackbear`); projects, progress entries, starting balances, covers, tags and single-project goals are imported, and what Hub cannot represent is listed in the result and `docs/TODO.md`. An `external_id` column unique per member on projects, progress entries and goals makes re-imports idempotent. Export upload was chosen because TrackBear has no OAuth and its API needs a member-made key.",
-      "Profile overrides (2026-09-26): Kajabi's API cannot write a customer's public bio or socials, so the Local-layer table `member_profile_overrides` (one row per member, own-row RLS, HTTP(S) and 1000-character bio checks) holds member edits. `/api/process/members` prefers a non-empty override field by field, matching on Kajabi id then email, and members reprocess when it changes. `lib/social-links.ts` validates handles and URLs. Line breaks in bios are preserved on the profile page.",
-    ].join("\n\n"),
+    body: "Members' own bio and social links are stored in the Hub and win over Kajabi, whose API cannot write a customer's public bio or socials. One row per member, with own-row row-level security and HTTP(S) and 1000-character bio checks. Members processing prefers a non-empty override field by field, matching on Kajabi id then email, and reprocesses when it changes. `lib/social-links.ts` validates handles and URLs.\n\nWriting projects can be imported from TrackBear's data export on the Projects page (`/api/projects/import/trackbear`): projects, progress entries, starting balances, covers, tags and single-project goals. What Hub cannot represent is listed in the result. An external id, unique per member, makes re-imports idempotent. Upload was chosen because TrackBear has no OAuth and its API needs a member-made key.",
   },
 {
     slug: "hub-welcome-dashboard",
@@ -1599,18 +1432,18 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-09-27",
     audience: "product",
     category: "new",
-    title: "Your prickles in your own calendar, and commitments across several slots",
+    title: "Your prickles in your own calendar, and commitments across several weekly prickle times",
     image: {
       src: "/changelog/personal-calendar-feed-and-commitments/01-commitments.webp",
-      alt: "The Commitments tab with a Sync your prickles with your calendar card, buttons for Google, Apple and Outlook calendars and a copy link, above an active commitment covering two weekly slots.",
+      alt: "The Commitments tab with a Sync your prickles with your calendar card, buttons for Google, Apple and Outlook calendars and a copy link, above an active commitment covering two weekly prickle times.",
     },
     summary:
-      "Subscribe to a private calendar feed of the prickles you host, commit to or add by hand, and make a commitment that covers more than one weekly slot.",
+      "Add the prickles you host, commit to or add by hand to your own calendar with a private calendar link, and make a commitment that covers more than one weekly prickle time.",
     body: [
       "Each member now has a private calendar link that works with Google Calendar, Apple Calendar and Outlook. It shows the prickles you host, the ones you have committed to, and any prickle or event you add yourself, with a 15 minute reminder.",
       "On /my-prickles you will find the calendar card, with copy link and generate new link. Use Add to my calendar on a prickle row, a prickle page or an upcoming event to add just that one or every week.",
-      "A commitment can now cover several slots. In All Prickles, tick the times you want, then pick the weeks and a start date. The Commitments tab shows your progress on each slot.",
-      "![The Commitments tab with a Sync your prickles with your calendar card, buttons for Google, Apple and Outlook calendars and a copy link, above an active commitment covering two weekly slots.](/changelog/personal-calendar-feed-and-commitments/01-commitments.webp)",
+      "A commitment can now cover several weekly prickle times. In All Prickles, tick the times you want, then pick the weeks and a start date. The Commitments tab shows your progress on each one.",
+      "![The Commitments tab with a Sync your prickles with your calendar card, buttons for Google, Apple and Outlook calendars and a copy link, above an active commitment covering two weekly prickle times.](/changelog/personal-calendar-feed-and-commitments/01-commitments.webp)",
     ].join("\n\n"),
   },
   {
@@ -1657,7 +1490,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "Open the Hedgie Hub straight from Slack, without waiting for an email link.",
     body: [
       "![Billie Bot's Home tab in Slack with the Open Hedgie Hub button.](/changelog/sign-in-from-slack/01-slack-home-sign-in.webp)",
-      "Billie Bot's Home tab in Slack, and its /hub command, give you an Open Hedgie Hub button that signs you in. Each link works once and lasts about an hour.",
+      "Billie Bot, our Slack helper, has a Home tab and a /hub command with an Open Hedgie Hub button that signs you in. Each link works once and lasts about an hour.",
       "Slack on iPhone opens links in its own browser, so you can also ask for a link to copy and open in Safari, or paste the code on the login page.",
       "Sign-in links sent by email now stay valid for 24 hours, and an invited person who asks for a link gets the invite again.",
     ].join("\n\n"),
@@ -1676,7 +1509,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "Tell us how you are feeling and what you need before a prickle, and how it went afterwards. The Prickle Picker can use your answers to suggest prickles.",
     body: [
       "Every prickle page has a Check in card. Pick up to two feelings for how you are coming in and one thing you need, such as momentum, deep focus, accountability, company or a push to get unstuck. Once the prickle has started you can also rate how it went and how you feel now. Every question is optional, and only you and the Hub admins can see your answers.",
-      "The Prickle Picker now starts with How are you feeling? Your answer suggests a mood and the picks follow. Once you have rated at least two similar sessions, it also favors the kinds of prickle you rated higher than your usual.",
+      "The Prickle Picker now starts with How are you feeling? Your answer suggests a mood and the picks follow. Once you have rated at least two similar prickles, it also favors the kinds of prickle you rated higher than your usual.",
       "There is no AI in the Prickle Picker, and nothing in it reads your writing. The part that gets personal only looks at your own past check-in ratings of similar sessions.",
       "![The Prickle Picker's How are you feeling? step with overall and energy scales, a feeling search and an intention list.](/changelog/check-ins-and-prickle-picker/01-prickle-picker-feelings.webp)",
     ].join("\n\n"),
@@ -1757,11 +1590,11 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     summary:
       "A handful of fixes to sign-in, notification settings and the dashboard.",
     body: [
-      "- Members whose login email differs from the email on their membership can save changes again.",
-      "- On the sign-in screen, duplicate Slack paste controls are merged, and the iPhone instructions lead with what to do on an iPhone.",
-      "- Notification channels show as logo toggles in each row.",
+      "- If the email you sign in with is different from the email on your membership, you can save changes to your account again.",
+      "- On the sign-in page, the two Slack paste boxes are now one, and the iPhone instructions start with what to do on an iPhone.",
+      "- Each notification row shows its channels as small logo switches.",
       "- On your dashboard, the project title is larger than the goal in Writing Goals.",
-      "- Settings pages now have their own addresses, such as /settings/notifications.",
+      "- Each Settings tab now has its own web address, such as /settings/notifications.",
     ].join("\n"),
   },
   {
@@ -1797,7 +1630,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "- Progress and goal amounts can now be fractions.",
       "- The check-out message links to the check-out, not the check-in.",
       "- Check-in options were trimmed: fewer feelings, and Gentle is folded into Company.",
-      "- Slack messages from Billie Bot no longer show a big link preview card.",
+      "- Messages from Billie Bot, our Slack helper, no longer show a big preview under the link.",
     ].join("\n"),
   },
   {
@@ -1897,7 +1730,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "The Instagram field in Settings is now a link like Facebook and X, and it shows the handle your profile really links to.",
     body: [
       "![Settings, Profile with the Instagram field filled in beside Facebook and X.](/changelog/instagram-and-profile-links/01-profile-links.webp)",
-      "Under Settings, Profile, the Instagram field shows the handle your profile points to. Clear the field and the handle comes off your profile and the directory.",
+      "Under Settings, Profile, the Instagram field shows the handle your profile points to.",
     ].join("\n\n"),
   },
   {
@@ -1957,14 +1790,14 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "improved",
     title: "Getting started: steps for newcomers",
     summary:
-      "The Getting started tour now has steps for saying hello, scheduling your first prickle and syncing your calendar, and it is on for everyone.",
+      "The Getting started tour now has steps for saying hello, scheduling your first prickle and adding prickles to your calendar. It is on for everyone.",
     image: { src: "/changelog/getting-started-newcomer-steps/01-getting-started.webp", alt: "The Getting started checklist listing Introduce yourself, Join a prickle and Sync your calendar among its steps." },
     body: [
       "![The Getting started checklist listing Introduce yourself, Join a prickle and Sync your calendar among its steps.](/changelog/getting-started-newcomer-steps/01-getting-started.webp)",
       "",
       "- Say hello in the intro channel on Slack (for members in their first 90 days). It checks off when you post there.",
-      "- Schedule your first prickle, pointing at the calendar icon in Upcoming.",
-      "- Sync your calendar, pointing at the sync card on Commitments. It checks off once your calendar app has fetched your feed.",
+      "- Schedule your first prickle, using the calendar icon in Upcoming.",
+      "- Add your prickles to your calendar app, using the private calendar link card on Commitments. It checks off once your calendar app has picked up your link.",
       "- The goal form now explains the difference between a Target and a Habit, and new goals start pinned to your dashboard and shown on your profile (you can untick either).",
     ].join("\n"),
   },
@@ -1996,7 +1829,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       alt: "Settings, Preferences with the Primary time zone picker showing Eastern Time.",
     },
     summary:
-      "The auto-detect option is gone, your current location is always one click away, and the time zone prompt no longer pops up after you pick a zone yourself.",
+      "Time zone settings are clearer: your current location is always one click away, and the prompt no longer pops up right after you pick a zone yourself.",
     body: [
       "- The Settings time zone list no longer has an auto-detect option that did not stick. Your Hub keeps a real time zone and still offers to switch when it sees you are somewhere else.",
       "- Your browser's current zone is always in the list, with a Use current location button to return to it.",
@@ -2016,9 +1849,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       alt: "The check-in window after checking in, saying Checked in, with the meeting ID, the passcode and a Join the prickle button.",
     },
     summary:
-      "The check-in window, the Slack check-in message and your calendar feed now carry the prickle room's Zoom link, meeting ID and passcode.",
+      "The check-in window, the Slack check-in message and your private calendar link now include the prickle room's Zoom link, meeting ID and passcode.",
     body: [
-      "Instead of hunting for the link, you get a Join button with the passcode in the check-in window and in the Slack check-in message, and each prickle in your personal calendar feed has the link, meeting ID and passcode in its description. This is for the main prickle room.",
+      "Instead of hunting for the link, you get a Join button with the passcode in the check-in window and in the Slack check-in message. Each prickle in your private calendar link also has the link, meeting ID and passcode in its description. This is for the main prickle room.",
       "![The check-in window after checking in, with the meeting ID, passcode and a Join the prickle button](/changelog/zoom-meeting-id/02-join-details.webp)",
     ].join("\n\n"),
   },
@@ -2067,7 +1900,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     image: { src: "/changelog/connect-slack-step/01-getting-started.webp", alt: "The Getting started checklist open in the corner of the dashboard, listing Check your details, Connect Slack and four more steps." },
     body: [
       "![The Getting started checklist open in the corner of the dashboard, listing Check your details, Connect Slack and four more steps.](/changelog/connect-slack-step/01-getting-started.webp)",
-      "Connecting Slack (Settings, Account) lets Hub Chat send as you. Once connected, reading a conversation in one place clears it as unread in the other. Connecting also makes Open Hedgie Hub in Slack find your account even if your Slack email differs from your Hub email.",
+      "Connecting Slack (Settings, Account) means your Hub Chat messages appear under your name in Slack. Once connected, reading a conversation in one place marks it as read in the other. Connecting also makes Open Hedgie Hub in Slack find your account even if your Slack email differs from your Hub email.",
       "A tour you already finished reopens to show only the steps added since.",
     ].join("\n\n"),
   },
@@ -2079,10 +1912,10 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Cleaner previews for Hub links",
     image: { src: "/changelog/link-previews/01-slack-link-preview.webp", alt: "A Hub link in Slack with its preview card: title, description and one centered picture." },
     summary:
-      "A Hub link shared in Slack and elsewhere now shows a single centered picture instead of an empty or cropped image.",
+      "A Hub link shared in Slack and elsewhere now shows one centered picture in its preview instead of an empty or cropped image.",
     body: [
       "![A Hub link in Slack with its preview card: title, description and one centered picture.](/changelog/link-previews/01-slack-link-preview.webp)",
-      "We fixed the preview image for shared Hub links so it appears and is not cropped. Slack on iPhone also no longer shows a stray ampersand code in the preview.",
+      "We fixed the preview picture for shared Hub links so it appears and is not cropped. Slack on iPhone also no longer shows stray symbols in the preview.",
     ].join("\n\n"),
   },
   {
@@ -2141,9 +1974,9 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       alt: "The mood scales and the Feeling Wheel, with Joyful chosen and its more specific feelings listed below.",
     },
     summary:
-      "Check-ins now use two labeled mood scales and an optional Feeling Wheel, and check-out asks whether you got what you came for.",
+      "Check-ins now have two labeled mood scales and an optional Feeling Wheel, and check-out asks whether you got what you came for.",
     body: [
-      "- Before a prickle: rate how you feel overall and your energy on labeled five-step scales, optionally name the feeling from the Feeling Wheel (search works too), and choose your intention from a list.",
+      "- Before a prickle: rate how you feel overall and your energy on labeled five-step scales, optionally pick the feeling from the Feeling Wheel (you can also search it), and choose your intention from a list.",
       "- After a prickle: say whether you got what you came for, then the same scales and the progress questions.",
       "The same questions appear in the check-in window, in Slack messages and where you log progress.",
       "",
@@ -2175,7 +2008,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     image: { src: "/changelog/zoom-name-in-getting-started/01-zoom-name-stop.webp", alt: "The Pen Names and Zoom/Slack Names section of Identity settings highlighted, with a Getting started step asking for your Zoom name." },
     body: [
       "![The Pen Names and Zoom/Slack Names section of Identity settings highlighted, with a Getting started step asking for your Zoom name.](/changelog/zoom-name-in-getting-started/01-zoom-name-stop.webp)",
-      "Change your name in Zoom to match your Real Name, or add the name you use in Zoom as a pen name. A name that is another member's pen name or real name is refused, so attendance cannot land on the wrong person.",
+      "Change your name in Zoom to match your Real Name, or add the name you use in Zoom as a pen name. A name that is another member's pen name or real name is refused, so two members can't share one.",
     ].join("\n\n"),
   },
   {
@@ -2191,7 +2024,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     summary:
       "On a phone you can now scroll sideways to Thursday through Saturday on week calendars instead of having them cut off.",
     body: [
-      "This fixes All Prickles, My Attendance and the host request form. We also made secondary text easier to read, using darker or lighter greys that meet contrast guidelines in both light and dark mode, and made the closed mobile menu skip keyboard focus.",
+      "This fixes All Prickles, My Attendance and the host request form. We also made grey text easier to read in both light and dark mode, and the closed mobile menu no longer catches keyboard focus.",
       "In light mode, today's column is also easier to see.",
       "![All Prickles in Calendar view on a phone, the week reaching past the right edge of the screen.](/changelog/week-calendars-on-phones/01-week-on-phone.webp)",
     ].join("\n\n"),
@@ -2204,9 +2037,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Big Sisters program, behind a preview flag",
     summary:
       "Matching, volunteers, introductions and a Big Sisters page were built behind a preview flag that is not on for everyone.",
-    body: [
-      "New members would get a big sister for their first 30 days, with staff choosing the match and arrival dates and trial outcomes derived from membership data. Not yet a general product update; add a product entry when the flag goes on. See docs/BIG_SISTERS.md.",
-    ].join("\n\n"),
+    body: "New members get a big sister for their first 30 days. Staff choose the match; arrival dates and trial outcomes are derived from membership data. Matching, volunteers, introductions and a Big Sisters page sit behind a preview flag. See `docs/BIG_SISTERS.md`.",
   },
   {
     slug: "coverage-reporting",
@@ -2318,8 +2149,8 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     image: { src: "/changelog/search-and-display-names/01-search-alternate-name.webp", alt: "The search box with Jules typed, showing the member Julia Sample with the line also known as Jules Sample." },
     body: [
       "![The search box with Jules typed, showing the member Julia Sample with the line also known as Jules Sample.](/changelog/search-and-display-names/01-search-alternate-name.webp)",
-      "When a search result matches a nickname, a small line under it says so (the search on the Members page matches names as before). Hosts and attendees on prickle pages, the attendance calendar, calendar feed titles and the Events page now show each person's display name instead of their legal name.",
-      "Members can no longer turn their own alternate names on or off in Settings. Those names are how attendance gets matched to you, so switching one off could lose matches. Staff can still do it for you.",
+      "When a search result matches a nickname, a small line under it says so (the search on the Members page matches names as before). Hosts and attendees on prickle pages, the attendance calendar, the titles in your private calendar link and the Events page now show the name each person goes by instead of their real name.",
+      "You can no longer turn your own other names on or off in Settings. Those names are how attendance gets matched to you, so switching one off could lose matches. Staff can still do it for you.",
     ].join("\n\n"),
   },
   {
@@ -2345,7 +2176,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     summary:
       "Upload a book cover at any size, pick it again from your own images and adjust its crop. We also offer a download in the size Amazon asks for, when your image is large enough.",
     body: [
-      "The book form has one Choose cover button with a tab of your own images and an upload tab. JPEG, PNG, WebP, GIF, AVIF and iPhone HEIC photos all work, up to 4 MB. The exact-size rule is gone.",
+      "The book form has one Choose cover button with a tab of your own images and an upload tab. Common image files and photos from your iPhone all work, up to 4 MB. The exact-size rule is gone.",
       "![The Choose a cover window with your own images](/changelog/media-library-and-book-covers/01-choose-cover.webp)",
       "Under the cover you will see a download link for the size Amazon wants, or what is missing if the image is too small. Older covers keep working but have no Amazon version until you upload them again.",
     ].join("\n\n"),
@@ -2506,16 +2337,16 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     major: true,
     title: "Hub Chat: our Slack conversations, in the Hub",
     summary:
-      "Read and join our Slack conversations from the Hub, reply in threads, react, share files and format your messages. What you write here appears in Slack too.",
+      "Read and join our Slack conversations from the Hub, reply under a message, react, share files and format your messages. What you write here appears in Slack too.",
     image: {
       src: "/changelog/chat-open-to-everyone/01-conversation.webp",
       alt: "The chat page showing a channel with threads and reactions",
     },
     body: [
       "Hub Chat brings our Slack conversations into the Hub, and it is now open to every member.",
-      "Chat is in the sidebar under Community. It lists the conversations you are in first, with a Browse channels button for the public channels you could join, and a lock on private ones. Conversations, threads and reactions update on their own.",
+      "Chat is in the sidebar under Community. It lists the conversations you are in first, with a Browse channels button for the public channels you could join, and a lock on private ones. Conversations, replies and reactions update on their own.",
       "![The chat page showing a channel with threads and reactions](/changelog/chat-open-to-everyone/01-conversation.webp)",
-      "- Write messages and replies in the Hub and they appear in Slack. By default Billie Bot, our Slack helper, posts them with your name and photo. Connect your Slack account under Account in Settings and they go out as you; you can disconnect at any time from the same place.",
+      "- Write messages and replies in the Hub and they appear in Slack. By default Billie Bot, our Slack helper, posts them with your name and photo. Connect your Slack account under Account in Settings and they appear under your own name in Slack; you can disconnect at any time from the same place.",
       "- A message that Slack has not accepted after a few retries is marked as failed, so you can see it did not go through.",
       "- Edit or delete your own messages, and the change reaches Slack too.",
       "- Attach files with the paperclip, paste an image or drag it in. Images show right in the conversation, and they reach Slack too.",
@@ -2603,7 +2434,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     summary:
       "In Settings, Preferences, choose whether the Hub follows your device, always shows animations, or tones them down. With motion reduced, animated emoji stay still.",
     body: [
-      "Find it in [Settings](/settings), under Preferences. System follows your device. With animations reduced, interface motion stops, animated emoji show a still, and GIF attachments in chat play and pause when you click them. The choice is saved on this device, like the theme.",
+      "Find it in [Settings](/settings), under Preferences. System follows your device. With animations reduced, movement on the page stops, animated emoji show a still picture, and moving image attachments in chat play and pause when you click them. The choice is saved on this device, like the theme.",
       "![The Animations choice in Settings, Preferences](/changelog/allow-animations/01-animations-setting.webp)",
     ].join("\n\n"),
     image: { src: "/changelog/allow-animations/01-animations-setting.webp", alt: "Settings, Preferences, showing the Animations choice set to System" },
@@ -2750,12 +2581,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Changelog system, weekly digest and one notification log",
     summary:
       "Changelog entries live in one typed file that feeds the What's new pages, the admin Changelog, the weekly digest and the announcements post.",
-    body: [
-      "`lib/changelog/entries.ts` is the single source. Each entry is for the `product` audience (members: the pages, the digest, the announcements post and the admin Changelog) or the `engineering` audience (staff only, on the admin Changelog). A test fails when an entry is malformed or shows an image that is not there. The in-app pages search and filter the entries; there is no generated file to keep in sync.",
-      "The weekly digest is the `changelog_digest` notification kind, sent by `/api/internal/changelog-digest` from Vercel Cron (Tuesdays 14:00 UTC) behind the `changelog_digest` feature flag, so it starts in dry run. Each member gets the entries from the last 30 days they have not had, as one message on the channels they chose, and nothing dated before `changelogDigestStartsOn` in `app.config.ts` is ever sent.",
-      "`notification_log` is one log of what the app sent, for every kind: a row per recipient (a member, or a shared place such as a Slack channel), kind and dedup key. A send is claimed before it is made and released when nothing was delivered, so a retry or an overlapping run never sends twice. `NotificationLogRepository` has an in-memory twin and one contract suite run against both.",
-      "Screenshots are taken from the demo scenes: `pnpm changelog:capture <slug>` runs an `@changelog` scene and writes small WebP files into `public/changelog/<slug>/`.",
-    ].join("\n\n"),
+    body: "`lib/changelog/entries.ts` is the single typed source for the What's new pages, the admin Changelog, the weekly digest and the announcements post. Each entry is for the product audience (members, plus the admin Changelog) or the engineering audience (admin Changelog only). A test fails on a malformed entry or an image that is not there, and there is no generated file to keep in sync.\n\nThe weekly digest is a notification kind sent by `/api/internal/changelog-digest` from Vercel Cron (Tuesdays 14:00 UTC) behind its own feature flag, so it starts in dry run. Each member gets the entries from the last 30 days they have not had, as one message on the channels they chose, and nothing dated before `changelogDigestStartsOn` in `app.config.ts` is sent.\n\nOne shared notification log records what the app sent, keyed by recipient (a member, or a shared place such as a Slack channel), kind and dedup key. A send is claimed before it is made and released when nothing was delivered, so a retry or overlapping run never sends twice (`NotificationLogRepository`, one contract suite for both implementations). Screenshots: `pnpm changelog:capture <slug>`. Detail: `docs/CHANGELOG_PROCESS.md`.",
   },
   {
     slug: "members-search-alternate-names",
@@ -2778,10 +2604,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "fixed",
     title: "Admin member search matches every active alias",
     summary: "The admin Members list now finds a member by any active alias, and no longer by one that has been switched off.",
-    body: [
-      "`admin_member_engagement` (behind `admin_members_page`) matched aliases only when their source was `zoom` and never checked `active`, so an alias an admin added or a member wrote found nobody, while a switched-off Zoom alias still did. It now uses the rule the top-bar search (`search_member_aliases`) and the member directory (`member_directory_aliases`) already share: any active name alias; a Slack-source alias is a user id, not a name, so it never matches.",
-      "Migration `20270515000000_admin_search_matches_all_aliases.sql` replaces only that condition; `admin_search_matches_all_aliases.test.sql` covers each alias source and a switched-off alias, and fails on the old function.",
-    ].join("\n\n"),
+    body: "The admin Members list finds a member by any active name alias and never by a switched-off one. Before, it matched only aliases from one source and ignored whether they were active, so an alias an admin added or a member wrote found nobody while a switched-off one still did. It now uses the rule the top-bar search and the member directory already share: any active name alias, with Slack-source aliases excluded because they are user ids, not names. A pgTAP test covers each alias source and a switched-off alias, and fails on the old behavior.",
   },
   {
     slug: "check-in-usual-feelings",
@@ -2805,10 +2628,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "improved",
     title: "One definition of a searchable alias",
     summary: "The top-bar search, the Members page and the admin Members list now read the same view of name aliases, so they cannot drift apart again.",
-    body: [
-      "The rule for which aliases identify a person by name lived in three SQL functions and had already diverged once. `searchable_member_aliases` (a `security_invoker` view over `member_name_aliases`) now holds it: active, and never a Slack-source alias, which is an opaque user id. `search_member_aliases`, `member_directory_aliases` and `admin_member_engagement` all select from it.",
-      "Row level security still applies to anyone reading the view directly; the two `SECURITY DEFINER` functions run as the owner as before. `searchable_member_aliases.test.sql` checks the view and that the three searches agree on active, switched-off and Slack aliases. As a side effect, the top-bar search and the Members page no longer match Slack user ids.",
-    ].join("\n\n"),
+    body: "The rule for which aliases identify a person by name lived in three SQL functions and had already diverged once. It now lives in one view that the top-bar search, the member directory and the admin Members list all read: an alias counts if it is active and is not a Slack-source alias, which is an opaque user id. The view is `security_invoker`, so row-level security applies to anyone reading it directly; the two `SECURITY DEFINER` functions run as the owner as before. A pgTAP test checks the view and that the three searches agree on active, switched-off and Slack aliases. As a side effect, the top-bar search and the Members page no longer match Slack user ids.",
   },
   {
     slug: "check-in-skip-questions",
@@ -2862,10 +2682,6 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "new",
     title: "Hub Chat draws Slack's link previews and app cards",
     summary: "Messages that Slack gave a link preview, and messages posted by apps such as deploy notices, now show as cards in Hub Chat, with the app's own name and logo.",
-    body: [
-      "Hub Chat now draws what Slack sends natively: link previews, app messages and shared Slack messages. One parser (`parseUnfurls`, `lib/chat/unfurls.ts`) turns Slack's legacy attachments and Block Kit into a small set of typed unfurl variants (cards, blocks, shares), and renderers in `components/chat/MessageUnfurls.tsx` draw them. Apps show under their own name and logo, not \"Slack app\".",
-      "- **The hooks** are the parser registry (`BLOCK_PARSERS`) and the renderer registry (`BLOCK_RENDERERS`): a block type is one entry in each. Anything not understood falls back to a plain \"Open in Slack\" link, so nothing is silently lost.\n- **An app's message is drawn from its blocks; a person's message is drawn from its text.**\n- **Every picture goes through the picture proxy** (\"Pictures under chat messages go through the Hub\").\n- **A shared Slack message** shows Slack's embedded copy to anyone who can read the sharing message: the sharer chose to share, as in Slack.",
-      "How to add a block type or a new kind of unfurl: `docs/SLACK_BRIDGED_CHAT.md`, \"Adding a block type (or a new kind of unfurl)\".",
-    ].join("\n\n"),
+    body: "Hub Chat draws what Slack sends natively: link previews, app messages and shared Slack messages. One parser (`parseUnfurls`, `lib/chat/unfurls.ts`) turns Slack's legacy attachments and Block Kit into a small set of typed variants (cards, blocks, shares), and renderers in `components/chat/MessageUnfurls.tsx` draw them. Apps show under their own name and logo.\n\n- **Hooks:** the parser registry (`BLOCK_PARSERS`) and the renderer registry (`BLOCK_RENDERERS`); a block type is one entry in each. Anything not understood falls back to an \"Open in Slack\" link.\n- **An app's message is drawn from its blocks; a person's message from its text.**\n- **Every picture goes through the picture proxy.**\n- **A shared Slack message** shows Slack's embedded copy to anyone who can read the sharing message.\n\nAdding a block type or unfurl kind: `docs/SLACK_BRIDGED_CHAT.md`, \"Adding a block type (or a new kind of unfurl)\".",
   },
 ];
