@@ -1315,6 +1315,80 @@ When the author of a Hub-written message removes one shared Slack message with t
 
 The policy has no `script-src`, `style-src` or `default-src`: Next's inline bootstrap scripts, the Google Analytics tag and inline styles need per-request nonces, which makes every page dynamic (`node_modules/next/dist/docs/01-app/02-guides/content-security-policy.md`, "Adding a nonce with Proxy"). Deferred because it changes rendering for the whole app and needs its own measurement (caching, PPR). Start in `proxy.ts` / `lib/supabase/middleware.ts`, then `lib/csp.ts`; add `connect-src`, `frame-src` and `media-src` once the script policy is in.
 
+## Slack Workspaces
+
+Step 1 (the `slack_workspaces` table, `workspace_id` on the Bronze Slack tables, per-workspace bot tokens, webhook and import per
+workspace, combined engagement with a workspace filter) is in; what it does and the contract-step SQL are in
+`docs/SLACK_WORKSPACES.md`. What is left:
+
+### Slack workspaces, contract step: drop the single-workspace keys _(Needs Approval)_
+Until the old unique constraints and indexes on the Bronze Slack tables are dropped, two workspaces cannot hold the same Slack
+id, and `workspace_id` still has a default (the primary workspace). Squawk bans each drop, so each needs the owner's explicit
+approval per statement (`CLAUDE.md`, "Migrations: expand, then contract"). Do it after step 1 has deployed and every writer names
+its workspace (the loose ends below). Statements and the order: `docs/SLACK_WORKSPACES.md`, "Contract step". Then set
+`idsMayCollide: true` in `tests/api/data/slack-workspaces-repository.test.ts`.
+
+### Slack workspaces, step 2: match the second workspace's people to members
+**Decision (owner): people in the second workspace (Ready Writer / 180 Program) should be Hub members, not left unmatched.** So step 2 links a
+member to each of their Slack users, and creates the member when there is none. Groundwork already in step 1: every `bronze.slack_users`
+row carries `workspace_id`, so a person is one row per workspace (same email, different Slack user id), `SlackUserRepository`
+scopes to a workspace (`createRepos(db, { slackWorkspaceId })`), and the combined engagement already counts their messages.
+Design for step 2:
+- Match by email across workspaces first (a person already a member via the first workspace or Kajabi just gains a second Slack
+  user); fall back to the existing name-alias matching, scoped to the workspace. Never match on a bare Slack user id: it is unique only
+  within a workspace. Store the link per `(workspace, Slack user id)` (today `member_name_aliases` and `slack_identities` hold a bare
+  id; both need the workspace, in an expand-then-contract migration).
+- For a Slack user with no member, create one through the members repository (`lib/data/members.ts`, source "slack workspace") from the
+  Slack profile, the way arrivals are created elsewhere, with a status that does not pretend a Kajabi/Stripe membership exists (the
+  status derivation reads billing: decide whether these members are "program" members or a new status, and what they may see; ask the
+  owner). Skip bots, Slackbot, deactivated users and guests per the existing ignore list, which needs its workspace picker first.
+- Members processing (`/api/process/members`) must not delete or demote these members for lacking Kajabi history, and a Kajabi
+  contact later arriving with the same email must merge into the existing member, not duplicate (merge/duplicate detection is
+  email-keyed, see the merge tooling).
+- Open questions for the owner: which fields may be copied from a Slack profile into a Hub member (name, email, photo), and whether
+  they get Hub sign-in at once (invite-only auth) or only after an admin approves.
+Slack users of the second workspace are captured (`bronze.slack_users` with `workspace_id`) but nothing matches them to Hub
+members yet. Needed: matching by email in `lib/slack-matching.ts` and the members processing (a person has one Slack user per
+workspace), `slack_identities` (sign-in from Slack) and `member_slack_connections` ("Connect Slack") per workspace
+(`team_id` is already on the connection; `SLACK_TEAM_ID` is checked in `lib/slack-connect.ts`), the Home tab and
+`/api/webhooks/slack/commands|interactions` (they take no team id yet), the unmatched-users and ignore-user hygiene pages
+(they ignore a Slack user in the primary workspace only), and `ignored_slack_users` UI. Where to start: `lib/slack-matching.ts`,
+`lib/slack-sign-in.ts`, `lib/data/slack-sign-in.ts`.
+
+### Slack workspaces, step 3: notifications and the Hub chat bridge
+Everything that sends as the bot uses the primary workspace's token (`getSlackBotToken()` with no workspace): Slack DMs
+(`lib/slack.ts`, the notifier's Slack channel), alerts, the chat bridge's posts. A DM must go out from the workspace the member
+is in (choose by the member's Slack identity), and the Hub chat must mirror channels of both workspaces: `chat_channels.slack_channel_id`,
+`chat_slack_authors`, `mirrorMembershipToChat`, `triggerSlackProcessing`, gap fill, member DMs (`lib/chat/slack-dms.ts`), lesson-link
+rewriting, `restricted_slack_channels` lookups and `/api/process/chat` all key by a bare Slack channel id. Add the workspace to those
+keys (a migration on the chat tables) and thread it through `lib/chat/`.
+
+### Slack workspaces, step 4: admin UI
+There is no admin page to see the workspaces, install the bot into a new one (`/api/oauth/slack/bot/start?workspace=new` works,
+but only by URL), see each token's expiry (`botTokenStatus` takes a workspace) or rename one. Add it under `/admin/data`, with the
+workspace shown on `/admin/data/slack-channels` and in the hygiene lists, a workspace picker where an admin ignores a Slack user or
+restricts a channel (both now act on the primary workspace), and the workspace on the member Slack activity panel. Staff
+links into Slack (`SLACK_WORKSPACE_URL` in `lib/config.ts`, and literal `quillandcup.slack.com` URLs in
+`lib/member-slack-links.ts`, `MemberSlackActivityPanel.tsx`, the Wheel of Wonder action) should come from the workspace row's `url`
+(the primary's is recorded from `SLACK_WORKSPACE_URL` the first time its team id is) so a link opens the right workspace.
+
+### Slack workspaces, step 1 loose ends
+- **SQL that keys by channel or user id alone** reads combined data and can mix two workspaces once ids collide:
+  `slack_fill_channel_name`, `reprocess_slack_activities_atomic`, `project_slack_chat_channels`, `care_dm_last_messages`,
+  `member_slack_summary`/`member_slack_channels`, the activity feed. Give each the workspace before the contract step.
+- **Silver processing is combined, not per workspace**: `/api/process/slack` and `lib/slack-activity-projection.ts` read every
+  workspace, so a second workspace's messages already count toward member activity and engagement (matching to members is step 2),
+  but `member_activities.related_id` is `<channel>:<ts>` with no workspace.
+- **Import helpers that build their own repositories** are unscoped: `copySlackFiles`, `removeFilesGoneFromSlack`,
+  `copySlackAvatars`, `copyEmojiImages`, `hideHubPreviewsRemovedInSlack`. Pass the workspace's repositories into them. Slack file
+  copies are stored by file id only (`slackFileStoragePath`).
+- **Time budget**: `triggerSlackSync` imports the workspaces one after another inside the one nightly request (300 s). With more
+  than two workspaces, or large ones, fan out one request per workspace instead (the import route already takes `workspace`).
+- **Metadata view in the generated engagement rows** carries `workspace_id`; the per-channel engagement tables key by a
+  workspace-qualified id only when workspaces are combined (`qualifyByWorkspace`).
+
+---
+
 ## Slack Bot Channel Access
 
 ### Auto-invite Billie Bot into private channels using a personal Slack token

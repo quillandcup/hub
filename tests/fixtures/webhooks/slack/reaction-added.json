@@ -5,6 +5,7 @@
   },
   "body": {
     "type": "event_callback",
+    "team_id": "T_TEST_PRIMARY",
     "event": {
       "type": "reaction_added",
       "user": "U123456",

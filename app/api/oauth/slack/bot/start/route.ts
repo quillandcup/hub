@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/supabase/api-auth";
-import { buildBotInstallUrl, BOT_STATE_PREFIX } from "@/lib/slack-bot-install";
+import { botInstallState, buildBotInstallUrl, isBotInstallTarget } from "@/lib/slack-bot-install";
 import { isSlackConnectConfigured, setConnectStateCookie } from "@/lib/slack-connect";
 
 /**
@@ -13,6 +13,11 @@ export async function GET(request: NextRequest) {
   if (!auth.user || auth.forbidden) return NextResponse.json({ error: "Admins only" }, { status: 403 });
   if (!isSlackConnectConfigured()) return NextResponse.json({ error: "SLACK_CLIENT_ID and SLACK_CLIENT_SECRET are not set" }, { status: 503 });
 
-  const state = await setConnectStateCookie(BOT_STATE_PREFIX);
-  return NextResponse.redirect(buildBotInstallUrl(state));
+  // ?workspace= is "primary" (default), "new" (Slack asks which workspace) or the Slack team id of a registered one.
+  const requested = request.nextUrl.searchParams.get("workspace") ?? "primary";
+  if (!isBotInstallTarget(requested)) return NextResponse.json({ error: "workspace must be primary, new or a Slack team id" }, { status: 400 });
+
+  const state = await setConnectStateCookie(botInstallState(requested, ""));
+  const teamId = requested === "primary" ? undefined : requested === "new" ? null : requested;
+  return NextResponse.redirect(buildBotInstallUrl(state, teamId));
 }

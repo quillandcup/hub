@@ -10,7 +10,9 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
  *
  * The token is a 12-hour credential kept in Vault (`slack_bot_token`): read from there, and refreshed with its
  * refresh token shortly before it expires, under a lease so that concurrent requests never refresh it twice
- * (lib/slack-token-refresh.ts). There is no environment variable to fall back on: the app has rotating tokens
+ * (lib/slack-token-refresh.ts). Each Slack workspace (docs/SLACK_WORKSPACES.md) has its own credential: the primary workspace's
+ * is the one described here, the others' are kept by workspace id and refreshed under their own lease (`bot:<workspace id>`);
+ * pass the workspace to `getSlackBotToken`, or nothing for the primary. There is no environment variable to fall back on: the app has rotating tokens
  * on for good and the old long-lived token stopped working at the first refresh. docs/SECRET_ROTATION.md,
  * "The bot's rotating token", covers recovery.
  *
@@ -26,7 +28,15 @@ interface Stored {
   expiresAt: number | null;
 }
 
-let cached: { token: string; refreshAt: number } | null = null;
+/** The workspace a token belongs to. Left out means the primary workspace (its credentials stay in the original storage). */
+export type SlackTokenWorkspace = { id: string; is_primary: boolean };
+
+/** One cached token per workspace, keyed by the workspace id ("primary" when none is named or it is the primary). */
+const cache = new Map<string, { token: string; refreshAt: number }>();
+
+const keyOf = (workspace?: SlackTokenWorkspace | null): string => (!workspace || workspace.is_primary ? "primary" : workspace.id);
+/** The refresh lease's key: "bot" for the primary workspace (as before workspaces), "bot:<id>" for the others. */
+const leaseKeyOf = (workspace?: SlackTokenWorkspace | null): string => (!workspace || workspace.is_primary ? "bot" : `bot:${workspace.id}`);
 
 let reporting = false;
 
@@ -54,11 +64,12 @@ async function reportProblem(service: SupabaseClient, problem: "refresh_failed" 
 
 /** Forget what this server instance holds, so the next call reads it again (tests; a token Slack rejected). */
 export function forgetSlackBotToken(): void {
-  cached = null;
+  cache.clear();
 }
 
-async function readStored(service: SupabaseClient): Promise<Stored | null> {
-  const { data, error } = await service.rpc("slack_bot_token_get");
+async function readStored(service: SupabaseClient, workspace?: SlackTokenWorkspace | null): Promise<Stored | null> {
+  const { data, error } =
+    !workspace || workspace.is_primary ? await service.rpc("slack_bot_token_get") : await service.rpc("slack_workspace_token_get", { p_workspace_id: workspace.id });
   if (error) throw error;
   const row = (Array.isArray(data) ? data[0] : data) as { access_token: string; refresh_token: string | null; expires_at: string | null } | undefined;
   if (!row) return null;
@@ -69,7 +80,7 @@ const fresh = (s: Stored): boolean => s.expiresAt === null || s.expiresAt - cloc
 const usable = (s: Stored): boolean => s.expiresAt === null || s.expiresAt - clock.now() > 60 * 1000;
 
 /** Exchange the refresh token for a new credential and store it, retrying the save: the old refresh token is spent. A save that never works is logged and the new token is used anyway. */
-async function refreshAndSave(service: SupabaseClient, current: Stored): Promise<Stored> {
+async function refreshAndSave(service: SupabaseClient, current: Stored, workspace?: SlackTokenWorkspace | null): Promise<Stored> {
   if (!current.refreshToken) throw new Error("the stored Slack bot token has no refresh token");
   const result = await createSlackClient().oauth.v2.access({
     client_id: process.env.SLACK_CLIENT_ID ?? "",
@@ -84,11 +95,15 @@ async function refreshAndSave(service: SupabaseClient, current: Stored): Promise
   let lastError: unknown;
   for (let attempt = 0; attempt < 4; attempt++) {
     if (attempt > 0) await clock.sleep(250 * attempt);
-    const { error } = await service.rpc("slack_bot_token_save", {
+    const tokens = {
       p_access_token: stored.accessToken,
       p_refresh_token: stored.refreshToken as string,
       p_expires_at: new Date(stored.expiresAt as number).toISOString(),
-    });
+    };
+    const { error } =
+      !workspace || workspace.is_primary
+        ? await service.rpc("slack_bot_token_save", tokens)
+        : await service.rpc("slack_workspace_token_save", { p_workspace_id: workspace.id, ...tokens });
     if (!error) return stored;
     lastError = error;
   }
@@ -104,32 +119,34 @@ async function refreshAndSave(service: SupabaseClient, current: Stored): Promise
  * The bot token to use now, or undefined when none is stored (callers treat that as "Slack isn't set up").
  * Throws only when the stored token has expired and could not be refreshed.
  */
-export async function getSlackBotToken(service?: SupabaseClient): Promise<string | undefined> {
-  if (cached && clock.now() < cached.refreshAt) return cached.token;
+export async function getSlackBotToken(service?: SupabaseClient, workspace?: SlackTokenWorkspace | null): Promise<string | undefined> {
+  const key = keyOf(workspace);
+  const hit = cache.get(key);
+  if (hit && clock.now() < hit.refreshAt) return hit.token;
 
   const db = service ?? createServiceRoleClient();
-  const stored = await readStored(db);
+  const stored = await readStored(db, workspace);
   if (!stored) return undefined;
   if (fresh(stored)) {
-    cached = { token: stored.accessToken, refreshAt: stored.expiresAt === null ? Number.MAX_SAFE_INTEGER : stored.expiresAt - REFRESH_WITHIN_MS };
+    cache.set(key, { token: stored.accessToken, refreshAt: stored.expiresAt === null ? Number.MAX_SAFE_INTEGER : stored.expiresAt - REFRESH_WITHIN_MS });
     return stored.accessToken;
   }
 
   let result: Stored | null;
   let failure: unknown = null;
   try {
-    result = await withRefreshLease<Stored>(db, "bot", {
+    result = await withRefreshLease<Stored>(db, leaseKeyOf(workspace), {
       fallback: usable(stored) ? stored : null,
       reread: async () => {
-        const again = await readStored(db);
+        const again = await readStored(db, workspace);
         return again && fresh(again) ? again : null;
       },
       // Read again now that this request holds the lease: another may have refreshed (and spent the refresh token
       // we read above) between our read and our claim.
       refresh: async () => {
-        const latest = await readStored(db);
+        const latest = await readStored(db, workspace);
         if (latest && fresh(latest)) return latest;
-        return refreshAndSave(db, latest ?? stored);
+        return refreshAndSave(db, latest ?? stored, workspace);
       },
     });
   } catch (error) {
@@ -146,7 +163,8 @@ export async function getSlackBotToken(service?: SupabaseClient): Promise<string
     await reportProblem(db, "expired", failure ?? new Error("no usable token after waiting for the refresh"));
     throw new Error("The Slack bot token has expired and could not be refreshed");
   }
-  cached = fresh(result) ? { token: result.accessToken, refreshAt: (result.expiresAt as number) - REFRESH_WITHIN_MS } : null;
+  if (fresh(result)) cache.set(key, { token: result.accessToken, refreshAt: (result.expiresAt as number) - REFRESH_WITHIN_MS });
+  else cache.delete(key);
   return result.accessToken;
 }
 
@@ -165,7 +183,7 @@ export async function seedBotToken(service: SupabaseClient, accessToken: string,
 }
 
 /** When the stored credential expires, for the script's status command; null when nothing is stored. */
-export async function botTokenStatus(service: SupabaseClient): Promise<{ expiresAt: Date | null } | null> {
-  const stored = await readStored(service);
+export async function botTokenStatus(service: SupabaseClient, workspace?: SlackTokenWorkspace | null): Promise<{ expiresAt: Date | null } | null> {
+  const stored = await readStored(service, workspace);
   return stored ? { expiresAt: stored.expiresAt === null ? null : new Date(stored.expiresAt) } : null;
 }

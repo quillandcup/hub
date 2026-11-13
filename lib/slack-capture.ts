@@ -125,8 +125,9 @@ export function slackMemberNoticeEvent(
 }
 
 /** Append membership events. Each source is idempotent: a repeat is ignored. */
-export async function recordSlackMemberEvents(supabase: SupabaseClient, events: SlackMemberEvent[]): Promise<void> {
-  await createRepos(supabase).slackWorkspace.recordMemberEvents(events);
+/** `workspaceId` is the Slack workspace (slack_workspaces.id) the events are from; left out, the primary one. */
+export async function recordSlackMemberEvents(supabase: SupabaseClient, events: SlackMemberEvent[], workspaceId?: string): Promise<void> {
+  await createRepos(supabase, { slackWorkspaceId: workspaceId }).slackWorkspace.recordMemberEvents(events);
 }
 
 /**
@@ -181,7 +182,8 @@ export async function syncChannelMembers(
   supabase: SupabaseClient,
   slack: WebClient,
   channels: { channel_id: string; name: string; is_archived: boolean }[],
-  importTimestamp: string
+  importTimestamp: string,
+  workspaceId?: string
 ): Promise<MembershipSyncResult> {
   const result: MembershipSyncResult = { channelsSynced: 0, channelsFailed: 0, members: 0, left: 0, eventsInferred: 0 };
   // conversations.members fails on archived channels the bot can no longer read.
@@ -208,7 +210,7 @@ export async function syncChannelMembers(
   await Promise.all(Array.from({ length: MEMBERS_CONCURRENCY }, worker));
   if (fetched.size === 0) return result;
 
-  const workspace = createRepos(supabase).slackWorkspace;
+  const workspace = createRepos(supabase, { slackWorkspaceId: workspaceId }).slackWorkspace;
   const stored = await workspace.memberships();
   const storedByChannel = new Map<string, Map<string, string | null>>();
   const firstSeenByChannel = new Map<string, Map<string, string>>();
@@ -238,7 +240,7 @@ export async function syncChannelMembers(
       )
     );
   }
-  await recordSlackMemberEvents(supabase, inferred);
+  await recordSlackMemberEvents(supabase, inferred, workspaceId);
   result.eventsInferred = inferred.length;
 
   // Only rows that change are written: a new member, or one who came back.
@@ -287,7 +289,8 @@ export function toCustomEmojiRow(name: string, value: string) {
 export async function syncCustomEmoji(
   supabase: SupabaseClient,
   slack: WebClient,
-  importTimestamp: string
+  importTimestamp: string,
+  workspaceId?: string
 ): Promise<EmojiSyncResult> {
   let emoji: Record<string, string>;
   try {
@@ -299,7 +302,7 @@ export async function syncCustomEmoji(
     return { emoji: 0, removed: 0, skipped: "missing_scope" };
   }
 
-  const workspace = createRepos(supabase).slackWorkspace;
+  const workspace = createRepos(supabase, { slackWorkspaceId: workspaceId }).slackWorkspace;
   const rows = Object.entries(emoji).map(([name, value]) => ({ ...toCustomEmojiRow(name, value), imported_at: importTimestamp }));
   await workspace.upsertEmoji(rows);
 
@@ -319,7 +322,8 @@ export async function syncCustomEmoji(
  */
 export async function applySlackMembershipEvent(
   supabase: SupabaseClient,
-  event: { type: string; channel?: string; user?: string; inviter?: string; event_ts?: string }
+  event: { type: string; channel?: string; user?: string; inviter?: string; event_ts?: string },
+  workspaceId?: string
 ): Promise<void> {
   if (!event.channel || !event.user) return;
   if (event.type !== "member_joined_channel" && event.type !== "member_left_channel") return;
@@ -337,9 +341,9 @@ export async function applySlackMembershipEvent(
       inviter_user_id: event.inviter ?? null,
       raw_payload: event,
     },
-  ]);
+  ], workspaceId);
 
-  const workspace = createRepos(supabase).slackWorkspace;
+  const workspace = createRepos(supabase, { slackWorkspaceId: workspaceId }).slackWorkspace;
   if (event.type === "member_joined_channel") {
     await workspace.upsertMemberships([{ channel_id: event.channel, user_id: event.user, left_at: null, imported_at: now }]);
   } else if (event.type === "member_left_channel") {
@@ -374,10 +378,11 @@ async function mirrorMembershipToChat(supabase: SupabaseClient, change: { channe
  */
 export async function applySlackEmojiEvent(
   supabase: SupabaseClient,
-  event: { subtype?: string; name?: string; value?: string; names?: string[]; old_name?: string; new_name?: string }
+  event: { subtype?: string; name?: string; value?: string; names?: string[]; old_name?: string; new_name?: string },
+  workspaceId?: string
 ): Promise<void> {
   const now = new Date(clock.now()).toISOString();
-  const workspace = createRepos(supabase).slackWorkspace;
+  const workspace = createRepos(supabase, { slackWorkspaceId: workspaceId }).slackWorkspace;
   const add = (name: string, value: string) => workspace.upsertEmoji([{ ...toCustomEmojiRow(name, value), imported_at: now }]);
   const remove = (names: string[]) => workspace.markEmojiRemoved(names, now);
 

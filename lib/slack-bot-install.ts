@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { clock } from "@/lib/clock";
 import { forgetSlackBotToken } from "@/lib/slack-bot-token";
 import { slackRedirectUri } from "@/lib/slack-connect";
+import { createRepos } from "@/lib/data/repos";
 
 /**
  * Installing Billie Bot (the bot's token, not a member's) through Slack's OAuth flow, for an admin: the recovery
@@ -46,20 +47,48 @@ export const SLACK_BOT_SCOPES = [
   "commands",
 ] as const;
 
-export function buildBotInstallUrl(state: string): string {
+/**
+ * Which workspace an install is for: "primary" (the original one; the default), "new" (a workspace not registered
+ * yet: Slack's approval page lets the admin choose which one), or a Slack team id (reinstall into a registered one).
+ * It travels in the OAuth state, never as a Hub id, because the admin page's URL must not carry one.
+ */
+export type BotInstallTarget = "primary" | "new" | (string & {});
+
+const TARGET = /^[A-Za-z0-9]{1,32}$/;
+
+/** The state to send Slack for an install into `target`: `bot.<target>.<random>`. */
+export function botInstallState(target: BotInstallTarget, random: string): string {
+  return `${BOT_STATE_PREFIX}${target}.${random}`;
+}
+
+/** The target an install state names; "primary" for the older `bot.<random>` form and for anything malformed. */
+export function botInstallTarget(state: string | null): BotInstallTarget {
+  const parts = (state ?? "").split(".");
+  return parts.length === 3 && parts[0] === "bot" && TARGET.test(parts[1]) ? parts[1] : "primary";
+}
+
+export function isBotInstallTarget(value: string | null): value is BotInstallTarget {
+  return value !== null && TARGET.test(value);
+}
+
+export function buildBotInstallUrl(state: string, teamId?: string | null): string {
   const url = new URL("https://slack.com/oauth/v2/authorize");
   url.searchParams.set("client_id", process.env.SLACK_CLIENT_ID ?? "");
   url.searchParams.set("scope", SLACK_BOT_SCOPES.join(","));
   url.searchParams.set("redirect_uri", slackRedirectUri());
   url.searchParams.set("state", state);
-  if (process.env.SLACK_TEAM_ID) url.searchParams.set("team", process.env.SLACK_TEAM_ID);
+  // The primary workspace is the one SLACK_TEAM_ID names; another is chosen by its team id, or in Slack for a new one.
+  const team = teamId === undefined ? process.env.SLACK_TEAM_ID : teamId;
+  if (team) url.searchParams.set("team", team);
   return url.toString();
 }
 
-export type BotInstallResult = { ok: true; botUser: string | null; expiresAt: Date } | { ok: false; reason: "wrong_workspace" | "not_rotating" | "slack" | "store" };
+export type BotInstallResult =
+  | { ok: true; botUser: string | null; expiresAt: Date; workspaceName?: string }
+  | { ok: false; reason: "wrong_workspace" | "not_rotating" | "slack" | "store" | "unknown_workspace" };
 
 /** Trade the code Slack redirected back with for the bot's rotating token pair and store it (replacing whatever is there). */
-export async function completeBotInstall(service: SupabaseClient, code: string): Promise<BotInstallResult> {
+export async function completeBotInstall(service: SupabaseClient, code: string, target: BotInstallTarget = "primary"): Promise<BotInstallResult> {
   let result;
   try {
     result = await createSlackClient().oauth.v2.access({
@@ -73,20 +102,37 @@ export async function completeBotInstall(service: SupabaseClient, code: string):
     return { ok: false, reason: "slack" };
   }
   if (!result.ok || !result.access_token) return { ok: false, reason: "slack" };
-  if (process.env.SLACK_TEAM_ID && result.team?.id !== process.env.SLACK_TEAM_ID) return { ok: false, reason: "wrong_workspace" };
+  if (target === "primary" && process.env.SLACK_TEAM_ID && result.team?.id !== process.env.SLACK_TEAM_ID) return { ok: false, reason: "wrong_workspace" };
   // Without a refresh token the credential could never be renewed: refuse it rather than store a time bomb.
   if (!result.refresh_token || !result.expires_in) return { ok: false, reason: "not_rotating" };
 
   const expiresAt = new Date(clock.now() + result.expires_in * 1000);
-  const { error } = await service.rpc("slack_bot_token_save", {
-    p_access_token: result.access_token,
-    p_refresh_token: result.refresh_token,
-    p_expires_at: expiresAt.toISOString(),
-  });
+  const tokens = { p_access_token: result.access_token, p_refresh_token: result.refresh_token, p_expires_at: expiresAt.toISOString() };
+
+  // Which workspace this credential belongs to. The primary one keeps its original storage (and needs no lookup).
+  let workspace: { id: string; name: string } | null = null;
+  if (target !== "primary") {
+    const teamId = result.team?.id;
+    if (!teamId) return { ok: false, reason: "slack" };
+    try {
+      const registry = createRepos(service as never).slackWorkspaces;
+      const known = await registry.byTeamId(teamId);
+      if (target === "new") workspace = await registry.register({ teamId, name: result.team?.name || known?.name || teamId });
+      else if (!known || known.team_id !== target) return { ok: false, reason: known ? "wrong_workspace" : "unknown_workspace" };
+      else workspace = known;
+    } catch (error) {
+      console.error("Slack bot install: recording the workspace failed:", error);
+      return { ok: false, reason: "store" };
+    }
+  }
+
+  const { error } = workspace
+    ? await service.rpc("slack_workspace_token_save", { p_workspace_id: workspace.id, ...tokens })
+    : await service.rpc("slack_bot_token_save", tokens);
   if (error) {
     console.error("Slack bot install: storing the token failed:", error);
     return { ok: false, reason: "store" };
   }
   forgetSlackBotToken();
-  return { ok: true, botUser: result.bot_user_id ?? null, expiresAt };
+  return { ok: true, botUser: result.bot_user_id ?? null, expiresAt, workspaceName: workspace?.name };
 }

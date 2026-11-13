@@ -392,7 +392,7 @@ describe('Slack Webhook', () => {
     function buildMessageEvent(userId: string, overrides: Record<string, any> = {}) {
       tsCounter += 1
       return {
-        type: 'event_callback',
+        type: 'event_callback', team_id: process.env.SLACK_TEAM_ID,
         event: {
           type: 'message',
           channel: channelId,

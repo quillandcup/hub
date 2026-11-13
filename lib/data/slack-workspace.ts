@@ -14,11 +14,11 @@ type ChannelTable = Database["bronze"]["Tables"]["slack_channels"];
  */
 export type SlackChannel = Pick<
   ChannelTable["Row"],
-  "channel_id" | "name" | "is_private" | "is_archived" | "is_mpim" | "is_im" | "member_count" | "created" | "imported_at"
+  "channel_id" | "name" | "is_private" | "is_archived" | "is_mpim" | "is_im" | "member_count" | "created" | "imported_at" | "workspace_id"
 >;
 
 /** A channel as the in-memory dataset keeps it: the id and name, and whatever else a test names. */
-export type SlackChannelSeed = Pick<SlackChannel, "channel_id" | "name"> & Partial<Omit<SlackChannel, "channel_id" | "name">> & { token_only?: boolean; last_pulled_at?: string | null };
+export type SlackChannelSeed = Pick<SlackChannel, "channel_id" | "name"> & Partial<Omit<SlackChannel, "channel_id" | "name" | "workspace_id">> & { token_only?: boolean; last_pulled_at?: string | null; workspace_id?: string };
 
 /** What the import writes for a conversation: the Slack fields (the raw payload included) plus the sync time. */
 export type NewSlackChannel = ChannelTable["Insert"];
@@ -27,7 +27,7 @@ export type NewSlackChannel = ChannelTable["Insert"];
 export type SlackChannelMembership = Pick<Database["bronze"]["Tables"]["slack_channel_members"]["Row"], "channel_id" | "user_id" | "left_at" | "first_seen_at">;
 
 /** A membership as the in-memory dataset keeps it. */
-export type SlackChannelMembershipSeed = Pick<SlackChannelMembership, "channel_id" | "user_id"> & Partial<SlackChannelMembership> & { imported_at?: string };
+export type SlackChannelMembershipSeed = Pick<SlackChannelMembership, "channel_id" | "user_id"> & Partial<SlackChannelMembership> & { imported_at?: string; workspace_id?: string };
 
 /** One join or leave in the append-only history (`bronze.slack_channel_member_events`), as the capture writes it. */
 export interface SlackMemberEvent {
@@ -44,6 +44,7 @@ export interface SlackMemberEvent {
 /** An event as the in-memory dataset keeps it (with the id order the database would give it). */
 export type SlackMemberEventSeed = Required<Pick<SlackMemberEvent, "channel_id" | "user_id" | "event" | "occurred_at" | "source">> & {
   id?: string;
+  workspace_id?: string;
   inviter_user_id?: string | null;
   slack_ts?: string | null;
   raw_payload?: unknown;
@@ -68,13 +69,13 @@ export interface SlackEmojiImage {
 /** A custom emoji as the in-memory dataset keeps it. */
 export type SlackEmojiSeed = Pick<NewSlackEmoji, "name"> & Partial<Omit<NewSlackEmoji, "name">>;
 
-const CHANNEL_COLUMNS = "channel_id, name, is_private, is_archived, is_mpim, is_im, member_count, created, imported_at";
+const CHANNEL_COLUMNS = "channel_id, name, is_private, is_archived, is_mpim, is_im, member_count, created, imported_at, workspace_id";
 
 /** A private channel whose messages staff can't read (`restricted_slack_channels`), as `channel id -> when it was restricted`. */
-export type RestrictedChannelSeed = { channel_id: string; name?: string | null; created_at: string };
+export type RestrictedChannelSeed = { channel_id: string; name?: string | null; created_at: string; workspace_id?: string };
 
 /** A Slack user the admins skip when matching Slack accounts to members (`ignored_slack_users`). */
-export type IgnoredSlackUserSeed = { user_id: string; reason?: string | null; created_at?: string | null };
+export type IgnoredSlackUserSeed = { user_id: string; reason?: string | null; created_at?: string | null; workspace_id?: string };
 
 /**
  * The Bronze copy of the Slack workspace's structure: its channels and group DMs, and the admin decisions that
@@ -176,7 +177,23 @@ function lastEventPerUser(rows: { channel_id: string; user_id: string; event: "j
 const UNIQUE_VIOLATION = "23505";
 
 export class SupabaseSlackWorkspaceRepository implements SlackWorkspaceRepository {
-  constructor(private readonly db: Db) {}
+  /**
+   * `workspaceId` scopes the repository to one Slack workspace: reads see only its rows, writes stamp it and key on
+   * (workspace, Slack id). Unscoped, reads see every workspace and writes land in the primary one (the column default).
+   */
+  constructor(private readonly db: Db, private readonly workspaceId?: string) {}
+
+  private inScope<Q extends { eq(column: string, value: string): Q }>(query: Q): Q {
+    return this.workspaceId ? query.eq("workspace_id", this.workspaceId) : query;
+  }
+
+  private stamp<T extends object>(rows: T[]): (T & { workspace_id?: string })[] {
+    return this.workspaceId ? rows.map((r) => ({ ...r, workspace_id: this.workspaceId })) : rows;
+  }
+
+  private key(columns: string): string {
+    return this.workspaceId ? `workspace_id,${columns}` : columns;
+  }
 
   private get channelsTable() {
     return this.db.schema("bronze").from("slack_channels");
@@ -184,54 +201,54 @@ export class SupabaseSlackWorkspaceRepository implements SlackWorkspaceRepositor
 
   async channels() {
     return fetchAllRows<SlackChannel>((from, to) =>
-      this.channelsTable.select(CHANNEL_COLUMNS).order("name").order("channel_id").range(from, to)
+      this.inScope(this.channelsTable.select(CHANNEL_COLUMNS)).order("name").order("channel_id").range(from, to)
     );
   }
 
   async channelById(channelId: string) {
-    return must(await this.channelsTable.select(CHANNEL_COLUMNS).eq("channel_id", channelId).maybeSingle());
+    return must(await this.inScope(this.channelsTable.select(CHANNEL_COLUMNS)).eq("channel_id", channelId).maybeSingle());
   }
 
   async channelIdByName(name: string) {
-    const data = must(await this.channelsTable.select("channel_id").eq("name", name).order("channel_id").limit(1).maybeSingle());
+    const data = must(await this.inScope(this.channelsTable.select("channel_id")).eq("name", name).order("channel_id").limit(1).maybeSingle());
     return data?.channel_id ?? null;
   }
 
   async publicChannelNames(channelIds: string[]) {
     const rows = await inChunks(channelIds, NAME_CHUNK, async (part) =>
-      must(await this.channelsTable.select("channel_id, name").in("channel_id", part).eq("is_private", false)) ?? []
+      must(await this.inScope(this.channelsTable.select("channel_id, name")).in("channel_id", part).eq("is_private", false)) ?? []
     );
     return new Map(rows.filter((c) => c.name).map((c) => [c.channel_id, c.name]));
   }
 
   async upsertChannels(channels: NewSlackChannel[]) {
     // Small chunks, two at a time: each upsert is one statement under the API role's 8s statement timeout.
-    await upsertInChunks(this.channelsTable, channels, "channel_id", 100, 2);
+    await upsertInChunks(this.channelsTable, this.stamp(channels), this.key("channel_id"), 100, 2);
   }
 
   async insertChannelIfAbsent(channel: NewSlackChannel) {
-    const rows = must(await this.channelsTable.upsert(channel, { onConflict: "channel_id", ignoreDuplicates: true }).select("channel_id"));
+    const rows = must(await this.channelsTable.upsert(this.stamp([channel])[0], { onConflict: this.key("channel_id"), ignoreDuplicates: true }).select("channel_id"));
     return (rows ?? []).length > 0;
   }
 
   async currentMemberUserIds(channelId: string) {
     const rows = await fetchAllRows<{ user_id: string }>((from, to) =>
-      this.membersTable.select("user_id").eq("channel_id", channelId).is("left_at", null).order("user_id").range(from, to)
+      this.inScope(this.membersTable.select("user_id")).eq("channel_id", channelId).is("left_at", null).order("user_id").range(from, to)
     );
     return rows.map((r) => r.user_id);
   }
 
   async directMessagesOf(slackUserId: string) {
     const mine = await fetchAllRows<{ channel_id: string }>((from, to) =>
-      this.membersTable.select("channel_id").eq("user_id", slackUserId).is("left_at", null).order("channel_id").range(from, to)
+      this.inScope(this.membersTable.select("channel_id")).eq("user_id", slackUserId).is("left_at", null).order("channel_id").range(from, to)
     );
     const out: SlackDirectMessage[] = [];
     for (const ids of chunk(mine.map((m) => m.channel_id), USER_CHUNK)) {
-      const ims = must(await this.channelsTable.select("channel_id").in("channel_id", ids).eq("is_im", true)) ?? [];
+      const ims = must(await this.inScope(this.channelsTable.select("channel_id")).in("channel_id", ids).eq("is_im", true)) ?? [];
       const imIds = ims.map((c) => c.channel_id);
       if (imIds.length === 0) continue;
       const people = await fetchAllRows<{ channel_id: string; user_id: string }>((from, to) =>
-        this.membersTable.select("channel_id, user_id").in("channel_id", imIds).is("left_at", null).order("channel_id").order("user_id").range(from, to)
+        this.inScope(this.membersTable.select("channel_id, user_id")).in("channel_id", imIds).is("left_at", null).order("channel_id").order("user_id").range(from, to)
       );
       for (const channelId of imIds) {
         out.push({ channel_id: channelId, participants: people.filter((p) => p.channel_id === channelId).map((p) => p.user_id) });
@@ -241,21 +258,21 @@ export class SupabaseSlackWorkspaceRepository implements SlackWorkspaceRepositor
   }
 
   async isTokenOnlyGroupDm(channelId: string) {
-    const row = must(await this.channelsTable.select("token_only").eq("channel_id", channelId).eq("is_mpim", true).maybeSingle());
+    const row = must(await this.inScope(this.channelsTable.select("token_only")).eq("channel_id", channelId).eq("is_mpim", true).maybeSingle());
     return row?.token_only === true;
   }
 
   async pulledAt(channelIds: string[]) {
     const out = new Map<string, string>();
     for (const ids of chunk([...new Set(channelIds)], 100)) {
-      const rows = must(await this.channelsTable.select("channel_id, last_pulled_at").in("channel_id", ids).not("last_pulled_at", "is", null));
+      const rows = must(await this.inScope(this.channelsTable.select("channel_id, last_pulled_at")).in("channel_id", ids).not("last_pulled_at", "is", null));
       for (const row of rows ?? []) if (row.last_pulled_at) out.set(row.channel_id, row.last_pulled_at);
     }
     return out;
   }
 
   async markPulled(channelIds: string[], at: string) {
-    for (const ids of chunk([...new Set(channelIds)], 100)) must(await this.channelsTable.update({ last_pulled_at: at }).in("channel_id", ids).select("channel_id"));
+    for (const ids of chunk([...new Set(channelIds)], 100)) must(await this.inScope(this.channelsTable.update({ last_pulled_at: at })).in("channel_id", ids).select("channel_id"));
   }
 
   private get membersTable() {
@@ -264,22 +281,22 @@ export class SupabaseSlackWorkspaceRepository implements SlackWorkspaceRepositor
 
   async memberships() {
     return fetchAllRows<SlackChannelMembership>((from, to) =>
-      this.membersTable.select("channel_id, user_id, left_at, first_seen_at").order("channel_id").order("user_id").range(from, to)
+      this.inScope(this.membersTable.select("channel_id, user_id, left_at, first_seen_at")).order("channel_id").order("user_id").range(from, to)
     );
   }
 
   async upsertMemberships(rows: { channel_id: string; user_id: string; left_at: null; imported_at: string }[]) {
-    await upsertInChunks(this.membersTable, rows, "channel_id,user_id", WRITE_CHUNK);
+    await upsertInChunks(this.membersTable, this.stamp(rows), this.key("channel_id,user_id"), WRITE_CHUNK);
   }
 
   async markMembersLeft(channelId: string, userIds: string[], at: string) {
     for (const part of chunk(userIds, USER_CHUNK)) {
-      must(await this.membersTable.update({ left_at: at, imported_at: at }).eq("channel_id", channelId).in("user_id", part));
+      must(await this.inScope(this.membersTable.update({ left_at: at, imported_at: at })).eq("channel_id", channelId).in("user_id", part));
     }
   }
 
   async markMemberLeft(channelId: string, userId: string, at: string) {
-    must(await this.membersTable.update({ left_at: at, imported_at: at }).eq("channel_id", channelId).eq("user_id", userId).is("left_at", null));
+    must(await this.inScope(this.membersTable.update({ left_at: at, imported_at: at })).eq("channel_id", channelId).eq("user_id", userId).is("left_at", null));
   }
 
   async recordMemberEvents(events: SlackMemberEvent[]) {
@@ -296,19 +313,19 @@ export class SupabaseSlackWorkspaceRepository implements SlackWorkspaceRepositor
       slack_ts: e.slack_ts ?? null,
       raw_payload: asJson(e.raw_payload ?? {}),
     }));
-    for (const part of chunk(rows, WRITE_CHUNK)) {
+    for (const part of chunk(this.stamp(rows), WRITE_CHUNK)) {
       must(
         await this.db
           .schema("bronze")
           .from("slack_channel_member_events")
-          .upsert(part, { onConflict: "channel_id,user_id,event,occurred_at,source", ignoreDuplicates: true })
+          .upsert(part, { onConflict: this.key("channel_id,user_id,event,occurred_at,source"), ignoreDuplicates: true })
       );
     }
   }
 
   async lastMemberEvents() {
     const rows = await fetchAllRows<{ channel_id: string; user_id: string; event: "joined" | "left" }>((from, to) =>
-      this.db.schema("bronze").from("slack_channel_member_events").select("channel_id, user_id, event").order("occurred_at").order("id").range(from, to)
+      this.inScope(this.db.schema("bronze").from("slack_channel_member_events").select("channel_id, user_id, event")).order("occurred_at").order("id").range(from, to)
         .overrideTypes<{ channel_id: string; user_id: string; event: "joined" | "left" }[], { merge: false }>() // text column the importer limits to these two
     );
     return lastEventPerUser(rows);
@@ -319,34 +336,34 @@ export class SupabaseSlackWorkspaceRepository implements SlackWorkspaceRepositor
   }
 
   async upsertEmoji(emoji: NewSlackEmoji[]) {
-    await upsertInChunks(this.emojiTable, emoji, "name", WRITE_CHUNK);
+    await upsertInChunks(this.emojiTable, this.stamp(emoji), this.key("name"), WRITE_CHUNK);
   }
 
   async liveEmojiNames() {
     const rows = await fetchAllRows<{ name: string }>((from, to) =>
-      this.emojiTable.select("name").is("deleted_at", null).order("name").range(from, to)
+      this.inScope(this.emojiTable.select("name")).is("deleted_at", null).order("name").range(from, to)
     );
     return rows.map((r) => r.name);
   }
 
   async emojiByNames(names: string[]) {
     const rows = await inChunks(names, NAME_CHUNK, async (part) =>
-      must(await this.emojiTable.select("name, image_url, alias_for, image_path, still_path").in("name", part).is("deleted_at", null)) ?? []
+      must(await this.inScope(this.emojiTable.select("name, image_url, alias_for, image_path, still_path")).in("name", part).is("deleted_at", null)) ?? []
     );
     return sortByKey(rows, (r) => r.name);
   }
 
   async emojiToCopy() {
     const rows = await fetchAllRows<{ name: string; image_url: string | null; copied_from_url: string | null }>((from, to) =>
-      this.emojiTable.select("name, image_url, copied_from_url").is("deleted_at", null).not("image_url", "is", null).order("name").range(from, to)
+      this.inScope(this.emojiTable.select("name, image_url, copied_from_url")).is("deleted_at", null).not("image_url", "is", null).order("name").range(from, to)
     );
     return rows.filter((r) => r.image_url !== r.copied_from_url).map((r) => ({ name: r.name, image_url: r.image_url as string }));
   }
 
   async markEmojiCopied(name: string, copy: { from: string; imagePath: string; stillPath: string | null }) {
     must(
-      await this.emojiTable
-        .update({ image_path: copy.imagePath, still_path: copy.stillPath, copied_from_url: copy.from })
+      await this.inScope(this.emojiTable
+        .update({ image_path: copy.imagePath, still_path: copy.stillPath, copied_from_url: copy.from }))
         .eq("name", name)
         .eq("image_url", copy.from)
     );
@@ -354,66 +371,95 @@ export class SupabaseSlackWorkspaceRepository implements SlackWorkspaceRepositor
 
   async markEmojiRemoved(names: string[], at: string) {
     for (const part of chunk(names, USER_CHUNK)) {
-      must(await this.emojiTable.update({ deleted_at: at, imported_at: at }).in("name", part).is("deleted_at", null));
+      must(await this.inScope(this.emojiTable.update({ deleted_at: at, imported_at: at })).in("name", part).is("deleted_at", null));
     }
   }
 
   async ignoredUserIds() {
     const rows = await fetchAllRows<{ user_id: string }>((from, to) =>
-      this.db.from("ignored_slack_users").select("user_id").order("user_id").range(from, to)
+      this.inScope(this.db.from("ignored_slack_users").select("user_id")).order("user_id").range(from, to)
     );
     return new Set(rows.map((r) => r.user_id));
   }
 
   async ignoreUser(userId: string, reason: string) {
-    const { error } = await this.db.from("ignored_slack_users").insert({ user_id: userId, reason });
+    const { error } = await this.db.from("ignored_slack_users").insert({ user_id: userId, reason, ...(this.workspaceId ? { workspace_id: this.workspaceId } : {}) });
     if (error && error.code !== UNIQUE_VIOLATION) throw new Error(error.message);
   }
 
   async restrictedChannels() {
     const rows = await fetchAllRows<{ channel_id: string; created_at: string }>((from, to) =>
-      this.db.from("restricted_slack_channels").select("channel_id, created_at").order("channel_id").range(from, to)
+      this.inScope(this.db.from("restricted_slack_channels").select("channel_id, created_at")).order("channel_id").range(from, to)
     );
     return new Map(rows.map((r) => [r.channel_id, r.created_at]));
   }
 
   async restrictChannel(channelId: string, name: string) {
-    const { error } = await this.db.from("restricted_slack_channels").insert({ channel_id: channelId, name });
+    const { error } = await this.db.from("restricted_slack_channels").insert({ channel_id: channelId, name, ...(this.workspaceId ? { workspace_id: this.workspaceId } : {}) });
     if (error && error.code !== UNIQUE_VIOLATION) throw new Error(error.message);
   }
 
   async unrestrictChannel(channelId: string) {
-    const { error } = await this.db.from("restricted_slack_channels").delete().eq("channel_id", channelId);
+    const { error } = await this.inScope(this.db.from("restricted_slack_channels").delete()).eq("channel_id", channelId);
     if (error) throw new Error(error.message);
   }
 }
 
 /** In-memory twin over an `InMemoryDataset`. */
 export class InMemorySlackWorkspaceRepository implements SlackWorkspaceRepository {
-  constructor(private readonly data: InMemoryDataset) {}
+  constructor(private readonly data: InMemoryDataset, private readonly workspaceId?: string) {}
+  /** An unscoped twin sees every workspace; a scoped one only its own. A seed row with no workspace belongs to the primary one. */
+  private own<T extends { workspace_id?: string | null }>(rows: T[]): T[] {
+    if (!this.workspaceId) return rows;
+    const primary = this.data.primarySlackWorkspaceId();
+    return rows.filter((r) => (r.workspace_id ?? primary) === this.workspaceId);
+  }
+
+  /** The workspace a write lands in: the scope, else the primary workspace (as the column default does). */
+  private ws(): string {
+    return this.workspaceId ?? this.data.primarySlackWorkspaceId();
+  }
+
+
+  /** The workspace a row belongs to (a seed row with none is in the primary one). */
+  private wsOf(row: { workspace_id?: string | null }): string {
+    return row.workspace_id ?? this.data.primarySlackWorkspaceId();
+  }
+
+  /** The workspace an incoming row is written to: its own, else the scope, else the primary one. */
+  private target(row: { workspace_id?: string | null }): string {
+    return row.workspace_id ?? this.ws();
+  }
+
+  /** The rows a write matches against: this workspace's, even when unscoped. */
+  private mine<T extends { workspace_id?: string | null }>(rows: T[]): T[] {
+    const primary = this.data.primarySlackWorkspaceId();
+    return rows.filter((r) => (r.workspace_id ?? primary) === this.ws());
+  }
+
 
   private full(c: SlackChannelSeed): SlackChannel {
-    return { is_private: null, is_archived: null, is_mpim: false, is_im: false, member_count: null, created: null, imported_at: "1970-01-01T00:00:00.000Z", ...c };
+    return { is_private: null, is_archived: null, is_mpim: false, is_im: false, member_count: null, created: null, imported_at: "1970-01-01T00:00:00.000Z", ...c, workspace_id: this.wsOf(c) };
   }
 
   async channels() {
-    return this.data.slackChannels.map((c) => this.full(c)).sort(byKeyThenId((c) => c.name, (c) => c.channel_id));
+    return this.own(this.data.slackChannels).map((c) => this.full(c)).sort(byKeyThenId((c) => c.name, (c) => c.channel_id));
   }
 
   async channelById(channelId: string) {
-    const c = this.data.slackChannels.find((x) => x.channel_id === channelId);
+    const c = this.own(this.data.slackChannels).find((x) => x.channel_id === channelId);
     return c ? this.full(c) : null;
   }
 
   async channelIdByName(name: string) {
-    const ids = this.data.slackChannels.filter((c) => c.name === name).map((c) => c.channel_id);
+    const ids = this.own(this.data.slackChannels).filter((c) => c.name === name).map((c) => c.channel_id);
     return ids.length > 0 ? ids.reduce((lowest, id) => (id < lowest ? id : lowest)) : null;
   }
 
   async publicChannelNames(channelIds: string[]) {
     const wanted = new Set(channelIds);
     return new Map(
-      this.data.slackChannels
+      this.own(this.data.slackChannels)
         // As in SQL, `is_private = false` does not match a null.
         .filter((c) => wanted.has(c.channel_id) && c.is_private === false && c.name)
         .map((c) => [c.channel_id, c.name])
@@ -423,26 +469,26 @@ export class InMemorySlackWorkspaceRepository implements SlackWorkspaceRepositor
   async upsertChannels(channels: NewSlackChannel[]) {
     for (const c of channels) {
       const { raw_payload: _raw, id: _id, ...fields } = c;
-      const existing = this.data.slackChannels.find((x) => x.channel_id === c.channel_id);
+      const existing = this.data.slackChannels.find((x) => this.wsOf(x) === this.target(c) && x.channel_id === c.channel_id);
       if (existing) Object.assign(existing, fields);
-      else this.data.slackChannels.push(fields);
+      else this.data.slackChannels.push({ ...fields, workspace_id: this.target(c) });
     }
   }
 
   async insertChannelIfAbsent(channel: NewSlackChannel) {
-    if (this.data.slackChannels.some((x) => x.channel_id === channel.channel_id)) return false;
+    if (this.data.slackChannels.some((x) => this.wsOf(x) === this.target(channel) && x.channel_id === channel.channel_id)) return false;
     const { raw_payload: _raw, id: _id, ...fields } = channel;
-    this.data.slackChannels.push(fields);
+    this.data.slackChannels.push({ ...fields, workspace_id: this.target(channel) });
     return true;
   }
 
   async currentMemberUserIds(channelId: string) {
-    return this.data.slackChannelMembers.filter((m) => m.channel_id === channelId && !m.left_at).map((m) => m.user_id).sort();
+    return this.own(this.data.slackChannelMembers).filter((m) => m.channel_id === channelId && !m.left_at).map((m) => m.user_id).sort();
   }
 
   async directMessagesOf(slackUserId: string) {
-    const ims = new Set(this.data.slackChannels.filter((c) => c.is_im === true).map((c) => c.channel_id));
-    const current = this.data.slackChannelMembers.filter((m) => !m.left_at);
+    const ims = new Set(this.own(this.data.slackChannels).filter((c) => c.is_im === true).map((c) => c.channel_id));
+    const current = this.own(this.data.slackChannelMembers).filter((m) => !m.left_at);
     const mine = new Set(current.filter((m) => m.user_id === slackUserId && ims.has(m.channel_id)).map((m) => m.channel_id));
     return [...mine]
       .sort(compareText)
@@ -450,69 +496,69 @@ export class InMemorySlackWorkspaceRepository implements SlackWorkspaceRepositor
   }
 
   async isTokenOnlyGroupDm(channelId: string) {
-    const c = this.data.slackChannels.find((x) => x.channel_id === channelId);
+    const c = this.own(this.data.slackChannels).find((x) => x.channel_id === channelId);
     return !!c && c.is_mpim === true && c.token_only === true;
   }
 
   async pulledAt(channelIds: string[]) {
     const wanted = new Set(channelIds);
-    return new Map(this.data.slackChannels.filter((c) => wanted.has(c.channel_id) && c.last_pulled_at).map((c) => [c.channel_id, c.last_pulled_at as string]));
+    return new Map(this.own(this.data.slackChannels).filter((c) => wanted.has(c.channel_id) && c.last_pulled_at).map((c) => [c.channel_id, c.last_pulled_at as string]));
   }
 
   async markPulled(channelIds: string[], at: string) {
     const wanted = new Set(channelIds);
-    for (const c of this.data.slackChannels) if (wanted.has(c.channel_id)) c.last_pulled_at = at;
+    for (const c of this.own(this.data.slackChannels)) if (wanted.has(c.channel_id)) c.last_pulled_at = at;
   }
 
   async memberships() {
-    return this.data.slackChannelMembers
+    return this.own(this.data.slackChannelMembers)
       .map((m) => ({ channel_id: m.channel_id, user_id: m.user_id, left_at: m.left_at ?? null, first_seen_at: m.first_seen_at ?? m.imported_at ?? EPOCH }))
       .sort(byKeyThenId((m) => m.channel_id, (m) => m.user_id));
   }
 
   async upsertMemberships(rows: { channel_id: string; user_id: string; left_at: null; imported_at: string }[]) {
     for (const r of rows) {
-      const existing = this.data.slackChannelMembers.find((m) => m.channel_id === r.channel_id && m.user_id === r.user_id);
+      const existing = this.mine(this.data.slackChannelMembers).find((m) => m.channel_id === r.channel_id && m.user_id === r.user_id);
       if (existing) Object.assign(existing, { left_at: r.left_at, imported_at: r.imported_at });
-      else this.data.slackChannelMembers.push({ ...r, first_seen_at: r.imported_at });
+      else this.data.slackChannelMembers.push({ ...r, first_seen_at: r.imported_at, workspace_id: this.ws() });
     }
   }
 
   async markMembersLeft(channelId: string, userIds: string[], at: string) {
-    for (const m of this.data.slackChannelMembers) {
+    for (const m of this.own(this.data.slackChannelMembers)) {
       if (m.channel_id === channelId && userIds.includes(m.user_id)) Object.assign(m, { left_at: at, imported_at: at });
     }
   }
 
   async markMemberLeft(channelId: string, userId: string, at: string) {
-    for (const m of this.data.slackChannelMembers) {
+    for (const m of this.own(this.data.slackChannelMembers)) {
       if (m.channel_id === channelId && m.user_id === userId && !m.left_at) Object.assign(m, { left_at: at, imported_at: at });
     }
   }
 
   async recordMemberEvents(events: SlackMemberEvent[]) {
     for (const e of events) {
-      if (this.data.slackMemberEvents.some((x) => eventKey(x) === eventKey(e))) continue;
-      this.data.slackMemberEvents.push({ ...e, inviter_user_id: e.inviter_user_id ?? null, slack_ts: e.slack_ts ?? null, raw_payload: e.raw_payload ?? {} });
+      if (this.mine(this.data.slackMemberEvents).some((x) => eventKey(x) === eventKey(e))) continue;
+      this.data.slackMemberEvents.push({ ...e, workspace_id: this.ws(), inviter_user_id: e.inviter_user_id ?? null, slack_ts: e.slack_ts ?? null, raw_payload: e.raw_payload ?? {} });
     }
   }
 
   async lastMemberEvents() {
     // Oldest first; events at the same time keep the order they were recorded in (the database orders them by id).
-    const ordered = this.data.slackMemberEvents.map((e, i) => ({ e, i })).sort((a, b) => compareText(a.e.occurred_at, b.e.occurred_at) || a.i - b.i);
+    const ordered = this.own(this.data.slackMemberEvents).map((e, i) => ({ e, i })).sort((a, b) => compareText(a.e.occurred_at, b.e.occurred_at) || a.i - b.i);
     return lastEventPerUser(ordered.map(({ e }) => e));
   }
 
   async upsertEmoji(emoji: NewSlackEmoji[]) {
     for (const e of emoji) {
-      const existing = this.data.slackCustomEmoji.find((x) => x.name === e.name);
+      const existing = this.mine(this.data.slackCustomEmoji).find((x) => x.name === e.name);
       if (existing) Object.assign(existing, e);
-      else this.data.slackCustomEmoji.push({ ...e });
+      else this.data.slackCustomEmoji.push({ ...e, workspace_id: this.ws() });
     }
   }
 
   async liveEmojiNames() {
-    return this.data.slackCustomEmoji
+    return this.own(this.data.slackCustomEmoji)
       .filter((e) => !e.deleted_at)
       .map((e) => e.name)
       .sort(compareText);
@@ -520,49 +566,50 @@ export class InMemorySlackWorkspaceRepository implements SlackWorkspaceRepositor
 
   async emojiByNames(names: string[]) {
     const wanted = new Set(names);
-    return this.data.slackCustomEmoji
+    return this.own(this.data.slackCustomEmoji)
       .filter((e) => wanted.has(e.name) && !e.deleted_at)
       .map((e) => ({ name: e.name, image_url: e.image_url ?? null, alias_for: e.alias_for ?? null, image_path: e.image_path ?? null, still_path: e.still_path ?? null }))
       .sort((a, b) => compareText(a.name, b.name));
   }
 
   async emojiToCopy() {
-    return this.data.slackCustomEmoji
+    return this.own(this.data.slackCustomEmoji)
       .filter((e) => !e.deleted_at && e.image_url && e.image_url !== (e.copied_from_url ?? null))
       .map((e) => ({ name: e.name, image_url: e.image_url as string }))
       .sort((a, b) => compareText(a.name, b.name));
   }
 
   async markEmojiCopied(name: string, copy: { from: string; imagePath: string; stillPath: string | null }) {
-    const row = this.data.slackCustomEmoji.find((e) => e.name === name && e.image_url === copy.from);
+    const row = this.own(this.data.slackCustomEmoji).find((e) => e.name === name && e.image_url === copy.from);
     if (row) Object.assign(row, { image_path: copy.imagePath, still_path: copy.stillPath, copied_from_url: copy.from });
   }
 
   async markEmojiRemoved(names: string[], at: string) {
-    for (const e of this.data.slackCustomEmoji) {
+    for (const e of this.own(this.data.slackCustomEmoji)) {
       if (names.includes(e.name) && !e.deleted_at) Object.assign(e, { deleted_at: at, imported_at: at });
     }
   }
 
   async ignoredUserIds() {
-    return new Set(this.data.ignoredSlackUsers.map((u) => u.user_id));
+    return new Set(this.own(this.data.ignoredSlackUsers).map((u) => u.user_id));
   }
 
   async ignoreUser(userId: string, reason: string) {
-    if (!this.data.ignoredSlackUsers.some((u) => u.user_id === userId)) this.data.ignoredSlackUsers.push({ user_id: userId, reason });
+    if (!this.mine(this.data.ignoredSlackUsers).some((u) => u.user_id === userId)) this.data.ignoredSlackUsers.push({ user_id: userId, reason, workspace_id: this.ws() });
   }
 
   async restrictedChannels() {
-    return new Map(this.data.restrictedSlackChannels.map((r) => [r.channel_id, r.created_at]));
+    return new Map(this.own(this.data.restrictedSlackChannels).map((r) => [r.channel_id, r.created_at]));
   }
 
   async restrictChannel(channelId: string, name: string) {
-    if (!this.data.restrictedSlackChannels.some((r) => r.channel_id === channelId)) {
-      this.data.restrictedSlackChannels.push({ channel_id: channelId, name, created_at: new Date().toISOString() });
+    if (!this.mine(this.data.restrictedSlackChannels).some((r) => r.channel_id === channelId)) {
+      this.data.restrictedSlackChannels.push({ channel_id: channelId, name, created_at: new Date().toISOString(), workspace_id: this.ws() });
     }
   }
 
   async unrestrictChannel(channelId: string) {
-    this.data.restrictedSlackChannels = this.data.restrictedSlackChannels.filter((r) => r.channel_id !== channelId);
+    const gone = new Set(this.own(this.data.restrictedSlackChannels).filter((r) => r.channel_id === channelId));
+    this.data.restrictedSlackChannels = this.data.restrictedSlackChannels.filter((r) => !gone.has(r));
   }
 }

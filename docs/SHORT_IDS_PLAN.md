@@ -126,6 +126,8 @@ uniqueness against Tier 1.
 | `slack_channels` | `slch_` | `zoom_meetings` | `zmtg_` |
 | `slack_messages` | `slmsg_` | `zoom_participant_events` | `zmpev_` |
 
+`public.slack_workspaces` (the Slack workspaces the Billie Bot app is installed in, `docs/SLACK_WORKSPACES.md`) was born with a prefix: `slws_`.
+
 Not in the list: tables keyed by something other than a server-generated uuid (see "Ids we
 don't generate"). Tier 2 ids
 are never shown to a person (see "Rule: Tier 2 ids are never exposed"). If a table needs to be,

@@ -31,6 +31,7 @@ import { createRepos } from "@/lib/data/repos";
 
 const SECRET = "test-slack-secret";
 const CHANNEL = "C_SIDE_UNFURL";
+const TEAM = "T_SIDE_UNFURL";
 const ONE = "https://example.test/one";
 const TWO = "https://example.test/two";
 const TEXT = `look ${ONE} and ${TWO}`;
@@ -39,7 +40,7 @@ const preview = (messageId: string, url: string) =>
   ({ message_id: messageId, position: 0, url, final_url: null, kind: "link", status: "ok", title: `Page ${url}`, description: null, site_name: null, image_url: null, fetched_at: "2026-01-01T00:00:00Z" }) as never;
 
 async function send(event: Record<string, unknown>) {
-  const body = JSON.stringify({ type: "event_callback", event });
+  const body = JSON.stringify({ type: "event_callback", team_id: TEAM, event });
   const timestamp = Math.floor(Date.now() / 1000).toString();
   const signature = "v0=" + createHmac("sha256", SECRET).update(`v0:${timestamp}:${body}`).digest("hex");
   const response = await POST(
@@ -55,6 +56,7 @@ async function send(event: Record<string, unknown>) {
 
 function seed(rows: { id: string; ts: string; origin: "app" | "slack"; before: unknown[]; previews: string[] }[]) {
   dataset = new InMemoryDataset({
+    slackWorkspaces: [{ id: "slws_AAAAAAAAAAA1", team_id: TEAM, name: "Primary", url: null, is_primary: true, created_at: "2026-01-01T00:00:00Z", deleted_at: null }],
     slackMessages: rows.map((r) => ({ channel_id: CHANNEL, message_ts: r.ts, user_id: "U1", occurred_at: "2026-01-01T00:00:00Z", raw_payload: { text: TEXT, attachments: r.before } }) as never),
     chatChannels: [{ id: "chn_AAAAAAAAAAC1", slack_channel_id: CHANNEL } as never],
     chatMessages: rows.map((r) => ({ id: r.id, channel_id: "chn_AAAAAAAAAAC1", origin: r.origin, slack_ts: r.ts, author_member_id: "mbr_AAAAAAAAAAA1", deleted_at: null }) as never),

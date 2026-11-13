@@ -61,7 +61,7 @@ export type SlackFile = Pick<
 };
 
 /** A file as the in-memory dataset keeps it. */
-export type SlackFileSeed = Pick<SlackFile, "file_id" | "channel_id" | "message_ts"> & Partial<Omit<SlackFile, "file_id" | "channel_id" | "message_ts">> & { copied_at?: string | null };
+export type SlackFileSeed = Pick<SlackFile, "file_id" | "channel_id" | "message_ts"> & Partial<Omit<SlackFile, "file_id" | "channel_id" | "message_ts">> & { copied_at?: string | null; workspace_id?: string };
 
 /** The columns of a file the copy and cleanup steps change. */
 export type SlackFileChange = Partial<Pick<FileTable["Row"], "copy_error" | "storage_path" | "copied_at" | "deleted_at">>;
@@ -74,6 +74,7 @@ export type SlackMessageEngagementRow = {
   deleted_at: string | null;
   user_id: string;
   thread_ts: string | null;
+  workspace_id: string;
 };
 
 /** What the engagement stats read of a reaction. */
@@ -84,10 +85,11 @@ export type SlackReactionEngagementRow = {
   deleted_at: string | null;
   user_id: string;
   reaction: string;
+  workspace_id: string;
 };
 
 /** When a message happened, in which channel (what the archival candidates are judged by). */
-export type SlackMessageTime = { channel_id: string; occurred_at: string };
+export type SlackMessageTime = { channel_id: string; occurred_at: string; workspace_id: string };
 
 /** When one person last wrote in one Slack conversation: who and when, never what (`lastWritesIn`). */
 export type SlackLastWrite = { channel_id: string; user_id: string; last_at: string };
@@ -189,7 +191,20 @@ const reactionKeyOf = (r: ReactionKey) => `${r.channel_id}|${r.message_ts}|${r.r
 const sameReaction = (a: ReactionKey, b: ReactionKey) => reactionKeyOf(a) === reactionKeyOf(b);
 
 export class SupabaseSlackMessageRepository implements SlackMessageRepository {
-  constructor(private readonly db: Db) {}
+  /** `workspaceId` scopes reads and writes to one Slack workspace; unscoped reads see every workspace, writes land in the primary one (see SupabaseSlackWorkspaceRepository). */
+  constructor(private readonly db: Db, private readonly workspaceId?: string) {}
+
+  private inScope<Q extends { eq(column: string, value: string): Q }>(query: Q): Q {
+    return this.workspaceId ? query.eq("workspace_id", this.workspaceId) : query;
+  }
+
+  private stamp<T extends object>(rows: T[]): (T & { workspace_id?: string })[] {
+    return this.workspaceId ? rows.map((r) => ({ ...r, workspace_id: this.workspaceId })) : rows;
+  }
+
+  private key(columns: string): string {
+    return this.workspaceId ? `workspace_id,${columns}` : columns;
+  }
 
   private get bronze() {
     return this.db.schema("bronze");
@@ -197,7 +212,7 @@ export class SupabaseSlackMessageRepository implements SlackMessageRepository {
 
   async messageCountsByUser() {
     const rows = await fetchAllRows<{ user_id: string | null }>((from, to) =>
-      this.bronze.from("slack_messages_meta").select("user_id").order("channel_id").order("message_ts").range(from, to)
+      this.inScope(this.bronze.from("slack_messages_meta").select("user_id")).order("channel_id").order("message_ts").range(from, to)
     );
     const counts = new Map<string, number>();
     for (const row of rows) if (row.user_id) counts.set(row.user_id, (counts.get(row.user_id) ?? 0) + 1);
@@ -206,8 +221,8 @@ export class SupabaseSlackMessageRepository implements SlackMessageRepository {
 
   async lastImportedAt() {
     const [message, reaction] = await Promise.all([
-      this.bronze.from("slack_messages_meta").select("imported_at").order("imported_at", { ascending: false }).limit(1).maybeSingle(),
-      this.bronze.from("slack_reactions").select("imported_at").order("imported_at", { ascending: false }).limit(1).maybeSingle(),
+      this.inScope(this.bronze.from("slack_messages_meta").select("imported_at")).order("imported_at", { ascending: false }).limit(1).maybeSingle(),
+      this.inScope(this.bronze.from("slack_reactions").select("imported_at")).order("imported_at", { ascending: false }).limit(1).maybeSingle(),
     ]);
     const times = [must(message)?.imported_at, must(reaction)?.imported_at].filter((t): t is string => !!t);
     return times.sort().pop() ?? null;
@@ -216,9 +231,8 @@ export class SupabaseSlackMessageRepository implements SlackMessageRepository {
   async liveMessagesBetween(from: string, to: string) {
     return fetchAllRows<SlackMessageEngagementRow>((first, last) =>
       messageOrder(
-          this.bronze
-            .from("slack_messages_meta")
-            .select("channel_id, channel_name, occurred_at, deleted_at, user_id, thread_ts")
+          this.inScope(this.bronze
+            .from("slack_messages_meta").select("channel_id, channel_name, occurred_at, deleted_at, user_id, thread_ts, workspace_id"))
             .gte("occurred_at", from)
             .lte("occurred_at", to)
             .is("deleted_at", null)
@@ -229,9 +243,8 @@ export class SupabaseSlackMessageRepository implements SlackMessageRepository {
 
   async liveReactionsBetween(from: string, to: string) {
     return fetchAllRows<SlackReactionEngagementRow>((first, last) =>
-      this.bronze
-          .from("slack_reactions")
-          .select("channel_id, channel_name, occurred_at, deleted_at, user_id, reaction")
+      this.inScope(this.bronze
+          .from("slack_reactions").select("channel_id, channel_name, occurred_at, deleted_at, user_id, reaction, workspace_id"))
           .gte("occurred_at", from)
           .lte("occurred_at", to)
           .is("deleted_at", null)
@@ -246,24 +259,23 @@ export class SupabaseSlackMessageRepository implements SlackMessageRepository {
 
   async liveMessageTimes() {
     return fetchAllRows<SlackMessageTime>((first, last) =>
-      messageOrder(this.bronze.from("slack_messages_meta").select("channel_id, occurred_at").is("deleted_at", null).or(NOT_SYSTEM)).range(first, last).overrideTypes<SlackMessageTime[], { merge: false }>() // view columns are all nullable in the generated types
+      messageOrder(this.inScope(this.bronze.from("slack_messages_meta").select("channel_id, occurred_at, workspace_id")).is("deleted_at", null).or(NOT_SYSTEM)).range(first, last).overrideTypes<SlackMessageTime[], { merge: false }>() // view columns are all nullable in the generated types
     );
   }
 
   async upsertMessages(messages: NewSlackMessage[]) {
     // Small chunks, two at a time: each upsert is one statement under the API role's 8s statement timeout.
-    await upsertInChunks(this.bronze.from("slack_messages"), messages, "channel_id,message_ts", 100, 2);
+    await upsertInChunks(this.bronze.from("slack_messages"), this.stamp(messages), this.key("channel_id,message_ts"), 100, 2);
   }
 
   async upsertReactions(reactions: NewSlackReaction[]) {
-    await upsertInChunks(this.bronze.from("slack_reactions"), reactions, "channel_id,message_ts,reaction,user_id", 100, 2);
+    await upsertInChunks(this.bronze.from("slack_reactions"), this.stamp(reactions), this.key("channel_id,message_ts,reaction,user_id"), 100, 2);
   }
 
   async editMessage(channelId: string, messageTs: string, edit: SlackMessageEdit) {
     must(
-      await this.bronze
-        .from("slack_messages")
-        .update({ ...edit, files: asJson(edit.files), raw_payload: asJson(edit.raw_payload) })
+      await this.inScope(this.bronze
+        .from("slack_messages").update({ ...edit, files: asJson(edit.files), raw_payload: asJson(edit.raw_payload) }))
         .eq("channel_id", channelId)
         .eq("message_ts", messageTs)
     );
@@ -271,15 +283,14 @@ export class SupabaseSlackMessageRepository implements SlackMessageRepository {
 
   async markMessagesDeleted(channelId: string, messageTs: string[], at: string) {
     for (const part of chunk(messageTs, TS_CHUNK)) {
-      must(await this.bronze.from("slack_messages").update({ deleted_at: at }).eq("channel_id", channelId).in("message_ts", part).is("deleted_at", null));
+      must(await this.inScope(this.bronze.from("slack_messages").update({ deleted_at: at })).eq("channel_id", channelId).in("message_ts", part).is("deleted_at", null));
     }
   }
 
   async markReactionRemoved(key: ReactionKey, at: string) {
     must(
-      await this.bronze
-        .from("slack_reactions")
-        .update({ deleted_at: at })
+      await this.inScope(this.bronze
+        .from("slack_reactions").update({ deleted_at: at }))
         .eq("channel_id", key.channel_id)
         .eq("message_ts", key.message_ts)
         .eq("reaction", key.reaction)
@@ -290,9 +301,8 @@ export class SupabaseSlackMessageRepository implements SlackMessageRepository {
 
   async storedMessagesBetween(from: string, to: string, channelId?: string) {
     return fetchAllRows<StoredSlackMessageRef>((first, last) => {
-      const query = this.bronze
-        .from("slack_messages")
-        .select("channel_id, message_ts, thread_ts, occurred_at")
+      const query = this.inScope(this.bronze
+        .from("slack_messages").select("channel_id, message_ts, thread_ts, occurred_at"))
         .gte("occurred_at", from)
         .lte("occurred_at", to)
         .is("deleted_at", null);
@@ -308,9 +318,8 @@ export class SupabaseSlackMessageRepository implements SlackMessageRepository {
     for (const part of chunk(messageTs, TS_CHUNK)) {
       keys.push(
         ...(await fetchAllRows<ReactionKey>((first, last) =>
-          this.bronze
-              .from("slack_reactions")
-              .select("channel_id, message_ts, reaction, user_id")
+          this.inScope(this.bronze
+              .from("slack_reactions").select("channel_id, message_ts, reaction, user_id"))
               .eq("channel_id", channelId)
               .in("message_ts", part)
               .is("deleted_at", null)
@@ -326,32 +335,32 @@ export class SupabaseSlackMessageRepository implements SlackMessageRepository {
 
   async storedTimestamps(channelId: string, messageTs: string[]) {
     const rows = await inChunks(messageTs, TS_CHUNK, async (part) =>
-      must(await this.bronze.from("slack_messages").select("message_ts").eq("channel_id", channelId).in("message_ts", part)) ?? []
+      must(await this.inScope(this.bronze.from("slack_messages").select("message_ts")).eq("channel_id", channelId).in("message_ts", part)) ?? []
     );
     return new Set(rows.map((r) => r.message_ts));
   }
 
   async newestTimestamp(channelId: string) {
-    const row = must(await this.bronze.from("slack_messages").select("message_ts").eq("channel_id", channelId).order("message_ts", { ascending: false }).limit(1).maybeSingle());
+    const row = must(await this.inScope(this.bronze.from("slack_messages").select("message_ts")).eq("channel_id", channelId).order("message_ts", { ascending: false }).limit(1).maybeSingle());
     return row?.message_ts ?? null;
   }
 
   async authorsByTs(channelId: string, messageTs: string[]) {
     const rows = await inChunks(messageTs, AUTHOR_CHUNK, async (part) =>
-      must(await this.bronze.from("slack_messages").select("message_ts, user_id").eq("channel_id", channelId).in("message_ts", part)) ?? []
+      must(await this.inScope(this.bronze.from("slack_messages").select("message_ts, user_id")).eq("channel_id", channelId).in("message_ts", part)) ?? []
     );
     return new Map(rows.map((r) => [r.message_ts, r.user_id]));
   }
 
   async rawPayload(channelId: string, messageTs: string) {
-    const row = must(await this.bronze.from("slack_messages").select("raw_payload").eq("channel_id", channelId).eq("message_ts", messageTs).is("deleted_at", null).maybeSingle());
+    const row = must(await this.inScope(this.bronze.from("slack_messages").select("raw_payload")).eq("channel_id", channelId).eq("message_ts", messageTs).is("deleted_at", null).maybeSingle());
     const payload = row?.raw_payload;
     return typeof payload === "object" && payload !== null && !Array.isArray(payload) ? (payload as Record<string, unknown>) : null;
   }
 
   async rawPayloads(channelId: string, messageTs: string[]) {
     const rows = await inChunks(messageTs, TS_CHUNK, async (part) =>
-      must(await this.bronze.from("slack_messages").select("message_ts, raw_payload").eq("channel_id", channelId).in("message_ts", part).is("deleted_at", null)) ?? []
+      must(await this.inScope(this.bronze.from("slack_messages").select("message_ts, raw_payload")).eq("channel_id", channelId).in("message_ts", part).is("deleted_at", null)) ?? []
     );
     const out = new Map<string, Record<string, unknown>>();
     for (const r of rows) if (typeof r.raw_payload === "object" && r.raw_payload !== null && !Array.isArray(r.raw_payload)) out.set(r.message_ts, r.raw_payload as Record<string, unknown>);
@@ -365,37 +374,37 @@ export class SupabaseSlackMessageRepository implements SlackMessageRepository {
   async recordFiles(files: NewSlackFile[]) {
     for (const part of chunk(files, 500)) {
       // ignoreDuplicates: never overwrite a row that already has its storage_path.
-      must(await this.files.upsert(part, { onConflict: "file_id", ignoreDuplicates: true }));
+      must(await this.files.upsert(this.stamp(part), { onConflict: this.key("file_id"), ignoreDuplicates: true }));
     }
   }
 
   async replaceFile(file: NewSlackFile) {
-    must(await this.files.upsert(file, { onConflict: "file_id" }));
+    must(await this.files.upsert(this.stamp([file])[0], { onConflict: this.key("file_id") }));
   }
 
   async fileById(fileId: string) {
-    return must(await this.files.select(FILE_COLUMNS).eq("file_id", fileId).maybeSingle()) as SlackFile | null;
+    return must(await this.inScope(this.files.select(FILE_COLUMNS)).eq("file_id", fileId).maybeSingle()) as SlackFile | null;
   }
 
   async updateFile(fileId: string, change: SlackFileChange) {
-    must(await this.files.update(change).eq("file_id", fileId));
+    must(await this.inScope(this.files.update(change)).eq("file_id", fileId));
   }
 
   async filesWithoutCopy() {
     return fetchAllRows<SlackFile>((first, last) =>
-      this.files.select(FILE_COLUMNS).is("storage_path", null).order("message_ts").order("file_id").range(first, last)
+      this.inScope(this.files.select(FILE_COLUMNS)).is("storage_path", null).order("message_ts").order("file_id").range(first, last)
     );
   }
 
   async liveFilesSince(oldestMessageTs: string) {
     return fetchAllRows<{ file_id: string; channel_id: string; message_ts: string }>((first, last) =>
-      this.files.select("file_id, channel_id, message_ts").is("deleted_at", null).gte("message_ts", oldestMessageTs).order("file_id").range(first, last)
+      this.inScope(this.files.select("file_id, channel_id, message_ts")).is("deleted_at", null).gte("message_ts", oldestMessageTs).order("file_id").range(first, last)
     );
   }
 
   async deletedFilesWithBytes(limit: number) {
     const rows = must(
-      await this.files.select("file_id, storage_path").not("deleted_at", "is", null).not("storage_path", "is", null).order("deleted_at").order("file_id").limit(limit)
+      await this.inScope(this.files.select("file_id, storage_path")).not("deleted_at", "is", null).not("storage_path", "is", null).order("deleted_at").order("file_id").limit(limit)
     );
     return (rows ?? []) as { file_id: string; storage_path: string }[];
   }
@@ -405,9 +414,8 @@ export class SupabaseSlackMessageRepository implements SlackMessageRepository {
     for (const part of chunk(threadTs, TS_CHUNK)) {
       rows.push(
         ...(await fetchAllRows<{ thread_ts: string; message_ts: string }>((first, last) =>
-          this.bronze
-              .from("slack_messages")
-              .select("thread_ts, message_ts")
+          this.inScope(this.bronze
+              .from("slack_messages").select("thread_ts, message_ts"))
               .eq("channel_id", channelId)
               .in("thread_ts", part)
               .is("deleted_at", null)
@@ -439,7 +447,36 @@ export class SupabaseSlackMessageRepository implements SlackMessageRepository {
 
 /** In-memory twin over an `InMemoryDataset`. */
 export class InMemorySlackMessageRepository implements SlackMessageRepository {
-  constructor(private readonly data: InMemoryDataset) {}
+  constructor(private readonly data: InMemoryDataset, private readonly workspaceId?: string) {}
+  /** An unscoped twin sees every workspace; a scoped one only its own. A seed row with no workspace belongs to the primary one. */
+  private own<T extends { workspace_id?: string | null }>(rows: T[]): T[] {
+    if (!this.workspaceId) return rows;
+    const primary = this.data.primarySlackWorkspaceId();
+    return rows.filter((r) => (r.workspace_id ?? primary) === this.workspaceId);
+  }
+
+  /** The workspace a write lands in: the scope, else the primary workspace (as the column default does). */
+  private ws(): string {
+    return this.workspaceId ?? this.data.primarySlackWorkspaceId();
+  }
+
+
+  /** The workspace a row belongs to (a seed row with none is in the primary one). */
+  private wsOf(row: { workspace_id?: string | null }): string {
+    return row.workspace_id ?? this.data.primarySlackWorkspaceId();
+  }
+
+  /** The workspace an incoming row is written to: its own, else the scope, else the primary one. */
+  private target(row: { workspace_id?: string | null }): string {
+    return row.workspace_id ?? this.ws();
+  }
+
+  /** The rows a write matches against: this workspace's, even when unscoped. */
+  private mine<T extends { workspace_id?: string | null }>(rows: T[]): T[] {
+    const primary = this.data.primarySlackWorkspaceId();
+    return rows.filter((r) => (r.workspace_id ?? primary) === this.ws());
+  }
+
 
   private memberWritten(m: SlackMessageSeed) {
     return !m.deleted_at && (m.message_type == null || !SYSTEM_SUBTYPES.includes(m.message_type));
@@ -456,18 +493,18 @@ export class InMemorySlackMessageRepository implements SlackMessageRepository {
 
   async messageCountsByUser() {
     const counts = new Map<string, number>();
-    for (const m of this.data.slackMessages) if (m.user_id) counts.set(m.user_id, (counts.get(m.user_id) ?? 0) + 1);
+    for (const m of this.own(this.data.slackMessages)) if (m.user_id) counts.set(m.user_id, (counts.get(m.user_id) ?? 0) + 1);
     return counts;
   }
 
   async lastImportedAt() {
-    const times = [...this.data.slackMessages, ...this.data.slackReactions].map((r) => r.imported_at).filter((t): t is string => !!t);
+    const times = [...this.own(this.data.slackMessages), ...this.own(this.data.slackReactions)].map((r) => r.imported_at).filter((t): t is string => !!t);
     return times.sort().pop() ?? null;
   }
 
   async liveMessagesBetween(from: string, to: string) {
     return this.byTime(
-      this.data.slackMessages
+      this.own(this.data.slackMessages)
         .filter((m) => this.memberWritten(m) && m.occurred_at >= from && m.occurred_at <= to)
         .map((m) => ({
           channel_id: m.channel_id,
@@ -477,13 +514,14 @@ export class InMemorySlackMessageRepository implements SlackMessageRepository {
           user_id: m.user_id,
           thread_ts: m.thread_ts ?? null,
           message_ts: m.message_ts,
+          workspace_id: this.wsOf(m),
         }))
     ).map(({ message_ts: _ts, ...row }) => row);
   }
 
   async liveReactionsBetween(from: string, to: string) {
     return this.byTime(
-      this.data.slackReactions
+      this.own(this.data.slackReactions)
         .filter((r) => !r.deleted_at && r.occurred_at >= from && r.occurred_at <= to)
         .map((r) => ({
           channel_id: r.channel_id,
@@ -493,6 +531,7 @@ export class InMemorySlackMessageRepository implements SlackMessageRepository {
           user_id: r.user_id,
           reaction: r.reaction,
           message_ts: r.message_ts,
+          workspace_id: this.wsOf(r),
         }))
     ).map(({ message_ts: _ts, ...row }) => row);
   }
@@ -500,47 +539,47 @@ export class InMemorySlackMessageRepository implements SlackMessageRepository {
   async upsertMessages(messages: NewSlackMessage[]) {
     for (const m of messages) {
       const { id: _id, ...fields } = m;
-      const existing = this.data.slackMessages.find((x) => x.channel_id === m.channel_id && x.message_ts === m.message_ts);
+      const existing = this.data.slackMessages.find((x) => this.wsOf(x) === this.target(m) && x.channel_id === m.channel_id && x.message_ts === m.message_ts);
       if (existing) Object.assign(existing, fields);
-      else this.data.slackMessages.push({ ...fields });
+      else this.data.slackMessages.push({ ...fields, workspace_id: this.target(m) });
     }
   }
 
   async upsertReactions(reactions: NewSlackReaction[]) {
     for (const r of reactions) {
       const { id: _id, ...fields } = r;
-      const existing = this.data.slackReactions.find((x) => sameReaction(x, r));
+      const existing = this.data.slackReactions.find((x) => this.wsOf(x) === this.target(r) && sameReaction(x, r));
       if (existing) Object.assign(existing, fields);
-      else this.data.slackReactions.push({ ...fields });
+      else this.data.slackReactions.push({ ...fields, workspace_id: this.target(r) });
     }
   }
 
   async editMessage(channelId: string, messageTs: string, edit: SlackMessageEdit) {
-    const m = this.data.slackMessages.find((x) => x.channel_id === channelId && x.message_ts === messageTs);
+    const m = this.own(this.data.slackMessages).find((x) => x.channel_id === channelId && x.message_ts === messageTs);
     if (m) Object.assign(m, edit);
   }
 
   async markMessagesDeleted(channelId: string, messageTs: string[], at: string) {
-    for (const m of this.data.slackMessages) {
+    for (const m of this.own(this.data.slackMessages)) {
       if (m.channel_id === channelId && messageTs.includes(m.message_ts) && !m.deleted_at) m.deleted_at = at;
     }
   }
 
   async markReactionRemoved(key: ReactionKey, at: string) {
-    for (const r of this.data.slackReactions) {
+    for (const r of this.own(this.data.slackReactions)) {
       if (sameReaction(r, key) && !r.deleted_at) r.deleted_at = at;
     }
   }
 
   async storedMessagesBetween(from: string, to: string, channelId?: string) {
-    return this.data.slackMessages
+    return this.own(this.data.slackMessages)
       .filter((m) => !m.deleted_at && m.occurred_at >= from && m.occurred_at <= to && (channelId === undefined || m.channel_id === channelId))
       .map((m) => ({ channel_id: m.channel_id, message_ts: m.message_ts, thread_ts: m.thread_ts ?? null, occurred_at: m.occurred_at }))
       .sort(byKeyThenId((m) => m.channel_id, (m) => m.message_ts));
   }
 
   async liveReactionsOn(channelId: string, messageTs: string[]) {
-    return this.data.slackReactions
+    return this.own(this.data.slackReactions)
       .filter((r) => r.channel_id === channelId && messageTs.includes(r.message_ts) && !r.deleted_at)
       .map(({ channel_id, message_ts, reaction, user_id }) => ({ channel_id, message_ts, reaction, user_id }))
       .sort(byKeyThenId((r) => `${r.message_ts}|${r.reaction}`, (r) => r.user_id));
@@ -548,21 +587,21 @@ export class InMemorySlackMessageRepository implements SlackMessageRepository {
 
   async storedTimestamps(channelId: string, messageTs: string[]) {
     const wanted = new Set(messageTs);
-    return new Set(this.data.slackMessages.filter((m) => m.channel_id === channelId && wanted.has(m.message_ts)).map((m) => m.message_ts));
+    return new Set(this.own(this.data.slackMessages).filter((m) => m.channel_id === channelId && wanted.has(m.message_ts)).map((m) => m.message_ts));
   }
 
   async newestTimestamp(channelId: string) {
-    const all = this.data.slackMessages.filter((m) => m.channel_id === channelId).map((m) => m.message_ts);
+    const all = this.own(this.data.slackMessages).filter((m) => m.channel_id === channelId).map((m) => m.message_ts);
     return all.length > 0 ? all.reduce((newest, ts) => (ts > newest ? ts : newest)) : null;
   }
 
   async authorsByTs(channelId: string, messageTs: string[]) {
     const wanted = new Set(messageTs);
-    return new Map(this.data.slackMessages.filter((m) => m.channel_id === channelId && wanted.has(m.message_ts)).map((m) => [m.message_ts, m.user_id]));
+    return new Map(this.own(this.data.slackMessages).filter((m) => m.channel_id === channelId && wanted.has(m.message_ts)).map((m) => [m.message_ts, m.user_id]));
   }
 
   async rawPayload(channelId: string, messageTs: string) {
-    const m = this.data.slackMessages.find((x) => x.channel_id === channelId && x.message_ts === messageTs && !x.deleted_at);
+    const m = this.own(this.data.slackMessages).find((x) => x.channel_id === channelId && x.message_ts === messageTs && !x.deleted_at);
     const payload = m?.raw_payload;
     return typeof payload === "object" && payload !== null && !Array.isArray(payload) ? (payload as Record<string, unknown>) : null;
   }
@@ -570,7 +609,7 @@ export class InMemorySlackMessageRepository implements SlackMessageRepository {
   async rawPayloads(channelId: string, messageTs: string[]) {
     const wanted = new Set(messageTs);
     const out = new Map<string, Record<string, unknown>>();
-    for (const m of this.data.slackMessages) {
+    for (const m of this.own(this.data.slackMessages)) {
       const payload = m.raw_payload;
       if (m.channel_id === channelId && wanted.has(m.message_ts) && !m.deleted_at && typeof payload === "object" && payload !== null && !Array.isArray(payload)) out.set(m.message_ts, payload as Record<string, unknown>);
     }
@@ -583,42 +622,42 @@ export class InMemorySlackMessageRepository implements SlackMessageRepository {
 
   async recordFiles(files: NewSlackFile[]) {
     for (const f of files) {
-      if (!this.data.slackFiles.some((x) => x.file_id === f.file_id)) this.data.slackFiles.push({ ...f });
+      if (!this.data.slackFiles.some((x) => this.wsOf(x) === this.target(f) && x.file_id === f.file_id)) this.data.slackFiles.push({ ...f, workspace_id: this.target(f) });
     }
   }
 
   async replaceFile(file: NewSlackFile) {
-    const existing = this.data.slackFiles.find((x) => x.file_id === file.file_id);
+    const existing = this.data.slackFiles.find((x) => this.wsOf(x) === this.target(file) && x.file_id === file.file_id);
     if (existing) Object.assign(existing, file);
-    else this.data.slackFiles.push({ ...file });
+    else this.data.slackFiles.push({ ...file, workspace_id: this.target(file) });
   }
 
   async fileById(fileId: string) {
-    const f = this.data.slackFiles.find((x) => x.file_id === fileId);
+    const f = this.own(this.data.slackFiles).find((x) => x.file_id === fileId);
     return f ? this.fileRow(f) : null;
   }
 
   async updateFile(fileId: string, change: SlackFileChange) {
-    const f = this.data.slackFiles.find((x) => x.file_id === fileId);
+    const f = this.own(this.data.slackFiles).find((x) => x.file_id === fileId);
     if (f) Object.assign(f, change);
   }
 
   async filesWithoutCopy() {
-    return this.data.slackFiles
+    return this.own(this.data.slackFiles)
       .filter((f) => !f.storage_path)
       .map((f) => this.fileRow(f))
       .sort(byKeyThenId((f) => f.message_ts, (f) => f.file_id));
   }
 
   async liveFilesSince(oldestMessageTs: string) {
-    return this.data.slackFiles
+    return this.own(this.data.slackFiles)
       .filter((f) => !f.deleted_at && f.message_ts >= oldestMessageTs)
       .map(({ file_id, channel_id, message_ts }) => ({ file_id, channel_id, message_ts }))
       .sort((a, b) => compareText(a.file_id, b.file_id));
   }
 
   async deletedFilesWithBytes(limit: number) {
-    return this.data.slackFiles
+    return this.own(this.data.slackFiles)
       .filter((f) => f.deleted_at && f.storage_path)
       .sort(byKeyThenId((f) => f.deleted_at as string, (f) => f.file_id))
       .slice(0, limit)
@@ -626,7 +665,7 @@ export class InMemorySlackMessageRepository implements SlackMessageRepository {
   }
 
   async threadMessages(channelId: string, threadTs: string[]) {
-    return this.data.slackMessages
+    return this.own(this.data.slackMessages)
       .filter((m) => m.channel_id === channelId && !m.deleted_at && m.thread_ts != null && threadTs.includes(m.thread_ts))
       .map((m) => ({ thread_ts: m.thread_ts as string, message_ts: m.message_ts }))
       .sort(byKeyThenId((m) => m.message_ts, (m) => m.thread_ts));
@@ -634,13 +673,13 @@ export class InMemorySlackMessageRepository implements SlackMessageRepository {
 
   async hasLiveActivityBetween(from: string, to: string) {
     const inRange = (r: { occurred_at: string; deleted_at?: string | null }) => !r.deleted_at && r.occurred_at >= from && r.occurred_at <= to;
-    return this.data.slackMessages.some(inRange) || this.data.slackReactions.some(inRange);
+    return this.own(this.data.slackMessages).some(inRange) || this.own(this.data.slackReactions).some(inRange);
   }
 
   async lastWritesIn(channelIds: string[]) {
     const wanted = new Set(channelIds);
     const latest = new Map<string, SlackLastWrite>();
-    for (const m of this.data.slackMessages) {
+    for (const m of this.own(this.data.slackMessages)) {
       if (!wanted.has(m.channel_id) || !this.memberWritten(m)) continue;
       const key = `${m.channel_id}|${m.user_id}`;
       const at = new Date(m.occurred_at).toISOString();
@@ -651,7 +690,7 @@ export class InMemorySlackMessageRepository implements SlackMessageRepository {
   }
 
   async liveMessageTimes() {
-    return this.byTime(this.data.slackMessages.filter((m) => this.memberWritten(m)).map((m) => ({ channel_id: m.channel_id, occurred_at: m.occurred_at, message_ts: m.message_ts }))).map(
+    return this.byTime(this.own(this.data.slackMessages).filter((m) => this.memberWritten(m)).map((m) => ({ channel_id: m.channel_id, occurred_at: m.occurred_at, message_ts: m.message_ts, workspace_id: this.wsOf(m) }))).map(
       ({ message_ts: _ts, ...row }) => row
     );
   }

@@ -47,7 +47,21 @@ describe("GET /api/oauth/slack/bot/start", () => {
     expect(url.pathname).toBe("/oauth/v2/authorize");
     expect(url.searchParams.get("state")).toBe("bot.state-1");
     expect(url.searchParams.has("user_scope")).toBe(false);
-    expect(setConnectStateCookie).toHaveBeenCalledWith("bot.");
+    expect(setConnectStateCookie).toHaveBeenCalledWith("bot.primary.");
+  });
+
+  it("installs into a new workspace (Slack asks which) or a registered one (by its Slack team id), and refuses anything else", async () => {
+    const forNew = new URL((await start(request("/api/oauth/slack/bot/start?workspace=new"))).headers.get("location") ?? "");
+    expect(setConnectStateCookie).toHaveBeenLastCalledWith("bot.new.");
+    expect(forNew.searchParams.has("team")).toBe(false);
+
+    const forTeam = new URL((await start(request("/api/oauth/slack/bot/start?workspace=T0SECOND"))).headers.get("location") ?? "");
+    expect(setConnectStateCookie).toHaveBeenLastCalledWith("bot.T0SECOND.");
+    expect(forTeam.searchParams.get("team")).toBe("T0SECOND");
+
+    setConnectStateCookie.mockClear();
+    expect((await start(request("/api/oauth/slack/bot/start?workspace=../x"))).status).toBe(400);
+    expect(setConnectStateCookie).not.toHaveBeenCalled();
   });
 
   it("refuses everyone but admins, and when Slack isn't configured", async () => {
@@ -66,7 +80,7 @@ describe("GET /api/oauth/slack/callback for a bot install", () => {
     const res = await callback(request(ok));
     expect(res.status).toBe(200);
     expect(await res.text()).toContain("Billie Bot is installed");
-    expect(completeBotInstall).toHaveBeenCalledWith({}, "code-1");
+    expect(completeBotInstall).toHaveBeenCalledWith({}, "code-1", "primary");
   });
 
   it.each([
@@ -79,6 +93,15 @@ describe("GET /api/oauth/slack/callback for a bot install", () => {
     const res = await callback(request(path));
     expect(res.status).toBe(status);
     expect(completeBotInstall).not.toHaveBeenCalled();
+  });
+
+  it("finishes an install for the workspace its state names, and says which one it was (escaped)", async () => {
+    completeBotInstall.mockResolvedValueOnce({ ok: true, botUser: "U_BOT", expiresAt: new Date("2026-11-02T00:00:00Z"), workspaceName: "Shared <b>program</b>" });
+    const res = await callback(request("/api/oauth/slack/callback?code=code-1&state=bot.new.state-1"));
+    expect(completeBotInstall).toHaveBeenCalledWith({}, "code-1", "new");
+    const html = await res.text();
+    expect(html).toContain("In Shared &#60;b&#62;program&#60;/b&#62;");
+    expect(html).not.toContain("<b>program</b>");
   });
 
   it("explains why an install was refused", async () => {

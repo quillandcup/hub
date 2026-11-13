@@ -10,13 +10,14 @@ const PRESETS = [
   { label: "Month to Date", start: mtdStart },
 ]
 
-export default function DateRangeFilter({ from, to }: { from: string; to: string }) {
+/** `keep` is other query parameters of the page to carry across a change of range (a workspace filter, say). */
+export default function DateRangeFilter({ from, to, keep }: { from: string; to: string; keep?: Record<string, string> }) {
   const router = useRouter()
   const pathname = usePathname()
   const [error, setError] = useState<string | null>(null)
 
   function navigate(newFrom: string, newTo: string) {
-    const params = new URLSearchParams({ from: newFrom, to: newTo })
+    const params = new URLSearchParams({ ...keep, from: newFrom, to: newTo })
     router.push(`${pathname}?${params}`)
   }
 

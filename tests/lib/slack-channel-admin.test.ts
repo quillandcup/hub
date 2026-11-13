@@ -116,7 +116,7 @@ describe("POST /api/data-hygiene/slack-users/skip", () => {
     expect((await post({ slack_user_id: "U_FAKE1", reason: "bot" })).status).toBe(200);
     expect((await post({ slack_user_id: "U_FAKE2", reason: "guest" })).status).toBe(200);
 
-    expect(dataset.ignoredSlackUsers).toEqual([
+    expect(dataset.ignoredSlackUsers).toMatchObject([
       { user_id: "U_FAKE1", reason: "non_member" },
       { user_id: "U_FAKE2", reason: "guest" },
     ]);

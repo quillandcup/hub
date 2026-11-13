@@ -14,6 +14,7 @@ import type { CheckinSeed, CommitmentSeed, DismissalSeed } from "./prickle-activ
 import type { HubSessionRow } from "./hub-sessions";
 import type { CalendarSourceEvent } from "./calendar-events";
 import type { FeedItemSeed, FeedTokenSeed } from "./calendar-feed";
+import { IN_MEMORY_PRIMARY_WORKSPACE_ID } from "./slack-workspaces";
 import type { SlackUserSeed } from "./slack-users";
 import type { IgnoredSlackUserSeed, RestrictedChannelSeed, SlackChannelMembershipSeed, SlackChannelSeed, SlackEmojiSeed, SlackMemberEventSeed } from "./slack-workspace";
 import type { SlackFileSeed, SlackMessageSeed, SlackReactionSeed } from "./slack-messages";
@@ -140,6 +141,8 @@ export class InMemoryDataset implements PeopleTables {
   userProfiles: UserProfileSeed[];
   /** The Bronze copy of the Google Calendar (`bronze.calendar_events`). */
   calendarEvents: CalendarSourceEvent[];
+  /** The Slack workspaces (`slack_workspaces`); the first is primary. Rows of the Slack tables with no `workspace_id` are in the primary one. */
+  slackWorkspaces: Row<"slack_workspaces">[];
   /** The Bronze copy of the workspace's Slack users (`bronze.slack_users`). */
   slackUsers: SlackUserSeed[];
   /** The Bronze copy of Slack conversations (`bronze.slack_channels`), the users admins skip (`ignored_slack_users`) and the private channels staff can't read (`restricted_slack_channels`). */
@@ -302,9 +305,14 @@ export class InMemoryDataset implements PeopleTables {
   /** The Kajabi offers that sell each event (`community_event_offers`). */
   eventOffers: EventOfferRow[];
 
+  /** The primary Slack workspace's id: what a row with no workspace belongs to. */
+  primarySlackWorkspaceId(): string {
+    return this.slackWorkspaces.find((w) => w.is_primary && !w.deleted_at)?.id ?? IN_MEMORY_PRIMARY_WORKSPACE_ID;
+  }
+
   constructor(
     init: Partial<
-      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "hubSessions" | "pushSubscriptions" | "reminderLog" | "notificationLog" | "prospects" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "eventOffers" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "slackChannels" | "ignoredSlackUsers" | "restrictedSlackChannels" | "slackChannelMembers" | "slackMemberEvents" | "slackCustomEmoji" | "slackMessages" | "slackReactions" | "slackFiles" | "ignoredZoomNames" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages" | "kajabiCourses" | "kajabiModules" | "kajabiLessons" | "kajabiLessonFiles" | "kajabiCourseOffers" | "kajabiProductProgress" | "kajabiLessonProgress" | "kajabiLessonComments" | "kajabiContacts" | "kajabiCustomers" | "kajabiPurchases" | "kajabiOffers" | "stripeCustomers" | "stripeProducts" | "stripeSubscriptions" | "kajabiMembers" | "subscriptionHistory" | "memberHiatuses" | "memberStatusOverrides" | "memberJoinDateOverrides" | "memberProfileOverrides" | "prickleCommitments" | "prickleCheckins" | "checkinDismissals" | "checkoutDismissals" | "calendarFeedTokens" | "calendarFeedItems" | "calendarSyncStates" | "courses" | "courseAddressRedirects" | "courseModules" | "courseLessons" | "courseLessonFiles" | "videos" | "videoTextTracks" | "lessonProgress" | "courseAccess" | "courseAccessGrants" | "videoWatchSegments" | "ignoredZoomAppearances" | "zoomAccounts" | "zoomDecisions" | "resendEvents" | "ambiguousZoomNames" | "memberMetrics" | "memberEngagement" | "hostVibes" | "scheduleLocks" | "checkinDmLog" | "wheelMatches" | "accessEvents" | "chatMessageVideos" | "careEngagements" | "careTrackedDms" | "memberInteractions" | "chatLinkPreviews" | "chatHiddenUnfurls" | "chatDrafts" | "adminNotes" | "joinSettings" | "segments" | "segmentMembers" | "featureFlags" | "featureFlagSegments" | "userFeaturePreviews" | "slackIdentities" | "slackSignInTokens" | "analyticsEvents" | "calendarWatchChannels" | "authUsers">
+      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "hubSessions" | "pushSubscriptions" | "reminderLog" | "notificationLog" | "prospects" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "eventOffers" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackWorkspaces" | "slackUsers" | "slackChannels" | "ignoredSlackUsers" | "restrictedSlackChannels" | "slackChannelMembers" | "slackMemberEvents" | "slackCustomEmoji" | "slackMessages" | "slackReactions" | "slackFiles" | "ignoredZoomNames" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages" | "kajabiCourses" | "kajabiModules" | "kajabiLessons" | "kajabiLessonFiles" | "kajabiCourseOffers" | "kajabiProductProgress" | "kajabiLessonProgress" | "kajabiLessonComments" | "kajabiContacts" | "kajabiCustomers" | "kajabiPurchases" | "kajabiOffers" | "stripeCustomers" | "stripeProducts" | "stripeSubscriptions" | "kajabiMembers" | "subscriptionHistory" | "memberHiatuses" | "memberStatusOverrides" | "memberJoinDateOverrides" | "memberProfileOverrides" | "prickleCommitments" | "prickleCheckins" | "checkinDismissals" | "checkoutDismissals" | "calendarFeedTokens" | "calendarFeedItems" | "calendarSyncStates" | "courses" | "courseAddressRedirects" | "courseModules" | "courseLessons" | "courseLessonFiles" | "videos" | "videoTextTracks" | "lessonProgress" | "courseAccess" | "courseAccessGrants" | "videoWatchSegments" | "ignoredZoomAppearances" | "zoomAccounts" | "zoomDecisions" | "resendEvents" | "ambiguousZoomNames" | "memberMetrics" | "memberEngagement" | "hostVibes" | "scheduleLocks" | "checkinDmLog" | "wheelMatches" | "accessEvents" | "chatMessageVideos" | "careEngagements" | "careTrackedDms" | "memberInteractions" | "chatLinkPreviews" | "chatHiddenUnfurls" | "chatDrafts" | "adminNotes" | "joinSettings" | "segments" | "segmentMembers" | "featureFlags" | "featureFlagSegments" | "userFeaturePreviews" | "slackIdentities" | "slackSignInTokens" | "analyticsEvents" | "calendarWatchChannels" | "authUsers">
 
     > &
       Partial<ZoomSeeds> &
@@ -351,6 +359,9 @@ export class InMemoryDataset implements PeopleTables {
     this.activities = (init.activities ?? []).map((row) => ({ ...row }));
     this.userProfiles = (init.userProfiles ?? []).map((row) => ({ ...row }));
     this.calendarEvents = (init.calendarEvents ?? []).map((row) => ({ ...row }));
+    this.slackWorkspaces = (init.slackWorkspaces ?? [
+      { id: IN_MEMORY_PRIMARY_WORKSPACE_ID, team_id: null, name: "Primary workspace", url: null, is_primary: true, created_at: "1970-01-01T00:00:00.000Z", deleted_at: null },
+    ]).map((row) => ({ ...row }));
     this.slackUsers = (init.slackUsers ?? []).map((row) => ({ ...row }));
     this.slackChannels = (init.slackChannels ?? []).map((row) => ({ ...row }));
     this.ignoredSlackUsers = (init.ignoredSlackUsers ?? []).map((row) => ({ ...row }));

@@ -14,6 +14,7 @@ import { InMemoryChatRepository, SupabaseChatRepository, type ChatRepository } f
 import { InMemoryAdminNoteRepository, SupabaseAdminNoteRepository, type AdminNoteRepository } from "./admin-notes";
 import { InMemoryChatDraftRepository, SupabaseChatDraftRepository, type ChatDraftRepository } from "./chat-drafts";
 import { InMemorySlackUserRepository, SupabaseSlackUserRepository, type SlackUserRepository } from "./slack-users";
+import { InMemorySlackWorkspaceRegistry, SupabaseSlackWorkspaceRegistry, type SlackWorkspaceRegistry } from "./slack-workspaces";
 import { InMemorySlackWorkspaceRepository, SupabaseSlackWorkspaceRepository, type SlackWorkspaceRepository } from "./slack-workspace";
 import { InMemorySlackMessageRepository, SupabaseSlackMessageRepository, type SlackMessageRepository } from "./slack-messages";
 import { InMemoryCalendarEventRepository, SupabaseCalendarEventRepository, type CalendarEventRepository } from "./calendar-events";
@@ -82,6 +83,8 @@ export interface Repos {
   profiles: ProfileRepository;
   calendarEvents: CalendarEventRepository;
   slackUsers: SlackUserRepository;
+  /** The Slack workspaces themselves. */
+  slackWorkspaces: SlackWorkspaceRegistry;
   slackWorkspace: SlackWorkspaceRepository;
   slackMessages: SlackMessageRepository;
   unmatchedEvents: UnmatchedEventRepository;
@@ -124,8 +127,15 @@ export interface Repos {
   authUsers: AuthUserRepository;
 }
 
+/** What `createRepos` can scope. */
+export interface RepoOptions {
+  /** Scope the Slack repositories (users, channels, messages and the rest of Bronze Slack) to this workspace (`slack_workspaces.id`): reads see only its rows, writes stamp it. Left out: reads see every workspace, writes go to the primary one. */
+  slackWorkspaceId?: string;
+}
+
 /** Repositories over one client. Which privilege they run with is the client's: user-scoped (RLS) or service role. */
-export function createRepos(db: Db): Repos {
+export function createRepos(db: Db, options: RepoOptions = {}): Repos {
+  const slackWorkspaceId = options.slackWorkspaceId;
   return {
     attendance: new SupabaseAttendanceRepository(db),
     prickles: new SupabasePrickleRepository(db),
@@ -144,9 +154,10 @@ export function createRepos(db: Db): Repos {
     directory: new SupabaseMemberDirectoryRepository(db),
     profiles: new SupabaseProfileRepository(db),
     calendarEvents: new SupabaseCalendarEventRepository(db),
-    slackUsers: new SupabaseSlackUserRepository(db),
-    slackWorkspace: new SupabaseSlackWorkspaceRepository(db),
-    slackMessages: new SupabaseSlackMessageRepository(db),
+    slackUsers: new SupabaseSlackUserRepository(db, slackWorkspaceId),
+    slackWorkspaces: new SupabaseSlackWorkspaceRegistry(db),
+    slackWorkspace: new SupabaseSlackWorkspaceRepository(db, slackWorkspaceId),
+    slackMessages: new SupabaseSlackMessageRepository(db, slackWorkspaceId),
     unmatchedEvents: new SupabaseUnmatchedEventRepository(db),
     media: new SupabaseMediaRepository(db),
     zoom: new SupabaseZoomRepository(db),
@@ -188,7 +199,8 @@ export function createRepos(db: Db): Repos {
 }
 
 /** In-memory repositories over one dataset, so joins between them work. For tests, demos and seed profiles. */
-export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDataset()): Repos {
+export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDataset(), options: RepoOptions = {}): Repos {
+  const slackWorkspaceId = options.slackWorkspaceId;
   return {
     attendance: new InMemoryAttendanceRepository(dataset),
     prickles: new InMemoryPrickleRepository(dataset),
@@ -207,9 +219,10 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     directory: new InMemoryMemberDirectoryRepository(dataset),
     profiles: new InMemoryProfileRepository(dataset),
     calendarEvents: new InMemoryCalendarEventRepository(dataset),
-    slackUsers: new InMemorySlackUserRepository(dataset),
-    slackWorkspace: new InMemorySlackWorkspaceRepository(dataset),
-    slackMessages: new InMemorySlackMessageRepository(dataset),
+    slackUsers: new InMemorySlackUserRepository(dataset, slackWorkspaceId),
+    slackWorkspaces: new InMemorySlackWorkspaceRegistry(dataset),
+    slackWorkspace: new InMemorySlackWorkspaceRepository(dataset, slackWorkspaceId),
+    slackMessages: new InMemorySlackMessageRepository(dataset, slackWorkspaceId),
     unmatchedEvents: new InMemoryUnmatchedEventRepository(dataset),
     media: new InMemoryMediaRepository(dataset),
     zoom: new InMemoryZoomRepository(dataset),

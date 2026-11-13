@@ -597,6 +597,7 @@ export type Database = {
           slack_ts: string | null
           source: string
           user_id: string
+          workspace_id: string
         }
         Insert: {
           channel_id: string
@@ -609,6 +610,7 @@ export type Database = {
           slack_ts?: string | null
           source: string
           user_id: string
+          workspace_id?: string
         }
         Update: {
           channel_id?: string
@@ -621,6 +623,7 @@ export type Database = {
           slack_ts?: string | null
           source?: string
           user_id?: string
+          workspace_id?: string
         }
         Relationships: []
       }
@@ -631,6 +634,7 @@ export type Database = {
           imported_at: string
           left_at: string | null
           user_id: string
+          workspace_id: string
         }
         Insert: {
           channel_id: string
@@ -638,6 +642,7 @@ export type Database = {
           imported_at?: string
           left_at?: string | null
           user_id: string
+          workspace_id?: string
         }
         Update: {
           channel_id?: string
@@ -645,6 +650,7 @@ export type Database = {
           imported_at?: string
           left_at?: string | null
           user_id?: string
+          workspace_id?: string
         }
         Relationships: []
       }
@@ -666,6 +672,7 @@ export type Database = {
           raw_payload: Json
           token_only: boolean
           topic: string | null
+          workspace_id: string
         }
         Insert: {
           channel_id: string
@@ -684,6 +691,7 @@ export type Database = {
           raw_payload: Json
           token_only?: boolean
           topic?: string | null
+          workspace_id?: string
         }
         Update: {
           channel_id?: string
@@ -702,6 +710,7 @@ export type Database = {
           raw_payload?: Json
           token_only?: boolean
           topic?: string | null
+          workspace_id?: string
         }
         Relationships: []
       }
@@ -716,6 +725,7 @@ export type Database = {
           imported_at: string
           name: string
           still_path: string | null
+          workspace_id: string
         }
         Insert: {
           alias_for?: string | null
@@ -727,6 +737,7 @@ export type Database = {
           imported_at?: string
           name: string
           still_path?: string | null
+          workspace_id?: string
         }
         Update: {
           alias_for?: string | null
@@ -738,6 +749,7 @@ export type Database = {
           imported_at?: string
           name?: string
           still_path?: string | null
+          workspace_id?: string
         }
         Relationships: []
       }
@@ -756,6 +768,7 @@ export type Database = {
           raw_payload: Json
           size_bytes: number | null
           storage_path: string | null
+          workspace_id: string
         }
         Insert: {
           channel_id: string
@@ -771,6 +784,7 @@ export type Database = {
           raw_payload: Json
           size_bytes?: number | null
           storage_path?: string | null
+          workspace_id?: string
         }
         Update: {
           channel_id?: string
@@ -786,6 +800,7 @@ export type Database = {
           raw_payload?: Json
           size_bytes?: number | null
           storage_path?: string | null
+          workspace_id?: string
         }
         Relationships: []
       }
@@ -811,6 +826,7 @@ export type Database = {
           user_email: string | null
           user_id: string
           user_name: string | null
+          workspace_id: string
         }
         Insert: {
           channel_id: string
@@ -833,6 +849,7 @@ export type Database = {
           user_email?: string | null
           user_id: string
           user_name?: string | null
+          workspace_id?: string
         }
         Update: {
           channel_id?: string
@@ -855,6 +872,7 @@ export type Database = {
           user_email?: string | null
           user_id?: string
           user_name?: string | null
+          workspace_id?: string
         }
         Relationships: []
       }
@@ -872,6 +890,7 @@ export type Database = {
           user_email: string | null
           user_id: string
           user_name: string | null
+          workspace_id: string
         }
         Insert: {
           channel_id: string
@@ -886,6 +905,7 @@ export type Database = {
           user_email?: string | null
           user_id: string
           user_name?: string | null
+          workspace_id?: string
         }
         Update: {
           channel_id?: string
@@ -900,6 +920,7 @@ export type Database = {
           user_email?: string | null
           user_id?: string
           user_name?: string | null
+          workspace_id?: string
         }
         Relationships: []
       }
@@ -918,6 +939,7 @@ export type Database = {
           raw_payload: Json
           real_name: string | null
           user_id: string
+          workspace_id: string
         }
         Insert: {
           copied_from_url?: string | null
@@ -933,6 +955,7 @@ export type Database = {
           raw_payload: Json
           real_name?: string | null
           user_id: string
+          workspace_id?: string
         }
         Update: {
           copied_from_url?: string | null
@@ -948,6 +971,7 @@ export type Database = {
           raw_payload?: Json
           real_name?: string | null
           user_id?: string
+          workspace_id?: string
         }
         Relationships: []
       }
@@ -1392,6 +1416,7 @@ export type Database = {
           user_email: string | null
           user_id: string | null
           user_name: string | null
+          workspace_id: string | null
         }
         Insert: {
           channel_id?: string | null
@@ -1411,6 +1436,7 @@ export type Database = {
           user_email?: string | null
           user_id?: string | null
           user_name?: string | null
+          workspace_id?: string | null
         }
         Update: {
           channel_id?: string | null
@@ -1430,6 +1456,7 @@ export type Database = {
           user_email?: string | null
           user_id?: string | null
           user_name?: string | null
+          workspace_id?: string | null
         }
         Relationships: []
       }
@@ -3577,18 +3604,29 @@ export type Database = {
           created_at: string | null
           reason: string | null
           user_id: string
+          workspace_id: string
         }
         Insert: {
           created_at?: string | null
           reason?: string | null
           user_id: string
+          workspace_id?: string
         }
         Update: {
           created_at?: string | null
           reason?: string | null
           user_id?: string
+          workspace_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "ignored_slack_users_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "slack_workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ignored_zoom_appearances: {
         Row: {
@@ -6100,6 +6138,7 @@ export type Database = {
           name: string | null
           reason: string | null
           restricted_by: string | null
+          workspace_id: string
         }
         Insert: {
           channel_id: string
@@ -6107,6 +6146,7 @@ export type Database = {
           name?: string | null
           reason?: string | null
           restricted_by?: string | null
+          workspace_id?: string
         }
         Update: {
           channel_id?: string
@@ -6114,8 +6154,17 @@ export type Database = {
           name?: string | null
           reason?: string | null
           restricted_by?: string | null
+          workspace_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "restricted_slack_channels_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "slack_workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       segment_members: {
         Row: {
@@ -6255,6 +6304,68 @@ export type Database = {
         Update: {
           held_until?: string
           lease_key?: string
+        }
+        Relationships: []
+      }
+      slack_workspace_tokens: {
+        Row: {
+          access_secret_id: string
+          expires_at: string | null
+          refresh_secret_id: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          access_secret_id: string
+          expires_at?: string | null
+          refresh_secret_id?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          access_secret_id?: string
+          expires_at?: string | null
+          refresh_secret_id?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "slack_workspace_tokens_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
+            referencedRelation: "slack_workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      slack_workspaces: {
+        Row: {
+          created_at: string
+          deleted_at: string | null
+          id: string
+          is_primary: boolean
+          name: string
+          team_id: string | null
+          url: string | null
+        }
+        Insert: {
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          is_primary?: boolean
+          name: string
+          team_id?: string | null
+          url?: string | null
+        }
+        Update: {
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          is_primary?: boolean
+          name?: string
+          team_id?: string | null
+          url?: string | null
         }
         Relationships: []
       }
@@ -7816,6 +7927,7 @@ export type Database = {
         }
       }
       prickle_starts_on: { Args: { p_prickle_id: string }; Returns: string }
+      primary_slack_workspace_id: { Args: never; Returns: string }
       project_hub_sessions: { Args: never; Returns: undefined }
       project_slack_chat_channels: {
         Args: { user_member_map: Json }
@@ -8084,6 +8196,23 @@ export type Database = {
       }
       slack_token_refresh_release: {
         Args: { p_key: string }
+        Returns: undefined
+      }
+      slack_workspace_token_get: {
+        Args: { p_workspace_id: string }
+        Returns: {
+          access_token: string
+          expires_at: string
+          refresh_token: string
+        }[]
+      }
+      slack_workspace_token_save: {
+        Args: {
+          p_access_token: string
+          p_expires_at: string
+          p_refresh_token: string
+          p_workspace_id: string
+        }
         Returns: undefined
       }
       sync_event_badge_awards: {

@@ -132,7 +132,7 @@ export function defineSlackMessageContract(name: string, setup: () => SlackMessa
       const rows = (await ctx.repo().liveMessagesBetween(DAY(10), DAY(12))).filter((r) => r.channel_id === channel);
 
       expect(rows.map((r) => ms(r.occurred_at))).toEqual([DAY(10), DAY(11), DAY(12)].map(ms));
-      expect(atMs(rows[0])).toEqual({ channel_id: channel, channel_name: "general", occurred_at: ms(DAY(10)), deleted_at: null, user_id: user, thread_ts: "1.0" });
+      expect(atMs(rows[0])).toMatchObject({ channel_id: channel, channel_name: "general", occurred_at: ms(DAY(10)), deleted_at: null, user_id: user, thread_ts: "1.0" });
       expect(Object.keys(rows[0])).not.toContain("text");
     });
 
@@ -157,7 +157,7 @@ export function defineSlackMessageContract(name: string, setup: () => SlackMessa
       const rows = (await ctx.repo().liveReactionsBetween(DAY(18), DAY(20))).filter((r) => r.channel_id === channel);
 
       expect(rows.map((r) => r.reaction)).toEqual(["a", "b"]);
-      expect(atMs(rows[1])).toEqual({ channel_id: channel, channel_name: "general", occurred_at: ms(DAY(20)), deleted_at: null, user_id: user, reaction: "b" });
+      expect(atMs(rows[1])).toMatchObject({ channel_id: channel, channel_name: "general", occurred_at: ms(DAY(20)), deleted_at: null, user_id: user, reaction: "b" });
     });
 
     it("lists the channel and time of every live, member-written message", async () => {
@@ -168,7 +168,7 @@ export function defineSlackMessageContract(name: string, setup: () => SlackMessa
 
       const rows = (await ctx.repo().liveMessageTimes()).filter((r) => r.channel_id === channel);
 
-      expect(rows.map(atMs)).toEqual([
+      expect(rows.map(atMs)).toMatchObject([
         { channel_id: channel, occurred_at: ms(DAY(24)) },
         { channel_id: channel, occurred_at: ms(DAY(25)) },
       ]);

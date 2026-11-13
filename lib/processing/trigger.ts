@@ -254,23 +254,54 @@ export async function triggerKajabiSync() {
  * failed webhook delivery would otherwise drop permanently, since Slack
  * does not replay events beyond its own short retry window.
  */
-export async function triggerSlackSync(options?: { daysBack?: number }) {
+export async function triggerSlackSync(options?: { daysBack?: number; workspace?: string }) {
   const { NextRequest } = await import('next/server');
   const { POST } = await import('@/app/api/import/slack-api/route');
-  const req = new NextRequest(new URL('http://internal/api/import/slack-api'), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-    },
-    body: JSON.stringify({ daysBack: options?.daysBack ?? 90 }),
-  });
-  const response = await POST(req);
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Slack sync failed: ${error}`);
+  const importWorkspace = async (workspace: string) => {
+    const req = new NextRequest(new URL('http://internal/api/import/slack-api'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+      },
+      body: JSON.stringify({ daysBack: options?.daysBack ?? 90, workspace }),
+    });
+    const response = await POST(req);
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Slack sync failed (${workspace}): ${error}`);
+    }
+    return response.json();
+  };
+
+  // One workspace asked for: just that one.
+  if (options?.workspace) return importWorkspace(options.workspace);
+
+  // Otherwise every registered workspace, one after the other (each import has its own time budget inside the
+  // request, see docs/SLACK_WORKSPACES.md). The result is the primary workspace's, as it always was, plus what the
+  // others returned; a workspace that fails does not stop the rest, and the failure is raised at the end.
+  const { createServiceRoleClient } = await import('@/lib/supabase/service');
+  const { createRepos } = await import('@/lib/data/repos');
+  const { ensurePrimaryWorkspace } = await import('@/lib/slack-workspaces');
+  const service = createServiceRoleClient();
+  await ensurePrimaryWorkspace(service);
+  const workspaces = await createRepos(service).slackWorkspaces.list();
+  const keyOf = (w: { team_id: string | null; is_primary: boolean }) => (w.is_primary ? 'primary' : (w.team_id as string));
+  const runnable = workspaces.filter((w) => w.is_primary || w.team_id);
+
+  const results: { workspace: string; result?: any; error?: string }[] = [];
+  for (const w of runnable.length > 0 ? runnable : [{ name: 'primary', team_id: null, is_primary: true }]) {
+    try {
+      results.push({ workspace: w.name, result: await importWorkspace(keyOf(w)) });
+    } catch (error) {
+      console.error('Slack sync failed for workspace %s:', w.name, error);
+      results.push({ workspace: w.name, error: error instanceof Error ? error.message : String(error) });
+    }
   }
-  return response.json();
+  const failed = results.filter((r) => r.error);
+  if (failed.length > 0) throw new Error(failed.map((r) => r.error).join('; '));
+  const [first, ...others] = results;
+  return others.length === 0 ? first.result : { ...first.result, otherWorkspaces: others.map((o) => ({ ...o.result, workspace: o.workspace })) };
 }
 
 /**

@@ -34,7 +34,7 @@ const nowSec = Math.floor(Date.now() / 1000)
 const originalTs = `${nowSec - 600}.000100`
 
 async function send(event: Record<string, unknown>) {
-  const body = JSON.stringify({ type: 'event_callback', event: { channel: channelId, ...event } })
+  const body = JSON.stringify({ type: 'event_callback', team_id: process.env.SLACK_TEAM_ID, event: { channel: channelId, ...event } })
   const timestamp = Math.floor(Date.now() / 1000).toString()
   const signature = 'v0=' + createHmac('sha256', 'test-slack-secret').update(`v0:${timestamp}:${body}`).digest('hex')
   const response = await POST(

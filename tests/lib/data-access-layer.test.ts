@@ -61,6 +61,8 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   // The Bronze calendar (CalendarEventRepository): every query is moved.
   calendar_events: [],
   // The Bronze Slack users (SlackUserRepository): every query is moved.
+  // The Slack workspaces (SlackWorkspaceRegistry): every query is moved.
+  slack_workspaces: [],
   slack_users: [],
   // The Bronze Slack workspace and messages (SlackWorkspaceRepository, SlackMessageRepository): every query is moved.
   slack_channels: [],

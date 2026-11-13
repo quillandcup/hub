@@ -31,6 +31,8 @@ vi.mock('@supabase/supabase-js', () => ({
   })),
 }))
 
+// The workspace lookup is covered in tests/lib/slack-workspaces.test.ts; here the Supabase client is a stub that only upserts.
+vi.mock('@/lib/slack-workspaces', () => ({ resolveWebhookWorkspace: vi.fn(async () => ({ id: 'slws_AAAAAAAAAAA1' })) }))
 vi.mock('@/lib/slack-activity-projection', () => ({ projectSlackActivity: vi.fn(() => Promise.resolve({ messages: 0, reactions: 0 })) }))
 
 import { POST } from '@/app/api/webhooks/slack/route'

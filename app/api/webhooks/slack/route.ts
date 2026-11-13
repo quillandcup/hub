@@ -24,6 +24,7 @@ import { clock } from "@/lib/clock";
 import { removeChatFileBytes } from "@/lib/chat/file-cleanup";
 import { isId } from "@/lib/ids";
 import { createRepos } from "@/lib/data/repos";
+import { resolveWebhookWorkspace } from "@/lib/slack-workspaces";
 import { hideHubPreviewsRemovedInSlack } from "@/lib/chat/slack-side-unfurl-removal";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -98,6 +99,13 @@ export async function POST(request: NextRequest) {
       } else {
         // A DM message delivered on behalf of a member (user_events) is kept only for members the Slack DM
         // bridge covers; everything else goes as it always has.
+        // The same app is installed in more than one workspace: the event says which (team_id). An unknown one is
+        // refused (200, so Slack doesn't retry) rather than filed under the wrong workspace.
+        const workspace = await resolveWebhookWorkspace(createServiceRoleClient(), payload.team_id);
+        if (!workspace) {
+          console.error("Slack webhook from an unregistered workspace; ignored");
+          return NextResponse.json({ received: true, ignored: "unknown_workspace" });
+        }
         const decision = await decideDmEvent(createServiceRoleClient(), payload);
         if (decision.kind === "pull") {
           const { memberId, channelId } = decision;
@@ -110,7 +118,7 @@ export async function POST(request: NextRequest) {
             }
           });
         } else if (decision.kind !== "drop") {
-          await processSlackEvent(payload.event);
+          await processSlackEvent(payload.event, workspace.id);
         }
       }
     }
@@ -136,7 +144,7 @@ export async function POST(request: NextRequest) {
 /**
  * Process Slack event and UPSERT to Bronze layer
  */
-async function processSlackEvent(event: any) {
+async function processSlackEvent(event: any, workspaceId: string) {
   // Use service role client for webhooks (no user session)
   const { createClient: createSupabaseClient } = await import('@supabase/supabase-js');
   const supabase = createSupabaseClient(
@@ -161,18 +169,18 @@ async function processSlackEvent(event: any) {
 
   try {
     if (eventType === "member_joined_channel" || eventType === "member_left_channel") {
-      await applySlackMembershipEvent(supabase, event);
+      await applySlackMembershipEvent(supabase, event, workspaceId);
     } else if (eventType === "file_deleted") {
       await applyFileDelete(supabase, event);
     } else if (eventType === "emoji_changed") {
-      await applySlackEmojiEvent(supabase, event);
+      await applySlackEmojiEvent(supabase, event, workspaceId);
       invalidateChatLookups();
     } else if (eventType === "message" && event.subtype === "message_changed") {
-      await applyMessageEdit(supabase, event);
+      await applyMessageEdit(supabase, event, workspaceId);
     } else if (eventType === "message" && event.subtype === "tombstone") {
-      await applyMessageDelete(supabase, { ...event, deleted_ts: event.ts });
+      await applyMessageDelete(supabase, { ...event, deleted_ts: event.ts }, workspaceId);
     } else if (eventType === "message" && event.subtype === "message_deleted") {
-      await applyMessageDelete(supabase, event);
+      await applyMessageDelete(supabase, event, workspaceId);
     } else if (eventType === "message" && !isKeptSlackMessage(event)) {
       // Notices the chat doesn't show aren't messages: the import skips these too.
       return;
@@ -180,9 +188,9 @@ async function processSlackEvent(event: any) {
       // UPSERT message to Bronze layer
       try {
         // Typed on write, like the import and the pulls type theirs, so nothing downstream has to fall back to the payload.
-        const channelType = await slackEventChannelType(event, async () => (await createRepos(supabase).slackWorkspace.channelById(event.channel))?.is_mpim === true);
+        const channelType = await slackEventChannelType(event, async () => (await createRepos(supabase, { slackWorkspaceId: workspaceId }).slackWorkspace.channelById(event.channel))?.is_mpim === true);
         await hideHubPreviewsRemovedInSlack(supabase, [{ channel_id: event.channel, message_ts: event.ts, raw_payload: event }]);
-        await createRepos(supabase).slackMessages.upsertMessages([
+        await createRepos(supabase, { slackWorkspaceId: workspaceId }).slackMessages.upsertMessages([
           {
             channel_id: event.channel,
             ...(channelType ? { channel_type: channelType } : {}),
@@ -206,7 +214,7 @@ async function processSlackEvent(event: any) {
       // A "joined the channel" / "left the channel" notice is shown as a line in the chat, and is also
       // membership history, so it's recorded as that too.
       const notice = slackMemberNoticeEvent(event, event.channel);
-      if (notice) await recordSlackMemberEvents(supabase, [notice]);
+      if (notice) await recordSlackMemberEvents(supabase, [notice], workspaceId);
 
       // Wheel of Wonder: track messages toward a "confirmed connection"
       // (never counting the bot's own message — Slack message events carry
@@ -225,7 +233,7 @@ async function processSlackEvent(event: any) {
     } else if (eventType === "reaction_added") {
       // UPSERT reaction to Bronze layer
       try {
-        await createRepos(supabase).slackMessages.upsertReactions([
+        await createRepos(supabase, { slackWorkspaceId: workspaceId }).slackMessages.upsertReactions([
           {
             channel_id: event.item.channel,
             message_ts: event.item.ts,
@@ -250,7 +258,7 @@ async function processSlackEvent(event: any) {
       // Soft delete: the row stays, marked with when it was taken back. Silver
       // processing and the admin stats skip rows with deleted_at set.
       try {
-        await createRepos(supabase).slackMessages.markReactionRemoved(
+        await createRepos(supabase, { slackWorkspaceId: workspaceId }).slackMessages.markReactionRemoved(
           { channel_id: event.item.channel, message_ts: event.item.ts, user_id: event.user, reaction: event.reaction },
           new Date(parseFloat(event.event_ts) * 1000).toISOString()
         );
@@ -276,11 +284,11 @@ async function processSlackEvent(event: any) {
  * stored message if we have it. Messages we don't have yet are left to the
  * nightly import, which stores the edited text.
  */
-async function applyMessageEdit(supabase: SupabaseClient, event: any) {
+async function applyMessageEdit(supabase: SupabaseClient, event: any, workspaceId: string) {
   const message = event.message;
   if (!message?.ts) return;
   if (message.subtype === "tombstone") {
-    await applyMessageDelete(supabase, { ...event, deleted_ts: message.ts });
+    await applyMessageDelete(supabase, { ...event, deleted_ts: message.ts }, workspaceId);
     return;
   }
 
@@ -288,7 +296,7 @@ async function applyMessageEdit(supabase: SupabaseClient, event: any) {
   await hideHubPreviewsRemovedInSlack(supabase, [{ channel_id: event.channel, message_ts: message.ts, raw_payload: message }]);
 
   try {
-    await createRepos(supabase).slackMessages.editMessage(event.channel, message.ts, {
+    await createRepos(supabase, { slackWorkspaceId: workspaceId }).slackMessages.editMessage(event.channel, message.ts, {
       text: message.text ?? "",
       // A message_changed that is not an edit (Slack filling in a link preview, or an app updating its own message)
       // has no `edited`: it must not clear the time of an earlier real edit.
@@ -309,7 +317,7 @@ async function applyMessageEdit(supabase: SupabaseClient, event: any) {
  * A message_deleted event names the deleted message by event.deleted_ts.
  * Soft delete: Silver processing skips rows with deleted_at set.
  */
-async function applyMessageDelete(supabase: SupabaseClient, event: any) {
+async function applyMessageDelete(supabase: SupabaseClient, event: any, workspaceId: string) {
   const deletedTs = event.deleted_ts ?? event.previous_message?.ts;
   if (!deletedTs) return;
 
@@ -323,7 +331,7 @@ async function applyMessageDelete(supabase: SupabaseClient, event: any) {
   }
 
   try {
-    await createRepos(supabase).slackMessages.markMessagesDeleted(event.channel, [deletedTs], slackTsToIso(event.event_ts ?? event.ts));
+    await createRepos(supabase, { slackWorkspaceId: workspaceId }).slackMessages.markMessagesDeleted(event.channel, [deletedTs], slackTsToIso(event.event_ts ?? event.ts));
   } catch (error) {
     console.error("Error applying Slack message delete:", error);
     return;

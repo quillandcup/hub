@@ -1,7 +1,7 @@
 import { copySlackAvatars } from "@/lib/chat/avatar-copy";
 import { copyEmojiImages } from "@/lib/chat/emoji-copy";
 import { invalidateChatLookups } from "@/lib/chat/invalidate-lookups";
-import { createRepos } from "@/lib/data/repos";
+import { createRepos, type Repos } from "@/lib/data/repos";
 import { WebClient } from "@slack/web-api";
 import { createSlackClient } from "@/lib/slack-client";
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -38,6 +38,7 @@ import {
 } from '@/lib/slack-capture';
 import { removeFilesGoneFromSlack } from '@/lib/chat/file-cleanup';
 import { getSlackBotToken } from '@/lib/slack-bot-token';
+import { ensurePrimaryWorkspace } from '@/lib/slack-workspaces';
 
 export const maxDuration = 300; // 5 minutes for Slack API calls
 
@@ -54,6 +55,8 @@ const FILE_COPY_DEADLINE_MS = 260_000;
 
 interface SlackApiImportRequest {
   daysBack: number;
+  /** Which Slack workspace to import: its Slack team id, or "primary" (the default). One workspace per request, so each has the whole time budget. */
+  workspace?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -65,20 +68,26 @@ export async function POST(request: NextRequest) {
   const supabase = createServiceRoleClient();
 
   try {
-    const SLACK_BOT_TOKEN = await getSlackBotToken();
-
-    if (!SLACK_BOT_TOKEN) {
-      return NextResponse.json(
-        { error: "SLACK_BOT_TOKEN environment variable not configured" },
-        { status: 500 }
-      );
-    }
-
     const startedAt = clock.now();
     const parsed = await request.json().catch(() => undefined);
     if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     const body: SlackApiImportRequest = parsed;
     const daysBack = body.daysBack || 7;
+
+    // The workspace to import, and its bot token (the primary's stays where it always was).
+    const requested = body.workspace ?? "primary";
+    const workspace = requested === "primary" ? await ensurePrimaryWorkspace(supabase) : await createRepos(supabase).slackWorkspaces.byTeamId(requested);
+    if (!workspace) return NextResponse.json({ error: `Unknown Slack workspace: ${requested}` }, { status: 400 });
+    const SLACK_BOT_TOKEN = await getSlackBotToken(supabase, workspace);
+
+    if (!SLACK_BOT_TOKEN) {
+      return NextResponse.json(
+        { error: `No Slack bot token is stored for workspace ${workspace.name}` },
+        { status: 500 }
+      );
+    }
+    // Every Bronze read and write of this import is for this workspace.
+    const repos = createRepos(supabase, { slackWorkspaceId: workspace.id });
 
     console.log(`Fetching ${daysBack} days of Slack data from API`);
 
@@ -140,7 +149,7 @@ export async function POST(request: NextRequest) {
     // half of all messages) need one conversations.replies call per thread, so
     // only threads that changed (or are still active) are fetched.
     const parents = allMessages.filter(m => m.reply_count > 0);
-    const storedReplies = await loadStoredThreadReplies(supabase, parents);
+    const storedReplies = await loadStoredThreadReplies(repos, parents);
     const threads = threadsNeedingReplies(parents, storedReplies, latest - RECENT_THREAD_DAYS * 24 * 60 * 60);
     const behindCount = threads.filter(t => isThreadBehind(t, storedReplies)).length;
     console.log(`Fetching replies for ${threads.length} of ${parents.length} threads (${behindCount} behind Slack)...`);
@@ -184,20 +193,20 @@ export async function POST(request: NextRequest) {
     // Batched: a 90-day import (with thread replies) is thousands of messages
     // and 10k+ reactions, and one statement that size hits Postgres's
     // statement timeout when an admin runs the import from the page.
-    const storedUsers = await createRepos(supabase).slackUsers.list();
+    const storedUsers = await repos.slackUsers.list();
     const usersChanged = slackUsersChangedForMembers(storedUsers, users);
-    await createRepos(supabase).slackUsers.upsert(users.map(u => ({ ...u, imported_at: importTimestamp })));
+    await repos.slackUsers.upsert(users.map(u => ({ ...u, imported_at: importTimestamp })));
     // (small batches, two at a time: see the repositories' upserts)
-    await createRepos(supabase).slackWorkspace.upsertChannels(channels.map(c => ({ ...c, imported_at: importTimestamp })));
+    await repos.slackWorkspace.upsertChannels(channels.map(c => ({ ...c, imported_at: importTimestamp })));
     invalidateChatLookups();
     // Before the fetched payloads replace the stored ones: a preview Slack no longer shows on a Hub-written message was removed there.
     await hideHubPreviewsRemovedInSlack(supabase, allMessages);
-    await createRepos(supabase).slackMessages.upsertMessages(allMessages.map(m => ({ ...m, imported_at: importTimestamp })));
-    await createRepos(supabase).slackMessages.upsertReactions(allReactions.map(r => ({ ...r, imported_at: importTimestamp })));
+    await repos.slackMessages.upsertMessages(allMessages.map(m => ({ ...m, imported_at: importTimestamp })));
+    await repos.slackMessages.upsertReactions(allReactions.map(r => ({ ...r, imported_at: importTimestamp })));
 
     // Upserts can't express "this reaction was taken back", so mark stored
     // reactions on the fetched messages that Slack no longer reports (deleted_at).
-    const reactionsRemoved = await markRemovedSlackReactions(createRepos(supabase), allMessages, allReactions, importTimestamp);
+    const reactionsRemoved = await markRemovedSlackReactions(repos, allMessages, allReactions, importTimestamp);
     if (reactionsRemoved > 0) console.log(`  Marked ${reactionsRemoved} reactions removed in Slack`);
 
     // 5.5. Who is in each conversation, and the custom emoji.
@@ -218,7 +227,7 @@ export async function POST(request: NextRequest) {
     // Messages deleted in Slack: soft-deleted here, and only where this run
     // can be sure (never because a message aged out of Slack's history).
     const deletions = await capture('deleted messages', () =>
-      markMessagesDeletedInSlack(createRepos(supabase), seen, deletionInferenceWindow(oldest, latest, clock.now()), importTimestamp)
+      markMessagesDeletedInSlack(repos, seen, deletionInferenceWindow(oldest, latest, clock.now()), importTimestamp)
     );
     if (deletions) {
       if (deletions.deleted > 0) console.log(`  Marked ${deletions.deleted} messages deleted in Slack`);
@@ -232,13 +241,13 @@ export async function POST(request: NextRequest) {
     // Announced joins and leaves first, so the member list below only has to
     // account for changes nobody announced.
     const membership = await capture('channel members', async () => {
-      await recordSlackMemberEvents(supabase, memberNotices);
-      return syncChannelMembers(supabase, slack, channels, importTimestamp);
+      await recordSlackMemberEvents(supabase, memberNotices, workspace.id);
+      return syncChannelMembers(supabase, slack, channels, importTimestamp, workspace.id);
     });
     if (membership) console.log(`  Members: ${membership.members} across ${membership.channelsSynced} channels (${membership.left} left, ${membership.channelsFailed} channels failed); history: ${memberNotices.length} join/leave notices, ${membership.eventsInferred} inferred`);
     // Then our own copy of each image (and a still of an animated one): chat serves emoji from our storage, not Slack's CDN.
     const emoji = await capture('custom emoji', async () => {
-      const synced = await syncCustomEmoji(supabase, slack, importTimestamp);
+      const synced = await syncCustomEmoji(supabase, slack, importTimestamp, workspace.id);
       const copies = await copyEmojiImages(supabase);
       return { ...synced, copied: copies.copied, copyFailed: copies.failed };
     });
@@ -485,7 +494,7 @@ const THREAD_CONCURRENCY = 5;
  * threadKey. Compared with what Slack reports to decide which threads need
  * fetching.
  */
-async function loadStoredThreadReplies(supabase: SupabaseClient, parents: any[]) {
+async function loadStoredThreadReplies(repos: Repos, parents: any[]) {
   const stored = new Map<string, StoredThreadReplies>();
   const tsByChannel = new Map<string, string[]>();
   for (const p of parents) {
@@ -494,7 +503,7 @@ async function loadStoredThreadReplies(supabase: SupabaseClient, parents: any[])
     tsByChannel.set(p.channel_id, list);
   }
 
-  const messages = createRepos(supabase).slackMessages;
+  const messages = repos.slackMessages;
   for (const [channelId, threadTs] of tsByChannel) {
     for (const row of await messages.threadMessages(channelId, threadTs)) {
       if (row.message_ts === row.thread_ts) continue; // the parent itself

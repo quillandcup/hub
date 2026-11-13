@@ -329,3 +329,21 @@ export function computeTopEmoji(reactions: SlackReactionRow[], limit = 10): Emoj
     .slice(0, limit)
     .map(([emoji, count]) => ({ emoji, count }))
 }
+
+/**
+ * A Slack id is unique only within one workspace, so when engagement is combined across workspaces two channels can
+ * share an id. Rows are keyed `<workspace>:<channel>` for the stats (which group by channel id), and the channel name
+ * says which workspace it is in. A single workspace's rows are passed untouched: keys only matter when several are mixed.
+ */
+export function qualifyByWorkspace<T extends { channel_id: string; workspace_id: string }>(
+  rows: T[],
+  workspaceNames: ReadonlyMap<string, string>,
+  nameField?: "name" | "channel_name"
+): T[] {
+  return rows.map((row) => {
+    const out: Record<string, unknown> = { ...row, channel_id: `${row.workspace_id}:${row.channel_id}` }
+    const base = nameField ? (row as Record<string, unknown>)[nameField] : null
+    if (nameField && typeof base === "string") out[nameField] = `${base} (${workspaceNames.get(row.workspace_id) ?? "another workspace"})`
+    return out as T
+  })
+}

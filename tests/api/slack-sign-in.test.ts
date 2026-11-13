@@ -530,7 +530,7 @@ describe('Slack sign-in', () => {
     const eventsUrl = `${ORIGIN}/api/webhooks/slack`
 
     function homeOpened(user: string, tab = 'home') {
-      const body = JSON.stringify({ type: 'event_callback', event: { type: 'app_home_opened', user, tab } })
+      const body = JSON.stringify({ type: 'event_callback', team_id: process.env.SLACK_TEAM_ID, event: { type: 'app_home_opened', user, tab } })
       return eventsPOST(signedRequest(eventsUrl, body, 'application/json'))
     }
 

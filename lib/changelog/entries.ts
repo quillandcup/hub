@@ -2841,4 +2841,17 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "How to add a block type or a new kind of unfurl: `docs/SLACK_BRIDGED_CHAT.md`, \"Adding a block type (or a new kind of unfurl)\".",
     ].join("\n\n"),
   },
+  {
+    slug: "slack-workspaces-foundation",
+    date: "2026-11-12",
+    audience: "engineering",
+    category: "new",
+    title: "More than one Slack workspace is captured and counted",
+    summary: "The Hub now keeps each Slack workspace's messages, people and channels apart and counts them together in Slack engagement, with a filter for one workspace.",
+    body: [
+      "The Billie Bot app can be installed in more than one workspace (the community's own, and shared ones such as the 180 Program). A `slack_workspaces` table says which, every Bronze Slack row carries its `workspace_id`, and the bot token is kept per workspace (`getSlackBotToken(service, workspace?)`; no workspace means the primary one, as before). The Slack repositories scope to a workspace with `createRepos(db, { slackWorkspaceId })`; unscoped they see all of them, and writes go to the primary one.",
+      "- **A Slack id is unique only inside its workspace**: key anything that crosses workspaces by workspace and id.\n- **The webhook files an event under the workspace its `team_id` names** and refuses an unregistered one; the import takes a `workspace` and the nightly reconcile runs each.\n- **Engagement is combined**, with a workspace filter on the Slack engagement page.",
+      "What the first step did and what comes next (matching people, sign-in, notifications, the chat bridge, the admin page): `docs/SLACK_WORKSPACES.md` and `docs/TODO.md`, \"Slack workspaces\".",
+    ].join("\n\n"),
+  },
 ];

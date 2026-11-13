@@ -10,6 +10,7 @@ import {
   computeChannelEngagement,
   computeArchivalCandidates,
   computeTopEmoji,
+  qualifyByWorkspace,
   type SlackMessageRow,
   type SlackReactionRow,
   type SlackChannelRow,
@@ -19,6 +20,7 @@ import {
 import { resolveDateRange } from "@/lib/stats-date-range"
 import { createRepos } from "@/lib/data/repos"
 import { requireStaffPage } from "@/lib/admin-auth"
+import Link from "next/link"
 
 export const maxDuration = 60
 
@@ -66,14 +68,14 @@ function formatHour(h: number): string {
 export default async function SlackEngagementPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string }>
+  searchParams: Promise<{ from?: string; to?: string; workspace?: string }>
 }) {
   await requireStaffPage()
   const supabase = await createClient()
   const user = await getCurrentUser()
   if (!user) redirect("/login")
 
-  const { from: fromParam, to: toParam } = await searchParams
+  const { from: fromParam, to: toParam, workspace: workspaceParam } = await searchParams
   const { from, to, since, until } = resolveDateRange({ from: fromParam, to: toParam })
 
   const todayDate = new Date().toISOString().slice(0, 10)
@@ -81,13 +83,24 @@ export default async function SlackEngagementPage({
   const toLabel = to === todayDate ? "today" : formatDateLabel(to, "long")
   const sinceLabel = formatDateLabel(from, "short")
 
-  const repos = createRepos(supabase)
-  const [messages, reactions, channelRows, allTimeActivity] = await Promise.all([
+  // Engagement is combined across Slack workspaces unless one is chosen. The choice is in the URL as the Slack team id
+  // ("primary" while the original workspace has none recorded), never a Hub id.
+  const workspaces = await createRepos(supabase).slackWorkspaces.list()
+  const keyOf = (w: (typeof workspaces)[number]) => w.team_id ?? "primary"
+  const chosen = workspaceParam ? workspaces.find((w) => keyOf(w) === workspaceParam) : undefined
+  const repos = createRepos(supabase, chosen ? { slackWorkspaceId: chosen.id } : {})
+  const mixed = !chosen && workspaces.length > 1
+  const workspaceNames = new Map(workspaces.map((w) => [w.id, w.name]))
+  const [rawMessages, rawReactions, rawChannels, rawActivity] = await Promise.all([
     repos.slackMessages.liveMessagesBetween(since, until),
     repos.slackMessages.liveReactionsBetween(since, until),
     repos.slackWorkspace.channels(),
     repos.slackMessages.liveMessageTimes(),
   ])
+  const messages = mixed ? qualifyByWorkspace(rawMessages, workspaceNames, "channel_name") : rawMessages
+  const reactions = mixed ? qualifyByWorkspace(rawReactions, workspaceNames, "channel_name") : rawReactions
+  const channelRows = mixed ? qualifyByWorkspace(rawChannels, workspaceNames, "name") : rawChannels
+  const allTimeActivity = mixed ? qualifyByWorkspace(rawActivity, workspaceNames) : rawActivity
 
   // Group DMs and 1:1 DMs count toward the totals, but they aren't channels: keep them (and
   // their names, which list the members) out of the per-channel tables.
@@ -112,9 +125,27 @@ export default async function SlackEngagementPage({
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-1">Slack Engagement</h1>
         <p className="text-slate-600 dark:text-slate-400 text-sm mb-4">
-          Quill &amp; Cup · {fromLabel} – {toLabel}
+          Quill &amp; Cup · {chosen ? chosen.name : workspaces.length > 1 ? "All workspaces" : "Slack"} · {fromLabel} – {toLabel}
         </p>
-        <DateRangeFilter from={from} to={to} />
+        {workspaces.length > 1 && (
+          <nav aria-label="Slack workspace" className="flex flex-wrap gap-2 mb-4 text-sm">
+            {[{ key: "", label: "All workspaces" }, ...workspaces.map((w) => ({ key: keyOf(w), label: w.name }))].map(({ key, label }) => {
+              const query = new URLSearchParams({ from, to, ...(key ? { workspace: key } : {}) })
+              const active = key === (chosen ? keyOf(chosen) : "")
+              return (
+                <Link
+                  key={key || "all"}
+                  href={`/admin/insights/slack-engagement?${query}`}
+                  aria-current={active ? "page" : undefined}
+                  className={`rounded-full border px-3 py-1 ${active ? "bg-plum-600 text-white border-plum-600" : "border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300"}`}
+                >
+                  {label}
+                </Link>
+              )
+            })}
+          </nav>
+        )}
+        <DateRangeFilter from={from} to={to} keep={chosen ? { workspace: keyOf(chosen) } : undefined} />
       </div>
 
       <div className="@container">

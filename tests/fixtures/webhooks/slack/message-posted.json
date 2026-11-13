@@ -5,6 +5,7 @@
   },
   "body": {
     "type": "event_callback",
+    "team_id": "T_TEST_PRIMARY",
     "event": {
       "type": "message",
       "channel": "C123456",
