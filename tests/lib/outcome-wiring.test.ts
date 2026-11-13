@@ -81,6 +81,7 @@ const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]
   [() => import("@/app/api/media/route"), "app/api/media/route.ts", [["POST", "media_asset_uploaded"]]],
   [() => import("@/app/api/media/[id]/route"), "app/api/media/[id]/route.ts", [["PATCH", "media_asset_edited"], ["DELETE", "media_asset_deleted"]]],
   [() => import("@/app/api/media/from-event-photo/route"), "app/api/media/from-event-photo/route.ts", [["POST", "media_asset_copied_from_event"]]],
+  [() => import("@/app/(admin)/admin/hygiene/zoom-meetings/actions"), "app/(admin)/admin/hygiene/zoom-meetings/actions.ts", [["decideZoomMeetings", "zoom_meetings_decided"]]],
   [() => import("@/app/(member)/wheel-of-wonder/actions"), "app/(member)/wheel-of-wonder/actions.ts", [["spinWheel", "wheel_spun"], ["introduceOnSlack", "wheel_introduced"]]],
 ];
 

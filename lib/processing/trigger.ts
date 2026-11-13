@@ -299,7 +299,7 @@ export async function triggerCalendarSync(options: { daysBack: number; daysForwa
  * Trigger Zoom attendance import (Bronze layer import).
  * Called by the Zoom webhook to avoid VERCEL_URL deployment protection issues.
  */
-export async function triggerZoomImport(options: { fromDate: string; toDate: string }) {
+export async function triggerZoomImport(options: { fromDate: string; toDate: string; /** Only this account (its slug); every account when left out. */ account?: string }) {
   const { NextRequest } = await import('next/server');
   const { POST } = await import('@/app/api/import/zoom/route');
   const req = new NextRequest(new URL('http://internal/api/import/zoom'), {

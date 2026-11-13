@@ -178,6 +178,7 @@ export const SITE_PAGES: SitePage[] = [
   admin({ title: "Chat Gap-fills", href: "/admin/data-health/gap-fills", section: "System", keywords: ["slack", "webhook", "missed events", "catch-up"] }),
   admin({ title: "Unmatched Zoom Names", href: "/admin/hygiene/unmatched-zoom", section: "System" }),
   admin({ title: "Ambiguous Zoom Names", href: "/admin/hygiene/ambiguous-names", section: "System" }),
+  admin({ title: "Zoom Meetings", href: "/admin/hygiene/zoom-meetings", section: "System", keywords: ["zoom accounts", "ignore", "keep", "personal"] }),
   admin({ title: "Unmatched Slack Users", href: "/admin/hygiene/unmatched-slack", section: "System" }),
   admin({ title: "Members Without Slack", href: "/admin/hygiene/members-without-slack", section: "System" }),
   admin({ title: "Merge & Fix", href: "/admin/hygiene/merge-fix", section: "System", keywords: ["duplicates", "merge"] }),

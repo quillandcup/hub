@@ -378,5 +378,197 @@ export function defineZoomContract(name: string, setup: () => ZoomContractContex
       expect(again.map((m) => m.id)).toEqual(rows.map((m) => m.id));
       expect((await ctx.repo().chatMessagesSince(at(24, 0))).filter((m) => m.meeting_uuid === meeting)).toHaveLength(3);
     });
+    describe("accounts and which meetings are kept", () => {
+      let prefixCounter = 0;
+      const newAccount = (policy: "keep" | "exclude" = "exclude") =>
+        ctx.repo().createAccount({
+          slug: ctx.unique("acct"),
+          label: "Second account",
+          hostEmail: null,
+          defaultPolicy: policy,
+          credentialsPrefix: `ZCT_${Date.now()}_${++prefixCounter}`,
+        });
+      const meetingRow = (uuid: string, meetingId: string, account: string, day = 6) => ({
+        zoom_account: account,
+        meeting_uuid: uuid,
+        meeting_id: meetingId,
+        topic: `Topic ${meetingId}`,
+        start_time: at(day, 9),
+        end_time: at(day, 10),
+        data: {},
+      });
+      const seed = async (account: string, name: string, uuid: string, meetingId: string, day = 6) => {
+        await ctx.repo().upsertMeeting(meetingRow(uuid, meetingId, account, day));
+        await ctx.repo().upsertAttendees([{ ...stay(name, uuid, day), meeting_id: meetingId, zoom_account: account }]);
+      };
+      const visible = async (...names: string[]) =>
+        mine(await ctx.repo().attendeesOverlapping(at(6, 0), at(7, 0)), ...names).map((r) => r.name).sort();
+      const primaryId = async () => (await ctx.repo().accounts()).find((a) => a.slug === "primary")!.id;
+
+      it("starts with the primary account, which keeps everything, and refuses a second account with the same slug", async () => {
+        const accounts = await ctx.repo().accounts();
+        expect(accounts.find((a) => a.slug === "primary")).toMatchObject({ defaultPolicy: "keep", credentialsPrefix: "ZOOM" });
+
+        const second = await newAccount();
+        expect(second).toMatchObject({ label: "Second account", defaultPolicy: "exclude", hostEmail: null });
+        expect((await ctx.repo().accounts()).map((a) => a.id)).toContain(second.id);
+        await expect(
+          ctx.repo().createAccount({ slug: second.slug, label: "Again", hostEmail: null, defaultPolicy: "keep", credentialsPrefix: `ZCT_${Date.now()}_other` })
+        ).rejects.toThrow();
+      });
+
+      it("leaves out the meetings of an exclude account until they are kept, and takes ignored ones out of a keep account", async () => {
+        const second = await newAccount();
+        const primary = await primaryId();
+        const personal = ctx.unique("personal");
+        const community = ctx.unique("community");
+        const unwanted = ctx.unique("unwanted");
+        await seed(second.id, personal, ctx.unique("u1"), ctx.unique("mid"));
+        await seed(primary, community, ctx.unique("u2"), ctx.unique("mid"));
+        const unwantedUuid = ctx.unique("u3");
+        await seed(primary, unwanted, unwantedUuid, ctx.unique("mid"));
+
+        expect(await visible(personal, community, unwanted)).toEqual([community, unwanted].sort());
+
+        await ctx.repo().setDecision({ zoomAccount: primary, scope: "instance", zoomKey: unwantedUuid, decision: "ignored", decidedBy: null });
+        expect(await visible(personal, community, unwanted)).toEqual([community]);
+      });
+
+      it("keeps a single meeting, or every occurrence of a link, and an instance decision beats the link's", async () => {
+        const second = await newAccount();
+        const mid = ctx.unique("mid");
+        const [a, b, c] = [ctx.unique("a"), ctx.unique("b"), ctx.unique("c")];
+        const [ua, ub, uc] = [ctx.unique("ua"), ctx.unique("ub"), ctx.unique("uc")];
+        await seed(second.id, a, ua, mid);
+        await seed(second.id, b, ub, mid);
+        await seed(second.id, c, uc, ctx.unique("othermid"));
+        expect(await visible(a, b, c)).toEqual([]);
+
+        await ctx.repo().setDecision({ zoomAccount: second.id, scope: "instance", zoomKey: ua, decision: "kept", decidedBy: null });
+        expect(await visible(a, b, c)).toEqual([a]);
+
+        await ctx.repo().setDecision({ zoomAccount: second.id, scope: "series", zoomKey: mid, decision: "kept", decidedBy: null });
+        expect(await visible(a, b, c)).toEqual([a, b].sort());
+
+        // the instance decision wins over the series one, and deciding again replaces it
+        await ctx.repo().setDecision({ zoomAccount: second.id, scope: "instance", zoomKey: ub, decision: "ignored", decidedBy: null });
+        expect(await visible(a, b, c)).toEqual([a]);
+        await ctx.repo().setDecision({ zoomAccount: second.id, scope: "instance", zoomKey: ub, decision: "kept", decidedBy: null });
+        expect(await visible(a, b, c)).toEqual([a, b].sort());
+
+        // taking decisions back returns to the next rule down
+        await ctx.repo().clearDecision({ zoomAccount: second.id, scope: "instance", zoomKey: ua });
+        await ctx.repo().clearDecision({ zoomAccount: second.id, scope: "instance", zoomKey: ub });
+        expect(await visible(a, b, c)).toEqual([a, b].sort());
+        await ctx.repo().clearDecision({ zoomAccount: second.id, scope: "series", zoomKey: mid });
+        expect(await visible(a, b, c)).toEqual([]);
+      });
+
+      it("applies the same rules to every attendee read, not only the overlap list", async () => {
+        const second = await newAccount();
+        const hidden = ctx.unique("hidden");
+        const uuid = ctx.unique("uh");
+        const mid = ctx.unique("mid");
+        await seed(second.id, hidden, uuid, mid);
+
+        expect(mine(await ctx.repo().attendeesForMatching(), hidden)).toEqual([]);
+        expect(mine(await ctx.repo().attendeesSince(at(1, 0)), hidden)).toEqual([]);
+        expect(mine(await ctx.repo().attendeeNamesOverlapping(at(6, 0), at(7, 0)), hidden)).toEqual([]);
+        expect(await ctx.repo().appearancesOf([hidden])).toEqual([]);
+        expect((await ctx.repo().meetingCountsByName([hidden])).get(hidden)).toBeUndefined();
+        expect(await ctx.repo().meetingUuidsForName(hidden)).toEqual([]);
+        expect((await ctx.repo().attendeesInSessions([uuid])).get(uuid)).toBeUndefined();
+        expect(await ctx.repo().attendeesOfSessions([uuid])).toEqual([]);
+
+        await ctx.repo().setDecision({ zoomAccount: second.id, scope: "series", zoomKey: mid, decision: "kept", decidedBy: null });
+        expect(mine(await ctx.repo().attendeesForMatching(), hidden)).toHaveLength(1);
+        expect(mine(await ctx.repo().attendeesSince(at(1, 0)), hidden)).toHaveLength(1);
+        expect(mine(await ctx.repo().attendeeNamesOverlapping(at(6, 0), at(7, 0)), hidden)).toHaveLength(1);
+        expect(await ctx.repo().appearancesOf([hidden])).toHaveLength(1);
+        expect((await ctx.repo().meetingCountsByName([hidden])).get(hidden)).toBe(1);
+        expect(await ctx.repo().meetingUuidsForName(hidden)).toEqual([uuid]);
+        expect((await ctx.repo().attendeesInSessions([uuid])).get(uuid)).toHaveLength(1);
+        expect(await ctx.repo().attendeesOfSessions([uuid])).toHaveLength(1);
+      });
+
+      it("keeps live join/leave events, chat and imported hosts of an unkept meeting out of what is read", async () => {
+        const second = await newAccount();
+        const uuid = ctx.unique("live");
+        const hostId = ctx.unique("host");
+        await ctx.repo().upsertMeeting({ ...meetingRow(uuid, ctx.unique("mid"), second.id), data: { host_id: hostId } });
+        await ctx.repo().recordParticipantEvent({
+          zoom_account: second.id,
+          meeting_uuid: uuid,
+          participant_key: "pk-1",
+          participant_name: "Ada Example",
+          event: "joined",
+          event_time: at(6, 9),
+          host_id: hostId,
+          raw_payload: {},
+        });
+        await ctx.repo().recordChatMessage({ zoom_account: second.id, meeting_uuid: uuid, message_id: "c1", sent_at: at(6, 9), raw_payload: {} });
+        const events = async () => (await ctx.repo().participantEventsSince(at(6, 0))).filter((e) => e.meeting_uuid === uuid);
+        const chat = async () => (await ctx.repo().chatMessagesSince(at(6, 0))).filter((m) => m.meeting_uuid === uuid);
+
+        expect(await events()).toEqual([]);
+        expect(await chat()).toEqual([]);
+        expect((await ctx.repo().importedHostIds(at(1, 0))).has(hostId)).toBe(false);
+
+        await ctx.repo().setDecision({ zoomAccount: second.id, scope: "instance", zoomKey: uuid, decision: "kept", decidedBy: null });
+        expect(await events()).toHaveLength(1);
+        expect(await chat()).toHaveLength(1);
+        expect((await ctx.repo().importedHostIds(at(1, 0))).has(hostId)).toBe(true);
+      });
+
+      it("lists the meetings of exclude accounts for review with their state, and counts the undecided ones", async () => {
+        const second = await newAccount();
+        const [u1, u2, u3] = [ctx.unique("r1"), ctx.unique("r2"), ctx.unique("r3")];
+        const [m1, m2, m3] = [ctx.unique("mid"), ctx.unique("mid"), ctx.unique("mid")];
+        await ctx.repo().upsertMeeting(meetingRow(u1, m1, second.id, 6));
+        await ctx.repo().upsertMeeting(meetingRow(u2, m2, second.id, 8));
+        await ctx.repo().upsertMeeting(meetingRow(u3, m3, second.id, 7));
+        const primaryUuid = ctx.unique("rp");
+        await ctx.repo().upsertMeeting(meetingRow(primaryUuid, ctx.unique("mid"), await primaryId(), 9));
+        const before = await ctx.repo().undecidedMeetingCount();
+        await ctx.repo().setDecision({ zoomAccount: second.id, scope: "instance", zoomKey: u2, decision: "kept", decidedBy: null });
+        await ctx.repo().setDecision({ zoomAccount: second.id, scope: "series", zoomKey: m3, decision: "ignored", decidedBy: null });
+
+        const listed = (await ctx.repo().reviewMeetings()).filter((m) => [u1, u2, u3, primaryUuid].includes(m.meetingUuid));
+        // newest first; the primary account's meetings are not listed
+        expect(listed.map((m) => [m.meetingUuid, m.state, m.zoomAccount])).toEqual([
+          [u2, "kept", second.id],
+          [u3, "ignored", second.id],
+          [u1, "undecided", second.id],
+        ]);
+        expect(listed[0]).toMatchObject({ topic: `Topic ${m2}`, meetingId: m2, startTime: expect.stringContaining("T09:00:00") });
+        expect(await ctx.repo().undecidedMeetingCount()).toBe(before - 2);
+      });
+
+      it("gives the first start and last end of the meetings a decision covers", async () => {
+        const second = await newAccount();
+        const mid = ctx.unique("mid");
+        const [u1, u2] = [ctx.unique("s1"), ctx.unique("s2")];
+        await ctx.repo().upsertMeeting(meetingRow(u1, mid, second.id, 6));
+        await ctx.repo().upsertMeeting(meetingRow(u2, mid, second.id, 8));
+
+        const same = (a: string, b: string) => new Date(a).getTime() === new Date(b).getTime();
+        const one = await ctx.repo().meetingSpan({ zoomAccount: second.id, scope: "instance", zoomKey: u1 });
+        expect(same(one!.from, at(6, 9)) && same(one!.to, at(6, 10))).toBe(true);
+        const both = await ctx.repo().meetingSpan({ zoomAccount: second.id, scope: "series", zoomKey: mid });
+        expect(same(both!.from, at(6, 9)) && same(both!.to, at(8, 10))).toBe(true);
+        expect(await ctx.repo().meetingSpan({ zoomAccount: second.id, scope: "series", zoomKey: ctx.unique("none") })).toBeNull();
+      });
+
+      it("tags a meeting imported without an account as the primary account's", async () => {
+        const uuid = ctx.unique("legacy");
+        const mid = ctx.unique("mid");
+        await ctx.repo().upsertMeeting({ meeting_uuid: uuid, meeting_id: mid, topic: "Old import", start_time: at(6, 9), data: {} });
+        await ctx.repo().upsertAttendees([{ ...stay(ctx.unique("old"), uuid, 6), meeting_id: mid }]);
+
+        const primary = await primaryId();
+        expect(await ctx.repo().meetingSpan({ zoomAccount: primary, scope: "instance", zoomKey: uuid })).not.toBeNull();
+        expect((await ctx.repo().attendeesOfSessions([uuid])).map((r) => r.zoom_account)).toEqual([primary]);
+      });
+    });
   });
 }

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
+import { PRIMARY_ZOOM_ACCOUNT_ID } from "@/lib/zoom-accounts";
 
 // The Bronze writes go through the Zoom repository, in memory here; Zoom's own API and the downstream
 // reprocessing are faked.
@@ -18,7 +19,9 @@ vi.mock("@/lib/supabase/api-auth", () => ({
 }));
 const listMeetings = vi.fn();
 const getParticipants = vi.fn();
-vi.mock("@/lib/zoom/client", () => ({ createZoomClient: () => ({ listMeetings, getParticipants }) }));
+// One fake Zoom client per credentials prefix; a prefix with no entry is an account whose credentials are not configured.
+const clients = new Map<string, { listMeetings: typeof listMeetings; getParticipants: typeof getParticipants }>();
+vi.mock("@/lib/zoom/client", () => ({ createZoomClientForPrefix: (prefix: string) => clients.get(prefix) ?? null }));
 const triggerReprocessing = vi.fn(async (table: string) => ({ table, ok: true }));
 vi.mock("@/lib/processing/trigger", () => ({ triggerReprocessing: (table: string) => triggerReprocessing(table) }));
 
@@ -36,6 +39,8 @@ beforeEach(() => {
   admin = true;
   dataset = new InMemoryDataset();
   repos = createInMemoryRepos(dataset);
+  clients.clear();
+  clients.set("ZOOM", { listMeetings, getParticipants });
   listMeetings.mockReset().mockResolvedValue([meeting]);
   getParticipants.mockReset().mockResolvedValue([participant("Ada Example", "2026-10-01T13:05:00Z"), participant("Bea Example", "2026-10-01T13:10:00Z")]);
   triggerReprocessing.mockClear();
@@ -102,5 +107,91 @@ describe("POST /api/import/zoom", () => {
     expect(second.status).toBe(500);
     expect(await second.json()).toEqual({ error: "attendee write failed" });
     expect(triggerReprocessing).not.toHaveBeenCalled();
+  });
+
+  describe("with a second account", () => {
+    const personalMeeting = { ...meeting, uuid: "uuid-2", id: 222, topic: "Dentist call" };
+    const secondaryListMeetings = vi.fn();
+    const secondaryParticipants = vi.fn();
+    let secondaryId: string;
+
+    beforeEach(async () => {
+      secondaryListMeetings.mockReset().mockResolvedValue([personalMeeting]);
+      secondaryParticipants.mockReset().mockResolvedValue([participant("Cy Example", "2026-10-01T13:05:00Z")]);
+      const account = await repos.zoom.createAccount({ slug: "secondary", label: "Secondary", hostEmail: null, defaultPolicy: "exclude", credentialsPrefix: "ZOOM_SECONDARY" });
+      secondaryId = account.id;
+    });
+
+    it("imports every configured account, tagging each row with its account", async () => {
+      clients.set("ZOOM_SECONDARY", { listMeetings: secondaryListMeetings, getParticipants: secondaryParticipants });
+
+      const res = await post({ ...RANGE, skipProcessing: true });
+
+      expect(await res.json()).toMatchObject({
+        meetings: 2,
+        totalAttendees: 3,
+        accounts: [
+          { account: "primary", meetings: 1, attendees: 2 },
+          { account: "secondary", meetings: 1, attendees: 1 },
+        ],
+      });
+      expect(dataset.zoomMeetings.map((m) => [m.meeting_uuid, m.zoom_account])).toEqual([
+        ["uuid-1", PRIMARY_ZOOM_ACCOUNT_ID],
+        ["uuid-2", secondaryId],
+      ]);
+      expect(dataset.zoomAttendees.filter((a) => a.meeting_uuid === "uuid-2").map((a) => a.zoom_account)).toEqual([secondaryId]);
+    });
+
+    it("skips an account whose credentials are not configured, with a note, and still imports the primary one", async () => {
+      const res = await post({ ...RANGE, skipProcessing: true });
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.meetings).toBe(1);
+      expect(body.accounts).toEqual([
+        { account: "primary", meetings: 1, attendees: 2 },
+        { account: "secondary", meetings: 0, attendees: 0, skipped: expect.stringContaining("ZOOM_SECONDARY_ACCOUNT_ID") },
+      ]);
+    });
+
+    it("never lets a failing secondary account fail the primary import", async () => {
+      secondaryListMeetings.mockRejectedValue(new Error("Zoom said no"));
+      clients.set("ZOOM_SECONDARY", { listMeetings: secondaryListMeetings, getParticipants: secondaryParticipants });
+
+      const res = await post({ ...RANGE, skipProcessing: true });
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.meetings).toBe(1);
+      expect(body.accounts[1]).toMatchObject({ account: "secondary", skipped: "import failed: Zoom said no" });
+      expect(dataset.zoomMeetings.map((m) => m.meeting_uuid)).toEqual(["uuid-1"]);
+    });
+
+    it("imports only the named account when asked (a webhook names its own)", async () => {
+      clients.set("ZOOM_SECONDARY", { listMeetings: secondaryListMeetings, getParticipants: secondaryParticipants });
+
+      await post({ ...RANGE, skipProcessing: true, account: "secondary" });
+
+      expect(listMeetings).not.toHaveBeenCalled();
+      expect(dataset.zoomMeetings.map((m) => m.meeting_uuid)).toEqual(["uuid-2"]);
+    });
+
+    it("is idempotent across both accounts", async () => {
+      clients.set("ZOOM_SECONDARY", { listMeetings: secondaryListMeetings, getParticipants: secondaryParticipants });
+      await post({ ...RANGE, skipProcessing: true });
+      await post({ ...RANGE, skipProcessing: true });
+
+      expect(dataset.zoomMeetings).toHaveLength(2);
+      expect(dataset.zoomAttendees).toHaveLength(3);
+    });
+
+    it("still fails the import when the primary account has no credentials", async () => {
+      clients.delete("ZOOM");
+
+      const res = await post({ ...RANGE, skipProcessing: true });
+
+      expect(res.status).toBe(500);
+      expect((await res.json()).error).toContain("ZOOM_ACCOUNT_ID");
+    });
   });
 });
