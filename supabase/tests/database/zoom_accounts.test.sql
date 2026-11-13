@@ -41,8 +41,8 @@ INSERT INTO public.zoom_accounts (id, slug, label, default_policy, credentials_p
 VALUES ('zacc_TestSecond01', 'secondary', 'Second', 'exclude', 'ZOOM_SECONDARY');
 INSERT INTO public.zoom_meeting_decisions (zoom_account, scope, zoom_key, decision, decided_by)
 VALUES ('zacc_TestSecond01', 'instance', 'zacc-test-uuid-1', 'kept', '00000000-0000-4000-a000-00000000d2a4');
-INSERT INTO result SELECT 'admin_accounts', to_jsonb(count(*)) FROM public.zoom_accounts;
-INSERT INTO result SELECT 'admin_decisions', to_jsonb(count(*)) FROM public.zoom_meeting_decisions;
+INSERT INTO result SELECT 'admin_accounts', to_jsonb(count(*)) FROM public.zoom_accounts WHERE id IN ('zacc_Primary1Acct', 'zacc_TestSecond01');
+INSERT INTO result SELECT 'admin_decisions', to_jsonb(count(*)) FROM public.zoom_meeting_decisions WHERE zoom_account = 'zacc_TestSecond01';
 
 SELECT set_config('request.jwt.claims',
   '{"sub": "00000000-0000-4000-a000-00000000d2a1", "email": "zacc-member@example.test", "role": "authenticated"}', true);
@@ -77,7 +77,8 @@ SELECT throws_ok(
   '23514', NULL, 'the credentials prefix is an environment variable prefix');
 
 SELECT is(
-  (SELECT count(*)::int FROM public.audit_log WHERE entity_type = 'zoom_meeting_decision' AND action = 'insert'), 1,
+  (SELECT count(*)::int FROM public.audit_log WHERE entity_type = 'zoom_meeting_decision' AND action = 'insert'
+     AND entity_id IN (SELECT id::text FROM public.zoom_meeting_decisions WHERE zoom_account = 'zacc_TestSecond01')), 1,
   'a decision is audited');
 SELECT matches(
   obj_description('public.zoom_meeting_decisions'::regclass, 'pg_class'), '\[id prefix: zmdc\_\]$',
