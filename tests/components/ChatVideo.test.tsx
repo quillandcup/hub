@@ -4,28 +4,38 @@ import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const setLessonComplete = vi.hoisted(() => vi.fn());
+vi.mock("@/app/(member)/courses/actions", () => ({ setLessonComplete }));
 vi.mock("@/components/courses/LessonPlayer", () => ({
-  default: (props: { title: string; playbackId: string; lessonId?: string; chatMessageId?: string; resumeSeconds?: number; trackProgress?: boolean; autoPlay?: boolean; posterUrl?: string | null }) => (
-    <div
-      data-testid="player"
-      data-playback={props.playbackId}
-      data-lesson={props.lessonId}
-      data-message={props.chatMessageId}
-      data-resume={props.resumeSeconds}
-      data-tracking={String(Boolean(props.trackProgress))}
-      data-autoplay={String(Boolean(props.autoPlay))}
-      data-poster={props.posterUrl ?? ""}
-    >
-      {props.title}
-    </div>
-  ),
+  default: function MockPlayer(props: { title: string; playbackId: string; lessonId?: string; chatMessageId?: string; resumeSeconds?: number; trackProgress?: boolean; autoPlay?: boolean; posterUrl?: string | null }) {
+    // The real player calls autoComplete once the playhead passes ~90% of the video; the test's button stands for that.
+    const completion = useLessonCompletion();
+    return (
+      <div
+        data-testid="player"
+        data-playback={props.playbackId}
+        data-lesson={props.lessonId}
+        data-message={props.chatMessageId}
+        data-resume={props.resumeSeconds}
+        data-tracking={String(Boolean(props.trackProgress))}
+        data-autoplay={String(Boolean(props.autoPlay))}
+        data-poster={props.posterUrl ?? ""}
+      >
+        {props.title}
+        <button type="button" onClick={() => completion?.autoComplete()}>
+          watched through
+        </button>
+      </div>
+    );
+  },
 }));
+import { useLessonCompletion } from "@/components/courses/LessonCompletion";
 import ChatVideo from "@/components/chat/ChatVideo";
 
 const MESSAGE = "msg_AAAAAAAAAAA1";
 const TOKENS = { playback: "p", poster: "s", storyboard: "b" };
 const WATCHABLE = { title: "Show up for the page", courseTitle: "The Ready Writer", thumbnailUrl: "/api/courses/image/lesson/les_AAAAAAAAAAA1", canWatch: true };
-const PLAYBACK = { title: "Show up for the page", lessonId: "les_AAAAAAAAAAA1", lessonHref: "/courses/ready/lessons/les_AAAAAAAAAAA1", playbackId: "pb123", tokens: TOKENS, restricted: false, record: true, resumeSeconds: 95 };
+const PLAYBACK = { title: "Show up for the page", lessonId: "les_AAAAAAAAAAA1", lessonHref: "/courses/ready/lessons/les_AAAAAAAAAAA1", playbackId: "pb123", tokens: TOKENS, restricted: false, record: true, resumeSeconds: 95, completion: { completed: false } };
 
 const fetchMock = vi.fn();
 /** The card info (GET) and the playback links (POST), each answered with a status and body. */
@@ -38,7 +48,10 @@ function answers(info: { status: number; body?: unknown } | "fail", play?: { sta
 }
 const posts = () => fetchMock.mock.calls.filter(([, init]) => init?.method === "POST");
 
-beforeEach(() => vi.stubGlobal("fetch", fetchMock));
+beforeEach(() => {
+  vi.stubGlobal("fetch", fetchMock);
+  setLessonComplete.mockReset().mockResolvedValue({});
+});
 afterEach(() => {
   fetchMock.mockReset();
   vi.unstubAllGlobals();
@@ -180,5 +193,53 @@ describe("ChatVideo", () => {
 
     await waitFor(() => expect(container.querySelector("img")).toBeNull());
     expect(screen.getByRole("button", { name: /Play/ })).toBeInTheDocument();
+  });
+
+  describe("completing the lesson by watching on", () => {
+    const open = async (completion: { completed: boolean } | null) => {
+      answers({ status: 200, body: WATCHABLE }, { status: 200, body: { ...PLAYBACK, completion } });
+      render(<ChatVideo messageId={MESSAGE} />);
+      await userEvent.click(await screen.findByRole("button", { name: "Play Show up for the page" }));
+      await screen.findByTestId("player");
+    };
+
+    it("completes the lesson once the video is watched through, and says so", async () => {
+      await open({ completed: false });
+      expect(screen.queryByText("✓ Lesson complete")).not.toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: "watched through" }));
+
+      expect(await screen.findByText("✓ Lesson complete")).toBeInTheDocument();
+      expect(setLessonComplete).toHaveBeenCalledWith("les_AAAAAAAAAAA1", true);
+      expect(setLessonComplete).toHaveBeenCalledTimes(1);
+    });
+
+    it("says the lesson is complete when it already was, and does not complete it again", async () => {
+      await open({ completed: true });
+      expect(screen.getByText("✓ Lesson complete")).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: "watched through" }));
+
+      expect(setLessonComplete).not.toHaveBeenCalled();
+    });
+
+    it("completes nothing when the server offers no completion (sudo, no course, a lesson not open yet)", async () => {
+      await open(null);
+
+      await userEvent.click(screen.getByRole("button", { name: "watched through" }));
+
+      expect(setLessonComplete).not.toHaveBeenCalled();
+      expect(screen.queryByText("✓ Lesson complete")).not.toBeInTheDocument();
+    });
+
+    it("puts it back and shows why when the lesson can't be completed", async () => {
+      setLessonComplete.mockResolvedValue({ error: "You don't have access to this course" });
+      await open({ completed: false });
+
+      await userEvent.click(screen.getByRole("button", { name: "watched through" }));
+
+      expect(await screen.findByText("You don't have access to this course")).toBeInTheDocument();
+      expect(screen.queryByText("✓ Lesson complete")).not.toBeInTheDocument();
+    });
   });
 });

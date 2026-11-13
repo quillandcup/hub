@@ -176,8 +176,8 @@ export default async function PrivacyPage() {
             />
             <CollectRow
               what="Course videos"
-              detail="Where you stopped, which parts you watched, how fast, whether captions were on, whether the tab was in view, and your device and browser."
-              why="To pick up where you left off, and to learn which lessons work."
+              detail="Where you stopped, which parts you watched, how fast, whether captions were on, whether the tab was in view, and your device and browser. For a video shared in a chat message, also which message you watched it in. This is part of how courses work, so turning usage statistics off does not change it."
+              why="To pick up where you left off, to mark a lesson complete once you have watched it, and to learn which lessons work."
             />
             <CollectRow
               what="How well course videos play"
