@@ -16,8 +16,8 @@ import LessonStaffTools from "../../LessonStaffTools";
 import LessonMediaPanel from "./LessonMediaPanel";
 import VideoActions from "./VideoActions";
 import LessonBuilderForm from "./LessonBuilderForm";
+import { LessonSaveButton, LessonSaveProvider } from "./LessonSave";
 import LessonVideoControls from "./LessonVideoControls";
-import LessonCaptions from "./LessonCaptions";
 import { createRepos } from "@/lib/data/repos";
 import { getUserFeaturePreviews } from "@/lib/features.server";
 
@@ -64,12 +64,14 @@ async function thumbnailLinkFor(detail: AdminLessonDetail, lessonUrl: string | n
 /** What plays or says why not, and for a Hub-owned lesson the buttons that upload, replace or remove the video. */
 async function lessonMedia(detail: AdminLessonDetail, chatShare: boolean) {
   const media = await lessonPlayback(detail, chatShare);
-  if (!detail.editable) return media;
+  // With no video at all there is only the note; a Hub-owned lesson gets the upload button under it.
+  if (!detail.editable || detail.video || detail.lesson.hasVideo) return media;
   return (
     <>
       {media}
-      <LessonVideoControls courseId={detail.course.id} lessonId={detail.lesson.kajabiId} status={detail.video?.status ?? null} />
-      {detail.video?.status === "ready" && <LessonCaptions courseId={detail.course.id} lessonId={detail.lesson.kajabiId} tracks={detail.captions} />}
+      <div className="mt-3">
+        <LessonVideoControls courseId={detail.course.id} lessonId={detail.lesson.kajabiId} status={null} />
+      </div>
     </>
   );
 }
@@ -80,14 +82,20 @@ async function lessonPlayback(detail: AdminLessonDetail, chatShare: boolean) {
   const lessonUrl = hub ? `${APP_URL}/courses/${hub.slug}/lessons/${hub.lessonId}` : null;
   const statsHref = hub && video ? `/admin/courses/${course.id}/stats/${hub.lessonId}` : null;
   const { link: thumbnailLink, blocked: thumbnailLinkBlocked } = await thumbnailLinkFor(detail, lessonUrl);
+  const actionProps = { statsHref, lessonUrl, thumbnailLink, thumbnailLinkBlocked, chatShare };
+  // A Hub-owned lesson's row (replace, remove, captions) comes with the menu; an imported one's is the read-only menu.
   const actions = (
     <div className="mt-3">
-      <VideoActions statsHref={statsHref} lessonUrl={lessonUrl} thumbnailLink={thumbnailLink} thumbnailLinkBlocked={thumbnailLinkBlocked} chatShare={chatShare} />
+      {detail.editable ? (
+        <LessonVideoControls courseId={course.id} lessonId={lesson.kajabiId} status={video?.status ?? null} captions={detail.captions} actions={actionProps} />
+      ) : (
+        <VideoActions {...actionProps} />
+      )}
     </div>
   );
   if (video?.status === "ready" && video.playbackId) {
     const tokens = await mintTokens(video.playbackId);
-    if (tokens) return <LessonMediaPanel title={lesson.title} playbackId={video.playbackId} tokens={tokens} posterUrl={lesson.thumbnailSrc} lessonId={hub?.lessonId} statsHref={statsHref} lessonUrl={lessonUrl} thumbnailLink={thumbnailLink} thumbnailLinkBlocked={thumbnailLinkBlocked} chatShare={chatShare} frameThumbnail={detail.editable ? { courseId: course.id, lessonId: lesson.kajabiId } : null} />;
+    if (tokens) return <LessonMediaPanel title={lesson.title} playbackId={video.playbackId} tokens={tokens} posterUrl={lesson.thumbnailSrc} lessonId={hub?.lessonId} statsHref={statsHref} lessonUrl={lessonUrl} thumbnailLink={thumbnailLink} thumbnailLinkBlocked={thumbnailLinkBlocked} chatShare={chatShare} frameThumbnail={detail.editable ? { courseId: course.id, lessonId: lesson.kajabiId } : null} captions={detail.captions} />;
     return (
       <>
         <p role="status" className={note}>The video can&apos;t be played right now.</p>
@@ -131,7 +139,8 @@ export default async function AdminLessonPage({ params }: Params) {
 
   return (
     <>
-      <CourseBuilderBanner />
+      {!detail.editable && <CourseBuilderBanner />}
+      <LessonSaveProvider>
       <div className="@container container mx-auto max-w-6xl px-6 py-8">
         <Link href={`/admin/courses/${course.id}`} className="text-sm text-slate-600 hover:underline dark:text-slate-400">
           ← {course.title}
@@ -144,9 +153,7 @@ export default async function AdminLessonPage({ params }: Params) {
                 Preview
               </Link>
             )}
-            <button type="button" disabled className="rounded bg-plum-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50">
-              Save
-            </button>
+            <LessonSaveButton />
           </div>
         </div>
         {!detail.editable && <p className="mb-6 text-sm text-slate-600 dark:text-slate-300">Last imported from Kajabi {formatCourseDateTime(lesson.fetchedAt)}.</p>}
@@ -158,6 +165,7 @@ export default async function AdminLessonPage({ params }: Params) {
         )}
         <LessonBuilderForm detail={detail} media={media} />
       </div>
+      </LessonSaveProvider>
     </>
   );
 }

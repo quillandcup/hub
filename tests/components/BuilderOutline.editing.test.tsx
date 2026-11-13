@@ -426,3 +426,33 @@ describe("an imported course", () => {
     expect(actions.duplicateCourseItem).not.toHaveBeenCalled();
   });
 });
+
+describe("a lesson row's edit control", () => {
+  it("opens the lesson's editor page, the same page its title links to", () => {
+    render(<BuilderOutline course={course()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Expand all" }));
+    const row = screen.getByText("Lesson one").closest("li")!;
+    const href = `/admin/courses/${COURSE}/lessons/${L1}`;
+    expect(within(row).getByRole("link", { name: "Edit lesson" })).toHaveAttribute("href", href);
+    expect(within(row).getByRole("link", { name: "Lesson one" })).toHaveAttribute("href", href);
+  });
+
+  it("links to the editor before the course has a slug (a draft Hub-owned course)", () => {
+    render(<BuilderOutline course={course({ slug: null })} />);
+    fireEvent.click(screen.getByRole("button", { name: "Expand all" }));
+    const row = screen.getByText("Lesson one").closest("li")!;
+    expect(within(row).getByRole("link", { name: "Edit lesson" })).toHaveAttribute("href", `/admin/courses/${COURSE}/lessons/${L1}`);
+  });
+
+  it("keeps renaming a click away, with Rename lesson or a double-click on the title, and leaves the page where it is", async () => {
+    const user = userEvent.setup();
+    render(<BuilderOutline course={course()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Expand all" }));
+    await user.click(within(screen.getByText("Lesson one").closest("li")!).getByRole("button", { name: "Rename lesson" }));
+    expect(screen.getByRole("textbox", { name: "Lesson name" })).toHaveValue("Lesson one");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    await user.dblClick(screen.getByRole("link", { name: "Lesson two" }));
+    expect(screen.getByRole("textbox", { name: "Lesson name" })).toHaveValue("Lesson two");
+  });
+});

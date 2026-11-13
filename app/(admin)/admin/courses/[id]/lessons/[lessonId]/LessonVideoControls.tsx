@@ -1,7 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, type ComponentProps, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Modal from "@/components/Modal";
+import VideoActions from "./VideoActions";
+import FrameThumbnailButton from "./FrameThumbnailButton";
+import LessonCaptions, { type CaptionTrack } from "./LessonCaptions";
 import { refreshLessonVideo, removeLessonVideo, startLessonVideoUpload } from "../../../lesson-video-actions";
 
 const BUTTON =
@@ -10,12 +14,34 @@ const BUTTON =
 /** How often a video that is still being prepared is checked on. */
 const POLL_MS = 15_000;
 
+type VideoActionsProps = Omit<ComponentProps<typeof VideoActions>, "edit" | "seconds">;
+
 /**
+ * One compact row under a Hub-owned lesson's player: the Video actions menu on the left (replace, remove,
+ * captions, stats, links) and a quiet "Use current frame as thumbnail" on the right. Captions open in a dialog.
  * Upload, replace and remove the video of a Hub-owned lesson. The file goes from the browser straight to Mux
  * in pieces (UpChunk, so a big file survives a dropped connection); Mux then prepares it, which takes a while,
  * so the page checks on it until it is ready or has failed.
  */
-export default function LessonVideoControls({ courseId, lessonId, status }: { courseId: string; lessonId: string; status: string | null }) {
+export default function LessonVideoControls({
+  courseId,
+  lessonId,
+  status,
+  captions = [],
+  seconds = 0,
+  actions,
+  frameThumbnail = false,
+}: {
+  courseId: string;
+  lessonId: string;
+  status: string | null;
+  captions?: CaptionTrack[];
+  /** Where the player is, for the actions menu and the thumbnail. */
+  seconds?: number;
+  actions?: VideoActionsProps;
+  /** Offer "Use current frame as thumbnail" (there is a player to take it from). */
+  frameThumbnail?: boolean;
+}) {
   const router = useRouter();
   const hasVideo = status !== null;
   const input = useRef<HTMLInputElement>(null);
@@ -23,6 +49,7 @@ export default function LessonVideoControls({ courseId, lessonId, status }: { co
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [captionsOpen, setCaptionsOpen] = useState(false);
 
   const check = useCallback(async () => {
     try {
@@ -110,12 +137,25 @@ export default function LessonVideoControls({ courseId, lessonId, status }: { co
             if (file) void upload(file);
           }}
         />
-        <button type="button" className={BUTTON} disabled={uploading || busy} onClick={() => input.current?.click()}>
-          {hasVideo ? "Replace video" : "Upload video"}
-        </button>
-        {hasVideo && (
-          <button type="button" className={BUTTON} disabled={uploading || busy} onClick={remove}>
-            Remove video
+        {hasVideo && actions ? (
+          <VideoActions
+            {...actions}
+            seconds={seconds}
+            edit={{ busy: uploading || busy, onReplace: () => input.current?.click(), onRemove: remove, onCaptions: status === "ready" ? () => setCaptionsOpen(true) : undefined }}
+          />
+        ) : hasVideo ? (
+          // Without the Video actions menu (nothing to put in it), the two changes are plain buttons.
+          <>
+            <button type="button" className={BUTTON} disabled={uploading || busy} onClick={() => input.current?.click()}>
+              Replace video
+            </button>
+            <button type="button" className={BUTTON} disabled={uploading || busy} onClick={remove}>
+              Remove video
+            </button>
+          </>
+        ) : (
+          <button type="button" className={BUTTON} disabled={uploading || busy} onClick={() => input.current?.click()}>
+            Upload video
           </button>
         )}
         {waiting && (
@@ -123,6 +163,7 @@ export default function LessonVideoControls({ courseId, lessonId, status }: { co
             Check again
           </button>
         )}
+        {frameThumbnail && <div className="ml-auto"><FrameThumbnailButton courseId={courseId} lessonId={lessonId} seconds={seconds} /></div>}
       </div>
       {uploading && (
         <div className="mt-3" role="progressbar" aria-label="Upload progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}>
@@ -134,6 +175,11 @@ export default function LessonVideoControls({ courseId, lessonId, status }: { co
       )}
       {message && <p role="status" className="mt-2 text-sm text-slate-600 dark:text-slate-400">{message}</p>}
       {error && <p role="alert" className="mt-2 text-sm text-red-700 dark:text-red-300">{error}</p>}
+      <Modal isOpen={captionsOpen} onClose={() => setCaptionsOpen(false)} title="Captions" maxWidth="2xl">
+        <div className="p-6">
+          <LessonCaptions courseId={courseId} lessonId={lessonId} tracks={captions} />
+        </div>
+      </Modal>
     </div>
   );
 }

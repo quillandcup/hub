@@ -112,13 +112,18 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
   it("gives a Hub-owned lesson the buttons to upload, replace and remove its video, and an imported one none", async () => {
     loadAdminLesson.mockResolvedValue(detail({ editable: true }));
     const { unmount } = await renderServerPage(AdminLessonPage, params);
-    expect(screen.getByRole("button", { name: "Replace video" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Remove video" })).toBeInTheDocument();
+    // One compact row: the Video actions menu holds Replace video, Remove video and Captions.
+    expect(screen.queryByRole("button", { name: "Replace video" })).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: /Video actions/ }));
+    expect(screen.getByRole("menuitem", { name: "Replace video" })).toBeEnabled();
+    expect(screen.getByRole("menuitem", { name: "Remove video" })).toBeEnabled();
+    expect(screen.getByRole("menuitem", { name: "Captions…" })).toBeEnabled();
     unmount();
 
     loadAdminLesson.mockResolvedValue(detail({ editable: true, video: null }, { hasVideo: false }));
     const { unmount: second } = await renderServerPage(AdminLessonPage, params);
     expect(screen.getByRole("button", { name: "Upload video" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Video actions/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Remove video" })).not.toBeInTheDocument();
     second();
 
@@ -128,9 +133,10 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
   });
 
   it("lets a Hub-owned lesson's downloads be added and removed, and shows an imported lesson's as they are", async () => {
-    loadAdminLesson.mockResolvedValue(detail({ editable: true, files: [{ id: "file_AAAAAAAAAAA1", filename: "Tracker_Sheet.pdf", sizeBytes: 2048 }] }));
+    loadAdminLesson.mockResolvedValue(detail({ editable: true, files: [{ id: "file_AAAAAAAAAAA1", filename: "Tracker_Sheet.pdf", sizeBytes: 2048, href: "/courses/the-ready-writer/lessons/les_AAAAAAAAAAA1/files/file_AAAAAAAAAAA1" }] }));
     const { unmount } = await renderServerPage(AdminLessonPage, params);
     expect(screen.getByRole("button", { name: "Add files" })).toBeEnabled();
+    expect(screen.getByRole("link", { name: "Download Tracker_Sheet.pdf" })).toHaveAttribute("href", "/courses/the-ready-writer/lessons/les_AAAAAAAAAAA1/files/file_AAAAAAAAAAA1");
     expect(screen.getByRole("button", { name: "Remove Tracker_Sheet.pdf" })).toBeEnabled();
     unmount();
 
@@ -144,9 +150,11 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
   it("lets a Hub-owned lesson be moved to another module from its page, and keeps an imported lesson's picker off", async () => {
     loadAdminLesson.mockResolvedValue(detail({ editable: true }));
     const { unmount } = await renderServerPage(AdminLessonPage, params);
-    const picker = within(screen.getByRole("form", { name: "Lesson builder" })).getByRole("combobox", { name: "Select module" });
-    expect(picker).toBeEnabled();
-    expect(picker).toHaveValue("w1");
+    // A searchable list of modules (not a native select), showing the lesson's own module.
+    const form = within(screen.getByRole("form", { name: "Lesson builder" }));
+    expect(form.queryByRole("combobox", { name: "Select module" })).not.toBeInTheDocument();
+    expect(form.getByText("Module 2 / Week 1")).toBeInTheDocument();
+    expect(form.getByRole("button", { name: "Clear selection" })).toBeEnabled();
     unmount();
 
     loadAdminLesson.mockResolvedValue(detail({ editable: false }));
@@ -169,7 +177,7 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     loadAdminLesson.mockResolvedValue(detail({ editable: true }));
     const { unmount } = await renderServerPage(AdminLessonPage, params);
     expect(screen.getByRole("button", { name: "Choose thumbnail" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Use the frame at 0:00 as the thumbnail" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Use current frame as thumbnail" })).toBeEnabled();
     expect(screen.queryByRole("button", { name: "Image actions" })).not.toBeInTheDocument();
     unmount();
 
@@ -177,13 +185,17 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     await renderServerPage(AdminLessonPage, params);
     expect(screen.getByRole("button", { name: "Image actions" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Choose thumbnail" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /as the thumbnail$/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /frame as thumbnail$/ })).not.toBeInTheDocument();
   });
 
   it("lists the captions of a Hub-owned lesson's ready video with the means to add them, and shows an imported lesson's none", async () => {
     loadAdminLesson.mockResolvedValue(detail({ editable: true, captions: [{ id: "00000000-0000-4000-a000-000000000001", label: "English", language: "en", kind: "captions", source: "manual" }] }));
     const { unmount } = await renderServerPage(AdminLessonPage, params);
-    expect(screen.getByRole("heading", { name: "Captions" })).toBeInTheDocument();
+    // Captions live in a dialog opened from the Video actions menu.
+    expect(screen.queryByRole("button", { name: "Upload captions" })).not.toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /Video actions/ }));
+    await user.click(screen.getByRole("menuitem", { name: "Captions…" }));
     expect(screen.getByRole("button", { name: "Remove English" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Upload captions" })).toBeEnabled();
     unmount();
@@ -191,19 +203,22 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     // Not before the video is ready, and not for an imported lesson.
     loadAdminLesson.mockResolvedValue(detail({ editable: true, video: { status: "preparing", playbackId: null } }));
     const { unmount: second } = await renderServerPage(AdminLessonPage, params);
-    expect(screen.queryByRole("heading", { name: "Captions" })).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: /Video actions/ }));
+    expect(screen.getByRole("menuitem", { name: "Captions…" })).toBeDisabled();
     second();
 
     loadAdminLesson.mockResolvedValue(detail({ editable: false }));
     await renderServerPage(AdminLessonPage, params);
-    expect(screen.queryByRole("heading", { name: "Captions" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Captions…" })).not.toBeInTheDocument();
   });
 
   it("gives a Hub-owned lesson an editor for its text, and an imported one only the text", async () => {
     loadAdminLesson.mockResolvedValue(detail({ editable: true }, { bodyHtml: "<p>Hey Hedgies</p>" }));
     const { unmount } = await renderServerPage(AdminLessonPage, params);
     expect(await screen.findByRole("textbox", { name: "Lesson text" })).toHaveTextContent("Hey Hedgies");
-    expect(screen.getByRole("button", { name: "Save text" })).toBeInTheDocument();
+    // The text is saved with the page's own Save, which waits for a change.
+    expect(screen.queryByRole("button", { name: "Save text" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
     unmount();
 
     loadAdminLesson.mockResolvedValue(detail({ editable: false }));
@@ -340,6 +355,18 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     await renderServerPage(AdminLessonPage, params);
     expect(screen.queryByTestId("player")).not.toBeInTheDocument();
     expect(screen.getByText(/can't be played right now/)).toBeInTheDocument();
+  });
+
+  it("shows the Kajabi import banner for an imported course only, never for a Hub-owned one", async () => {
+    loadAdminLesson.mockResolvedValue(detail({ editable: true }));
+    const { unmount } = await renderServerPage(AdminLessonPage, params);
+    expect(screen.queryByText(/can't be edited here yet/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: SUPPORT_EMAIL })).not.toBeInTheDocument();
+    unmount();
+
+    loadAdminLesson.mockResolvedValue(detail({ editable: false }));
+    await renderServerPage(AdminLessonPage, params);
+    expect(screen.getByText(/can't be edited here yet/)).toBeInTheDocument();
   });
 
   it("has no use-current-frame button: the thumbnail changes with Image actions, not from a paused frame", async () => {
