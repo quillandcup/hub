@@ -56,6 +56,27 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "direct-messages-in-hub-chat",
+    date: "2026-11-12",
+    audience: "product",
+    category: "new",
+    major: true,
+    title: "Your Slack direct messages, in Hub Chat",
+    summary: "Read and reply to your Slack direct messages and group messages without leaving the Hub. Every conversation sits in one sidebar: channels, group messages and direct messages.",
+    image: { src: "/changelog/direct-messages-in-hub-chat/01-direct-message.webp", alt: "Hub Chat with the sidebar showing Channels, Group messages and Direct messages, and a direct message open beside it" },
+    body: [
+      "Your Slack direct messages and group messages now show up in Hub Chat, so one place holds all your conversations. Reply there and your message goes to Slack under your name.",
+      "![Hub Chat's sidebar with Channels, Group messages and Direct messages, and a direct message open](/changelog/direct-messages-in-hub-chat/01-direct-message.webp)",
+      "- **Everything in one sidebar.** Public channels, group messages and one-on-one direct messages each have their own heading.",
+      "- **Start one from a profile.** Press **Message** on a member's profile to open your Slack conversation with her, or start a new one. If she hasn't connected Slack, the Hub tells you it can't open one.",
+      "- **Write the way you do in channels.** Files, reactions, replies under a message, edits and deleting your own messages all work, and they stay up to date in both places.",
+      "![A group message in Hub Chat](/changelog/direct-messages-in-hub-chat/02-group-message.webp)",
+      "To use it, your Slack account needs to be connected in Settings. If you connected it before this, Settings and Hub Chat show a **Reconnect Slack** bar: reconnect once so the Hub can read and send your direct messages as you.",
+      "These stay private. The other person in a conversation sees it in their own Hub Chat once they've connected Slack, and Quill & Cup staff can see that a conversation exists, who is in it, who wrote and when, but not what it says, except through break-glass access, the same as for a restricted channel. When an admin views the Hub as you, your direct messages are not shown.",
+      "The Hub keeps its own copy of your direct messages, and Slack only shows about 90 days of history on our plan, so the Hub's copy stays until you ask us to remove it. There is no separate switch for direct messages: to stop the Hub reading them, disconnect Slack in Settings, and Hub Chat closes until you reconnect. The details are on the [privacy page](/privacy).",
+    ].join("\n\n"),
+  },
+  {
     slug: "lesson-videos-in-chat",
     date: "2026-11-12",
     audience: "product",
