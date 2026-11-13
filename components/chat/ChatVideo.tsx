@@ -89,7 +89,7 @@ export default function ChatVideo({ messageId }: { messageId: string }) {
           <Link
             href={state.lessonHref}
             data-track="chat-video-open-lesson"
-            className="absolute right-2 top-2 rounded-md bg-black/70 px-2.5 py-1 text-xs font-medium text-white hover:bg-black/85 focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
+            className="absolute right-2 top-2 rounded-md bg-black/70 px-2.5 py-1 text-xs font-medium text-white hover:bg-black/85 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
           >
             Open lesson
           </Link>
