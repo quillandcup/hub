@@ -496,6 +496,7 @@ export default function LessonPlayer({
   trackProgress = false,
   autoPlay = false,
   onTime,
+  overlay,
 }: {
   title: string;
   playbackId: string;
@@ -517,6 +518,8 @@ export default function LessonPlayer({
   autoPlay?: boolean;
   /** Called with the playhead's whole second whenever it changes. */
   onTime?: (seconds: number) => void;
+  /** Drawn inside the skin, over the frame, so it can use the skin's own tokens and its container (`media-root`): a control that should look native beside its buttons. */
+  overlay?: React.ReactNode;
 }) {
   const poster = courseImageUrl(posterUrl);
   // Mux Data collects the viewer's IP address and browser, so it follows the usage-statistics consent (the banner's
@@ -578,6 +581,7 @@ export default function LessonPlayer({
             playsInline
             crossOrigin="anonymous"
           />
+          {overlay}
         </VideoSkin>
       </VideoPlayer>
     </div>

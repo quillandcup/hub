@@ -81,7 +81,6 @@ export default function ChatVideo({ messageId }: { messageId: string }) {
 
   if (state.kind === "ready") {
     const media = (
-          <div className="relative">
           <LessonPlayer
             title={state.title}
             playbackId={state.playbackId}
@@ -94,23 +93,18 @@ export default function ChatVideo({ messageId }: { messageId: string }) {
             autoPlay
             // The card's own thumbnail as the player's poster, so opening it doesn't swap to a different frame (Mux's, from two seconds in) before the video starts.
             posterUrl={card.thumbnailUrl && !imageFailed ? card.thumbnailUrl : null}
+            overlay={
+              state.lessonHref ? (
+                // Inside the player's skin, so it is drawn with the skin's own tokens like its fullscreen button (`.lesson-open-link`, app/globals.css).
+                <Link href={state.lessonHref} data-track="chat-video-open-lesson" className="lesson-open-link">
+                  <svg viewBox="0 0 24 24" className="lesson-open-link-icon" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M7 17 17 7M8 7h9v9" />
+                  </svg>
+                  <span className="lesson-open-link-label">Open lesson</span>
+                </Link>
+              ) : null
+            }
           />
-          {state.lessonHref && (
-            // Over the player's top-left corner like YouTube's "Watch on YouTube" (top-right is its fullscreen button on a small screen). Always visible,
-            // above the player's own overlays (z-30). Icon only on a small screen and the label from `sm`, the same step the player's big play button grows
-            // at, so the two never meet; the soft ring is that button's.
-            <Link
-              href={state.lessonHref}
-              data-track="chat-video-open-lesson"
-              className="absolute left-2 top-2 z-40 flex items-center gap-1.5 rounded-full bg-black/70 px-2.5 py-1.5 text-xs font-medium text-white ring-1 ring-white/30 backdrop-blur-sm hover:bg-black/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-            >
-              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M7 17 17 7M8 7h9v9" />
-              </svg>
-              <span className="sr-only sm:not-sr-only">Open lesson</span>
-            </Link>
-          )}
-          </div>
     );
     return (
       <div className="mt-2 max-w-xl overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
