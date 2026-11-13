@@ -230,14 +230,14 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
 
     await user.click(screen.getByRole("button", { name: /Video actions/ }));
     expect(screen.getByRole("menuitem", { name: "Video stats" })).toHaveAttribute("href", "/admin/courses/crs_AAAAAAAAAAA1/stats/les_AAAAAAAAAAA1");
-    expect(screen.getByRole("menuitem", { name: "Copy timestamp URL" })).toBeEnabled();
+    expect(screen.getByRole("menuitem", { name: "Copy link" })).toBeEnabled();
   });
 
-  describe("the paste-in-chat links in Video actions", () => {
+  describe("the open-to-everyone link in Video actions", () => {
     const LESSON_URL = `${APP_URL}/courses/the-ready-writer/lessons/les_AAAAAAAAAAA1`;
     const writeText = vi.fn();
 
-    it("are offered once chat videos is on for the admin, and copy the lesson's address (the open one with its marker)", async () => {
+    it("is offered once chat videos is on for the admin, and copy the lesson's address (the open one with its marker)", async () => {
       features.on = ["chat_videos"];
       loadAdminLesson.mockResolvedValue(detail());
       const user = userEvent.setup();
@@ -246,7 +246,7 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
       await renderServerPage(AdminLessonPage, params);
 
       await user.click(screen.getByRole("button", { name: /Video actions/ }));
-      await user.click(screen.getByRole("menuitem", { name: "Copy link to paste in chat" }));
+      await user.click(screen.getByRole("menuitem", { name: "Copy link" }));
       expect(writeText).toHaveBeenLastCalledWith(LESSON_URL);
 
       await user.click(screen.getByRole("button", { name: /Video actions/ }));
@@ -254,24 +254,24 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
       expect(writeText).toHaveBeenLastCalledWith(`${LESSON_URL}?share=open`);
     });
 
-    it("are not offered while chat videos is off for the admin", async () => {
+    it("is not offered while chat videos is off for the admin", async () => {
       loadAdminLesson.mockResolvedValue(detail());
       const user = userEvent.setup();
       await renderServerPage(AdminLessonPage, params);
 
       await user.click(screen.getByRole("button", { name: /Video actions/ }));
 
-      expect(screen.queryByRole("menuitem", { name: /paste in chat/ })).not.toBeInTheDocument();
+      
       expect(screen.queryByRole("menuitem", { name: /open to everyone/ })).not.toBeInTheDocument();
     });
   });
 
-  it("enables Copy link with thumbnail for a public lesson, and says why not when it isn't (not open, no thumbnail, course not open, not in the Hub)", async () => {
+  it("enables Copy for email for a public lesson, and says why not when it isn't (not open, no thumbnail, course not open, not in the Hub)", async () => {
     const user = userEvent.setup();
     loadAdminLesson.mockResolvedValue(detail());
     const { unmount } = await renderServerPage(AdminLessonPage, params);
     await user.click(screen.getByRole("button", { name: /Video actions/ }));
-    expect(screen.getByRole("menuitem", { name: "Copy link with thumbnail" })).toBeEnabled();
+    expect(screen.getByRole("menuitem", { name: "Copy for email" })).toBeEnabled();
     expect(publicLessonPreview).toHaveBeenCalledWith(expect.anything(), "les_AAAAAAAAAAA1");
     unmount();
 
@@ -285,7 +285,7 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
       loadAdminLesson.mockResolvedValue(detail());
       const view = await renderServerPage(AdminLessonPage, params);
       await user.click(screen.getByRole("button", { name: /Video actions/ }));
-      const item = screen.getByRole("menuitem", { name: "Copy link with thumbnail" });
+      const item = screen.getByRole("menuitem", { name: "Copy for email" });
       expect(item).toBeDisabled();
       expect(item).toHaveAttribute("title", expect.stringMatching(reason));
       view.unmount();
@@ -294,7 +294,7 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     loadAdminLesson.mockResolvedValue(detail({ hub: null, video: null }));
     await renderServerPage(AdminLessonPage, params);
     await user.click(screen.getByRole("button", { name: /Video actions/ }));
-    expect(screen.getByRole("menuitem", { name: "Copy link with thumbnail" })).toHaveAttribute("title", "This lesson isn't in the Hub yet");
+    expect(screen.getByRole("menuitem", { name: "Copy for email" })).toHaveAttribute("title", "This lesson isn't in the Hub yet");
     expect(publicLessonPreview).toHaveBeenCalledTimes(4);
   });
 

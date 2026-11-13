@@ -67,8 +67,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     body: [
       "A lesson's video can now sit inside a chat message, as a picture you press once to play. It works in channels, in replies under a message, and in private messages.",
       "We've wanted this for years. Slack never let us do it well: it can't keep track of what you've watched, pick a long video back up where you left off, or mark the lesson complete when you finish. Hub Chat can do all three, so this is the first feature that works only in Hub Chat. If you mostly chat in Slack, this is a good reason to try the same conversation here.",
-      "- On a lesson, choose **Share this video in chat**, or **Copy link to paste in chat** and paste it into any message in Hub Chat or in Slack. It plays in Hub Chat; Slack shows links back to the Hub.",
-      "![The share box under a lesson's video](/changelog/lesson-videos-in-chat/01-share-box.webp)",
+      "- On a lesson, choose **Copy link** under the video and paste it into any message in Hub Chat or in Slack. It plays in Hub Chat; Slack shows links back to the Hub.",
       "- It shows the lesson, its course and its picture. If you have the course, it plays right in the message, from where you left off, and the lesson is marked complete once you've watched nearly all of it; if not, it says the video is part of a course and nothing plays.",
       "![A lesson video shared in a conversation](/changelog/lesson-videos-in-chat/01-video-card.webp)",
       "![What someone without the course sees](/changelog/lesson-videos-in-chat/01-no-course.webp)",

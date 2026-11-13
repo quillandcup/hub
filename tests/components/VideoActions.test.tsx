@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import VideoActions from "@/app/(admin)/admin/courses/[id]/lessons/[lessonId]/VideoActions";
 
@@ -47,7 +47,7 @@ describe("VideoActions", () => {
   it("lists Kajabi's actions: the reading ones work, the editing ones and the ones that need more are disabled", async () => {
     await open();
     expect(screen.getByRole("menuitem", { name: "Video stats" })).toHaveAttribute("href", STATS);
-    expect(screen.getByRole("menuitem", { name: "Copy timestamp URL" })).toBeEnabled();
+    expect(screen.getByRole("menuitem", { name: "Copy link" })).toBeEnabled();
     for (const name of ["Closed captions", "Download video", "Remove video"]) expect(screen.getByRole("menuitem", { name })).toBeDisabled();
   });
 
@@ -56,12 +56,12 @@ describe("VideoActions", () => {
     expect(screen.getByRole("menuitem", { name: "Download video" })).toHaveAttribute("title", expect.stringMatching(/MP4.*Mux/));
   });
 
-  describe("Copy link with thumbnail", () => {
+  describe("Copy for email", () => {
     const link = { url: URL, imageUrl: "https://hub.example/api/courses/image/lesson/les_AAAAAAAAAAA1", title: 'Reader "Expectations" & <more>' };
 
     it("is disabled with the reason on hover while the lesson has no public link", async () => {
       await open(<VideoActions statsHref={STATS} lessonUrl={URL} thumbnailLink={null} thumbnailLinkBlocked="Only a lesson that is open to members has a public link" />);
-      const item = screen.getByRole("menuitem", { name: "Copy link with thumbnail" });
+      const item = screen.getByRole("menuitem", { name: "Copy for email" });
       expect(item).toBeDisabled();
       expect(item).toHaveAttribute("title", "Only a lesson that is open to members has a public link");
     });
@@ -79,7 +79,7 @@ describe("VideoActions", () => {
       render(<VideoActions statsHref={STATS} lessonUrl={URL} thumbnailLink={link} thumbnailLinkBlocked="" />);
       Object.defineProperty(navigator, "clipboard", { value: { writeText, write }, configurable: true });
       await user.click(screen.getByRole("button", { name: /Video actions/ }));
-      await user.click(screen.getByRole("menuitem", { name: "Copy link with thumbnail" }));
+      await user.click(screen.getByRole("menuitem", { name: "Copy for email" }));
 
       expect(written[0]).toEqual([
         { type: "text/html", text: `<a href="${URL}"><img src="${link.imageUrl}" alt="Reader &quot;Expectations&quot; &amp; &lt;more&gt;" width="480"></a>` },
@@ -92,7 +92,7 @@ describe("VideoActions", () => {
     it("copies just the address where the browser can't copy rich text", async () => {
       vi.stubGlobal("ClipboardItem", undefined);
       const user = await open(<VideoActions statsHref={STATS} lessonUrl={URL} thumbnailLink={link} thumbnailLinkBlocked="" />);
-      await user.click(screen.getByRole("menuitem", { name: "Copy link with thumbnail" }));
+      await user.click(screen.getByRole("menuitem", { name: "Copy for email" }));
       expect(writeText).toHaveBeenCalledWith(URL);
       vi.unstubAllGlobals();
     });
@@ -101,7 +101,7 @@ describe("VideoActions", () => {
       vi.stubGlobal("ClipboardItem", undefined);
       writeText.mockRejectedValue(new Error("denied"));
       const user = await open(<VideoActions statsHref={STATS} lessonUrl={URL} thumbnailLink={link} thumbnailLinkBlocked="" />);
-      await user.click(screen.getByRole("menuitem", { name: "Copy link with thumbnail" }));
+      await user.click(screen.getByRole("menuitem", { name: "Copy for email" }));
       expect(screen.getByRole("status")).toHaveTextContent("Couldn't copy the link.");
       vi.unstubAllGlobals();
     });
@@ -109,61 +109,61 @@ describe("VideoActions", () => {
 
   it("copies the lesson's address at the playhead, and says so", async () => {
     const user = await open();
-    await user.click(screen.getByRole("menuitem", { name: "Copy timestamp URL" }));
+    await user.click(screen.getByRole("menuitem", { name: "Copy link" }));
     expect(writeText).toHaveBeenCalledWith(`${URL}?t=95`);
-    expect(screen.getByRole("status")).toHaveTextContent("Copied a link to 1:35.");
+    expect(screen.getByRole("status")).toHaveTextContent("Copied the link at 1:35.");
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
   it("copies the plain lesson address when the video hasn't started", async () => {
     const user = await open(<VideoActions statsHref={STATS} lessonUrl={URL} seconds={0} />);
-    await user.click(screen.getByRole("menuitem", { name: "Copy timestamp URL" }));
+    await user.click(screen.getByRole("menuitem", { name: "Copy link" }));
     expect(writeText).toHaveBeenCalledWith(URL);
-    expect(screen.getByRole("status")).toHaveTextContent("Copied a link to the lesson.");
+    expect(screen.getByRole("status")).toHaveTextContent("Copied the link.");
   });
 
   it("says when the clipboard refuses", async () => {
     writeText.mockRejectedValue(new Error("denied"));
     const user = await open();
-    await user.click(screen.getByRole("menuitem", { name: "Copy timestamp URL" }));
+    await user.click(screen.getByRole("menuitem", { name: "Copy link" }));
     expect(screen.getByRole("status")).toHaveTextContent("Couldn't copy the link.");
   });
 
   it("disables stats and copying for a lesson that isn't in the Hub yet", async () => {
     await open(<VideoActions statsHref={null} lessonUrl={null} />);
     expect(screen.getByRole("menuitem", { name: "Video stats" })).toBeDisabled();
-    expect(screen.getByRole("menuitem", { name: "Copy timestamp URL" })).toBeDisabled();
+    expect(screen.getByRole("menuitem", { name: "Copy link" })).toBeDisabled();
     expect(writeText).not.toHaveBeenCalled();
   });
 
-  describe("the paste-in-chat links", () => {
-    it("are left out unless chat sharing is on", async () => {
+  it("tells the admin that pasting the link into Hub Chat shares the video, when chat sharing is on", async () => {
+    const user = await open(<VideoActions statsHref={STATS} lessonUrl={URL} chatShare seconds={95} />);
+    await user.click(screen.getByRole("menuitem", { name: "Copy link" }));
+    expect(writeText).toHaveBeenLastCalledWith(`${URL}?t=95`);
+    expect(screen.getByRole("status")).toHaveTextContent("Paste it into Hub Chat to share the video there.");
+  });
+
+  describe("the open-to-everyone link", () => {
+    it("is left out unless chat sharing is on, and there is no separate paste-in-chat link", async () => {
       await open(<VideoActions statsHref={STATS} lessonUrl={URL} />);
+      expect(screen.queryByRole("menuitem", { name: /open to everyone/ })).not.toBeInTheDocument();
       expect(screen.queryByRole("menuitem", { name: /paste in chat/ })).not.toBeInTheDocument();
     });
 
-    it("copy the lesson's address, and with the open marker for everyone in the conversation, then say what happens", async () => {
+    it("copies the address with the open marker, then says what happens", async () => {
       const user = await open(<VideoActions statsHref={STATS} lessonUrl={URL} chatShare />);
-      await user.click(screen.getByRole("menuitem", { name: "Copy link to paste in chat" }));
-      expect(writeText).toHaveBeenLastCalledWith(URL);
-      expect(screen.getByRole("status")).toHaveTextContent(/Paste it into any chat message to share the video there; members with the course can play it/);
-
-      await user.click(screen.getByRole("button", { name: /Video actions/ }));
       await user.click(screen.getByRole("menuitem", { name: "Copy link, open to everyone" }));
       expect(writeText).toHaveBeenLastCalledWith(`${URL}?share=open`);
       expect(screen.getByRole("status")).toHaveTextContent(/everyone in that conversation can watch the video, even without the course/);
     });
 
-    it("are disabled for a lesson that isn't in the Hub yet", async () => {
+    it("is disabled for a lesson that isn't in the Hub yet, and says so when the browser won't copy", async () => {
       await open(<VideoActions statsHref={null} lessonUrl={null} chatShare />);
-      expect(screen.getByRole("menuitem", { name: "Copy link to paste in chat" })).toBeDisabled();
       expect(screen.getByRole("menuitem", { name: "Copy link, open to everyone" })).toBeDisabled();
-    });
-
-    it("say so when the browser won't copy", async () => {
+      cleanup();
       writeText.mockRejectedValue(new Error("denied"));
       const user = await open(<VideoActions statsHref={STATS} lessonUrl={URL} chatShare />);
-      await user.click(screen.getByRole("menuitem", { name: "Copy link to paste in chat" }));
+      await user.click(screen.getByRole("menuitem", { name: "Copy link, open to everyone" }));
       expect(screen.getByRole("status")).toHaveTextContent("Couldn't copy the link.");
     });
   });

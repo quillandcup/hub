@@ -465,27 +465,6 @@ async function checkShareable(caller: NonNullable<Awaited<ReturnType<typeof post
   return { ok: true, lessonTitle: lesson.title, isAdminActing: courses.scope.isAdminActing };
 }
 
-/**
- * The signed-in member shares a course lesson's video into a conversation: a message (their own words, or "Shared a lesson
- * video: <title>") that shows the lesson's video as a card everyone who can read the message sees. Behind `chat_videos` on
- * top of posting. The sharer must be able to open the lesson themselves (same checks as the lesson page, repeated in the
- * database by `chat_post_shared_video`). Playing needs the course too, unless an admin shares it with `openToChannel`: then
- * every member who can read the message may play it (default off; admins only, checked here and in the database).
- * The message and its video row are written in one call (no window in which the message exists without its card), and
- * Slack gets it after the response with links back to the Hub. The same share happens when a lesson address is pasted into
- * any message (`sendChatMessageImpl`), where it also works in threads and direct messages.
- */
-async function shareLessonVideoImpl(channelId: string, lessonId: string, note: string, openToChannel = false): Promise<SendChatResult> {
-  if (!isId(channelId, "chn") || !isId(lessonId, "les") || typeof note !== "string" || typeof openToChannel !== "boolean") return { ok: false, error: "Something went wrong." };
-  const caller = await postingCaller();
-  if (!caller) return { ok: false, error: "Sharing videos isn't available to you yet." };
-  const check = await checkShareable(caller, lessonId);
-  if (!check.ok) return check;
-  if (openToChannel && !check.isAdminActing) return { ok: false, error: POST_ERRORS.not_allowed };
-
-  return sendChatMessageImpl(channelId, note.trim() || sharedVideoDefaultText(check.lessonTitle), undefined, [], { lessonId, openToChannel });
-}
-
 export type ToggleReactionResult = { ok: true; active: boolean } | { ok: false; error: string };
 
 const REACT_ERRORS: Record<string, string> = {
@@ -712,10 +691,6 @@ async function deleteChatFileImpl(messageId: string, fileId: string): Promise<Ch
 // Usage analytics: each action records whether it worked (lib/analytics/server.ts).
 export async function sendChatMessage(...args: Parameters<typeof sendChatMessageImpl>): ReturnType<typeof sendChatMessageImpl> {
   return withAction("chat_message_sent", () => sendChatMessageImpl(...args));
-}
-
-export async function shareLessonVideoInChat(...args: Parameters<typeof shareLessonVideoImpl>): ReturnType<typeof shareLessonVideoImpl> {
-  return withAction("chat_video_shared", () => shareLessonVideoImpl(...args));
 }
 
 export async function toggleChatReaction(...args: Parameters<typeof toggleChatReactionImpl>): ReturnType<typeof toggleChatReactionImpl> {

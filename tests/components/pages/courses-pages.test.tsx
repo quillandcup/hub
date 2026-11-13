@@ -36,14 +36,12 @@ vi.mock("@/components/courses/LessonPlayer", () => ({
     </div>
   ),
 }));
-const sharing = { on: false, targets: [{ id: "chn_AAAAAAAAAAA1", label: "#writing" }] };
+const sharing = { on: false };
 vi.mock("@/lib/features.server", () => ({
   getUserFeaturePreviews: async () => [],
   effectiveMemberHasFeature: async () => sharing.on,
 }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({}) }));
-vi.mock("@/lib/chat/share-targets", () => ({ shareTargets: async () => sharing.targets }));
-vi.mock("@/app/(member)/chat/actions", () => ({ shareLessonVideoInChat: vi.fn() }));
 vi.mock("@/app/(member)/courses/actions", () => ({ setLessonComplete: vi.fn(async () => ({})), clearMyLessonProgress: vi.fn(async () => ({})) }));
 
 import LessonPlayerMock from "@/components/courses/LessonPlayer";
@@ -82,7 +80,6 @@ beforeEach(() => {
   caller.identity.isSudo = false;
   caller.scope.isAdminActing = false;
   sharing.on = false;
-  sharing.targets = [{ id: "chn_AAAAAAAAAAA1", label: "#writing" }];
 });
 
 describe("/courses", () => {
@@ -860,73 +857,41 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
     });
   });
 
-  describe("Share this video in chat", () => {
+  describe("Copy link", () => {
     const ready = () => {
       signPlaybackTokens.mockResolvedValue({ playback: "p", poster: "t", storyboard: "s" });
       loadLessonView.mockResolvedValue(ok({ video: { status: "ready", playbackId: "pb-1" } }));
     };
-    const shareButton = () => screen.queryByRole("button", { name: /share this video in chat/i });
+    const copyButton = () => screen.queryByRole("button", { name: "Copy link" });
 
-    it("is offered when chat, posting and chat videos are on and the video is ready", async () => {
-      sharing.on = true;
-      ready();
-      await renderServerPage(LessonPage, params());
-
-      expect(shareButton()).toBeInTheDocument();
-    });
-
-    it("copies this lesson's address for pasting into chat", async () => {
+    it("copies this lesson's address when chat videos are on and the video is ready", async () => {
       const writeText = vi.fn().mockResolvedValue(undefined);
       Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
       sharing.on = true;
       ready();
       await renderServerPage(LessonPage, params());
 
-      await userEvent.click(screen.getByRole("button", { name: "Copy link to paste in chat" }));
+      await userEvent.click(copyButton()!);
 
       expect(writeText).toHaveBeenCalledWith(`${APP_URL}/courses/the-ready-writer/lessons/${LESSON_B}`);
     });
 
-    it("offers admins acting as themselves the choice to open it to the whole conversation, and members not", async () => {
-      sharing.on = true;
+    it("is not offered when the feature is off, in sudo, or before the video is ready", async () => {
       ready();
       await renderServerPage(LessonPage, params());
-      await userEvent.click(shareButton()!);
-      expect(screen.queryByRole("checkbox", { name: /even without the course/i })).not.toBeInTheDocument();
-      cleanup();
-
-      caller.scope.isAdminActing = true;
-      await renderServerPage(LessonPage, params());
-      await userEvent.click(shareButton()!);
-      expect(screen.getByRole("checkbox", { name: /even without the course/i })).toBeInTheDocument();
-    });
-
-    it("is not offered when a feature is off, in sudo, with nowhere to share, or before the video is ready", async () => {
-      ready();
-      await renderServerPage(LessonPage, params());
-      expect(shareButton()).not.toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Copy link to paste in chat" })).not.toBeInTheDocument();
+      expect(copyButton()).not.toBeInTheDocument();
       cleanup();
 
       sharing.on = true;
       caller.identity.isSudo = true;
       await renderServerPage(LessonPage, params());
-      expect(shareButton()).not.toBeInTheDocument();
+      expect(copyButton()).not.toBeInTheDocument();
       cleanup();
 
       caller.identity.isSudo = false;
-      // With nowhere to pick from there is no Share panel, but the copy button is still there (a pasted link works anywhere).
-      sharing.targets = [];
-      await renderServerPage(LessonPage, params());
-      expect(shareButton()).not.toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Copy link to paste in chat" })).toBeInTheDocument();
-      cleanup();
-
-      sharing.targets = [{ id: "chn_AAAAAAAAAAA1", label: "#writing" }];
       loadLessonView.mockResolvedValue(ok({ video: { status: "preparing", playbackId: null } }));
       await renderServerPage(LessonPage, params());
-      expect(shareButton()).not.toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Copy link to paste in chat" })).not.toBeInTheDocument();
+      expect(copyButton()).not.toBeInTheDocument();
     });
   });
 

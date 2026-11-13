@@ -2,15 +2,11 @@
 
 Found a lesson that would help someone? Put its video in a conversation in Hub Chat, the chat inside the Hub, and anyone who has the course can watch it right there.
 
-## Share it from the lesson
+## Copy the lesson's link
 
-Open the lesson and choose **Share this video in chat**. Pick the conversation, add a few words if you like, and send.
+Open the lesson and choose **Copy link** under the video. Then paste it into any message in Hub Chat: a channel, replies under a message, a private message. The link becomes the video. You can paste it into Slack too, but Slack can't play it (see below).
 
-![The share box under a lesson's video](img:share-a-lesson-video-in-chat/01-share-box.png)
-
-## Or paste a link
-
-Choose **Copy link to paste in chat** on the lesson, then paste it into any message: a channel, replies under a message, a private message, or Slack. In Hub Chat the link becomes the video. Slack can't play it (see below).
+![The Copy link button under a lesson's video](img:share-a-lesson-video-in-chat/01-copy-link.png)
 
 ## Watching it
 
