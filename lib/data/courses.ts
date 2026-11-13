@@ -63,6 +63,13 @@ export interface CourseRepository {
   courseById(id: string): Promise<CourseRecord | null>;
   /** A course by its address; `isDraft` / `source` narrow it (a member's lookup passes `isDraft: false`). */
   courseBySlug(slug: string, filter?: { source?: string; isDraft?: boolean }): Promise<CourseRecord | null>;
+  /**
+   * The current address of the course an old address redirects to (a published or once-published Hub course that was renamed),
+   * or null when the address isn't an old one. The database keeps these (a trigger on `courses`): there is no write here.
+   */
+  redirectedAddress(address: string): Promise<string | null>;
+  /** The old addresses of a course that redirect to it, by address. */
+  oldAddressesOf(courseId: string): Promise<string[]>;
   /** A course by where it came from (a Kajabi course by its Kajabi id), or null. */
   courseBySource(source: string, sourceKey: string): Promise<CourseRecord | null>;
   /** Courses matching the filter, by slug. Paginated; `ids` chunked. */
@@ -214,6 +221,17 @@ export class SupabaseCourseRepository implements CourseRepository {
     if (filter.source !== undefined) query = query.eq("source", filter.source);
     if (filter.isDraft !== undefined) query = query.eq("is_draft", filter.isDraft);
     return must(await query.maybeSingle());
+  }
+
+  async redirectedAddress(address: string) {
+    const row = must(await this.db.from("course_address_redirects").select("course:courses(slug)").eq("address", address).maybeSingle());
+    return (row?.course as { slug: string } | null)?.slug ?? null;
+  }
+
+  async oldAddressesOf(courseId: string) {
+    const { data, error } = await this.db.from("course_address_redirects").select("address").eq("course_id", courseId).order("address");
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((r) => r.address);
   }
 
   async courseBySource(source: string, sourceKey: string) {
@@ -586,6 +604,15 @@ export class InMemoryCourseRepository implements CourseRepository {
     return course ? copy(course) : null;
   }
 
+  async redirectedAddress(address: string) {
+    const redirect = this.data.courseAddressRedirects.find((r) => r.address === address);
+    return (redirect && this.data.courses.find((c) => c.id === redirect.course_id)?.slug) || null;
+  }
+
+  async oldAddressesOf(courseId: string) {
+    return this.data.courseAddressRedirects.filter((r) => r.course_id === courseId).map((r) => r.address).sort(compareText);
+  }
+
   async courseBySource(source: string, sourceKey: string) {
     const course = this.data.courses.find((c) => c.source === source && c.source_key === sourceKey);
     return course ? copy(course) : null;
@@ -600,7 +627,7 @@ export class InMemoryCourseRepository implements CourseRepository {
   }
 
   private insertCourse(course: NewCourse): CourseRecord {
-    if (this.data.courses.some((c) => c.slug === course.slug)) throw unique("courses_slug_key");
+    if (this.data.courses.some((c) => c.slug === course.slug) || this.data.courseAddressRedirects.some((r) => r.address === course.slug)) throw unique("courses_slug_key");
     if (course.source_key && this.data.courses.some((c) => c.source === (course.source ?? "kajabi") && c.source_key === course.source_key)) throw unique("courses_source_source_key_key");
     const stamp = now();
     const row: CourseRecord = {
@@ -608,6 +635,7 @@ export class InMemoryCourseRepository implements CourseRepository {
       access_duration: null,
       created_at: stamp,
       description: null,
+      first_published_at: null,
       hero_asset_id: null,
       hero_source: null,
       hero_url: null,
@@ -623,6 +651,8 @@ export class InMemoryCourseRepository implements CourseRepository {
       updated_at: stamp,
       ...(Object.fromEntries(Object.entries(course).filter(([, v]) => v !== undefined)) as NewCourse),
     } as CourseRecord;
+    // As the trigger on `courses` does: the first publication is stamped.
+    if (!row.is_draft && !row.first_published_at) row.first_published_at = stamp;
     this.data.courses.push(row);
     return row;
   }
@@ -639,7 +669,18 @@ export class InMemoryCourseRepository implements CourseRepository {
     const course = this.data.courses.find((c) => c.id === id && (only.source === undefined || c.source === only.source));
     if (!course) return null;
     if (patch.slug !== undefined && this.data.courses.some((c) => c.id !== id && c.slug === patch.slug)) throw unique("courses_slug_key");
+    // The twin of the trigger on `courses`: another course's old address isn't free; renaming back clears the redirect;
+    // leaving an address with a published or once-published Hub course keeps it working (pointing at the course, so a
+    // later rename needs no change here).
+    if (patch.slug !== undefined && patch.slug !== course.slug) {
+      if (this.data.courseAddressRedirects.some((r) => r.address === patch.slug && r.course_id !== id)) throw unique("courses_slug_key");
+      this.data.courseAddressRedirects = this.data.courseAddressRedirects.filter((r) => !(r.course_id === id && r.address === patch.slug));
+      if (course.source === "hub" && (course.first_published_at || !course.is_draft)) {
+        this.data.courseAddressRedirects.push({ id: newCourseId("cslug"), address: course.slug, course_id: id, created_at: now() });
+      }
+    }
     apply(course, patch);
+    if (!course.is_draft && !course.first_published_at) course.first_published_at = now();
     course.updated_at = now();
     return copy(course);
   }
@@ -1136,7 +1177,7 @@ export class InMemoryCourseRepository implements CourseRepository {
 
     const base = `${src.slug.slice(0, 60)}-copy`;
     let slug = base;
-    for (let n = 2; this.data.courses.some((c) => c.slug === slug); n++) slug = `${base}-${n}`;
+    for (let n = 2; this.data.courses.some((c) => c.slug === slug) || this.data.courseAddressRedirects.some((r) => r.address === slug); n++) slug = `${base}-${n}`;
     const course = this.insertCourse({
       slug,
       title: `${src.title.slice(0, 112)} (copy)`,

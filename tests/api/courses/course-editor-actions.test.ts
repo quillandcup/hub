@@ -99,9 +99,9 @@ describe('Course editor actions', () => {
     })
 
     it('says so when another course already has the address (a Kajabi course counts)', async () => {
-      expect((await createCourse(input({ slug: `${PREFIX}-kajabi` }))).fieldErrors).toEqual({ slug: 'Another course already uses that address.' })
+      expect((await createCourse(input({ slug: `${PREFIX}-kajabi` }))).fieldErrors).toEqual({ slug: 'Another course uses that address now or used to.' })
       await createCourse(input({ slug: `${PREFIX}-twice` }))
-      expect((await createCourse(input({ slug: `${PREFIX}-twice` }))).fieldErrors).toEqual({ slug: 'Another course already uses that address.' })
+      expect((await createCourse(input({ slug: `${PREFIX}-twice` }))).fieldErrors).toEqual({ slug: 'Another course uses that address now or used to.' })
     })
 
     it("does nothing for someone who isn't an admin", async () => {
@@ -134,7 +134,7 @@ describe('Course editor actions', () => {
 
     it('refuses an address another course has, leaving the course as it was', async () => {
       const result = await updateCourseDetails(courseId, input({ slug: `${PREFIX}-kajabi`, title: 'Changed anyway' }))
-      expect(result.fieldErrors).toEqual({ slug: 'Another course already uses that address.' })
+      expect(result.fieldErrors).toEqual({ slug: 'Another course uses that address now or used to.' })
       expect((await rowBySlug(`${PREFIX}-edit`))!.title).not.toBe('Changed anyway')
     })
 
@@ -173,6 +173,27 @@ describe('Course editor actions', () => {
 
       expect(await setCoursePublished(created.id!, false)).toEqual({ id: created.id })
       expect((await rowBySlug(`${PREFIX}-pub`))!.is_draft).toBe(true)
+    })
+
+    it('keeps the old address of a published course working when its address changes, and frees it when the course never was published', async () => {
+      const oldOf = async (id: string) => (await supabase.from('course_address_redirects').select('address').eq('course_id', id)).data!.map((r) => r.address)
+      const live = (await createCourse(input({ slug: `${PREFIX}-live`, title: `Live ${ts}` }))).id!
+      const draft = (await createCourse(input({ slug: `${PREFIX}-never`, title: `Never ${ts}` }))).id!
+
+      // Never published: the address is free to change, and nothing is kept.
+      expect((await updateCourseDetails(draft, input({ slug: `${PREFIX}-never-2`, title: `Never ${ts}` }))).id).toBe(draft)
+      expect(await oldOf(draft)).toEqual([])
+      // ...so another course may take the address it left.
+      expect((await createCourse(input({ slug: `${PREFIX}-never`, title: 'Takes it' }))).id).toMatch(/^crs_/)
+
+      // Published: the address it leaves keeps working, and nobody else can claim it.
+      await setCoursePublished(live, true)
+      expect((await updateCourseDetails(live, input({ slug: `${PREFIX}-live-2`, title: `Live ${ts}` }))).id).toBe(live)
+      expect(await oldOf(live)).toEqual([`${PREFIX}-live`])
+      expect((await createCourse(input({ slug: `${PREFIX}-live`, title: 'Squatter' }))).fieldErrors).toEqual({ slug: 'Another course uses that address now or used to.' })
+      // Back to it: canonical again.
+      await updateCourseDetails(live, input({ slug: `${PREFIX}-live`, title: `Live ${ts}` }))
+      expect(await oldOf(live)).toEqual([`${PREFIX}-live-2`])
     })
 
     it('does the same for a course imported from Kajabi: availability is not about where it is authored', async () => {

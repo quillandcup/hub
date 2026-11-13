@@ -48,7 +48,7 @@ async function createCourseImpl(auth: Auth, input: CourseDetailsInput): Promise<
     // A new course starts as a draft: members see it once it is published.
     created = await createRepos(auth.supabase).courses.createCourse({ ...checked.value, source: "hub", kind: "evergreen", is_draft: true });
   } catch (error) {
-    if (error instanceof CourseWriteError && error.code === UNIQUE_VIOLATION) return { fieldErrors: { slug: "Another course already uses that address." } };
+    if (error instanceof CourseWriteError && error.code === UNIQUE_VIOLATION) return { fieldErrors: { slug: "Another course uses that address now or used to." } };
     console.error("course create failed:", error instanceof Error ? error.message : error);
     return { error: "Couldn't create the course." };
   }
@@ -66,7 +66,7 @@ async function updateCourseDetailsImpl(auth: Auth, courseId: string, input: Cour
   try {
     updated = await createRepos(auth.supabase).courses.updateCourse(courseId, checked.value, { source: "hub" });
   } catch (error) {
-    if (error instanceof CourseWriteError && error.code === UNIQUE_VIOLATION) return { fieldErrors: { slug: "Another course already uses that address." } };
+    if (error instanceof CourseWriteError && error.code === UNIQUE_VIOLATION) return { fieldErrors: { slug: "Another course uses that address now or used to." } };
     console.error("course update failed:", error instanceof Error ? error.message : error);
     return { error: "Couldn't save the course." };
   }

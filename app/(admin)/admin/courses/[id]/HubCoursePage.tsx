@@ -44,6 +44,7 @@ export default async function HubCoursePage({ id }: { id: string }) {
       <div className="mt-6 max-w-3xl">
         <CourseDetailsForm
           courseId={course.id}
+          everPublished={course.everPublished}
           initial={{
             title: course.title,
             slug: course.slug,

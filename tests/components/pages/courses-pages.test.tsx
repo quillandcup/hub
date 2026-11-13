@@ -23,6 +23,10 @@ vi.mock("@/lib/courses/member", async (importOriginal) => ({
   loadLessonView: (...a: unknown[]) => loadLessonView(...a),
 }));
 
+// A missing course asks whether the address is an old one (a permanent redirect); the real rule has its own tests (tests/lib/courses-address-redirect.test.ts).
+const redirectOldCourseAddress = vi.fn();
+vi.mock("@/lib/courses/address-redirect", () => ({ redirectOldCourseAddress: (...a: unknown[]) => redirectOldCourseAddress(...a) }));
+
 const signPlaybackTokens = vi.fn();
 vi.mock("@/lib/mux", () => ({ createMuxClient: () => ({}), signPlaybackTokens: (...a: unknown[]) => signPlaybackTokens(...a) }));
 const restrictionIdForViewer = vi.fn();
@@ -72,6 +76,7 @@ beforeEach(() => {
   loadCourseList.mockReset();
   loadCourseView.mockReset();
   loadLessonView.mockReset();
+  redirectOldCourseAddress.mockReset();
   signPlaybackTokens.mockReset();
   restrictionIdForViewer.mockReset();
   restrictionIdForViewer.mockResolvedValue(null);
@@ -174,6 +179,12 @@ describe("/courses for a pre-order", () => {
 
 describe("/courses/[slug]", () => {
   const params = (slug = "the-ready-writer") => ({ params: Promise.resolve({ slug }) });
+
+  it("asks about an old course address before it answers 404, and never for a course it found", async () => {
+    loadCourseView.mockResolvedValue(null);
+    await expect(Promise.resolve().then(() => CoursePage(params("old-name")))).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
+    expect(redirectOldCourseAddress).toHaveBeenCalledWith(expect.anything(), "old-name", caller.scope, "");
+  });
 
   it("is a 404 for a course that doesn't exist", async () => {
     loadCourseView.mockResolvedValue(null);
@@ -281,6 +292,12 @@ describe("/courses/[slug]/modules/[moduleId]", () => {
   const open = (completed = new Set<string>()) =>
     loadCourseView.mockResolvedValue({ course, access: { kind: "open", endsAt: null }, outline, completed, progress: courseProgress(outline, completed) });
 
+  it("asks about an old course address when the course isn't found, with the module's own path to carry over", async () => {
+    loadCourseView.mockResolvedValue(null);
+    await expect(Promise.resolve().then(() => ModulePage(params("mod")))).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
+    expect(redirectOldCourseAddress).toHaveBeenCalledWith(expect.anything(), "the-ready-writer", caller.scope, "/modules/mod");
+  });
+
   it("is a 404 for a module that isn't in the course", async () => {
     open();
     await expect(Promise.resolve().then(() => ModulePage(params("nope")))).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
@@ -367,6 +384,15 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
     resumeSeconds: 0,
     files: [],
     ...over,
+  });
+
+  it("asks about an old course address when the lesson isn't found, and the redirect (a 308) is the redirect helper's to throw", async () => {
+    loadLessonView.mockResolvedValue({ kind: "not_found" });
+    redirectOldCourseAddress.mockImplementation(async () => {
+      throw Object.assign(new Error("NEXT_REDIRECT"), { digest: "NEXT_REDIRECT;replace;/courses/new/lessons/x;308;" });
+    });
+    await expect(Promise.resolve().then(() => LessonPage(params()))).rejects.toMatchObject({ digest: expect.stringContaining(";308;") });
+    expect(redirectOldCourseAddress).toHaveBeenCalledWith(expect.anything(), "the-ready-writer", caller.scope, `/lessons/${LESSON_B}`);
   });
 
   it("is a 404 for an id that isn't a lesson id or isn't found", async () => {

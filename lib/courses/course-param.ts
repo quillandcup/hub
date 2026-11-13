@@ -8,5 +8,9 @@ import { isId } from "@/lib/ids";
  */
 export async function resolveCourseParam(repos: Pick<Repos, "courses">, param: string): Promise<string> {
   if (isId(param, "crs")) return param;
-  return (await repos.courses.courseBySlug(param))?.id ?? param;
+  const course = await repos.courses.courseBySlug(param);
+  if (course) return course.id;
+  // An address the course used to have: an old link to its admin page still opens it.
+  const current = await repos.courses.redirectedAddress(param);
+  return (current && (await repos.courses.courseBySlug(current))?.id) || param;
 }
