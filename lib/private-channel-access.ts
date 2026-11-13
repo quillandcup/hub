@@ -4,6 +4,8 @@ export interface SlackChannelRow {
   is_private: boolean | null;
   /** Group DMs are private but aren't channels the bot can be removed from. */
   is_mpim?: boolean;
+  /** 1:1 DMs are written by the DM pull with their own imported_at; not channels the bot can be removed from. */
+  is_im?: boolean | null;
   imported_at: string;
 }
 
@@ -29,13 +31,17 @@ export interface StalePrivateChannel {
 export function findStalePrivateChannels(channels: SlackChannelRow[]): StalePrivateChannel[] {
   if (channels.length === 0) return [];
 
-  const latestImportedAt = channels.reduce(
+  // DMs and group DMs come from the DM pull on its own schedule, so they must not set the "latest import" mark either.
+  const conversations = channels.filter((c) => !c.is_im && !c.is_mpim);
+  if (conversations.length === 0) return [];
+
+  const latestImportedAt = conversations.reduce(
     (max, c) => (c.imported_at > max ? c.imported_at : max),
-    channels[0].imported_at
+    conversations[0].imported_at
   );
 
-  return channels
-    .filter((c) => c.is_private && !c.is_mpim && c.imported_at < latestImportedAt)
+  return conversations
+    .filter((c) => c.is_private && c.imported_at < latestImportedAt)
     .map((c) => ({ channelId: c.channel_id, channelName: c.name, lastSeenAt: c.imported_at }))
     .sort((a, b) => a.lastSeenAt.localeCompare(b.lastSeenAt));
 }

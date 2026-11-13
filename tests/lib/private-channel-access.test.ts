@@ -68,4 +68,18 @@ describe('findStalePrivateChannels', () => {
 
     expect(findStalePrivateChannels(channels).map((c) => c.channelId)).toEqual(['C3', 'C2'])
   })
+
+  it('ignores 1:1 DMs and does not let their newer import time make real channels look stale', () => {
+    const channels = [
+      channel({ channel_id: 'C1', name: 'huddle', is_private: true, imported_at: '2026-08-27T02:45:00.000Z' }),
+      channel({ channel_id: 'D1', name: '', is_private: true, is_im: true, imported_at: '2026-08-27T09:00:00.000Z' }),
+      channel({ channel_id: 'D2', name: '', is_private: true, is_im: true, imported_at: '2026-08-20T09:00:00.000Z' }),
+    ]
+
+    expect(findStalePrivateChannels(channels)).toEqual([])
+  })
+
+  it('returns nothing when only DMs exist', () => {
+    expect(findStalePrivateChannels([channel({ channel_id: 'D1', is_private: true, is_im: true })])).toEqual([])
+  })
 })

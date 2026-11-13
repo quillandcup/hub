@@ -263,7 +263,11 @@ export default function MemberSlackActivityPanel({ slackPage, slackSummary }: Me
                         </td>
                         <td className="px-6 py-3 whitespace-nowrap">
                           <span className="text-xs text-slate-600 dark:text-slate-400">
-                            #{activity.data?.channel_name || 'unknown'}
+                            {activity.data?.channel_type === 'im'
+                              ? 'Direct message'
+                              : activity.data?.channel_type === 'mpim'
+                                ? 'Group message'
+                                : `#${activity.data?.channel_name || 'unknown'}`}
                           </span>
                         </td>
                         <td className="px-6 py-3">
