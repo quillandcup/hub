@@ -165,6 +165,23 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     ].join("\n\n"),
   },
   {
+    slug: "course-address-redirects",
+    date: "2026-11-12",
+    audience: "staff",
+    category: "improved",
+    title: "Change a course's address without breaking the links people have",
+    summary: "When you rename a course, the course details offer the matching new address in one click, and a course that is or was published keeps its old addresses working.",
+    body: [
+      "This is for courses made in the Hub, in Admin, Courses. Courses imported from Kajabi keep the address Kajabi gives them.",
+      [
+        "- **A suggestion when you rename:** if the address was just following the name, a \"Use <new address>\" button appears under it. It is a suggestion, so nothing changes until you press it. A copy made with Duplicate course has a placeholder address ending in \"-copy\"; once you take \"(copy)\" out of the name, the button offers the real one.",
+        "- **Old links keep working:** if the course is published, or ever was, changing its address sends anyone who opens the old address (a course, a lesson, a module or a download) to the new one, including links shared in messages. A course that was never published can change its address freely, and nothing is kept.",
+        "- **An old address stays taken:** another course cannot use an address an earlier course still redirects from, and the form says so. If you change a course back to an address it had before, that address is the course's own again.",
+      ].join("\n"),
+      "Someone who isn't signed in and follows an old address of a course that isn't public sees the sign-in page, the same as for the current address. The audit log records the rename as one change to the course.",
+    ].join("\n\n"),
+  },
+  {
     slug: "where-pictures-come-from",
     date: "2026-11-12",
     audience: "engineering",

@@ -10,6 +10,7 @@ export const courseRow = (over: Partial<Row<"courses">> & Pick<Row<"courses">, "
   access_duration: null,
   created_at: STAMP,
   description: null,
+  first_published_at: null,
   hero_asset_id: null,
   hero_source: null,
   hero_url: null,

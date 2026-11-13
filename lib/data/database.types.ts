@@ -2910,6 +2910,35 @@ export type Database = {
           },
         ]
       }
+      course_address_redirects: {
+        Row: {
+          address: string
+          course_id: string
+          created_at: string
+          id: string
+        }
+        Insert: {
+          address: string
+          course_id: string
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          address?: string
+          course_id?: string
+          created_at?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_address_redirects_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       course_lesson_files: {
         Row: {
           content_hash: string | null
@@ -3141,6 +3170,7 @@ export type Database = {
           access_duration: string | null
           created_at: string
           description: string | null
+          first_published_at: string | null
           hero_asset_id: string | null
           hero_source: string | null
           hero_url: string | null
@@ -3162,6 +3192,7 @@ export type Database = {
           access_duration?: string | null
           created_at?: string
           description?: string | null
+          first_published_at?: string | null
           hero_asset_id?: string | null
           hero_source?: string | null
           hero_url?: string | null
@@ -3183,6 +3214,7 @@ export type Database = {
           access_duration?: string | null
           created_at?: string
           description?: string | null
+          first_published_at?: string | null
           hero_asset_id?: string | null
           hero_source?: string | null
           hero_url?: string | null

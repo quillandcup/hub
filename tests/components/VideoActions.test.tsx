@@ -56,12 +56,12 @@ describe("VideoActions", () => {
     expect(screen.getByRole("menuitem", { name: "Download video" })).toHaveAttribute("title", expect.stringMatching(/MP4.*Mux/));
   });
 
-  describe("Copy for email", () => {
+  describe("Copy with thumbnail", () => {
     const link = { url: URL, imageUrl: "https://hub.example/api/courses/image/lesson/les_AAAAAAAAAAA1", title: 'Reader "Expectations" & <more>' };
 
     it("is disabled with the reason on hover while the lesson has no public link", async () => {
       await open(<VideoActions statsHref={STATS} lessonUrl={URL} thumbnailLink={null} thumbnailLinkBlocked="Only a lesson that is open to members has a public link" />);
-      const item = screen.getByRole("menuitem", { name: "Copy for email" });
+      const item = screen.getByRole("menuitem", { name: "Copy with thumbnail" });
       expect(item).toBeDisabled();
       expect(item).toHaveAttribute("title", "Only a lesson that is open to members has a public link");
     });
@@ -79,7 +79,7 @@ describe("VideoActions", () => {
       render(<VideoActions statsHref={STATS} lessonUrl={URL} thumbnailLink={link} thumbnailLinkBlocked="" />);
       Object.defineProperty(navigator, "clipboard", { value: { writeText, write }, configurable: true });
       await user.click(screen.getByRole("button", { name: /Video actions/ }));
-      await user.click(screen.getByRole("menuitem", { name: "Copy for email" }));
+      await user.click(screen.getByRole("menuitem", { name: "Copy with thumbnail" }));
 
       expect(written[0]).toEqual([
         { type: "text/html", text: `<a href="${URL}"><img src="${link.imageUrl}" alt="Reader &quot;Expectations&quot; &amp; &lt;more&gt;" width="480"></a>` },
@@ -92,7 +92,7 @@ describe("VideoActions", () => {
     it("copies just the address where the browser can't copy rich text", async () => {
       vi.stubGlobal("ClipboardItem", undefined);
       const user = await open(<VideoActions statsHref={STATS} lessonUrl={URL} thumbnailLink={link} thumbnailLinkBlocked="" />);
-      await user.click(screen.getByRole("menuitem", { name: "Copy for email" }));
+      await user.click(screen.getByRole("menuitem", { name: "Copy with thumbnail" }));
       expect(writeText).toHaveBeenCalledWith(URL);
       vi.unstubAllGlobals();
     });
@@ -101,7 +101,7 @@ describe("VideoActions", () => {
       vi.stubGlobal("ClipboardItem", undefined);
       writeText.mockRejectedValue(new Error("denied"));
       const user = await open(<VideoActions statsHref={STATS} lessonUrl={URL} thumbnailLink={link} thumbnailLinkBlocked="" />);
-      await user.click(screen.getByRole("menuitem", { name: "Copy for email" }));
+      await user.click(screen.getByRole("menuitem", { name: "Copy with thumbnail" }));
       expect(screen.getByRole("status")).toHaveTextContent("Couldn't copy the link.");
       vi.unstubAllGlobals();
     });

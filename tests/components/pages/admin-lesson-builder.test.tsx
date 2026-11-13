@@ -266,12 +266,12 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     });
   });
 
-  it("enables Copy for email for a public lesson, and says why not when it isn't (not open, no thumbnail, course not open, not in the Hub)", async () => {
+  it("enables Copy with thumbnail for a public lesson, and says why not when it isn't (not open, no thumbnail, course not open, not in the Hub)", async () => {
     const user = userEvent.setup();
     loadAdminLesson.mockResolvedValue(detail());
     const { unmount } = await renderServerPage(AdminLessonPage, params);
     await user.click(screen.getByRole("button", { name: /Video actions/ }));
-    expect(screen.getByRole("menuitem", { name: "Copy for email" })).toBeEnabled();
+    expect(screen.getByRole("menuitem", { name: "Copy with thumbnail" })).toBeEnabled();
     expect(publicLessonPreview).toHaveBeenCalledWith(expect.anything(), "les_AAAAAAAAAAA1");
     unmount();
 
@@ -285,7 +285,7 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
       loadAdminLesson.mockResolvedValue(detail());
       const view = await renderServerPage(AdminLessonPage, params);
       await user.click(screen.getByRole("button", { name: /Video actions/ }));
-      const item = screen.getByRole("menuitem", { name: "Copy for email" });
+      const item = screen.getByRole("menuitem", { name: "Copy with thumbnail" });
       expect(item).toBeDisabled();
       expect(item).toHaveAttribute("title", expect.stringMatching(reason));
       view.unmount();
@@ -294,7 +294,7 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     loadAdminLesson.mockResolvedValue(detail({ hub: null, video: null }));
     await renderServerPage(AdminLessonPage, params);
     await user.click(screen.getByRole("button", { name: /Video actions/ }));
-    expect(screen.getByRole("menuitem", { name: "Copy for email" })).toHaveAttribute("title", "This lesson isn't in the Hub yet");
+    expect(screen.getByRole("menuitem", { name: "Copy with thumbnail" })).toHaveAttribute("title", "This lesson isn't in the Hub yet");
     expect(publicLessonPreview).toHaveBeenCalledTimes(4);
   });
 

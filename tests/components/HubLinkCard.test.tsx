@@ -56,7 +56,8 @@ describe("HubLinkCard", () => {
     expect(open).toHaveAttribute("data-stretched-link");
     expect(open).toHaveClass("after:absolute", "after:inset-0");
     expect(open).toHaveAttribute("data-track", "chat-hub-link-card");
-    expect(track).toHaveBeenCalledWith("chat_hub_link_card_shown", { kind: "message", state: "card" });
+    // Recorded by an effect once the card is drawn, so it may land a moment after it.
+    await waitFor(() => expect(track).toHaveBeenCalledWith("chat_hub_link_card_shown", { kind: "message", state: "card" }));
   });
 
   it("is drawn with the same light and dark tokens as the link preview card", async () => {
@@ -73,7 +74,7 @@ describe("HubLinkCard", () => {
     render(<HubLinkCard unfurl={unfurl()} />);
     expect(await screen.findByText("Link to the Hub")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open the link" })).toHaveAttribute("href", `/chat/${CHANNEL}?m=${TARGET}`);
-    expect(track).toHaveBeenCalledWith("chat_hub_link_card_shown", { kind: "message", state: "stub" });
+    await waitFor(() => expect(track).toHaveBeenCalledWith("chat_hub_link_card_shown", { kind: "message", state: "stub" }));
   });
 
   it("draws a prickle by title and date, and a member by name", async () => {

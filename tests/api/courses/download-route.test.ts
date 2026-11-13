@@ -17,7 +17,7 @@ vi.mock('@/lib/supabase/service', async () => {
 })
 
 import { GET } from '@/app/(member)/courses/[slug]/lessons/[lessonId]/files/[fileId]/route'
-import type { NextRequest } from 'next/server'
+import { NextRequest } from 'next/server'
 
 const ts = Date.now()
 const SLUG = `download-route-${ts}`
@@ -113,6 +113,26 @@ describe('Lesson download route', () => {
   it('lets staff acting as themselves open a coming-soon lesson\'s file (the preview)', async () => {
     as('staff', true)
     expect((await get('soon', 'fileSoon')).status).toBe(302)
+  })
+
+  it('sends an old address of the course permanently to the same download at the current one, with the access rules still applying there', async () => {
+    const OLD = `${SLUG}-old`
+    await supabase.from('course_address_redirects').insert({ address: OLD, course_id: ids.course })
+    const request = (slug: string) => new NextRequest(`http://localhost:3000/courses/${slug}/lessons/${ids.open}/files/${ids.fileOpen}?dl=1`)
+    const viaOld = (who: string | null) => {
+      as(who)
+      return GET(request(OLD), { params: Promise.resolve({ slug: OLD, lessonId: ids.open, fileId: ids.fileOpen }) })
+    }
+
+    const response = await viaOld('current')
+    expect(response.status).toBe(308)
+    expect(new URL(response.headers.get('location')!).pathname + new URL(response.headers.get('location')!).search).toBe(`/courses/${SLUG}/lessons/${ids.open}/files/${ids.fileOpen}?dl=1`)
+    // Signed out gets the same 404 as at the current address; the redirect isn't followed here, the new address decides.
+    expect((await viaOld(null)).status).toBe(404)
+    // A draft course gives its current address to nobody but staff acting as themselves.
+    await supabase.from('courses').update({ is_draft: true }).eq('id', ids.course)
+    expect((await viaOld('current')).status).toBe(404)
+    await supabase.from('courses').update({ is_draft: false }).eq('id', ids.course)
   })
 
   it('does not hand out a file through a different lesson or course, or for a bad id', async () => {

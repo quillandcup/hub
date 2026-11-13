@@ -35,7 +35,7 @@ import ChatVideo from "@/components/chat/ChatVideo";
 
 const MESSAGE = "msg_AAAAAAAAAAA1";
 const TOKENS = { playback: "p", poster: "s", storyboard: "b" };
-const WATCHABLE = { title: "Show up for the page", courseTitle: "The Ready Writer", thumbnailUrl: "/api/courses/image/lesson/les_AAAAAAAAAAA1", canWatch: true };
+const WATCHABLE = { title: "Show up for the page", courseTitle: "The Ready Writer", thumbnailUrl: "/api/courses/image/lesson/les_AAAAAAAAAAA1", lessonHref: "/courses/ready/lessons/les_AAAAAAAAAAA1", canWatch: true };
 const PLAYBACK = { title: "Show up for the page", lessonId: "les_AAAAAAAAAAA1", lessonHref: "/courses/ready/lessons/les_AAAAAAAAAAA1", playbackId: "pb123", tokens: TOKENS, restricted: false, record: true, resumeSeconds: 95, completion: { completed: false } };
 
 const fetchMock = vi.fn();
@@ -84,6 +84,25 @@ describe("ChatVideo", () => {
     expect(player).toHaveAttribute("data-message", MESSAGE);
     expect(player).toHaveAttribute("data-resume", "95");
     expect(player).toHaveAttribute("data-tracking", "true");
+  });
+
+  it("links the card to the lesson's page before anything is played, without opening the video", async () => {
+    answers({ status: 200, body: WATCHABLE }, { status: 200, body: PLAYBACK });
+    render(<ChatVideo messageId={MESSAGE} />);
+
+    const link = await screen.findByRole("link", { name: "Open lesson" });
+    expect(link).toHaveAttribute("href", "/courses/ready/lessons/les_AAAAAAAAAAA1");
+    // A link can't sit inside the card's button, and pressing it must not start the video.
+    expect(screen.getByRole("button", { name: "Play Show up for the page" }).contains(link)).toBe(false);
+    expect(posts()).toHaveLength(0);
+  });
+
+  it("has no link on the card for a viewer who can't open the lesson", async () => {
+    answers({ status: 200, body: { ...WATCHABLE, lessonHref: null } });
+    render(<ChatVideo messageId={MESSAGE} />);
+
+    await screen.findByText("From The Ready Writer");
+    expect(screen.queryByRole("link", { name: "Open lesson" })).toBeNull();
   });
 
   it("links the open player to the lesson's page, and has no link when the viewer can't open the lesson", async () => {
