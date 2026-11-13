@@ -390,19 +390,17 @@ export function defineEventContract(name: string, setup: () => EventContractCont
         expect(await repo.linkOffer(ids.b, "kaj-win-1", null)).toEqual({ linked: false, eventId: ids.a, reason: "overlap" });
         expect(await repo.offerIdsOf(ids.b)).toEqual([]);
 
-        // Days that don't overlap are allowed by the repository. Until the database drops its old one-event-per-offer
-        // constraint it may still refuse the row ("single_event"); then nothing was linked.
-        const later = await repo.linkOffer(ids.b, "kaj-win-1", null, { purchased_from: "2097-02-01", purchased_until: null });
-        expect([{ linked: true }, { linked: false, eventId: ids.a, reason: "single_event" }]).toContainEqual(later);
+        // Days that don't overlap link the same offer to the second event.
+        expect(await repo.linkOffer(ids.b, "kaj-win-1", null, { purchased_from: "2097-02-01", purchased_until: null })).toEqual({ linked: true });
+        expect(await repo.offerIdsOf(ids.b)).toEqual(["kaj-win-1"]);
 
         // Editing: change, reset, and refuse a change that would overlap; a link that isn't there is reported.
         expect(await repo.setOfferWindow(ids.a, "kaj-win-1", { purchased_from: null, purchased_until: "2097-01-15" })).toEqual({ updated: true });
         expect((await repo.offersOf(ids.a)).find((o) => o.kajabi_offer_id === "kaj-win-1")).toMatchObject({ purchased_from: null, purchased_until: "2097-01-15" });
         expect(await repo.setOfferWindow(ids.a, "kaj-win-1", { purchased_from: "2097-01-01", purchased_until: "2097-01-31" })).toEqual({ updated: true });
         expect(await repo.setOfferWindow(ids.b, "kaj-win-2", { purchased_from: null, purchased_until: null })).toEqual({ updated: false, reason: "not_linked" });
-        if ("linked" in later && later.linked) {
-          expect(await repo.setOfferWindow(ids.a, "kaj-win-1", { purchased_from: null, purchased_until: "2097-02-15" })).toEqual({ updated: false, reason: "overlap", eventId: ids.b });
-        }
+        // Now that the offer serves both events, a change that would overlap the other one is refused.
+        expect(await repo.setOfferWindow(ids.a, "kaj-win-1", { purchased_from: null, purchased_until: "2097-02-15" })).toEqual({ updated: false, reason: "overlap", eventId: ids.b });
       });
 
       it("deleting an event takes its photos and attendees with it", async () => {

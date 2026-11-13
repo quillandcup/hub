@@ -98,10 +98,9 @@ export type EventOfferRow = Pick<Row<"community_event_offers">, "event_id" | "ka
 
 /**
  * The result of linking an offer: done, or refused because the offer is linked to another event for
- * overlapping purchase days ("overlap"), or, until the database's old one-event-per-offer constraint
- * is dropped, at all ("single_event"). `eventId` is that other event.
+ * overlapping purchase days. `eventId` is that other event.
  */
-export type LinkOfferResult = { linked: true } | { linked: false; eventId: string; reason: "overlap" | "single_event" };
+export type LinkOfferResult = { linked: true } | { linked: false; eventId: string; reason: "overlap" };
 
 /** The result of changing a linked offer's window. */
 export type SetOfferWindowResult = { updated: true } | { updated: false; reason: "not_linked" } | { updated: false; reason: "overlap"; eventId: string };
@@ -784,14 +783,9 @@ export class SupabaseEventRepository implements EventRepository {
     if (clash) return { linked: false, eventId: clash.event_id, reason: "overlap" };
     const { error } = await this.db.from("community_event_offers").insert({ event_id: eventId, kajabi_offer_id: kajabiOfferId, created_by: createdBy, ...w });
     if (!error) return { linked: true };
+    // The only unique rule left is one link per event and offer: a request that linked it first already did the job.
     if (error.code !== "23505") throw new Error(error.message);
-    // Already linked to this event (nothing to do) or, while the database still allows one event per offer, to another.
-    const { data, error: readError } = await this.db.from("community_event_offers").select("event_id").eq("kajabi_offer_id", kajabiOfferId);
-    if (readError) throw new Error(readError.message);
-    const rows = data ?? [];
-    if (rows.length === 0) throw new Error(error.message); // unlinked in between: let the caller retry
-    if (rows.some((r) => r.event_id === eventId)) return { linked: true };
-    return { linked: false, eventId: rows[0].event_id, reason: "single_event" };
+    return { linked: true };
   }
 
   async setOfferWindow(eventId: string, kajabiOfferId: string, window: OfferWindow): Promise<SetOfferWindowResult> {

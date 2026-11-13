@@ -78,7 +78,7 @@ export async function POST(
     const createdBy = auth.user.id !== "service-role" && auth.user.id !== "cron" ? auth.user.id : null;
     const result = await repos.events.linkOffer(id, offerId, createdBy, parsed.window);
     if (!result.linked) {
-      return NextResponse.json({ error: overlapMessage(result.reason), eventId: result.eventId }, { status: 409 });
+      return NextResponse.json({ error: overlapMessage(), eventId: result.eventId }, { status: 409 });
     }
     return NextResponse.json({ success: true }, { status: 201 });
   } catch (error) {

@@ -69,8 +69,6 @@ export function parseWindow(body: { purchasedFrom?: unknown; purchasedUntil?: un
 }
 
 /** What staff read when a link is refused. */
-export function overlapMessage(reason: "overlap" | "single_event"): string {
-  return reason === "overlap"
-    ? "That offer is already linked to another event for purchases on overlapping days. Give each event its own dates."
-    : "That offer is already linked to another event";
+export function overlapMessage(): string {
+  return "That offer is already linked to another event for purchases on overlapping days. Give each event its own dates.";
 }

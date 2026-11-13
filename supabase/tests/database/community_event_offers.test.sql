@@ -5,7 +5,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(14);
+SELECT plan(15);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000e0a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'eventoffer-admin@example.test'),
@@ -29,11 +29,6 @@ SELECT lives_ok(
   $$INSERT INTO public.community_event_offers (event_id, kajabi_offer_id) VALUES ('evt_EVOFFERAAAA1', 'offer-1'), ('evt_EVOFFERAAAA1', 'offer-2')$$,
   'admin: an event can have several offers'
 );
-SELECT throws_ok(
-  $$INSERT INTO public.community_event_offers (event_id, kajabi_offer_id) VALUES ('evt_EVOFFERAAAA2', 'offer-1')$$,
-  '23505', NULL,
-  'admin: an offer sells one event only'
-);
 SELECT matches(
   (SELECT id FROM public.community_event_offers WHERE kajabi_offer_id = 'offer-1'),
   '^evo_[1-9A-HJ-NP-Za-km-z]{12}$',
@@ -56,6 +51,14 @@ SELECT is((SELECT count(*)::int FROM public.community_event_offers WHERE kajabi_
 
 DELETE FROM public.community_event_offers WHERE kajabi_offer_id = 'offer-2';
 SELECT is((SELECT count(*)::int FROM public.community_event_offers), 1, 'admin: unlinks an offer');
+
+-- One offer can serve two events (20270721 dropped the one-event-per-offer rule; the app keeps their days apart).
+SELECT lives_ok(
+  $$INSERT INTO public.community_event_offers (event_id, kajabi_offer_id) VALUES ('evt_EVOFFERAAAA2', 'offer-1')$$,
+  'admin: an offer can be linked to a second event'
+);
+SELECT is((SELECT count(*)::int FROM public.community_event_offers WHERE kajabi_offer_id = 'offer-1'), 2, 'admin: both links are there');
+DELETE FROM public.community_event_offers WHERE event_id = 'evt_EVOFFERAAAA2';
 
 -- Purchase windows (20270720): inclusive days, either end optional, a link per event and offer.
 SELECT lives_ok(
@@ -85,7 +88,7 @@ SELECT is(
 
 RESET ROLE;
 DELETE FROM public.community_events WHERE id = 'evt_EVOFFERAAAA1';
-SELECT is((SELECT count(*)::int FROM public.community_event_offers), 0, 'deleting the event removes its links');
+SELECT is((SELECT count(*)::int FROM public.community_event_offers WHERE event_id = 'evt_EVOFFERAAAA1'), 0, 'deleting the event removes its links');
 
 SELECT * FROM finish(true);
 ROLLBACK;
