@@ -34,6 +34,9 @@ export interface DemoEventSpec {
   /** What the app has no place for on the calendar: set on the event after processing. */
   eventType?: "virtual_retreat" | "workshop" | "book_launch" | "educational" | "session";
   registration?: "none" | "signup" | "application";
+  /** Places, and the checkout page of the ticket offer that sells them (fictional): the event then shows places left and Sign up. */
+  capacity?: number;
+  checkoutUrl?: string;
   colors?: [string, string];
 }
 
@@ -53,6 +56,8 @@ export const DEMO_EVENTS: DemoEventSpec[] = [
     tagged: true,
     eventType: "virtual_retreat",
     registration: "signup",
+    capacity: 12,
+    checkoutUrl: "https://example.com/checkout/winter-writing-retreat",
     colors: ["#1f4e5f", "#e0b94f"],
   },
   {
@@ -234,6 +239,20 @@ export async function seedKajabiContact(admin: Admin, email: string, kajabiId: s
 }
 
 /** After calendar processing: each demo event's kind, sign-up and picture (the calendar has no place for them). */
+/** A Kajabi ticket offer for the event, linked to it, so the event page shows places left and Sign up. Replaces its own rows. */
+async function seedTicketOffer(admin: Admin, key: string, prickleId: string, checkoutUrl: string) {
+  const offerId = `demo-offer-${key}`;
+  const { data: event, error: eventError } = await admin.from("community_events").select("id").eq("prickle_id", prickleId).single();
+  if (eventError) throw new Error(`community_events ${key}: ${eventError.message}`);
+  const { error: offerError } = await admin
+    .schema("bronze")
+    .from("kajabi_offers")
+    .upsert({ kajabi_offer_id: offerId, name: "Demo event ticket", status: "active", data: { attributes: { checkout_url: checkoutUrl } } }, { onConflict: "kajabi_offer_id" });
+  if (offerError) throw new Error(`kajabi_offers ${key}: ${offerError.message}`);
+  const { error: linkError } = await admin.from("community_event_offers").upsert({ event_id: event.id, kajabi_offer_id: offerId }, { onConflict: "kajabi_offer_id" });
+  if (linkError) throw new Error(`community_event_offers ${key}: ${linkError.message}`);
+}
+
 export async function seedEventDetails(admin: Admin) {
   const media = new SupabaseMediaRepository(admin as unknown as Db);
   for (const spec of DEMO_EVENTS) {
@@ -251,8 +270,9 @@ export async function seedEventDetails(admin: Admin) {
     }
     const { error } = await admin
       .from("community_events")
-      .update({ event_type: spec.eventType ?? "session", registration: spec.registration ?? "none", image_id: imageId })
+      .update({ event_type: spec.eventType ?? "session", registration: spec.registration ?? "none", image_id: imageId, capacity: spec.capacity ?? null })
       .eq("prickle_id", prickle.id);
     if (error) throw new Error(`community_events ${spec.key}: ${error.message}`);
+    if (spec.checkoutUrl) await seedTicketOffer(admin, spec.key, prickle.id, spec.checkoutUrl);
   }
 }
