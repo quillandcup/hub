@@ -90,7 +90,11 @@ describe("ChatVideo", () => {
     answers({ status: 200, body: WATCHABLE }, { status: 200, body: PLAYBACK });
     const first = render(<ChatVideo messageId={MESSAGE} />);
     await userEvent.click(await screen.findByRole("button", { name: /Play/ }));
-    expect(await screen.findByRole("link", { name: "Open lesson" })).toHaveAttribute("href", "/courses/ready/lessons/les_AAAAAAAAAAA1");
+    const link = await screen.findByRole("link", { name: "Open lesson" });
+    expect(link).toHaveAttribute("href", "/courses/ready/lessons/les_AAAAAAAAAAA1");
+    // A new tab, so the conversation and the playing video stay where they are.
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", expect.stringContaining("noopener"));
     first.unmount();
 
     answers({ status: 200, body: WATCHABLE }, { status: 200, body: { ...PLAYBACK, lessonHref: null } });

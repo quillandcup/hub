@@ -95,8 +95,8 @@ export default function ChatVideo({ messageId }: { messageId: string }) {
             posterUrl={card.thumbnailUrl && !imageFailed ? card.thumbnailUrl : null}
             overlay={
               state.lessonHref ? (
-                // Inside the player's skin, so it is drawn with the skin's own tokens like its fullscreen button (`.lesson-open-link`, app/globals.css).
-                <Link href={state.lessonHref} data-track="chat-video-open-lesson" className="lesson-open-link">
+                // A new tab, so the conversation (and the video, still playing) stays where it is. Inside the player's skin, so it is drawn with the skin's own tokens like its fullscreen button (`.lesson-open-link`, app/globals.css).
+                <Link href={state.lessonHref} target="_blank" rel="noopener noreferrer" data-track="chat-video-open-lesson" className="lesson-open-link">
                   <svg viewBox="0 0 24 24" className="lesson-open-link-icon" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <path d="M7 17 17 7M8 7h9v9" />
                   </svg>
