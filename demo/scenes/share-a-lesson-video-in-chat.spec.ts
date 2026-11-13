@@ -1,4 +1,4 @@
-import type { Locator } from "playwright/test";
+import type { Locator, Page } from "playwright/test";
 import { expect, shot, test } from "../fixtures";
 import { DEMO_COURSE_SLUGS, DEMO_SHARED_LESSON } from "../courses-seed";
 import { demoChannelId } from "../video/slack-stand-in";
@@ -14,6 +14,57 @@ const isTopmost = (target: Locator) =>
 /** Two boxes share no area. */
 const apart = (a: { x: number; y: number; width: number; height: number }, b: { x: number; y: number; width: number; height: number }) =>
   a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y;
+
+/** The demo has no Mux: answer the playback request with made-up links (the player itself can only show its error; what is under test is the app's own link). */
+const stubPlayback = (page: Page, title: string, lessonHref: string) =>
+  page.route(/\/api\/chat\/videos\/msg_[^/]+$/, (route) =>
+    route.request().method() === "POST"
+      ? route.fulfill({
+          json: {
+            title,
+            lessonId: lessonHref.split("/").pop(),
+            lessonHref,
+            playbackId: "demo-playback",
+            tokens: { playback: "demo", poster: "demo", storyboard: "demo" },
+            restricted: false,
+            record: false,
+            resumeSeconds: 0,
+          },
+        })
+      : route.fallback(),
+  );
+
+/**
+ * The contrast of a control's text against what is really drawn behind it, from its pixels in a screenshot (axe cannot judge text over an image or
+ * a blurred glass: it reports "incomplete"). Text is the brightest pixel, the ground the median one; WCAG's formula.
+ */
+async function measuredContrast(page: Page, target: Locator): Promise<number> {
+  const png = (await target.screenshot({ animations: "disabled" })).toString("base64");
+  return page.evaluate(async (src) => {
+    const img = new Image();
+    img.src = `data:image/png;base64,${src}`;
+    await img.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const g = canvas.getContext("2d")!;
+    g.drawImage(img, 0, 0);
+    const data = g.getImageData(0, 0, img.width, img.height).data;
+    const lum = (r: number, gr: number, b: number) => {
+      const f = (v: number) => ((v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+      return 0.2126 * f(r) + 0.7152 * f(gr) + 0.0722 * f(b);
+    };
+    const all: number[] = [];
+    for (let i = 0; i < data.length; i += 4) all.push(lum(data[i], data[i + 1], data[i + 2]));
+    all.sort((x, y) => x - y);
+    const ground = all[Math.floor(all.length / 2)];
+    const text = all[all.length - 1];
+    return (Math.max(text, ground) + 0.05) / (Math.min(text, ground) + 0.05);
+  }, png);
+}
+
+/** A white lesson picture: the demo's own is a dark plum, and the case that matters is a white title slide. */
+const BRIGHT_PICTURE = '<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720"><rect width="1280" height="720" fill="#ffffff"/></svg>';
 
 /** The help article "Share a lesson video in chat": the copy-link row on a lesson, and the card it makes in a conversation. */
 test("share a lesson video in chat", async ({ page, signInAs }, testInfo) => {
@@ -48,22 +99,7 @@ test("share a lesson video in chat", async ({ page, signInAs }, testInfo) => {
 
   // The player opened: the "Open lesson" link over its corner. The demo has no Mux, so the playback request is answered with made-up
   // links (the player itself can only show its error); what is under test is the link, which is the app's own.
-  await page.route(/\/api\/chat\/videos\/msg_[^/]+$/, (route) =>
-    route.request().method() === "POST"
-      ? route.fulfill({
-          json: {
-            title: DEMO_SHARED_LESSON.title,
-            lessonId: lessonPath.split("/").pop(),
-            lessonHref: lessonPath,
-            playbackId: "demo-playback",
-            tokens: { playback: "demo", poster: "demo", storyboard: "demo" },
-            restricted: false,
-            record: false,
-            resumeSeconds: 0,
-          },
-        })
-      : route.fallback(),
-  );
+  await stubPlayback(page, DEMO_SHARED_LESSON.title, lessonPath);
   await card.click();
   const link = page.getByRole("link", { name: "Open lesson" });
   await expect(link).toBeVisible();
@@ -93,4 +129,31 @@ test("share a lesson video in chat", async ({ page, signInAs }, testInfo) => {
   await expect(link).toBeFocused();
   await shot(page, testInfo, "open-lesson-link-focus");
   await expect(link).toHaveAttribute("href", lessonPath);
+});
+
+/**
+ * Over a bright frame: the skin's own glass is white at 10%, so white text on it has almost no contrast on a white title slide. The link (and the
+ * skin's pills beside it, which share the token) must stay readable on the card and in the open player, at every size and colour scheme.
+ */
+test("open lesson link over a bright frame", async ({ page, signInAs }, testInfo) => {
+  await signInAs("member");
+  await page.route(/\/api\/courses\/image\/lesson\//, (route) => route.fulfill({ contentType: "image/svg+xml", body: BRIGHT_PICTURE }));
+  await page.goto(`/chat/${await demoChannelId("craft-talk")}`);
+  const card = page.getByRole("button", { name: new RegExp(`Play ${DEMO_SHARED_LESSON.title}`) });
+  await expect(card.locator("img")).toHaveJSProperty("complete", true);
+  await card.scrollIntoViewIfNeeded();
+  const link = page.getByRole("link", { name: "Open lesson" });
+  await expect(link).toBeVisible();
+  await page.getByRole("heading", { name: /craft-talk/ }).hover();
+  await shot(page, testInfo, "bright-card");
+  expect(await measuredContrast(page, link), "the link on the card over a bright picture").toBeGreaterThanOrEqual(4.5);
+
+  await stubPlayback(page, DEMO_SHARED_LESSON.title, (await link.getAttribute("href")) ?? "");
+  await card.click();
+  await expect(page.getByRole("alertdialog")).toBeVisible();
+  await page.getByRole("button", { name: "OK" }).click();
+  await expect(page.getByRole("alertdialog")).toBeHidden();
+  await page.getByRole("heading", { name: /craft-talk/ }).hover();
+  await shot(page, testInfo, "bright-player");
+  expect(await measuredContrast(page, link), "the link in the player over a bright picture").toBeGreaterThanOrEqual(4.5);
 });
