@@ -2868,4 +2868,17 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "How to add a block type or a new kind of unfurl: `docs/SLACK_BRIDGED_CHAT.md`, \"Adding a block type (or a new kind of unfurl)\".",
     ].join("\n\n"),
   },
+  {
+    slug: "chat-jump-to-a-day",
+    date: "2026-11-13",
+    audience: "product",
+    category: "new",
+    title: "Jump to any day in a chat conversation",
+    summary: "Tap the day label in a conversation to jump to today, yesterday, last week, last month, the very beginning, or any date you pick on a calendar.",
+    body: [
+      "In Hub Chat, the day label above each group of messages (like \"Wednesday, November 11th\") is now a button. Tap it to open Jump to... and choose Today, Yesterday, Last week, Last month or The very beginning, or pick a specific date on a calendar.",
+      "The conversation opens on the first message of that day. If nothing was posted that day, it opens on the next day that has messages, and tells you so. A Jump to latest link takes you back to the newest messages, and Show newer messages carries on from where the page ends.",
+      "Days follow your own time zone setting. Looking back this way does not mark the conversation as read.",
+    ].join("\n\n"),
+  },
 ];

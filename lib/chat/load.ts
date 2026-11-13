@@ -293,17 +293,30 @@ export interface MessagePage {
   messages: MessageRow[];
   /** created_at to pass as ?before= for the page of older messages, when there is one. */
   olderBefore: string | null;
+  /** created_at to pass as `?after=` for the messages after a window that started at a date, when there are more. */
+  newerAfter?: string | null;
 }
 
 /** Top-level messages, newest page first, or one thread's replies in order. */
 export async function loadMessages(
   repos: ChatLoadRepos,
   channelId: string,
-  opts: { before?: string | null; threadRootId?: string | null } = {}
+  opts: { before?: string | null; from?: string | null; fromExclusive?: boolean; threadRootId?: string | null } = {}
 ): Promise<MessagePage> {
   const { chat } = repos;
   if (opts.threadRootId) {
     return { messages: await ignoringErrors(chat.threadMessages(channelId, opts.threadRootId, THREAD_LIMIT)), olderBefore: null };
+  }
+
+  if (opts.from) {
+    // A window that starts at a date: that day's first message (or the next day's, when nothing was posted) and on.
+    const rows = await ignoringErrors(chat.channelMessagesFrom(channelId, { from: opts.from, exclusive: opts.fromExclusive, limit: MESSAGE_PAGE_SIZE + 1 }));
+    const messages = rows.slice(0, MESSAGE_PAGE_SIZE);
+    const newerAfter = rows.length > MESSAGE_PAGE_SIZE ? messages[messages.length - 1].created_at : null;
+    // Older ones are read from just before the window's first message (or before the date, when the window is empty).
+    const edge = messages[0]?.created_at ?? opts.from;
+    const older = await ignoringErrors(chat.channelMessages(channelId, { before: edge, limit: 1 }));
+    return { messages, olderBefore: older.length > 0 ? edge : null, newerAfter };
   }
 
   const rows = await ignoringErrors(chat.channelMessages(channelId, { before: opts.before, limit: MESSAGE_PAGE_SIZE + 1 }));

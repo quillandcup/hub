@@ -1323,6 +1323,10 @@ The policy has no `script-src`, `style-src` or `default-src`: Next's inline boot
 
 "Mark unread" (`markChatUnread`, `chat_mark_unread`) is offered on top-level messages only, because the unread counts and the "New" line skip replies (a thread has no marker of its own). Still open: marking a reply unread (needs a per-thread marker), Slack's `U` keyboard shortcut on the hovered or focused message (the message menu has no key handling yet; start in `components/chat/MessageActions.tsx`), and running `ChatRepository.markUnread` against the real database in the shared contract suite (`tests/helpers/chat-contract.ts`): the database function is bound to the signed-in caller, so it is covered by pgTAP (`supabase/tests/database/chat_mark_unread.test.sql`) and the in-memory twin's own test instead.
 
+### Chat jump to a day: thread panel and in-window live updates
+
+Jump to a day (`?from=`, `docs/SLACK_BRIDGED_CHAT.md`) loads one window of messages: new messages are not merged into it live (like `?before=`), opening a thread keeps the window (`closeHref`) but the thread link itself drops `from`, and "Show newer messages" starts a fresh window instead of appending to the one on screen (the list remounts, older messages above are reloaded by "Load older messages"). Deferred because appending newer pages in place needs a `loadNewerChat` action and scroll bookkeeping in `components/chat/MessageList.tsx`, which other chat work was changing at the same time. Also a "Jump to..." entry for `chat_jumped` in `lib/analytics/funnels.ts` if staff want to see use.
+
 ## Slack Bot Channel Access
 
 ### Auto-invite Billie Bot into private channels using a personal Slack token

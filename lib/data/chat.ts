@@ -215,6 +215,8 @@ export interface ChatRepository {
   // --- message reads ---
   /** Top-level messages of a conversation, newest first, at most `limit`; with `before`, only those created earlier. */
   channelMessages(channelId: string, opts: { before?: string | null; limit: number }): Promise<ChatMessageRow[]>;
+  /** Top-level messages created at or after `from` (after it, with `exclusive`), oldest first, at most `limit`: a window that starts at a date. */
+  channelMessagesFrom(channelId: string, opts: { from: string; exclusive?: boolean; limit: number }): Promise<ChatMessageRow[]>;
   /** One thread's replies, oldest first, at most `limit`. */
   threadMessages(channelId: string, threadRootId: string, limit: number): Promise<ChatMessageRow[]>;
   /** Specific top-level messages of a conversation (replies are left out), in no particular order. */
@@ -486,6 +488,14 @@ export class SupabaseChatRepository implements ChatRepository {
     let query = this.db.from("chat_messages").select(MESSAGE_COLUMNS).eq("channel_id", channelId).is("thread_root_id", null);
     if (opts.before) query = query.lt("created_at", opts.before);
     const { data, error } = await query.order("created_at", { ascending: false }).order("id", { ascending: false }).limit(opts.limit).overrideTypes<ChatMessageRow[], { merge: false }>(); // text columns held to unions by check constraints
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  }
+
+  async channelMessagesFrom(channelId: string, opts: { from: string; exclusive?: boolean; limit: number }) {
+    let query = this.db.from("chat_messages").select(MESSAGE_COLUMNS).eq("channel_id", channelId).is("thread_root_id", null);
+    query = opts.exclusive ? query.gt("created_at", opts.from) : query.gte("created_at", opts.from);
+    const { data, error } = await query.order("created_at", { ascending: true }).order("id", { ascending: true }).limit(opts.limit).overrideTypes<ChatMessageRow[], { merge: false }>(); // text columns held to unions by check constraints
     if (error) throw new Error(error.message);
     return data ?? [];
   }
@@ -1141,6 +1151,15 @@ export class InMemoryChatRepository implements ChatRepository {
     return this.data.chatMessages
       .filter((m) => m.channel_id === channelId && !m.thread_root_id && (before === null || time(m) < before))
       .sort(newestFirst)
+      .slice(0, opts.limit)
+      .map((m) => this.messageRow(m));
+  }
+
+  async channelMessagesFrom(channelId: string, opts: { from: string; exclusive?: boolean; limit: number }) {
+    const from = Date.parse(opts.from);
+    return this.data.chatMessages
+      .filter((m) => m.channel_id === channelId && !m.thread_root_id && (opts.exclusive ? time(m) > from : time(m) >= from))
+      .sort(oldestFirst)
       .slice(0, opts.limit)
       .map((m) => this.messageRow(m));
   }
