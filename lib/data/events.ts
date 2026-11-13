@@ -795,6 +795,9 @@ export class SupabaseEventRepository implements EventRepository {
   }
 
   async setOfferWindow(eventId: string, kajabiOfferId: string, window: OfferWindow): Promise<SetOfferWindowResult> {
+    const { data: here, error: hereError } = await this.db.from("community_event_offers").select("id").eq("event_id", eventId).eq("kajabi_offer_id", kajabiOfferId).limit(1);
+    if (hereError) throw new Error(hereError.message);
+    if ((here ?? []).length === 0) return { updated: false, reason: "not_linked" };
     const clash = await this.overlappingLink(eventId, kajabiOfferId, window);
     if (clash) return { updated: false, reason: "overlap", eventId: clash.event_id };
     const { data, error } = await this.db

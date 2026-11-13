@@ -57,7 +57,7 @@ SELECT is((SELECT count(*)::int FROM public.community_event_offers WHERE kajabi_
 DELETE FROM public.community_event_offers WHERE kajabi_offer_id = 'offer-2';
 SELECT is((SELECT count(*)::int FROM public.community_event_offers), 1, 'admin: unlinks an offer');
 
--- Purchase windows (20270706): inclusive days, either end optional, a link per event and offer.
+-- Purchase windows (20270720): inclusive days, either end optional, a link per event and offer.
 SELECT lives_ok(
   $$INSERT INTO public.community_event_offers (event_id, kajabi_offer_id, purchased_from, purchased_until) VALUES ('evt_EVOFFERAAAA1', 'offer-3', '2026-02-01', '2026-02-01')$$,
   'admin: a window may be a single day'
