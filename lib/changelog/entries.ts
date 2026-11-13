@@ -240,7 +240,6 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "**On every plan** you see the member's engagement score and tier when the plan started and now, and when they last took part in the community and in what (a prickle, a Slack message or reaction, a lesson, a writing log; never a login).",
       "**Results** (the button on a plan) set the member's own activity before the plan, during it and 30 to 60 days after it ends: distinct prickles attended, Slack messages, whether their first prickle or first Slack post fell in the window, and how many other members they connected with. It also says whether they were active, on hiatus or cancelled 60, 90 and 180 days after the plan, when they first went on hiatus or left, the programs they hold and how long each runs, and the programs they started. These describe what happened; they do not prove the outreach caused it.",
       "**What is recorded.** Starting, renewing and closing a plan appear on the member's timeline (the reason, never your note), and changes are in the audit log. Behind the scenes the table is `care_engagements`; routes, settings and events keep that name.",
-      "**Not built yet:** email filling in who wrote, reminders to owners when a plan is due, a comparison with members who had no reach-out, and importing the old spreadsheet. They are tracked in `docs/TODO.md`, \"Hedgie Care: what is left\".",
     ].join("\n\n"),
   },
   {
