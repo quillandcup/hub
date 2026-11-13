@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const setLessonComplete = vi.hoisted(() => vi.fn());
 vi.mock("@/app/(member)/courses/actions", () => ({ setLessonComplete }));
 vi.mock("@/components/courses/LessonPlayer", () => ({
-  default: function MockPlayer(props: { title: string; playbackId: string; lessonId?: string; chatMessageId?: string; resumeSeconds?: number; trackProgress?: boolean; autoPlay?: boolean; posterUrl?: string | null }) {
+  default: function MockPlayer(props: { title: string; playbackId: string; lessonId?: string; chatMessageId?: string; resumeSeconds?: number; trackProgress?: boolean; autoPlay?: boolean; posterUrl?: string | null; overlay?: React.ReactNode }) {
     // The real player calls autoComplete once the playhead passes ~90% of the video; the test's button stands for that.
     const completion = useLessonCompletion();
     return (
@@ -22,6 +22,7 @@ vi.mock("@/components/courses/LessonPlayer", () => ({
         data-poster={props.posterUrl ?? ""}
       >
         {props.title}
+        {props.overlay}
         <button type="button" onClick={() => completion?.autoComplete()}>
           watched through
         </button>

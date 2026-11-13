@@ -27,6 +27,65 @@ body {
   }
 }
 
+/* A link drawn over the lesson player's frame (ChatVideo's "Open lesson"). It sits inside the skin, so it uses the same tokens as the skin's own
+   screen controls (the fullscreen button's glass pill below 32rem): a contrast change to those lands here too. Icon only where the skin is that
+   narrow, so it keeps clear of the big play button; it is the top-left corner because the fullscreen pill takes the top-right. */
+.lesson-open-link {
+  position: absolute;
+  top: calc(var(--media-spacing) * 2);
+  left: calc(var(--media-spacing) * 2);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--media-spacing) * 1.5);
+  height: var(--media-control-size);
+  padding-inline: calc(var(--media-spacing) * 3);
+  border-radius: var(--media-control-radius);
+  background-color: var(--media-popover);
+  color: var(--media-popover-foreground);
+  box-shadow: 0 0 0 1px var(--media-surface-border, var(--media-border)), var(--media-shadow-surface);
+  -webkit-backdrop-filter: var(--media-backdrop-filter-surface);
+  backdrop-filter: var(--media-backdrop-filter-surface);
+  text-shadow: var(--media-text-shadow-dialog);
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+  outline: 2px solid transparent;
+  transition-property: background-color, color, outline-offset;
+  transition-duration: var(--media-duration);
+}
+.lesson-open-link:hover,
+.lesson-open-link:focus-visible {
+  background-color: var(--media-accent);
+  color: var(--media-accent-foreground);
+}
+.lesson-open-link:focus-visible {
+  outline-offset: 2px;
+  outline-color: var(--media-ring);
+}
+.lesson-open-link-icon {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+@container media-root (width < 32rem) {
+  .lesson-open-link {
+    width: var(--media-control-size);
+    padding-inline: 0;
+    justify-content: center;
+  }
+  .lesson-open-link-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;
