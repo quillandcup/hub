@@ -42,7 +42,7 @@ export async function PATCH(
     const result = await createRepos(auth.supabase).events.setOfferWindow(id, offerId, parsed.window);
     if (!result.updated) {
       if (result.reason === "not_linked") return NextResponse.json({ error: "That offer is not linked to this event" }, { status: 404 });
-      return NextResponse.json({ error: overlapMessage("overlap"), eventId: result.eventId }, { status: 409 });
+      return NextResponse.json({ error: overlapMessage(), eventId: result.eventId }, { status: 409 });
     }
     return NextResponse.json({ success: true });
   } catch (error) {

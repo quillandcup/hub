@@ -88,7 +88,7 @@ describe("purchase window helpers", () => {
     expect(parseWindow({ purchasedFrom: "2026-02-01" })).toEqual({ window: { purchased_from: "2026-02-01", purchased_until: null } });
     expect(parseWindow({ purchasedFrom: "2026-02-02", purchasedUntil: "2026-02-01" })).toHaveProperty("error");
     expect(parseWindow({ purchasedUntil: "bad" })).toHaveProperty("error");
-    expect(overlapMessage("overlap")).not.toBe(overlapMessage("single_event"));
+    expect(overlapMessage()).toMatch(/overlapping days/);
   });
 });
 
