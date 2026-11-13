@@ -3,6 +3,7 @@
 import { useState } from "react";
 import LessonPlayer, { type PlaybackTokens } from "@/components/courses/LessonPlayer";
 import VideoActions from "./VideoActions";
+import type { StaffToolsProps } from "../../LessonStaffTools";
 import LessonVideoControls from "./LessonVideoControls";
 import type { CaptionTrack } from "./LessonCaptions";
 
@@ -18,6 +19,7 @@ export default function LessonMediaPanel({
   thumbnailLink,
   thumbnailLinkBlocked,
   chatShare = false,
+  staff,
   frameThumbnail = null,
   captions = [],
 }: {
@@ -33,6 +35,8 @@ export default function LessonMediaPanel({
   thumbnailLinkBlocked: string;
   /** Offer the "open to everyone" link in the Video actions menu. */
   chatShare?: boolean;
+  /** Staff-only watch-tracking items for the Video actions menu. */
+  staff?: StaffToolsProps;
   /** For a Hub-owned lesson: the course and lesson the current frame can become the thumbnail of. */
   frameThumbnail?: { courseId: string; lessonId: string } | null;
   /** The video's caption tracks (a Hub-owned lesson, where the actions menu manages them). */
@@ -52,10 +56,10 @@ export default function LessonMediaPanel({
             captions={captions}
             seconds={seconds}
             frameThumbnail
-            actions={{ statsHref, lessonUrl, thumbnailLink, thumbnailLinkBlocked, chatShare }}
+            actions={{ statsHref, lessonUrl, thumbnailLink, thumbnailLinkBlocked, chatShare, staff }}
           />
         ) : (
-          <VideoActions statsHref={statsHref} lessonUrl={lessonUrl} seconds={seconds} thumbnailLink={thumbnailLink} thumbnailLinkBlocked={thumbnailLinkBlocked} chatShare={chatShare} />
+          <VideoActions statsHref={statsHref} lessonUrl={lessonUrl} staff={staff} seconds={seconds} thumbnailLink={thumbnailLink} thumbnailLinkBlocked={thumbnailLinkBlocked} chatShare={chatShare} />
         )}
       </div>
     </div>

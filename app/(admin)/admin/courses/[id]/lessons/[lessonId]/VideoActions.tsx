@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useStaffTools, type StaffToolsProps } from "../../LessonStaffTools";
 import { OPEN_SHARE_PARAM, OPEN_SHARE_VALUE } from "@/lib/chat/lesson-links";
 
 const SOON = "Not available yet: courses are imported from Kajabi for now";
@@ -23,6 +24,7 @@ export default function VideoActions({
   thumbnailLinkBlocked,
   chatShare = false,
   edit,
+  staff,
 }: {
   /** The lesson's watch stats; null when the lesson has no video in the Hub. */
   statsHref: string | null;
@@ -37,11 +39,14 @@ export default function VideoActions({
   /** Offer the "open to everyone" link (the `chat_videos` feature is on for this admin). */
   chatShare?: boolean;
   /** A Hub-owned lesson: the items that change the video are live. `onCaptions` is absent until the video is ready. */
+  /** Staff-only watch-tracking items (record in a preview, clear my progress), for a lesson in the Hub. */
+  staff?: StaffToolsProps;
   edit?: { busy: boolean; onReplace: () => void; onRemove: () => void; onCaptions?: () => void };
 }) {
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const staffTools = useStaffTools(staff ?? { lessonId: "", lessonPath: "", preview: false });
 
   useEffect(() => {
     if (!open) return;
@@ -173,6 +178,22 @@ export default function VideoActions({
           <button type="button" role="menuitem" disabled title="Needs downloadable (MP4) copies of the video turned on in Mux, which has a cost" className={OFF}>
             Download video
           </button>
+          {staff && (
+            <>
+              <div role="separator" className="my-1 border-t border-slate-200 dark:border-slate-700" />
+              {staffTools.items.map((item) =>
+                item.href ? (
+                  <Link key={item.key} role="menuitem" href={item.href} data-track={item.track} className={`${ITEM} hover:bg-slate-50 dark:hover:bg-slate-800`}>
+                    {item.label}
+                  </Link>
+                ) : (
+                  <button key={item.key} type="button" role="menuitem" data-track={item.track} onClick={() => { setOpen(false); item.onSelect?.(); }} className={`${ITEM} hover:bg-slate-50 dark:hover:bg-slate-800`}>
+                    {item.label}
+                  </button>
+                ),
+              )}
+            </>
+          )}
           <div role="separator" className="my-1 border-t border-slate-200 dark:border-slate-700" />
           {edit ? (
             <button type="button" role="menuitem" disabled={edit.busy} onClick={() => { setOpen(false); edit.onRemove(); }} className={`${edit.busy ? OFF : `${ITEM} hover:bg-slate-50 dark:hover:bg-slate-800`} text-red-700 dark:text-red-300`}>
@@ -185,6 +206,7 @@ export default function VideoActions({
           )}
         </div>
       )}
+      {staff && staffTools.notice}
       {status && (
         <p role="status" className="mt-2 text-xs text-slate-600 dark:text-slate-400">
           {status}
