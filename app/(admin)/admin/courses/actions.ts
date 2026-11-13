@@ -35,7 +35,7 @@ async function checkedDetails(auth: Auth, input: CourseDetailsInput): Promise<{ 
 
 function revalidate(id: string) {
   revalidatePath("/admin/courses");
-  revalidatePath(`/admin/courses/${id}`);
+  revalidatePath(`/admin/courses/${id}`, "layout");
   revalidatePath("/courses", "layout");
 }
 

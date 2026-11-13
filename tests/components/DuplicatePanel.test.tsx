@@ -2,6 +2,7 @@
 /** "Duplicate course": what it says before it does anything, what it asks the action for, where it goes after, and what it shows when that is refused. The action is faked. */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
+import { useState } from "react";
 import userEvent from "@testing-library/user-event";
 
 const router = vi.hoisted(() => ({ push: vi.fn() }));
@@ -9,8 +10,19 @@ vi.mock("next/navigation", () => ({ useRouter: () => router }));
 const actions = vi.hoisted(() => ({ duplicateCourse: vi.fn() }));
 vi.mock("@/app/(admin)/admin/courses/duplicate-actions", () => actions);
 
-import DuplicatePanel from "@/app/(admin)/admin/courses/[id]/DuplicatePanel";
+import Dialog from "@/app/(admin)/admin/courses/[id]/DuplicatePanel";
 import type { DuplicatePreview } from "@/lib/courses/duplicate";
+
+/** The dialog is opened from the actions menu; here a button stands in for it. */
+function DuplicatePanel(props: Omit<React.ComponentProps<typeof Dialog>, "open" | "onClose">) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button onClick={() => setOpen(true)}>Duplicate course</button>
+      <Dialog {...props} open={open} onClose={() => setOpen(false)} />
+    </>
+  );
+}
 
 const COURSE = "crs_AAAAAAAAAAA1";
 const preview = (over: Partial<DuplicatePreview> = {}): DuplicatePreview => ({ modules: 3, lessons: 12, withVideo: 8, downloads: 4, tooDeep: false, ...over });
@@ -27,7 +39,6 @@ describe("DuplicatePanel", () => {
   it("offers the copy, and does nothing until it is confirmed", async () => {
     const user = userEvent.setup();
     render(<DuplicatePanel courseId={COURSE} title="The Ready Writer" preview={preview()} />);
-    expect(screen.getByRole("heading", { name: "Duplicate course" })).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
     const dialog = await open(user);
@@ -100,9 +111,4 @@ describe("DuplicatePanel", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Something went wrong");
   });
 
-  it("is off, with the reason, for a course nested too deep", () => {
-    render(<DuplicatePanel courseId={COURSE} title="C" preview={preview({ tooDeep: true })} />);
-    expect(screen.getByRole("button", { name: "Duplicate course" })).toBeDisabled();
-    expect(screen.getByText(/nested deeper than the editor handles/)).toBeInTheDocument();
-  });
 });
