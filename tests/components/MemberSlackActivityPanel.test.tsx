@@ -51,6 +51,16 @@ describe("MemberSlackActivityPanel", () => {
     expect(screen.getByText("7")).toBeInTheDocument();
   });
 
+  it("labels direct and group messages, which carry no channel name, instead of #unknown", () => {
+    const dm = { ...activity("3", ""), data: { channel_name: null, channel_type: "im" } };
+    const group = { ...activity("4", ""), data: { channel_name: null, channel_type: "mpim" } };
+    render(<MemberSlackActivityPanel slackPage={page({ rows: [dm, group] })} slackSummary={summary} />);
+    const table = screen.getByRole("table");
+    expect(within(table).getByText("Direct message")).toBeInTheDocument();
+    expect(within(table).getByText("Group message")).toBeInTheDocument();
+    expect(within(table).queryByText("#unknown")).not.toBeInTheDocument();
+  });
+
   it("sorts through the URL: a header click asks the server, from page 1", async () => {
     search = "page=3";
     render(<MemberSlackActivityPanel slackPage={page({ page: 3 })} slackSummary={summary} />);
