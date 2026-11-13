@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import MessageItem from "@/components/chat/MessageItem";
+import DayJump from "@/components/chat/DayJump";
 import UnreadDivider from "@/components/chat/UnreadDivider";
 import NewMessagesBanner from "@/components/chat/NewMessagesBanner";
 import { newMessagesSince } from "@/lib/chat/unread";
@@ -235,9 +236,7 @@ export default function MessageList({
           {/* Each day's marker sticks to the top while its messages scroll; the next one pushes it off. */}
           <div role="separator" aria-label={day.label} className="sticky top-0 z-10 flex items-center bg-canvas py-2 dark:bg-slate-950">
             <span className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
-            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold dark:border-slate-700 dark:bg-slate-900">
-              {day.label}
-            </span>
+            <DayJump channelId={channelId} label={day.label} timeZone={timeZone} />
             <span className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
           </div>
           {day.items.map(({ message: m, compact }) => (

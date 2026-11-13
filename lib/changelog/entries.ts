@@ -2684,4 +2684,17 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     summary: "Messages that Slack gave a link preview, and messages posted by apps such as deploy notices, now show as cards in Hub Chat, with the app's own name and logo.",
     body: "Hub Chat draws what Slack sends natively: link previews, app messages and shared Slack messages. One parser (`parseUnfurls`, `lib/chat/unfurls.ts`) turns Slack's legacy attachments and Block Kit into a small set of typed variants (cards, blocks, shares), and renderers in `components/chat/MessageUnfurls.tsx` draw them. Apps show under their own name and logo.\n\n- **Hooks:** the parser registry (`BLOCK_PARSERS`) and the renderer registry (`BLOCK_RENDERERS`); a block type is one entry in each. Anything not understood falls back to an \"Open in Slack\" link.\n- **An app's message is drawn from its blocks; a person's message from its text.**\n- **Every picture goes through the picture proxy.**\n- **A shared Slack message** shows Slack's embedded copy to anyone who can read the sharing message.\n\nAdding a block type or unfurl kind: `docs/SLACK_BRIDGED_CHAT.md`, \"Adding a block type (or a new kind of unfurl)\".",
   },
+  {
+    slug: "chat-jump-to-a-day",
+    date: "2026-11-13",
+    audience: "product",
+    category: "new",
+    title: "Jump to any day in a chat conversation",
+    summary: "Tap the day label in a conversation to jump to today, yesterday, last week, last month, the very beginning, or any date you pick on a calendar.",
+    body: [
+      "In Hub Chat, the day label above each group of messages (like \"Wednesday, November 11th\") is now a button. Tap it to open Jump to... and choose Today, Yesterday, Last week, Last month or The very beginning, or pick a specific date on a calendar.",
+      "The conversation opens on the first message of that day. If nothing was posted that day, it opens on the next day that has messages, and tells you so. A Jump to latest link takes you back to the newest messages, and Show newer messages carries on from where the page ends.",
+      "Days follow your own time zone setting. Looking back this way does not mark the conversation as read.",
+    ].join("\n\n"),
+  },
 ];

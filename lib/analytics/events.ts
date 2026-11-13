@@ -137,6 +137,9 @@ export const EVENTS = {
   /** Files were added to a message being edited (components/chat/MessageBody.tsx): `via` is how, `count` how many. */
   chat_files_added_to_edit: { via: oneOf("picker", "paste", "drop"), count: int() },
 
+  /** A member jumped to another day in a conversation from its date divider (components/chat/DayJump.tsx): `option` is which choice (a quick one, or `date` for the calendar). */
+  chat_jumped: { option: oneOf("today", "yesterday", "last_week", "last_month", "beginning", "date") },
+
   /** A saved draft was put back in a chat message box when it opened (components/chat/Composer.tsx): `thread` whether it is a thread's reply box. */
   chat_draft_restored: { thread: bool() },
 

@@ -12,7 +12,8 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 import { catchUpChannel } from "@/lib/chat/gap-fill";
 import { requireChat } from "@/lib/chat/access";
 import { hubLinkCardsFor } from "@/lib/chat/hub-link-flag";
-import { parseBefore } from "@/lib/chat/format";
+import { chatDayKey, parseBefore } from "@/lib/chat/format";
+import { BEGINNING } from "@/lib/chat/jump";
 import { isId } from "@/lib/ids";
 import { createStageTimer } from "@/lib/chat/timing";
 import { loadChatChannelsForRender } from "@/lib/chat/render-data";
@@ -68,13 +69,19 @@ export default async function ChatChannelPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ before?: Param; thread?: Param; profile?: Param; m?: Param }>;
+  searchParams: Promise<{ before?: Param; from?: Param; after?: Param; thread?: Param; profile?: Param; m?: Param }>;
 }) {
   const timer = createStageTimer();
   const { user, identity } = await requireChat();
   timer.mark("requireChat");
   const { id } = await params;
-  const { before, thread, profile, m } = await searchParams;
+  const { before, from, after: afterParam, thread, profile, m } = await searchParams;
+  // A window that starts at a date (`?from=`, "Jump to...") or just after a message (`?after=`, its newer messages): like ?before=,
+  // not the live end of the conversation, so no catch-up, no read marker and nothing marked read.
+  const afterAt = parseBefore(afterParam);
+  const windowStart = afterAt ?? parseBefore(from);
+  const windowed = windowStart !== null;
+  const historical = Boolean(before) || windowed;
   if (!isId(id, "chn")) notFound();
 
   const supabase = await createClient();
@@ -87,7 +94,7 @@ export default async function ChatChannelPage({
   // Opening a conversation catches it up with Slack after the page is sent: whatever the webhook never
   // delivered is fetched now, not at the nightly import (one fetch per conversation a minute, however
   // many members open it; recorded in chat_gap_fills). Not for an older page, and not in sudo.
-  if (!sudoHidden && !identity.isSudo && !before && channel.slackChannelId) {
+  if (!sudoHidden && !identity.isSudo && !historical && channel.slackChannelId) {
     const slackChannelId = channel.slackChannelId;
     after(async () => {
       try {
@@ -106,7 +113,7 @@ export default async function ChatChannelPage({
   const focus = focusParam && !sudoHidden ? await resolveFocus(createRepos(supabase), channel.id, focusParam) : null;
   const threadId = explicitThreadId ?? focus?.threadRootId ?? undefined;
   // The main list scrolls to a top-level message; a reply is scrolled to inside its thread.
-  const listFocusId = focus && !focus.threadRootId ? focus.id : null;
+  const linkedFocusId = focus && !focus.threadRootId ? focus.id : null;
   const threadFocusId = focus?.threadRootId ? focus.id : null;
   const profileParam = Array.isArray(profile) ? profile[0] : profile;
   const profileId = profileParam && isId(profileParam, "mbr") ? profileParam : null;
@@ -117,7 +124,7 @@ export default async function ChatChannelPage({
     // Where the member had read up to when they opened this (the marker only moves when they leave,
     // so the line below stays put for the whole visit). Not in sudo (their marker isn't the viewed
     // member's) and not on an older page.
-    if (sudoHidden || identity.isSudo || before) return null;
+    if (sudoHidden || identity.isSudo || historical) return null;
     // A failed read shows no marker, as it always has.
     return createRepos(supabase).chat.readMarker(channel.id, identity.memberId).catch(() => null);
   };
@@ -128,7 +135,7 @@ export default async function ChatChannelPage({
   const messagesQuery = async () => {
     if (sudoHidden) return { page: null, root: null, threadPage: null };
     const [page, thread] = await Promise.all([
-      loadMessages(createRepos(supabase), channel.id, { before: parseBefore(before) }),
+      loadMessages(createRepos(supabase), channel.id, windowStart ? { from: windowStart, fromExclusive: afterAt !== null } : { before: parseBefore(before) }),
       threadId
         ? Promise.all([loadMessage(createRepos(supabase), channel.id, threadId), loadMessages(createRepos(supabase), channel.id, { threadRootId: threadId })])
         : Promise.resolve(null),
@@ -185,6 +192,12 @@ export default async function ChatChannelPage({
   const viewById = new Map(views.map((v) => [v.id, v]));
   const viewsOf = (rows: { id: string }[]) => rows.flatMap((r) => viewById.get(r.id) ?? []);
   const messageViews = viewsOf(mainRows);
+  // A window opens on its first message (the day jumped to, or the next one that has messages): landing there is the same scroll as a linked message.
+  const listFocusId = linkedFocusId ?? (windowed ? (messageViews[0]?.id ?? null) : null);
+  // Jumped to a day with no messages: the window starts on a later day (or nothing), and the reader is told.
+  const requestedDay = windowStart && !afterAt && windowStart !== BEGINNING ? chatDayKey(windowStart, timeZone) : null;
+  const landedDay = messageViews[0] ? chatDayKey(messageViews[0].createdAt, timeZone) : null;
+  const skippedNote = requestedDay && landedDay !== requestedDay ? (landedDay ? `Nothing was posted that day, so this starts at the next day with messages.` : "No messages on or after that day.") : null;
   const firstUnreadId = firstUnreadMessageId(messageViews, readMarker);
   const rootView = root ? (viewById.get(root.id) ?? null) : null;
   const replyViews = viewsOf(threadPage?.messages ?? []);
@@ -197,7 +210,9 @@ export default async function ChatChannelPage({
   const me = people.find((p) => p.memberId === identity.memberId);
   const viewer = { memberId: identity.memberId, name: me?.name ?? identity.memberDisplayName ?? identity.memberName, photoUrl: me?.photoUrl ?? null };
   const renderedAt = new Date().toISOString();
-  const closeHref = `/chat/${channel.id}${before && !Array.isArray(before) ? `?before=${encodeURIComponent(before)}` : ""}`;
+  const closeHref = `/chat/${channel.id}${
+    windowStart ? `?${afterAt ? "after" : "from"}=${encodeURIComponent(windowStart)}` : before && !Array.isArray(before) ? `?before=${encodeURIComponent(before)}` : ""
+  }`;
 
   return (
     <div className="relative flex h-full min-h-0">
@@ -234,10 +249,18 @@ export default async function ChatChannelPage({
             </p>
           ) : (
             <section aria-label="Messages">
+              {windowed && (
+                <p className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm text-slate-600 dark:text-slate-400">
+                  {skippedNote && <span role="status">{skippedNote}</span>}
+                  <Link data-track="chat-jump-latest" href={`/chat/${channel.id}`} className="font-semibold text-plum-600 hover:underline dark:text-plum-400">
+                    Jump to latest
+                  </Link>
+                </p>
+              )}
               <ChatLive
                 channelId={channel.id}
-                view={before ? "older" : "latest"}
-                markRead={!identity.isSudo}
+                view={historical ? "older" : "latest"}
+                markRead={!identity.isSudo && !windowed}
                 renderedAt={renderedAt}
                 catchUpIds={messageViews.filter((v) => v.replyCount > 0).map((v) => v.id)}
                 latestAt={messageViews.length > 0 ? messageViews[messageViews.length - 1].createdAt : null}
@@ -245,23 +268,28 @@ export default async function ChatChannelPage({
                 focusId={listFocusId}
               />
               <MessageList
-                key={`${channel.id}:${before ?? ""}`}
+                key={`${channel.id}:${before ?? ""}:${windowStart ?? ""}`}
                 channelId={channel.id}
                 views={messageViews}
                 ctx={ctx}
                 olderBefore={page?.olderBefore ?? null}
                 firstUnreadId={firstUnreadId}
                 canReact={canReact}
-                showSent={!before}
+                showSent={!historical}
                 timeZone={timeZone}
                 renderedAt={renderedAt}
                 focusId={listFocusId}
               />
+              {page?.newerAfter && (
+                <Link data-track="chat-newer-messages" href={`/chat/${channel.id}?after=${encodeURIComponent(page.newerAfter)}`} className="mb-2 inline-block text-sm text-plum-600 hover:underline dark:text-plum-400">
+                  Show newer messages
+                </Link>
+              )}
             </section>
           )}
         </div>
         {canPost && (
-          <Composer key={channel.id} channelId={channel.id} initialDraft={drafts.conversation} initialDraftFiles={drafts.conversationFiles} saveDrafts={!identity.isSudo} placeholder={`Message ${channel.label}`} viewer={viewer} showSent={!before} dropTargetIds={["chat-conversation", "chat-profile-panel"]} />
+          <Composer key={channel.id} channelId={channel.id} initialDraft={drafts.conversation} initialDraftFiles={drafts.conversationFiles} saveDrafts={!identity.isSudo} placeholder={`Message ${channel.label}`} viewer={viewer} showSent={!historical} dropTargetIds={["chat-conversation", "chat-profile-panel"]} />
         )}
         {postingOn && !channel.joined && channel.kind === "channel" && channel.visibility === "public" && (
           <JoinPrompt channelId={channel.id} channelLabel={channel.label} />

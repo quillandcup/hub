@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
+import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import Link from "next/link";
 import { placeMenu, type MenuPlacement } from "@/lib/menu-placement";
 
@@ -15,6 +15,8 @@ export interface ActionMenuItem {
   hint?: string;
   /** Value for `data-track`. */
   track?: string;
+  /** A divider line above this item. */
+  separatorBefore?: boolean;
 }
 
 const ITEM =
@@ -25,7 +27,21 @@ const ITEM =
  * Escape closes and puts focus back on the button, Tab or a click outside closes. A disabled item
  * stays in the list (with its `hint`) but cannot be chosen.
  */
-export default function ActionMenu({ label = "More actions", items }: { label?: string; items: readonly ActionMenuItem[] }) {
+export default function ActionMenu({
+  label = "More actions",
+  items,
+  trigger,
+  triggerClassName,
+  heading,
+}: {
+  label?: string;
+  items: readonly ActionMenuItem[];
+  /** What the button shows instead of the three dots (with `triggerClassName` for its look). */
+  trigger?: React.ReactNode;
+  triggerClassName?: string;
+  /** A muted title at the top of the panel ("Jump to..."). */
+  heading?: string;
+}) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
@@ -106,13 +122,18 @@ export default function ActionMenu({ label = "More actions", items }: { label?: 
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
         onClick={() => setOpen((o) => !o)}
-        className="flex h-10 w-10 items-center justify-center rounded border border-slate-300 text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+        className={
+          triggerClassName ??
+          "flex h-10 w-10 items-center justify-center rounded border border-slate-300 text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+        }
       >
-        <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
-          <circle cx="10" cy="4" r="1.6" />
-          <circle cx="10" cy="10" r="1.6" />
-          <circle cx="10" cy="16" r="1.6" />
-        </svg>
+        {trigger ?? (
+          <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
+            <circle cx="10" cy="4" r="1.6" />
+            <circle cx="10" cy="10" r="1.6" />
+            <circle cx="10" cy="16" r="1.6" />
+          </svg>
+        )}
       </button>
       {open && (
         <div
@@ -125,7 +146,13 @@ export default function ActionMenu({ label = "More actions", items }: { label?: 
           style={{ left: placement?.left ?? 0, top: placement?.top ?? 0, maxWidth: placement?.maxWidth }}
           className="fixed z-50 w-56 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
         >
+          {heading && (
+            <div aria-hidden="true" className="px-3 pb-1 pt-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400">
+              {heading}
+            </div>
+          )}
           {items.map((item) => {
+            const sep = item.separatorBefore ? <div key={`${item.key}-sep`} role="separator" className="my-1 border-t border-slate-200 dark:border-slate-700" /> : null;
             const body = (
               <>
                 <span className="font-medium">{item.label}</span>
@@ -134,14 +161,15 @@ export default function ActionMenu({ label = "More actions", items }: { label?: 
             );
             if (item.href && !item.disabled) {
               return (
-                <Link key={item.key} href={item.href} role="menuitem" data-track={item.track} onClick={() => setOpen(false)} className={ITEM}>
+                <Fragment key={item.key}>{sep}<Link href={item.href} role="menuitem" data-track={item.track} onClick={() => setOpen(false)} className={ITEM}>
                   {body}
-                </Link>
+                </Link></Fragment>
               );
             }
             return (
+              <Fragment key={item.key}>
+              {sep}
               <button
-                key={item.key}
                 type="button"
                 role="menuitem"
                 aria-disabled={item.disabled || undefined}
@@ -155,6 +183,7 @@ export default function ActionMenu({ label = "More actions", items }: { label?: 
               >
                 {body}
               </button>
+              </Fragment>
             );
           })}
         </div>

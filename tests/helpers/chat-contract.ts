@@ -197,6 +197,31 @@ export function defineChatContract(name: string, setup: () => ChatContractContex
         expect(await ctx.repo().channelMessages(channel, { limit: 10, before: all[2].created_at })).toEqual([]);
       });
 
+      it("lists a window of top-level messages from a date on, oldest first, leaving out replies and other conversations", async () => {
+        const { channel, m } = await conversation();
+
+        expect(idsOf(await ctx.repo().channelMessagesFrom(channel, { from: T(0), limit: 10 }))).toEqual([m.a, m.b, m.c]);
+        expect(idsOf(await ctx.repo().channelMessagesFrom(channel, { from: T(2), limit: 10 }))).toEqual([m.b, m.c]); // inclusive
+        expect(idsOf(await ctx.repo().channelMessagesFrom(channel, { from: T(2), exclusive: true, limit: 10 }))).toEqual([m.c]);
+        expect(idsOf(await ctx.repo().channelMessagesFrom(channel, { from: T(0), limit: 2 }))).toEqual([m.a, m.b]);
+        expect(await ctx.repo().channelMessagesFrom(channel, { from: T(30), limit: 10 })).toEqual([]);
+        const [first] = await ctx.repo().channelMessagesFrom(channel, { from: "1970-01-01T00:00:00.000Z", limit: 1 });
+        expect(first).toMatchObject({ id: m.a, chat_message_contents: { body: "first" } });
+      });
+
+      it("opens a window at a date in a conversation of more than a thousand messages, and walks on from it", async () => {
+        const [channel] = Object.values(await ctx.seedChannels([{ key: "big" }]));
+        const at = (i: number) => new Date(Date.UTC(2026, 0, 1) + i * 60_000).toISOString();
+        const seeded = await ctx.seedMessages(channel, Array.from({ length: 1100 }, (_, i) => ({ key: `k${i}`, createdAt: at(i) })));
+
+        const window = await ctx.repo().channelMessagesFrom(channel, { from: at(1050), limit: 100 });
+        expect(idsOf(window)).toEqual(Array.from({ length: 50 }, (_, i) => seeded[`k${1050 + i}`]));
+        const early = await ctx.repo().channelMessagesFrom(channel, { from: at(0), limit: 41 });
+        expect(early).toHaveLength(41);
+        const next = await ctx.repo().channelMessagesFrom(channel, { from: early[39].created_at, exclusive: true, limit: 2 });
+        expect(idsOf(next)).toEqual([seeded.k40, seeded.k41]);
+      });
+
       it("lists one thread's replies oldest first, up to a limit", async () => {
         const { channel, m } = await conversation();
 
