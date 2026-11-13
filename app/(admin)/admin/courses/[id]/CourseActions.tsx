@@ -10,7 +10,7 @@ import TakeOverPanel from "./TakeOverPanel";
 
 /**
  * The course page's secondary actions in a ⋯ menu: duplicate, take over from Kajabi (only for a
- * course imported from Kajabi that is in the Hub), watch stats and who's where. The two that change
+ * course imported from Kajabi that is in the Hub), and watch stats. The two that change
  * something open their confirm dialog, which says what will happen first.
  */
 export default function CourseActions({
@@ -37,8 +37,7 @@ export default function CourseActions({
     items.push({ key: "take-over", label: "Take over from Kajabi", disabled: !!hint, hint: hint ?? undefined, track: "admin-course-take-over-open", onSelect: () => setDialog("take-over") });
   }
   items.push(
-    { key: "stats", label: "Watch stats", href: `/admin/courses/${courseId}/stats`, track: "admin-course-watch-stats" },
-    { key: "roster", label: "Who's where", href: `/admin/courses/${courseId}/roster`, track: "admin-course-roster" }
+    { key: "stats", label: "Watch stats", href: `/admin/courses/${courseId}/stats`, track: "admin-course-watch-stats" }
   );
 
   return (

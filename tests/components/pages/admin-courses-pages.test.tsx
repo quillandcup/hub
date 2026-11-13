@@ -7,6 +7,9 @@ import { explainCourse } from "@/lib/courses/explain";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
+vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
+const loadCourseRoster = vi.fn();
+vi.mock("@/lib/courses/roster-data", () => ({ loadCourseRoster: (...a: unknown[]) => loadCourseRoster(...a) }));
 const requireAdminPage = vi.fn(async () => undefined);
 vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: () => requireAdminPage() }));
 
@@ -62,6 +65,8 @@ const row = (over = {}) => ({
 
 beforeEach(() => {
   resetServerPageMocks();
+  loadCourseRoster.mockReset();
+  loadCourseRoster.mockResolvedValue({ course: { id: "c", title: "C" }, rows: [{}, {}, {}] });
   requireAdminPage.mockClear();
   loadAdminCourses.mockReset();
   loadAdminCourse.mockReset();
@@ -171,7 +176,7 @@ describe("/admin/courses/[id]", () => {
     loadAdminCourse.mockResolvedValue(detail());
     await renderServerRoute(AdminCoursePage, params);
 
-    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Outline", "Details", "Media"]);
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Outline", "Details", "Media", "Customers (3)"]);
     expect(screen.getByRole("tab", { name: "Outline" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByPlaceholderText("Find module or lesson…")).toBeInTheDocument();
     expect(screen.getByText("Module 2")).toBeInTheDocument();
@@ -218,13 +223,13 @@ describe("/admin/courses/[id]", () => {
     for (const control of form.querySelectorAll("input, select, textarea")) expect(control, control.outerHTML).toBeDisabled();
   });
 
-  it("puts watch stats and who's where in the actions menu, not on the page", async () => {
+  it("puts watch stats in the actions menu, not on the page", async () => {
     loadAdminCourse.mockResolvedValue(detail());
     await renderServerRoute(AdminCoursePage, params);
     expect(screen.queryByRole("link", { name: "Watch stats" })).not.toBeInTheDocument();
     await menu();
     expect(screen.getByRole("menuitem", { name: "Watch stats" })).toHaveAttribute("href", "/admin/courses/crs_AAAAAAAAAAA1/stats");
-    expect(screen.getByRole("menuitem", { name: "Who's where" })).toHaveAttribute("href", "/admin/courses/crs_AAAAAAAAAAA1/roster");
+    expect(screen.queryByRole("menuitem", { name: "Who's where" })).not.toBeInTheDocument();
   });
 
   it("lets staff publish a draft that has a Hub row", async () => {

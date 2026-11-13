@@ -7,6 +7,9 @@ import { renderServerRoute, resetServerPageMocks } from "@/tests/helpers/server-
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
+vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
+const loadCourseRoster = vi.fn();
+vi.mock("@/lib/courses/roster-data", () => ({ loadCourseRoster: (...a: unknown[]) => loadCourseRoster(...a) }));
 const requireAdminPage = vi.fn(async () => undefined);
 vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: () => requireAdminPage() }));
 const loadHubCourse = vi.fn();
@@ -65,6 +68,8 @@ const course = (over: Record<string, unknown> = {}) => ({
 
 beforeEach(() => {
   resetServerPageMocks();
+  loadCourseRoster.mockReset();
+  loadCourseRoster.mockResolvedValue({ course: { id: "c", title: "C" }, rows: [{}, {}, {}] });
   requireAdminPage.mockClear();
   loadHubCourse.mockReset();
   loadHubOutline.mockReset();
@@ -110,7 +115,7 @@ describe("/admin/courses/[id] for a Hub-owned course", () => {
     loadDuplicatePreview.mockResolvedValue({ modules: 1, lessons: 2, withVideo: 0, downloads: 0, tooDeep: false });
     loadHubCourse.mockResolvedValue(course());
     await renderServerRoute(AdminCoursePage, params());
-    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Outline", "Details"]);
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Outline", "Details", "Customers (3)"]);
     expect(screen.getByRole("tab", { name: "Outline" })).toHaveAttribute("aria-selected", "true");
     await userEvent.click(screen.getByRole("button", { name: "Course actions" }));
     expect(screen.queryByRole("menuitem", { name: /Take over/ })).not.toBeInTheDocument();

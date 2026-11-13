@@ -21,13 +21,13 @@ const openMenu = async () => {
 };
 
 describe("CourseActions", () => {
-  it("for a Hub-owned course has duplicate, watch stats and who's where, and no take over", async () => {
+  it("for a Hub-owned course has duplicate and watch stats (customers is a tab), and no take over", async () => {
     render(<CourseActions courseId={COURSE} title="Plot Lab" duplicate={dup} takeOver={null} />);
     await openMenu();
     expect(screen.getByRole("menuitem", { name: "Duplicate course" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: /Take over/ })).not.toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Watch stats" })).toHaveAttribute("href", `/admin/courses/${COURSE}/stats`);
-    expect(screen.getByRole("menuitem", { name: "Who's where" })).toHaveAttribute("href", `/admin/courses/${COURSE}/roster`);
+    expect(screen.queryByRole("menuitem", { name: "Who's where" })).not.toBeInTheDocument();
   });
 
   it("for a Kajabi course in the Hub also offers the take over", async () => {

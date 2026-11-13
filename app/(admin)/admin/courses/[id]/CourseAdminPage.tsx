@@ -21,6 +21,7 @@ import CourseBuilderBanner from "../CourseBuilderBanner";
 import CourseDetailsForm from "../CourseDetailsForm";
 import CoursePublishControl from "../CoursePublishControl";
 import CourseStatusChip from "../CourseStatusChip";
+import { customersPanel } from "./customers-panel";
 import CourseActions from "./CourseActions";
 import CourseFilesPanel from "./CourseFilesPanel";
 import CourseKajabiDetails from "./CourseKajabiDetails";
@@ -126,6 +127,10 @@ export default async function CourseAdminPage({ idParam, tab }: { idParam: strin
     },
   ];
 
+  const customers = await customersPanel(id);
+  if (customers) panels.push(customers);
+  if (tab === "roster" && !customers) notFound();
+
   return (
     <>
       <CourseBuilderBanner />
@@ -199,6 +204,10 @@ async function HubCourse({ id, basePath, tab }: { id: string; basePath: string; 
       ),
     },
   ];
+
+  const customers = await customersPanel(course.id);
+  if (customers) panels.push(customers);
+  if (tab === "roster" && !customers) notFound();
 
   return (
     <div className="@container container mx-auto max-w-5xl px-6 py-8">
