@@ -104,6 +104,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "- On a lesson, choose **Copy link** under the video and paste it into any message in Hub Chat or in Slack. It plays in Hub Chat; Slack shows links back to the Hub.",
       "- It shows the lesson, its course and its picture. If you have the course, it plays right in the message, from where you left off, and the lesson is marked complete once you've watched nearly all of it; if not, it says the video is part of a course and nothing plays.",
       "![A lesson video shared in a conversation](/changelog/lesson-videos-in-chat/01-video-card.webp)",
+      "![A lesson video that has been watched, with its lesson marked complete](/changelog/lesson-videos-in-chat/01-lesson-complete.webp)",
       "![What someone without the course sees](/changelog/lesson-videos-in-chat/01-no-course.webp)",
       "- In Slack, if you've connected your Slack account, the message you pasted is changed, under your name, to say what was shared, with links to watch it in Hub Chat or open the lesson. Slack shows it as edited.",
       "- Delete the message and the video is gone from the conversation right away.",
