@@ -72,6 +72,7 @@ const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]
     [["startEngagement", "care_engagement_started"], ["logCareMessage", "care_message_logged"], ["updateEngagement", "care_engagement_updated"], ["closeEngagement", "care_engagement_closed"], ["renewEngagement", "care_engagement_renewed"], ["deleteEngagement", "care_engagement_deleted"], ["trackCareDm", "care_dm_tracked"], ["untrackCareDm", "care_dm_untracked"]],
   ],
   [() => import("@/app/(admin)/admin/courses/take-over-actions"), "app/(admin)/admin/courses/take-over-actions.ts", [["takeOverCourse", "course_taken_over"]]],
+  [() => import("@/app/(admin)/admin/courses/duplicate-actions"), "app/(admin)/admin/courses/duplicate-actions.ts", [["duplicateCourse", "course_duplicated"]]],
   [() => import("@/app/api/feedback/route"), "app/api/feedback/route.ts", [["POST", "feedback_submitted"]]],
   [() => import("@/app/api/feature-previews/route"), "app/api/feature-previews/route.ts", [["POST", "feature_preview_changed"]]],
   [() => import("@/app/api/projects/import/trackbear/route"), "app/api/projects/import/trackbear/route.ts", [["POST", "trackbear_imported"]]],

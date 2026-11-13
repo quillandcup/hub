@@ -7357,6 +7357,10 @@ export type Database = {
         }
         Returns: string
       }
+      copy_course_lesson_files: {
+        Args: { p_from_lesson: string; p_to_lesson: string }
+        Returns: number
+      }
       count_activity_feed: {
         Args: {
           p_actor_user_id?: string
@@ -7399,6 +7403,10 @@ export type Database = {
           p_time_min: string
         }
         Returns: number
+      }
+      duplicate_course: {
+        Args: { p_course_id: string }
+        Returns: string
       }
       duplicate_course_lesson: {
         Args: { p_lesson_id: string }

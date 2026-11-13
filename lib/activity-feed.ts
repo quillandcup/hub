@@ -429,6 +429,12 @@ function specialAuditPhrase(row: ActivityFeedRow): string | null {
     const what = row.entity_type === "course_lesson_order" ? "lessons" : "modules";
     return `reordered the${count} ${what}${row.description ? ` in “${formatValue(row.description)}”` : ""}`;
   }
+  // A course made by duplicating another is one entry with where it came from and what it holds (the migration says why not one per row).
+  if (row.entity_type === "course" && row.event_type === "insert" && fields.copied_from?.new) {
+    const lessons = Number(fields.lessons_copied?.new);
+    const count = Number.isFinite(lessons) ? ` (${lessons} ${lessons === 1 ? "lesson" : "lessons"})` : "";
+    return `duplicated a course as “${formatValue(row.description ?? "")}”${count}`;
+  }
   if (row.entity_type === "restricted_slack_channel") {
     const channel = row.description ? `#${formatValue(row.description)}` : "a Slack channel";
     if (row.event_type === "insert") return `restricted staff access to messages in ${channel}`;

@@ -36,6 +36,12 @@ vi.mock("@/app/(admin)/admin/courses/[id]/TakeOverPanel", () => ({
   default: (props: { courseId: string; title: string; preview: { lessons: number } }) => <div data-testid="take-over" data-course={props.courseId} data-title={props.title} data-lessons={props.preview.lessons} />,
 }));
 
+const loadDuplicatePreview = vi.fn();
+vi.mock("@/lib/courses/duplicate", () => ({ loadDuplicatePreview: (...a: unknown[]) => loadDuplicatePreview(...a) }));
+vi.mock("@/app/(admin)/admin/courses/[id]/DuplicatePanel", () => ({
+  default: (props: { courseId: string; title: string; preview: { lessons: number } }) => <div data-testid="duplicate" data-course={props.courseId} data-title={props.title} data-lessons={props.preview.lessons} />,
+}));
+
 vi.mock("@/app/(admin)/admin/courses/CoursePublishControl", () => ({
   default: (props: { courseId: string; isDraft: boolean }) => <div data-testid="publish" data-course={props.courseId} data-draft={String(props.isDraft)} />,
 }));
@@ -62,6 +68,8 @@ beforeEach(() => {
   loadAdminCourse.mockReset();
   loadTakeOverPreview.mockReset();
   loadTakeOverPreview.mockResolvedValue(null);
+  loadDuplicatePreview.mockReset();
+  loadDuplicatePreview.mockResolvedValue({ modules: 2, lessons: 7, withVideo: 5, downloads: 1, tooDeep: false });
 });
 
 describe("/admin/courses", () => {
@@ -214,6 +222,20 @@ describe("/admin/courses/[id]", () => {
     loadTakeOverPreview.mockResolvedValue(null);
     await renderServerPage(AdminCoursePage, params);
     expect(screen.queryByTestId("take-over")).not.toBeInTheDocument();
+  });
+
+  it("offers to duplicate a course that is in the Hub, imported or not, and nothing for one that is not in the Hub yet", async () => {
+    loadAdminCourse.mockResolvedValue(detail());
+    const { unmount } = await renderServerPage(AdminCoursePage, params);
+    expect(screen.getByTestId("duplicate")).toHaveAttribute("data-course", "crs_AAAAAAAAAAA1");
+    expect(screen.getByTestId("duplicate")).toHaveAttribute("data-title", "The Ready Writer");
+    expect(screen.getByTestId("duplicate")).toHaveAttribute("data-lessons", "7");
+    unmount();
+
+    loadAdminCourse.mockResolvedValue(detail(null));
+    await renderServerPage(AdminCoursePage, params);
+    expect(screen.queryByTestId("duplicate")).not.toBeInTheDocument();
+    expect(loadDuplicatePreview).toHaveBeenCalledTimes(1);
   });
 
   it("links a course with no Hub row yet to neither", async () => {

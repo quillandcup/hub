@@ -1,4 +1,4 @@
-import { randomInt } from "node:crypto";
+import { randomInt, randomUUID } from "node:crypto";
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
 import { byKeyThenId, compareText, inChunks, must, upsertInChunks } from "./query";
 import type { Db, Insert, Row, Update } from "./db";
@@ -147,6 +147,11 @@ export interface CourseRepository {
   /** Adds a download or updates the one with the same source key. */
   saveLessonFile(file: NewLessonFile): Promise<void>;
   deleteLessonFile(id: string): Promise<void>;
+  /**
+   * Whether a stored object is also the download of another row. A duplicated lesson's downloads point at the same stored object as
+   * the original's (no second copy in storage), so whoever deletes an object checks this first and keeps it while another row uses it.
+   */
+  storagePathShared(storagePath: string, exceptFileId: string): Promise<boolean>;
   /** The videos with these ids, by id, in chunks. */
   videosByIds(ids: string[]): Promise<VideoRecord[]>;
   /** The videos of one kind (`kajabi`, `upload`) with these source keys, in chunks. */
@@ -178,6 +183,14 @@ export interface CourseRepository {
    * for modules nested deeper than the editor does).
    */
   takeOverCourse(courseId: string): Promise<void>;
+  /**
+   * Copies a course (imported or Hub-owned) into a new Hub-owned course and returns its id: a draft (hidden from members) with no
+   * Kajabi key and no program, a free address ("<slug>-copy", "-copy-2"...) and the title "<title> (copy)"; every module (submodules
+   * too) and lesson (also those in no module) is a draft copy in the same order, sharing the same videos and images. Members'
+   * progress, access and grants, the downloads and the Kajabi link are not copied. Throws a {@link CourseWriteError} (`not_found`,
+   * `too_deep` for modules nested deeper than the editor does, `not_editable` for a caller who may not).
+   */
+  duplicateCourse(courseId: string): Promise<string>;
   /** Copies the length of the video of this Mux asset onto the Hub-owned lessons that use it (whole seconds). */
   syncLessonDurations(assetId: string): Promise<void>;
 }
@@ -442,6 +455,12 @@ export class SupabaseCourseRepository implements CourseRepository {
     await upsertInChunks(this.db.from("course_lesson_files"), [file], "source_key");
   }
 
+  async storagePathShared(storagePath: string, exceptFileId: string) {
+    const { data, error } = await this.db.from("course_lesson_files").select("id").eq("storage_path", storagePath).neq("id", exceptFileId).limit(1);
+    if (error) throw new Error(error.message);
+    return (data ?? []).length > 0;
+  }
+
   async deleteLessonFile(id: string) {
     const { error } = await this.db.from("course_lesson_files").delete().eq("id", id);
     if (error) throw new Error(error.message);
@@ -518,6 +537,12 @@ export class SupabaseCourseRepository implements CourseRepository {
   async takeOverCourse(courseId: string) {
     const { error } = await this.db.rpc("take_over_kajabi_course", { p_course_id: courseId });
     if (error) throw writeError(error);
+  }
+
+  async duplicateCourse(courseId: string) {
+    const { data, error } = await this.db.rpc("duplicate_course", { p_course_id: courseId });
+    if (error) throw writeError(error);
+    return data;
   }
 
   async syncLessonDurations(assetId: string) {
@@ -858,6 +883,7 @@ export class InMemoryCourseRepository implements CourseRepository {
         source: "hub",
       });
       this.data.courseLessons.push(row);
+      this.copyFiles(l.id, row.id);
       return row.id;
     };
     if (kind === "lesson") {
@@ -961,6 +987,17 @@ export class InMemoryCourseRepository implements CourseRepository {
   async lessonFile(lessonId: string, fileId: string) {
     const file = this.data.courseLessonFiles.find((f) => f.id === fileId && f.lesson_id === lessonId);
     return file ? copy(file) : null;
+  }
+
+  async storagePathShared(storagePath: string, exceptFileId: string) {
+    return this.data.courseLessonFiles.some((f) => f.storage_path === storagePath && f.id !== exceptFileId);
+  }
+
+  /** The downloads of one lesson on another, as the database does: a key of its own ("up-<uuid>", like a download added in the Hub), the same stored object. */
+  private copyFiles(fromLesson: string, toLesson: string) {
+    for (const f of this.data.courseLessonFiles.filter((x) => x.lesson_id === fromLesson)) {
+      this.data.courseLessonFiles.push({ ...f, id: newCourseId("file"), lesson_id: toLesson, source_key: `up-${randomUUID()}`, created_at: now() });
+    }
   }
 
   async saveLessonFile(file: NewLessonFile) {
@@ -1088,6 +1125,76 @@ export class InMemoryCourseRepository implements CourseRepository {
     course.source = "hub";
     course.updated_at = now();
     this.recompute(courseId);
+  }
+
+  async duplicateCourse(courseId: string) {
+    const src = this.data.courses.find((c) => c.id === courseId);
+    if (!src) throw new CourseWriteError("not_found");
+    const modules = this.data.courseModules.filter((m) => m.course_id === courseId);
+    const byId = new Map(modules.map((m) => [m.id, m]));
+    if (modules.some((m) => m.parent_id && byId.get(m.parent_id)?.parent_id)) throw new CourseWriteError("too_deep");
+
+    const base = `${src.slug.slice(0, 60)}-copy`;
+    let slug = base;
+    for (let n = 2; this.data.courses.some((c) => c.slug === slug); n++) slug = `${base}-${n}`;
+    const course = this.insertCourse({
+      slug,
+      title: `${src.title.slice(0, 112)} (copy)`,
+      description: src.description,
+      source: "hub",
+      source_key: null,
+      kind: src.kind,
+      program_id: null,
+      access_duration: src.access_duration,
+      launch_at: src.launch_at,
+      is_draft: true,
+      thumbnail_url: src.thumbnail_url,
+      thumbnail_source: src.thumbnail_source,
+      thumbnail_asset_id: src.thumbnail_asset_id,
+      hero_url: src.hero_url,
+      hero_source: src.hero_source,
+      hero_asset_id: src.hero_asset_id,
+    } as NewCourse);
+
+    const moduleIds = new Map<string, string>();
+    // Top-level modules first, then submodules, as the database does.
+    for (const m of [...modules.filter((x) => !x.parent_id), ...modules.filter((x) => x.parent_id)]) {
+      const row = this.newModule({
+        course_id: course.id,
+        parent_id: m.parent_id ? (moduleIds.get(m.parent_id) ?? null) : null,
+        title: m.title,
+        position: m.position,
+        state: "hidden",
+        publishing_option: "draft",
+        poster_url: m.poster_url,
+        poster_source: m.poster_source,
+        poster_asset_id: m.poster_asset_id,
+        source: "hub",
+      });
+      this.data.courseModules.push(row);
+      moduleIds.set(m.id, row.id);
+    }
+    for (const l of this.data.courseLessons.filter((x) => x.course_id === courseId)) {
+      const lesson = this.newLesson({
+          course_id: course.id,
+          module_id: l.module_id ? (moduleIds.get(l.module_id) ?? null) : null,
+          title: l.title,
+          position: l.position,
+          state: "hidden",
+          publishing_option: "draft",
+          body_html: l.body_html,
+          excerpt: l.excerpt,
+          thumbnail_url: l.thumbnail_url,
+          thumbnail_source: l.thumbnail_source,
+          thumbnail_asset_id: l.thumbnail_asset_id,
+          video_id: l.video_id,
+          duration_seconds: l.duration_seconds,
+          source: "hub",
+        });
+      this.data.courseLessons.push(lesson);
+      this.copyFiles(l.id, lesson.id);
+    }
+    return course.id;
   }
 
   async syncLessonDurations(assetId: string) {

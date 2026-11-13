@@ -52,6 +52,7 @@ export const OUTCOME_ACTIONS = [
   "course_lesson_file_added",
   "course_lesson_file_removed",
   "course_taken_over",
+  "course_duplicated",
   // Chat
   "chat_message_sent",
   "chat_reaction_toggled",

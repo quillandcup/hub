@@ -185,6 +185,19 @@ describe('Lesson file actions', () => {
       expect(revalidatePath).toHaveBeenCalledWith(`/admin/courses/${ids.hub}/lessons/${ids.lesson}`)
     })
 
+    it('keeps the stored object while another lesson still lists it (a duplicated lesson shares it), and removes it with the last row', async () => {
+      const { finished } = await add('Shared.pdf', 'shared bytes')
+      expect(finished.error).toBeUndefined()
+      const file = (await rows()).find((r) => r.filename === 'Shared.pdf')!
+      const copyLesson = (await supabase.from('course_lessons').insert({ course_id: ids.hub, title: 'Copy', position: 2, publishing_option: 'draft', source: 'hub' }).select('id').single()).data!.id
+      const copy = (await supabase.from('course_lesson_files').insert({ lesson_id: copyLesson, source_key: `up-${crypto.randomUUID()}`, filename: file.filename, storage_path: file.storage_path }).select('id').single()).data!
+
+      expect(await removeLessonFile(ids.hub, ids.lesson, file.id)).toEqual({ id: file.id })
+      expect(await stored(file.storage_path)).toBe(true)
+      expect(await removeLessonFile(ids.hub, copyLesson, copy.id)).toEqual({ id: copy.id })
+      expect(await stored(file.storage_path)).toBe(false)
+    })
+
     it('says so when the database refuses, and leaves the file on the lesson', async () => {
       const [file] = await rows()
       fault.mode = 'writes'

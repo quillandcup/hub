@@ -233,9 +233,10 @@ export async function copyCourseFiles(
 
   // Files Kajabi no longer lists (or whose lesson is gone): the row and the stored object go.
   for (const stale of plan.stale) {
-    await bucket.remove([stale.storagePath]);
     try {
       await repos.courses.deleteLessonFile(stale.id);
+      // A duplicated lesson's download is the same stored object: it goes only when no other row still uses it.
+      if (!(await repos.courses.storagePathShared(stale.storagePath, stale.id))) await bucket.remove([stale.storagePath]);
       result.removed++;
     } catch (error: any) {
       result.failed.push({ kajabiFileId: stale.id, filename: stale.filename, error: `couldn't remove the row: ${error.message}` });

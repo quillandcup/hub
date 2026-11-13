@@ -19,6 +19,8 @@ import CoursePublishControl from "../CoursePublishControl";
 import CourseVideosPanel from "./CourseVideosPanel";
 import CourseFilesPanel from "./CourseFilesPanel";
 import TakeOverPanel from "./TakeOverPanel";
+import DuplicatePanel from "./DuplicatePanel";
+import { loadDuplicatePreview } from "@/lib/courses/duplicate";
 import { loadTakeOverPreview } from "@/lib/courses/take-over";
 import { createRepos } from "@/lib/data/repos";
 
@@ -44,6 +46,7 @@ export default async function AdminCoursePage({ params }: { params: Promise<{ id
   const hub = course.hub;
   // Only a course that is in the Hub has anything to take over.
   const takeOver = hub ? await loadTakeOverPreview(createRepos(supabase), id) : null;
+  const duplicate = hub ? await loadDuplicatePreview(createRepos(supabase), id) : null;
 
   return (
     <>
@@ -100,6 +103,7 @@ export default async function AdminCoursePage({ params }: { params: Promise<{ id
         </div>
 
         {hub && takeOver && <TakeOverPanel courseId={id} title={course.title} preview={takeOver} />}
+        {hub && duplicate && <DuplicatePanel courseId={id} title={course.title} preview={duplicate} />}
 
         <div className="mt-6">
           <CourseBuilderForm

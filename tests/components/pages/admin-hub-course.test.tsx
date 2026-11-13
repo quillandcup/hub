@@ -29,6 +29,11 @@ vi.mock("@/lib/data/repos", () => ({
     },
   }),
 }));
+const loadDuplicatePreview = vi.fn();
+vi.mock("@/lib/courses/duplicate", () => ({ loadDuplicatePreview: (...a: unknown[]) => loadDuplicatePreview(...a) }));
+vi.mock("@/app/(admin)/admin/courses/[id]/DuplicatePanel", () => ({
+  default: (props: { courseId: string; title: string }) => <div data-testid="duplicate" data-course={props.courseId} data-title={props.title} />,
+}));
 vi.mock("@/app/(admin)/admin/courses/actions", () => ({ createCourse: vi.fn(), updateCourseDetails: vi.fn() }));
 vi.mock("@/app/(admin)/admin/courses/outline-actions", () => ({
   addCourseLesson: vi.fn(),
@@ -93,6 +98,15 @@ describe("/admin/courses/[id] for a Hub-owned course", () => {
     expect(within(form).getByLabelText("Opens")).toHaveValue("2026-11-02");
     expect(within(form).getByLabelText("Program")).toHaveValue("prg_AAAAAAAAAAA2");
     expect(within(form).getByRole("button", { name: "Save" })).toBeEnabled();
+  });
+
+  it("offers to duplicate the course", async () => {
+    loadDuplicatePreview.mockResolvedValue({ modules: 1, lessons: 2, withVideo: 0, downloads: 0, tooDeep: false });
+    loadHubCourse.mockResolvedValue(course());
+    loadHubOutline.mockResolvedValue(buildHubOutline([], []));
+    await renderServerRoute(AdminCoursePage, params());
+    expect(screen.getByTestId("duplicate")).toHaveAttribute("data-course", COURSE);
+    expect(screen.getByTestId("duplicate")).toHaveAttribute("data-title", "Plot Lab");
   });
 
   it("isn't the read-only Kajabi builder: no support notice, and the outline can be changed", async () => {
