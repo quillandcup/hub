@@ -18,12 +18,12 @@ describe("CopyLessonLink", () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
     render(<CopyLessonLink url={ADDRESS} />);
-    expect(screen.getByText(/paste it into hub chat/i)).toBeInTheDocument();
+    expect(screen.queryByText(/paste it into hub chat/i)).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Copy link" }));
 
     expect(writeText).toHaveBeenCalledWith(ADDRESS);
-    expect(screen.getByRole("status")).toHaveTextContent("Copied.");
+    expect(screen.getByRole("status")).toHaveTextContent("Copied. Paste it into Hub Chat");
   });
 
   it("says so when the browser refuses", async () => {
