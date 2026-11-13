@@ -102,6 +102,14 @@ export function optimisticView(opts: {
 /** Fired on window by a message's menu to start editing or deleting it; MessageBody listens. */
 export const MESSAGE_CHANGE_EVENT = "chat-message-change";
 
+/**
+ * Fired on window after "Mark unread" worked, with `{ channelId, unread }` (the conversation's count now).
+ * `ChatLive` stops marking that conversation read when it is left (or the tab is hidden), which would
+ * move the marker straight back past the message; the sidebar keeps the count for it on leaving.
+ */
+export const MARKED_UNREAD_EVENT = "chat-marked-unread";
+export type MarkedUnreadDetail = { channelId: string; unread: number };
+
 /** Keep the thread metadata while removing everything belonging to the deleted message. */
 export function deletedMessageView(message: ChatMessageView): ChatMessageView {
   return { ...message, contentState: "deleted", body: null, files: [], hasFiles: false, sharesVideo: false, reactions: [], syncStatus: null };

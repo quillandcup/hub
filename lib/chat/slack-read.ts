@@ -76,6 +76,58 @@ export async function pushReadToSlack(
   }
 }
 
+/** The Slack timestamp one microsecond before `ts`, for a message with no earlier one to point at. */
+export function slackTsBefore(ts: string): string | null {
+  const value = tsValue(ts);
+  if (value === null || value <= BigInt(1)) return null;
+  const before = (value - BigInt(1)).toString().padStart(7, "0");
+  return `${before.slice(0, -6)}.${before.slice(-6)}`;
+}
+
+/**
+ * The member chose "Mark unread" on a message in the Hub: move their Slack marker back to the message
+ * before it (`marker` is the Hub marker now, a microsecond before the message), so Slack shows it as
+ * unread too. The mirror of pushReadToSlack and the only place Slack's marker goes backward. It also
+ * has to happen, not just be nice: the Slack -> Hub pull moves the Hub marker forward to whatever
+ * Slack says, so a Slack marker left ahead would undo the Hub's. Only moves Slack's marker when it
+ * is ahead of the target (they may have marked it unread there already). Same conditions as
+ * pushReadToSlack otherwise. Returns whether Slack was updated.
+ */
+export async function pushUnreadToSlack(
+  service: SupabaseClient,
+  opts: { memberId: string; channelId: string; messageId: string; marker: string }
+): Promise<boolean> {
+  if (!chatSlackWritesEnabled()) return false;
+
+  const chat = createRepos(service).chat;
+  const [slackChannelId, previous, target] = await Promise.all([
+    chat.channelRecord(opts.channelId).then((c) => c?.slack_channel_id ?? null).catch(() => null),
+    chat.newestSlackTs(opts.channelId, opts.marker).catch(() => null),
+    chat.slackTarget(opts.messageId).catch(() => null),
+  ]);
+  const ts = previous ?? (target?.slackTs ? slackTsBefore(target.slackTs) : null);
+  if (!slackChannelId || !ts) return false;
+
+  const connection = await getSlackUserToken(service, opts.memberId);
+  if (!connection) return false;
+
+  const slack = userClient(connection.token);
+  try {
+    const info = await slack.conversations.info({ channel: slackChannelId });
+    const last = info.channel?.last_read;
+    // Only when Slack's marker is strictly ahead of the target: otherwise there is nothing to move back.
+    if (!last || !slackReadCovers(last, ts) || slackReadCovers(ts, last)) return false;
+    await slack.conversations.mark({ channel: slackChannelId, ts });
+    return true;
+  } catch (error) {
+    if (isDeadTokenError(error)) await service.rpc("slack_connection_revoke", { p_member: opts.memberId });
+    else if (!["missing_scope", "not_in_channel", "channel_not_found"].includes(errorCode(error) ?? "") && !isRateLimited(error)) {
+      console.error("pushUnreadToSlack failed for member %s:", opts.memberId, error);
+    }
+    return false;
+  }
+}
+
 /**
  * Bring the member's Hub read markers up to what they have read in Slack: for each bridged
  * conversation they are in that has unread in the Hub (newest first), read Slack's `last_read` with

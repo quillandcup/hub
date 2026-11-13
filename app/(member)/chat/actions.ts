@@ -10,7 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { sendChatMessageToSlack } from "@/lib/chat/slack-post";
 import { syncReactionToSlack } from "@/lib/chat/slack-react";
-import { pullReadFromSlack, pushReadToSlack } from "@/lib/chat/slack-read";
+import { pullReadFromSlack, pushReadToSlack, pushUnreadToSlack } from "@/lib/chat/slack-read";
 import { pullMemberDms } from "@/lib/chat/slack-dms";
 import { notifyChatMessage, resolveChatNotifications } from "@/lib/chat/notifications";
 import { removeChatFileBytes } from "@/lib/chat/file-cleanup";
@@ -104,6 +104,44 @@ export async function markChatRead(channelId: string, through: string): Promise<
   after(() => pushReadToSlack(createServiceRoleClient(), { memberId: caller.identity.memberId, channelId, through }).catch((e) => console.error("pushReadToSlack failed:", e)));
   // Read here means read for notifications too: the conversation's in-app notifications are marked read.
   after(() => resolveChatNotifications(createRepos(createServiceRoleClient()), caller.identity.memberId, channelId));
+}
+
+export type MarkUnreadResult = { ok: true; unread: number } | { ok: false; error: string };
+
+/**
+ * "Mark unread" on a message: the signed-in member's read marker moves back to just before it, so it
+ * and everything after it is unread again (`ChatRepository.markUnread`, the only way the marker goes
+ * backward). Answers the conversation's unread count as it now stands, for the sidebar badge. Slack's
+ * marker follows for members who connected it, after the response (`pushUnreadToSlack`), because the
+ * Slack -> Hub pull would otherwise carry the Hub marker forward again. Refused in sudo (read-only).
+ */
+async function markChatUnreadImpl(channelId: string, messageId: string): Promise<MarkUnreadResult> {
+  if (!isId(channelId, "chn") || !isId(messageId, "msg")) return { ok: false, error: "That message isn't available." };
+  const caller = await chatCaller();
+  if (!caller) return { ok: false, error: "Chat isn't available." };
+  if (caller.identity.isSudo) return { ok: false, error: "Viewing as a member is read-only." };
+
+  const supabase = await createClient();
+  let marker: string | null;
+  try {
+    marker = await createRepos(supabase).chat.markUnread(channelId, messageId, caller.identity.memberId);
+  } catch (e) {
+    console.error("chat_mark_unread failed:", e instanceof Error ? e.message : e);
+    return { ok: false, error: "Couldn't mark it unread. Try again." };
+  }
+  if (!marker) return { ok: false, error: "That message isn't available." };
+
+  after(() =>
+    pushUnreadToSlack(createServiceRoleClient(), { memberId: caller.identity.memberId, channelId, messageId, marker: marker as string }).catch((e) =>
+      console.error("pushUnreadToSlack failed:", e)
+    )
+  );
+  const counts = await loadUnreadCounts(supabase);
+  return { ok: true, unread: counts[channelId] ?? 0 };
+}
+
+export async function markChatUnread(...args: Parameters<typeof markChatUnreadImpl>): ReturnType<typeof markChatUnreadImpl> {
+  return withAction("chat_message_marked_unread", () => markChatUnreadImpl(...args));
 }
 
 /**

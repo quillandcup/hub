@@ -30,7 +30,7 @@ vi.mock("@/lib/slack-connect", async (original) => ({
 const resolveNotifications = vi.hoisted(() => vi.fn(async () => {}));
 vi.mock("@/lib/chat/notifications", () => ({ resolveChatNotifications: resolveNotifications }));
 
-import { pullReadFromSlack, pushReadToSlack, slackReadCovers } from "@/lib/chat/slack-read";
+import { pullReadFromSlack, pushReadToSlack, pushUnreadToSlack, slackReadCovers, slackTsBefore } from "@/lib/chat/slack-read";
 
 /** The conversation the member read in the Hub (`chan-1`), and the newest Slack message in it at or before `through`. */
 let channel: Record<string, unknown> | null;
@@ -111,6 +111,70 @@ describe("slackReadCovers", () => {
   it("treats a never-read or missing marker as covering nothing", () => {
     expect(slackReadCovers("0000000000.000000", "1700000000.000200")).toBe(false);
     expect(slackReadCovers(undefined, "1700000000.000200")).toBe(false);
+  });
+});
+
+describe("slackTsBefore", () => {
+  it("steps one microsecond back, across a second boundary too", () => {
+    expect(slackTsBefore("1700000000.000200")).toBe("1700000000.000199");
+    expect(slackTsBefore("1700000001.000000")).toBe("1700000000.999999");
+    expect(slackTsBefore("nonsense")).toBeNull();
+  });
+});
+
+describe("pushUnreadToSlack", () => {
+  // The marker is before msg_1 (09:00), so there is no earlier message to point at.
+  const OPTS = { memberId: "member-fern", channelId: "chan-1", messageId: "msg_1", marker: "2026-10-10T08:59:59.999999+00:00" };
+
+  it("moves Slack's marker back to the message before the chosen one", async () => {
+    newest = { slack_ts: "1700000000.000100", created_at: "2026-10-10T08:00:00Z" };
+    info.mockResolvedValue({ ok: true, channel: { last_read: "1700000005.000000" } });
+    await expect(pushUnreadToSlack(service, OPTS)).resolves.toBe(true);
+    expect(mark).toHaveBeenCalledWith({ channel: "C_HOSTS", ts: "1700000000.000100" }, "xoxp-fern");
+  });
+
+  it("points just before the message itself when nothing came before it", async () => {
+    info.mockResolvedValue({ ok: true, channel: { last_read: "1700000005.000000" } });
+    await expect(pushUnreadToSlack(service, OPTS)).resolves.toBe(true);
+    expect(mark).toHaveBeenCalledWith({ channel: "C_HOSTS", ts: "1700000000.000199" }, "xoxp-fern");
+  });
+
+  it("leaves Slack's marker alone when it is already at or before the target", async () => {
+    info.mockResolvedValue({ ok: true, channel: { last_read: "1700000000.000199" } });
+    await expect(pushUnreadToSlack(service, OPTS)).resolves.toBe(false);
+    info.mockResolvedValue({ ok: true, channel: { last_read: "1700000000.000100" } });
+    await expect(pushUnreadToSlack(service, OPTS)).resolves.toBe(false);
+    info.mockResolvedValue({ ok: true, channel: {} });
+    await expect(pushUnreadToSlack(service, OPTS)).resolves.toBe(false);
+    expect(mark).not.toHaveBeenCalled();
+  });
+
+  it("does nothing outside production, without a connection or a Slack message to point at", async () => {
+    info.mockResolvedValue({ ok: true, channel: { last_read: "1700000005.000000" } });
+    config.isProduction = false;
+    await expect(pushUnreadToSlack(service, OPTS)).resolves.toBe(false);
+    config.isProduction = true;
+    getSlackUserToken.mockResolvedValue(null);
+    await expect(pushUnreadToSlack(service, OPTS)).resolves.toBe(false);
+    getSlackUserToken.mockResolvedValue({ token: "xoxp-fern", slackUserId: "U_FERN" });
+    newest = null;
+    await expect(pushUnreadToSlack(service, OPTS)).resolves.toBe(false);
+    expect(mark).not.toHaveBeenCalled();
+  });
+
+  it("revokes a dead token, ignores a missing scope and reports anything else", async () => {
+    info.mockResolvedValue({ ok: true, channel: { last_read: "1700000005.000000" } });
+    mark.mockRejectedValue({ data: { error: "token_revoked" } });
+    await expect(pushUnreadToSlack(service, OPTS)).resolves.toBe(false);
+    expect(rpc).toHaveBeenCalledWith("slack_connection_revoke", { p_member: "member-fern" });
+    mark.mockRejectedValue({ data: { error: "missing_scope" } });
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(pushUnreadToSlack(service, OPTS)).resolves.toBe(false);
+    expect(log).not.toHaveBeenCalled();
+    mark.mockRejectedValue(new Error("boom"));
+    await expect(pushUnreadToSlack(service, OPTS)).resolves.toBe(false);
+    expect(log).toHaveBeenCalled();
+    log.mockRestore();
   });
 });
 

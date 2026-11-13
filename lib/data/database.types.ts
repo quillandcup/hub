@@ -7411,6 +7411,10 @@ export type Database = {
         Args: { p_channel_id: string; p_through?: string }
         Returns: undefined
       }
+      chat_mark_unread: {
+        Args: { p_channel_id: string; p_message_id: string }
+        Returns: string
+      }
       chat_post_message:
         | {
             Args: {
