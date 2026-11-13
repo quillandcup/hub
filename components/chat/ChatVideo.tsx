@@ -70,7 +70,7 @@ export default function ChatVideo({ messageId }: { messageId: string }) {
   if (state.kind === "ready") {
     return (
       <div className="mt-2 max-w-xl overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
-        <div className="group relative">
+        <div className="relative">
         <LessonPlayer
           title={state.title}
           playbackId={state.playbackId}
@@ -85,11 +85,11 @@ export default function ChatVideo({ messageId }: { messageId: string }) {
           posterUrl={card.thumbnailUrl && !imageFailed ? card.thumbnailUrl : null}
         />
         {state.lessonHref && (
-          // Over the player's top corner like YouTube's "Watch on YouTube": shown on hover or keyboard focus where there is a pointer, always on touch screens.
+          // Over the player's top corner like YouTube's "Watch on YouTube": always visible, above the player's own overlays (z-30), with a light edge so it shows on a dark frame.
           <Link
             href={state.lessonHref}
             data-track="chat-video-open-lesson"
-            className="absolute right-2 top-2 rounded-md bg-black/70 px-2.5 py-1 text-xs font-medium text-white hover:bg-black/85 focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
+            className="absolute right-2 top-2 z-40 rounded-md bg-black/70 ring-1 ring-white/40 px-2.5 py-1 text-xs font-medium text-white hover:bg-black/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
           >
             Open lesson
           </Link>
