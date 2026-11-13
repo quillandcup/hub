@@ -82,6 +82,20 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     ].join("\n\n"),
   },
   {
+    slug: "chat-new-messages-banner",
+    date: "2026-11-13",
+    audience: "product",
+    category: "improved",
+    title: "Hub Chat shows how many new messages are waiting above you",
+    summary: "When a conversation has more new messages than fit on screen, a small pill at the top tells you how many there are. Tap it to jump back to where the new ones start.",
+    body: [
+      "If you open a conversation with a lot of unread messages and scroll away from the \"New\" line, a pill appears at the top saying, for example, \"↑ 13 new messages\".",
+      "- **Tap it** to scroll up to the \"New\" line.",
+      "- **Tap the ✕** to hide it until you open the conversation again.",
+      "- It disappears by itself once the \"New\" line is on screen. The number is the count when you opened the conversation, and doesn't change as more messages arrive.",
+    ].join("\n\n"),
+  },
+  {
     slug: "direct-messages-in-hub-chat",
     date: "2026-11-12",
     audience: "product",
