@@ -58,6 +58,8 @@ export function walkUnfurlImages(unfurls: Unfurl[], botIcon: string | null, visi
       return { ...u, imageUrl, thumbUrl };
     }
     if (u.kind === "blocks") return { ...u, blocks: u.blocks.map((b) => visitBlock(b, visit)) };
+    // A card for a page of the Hub has no external picture.
+    if (u.kind === "hub") return u;
     // A quoted message: its author's picture. Counted from the attachment, which is all the route has; drawn when the loader has filled `shared`.
     const icon = parseSharedMessage(u.attachment)?.authorIcon ?? null;
     const proxied = icon ? visit(icon) : null;

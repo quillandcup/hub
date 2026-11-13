@@ -359,6 +359,42 @@ The Hub lookup (`ChatRepository.sharedSourcesBySlackRef`, as the viewer, by Slac
 
 A message's link is `/chat/<channel>?m=<message id>` (`lib/chat/focus.ts`; the "Copy link" on every message, the Slack "Watch it in Hub Chat" link). It is a query, not a `#m-` fragment, because a fragment never reaches the server: it is lost when a signed-out visitor is sent to sign in and back, and the server can't act on it. The chat page reads `m` (`resolveFocus`, as the viewer, so row-level security applies): the message must be in that conversation, else the link is just the conversation. A top-level message is passed to the list as `focusId`, which `MessageList` and `ChatLive` treat like a `#m-` link (they load older pages until it shows up, scroll to it and highlight it, and it wins over "where the reader left off"); a reply is not in the list, so the page opens its thread (`?thread=<root>` is implied) and `ThreadList` scrolls to the reply. An explicit `?thread=` is kept. A `#m-` link still works as it did, and chat search results keep `?thread=<root>#m-<message>`. Slack messages the Hub sent before this carry the earlier link shapes; the pattern that hides the Slack line from the Hub's copy of the text matches all three.
 
+## Hub links (cards for links to the Hub itself, behind the `chat_link_cards` feature)
+
+A link to a page of the Hub, written in a Hub Chat message, is drawn as a card under the message. Before this, such a link got Slack's preview of the page its crawler was sent to (the sign-in page, "Login | Hedgie Hub"), and the server's own link-preview fetch would have read the same page, since neither is signed in.
+
+**Which links.** `lib/chat/hub-links.ts` is the one place that says (`parseHubLink`): the address is on the Hub's own origin (`APP_URL`, compared exactly: scheme, host and port, no user info; https, with `localhost` allowed for development), and its path is one of
+
+- `/chat/<channel id>?m=<message id>`: a quoted message (the "Copy link" on a message, "View in Chat", the "Watch it in Hub Chat" link added for Slack);
+- `/prickles/<prickle id>`: the prickle's title and start;
+- `/members/<member id>`: the member's display name and photo.
+
+Each id must be well formed for its table (`isId`), and every one is a Tier 1 id (`chn_`, `msg_`, `prkl_`, `mbr_`), already visible in these addresses. The card opens a path rebuilt from the ids (`hubLinkPath`), never the text that was written. Books, projects, events and course lessons have no card yet (`docs/TODO.md`, "Chat: more kinds of Hub link card").
+
+**Decided per reader, on the server.** The message's text carries only the address. The loader (`buildMessageViews`, `lib/chat/load.ts`) finds the links (`hubLinkUnfurls`), and if the reader has the flag (asked only when a message has such a link, `hubLinkCardsFor`) adds a `hub` unfurl and drops Slack's card for the same address (`withHubLinks`, `lib/chat/hub-link-cards.ts`, matched with `normalizeLinkForMatch`). The card (`components/chat/HubLinkCard.tsx`) then asks `GET /api/chat/hub-links?url=<address>`, which answers for the signed-in reader only (`loadHubLinkCard`, `lib/chat/hub-link-card.ts`):
+
+- Every read runs with the reader's own client, so row-level security answers as it would on the page itself. A quoted message needs a conversation the reader may enter (`loadChannelForMember`: a private one only for its members, a direct message not while viewing as someone else, and a restricted one not in sudo) and a message whose content they can read (no content row means the same as unreadable) and that is not deleted. The channel's name is shown only for a channel, never for a direct or group message.
+- Anything the reader may not see, a target that is not there and a deleted message are **the same `stub`**: "Link to the Hub", which opens the link and lets the page decide. The card says nothing about what a private conversation holds.
+- The quote is plain text (Slack's escapes decoded, mentions as names, links as their label), cut to a short excerpt. The author is shown by display name (`getMemberDisplayName`), the time in the reader's own zone (`formatChatTime`, the same call as the message rows). No email, legal name or id other than the ones already in the link.
+- A prickle and a member profile are open to every signed-in member (the prickle page and the member directory are readable by any signed-in member), so their cards show the same title, date or name the page does.
+- Signed out is a 401 and a missing flag a 404; the card is then simply not drawn and the link in the text is all there is. Answers are `private, no-store` and the route is rate limited per reader.
+
+**Never the Hub's own address from the server.** `buildPreview` and `refreshLinkPreviews` (`lib/chat/link-previews.ts`) refuse an address on `APP_URL`'s origin whatever the caller passes, so the server never produces a login-page card for a Hub link.
+
+**Removing a card.** The author's X (`RemoveUnfurlButton`) hides it with the usual mark, `url:<address as written>` (`chat_hidden_unfurls`). A removed card is left out; if the marks cannot be read, none is drawn, so a removal is never undone. Slack's login card for the same address stays dropped either way. A card has no picture, so the picture proxy is not involved.
+
+**Loading.** The card keeps a reserved height while it asks (`animate-pulse`, one height per kind), the answer is kept for a minute so a redraw does not blink it, and when no answer can be had nothing is drawn. Usage: `chat_hub_link_card_shown` (kind and whether it showed the target or the stub) and `data-track="chat-hub-link-card"` on the link.
+
+**Slack readers.** Hub Chat's card is drawn from the address, so there is nothing to import and no webhook it depends on. What Slack readers see is Slack's own preview of the link, until the Slack app unfurls Hub links itself (stage 2, `docs/TODO.md`, "Slack: unfurl Hub links").
+
+### Adding a kind of Hub link card
+
+1. **Pick a page that is safe to describe.** It needs a stable address with a Tier 1 id (`docs/SHORT_IDS_PLAN.md`) and a rule for who may see it that a read as the reader can answer (row-level security, or a page open to every signed-in member).
+2. **Teach the parser.** In `lib/chat/hub-links.ts` add the kind to `HubLink`, its path shape to `parseHubLink` (validate the id with `isId`, reject anything else) and its path to `hubLinkPath`. Extend `tests/lib/chat/hub-links.test.ts` with accepted and refused shapes.
+3. **Say what the card shows.** In `lib/chat/hub-link-card.ts` add a `HubCard` state and a case in `loadHubLinkCard` that reads through the reader's repositories and returns `STUB` for anything missing or not theirs. Put in it only what the page itself shows every reader who may open it: no emails, no legal names, no ids that are not in the link. Add the case to `tests/lib/chat-hub-links-route.test.ts` for a reader, a reader without access, a missing target and sudo.
+4. **Draw it.** In `components/chat/HubLinkCard.tsx` add a `RESERVE` height and a `case` using the shared card classes (the light and dark tokens of the link preview card), the stretched link and the X. Add the kind to the `chat_hub_link_card_shown` event in `lib/analytics/events.ts`, and a case to `tests/components/HubLinkCard.test.tsx`.
+5. **Docs.** Add the kind to the list above.
+
 ## Migration path
 
 Per channel: switch `bridge_mode` from `bridged` to `app_only`. The bot posts a final "this channel moved to the Hub →" message and the Slack channel is archived. From then on the Hub owns its membership. The `/privacy` page and notification framework need to be live before asking anyone to move.
