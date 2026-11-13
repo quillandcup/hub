@@ -12,7 +12,7 @@ import { formatClock } from "@/lib/courses/watch-stats";
 import { APP_URL } from "@/lib/config";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { publicLessonPreview, type PreviewBlocker } from "@/lib/courses/public-preview";
-import LessonStaffTools from "../../LessonStaffTools";
+import LessonStaffTools, { type StaffToolsProps } from "../../LessonStaffTools";
 import LessonMediaPanel from "./LessonMediaPanel";
 import VideoActions from "./VideoActions";
 import LessonBuilderForm from "./LessonBuilderForm";
@@ -38,6 +38,13 @@ async function mintTokens(playbackId: string): Promise<PlaybackTokens | null> {
     console.error("Couldn't mint Mux playback tokens:", error instanceof Error ? error.message : error);
     return null;
   }
+}
+
+/** Watch-tracking tools for staff: only for a lesson that is in the Hub. */
+function staffToolsFor(detail: AdminLessonDetail): StaffToolsProps | undefined {
+  const { hub, lesson } = detail;
+  if (!hub) return undefined;
+  return { lessonId: hub.lessonId, lessonPath: `/courses/${hub.slug}/lessons/${hub.lessonId}`, preview: lesson.state !== "open" };
 }
 
 /** The lesson's video in the builder, played by the same player members get, with the Video actions menu. */
@@ -71,6 +78,7 @@ async function lessonMedia(detail: AdminLessonDetail, chatShare: boolean) {
       {media}
       <div className="mt-3">
         <LessonVideoControls courseId={detail.course.id} lessonId={detail.lesson.kajabiId} status={null} />
+        {staffToolsFor(detail) && <LessonStaffTools {...staffToolsFor(detail)!} />}
       </div>
     </>
   );
@@ -82,7 +90,8 @@ async function lessonPlayback(detail: AdminLessonDetail, chatShare: boolean) {
   const lessonUrl = hub ? `${APP_URL}/courses/${hub.slug}/lessons/${hub.lessonId}` : null;
   const statsHref = hub && video ? `/admin/courses/${course.id}/stats/${hub.lessonId}` : null;
   const { link: thumbnailLink, blocked: thumbnailLinkBlocked } = await thumbnailLinkFor(detail, lessonUrl);
-  const actionProps = { statsHref, lessonUrl, thumbnailLink, thumbnailLinkBlocked, chatShare };
+  const staff = staffToolsFor(detail);
+  const actionProps = { statsHref, lessonUrl, thumbnailLink, thumbnailLinkBlocked, chatShare, staff };
   // A Hub-owned lesson's row (replace, remove, captions) comes with the menu; an imported one's is the read-only menu.
   const actions = (
     <div className="mt-3">
@@ -95,7 +104,7 @@ async function lessonPlayback(detail: AdminLessonDetail, chatShare: boolean) {
   );
   if (video?.status === "ready" && video.playbackId) {
     const tokens = await mintTokens(video.playbackId);
-    if (tokens) return <LessonMediaPanel title={lesson.title} playbackId={video.playbackId} tokens={tokens} posterUrl={lesson.thumbnailSrc} lessonId={hub?.lessonId} statsHref={statsHref} lessonUrl={lessonUrl} thumbnailLink={thumbnailLink} thumbnailLinkBlocked={thumbnailLinkBlocked} chatShare={chatShare} frameThumbnail={detail.editable ? { courseId: course.id, lessonId: lesson.kajabiId } : null} captions={detail.captions} />;
+    if (tokens) return <LessonMediaPanel title={lesson.title} playbackId={video.playbackId} tokens={tokens} posterUrl={lesson.thumbnailSrc} lessonId={hub?.lessonId} statsHref={statsHref} lessonUrl={lessonUrl} thumbnailLink={thumbnailLink} thumbnailLinkBlocked={thumbnailLinkBlocked} chatShare={chatShare} staff={staff} frameThumbnail={detail.editable ? { courseId: course.id, lessonId: lesson.kajabiId } : null} captions={detail.captions} />;
     return (
       <>
         <p role="status" className={note}>The video can&apos;t be played right now.</p>
@@ -122,7 +131,12 @@ async function lessonPlayback(detail: AdminLessonDetail, chatShare: boolean) {
       </>
     );
   }
-  return <p className={note}>No video on this lesson.</p>;
+  return (
+    <>
+      <p className={note}>No video on this lesson.</p>
+      {staff && <LessonStaffTools {...staff} />}
+    </>
+  );
 }
 
 /** One lesson's builder page: the lesson as last imported from Kajabi, read only until the builder can save. */
@@ -160,7 +174,6 @@ export default async function AdminLessonPage({ params }: Params) {
         {hub && (
           <div className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-white p-4 text-sm shadow dark:bg-slate-900">
             <span className="font-medium">Staff tools</span>
-            <LessonStaffTools lessonId={hub.lessonId} lessonPath={path!} preview={lesson.state !== "open"} />
           </div>
         )}
         <LessonBuilderForm detail={detail} media={media} />

@@ -15,9 +15,7 @@ vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: async () => fe
 vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: () => requireAdminPage() }));
 const loadAdminLesson = vi.fn();
 vi.mock("@/lib/courses/admin", () => ({ loadAdminLesson: (...a: unknown[]) => loadAdminLesson(...a) }));
-vi.mock("@/app/(admin)/admin/courses/[id]/LessonStaffTools", () => ({
-  default: (props: { lessonId: string; preview: boolean }) => <div data-testid="staff-tools" data-lesson={props.lessonId} data-preview={String(props.preview)} />,
-}));
+vi.mock("@/app/(member)/courses/actions", () => ({ clearMyLessonProgress: vi.fn() }));
 
 const publicLessonPreview = vi.fn();
 vi.mock("@/lib/courses/public-preview", () => ({ publicLessonPreview: (...a: unknown[]) => publicLessonPreview(...a) }));
@@ -394,8 +392,11 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     loadAdminLesson.mockResolvedValue(detail());
     await renderServerPage(AdminLessonPage, params);
     expect(screen.getByRole("link", { name: "Preview" })).toHaveAttribute("href", "/courses/the-ready-writer/lessons/les_AAAAAAAAAAA1");
-    expect(screen.getByTestId("staff-tools")).toHaveAttribute("data-lesson", "les_AAAAAAAAAAA1");
-    expect(screen.getByTestId("staff-tools")).toHaveAttribute("data-preview", "true");
+    // The staff tools are items of the Video actions menu, not a card of their own.
+    expect(screen.queryByLabelText("Staff tools")).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: /Video actions/ }));
+    expect(screen.getByRole("menuitem", { name: "Record my watching in this preview" })).toHaveAttribute("href", "/courses/the-ready-writer/lessons/les_AAAAAAAAAAA1?track=1");
+    expect(screen.getByRole("menuitem", { name: "Clear my progress for this lesson" })).toBeInTheDocument();
   });
 
   it("has neither preview nor staff tools for a lesson the Hub doesn't have, and says what's missing", async () => {
@@ -403,7 +404,7 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     await renderServerPage(AdminLessonPage, params);
 
     expect(screen.queryByRole("link", { name: "Preview" })).not.toBeInTheDocument();
-    expect(screen.queryByTestId("staff-tools")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Staff tools/ })).not.toBeInTheDocument();
     expect(screen.getByText(/text hasn't been imported yet/)).toBeInTheDocument();
     expect(screen.getByText("No video on this lesson.")).toBeInTheDocument();
     expect(screen.getByText("No downloads.")).toBeInTheDocument();
