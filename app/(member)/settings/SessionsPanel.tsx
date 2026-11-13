@@ -21,7 +21,7 @@ import {
  * other devices" action is the one thing Supabase Auth *does* support
  * natively (signOut({ scope: 'others' })).
  *
- * No location column: we have no geo-IP service and don't add a third party for it.
+ * The place of each device comes from the Hub's own access log (the coarse location the host reports for the request), not from a geo-IP service.
  */
 function formatDate(value: string | null): string {
   if (!value) return "—";
