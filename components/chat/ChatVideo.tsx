@@ -6,6 +6,7 @@ import LessonPlayer from "@/components/courses/LessonPlayer";
 import { SKIN_TOKENS } from "@/components/courses/skin-theme";
 import { LessonCompletionProvider, useLessonCompletion } from "@/components/courses/LessonCompletion";
 import type { PlaybackTokens } from "@/lib/mux";
+import type { MuxDataConsent } from "@/lib/mux-data";
 
 /** What the card shows before play, from GET /api/chat/videos/<message id>; `canWatch` null until it has answered (or when it couldn't). */
 interface CardInfo {
@@ -20,7 +21,7 @@ interface CardInfo {
 type State =
   | { kind: "idle" }
   | { kind: "loading" }
-  | { kind: "ready"; title: string; lessonId: string; lessonHref: string | null; playbackId: string; tokens: PlaybackTokens; restricted: boolean; record: boolean; resumeSeconds: number; completion: { completed: boolean } | null }
+  | { kind: "ready"; title: string; lessonId: string; lessonHref: string | null; playbackId: string; tokens: PlaybackTokens; restricted: boolean; muxData: MuxDataConsent | null; record: boolean; resumeSeconds: number; completion: { completed: boolean } | null }
   | { kind: "error"; message: string };
 
 /**
@@ -93,8 +94,8 @@ export default function ChatVideo({ messageId }: { messageId: string }) {
         setState({ kind: "error", message: res.status === 429 ? "Too many videos opened just now. Try again in a few minutes." : "This video isn't available right now." });
         return;
       }
-      const body = (await res.json()) as { title: string; lessonId: string; lessonHref?: string | null; playbackId: string; tokens: PlaybackTokens; restricted: boolean; record: boolean; resumeSeconds: number; completion?: { completed: boolean } | null };
-      setState({ kind: "ready", ...body, lessonHref: body.lessonHref ?? null, completion: body.completion ?? null });
+      const body = (await res.json()) as { title: string; lessonId: string; lessonHref?: string | null; playbackId: string; tokens: PlaybackTokens; restricted: boolean; muxData?: MuxDataConsent | null; record: boolean; resumeSeconds: number; completion?: { completed: boolean } | null };
+      setState({ kind: "ready", ...body, muxData: body.muxData ?? null, lessonHref: body.lessonHref ?? null, completion: body.completion ?? null });
     } catch {
       setState({ kind: "error", message: "This video isn't available right now." });
     }
@@ -107,6 +108,7 @@ export default function ChatVideo({ messageId }: { messageId: string }) {
             playbackId={state.playbackId}
             tokens={state.tokens}
             restricted={state.restricted}
+            muxData={state.muxData}
             lessonId={state.lessonId}
             chatMessageId={messageId}
             resumeSeconds={state.resumeSeconds}

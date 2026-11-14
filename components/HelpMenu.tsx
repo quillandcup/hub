@@ -53,7 +53,7 @@ export default function HelpMenu() {
         {menuOpen && (
           <div
             role="menu"
-            className="absolute right-0 z-50 mt-2 w-52 rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800"
+            className="absolute right-0 z-dropdown mt-2 w-52 rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800"
           >
             <Link href="/help" role="menuitem" data-track="help-menu-help" onClick={() => setMenuOpen(false)} className={item}>
               Hedgie Help

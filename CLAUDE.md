@@ -152,6 +152,10 @@ const memberBasePath = isActingAsAdmin ? "/admin/members" : "/members";
 - **Keep the legal name where it is the point**: billing, Kajabi and Stripe reconciliation, merge/split and duplicate detection, name-matching and alias tools, the Real Name field, exports, and anything sent to an external system.
 - `tests/lib/member-display-names.test.ts` fails on a new `host.name`; list a file there, with a reason, only when it just maps rows or needs the legal name.
 
+### Hand-overs Need Both Sides
+
+**RULE**: A thing that belongs to one person (a care plan, later a mentorship or an inbox thread) changes hands only when the receiver accepts: propose, accept, decline, cancel, and the database refuses a direct change of owner. Hedgie Care is the first user (`docs/HEDGIE_CARE.md`, "Owners"; `supabase/migrations/20270726000000_care_handover.sql`).
+
 ### Member Notifications
 
 **RULE**: Anything the app sends a member on its own initiative (reminders, check-ins, alerts) goes through `createNotifier` (`lib/notifications/notify.ts`) as a notification kind registered in `lib/notifications/registry.ts`, never a direct `sendSlackDM`/`chat.postMessage`. That's what makes it show up on `/settings/notifications` and honor the member's opt-outs and channel choices, and it's how new channels (email, push, SMS...) reach every kind at once.
@@ -211,6 +215,10 @@ What the message says and where it leads matters as much as how it's routed (the
 - Until a page is converted to container queries, a side column next to the main content must start at a viewport breakpoint at which the sidebar is already shown *and* enough room is left (the sidebar is 16rem wide).
 - Mobile-first: base styles for small screens, then add `sm:`/`md:`... as it grows. Don't pick a layout in JavaScript (`useMediaQuery`): it flashes and mismatches on hydration.
 - Check a layout change at widths just either side of every breakpoint it touches (e.g. 700, 800, 1000, 1100px), not just phone/tablet/desktop; the squeezed zone sits between two breakpoints.
+
+### Stacking Order: Named Layers, Never Numbers
+
+**RULE**: Use a named z-index layer from `theme.extend.zIndex` in `tailwind.config.ts` (`z-raised`, `z-float`, `z-sticky`, `z-dropdown`, `z-shell`, `z-overlay`...), never `z-30` or `z-[55]`: `tests/lib/z-layers.test.ts` fails on a numeric `z-*`. A positioned element with a z-index makes a stacking context, so a popover inside the header ranks as the header; that is why `z-shell` is above `z-sticky` and `z-dropdown`. Which layer is for what, and the portal and `isolate` rules: `docs/Z_LAYERS.md`.
 
 ### No Hardcoded Config
 

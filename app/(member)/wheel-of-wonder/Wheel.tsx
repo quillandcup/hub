@@ -273,7 +273,7 @@ export default function Wheel({ confirmedConnectionCount = 0 }: WheelProps) {
       <div className="relative" style={{ width: WHEEL_SIZE, height: WHEEL_SIZE }}>
         {/* Pointer marking the "noon" landing position */}
         <div
-          className="absolute left-1/2 -translate-x-1/2 -top-2 z-10 text-2xl"
+          className="absolute left-1/2 -translate-x-1/2 -top-2 z-raised text-2xl"
           style={{ filter: "drop-shadow(0 1px 1px rgba(0,0,0,0.25))" }}
           aria-hidden="true"
         >

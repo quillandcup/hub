@@ -89,7 +89,7 @@ function BrowseChannels({ channels, pathname }: { channels: ChannelSummary[]; pa
         <div
           role="dialog"
           aria-label="Channels you can join"
-          className="absolute inset-x-0 top-full z-20 mt-1 rounded-lg border border-slate-300 bg-white p-2 shadow-lg dark:border-slate-700 dark:bg-slate-900"
+          className="absolute inset-x-0 top-full z-dropdown mt-1 rounded-lg border border-slate-300 bg-white p-2 shadow-lg dark:border-slate-700 dark:bg-slate-900"
         >
           <p className="px-1 pb-1 text-xs font-semibold text-slate-600 dark:text-slate-400">Channels you can join</p>
           <input

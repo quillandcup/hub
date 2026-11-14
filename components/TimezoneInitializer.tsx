@@ -63,7 +63,7 @@ export function TimezoneInitializer({ storedTimezone, isSudo }: { storedTimezone
   if (!showBanner || !detectedTz) return null
 
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-6 w-80">
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-overlay bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-6 w-80">
       <p className="text-base font-medium text-slate-900 dark:text-slate-100 mb-5 leading-snug">
         Change time zone to {formatTzDisplay(detectedTz)}?
       </p>

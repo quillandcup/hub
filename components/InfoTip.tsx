@@ -42,7 +42,7 @@ export function InfoTip({
       <span
         id={tipId}
         role="tooltip"
-        className={`hidden group-hover:block group-focus-within:block z-10 rounded bg-slate-900 p-3 text-xs font-normal text-white shadow-lg dark:bg-slate-700 max-sm:fixed max-sm:inset-x-4 max-sm:mt-7 sm:absolute sm:left-0 sm:top-6 sm:w-64 ${
+        className={`hidden group-hover:block group-focus-within:block z-dropdown rounded bg-slate-900 p-3 text-xs font-normal text-white shadow-lg dark:bg-slate-700 max-sm:fixed max-sm:inset-x-4 max-sm:mt-7 sm:absolute sm:left-0 sm:top-6 sm:w-64 ${
           interactive
             ? "pointer-events-auto before:absolute before:bottom-full before:left-0 before:h-2 before:w-full before:content-['']"
             : "pointer-events-none"

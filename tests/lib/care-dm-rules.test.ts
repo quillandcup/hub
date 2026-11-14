@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { careOwnerOf, derivedMessageTimes, dmCountsFrom, followsTrackedDm, lastWriter } from "@/lib/care-dm-rules";
+import { careOwnerOf, derivedMessageTimes, dmCountsFrom, followsTrackedDm } from "@/lib/care-dm-rules";
 
 const engagement = (over: Partial<{ opened_at: string; last_staff_message_at: string | null; last_member_message_at: string | null }> = {}) => ({
   opened_at: "2026-03-10T15:00:00.000Z", // 11:00 Eastern (daylight time)
@@ -72,33 +72,19 @@ describe("derivedMessageTimes", () => {
   });
 });
 
-describe("lastWriter", () => {
-  it("says who wrote last and when", () => {
-    expect(lastWriter({ staffAt: "2026-03-01T10:00:00.000Z", memberAt: "2026-03-02T10:00:00.000Z" })).toEqual({ who: "member", at: "2026-03-02T10:00:00.000Z" });
-    expect(lastWriter({ staffAt: "2026-03-03T10:00:00.000Z", memberAt: "2026-03-02T10:00:00.000Z" })).toEqual({ who: "staff", at: "2026-03-03T10:00:00.000Z" });
-    expect(lastWriter({ staffAt: "2026-03-03T10:00:00.000Z", memberAt: null })).toEqual({ who: "staff", at: "2026-03-03T10:00:00.000Z" });
-    expect(lastWriter({ staffAt: null, memberAt: "2026-03-03T10:00:00.000Z" })).toEqual({ who: "member", at: "2026-03-03T10:00:00.000Z" });
-  });
-
-  it("is null when neither has written, and names her on a tie", () => {
-    expect(lastWriter({ staffAt: null, memberAt: null })).toBeNull();
-    expect(lastWriter({ staffAt: "2026-03-03T10:00:00.000Z", memberAt: "2026-03-03T10:00:00.000Z" })?.who).toBe("staff");
-  });
-});
-
 describe("followsTrackedDm: whose DM fills in a care plan", () => {
   const ME = "user-staff-1";
   const tracked = { userId: ME, memberIds: new Set(["mbr_AAAAAAAAAAA1"]) };
-  const base = { member_id: "mbr_AAAAAAAAAAA1", owned_by: ME, opened_by: "user-other" };
+  const base = { member_id: "mbr_AAAAAAAAAAA1", owned_by: ME };
 
   it("is true for a care plan she owns with a member whose DM she tracks, whatever the plan is about", () => {
     expect(followsTrackedDm(base, tracked)).toBe(true);
   });
 
-  it("takes the opener as the owner when nobody owns it", () => {
-    expect(careOwnerOf({ owned_by: null, opened_by: ME })).toBe(ME);
-    expect(followsTrackedDm({ ...base, owned_by: null, opened_by: ME }, tracked)).toBe(true);
-    expect(followsTrackedDm({ ...base, owned_by: null, opened_by: "user-other" }, tracked)).toBe(false);
+  it("belongs to no one when nobody owns it: whoever opened it is not its owner", () => {
+    expect(careOwnerOf({ owned_by: ME })).toBe(ME);
+    expect(careOwnerOf({ owned_by: null })).toBeNull();
+    expect(followsTrackedDm({ ...base, owned_by: null }, tracked)).toBe(false);
   });
 
   it("is false for another owner, or a member whose DM is not tracked", () => {

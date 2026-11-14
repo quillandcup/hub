@@ -2232,6 +2232,9 @@ export type Database = {
           deleted_at: string | null
           ended_how: string | null
           follow_up_on: string | null
+          handover_at: string | null
+          handover_by: string | null
+          handover_to: string | null
           id: string
           last_member_message_at: string | null
           last_staff_message_at: string | null
@@ -2252,6 +2255,9 @@ export type Database = {
           deleted_at?: string | null
           ended_how?: string | null
           follow_up_on?: string | null
+          handover_at?: string | null
+          handover_by?: string | null
+          handover_to?: string | null
           id?: string
           last_member_message_at?: string | null
           last_staff_message_at?: string | null
@@ -2272,6 +2278,9 @@ export type Database = {
           deleted_at?: string | null
           ended_how?: string | null
           follow_up_on?: string | null
+          handover_at?: string | null
+          handover_by?: string | null
+          handover_to?: string | null
           id?: string
           last_member_message_at?: string | null
           last_staff_message_at?: string | null
@@ -7199,6 +7208,39 @@ export type Database = {
       }
     }
     Functions: {
+      accept_care_handover: {
+        Args: { p_id: string }
+        Returns: {
+          channel: string
+          closed_at: string | null
+          created_at: string
+          deleted_at: string | null
+          ended_how: string | null
+          follow_up_on: string | null
+          handover_at: string | null
+          handover_by: string | null
+          handover_to: string | null
+          id: string
+          last_member_message_at: string | null
+          last_staff_message_at: string | null
+          member_id: string
+          next_step: string | null
+          notes: string | null
+          opened_at: string
+          opened_by: string | null
+          owned_by: string | null
+          period_ends_on: string
+          reason: string
+          renewed_from: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "care_engagements"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       access_locations_at: {
         Args: { p_times: string[]; p_user_ids: string[]; p_window?: string }
         Returns: {
@@ -7482,6 +7524,40 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      can_own_care_plans: { Args: { p_user: string }; Returns: boolean }
+      cancel_care_handover: {
+        Args: { p_id: string }
+        Returns: {
+          channel: string
+          closed_at: string | null
+          created_at: string
+          deleted_at: string | null
+          ended_how: string | null
+          follow_up_on: string | null
+          handover_at: string | null
+          handover_by: string | null
+          handover_to: string | null
+          id: string
+          last_member_message_at: string | null
+          last_staff_message_at: string | null
+          member_id: string
+          next_step: string | null
+          notes: string | null
+          opened_at: string
+          opened_by: string | null
+          owned_by: string | null
+          period_ends_on: string
+          reason: string
+          renewed_from: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "care_engagements"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       care_dm_last_messages: {
         Args: { p_channel_ids: string[]; p_exclude_types: string[] }
         Returns: {
@@ -7613,6 +7689,39 @@ export type Database = {
         Args: { p_commitment_id: string }
         Returns: undefined
       }
+      claim_care_plan: {
+        Args: { p_id: string }
+        Returns: {
+          channel: string
+          closed_at: string | null
+          created_at: string
+          deleted_at: string | null
+          ended_how: string | null
+          follow_up_on: string | null
+          handover_at: string | null
+          handover_by: string | null
+          handover_to: string | null
+          id: string
+          last_member_message_at: string | null
+          last_staff_message_at: string | null
+          member_id: string
+          next_step: string | null
+          notes: string | null
+          opened_at: string
+          opened_by: string | null
+          owned_by: string | null
+          period_ends_on: string
+          reason: string
+          renewed_from: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "care_engagements"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       claim_chat_gap_fill: {
         Args: {
           p_channel: string
@@ -7662,6 +7771,39 @@ export type Database = {
       current_acting_as_member_id: { Args: never; Returns: string }
       current_member_id: { Args: never; Returns: string }
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
+      decline_care_handover: {
+        Args: { p_id: string }
+        Returns: {
+          channel: string
+          closed_at: string | null
+          created_at: string
+          deleted_at: string | null
+          ended_how: string | null
+          follow_up_on: string | null
+          handover_at: string | null
+          handover_by: string | null
+          handover_to: string | null
+          id: string
+          last_member_message_at: string | null
+          last_staff_message_at: string | null
+          member_id: string
+          next_step: string | null
+          notes: string | null
+          opened_at: string
+          opened_by: string | null
+          owned_by: string | null
+          period_ends_on: string
+          reason: string
+          renewed_from: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "care_engagements"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       delete_stale_calendar_events: {
         Args: {
           p_current_google_ids: string[]
@@ -7982,6 +8124,39 @@ export type Database = {
         Args: { p_channel_id: string; p_members: Json }
         Returns: Json
       }
+      propose_care_handover: {
+        Args: { p_id: string; p_to: string }
+        Returns: {
+          channel: string
+          closed_at: string | null
+          created_at: string
+          deleted_at: string | null
+          ended_how: string | null
+          follow_up_on: string | null
+          handover_at: string | null
+          handover_by: string | null
+          handover_to: string | null
+          id: string
+          last_member_message_at: string | null
+          last_staff_message_at: string | null
+          member_id: string
+          next_step: string | null
+          notes: string | null
+          opened_at: string
+          opened_by: string | null
+          owned_by: string | null
+          period_ends_on: string
+          reason: string
+          renewed_from: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "care_engagements"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       rate_limit_hit: {
         Args: { p_bucket: string; p_max_hits: number; p_window_seconds: number }
         Returns: boolean
@@ -8012,6 +8187,9 @@ export type Database = {
           deleted_at: string | null
           ended_how: string | null
           follow_up_on: string | null
+          handover_at: string | null
+          handover_by: string | null
+          handover_to: string | null
           id: string
           last_member_message_at: string | null
           last_staff_message_at: string | null

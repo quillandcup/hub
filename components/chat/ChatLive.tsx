@@ -365,7 +365,7 @@ export default function ChatLive({
             setAnnouncedAt(null);
             void reload();
           }}
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 rounded-full bg-plum-600 px-4 py-2 text-sm font-medium text-white shadow-lg hover:bg-plum-700"
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-float rounded-full bg-plum-600 px-4 py-2 text-sm font-medium text-white shadow-lg hover:bg-plum-700"
         >
           New messages ↓
         </button>

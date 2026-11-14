@@ -457,7 +457,7 @@ function ModuleRow({
             Add content
           </button>
           {menu && editor && (
-            <div role="menu" aria-label={`Add to ${mod.title}`} className="absolute right-0 z-10 mt-1 w-40 rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-lg dark:border-slate-700 dark:bg-slate-900" onKeyDown={(e) => e.key === "Escape" && setMenu(false)}>
+            <div role="menu" aria-label={`Add to ${mod.title}`} className="absolute right-0 z-dropdown mt-1 w-40 rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-lg dark:border-slate-700 dark:bg-slate-900" onKeyDown={(e) => e.key === "Escape" && setMenu(false)}>
               <button type="button" role="menuitem" onClick={() => { setMenu(false); setOpen(true); setAdding("lesson"); }} className="block w-full px-4 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800">
                 Add lesson
               </button>

@@ -160,7 +160,7 @@ export function AddPrickleToCalendar({
         <div
           role="menu"
           aria-label={`Add ${typeName} to your calendar`}
-          className="absolute right-0 z-20 mt-1 w-64 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg p-1 text-sm"
+          className="absolute right-0 z-dropdown mt-1 w-64 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg p-1 text-sm"
         >
           <button
             type="button"

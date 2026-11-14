@@ -234,8 +234,8 @@ export default function MessageList({
       {groupByDay(messages, timeZone, unreadId).map((day) => (
         <section key={day.key} aria-label={day.label}>
           {/* Each day's marker sticks to the top while its messages scroll; the next one pushes it off.
-              Sticky + z is a stacking context: z-30 keeps it over the cards and buttons in the messages (z-10 to z-20), and an open jump menu rises above the next day label and the message popups. */}
-          <div role="separator" aria-label={day.label} className="sticky top-0 z-30 has-[[aria-expanded=true]]:z-50 flex items-center bg-canvas py-2 dark:bg-slate-950">
+              Sticky + z is a stacking context: z-sticky keeps it over the cards and buttons in the messages (z-raised, z-float), and an open jump menu rises (z-dropdown) above the next day label and the message popups. */}
+          <div role="separator" aria-label={day.label} className="sticky top-0 z-sticky has-[[aria-expanded=true]]:z-dropdown flex items-center bg-canvas py-2 dark:bg-slate-950">
             <span className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
             <DayJump channelId={channelId} label={day.label} timeZone={timeZone} />
             <span className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />

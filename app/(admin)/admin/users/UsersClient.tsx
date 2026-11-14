@@ -771,7 +771,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
 
     {historyUser && (
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+        className="fixed inset-0 z-overlay flex items-center justify-center bg-black/40 px-4"
         onClick={closeHistory}
       >
         <div

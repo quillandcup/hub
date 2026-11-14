@@ -220,9 +220,15 @@ export const EVENTS = {
   care_engagement_closed: { ended_how: oneOf(...CARE_ENDED_HOW), days_open: int(3650) },
   /** A staff member renewed an engagement into a new period: `days_open` is how long the one they renewed had run. */
   care_engagement_renewed: { days_open: int(3650) },
-  /** A staff member chose to track one of their Slack DMs (or stopped): `dms_tracked` is how many they track now. Never whose DM it is. */
-  care_dm_tracked: { dms_tracked: int(5000) },
-  care_dm_untracked: { dms_tracked: int(5000) },
+  /**
+   * Hand-overs need both sides (docs/HEDGIE_CARE.md, "Owners"): a staff member offered a care plan to someone, the receiver
+   * accepted or declined it, the offer was taken back, or a care plan with no owner was claimed. No names, no ids.
+   */
+  care_handover_proposed: {},
+  care_handover_accepted: {},
+  care_handover_declined: {},
+  care_handover_cancelled: {},
+  care_plan_claimed: {},
 
   /**
    * A server action finished (lib/analytics/server.ts: `withAction`): `action` is which one, `ok`

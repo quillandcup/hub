@@ -1,6 +1,8 @@
 import { careStatus, daysAgoLabel, isFollowUpDue, lastActivityAt, memberWroteLast, periodNumber, type CareSettings, type CareStatus } from "@/lib/care";
+import type { OwnDmAccess } from "@/lib/care-dm";
 import type { DmLink } from "@/lib/care-dm-link";
-import { followsTrackedDm } from "@/lib/care-dm-rules";
+import { careOwnerOf, followsTrackedDm } from "@/lib/care-dm-rules";
+import { handoverControls, type HandoverControls, type HandoverViewer } from "@/lib/care-handover";
 import type { Participation } from "@/lib/care-participation";
 import { ownerName, type CareOwner } from "@/lib/care-owners";
 import type { CareScores } from "@/lib/care-scores";
@@ -11,6 +13,12 @@ import { orgYmd } from "@/lib/org-week";
 
 /** The latest thing a member did themselves in the community, worded for the row ("3/12/2026", "a prickle", "8 days ago"). */
 export type ParticipationCard = { dateLabel: string; what: string; agoLabel: string };
+
+/** A hand-over waiting for the receiver's answer, worded for the row: names, never ids beyond the receiver's (the page compares it with the viewer). */
+export type HandoverCard = { toName: string; /** Who proposed it: the owner, or an admin on their behalf. */ byName: string; at: string };
+
+/** What the plan card says when the owner's own Slack DM with the member is not there to fill it in: connect Slack, or there is no DM yet. */
+export type DmNote = "connect" | "no_dm";
 
 /** One engagement as the page's client components need it: names resolved, status and "how long ago" worked out on the server. */
 export type EngagementCardData = {
@@ -55,6 +63,12 @@ export type EngagementCardData = {
   lastParticipation: ParticipationCard | "unavailable" | null;
   /** "Open the DM", for a care plan whose DM the signed-in staff user tracks and owns; null otherwise. */
   dmLink: DmLink | null;
+  /** On an open care plan the signed-in user owns whose DM is not tracked: why (Slack is not connected, or there is no DM with them yet). Null otherwise: never shown for someone else's plan. */
+  dmNote: DmNote | null;
+  /** The pending hand-over, or null. The plan keeps its owner until the receiver accepts. */
+  handover: HandoverCard | null;
+  /** What the signed-in user may do with the hand-over (offer, take back, accept or decline, claim). */
+  controls: HandoverControls;
 };
 
 export type CardOptions = {
@@ -68,7 +82,16 @@ export type CardOptions = {
    * those members is marked `fromSlack`. (Nobody can read another staff member's tracked list, so a care plan someone
    * else owns carries no hint.)
    */
-  slackTracked?: { userId: string; memberIds: ReadonlySet<string>; /** "Open the DM" by member id. */ links?: ReadonlyMap<string, DmLink> };
+  slackTracked?: {
+    userId: string;
+    memberIds: ReadonlySet<string>;
+    /** "Open the DM" by member id. */
+    links?: ReadonlyMap<string, DmLink>;
+    /** Whether her own Slack DMs can fill in her plans at all (`ownDmAccess`); decides the note on a plan with no tracked DM. */
+    access?: OwnDmAccess;
+  };
+  /** The signed-in staff user, for the hand-over controls. */
+  viewer?: HandoverViewer;
   /** Engagement scores by care plan id (`loadCareScores`). */
   scores?: ReadonlyMap<string, CareScores>;
   /** Each member's latest participation (`ActivityRepository.lastParticipation`). */
@@ -76,10 +99,19 @@ export type CardOptions = {
 };
 
 export function toEngagementCard(row: CareEngagementWithMember, now: Date, options: CardOptions = {}): EngagementCardData {
-  const { settings, owners = [], byId = new Map(), slackTracked, scores, participation } = options;
+  const { settings, owners = [], byId = new Map(), slackTracked, scores, participation, viewer = { userId: "", isAdmin: false } } = options;
   const ownsTrackedDm = !!slackTracked && followsTrackedDm(row, slackTracked);
   const last = participation?.get(row.member_id);
   const shown = row.member ? getMemberDisplayName(row.member) : "A member who is no longer here";
+  // Her plan, still open, and nothing tracked to fill it in: say why, quietly (never for someone else's plan: her list is hers).
+  const dmNote: DmNote | null =
+    !!slackTracked && row.closed_at === null && !ownsTrackedDm && careOwnerOf(row) === slackTracked.userId
+      ? slackTracked.access === "needs_slack"
+        ? "connect"
+        : slackTracked.access === "ready"
+          ? "no_dm"
+          : null
+      : null;
   return {
     id: row.id,
     memberId: row.member_id,
@@ -108,5 +140,8 @@ export function toEngagementCard(row: CareEngagementWithMember, now: Date, optio
     scores: scores?.get(row.id) ?? null,
     lastParticipation: !participation ? "unavailable" : last ? { dateLabel: formatDateOnly(orgYmd(new Date(last.occurredAt))), what: last.label, agoLabel: daysAgoLabel(last.occurredAt, now) } : null,
     dmLink: ownsTrackedDm ? (slackTracked?.links?.get(row.member_id) ?? null) : null,
+    dmNote,
+    handover: row.handover_to ? { toName: ownerName(row.handover_to, owners), byName: ownerName(row.handover_by, owners), at: row.handover_at ?? row.updated_at } : null,
+    controls: handoverControls(row, viewer),
   };
 }
