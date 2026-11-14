@@ -56,8 +56,11 @@ defineBillingContract("SupabaseBillingRepository", () => ({
     await insert("stripe_customers", withData(rows.stripeCustomers));
     await insert("stripe_products", withData(rows.stripeProducts));
     await insert("stripe_subscriptions", withData(rows.stripeSubscriptions));
-    await insert("stripe_invoices", rows.stripeInvoices ?? []);
-    await insert("stripe_charges", rows.stripeCharges ?? []);
+    // A bulk insert gives a column a row leaves out null, not its default, so the NOT NULL ones are named.
+    const invoiceDefaults = { status: "paid", amount_due: 0, amount_paid: 0, amount_remaining: 0, attempt_count: 0, paid_out_of_band: false, created_at_stripe: "1970-01-01T00:00:00Z" };
+    const chargeDefaults = { status: "succeeded", amount: 0, amount_refunded: 0, paid: true, refunded: false, disputed: false, created_at_stripe: "1970-01-01T00:00:00Z" };
+    await insert("stripe_invoices", (rows.stripeInvoices ?? []).map((r) => ({ ...invoiceDefaults, ...r })));
+    await insert("stripe_charges", (rows.stripeCharges ?? []).map((r) => ({ ...chargeDefaults, ...r })));
   },
   stored: async (table: BillingTable, column: string, values: string[]) => {
     const rows: Record<string, unknown>[] = [];
