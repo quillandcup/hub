@@ -27,6 +27,17 @@ interface MemberSlackActivityPanelProps {
   slackSummary: SlackSummary;
 }
 
+const NAMES_SHOWN = 2;
+
+/** "Direct message with Ada", "Group message with Ada, Bram +2"; the bare label when no one is named. */
+function conversationLabel(data: { channel_type?: string; participants?: string[]; participantCount?: number }): string {
+  const base = data.channel_type === 'im' ? 'Direct message' : 'Group message';
+  const names = data.participants ?? [];
+  if (names.length === 0) return base;
+  const more = (data.participantCount ?? names.length) - NAMES_SHOWN;
+  return `${base} with ${names.slice(0, NAMES_SHOWN).join(', ')}${more > 0 ? ` +${more}` : ''}`;
+}
+
 // TODO: move to env variable
 const SLACK_WORKSPACE_URL = "https://quillandcup.slack.com";
 
@@ -263,11 +274,9 @@ export default function MemberSlackActivityPanel({ slackPage, slackSummary }: Me
                         </td>
                         <td className="px-6 py-3 whitespace-nowrap">
                           <span className="text-xs text-slate-600 dark:text-slate-400">
-                            {activity.data?.channel_type === 'im'
-                              ? 'Direct message'
-                              : activity.data?.channel_type === 'mpim'
-                                ? 'Group message'
-                                : `#${activity.data?.channel_name || 'unknown'}`}
+                            {activity.data?.channel_type === 'im' || activity.data?.channel_type === 'mpim'
+                              ? conversationLabel(activity.data)
+                              : `#${activity.data?.channel_name || 'unknown'}`}
                           </span>
                         </td>
                         <td className="px-6 py-3">
