@@ -5,9 +5,9 @@ Never write a number (`z-30`, `z-[55]`). Use a named layer from `tailwind.config
 | Layer | Use |
 |---|---|
 | `z-raised` | lifts one thing over its siblings inside a component (a card's click area, a resize handle) |
-| `z-float` | floats over content: hover toolbars, the "new messages" pill, a side panel over the chat |
+| `z-float` | floats over content: the "new messages" pill, a side panel over the chat |
 | `z-sticky` | sticky bars that cover what scrolls under them (chat day divider, calendar week header) |
-| `z-dropdown` | popups anchored to a control: menus, tooltips, autocomplete, pickers |
+| `z-dropdown` | popups anchored to a control: menus, tooltips, autocomplete, pickers, and a message's hover toolbar (it must cover the sticky day divider, and its tooltips and emoji picker rank with it) |
 | `z-rail` / `z-rail-open` | desktop sidebar rail: closed under the app header, open over it |
 | `z-shell` | the app header, announcement bars, fixed corner widgets |
 | `z-overlay` | modals, lightboxes, mobile drawers and their backdrops, banners |
