@@ -31,13 +31,13 @@ vi.mock("@/lib/data/repos", async () => ({
 }));
 
 /** The share row, a lesson and its video, each overridable: a missing row stands for what row-level security hides. */
-const setup = (over: { shared?: boolean; open?: boolean; draftCourse?: boolean; lessonState?: string; videoId?: string | null; videoStatus?: string; thumbnail?: boolean | "asset"; deleted?: boolean } = {}) => {
-  const { shared = true, open = false, draftCourse = false, lessonState = "open", videoId = "video_AAAAAAAAAAA1", videoStatus = "ready", thumbnail = false, deleted = false } = over;
+const setup = (over: { shared?: boolean; open?: boolean; draftCourse?: boolean; lessonState?: string; videoId?: string | null; videoStatus?: string; thumbnail?: boolean | "asset"; deleted?: boolean; startSeconds?: number | null } = {}) => {
+  const { startSeconds = null, shared = true, open = false, draftCourse = false, lessonState = "open", videoId = "video_AAAAAAAAAAA1", videoStatus = "ready", thumbnail = false, deleted = false } = over;
   repos = createInMemoryRepos(
     new InMemoryDataset({
       courses: [{ id: "crs_AAAAAAAAAAA1", slug: "c", title: "The Ready Writer", is_draft: draftCourse } as never],
       chatMessages: deleted ? [{ id: MESSAGE, channel_id: "chn_AAAAAAAAAAA1", deleted_at: "2026-01-02T00:00:00Z" } as never] : [],
-      chatMessageVideos: shared ? [{ id: "cmv_AAAAAAAAAAA1", message_id: MESSAGE, lesson_id: LESSON, open_to_channel: open, created_at: "2026-01-01T00:00:00Z" }] : [],
+      chatMessageVideos: shared ? [{ id: "cmv_AAAAAAAAAAA1", message_id: MESSAGE, lesson_id: LESSON, open_to_channel: open, start_seconds: startSeconds, created_at: "2026-01-01T00:00:00Z" }] : [],
       courseLessons: [{ id: LESSON, course_id: "crs_AAAAAAAAAAA1", title: "Show up for the page", state: lessonState, video_id: videoId, thumbnail_url: thumbnail === true ? "https://cdn.example.test/t.jpg" : null, thumbnail_asset_id: thumbnail === "asset" ? "media_AAAAAAAAAAA1" : null } as never],
       videos: [{ id: "video_AAAAAAAAAAA1", status: videoStatus, mux_playback_id: "pb123" } as never],
     }),
@@ -86,8 +86,15 @@ describe("POST /api/chat/videos/[messageId]", () => {
 
     expect(res.status).toBe(200);
     expect(res.headers.get("Cache-Control")).toBe("no-store");
-    expect(await res.json()).toEqual({ title: "Show up for the page", lessonId: LESSON, lessonHref: `/courses/c/lessons/${LESSON}`, playbackId: "pb123", tokens: TOKENS, restricted: false, muxData: null, record: true, resumeSeconds: 0, completion: { completed: false } });
+    expect(await res.json()).toEqual({ title: "Show up for the page", lessonId: LESSON, lessonHref: `/courses/c/lessons/${LESSON}`, playbackId: "pb123", tokens: TOKENS, restricted: false, muxData: null, record: true, resumeSeconds: 0, startSeconds: null, completion: { completed: false } });
     expect(signPlaybackTokens).toHaveBeenCalledWith(expect.anything(), "pb123", undefined, null);
+  });
+
+  it("starts at the second the shared link asked for, over the member's saved position, and puts it on the lesson link", async () => {
+    setup({ startSeconds: 95 });
+    await repos.courseProgress.savePosition("mbr_AAAAAAAAAAA1", LESSON, 400);
+
+    expect(await (await call()).json()).toMatchObject({ record: true, resumeSeconds: 95, startSeconds: 95, lessonHref: `/courses/c/lessons/${LESSON}?t=95` });
   });
 
   it("says to record the watching, and where to resume from the member's saved position", async () => {
@@ -265,6 +272,11 @@ describe("GET /api/chat/videos/[messageId] (what the card shows before anyone pr
     expect((await card()).status).toBe(404);
   });
 
+  it("tells the card where the shared link starts the video", async () => {
+    setup({ startSeconds: 95 });
+    expect(await (await card()).json()).toMatchObject({ startSeconds: 95, lessonHref: `/courses/c/lessons/${LESSON}?t=95` });
+  });
+
   it("gives the lesson's title, its course, its thumbnail and that the viewer can watch, and mints nothing", async () => {
     setup({ thumbnail: "asset" });
 
@@ -272,7 +284,7 @@ describe("GET /api/chat/videos/[messageId] (what the card shows before anyone pr
 
     expect(res.status).toBe(200);
     expect(res.headers.get("Cache-Control")).toBe("no-store");
-    expect(await res.json()).toEqual({ title: "Show up for the page", courseTitle: "The Ready Writer", thumbnailUrl: `/api/courses/image/lesson/${LESSON}`, lessonHref: `/courses/c/lessons/${LESSON}`, canWatch: true });
+    expect(await res.json()).toEqual({ title: "Show up for the page", courseTitle: "The Ready Writer", thumbnailUrl: `/api/courses/image/lesson/${LESSON}`, lessonHref: `/courses/c/lessons/${LESSON}`, startSeconds: null, canWatch: true });
     expect(signPlaybackTokens).not.toHaveBeenCalled();
   });
 

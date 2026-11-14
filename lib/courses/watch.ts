@@ -86,7 +86,12 @@ const MAX_LINK_SECONDS = 24 * 60 * 60;
  * counts; a missing, negative, fractional or absurd value is ignored.
  */
 export function startSeconds(linkParam: string | undefined, resume: number): number {
-  if (linkParam === undefined || !/^\d{1,5}$/.test(linkParam)) return resume;
+  return parseLinkSeconds(linkParam) ?? resume;
+}
+
+/** The second a link's `t` asks for: a whole number from 1 to a day, else null. Shared by the lesson page and the chat video card. */
+export function parseLinkSeconds(linkParam: string | null | undefined): number | null {
+  if (linkParam == null || !/^\d{1,5}$/.test(linkParam)) return null;
   const seconds = Number(linkParam);
-  return seconds > 0 && seconds <= MAX_LINK_SECONDS ? seconds : resume;
+  return seconds > 0 && seconds <= MAX_LINK_SECONDS ? seconds : null;
 }

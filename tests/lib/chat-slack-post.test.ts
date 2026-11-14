@@ -161,7 +161,7 @@ describe("sendChatMessageToSlack", () => {
   it("adds links back to the Hub for a message that shares a lesson video, as plain text even when the words need blocks", async () => {
     dataset.courses.push({ id: "crs_AAAAAAAAAAA1", slug: "ready-writer" } as never);
     dataset.courseLessons.push({ id: "les_AAAAAAAAAAA1", course_id: "crs_AAAAAAAAAAA1" } as never);
-    dataset.chatMessageVideos.push({ id: "cmv_AAAAAAAAAAA1", message_id: ID, lesson_id: "les_AAAAAAAAAAA1", open_to_channel: false, created_at: "2026-10-10T11:00:00Z" });
+    dataset.chatMessageVideos.push({ id: "cmv_AAAAAAAAAAA1", message_id: ID, lesson_id: "les_AAAAAAAAAAA1", open_to_channel: false, start_seconds: null, created_at: "2026-10-10T11:00:00Z" });
     dataset.chatMessageContents![0].body = "Hello <u>there</u> & friends";
 
     await sendChatMessageToSlack(supabase as never, ID);
@@ -175,7 +175,7 @@ describe("sendChatMessageToSlack", () => {
 
   it("links a shared video posted as a thread reply by its own permalink (the page opens the thread)", async () => {
     dataset.chatMessages.find((m) => m.id === ID)!.thread_root_id = ROOT_ID;
-    dataset.chatMessageVideos.push({ id: "cmv_AAAAAAAAAAA1", message_id: ID, lesson_id: "les_AAAAAAAAAAA9", open_to_channel: false, created_at: "2026-10-10T11:00:00Z" });
+    dataset.chatMessageVideos.push({ id: "cmv_AAAAAAAAAAA1", message_id: ID, lesson_id: "les_AAAAAAAAAAA9", open_to_channel: false, start_seconds: null, created_at: "2026-10-10T11:00:00Z" });
 
     await sendChatMessageToSlack(supabase as never, ID);
 
@@ -184,7 +184,7 @@ describe("sendChatMessageToSlack", () => {
   });
 
   it("still posts the message, with just the Hub Chat link, when the shared lesson can't be found", async () => {
-    dataset.chatMessageVideos.push({ id: "cmv_AAAAAAAAAAA1", message_id: ID, lesson_id: "les_AAAAAAAAAAA9", open_to_channel: false, created_at: "2026-10-10T11:00:00Z" });
+    dataset.chatMessageVideos.push({ id: "cmv_AAAAAAAAAAA1", message_id: ID, lesson_id: "les_AAAAAAAAAAA9", open_to_channel: false, start_seconds: null, created_at: "2026-10-10T11:00:00Z" });
 
     await expect(sendChatMessageToSlack(supabase as never, ID)).resolves.toBe("sent");
 

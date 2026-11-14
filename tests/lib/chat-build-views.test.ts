@@ -123,7 +123,7 @@ describe("buildMessageViews", () => {
 
   it("marks the messages that share a lesson video and drops the Slack link line Slack's copy ends with", async () => {
     const out = await buildMessageViews(
-      reposWith({ chatMessageVideos: [{ id: "cmv_AAAAAAAAAAA1", message_id: "m1", lesson_id: "les_AAAAAAAAAAA1", open_to_channel: false, created_at: "2026-01-01T00:00:00Z" }] }),
+      reposWith({ chatMessageVideos: [{ id: "cmv_AAAAAAAAAAA1", message_id: "m1", lesson_id: "les_AAAAAAAAAAA1", open_to_channel: false, start_seconds: null, created_at: "2026-01-01T00:00:00Z" }] }),
       { slackChannelId: null },
       [
         row("m1", { origin: "app", chat_message_contents: { body: "This helped\n<https://hub.example.com/chat/chn_AAAAAAAAAAA1?thread=msg_AAAAAAAAAAA1|Watch it in Hub Chat> · <https://hub.example.com/courses/ready-writer/lessons/les_AAAAAAAAAAA1|Open the lesson>" } }),
@@ -140,7 +140,7 @@ describe("buildMessageViews", () => {
 
   it("keeps a deleted video's thread reachable without its video card or attachments", async () => {
     const out = await buildMessageViews(
-      reposWith({ chatMessageVideos: [{ id: "cmv_AAAAAAAAAAA1", message_id: "m1", lesson_id: "les_AAAAAAAAAAA1", open_to_channel: false, created_at: "2026-01-01T00:00:00Z" }] }),
+      reposWith({ chatMessageVideos: [{ id: "cmv_AAAAAAAAAAA1", message_id: "m1", lesson_id: "les_AAAAAAAAAAA1", open_to_channel: false, start_seconds: null, created_at: "2026-01-01T00:00:00Z" }] }),
       { slackChannelId: null },
       [row("m1", { deleted_at: "2026-10-02T00:00:00Z", reply_count: 2, has_files: true, chat_message_contents: { body: "This message was deleted.", files: [{ id: "F1", name: "old.png" }] } })],
       FERN
@@ -163,7 +163,7 @@ describe("buildMessageViews", () => {
   it("hides the lesson address a Slack message was posted with once it is the video card, and keeps any other text", async () => {
     const address = `${APP_URL}/courses/ready-writer/lessons/les_AAAAAAAAAAA1`;
     const out = await buildMessageViews(
-      reposWith({ chatMessageVideos: [{ id: "cmv_AAAAAAAAAAA1", message_id: "m1", lesson_id: "les_AAAAAAAAAAA1", open_to_channel: false, created_at: "2026-01-01T00:00:00Z" }] }),
+      reposWith({ chatMessageVideos: [{ id: "cmv_AAAAAAAAAAA1", message_id: "m1", lesson_id: "les_AAAAAAAAAAA1", open_to_channel: false, start_seconds: null, created_at: "2026-01-01T00:00:00Z" }] }),
       { slackChannelId: null },
       [
         row("m1", { origin: "slack", chat_message_contents: { body: `this helped <${address}|here> a lot` } }),
