@@ -36,7 +36,7 @@ export default function AnnouncementStack({ items }: { items: AnnouncementItem[]
     .sort((a, b) => b.item.priority - a.item.priority || a.index - b.index);
   if (shown.length === 0) return null;
   return (
-    <div className="z-40 flex-shrink-0">
+    <div className="z-shell flex-shrink-0">
       {shown.map(({ item }) => (
         <div key={item.id}>{item.element}</div>
       ))}

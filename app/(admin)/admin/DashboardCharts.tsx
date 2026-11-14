@@ -35,7 +35,7 @@ function InfoTooltip({ text }: { text: string }) {
         </svg>
       </button>
       {show && (
-        <div className="absolute z-10 left-6 top-0 w-64 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-xs rounded-lg p-3 shadow-lg">
+        <div className="absolute z-dropdown left-6 top-0 w-64 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-xs rounded-lg p-3 shadow-lg">
           {text}
         </div>
       )}

@@ -81,8 +81,8 @@ export default async function CoursePage({ params }: { params: Promise<{ slug: s
           <>
             {/* The Kajabi banner, under a dark overlay so the white title stays readable. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={hero} alt="" className="absolute inset-0 -z-10 h-full w-full object-cover" />
-            <div aria-hidden="true" className="absolute inset-0 -z-10 bg-black/60" />
+            <img src={hero} alt="" className="absolute inset-0 -z-raised h-full w-full object-cover" />
+            <div aria-hidden="true" className="absolute inset-0 -z-raised bg-black/60" />
           </>
         )}
         <div className="mx-auto max-w-3xl">

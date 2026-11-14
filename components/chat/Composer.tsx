@@ -317,7 +317,7 @@ export default function Composer({
         <div
           aria-hidden
           style={{ top: rect.top, left: rect.left, width: rect.width, height: rect.height }}
-          className="pointer-events-none fixed z-40 flex items-center justify-center rounded-lg border-2 border-dashed border-plum-500 bg-plum-50/80 text-lg font-semibold text-plum-700 dark:bg-slate-900/80 dark:text-plum-300"
+          className="pointer-events-none fixed z-overlay flex items-center justify-center rounded-lg border-2 border-dashed border-plum-500 bg-plum-50/80 text-lg font-semibold text-plum-700 dark:bg-slate-900/80 dark:text-plum-300"
         >
           {dropLabel}
         </div>

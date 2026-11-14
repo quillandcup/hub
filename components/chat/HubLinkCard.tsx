@@ -147,7 +147,7 @@ function Shell({ href, label, remove, children }: { href: string; label: string;
   return (
     <div className="@container mt-1.5 max-w-xl" data-testid="hub-link-card">
       <div className={CARD} data-stretched-card="">
-        <CardClickArea className="relative z-10">{children}</CardClickArea>
+        <CardClickArea className="relative z-raised">{children}</CardClickArea>
         <div className={`mt-1 ${MUTED}`}>
           <Link href={href} data-stretched-link="" data-track="chat-hub-link-card" className={LINK}>
             {label}

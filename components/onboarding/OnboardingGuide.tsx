@@ -186,7 +186,7 @@ export default function OnboardingGuide({ initialState }: { initialState: Onboar
       <section
         aria-label="Getting started"
         data-onboarding-card
-        className="fixed bottom-20 right-5 z-40 w-[min(20rem,calc(100vw-2.5rem))] rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl"
+        className="fixed bottom-20 right-5 z-shell w-[min(20rem,calc(100vw-2.5rem))] rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl"
       >
         <button data-track="onboarding-getting-started-of-done"
           type="button"

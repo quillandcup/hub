@@ -310,7 +310,7 @@ function BellMenu() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 z-40 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900">
+        <div className="absolute right-0 z-dropdown mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900">
           <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2 dark:border-slate-700">
             <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Notifications</h2>
             <button

@@ -132,7 +132,7 @@ function ImageTile({
             ⋮
           </button>
           {menu && (
-            <div role="menu" className="absolute right-0 top-full z-10 mt-1 w-40 rounded-md border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800">
+            <div role="menu" className="absolute right-0 top-full z-dropdown mt-1 w-40 rounded-md border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800">
               <button role="menuitem" type="button" className={item} onClick={close(() => navigator.clipboard.writeText(absolute()))}>
                 Copy link
               </button>

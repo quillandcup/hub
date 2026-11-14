@@ -212,6 +212,10 @@ What the message says and where it leads matters as much as how it's routed (the
 - Mobile-first: base styles for small screens, then add `sm:`/`md:`... as it grows. Don't pick a layout in JavaScript (`useMediaQuery`): it flashes and mismatches on hydration.
 - Check a layout change at widths just either side of every breakpoint it touches (e.g. 700, 800, 1000, 1100px), not just phone/tablet/desktop; the squeezed zone sits between two breakpoints.
 
+### Stacking Order: Named Layers, Never Numbers
+
+**RULE**: Use a named z-index layer from `theme.extend.zIndex` in `tailwind.config.ts` (`z-raised`, `z-float`, `z-sticky`, `z-dropdown`, `z-shell`, `z-overlay`...), never `z-30` or `z-[55]`: `tests/lib/z-layers.test.ts` fails on a numeric `z-*`. A positioned element with a z-index makes a stacking context, so a popover inside the header ranks as the header; that is why `z-shell` is above `z-sticky` and `z-dropdown`. Which layer is for what, and the portal and `isolate` rules: `docs/Z_LAYERS.md`.
+
 ### No Hardcoded Config
 
 **RULE**: Deployment/org config (URLs, hosts, emails, timezones, IDs, slugs) lives outside the code, never as literals or `??` fallbacks. Two places, by whether the value varies:

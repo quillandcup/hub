@@ -49,8 +49,8 @@ describe("MessageList", () => {
     const days = [view(1), view(2, { createdAt: new Date(Date.UTC(2026, 9, 5, 12)).toISOString() })];
     render(<MessageList channelId="c1" views={days} ctx={CTX} olderBefore={null} />);
     const [first] = screen.getAllByRole("separator");
-    expect(first.className).toContain("z-30");
-    expect(first.className).toContain("has-[[aria-expanded=true]]:z-50");
+    expect(first.className).toContain("z-sticky");
+    expect(first.className).toContain("has-[[aria-expanded=true]]:z-dropdown");
     await userEvent.click(within(first).getByRole("button"));
     expect(first.querySelector("[aria-expanded=true]")).not.toBeNull();
   });

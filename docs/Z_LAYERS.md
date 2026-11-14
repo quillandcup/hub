@@ -1,0 +1,20 @@
+# Stacking layers (z-index)
+
+Never write a number (`z-30`, `z-[55]`). Use a named layer from `tailwind.config.ts` (`theme.extend.zIndex`); `tests/lib/z-layers.test.ts` fails on a numeric `z-*`.
+
+| Layer | Use |
+|---|---|
+| `z-raised` | lifts one thing over its siblings inside a component (a card's click area, a resize handle) |
+| `z-float` | floats over content: hover toolbars, the "new messages" pill, a side panel over the chat |
+| `z-sticky` | sticky bars that cover what scrolls under them (chat day divider, calendar week header) |
+| `z-dropdown` | popups anchored to a control: menus, tooltips, autocomplete, pickers |
+| `z-rail` / `z-rail-open` | desktop sidebar rail: closed under the app header, open over it |
+| `z-shell` | the app header, announcement bars, fixed corner widgets |
+| `z-overlay` | modals, lightboxes, mobile drawers and their backdrops, banners |
+| `z-overlay-top` | above any modal: the search palette, the tour's spotlight |
+
+Rules:
+- A positioned element with a z-index (and `sticky`, `fixed`, `transform`, `filter`, `isolate`) makes a **stacking context**: everything inside ranks as one unit against its siblings. A popover inside the header (`z-shell`) is ranked as the header, whatever its own layer; that is why the header must be above the content's `z-sticky` and `z-dropdown`.
+- A component with z-indexes of its own inside should be `isolate`, so they cannot leak out.
+- A popup that must show over a modal is rendered through a portal to `<body>`, then takes `z-overlay`.
+- Need a new layer? Add it to the scale in `tailwind.config.ts` (and this table), not a one-off number.

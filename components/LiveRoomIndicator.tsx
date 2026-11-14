@@ -89,7 +89,7 @@ export default function LiveRoomIndicator() {
         <div
           role="dialog"
           aria-label="Prickle room"
-          className="fixed inset-x-4 top-16 sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-2 sm:w-72 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg p-4 z-50 text-sm"
+          className="fixed inset-x-4 top-16 sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-2 sm:w-72 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg p-4 z-dropdown text-sm"
         >
           {room.live ? (
             <>

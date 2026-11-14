@@ -71,7 +71,7 @@ export default function RemoveUnfurlButton({
             } else setError(result.error);
           })
         }
-        className={`group/x absolute z-20 inline-flex size-6 items-center justify-center rounded-full text-sm leading-none opacity-0 transition-opacity focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-plum-600 group-hover:opacity-100 disabled:opacity-50 [@media(hover:none)]:opacity-100 ${place.button}`}
+        className={`group/x absolute z-float inline-flex size-6 items-center justify-center rounded-full text-sm leading-none opacity-0 transition-opacity focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-plum-600 group-hover:opacity-100 disabled:opacity-50 [@media(hover:none)]:opacity-100 ${place.button}`}
       >
         <span aria-hidden="true">×</span>
         <span
@@ -83,7 +83,7 @@ export default function RemoveUnfurlButton({
         </span>
       </button>
       {error && (
-        <span role="alert" className={`absolute z-20 whitespace-nowrap rounded bg-white px-1 text-xs text-red-600 dark:bg-slate-900 dark:text-red-400 ${place.error}`}>
+        <span role="alert" className={`absolute z-float whitespace-nowrap rounded bg-white px-1 text-xs text-red-600 dark:bg-slate-900 dark:text-red-400 ${place.error}`}>
           {error}
         </span>
       )}
