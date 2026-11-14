@@ -30,6 +30,9 @@ const card = (over: Partial<EngagementCardData>): EngagementCardData => ({
   scores: null,
   lastParticipation: null,
   dmLink: null,
+  dmNote: null,
+  handover: null,
+  controls: { pending: false, offeredToMe: false, canPropose: false, canCancel: false, canClaim: false },
   ...over,
 });
 

@@ -193,8 +193,8 @@ SELECT lives_ok(
     VALUES ('care_CareAAAAAA05', 'mbr_CareAAAAAAA2', '00000000-0000-4000-a000-00000000cc03', 'welcome', 'prickle', current_date + 30)$$,
   'and starts one');
 SELECT lives_ok(
-  $$UPDATE public.care_engagements SET owned_by = '00000000-0000-4000-a000-00000000cc03' WHERE id = 'care_CareAAAAAA02'$$,
-  'an admin reassigns an engagement to themselves');
+  $$SELECT public.claim_care_plan('care_CareAAAAAA05')$$,
+  'an admin claims the plan nobody owns (a plan changes hands only through a hand-over: care_handover.test.sql)');
 RESET ROLE;
 
 -- The audit log: her writes are staff actions, once per intent, without the message bookkeeping.
@@ -218,10 +218,10 @@ SELECT is(
   (SELECT actor_kind FROM public.audit_log WHERE entity_type = 'care_engagement' AND entity_id = 'care_CareAAAAAA05' AND action = 'insert'),
   'staff', 'an admin''s is staff too');
 SELECT is(
-  (SELECT (changes -> 'owned_by' ->> 'old') || '>' || (changes -> 'owned_by' ->> 'new') FROM public.audit_log
-    WHERE entity_type = 'care_engagement' AND entity_id = 'care_CareAAAAAA02' AND action = 'update' AND changes ? 'owned_by'),
-  '00000000-0000-4000-a000-00000000cc01>00000000-0000-4000-a000-00000000cc03',
-  'reassigning shows in the audit log as a change of owner, old and new');
+  (SELECT COALESCE(changes -> 'owned_by' ->> 'old', 'nobody') || '>' || (changes -> 'owned_by' ->> 'new') FROM public.audit_log
+    WHERE entity_type = 'care_engagement' AND entity_id = 'care_CareAAAAAA05' AND changes ? 'owned_by' AND action IN ('update', 'insert') ORDER BY id DESC LIMIT 1),
+  'nobody>00000000-0000-4000-a000-00000000cc03',
+  'a change of owner shows in the audit log, old and new');
 
 SELECT * FROM finish(true);
 ROLLBACK;

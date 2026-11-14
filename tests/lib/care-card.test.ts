@@ -21,6 +21,9 @@ const row = (over: Partial<CareEngagementWithMember> = {}): CareEngagementWithMe
   last_staff_message_at: null,
   last_member_message_at: null,
   follow_up_on: null,
+  handover_to: null,
+  handover_by: null,
+  handover_at: null,
   next_step: null,
   notes: null,
   deleted_at: null,
@@ -94,10 +97,10 @@ describe("toEngagementCard", () => {
       expect(toEngagementCard(row(), NOW, { slackTracked: { ...tracked, memberIds: new Set() } }).fromSlack).toBe(false);
     });
 
-    it("is not set for a closed care plan, is set whatever the deprecated channel column says, and follows who opened it when it has no owner", () => {
+    it("is not set for a closed care plan, is set whatever the deprecated channel column says, and is not set for a plan with no owner (whoever opened it does not own it)", () => {
       expect(toEngagementCard(row({ channel: "email" }), NOW, { slackTracked: tracked }).fromSlack).toBe(true);
       expect(toEngagementCard(row({ closed_at: ago(1), ended_how: "no_reply" }), NOW, { slackTracked: tracked }).fromSlack).toBe(false);
-      expect(toEngagementCard(row({ owned_by: null, opened_by: owner }), NOW, { slackTracked: tracked }).fromSlack).toBe(true);
+      expect(toEngagementCard(row({ owned_by: null, opened_by: owner }), NOW, { slackTracked: tracked }).fromSlack).toBe(false);
     });
   });
   it("carries the Eastern day it started and today's, not the UTC date", () => {
@@ -135,6 +138,48 @@ describe("toEngagementCard", () => {
       expect(toEngagementCard(row(), NOW, { slackTracked: { ...tracked, memberIds: new Set() } }).dmLink).toBeNull();
       expect(toEngagementCard(row(), NOW, { slackTracked: { ...tracked, links: new Map() } }).dmLink).toBeNull();
       expect(toEngagementCard(row(), NOW).dmLink).toBeNull();
+    });
+  });
+
+  describe("dmNote: why her own DM is not filling in a plan of hers", () => {
+    const owner = "11111111-1111-4111-8111-111111111111";
+    const untracked = { userId: owner, memberIds: new Set<string>() };
+
+    it("says to connect Slack when it is not connected, and that there is no DM yet when it is", () => {
+      expect(toEngagementCard(row(), NOW, { slackTracked: { ...untracked, access: "needs_slack" } }).dmNote).toBe("connect");
+      expect(toEngagementCard(row(), NOW, { slackTracked: { ...untracked, access: "ready" } }).dmNote).toBe("no_dm");
+    });
+
+    it("says nothing when the DM is tracked, the plan is closed or someone else's, or there is no Slack account to connect", () => {
+      expect(toEngagementCard(row(), NOW, { slackTracked: { userId: owner, memberIds: new Set(["mbr_AAAAAAAAAAA1"]), access: "needs_slack" } }).dmNote).toBeNull();
+      expect(toEngagementCard(row({ closed_at: ago(1), ended_how: "no_reply" }), NOW, { slackTracked: { ...untracked, access: "needs_slack" } }).dmNote).toBeNull();
+      expect(toEngagementCard(row({ owned_by: "22222222-2222-4222-8222-222222222222" }), NOW, { slackTracked: { ...untracked, access: "needs_slack" } }).dmNote).toBeNull();
+      expect(toEngagementCard(row({ owned_by: null }), NOW, { slackTracked: { ...untracked, access: "needs_slack" } }).dmNote).toBeNull();
+      expect(toEngagementCard(row(), NOW, { slackTracked: { ...untracked, access: "no_member" } }).dmNote).toBeNull();
+      expect(toEngagementCard(row(), NOW, { slackTracked: untracked }).dmNote).toBeNull(); // the connection could not be read
+      expect(toEngagementCard(row(), NOW).dmNote).toBeNull();
+    });
+  });
+
+  describe("hand-over", () => {
+    const owner = "11111111-1111-4111-8111-111111111111";
+    const other = "22222222-2222-4222-8222-222222222222";
+    const owners = [
+      { id: owner, name: "Cam Example", role: "community_manager" },
+      { id: other, name: "Dee Example", role: "admin" },
+    ];
+    const offered = row({ handover_to: other, handover_by: owner, handover_at: ago(1) });
+
+    it("carries the pending offer by name, for the plan card to say who it is waiting for", () => {
+      expect(toEngagementCard(offered, NOW, { owners }).handover).toEqual({ toName: "Dee Example", byName: "Cam Example", at: ago(1) });
+      expect(toEngagementCard(row(), NOW, { owners }).handover).toBeNull();
+    });
+
+    it("tells the viewer what they may do: offer it (owner or admin), take it back, answer it (the receiver), claim it (nobody owns it)", () => {
+      expect(toEngagementCard(row(), NOW, { owners, viewer: { userId: owner, isAdmin: false } }).controls).toMatchObject({ canPropose: true, pending: false });
+      expect(toEngagementCard(offered, NOW, { owners, viewer: { userId: owner, isAdmin: false } }).controls).toMatchObject({ pending: true, canCancel: true, canPropose: false, offeredToMe: false });
+      expect(toEngagementCard(offered, NOW, { owners, viewer: { userId: other, isAdmin: true } }).controls).toMatchObject({ offeredToMe: true, canCancel: true });
+      expect(toEngagementCard(row({ owned_by: null }), NOW, { owners, viewer: { userId: other, isAdmin: false } }).controls).toMatchObject({ canClaim: true, canPropose: false });
     });
   });
 });

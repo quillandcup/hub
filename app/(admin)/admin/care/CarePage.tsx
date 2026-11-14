@@ -3,7 +3,9 @@ import { Tabs } from "@/components/Tabs";
 import type { StaffUser } from "@/lib/admin-auth";
 import { clock } from "@/lib/clock";
 import { careStatus, isActiveStatus, sortActive, sortEarlier } from "@/lib/care";
-import { loadCareDmTab, ownSlackIdentity, projectCareFromDms, type CareDmTab } from "@/lib/care-dm";
+import AnnouncementBar from "@/components/announcements/AnnouncementBar";
+import { ownDmAccess, ownSlackIdentity, projectCareFromDms, type OwnDmAccess } from "@/lib/care-dm";
+import { careOwnerOf } from "@/lib/care-dm-rules";
 import { resolveDmLinks, slackTeamId, type DmLink } from "@/lib/care-dm-link";
 import { loadCareScores } from "@/lib/care-scores";
 import { loadCareOwners } from "@/lib/care-owners";
@@ -17,8 +19,9 @@ import { careAttention } from "./attention";
 import CareAttention from "./CareAttention";
 import { toEngagementCard, type EngagementCardData } from "./card";
 import { ActiveList, EarlierList } from "./CareLists";
-import CareDmList from "./CareDmList";
+import HandoverInbox from "./HandoverInbox";
 import MemberOnly from "./MemberOnly";
+import { CARE_SLACK_CONNECT_HREF } from "./slack-connect";
 import StartEngagementForm from "./StartEngagementForm";
 import { CARE_TAB_LABELS, CARE_TITLE, type CareTabId } from "./tabs";
 
@@ -26,15 +29,14 @@ import { CARE_TAB_LABELS, CARE_TITLE, type CareTabId } from "./tabs";
  * Hedgie Care, rendered by /admin/care (Active) and /admin/care/earlier with that tab open. Both tabs' data loads here, so
  * switching is instant. The route pages call requireStaffPage() and pass the user in.
  */
-export default async function CarePage({ tab, staff, memberId }: { tab: CareTabId; staff: StaffUser; /** Show only this member's care plans (the DMs tab links here). */ memberId?: string }) {
+export default async function CarePage({ tab, staff, memberId }: { tab: CareTabId; staff: StaffUser; /** Show only this member's care plans (`?member=`). */ memberId?: string }) {
   const now = new Date(clock.now());
   const repos = createRepos(await createClient());
   const service = getServiceRepos();
   const canWrite = staffCan(staff.role, "care.write");
-  // Her DMs first (docs/HEDGIE_CARE.md): she tracks her DM with a member she holds a care plan with (a plan she holds whose
-  // DM is not tracked yet, and that she never stopped tracking, is tracked now), and the tracked DMs fill in who spoke
-  // last on those plans. The list below reads the result. Only her own plans and DMs are looked at; a failure is logged
-  // and the page still opens with what it has.
+  // Her DMs first (docs/HEDGIE_CARE.md): a DM is tracked because she holds a care plan with the member (a plan she holds whose
+  // DM is not tracked yet is tracked now), and the tracked DMs fill in who spoke last on those plans. The list below reads the
+  // result. Only her own plans and DMs are looked at; a failure is logged and the page still opens with what it has.
   if (canWrite) {
     await projectCareFromDms({ care: repos.care, careDms: repos.careDms, service }, { userId: staff.id }).catch((error) =>
       console.error("[care] filling in from tracked DMs failed:", error instanceof Error ? error.message : error)
@@ -70,12 +72,30 @@ export default async function CarePage({ tab, staff, memberId }: { tab: CareTabI
             return new Map<string, DmLink>();
           })
       : new Map<string, DmLink>();
+  // Whether her own Slack DMs can fill in her plans at all, worked out only when she holds an open plan whose DM is not tracked
+  // (no one else needs it): a plan card says so quietly, and the Active tab carries one calm banner.
+  const trackedMembers = new Set(tracked.map((dm) => dm.memberId));
+  const holdsUntracked = rows.some((row) => row.closed_at === null && careOwnerOf(row) === staff.id && !trackedMembers.has(row.member_id));
+  const access: OwnDmAccess | undefined = holdsUntracked
+    ? await Promise.all([ownSlackIdentity(service, staff), getUserFeaturePreviews(staff.id)])
+        .then(([own, previews]) => ownDmAccess(own, previews.includes("slack_dm_bridge")))
+        .catch((error) => {
+          console.error("[care] reading her Slack connection failed:", error instanceof Error ? error.message : error);
+          return undefined;
+        })
+    : undefined;
   const options = {
     owners,
     byId,
     scores,
     participation,
-    slackTracked: { userId: staff.id, memberIds: new Set(tracked.map((dm) => dm.memberId)), links: new Map(tracked.flatMap((dm) => (dmLinks.has(dm.channelId) ? [[dm.memberId, dmLinks.get(dm.channelId)!] as const] : []))) },
+    viewer: { userId: staff.id, isAdmin: staff.role === "admin" },
+    slackTracked: {
+      userId: staff.id,
+      memberIds: trackedMembers,
+      access,
+      links: new Map(tracked.flatMap((dm) => (dmLinks.has(dm.channelId) ? [[dm.memberId, dmLinks.get(dm.channelId)!] as const] : []))),
+    },
   };
   const active = sortActive(
     rows.filter((row) => isActiveStatus(careStatus(row, now))),
@@ -83,21 +103,12 @@ export default async function CarePage({ tab, staff, memberId }: { tab: CareTabI
   ).map((row) => toEngagementCard(row, now, options));
   const earlier = sortEarlier(rows.filter((row) => !isActiveStatus(careStatus(row, now)))).map((row) => toEngagementCard(row, now, options));
   const attention = careAttention([...active, ...earlier]);
-  // One member's care plans, when asked for (the link from the DMs tab); the counts above stay for everyone.
+  // One member's care plans, when asked for (`?member=`); the counts above stay for everyone.
   const only = (cards: EngagementCardData[]) => (memberId ? cards.filter((card) => card.memberId === memberId) : cards);
   const shownMember = memberId ? [...active, ...earlier].find((card) => card.memberId === memberId)?.memberName ?? null : null;
-  // The DM list reads Slack's Bronze for every DM she has: only built when its tab is the one asked for.
-  const dmTab: CareDmTab | null =
-    tab === "dms"
-      ? await loadCareDmTab(service, staff, {
-          bridgeOn: (await getUserFeaturePreviews(staff.id)).includes("slack_dm_bridge"),
-          trackedChannelIds: new Set(tracked.map((dm) => dm.channelId)),
-          plans: rows,
-          owners,
-          now,
-          slackTeamId: slackTeamId(),
-        })
-      : null;
+  // What is waiting for her to accept or decline, wherever the plan is listed (Active or Earlier).
+  const waiting = canWrite ? [...active, ...earlier].filter((card) => card.controls.offeredToMe) : [];
+  const needsSlack = canWrite && access === "needs_slack";
 
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
@@ -126,6 +137,16 @@ export default async function CarePage({ tab, staff, memberId }: { tab: CareTabI
               title: CARE_TAB_LABELS.active,
               content: (
                 <div className="space-y-6">
+                  {needsSlack && (
+                    <AnnouncementBar
+                      tone="info"
+                      action={{ label: "Connect Slack", track: "care-connect-slack-banner", href: CARE_SLACK_CONNECT_HREF, external: true }}
+                      dismiss={{ dismissKey: "care-connect-slack-banner", scope: "device", track: "care-connect-slack-dismiss" }}
+                    >
+                      Connect Slack so your DM with each member fills in who wrote last on your care plans.
+                    </AnnouncementBar>
+                  )}
+                  <HandoverInbox cards={waiting} />
                   {canWrite && <StartEngagementForm today={orgYmd(now)} />}
                   <MemberOnly name={shownMember} base="/admin/care" show={!!memberId} />
                   <ActiveList cards={only(active)} canWrite={canWrite} owners={owners} meId={staff.id} />
@@ -138,16 +159,11 @@ export default async function CarePage({ tab, staff, memberId }: { tab: CareTabI
               title: CARE_TAB_LABELS.earlier,
               content: (
                 <>
+                  <HandoverInbox cards={waiting} />
                   <MemberOnly name={shownMember} base="/admin/care/earlier" show={!!memberId} />
                   <EarlierList cards={only(earlier)} canWrite={canWrite} owners={owners} meId={staff.id} />
                 </>
               ),
-            },
-            {
-              id: "dms",
-              label: CARE_TAB_LABELS.dms,
-              title: CARE_TAB_LABELS.dms,
-              content: <CareDmList data={dmTab} canWrite={canWrite} today={orgYmd(now)} />,
             },
           ]}
         />

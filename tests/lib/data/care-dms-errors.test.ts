@@ -39,7 +39,6 @@ describe("SupabaseCareTrackedDmRepository database errors", () => {
     ["allLive", () => repo.allLive()],
     ["forChannel", () => repo.forChannel(channel)],
     ["track", () => repo.track({ trackedBy: user, channelId: channel, memberId: member })],
-    ["untrack", () => repo.untrack(user, channel, at)],
   ])("%s throws the database's error", async (_name, run) => {
     await expect(run()).rejects.toThrow("database is down");
   });
@@ -77,13 +76,5 @@ describe("SupabaseCareTrackedDmRepository queries", () => {
       { data: null, error: { message: "lookup failed" } },
     ]);
     await expect(new SupabaseCareTrackedDmRepository(q.db).track({ trackedBy: user, channelId: channel, memberId: member })).rejects.toThrow("lookup failed");
-  });
-
-  it("soft deletes only the caller's live row", async () => {
-    const q = scriptedDb([{ data: { id: row.id }, error: null }]);
-    expect(await new SupabaseCareTrackedDmRepository(q.db).untrack(user, channel, at)).toBe(true);
-    expect(q.queries[0].calls[0]).toEqual({ method: "update", args: [{ deleted_at: at }] });
-    expect(q.queries[0].calls).toContainEqual({ method: "eq", args: ["tracked_by", user] });
-    expect(await new SupabaseCareTrackedDmRepository(scriptedDb([{ data: null, error: null }]).db).untrack(user, channel, at)).toBe(false);
   });
 });
