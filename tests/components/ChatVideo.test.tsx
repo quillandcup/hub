@@ -92,6 +92,8 @@ describe("ChatVideo", () => {
 
     const link = await screen.findByRole("link", { name: "Open lesson" });
     expect(link).toHaveAttribute("href", "/courses/ready/lessons/les_AAAAAAAAAAA1");
+    // The link's own z-index (30) stays inside the card, so it can't paint over a menu opened from a day label above it.
+    expect(link.closest(".isolate")).not.toBeNull();
     // A link can't sit inside the card's button, and pressing it must not start the video.
     expect(screen.getByRole("button", { name: "Play Show up for the page" }).contains(link)).toBe(false);
     expect(posts()).toHaveLength(0);
@@ -111,6 +113,8 @@ describe("ChatVideo", () => {
     await userEvent.click(await screen.findByRole("button", { name: /Play/ }));
     const link = await screen.findByRole("link", { name: "Open lesson" });
     expect(link).toHaveAttribute("href", "/courses/ready/lessons/les_AAAAAAAAAAA1");
+    // The link's own z-index (30) stays inside the card, so it can't paint over a menu opened from a day label above it.
+    expect(link.closest(".isolate")).not.toBeNull();
     // A new tab, so the conversation and the playing video stay where they are.
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", expect.stringContaining("noopener"));

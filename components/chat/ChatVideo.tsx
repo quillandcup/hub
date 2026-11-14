@@ -118,7 +118,7 @@ export default function ChatVideo({ messageId }: { messageId: string }) {
           />
     );
     return (
-      <div className="mt-2 max-w-xl overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
+      <div className="isolate mt-2 max-w-xl overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
         {state.completion ? (
           // The same completion the lesson page keeps: the player completes the lesson once it is watched through (~90%).
           <LessonCompletionProvider lessonId={state.lessonId} initiallyCompleted={state.completion.completed} readOnlyReason={null}>
@@ -154,7 +154,7 @@ export default function ChatVideo({ messageId }: { messageId: string }) {
   const busy = state.kind === "loading";
   return (
     // `media-root` is the container the skin's own breakpoint (and the link's) measures, so the card narrows the link at the same width the player does.
-    <div className="relative mt-2 max-w-xl overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 [container:media-root/inline-size]">
+    <div className="relative isolate mt-2 max-w-xl overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 [container:media-root/inline-size]">
       <button
         type="button"
         onClick={open}
