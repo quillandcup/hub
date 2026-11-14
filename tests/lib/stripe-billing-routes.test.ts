@@ -22,6 +22,7 @@ vi.mock("@/lib/stripe/billing-import", async () => ({
 import { GET as reconcile } from "@/app/api/reconcile/stripe-billing/route";
 import { POST as manualImport } from "@/app/api/import/stripe/route";
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { createStripeClient } from "@/lib/stripe/client";
 import { pingCronHeartbeat } from "@/lib/cron-heartbeats";
 import { importStripeBilling, StripeBillingPermissionError } from "@/lib/stripe/billing-import";
 
@@ -50,7 +51,9 @@ describe("GET /api/reconcile/stripe-billing", () => {
   it("imports, returns the counts and pings the heartbeat; ?full=1 reads everything", async () => {
     const response = await reconcile(request());
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ success: true, reconciliation: "stripe-billing", ...done });
+    const body = await response.json();
+    expect(body).toMatchObject({ success: true, reconciliation: "stripe", invoices: done });
+    expect(body.core).toMatchObject({ customers: 1, products: 1, subscriptions: 1 });
     expect(vi.mocked(importStripeBilling).mock.calls[0][2]).toEqual({ full: false });
     expect(pingCronHeartbeat).toHaveBeenCalledWith("reconcile-stripe-billing");
 
@@ -62,11 +65,37 @@ describe("GET /api/reconcile/stripe-billing", () => {
     vi.mocked(importStripeBilling).mockRejectedValue(new StripeBillingPermissionError());
     const response = await reconcile(request());
     expect(response.status).toBe(500);
-    expect((await response.json()).error).toContain("read access to Invoices and Charges");
+    const body = await response.json();
+    expect(body.error).toContain("read access to Invoices and Charges");
+    expect(body.core.customers).toBe(1);
     expect(pingCronHeartbeat).not.toHaveBeenCalled();
 
     vi.mocked(importStripeBilling).mockRejectedValue("odd");
-    expect((await (await reconcile(request())).json()).error).toBe("Failed to import Stripe invoices and charges");
+    expect((await (await reconcile(request())).json()).invoicesError).toBe("Failed to import Stripe invoices and charges");
+  });
+
+  it("still imports invoices and charges when the core import fails, answers 500 and does not ping", async () => {
+    repos.billing.upsertStripeProducts.mockRejectedValue(new Error("db down"));
+    const response = await reconcile(request());
+    expect(response.status).toBe(500);
+    const body = await response.json();
+    expect(body.coreError).toBe("Products import failed: db down");
+    expect(body.invoices).toEqual(done);
+    expect(importStripeBilling).toHaveBeenCalledTimes(1);
+    expect(pingCronHeartbeat).not.toHaveBeenCalled();
+
+    stripe.fetchAllCustomers.mockRejectedValue("odd");
+    expect((await (await reconcile(request())).json()).coreError).toBe("Failed to import Stripe customers, products and subscriptions");
+  });
+
+  it("answers 500 when the Stripe client cannot be created", async () => {
+    vi.mocked(createStripeClient).mockImplementationOnce(() => {
+      throw new Error("STRIPE_SECRET_KEY is not set");
+    });
+    const response = await reconcile(request());
+    expect(response.status).toBe(500);
+    expect((await response.json()).error).toBe("STRIPE_SECRET_KEY is not set");
+    expect(importStripeBilling).not.toHaveBeenCalled();
   });
 });
 

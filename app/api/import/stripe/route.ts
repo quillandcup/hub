@@ -2,7 +2,7 @@ import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createStripeClient } from "@/lib/stripe/client";
 import { NextRequest, NextResponse } from "next/server";
-import { asJson } from "@/lib/data/json";
+import { importStripeCore } from "@/lib/stripe/core-import";
 import { importStripeBilling, type StripeBillingResult } from "@/lib/stripe/billing-import";
 
 export const maxDuration = 300;
@@ -27,71 +27,9 @@ export async function POST(request: NextRequest) {
   try {
     const results: any = {};
 
-    // Create Stripe API client
     const stripe = createStripeClient();
-    const importTimestamp = new Date().toISOString();
-
-    // 1. Fetch and import customers
-    console.log("Fetching customers from Stripe API...");
-    const customers = await stripe.fetchAllCustomers();
-
-    const customerRecords = customers.map(customer => ({
-      stripe_customer_id: customer.id,
-      email: customer.email?.toLowerCase() || null,
-      name: customer.name,
-      created_at_stripe: new Date(customer.created * 1000).toISOString(),
-      imported_at: importTimestamp,
-      data: asJson(customer),
-    }));
-
     const billing = createRepos(supabase).billing;
-    await billing.upsertStripeCustomers(customerRecords).catch((error: Error) => {
-      console.error("Error upserting stripe_customers:", error);
-      throw new Error(`Customers import failed: ${error.message}`);
-    });
-
-    // 2. Fetch and import products
-    console.log("Fetching products from Stripe API...");
-    const products = await stripe.fetchAllProducts();
-
-    const productRecords = products.map(product => ({
-      stripe_product_id: product.id,
-      name: product.name,
-      active: product.active,
-      imported_at: importTimestamp,
-      data: asJson(product),
-    }));
-
-    await billing.upsertStripeProducts(productRecords).catch((error: Error) => {
-      console.error("Error upserting stripe_products:", error);
-      throw new Error(`Products import failed: ${error.message}`);
-    });
-
-    // 3. Fetch and import subscriptions (all statuses to understand full picture)
-    // Stripe's list endpoint excludes canceled subscriptions unless status is
-    // explicitly "all" — omitting it silently drops every cancelled member's
-    // subscription (and their real trial_start/trial_end), which is most of
-    // the membership base.
-    console.log("Fetching subscriptions from Stripe API...");
-    const subscriptions = await stripe.fetchAllSubscriptions("all");
-
-    const subscriptionRecords = subscriptions.map(subscription => ({
-      stripe_subscription_id: subscription.id,
-      stripe_customer_id: typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id,
-      status: subscription.status,
-      current_period_start: (subscription as any).current_period_start ? new Date((subscription as any).current_period_start * 1000).toISOString() : null,
-      current_period_end: (subscription as any).current_period_end ? new Date((subscription as any).current_period_end * 1000).toISOString() : null,
-      canceled_at: subscription.canceled_at ? new Date(subscription.canceled_at * 1000).toISOString() : null,
-      created_at_stripe: new Date(subscription.created * 1000).toISOString(),
-      pause_collection: asJson(subscription.pause_collection),
-      imported_at: importTimestamp,
-      data: asJson(subscription),
-    }));
-
-    await billing.upsertStripeSubscriptions(subscriptionRecords).catch((error: Error) => {
-      console.error("Error upserting stripe_subscriptions:", error);
-      throw new Error(`Subscriptions import failed: ${error.message}`);
-    });
+    const core = await importStripeCore(billing, stripe);
 
     // 4. Invoices and charges (who was billed what and when). A key that may not read them must not undo the
     // import above, so the reason is reported beside the counts instead of failing the run.
@@ -108,14 +46,11 @@ export async function POST(request: NextRequest) {
     results.stripe = {
       billing: billingResult,
       billingError,
-      customers: customerRecords.length,
-      products: productRecords.length,
-      subscriptions: subscriptionRecords.length,
-      statusBreakdown: subscriptions.reduce((acc, sub) => {
-        acc[sub.status] = (acc[sub.status] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>),
-      importTimestamp,
+      customers: core.customers,
+      products: core.products,
+      subscriptions: core.subscriptions,
+      statusBreakdown: core.statusBreakdown,
+      importTimestamp: core.importTimestamp,
     };
 
     return NextResponse.json({
