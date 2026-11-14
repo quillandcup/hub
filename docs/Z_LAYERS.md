@@ -18,3 +18,5 @@ Rules:
 - A component with z-indexes of its own inside should be `isolate`, so they cannot leak out.
 - A popup that must show over a modal is rendered through a portal to `<body>`, then takes `z-overlay`.
 - Need a new layer? Add it to the scale in `tailwind.config.ts` (and this table), not a one-off number.
+
+**Pairs that overlap.** `tests/lib/z-layer-pairs.test.ts` lists things that meet on screen and which must win (the hover toolbar over the day divider, the header over the page's dropdowns, a modal over the header, the search palette over a modal...). It reads each side's layer from the component's real class. When two things overlap wrongly in the browser, fix the layer and add the pair there.
