@@ -73,7 +73,7 @@ describe("admin changelog entry", () => {
   });
 
   it("shows a staff entry, which has no member page, without a link to one", async () => {
-    const staff = CHANGELOG_ENTRIES.find((e) => e.audience === "staff")!;
+    const staff = CHANGELOG_ENTRIES.find((e) => e.audience === "staff" && e.category === "new")!;
     await renderServerPage(AdminChangelogEntryPage, entryProps(staff.slug));
     expect(screen.getByRole("heading", { name: staff.title, level: 1 })).toBeInTheDocument();
     expect(screen.getByText(/Staff · New/)).toBeInTheDocument();
