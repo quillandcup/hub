@@ -83,6 +83,8 @@ describe("DayJump", () => {
     await user.click(screen.getByRole("menuitem", { name: "Jump to a specific date" }));
 
     const dialog = screen.getByRole("dialog", { name: "Jump to a specific date" });
+    // Out of the sticky day label's stacking layer, so nothing later in the list can paint over it.
+    expect(screen.getByRole("button", { name: /Jump to/ }).closest("div")!.contains(dialog)).toBe(false);
     expect(within(dialog).getByText("November 2026")).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "November 13, 2026" })).toHaveAttribute("aria-current", "date");
     expect(push).not.toHaveBeenCalled();

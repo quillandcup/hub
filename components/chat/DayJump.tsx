@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import ActionMenu, { type ActionMenuItem } from "@/components/ActionMenu";
 import DatePicker from "@/components/DatePicker";
@@ -52,19 +53,25 @@ export default function DayJump({ channelId, label, timeZone }: { channelId: str
           </>
         }
       />
-      <Modal isOpen={picking} onClose={() => setPicking(false)} title="Jump to a specific date" maxWidth="sm">
-        <DatePicker
-          inline
-          id={`jump-date-${channelId}`}
-          label="Choose a date"
-          value=""
-          today={chatDayKey(new Date().toISOString(), timeZone)}
-          onChange={(day) => {
-            setPicking(false);
-            go("date", dayStartIso(day, timeZone));
-          }}
-        />
-      </Modal>
+      {picking &&
+        // On the page, not inside the sticky day label: that label is its own stacking layer, which would keep the modal under
+        // anything later in the list with a z-index (a message's remove-preview button).
+        createPortal(
+          <Modal isOpen={picking} onClose={() => setPicking(false)} title="Jump to a specific date" maxWidth="sm">
+            <DatePicker
+              inline
+              id={`jump-date-${channelId}`}
+              label="Choose a date"
+              value=""
+              today={chatDayKey(new Date().toISOString(), timeZone)}
+              onChange={(day) => {
+                setPicking(false);
+                go("date", dayStartIso(day, timeZone));
+              }}
+            />
+          </Modal>,
+          document.body,
+        )}
     </>
   );
 }
