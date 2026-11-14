@@ -55,3 +55,10 @@ describe("next.config headers", () => {
     for (const part of ["img-src ", "object-src 'none'", "base-uri 'self'", "form-action 'self'", "frame-ancestors 'self'"]) expect(value).toContain(part);
   });
 });
+
+describe("next.config redirects", () => {
+  it("sends the old Identity tab of the member page to Account", async () => {
+    const config = (await import("../../next.config")).default as { redirects?: () => Promise<{ source: string; destination: string; permanent: boolean }[]> };
+    expect(await config.redirects!()).toContainEqual({ source: "/admin/members/:id/identity", destination: "/admin/members/:id/account", permanent: true });
+  });
+});

@@ -30,7 +30,7 @@ describe("isCommunityManagerPath", () => {
     "/admin/insights/prickles",
     "/admin/members/network",
     "/admin/members/network/anything",
-    "/admin/members/mbr_AAAAAAAAAAA1/identity",
+    "/admin/members/mbr_AAAAAAAAAAA1/account",
     "/admin/members/mbr_AAAAAAAAAAA1/activity",
     "/admin/prickles",
     "/admin/data/import",

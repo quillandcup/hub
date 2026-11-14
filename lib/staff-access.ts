@@ -26,7 +26,7 @@ export const STAFF_FEATURES = [
   "member.notes_write",
   "member.timeline_edit",
   "member.badges_edit",
-  "member.identity_tab",
+  "member.account_tab",
   "member.activity_tab",
   "member.billing_links",
   "member.record_history",
@@ -91,7 +91,7 @@ const PREFIX_PATHS = [
 export function isCommunityManagerPath(pathname: string): boolean {
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
   if ((EXACT_PATHS as readonly string[]).includes(path)) return true;
-  if (/^\/admin\/members\/[^/]+\/(identity|activity|notifications)$/.test(path)) return false;
+  if (/^\/admin\/members\/[^/]+\/(account|identity|activity|notifications)$/.test(path)) return false;
   return PREFIX_PATHS.some(
     ({ prefix, except }) =>
       path.startsWith(prefix) && path.length > prefix.length && !except.some((e) => path === e || path.startsWith(`${e}/`))
