@@ -25,8 +25,8 @@ SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000cd01", "email": "cd-manager@example.test", "role": "authenticated"}', true);
 
 SELECT lives_ok(
-  $$INSERT INTO public.care_engagements (id, member_id, opened_by, owned_by, reason, channel, opened_at, period_ends_on, last_staff_message_at)
-    VALUES ('care_CareDateA01', 'mbr_CareDateAAA1', '00000000-0000-4000-a000-00000000cd01', '00000000-0000-4000-a000-00000000cd01', 'check_in', 'slack_dm',
+  $$INSERT INTO public.care_engagements (id, member_id, opened_by, owned_by, reason, opened_at, period_ends_on, last_staff_message_at)
+    VALUES ('care_CareDateA01', 'mbr_CareDateAAA1', '00000000-0000-4000-a000-00000000cd01', '00000000-0000-4000-a000-00000000cd01', 'check_in',
             '2026-03-20T15:00:00Z', '2026-04-19', '2026-03-20T15:00:00Z')$$,
   'a community manager starts a care period');
 SELECT lives_ok(
@@ -37,8 +37,8 @@ SELECT is(
 
 -- One open per member still holds after a move.
 SELECT throws_ok(
-  $$INSERT INTO public.care_engagements (member_id, opened_by, reason, channel, period_ends_on)
-    VALUES ('mbr_CareDateAAA1', '00000000-0000-4000-a000-00000000cd01', 'welcome', 'slack_dm', current_date + 30)$$,
+  $$INSERT INTO public.care_engagements (member_id, opened_by, reason, period_ends_on)
+    VALUES ('mbr_CareDateAAA1', '00000000-0000-4000-a000-00000000cd01', 'welcome', current_date + 30)$$,
   '23505', NULL, 'a second open care period for the member is still refused');
 RESET ROLE;
 

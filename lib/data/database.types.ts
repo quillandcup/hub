@@ -2227,7 +2227,6 @@ export type Database = {
       }
       care_engagements: {
         Row: {
-          channel: string
           closed_at: string | null
           created_at: string
           deleted_at: string | null
@@ -2248,7 +2247,6 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          channel?: string
           closed_at?: string | null
           created_at?: string
           deleted_at?: string | null
@@ -2269,7 +2267,6 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          channel?: string
           closed_at?: string | null
           created_at?: string
           deleted_at?: string | null
@@ -8010,7 +8007,6 @@ export type Database = {
           p_period_ends_on: string
         }
         Returns: {
-          channel: string
           closed_at: string | null
           created_at: string
           deleted_at: string | null

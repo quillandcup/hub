@@ -11,7 +11,6 @@ const row = (over: Partial<CareEngagementWithMember> = {}): CareEngagementWithMe
   member_id: "mbr_AAAAAAAAAAA1",
   opened_by: null,
   reason: "introduction",
-  channel: "other", // the deprecated column, still on the row
   opened_at: ago(4),
   period_ends_on: "2026-04-15",
   owned_by: "11111111-1111-4111-8111-111111111111",
@@ -94,8 +93,8 @@ describe("toEngagementCard", () => {
       expect(toEngagementCard(row(), NOW, { slackTracked: { ...tracked, memberIds: new Set() } }).fromSlack).toBe(false);
     });
 
-    it("is not set for a closed care plan, is set whatever the deprecated channel column says, and follows who opened it when it has no owner", () => {
-      expect(toEngagementCard(row({ channel: "email" }), NOW, { slackTracked: tracked }).fromSlack).toBe(true);
+    it("is not set for a closed care plan, is set for a plan that is open and owned by someone who tracks the DM, and follows who opened it when it has no owner", () => {
+      expect(toEngagementCard(row(), NOW, { slackTracked: tracked }).fromSlack).toBe(true);
       expect(toEngagementCard(row({ closed_at: ago(1), ended_how: "no_reply" }), NOW, { slackTracked: tracked }).fromSlack).toBe(false);
       expect(toEngagementCard(row({ owned_by: null, opened_by: owner }), NOW, { slackTracked: tracked }).fromSlack).toBe(true);
     });
