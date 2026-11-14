@@ -29,13 +29,13 @@ interface MemberSlackActivityPanelProps {
 
 const NAMES_SHOWN = 2;
 
-/** "Direct message with Ada", "Group message with Ada, Bram +2"; the bare label when no one is named. */
+/** "DM: Ada", "Group: Ada, Bram +1"; the bare "DM" or "Group" when no one is named. */
 function conversationLabel(data: { channel_type?: string; participants?: string[]; participantCount?: number }): string {
-  const base = data.channel_type === 'im' ? 'Direct message' : 'Group message';
+  const base = data.channel_type === 'im' ? 'DM' : 'Group';
   const names = data.participants ?? [];
   if (names.length === 0) return base;
   const more = (data.participantCount ?? names.length) - NAMES_SHOWN;
-  return `${base} with ${names.slice(0, NAMES_SHOWN).join(', ')}${more > 0 ? ` +${more}` : ''}`;
+  return `${base}: ${names.slice(0, NAMES_SHOWN).join(', ')}${more > 0 ? ` +${more}` : ''}`;
 }
 
 // TODO: move to env variable

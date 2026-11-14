@@ -55,8 +55,8 @@ describe("MemberSlackActivityPanel", () => {
     const dm = { ...activity("5", ""), data: { channel_type: "im", participants: ["Ada Example"], participantCount: 1 } };
     const group = { ...activity("6", ""), data: { channel_type: "mpim", participants: ["Ada Example", "Bram <b>&</b> Sample", "Cy", "Di"], participantCount: 4 } };
     render(<MemberSlackActivityPanel slackPage={page({ rows: [dm, group] })} slackSummary={summary} />);
-    expect(screen.getByText("Direct message with Ada Example")).toBeInTheDocument();
-    expect(screen.getByText("Group message with Ada Example, Bram <b>&</b> Sample +2")).toBeInTheDocument();
+    expect(screen.getByText("DM: Ada Example")).toBeInTheDocument();
+    expect(screen.getByText("Group: Ada Example, Bram <b>&</b> Sample +2")).toBeInTheDocument();
   });
 
   it("labels direct and group messages, which carry no channel name, instead of #unknown", () => {
@@ -64,8 +64,8 @@ describe("MemberSlackActivityPanel", () => {
     const group = { ...activity("4", ""), data: { channel_name: null, channel_type: "mpim" } };
     render(<MemberSlackActivityPanel slackPage={page({ rows: [dm, group] })} slackSummary={summary} />);
     const table = screen.getByRole("table");
-    expect(within(table).getByText("Direct message")).toBeInTheDocument();
-    expect(within(table).getByText("Group message")).toBeInTheDocument();
+    expect(within(table).getByText("DM")).toBeInTheDocument();
+    expect(within(table).getByText("Group")).toBeInTheDocument();
     expect(within(table).queryByText("#unknown")).not.toBeInTheDocument();
   });
 
