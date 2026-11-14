@@ -49,7 +49,7 @@ describe("EmojiPicker", () => {
     expect(tab).toHaveClass("border-b-2", "border-plum-600");
     expect(tab.querySelector("svg")).toBeInTheDocument();
     expect(tab).not.toHaveTextContent(/\S/);
-    expect(dialog.querySelector("h3")).toHaveClass("sticky", "z-10");
+    expect(dialog.querySelector("h3")).toHaveClass("sticky", "z-raised");
     // Scroll-spy: a section whose top has reached the top edge becomes the active tab.
     const scroller = dialog.querySelector<HTMLElement>(".overflow-y-auto")!;
     const sections = Array.from(scroller.querySelectorAll<HTMLElement>("[data-section]"));

@@ -144,7 +144,7 @@ export default function ActionMenu({
           data-placement={placement ? (placement.above ? "above" : "below") : undefined}
           // Fixed, placed from the trigger's viewport position: a row with overflow hidden can't clip it.
           style={{ left: placement?.left ?? 0, top: placement?.top ?? 0, maxWidth: placement?.maxWidth }}
-          className="fixed z-50 w-56 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
+          className="fixed z-overlay w-56 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
         >
           {heading && (
             <div aria-hidden="true" className="px-3 pb-1 pt-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400">

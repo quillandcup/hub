@@ -62,7 +62,7 @@ describe("the whole quoted-message card is one link", () => {
     render(<SharedMessageCard shared={shared} source={readable} ctx={ctx} />);
     const spy = watch(screen.getByRole("link", { name: "View in Chat" }));
     const inner = screen.getByRole("link", { name: "the page" });
-    expect(inner.closest("[class*='z-10']")).not.toBeNull();
+    expect(inner.closest("[class*='z-raised']")).not.toBeNull();
     const innerSpy = watch(inner);
     fireEvent.click(inner);
     expect(innerSpy).toHaveBeenCalledTimes(1);

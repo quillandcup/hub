@@ -139,7 +139,7 @@ export default function AdminNavigation({ role, enabledFeatures, navMode = null 
       {/* Mobile overlay backdrop */}
       {mobileOpen && (
         <div
-          className="lg:hidden fixed inset-0 bg-black/50 z-40"
+          className="lg:hidden fixed inset-0 bg-black/50 z-overlay"
           onClick={() => setMobileOpen(false)}
           aria-hidden="true"
         />
@@ -147,7 +147,7 @@ export default function AdminNavigation({ role, enabledFeatures, navMode = null 
 
       {/* Mobile slide-in drawer */}
       <aside
-        className={`lg:hidden fixed inset-y-0 left-0 z-50 w-64 h-dvh bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transform transition-transform duration-300 flex flex-col ${
+        className={`lg:hidden fixed inset-y-0 left-0 z-overlay w-64 h-dvh bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transform transition-transform duration-300 flex flex-col ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
         aria-hidden={!mobileOpen}
@@ -176,9 +176,9 @@ export default function AdminNavigation({ role, enabledFeatures, navMode = null 
       </aside>
 
       {/* Desktop sidebar. In auto-hide the wrapper holds the rail's width and the aside floats over the page,
-          above the app header (z-30), whose search box would otherwise cover the title. */}
+          above the app header (z-shell), whose search box would otherwise cover the title. */}
       <div
-        className={`hidden lg:block flex-shrink-0 self-stretch relative transition-all duration-300 ${railOpen ? "z-40" : "z-30"} ${
+        className={`hidden lg:block flex-shrink-0 self-stretch relative transition-all duration-300 ${railOpen ? "z-rail-open" : "z-rail"} ${
           autoHide || collapsed ? "w-16" : "w-64"
         }`}
         {...peekHandlers}

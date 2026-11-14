@@ -62,7 +62,7 @@ function Tip({ children }: { children: React.ReactNode }) {
   return (
     <span
       aria-hidden="true"
-      className="pointer-events-none absolute bottom-full left-1/2 z-40 mb-1.5 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs font-medium text-white shadow group-hover/tip:block group-focus-visible/tip:block dark:bg-slate-100 dark:text-slate-900"
+      className="pointer-events-none absolute bottom-full left-1/2 z-dropdown mb-1.5 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs font-medium text-white shadow group-hover/tip:block group-focus-visible/tip:block dark:bg-slate-100 dark:text-slate-900"
     >
       {children}
     </span>
@@ -173,7 +173,7 @@ export default function MessageActions({
       ref={root}
       role="toolbar"
       aria-label="Message actions"
-      className={`absolute -top-3 right-2 z-20 ${visible} items-center gap-0.5 rounded-lg border border-slate-200 bg-white p-0.5 shadow dark:border-slate-700 dark:bg-slate-900`}
+      className={`absolute -top-3 right-2 z-float ${visible} items-center gap-0.5 rounded-lg border border-slate-200 bg-white p-0.5 shadow dark:border-slate-700 dark:bg-slate-900`}
     >
       {copied && (
         <span role="status" className="px-2 text-xs text-slate-600 dark:text-slate-400">
@@ -232,7 +232,7 @@ export default function MessageActions({
             role="menu"
             aria-label="More actions"
             style={{ top: menuPos?.top ?? 0, left: menuPos?.left ?? 0, visibility: menuPos ? "visible" : "hidden" }}
-            className="fixed z-50 w-48 rounded-lg border border-slate-200 bg-white py-1 text-sm shadow dark:border-slate-700 dark:bg-slate-900"
+            className="fixed z-overlay w-48 rounded-lg border border-slate-200 bg-white py-1 text-sm shadow dark:border-slate-700 dark:bg-slate-900"
           >
             {canChange && body && (
               <li role="none">

@@ -75,7 +75,7 @@ export default function UserMenu({
         </button>
 
         {isOpen && (
-          <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 py-1 z-50">
+          <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 py-1 z-dropdown">
             <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
               <p className="text-sm font-medium text-slate-900 dark:text-slate-100">Signed in as</p>
               <p className="text-sm text-slate-600 dark:text-slate-400 truncate">{userEmail}</p>

@@ -119,7 +119,7 @@ export default function VideoActions({
         Video actions ▾
       </button>
       {open && (
-        <div role="menu" aria-label="Video actions" className="absolute left-0 z-10 mt-1 w-64 rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+        <div role="menu" aria-label="Video actions" className="absolute left-0 z-dropdown mt-1 w-64 rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
           {statsHref ? (
             <Link role="menuitem" href={statsHref} className={`${ITEM} hover:bg-slate-50 dark:hover:bg-slate-800`}>
               Video stats

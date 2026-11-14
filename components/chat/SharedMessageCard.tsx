@@ -7,7 +7,7 @@ import { formatChatTime } from "@/lib/chat/format";
 import type { SharedMessage, SharedMessageSource } from "@/lib/chat/shared-message";
 
 const cardClass = "group relative mt-1 max-w-xl rounded-md border border-l-4 border-mist-300 bg-slate-50 px-3 dark:border-mist-700 dark:bg-slate-800/40 py-2 text-sm";
-/** The one link of the card, stretched over its whole box (its ::after), so there is no link inside a link. Content that must stay usable sits above it (z-10). */
+/** The one link of the card, stretched over its whole box (its ::after), so there is no link inside a link. Content that must stay usable sits above it (z-raised). */
 const stretched = "after:absolute after:inset-0 after:rounded-md after:content-[''] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-plum-600 dark:focus-visible:after:ring-plum-400";
 const linkClass = "text-plum-600 underline dark:text-plum-400";
 
@@ -36,7 +36,7 @@ export default function SharedMessageCard({
   const hover = clickable ? " hover:border-mist-500 hover:bg-slate-100 dark:hover:border-mist-500 dark:hover:bg-slate-800/70" : "";
   return (
     <div className={cardClass + hover} data-testid="shared-message-card" data-stretched-card={clickable ? "" : undefined}>
-      <CardClickArea className={clickable ? "relative z-10" : undefined}>
+      <CardClickArea className={clickable ? "relative z-raised" : undefined}>
         <div className="flex items-center gap-2">
           <MemberAvatar name={shared.authorName} photoUrl={shared.authorIcon} size={20} />
           <span className="font-semibold text-slate-900 dark:text-slate-100">{shared.authorName}</span>

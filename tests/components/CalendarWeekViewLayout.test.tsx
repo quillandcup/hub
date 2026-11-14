@@ -5,9 +5,12 @@ import { describe, it, expect, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import { render } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
+import config from "@/tailwind.config";
 import CalendarWeekView from "@/components/CalendarWeekView";
 import AllPricklesCalendar from "@/app/(member)/my-prickles/AllPricklesCalendar";
 import type { PrickleInstance } from "@/lib/prickle-schedule";
+
+const zIndex = (config.theme as { extend: { zIndex: Record<string, string> } }).extend.zIndex;
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 
@@ -55,18 +58,18 @@ describe("CalendarWeekView layout", () => {
     expect(stickyLeft.length).toBeGreaterThanOrEqual(2);
     // The day header sits above the time column, which sits above the day cells, so nothing scrolls over them.
     const header = container.querySelector(".sticky.top-0") as HTMLElement;
-    expect(header.className).toContain("z-20");
-    expect(stickyLeft.some((el) => el.className.includes("z-10"))).toBe(true);
+    expect(header.className).toContain("z-sticky");
+    expect(stickyLeft.some((el) => el.className.includes("z-raised"))).toBe(true);
   });
 
   it("keeps its sticky layers below the app header, whose popovers (On Air, help, user menu) must paint over them", () => {
     const { container } = renderCalendar();
     const appHeader = readFileSync(join(process.cwd(), "components/AppHeader.tsx"), "utf8");
-    const headerZ = Number(/<header[^>]*\bz-(\d+)/.exec(appHeader)?.[1]);
+    const layer = (cls: string | undefined) => Number(zIndex[cls ?? ""] ?? 0);
+    const headerZ = layer(/<header[^>]*\bz-([\w-]+)/.exec(appHeader)?.[1]);
     expect(headerZ).toBeGreaterThan(0);
     for (const el of Array.from(container.querySelectorAll("[class*='sticky']"))) {
-      const z = Number(/\bz-(\d+)/.exec(el.className)?.[1] ?? 0);
-      expect(z).toBeLessThan(headerZ);
+      expect(layer(/\bz-([a-z-]+)/.exec(el.className)?.[1])).toBeLessThan(headerZ);
     }
   });
 

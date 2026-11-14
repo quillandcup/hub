@@ -251,7 +251,7 @@ export default function EmojiPicker({
   const section = (id: TabId, label: string, names: string[], via: "recent" | "browse") =>
     names.length > 0 && (
       <section key={id} data-section={id} aria-label={label}>
-        <h3 className="sticky top-0 z-10 -mx-2 bg-white/90 px-3 py-1 text-xs font-semibold text-slate-600 backdrop-blur dark:bg-slate-900/90 dark:text-slate-400">{label}</h3>
+        <h3 className="sticky top-0 z-raised -mx-2 bg-white/90 px-3 py-1 text-xs font-semibold text-slate-600 backdrop-blur dark:bg-slate-900/90 dark:text-slate-400">{label}</h3>
         <div role="group" aria-label={label}>
           {chunks(names).map((chunk, i) => (
             <div
@@ -275,13 +275,13 @@ export default function EmojiPicker({
   return (
     <>
       {/* Phones: a dimmed backdrop behind the bottom sheet (a press on it closes the picker). */}
-      <div aria-hidden="true" data-testid="emoji-backdrop" className="fixed inset-0 z-40 bg-black/40 sm:hidden" />
+      <div aria-hidden="true" data-testid="emoji-backdrop" className="fixed inset-0 z-overlay bg-black/40 sm:hidden" />
       <div
         ref={root}
         role="dialog"
         aria-label="Pick an emoji"
         style={shift ? { transform: `translateX(${shift}px)` } : undefined}
-        className={`fixed inset-x-0 bottom-0 z-50 flex max-h-[85vh] w-full flex-col rounded-t-xl border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900 sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:z-40 sm:max-h-none sm:w-80 sm:rounded-lg ${flip ? "sm:bottom-full sm:mb-1" : "sm:top-full sm:mt-1"}`}
+        className={`fixed inset-x-0 bottom-0 z-overlay flex max-h-[85vh] w-full flex-col rounded-t-xl border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900 sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:z-dropdown sm:max-h-none sm:w-80 sm:rounded-lg ${flip ? "sm:bottom-full sm:mb-1" : "sm:top-full sm:mt-1"}`}
       >
       {!searching && (
         <div role="tablist" aria-label="Emoji categories" className="flex border-b border-slate-200 dark:border-slate-700">

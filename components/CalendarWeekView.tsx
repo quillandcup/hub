@@ -295,8 +295,8 @@ export default function CalendarWeekView({
       {/* Calendar Grid */}
       <div>
           {/* Day Headers — sticky so they stay visible while time rows scroll */}
-          <div className={`sticky top-0 z-20 grid ${gridColsClass} border-b border-slate-200 dark:border-slate-800`}>
-            <div className="sticky left-0 z-10 p-2 bg-slate-50 dark:bg-slate-800"></div>
+          <div className={`sticky top-0 z-sticky grid ${gridColsClass} border-b border-slate-200 dark:border-slate-800`}>
+            <div className="sticky left-0 z-raised p-2 bg-slate-50 dark:bg-slate-800"></div>
             {days.map((day, i) => {
               const isToday = day.toDateString() === todayString;
               return (
@@ -324,7 +324,7 @@ export default function CalendarWeekView({
               {/* Time Labels: stay at the left while the days scroll sideways on a narrow screen. Sticky `left-0` sticks at
                   the content edge of the scroller around the calendar, so that scroller must have no padding of its
                   own (put it on a box inside), or the column parks inside the gap and scrolled days show beside it. */}
-              <div className="sticky left-0 z-10">
+              <div className="sticky left-0 z-raised">
                 {hours.map(hour => {
                   const period = hour < 12 ? "AM" : "PM";
                   const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
@@ -384,7 +384,7 @@ export default function CalendarWeekView({
                     {/* Selected slot highlight (slot-picking mode only) */}
                     {onSlotClick && selectedSlot && selectedSlot.date.toDateString() === day.toDateString() && (
                       <div
-                        className="absolute inset-x-1 rounded border-2 border-plum-500 bg-plum-500/10 pointer-events-none z-10"
+                        className="absolute inset-x-1 rounded border-2 border-plum-500 bg-plum-500/10 pointer-events-none z-raised"
                         style={{ top: `${selectedSlot.hour * 60 + selectedSlot.minute}px`, height: "60px" }}
                       />
                     )}
@@ -466,7 +466,7 @@ export default function CalendarWeekView({
                             {/* Styled tooltip - rendered outside overflow-hidden container */}
                             {hoveredPrickle === prickle.id && (
                               <div
-                                className="absolute z-50 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-3 py-2 rounded-lg shadow-lg text-xs whitespace-nowrap pointer-events-none"
+                                className="absolute z-dropdown bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-3 py-2 rounded-lg shadow-lg text-xs whitespace-nowrap pointer-events-none"
                                 style={{
                                   top: `${top}px`,
                                   ...(dayIndex === 6

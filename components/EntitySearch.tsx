@@ -199,7 +199,7 @@ export default function EntitySearch({
         // No text recorded by analytics: the options are often people.
         <div
           data-track-no-text
-          className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+          className="absolute z-dropdown w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto"
         >
           {loading ? (
             <div className="px-3 py-2 text-sm text-slate-600 dark:text-slate-400" role="status">

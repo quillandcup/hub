@@ -45,7 +45,7 @@ export default function NewMessagesBanner({ count }: { count: number }) {
   };
 
   return (
-    <div className="pointer-events-none sticky top-12 z-20 flex h-0 justify-center overflow-visible">
+    <div className="pointer-events-none sticky top-12 z-float flex h-0 justify-center overflow-visible">
       <div className="pointer-events-auto flex h-8 items-center rounded-full bg-plum-600 text-xs font-medium text-white shadow-md">
         <button type="button" onClick={jump} className="flex items-center gap-1 rounded-l-full py-1 pl-3 pr-2 hover:bg-plum-700">
           <span aria-hidden="true">↑</span>
