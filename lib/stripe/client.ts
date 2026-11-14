@@ -72,6 +72,37 @@ export class StripeClientWrapper {
   }
 
   /**
+   * Fetch invoices, newest first, from `createdFrom` (unix seconds) on when given, or with one status. The
+   * payments are expanded (they link an invoice to its charges); payment methods are not.
+   */
+  async fetchInvoices(filter: { createdFrom?: number; status?: Stripe.InvoiceListParams.Status } = {}): Promise<Stripe.Invoice[]> {
+    const params: Stripe.InvoiceListParams = { expand: ['data.payments'] };
+    if (filter.createdFrom !== undefined) params.created = { gte: filter.createdFrom };
+    if (filter.status) params.status = filter.status;
+    const invoices = await fetchAll((p) => this.stripe.invoices.list(p), params);
+    console.log(`[Stripe API] Fetched ${invoices.length} invoices`);
+    return invoices;
+  }
+
+  /** One invoice with its payments, or null when Stripe no longer has it. */
+  async retrieveInvoice(invoiceId: string): Promise<Stripe.Invoice | null> {
+    try {
+      return await this.stripe.invoices.retrieve(invoiceId, { expand: ['payments'] });
+    } catch (error) {
+      if ((error as { statusCode?: number })?.statusCode === 404) return null;
+      throw error;
+    }
+  }
+
+  /** Fetch charges, from `createdFrom` (unix seconds) on when given. */
+  async fetchCharges(filter: { createdFrom?: number } = {}): Promise<Stripe.Charge[]> {
+    const params: Stripe.ChargeListParams = filter.createdFrom !== undefined ? { created: { gte: filter.createdFrom } } : {};
+    const charges = await fetchAll((p) => this.stripe.charges.list(p), params);
+    console.log(`[Stripe API] Fetched ${charges.length} charges`);
+    return charges;
+  }
+
+  /**
    * Fetch all customers
    */
   async fetchAllCustomers(): Promise<Stripe.Customer[]> {
