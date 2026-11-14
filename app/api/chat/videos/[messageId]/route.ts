@@ -7,6 +7,7 @@ import { lessonPath } from "@/lib/chat/video-link";
 import { createRepos } from "@/lib/data/repos";
 import { isId } from "@/lib/ids";
 import { createMuxClient, signPlaybackTokens } from "@/lib/mux";
+import { muxDataConsentFor } from "@/lib/mux-data.server";
 import { restrictionIdForViewer } from "@/lib/mux-restriction.server";
 import { resumeSeconds } from "@/lib/courses/watch";
 import { hitRateLimits } from "@/lib/rate-limit";
@@ -106,6 +107,8 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
   if (!video || video.status !== "ready" || !video.mux_playback_id) return notFound();
 
   const restrictionId = await restrictionIdForViewer(caller.userId, caller.identity);
+  // Mux Data (the `mux_data` flag), as on the lesson page: null for no Mux Data; the player still waits for consent.
+  const muxData = await muxDataConsentFor(caller.userId, caller.identity);
   try {
     const tokens = await signPlaybackTokens(createMuxClient(), video.mux_playback_id, undefined, restrictionId);
     // Watching is recorded for members' open lessons, and not in sudo (an admin previewing leaves no viewing history).
@@ -118,7 +121,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     // completion action checks access and sudo again). `completed` is where it stands now, so a lesson already done is not redone.
     const completion = record && hasCourse ? { completed: (await progress.completedLessonIds(caller.identity.memberId, [lesson.id]).catch(() => new Set<string>())).has(lesson.id) } : null;
     return NextResponse.json(
-      { title: lesson.title, lessonId: lesson.id, lessonHref: course ? lessonPath(course.slug, lesson.id) : null, playbackId: video.mux_playback_id, tokens, restricted: restrictionId !== null, record, resumeSeconds: resumeSeconds(position), completion },
+      { title: lesson.title, lessonId: lesson.id, lessonHref: course ? lessonPath(course.slug, lesson.id) : null, playbackId: video.mux_playback_id, tokens, restricted: restrictionId !== null, muxData, record, resumeSeconds: resumeSeconds(position), completion },
       { headers: NO_STORE },
     );
   } catch (error) {

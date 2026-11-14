@@ -6,6 +6,7 @@ vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: vi.fn() }));
 vi.mock("@/lib/courses/caller", () => ({ getCoursesCaller: vi.fn() }));
 vi.mock("@/lib/courses/member", () => ({ loadMemberCourseAccess: vi.fn(), canOpenLessons: vi.fn() }));
 vi.mock("@/lib/mux", () => ({ createMuxClient: vi.fn(() => ({})), signPlaybackTokens: vi.fn() }));
+vi.mock("@/lib/mux-data.server", () => ({ muxDataConsentFor: vi.fn() }));
 vi.mock("@/lib/mux-restriction.server", () => ({ restrictionIdForViewer: vi.fn() }));
 vi.mock("@/lib/rate-limit", () => ({ hitRateLimits: vi.fn() }));
 
@@ -14,6 +15,7 @@ import { createInMemoryRepos } from "@/lib/data/repos";
 import { getCoursesCaller } from "@/lib/courses/caller";
 import { canOpenLessons, loadMemberCourseAccess } from "@/lib/courses/member";
 import { signPlaybackTokens } from "@/lib/mux";
+import { muxDataConsentFor } from "@/lib/mux-data.server";
 import { restrictionIdForViewer } from "@/lib/mux-restriction.server";
 import { hitRateLimits } from "@/lib/rate-limit";
 import { GET, POST } from "@/app/api/chat/videos/[messageId]/route";
@@ -56,6 +58,7 @@ beforeEach(() => {
   vi.mocked(canOpenLessons).mockReturnValue(true);
   vi.mocked(hitRateLimits).mockResolvedValue(true);
   vi.mocked(restrictionIdForViewer).mockResolvedValue(null);
+  vi.mocked(muxDataConsentFor).mockReset().mockResolvedValue(null);
   vi.mocked(signPlaybackTokens).mockReset().mockResolvedValue(TOKENS);
 });
 
@@ -83,7 +86,7 @@ describe("POST /api/chat/videos/[messageId]", () => {
 
     expect(res.status).toBe(200);
     expect(res.headers.get("Cache-Control")).toBe("no-store");
-    expect(await res.json()).toEqual({ title: "Show up for the page", lessonId: LESSON, lessonHref: `/courses/c/lessons/${LESSON}`, playbackId: "pb123", tokens: TOKENS, restricted: false, record: true, resumeSeconds: 0, completion: { completed: false } });
+    expect(await res.json()).toEqual({ title: "Show up for the page", lessonId: LESSON, lessonHref: `/courses/c/lessons/${LESSON}`, playbackId: "pb123", tokens: TOKENS, restricted: false, muxData: null, record: true, resumeSeconds: 0, completion: { completed: false } });
     expect(signPlaybackTokens).toHaveBeenCalledWith(expect.anything(), "pb123", undefined, null);
   });
 
@@ -160,6 +163,13 @@ describe("POST /api/chat/videos/[messageId]", () => {
     });
     setup({ lessonState: "coming_soon" });
     expect(await (await call()).json()).toMatchObject({ record: false });
+  });
+
+  it("hands the player the Mux Data consent facts when the flag is on for the viewer, and none otherwise", async () => {
+    vi.mocked(muxDataConsentFor).mockResolvedValue({ needsConsent: true, optedOut: false });
+    const body = await (await call()).json();
+    expect(body.muxData).toEqual({ needsConsent: true, optedOut: false });
+    expect(muxDataConsentFor).toHaveBeenCalledWith("user-1", expect.objectContaining({ memberId: "mbr_AAAAAAAAAAA1", isSudo: false }));
   });
 
   it("restricts the links by the same rule as the lesson page", async () => {
