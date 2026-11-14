@@ -15,10 +15,11 @@ export function firstUnreadMessageId(views: ChatMessageView[], readMarker: strin
  * How many messages the "N new messages" banner counts: those at or after the "New" line that the reader
  * did not write, that still exist and that are not Slack's own notices. Same definition as the sidebar's
  * badge (top-level, live, not the reader's); the list holds only top-level messages, so replies never count.
+ * The message the line sits on counts even when it is the reader's own: they picked it with "Mark unread".
  */
 export function newMessagesSince(views: ChatMessageView[], firstUnreadId: string | undefined): number {
   if (!firstUnreadId) return 0;
   const from = views.findIndex((m) => m.id === firstUnreadId);
   if (from < 0) return 0;
-  return views.slice(from).filter((m) => !m.mine && !m.system && m.contentState !== "deleted").length;
+  return views.slice(from).filter((m, i) => (i === 0 || !m.mine) && !m.system && m.contentState !== "deleted").length;
 }

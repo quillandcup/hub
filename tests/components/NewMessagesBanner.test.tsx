@@ -122,6 +122,12 @@ describe("newMessagesSince", () => {
     expect(newMessagesSince(views, "f")).toBe(1);
   });
 
+  it("counts the message the line sits on even when the reader wrote it (Mark unread on their own message)", () => {
+    const views = [view("a"), view("b", { mine: true }), view("c", { mine: true }), view("d")];
+    expect(newMessagesSince(views, "b")).toBe(2);
+    expect(newMessagesSince([view("a"), view("b", { mine: true })], "b")).toBe(1);
+  });
+
   it("is zero without a line or when the line's message is not in the list", () => {
     expect(newMessagesSince([view("a")], undefined)).toBe(0);
     expect(newMessagesSince([view("a")], "zzz")).toBe(0);
