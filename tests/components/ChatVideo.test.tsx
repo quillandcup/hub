@@ -87,6 +87,27 @@ describe("ChatVideo", () => {
     expect(player).toHaveAttribute("data-tracking", "true");
   });
 
+  it("says where the shared link starts the video, and starts the player there", async () => {
+    answers({ status: 200, body: { ...WATCHABLE, startSeconds: 95 } }, { status: 200, body: { ...PLAYBACK, resumeSeconds: 95, startSeconds: 95 } });
+    render(<ChatVideo messageId={MESSAGE} />);
+
+    expect(await screen.findByText(/Starts at 1:35/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Play Show up for the page" }));
+    expect(await screen.findByTestId("player")).toHaveAttribute("data-resume", "95");
+  });
+
+  it("writes an hour or more as h:mm:ss, and says nothing when the link had no start", async () => {
+    answers({ status: 200, body: { ...WATCHABLE, startSeconds: 3725 } });
+    const { unmount } = render(<ChatVideo messageId={MESSAGE} />);
+    expect(await screen.findByText(/Starts at 1:02:05/)).toBeInTheDocument();
+    unmount();
+
+    answers({ status: 200, body: WATCHABLE });
+    render(<ChatVideo messageId={MESSAGE} />);
+    await screen.findByText(/From The Ready Writer/);
+    expect(screen.queryByText(/Starts at/)).not.toBeInTheDocument();
+  });
+
   it("links the card to the lesson's page before anything is played, without opening the video", async () => {
     answers({ status: 200, body: WATCHABLE }, { status: 200, body: PLAYBACK });
     render(<ChatVideo messageId={MESSAGE} />);

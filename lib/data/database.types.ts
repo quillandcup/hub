@@ -2673,6 +2673,7 @@ export type Database = {
           lesson_id: string
           message_id: string
           open_to_channel: boolean
+          start_seconds: number | null
         }
         Insert: {
           created_at?: string
@@ -2680,6 +2681,7 @@ export type Database = {
           lesson_id: string
           message_id: string
           open_to_channel?: boolean
+          start_seconds?: number | null
         }
         Update: {
           created_at?: string
@@ -2687,6 +2689,7 @@ export type Database = {
           lesson_id?: string
           message_id?: string
           open_to_channel?: boolean
+          start_seconds?: number | null
         }
         Relationships: [
           {
@@ -7648,16 +7651,28 @@ export type Database = {
             }
             Returns: string
           }
-      chat_post_shared_video: {
-        Args: {
-          p_body: string
-          p_channel_id: string
-          p_lesson_id: string
-          p_open_to_channel: boolean
-          p_thread_root_id: string
-        }
-        Returns: string
-      }
+      chat_post_shared_video:
+        | {
+            Args: {
+              p_body: string
+              p_channel_id: string
+              p_lesson_id: string
+              p_open_to_channel: boolean
+              p_thread_root_id: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_body: string
+              p_channel_id: string
+              p_lesson_id: string
+              p_open_to_channel: boolean
+              p_start_seconds: number
+              p_thread_root_id: string
+            }
+            Returns: string
+          }
       chat_set_notify_setting: {
         Args: { p_channel_id: string; p_setting: string }
         Returns: undefined

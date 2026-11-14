@@ -406,7 +406,7 @@ async function previewLinksAfterSend(caller: NonNullable<Awaited<ReturnType<type
  * else as the bot under their name and photo). If Slack is down the message stays in the Hub
  * marked failed, and the member can retry it; the nightly chat run retries too.
  */
-async function sendChatMessageImpl(channelId: string, body: string, threadRootId?: string, uploads: StagedUpload[] = [], share?: { lessonId: string; openToChannel: boolean }): Promise<SendChatResult> {
+async function sendChatMessageImpl(channelId: string, body: string, threadRootId?: string, uploads: StagedUpload[] = [], share?: { lessonId: string; openToChannel: boolean; startSeconds?: number | null }): Promise<SendChatResult> {
   if (!isId(channelId, "chn") || (threadRootId !== undefined && !isId(threadRootId, "msg"))) return { ok: false, error: "Something went wrong." };
   const caller = await postingCaller();
   if (!caller) return { ok: false, error: "Posting isn't available to you yet." };
@@ -428,7 +428,7 @@ async function sendChatMessageImpl(channelId: string, body: string, threadRootId
     const check = pasted ? await checkShareable(caller, pasted.lessonId) : null;
     if (pasted && check?.ok) {
       // The open-share marker counts only from an admin acting as themselves; from anyone else the share is just closed.
-      share = { lessonId: pasted.lessonId, openToChannel: pasted.openToChannel && check.isAdminActing };
+      share = { lessonId: pasted.lessonId, openToChannel: pasted.openToChannel && check.isAdminActing, startSeconds: pasted.startSeconds };
       text = pasted.body || sharedVideoDefaultText(check.lessonTitle);
     }
   }
@@ -449,6 +449,7 @@ async function sendChatMessageImpl(channelId: string, body: string, threadRootId
         p_lesson_id: share.lessonId,
         p_open_to_channel: share.openToChannel,
         p_thread_root_id: (threadRootId ?? null) as string, // null when absent (the generated type has no null)
+        p_start_seconds: (share.startSeconds ?? null) as number, // null when the link had no timestamp (the generated type has no null)
       })
     : await supabase.rpc("chat_post_message", {
         p_channel_id: channelId,

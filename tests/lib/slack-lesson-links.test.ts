@@ -65,7 +65,7 @@ describe("shareLessonLinkInMessage", () => {
     const outcome = await shareLessonLinkInMessage(repos, message(`this helped me <${address(OPEN_LESSON)}|here>`));
 
     expect(outcome).toBe("shared");
-    expect(await shared()).toEqual({ lessonId: OPEN_LESSON, openToChannel: false });
+    expect(await shared()).toEqual({ lessonId: OPEN_LESSON, openToChannel: false, startSeconds: null });
   });
 
   it("reads a bare address, a timestamp, and Slack's escaped ampersand", async () => {
@@ -73,13 +73,18 @@ describe("shareLessonLinkInMessage", () => {
     expect((await shared())?.lessonId).toBe(OPEN_LESSON);
   });
 
+  it("keeps the timestamp of the pasted link as where the video starts", async () => {
+    expect(await shareLessonLinkInMessage(repos, message(`${address(OPEN_LESSON, "?t=95&amp;share=open")}`))).toBe("shared");
+    expect((await shared())?.startSeconds).toBe(95);
+  });
+
   it("opens the share to the conversation only when the marker comes from an admin in the Hub", async () => {
     expect(await shareLessonLinkInMessage(repos, message(address(OPEN_LESSON, "?t=5&amp;share=open"), BRAMBLE, "msg_AAAAAAAAAAA1"))).toBe("shared");
-    expect(await shared("msg_AAAAAAAAAAA1")).toEqual({ lessonId: OPEN_LESSON, openToChannel: true });
+    expect(await shared("msg_AAAAAAAAAAA1")).toEqual({ lessonId: OPEN_LESSON, openToChannel: true, startSeconds: 5 });
 
     // A member sending the same marker gets an ordinary closed share.
     expect(await shareLessonLinkInMessage(repos, message(address(OPEN_LESSON, "?share=open"), FERN, "msg_AAAAAAAAAAA2"))).toBe("shared");
-    expect(await shared("msg_AAAAAAAAAAA2")).toEqual({ lessonId: OPEN_LESSON, openToChannel: false });
+    expect(await shared("msg_AAAAAAAAAAA2")).toEqual({ lessonId: OPEN_LESSON, openToChannel: false, startSeconds: null });
 
     // An admin without the marker: closed.
     expect(await shareLessonLinkInMessage(repos, message(address(OPEN_LESSON), BRAMBLE, "msg_AAAAAAAAAAA3"))).toBe("shared");
