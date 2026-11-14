@@ -99,6 +99,11 @@ Some people who attend prickles have no Kajabi footprint at all (not a member, t
 ### Hygiene: paused subscriptions on cancelled members _(Needs Scheduling)_
 - **What is missing:** a check for Stripe subscriptions in `paused` status whose member is cancelled, which may be a forgotten pause that should be ended. Start from `app/(admin)/admin/hygiene/` and `BillingRepository.stripeSubscriptionsWithStatus`.
 
+### Match Gmail addresses the way Gmail does _(Needs Scheduling)_
+- **What is missing:** email matching is a lowercase plus the alias map (`resolveEmail`, `lib/email-aliases.ts`). Gmail ignores dots in the local part and everything after a `+`, and `googlemail.com` is the same mailbox as `gmail.com`, so `a.b@gmail.com`, `ab@gmail.com` and `ab+x@googlemail.com` are one inbox but today count as three people. A member who types a different spelling in Stripe, Kajabi or Zoom than in the Hub matches nobody until someone adds an alias by hand. This is only about spelling: two different names (an alias for a nickname, a work address) still need an alias.
+- **Why deferred:** it touches every email match (members processing, Kajabi, Stripe, Slack, Zoom, sign-in), `members.email` uniqueness and `canonical_email`, so it needs a decision on whether to store the normalized form or only compare on it, and a pass over existing members to find addresses that would now collide. It was left out of the Stripe customer link fix on purpose.
+- **Where to start:** one `normalizeEmail` helper used by `resolveEmail` and the alias lookups (Gmail and `googlemail.com` only; leave other providers alone, since dots and `+` can matter there), then a read-only query for current members and aliases that collapse to the same normalized address.
+
 
 ---
 
