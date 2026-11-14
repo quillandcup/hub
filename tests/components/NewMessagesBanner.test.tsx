@@ -109,7 +109,7 @@ const view = (id: string, extra: Partial<ChatMessageView> = {}) =>
   ({ id, mine: false, system: false, contentState: "visible", ...extra }) as unknown as ChatMessageView;
 
 describe("newMessagesSince", () => {
-  it("counts others' live messages from the line on, skipping the reader's own, notices and deleted ones", () => {
+  it("counts every live message from the line on, the reader's own included, skipping notices and deleted ones", () => {
     const views = [
       view("a"),
       view("b"),
@@ -118,14 +118,13 @@ describe("newMessagesSince", () => {
       view("e", { contentState: "deleted" }),
       view("f"),
     ];
-    expect(newMessagesSince(views, "b")).toBe(2);
+    expect(newMessagesSince(views, "b")).toBe(3);
     expect(newMessagesSince(views, "f")).toBe(1);
   });
 
-  it("counts the message the line sits on even when the reader wrote it (Mark unread on their own message)", () => {
-    const views = [view("a"), view("b", { mine: true }), view("c", { mine: true }), view("d")];
-    expect(newMessagesSince(views, "b")).toBe(2);
-    expect(newMessagesSince([view("a"), view("b", { mine: true })], "b")).toBe(1);
+  it("counts the messages below a line on the reader's own message (Mark unread in a conversation of their own)", () => {
+    const views = [view("a"), ...["b", "c", "d", "e"].map((id) => view(id, { mine: true }))];
+    expect(newMessagesSince(views, "b")).toBe(4);
   });
 
   it("is zero without a line or when the line's message is not in the list", () => {
