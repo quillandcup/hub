@@ -957,6 +957,7 @@ export type Database = {
           amount_refunded: number
           created_at_stripe: string
           currency: string | null
+          data: Json | null
           description: string | null
           disputed: boolean
           failure_code: string | null
@@ -975,6 +976,7 @@ export type Database = {
           amount_refunded?: number
           created_at_stripe: string
           currency?: string | null
+          data?: Json | null
           description?: string | null
           disputed?: boolean
           failure_code?: string | null
@@ -993,6 +995,7 @@ export type Database = {
           amount_refunded?: number
           created_at_stripe?: string
           currency?: string | null
+          data?: Json | null
           description?: string | null
           disputed?: boolean
           failure_code?: string | null
@@ -1051,6 +1054,7 @@ export type Database = {
           collection_method: string | null
           created_at_stripe: string
           currency: string | null
+          data: Json | null
           description: string | null
           due_date: string | null
           id: string
@@ -1077,6 +1081,7 @@ export type Database = {
           collection_method?: string | null
           created_at_stripe: string
           currency?: string | null
+          data?: Json | null
           description?: string | null
           due_date?: string | null
           id?: string
@@ -1103,6 +1108,7 @@ export type Database = {
           collection_method?: string | null
           created_at_stripe?: string
           currency?: string | null
+          data?: Json | null
           description?: string | null
           due_date?: string | null
           id?: string

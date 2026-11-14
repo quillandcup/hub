@@ -1,11 +1,14 @@
 import type Stripe from "stripe";
 import type { NewStripeCharge, NewStripeInvoice } from "@/lib/data/billing";
+import { asJson } from "@/lib/data/json";
 
 /**
  * Stripe invoices and charges as Bronze rows (`bronze.stripe_invoices`, `stripe_charges`). Pure: no
- * request, no database. Only what the Hub needs is kept: amounts in cents, dates, statuses and ids. The raw
- * record is not stored, and neither are card details, the billing address, receipt links, the customer's
- * email or name, or the free-text failure message (the machine code is).
+ * request, no database. The columns are what the Hub reads today (cents, instants, statuses, ids, the failure
+ * code); `data` keeps the whole Stripe object beside them, as the other Stripe and Kajabi Bronze tables do, so
+ * Silver can be rebuilt from Bronze and a field not extracted yet can be read later. The charge object holds
+ * card brand and last four digits and the billing name, email and address, so the tables stay service role
+ * only. Never log the object.
  */
 
 const iso = (seconds: number | null | undefined): string | null => (typeof seconds === "number" ? new Date(seconds * 1000).toISOString() : null);
@@ -61,6 +64,7 @@ export function mapInvoice(invoice: Stripe.Invoice, stripeChargeId: string | nul
     stripe_product_id: price?.product ?? null,
     description: invoice.description ?? null,
     paid_out_of_band: (invoice.amount_paid_off_stripe ?? 0) > 0,
+    data: asJson(invoice),
   };
 }
 
@@ -80,5 +84,6 @@ export function mapCharge(charge: Stripe.Charge, stripeInvoiceId: string | null 
     created_at_stripe: new Date(charge.created * 1000).toISOString(),
     failure_code: charge.failure_code ?? null,
     description: charge.description ?? null,
+    data: asJson(charge),
   };
 }

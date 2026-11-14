@@ -81,13 +81,16 @@ describe("mapInvoice", () => {
       stripe_product_id: "prod_AAAA1",
       description: null,
       paid_out_of_band: false,
+      data: expect.objectContaining({ id: "in_AAAA1" }),
     });
   });
 
-  it("stores no customer details, links or raw record", () => {
-    const row = JSON.stringify(mapInvoice(invoice()));
-    expect(row).not.toContain("example.test");
-    expect(row).not.toContain("Ada");
+  it("keeps the whole Stripe object in data, nested payments included, and leaves the columns alone", () => {
+    const source = invoice({ payments: { data: [{ payment: { type: "charge", charge: "ch_AAAA9" } }] } });
+    const row = mapInvoice(source)!;
+    expect(row.data).toEqual(JSON.parse(JSON.stringify(source)));
+    expect(row.data).toMatchObject({ payments: { data: [{ payment: { charge: "ch_AAAA9" } }] }, customer_email: "ada@example.test" });
+    expect(row).toMatchObject({ stripe_invoice_id: "in_AAAA1", amount_paid: 2500, stripe_charge_id: "ch_AAAA9" });
   });
 
   it("copes with the optional parts missing and takes an expanded customer", () => {
@@ -133,8 +136,9 @@ describe("mapInvoice", () => {
 });
 
 describe("mapCharge", () => {
-  it("keeps the failure code, not the message, and no card details", () => {
-    const row = mapCharge(charge({ status: "failed", paid: false, failure_code: "card_declined" }), "in_AAAA1");
+  it("keeps the failure code as a column and the whole object, card details included, in data", () => {
+    const source = charge({ status: "failed", paid: false, failure_code: "card_declined" });
+    const row = mapCharge(source, "in_AAAA1");
     expect(row).toEqual({
       stripe_charge_id: "ch_AAAA1",
       stripe_customer_id: "cus_AAAA1",
@@ -149,9 +153,9 @@ describe("mapCharge", () => {
       created_at_stripe: "2026-09-01T00:01:00.000Z",
       failure_code: "card_declined",
       description: "Subscription update",
+      data: JSON.parse(JSON.stringify(source)),
     });
-    expect(JSON.stringify(row)).not.toContain("declined.");
-    expect(JSON.stringify(row)).not.toContain("4242");
+    expect(row.data).toMatchObject({ failure_message: "Your card was declined.", payment_method_details: { card: { last4: "4242" } } });
   });
 
   it("handles a charge with no customer and an expanded one", () => {

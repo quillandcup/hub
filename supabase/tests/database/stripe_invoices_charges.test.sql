@@ -1,11 +1,11 @@
 -- pgTAP test for bronze.stripe_invoices and bronze.stripe_charges (20270724000000_stripe_invoices_charges.sql):
--- service role only, short ids with their prefixes, one row per Stripe id, and no raw payload, card or
--- customer detail columns. Rolled back; run with `pnpm test:pgtap`.
+-- service role only, short ids with their prefixes, one row per Stripe id, and a nullable raw `data` column the signed-in roles
+-- cannot read, and no separate card or customer detail columns. Rolled back; run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(16);
+SELECT plan(22);
 
 SELECT ok(
   has_table_privilege('service_role', 'bronze.stripe_invoices', 'SELECT')
@@ -55,8 +55,21 @@ SELECT is(
 SELECT is(
   (SELECT count(*)::int FROM information_schema.columns
     WHERE table_schema = 'bronze' AND table_name IN ('stripe_invoices', 'stripe_charges')
-      AND (column_name IN ('data', 'raw_payload', 'email', 'name', 'failure_message', 'receipt_url') OR column_name LIKE '%card%' OR column_name LIKE '%address%')),
-  0, 'no raw payload, customer detail, failure message or card column');
+      AND (column_name IN ('raw_payload', 'email', 'name', 'failure_message', 'receipt_url') OR column_name LIKE '%card%' OR column_name LIKE '%address%')),
+  0, 'no separate raw payload, customer detail, failure message or card column');
+
+SELECT ok(
+  (SELECT is_nullable = 'YES' AND data_type = 'jsonb' FROM information_schema.columns WHERE table_schema = 'bronze' AND table_name = 'stripe_invoices' AND column_name = 'data'),
+  'invoices keep the whole Stripe object in a nullable jsonb data column');
+SELECT ok(
+  (SELECT is_nullable = 'YES' AND data_type = 'jsonb' FROM information_schema.columns WHERE table_schema = 'bronze' AND table_name = 'stripe_charges' AND column_name = 'data'),
+  'charges keep the whole Stripe object in a nullable jsonb data column');
+SELECT ok(NOT has_column_privilege('anon', 'bronze.stripe_charges', 'data', 'SELECT'), 'signed-out visitors cannot read a charge''s data');
+SELECT ok(NOT has_column_privilege('authenticated', 'bronze.stripe_charges', 'data', 'SELECT'), 'signed-in users cannot read a charge''s data');
+SELECT ok(NOT has_column_privilege('authenticated', 'bronze.stripe_invoices', 'data', 'SELECT')
+  AND NOT has_column_privilege('anon', 'bronze.stripe_invoices', 'data', 'SELECT'), 'nobody but the service role reads an invoice''s data');
+SELECT ok(has_column_privilege('service_role', 'bronze.stripe_charges', 'data', 'SELECT')
+  AND has_column_privilege('service_role', 'bronze.stripe_invoices', 'data', 'UPDATE'), 'the service role reads and writes data');
 
 SELECT * FROM finish(true);
 ROLLBACK;
