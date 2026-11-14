@@ -65,6 +65,28 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     body: "Subscriptions say what a member has, not what they were charged, so paid months, failed payments and whether a paused member was billed could not be answered. The import is pull-based and idempotent: the first run reads the whole history, later runs read since the newest stored row minus a safety window and ask again about invoices still open or draft. It keeps only what the Hub needs (cents, instants, statuses, ids), never the raw record, card details, customer email or name, or Stripe's free-text failure message, and the tables are service role only.\n\nRead through `BillingRepository`. A key that may not read invoices or charges is reported as such in the import result. Detail: `lib/stripe/billing-import.ts` and `docs/TODO.md`, \"Import Stripe invoices and charges as Bronze data\".",
   },
   {
+    slug: "slack-activity-names-who-is-in-each-dm",
+    date: "2026-11-13",
+    audience: "staff",
+    category: "improved",
+    title: "A member's Slack Activity tab says who is in each DM and group DM",
+    summary: "Direct and group message rows now read \"DM: Ada\" or \"Group: Ada, Bram +1\" instead of a bare label, so you can tell conversations apart.",
+    body: [
+      "On a member's page, the Slack Activity tab used to show every private conversation as the same \"Direct message\" or \"Group message\". Each row now names the other people in it: one name for a DM, two names and a count for a group (\"Group: Ada, Bram +2\"). The member whose page it is is left out, unless nobody else is in the conversation.",
+      "It reads who is in the conversation, never what was said. That matches what /privacy tells members: staff can see who is in every conversation, and message text stays closed.",
+      "Private conversations Billie Bot cannot see into no longer raise the \"lost access\" alert, so the Slack hygiene page lists only real channels.",
+    ].join("\n\n"),
+  },
+  {
+    slug: "members-processing-links-the-stripe-customer-with-the-subscription",
+    date: "2026-11-13",
+    audience: "engineering",
+    category: "fixed",
+    title: "When several Stripe customers share an email, the member links to the one that holds the live subscription",
+    summary: "Members processing used to link whichever matching Stripe customer it read last. It now prefers a customer with a live subscription.",
+    body: "Stripe can hold several customers for one person's email. Linking the last one read meant a member could point at a newer, empty customer while their live subscription sat on an older one, and the link was rewritten on every run.\n\nThe choice is now one pure helper in `lib/stripe-customer-link.ts`: a customer with a live subscription first (active, trialing, past due, any product), then any subscription, then the newest, with a tie-break that does not depend on the order rows arrive in. Subscriptions are loaded with the other reference data through `BillingRepository`. Any new code that must pick one customer for a member should call the helper rather than take the first match. Several customers per member remain a known limit, tracked in `docs/TODO.md`.",
+  },
+  {
     slug: "mark-unread-in-hub-chat",
     date: "2026-11-13",
     audience: "product",
