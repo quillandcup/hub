@@ -45,11 +45,12 @@ beforeEach(() => {
 });
 
 describe("MessageList", () => {
-  it("lifts a day's label above the later ones while its jump menu is open, so they can't paint over it", async () => {
+  it("keeps a day's label over the messages' cards and buttons, and over the later labels while its jump menu is open", async () => {
     const days = [view(1), view(2, { createdAt: new Date(Date.UTC(2026, 9, 5, 12)).toISOString() })];
     render(<MessageList channelId="c1" views={days} ctx={CTX} olderBefore={null} />);
     const [first] = screen.getAllByRole("separator");
-    expect(first.className).toContain("has-[[aria-expanded=true]]:z-30");
+    expect(first.className).toContain("z-30");
+    expect(first.className).toContain("has-[[aria-expanded=true]]:z-50");
     await userEvent.click(within(first).getByRole("button"));
     expect(first.querySelector("[aria-expanded=true]")).not.toBeNull();
   });
