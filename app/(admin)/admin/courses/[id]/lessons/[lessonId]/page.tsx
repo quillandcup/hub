@@ -20,6 +20,9 @@ import { LessonSaveButton, LessonSaveProvider } from "./LessonSave";
 import LessonVideoControls from "./LessonVideoControls";
 import { createRepos } from "@/lib/data/repos";
 import { getUserFeaturePreviews } from "@/lib/features.server";
+import { getEffectiveIdentity } from "@/lib/sudo";
+import { muxDataConsentFor } from "@/lib/mux-data.server";
+import type { MuxDataConsent } from "@/lib/mux-data";
 
 type Params = { params: Promise<{ id: string; lessonId: string }> };
 
@@ -69,8 +72,8 @@ async function thumbnailLinkFor(detail: AdminLessonDetail, lessonUrl: string | n
 }
 
 /** What plays or says why not, and for a Hub-owned lesson the buttons that upload, replace or remove the video. */
-async function lessonMedia(detail: AdminLessonDetail, chatShare: boolean) {
-  const media = await lessonPlayback(detail, chatShare);
+async function lessonMedia(detail: AdminLessonDetail, chatShare: boolean, muxData: MuxDataConsent | null) {
+  const media = await lessonPlayback(detail, chatShare, muxData);
   // With no video at all there is only the note; a Hub-owned lesson gets the upload button under it.
   if (!detail.editable || detail.video || detail.lesson.hasVideo) return media;
   return (
@@ -84,7 +87,7 @@ async function lessonMedia(detail: AdminLessonDetail, chatShare: boolean) {
   );
 }
 
-async function lessonPlayback(detail: AdminLessonDetail, chatShare: boolean) {
+async function lessonPlayback(detail: AdminLessonDetail, chatShare: boolean, muxData: MuxDataConsent | null) {
   const { lesson, video, hub, course } = detail;
   const note = "rounded border border-slate-200 p-4 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-400";
   const lessonUrl = hub ? `${APP_URL}/courses/${hub.slug}/lessons/${hub.lessonId}` : null;
@@ -104,7 +107,7 @@ async function lessonPlayback(detail: AdminLessonDetail, chatShare: boolean) {
   );
   if (video?.status === "ready" && video.playbackId) {
     const tokens = await mintTokens(video.playbackId);
-    if (tokens) return <LessonMediaPanel title={lesson.title} playbackId={video.playbackId} tokens={tokens} posterUrl={lesson.thumbnailSrc} lessonId={hub?.lessonId} statsHref={statsHref} lessonUrl={lessonUrl} thumbnailLink={thumbnailLink} thumbnailLinkBlocked={thumbnailLinkBlocked} chatShare={chatShare} staff={staff} frameThumbnail={detail.editable ? { courseId: course.id, lessonId: lesson.kajabiId } : null} captions={detail.captions} />;
+    if (tokens) return <LessonMediaPanel title={lesson.title} playbackId={video.playbackId} tokens={tokens} muxData={muxData} posterUrl={lesson.thumbnailSrc} lessonId={hub?.lessonId} statsHref={statsHref} lessonUrl={lessonUrl} thumbnailLink={thumbnailLink} thumbnailLinkBlocked={thumbnailLinkBlocked} chatShare={chatShare} staff={staff} frameThumbnail={detail.editable ? { courseId: course.id, lessonId: lesson.kajabiId } : null} captions={detail.captions} />;
     return (
       <>
         <p role="status" className={note}>The video can&apos;t be played right now.</p>
@@ -148,7 +151,10 @@ export default async function AdminLessonPage({ params }: Params) {
   const { course, lesson, hub } = detail;
   // The "paste in chat" links in Video actions, once the chat videos feature is on for this admin (their own account, never the sudo'd member).
   const chatShare = (await getUserFeaturePreviews(user.id)).includes("chat_videos");
-  const media = await lessonMedia(detail, chatShare);
+  // Mux Data for this admin's views (the `mux_data` flag, never in sudo); an admin with no member record has none.
+  const identity = await getEffectiveIdentity(user);
+  const muxData = identity ? await muxDataConsentFor(user.id, identity) : null;
+  const media = await lessonMedia(detail, chatShare, muxData);
   const path = hub ? `/courses/${hub.slug}/lessons/${hub.lessonId}` : null;
 
   return (

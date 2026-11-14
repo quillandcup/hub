@@ -12,6 +12,10 @@ vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").the
 const requireAdminPage = vi.fn(async () => ({ id: "admin-1", email: "admin@example.test" }));
 const features = { on: [] as string[] };
 vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: async () => features.on }));
+const getEffectiveIdentity = vi.fn();
+vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: (...a: unknown[]) => getEffectiveIdentity(...a) }));
+const muxDataConsentFor = vi.fn();
+vi.mock("@/lib/mux-data.server", () => ({ muxDataConsentFor: (...a: unknown[]) => muxDataConsentFor(...a) }));
 vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: () => requireAdminPage() }));
 const loadAdminLesson = vi.fn();
 vi.mock("@/lib/courses/admin", () => ({ loadAdminLesson: (...a: unknown[]) => loadAdminLesson(...a) }));
@@ -23,8 +27,8 @@ vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }
 const signPlaybackTokens = vi.fn();
 vi.mock("@/lib/mux", () => ({ createMuxClient: () => ({}), signPlaybackTokens: (...a: unknown[]) => signPlaybackTokens(...a) }));
 vi.mock("@/components/courses/LessonPlayer", () => ({
-  default: (props: { title: string; playbackId: string; posterUrl?: string | null; trackProgress?: boolean }) => (
-    <div data-testid="player" data-playback={props.playbackId} data-poster={props.posterUrl ?? ""} data-tracking={String(!!props.trackProgress)} />
+  default: (props: { title: string; playbackId: string; posterUrl?: string | null; trackProgress?: boolean; muxData?: unknown }) => (
+    <div data-testid="player" data-muxdata={props.muxData ? JSON.stringify(props.muxData) : ""} data-playback={props.playbackId} data-poster={props.posterUrl ?? ""} data-tracking={String(!!props.trackProgress)} />
   ),
 }));
 
@@ -71,6 +75,8 @@ beforeEach(() => {
   loadAdminLesson.mockReset();
   publicLessonPreview.mockReset();
   publicLessonPreview.mockResolvedValue({ preview: { lessonId: "les_AAAAAAAAAAA1", title: "Reader Expectations vs. Reader Preferences", excerpt: null, courseSlug: "the-ready-writer", courseTitle: "The Ready Writer", thumbnailSrc: "/api/courses/image/lesson/les_AAAAAAAAAAA1" } });
+  getEffectiveIdentity.mockReset().mockResolvedValue({ memberId: "mbr_AAAAAAAAAAA1", memberName: "Ada Example", memberEmail: "ada@example.test", isSudo: false });
+  muxDataConsentFor.mockReset().mockResolvedValue(null);
   signPlaybackTokens.mockReset();
   signPlaybackTokens.mockResolvedValue({ playback: "p", poster: "t", storyboard: "s" });
 });
@@ -224,6 +230,22 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     expect(screen.getByText("Hey Hedgies")).toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "Lesson text" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Save text" })).not.toBeInTheDocument();
+  });
+
+  it("gives the player Mux Data when the flag is on for the admin, and none when they have no member record", async () => {
+    loadAdminLesson.mockResolvedValue(detail());
+    muxDataConsentFor.mockResolvedValue({ needsConsent: false, optedOut: false });
+    await renderServerPage(AdminLessonPage, params);
+    expect(muxDataConsentFor).toHaveBeenCalledWith("admin-1", expect.objectContaining({ memberId: "mbr_AAAAAAAAAAA1" }));
+    expect(screen.getByTestId("player")).toHaveAttribute("data-muxdata", JSON.stringify({ needsConsent: false, optedOut: false }));
+  });
+
+  it("offers no Mux Data to an admin with no member record", async () => {
+    loadAdminLesson.mockResolvedValue(detail());
+    getEffectiveIdentity.mockResolvedValue(null);
+    await renderServerPage(AdminLessonPage, params);
+    expect(muxDataConsentFor).not.toHaveBeenCalled();
+    expect(screen.getByTestId("player")).toHaveAttribute("data-muxdata", "");
   });
 
   it("plays the lesson's video in the builder with the members' player, poster from the lesson thumbnail and no watch tracking", async () => {

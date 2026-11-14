@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import LessonPlayer, { type PlaybackTokens } from "@/components/courses/LessonPlayer";
+import type { MuxDataConsent } from "@/lib/mux-data";
 import VideoActions from "./VideoActions";
 import type { StaffToolsProps } from "../../LessonStaffTools";
 import LessonVideoControls from "./LessonVideoControls";
@@ -12,6 +13,7 @@ export default function LessonMediaPanel({
   title,
   playbackId,
   tokens,
+  muxData = null,
   posterUrl,
   lessonId,
   statsHref,
@@ -26,6 +28,8 @@ export default function LessonMediaPanel({
   title: string;
   playbackId: string;
   tokens: PlaybackTokens;
+  /** Present when Mux Data is on for this admin (the `mux_data` flag); the player still waits for consent. */
+  muxData?: MuxDataConsent | null;
   posterUrl: string | null;
   /** The Hub lesson: lets a tab left open past the links' hour fetch fresh ones. Absent when the lesson isn't in the Hub yet. */
   lessonId?: string | null;
@@ -46,7 +50,7 @@ export default function LessonMediaPanel({
   return (
     <div>
       {/* No watch tracking: this is an admin looking at the lesson, not a viewing. */}
-      <LessonPlayer title={title} playbackId={playbackId} tokens={tokens} posterUrl={posterUrl} lessonId={lessonId ?? undefined} onTime={setSeconds} />
+      <LessonPlayer title={title} playbackId={playbackId} tokens={tokens} muxData={muxData} posterUrl={posterUrl} lessonId={lessonId ?? undefined} onTime={setSeconds} />
       <div className="mt-3">
         {frameThumbnail ? (
           <LessonVideoControls
