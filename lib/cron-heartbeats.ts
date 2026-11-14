@@ -88,7 +88,7 @@ export const CRON_HEARTBEATS = {
     ...daily,
   },
   "reconcile-stripe-billing": {
-    name: "Cron: Stripe invoices and charges (daily 04:30 UTC)",
+    name: "Cron: Stripe customers, products, subscriptions, invoices and charges (daily 04:30 UTC)",
     path: "/api/reconcile/stripe-billing",
     scheduler: "vercel",
     envVar: "CHECKLY_HEARTBEAT_RECONCILE_STRIPE_BILLING",

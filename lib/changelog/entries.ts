@@ -61,7 +61,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "engineering",
     category: "new",
     title: "Stripe invoices and charges are imported, so the Hub can say who was billed what and when",
-    summary: "Bronze now keeps Stripe's invoices and charges (amounts, status, period, paid date, failure code), pulled nightly and by the manual Stripe import.",
+    summary: "Bronze now keeps Stripe's invoices and charges (amounts, status, period, paid date, failure code), pulled nightly and by the manual Stripe import, together with Stripe's customers, products and subscriptions.",
     body: "Subscriptions say what a member has, not what they were charged, so paid months, failed payments and whether a paused member was billed could not be answered. The import is pull-based and idempotent: the first run reads the whole history, later runs read since the newest stored row minus a safety window and ask again about invoices still open or draft. It keeps only what the Hub needs (cents, instants, statuses, ids), never the raw record, card details, customer email or name, or Stripe's free-text failure message, and the tables are service role only.\n\nRead through `BillingRepository`. A key that may not read invoices or charges is reported as such in the import result. Detail: `lib/stripe/billing-import.ts` and `docs/TODO.md`, \"Import Stripe invoices and charges as Bronze data\".",
   },
   {
