@@ -205,6 +205,14 @@ describe("adding", () => {
     expect(screen.queryByRole("menuitem", { name: "Add submodule" })).not.toBeInTheDocument();
   });
 
+  it("closes a module's Add content menu with Escape", async () => {
+    const user = userEvent.setup();
+    render(<BuilderOutline course={course()} />);
+    await user.click(screen.getAllByRole("button", { name: "Add content" })[0]);
+    fireEvent.keyDown(screen.getByRole("menu", { name: "Add to Module 1" }), { key: "Escape" });
+    expect(screen.queryByRole("menu", { name: "Add to Module 1" })).not.toBeInTheDocument();
+  });
+
   it("opens the module being added to, so the new field is seen", async () => {
     const user = userEvent.setup();
     render(<BuilderOutline course={course()} />);
