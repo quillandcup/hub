@@ -18,5 +18,9 @@ defineCareDmsContract("InMemoryCareTrackedDmRepository", () => {
     clear: async () => {
       data.careTrackedDms = [];
     },
+    retire: async (userId, channelId) => {
+      const row = data.careTrackedDms.find((r) => r.tracked_by === userId && r.slack_channel_id === channelId && r.deleted_at === null);
+      if (row) row.deleted_at = new Date().toISOString();
+    },
   };
 });

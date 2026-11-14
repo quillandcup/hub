@@ -142,7 +142,6 @@ export const SITE_PAGES: SitePage[] = [
   admin({ title: "Hedgieversaries", href: "/admin/hedgieversaries", section: "Member Programs", nav: { icon: "🎂" }, keywords: ["anniversary", "birthday"], feature: "hedgieversaries" }),
   admin({ title: "Hedgie Care", href: "/admin/care", section: "Member Programs", nav: { icon: "💌" }, keywords: ["reach out", "check in", "introduction", "welcome", "follow up", "dm", "engagement", "care plan"], communityManager: true }),
   admin({ title: "Hedgie Care: earlier", href: "/admin/care/earlier", section: "Member Programs", keywords: ["closed", "lapsed", "past engagements", "past care plans", "reach out"], communityManager: true }),
-  admin({ title: "Hedgie Care: your DMs", href: "/admin/care/dms", section: "Member Programs", keywords: ["slack", "direct messages", "dm", "track", "who spoke last"], communityManager: true }),
   admin({ title: "At-Risk Members", href: "/admin/at-risk", section: "Member Programs", nav: { icon: "⚠️" }, keywords: ["churn", "lapsing"], communityManager: true }),
   admin({ title: "Courses", href: "/admin/courses", section: "Education", nav: { icon: "📚", activeFor: ["/admin/courses/"] }, keywords: ["lessons", "kajabi", "ready writer", "publish", "launch"] }),
   admin({ title: "Kajabi Offers", href: "/admin/offers", section: "Sales & Marketing", nav: { icon: "🏷️" }, keywords: ["offers", "mapping", "migrate", "kajabi", "products", "tickets"] }),

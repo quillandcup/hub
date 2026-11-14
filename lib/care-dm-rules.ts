@@ -45,17 +45,12 @@ export function derivedMessageTimes(
   return out;
 }
 
-/** Who wrote last in a DM, and when: null when neither has written. */
-export function lastWriter(writes: DmLastWrites): { who: "staff" | "member"; at: string } | null {
-  const staff = writes.staffAt ? Date.parse(writes.staffAt) : null;
-  const member = writes.memberAt ? Date.parse(writes.memberAt) : null;
-  if (staff === null && member === null) return null;
-  if (member === null || (staff !== null && staff >= member)) return { who: "staff", at: writes.staffAt as string };
-  return { who: "member", at: writes.memberAt as string };
-}
-
-/** Who a care plan belongs to: its owner, else whoever opened it (the one the derivation reads the DM of). */
-export const careOwnerOf = (engagement: { owned_by: string | null; opened_by: string | null }) => engagement.owned_by ?? engagement.opened_by;
+/**
+ * Who a care plan belongs to: its owner, the one the derivation reads the DM of. A plan with no owner (its owner's account was
+ * removed) belongs to no one until a staff member claims it: whoever opened it is not its owner, since a plan is theirs only
+ * when they started it or accepted it.
+ */
+export const careOwnerOf = (engagement: { owned_by: string | null }) => engagement.owned_by;
 
 /**
  * Whether a care plan's "who spoke last" is kept up to date from the signed-in staff user's tracked Slack DM: they own it and
@@ -64,7 +59,7 @@ export const careOwnerOf = (engagement: { owned_by: string | null; opened_by: st
  * buttons agree with what it fills in. (The caller adds "open": a closed plan is no longer derived.)
  */
 export function followsTrackedDm(
-  engagement: { member_id: string; owned_by: string | null; opened_by: string | null },
+  engagement: { member_id: string; owned_by: string | null },
   tracked: { userId: string; memberIds: ReadonlySet<string> }
 ): boolean {
   return careOwnerOf(engagement) === tracked.userId && tracked.memberIds.has(engagement.member_id);

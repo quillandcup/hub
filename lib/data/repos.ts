@@ -187,8 +187,11 @@ export function createRepos(db: Db): Repos {
   };
 }
 
-/** In-memory repositories over one dataset, so joins between them work. For tests, demos and seed profiles. */
-export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDataset()): Repos {
+/**
+ * In-memory repositories over one dataset, so joins between them work. For tests, demos and seed profiles. `signedInAs` is the
+ * auth user the steps that answer for the signed-in caller (Hedgie Care's hand-overs) act as; the database knows it from the session.
+ */
+export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDataset(), options: { signedInAs?: string } = {}): Repos {
   return {
     attendance: new InMemoryAttendanceRepository(dataset),
     prickles: new InMemoryPrickleRepository(dataset),
@@ -218,7 +221,7 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     chat: new InMemoryChatRepository(dataset),
     chatDrafts: new InMemoryChatDraftRepository(dataset),
     chatVideos: new InMemoryChatVideoRepository(dataset),
-    care: new InMemoryCareRepository(dataset),
+    care: new InMemoryCareRepository(dataset, options.signedInAs ?? null),
     careDms: new InMemoryCareTrackedDmRepository(dataset),
     memberInteractions: new InMemoryMemberInteractionRepository(dataset),
     chatLinkPreviews: new InMemoryChatLinkPreviewRepository(dataset),

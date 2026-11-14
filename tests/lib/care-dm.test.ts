@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findOwnDm, findOwnDmWith, loadCareDmTab, ownDirectMessages, ownSlackIdentity, projectCareFromDms, staffMemberIds, trackedChannelIds } from "@/lib/care-dm";
+import { findOwnDmWith, ownDirectMessages, ownDmAccess, ownSlackIdentity, projectCareFromDms, staffMemberIds } from "@/lib/care-dm";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos, type Repos } from "@/lib/data/repos";
 import { SLACK_DM_SCOPES } from "@/lib/slack-connect";
@@ -179,119 +179,34 @@ describe("ownDirectMessages: only her own 1:1 DMs with members who are not staff
     expect(await ownDirectMessages(world().repos, "U0NOBODY1", null)).toEqual([]);
   });
 
-  it("finds one of her DMs by channel or by member, and refuses everything else", async () => {
+  it("finds her DM with a member, and refuses everything else", async () => {
     const { repos } = world();
     const user = { id: CM_USER, email: "cm@example.test" };
 
-    expect(await findOwnDm(repos, user, DM.ada)).toMatchObject({ memberId: ADA });
+    expect(await findOwnDmWith(repos, user, ADA)).toMatchObject({ channelId: DM.ada, memberId: ADA });
     expect(await findOwnDmWith(repos, user, BO)).toMatchObject({ channelId: DM.bo });
-    for (const channel of [DM.others, DM.staff, DM.group, "D0NOSUCH01"]) expect(await findOwnDm(repos, user, channel)).toBeNull();
-    expect(await findOwnDmWith(repos, user, STAFF_MEMBER)).toBeNull();
-    expect(await findOwnDm(repos, { id: ADMIN_USER }, DM.ada)).toBeNull(); // no Slack connection, no DMs
+    expect(await findOwnDmWith(repos, user, STAFF_MEMBER)).toBeNull(); // staff are never offered
+    expect(await findOwnDmWith(repos, user, "mbr_ZZZZZZZZZZZZ")).toBeNull(); // nobody she has a DM with
+    expect(await findOwnDmWith(repos, { id: ADMIN_USER }, ADA)).toBeNull(); // no Slack connection, no DMs
   });
 });
 
-describe("loadCareDmTab", () => {
-  const now = new Date("2026-03-12T15:00:00.000Z");
+describe("ownDmAccess: whether her own Slack DMs can fill in her care plans", () => {
   const user = { id: CM_USER, email: "cm@example.test" };
-  const on = { bridgeOn: true, trackedChannelIds: new Set<string>(), plans: [], now };
 
-  it.each([
-    ["no member profile", { id: "99999999-9999-4999-8999-999999999999" }, on, "no_member"],
-    ["the bridge is off for her", user, { ...on, bridgeOn: false }, "flag_off"],
-    ["no Slack connected", { id: ADMIN_USER }, on, "not_connected"],
-  ])("is unavailable when %s", async (_label, who, options, reason) => {
-    expect(await loadCareDmTab(world().repos, who, options)).toEqual({ state: "unavailable", reason });
+  it("is ready when Slack is connected with the DM permissions and the bridge is on for her", async () => {
+    expect(ownDmAccess(await ownSlackIdentity(world().repos, user), true)).toBe("ready");
   });
 
-  it("is unavailable when Slack dropped the connection, and when it lacks the DM permissions", async () => {
-    expect(await loadCareDmTab(world({ connectionOver: { revoked_at: "2026-02-01T00:00:00.000Z" } }).repos, user, on)).toEqual({ state: "unavailable", reason: "not_connected" });
-    expect(await loadCareDmTab(world({ connectionOver: { scopes: ["chat:write"] } }).repos, user, on)).toEqual({ state: "unavailable", reason: "needs_reconnect" });
+  it("needs Slack when it is not connected, was dropped, lacks the DM permissions, or the bridge is not on for her", async () => {
+    expect(ownDmAccess(await ownSlackIdentity(world().repos, { id: ADMIN_USER }), true)).toBe("needs_slack"); // no connection
+    expect(ownDmAccess(await ownSlackIdentity(world({ connectionOver: { revoked_at: "2026-02-01T00:00:00.000Z" } }).repos, user), true)).toBe("needs_slack");
+    expect(ownDmAccess(await ownSlackIdentity(world({ connectionOver: { scopes: ["chat:write"] } }).repos, user), true)).toBe("needs_slack");
+    expect(ownDmAccess(await ownSlackIdentity(world().repos, user), false)).toBe("needs_slack");
   });
 
-  it("lists her DMs newest first with the name the community knows them by, who wrote last, and which she tracks", async () => {
-    const { repos } = world({
-      messages: [
-        msg(DM.ada, SLACK.cm, "2026-03-09T10:00:00.000Z"),
-        msg(DM.ada, SLACK.ada, "2026-03-11T10:00:00.000Z"),
-        msg(DM.bo, SLACK.bo, "2026-03-05T10:00:00.000Z"),
-        msg(DM.bo, SLACK.cm, "2026-03-06T10:00:00.000Z"),
-        msg(DM.bo, SLACK.bo, "2026-03-10T10:00:00.000Z", { deleted_at: "2026-03-10T11:00:00.000Z" }),
-        msg(DM.bo, SLACK.cm, "2026-03-11T12:00:00.000Z", { message_type: "channel_join" }),
-        // Other people's DMs are never read.
-        msg(DM.others, SLACK.ada, "2026-03-12T10:00:00.000Z"),
-      ],
-    });
-
-    const tab = await loadCareDmTab(repos, user, { ...on, trackedChannelIds: new Set([DM.bo]), slackTeamId: "T0TEST" });
-
-    expect(tab).toEqual({
-      state: "ready",
-      rows: [
-        { channelId: DM.ada, memberId: ADA, memberName: "Ada E.", legalName: "Ada Example", tracked: false, lastAt: "2026-03-11T10:00:00.000Z", lastLabel: "yesterday", lastBy: "them", plan: { kind: "none" }, link: { href: "/chat/chn_AAAAAAAAAAA1", kind: "hub_chat" } },
-        { channelId: DM.bo, memberId: BO, memberName: "Bo Example", legalName: null, tracked: true, lastAt: "2026-03-06T10:00:00.000Z", lastLabel: "6 days ago", lastBy: "you", plan: { kind: "none" }, link: { href: `https://slack.com/app_redirect?channel=${DM.bo}&team=T0TEST`, kind: "slack" } },
-      ],
-    });
-  });
-
-  it("says on each row what the member's care plans make of it, and ignores a tracked DM that has no plan behind it", async () => {
-    const { repos } = world();
-    const plan = await opened(repos); // Ada: hers, open
-    const plans = [{ ...plan }];
-
-    // Bo has no plan, but she tracked his DM while testing: the row says "no care plan", it does not break, nothing is cleaned up.
-    const tab = await loadCareDmTab(repos, user, { ...on, plans, trackedChannelIds: new Set([DM.bo]) });
-    if (tab.state !== "ready") throw new Error("unreachable");
-    const byChannel = new Map(tab.rows.map((r) => [r.channelId, r]));
-    expect(byChannel.get(DM.ada)!.plan).toEqual({ kind: "in_plan", tracked: false, ordinal: "first", status: "waiting", tab: "active" });
-    expect(byChannel.get(DM.bo)!).toMatchObject({ tracked: true, plan: { kind: "none" } });
-
-    // Someone else's open plan with Bo, and an ended plan of hers with nobody else's.
-    const owners = [{ id: OTHER_USER, name: "Olly E.", role: "community_manager" }];
-    const held = { ...(await opened(repos, { memberId: BO, ownedBy: OTHER_USER })) };
-    const ended = { ...held, id: "care_ZZZZZZZZZZZ1", member_id: ADA, closed_at: "2026-03-01T00:00:00.000Z" };
-    const mixed = await loadCareDmTab(repos, user, { ...on, plans: [held, ended], owners, trackedChannelIds: new Set([DM.ada]) });
-    if (mixed.state !== "ready") throw new Error("unreachable");
-    const kinds = new Map(mixed.rows.map((r) => [r.channelId, r.plan]));
-    expect(kinds.get(DM.bo)).toMatchObject({ kind: "held_by_other", ownerName: "Olly E." });
-    expect(kinds.get(DM.ada)).toEqual({ kind: "earlier_plan" });
-  });
-
-  it("lists a DM with no message in the Hub last, and an empty list when she has none", async () => {
-    const quiet = await loadCareDmTab(world({ messages: [msg(DM.bo, SLACK.bo, "2026-03-05T10:00:00.000Z")] }).repos, user, on);
-    expect(quiet).toMatchObject({ state: "ready" });
-    if (quiet.state !== "ready") throw new Error("unreachable");
-    expect(quiet.rows.map((r) => [r.channelId, r.lastAt, r.lastLabel, r.lastBy])).toEqual([
-      [DM.bo, "2026-03-05T10:00:00.000Z", "7 days ago", "them"],
-      [DM.ada, null, null, null],
-    ]);
-
-    const none = world();
-    none.data.slackChannelMembers = [];
-    expect(await loadCareDmTab(none.repos, user, on)).toEqual({ state: "ready", rows: [] });
-  });
-
-  it("reads only who wrote and when: nothing but the last-writes method of the messages is asked for, and no text, channel id of another DM or name of a stranger is in the answer", async () => {
-    const { repos } = world({ messages: [msg(DM.ada, SLACK.ada, "2026-03-11T10:00:00.000Z"), msg(DM.others, SLACK.bo, "2026-03-11T10:00:00.000Z")] });
-    const calls: { method: string; args: unknown[] }[] = [];
-
-    const tab = await loadCareDmTab({ ...repos, slackMessages: spy(repos.slackMessages, calls) }, user, on);
-
-    expect(calls.map((c) => c.method)).toEqual(["lastWritesIn"]);
-    expect(calls[0].args[0]).toEqual([DM.ada, DM.bo]);
-    const shown = JSON.stringify(tab);
-    expect(shown).not.toContain(SECRET_TEXT);
-    for (const hidden of [DM.others, DM.group, DM.staff, "Sam Staffer", "Alex Admin", "Olly Example"]) expect(shown).not.toContain(hidden);
-  });
-});
-
-describe("trackedChannelIds", () => {
-  it("is the channels a user tracks now", async () => {
-    const { repos } = world();
-    await track(repos, DM.ada, ADA);
-    await track(repos, DM.bo, BO);
-    await repos.careDms.untrack(CM_USER, DM.bo, "2026-03-01T00:00:00.000Z");
-    expect(await trackedChannelIds(repos.careDms, CM_USER)).toEqual(new Set([DM.ada]));
+  it("is no_member when her account has no member profile: there is no Slack account to connect, so nothing is offered", async () => {
+    expect(ownDmAccess(await ownSlackIdentity(world().repos, { id: "99999999-9999-4999-8999-999999999999" }), true)).toBe("no_member");
   });
 });
 
@@ -440,29 +355,40 @@ describe("projectCareFromDms: tracked DMs fill in who spoke last", () => {
       expect(await repos.careDms.forUser(CM_USER)).toHaveLength(1);
     });
 
-    it("never tracks it again after she stopped tracking it: that was her choice", async () => {
-      const { repos } = world({ messages: [msg(DM.ada, SLACK.ada, "2026-03-11T14:00:00.000Z")] });
+    it("tracks it again when an earlier row of hers was soft deleted (the opt-in design's leftovers): a plan is the reason, there is no choice to respect", async () => {
+      const { repos, data } = world({ messages: [msg(DM.ada, SLACK.ada, "2026-03-11T14:00:00.000Z")] });
       const e = await opened(repos);
       await track(repos, DM.ada, ADA);
-      await repos.careDms.untrack(CM_USER, DM.ada, "2026-03-12T10:00:00.000Z");
-
-      expect(await projectCareFromDms(deps(repos), { userId: CM_USER })).toEqual({ tracked: 0, autoTracked: 0, engagements: 0, moved: 0, incomplete: false });
-      expect(await projectCareFromDms(deps(repos), "all")).toMatchObject({ autoTracked: 0, moved: 0 });
+      data.careTrackedDms[0].deleted_at = "2026-03-12T10:00:00.000Z";
       expect(await repos.careDms.forUser(CM_USER)).toEqual([]);
-      expect((await times(repos, e.id))[1]).toBeNull();
+
+      expect(await projectCareFromDms(deps(repos), { userId: CM_USER })).toMatchObject({ autoTracked: 1, moved: 1 });
+      expect((await repos.careDms.forUser(CM_USER)).map((dm) => dm.channelId)).toEqual([DM.ada]);
+      expect((await times(repos, e.id))[1]).toBe("2026-03-11T14:00:00.000Z");
     });
 
-    it("tracks one DM she did not stop even when she stopped another, and only for plans she holds", async () => {
+    it("tracks the DM only for plans she holds, not for a member whose open plan someone else holds", async () => {
       const { repos } = world({ messages: [msg(DM.ada, SLACK.ada, "2026-03-11T14:00:00.000Z"), msg(DM.bo, SLACK.bo, "2026-03-11T14:00:00.000Z")] });
       await opened(repos);
       await opened(repos, { memberId: BO, ownedBy: OTHER_USER });
-      await track(repos, DM.bo, BO);
-      await repos.careDms.untrack(CM_USER, DM.bo, "2026-03-12T10:00:00.000Z");
 
       const result = await projectCareFromDms(deps(repos), "all");
 
       expect(result.autoTracked).toBe(1);
       expect((await repos.careDms.forUser(CM_USER)).map((dm) => dm.channelId)).toEqual([DM.ada]);
+    });
+
+    it("follows a plan to its new owner: once a hand-over is accepted her DM is tracked and read, not the previous owner's", async () => {
+      const { repos, data } = world({ messages: [msg(DM.ada, SLACK.ada, "2026-03-11T14:00:00.000Z")] });
+      const plan = await opened(repos, { ownedBy: OTHER_USER });
+      expect(await projectCareFromDms(deps(repos), "all")).toMatchObject({ autoTracked: 0, moved: 0 }); // Olly has no DM with Ada
+
+      expect((await createInMemoryRepos(data, { signedInAs: OTHER_USER }).care.proposeHandover(plan.id, CM_USER)).ok).toBe(true);
+      expect(await projectCareFromDms(deps(repos), "all")).toMatchObject({ autoTracked: 0, moved: 0 }); // an offer changes nothing
+      expect((await createInMemoryRepos(data, { signedInAs: CM_USER }).care.acceptHandover(plan.id)).ok).toBe(true);
+
+      expect(await projectCareFromDms(deps(repos), "all")).toMatchObject({ autoTracked: 1, moved: 1 });
+      expect((await times(repos, plan.id))[1]).toBe("2026-03-11T14:00:00.000Z");
     });
 
     it("tracks nothing for a member she has no DM with, for a staff member, or when she has no Slack connection", async () => {
@@ -537,14 +463,33 @@ describe("projectCareFromDms: tracked DMs fill in who spoke last", () => {
     expect((await times(repos, bo.id))[1]).toBe("2026-03-11T14:00:00.000Z");
   });
 
-  it("fills in by the owner's account when the engagement has no owner, and finds the owner's Slack by email when the account is not linked", async () => {
+  it("reads no one's DM for a plan with no owner (whoever opened it does not own it), and finds an owner's Slack by email when the account is not linked", async () => {
     const { repos, data } = world({ messages: [msg(DM.ada, SLACK.ada, "2026-03-11T14:00:00.000Z")] });
     data.members.find((m) => m.id === CM)!.userId = null; // linked by email only
-    const e = await opened(repos, { ownedBy: null });
+    const ownerless = await opened(repos, { ownedBy: null });
     await track(repos, DM.ada, ADA);
+    expect(await projectCareFromDms(deps(repos), "all")).toMatchObject({ engagements: 0, moved: 0 });
+    expect((await times(repos, ownerless.id))[1]).toBeNull();
 
-    expect((await projectCareFromDms(deps(repos), "all")).moved).toBe(1);
-    expect((await times(repos, e.id))[1]).toBe("2026-03-11T14:00:00.000Z");
+    const { repos: owned, data: ownedData } = world({ messages: [msg(DM.ada, SLACK.ada, "2026-03-11T14:00:00.000Z")] });
+    ownedData.members.find((m) => m.id === CM)!.userId = null;
+    const e = await opened(owned);
+    await track(owned, DM.ada, ADA);
+    expect((await projectCareFromDms(deps(owned), "all")).moved).toBe(1);
+    expect((await times(owned, e.id))[1]).toBe("2026-03-11T14:00:00.000Z");
+  });
+
+  it("reads only who wrote and when: nothing but the last-writes method of the messages is asked for, and no text is in anything it returns", async () => {
+    const { repos } = world({ messages: [msg(DM.ada, SLACK.ada, "2026-03-11T10:00:00.000Z"), msg(DM.others, SLACK.bo, "2026-03-11T10:00:00.000Z")] });
+    await opened(repos);
+    await track(repos, DM.ada, ADA);
+    const calls: { method: string; args: unknown[] }[] = [];
+
+    const result = await projectCareFromDms({ ...deps(repos), service: { ...repos, slackMessages: spy(repos.slackMessages, calls) } }, "all");
+
+    expect(calls.map((c) => c.method)).toEqual(["lastWritesIn"]);
+    expect(calls[0].args[0]).toEqual([DM.ada]); // never another DM
+    expect(JSON.stringify(result)).not.toContain(SECRET_TEXT);
   });
 
   it("skips a tracked DM whose owner has no Slack connection on record", async () => {

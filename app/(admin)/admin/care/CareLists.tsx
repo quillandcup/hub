@@ -44,7 +44,7 @@ export function ActiveList({ cards, canWrite, owners, meId }: ListProps) {
       ) : (
         <ul className="space-y-3">
           {shown.map((card) => (
-            <EngagementCard key={card.id} card={card} canWrite={canWrite} owners={owners} />
+            <EngagementCard key={card.id} card={card} canWrite={canWrite} owners={owners} meId={meId} />
           ))}
         </ul>
       )}
@@ -84,7 +84,7 @@ export function EarlierList({ cards, canWrite, owners, meId }: ListProps) {
             <>
               <ul className="space-y-3">
                 {table.rows.map((card) => (
-                  <EngagementCard key={card.id} card={card} canWrite={canWrite} owners={owners} />
+                  <EngagementCard key={card.id} card={card} canWrite={canWrite} owners={owners} meId={meId} />
                 ))}
               </ul>
               <DataTablePager table={table} itemLabel="care plans" />

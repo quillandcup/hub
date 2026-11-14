@@ -130,7 +130,7 @@ describe("projecting tracked Slack DMs into a Hedgie Care care plan", () => {
     expect(iso(e.last_member_message_at)).toBeNull();
   });
 
-  it("tracks her DM with the member of an open care plan on its own, once, and never again after she stopped tracking it", async () => {
+  it("tracks her DM with the member of an open care plan on its own, once, and again when an earlier row was soft deleted", async () => {
     // Ada's care plan from the first test is still open; nothing is tracked for her any more.
     check((await db.from("care_tracked_dms").delete().eq("tracked_by", userId).eq("member_id", members[1].id)).error);
     const live = async () => (await repos().careDms.forUser(userId)).filter((d) => d.memberId === members[1].id).map((d) => d.channelId);
@@ -140,11 +140,11 @@ describe("projecting tracked Slack DMs into a Hedgie Care care plan", () => {
     expect(await live()).toEqual([dm.ada]);
     expect(await projectCareFromDms({ care: repos().care, careDms: repos().careDms, service: repos() }, "all")).toMatchObject({ autoTracked: 0 });
 
-    // She stops tracking it: the row is kept (soft deleted), and nothing tracks it for her again.
-    expect(await repos().careDms.untrack(userId, dm.ada, new Date().toISOString())).toBe(true);
-    expect(await repos().careDms.untrackedChannels([userId])).toEqual(new Map([[userId, new Set([dm.ada])]]));
-    expect(await projectCareFromDms({ care: repos().care, careDms: repos().careDms, service: repos() }, "all")).toMatchObject({ autoTracked: 0 });
+    // A row the earlier opt-in design soft deleted is history, not a choice: tracking is restored, with a new row.
+    check((await db.from("care_tracked_dms").update({ deleted_at: new Date().toISOString() }).eq("tracked_by", userId).eq("slack_channel_id", dm.ada)).error);
     expect(await live()).toEqual([]);
+    expect(await projectCareFromDms({ care: repos().care, careDms: repos().careDms, service: repos() }, "all")).toMatchObject({ autoTracked: 1 });
+    expect(await live()).toEqual([dm.ada]);
   });
 
   it("asks the database for who and when only: the function returns no text", async () => {

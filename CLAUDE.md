@@ -152,6 +152,10 @@ const memberBasePath = isActingAsAdmin ? "/admin/members" : "/members";
 - **Keep the legal name where it is the point**: billing, Kajabi and Stripe reconciliation, merge/split and duplicate detection, name-matching and alias tools, the Real Name field, exports, and anything sent to an external system.
 - `tests/lib/member-display-names.test.ts` fails on a new `host.name`; list a file there, with a reason, only when it just maps rows or needs the legal name.
 
+### Hand-overs Need Both Sides
+
+**RULE**: A thing that belongs to one person (a care plan, later a mentorship or an inbox thread) changes hands only when the receiver accepts: propose, accept, decline, cancel, and the database refuses a direct change of owner. Hedgie Care is the first user (`docs/HEDGIE_CARE.md`, "Owners"; `supabase/migrations/20270726000000_care_handover.sql`).
+
 ### Member Notifications
 
 **RULE**: Anything the app sends a member on its own initiative (reminders, check-ins, alerts) goes through `createNotifier` (`lib/notifications/notify.ts`) as a notification kind registered in `lib/notifications/registry.ts`, never a direct `sendSlackDM`/`chat.postMessage`. That's what makes it show up on `/settings/notifications` and honor the member's opt-outs and channel choices, and it's how new channels (email, push, SMS...) reach every kind at once.
