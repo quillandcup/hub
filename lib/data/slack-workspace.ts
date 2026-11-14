@@ -102,6 +102,8 @@ export interface SlackWorkspaceRepository {
   insertChannelIfAbsent(channel: NewSlackChannel): Promise<boolean>;
   /** The Slack user ids currently in a conversation (not marked as left). */
   currentMemberUserIds(channelId: string): Promise<string[]>;
+  /** channel id -> the Slack user ids currently in it, for these conversations (those with nobody are left out). Membership only. Chunked, paginated. */
+  currentParticipants(channelIds: string[]): Promise<Map<string, string[]>>;
   /**
    * The 1:1 DMs this Slack user is in now (`is_im` conversations they are a current participant of; group DMs are not
    * included), with everyone in each, by channel id. Whoever's token read a DM recorded both people in it, so the list
@@ -219,6 +221,17 @@ export class SupabaseSlackWorkspaceRepository implements SlackWorkspaceRepositor
       this.membersTable.select("user_id").eq("channel_id", channelId).is("left_at", null).order("user_id").range(from, to)
     );
     return rows.map((r) => r.user_id);
+  }
+
+  async currentParticipants(channelIds: string[]) {
+    const out = new Map<string, string[]>();
+    for (const ids of chunk([...new Set(channelIds)], USER_CHUNK)) {
+      const rows = await fetchAllRows<{ channel_id: string; user_id: string }>((from, to) =>
+        this.membersTable.select("channel_id, user_id").in("channel_id", ids).is("left_at", null).order("channel_id").order("user_id").range(from, to)
+      );
+      for (const r of rows) out.set(r.channel_id, [...(out.get(r.channel_id) ?? []), r.user_id]);
+    }
+    return out;
   }
 
   async directMessagesOf(slackUserId: string) {
@@ -438,6 +451,15 @@ export class InMemorySlackWorkspaceRepository implements SlackWorkspaceRepositor
 
   async currentMemberUserIds(channelId: string) {
     return this.data.slackChannelMembers.filter((m) => m.channel_id === channelId && !m.left_at).map((m) => m.user_id).sort();
+  }
+
+  async currentParticipants(channelIds: string[]) {
+    const wanted = new Set(channelIds);
+    const out = new Map<string, string[]>();
+    for (const m of this.data.slackChannelMembers.filter((x) => !x.left_at && wanted.has(x.channel_id)).sort((a, b) => compareText(a.user_id, b.user_id))) {
+      out.set(m.channel_id, [...(out.get(m.channel_id) ?? []), m.user_id]);
+    }
+    return out;
   }
 
   async directMessagesOf(slackUserId: string) {

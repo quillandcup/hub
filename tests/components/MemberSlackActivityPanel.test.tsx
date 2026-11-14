@@ -51,6 +51,14 @@ describe("MemberSlackActivityPanel", () => {
     expect(screen.getByText("7")).toBeInTheDocument();
   });
 
+  it("names who is in a direct or group message, capped with +N, and escapes the names", () => {
+    const dm = { ...activity("5", ""), data: { channel_type: "im", participants: ["Ada Example"], participantCount: 1 } };
+    const group = { ...activity("6", ""), data: { channel_type: "mpim", participants: ["Ada Example", "Bram <b>&</b> Sample", "Cy", "Di"], participantCount: 4 } };
+    render(<MemberSlackActivityPanel slackPage={page({ rows: [dm, group] })} slackSummary={summary} />);
+    expect(screen.getByText("Direct message with Ada Example")).toBeInTheDocument();
+    expect(screen.getByText("Group message with Ada Example, Bram <b>&</b> Sample +2")).toBeInTheDocument();
+  });
+
   it("labels direct and group messages, which carry no channel name, instead of #unknown", () => {
     const dm = { ...activity("3", ""), data: { channel_name: null, channel_type: "im" } };
     const group = { ...activity("4", ""), data: { channel_name: null, channel_type: "mpim" } };

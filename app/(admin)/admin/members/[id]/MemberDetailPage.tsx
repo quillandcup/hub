@@ -5,7 +5,7 @@ import { createRepos } from "@/lib/data/repos";
 import { attendedPrickleRow } from "@/lib/attendance-view";
 import { cache } from "react";
 import RecordHistoryButton from "@/components/RecordHistoryButton";
-import { withMentionNames } from "@/lib/chat/names";
+import { withConversationParticipants, withMentionNames } from "@/lib/chat/names";
 import { withReactionEmoji } from "@/lib/slack-reaction-emoji";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
@@ -373,7 +373,7 @@ export default async function MemberDetailPage({
           latestNote={latestNote}
           slackSummary={slackSummary}
           slackPage={{
-            rows: await withReactionEmoji(await withMentionNames(slackPage.rows)),
+            rows: await withReactionEmoji(await withConversationParticipants(await withMentionNames(slackPage.rows), id)),
             total: slackPage.total,
             page: slackPage.page,
             pageSize: slackQuery.pageSize,
