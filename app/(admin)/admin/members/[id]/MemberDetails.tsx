@@ -23,6 +23,7 @@ import MemberNotificationsPanel, { type NotificationKindRow } from "./MemberNoti
 import MemberIdentityPanel, { type NameAliasRow, type EmailAliasRow } from "./MemberIdentityPanel";
 import type { EarnedBadge } from "@/lib/badges";
 import { formatDateInZone } from "@/lib/formatters";
+import RemoveMemberPanel from "./RemoveMemberPanel";
 import { useTimeZone } from "@/components/Timezone";
 import type { AdminMember } from "@/lib/data/members";
 import type { StaffFeature } from "@/lib/staff-access";
@@ -138,7 +139,7 @@ export default function MemberDetails({
     { id: "attendance", label: `${MEMBER_TAB_LABELS.attendance} (${distinctPrickleCount})` },
     { id: "slack", label: `${MEMBER_TAB_LABELS.slack} (${slackSummary.total})` },
     ...(!can("member.activity_tab") ? [] : [{ id: "activity" as const, label: MEMBER_TAB_LABELS.activity }]),
-    ...(!can("member.identity_tab") ? [] : [{ id: "identity" as const, label: MEMBER_TAB_LABELS.identity }]),
+    ...(!can("member.account_tab") ? [] : [{ id: "account" as const, label: MEMBER_TAB_LABELS.account }]),
     ...(!can("member.push_devices") ? [] : [{ id: "notifications" as const, label: MEMBER_TAB_LABELS.notifications }]),
   ];
 
@@ -271,7 +272,7 @@ export default function MemberDetails({
         </div>
       )}
 
-      {activeTab === "identity" && (
+      {activeTab === "account" && (
         <MemberIdentityPanel
           memberId={member.id}
           name={member.name}
@@ -281,6 +282,10 @@ export default function MemberDetails({
           emailAliases={emailAliases}
           nameAliases={nameAliases}
         />
+      )}
+
+      {activeTab === "account" && can("member.remove") && (
+        <RemoveMemberPanel member={{ id: member.id, name: member.name, removed: member.email.endsWith("@removed.invalid") }} />
       )}
 
       {activeTab === "notifications" && notificationsInfo && (

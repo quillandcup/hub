@@ -17,7 +17,6 @@ import type { Metadata } from "next";
 import MemberDetails, { type MemberView } from "./MemberDetails";
 import MergeButton from "./MergeButton";
 import SplitButton from "./SplitButton";
-import RemoveMemberPanel from "./RemoveMemberPanel";
 import { ADMIN_NOTE_EDIT_MINUTES } from "@/lib/config";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { startSudo } from "@/app/actions/sudo";
@@ -394,7 +393,6 @@ export default async function MemberDetailPage({
           notificationsInfo={notificationsInfo}
           features={features}
         />
-        {can("member.remove") && <RemoveMemberPanel member={{ id: member.id, name: member.name, removed: member.email.endsWith("@removed.invalid") }} />}
       </main>
     </div>
   );
