@@ -22,6 +22,8 @@ const KEYS = [
   ["stripe_customers", "stripe_customer_id"],
   ["stripe_products", "stripe_product_id"],
   ["stripe_subscriptions", "stripe_subscription_id"],
+  ["stripe_invoices", "stripe_invoice_id"],
+  ["stripe_charges", "stripe_charge_id"],
 ] as const;
 
 const clear = async () => {
@@ -54,6 +56,8 @@ defineBillingContract("SupabaseBillingRepository", () => ({
     await insert("stripe_customers", withData(rows.stripeCustomers));
     await insert("stripe_products", withData(rows.stripeProducts));
     await insert("stripe_subscriptions", withData(rows.stripeSubscriptions));
+    await insert("stripe_invoices", rows.stripeInvoices ?? []);
+    await insert("stripe_charges", rows.stripeCharges ?? []);
   },
   stored: async (table: BillingTable, column: string, values: string[]) => {
     const rows: Record<string, unknown>[] = [];

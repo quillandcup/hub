@@ -3,6 +3,9 @@ import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createStripeClient } from "@/lib/stripe/client";
 import { NextRequest, NextResponse } from "next/server";
 import { asJson } from "@/lib/data/json";
+import { importStripeBilling, type StripeBillingResult } from "@/lib/stripe/billing-import";
+
+export const maxDuration = 300;
 
 /**
  * Sync data from Stripe API
@@ -11,6 +14,9 @@ import { asJson } from "@/lib/data/json";
  * 1. Fetches subscriptions, customers, and products from Stripe API
  * 2. Imports to Bronze layer (stripe_subscriptions, stripe_customers, stripe_products)
  * 3. Stores raw data for comparison with Kajabi
+ * 4. Imports invoices and charges (bronze.stripe_invoices, stripe_charges): everything on the first run, then
+ *    what changed since (`?full=1` reads the whole history again). The nightly /api/reconcile/stripe-billing
+ *    does the same step on its own.
  */
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request);
@@ -87,7 +93,21 @@ export async function POST(request: NextRequest) {
       throw new Error(`Subscriptions import failed: ${error.message}`);
     });
 
+    // 4. Invoices and charges (who was billed what and when). A key that may not read them must not undo the
+    // import above, so the reason is reported beside the counts instead of failing the run.
+    let billingResult: StripeBillingResult | undefined;
+    let billingError: string | undefined;
+    try {
+      const full = new URL(request.url).searchParams.get("full") === "1";
+      billingResult = await importStripeBilling(billing, stripe, { full });
+    } catch (error) {
+      console.error("Error importing Stripe invoices and charges:", error);
+      billingError = error instanceof Error ? error.message : "Invoices and charges import failed";
+    }
+
     results.stripe = {
+      billing: billingResult,
+      billingError,
       customers: customerRecords.length,
       products: productRecords.length,
       subscriptions: subscriptionRecords.length,

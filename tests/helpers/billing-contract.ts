@@ -8,6 +8,8 @@ import type {
   StripeCustomerSeed,
   StripeProductSeed,
   StripeSubscriptionSeed,
+  StripeInvoiceSeed,
+  StripeChargeSeed,
 } from "@/lib/data/billing";
 
 export type BillingSeed = {
@@ -18,6 +20,8 @@ export type BillingSeed = {
   stripeCustomers?: StripeCustomerSeed[];
   stripeProducts?: StripeProductSeed[];
   stripeSubscriptions?: StripeSubscriptionSeed[];
+  stripeInvoices?: StripeInvoiceSeed[];
+  stripeCharges?: StripeChargeSeed[];
 };
 
 /** The tables the imports write to, by name. */
@@ -30,6 +34,8 @@ export type BillingTable =
   | "stripe_customers"
   | "stripe_products"
   | "stripe_subscriptions"
+  | "stripe_invoices"
+  | "stripe_charges"
   | "subscription_history";
 
 export type BillingContractContext = {
@@ -267,6 +273,69 @@ export function defineBillingContract(name: string, setup: () => BillingContract
       expect(mine(await ctx.repo().stripeSubscriptionRows(), (r) => r.stripe_subscription_id, sortedIds(s1, s2, s3)).map((r) => r.stripe_subscription_id)).toEqual(sortedIds(s1, s2, s3));
     });
 
+    describe("Stripe invoices and charges", () => {
+      const inv = (label: string, customer: string, created: string, extra: Partial<StripeInvoiceSeed> = {}): StripeInvoiceSeed => ({
+        stripe_invoice_id: ctx.unique(label),
+        stripe_customer_id: customer,
+        status: "paid",
+        created_at_stripe: created,
+        ...extra,
+      });
+
+      it("reads invoices oldest first, narrowed by customer and date, and grouped per customer", async () => {
+        const [cus1, cus2] = [ctx.unique("cus"), ctx.unique("cus")];
+        const a = inv("i-a", cus1, "2026-01-01T00:00:00+00:00", { amount_paid: 2500, paid_at: "2026-01-02T00:00:00+00:00" });
+        const b = inv("i-b", cus1, "2026-02-01T00:00:00+00:00", { status: "open", amount_due: 2500, amount_remaining: 2500 });
+        const c = inv("i-c", cus2, "2026-03-01T00:00:00+00:00");
+        await ctx.seed({ stripeInvoices: [c, b, a] });
+        const ids = [a, b, c].map((r) => r.stripe_invoice_id);
+
+        expect((await ctx.repo().stripeInvoices({ customerIds: [cus1, cus2] })).map((r) => r.stripe_invoice_id)).toEqual([a, b, c].map((r) => r.stripe_invoice_id));
+        expect(await ctx.repo().stripeInvoices({ customerIds: [] })).toEqual([]);
+        expect((await ctx.repo().stripeInvoices({ customerIds: [cus1], createdFrom: "2026-02-01T00:00:00+00:00" })).map((r) => r.stripe_invoice_id)).toEqual([b.stripe_invoice_id]);
+        expect((await ctx.repo().stripeInvoices({ customerIds: [cus1, cus2], createdTo: "2026-02-01T00:00:00+00:00" })).map((r) => r.stripe_invoice_id)).toEqual([a.stripe_invoice_id]);
+        expect(mine(await ctx.repo().stripeInvoices(), (r) => r.stripe_invoice_id, ids)).toHaveLength(3);
+
+        const first = (await ctx.repo().stripeInvoices({ customerIds: [cus1] }))[0];
+        expect(first).toMatchObject({ stripe_invoice_id: a.stripe_invoice_id, status: "paid", amount_paid: 2500, amount_due: 0, paid_at: "2026-01-02T00:00:00+00:00", paid_out_of_band: false });
+
+        const grouped = await ctx.repo().stripeInvoicesByCustomers({ customerIds: [cus1, cus2, ctx.unique("none")] });
+        expect([...grouped.keys()].sort()).toEqual([cus1, cus2].sort());
+        expect(grouped.get(cus1)!.map((r) => r.stripe_invoice_id)).toEqual([a.stripe_invoice_id, b.stripe_invoice_id]);
+      });
+
+      it("pages past 1000 invoices", async () => {
+        const cus = ctx.unique("cus-many");
+        const rows = Array.from({ length: 1050 }, (_, i) => inv(`i-many-${i}`, cus, new Date(Date.UTC(2025, 0, 1) + i * 3600_000).toISOString()));
+        await ctx.seed({ stripeInvoices: rows });
+        const read = await ctx.repo().stripeInvoices({ customerIds: [cus] });
+        expect(read).toHaveLength(1050);
+        expect(read[0].stripe_invoice_id).toBe(rows[0].stripe_invoice_id);
+        expect(read[1049].stripe_invoice_id).toBe(rows[1049].stripe_invoice_id);
+      });
+
+      it("reads charges, and says when the newest invoice and charge were created", async () => {
+        const cus = ctx.unique("cus-chg");
+        const x: StripeChargeSeed = { stripe_charge_id: ctx.unique("c-x"), stripe_customer_id: cus, created_at_stripe: "2091-05-01T00:00:00+00:00", status: "failed", paid: false, failure_code: "card_declined" };
+        const y: StripeChargeSeed = { stripe_charge_id: ctx.unique("c-y"), stripe_customer_id: cus, created_at_stripe: "2091-04-01T00:00:00+00:00", amount: 2500, refunded: true, amount_refunded: 2500 };
+        const z: StripeChargeSeed = { stripe_charge_id: ctx.unique("c-z"), stripe_customer_id: null, created_at_stripe: "2091-03-01T00:00:00+00:00" };
+        const i = inv("i-new", cus, "2091-06-01T00:00:00+00:00");
+        await ctx.seed({ stripeCharges: [x, y, z], stripeInvoices: [i] });
+
+        expect((await ctx.repo().stripeCharges({ customerIds: [cus] })).map((r) => r.stripe_charge_id)).toEqual([y.stripe_charge_id, x.stripe_charge_id]);
+        expect(await ctx.repo().stripeCharges({ customerIds: [] })).toEqual([]);
+        expect((await ctx.repo().stripeCharges({ customerIds: [cus], createdFrom: "2091-05-01T00:00:00+00:00" })).map((r) => r.stripe_charge_id)).toEqual([x.stripe_charge_id]);
+        expect((await ctx.repo().stripeCharges({ createdTo: "2091-04-01T00:00:00+00:00" })).map((r) => r.stripe_charge_id)).toContain(z.stripe_charge_id);
+        expect((await ctx.repo().stripeCharges({ customerIds: [cus] }))[1]).toMatchObject({ failure_code: "card_declined", paid: false, status: "failed" });
+        expect((await ctx.repo().stripeCharges({ customerIds: [cus] }))[0]).toMatchObject({ refunded: true, amount_refunded: 2500, amount: 2500 });
+
+        expect(await ctx.repo().stripeInvoiceIdsWithStatus(["open", "draft"])).toEqual([]);
+        expect((await ctx.repo().stripeInvoiceIdsWithStatus(["paid"])).includes(i.stripe_invoice_id)).toBe(true);
+        expect(at((await ctx.repo().newestStripeInvoiceCreatedAt())!)).toBeGreaterThanOrEqual(at("2091-06-01T00:00:00+00:00"));
+        expect(at((await ctx.repo().newestStripeChargeCreatedAt())!)).toBeGreaterThanOrEqual(at("2091-05-01T00:00:00+00:00"));
+      });
+    });
+
     describe("the imports' writes", () => {
       const NOW = "2026-10-01T00:00:00.000Z";
       const LATER = "2026-10-02T00:00:00.000Z";
@@ -397,6 +466,31 @@ export function defineBillingContract(name: string, setup: () => BillingContract
           await ctx.removeStored("stripe_customers", "stripe_customer_id", [customer.stripe_customer_id]);
           await ctx.removeStored("stripe_products", "stripe_product_id", [product.stripe_product_id]);
           await ctx.removeStored("stripe_subscriptions", "stripe_subscription_id", [subscription.stripe_subscription_id]);
+        }
+      });
+
+      it("adds Stripe invoices and charges, and replaces the same one when imported again", async () => {
+        const invoice = {
+          stripe_invoice_id: ctx.unique("w-inv"),
+          stripe_customer_id: ctx.unique("w-cus"),
+          status: "open",
+          amount_due: 2500,
+          created_at_stripe: "2026-09-01T00:00:00+00:00",
+          imported_at: NOW,
+        };
+        const charge = { stripe_charge_id: ctx.unique("w-chg"), stripe_invoice_id: invoice.stripe_invoice_id, status: "failed", paid: false, failure_code: "card_declined", created_at_stripe: "2026-09-01T00:00:00+00:00" };
+        try {
+          await ctx.repo().upsertStripeInvoices([invoice]);
+          await ctx.repo().upsertStripeCharges([charge]);
+          await ctx.repo().upsertStripeInvoices([{ ...invoice, status: "paid", amount_paid: 2500, amount_remaining: 0, paid_at: "2026-09-03T00:00:00+00:00" }]);
+          await ctx.repo().upsertStripeCharges([{ ...charge, status: "succeeded", paid: true, failure_code: null }]);
+          await ctx.repo().upsertStripeInvoices([]);
+
+          expect(await one("stripe_invoices", "stripe_invoice_id", invoice.stripe_invoice_id)).toMatchObject({ status: "paid", amount_paid: 2500, amount_remaining: 0 });
+          expect(await one("stripe_charges", "stripe_charge_id", charge.stripe_charge_id)).toMatchObject({ status: "succeeded", paid: true, failure_code: null });
+        } finally {
+          await ctx.removeStored("stripe_invoices", "stripe_invoice_id", [invoice.stripe_invoice_id]);
+          await ctx.removeStored("stripe_charges", "stripe_charge_id", [charge.stripe_charge_id]);
         }
       });
 

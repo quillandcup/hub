@@ -11,6 +11,8 @@ const ARRAYS: Record<BillingTable, keyof InMemoryDataset> = {
   stripe_customers: "stripeCustomers",
   stripe_products: "stripeProducts",
   stripe_subscriptions: "stripeSubscriptions",
+  stripe_invoices: "stripeInvoices",
+  stripe_charges: "stripeCharges",
   subscription_history: "subscriptionHistory",
 };
 
@@ -29,6 +31,8 @@ defineBillingContract("InMemoryBillingRepository", () => {
       data.stripeCustomers = (seed.stripeCustomers ?? []).map((r) => ({ ...r }));
       data.stripeProducts = (seed.stripeProducts ?? []).map((r) => ({ ...r }));
       data.stripeSubscriptions = (seed.stripeSubscriptions ?? []).map((r) => ({ ...r }));
+      data.stripeInvoices = (seed.stripeInvoices ?? []).map((r) => ({ ...r }));
+      data.stripeCharges = (seed.stripeCharges ?? []).map((r) => ({ ...r }));
     },
     stored: async (table, column, values) => rows(table).filter((r) => values.includes(r[column] as string)),
     removeStored: async (table, column, values) => {

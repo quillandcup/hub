@@ -951,6 +951,63 @@ export type Database = {
         }
         Relationships: []
       }
+      stripe_charges: {
+        Row: {
+          amount: number
+          amount_refunded: number
+          created_at_stripe: string
+          currency: string | null
+          description: string | null
+          disputed: boolean
+          failure_code: string | null
+          id: string
+          imported_at: string
+          paid: boolean
+          refunded: boolean
+          status: string
+          stripe_charge_id: string
+          stripe_customer_id: string | null
+          stripe_invoice_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          amount_refunded?: number
+          created_at_stripe: string
+          currency?: string | null
+          description?: string | null
+          disputed?: boolean
+          failure_code?: string | null
+          id?: string
+          imported_at?: string
+          paid?: boolean
+          refunded?: boolean
+          status: string
+          stripe_charge_id: string
+          stripe_customer_id?: string | null
+          stripe_invoice_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          amount_refunded?: number
+          created_at_stripe?: string
+          currency?: string | null
+          description?: string | null
+          disputed?: boolean
+          failure_code?: string | null
+          id?: string
+          imported_at?: string
+          paid?: boolean
+          refunded?: boolean
+          status?: string
+          stripe_charge_id?: string
+          stripe_customer_id?: string | null
+          stripe_invoice_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       stripe_customers: {
         Row: {
           created_at_stripe: string | null
@@ -980,6 +1037,87 @@ export type Database = {
           imported_at?: string
           name?: string | null
           stripe_customer_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      stripe_invoices: {
+        Row: {
+          amount_due: number
+          amount_paid: number
+          amount_remaining: number
+          attempt_count: number
+          billing_reason: string | null
+          collection_method: string | null
+          created_at_stripe: string
+          currency: string | null
+          description: string | null
+          due_date: string | null
+          id: string
+          imported_at: string
+          next_payment_attempt: string | null
+          paid_at: string | null
+          paid_out_of_band: boolean
+          period_end: string | null
+          period_start: string | null
+          status: string
+          stripe_charge_id: string | null
+          stripe_customer_id: string
+          stripe_invoice_id: string
+          stripe_product_id: string | null
+          stripe_subscription_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount_due?: number
+          amount_paid?: number
+          amount_remaining?: number
+          attempt_count?: number
+          billing_reason?: string | null
+          collection_method?: string | null
+          created_at_stripe: string
+          currency?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          imported_at?: string
+          next_payment_attempt?: string | null
+          paid_at?: string | null
+          paid_out_of_band?: boolean
+          period_end?: string | null
+          period_start?: string | null
+          status: string
+          stripe_charge_id?: string | null
+          stripe_customer_id: string
+          stripe_invoice_id: string
+          stripe_product_id?: string | null
+          stripe_subscription_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount_due?: number
+          amount_paid?: number
+          amount_remaining?: number
+          attempt_count?: number
+          billing_reason?: string | null
+          collection_method?: string | null
+          created_at_stripe?: string
+          currency?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          imported_at?: string
+          next_payment_attempt?: string | null
+          paid_at?: string | null
+          paid_out_of_band?: boolean
+          period_end?: string | null
+          period_start?: string | null
+          status?: string
+          stripe_charge_id?: string | null
+          stripe_customer_id?: string
+          stripe_invoice_id?: string
+          stripe_product_id?: string | null
+          stripe_subscription_id?: string | null
           updated_at?: string
         }
         Relationships: []

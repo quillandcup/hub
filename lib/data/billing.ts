@@ -20,6 +20,10 @@ export type StripeCustomerRow = Tables["stripe_customers"]["Row"];
 export type StripeProductRow = Tables["stripe_products"]["Row"];
 /** A Stripe subscription (`bronze.stripe_subscriptions`). */
 export type StripeSubscriptionRow = Tables["stripe_subscriptions"]["Row"];
+/** A Stripe invoice (`bronze.stripe_invoices`): amounts in cents, no raw record, no customer details. */
+export type StripeInvoiceRow = Tables["stripe_invoices"]["Row"];
+/** A Stripe charge (`bronze.stripe_charges`): amounts in cents, no card details, the failure code only. */
+export type StripeChargeRow = Tables["stripe_charges"]["Row"];
 
 /** What the imports write: the columns of each table (the raw record included). */
 export type NewKajabiContact = Tables["kajabi_contacts"]["Insert"];
@@ -30,6 +34,8 @@ export type NewKajabiMember = Tables["kajabi_members"]["Insert"];
 export type NewStripeCustomer = Tables["stripe_customers"]["Insert"];
 export type NewStripeProduct = Tables["stripe_products"]["Insert"];
 export type NewStripeSubscription = Tables["stripe_subscriptions"]["Insert"];
+export type NewStripeInvoice = Tables["stripe_invoices"]["Insert"];
+export type NewStripeCharge = Tables["stripe_charges"]["Insert"];
 export type NewSubscriptionHistory = Tables["subscription_history"]["Insert"];
 
 export type KajabiContactRef = Pick<KajabiContactRow, "kajabi_contact_id" | "email" | "name">;
@@ -60,6 +66,15 @@ export type KajabiOfferSeed = Pick<KajabiOfferRow, "kajabi_offer_id"> & Partial<
 export type StripeCustomerSeed = Pick<StripeCustomerRow, "stripe_customer_id"> & Partial<StripeCustomerRow>;
 export type StripeProductSeed = Pick<StripeProductRow, "stripe_product_id" | "name"> & Partial<StripeProductRow>;
 export type StripeSubscriptionSeed = Pick<StripeSubscriptionRow, "stripe_subscription_id" | "stripe_customer_id"> & Partial<StripeSubscriptionRow>;
+export type StripeInvoiceSeed = Pick<StripeInvoiceRow, "stripe_invoice_id" | "stripe_customer_id"> & Partial<StripeInvoiceRow>;
+export type StripeChargeSeed = Pick<StripeChargeRow, "stripe_charge_id"> & Partial<StripeChargeRow>;
+
+/** Which invoices or charges to read: `createdFrom` (inclusive) and `createdTo` (exclusive) are instants; `customerIds` narrows to those Stripe customers (chunked). */
+export interface StripeBillingFilter {
+  customerIds?: string[];
+  createdFrom?: string;
+  createdTo?: string;
+}
 
 const ID_CHUNK = 100;
 const WRITE_CHUNK = 500;
@@ -131,6 +146,17 @@ export interface BillingRepository {
   stripeSubscriptionsByCustomers(stripeCustomerIds: string[]): Promise<StripeSubscriptionTrial[]>;
   /** When the newest subscription was imported, or null when none was. */
   lastStripeSubscriptionImportAt(): Promise<string | null>;
+  /** Invoices, oldest created first (then by id), narrowed by the filter. Pages past 1000 rows. */
+  stripeInvoices(filter?: StripeBillingFilter): Promise<StripeInvoiceRow[]>;
+  /** The same invoices grouped per Stripe customer, each customer's oldest first. A customer with none is absent. */
+  stripeInvoicesByCustomers(filter?: StripeBillingFilter): Promise<Map<string, StripeInvoiceRow[]>>;
+  /** Charges, oldest created first (then by id), narrowed by the filter. Pages past 1000 rows. */
+  stripeCharges(filter?: StripeBillingFilter): Promise<StripeChargeRow[]>;
+  /** When the newest stored invoice (charge) was created at Stripe, or null when there is none: where an incremental import starts. */
+  newestStripeInvoiceCreatedAt(): Promise<string | null>;
+  newestStripeChargeCreatedAt(): Promise<string | null>;
+  /** The Stripe ids of the stored invoices with one of these statuses (the open and draft ones change, so an import asks Stripe about them again). */
+  stripeInvoiceIdsWithStatus(statuses: string[]): Promise<string[]>;
 
   // --- the imports' writes (Bronze: upsert on the natural key, so a re-import never duplicates) ---
   /** Adds contacts, or replaces the ones with the same Kajabi contact id. Written in chunks. */
@@ -155,6 +181,10 @@ export interface BillingRepository {
   upsertStripeProducts(rows: NewStripeProduct[]): Promise<void>;
   /** Adds Stripe subscriptions, or replaces the ones with the same Stripe subscription id. Written in chunks. */
   upsertStripeSubscriptions(rows: NewStripeSubscription[]): Promise<void>;
+  /** Adds Stripe invoices, or replaces the ones with the same Stripe invoice id. Written in chunks. */
+  upsertStripeInvoices(rows: NewStripeInvoice[]): Promise<void>;
+  /** Adds Stripe charges, or replaces the ones with the same Stripe charge id. Written in chunks. */
+  upsertStripeCharges(rows: NewStripeCharge[]): Promise<void>;
   /** Adds subscription export rows, or replaces the ones with the same Kajabi subscription id and import time. Returns how many rows were written. */
   upsertSubscriptionHistory(rows: NewSubscriptionHistory[]): Promise<number>;
 }
@@ -185,6 +215,12 @@ export class SupabaseBillingRepository implements BillingRepository {
   }
   private get subscriptions() {
     return this.db.schema("bronze").from("stripe_subscriptions");
+  }
+  private get invoices() {
+    return this.db.schema("bronze").from("stripe_invoices");
+  }
+  private get charges() {
+    return this.db.schema("bronze").from("stripe_charges");
   }
 
   private async newest(table: "kajabi_contacts" | "kajabi_purchases" | "stripe_subscriptions"): Promise<string | null> {
@@ -382,6 +418,55 @@ export class SupabaseBillingRepository implements BillingRepository {
     return this.newest("stripe_subscriptions");
   }
 
+  async stripeInvoices(filter: StripeBillingFilter = {}) {
+    const read = (customers?: string[]) =>
+      fetchAllRows<StripeInvoiceRow>((from, to) => {
+        let query = this.invoices.select("*");
+        if (customers) query = query.in("stripe_customer_id", customers);
+        if (filter.createdFrom) query = query.gte("created_at_stripe", filter.createdFrom);
+        if (filter.createdTo) query = query.lt("created_at_stripe", filter.createdTo);
+        return query.order("created_at_stripe").order("stripe_invoice_id").range(from, to);
+      });
+    const rows = filter.customerIds ? await inChunks(filter.customerIds, read) : await read();
+    return byCreatedThenId(rows, (r) => r.stripe_invoice_id);
+  }
+
+  async stripeInvoicesByCustomers(filter: StripeBillingFilter = {}) {
+    return groupByCustomer(await this.stripeInvoices(filter));
+  }
+
+  async stripeCharges(filter: StripeBillingFilter = {}) {
+    const read = (customers?: string[]) =>
+      fetchAllRows<StripeChargeRow>((from, to) => {
+        let query = this.charges.select("*");
+        if (customers) query = query.in("stripe_customer_id", customers);
+        if (filter.createdFrom) query = query.gte("created_at_stripe", filter.createdFrom);
+        if (filter.createdTo) query = query.lt("created_at_stripe", filter.createdTo);
+        return query.order("created_at_stripe").order("stripe_charge_id").range(from, to);
+      });
+    const rows = filter.customerIds ? await inChunks(filter.customerIds, read) : await read();
+    return byCreatedThenId(rows, (r) => r.stripe_charge_id);
+  }
+
+  async stripeInvoiceIdsWithStatus(statuses: string[]) {
+    const rows = await fetchAllRows<{ stripe_invoice_id: string }>((from, to) =>
+      this.invoices.select("stripe_invoice_id").in("status", statuses).order("stripe_invoice_id").range(from, to)
+    );
+    return rows.map((r) => r.stripe_invoice_id);
+  }
+
+  async newestStripeInvoiceCreatedAt() {
+    const { data, error } = await this.invoices.select("created_at_stripe").order("created_at_stripe", { ascending: false }).limit(1);
+    if (error) throw new Error(error.message);
+    return data?.[0]?.created_at_stripe ?? null;
+  }
+
+  async newestStripeChargeCreatedAt() {
+    const { data, error } = await this.charges.select("created_at_stripe").order("created_at_stripe", { ascending: false }).limit(1);
+    if (error) throw new Error(error.message);
+    return data?.[0]?.created_at_stripe ?? null;
+  }
+
   async upsertKajabiContacts(rows: NewKajabiContact[]) {
     await upsertInChunks(this.contacts, rows, "kajabi_contact_id", WRITE_CHUNK);
   }
@@ -431,6 +516,14 @@ export class SupabaseBillingRepository implements BillingRepository {
 
   async upsertStripeSubscriptions(rows: NewStripeSubscription[]) {
     await upsertInChunks(this.subscriptions, rows, "stripe_subscription_id", WRITE_CHUNK);
+  }
+
+  async upsertStripeInvoices(rows: NewStripeInvoice[]) {
+    await upsertInChunks(this.invoices, rows, "stripe_invoice_id", WRITE_CHUNK);
+  }
+
+  async upsertStripeCharges(rows: NewStripeCharge[]) {
+    await upsertInChunks(this.charges, rows, "stripe_charge_id", WRITE_CHUNK);
   }
 
   async upsertSubscriptionHistory(rows: NewSubscriptionHistory[]) {
@@ -548,6 +641,55 @@ export class InMemoryBillingRepository implements BillingRepository {
       current_period_end: null,
       current_period_start: null,
       pause_collection: null,
+      imported_at: EPOCH,
+      updated_at: EPOCH,
+      ...s,
+    }));
+  }
+
+  private invoiceRows(): StripeInvoiceRow[] {
+    return this.dataset.stripeInvoices.map((s) => ({
+      id: s.stripe_invoice_id,
+      stripe_subscription_id: null,
+      status: "paid",
+      billing_reason: null,
+      collection_method: null,
+      currency: null,
+      amount_due: 0,
+      amount_paid: 0,
+      amount_remaining: 0,
+      attempt_count: 0,
+      created_at_stripe: EPOCH,
+      period_start: null,
+      period_end: null,
+      due_date: null,
+      paid_at: null,
+      next_payment_attempt: null,
+      stripe_charge_id: null,
+      stripe_product_id: null,
+      description: null,
+      paid_out_of_band: false,
+      imported_at: EPOCH,
+      updated_at: EPOCH,
+      ...s,
+    }));
+  }
+
+  private chargeRows(): StripeChargeRow[] {
+    return this.dataset.stripeCharges.map((s) => ({
+      id: s.stripe_charge_id,
+      stripe_customer_id: null,
+      stripe_invoice_id: null,
+      amount: 0,
+      amount_refunded: 0,
+      currency: null,
+      status: "succeeded",
+      paid: true,
+      refunded: false,
+      disputed: false,
+      created_at_stripe: EPOCH,
+      failure_code: null,
+      description: null,
       imported_at: EPOCH,
       updated_at: EPOCH,
       ...s,
@@ -761,10 +903,79 @@ export class InMemoryBillingRepository implements BillingRepository {
     this.upsert(this.dataset.stripeSubscriptions, rows, (a, b) => a.stripe_subscription_id === b.stripe_subscription_id);
   }
 
+  async upsertStripeInvoices(rows: NewStripeInvoice[]) {
+    this.upsert(this.dataset.stripeInvoices, rows, (a, b) => a.stripe_invoice_id === b.stripe_invoice_id);
+  }
+
+  async upsertStripeCharges(rows: NewStripeCharge[]) {
+    this.upsert(this.dataset.stripeCharges, rows, (a, b) => a.stripe_charge_id === b.stripe_charge_id);
+  }
+
+  async stripeInvoices(filter: StripeBillingFilter = {}) {
+    const customers = filter.customerIds && new Set(filter.customerIds);
+    return byCreatedThenId(
+      this.invoiceRows().filter((r) => (!customers || customers.has(r.stripe_customer_id)) && inRange(r.created_at_stripe, filter)),
+      (r) => r.stripe_invoice_id
+    );
+  }
+
+  async stripeInvoicesByCustomers(filter: StripeBillingFilter = {}) {
+    return groupByCustomer(await this.stripeInvoices(filter));
+  }
+
+  async stripeCharges(filter: StripeBillingFilter = {}) {
+    const customers = filter.customerIds && new Set(filter.customerIds);
+    return byCreatedThenId(
+      this.chargeRows().filter((r) => (!customers || (r.stripe_customer_id !== null && customers.has(r.stripe_customer_id))) && inRange(r.created_at_stripe, filter)),
+      (r) => r.stripe_charge_id
+    );
+  }
+
+  async stripeInvoiceIdsWithStatus(statuses: string[]) {
+    const wanted = new Set(statuses);
+    return this.invoiceRows()
+      .filter((r) => wanted.has(r.status))
+      .map((r) => r.stripe_invoice_id)
+      .sort();
+  }
+
+  async newestStripeInvoiceCreatedAt() {
+    return this.newest(this.invoiceRows().map((r) => r.created_at_stripe));
+  }
+
+  async newestStripeChargeCreatedAt() {
+    return this.newest(this.chargeRows().map((r) => r.created_at_stripe));
+  }
+
   async upsertSubscriptionHistory(rows: NewSubscriptionHistory[]) {
     this.upsert(this.dataset.subscriptionHistory, rows, (a, b) => a.kajabi_subscription_id === b.kajabi_subscription_id && a.imported_at === b.imported_at);
     return rows.length;
   }
+}
+
+/** Oldest created first, then by Stripe id, so the order is the database's (`created_at_stripe`, id) whatever the input order. */
+function byCreatedThenId<T extends { created_at_stripe: string }>(rows: T[], id: (row: T) => string): T[] {
+  return [...rows].sort((a, b) => {
+    const at = Date.parse(a.created_at_stripe);
+    const bt = Date.parse(b.created_at_stripe);
+    if (at !== bt) return at < bt ? -1 : 1;
+    return id(a) < id(b) ? -1 : id(a) > id(b) ? 1 : 0;
+  });
+}
+
+function inRange(createdAt: string, { createdFrom, createdTo }: StripeBillingFilter): boolean {
+  const at = Date.parse(createdAt);
+  return (!createdFrom || at >= Date.parse(createdFrom)) && (!createdTo || at < Date.parse(createdTo));
+}
+
+function groupByCustomer(rows: StripeInvoiceRow[]): Map<string, StripeInvoiceRow[]> {
+  const byCustomer = new Map<string, StripeInvoiceRow[]>();
+  for (const row of rows) {
+    const list = byCustomer.get(row.stripe_customer_id);
+    if (list) list.push(row);
+    else byCustomer.set(row.stripe_customer_id, [row]);
+  }
+  return byCustomer;
 }
 
 function summary(p: KajabiPurchaseRow): KajabiPurchaseSummary {

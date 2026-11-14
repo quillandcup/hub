@@ -151,6 +151,8 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   stripe_customers: [],
   stripe_products: [],
   stripe_subscriptions: [],
+  stripe_invoices: [],
+  stripe_charges: [],
   subscription_history: [],
   // Hiatus, status overrides, join-date corrections and the member-edited profile fields (MemberStatusRepository): every query is moved.
   member_hiatus_history: [],

@@ -87,6 +87,14 @@ export const CRON_HEARTBEATS = {
     unmonitored: "Checkly plan limit of 10 uptime monitors reached",
     ...daily,
   },
+  "reconcile-stripe-billing": {
+    name: "Cron: Stripe invoices and charges (daily 04:30 UTC)",
+    path: "/api/reconcile/stripe-billing",
+    scheduler: "vercel",
+    envVar: "CHECKLY_HEARTBEAT_RECONCILE_STRIPE_BILLING",
+    unmonitored: "Checkly plan limit of 10 uptime monitors reached",
+    ...daily,
+  },
   "changelog-digest": {
     name: "Cron: What's new digest (weekly, Tuesday 14:00 UTC)",
     path: "/api/internal/changelog-digest",
