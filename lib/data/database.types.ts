@@ -8031,6 +8031,15 @@ export type Database = {
           table_name: string
         }[]
       }
+      member_removal_extras: {
+        Args: { p_member_id: string }
+        Returns: {
+          action: string
+          item: string
+          row_count: number
+          samples: string[]
+        }[]
+      }
       member_slack_channels: {
         Args: { p_member_id: string }
         Returns: {

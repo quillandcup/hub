@@ -15,11 +15,17 @@ import RemoveMemberPanel from "@/app/(admin)/admin/members/[id]/RemoveMemberPane
 const member = { id: "mbr_AAAAAAAAAAA1", name: "Ada Example", removed: false };
 const preview = {
   rows: [
-    { table: "writing_projects", column: "member_id", action: "delete", why: "w", count: 2 },
+    { table: "writing_projects", column: "member_id", action: "delete", why: "their words", count: 2 },
     { table: "member_books", column: "member_id", action: "ask", why: "w", count: 1 },
     { table: "prickle_attendance", column: "member_id", action: "repoint", why: "w", count: 40 },
   ],
   liveBooks: 1,
+  extras: [
+    { item: "auth_user", action: "delete", count: 1, samples: [] },
+    { item: "media_files", action: "delete", count: 12, samples: ["image: Cover one", "image: Cover two"] },
+    { item: "hiatus_notes", action: "clear", count: 1, samples: ["Hiatus from 01 Mar 2026 (note)"] },
+    { item: "audit_entries", action: "delete", count: 3, samples: ["member (3)"] },
+  ],
 };
 
 beforeEach(() => {
@@ -40,9 +46,77 @@ describe("RemoveMemberPanel", () => {
     expect(screen.queryByText("Remove this member")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: /see what would be removed/i }));
     expect(await screen.findByText("writing projects")).toBeTruthy();
-    expect(screen.getByText("Deleted")).toBeTruthy();
+    expect(screen.getAllByText("Deleted").length).toBeGreaterThan(0);
     expect(screen.getByText("Kept, without their name")).toBeTruthy();
     expect(previewRemoval).toHaveBeenCalledWith(member.id);
+  });
+
+  const open = async () => {
+    render(<RemoveMemberPanel member={member} />);
+    await userEvent.click(screen.getByRole("button", { name: /see what would be removed/i }));
+    await screen.findByText("writing projects");
+  };
+
+  it("says up front that the imports are untouched", () => {
+    render(<RemoveMemberPanel member={member} />);
+    expect(screen.getByText(/imports from Kajabi, Stripe, Zoom and Slack are not touched/i)).toBeTruthy();
+  });
+
+  it("shows one summary table, catalog and extras alike, with counts only until a row is opened", async () => {
+    await open();
+    expect(screen.getAllByRole("table")).toHaveLength(1);
+    for (const name of ["writing projects", "Sign-in account", "Stored images and files", "Hiatus notes and reasons", "Audit-log entries about them", "prickle attendance"]) {
+      expect(screen.getByRole("button", { name: new RegExp(name, "i") })).toBeTruthy();
+    }
+    expect(screen.getByText("Text cleared, record stays")).toBeTruthy();
+    expect(screen.queryByText("image: Cover one")).toBeNull();
+    expect(screen.queryByText("their words")).toBeNull();
+    for (const row of screen.getAllByRole("button", { expanded: false })) expect(row.getAttribute("aria-controls")).toBeTruthy();
+  });
+
+  it("opens and closes any row the same way: named records for extras, the reason for the catalog", async () => {
+    await open();
+    const images = screen.getByRole("button", { name: /stored images and files/i });
+    await userEvent.click(images);
+    expect(images.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByText("image: Cover one")).toBeTruthy();
+    expect(screen.getByText("and 10 more")).toBeTruthy();
+
+    const projects = screen.getByRole("button", { name: /writing projects/i });
+    await userEvent.click(projects);
+    expect(screen.getByText("their words")).toBeTruthy();
+
+    const signIn = screen.getByRole("button", { name: /sign-in account/i });
+    await userEvent.click(signIn);
+    expect(screen.getAllByText("No further detail.")).toHaveLength(1);
+
+    await userEvent.click(images);
+    expect(images.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByText("image: Cover one")).toBeNull();
+  });
+
+  it("opens a row from the keyboard", async () => {
+    await open();
+    const audit = screen.getByRole("button", { name: /audit-log entries about them/i });
+    audit.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(screen.getByText("member (3)")).toBeTruthy();
+    await userEvent.keyboard(" ");
+    expect(screen.queryByText("member (3)")).toBeNull();
+  });
+
+  it("puts the summary above the book question and the confirm button", async () => {
+    await open();
+    const table = screen.getByRole("table");
+    const follows = (node: Node) => table.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING;
+    expect(follows(screen.getByText(/Their books and awards/))).toBeTruthy();
+    expect(follows(screen.getByRole("button", { name: "Remove this member" }))).toBeTruthy();
+  });
+
+  it("lists only the catalog when there are no extras", async () => {
+    previewRemoval.mockResolvedValue({ preview: { ...preview, extras: [] } });
+    await open();
+    expect(screen.queryByRole("button", { name: /sign-in account/i })).toBeNull();
   });
 
   it("needs the member's answer about their books and the typed name before it can remove", async () => {
@@ -101,7 +175,7 @@ describe("RemoveMemberPanel", () => {
   });
 
   it("asks nothing about books for a member with none", async () => {
-    previewRemoval.mockResolvedValue({ preview: { rows: [], liveBooks: 0 } });
+    previewRemoval.mockResolvedValue({ preview: { rows: [], extras: [], liveBooks: 0 } });
     render(<RemoveMemberPanel member={member} />);
     await userEvent.click(screen.getByRole("button", { name: /see what would be removed/i }));
     await userEvent.type(await screen.findByRole("textbox"), "Ada Example");
