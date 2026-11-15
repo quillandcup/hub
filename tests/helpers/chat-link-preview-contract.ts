@@ -5,7 +5,9 @@ export type ChatLinkPreviewContractContext = {
   repo: () => ChatLinkPreviewRepository;
   /** Three live chat messages that exist and have no previews yet. */
   messages: [string, string, string];
-  /** Removes the previews and removed-card marks this context made. */
+  /** Two members that exist and have no blocked previews yet. */
+  members: [string, string];
+  /** Removes the previews, removed-card marks and blocks this context made. */
   clear: () => Promise<void>;
 };
 
@@ -97,6 +99,37 @@ export function defineChatLinkPreviewContract(name: string, setup: () => ChatLin
       await ctx.repo().save(ctx.messages[0], [draft("https://example.test/a", 0, { title: "Fetched again" })]);
 
       expect([...((await ctx.repo().hiddenKeys([ctx.messages[0]])).get(ctx.messages[0]) ?? [])]).toEqual(["url:https://example.test/a"]);
+    });
+
+    it("keeps a member's blocked previews to that member, oldest first, and saving a rule again is not an error", async () => {
+      const [fern, moss] = ctx.members;
+      const site = { scope: "site", host: "example.test", pathPrefix: null, url: null } as const;
+      const path = { scope: "path", host: "example.test", pathPrefix: "/blog", url: null } as const;
+      const link = { scope: "link", host: "example.test", pathPrefix: null, url: "https://example.test/a?x=1" } as const;
+      await ctx.repo().block(fern, site);
+      await ctx.repo().block(fern, site);
+      await ctx.repo().block(fern, path);
+      await ctx.repo().block(fern, link);
+      await ctx.repo().block(moss, site);
+
+      expect(await ctx.repo().blocksOf(fern)).toEqual([site, path, link]);
+      expect(await ctx.repo().blocksOf(moss)).toEqual([site]);
+    });
+
+    it("lifts one rule only, and lifting a rule that is not there is not an error", async () => {
+      const [fern, moss] = ctx.members;
+      const site = { scope: "site", host: "example.test", pathPrefix: null, url: null } as const;
+      const path = { scope: "path", host: "example.test", pathPrefix: "/blog", url: null } as const;
+      await ctx.repo().block(fern, site);
+      await ctx.repo().block(fern, path);
+      await ctx.repo().block(moss, site);
+
+      await ctx.repo().unblock(fern, site);
+      await ctx.repo().unblock(fern, site);
+
+      expect(await ctx.repo().blocksOf(fern)).toEqual([path]);
+      expect(await ctx.repo().blocksOf(moss)).toEqual([site]);
+      expect(await ctx.repo().blocksOf(ctx.members[0] + "x")).toEqual([]);
     });
 
     it("stores nothing and fails nothing for an empty list, and answers an empty list of messages with an empty map", async () => {

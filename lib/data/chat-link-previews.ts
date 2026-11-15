@@ -1,3 +1,4 @@
+import type { PreviewBlock } from "@/lib/chat/link-preview-blocks";
 import type { Db } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 import { inChunks, must } from "./query";
@@ -51,6 +52,15 @@ export interface ChatLinkPreviewRepository {
    * author's own client, row-level security lets only the author write it (anyone else's call throws); the service role may for anyone.
    */
   hide(messageId: string, key: string): Promise<void>;
+  /**
+   * The member's own blocked sites, paths and links (`chat_preview_blocks`; lib/chat/link-preview-blocks.ts), oldest first. Read as the member
+   * (row-level security shows only their own) or, for the server building previews for a message, with the service role.
+   */
+  blocksOf(memberId: string): Promise<PreviewBlock[]>;
+  /** Saves a rule for the member. Once per rule: adding it again is not an error. With the member's own client, row-level security refuses anyone else's. */
+  block(memberId: string, block: PreviewBlock): Promise<void>;
+  /** Lifts a rule. Nothing to lift is not an error. */
+  unblock(memberId: string, block: PreviewBlock): Promise<void>;
 }
 
 const COLUMNS = "message_id, position, url, final_url, kind, status, title, description, site_name, image_url, fetched_at";
@@ -92,6 +102,18 @@ function grouped(rows: LinkPreview[]): Map<string, LinkPreview[]> {
   for (const p of [...rows].sort(byOrder)) out.set(p.messageId, [...(out.get(p.messageId) ?? []), p]);
   return out;
 }
+
+type BlockRow = { scope: string; host: string; path_prefix: string; url: string };
+
+const toBlock = (r: BlockRow): PreviewBlock => ({
+  scope: r.scope === "path" || r.scope === "link" ? r.scope : "site",
+  host: r.host,
+  pathPrefix: r.path_prefix || null,
+  url: r.url || null,
+});
+
+/** The columns that name a rule; the empty string, not null, is "none" so one unique constraint holds. */
+const blockColumns = (block: PreviewBlock) => ({ scope: block.scope, host: block.host, path_prefix: block.pathPrefix ?? "", url: block.url ?? "" });
 
 export class SupabaseChatLinkPreviewRepository implements ChatLinkPreviewRepository {
   constructor(private readonly db: Db) {}
@@ -144,6 +166,20 @@ export class SupabaseChatLinkPreviewRepository implements ChatLinkPreviewReposit
 
   async hide(messageId: string, key: string) {
     must(await this.db.from("chat_hidden_unfurls").upsert({ message_id: messageId, key }, { onConflict: "message_id,key", ignoreDuplicates: true }));
+  }
+
+  async blocksOf(memberId: string) {
+    const rows = must(await this.db.from("chat_preview_blocks").select("scope, host, path_prefix, url").eq("member_id", memberId).order("created_at").order("id")) ?? [];
+    return rows.map(toBlock);
+  }
+
+  async block(memberId: string, block: PreviewBlock) {
+    must(await this.db.from("chat_preview_blocks").upsert({ member_id: memberId, ...blockColumns(block) }, { onConflict: "member_id,scope,host,path_prefix,url", ignoreDuplicates: true }));
+  }
+
+  async unblock(memberId: string, block: PreviewBlock) {
+    const c = blockColumns(block);
+    must(await this.db.from("chat_preview_blocks").delete().eq("member_id", memberId).eq("scope", c.scope).eq("host", c.host).eq("path_prefix", c.path_prefix).eq("url", c.url));
   }
 }
 
@@ -199,4 +235,22 @@ export class InMemoryChatLinkPreviewRepository implements ChatLinkPreviewReposit
     if (this.data.chatHiddenUnfurls.some((r) => r.message_id === messageId && r.key === key)) return;
     this.data.chatHiddenUnfurls.push({ id: `hunf_${String(this.data.chatHiddenUnfurls.length + 1).padStart(12, "A")}`, message_id: messageId, key, created_at: new Date().toISOString() });
   }
+
+  async blocksOf(memberId: string) {
+    return this.data.chatPreviewBlocks.filter((r) => r.member_id === memberId).map(toBlock);
+  }
+
+  async block(memberId: string, block: PreviewBlock) {
+    const c = blockColumns(block);
+    if (this.data.chatPreviewBlocks.some((r) => sameRule(r, memberId, c))) return;
+    this.data.chatPreviewBlocks.push({ id: `cpbk_${String(this.data.chatPreviewBlocks.length + 1).padStart(12, "A")}`, member_id: memberId, ...c, created_at: new Date().toISOString() });
+  }
+
+  async unblock(memberId: string, block: PreviewBlock) {
+    const c = blockColumns(block);
+    this.data.chatPreviewBlocks = this.data.chatPreviewBlocks.filter((r) => !sameRule(r, memberId, c));
+  }
 }
+
+const sameRule = (r: BlockRow & { member_id: string }, memberId: string, c: BlockRow) =>
+  r.member_id === memberId && r.scope === c.scope && r.host === c.host && r.path_prefix === c.path_prefix && r.url === c.url;

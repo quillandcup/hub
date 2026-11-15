@@ -40,6 +40,8 @@ import {
 import type { ChatTextContext } from "@/components/chat/ChatText";
 
 import { withAction } from "@/lib/analytics/server";
+import { revalidatePath } from "next/cache";
+import { blockFor, isBlockScope, type BlockScope, type PreviewBlock } from "@/lib/chat/link-preview-blocks";
 import { refreshLinkPreviews } from "@/lib/chat/link-previews";
 import { chatCaller, postingCaller } from "@/lib/chat/caller";
 import { isHubOnlyMessage } from "@/lib/chat/hub-only";
@@ -383,7 +385,10 @@ async function stagedFilesFor(memberId: string, uploads: StagedUpload[]): Promis
 async function previewLinksAfterSend(caller: NonNullable<Awaited<ReturnType<typeof postingCaller>>>, messageId: string, body: string): Promise<void> {
   try {
     if (!(await effectiveMemberHasFeature("chat_link_previews", caller.identity, await getUserFeaturePreviews(caller.userId)))) return;
-    const { looked } = await refreshLinkPreviews(createRepos(createServiceRoleClient()).chatLinkPreviews, messageId, body, { ownOrigin: new URL(APP_URL).origin });
+    const previews = createRepos(createServiceRoleClient()).chatLinkPreviews;
+    // The author's own blocks (their sites, paths and links): a blocked link is not fetched. A failed lookup previews as before rather than losing the previews.
+    const blocks = await previews.blocksOf(caller.identity.memberId).catch(() => []);
+    const { looked } = await refreshLinkPreviews(previews, messageId, body, { ownOrigin: new URL(APP_URL).origin, blocks });
     if (looked.length === 0) return;
     // What happened, never which address: the detail is a word, not a link.
     await withAction(
@@ -691,22 +696,71 @@ async function deleteChatMessageImpl(messageId: string): Promise<ChangeChatResul
  * counts) write it, so another member's call is refused. The key names the card (`unfurlKey`); the database refuses anything but an address or a position.
  * An edit that fetches the preview again finds the mark by its address, so the card does not come back.
  */
-export type HideChatUnfurlResult = { ok: true; slack: SlackUnfurlRemoval } | { ok: false; error: string };
+export type HideChatUnfurlResult =
+  | { ok: true; slack: SlackUnfurlRemoval; /** Only when a block was asked for: whether the rule was saved. */ blocked?: boolean; /** Set when it was not: the card is removed all the same. */ blockError?: string }
+  | { ok: false; error: string };
 
-async function hideChatUnfurlImpl(messageId: string, key: string): Promise<HideChatUnfurlResult> {
+/**
+ * With a `scope` ("site", "path" or "link": lib/chat/link-preview-blocks.ts) the author also blocks previews like this one in the messages they
+ * write from then on. The rule is worked out here from the card's own address (the key), never from a host or path the browser sends, and
+ * it is the author's own, saved as themselves; it never touches another message's cards. The two writes are separate and say so: a card that
+ * could not be removed saves no rule ("nothing was blocked"), a rule that could not be saved leaves the card removed ("removed, but...").
+ * A card without an address (`idx:` key) has nothing to block.
+ */
+async function hideChatUnfurlImpl(messageId: string, key: string, scope?: BlockScope): Promise<HideChatUnfurlResult> {
   if (!isId(messageId, "msg") || typeof key !== "string" || key.length > 2100 || !/^(url:https?:\/\/\S+|idx:\d{1,2})$/.test(key)) return { ok: false, error: "Something went wrong." };
+  if (scope !== undefined && !isBlockScope(scope)) return { ok: false, error: "Something went wrong." };
+  const rule = scope ? blockFor(key.startsWith("url:") ? key.slice(4) : "", scope) : null;
+  if (scope && !rule) return { ok: false, error: "That preview can't be blocked." };
   const caller = await postingCaller();
   if (!caller) return { ok: false, error: "Editing isn't available to you yet." };
+  const repo = createRepos(await createClient()).chatLinkPreviews;
   try {
-    await createRepos(await createClient()).chatLinkPreviews.hide(messageId, key);
+    await repo.hide(messageId, key);
   } catch (error) {
     // Not the author, or the message is gone: the database says no. The key can hold an address, so only the message is named.
     console.error("[chat] removing a card of %s failed:", messageId, error instanceof Error ? error.message : "unknown error");
-    return { ok: false, error: "That preview can't be removed." };
+    return { ok: false, error: rule ? "That preview can't be removed, so nothing was blocked." : "That preview can't be removed." };
+  }
+  let blocked: { blocked: true } | { blocked: false; blockError: string } | null = null;
+  if (rule) {
+    try {
+      await repo.block(caller.identity.memberId, rule);
+      blocked = { blocked: true };
+    } catch (error) {
+      console.error("[chat] saving a preview block failed:", error instanceof Error ? error.message : "unknown error");
+      blocked = { blocked: false, blockError: "Removed, but we couldn't block this site. Try again from the next preview." };
+    }
   }
   // The Hub's own removal stands whatever Slack says. Service role: the author's token is looked up for them, never another member's.
   const slack = await removeSlackUnfurl(createServiceRoleClient(), { messageId, memberId: caller.identity.memberId, key });
-  return { ok: true, slack };
+  return { ok: true, slack, ...blocked };
+}
+
+/** The member lifts one of their own blocks (the list under Settings, Preferences). Only the caller's own can be removed, and only a well-formed rule is looked for. Messages already sent keep what they have. */
+export type UnblockChatPreviewsResult = { ok: true } | { ok: false; error: string };
+
+async function unblockChatPreviewsImpl(rule: PreviewBlock): Promise<UnblockChatPreviewsResult> {
+  const valid =
+    rule &&
+    isBlockScope(rule.scope) &&
+    typeof rule.host === "string" &&
+    (rule.pathPrefix === null || typeof rule.pathPrefix === "string") &&
+    (rule.url === null || typeof rule.url === "string") &&
+    rule.host.length <= 253 &&
+    (rule.pathPrefix ?? "").length <= 200 &&
+    (rule.url ?? "").length <= 2000;
+  if (!valid) return { ok: false, error: "Something went wrong." };
+  const caller = await postingCaller();
+  if (!caller) return { ok: false, error: "Changing this isn't available to you yet." };
+  try {
+    await createRepos(await createClient()).chatLinkPreviews.unblock(caller.identity.memberId, { scope: rule.scope, host: rule.host, pathPrefix: rule.pathPrefix, url: rule.url });
+  } catch (error) {
+    console.error("[chat] lifting a preview block failed:", error instanceof Error ? error.message : "unknown error");
+    return { ok: false, error: "That couldn't be changed. Try again." };
+  }
+  revalidatePath("/settings", "layout");
+  return { ok: true };
 }
 
 /** The author removes one attachment from their own Hub message: in Slack first, then the Hub's file list. */
@@ -747,6 +801,10 @@ export async function deleteChatMessage(...args: Parameters<typeof deleteChatMes
 
 export async function hideChatUnfurl(...args: Parameters<typeof hideChatUnfurlImpl>): ReturnType<typeof hideChatUnfurlImpl> {
   return withAction("chat_unfurl_hidden", () => hideChatUnfurlImpl(...args));
+}
+
+export async function unblockChatPreviews(...args: Parameters<typeof unblockChatPreviewsImpl>): ReturnType<typeof unblockChatPreviewsImpl> {
+  return withAction("chat_preview_unblocked", () => unblockChatPreviewsImpl(...args));
 }
 
 export async function deleteChatFile(...args: Parameters<typeof deleteChatFileImpl>): ReturnType<typeof deleteChatFileImpl> {

@@ -124,6 +124,23 @@ describe("link previews after a message is sent", () => {
     expect((await repos().chatLinkPreviews.forMessages([MESSAGE])).get(MESSAGE)!.map((p) => p.title)).toEqual(["Page /one", "Page /two"]);
   });
 
+  it("fetches nothing for a link the sender blocked, and keeps the other previews", async () => {
+    await repos().chatLinkPreviews.block("member-fern", { scope: "site", host: "example.test", pathPrefix: null, url: null });
+    await sendChatMessage(CHANNEL, "https://www.example.test/post and https://other.test/b");
+    await flushAfter();
+    expect(requested).toEqual(["https://other.test/b"]);
+    expect((await repos().chatLinkPreviews.forMessages([MESSAGE])).get(MESSAGE)!.map((p) => p.url)).toEqual(["https://other.test/b"]);
+  });
+
+  it("previews as before when the sender's blocks cannot be read", async () => {
+    repos().chatLinkPreviews.blocksOf = async () => {
+      throw new Error("db down");
+    };
+    await sendChatMessage(CHANNEL, "https://example.test/post");
+    await flushAfter();
+    expect(requested).toEqual(["https://example.test/post"]);
+  });
+
   it("does not let a failure while previewing reach the sender", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     m.hasFeature.mockRejectedValue(new Error("flags down"));

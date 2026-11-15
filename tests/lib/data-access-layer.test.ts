@@ -109,6 +109,8 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   // The preview cards of links in Hub-written messages (ChatLinkPreviewRepository, lib/data/chat-link-previews.ts): every query is moved.
   chat_link_previews: [],
   chat_hidden_unfurls: [],
+  // A member's blocked link previews (ChatLinkPreviewRepository too).
+  chat_preview_blocks: [],
   // Derived per-member stats (MemberRepository.deleteDerivedStats): the merge route's cleanup was the only direct query.
   member_metrics: [],
   member_engagement: [],
