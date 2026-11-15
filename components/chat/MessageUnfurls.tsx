@@ -1,9 +1,13 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { useState, type ReactNode } from "react";
 import RemoveUnfurlButton, { type RemovePlacement } from "@/components/chat/RemoveUnfurlButton";
 import UnfurlPicture from "@/components/chat/UnfurlPicture";
 import HubLinkCard from "@/components/chat/HubLinkCard";
 import SharedMessageCard from "@/components/chat/SharedMessageCard";
 import ChatText, { type ChatTextContext } from "@/components/chat/ChatText";
+import { DmButtonRow, DmNumberInput, DmScope, DmSelect } from "@/components/chat/DmControls";
+import { decodeEntities } from "@/lib/chat/render";
 import type { BlockImage, BlocksUnfurl, BlockText, CardUnfurl, LinkButton, Unfurl, UnfurlBlock } from "@/lib/chat/unfurls";
 
 /**
@@ -202,6 +206,19 @@ export const BLOCK_RENDERERS: { [K in UnfurlBlock["type"]]: BlockRenderer<Extrac
       ))}
     </div>
   ),
+  controls: (b, { permalink }) => <DmButtonRow blockId={b.blockId} items={b.items} permalink={permalink} />,
+  select: (b, { ctx, permalink }) => (
+    <div className="space-y-1.5">
+      {b.text && <Rich text={b.text} ctx={ctx} />}
+      <DmSelect blockId={b.blockId} actionId={b.actionId} placeholder={b.placeholder} groups={b.groups} selected={b.selected} label={b.text ? plainOf(b.text) : "Choose one"} permalink={permalink} />
+    </div>
+  ),
+  number_input: (b, { ctx, permalink }) => (
+    <div className="space-y-1.5">
+      <Rich text={b.label} ctx={ctx} />
+      <DmNumberInput blockId={b.blockId} actionId={b.actionId} placeholder={b.placeholder} min={b.min} label={plainOf(b.label)} permalink={permalink} />
+    </div>
+  ),
   unsupported: (_b, { permalink }) =>
     permalink ? (
       <p className="text-xs">
@@ -217,16 +234,38 @@ function renderBlock(block: UnfurlBlock, key: number, props: BlockProps): ReactN
   return <div key={key}>{render ? render(block, props) : BLOCK_RENDERERS.unsupported({ type: "unsupported", blockType: block.type }, props)}</div>;
 }
 
-function Blocks({ unfurl, ctx, permalink }: { unfurl: BlocksUnfurl } & BlockProps) {
-  return (
+/** A label as plain words for a control's accessible name: Slack's `*` and `_` marks and entities dropped. */
+function plainOf(text: BlockText): string {
+  return decodeEntities(text.mrkdwn ? text.text.replace(/[*_~]/g, "") : text.text).replace(/\s+/g, " ").trim().slice(0, 200);
+}
+
+/** Where a message of the viewer's own is, so its controls can answer (set only for their own direct message with the bot, never while acting as someone else). */
+export interface DmScopeProps {
+  channelId: string;
+  messageId: string;
+}
+
+function Blocks({ unfurl, ctx, permalink, dm }: { unfurl: BlocksUnfurl; dm?: DmScopeProps } & BlockProps) {
+  // What an answer returned stands in for the blocks until the message itself changes (the Slack copy coming back through the mirror).
+  const key = JSON.stringify(unfurl.blocks);
+  const [answered, setAnswered] = useState<{ from: string; unfurl: BlocksUnfurl } | null>(null);
+  const shown = answered && answered.from === key ? answered.unfurl : unfurl;
+  const body = (
     <div className="@container mt-1.5 max-w-2xl space-y-2 rounded border border-slate-200 dark:border-slate-700 p-3" data-testid="unfurl-blocks">
-      {unfurl.blocks.map((b, i) => renderBlock(b, i, { ctx, permalink }))}
+      {shown.blocks.map((b, i) => renderBlock(b, i, { ctx, permalink }))}
     </div>
+  );
+  return dm ? (
+    <DmScope channelId={dm.channelId} messageId={dm.messageId} onUpdated={(next) => setAnswered({ from: key, unfurl: next })}>
+      {body}
+    </DmScope>
+  ) : (
+    body
   );
 }
 
 /** The cards under a message, after its text and files. */
-export default function MessageUnfurls({ unfurls, ctx, permalink, removable, timeZone }: { unfurls: Unfurl[]; ctx: ChatTextContext; permalink: string | null; removable?: Removable; timeZone?: string }) {
+export default function MessageUnfurls({ unfurls, ctx, permalink, removable, timeZone, dm }: { unfurls: Unfurl[]; ctx: ChatTextContext; permalink: string | null; removable?: Removable; timeZone?: string; dm?: DmScopeProps }) {
   if (unfurls.length === 0) return null;
   return (
     <>
@@ -235,7 +274,7 @@ export default function MessageUnfurls({ unfurls, ctx, permalink, removable, tim
           case "card":
             return <Card key={i} card={u} ctx={ctx} removable={removable} />;
           case "blocks":
-            return <Blocks key={i} unfurl={u} ctx={ctx} permalink={permalink} />;
+            return <Blocks key={i} unfurl={u} ctx={ctx} permalink={permalink} dm={dm} />;
           case "hub":
             return <HubLinkCard key={i} unfurl={u} timeZone={timeZone} removable={removable} />;
           case "share":
