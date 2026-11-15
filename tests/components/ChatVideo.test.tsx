@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const setLessonComplete = vi.hoisted(() => vi.fn());
 vi.mock("@/app/(member)/courses/actions", () => ({ setLessonComplete }));
 vi.mock("@/components/courses/LessonPlayer", () => ({
-  default: function MockPlayer(props: { title: string; playbackId: string; lessonId?: string; chatMessageId?: string; resumeSeconds?: number; trackProgress?: boolean; autoPlay?: boolean; posterUrl?: string | null; muxData?: { needsConsent: boolean; optedOut: boolean } | null; overlay?: React.ReactNode }) {
+  default: function MockPlayer(props: { title: string; playbackId: string; lessonId?: string; chatMessageId?: string; resumeSeconds?: number; trackProgress?: boolean; autoPlay?: boolean; posterUrl?: string | null; surface?: string; muxData?: { needsConsent: boolean; optedOut: boolean } | null; overlay?: React.ReactNode }) {
     // The real player calls autoComplete once the playhead passes ~90% of the video; the test's button stands for that.
     const completion = useLessonCompletion();
     return (
@@ -20,6 +20,7 @@ vi.mock("@/components/courses/LessonPlayer", () => ({
         data-tracking={String(Boolean(props.trackProgress))}
         data-autoplay={String(Boolean(props.autoPlay))}
         data-poster={props.posterUrl ?? ""}
+        data-surface={props.surface}
         data-muxdata={props.muxData ? JSON.stringify(props.muxData) : ""}
       >
         {props.title}
@@ -163,6 +164,7 @@ describe("ChatVideo", () => {
     const { unmount } = render(<ChatVideo messageId={MESSAGE} />);
     await userEvent.click(await screen.findByRole("button", { name: /Play/ }));
     expect(await screen.findByTestId("player")).toHaveAttribute("data-muxdata", JSON.stringify({ needsConsent: true, optedOut: false }));
+    expect(screen.getByTestId("player")).toHaveAttribute("data-surface", "chat");
     unmount();
 
     answers({ status: 200, body: WATCHABLE }, { status: 200, body: PLAYBACK });

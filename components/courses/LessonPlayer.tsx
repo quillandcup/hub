@@ -8,7 +8,7 @@ import "@videojs/react/video/skin.css";
 import { track } from "@/lib/analytics/client";
 import { MuxData } from "@videojs/react/extensions/mux-data";
 import { useEventsAllowed } from "@/lib/analytics/use-events-allowed";
-import { muxDataMetadata, type MuxDataConsent } from "@/lib/mux-data";
+import { muxDataMetadata, type MuxDataConsent, type PlayerSurface } from "@/lib/mux-data";
 import { courseImageUrl } from "@/lib/courses/image-urls";
 import { describePlaybackError, shouldRefreshToken, type PlaybackErrorInfo } from "@/lib/courses/playback-refresh";
 import { MAX_SEGMENTS_PER_BATCH, RESUME_MAX_FRACTION, type WatchSegmentInput } from "@/lib/courses/watch";
@@ -146,8 +146,8 @@ function PlaybackReporter({
  * browser, so the player renders this only where usage statistics are allowed (`muxDataOn` in LessonPlayer).
  * Anonymous: no viewer id, no cookies. Renders nothing.
  */
-function MuxDataMonitor({ title }: { title: string }) {
-  const metadata = useMemo(() => muxDataMetadata(title), [title]);
+function MuxDataMonitor({ title, surface }: { title: string; surface: PlayerSurface }) {
+  const metadata = useMemo(() => muxDataMetadata(title, surface), [title, surface]);
   return <MuxData disableCookies metadata={metadata} playerSoftwareName="mux-video" />;
 }
 
@@ -484,6 +484,7 @@ export default function LessonPlayer({
   tokens: initialTokens,
   restricted,
   muxData,
+  surface = "course",
   posterUrl,
   lessonId,
   chatMessageId,
@@ -500,6 +501,8 @@ export default function LessonPlayer({
   restricted?: boolean;
   /** Present when Mux Data is on for this viewer (the `mux_data` flag); the player still waits for consent. Absent: no Mux Data. */
   muxData?: MuxDataConsent | null;
+  /** Where this player is shown: the name Mux Data lists its views under. */
+  surface?: PlayerSurface;
   /** The lesson's thumbnail; only http(s) is used. */
   posterUrl?: string | null;
   lessonId?: string;
@@ -564,7 +567,7 @@ export default function LessonPlayer({
           {onTime && <ReportTime onTime={onTime} />}
           {trackProgress && lessonId && <WatchTracker lessonId={lessonId} chatMessageId={chatMessageId} />}
           <BigPlayButton />
-          {muxDataOn && <MuxDataMonitor title={title} />}
+          {muxDataOn && <MuxDataMonitor title={title} surface={surface} />}
           <MuxVideo
             source={{
               playbackId,

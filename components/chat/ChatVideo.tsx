@@ -119,6 +119,7 @@ export default function ChatVideo({ messageId }: { messageId: string }) {
             tokens={state.tokens}
             restricted={state.restricted}
             muxData={state.muxData}
+            surface="chat"
             lessonId={state.lessonId}
             chatMessageId={messageId}
             resumeSeconds={state.resumeSeconds}
