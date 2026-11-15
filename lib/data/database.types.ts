@@ -2784,6 +2784,44 @@ export type Database = {
           },
         ]
       }
+      chat_preview_blocks: {
+        Row: {
+          created_at: string
+          host: string
+          id: string
+          member_id: string
+          path_prefix: string
+          scope: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          host: string
+          id?: string
+          member_id: string
+          path_prefix?: string
+          scope: string
+          url?: string
+        }
+        Update: {
+          created_at?: string
+          host?: string
+          id?: string
+          member_id?: string
+          path_prefix?: string
+          scope?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_preview_blocks_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chat_reactions: {
         Row: {
           channel_id: string

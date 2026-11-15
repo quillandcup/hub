@@ -10,6 +10,7 @@ import { getSlackUserToken, isDeadTokenError } from "@/lib/slack-connect";
 import { parseChatFiles } from "@/lib/chat/files";
 import { escapeForSlack } from "@/lib/chat/slack-escape";
 import { reportRefusedBlocks } from "@/lib/chat/blocks-refused";
+import { everyLinkBlocked } from "@/lib/chat/link-preview-blocks";
 import { bodyToBlocks, isInvalidBlocks, needsBlocks, stripUnderline } from "@/lib/chat/rich-blocks";
 import { sendChatFilesToSlack } from "@/lib/chat/slack-upload";
 import { sharedVideoSlackLine } from "@/lib/chat/video-link";
@@ -53,6 +54,15 @@ export async function slackMayUnfurlFor(supabase: SupabaseClient, memberId: stri
   }
 }
 
+async function blockedEverywhere(supabase: SupabaseClient, memberId: string, body: string): Promise<boolean> {
+  try {
+    return everyLinkBlocked(body, await createRepos(supabase as unknown as Db).chatLinkPreviews.blocksOf(memberId));
+  } catch (error) {
+    console.error("sendChatMessageToSlack: blocked previews lookup failed for member %s:", memberId, error instanceof Error ? error.message : error);
+    return false;
+  }
+}
+
 export type SendResult = "sent" | "skipped" | "failed";
 
 /**
@@ -88,11 +98,15 @@ export async function sendChatMessageToSlack(supabase: SupabaseClient, messageId
 
   // Everything the post needs, read at once: the thread root's ts and the member's Slack connection.
   const authorMemberId = row.authorMemberId;
-  const [root, connection, unfurl] = await Promise.all([
+  const [root, connection, mayUnfurl] = await Promise.all([
     row.threadRootId ? chat.slackTarget(row.threadRootId) : Promise.resolve(null),
     getSlackUserToken(supabase, authorMemberId),
     slackMayUnfurlFor(supabase, authorMemberId),
   ]);
+
+  // When the author blocked every link in the message, Slack has nothing to unfurl that they wanted. A message with some other link still
+  // unfurls as a whole (Slack has no per-link switch; docs/TODO.md, "Chat: Link Preview Blocks In Slack"). A failed lookup leaves the flag's answer.
+  const unfurl = mayUnfurl && !(await blockedEverywhere(supabase, authorMemberId, body));
 
   let threadTs: string | undefined;
   if (row.threadRootId) {

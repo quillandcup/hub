@@ -77,6 +77,24 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     ].join("\n\n"),
   },
   {
+    slug: "block-link-previews-in-hub-chat",
+    date: "2026-11-15",
+    audience: "product",
+    category: "improved",
+    title: "Choose which sites get a preview in Hub Chat",
+    summary: "When you remove a link preview from your message, you can also block previews from that website, from one part of it, or from just that link, in the messages you write from now on.",
+    body: [
+      "The X on a preview now asks \"Remove preview?\" before it goes. Leave the box ticked to also block previews like it, then pick how much to block.",
+      [
+        "- **A whole website, one part of it, or just that link.** You pick one of the three before you confirm.",
+        "- **Only your own messages, from now on.** Previews already in a conversation stay as they are, and other people's messages are not affected.",
+        "- **If every link in a message is blocked, Slack doesn't make a preview for it either.**",
+        "- **Change your mind any time** in Settings, under Preferences: your blocked sites are listed there, each with a button to stop blocking it.",
+        "- **Untick the box** to remove just that one preview, as before.",
+      ].join("\n"),
+    ].join("\n\n"),
+  },
+  {
     slug: "stripe-invoices-and-charges-in-bronze",
     date: "2026-11-13",
     audience: "engineering",

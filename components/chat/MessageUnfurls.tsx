@@ -74,7 +74,7 @@ function Card({ card, ctx, removable }: { card: CardUnfurl; ctx: ChatTextContext
   const track = card.hubPreview ? "chat-link-preview" : undefined;
   const removeButton = (placement: RemovePlacement) =>
     removable && card.removeKey ? (
-      <RemoveUnfurlButton channelId={removable.channelId} messageId={removable.messageId} removeKey={card.removeKey} source={card.hubPreview ? "hub" : "slack"} placement={placement} />
+      <RemoveUnfurlButton channelId={removable.channelId} messageId={removable.messageId} removeKey={card.removeKey} source={card.hubPreview ? "hub" : "slack"} placement={placement} blockable />
     ) : null;
   if (isPictureOnly(card)) {
     // A link straight to a picture is shown as just the picture, with the X on its corner (as Slack does).

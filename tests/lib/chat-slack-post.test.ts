@@ -146,6 +146,39 @@ describe("sendChatMessageToSlack", () => {
     expect(args).toMatchObject({ unfurl_links: true, unfurl_media: true });
   });
 
+  describe("links the author blocked", () => {
+    const fern = "member-fern";
+    const site = { scope: "site", host: "blocked.test", pathPrefix: null, url: null } as const;
+    const post = async (body: string) => {
+      dataset.chatMessageContents![0].body = body;
+      previewFlag.on = true;
+      await expect(sendChatMessageToSlack(supabase as never, ID)).resolves.toBe("sent");
+      return postMessage.mock.calls[0][0];
+    };
+
+    it("turns unfurling off when every link in the message is blocked", async () => {
+      await (repos.current as Repos).chatLinkPreviews.block(fern, site);
+      expect(await post("see https://blocked.test/a and https://www.blocked.test/b")).toMatchObject({ unfurl_links: false, unfurl_media: false });
+    });
+
+    it("leaves it on when some link is not blocked (Slack has no per-link switch), and when the message has no links", async () => {
+      await (repos.current as Repos).chatLinkPreviews.block(fern, site);
+      expect(await post("https://blocked.test/a and https://other.test/b")).toMatchObject({ unfurl_links: true });
+
+      postMessage.mockClear();
+      dataset.chatMessages.find((m) => m.id === ID)!.slack_sync_status = "pending";
+      expect(await post("no links")).toMatchObject({ unfurl_links: true });
+    });
+
+    it("leaves it as the flag says when the blocks cannot be read (the message still goes)", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      (repos.current as Repos).chatLinkPreviews.blocksOf = async () => {
+        throw new Error("db down");
+      };
+      expect(await post("https://blocked.test/a")).toMatchObject({ unfurl_links: true });
+    });
+  });
+
   it("keeps unfurling off when the flag is off, and when the flag lookup fails (the message still goes)", async () => {
     await sendChatMessageToSlack(supabase as never, ID);
     expect(postMessage.mock.calls[0][0]).toMatchObject({ unfurl_links: false, unfurl_media: false });
