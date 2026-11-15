@@ -3,6 +3,8 @@
 -- admin's dry run names everything the routine does. Each line carries its full count and up to 10 short labels
 -- (never a storage path, token or note text). Keep it in step with remove_member_data. Service role only.
 
+set lock_timeout = '5s';
+
 CREATE FUNCTION public.member_removal_extras(p_member_id text)
 RETURNS TABLE (item text, action text, row_count bigint, samples text[])
 LANGUAGE plpgsql
