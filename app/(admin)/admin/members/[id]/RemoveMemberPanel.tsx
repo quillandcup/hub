@@ -150,6 +150,42 @@ export default function RemoveMemberPanel({ member }: { member: { id: string; na
             </tbody>
           </table>
 
+          {preview.extras.length > 0 && (
+            <div className="space-y-1">
+              <h3 className="text-sm font-medium">Also removed</h3>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-slate-500 dark:text-slate-400">
+                    <th className="py-1 pr-3 font-medium">What</th>
+                    <th className="py-1 pr-3 font-medium">Count</th>
+                    <th className="py-1 font-medium">What happens</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.extras.map((extra) => (
+                    <tr key={extra.item} className="border-t border-slate-100 dark:border-slate-800 align-top">
+                      <td className="py-1 pr-3">
+                        {EXTRA_LABELS[extra.item] ?? extra.item.replace(/_/g, " ")}
+                        {extra.samples.length > 0 && (
+                          <ul className="list-disc pl-5 text-slate-600 dark:text-slate-400">
+                            {extra.samples.map((sample, index) => (
+                              <li key={`${sample}-${index}`}>{sample}</li>
+                            ))}
+                            {extra.count > extra.samples.length && !extra.item.startsWith("audit") && (
+                              <li>and {extra.count - extra.samples.length} more</li>
+                            )}
+                          </ul>
+                        )}
+                      </td>
+                      <td className="py-1 pr-3">{extra.count}</td>
+                      <td className="py-1">{EXTRA_ACTIONS[extra.action] ?? extra.action}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
           {needsAnswer && (
             <fieldset className="space-y-1 text-sm">
               <legend className="font-medium">
@@ -187,42 +223,6 @@ export default function RemoveMemberPanel({ member }: { member: { id: string; na
           >
             {pending ? "Removing…" : "Remove this member"}
           </button>
-
-          {preview.extras.length > 0 && (
-            <div className="space-y-1">
-              <h3 className="text-sm font-medium">Also removed</h3>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-slate-500 dark:text-slate-400">
-                    <th className="py-1 pr-3 font-medium">What</th>
-                    <th className="py-1 pr-3 font-medium">Count</th>
-                    <th className="py-1 font-medium">What happens</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {preview.extras.map((extra) => (
-                    <tr key={extra.item} className="border-t border-slate-100 dark:border-slate-800 align-top">
-                      <td className="py-1 pr-3">
-                        {EXTRA_LABELS[extra.item] ?? extra.item.replace(/_/g, " ")}
-                        {extra.samples.length > 0 && (
-                          <ul className="list-disc pl-5 text-slate-600 dark:text-slate-400">
-                            {extra.samples.map((sample, index) => (
-                              <li key={`${sample}-${index}`}>{sample}</li>
-                            ))}
-                            {extra.count > extra.samples.length && !extra.item.startsWith("audit") && (
-                              <li>and {extra.count - extra.samples.length} more</li>
-                            )}
-                          </ul>
-                        )}
-                      </td>
-                      <td className="py-1 pr-3">{extra.count}</td>
-                      <td className="py-1">{EXTRA_ACTIONS[extra.action] ?? extra.action}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
         </>
       )}
 

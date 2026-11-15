@@ -62,6 +62,10 @@ describe("RemoveMemberPanel", () => {
     expect(screen.getByText("Hiatus from 01 Mar 2026 (note)")).toBeTruthy();
     expect(screen.getByText("Text cleared, record stays")).toBeTruthy();
     expect(screen.getByText("member (3)")).toBeTruthy();
+    const order = (node: HTMLElement) => node.compareDocumentPosition(screen.getByRole("button", { name: "Remove this member" }));
+    expect(order(screen.getByText("Also removed")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(order(screen.getByText(/Their books and awards/)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText("Also removed").compareDocumentPosition(screen.getByText(/Their books and awards/)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("leaves the second section out when nothing else is removed", async () => {
