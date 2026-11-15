@@ -2,6 +2,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import "@testing-library/jest-dom/vitest";
 import MultiEntitySearch from "@/components/MultiEntitySearch";
 import MultiMemberSearch from "@/components/MultiMemberSearch";
 import MultiSelectSearch from "@/components/MultiSelectSearch";
@@ -44,6 +45,26 @@ describe("MultiEntitySearch", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("draws the list on the page body, outside an overflow-hidden parent, and follows the input on scroll", async () => {
+    render(
+      <div data-testid="clip" style={{ overflow: "hidden" }}>
+        <MultiEntitySearch items={[{ id: "a", name: "Alder" }]} selectedIds={[]} onChange={() => {}} placeholder="find" />
+      </div>
+    );
+    const input = screen.getByPlaceholderText("find");
+    let bottom = 100;
+    input.getBoundingClientRect = () => ({ bottom, left: 20, width: 300 }) as DOMRect;
+    await userEvent.type(input, "al");
+    const list = (await screen.findByRole("button", { name: /Alder/ })).parentElement as HTMLElement;
+    expect(screen.getByTestId("clip")).not.toContainElement(list);
+    expect(list.parentElement).toBe(document.body);
+    expect(list).toHaveAttribute("data-entity-search-list");
+    expect(list).toHaveStyle({ top: "104px", left: "20px", width: "300px" });
+    bottom = 150;
+    fireEvent.scroll(window);
+    expect(list).toHaveStyle({ top: "154px" });
   });
 
   it("removes a chip", async () => {

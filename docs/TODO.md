@@ -1651,7 +1651,7 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 ### Portal the remaining pickers' lists _(Needs Scheduling)_
 
-`EntitySearch` now draws its result list on `<body>` so a modal's `overflow-hidden` can't clip it (`docs/Z_LAYERS.md`, "Pickers inside a modal"). The other lists that open under a field are still positioned in place and clip the same way when they sit in a modal or a scrolling panel with `overflow-hidden`: `MultiEntitySearch`, the hand-written dropdown in `UnmatchedEventsTable`, `MemberSlackSearchForm`, `BuilderOutline`'s Add content menu, `VideoActions`, `AddToCalendar`. Deferred because each needs its own outside-click and keyboard handling checked. Start by moving the placing and portal logic out of `EntitySearch` (`useBelow`) into a shared hook or component in `components/`, then check each one inside a modal.
+`EntitySearch` now draws its result list on `<body>` so a modal's `overflow-hidden` can't clip it (`docs/Z_LAYERS.md`, "Pickers inside a modal"). The other lists that open under a field are still positioned in place and clip the same way when they sit in a modal or a scrolling panel with `overflow-hidden`: the hand-written dropdown in `UnmatchedEventsTable`, `MemberSlackSearchForm`, `BuilderOutline`'s Add content menu, `VideoActions`, `AddToCalendar`. Deferred because each needs its own outside-click and keyboard handling checked. **Resolved:** `MultiEntitySearch` is portaled too, and the placing logic is the shared `useBelow` hook (`lib/hooks/useBelow.ts`). **Still open:** the rest above; reuse `useBelow` and check each one inside a modal.
 
 ### Lesson editor: image in the text, and the thumbnail's "Image actions" menu _(Needs Scheduling)_
 
