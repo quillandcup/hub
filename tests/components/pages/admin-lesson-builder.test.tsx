@@ -27,8 +27,8 @@ vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }
 const signPlaybackTokens = vi.fn();
 vi.mock("@/lib/mux", () => ({ createMuxClient: () => ({}), signPlaybackTokens: (...a: unknown[]) => signPlaybackTokens(...a) }));
 vi.mock("@/components/courses/LessonPlayer", () => ({
-  default: (props: { title: string; playbackId: string; posterUrl?: string | null; trackProgress?: boolean; muxData?: unknown }) => (
-    <div data-testid="player" data-muxdata={props.muxData ? JSON.stringify(props.muxData) : ""} data-playback={props.playbackId} data-poster={props.posterUrl ?? ""} data-tracking={String(!!props.trackProgress)} />
+  default: (props: { title: string; playbackId: string; posterUrl?: string | null; trackProgress?: boolean; muxData?: unknown; surface?: string }) => (
+    <div data-testid="player" data-surface={props.surface} data-muxdata={props.muxData ? JSON.stringify(props.muxData) : ""} data-playback={props.playbackId} data-poster={props.posterUrl ?? ""} data-tracking={String(!!props.trackProgress)} />
   ),
 }));
 
@@ -238,6 +238,7 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     await renderServerPage(AdminLessonPage, params);
     expect(muxDataConsentFor).toHaveBeenCalledWith("admin-1", expect.objectContaining({ memberId: "mbr_AAAAAAAAAAA1" }));
     expect(screen.getByTestId("player")).toHaveAttribute("data-muxdata", JSON.stringify({ needsConsent: false, optedOut: false }));
+    expect(screen.getByTestId("player")).toHaveAttribute("data-surface", "builder");
   });
 
   it("offers no Mux Data to an admin with no member record", async () => {

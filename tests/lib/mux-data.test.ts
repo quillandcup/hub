@@ -14,7 +14,9 @@ import { eventsNeedConsent } from "@/lib/analytics/consent";
 
 describe("muxDataMetadata", () => {
   it("is the lesson title and the player name, nothing about a person", () => {
-    expect(muxDataMetadata("Voice")).toEqual({ video_title: "Voice", player_name: "Hub lesson player" });
+    expect(muxDataMetadata("Voice")).toEqual({ video_title: "Voice", player_name: "Hub Course player" });
+    expect(muxDataMetadata("Voice", "builder").player_name).toBe("Hub Course Builder player");
+    expect(muxDataMetadata("Voice", "chat").player_name).toBe("Hub Chat player");
     expect(Object.keys(muxDataMetadata("x")).some((k) => /viewer|user|email|member|name$/.test(k) && k !== "player_name")).toBe(false);
   });
 });

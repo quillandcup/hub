@@ -50,7 +50,7 @@ export default function LessonMediaPanel({
   return (
     <div>
       {/* No watch tracking: this is an admin looking at the lesson, not a viewing. */}
-      <LessonPlayer title={title} playbackId={playbackId} tokens={tokens} muxData={muxData} posterUrl={posterUrl} lessonId={lessonId ?? undefined} onTime={setSeconds} />
+      <LessonPlayer title={title} playbackId={playbackId} tokens={tokens} muxData={muxData} surface="builder" posterUrl={posterUrl} lessonId={lessonId ?? undefined} onTime={setSeconds} />
       <div className="mt-3">
         {frameThumbnail ? (
           <LessonVideoControls
