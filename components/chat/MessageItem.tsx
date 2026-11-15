@@ -170,6 +170,8 @@ export default function MessageItem({
             ctx={ctx}
             permalink={message.slackPermalink ?? null}
             timeZone={timeZone}
+            // The controls of a bot's DM answer for the viewer only where they may write (not while acting as someone else); the server checks it is their own DM with the bot.
+            dm={canEdit && !message.authorMemberId && !isPendingId(message.id) ? { channelId, messageId: message.id } : undefined}
             removable={canEdit && message.mine && !message.system && !isPendingId(message.id) ? { channelId, messageId: message.id } : undefined}
           />
         )}

@@ -1,4 +1,5 @@
 import { decodeEntities, isSafeHref } from "@/lib/chat/render";
+import { isDmActionId } from "@/lib/chat/dm-controls";
 import type { HubLink } from "@/lib/chat/hub-links";
 import { parseSharedMessage, type SharedMessage, type SharedMessageSource } from "@/lib/chat/shared-message";
 
@@ -7,7 +8,9 @@ import { parseSharedMessage, type SharedMessage, type SharedMessageSource } from
  *  - legacy `attachments`: the preview Slack makes of a pasted link (title, text, picture, site) and what apps post with
  *    a colored bar and fields;
  *  - Block Kit `blocks` of a message an app posted (a deploy notice, a calendar bot), a small subset: header, section,
- *    context, divider, image and link buttons. Anything else becomes one "Open in Slack" link.
+ *    context, divider, image and link buttons. Anything else becomes one "Open in Slack" link. The one exception is our own
+ *    bot's check-in and check-out DMs: their buttons, selects and number inputs are parsed as controls (lib/chat/dm-controls.ts
+ *    lists the action ids) that components/chat/DmControls.tsx makes work.
  *
  * Both come from jsonb written from Slack's payloads, so everything here is read defensively: unknown shapes are
  * dropped, every address must be http(s) (images https), text is capped, and the lists are short. Slack text stays in
@@ -74,6 +77,27 @@ export interface LinkButton {
   url: string;
 }
 
+/** A button that does something when pressed (one of our DMs' action ids), not a link. */
+export interface PressButton {
+  label: string;
+  actionId: string;
+  value: string;
+  style: "primary" | "danger" | null;
+}
+
+export type ControlItem = { kind: "link"; button: LinkButton } | { kind: "press"; button: PressButton };
+
+export interface SelectOption {
+  value: string;
+  label: string;
+}
+
+/** A heading and its options; a select without groups has one group with no label. */
+export interface SelectGroup {
+  label: string | null;
+  options: SelectOption[];
+}
+
 export interface BlockImage {
   url: string;
   alt: string;
@@ -89,6 +113,12 @@ export type UnfurlBlock =
   | { type: "divider" }
   | { type: "image"; image: BlockImage; title: string | null }
   | { type: "actions"; buttons: LinkButton[] }
+  /** A row of buttons of one of our DMs (scale points, Submit, Skip), with any link buttons beside them. `blockId` says which question it answers. */
+  | { type: "controls"; blockId: string; items: ControlItem[] }
+  /** A question of one of our DMs answered from a list (a section with a select beside it). `selected` is the saved option's value. */
+  | { type: "select"; blockId: string; text: BlockText | null; actionId: string; placeholder: string | null; groups: SelectGroup[]; selected: string | null }
+  /** A fill-in number of one of our DMs, sent on Enter. */
+  | { type: "number_input"; blockId: string; actionId: string; label: BlockText; placeholder: string | null; min: number | null }
   /** A block type we don't draw (yet): the card offers "Open in Slack" instead. */
   | { type: "unsupported"; blockType: string };
 
@@ -226,6 +256,57 @@ function linkButton(v: unknown): LinkButton | null {
   return url && label ? { label: label.text, url } : null;
 }
 
+const MAX_SELECT_OPTIONS = 100;
+
+function blockIdOf(b: Record<string, unknown>): string | null {
+  return str(b.block_id, 255);
+}
+
+/** A `button` of one of our DMs: it has an action id we know and a value to send. */
+function pressButton(v: unknown): PressButton | null {
+  if (!isObject(v) || v.type !== "button" || !isDmActionId(v.action_id) || typeof v.value !== "string") return null;
+  const label = textObject(v.text, 75);
+  const value = str(v.value, 300);
+  if (!label || !value) return null;
+  return { label: label.text, actionId: v.action_id, value, style: v.style === "primary" || v.style === "danger" ? v.style : null };
+}
+
+function selectOption(v: unknown): SelectOption | null {
+  if (!isObject(v)) return null;
+  const label = textObject(v.text, 150);
+  const value = str(v.value, 150);
+  return label && value ? { label: label.text, value } : null;
+}
+
+/** A `static_select` of one of our DMs, with its options (flat or grouped) and the saved pick. */
+function dmSelect(accessory: Record<string, unknown>): { actionId: string; placeholder: string | null; groups: SelectGroup[]; selected: string | null } | null {
+  if (accessory.type !== "static_select" || !isDmActionId(accessory.action_id)) return null;
+  let groups: SelectGroup[] = [];
+  if (Array.isArray(accessory.option_groups)) {
+    for (const g of accessory.option_groups.slice(0, 30)) {
+      if (!isObject(g)) continue;
+      const options = (Array.isArray(g.options) ? g.options.slice(0, MAX_SELECT_OPTIONS) : []).flatMap((o) => selectOption(o) ?? []);
+      if (options.length > 0) groups.push({ label: textObject(g.label, 75)?.text ?? null, options });
+    }
+  } else if (Array.isArray(accessory.options)) {
+    const options = accessory.options.slice(0, MAX_SELECT_OPTIONS).flatMap((o) => selectOption(o) ?? []);
+    if (options.length > 0) groups.push({ label: null, options });
+  }
+  let total = 0;
+  groups = groups.map((g) => {
+    const options = g.options.slice(0, Math.max(0, MAX_SELECT_OPTIONS - total));
+    total += options.length;
+    return { ...g, options };
+  }).filter((g) => g.options.length > 0);
+  if (groups.length === 0) return null;
+  return {
+    actionId: accessory.action_id as string,
+    placeholder: textObject(accessory.placeholder, 150)?.text ?? null,
+    groups,
+    selected: selectOption(accessory.initial_option)?.value ?? null,
+  };
+}
+
 type BlockParser = (b: Record<string, unknown>) => UnfurlBlock | null;
 
 /** One parser per Block Kit block type. A type missing here is `unsupported`. */
@@ -239,6 +320,9 @@ export const BLOCK_PARSERS: Record<string, BlockParser> = {
     const fields = Array.isArray(b.fields) ? b.fields.slice(0, MAX_FIELDS).flatMap((f) => textObject(f, 1000) ?? []) : [];
     const accessory = isObject(b.accessory) ? b.accessory : null;
     const image = accessory?.type === "image" ? imageOf(accessory.image_url, accessory.alt_text) : null;
+    const select = accessory ? dmSelect(accessory) : null;
+    const blockId = blockIdOf(b);
+    if (select && blockId) return { type: "select", blockId, text, ...select };
     const button = accessory ? linkButton(accessory) : null;
     return text || fields.length > 0 || image || button ? { type: "section", text, fields, image, button } : null;
   },
@@ -261,8 +345,25 @@ export const BLOCK_PARSERS: Record<string, BlockParser> = {
     const image = imageOf(b.image_url, b.alt_text);
     return image ? { type: "image", image, title: textObject(b.title, 200)?.text ?? null } : null;
   },
+  input: (b) => {
+    const element = isObject(b.element) ? b.element : null;
+    const blockId = blockIdOf(b);
+    const label = textObject(b.label, 300);
+    if (!element || element.type !== "number_input" || !isDmActionId(element.action_id) || !blockId || !label) return { type: "unsupported", blockType: "input" };
+    const min = typeof element.min_value === "string" && element.min_value.trim() !== "" && Number.isFinite(Number(element.min_value)) ? Number(element.min_value) : null;
+    return { type: "number_input", blockId, actionId: element.action_id, label, placeholder: textObject(element.placeholder, 100)?.text ?? null, min };
+  },
   actions: (b) => {
-    const buttons = (Array.isArray(b.elements) ? b.elements.slice(0, 25) : []).flatMap((e) => linkButton(e) ?? []);
+    const elements = Array.isArray(b.elements) ? b.elements.slice(0, 25) : [];
+    const items = elements.flatMap((e): ControlItem[] => {
+      const press = pressButton(e);
+      if (press) return [{ kind: "press", button: press }];
+      const link = linkButton(e);
+      return link ? [{ kind: "link", button: link }] : [];
+    });
+    const blockId = blockIdOf(b);
+    if (blockId && items.some((i) => i.kind === "press")) return { type: "controls", blockId, items: items.slice(0, 10) };
+    const buttons = elements.flatMap((e) => linkButton(e) ?? []);
     // A row with no link button (a menu, a button that only sends something back to the app) can't work here.
     return buttons.length > 0 ? { type: "actions", buttons: buttons.slice(0, 5) } : { type: "unsupported", blockType: "actions" };
   },
@@ -356,7 +457,11 @@ export function unfurlTexts(unfurls: Unfurl[]): string[] {
       add(parseSharedMessage(u.attachment)?.text);
     } else if (u.kind === "blocks") {
       for (const b of u.blocks) {
-        if (b.type === "section") {
+        if (b.type === "select") {
+          add(b.text);
+        } else if (b.type === "number_input") {
+          add(b.label);
+        } else if (b.type === "section") {
           add(b.text);
           b.fields.forEach(add);
         } else if (b.type === "context") {

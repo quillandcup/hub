@@ -1340,6 +1340,13 @@ The entries `mark-unread-in-hub-chat`, `chat-new-messages-banner`, `chat-jump-to
 
 The "N new messages" pill (`components/chat/NewMessagesBanner.tsx`) only covers the unread above the reader when they open a conversation. A message that arrives live while the reader has scrolled up waits silently (it does not change the pill's count, on purpose). Slack shows a "Jump to latest" pill for that. Deferred to keep the first pill small; start in `MessageList` (scroll position vs. the bottom) and `ChatLive`, which already knows when the reader is at the bottom.
 
+### Check-in DM controls in chat: follow-ups _(Needs Scheduling)_
+
+Billie Bot's check-in and check-out controls work in Hub chat (`components/chat/DmControls.tsx`, `lib/chat/dm-controls-press.ts`, shared handlers in `lib/prickle-dm-interactions.ts`). Still open:
+- **Fast double answers.** A press rewrites the Slack message from the blocks the Hub has stored; if a second answer comes before the Slack copy has come back through the mirror, it is written onto the older blocks and the first highlight can briefly revert in Slack (the saved answers are right). Read the current blocks from Bronze (`SlackMessageRepository.rawPayload`) or serialize presses per message.
+- **The feeling list** is `EntitySearch`: the core feeling is the second line, there are no group headings, and the list before typing shows 50 options. A grouped variant of the picker would match Slack's list.
+- **Not verified in a real browser**: the Chrome extension could not attach to localhost in the session that built this; checked in component tests only. Compare the bold, link and context sizes with Slack on a real DM.
+
 ### Full Block Kit, proxied pictures and interactivity in chat _(Needs Scheduling)_
 
 The first pass (`lib/chat/unfurls.ts`, `components/chat/MessageUnfurls.tsx`) draws legacy attachments (link previews, app cards) and a small Block Kit subset (header, section, context, divider, image, link buttons), and shows one "Open in Slack" link for any other block. Deferred, worth doing when members ask for it or a common app's cards read badly:

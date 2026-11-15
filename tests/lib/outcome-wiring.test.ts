@@ -32,6 +32,7 @@ const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]
   [() => import("@/app/(member)/courses/actions"), "app/(member)/courses/actions.ts", [["setLessonComplete", "lesson_completion_saved"], ["clearMyLessonProgress", "lesson_progress_cleared"]]],
   [() => import("@/app/(member)/chat/actions"), "app/(member)/chat/actions.ts", [["sendChatMessage", "chat_message_sent"], ["toggleChatReaction", "chat_reaction_toggled"], ["retryChatMessage", "chat_message_retried"], ["markChatUnread", "chat_message_marked_unread"]]],
   [() => import("@/app/(member)/chat/notify-actions"), "app/(member)/chat/notify-actions.ts", [["setChatNotifySetting", "chat_notify_setting_set"]]],
+  [() => import("@/app/(member)/chat/dm-controls-actions"), "app/(member)/chat/dm-controls-actions.ts", [["pressChatDmControl", "chat_dm_control_pressed"]]],
   [() => import("@/app/(member)/chat/dm-actions"), "app/(member)/chat/dm-actions.ts", [["startDirectMessage", "chat_dm_started"]]],
   [() => import("@/app/(member)/chat/membership-actions"), "app/(member)/chat/membership-actions.ts", [["addChatMembers", "chat_members_added"], ["joinChatChannel", "chat_channel_joined"], ["removeChatMember", "chat_member_removed"]]],
   [() => import("@/app/(member)/big-sisters/actions"), "app/(member)/big-sisters/actions.ts", [["setBigSisterAvailability", "big_sister_availability_set"], ["saveReasonNote", "big_sister_note_saved"]]],

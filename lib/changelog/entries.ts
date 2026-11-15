@@ -65,6 +65,18 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     body: "Playback failures used to be visible only as our own alerts, which say that a video failed but not why. Mux Data adds the player's own view: start time, rebuffering, errors and watch time per view, with the page it happened on.\n\nThe one player (`LessonPlayer`) takes a `surface` (`PlayerSurface` in `lib/mux-data.ts`), and each reports under its own name in the Mux dashboard: Hub Course player, Hub Course Builder player and Hub Chat player. A new place that plays a lesson video passes the viewer's consent facts from `muxDataConsentFor` and its own surface.\n\nIt is anonymous (no member id, name or email; cookies off), and it follows the usage-statistics consent: the banner's Accept where one is needed, never after \"Leave me out of statistics\", never in sudo. It ran behind a flag while it was checked against production, and is now on for everyone; there is no switch. Detail and the consent rule: `docs/MUX_CONFIG.md`, \"Mux Data\".",
   },
   {
+    slug: "answer-check-ins-in-hub-chat",
+    date: "2026-11-15",
+    audience: "product",
+    category: "new",
+    title: "Answer your check-in and check-out right in Hub chat",
+    summary: "When Billie Bot sends you a check-in or check-out, you can now answer it in Hub chat, the same way you do in Slack. Your answers are saved to your check-in and show up in Slack too.",
+    body: [
+      "Billie Bot's check-in and check-out messages now work in Hub chat. Pick a number on the scales, choose a feeling from the list, say what you need, type how much you wrote and press Enter, then tap Submit or Skip.",
+      "It does the same thing as the buttons in Slack: your answers go to your check-in for that prickle, and the message in Slack updates to match. Links in these messages, and bold titles, now look the way they do in Slack.",
+    ].join("\n\n"),
+  },
+  {
     slug: "stripe-invoices-and-charges-in-bronze",
     date: "2026-11-13",
     audience: "engineering",
