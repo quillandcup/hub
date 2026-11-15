@@ -499,7 +499,7 @@ export default function LessonPlayer({
   tokens: PlaybackTokens;
   /** Whether the video token carries the referrer restriction (recorded with a playback error). */
   restricted?: boolean;
-  /** Present when Mux Data is on for this viewer (the `mux_data` flag); the player still waits for consent. Absent: no Mux Data. */
+  /** Present for everyone but sudo; the player still waits for consent. Absent: no Mux Data. */
   muxData?: MuxDataConsent | null;
   /** Where this player is shown: the name Mux Data lists its views under. */
   surface?: PlayerSurface;

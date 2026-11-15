@@ -2,9 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const headerValues = vi.hoisted(() => ({ country: null as string | null }));
 vi.mock("next/headers", () => ({ headers: async () => new Headers(headerValues.country ? { "x-vercel-ip-country": headerValues.country } : {}) }));
-const own = vi.hoisted(() => vi.fn());
-const effective = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: own, effectiveMemberHasFeature: effective }));
 const optedOut = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/analytics/opt-out", () => ({ isAnalyticsOptedOut: optedOut }));
 
@@ -37,25 +34,17 @@ describe("eventsNeedConsent", () => {
 describe("muxDataConsentFor", () => {
   const member = { memberId: "mbr_AAAAAAAAAAA1", isSudo: false };
   beforeEach(() => {
-    own.mockReset().mockResolvedValue(["mux_data"]);
-    effective.mockReset().mockResolvedValue(true);
     optedOut.mockReset().mockResolvedValue(false);
     headerValues.country = "US";
     vi.stubEnv("NODE_ENV", "production");
   });
 
-  it("is null without the flag, for the effective viewer", async () => {
-    effective.mockResolvedValue(false);
-    expect(await muxDataConsentFor("u1", member)).toBeNull();
-    expect(effective).toHaveBeenCalledWith("mux_data", member, ["mux_data"]);
-  });
-
-  it("is null in sudo, whatever the flag says", async () => {
+  it("is null in sudo", async () => {
     expect(await muxDataConsentFor("u1", { ...member, isSudo: true })).toBeNull();
-    expect(own).not.toHaveBeenCalled();
+    expect(optedOut).not.toHaveBeenCalled();
   });
 
-  it("hands over the consent facts when the flag is on", async () => {
+  it("hands over the consent facts for everyone else, no flag needed", async () => {
     headerValues.country = "FR";
     optedOut.mockResolvedValue(true);
     expect(await muxDataConsentFor("u1", member)).toEqual({ needsConsent: true, optedOut: true });

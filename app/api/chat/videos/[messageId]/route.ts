@@ -109,7 +109,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
   if (!video || video.status !== "ready" || !video.mux_playback_id) return notFound();
 
   const restrictionId = await restrictionIdForViewer(caller.userId, caller.identity);
-  // Mux Data (the `mux_data` flag), as on the lesson page: null for no Mux Data; the player still waits for consent.
+  // Mux Data, as on the lesson page: null in sudo; the player still waits for consent.
   const muxData = await muxDataConsentFor(caller.userId, caller.identity);
   try {
     const tokens = await signPlaybackTokens(createMuxClient(), video.mux_playback_id, undefined, restrictionId);

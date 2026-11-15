@@ -96,7 +96,7 @@ A click on "Save" says someone tried. `action_completed` says whether it worked:
 
 ## Mux Data (playback quality) is consent-gated
 
-The course player can report playback quality to Mux Data (`mux_data` flag, `docs/MUX_CONFIG.md`, "Mux Data"). Unlike the course viewing data below, it goes to a third party and carries the viewer's **IP address and user agent** (Mux derives location, browser and device from them), so it follows the usage-statistics rule above: it starts only where the banner's Accept is given when one is needed, and never when the member has left themselves out of statistics. It is anonymous by construction (no viewer id, name, email or member id; cookies off), and sends the lesson title and Mux's playback id. It is never started in sudo. The `/privacy` page lists it under "How well course videos play" and among the services.
+The course player can report playback quality to Mux Data (`docs/MUX_CONFIG.md`, "Mux Data"). Unlike the course viewing data below, it goes to a third party and carries the viewer's **IP address and user agent** (Mux derives location, browser and device from them), so it follows the usage-statistics rule above: it starts only where the banner's Accept is given when one is needed, and never when the member has left themselves out of statistics. It is anonymous by construction (no viewer id, name, email or member id; cookies off), and sends the lesson title and Mux's playback id. It is never started in sudo. The `/privacy` page lists it under "How well course videos play" and among the services.
 
 ## Course viewing data is not analytics events
 
