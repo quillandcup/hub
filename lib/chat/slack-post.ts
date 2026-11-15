@@ -135,8 +135,9 @@ export async function sendChatMessageToSlack(supabase: SupabaseClient, messageId
         // An underline or a list has no mrkdwn, so a message with one goes as rich-text blocks (its text, minus the underline, is the fallback).
         ...(blocks ? { blocks: bodyToBlocks(body, { plain: true }) } : {}),
         thread_ts: threadTs,
-        unfurl_links: unfurl,
-        unfurl_media: unfurl,
+        // The links we add to a shared video can only be previewed as the sign-in page, so such a message goes without previews.
+        unfurl_links: unfurl && !videoLine,
+        unfurl_media: unfurl && !videoLine,
         metadata: hubMessageMetadata(messageId),
       });
     // The links are part of the text, so a shared video goes as plain text even when the words would otherwise need blocks.
