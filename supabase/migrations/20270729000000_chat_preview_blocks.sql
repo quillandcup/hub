@@ -44,3 +44,7 @@ CREATE POLICY "Members remove their own preview blocks" ON public.chat_preview_b
 REVOKE ALL ON public.chat_preview_blocks FROM anon, authenticated;
 GRANT SELECT, INSERT, DELETE ON public.chat_preview_blocks TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.chat_preview_blocks TO service_role;
+
+-- Erasing a member removes their blocked previews (the member_data_handling test requires a decision per member foreign key).
+INSERT INTO public.member_data_handling (table_name, column_name, action, why) VALUES
+  ('chat_preview_blocks', 'member_id', 'delete', 'their own list of sites whose link previews they blocked');
