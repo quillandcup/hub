@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useBlurDelay } from "@/lib/hooks/useBlurDelay";
 import { useComboboxKeys } from "@/lib/hooks/useComboboxKeys";
 
@@ -83,6 +84,30 @@ function useRemoteResults(search: RemoteSearch | undefined, term: string, deboun
 }
 
 /**
+ * Where the list goes: under the input, in the window's coordinates. The list is drawn on `<body>`, not
+ * inside the picker, so a modal's `overflow-hidden` or a scrolling panel can't cut it off; it follows the
+ * input while the page scrolls or resizes.
+ */
+function useBelow(element: React.RefObject<HTMLElement | null>, active: boolean) {
+  const [box, setBox] = useState<{ top: number; left: number; width: number } | null>(null);
+  useLayoutEffect(() => {
+    if (!active) return;
+    const place = () => {
+      const r = element.current?.getBoundingClientRect();
+      if (r) setBox({ top: r.bottom + 4, left: r.left, width: r.width });
+    };
+    place();
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => {
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [element, active]);
+  return box;
+}
+
+/**
  * Reusable single-select search/autocomplete: shows the selection with a clear button, or a
  * search input with a dropdown of matches, navigable with the arrow keys, Enter and Escape.
  * Matches come from `items` filtered in the browser, or from `search` on the server.
@@ -133,6 +158,7 @@ export default function EntitySearch({
   const empty = !!emptyText && !!term && matches.length === 0 && !failed && !(search && remote.loading);
   const showList = matches.length > 0 && !failed;
   const showDropdown = isFocused && (showList || loading || failed || empty);
+  const below = useBelow(inputRef, showDropdown);
 
   function handleSelect(item: SearchItem | null) {
     onSelect(item);
@@ -195,11 +221,13 @@ export default function EntitySearch({
         {...combobox.inputProps(isFocused && showList)}
         className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded text-sm text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-plum-500"
       />
-      {showDropdown && (
-        // No text recorded by analytics: the options are often people.
+      {showDropdown && below && createPortal(
+        // No text recorded by analytics: the options are often people. On `<body>`, over a modal if the picker is in one.
         <div
           data-track-no-text
-          className="absolute z-dropdown w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+          data-entity-search-list
+          style={{ top: below.top, left: below.left, width: below.width }}
+          className="fixed z-overlay bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto"
         >
           {loading ? (
             <div className="px-3 py-2 text-sm text-slate-600 dark:text-slate-400" role="status">
@@ -229,7 +257,8 @@ export default function EntitySearch({
               ))}
             </ul>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

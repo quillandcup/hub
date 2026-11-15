@@ -27,7 +27,8 @@ const things = {
   dayDivider: ["components/chat/MessageList.tsx", /role="separator"[^>]*sticky top-0 z-([\w-]+)/],
   newMessagesBar: ["components/chat/NewMessagesBanner.tsx", /sticky top-12 z-([\w-]+)/],
   appHeader: ["components/AppHeader.tsx", /<header[^>]*relative z-([\w-]+)/],
-  contentDropdown: ["components/EntitySearch.tsx", /absolute z-([\w-]+) w-full mt-1/],
+  contentDropdown: ["components/chat/MessageBox.tsx", /absolute bottom-full left-0 z-([\w-]+) mb-1 max-h-56/],
+  pickerList: ["components/EntitySearch.tsx", /fixed z-([\w-]+) bg-white dark:bg-slate-800 border/],
   railOpen: ["components/MemberNavigation.tsx", /railOpen \? "z-([\w-]+)" : "z-[\w-]+"/],
   railClosed: ["components/MemberNavigation.tsx", /railOpen \? "z-[\w-]+" : "z-([\w-]+)"/],
   adminRailOpen: ["app/(admin)/admin/AdminNavigation.tsx", /railOpen \? "z-([\w-]+)" : "z-[\w-]+"/],
@@ -66,5 +67,6 @@ describe("z-layers of things that overlap", () => {
 
   it("keeps a menu that opens from inside a modal at least as high as the modal", () => {
     expect(value("actionMenu")).toBeGreaterThanOrEqual(value("modal"));
+    expect(value("pickerList")).toBeGreaterThanOrEqual(value("modal"));
   });
 });

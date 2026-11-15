@@ -21,6 +21,25 @@ describe("EntitySearch", () => {
     expect(onSelect).toHaveBeenCalledWith(ITEMS[1]);
   });
 
+  it("draws the list on the page body, so a modal's overflow-hidden can't cut it off, and follows the input on scroll", async () => {
+    render(
+      <div data-testid="clip" style={{ overflow: "hidden" }}>
+        <EntitySearch items={ITEMS} selectedId={null} onSelect={vi.fn()} placeholder="Search" />
+      </div>
+    );
+    const input = screen.getByPlaceholderText("Search");
+    let bottom = 100;
+    input.getBoundingClientRect = () => ({ bottom, left: 20, width: 300 }) as DOMRect;
+    await userEvent.type(input, "bramble");
+    const list = (await screen.findByRole("listbox")).parentElement as HTMLElement;
+    expect(screen.getByTestId("clip")).not.toContainElement(list);
+    expect(list.parentElement).toBe(document.body);
+    expect(list).toHaveStyle({ top: "104px", left: "20px", width: "300px" });
+    bottom = 150;
+    fireEvent.scroll(window);
+    expect(list).toHaveStyle({ top: "154px" });
+  });
+
   it("lists everything on focus with browse, and still filters as you type", async () => {
     const onSelect = vi.fn();
     render(<EntitySearch items={ITEMS} browse selectedId={null} onSelect={onSelect} placeholder="Search" />);
