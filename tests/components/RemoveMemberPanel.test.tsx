@@ -20,6 +20,12 @@ const preview = {
     { table: "prickle_attendance", column: "member_id", action: "repoint", why: "w", count: 40 },
   ],
   liveBooks: 1,
+  extras: [
+    { item: "auth_user", action: "delete", count: 1, samples: [] },
+    { item: "media_files", action: "delete", count: 12, samples: ["image: Cover one", "image: Cover two"] },
+    { item: "hiatus_notes", action: "clear", count: 1, samples: ["Hiatus from 01 Mar 2026 (note)"] },
+    { item: "audit_entries", action: "delete", count: 3, samples: ["member (3)"] },
+  ],
 };
 
 beforeEach(() => {
@@ -40,9 +46,30 @@ describe("RemoveMemberPanel", () => {
     expect(screen.queryByText("Remove this member")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: /see what would be removed/i }));
     expect(await screen.findByText("writing projects")).toBeTruthy();
-    expect(screen.getByText("Deleted")).toBeTruthy();
+    expect(screen.getAllByText("Deleted").length).toBeGreaterThan(0);
     expect(screen.getByText("Kept, without their name")).toBeTruthy();
     expect(previewRemoval).toHaveBeenCalledWith(member.id);
+  });
+
+  it("says up front that the imports are untouched, and names everything else that goes", async () => {
+    render(<RemoveMemberPanel member={member} />);
+    expect(screen.getByText(/imports from Kajabi, Stripe, Zoom and Slack are not touched/i)).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: /see what would be removed/i }));
+    expect(await screen.findByText("Also removed")).toBeTruthy();
+    expect(screen.getByText("Sign-in account")).toBeTruthy();
+    expect(screen.getByText("image: Cover one")).toBeTruthy();
+    expect(screen.getByText("and 10 more")).toBeTruthy();
+    expect(screen.getByText("Hiatus from 01 Mar 2026 (note)")).toBeTruthy();
+    expect(screen.getByText("Text cleared, record stays")).toBeTruthy();
+    expect(screen.getByText("member (3)")).toBeTruthy();
+  });
+
+  it("leaves the second section out when nothing else is removed", async () => {
+    previewRemoval.mockResolvedValue({ preview: { ...preview, extras: [] } });
+    render(<RemoveMemberPanel member={member} />);
+    await userEvent.click(screen.getByRole("button", { name: /see what would be removed/i }));
+    await screen.findByText("writing projects");
+    expect(screen.queryByText("Also removed")).toBeNull();
   });
 
   it("needs the member's answer about their books and the typed name before it can remove", async () => {
@@ -101,7 +128,7 @@ describe("RemoveMemberPanel", () => {
   });
 
   it("asks nothing about books for a member with none", async () => {
-    previewRemoval.mockResolvedValue({ preview: { rows: [], liveBooks: 0 } });
+    previewRemoval.mockResolvedValue({ preview: { rows: [], extras: [], liveBooks: 0 } });
     render(<RemoveMemberPanel member={member} />);
     await userEvent.click(screen.getByRole("button", { name: /see what would be removed/i }));
     await userEvent.type(await screen.findByRole("textbox"), "Ada Example");

@@ -13,6 +13,29 @@ const ACTION_LABELS: Record<string, string> = {
   keep: "Kept",
 };
 
+const EXTRA_LABELS: Record<string, string> = {
+  auth_user: "Sign-in account",
+  user_profiles: "Account profile",
+  slack_identities: "Slack sign-in link",
+  user_feature_previews: "Feature previews",
+  access_events: "Page-view log",
+  analytics_events: "Usage events",
+  media_files: "Stored images and files",
+  feedback_screenshots: "Feedback screenshots",
+  mentorship_notes: "Mentorship outcome notes",
+  hiatus_notes: "Hiatus notes and reasons",
+  enrolment_notes: "Enrolment notes",
+  feedback_details: "Feedback browser details",
+  audit_entries: "Audit-log entries about them",
+  audit_mentions: "Other audit-log entries that name them",
+};
+
+const EXTRA_ACTIONS: Record<string, string> = {
+  delete: "Deleted",
+  clear: "Text cleared, record stays",
+  replace: "Name and email replaced with \u201cFormer member\u201d",
+};
+
 /**
  * "Remove this member on their request", at the bottom of the member page. A dry run first (what each kind of record
  * would do), the member's answer about their books on the bookshelf, and their name typed to confirm. Irreversible
@@ -85,6 +108,10 @@ export default function RemoveMemberPanel({ member }: { member: { id: string; na
           For when this member has asked us to delete their data. It can&apos;t be undone. If they want something truly deleted rather than anonymised, that has to happen first: afterwards nothing can tell us which records were theirs.
         </p>
       </div>
+
+      <p className="text-sm text-slate-600 dark:text-slate-400">
+        Copies in the imports from Kajabi, Stripe, Zoom and Slack are not touched: remove them at the source, or the next import brings the person back.
+      </p>
 
       {preview === null ? (
         <button
@@ -160,6 +187,42 @@ export default function RemoveMemberPanel({ member }: { member: { id: string; na
           >
             {pending ? "Removing…" : "Remove this member"}
           </button>
+
+          {preview.extras.length > 0 && (
+            <div className="space-y-1">
+              <h3 className="text-sm font-medium">Also removed</h3>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-slate-500 dark:text-slate-400">
+                    <th className="py-1 pr-3 font-medium">What</th>
+                    <th className="py-1 pr-3 font-medium">Count</th>
+                    <th className="py-1 font-medium">What happens</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.extras.map((extra) => (
+                    <tr key={extra.item} className="border-t border-slate-100 dark:border-slate-800 align-top">
+                      <td className="py-1 pr-3">
+                        {EXTRA_LABELS[extra.item] ?? extra.item.replace(/_/g, " ")}
+                        {extra.samples.length > 0 && (
+                          <ul className="list-disc pl-5 text-slate-600 dark:text-slate-400">
+                            {extra.samples.map((sample, index) => (
+                              <li key={`${sample}-${index}`}>{sample}</li>
+                            ))}
+                            {extra.count > extra.samples.length && !extra.item.startsWith("audit") && (
+                              <li>and {extra.count - extra.samples.length} more</li>
+                            )}
+                          </ul>
+                        )}
+                      </td>
+                      <td className="py-1 pr-3">{extra.count}</td>
+                      <td className="py-1">{EXTRA_ACTIONS[extra.action] ?? extra.action}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </>
       )}
 
