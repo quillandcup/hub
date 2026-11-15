@@ -2730,4 +2730,13 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "Days follow your own time zone setting. Looking back this way does not mark the conversation as read.",
     ].join("\n\n"),
   },
+  {
+    slug: "chat-apps-section",
+    date: "2026-11-15",
+    audience: "product",
+    category: "improved",
+    title: "Apps have their own spot in the chat list",
+    summary: "In Hub Chat, your messages with apps like Billie Bot now sit under Apps, away from the people you talk to, as in Slack.",
+    body: "Your chat list now has an Apps heading under Direct messages. A conversation with an app shows under the app's name instead of a plain \"Direct message\", so the list under Direct messages is only people.",
+  },
 ];
