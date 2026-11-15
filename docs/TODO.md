@@ -1637,6 +1637,10 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 ## UI Enhancements
 
+### Portal the remaining pickers' lists _(Needs Scheduling)_
+
+`EntitySearch` now draws its result list on `<body>` so a modal's `overflow-hidden` can't clip it (`docs/Z_LAYERS.md`, "Pickers inside a modal"). The other lists that open under a field are still positioned in place and clip the same way when they sit in a modal or a scrolling panel with `overflow-hidden`: `MultiEntitySearch`, the hand-written dropdown in `UnmatchedEventsTable`, `MemberSlackSearchForm`, `BuilderOutline`'s Add content menu, `VideoActions`, `AddToCalendar`. Deferred because each needs its own outside-click and keyboard handling checked. Start by moving the placing and portal logic out of `EntitySearch` (`useBelow`) into a shared hook or component in `components/`, then check each one inside a modal.
+
 ### Lesson editor: image in the text, and the thumbnail's "Image actions" menu _(Needs Scheduling)_
 
 The Hub lesson editor (`app/(admin)/admin/courses/[id]/lessons/[lessonId]/`) now has a fuller text toolbar (text style, bold, italic, underline, strike, lists, quote, link, undo and redo), and its text saves with the page's Save. Still open: (1) inserting an image from the media library into the lesson text (the editor keeps images a lesson already has, but the toolbar can't add one; start from `components/media/MediaPicker.tsx` and the `Image` extension in `LessonTextEditor.tsx`, and check the lesson allowlist in `lib/courses/sanitize.ts` and how the image would be served to members); (2) the Lesson thumbnail card still shows `MediaPicker`'s own Change / Adjust crop / Remove buttons instead of one "Image actions" `ActionMenu` like Kajabi, because `MediaPicker` is shared by many screens and needs a variant prop first; (3) the lesson text editor is its own TipTap setup, not the Hub Chat message box (`components/chat/MessageBox.tsx`), which is built for short messages with mentions and emoji; unify them if a shared rich-text core is wanted.

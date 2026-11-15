@@ -20,3 +20,5 @@ Rules:
 - Need a new layer? Add it to the scale in `tailwind.config.ts` (and this table), not a one-off number.
 
 **Pairs that overlap.** `tests/lib/z-layer-pairs.test.ts` lists things that meet on screen and which must win (the hover toolbar over the day divider, the header over the page's dropdowns, a modal over the header, the search palette over a modal...). It reads each side's layer from the component's real class. When two things overlap wrongly in the browser, fix the layer and add the pair there.
+
+**Pickers inside a modal.** `EntitySearch`'s result list is drawn on `<body>` (`createPortal`, `fixed`, placed under the input and following it on scroll) at `z-overlay`, because a modal's `overflow-hidden` cut an in-place list off at the dialog's edge. Code that closes on an outside click must treat `[data-entity-search-list]` as inside (see `NewMessagePicker`). `MultiEntitySearch` and the other in-place lists still clip in a modal (`docs/TODO.md`, "Portal the remaining pickers' lists").
