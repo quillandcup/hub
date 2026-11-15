@@ -290,15 +290,16 @@ export function blocksAreCards(blocks: unknown, opts: { bot: boolean; body: stri
  * `unfurls` without Slack's own preview of the lesson a message already shows as a video card: a message sharing a lesson that was left as a
  * plain link in Slack (it has files, so it was not rewritten) would otherwise show the card and Slack's picture of the same page.
  */
-export function withoutLessonPreview(unfurls: Unfurl[], lessonId: string | undefined): Unfurl[] {
+export function withoutLessonPreview(unfurls: Unfurl[], lessonId: string | undefined, messageId?: string): Unfurl[] {
   if (!lessonId) return unfurls;
-  const marker = `/lessons/${lessonId}`;
+  const markers = [`/lessons/${lessonId}`, ...(messageId ? [`?m=${messageId}`, `?thread=${messageId}`] : [])];
   // Slack follows the redirect a signed-out fetch gets, so its card can be of `/login?next=<lesson>`: the written link is `originalUrl`, and the lesson may only be in the encoded `next`.
   const names = (link: string | null | undefined) => {
     if (!link) return false;
-    if (link.includes(marker)) return true;
+    const has = (text: string) => markers.some((marker) => text.includes(marker));
+    if (has(link)) return true;
     try {
-      return decodeURIComponent(link).includes(marker);
+      return has(decodeURIComponent(link));
     } catch {
       return false;
     }

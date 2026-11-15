@@ -173,6 +173,17 @@ describe("sendChatMessageToSlack", () => {
     expect(args.blocks).toBeUndefined();
   });
 
+  it("posts a shared video without link previews even for a sender who has them: Slack could only preview the sign-in page", async () => {
+    previewFlag.on = true;
+    dataset.courses.push({ id: "crs_AAAAAAAAAAA1", slug: "ready-writer" } as never);
+    dataset.courseLessons.push({ id: "les_AAAAAAAAAAA1", course_id: "crs_AAAAAAAAAAA1" } as never);
+    dataset.chatMessageVideos.push({ id: "cmv_AAAAAAAAAAA1", message_id: ID, lesson_id: "les_AAAAAAAAAAA1", open_to_channel: false, start_seconds: null, created_at: "2026-10-10T11:00:00Z" });
+
+    await sendChatMessageToSlack(supabase as never, ID);
+
+    expect(postMessage.mock.calls[0][0]).toMatchObject({ unfurl_links: false, unfurl_media: false });
+  });
+
   it("links a shared video posted as a thread reply by its own permalink (the page opens the thread)", async () => {
     dataset.chatMessages.find((m) => m.id === ID)!.thread_root_id = ROOT_ID;
     dataset.chatMessageVideos.push({ id: "cmv_AAAAAAAAAAA1", message_id: ID, lesson_id: "les_AAAAAAAAAAA9", open_to_channel: false, start_seconds: null, created_at: "2026-10-10T11:00:00Z" });
