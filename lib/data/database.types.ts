@@ -7596,6 +7596,13 @@ export type Database = {
         Args: { p_message_id: string }
         Returns: undefined
       }
+      chat_dm_apps: {
+        Args: { p_member: string }
+        Returns: {
+          channel_id: string
+          name: string
+        }[]
+      }
       chat_dm_counterparts: {
         Args: { p_member: string }
         Returns: {
