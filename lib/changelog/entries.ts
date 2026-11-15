@@ -56,6 +56,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "course-video-playback-quality-in-mux-data",
+    date: "2026-11-15",
+    audience: "engineering",
+    category: "new",
+    title: "Playback quality of course videos is measured in Mux Data, for the lesson page, chat and the course builder",
+    summary: "Every place that plays a course video now reports how it played (start time, buffering, errors) to Mux Data, under a player name per place, so a failing video can be told apart from a wrong setting.",
+    body: "Playback failures used to be visible only as our own alerts, which say that a video failed but not why. Mux Data adds the player's own view: start time, rebuffering, errors and watch time per view, with the page it happened on.\n\nThe one player (`LessonPlayer`) takes a `surface` (`PlayerSurface` in `lib/mux-data.ts`), and each reports under its own name in the Mux dashboard: Hub Course player, Hub Course Builder player and Hub Chat player. A new place that plays a lesson video passes the viewer's consent facts from `muxDataConsentFor` and its own surface.\n\nIt is anonymous (no member id, name or email; cookies off), and it follows the usage-statistics consent: the banner's Accept where one is needed, never after \"Leave me out of statistics\", never in sudo. It ran behind a flag while it was checked against production, and is now on for everyone; there is no switch. Detail and the consent rule: `docs/MUX_CONFIG.md`, \"Mux Data\".",
+  },
+  {
     slug: "stripe-invoices-and-charges-in-bronze",
     date: "2026-11-13",
     audience: "engineering",
