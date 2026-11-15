@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useBelow } from "@/lib/hooks/useBelow";
 import { useBlurDelay } from "@/lib/hooks/useBlurDelay";
 import type { SearchItem } from "@/components/EntitySearch";
 
@@ -51,6 +53,8 @@ export default function MultiEntitySearch({
     : [];
 
   const showDropdown = isFocused && matches.length > 0;
+  const inputRef = useRef<HTMLInputElement>(null);
+  const below = useBelow(inputRef, showDropdown);
 
   function add(id: string) {
     onChange([...selectedIds, id]);
@@ -97,6 +101,7 @@ export default function MultiEntitySearch({
       )}
       <div className="relative">
         <input
+          ref={inputRef}
           type="text"
           placeholder={placeholder}
           value={searchTerm}
@@ -105,8 +110,12 @@ export default function MultiEntitySearch({
           onBlur={onBlur}
           className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded text-sm text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-plum-500"
         />
-        {showDropdown && (
-          <div className="absolute z-dropdown w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+        {showDropdown && below && createPortal(
+          <div
+            data-track-no-text
+            data-entity-search-list
+            style={{ top: below.top, left: below.left, width: below.width }}
+            className="fixed z-overlay bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
             {matches.map((item) => (
               <button data-track="multi-entity-search-pick"
                 key={item.id}
@@ -118,7 +127,8 @@ export default function MultiEntitySearch({
                 {item.detail && <div className="text-xs text-gray-600 dark:text-slate-400">{item.detail}</div>}
               </button>
             ))}
-          </div>
+          </div>,
+          document.body
         )}
       </div>
     </div>
