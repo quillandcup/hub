@@ -293,7 +293,17 @@ export function blocksAreCards(blocks: unknown, opts: { bot: boolean; body: stri
 export function withoutLessonPreview(unfurls: Unfurl[], lessonId: string | undefined): Unfurl[] {
   if (!lessonId) return unfurls;
   const marker = `/lessons/${lessonId}`;
-  return unfurls.filter((u) => !(u.kind === "card" && [u.titleLink, u.fromUrl].some((link) => link?.includes(marker))));
+  // Slack follows the redirect a signed-out fetch gets, so its card can be of `/login?next=<lesson>`: the written link is `originalUrl`, and the lesson may only be in the encoded `next`.
+  const names = (link: string | null | undefined) => {
+    if (!link) return false;
+    if (link.includes(marker)) return true;
+    try {
+      return decodeURIComponent(link).includes(marker);
+    } catch {
+      return false;
+    }
+  };
+  return unfurls.filter((u) => !(u.kind === "card" && [u.titleLink, u.fromUrl, u.originalUrl].some(names)));
 }
 
 /** Everything under a message that is not its text. */
