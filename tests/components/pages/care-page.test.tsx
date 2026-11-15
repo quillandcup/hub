@@ -864,7 +864,7 @@ describe("handing a care plan over: it takes two", () => {
     await user.click(within(ada).getByRole("button", { name: "Hand over to…" }));
     expect(within(ada).getByText(/They are asked to accept it. The care plan stays yours until they do./)).toBeInTheDocument();
     await user.click(within(ada).getByRole("combobox", { name: "Hand it over to" }));
-    await user.click(await within(ada).findByRole("option", { name: /Abe Admin/ }));
+    await user.click(await screen.findByRole("option", { name: /Abe Admin/ }));
 
     expect(actions.proposeCareHandover).toHaveBeenCalledWith("care_AAAAAAAAAAA2", OWNER_B);
     expect(track).toHaveBeenCalledWith("care_handover_proposed", {});
@@ -878,7 +878,7 @@ describe("handing a care plan over: it takes two", () => {
 
     await user.click(within(ada).getByRole("button", { name: "Hand over to…" }));
     await user.click(within(ada).getByRole("combobox", { name: "Hand it over to" }));
-    await user.click(await within(ada).findByRole("option", { name: /Abe Admin/ }));
+    await user.click(await screen.findByRole("option", { name: /Abe Admin/ }));
 
     expect(await within(ada).findByRole("alert")).toHaveTextContent("Pick someone on the team who looks after care plans.");
     expect(track).not.toHaveBeenCalledWith("care_handover_proposed", {});
@@ -890,8 +890,8 @@ describe("handing a care plan over: it takes two", () => {
 
     await user.click(within(ada).getByRole("button", { name: "Hand over to…" }));
     await user.click(within(ada).getByRole("combobox", { name: "Hand it over to" }));
-    expect(await within(ada).findByRole("option", { name: /Abe Admin/ })).toBeInTheDocument();
-    expect(within(ada).queryByRole("option", { name: /Cam Manager/ })).not.toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: /Abe Admin/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Cam Manager/ })).not.toBeInTheDocument();
     expect(actions.proposeCareHandover).not.toHaveBeenCalled();
   });
 
