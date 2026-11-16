@@ -24,7 +24,7 @@ const layer = (file: string, pattern: RegExp): string => {
 
 const things = {
   chatToolbar: ["components/chat/MessageActions.tsx", /absolute -top-3 right-2 z-([\w-]+)/],
-  dayDivider: ["components/chat/MessageList.tsx", /role="separator"[^>]*sticky top-0 z-([\w-]+)/],
+  dayDivider: ["components/chat/MessageList.tsx", /<div className="sticky top-0 z-([\w-]+)/],
   newMessagesBar: ["components/chat/NewMessagesBanner.tsx", /sticky top-12 z-([\w-]+)/],
   appHeader: ["components/AppHeader.tsx", /<header[^>]*relative z-([\w-]+)/],
   contentDropdown: ["components/chat/MessageBox.tsx", /absolute bottom-full left-0 z-([\w-]+) mb-1 max-h-56/],

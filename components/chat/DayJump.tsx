@@ -40,7 +40,7 @@ export default function DayJump({ channelId, label, timeZone }: { channelId: str
   return (
     <>
       <ActionMenu
-        label={`Jump to... (${label})`}
+        label={`${label}, jump to another day`}
         heading="Jump to..."
         items={items}
         triggerClassName="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
