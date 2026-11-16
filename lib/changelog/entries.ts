@@ -56,6 +56,22 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "checkin-dm-closes-on-answer",
+    date: "2026-11-16",
+    audience: "engineering",
+    category: "improved",
+    title: "A check-in answered in the Hub closes its Slack DM and clears the unread badge",
+    summary: "When a member answers or skips a check-in or check-out in the Hub, the bot's Slack message collapses to the closed note, and for members who connected Slack it is marked read as them.",
+    body: `Answering a prickle check-in or check-out in the Hub used to leave the bot's Slack message live, with stale answers and an unread badge.
+
+- **Remember the message.** When a check-in or check-out DM is sent, the channel adapter now returns where the message landed, and the sender keeps it on the DM's dedup log row. \`notifier.send\` takes an \`onReceipt\` callback for this; any feature that edits its own Slack message later can use it the same way.
+- **One function closes it.** \`closeCheckinDms\` runs after the response from every Hub path that answers or dismisses a half. It collapses the DM with the bot token, then, for members whose Slack connection has the DM scopes, moves their read marker to that message (never backward). It is idempotent, production only, and a Slack failure is logged and never costs the answer.
+- **Slack's own buttons are untouched.** Submit and Skip in Slack already collapse the message, so they don't call it.
+- **Old DMs are skipped.** Ones sent before the message was kept have nothing to find; the live path never searches history.
+
+Detail: "Read state shared with Slack" in \`docs/SLACK_BRIDGED_CHAT.md\`.`,
+  },
+  {
     slug: "lesson-comments-moderation",
     date: "2026-11-16",
     audience: "engineering",

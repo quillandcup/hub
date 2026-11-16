@@ -9,6 +9,7 @@ vi.mock("@/lib/auth", () => ({ getCurrentUser: vi.fn() }));
 vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: vi.fn() }));
 vi.mock("@/lib/timezone", () => ({ getUserTimezonePreference: vi.fn().mockResolvedValue("UTC") }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("@/lib/prickle-checkin-dm-close", () => ({ closeCheckinDmsAfterResponse: vi.fn() }));
 // Attendance comes from its repository; the other tables are still faked below.
 let repos = createInMemoryRepos();
 vi.mock("@/lib/data/repos", async () => ({
@@ -29,6 +30,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
+import { closeCheckinDmsAfterResponse } from "@/lib/prickle-checkin-dm-close";
 import { EMPTY_CHECKIN } from "@/lib/prickle-checkins";
 import { aPrickle } from "../helpers/prickle-fixture";
 
@@ -259,6 +261,8 @@ describe("dismissUnloggedPrickle", () => {
     expect(await repos.prickleActivity.dismissedAmong("checkout", "member-1", ["p1"])).toEqual(new Set(["p1"]));
     expect(await repos.prickleActivity.dismissedAmong("checkin", "member-1", ["p1"])).toEqual(new Set());
     expect(revalidatePath).toHaveBeenCalledWith("/dashboard");
+    // The check-out's Slack DM closes too.
+    expect(closeCheckinDmsAfterResponse).toHaveBeenCalledWith({ memberId: "member-1", prickleId: "p1", halves: ["checkout"] });
   });
 
   it("reports a database error", async () => {
@@ -267,6 +271,7 @@ describe("dismissUnloggedPrickle", () => {
     useClient();
     vi.spyOn(console, "error").mockImplementation(() => {});
     expect(await dismissUnloggedPrickle("p1")).toEqual({ error: "Couldn't dismiss that prickle — please try again." });
+    expect(closeCheckinDmsAfterResponse).not.toHaveBeenCalled();
   });
 
   it("rejects a missing prickle id", async () => {

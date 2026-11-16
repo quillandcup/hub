@@ -6,7 +6,7 @@ import { emailChannel } from "./email";
 import { webPushChannel } from "./web-push";
 
 export { CHANNELS, isChannelId, type ChannelId } from "./catalog";
-export type { ChannelAdapter, OutboundMessage, SendContext } from "./types";
+export type { ChannelAdapter, ChannelReceipt, OutboundMessage, SendContext } from "./types";
 
 /** Adding a channel: add it to CHANNELS (catalog.ts), implement its adapter, register it here. */
 export const CHANNEL_ADAPTERS: Record<ChannelId, ChannelAdapter> = {
