@@ -151,7 +151,7 @@ export default async function AdminLessonPage({ params }: Params) {
   const { course, lesson, hub } = detail;
   // The "paste in chat" links in Video actions, once the chat videos feature is on for this admin (their own account, never the sudo'd member).
   const chatShare = (await getUserFeaturePreviews(user.id)).includes("chat_videos");
-  // Mux Data for this admin's views (the `mux_data` flag, never in sudo); an admin with no member record has none.
+  // Mux Data for this admin's views (never in sudo); an admin with no member record has none.
   const identity = await getEffectiveIdentity(user);
   const muxData = identity ? await muxDataConsentFor(user.id, identity) : null;
   const media = await lessonMedia(detail, chatShare, muxData);

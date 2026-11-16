@@ -2227,7 +2227,6 @@ export type Database = {
       }
       care_engagements: {
         Row: {
-          channel: string
           closed_at: string | null
           created_at: string
           deleted_at: string | null
@@ -2251,7 +2250,6 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          channel?: string
           closed_at?: string | null
           created_at?: string
           deleted_at?: string | null
@@ -2275,7 +2273,6 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          channel?: string
           closed_at?: string | null
           created_at?: string
           deleted_at?: string | null
@@ -2676,6 +2673,7 @@ export type Database = {
           lesson_id: string
           message_id: string
           open_to_channel: boolean
+          start_seconds: number | null
         }
         Insert: {
           created_at?: string
@@ -2683,6 +2681,7 @@ export type Database = {
           lesson_id: string
           message_id: string
           open_to_channel?: boolean
+          start_seconds?: number | null
         }
         Update: {
           created_at?: string
@@ -2690,6 +2689,7 @@ export type Database = {
           lesson_id?: string
           message_id?: string
           open_to_channel?: boolean
+          start_seconds?: number | null
         }
         Relationships: [
           {
@@ -2780,6 +2780,44 @@ export type Database = {
             columns: ["thread_root_id"]
             isOneToOne: false
             referencedRelation: "chat_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_preview_blocks: {
+        Row: {
+          created_at: string
+          host: string
+          id: string
+          member_id: string
+          path_prefix: string
+          scope: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          host: string
+          id?: string
+          member_id: string
+          path_prefix?: string
+          scope: string
+          url?: string
+        }
+        Update: {
+          created_at?: string
+          host?: string
+          id?: string
+          member_id?: string
+          path_prefix?: string
+          scope?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_preview_blocks_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
             referencedColumns: ["id"]
           },
         ]
@@ -7214,7 +7252,6 @@ export type Database = {
       accept_care_handover: {
         Args: { p_id: string }
         Returns: {
-          channel: string
           closed_at: string | null
           created_at: string
           deleted_at: string | null
@@ -7531,7 +7568,6 @@ export type Database = {
       cancel_care_handover: {
         Args: { p_id: string }
         Returns: {
-          channel: string
           closed_at: string | null
           created_at: string
           deleted_at: string | null
@@ -7598,6 +7634,13 @@ export type Database = {
         Args: { p_message_id: string }
         Returns: undefined
       }
+      chat_dm_apps: {
+        Args: { p_member: string }
+        Returns: {
+          channel_id: string
+          name: string
+        }[]
+      }
       chat_dm_counterparts: {
         Args: { p_member: string }
         Returns: {
@@ -7653,16 +7696,28 @@ export type Database = {
             }
             Returns: string
           }
-      chat_post_shared_video: {
-        Args: {
-          p_body: string
-          p_channel_id: string
-          p_lesson_id: string
-          p_open_to_channel: boolean
-          p_thread_root_id: string
-        }
-        Returns: string
-      }
+      chat_post_shared_video:
+        | {
+            Args: {
+              p_body: string
+              p_channel_id: string
+              p_lesson_id: string
+              p_open_to_channel: boolean
+              p_thread_root_id: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_body: string
+              p_channel_id: string
+              p_lesson_id: string
+              p_open_to_channel: boolean
+              p_start_seconds: number
+              p_thread_root_id: string
+            }
+            Returns: string
+          }
       chat_set_notify_setting: {
         Args: { p_channel_id: string; p_setting: string }
         Returns: undefined
@@ -7695,7 +7750,6 @@ export type Database = {
       claim_care_plan: {
         Args: { p_id: string }
         Returns: {
-          channel: string
           closed_at: string | null
           created_at: string
           deleted_at: string | null
@@ -7777,7 +7831,6 @@ export type Database = {
       decline_care_handover: {
         Args: { p_id: string }
         Returns: {
-          channel: string
           closed_at: string | null
           created_at: string
           deleted_at: string | null
@@ -8023,6 +8076,15 @@ export type Database = {
           table_name: string
         }[]
       }
+      member_removal_extras: {
+        Args: { p_member_id: string }
+        Returns: {
+          action: string
+          item: string
+          row_count: number
+          samples: string[]
+        }[]
+      }
       member_slack_channels: {
         Args: { p_member_id: string }
         Returns: {
@@ -8130,7 +8192,6 @@ export type Database = {
       propose_care_handover: {
         Args: { p_id: string; p_to: string }
         Returns: {
-          channel: string
           closed_at: string | null
           created_at: string
           deleted_at: string | null
@@ -8185,7 +8246,6 @@ export type Database = {
           p_period_ends_on: string
         }
         Returns: {
-          channel: string
           closed_at: string | null
           created_at: string
           deleted_at: string | null

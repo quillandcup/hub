@@ -16,6 +16,8 @@ interface CardInfo {
   /** The lesson's page, when this viewer has the course. */
   lessonHref: string | null;
   canWatch: boolean | null;
+  /** The second the shared link starts the video at, when it asked for one. */
+  startSeconds: number | null;
 }
 
 type State =
@@ -53,7 +55,15 @@ function CompleteNote() {
   );
 }
 
-const NO_INFO: CardInfo = { title: null, courseTitle: null, thumbnailUrl: null, lessonHref: null, canWatch: null };
+/** 95 -> "1:35", 3725 -> "1:02:05". */
+function formatClock(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = String(seconds % 60).padStart(2, "0");
+  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${s}` : `${m}:${s}`;
+}
+
+const NO_INFO: CardInfo = { title: null, courseTitle: null, thumbnailUrl: null, lessonHref: null, canWatch: null, startSeconds: null };
 
 /**
  * A course lesson's video shared in a message. The card shows the lesson's thumbnail, title and course as soon as it appears (one light
@@ -73,7 +83,7 @@ export default function ChatVideo({ messageId }: { messageId: string }) {
     fetch(`/api/chat/videos/${messageId}`)
       .then(async (res) => (res.ok ? ((await res.json()) as Partial<CardInfo>) : null))
       .then((info) => {
-        if (alive && info) setCard({ title: info.title ?? null, courseTitle: info.courseTitle ?? null, thumbnailUrl: info.thumbnailUrl ?? null, lessonHref: info.lessonHref ?? null, canWatch: typeof info.canWatch === "boolean" ? info.canWatch : null });
+        if (alive && info) setCard({ title: info.title ?? null, courseTitle: info.courseTitle ?? null, thumbnailUrl: info.thumbnailUrl ?? null, lessonHref: info.lessonHref ?? null, canWatch: typeof info.canWatch === "boolean" ? info.canWatch : null, startSeconds: typeof info.startSeconds === "number" ? info.startSeconds : null });
       })
       .catch(() => {});
     return () => {
@@ -109,6 +119,7 @@ export default function ChatVideo({ messageId }: { messageId: string }) {
             tokens={state.tokens}
             restricted={state.restricted}
             muxData={state.muxData}
+            surface="chat"
             lessonId={state.lessonId}
             chatMessageId={messageId}
             resumeSeconds={state.resumeSeconds}
@@ -178,7 +189,10 @@ export default function ChatVideo({ messageId }: { messageId: string }) {
         </span>
         <span className="block bg-white px-3 py-2 dark:bg-slate-900">
           <span className="block text-sm font-medium text-slate-800 dark:text-slate-100">{title}</span>
-          <span className="block text-xs text-slate-600 dark:text-slate-400">{busy ? "Opening…" : subtitle}</span>
+          <span className="block text-xs text-slate-600 dark:text-slate-400">
+            {busy ? "Opening…" : subtitle}
+            {!busy && card.startSeconds ? ` · Starts at ${formatClock(card.startSeconds)}` : ""}
+          </span>
         </span>
       </button>
       {card.lessonHref && <OpenLessonLink href={card.lessonHref} />}

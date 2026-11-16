@@ -73,7 +73,7 @@ function settingsSections(): SitePage[] {
   const tabHref = (tab: (typeof SETTINGS_TAB_IDS)[number]) => (tab === SETTINGS_TAB_IDS[0] ? "/settings" : `/settings/${tab}`);
   const section = (tab: (typeof SETTINGS_TAB_IDS)[number]) => `${SETTINGS_TITLE} · ${SETTINGS_TAB_LABELS[tab]}`;
   return [
-    ...SETTINGS_SECTIONS.map((s) => ({ title: s.title, href: `${tabHref(s.tab)}#${s.id}`, audience: "member" as const, section: section(s.tab), keywords: s.keywords, ...(s.tab === "hosting" ? { feature: "hosting" as const } : {}) })),
+    ...SETTINGS_SECTIONS.map((s) => ({ title: s.title, href: `${tabHref(s.tab)}#${s.id}`, audience: "member" as const, section: section(s.tab), keywords: s.keywords, ...(s.tab === "hosting" ? { feature: "hosting" as const } : s.feature ? { feature: s.feature } : {}) })),
     ...NOTIFICATION_KINDS.map((k) => ({
       title: k.label,
       href: `${tabHref("notifications")}#notification-${k.id}`,

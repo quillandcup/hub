@@ -78,7 +78,7 @@ export async function shareLessonLinkInMessage(repos: Repos, message: { id: stri
   if (!canOpenLessons(await loadMemberCourseAccess(repos, { memberId: author, isAdminActing: isAdmin }, lesson.course_id))) return "skipped";
 
   try {
-    await repos.chatVideos.attach(message.id, link.lessonId, link.openToChannel && isAdmin);
+    await repos.chatVideos.attach(message.id, link.lessonId, link.openToChannel && isAdmin, link.startSeconds);
   } catch {
     // The message already has its video (another event or the nightly run got there first): fine.
     return "skipped";

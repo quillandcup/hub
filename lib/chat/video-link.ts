@@ -3,7 +3,8 @@ import type { Repos } from "@/lib/data/repos";
 import { messagePermalink } from "@/lib/chat/focus";
 
 /** The address of a course lesson's page: the lesson route takes the course's slug and the lesson's id. */
-export const lessonPath = (courseSlug: string, lessonId: string) => `/courses/${courseSlug}/lessons/${lessonId}`;
+export const lessonPath = (courseSlug: string, lessonId: string, startSeconds?: number | null) =>
+  `/courses/${courseSlug}/lessons/${lessonId}${startSeconds ? `?t=${startSeconds}` : ""}`;
 
 /**
  * The address of a chat message in the Hub: its permalink (`lib/chat/focus.ts`), the conversation with `?m=<message>`. The server reads it,
@@ -20,7 +21,7 @@ const LESSON_LABEL = "Open the lesson";
 
 /**
  * The line to add to the Slack copy of a message that shares a lesson video, or null when it shares none. Slack can't play the
- * video or report plays, so it points back to the Hub with two links: the message in Hub Chat, where anyone who may watch it
+ * video or report plays, so it points back to the Hub with two links (the lesson one keeps the shared moment, `?t=`): the message in Hub Chat, where anyone who may watch it
  * (the course, or a share an admin opened to the channel) can play it, and the lesson, for those with the course. Both ask
  * a visitor to sign in and check access like any visit; neither carries a playback link or a Mux id. Either link is left out
  * when its target can't be found (the conversation isn't known, the lesson or course is gone).
@@ -30,8 +31,9 @@ export async function sharedVideoSlackLine(
   messageId: string,
   slackChannelId: string | null,
 ): Promise<string | null> {
-  const lessonId = (await repos.chatVideos.lessonIdsOf([messageId])).get(messageId);
-  if (!lessonId) return null;
+  const share = await repos.chatVideos.shareOf(messageId);
+  if (!share) return null;
+  const lessonId = share.lessonId;
   const [hubChannelId, lesson] = await Promise.all([
     slackChannelId ? repos.chat.idBySlackChannel(slackChannelId) : Promise.resolve(null),
     repos.courses.lessonById(lessonId),
@@ -39,7 +41,7 @@ export async function sharedVideoSlackLine(
   const course = lesson ? await repos.courses.courseById(lesson.course_id) : null;
   const links = [
     hubChannelId ? `<${APP_URL}${chatMessagePath(hubChannelId, messageId)}|${CHAT_LABEL}>` : null,
-    course ? `<${APP_URL}${lessonPath(course.slug, lessonId)}|${LESSON_LABEL}>` : null,
+    course ? `<${APP_URL}${lessonPath(course.slug, lessonId, share.startSeconds)}|${LESSON_LABEL}>` : null,
   ].filter((l): l is string => l !== null);
   return links.length > 0 ? `\n${links.join(" · ")}` : null;
 }

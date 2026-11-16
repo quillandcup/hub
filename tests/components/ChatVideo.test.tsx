@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const setLessonComplete = vi.hoisted(() => vi.fn());
 vi.mock("@/app/(member)/courses/actions", () => ({ setLessonComplete }));
 vi.mock("@/components/courses/LessonPlayer", () => ({
-  default: function MockPlayer(props: { title: string; playbackId: string; lessonId?: string; chatMessageId?: string; resumeSeconds?: number; trackProgress?: boolean; autoPlay?: boolean; posterUrl?: string | null; muxData?: { needsConsent: boolean; optedOut: boolean } | null; overlay?: React.ReactNode }) {
+  default: function MockPlayer(props: { title: string; playbackId: string; lessonId?: string; chatMessageId?: string; resumeSeconds?: number; trackProgress?: boolean; autoPlay?: boolean; posterUrl?: string | null; surface?: string; muxData?: { needsConsent: boolean; optedOut: boolean } | null; overlay?: React.ReactNode }) {
     // The real player calls autoComplete once the playhead passes ~90% of the video; the test's button stands for that.
     const completion = useLessonCompletion();
     return (
@@ -20,6 +20,7 @@ vi.mock("@/components/courses/LessonPlayer", () => ({
         data-tracking={String(Boolean(props.trackProgress))}
         data-autoplay={String(Boolean(props.autoPlay))}
         data-poster={props.posterUrl ?? ""}
+        data-surface={props.surface}
         data-muxdata={props.muxData ? JSON.stringify(props.muxData) : ""}
       >
         {props.title}
@@ -87,6 +88,27 @@ describe("ChatVideo", () => {
     expect(player).toHaveAttribute("data-tracking", "true");
   });
 
+  it("says where the shared link starts the video, and starts the player there", async () => {
+    answers({ status: 200, body: { ...WATCHABLE, startSeconds: 95 } }, { status: 200, body: { ...PLAYBACK, resumeSeconds: 95, startSeconds: 95 } });
+    render(<ChatVideo messageId={MESSAGE} />);
+
+    expect(await screen.findByText(/Starts at 1:35/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Play Show up for the page" }));
+    expect(await screen.findByTestId("player")).toHaveAttribute("data-resume", "95");
+  });
+
+  it("writes an hour or more as h:mm:ss, and says nothing when the link had no start", async () => {
+    answers({ status: 200, body: { ...WATCHABLE, startSeconds: 3725 } });
+    const { unmount } = render(<ChatVideo messageId={MESSAGE} />);
+    expect(await screen.findByText(/Starts at 1:02:05/)).toBeInTheDocument();
+    unmount();
+
+    answers({ status: 200, body: WATCHABLE });
+    render(<ChatVideo messageId={MESSAGE} />);
+    await screen.findByText(/From The Ready Writer/);
+    expect(screen.queryByText(/Starts at/)).not.toBeInTheDocument();
+  });
+
   it("links the card to the lesson's page before anything is played, without opening the video", async () => {
     answers({ status: 200, body: WATCHABLE }, { status: 200, body: PLAYBACK });
     render(<ChatVideo messageId={MESSAGE} />);
@@ -142,6 +164,7 @@ describe("ChatVideo", () => {
     const { unmount } = render(<ChatVideo messageId={MESSAGE} />);
     await userEvent.click(await screen.findByRole("button", { name: /Play/ }));
     expect(await screen.findByTestId("player")).toHaveAttribute("data-muxdata", JSON.stringify({ needsConsent: true, optedOut: false }));
+    expect(screen.getByTestId("player")).toHaveAttribute("data-surface", "chat");
     unmount();
 
     answers({ status: 200, body: WATCHABLE }, { status: 200, body: PLAYBACK });

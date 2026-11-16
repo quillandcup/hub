@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen } from "@testing-library/react";
+import { cleanup, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import {
   MEMBER_IDENTITY,
@@ -29,6 +29,11 @@ vi.mock("@/components/HostVibePanel", () => ({ default: () => <div>host vibe pan
 vi.mock("@/app/(member)/settings/SessionsPanel", () => ({ SessionsPanel: () => <div>sessions</div> }));
 vi.mock("@/app/(member)/settings/ProfilePanel", () => ({ ProfilePanel: () => <div>profile panel</div> }));
 vi.mock("@/app/(member)/settings/IdentityPanel", () => ({ IdentityPanel: () => <div>identity panel</div> }));
+vi.mock("@/app/(member)/settings/ThemeSwitcher", () => ({ ThemeSwitcher: () => <div>theme</div> }));
+vi.mock("@/app/(member)/settings/AnimationsSwitcher", () => ({ AnimationsSwitcher: () => <div>animations</div> }));
+vi.mock("@/app/(member)/settings/TimezoneSwitcher", () => ({ TimezoneSwitcher: () => <div>timezone</div> }));
+vi.mock("@/app/(member)/settings/SecondaryTimezoneSwitcher", () => ({ SecondaryTimezoneSwitcher: () => <div>secondary timezone</div> }));
+vi.mock("@/app/(member)/chat/actions", () => ({ unblockChatPreviews: vi.fn() }));
 vi.mock("@/app/(member)/settings/NotificationsPanel", () => ({ NotificationsPanel: () => <div>notifications panel</div> }));
 
 const NOTIFICATION_SETTINGS = { channelsByKind: { prickle_checkin: ["slack"], prickle_checkout: ["slack"] }, readOnly: false };
@@ -40,6 +45,7 @@ vi.mock("@/app/(member)/settings/notificationActions", () => ({
 
 const { default: SettingsIndex } = await import("@/app/(member)/settings/page");
 const { default: NotificationsRoute } = await import("@/app/(member)/settings/notifications/page");
+const { default: PreferencesRoute } = await import("@/app/(member)/settings/preferences/page");
 const { default: HostingRoute } = await import("@/app/(member)/settings/hosting/page");
 const { default: PreviewsRoute } = await import("@/app/(member)/settings/previews/page");
 const { default: SettingsPage } = await import("@/app/(member)/settings/SettingsPage");
@@ -78,6 +84,39 @@ describe("settings routes", () => {
 
     expect(selectedTab()).toBe("Account");
     expect(screen.queryByRole("tab", { name: "Previews" })).not.toBeInTheDocument();
+  });
+
+  describe("blocked link previews, under Preferences", () => {
+    const BLOCKS = { chat_preview_blocks: { data: [{ scope: "site", host: "example.test", path_prefix: "", url: "" }, { scope: "path", host: "other.test", path_prefix: "/blog", url: "" }] } };
+
+    it("lists the member's own blocks when chat link previews are on for them", async () => {
+      featurePreviews.mockResolvedValue(["chat_link_previews"]);
+      useFakeSupabase(BLOCKS);
+      await renderServerRoute(PreferencesRoute, undefined as never);
+      expect(selectedTab()).toBe("Preferences");
+      expect(screen.getByRole("heading", { name: "Blocked link previews" })).toBeInTheDocument();
+      expect(screen.getByText("example.test")).toBeInTheDocument();
+      expect(screen.getByText("other.test/blog/…")).toBeInTheDocument();
+    });
+
+    it("shows an empty list rather than failing when the blocks cannot be read", async () => {
+      featurePreviews.mockResolvedValue(["chat_link_previews"]);
+      useFakeSupabase({ chat_preview_blocks: { data: null, error: { message: "db down" } } });
+      await renderServerRoute(PreferencesRoute, undefined as never);
+      expect(screen.getByText(/Nothing blocked/)).toBeInTheDocument();
+    });
+
+    it("is not there without the feature, or while viewing as another member", async () => {
+      useFakeSupabase(BLOCKS);
+      await renderServerRoute(PreferencesRoute, undefined as never);
+      expect(screen.queryByRole("heading", { name: "Blocked link previews" })).not.toBeInTheDocument();
+      cleanup();
+
+      featurePreviews.mockResolvedValue(["chat_link_previews"]);
+      signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
+      await renderServerRoute(PreferencesRoute, undefined as never);
+      expect(screen.queryByRole("heading", { name: "Blocked link previews" })).not.toBeInTheDocument();
+    });
   });
 
   it("/settings/notifications opens Notifications", async () => {

@@ -138,6 +138,8 @@ export const OUTCOME_ACTIONS = [
   "chat_message_retried",
   "chat_link_previews_built",
   "chat_unfurl_hidden",
+  "chat_dm_control_pressed",
+  "chat_preview_unblocked",
   "lesson_progress_cleared",
   "calendar_item_removed",
   "push_paused",

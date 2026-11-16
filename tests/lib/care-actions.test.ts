@@ -63,7 +63,6 @@ const engagementRow = (id: string, member: string, openedAt: string) => ({
   opened_by: null,
   owned_by: null,
   reason: "check_in",
-  channel: "other",
   opened_at: openedAt,
   period_ends_on: "2026-12-31",
   renewed_from: null,
@@ -143,7 +142,7 @@ describe("who may write Hedgie Care", () => {
     signInAs(CM_USER);
     await expect(start({ notes: "  said hello  " })).resolves.toEqual({ success: true });
     expect(onlyEngagement()).toMatchObject({ member_id: ADA, opened_by: CM_USER.id, reason: "writing_check_in", notes: "said hello" });
-    expect(onlyEngagement().channel).toBe("other"); // the deprecated column is left to its default: nothing writes it
+    expect(onlyEngagement()).not.toHaveProperty("channel"); // a plan belongs to the member: the column is gone
     expect(revalidatePath).toHaveBeenCalledWith("/admin/care");
   });
 
@@ -644,7 +643,6 @@ describe("getEngagementResults", () => {
       opened_by: CM_USER.id,
       owned_by: CM_USER.id,
       reason: "check_in",
-      channel: "other",
       opened_at: OPENED,
       period_ends_on: "2026-03-31",
       renewed_from: null,
@@ -904,7 +902,7 @@ describe("tracking Slack DMs", () => {
 
   /** A care plan of hers (or someone else's) with a member that nothing tracked a DM for: how she gets one without starting it here. */
   const plan = (member: string, over: Record<string, unknown> = {}) =>
-    data.careEngagements.push({ ...engagementRow(`care_PLAN${data.careEngagements.length}AAAAAAA`.slice(0, 17), member, "2026-03-01T15:00:00.000Z"), owned_by: CM_USER.id, opened_by: CM_USER.id, channel: "other", ...over });
+    data.careEngagements.push({ ...engagementRow(`care_PLAN${data.careEngagements.length}AAAAAAA`.slice(0, 17), member, "2026-03-01T15:00:00.000Z"), owned_by: CM_USER.id, opened_by: CM_USER.id, ...over });
 
   describe("starting a care plan", () => {
     it("tracks her DM with that member when she has one, and fills in who spoke last from it", async () => {

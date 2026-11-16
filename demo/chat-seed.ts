@@ -5,6 +5,7 @@ import { storeEmojiImage } from "@/lib/chat/emoji-copy";
 import { SLACK_EMOJI_BUCKET } from "@/lib/chat/emoji-url";
 import { SLACK_FILES_BUCKET } from "@/lib/slack-capture";
 import { SLACK_USER_SCOPES } from "@/lib/slack-connect";
+import { buildCheckinBlocks } from "@/lib/prickle-checkin-dms";
 import { animatedGif, bouncingDisc, DISC_PALETTE } from "./gif";
 
 /**
@@ -224,8 +225,10 @@ interface DemoConversation {
   kind: "dm" | "group_dm";
   /** The other members besides the demo member (community profile keys). */
   with: string[];
+  /** A direct message with an app (a Slack bot) instead of a person: the app's name; its messages are written `by: "app"`. */
+  app?: string;
   readHoursAgo: number;
-  messages: { by: string; hoursAgo: number; body: string; reactions?: { emoji: string; by: string[] }[] }[];
+  messages: { by: string; hoursAgo: number; body: string; /** Slack Block Kit, for an app's message. */ blocks?: unknown[]; reactions?: { emoji: string; by: string[] }[] }[];
 }
 
 /** The demo member's direct messages and group message, as the Slack bridge brings them in (private, restricted, unnamed; the sidebar labels them with the people in them). */
@@ -247,6 +250,17 @@ export const DEMO_CONVERSATIONS: DemoConversation[] = [
     messages: [
       { by: "host", hoursAgo: 50, body: "so glad you joined the Sprint Prickle last night! 🌙" },
       { by: "member", hoursAgo: 49, body: "it was great, 600 words in an hour. thank you for hosting 💛" },
+    ],
+  },
+  {
+    kind: "dm",
+    with: [],
+    app: "Billie Bot",
+    readHoursAgo: 0,
+    messages: [
+      { by: "app", hoursAgo: 20, body: "Hi! I'm Billie Bot, our Slack helper. I'll send you a note here when something needs you. 👋" },
+      // A made-up prickle id: the controls are drawn from the blocks, and nothing in the demo presses them.
+      { by: "app", hoursAgo: 2, body: "Sprint Prickle starts in about 20 minutes.", blocks: buildCheckinBlocks("prkl_DemoCheckin1", "Sprint Prickle", null) },
     ],
   },
   {
@@ -445,6 +459,13 @@ async function seedConversations(admin: SupabaseClient, now: Date, id: (name: st
   const { error: wipeError } = await admin.from("chat_channels").delete().in("kind", ["dm", "group_dm"]).like("slack_channel_id", `${DEMO_SLACK_PREFIX}%`);
   if (wipeError) throw new Error(`chat conversations clear: ${wipeError.message}`);
   const key = (k: string) => (k === "member" ? demoMember : id(who(k)));
+  const memberSlackUser = await admin.from("member_slack_connections").select("slack_user_id").eq("member_id", demoMember).maybeSingle();
+  if (memberSlackUser.error || !memberSlackUser.data) throw new Error(`demo member's Slack connection: ${memberSlackUser.error?.message ?? "missing"}`);
+  // One site the demo member has blocked previews for, so Settings, Preferences has a list to show.
+  const { error: blockWipe } = await admin.from("chat_preview_blocks").delete().eq("member_id", demoMember);
+  if (blockWipe) throw new Error(`chat_preview_blocks clear: ${blockWipe.message}`);
+  const { error: blockError } = await admin.from("chat_preview_blocks").insert({ member_id: demoMember, scope: "site", host: "celebrity-gossip.example" });
+  if (blockError) throw new Error(`chat_preview_blocks: ${blockError.message}`);
   let seq = 0;
   for (const [index, convo] of DEMO_CONVERSATIONS.entries()) {
     const { data: created, error } = await admin
@@ -452,7 +473,7 @@ async function seedConversations(admin: SupabaseClient, now: Date, id: (name: st
       .insert({
         kind: convo.kind,
         bridge_mode: "bridged",
-        slack_channel_id: `${DEMO_SLACK_PREFIX}${convo.kind === "dm" ? "D" : "G"}${String(index + 1).padStart(5, "0")}`,
+        slack_channel_id: `${DEMO_SLACK_PREFIX}${convo.app ? "A" : convo.kind === "dm" ? "D" : "G"}${String(index + 1).padStart(5, "0")}`,
         visibility: "private",
         restricted: true,
         created_at: at(24 * 30),
@@ -461,6 +482,7 @@ async function seedConversations(admin: SupabaseClient, now: Date, id: (name: st
       .single();
     if (error || !created) throw new Error(`chat_channels ${convo.kind}: ${error?.message}`);
     const people = [demoMember, ...convo.with.map(key)];
+    if (convo.app) await seedApp(admin, convo.app, `${DEMO_SLACK_PREFIX}A${String(index + 1).padStart(5, "0")}`, memberSlackUser.data.slack_user_id as string, demoMember);
     const { error: memberError } = await admin.from("chat_channel_members").insert(
       people.map((member_id) => ({ channel_id: created.id, member_id, source: "slack", joined_at: at(24 * 30), last_read_at: member_id === demoMember ? at(convo.readHoursAgo) : at(0) })),
     );
@@ -468,11 +490,11 @@ async function seedConversations(admin: SupabaseClient, now: Date, id: (name: st
     for (const message of convo.messages) {
       const { data: row, error: messageError } = await admin
         .from("chat_messages")
-        .insert({ channel_id: created.id, author_member_id: key(message.by), origin: "slack", slack_ts: `${Math.floor(Date.parse(at(message.hoursAgo)) / 1000)}.${String(900000 + ++seq)}`, created_at: at(message.hoursAgo) })
+        .insert({ channel_id: created.id, author_member_id: message.by === "app" ? null : key(message.by), origin: "slack", slack_ts: `${Math.floor(Date.parse(at(message.hoursAgo)) / 1000)}.${String(900000 + ++seq)}`, created_at: at(message.hoursAgo) })
         .select("id")
         .single();
       if (messageError || !row) throw new Error(`chat_messages ${convo.kind}: ${messageError?.message}`);
-      const { error: contentError } = await admin.from("chat_message_contents").insert({ message_id: row.id, body: message.body });
+      const { error: contentError } = await admin.from("chat_message_contents").insert({ message_id: row.id, body: message.body, ...(convo.app ? { bot: { name: convo.app } } : {}), ...(message.blocks ? { blocks: message.blocks } : {}) });
       if (contentError) throw new Error(`chat_message_contents ${convo.kind}: ${contentError.message}`);
       const reactions = (message.reactions ?? []).flatMap((r) => r.by.map((by) => ({ message_id: row.id, channel_id: created.id, member_id: key(by), emoji: r.emoji, created_at: at(message.hoursAgo) })));
       if (reactions.length > 0) {
@@ -481,6 +503,24 @@ async function seedConversations(admin: SupabaseClient, now: Date, id: (name: st
       }
     }
   }
+}
+
+/**
+ * What the sidebar reads to list a direct message under Apps (`chat_dm_apps`): the bot as a Slack user, it and the demo
+ * member as the only people in the conversation, and the link from the member's Slack user to the member.
+ */
+async function seedApp(admin: SupabaseClient, name: string, slackChannelId: string, memberSlackUserId: string, demoMember: string) {
+  const bot = `${DEMO_SLACK_PREFIX.replace("C", "U")}BOT01`;
+  const bronze = admin.schema("bronze");
+  const { error: userError } = await bronze.from("slack_users").upsert({ user_id: bot, name: "billie_bot", display_name: name, real_name: name, is_bot: true, raw_payload: {} }, { onConflict: "user_id" });
+  if (userError) throw new Error(`slack_users (demo app): ${userError.message}`);
+  const { error: membersError } = await bronze.from("slack_channel_members").upsert(
+    [bot, memberSlackUserId].map((user_id) => ({ channel_id: slackChannelId, user_id, left_at: null })),
+    { onConflict: "channel_id,user_id" },
+  );
+  if (membersError) throw new Error(`slack_channel_members (demo app): ${membersError.message}`);
+  const { error: authorError } = await admin.from("chat_slack_authors").upsert({ slack_user_id: memberSlackUserId, member_id: demoMember }, { onConflict: "slack_user_id" });
+  if (authorError) throw new Error(`chat_slack_authors (demo app): ${authorError.message}`);
 }
 
 /**

@@ -1,25 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSlackClient } from "@/lib/slack-client";
 import { verifySlackSignature } from "@/lib/slack-signature";
-import {
-  parseCheckinAnswer,
-  parseDismiss,
-  parseSubmit,
-  closedDmBlocks,
-  dismissCheckinHalf,
-  goneDmBlocks,
-  PRICKLE_GONE,
-  type CheckinHalfKind,
-  parseQuickLogAnswer,
-  QUICK_LOG_ACTION_ID,
-  replaceAnsweredBlock,
-  saveCheckinAnswer,
-  withSavedAnswer,
-  type CheckinAnswer,
-  type QuickLogAnswer,
-} from "@/lib/prickle-checkin-dms";
+import { handleDmInteraction, isDmActionId } from "@/lib/prickle-dm-interactions";
 import { resolveMemberIdForSlackUser } from "@/lib/slack-member-ids";
-import { MEASURE_LABELS, type WritingMeasure } from "@/lib/writing-projects";
 import {
   sendSlackSignInMessage,
   SLACK_SEND_LINK_ACTION_ID,
@@ -84,219 +67,37 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ received: true });
   }
 
-  const submission = parseSubmit(action);
-  if (submission) {
-    try {
-      await handleSubmit(payload, submission.half, submission.prickleId);
-    } catch (error) {
-      console.error("Error handling prickle check-in submit:", error);
-    }
-    return NextResponse.json({ received: true });
-  }
-
-  const dismissal = parseDismiss(action);
-  if (dismissal) {
-    try {
-      await handleDismiss(payload, dismissal.half, dismissal.prickleId);
-    } catch (error) {
-      console.error("Error handling prickle check-in dismissal:", error);
-    }
-    return NextResponse.json({ received: true });
-  }
-
-  const checkinAnswer = parseCheckinAnswer(action);
-  if (checkinAnswer) {
-    try {
-      await handleCheckinAnswer(payload, checkinAnswer);
-    } catch (error) {
-      console.error("Error handling prickle check-in answer:", error);
-    }
-    return NextResponse.json({ received: true });
-  }
-
-  if (action?.action_id !== QUICK_LOG_ACTION_ID) return NextResponse.json({ received: true });
-
-  const quickLog = parseQuickLogAnswer(action);
-  if (!quickLog) {
-    console.error("writing_quick_log: malformed action or missing amount", action.block_id, action.value);
-    return NextResponse.json({ received: true });
-  }
-
+  // Check-in and check-out DM controls and the writing quick-log (lib/prickle-dm-interactions.ts, shared with the Hub chat).
+  if (!isDmActionId(action?.action_id)) return NextResponse.json({ received: true });
   try {
-    await handleWritingQuickLog(payload, action, quickLog);
+    await handleDmPress(payload, action);
   } catch (error) {
-    console.error("Error handling writing_quick_log interaction:", error);
+    console.error("Error handling Slack DM action %s:", action.action_id, error);
   }
-
   return NextResponse.json({ received: true });
 }
 
-/**
- * A check-in question answered in a check-in or check-out DM: save it to the member's check-in,
- * then write the pick back into the message so a later update (another answer, a quick-log
- * confirmation) doesn't reset it on screen.
- */
-async function handleCheckinAnswer(payload: any, answer: CheckinAnswer) {
+/** A press in one of our DMs, as the Slack user who pressed it: their member, then the same handlers the Hub chat uses. */
+async function handleDmPress(payload: any, action: any) {
   const slackUserId = payload.user?.id as string | undefined;
   if (!slackUserId) return;
-
-  const supabase = createServiceRoleClient();
-  const memberId = await resolveMemberIdForSlackUser(createRepos(supabase), slackUserId);
+  const repos = createRepos(createServiceRoleClient());
+  const memberId = await resolveMemberIdForSlackUser(repos, slackUserId);
   if (!memberId) {
-    console.error("prickle_checkin_answer: no member matched for Slack user", slackUserId);
+    console.error("%s: no member matched for Slack user", action.action_id, slackUserId);
     return;
   }
-
-  const error = await saveCheckinAnswer(createRepos(supabase), memberId, answer);
-  if (error) {
-    console.error("prickle_checkin_answer: not saved", { memberId, prickleId: answer.prickleId, field: answer.field, error });
-    if (error === PRICKLE_GONE) await replaceWithGoneNote(payload);
-    return;
-  }
-
   const channelId = payload.channel?.id as string | undefined;
   const messageTs = payload.message?.ts as string | undefined;
-  const blocks = withSavedAnswer(payload.message?.blocks, answer);
-  const token = await getSlackBotToken();
-  if (channelId && messageTs && blocks && token) {
-    await createSlackClient(token).chat.update({ channel: channelId, ts: messageTs, text: payload.message?.text ?? "", blocks });
-  }
-}
-
-/**
- * "Submit" in a DM: the answers already saved as they were picked, so this only closes the offer
- * everywhere (like a skip, which keeps what was answered) and collapses the message to a thank-you.
- */
-async function handleSubmit(payload: any, half: CheckinHalfKind, prickleId: string) {
-  const slackUserId = payload.user?.id as string | undefined;
-  if (!slackUserId) return;
-  const supabase = createServiceRoleClient();
-  const memberId = await resolveMemberIdForSlackUser(createRepos(supabase), slackUserId);
-  if (!memberId) {
-    console.error("prickle_submit: no member matched for Slack user", slackUserId);
-    return;
-  }
-  const error = await dismissCheckinHalf(createRepos(supabase), half, memberId, prickleId);
-  if (error) {
-    if (error === PRICKLE_GONE) await replaceWithGoneNote(payload);
-    return;
-  }
-
-  const channelId = payload.channel?.id as string | undefined;
-  const messageTs = payload.message?.ts as string | undefined;
-  const token = await getSlackBotToken();
-  if (channelId && messageTs && token) {
-    await createSlackClient(token).chat.update({ channel: channelId, ts: messageTs, ...closedDmBlocks(half, prickleId) });
-  }
-}
-
-/** The DM was about a prickle that no longer exists: say so in place of its questions, instead of leaving it looking live. */
-async function replaceWithGoneNote(payload: any) {
-  const channelId = payload.channel?.id as string | undefined;
-  const messageTs = payload.message?.ts as string | undefined;
-  const token = await getSlackBotToken();
-  if (channelId && messageTs && token) {
-    await createSlackClient(token).chat.update({ channel: channelId, ts: messageTs, ...goneDmBlocks() });
-  }
-}
-
-/** "Skip check-in" / "Skip check-out" in a DM: close it everywhere and collapse the message to a note. */
-async function handleDismiss(payload: any, half: CheckinHalfKind, prickleId: string) {
-  const slackUserId = payload.user?.id as string | undefined;
-  if (!slackUserId) return;
-  const supabase = createServiceRoleClient();
-  const memberId = await resolveMemberIdForSlackUser(createRepos(supabase), slackUserId);
-  if (!memberId) {
-    console.error("prickle_dismiss: no member matched for Slack user", slackUserId);
-    return;
-  }
-  const error = await dismissCheckinHalf(createRepos(supabase), half, memberId, prickleId);
-  if (error) {
-    if (error === PRICKLE_GONE) await replaceWithGoneNote(payload);
-    return;
-  }
-
-  const channelId = payload.channel?.id as string | undefined;
-  const messageTs = payload.message?.ts as string | undefined;
-  const token = await getSlackBotToken();
-  if (channelId && messageTs && token) {
-    const text = `Skipped this ${half === "checkin" ? "check-in" : "check-out"}.`;
-    await createSlackClient(token).chat.update({ channel: channelId, ts: messageTs, text, blocks: [{ type: "section", text: { type: "mrkdwn", text } }] });
-  }
-}
-
-async function handleWritingQuickLog(payload: any, action: any, { projectId, prickleId, measure, amount }: QuickLogAnswer) {
-  const slackUserId = payload.user?.id as string | undefined;
-  const channelId = payload.channel?.id as string | undefined;
-  const messageTs = payload.message?.ts as string | undefined;
-
-  if (!slackUserId) {
-    console.error("writing_quick_log: missing Slack user");
-    return;
-  }
-
-  const supabase = createServiceRoleClient();
-
-  const memberId = await resolveMemberIdForSlackUser(createRepos(supabase), slackUserId);
-  if (!memberId) {
-    console.error("writing_quick_log: no member matched for Slack user", slackUserId);
-    return;
-  }
-
-  // Never trust the project id embedded in the action value alone -- verify it's still this
-  // member's project before writing anything (same principle as assertOwnsProject in
-  // app/(member)/projects/actions.ts).
-  const writing = createRepos(supabase).writing;
-  const owns = await writing.ownsProject(memberId, projectId).catch(() => false);
-  if (!owns) {
-    console.error("writing_quick_log: project not found or not owned by matched member", { projectId, memberId });
-    return;
-  }
-
-  let entryId: string;
-  try {
-    entryId = await writing.addEntry({
-      projectId,
-      memberId,
-      prickleId,
-      entryDate: new Date().toISOString().slice(0, 10),
-      measure,
-      mode: "delta",
-      amount,
-    });
-  } catch (insertError) {
-    console.error("writing_quick_log: failed to insert progress entry", insertError);
-    return;
-  }
-
-  // Phase 1, item 11: same engagement signal as a manual log (see
-  // app/(member)/projects/actions.ts logProgress) -- this is just a different entry point into
-  // the same writing_progress_entries table.
-  await createRepos(supabase)
-    .activities.record({
-      memberId,
-      type: "writing_progress_logged",
-      category: "writing",
-      title: "Logged writing progress",
-      relatedId: entryId,
-      engagementValue: 5,
-      occurredAt: new Date().toISOString(),
-      source: "writing_progress",
-    })
-    .catch((activityError) => console.error("writing_quick_log: failed to insert member_activities row", activityError));
-
-  if (channelId && messageTs) {
-    const token = await getSlackBotToken();
-    if (token) {
-      const slack = createSlackClient(token);
-      const measureLabel = MEASURE_LABELS[measure as WritingMeasure] ?? measure;
-      const confirmation = `✅ Logged ${amount} ${measureLabel.toLowerCase()} — nice work!`;
-      await slack.chat.update({
-        channel: channelId,
-        ts: messageTs,
-        text: confirmation,
-        blocks: replaceAnsweredBlock(payload.message?.blocks, action.block_id, confirmation),
-      });
-    }
-  }
+  await handleDmInteraction({
+    repos,
+    memberId,
+    action,
+    blocks: payload.message?.blocks,
+    text: payload.message?.text ?? "",
+    update: async (message) => {
+      const token = await getSlackBotToken();
+      if (channelId && messageTs && token) await createSlackClient(token).chat.update({ channel: channelId, ts: messageTs, ...message });
+    },
+  });
 }

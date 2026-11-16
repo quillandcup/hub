@@ -22,6 +22,18 @@ const CHANNEL = "chn_AAAAAAAAAAA1";
 const hubCard = () =>
   withLinkPreviews([], [{ messageId: MESSAGE, position: 0, url: "https://example.test/post", finalUrl: "https://example.test/post", kind: "link", status: "ok", title: "Tom & <Jerry>", description: "*not bold* & <b>plain</b>", siteName: "Example & Sons", imageUrl: "https://example.test/c.png", fetchedAt: "2026-10-01T00:00:00Z" }]);
 
+/** The X, then "Remove" without blocking (a card with an address asks about blocking first, so the box is cleared). */
+async function removeOnly() {
+  fireEvent.click(screen.getByRole("button", { name: "Remove preview" }));
+  fireEvent.click(await screen.findByRole("checkbox"));
+  fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+}
+/** The X, then "Remove" on a card that has nothing to block. */
+async function removePlain() {
+  fireEvent.click(screen.getByRole("button", { name: "Remove preview" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Remove" }));
+}
+
 beforeEach(() => {
   refresh.mockReset();
   track.mockReset();
@@ -66,13 +78,17 @@ describe("the X on a card", () => {
     expect(button).toHaveFocus();
   });
 
-  it("removes with one click, records that it happened without the address, and refreshes the chat", async () => {
+  it("asks first, then removes, records that it happened without the address, and refreshes the chat", async () => {
     render(<MessageUnfurls unfurls={hubCard()} ctx={ctx} permalink={null} removable={{ channelId: CHANNEL, messageId: MESSAGE }} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Remove preview" }));
+    expect(hideChatUnfurl).not.toHaveBeenCalled();
+    fireEvent.click(await screen.findByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
 
     await waitFor(() => expect(refresh).toHaveBeenCalled());
     expect(hideChatUnfurl).toHaveBeenCalledWith(MESSAGE, "url:https://example.test/post");
+    expect(track).toHaveBeenCalledWith("chat_preview_block_chosen", { scope: "none", saved: false });
     expect(track).toHaveBeenCalledWith("chat_unfurl_removed", { source: "hub", slack: "not_needed" });
     expect(JSON.stringify(track.mock.calls)).not.toContain("example.test");
   });
@@ -81,7 +97,7 @@ describe("the X on a card", () => {
     const slack = withLinkPreviews(parseUnfurls({ attachments: [{ title: "From Slack", title_link: "https://slack-card.example.test/" }] }, { bot: false, body: "x" }).unfurls, undefined);
     render(<MessageUnfurls unfurls={slack} ctx={ctx} permalink={null} removable={{ channelId: CHANNEL, messageId: MESSAGE }} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Remove preview" }));
+    await removeOnly();
 
     await waitFor(() => expect(hideChatUnfurl).toHaveBeenCalledWith(MESSAGE, "url:https://slack-card.example.test/"));
     expect(track).toHaveBeenCalledWith("chat_unfurl_removed", { source: "slack", slack: "not_needed" });
@@ -96,7 +112,7 @@ describe("the X on a card", () => {
       hideChatUnfurl.mockResolvedValue({ ok: true, slack: "failed" });
       render(<MessageUnfurls unfurls={hubCard()} ctx={ctx} permalink={null} removable={{ channelId: CHANNEL, messageId: MESSAGE }} />);
 
-      fireEvent.click(screen.getByRole("button", { name: "Remove preview" }));
+      await removeOnly();
       expect(await screen.findByRole("alert")).toHaveTextContent("Removed here. It may still show in Slack.");
       expect(track).toHaveBeenCalledWith("chat_unfurl_removed", { source: "hub", slack: "failed" });
       expect(refresh).not.toHaveBeenCalled();
@@ -112,9 +128,11 @@ describe("the X on a card", () => {
     hideChatUnfurl.mockResolvedValue({ ok: false, error: "That preview can't be removed." });
     render(<MessageUnfurls unfurls={hubCard()} ctx={ctx} permalink={null} removable={{ channelId: CHANNEL, messageId: MESSAGE }} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Remove preview" }));
+    await removeOnly();
 
+    // The refusal is shown in the dialog, which stays open to try again or cancel.
     expect(await screen.findByRole("alert")).toHaveTextContent("That preview can't be removed.");
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(track).not.toHaveBeenCalled();
     expect(refresh).not.toHaveBeenCalled();
   });
@@ -122,12 +140,12 @@ describe("the X on a card", () => {
   it("uses the chat's own refresh when it can, and survives the action throwing", async () => {
     pokeChat.mockReturnValue(true);
     render(<MessageUnfurls unfurls={hubCard()} ctx={ctx} permalink={null} removable={{ channelId: CHANNEL, messageId: MESSAGE }} />);
-    fireEvent.click(screen.getByRole("button", { name: "Remove preview" }));
+    await removeOnly();
     await waitFor(() => expect(pokeChat).toHaveBeenCalledWith(CHANNEL));
     expect(refresh).not.toHaveBeenCalled();
 
     hideChatUnfurl.mockRejectedValue(new Error("network"));
-    fireEvent.click(screen.getByRole("button", { name: "Remove preview" }));
+    await removeOnly();
     expect(await screen.findByRole("alert")).toHaveTextContent("Something went wrong");
   });
 
@@ -161,6 +179,10 @@ describe("the X on a shared Slack message", () => {
     button.focus();
     expect(button).toHaveFocus();
     fireEvent.click(button);
+    // A quoted message has no site to block: just the confirm.
+    expect(await screen.findByRole("button", { name: "Remove" })).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
     await waitFor(() => expect(refresh).toHaveBeenCalled());
     expect(hideChatUnfurl).toHaveBeenCalledWith(MESSAGE, `url:${MESSAGE_PERMALINK}`);
   });
@@ -175,14 +197,14 @@ describe("the X on a shared Slack message", () => {
   it("says calmly that Slack may still show it when the Slack copy could not be updated", async () => {
     hideChatUnfurl.mockResolvedValue({ ok: true, slack: "failed" });
     render(<MessageUnfurls unfurls={share()} ctx={ctx} permalink={null} removable={{ channelId: CHANNEL, messageId: MESSAGE }} />);
-    fireEvent.click(screen.getByRole("button", { name: "Remove preview" }));
+    await removePlain();
     expect(await screen.findByRole("alert")).toHaveTextContent("Removed here. It may still show in Slack.");
   });
 
   it("shows the action's refusal", async () => {
     hideChatUnfurl.mockResolvedValue({ ok: false, error: "That preview can't be removed." });
     render(<MessageUnfurls unfurls={share()} ctx={ctx} permalink={null} removable={{ channelId: CHANNEL, messageId: MESSAGE }} />);
-    fireEvent.click(screen.getByRole("button", { name: "Remove preview" }));
+    await removePlain();
     expect(await screen.findByRole("alert")).toHaveTextContent("That preview can't be removed.");
   });
 

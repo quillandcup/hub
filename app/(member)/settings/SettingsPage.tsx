@@ -11,6 +11,7 @@ import { SessionsPanel } from "./SessionsPanel";
 import { IdentityPanel } from "./IdentityPanel";
 import { ProfilePanel } from "./ProfilePanel";
 import { PreviewsPanel } from "./PreviewsPanel";
+import BlockedPreviewsList from "@/components/chat/BlockedPreviewsList";
 import { NotificationsPanel } from "./NotificationsPanel";
 import { getNotificationSettings } from "./notificationActions";
 import { getUserFeaturePreviews } from "@/lib/features.server";
@@ -63,6 +64,13 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
   // The effective identity's email, so sudo shows the member's email rather than the admin's.
   const displayEmail = effectiveIdentity?.memberEmail ?? user.email;
   const timezonePreference = profile?.timezone_preference || "browser";
+
+  // The previews this member blocked in chat: only for their own account (not in sudo, where row-level security would show the admin's), and
+  // only once chat link previews are on for them. A failed read just leaves the list empty.
+  const blockedPreviews =
+    enabledFeatures.includes("chat_link_previews") && effectiveIdentity && !effectiveIdentity.isSudo
+      ? await createRepos(supabase).chatLinkPreviews.blocksOf(effectiveIdentity.memberId).catch(() => [])
+      : null;
 
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
@@ -139,6 +147,14 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
                     <AnimationsSwitcher />
                     <TimezoneSwitcher initialTimezone={timezonePreference} />
                     <SecondaryTimezoneSwitcher initialTimezone={profile?.secondary_timezone ?? null} />
+                    {blockedPreviews && (
+                      <div>
+                        <h2 id="link-previews" className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+                          Blocked link previews
+                        </h2>
+                        <BlockedPreviewsList initial={blockedPreviews} />
+                      </div>
+                    )}
                   </div>
                 ),
               },

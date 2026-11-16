@@ -24,7 +24,7 @@ beforeEach(() => {
   found = { ...member };
   isAdmin.mockResolvedValue(false);
   removeOnRequest.mockResolvedValue({ ok: true, leftovers: [] });
-  preview.mockResolvedValue({ rows: [], liveBooks: 0 });
+  preview.mockResolvedValue({ rows: [], extras: [], liveBooks: 0 });
 });
 
 describe("previewRemoval", () => {
@@ -37,7 +37,7 @@ describe("previewRemoval", () => {
     expect(await previewRemoval("nonsense")).toEqual({ error: "Member not found." });
   });
   it("returns the dry run", async () => {
-    expect(await previewRemoval(member.id)).toEqual({ preview: { rows: [], liveBooks: 0 } });
+    expect(await previewRemoval(member.id)).toEqual({ preview: { rows: [], extras: [], liveBooks: 0 } });
   });
   it("hides the database's message when the dry run fails", async () => {
     preview.mockRejectedValue(new Error("secret detail"));

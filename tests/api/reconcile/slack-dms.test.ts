@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { NextRequest } from 'next/server'
 import { GET } from '@/app/api/reconcile/slack-dms/route'
 
-vi.mock('@/lib/chat/slack-dms', () => ({ pullDmsForCoveredMembers: vi.fn() }))
+vi.mock('@/lib/chat/slack-dms', () => ({ pullDmsForCoveredMembers: vi.fn(), DMS_STALE_HOURS: 72 }))
 vi.mock('@/lib/care-dm', () => ({ projectCareFromDms: vi.fn() }))
 vi.mock('@/lib/chat/slack-post', () => ({ chatSlackWritesEnabled: vi.fn(() => true) }))
 vi.mock('@/lib/supabase/api-auth', () => ({ requireAdmin: vi.fn() }))
@@ -18,9 +18,10 @@ import { chatSlackWritesEnabled } from '@/lib/chat/slack-post'
 import { sendOperationsAlert } from '@/lib/operations-alerts'
 import { requireAdmin } from '@/lib/supabase/api-auth'
 import { pingCronHeartbeat } from '@/lib/cron-heartbeats'
+import { DMS_STALE_HOURS } from '@/lib/chat/slack-dms'
 
 const request = () => new Request('http://localhost:3000/api/reconcile/slack-dms') as unknown as NextRequest
-const clean = { members: 3, conversations: 9, messages: 40, deferred: 0, done: 0, incomplete: 0, errors: [] as string[] }
+const clean = { members: 3, conversations: 9, messages: 40, deferred: 0, done: 0, incomplete: 0, stale: 0, errors: [] as string[] }
 const careDone = { tracked: 4, autoTracked: 1, engagements: 3, moved: 2, incomplete: false }
 
 describe('GET /api/reconcile/slack-dms', () => {
@@ -97,14 +98,22 @@ describe('GET /api/reconcile/slack-dms', () => {
     expect(pingCronHeartbeat).not.toHaveBeenCalled()
   })
 
-  it('alerts instead of pinging when a DM failed or members were left for the next run', async () => {
-    vi.mocked(pullDmsForCoveredMembers).mockResolvedValue({ ...clean, deferred: 2, incomplete: 1, errors: ['member x: boom'] })
+  it('says nothing about members left for the next run while nobody has gone stale, and pings the heartbeat', async () => {
+    vi.mocked(pullDmsForCoveredMembers).mockResolvedValue({ ...clean, deferred: 2, incomplete: 1 })
+    const response = await GET(request())
+    expect(response.status).toBe(200)
+    expect(sendOperationsAlert).not.toHaveBeenCalled()
+    expect(pingCronHeartbeat).toHaveBeenCalledWith('reconcile-slack-dms')
+  })
+
+  it('alerts instead of pinging when a DM failed or a member has not been read completely for days', async () => {
+    vi.mocked(pullDmsForCoveredMembers).mockResolvedValue({ ...clean, deferred: 2, incomplete: 1, stale: 3, errors: ['member x: boom'] })
     const response = await GET(request())
     expect(response.status).toBe(200)
     expect(sendOperationsAlert).toHaveBeenCalledWith(repos, {
       type: 'cron_partial_failure',
       job: 'reconcile-slack-dms',
-      problems: ["2 members' DMs left for the next run: out of time", "1 members' DMs only partly read: out of time (the rest next run)", 'member x: boom'],
+      problems: [`3 members' DMs not fully read for over ${DMS_STALE_HOURS} hours (2 left and 1 partly read this run)`, 'member x: boom'],
     })
     expect(pingCronHeartbeat).not.toHaveBeenCalled()
   })

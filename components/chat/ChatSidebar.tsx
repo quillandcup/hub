@@ -497,11 +497,12 @@ export default function ChatSidebar({
       <Section title="Group messages" channels={recent(mine.filter((c) => c.kind === "group_dm" && hasActivity(c)))} pathname={pathname} unread={counts} />
       <Section
         title="Direct messages"
-        channels={recent(mine.filter((c) => c.kind === "dm" && hasActivity(c)))}
+        channels={recent(mine.filter((c) => c.kind === "dm" && !c.app && hasActivity(c)))}
         pathname={pathname}
         unread={counts}
         action={canStartDm && <NewMessagePicker pathname={pathname} />}
       />
+      <Section title="Apps" channels={recent(mine.filter((c) => c.kind === "dm" && c.app && hasActivity(c)))} pathname={pathname} unread={counts} />
       {channels.length === 0 && <p className="px-3 text-sm text-slate-600 dark:text-slate-400">No conversations yet.</p>}
       {channels.length > 0 && Boolean(wanted) && mine.length === 0 && <p className="px-3 text-sm text-slate-600 dark:text-slate-400">No channels match.</p>}
       <p className="mt-4 px-3 text-xs">

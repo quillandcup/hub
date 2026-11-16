@@ -69,7 +69,6 @@ const row = (id: string, member: string, over: Record<string, unknown> = {}) => 
   opened_by: null,
   owned_by: CM_USER.id,
   reason: "check_in",
-  channel: "other", // the deprecated column: nothing reads it
   opened_at: ago(10),
   period_ends_on: "2026-04-10",
   renewed_from: null,
@@ -114,13 +113,13 @@ function seed() {
   });
   dataset.careEngagements.push(
     row("care_AAAAAAAAAAA1", BO, { last_staff_message_at: ago(2), owned_by: ADMIN_USER.id }), // waiting on them
-    row("care_AAAAAAAAAAA2", ADA, { channel: "email", last_staff_message_at: ago(5), last_member_message_at: ago(1), next_step: "Ask about chapter two", follow_up_on: "2026-03-19", notes: "Mentioned her draft." }), // needs a reply, follow-up overdue
+    row("care_AAAAAAAAAAA2", ADA, { last_staff_message_at: ago(5), last_member_message_at: ago(1), next_step: "Ask about chapter two", follow_up_on: "2026-03-19", notes: "Mentioned her draft." }), // needs a reply, follow-up overdue
     row("care_AAAAAAAAAAA3", CY, { opened_at: ago(60), last_staff_message_at: ago(40) }), // gone quiet
-    row("care_AAAAAAAAAAA4", CY, { channel: "email", closed_at: ago(3), ended_how: "back_in_community" }), // closed lately
-    row("care_AAAAAAAAAAA5", BO, { channel: "email", closed_at: ago(90), ended_how: "no_reply" }), // closed long ago
-    row("care_AAAAAAAAAAA6", BO, { channel: "prickle", deleted_at: ago(1) }), // removed: not listed
+    row("care_AAAAAAAAAAA4", CY, { closed_at: ago(3), ended_how: "back_in_community" }), // closed lately
+    row("care_AAAAAAAAAAA5", BO, { closed_at: ago(90), ended_how: "no_reply" }), // closed long ago
+    row("care_AAAAAAAAAAA6", BO, { deleted_at: ago(1) }), // removed: not listed
     row("care_AAAAAAAAAAA7", DI, { period_ends_on: "2026-03-15", last_staff_message_at: ago(8) }), // period over, inside the grace: review due
-    row("care_AAAAAAAAAAA8", EV, { owned_by: ADMIN_USER.id, channel: "prickle", period_ends_on: "2026-02-01", opened_at: ago(60), last_staff_message_at: ago(55) }), // lapsed
+    row("care_AAAAAAAAAAA8", EV, { owned_by: ADMIN_USER.id, period_ends_on: "2026-02-01", opened_at: ago(60), last_staff_message_at: ago(55) }), // lapsed
   );
 }
 
@@ -342,7 +341,7 @@ describe("the Earlier tab", () => {
 
   it("pages a long list", async () => {
     for (let i = 0; i < 25; i++) {
-      dataset.careEngagements.push(row(`care_BBBBBBBBB${String(i).padStart(3, "1")}`, BO, { channel: "other", closed_at: ago(100 + i), ended_how: "no_reply" }));
+      dataset.careEngagements.push(row(`care_BBBBBBBBB${String(i).padStart(3, "1")}`, BO, { closed_at: ago(100 + i), ended_how: "no_reply" }));
     }
     signInAs(CM_USER);
     await renderServerRoute(earlierPage, undefined as never);
@@ -947,7 +946,7 @@ describe("handing a care plan over: it takes two", () => {
     await user.click(within(ada).getByRole("button", { name: "Hand over to…" }));
     expect(within(ada).getByText(/They are asked to accept it. The care plan stays yours until they do./)).toBeInTheDocument();
     await user.click(within(ada).getByRole("combobox", { name: "Hand it over to" }));
-    await user.click(await within(ada).findByRole("option", { name: /Abe Admin/ }));
+    await user.click(await screen.findByRole("option", { name: /Abe Admin/ }));
 
     expect(actions.proposeCareHandover).toHaveBeenCalledWith("care_AAAAAAAAAAA2", OWNER_B);
     expect(track).toHaveBeenCalledWith("care_handover_proposed", {});
@@ -961,7 +960,7 @@ describe("handing a care plan over: it takes two", () => {
 
     await user.click(within(ada).getByRole("button", { name: "Hand over to…" }));
     await user.click(within(ada).getByRole("combobox", { name: "Hand it over to" }));
-    await user.click(await within(ada).findByRole("option", { name: /Abe Admin/ }));
+    await user.click(await screen.findByRole("option", { name: /Abe Admin/ }));
 
     expect(await within(ada).findByRole("alert")).toHaveTextContent("Pick someone on the team who looks after care plans.");
     expect(track).not.toHaveBeenCalledWith("care_handover_proposed", {});
@@ -973,8 +972,8 @@ describe("handing a care plan over: it takes two", () => {
 
     await user.click(within(ada).getByRole("button", { name: "Hand over to…" }));
     await user.click(within(ada).getByRole("combobox", { name: "Hand it over to" }));
-    expect(await within(ada).findByRole("option", { name: /Abe Admin/ })).toBeInTheDocument();
-    expect(within(ada).queryByRole("option", { name: /Cam Manager/ })).not.toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: /Abe Admin/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Cam Manager/ })).not.toBeInTheDocument();
     expect(actions.proposeCareHandover).not.toHaveBeenCalled();
   });
 

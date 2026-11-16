@@ -207,6 +207,26 @@ describe("withoutLessonPreview", () => {
     expect(withoutLessonPreview([byTitle, byOrigin], LESSON)).toEqual([]);
   });
 
+  it("drops the preview Slack made of the sign-in page the lesson link redirected to", () => {
+    const login = card({
+      title: "Login | Hedgie Hub",
+      titleLink: `https://hub.example.test/login?next=${encodeURIComponent(`/courses/ready-writer/lessons/${LESSON}?t=356`)}`,
+      fromUrl: "https://hub.example.test/login",
+    });
+    const byOriginal = card({ titleLink: "https://hub.example.test/login", originalUrl: `https://hub.example.test/courses/ready-writer/lessons/${LESSON}?t=356` });
+    const malformed = card({ titleLink: "https://hub.example.test/login?next=%E0%A4%A" });
+    expect(withoutLessonPreview([login, byOriginal], LESSON)).toEqual([]);
+    expect(withoutLessonPreview([malformed], LESSON)).toEqual([malformed]);
+  });
+
+  it("drops the sign-in page preview of the message's own Hub chat link, and keeps other messages' links", () => {
+    const own = card({ title: "Login | Hedgie Hub", titleLink: "https://hub.example.test/chat/chn_AAAAAAAAAAA1?m=msg_AAAAAAAAAAA1" });
+    const thread = card({ titleLink: "https://hub.example.test/chat/chn_AAAAAAAAAAA1?thread=msg_AAAAAAAAAAA1" });
+    const another = card({ titleLink: "https://hub.example.test/chat/chn_AAAAAAAAAAA1?m=msg_AAAAAAAAAAA2" });
+    expect(withoutLessonPreview([own, thread, another], LESSON, "msg_AAAAAAAAAAA1")).toEqual([another]);
+    expect(withoutLessonPreview([own], LESSON)).toEqual([own]);
+  });
+
   it("keeps other previews, other lessons' previews, and everything when no lesson is shared", () => {
     const other = card({ titleLink: "https://example.org/article" });
     const otherLesson = card({ titleLink: "https://hub.example.test/courses/ready-writer/lessons/les_AAAAAAAAAAA2" });

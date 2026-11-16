@@ -28,7 +28,7 @@ export default function LessonMediaPanel({
   title: string;
   playbackId: string;
   tokens: PlaybackTokens;
-  /** Present when Mux Data is on for this admin (the `mux_data` flag); the player still waits for consent. */
+  /** Present unless the admin is in sudo; the player still waits for consent. */
   muxData?: MuxDataConsent | null;
   posterUrl: string | null;
   /** The Hub lesson: lets a tab left open past the links' hour fetch fresh ones. Absent when the lesson isn't in the Hub yet. */
@@ -50,7 +50,7 @@ export default function LessonMediaPanel({
   return (
     <div>
       {/* No watch tracking: this is an admin looking at the lesson, not a viewing. */}
-      <LessonPlayer title={title} playbackId={playbackId} tokens={tokens} muxData={muxData} posterUrl={posterUrl} lessonId={lessonId ?? undefined} onTime={setSeconds} />
+      <LessonPlayer title={title} playbackId={playbackId} tokens={tokens} muxData={muxData} surface="builder" posterUrl={posterUrl} lessonId={lessonId ?? undefined} onTime={setSeconds} />
       <div className="mt-3">
         {frameThumbnail ? (
           <LessonVideoControls
