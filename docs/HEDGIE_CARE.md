@@ -134,6 +134,7 @@ Owner's decision: a feature launches with its events in the activity log (`CLAUD
 | The receiver declines | "declined the care plan <name> offered" | `handover_to` cleared by the receiver |
 | It is taken back | "took back the offer of the care plan to <name>" | `handover_to` cleared by anyone else |
 | A plan with no owner is taken | "took a care plan that had no owner" | `owned_by` set from none |
+| An owner changes with no offer accepted | "took over the care plan from <name>" (**dead code today**: nothing changes an owner but an accepted hand-over or a claim of an ownerless plan; the sentence is there for the day an exception is built, e.g. an admin taking a plan over) | `owned_by` changes from an owner, the offer not cleared in the same row |
 | The start moves | "moved the care plan's start to <date>" (the Eastern day) | `opened_at` |
 | The plan is edited | "changed the care plan (note, next step, reason, follow-up day)": the names of the fields, never their values | those columns |
 | It is removed or brought back | "removed the care plan" / "brought the care plan back" | `deleted_at` |

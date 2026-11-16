@@ -21,6 +21,7 @@ export type CareEventKind =
   | "declined"
   | "cancelled"
   | "claimed"
+  | "took_over"
   | "start_moved"
   | "edited"
   | "removed"
@@ -110,6 +111,8 @@ export function careSentence(kind: CareEventKind, context: CareEventContext = {}
       return name ? `took back the offer of the care plan to ${name}` : "took back the offer of the care plan";
     case "claimed":
       return "took a care plan that had no owner";
+    case "took_over":
+      return name ? `took over the care plan from ${name}` : "took over a care plan";
     case "start_moved":
       return context.day ? `moved the care plan's start to ${formatDateOnly(context.day)}` : "moved the care plan's start";
     case "edited": {
@@ -149,8 +152,12 @@ export function careEventOfAudit(row: {
     return { kind: "closed", context: { endedHow: typeof f.ended_how?.new === "string" ? f.ended_how.new : null } };
   }
   if (f.owned_by) {
-    // The only ways an owner changes: the receiver accepts an offer (it comes from the old owner) or someone takes a plan with none.
-    return f.owned_by.old ? { kind: "accepted", context: { name: label(f.owned_by.old) } } : { kind: "claimed", context: {} };
+    // Three ways an owner changes. The receiver accepts an offer: the offer is cleared in the same row, and the owner it came from is the old one.
+    // Someone takes a plan with no owner (the old owner is none). Or a plan is taken over with no offer accepted (an owner who is there, no offer
+    // cleared); nothing makes that change today, so the sentence waits for the day something does.
+    if (!f.owned_by.old) return { kind: "claimed", context: {} };
+    const offerCleared = !!f.handover_to && !!f.handover_to.old && !f.handover_to.new;
+    return { kind: offerCleared ? "accepted" : "took_over", context: { name: label(f.owned_by.old) } };
   }
   if (f.handover_to) {
     if (f.handover_to.new) return { kind: "offered", context: { name: label(f.handover_to.new) } };

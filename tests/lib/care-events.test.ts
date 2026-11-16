@@ -65,6 +65,8 @@ describe("the sentences of a care plan's events", () => {
     ["cancelled", { name: TRICKY }, `took back the offer of the care plan to ${TRICKY}`],
     ["cancelled", {}, "took back the offer of the care plan"],
     ["claimed", {}, "took a care plan that had no owner"],
+    ["took_over", { name: TRICKY }, `took over the care plan from ${TRICKY}`],
+    ["took_over", {}, "took over a care plan"],
     ["start_moved", { day: "2027-03-09" }, "moved the care plan's start to 3/9/2027"],
     ["start_moved", {}, "moved the care plan's start"],
     ["edited", { fields: ["notes", "next_step", "reason"] }, "changed the care plan (note, next step, reason)"],
@@ -111,6 +113,11 @@ describe("a care plan's audit row", () => {
     expect(read({ actor_user_id: RECEIVER, fields: { owned_by: { old: OWNER, new: RECEIVER }, ...gone } })).toBe("accepted the care plan from Owner Example");
     // A plan with no owner is taken, not accepted.
     expect(read({ actor_user_id: RECEIVER, fields: { owned_by: { old: null, new: RECEIVER } } })).toBe("took a care plan that had no owner");
+    // An owner change with no offer accepted is a takeover, named for whose plan it was.
+    expect(read({ actor_user_id: RECEIVER, fields: { owned_by: { old: OWNER, new: RECEIVER } } })).toBe("took over the care plan from Owner Example");
+    expect(read({ actor_user_id: RECEIVER, fields: { owned_by: { old: RECEIVER, new: OFFERER } } })).toBe(`took over the care plan from ${TRICKY}`);
+    // An unrelated offer cleared in a row that did not change the owner is not an accept.
+    expect(describeRow(audit({ actor_user_id: RECEIVER, refs, fields: { owned_by: { old: OWNER, new: RECEIVER }, handover_to: { old: null, new: RECEIVER } } }))).toBe("took over the care plan from Owner Example");
   });
 
   it("falls back to plain words when a name could not be resolved", () => {
