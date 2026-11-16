@@ -1,5 +1,5 @@
 import type { Repos } from "@/lib/data/repos";
-import { CHANNEL_ADAPTERS, type ChannelId, type OutboundMessage } from "@/lib/channels";
+import { CHANNEL_ADAPTERS, type ChannelId, type ChannelReceipt, type OutboundMessage } from "@/lib/channels";
 import { APP_URL } from "@/lib/config";
 import * as Sentry from "@sentry/nextjs";
 import { sendOperationsAlert } from "@/lib/operations-alerts";
@@ -41,7 +41,12 @@ export interface Notifier {
    * Sends to every channel in channelsFor(memberId) and returns the ones that succeeded. A channel
    * that fails is logged and skipped; it doesn't stop the others or throw.
    */
-  send(memberId: string, message: OutboundMessage): Promise<ChannelId[]>;
+  send(memberId: string, message: OutboundMessage, options?: SendOptions): Promise<ChannelId[]>;
+}
+
+export interface SendOptions {
+  /** Called for each channel that delivered, with what it says about where the message landed (Slack: the message's timestamp). A failure in it is logged and never undoes the send. */
+  onReceipt?: (channel: ChannelId, receipt: ChannelReceipt) => Promise<void> | void;
 }
 
 export interface NotifierOptions {
@@ -103,7 +108,7 @@ export async function createNotifier(
   return {
     channelsFor,
     canReach: (memberId) => channelsFor(memberId).length > 0,
-    async send(memberId, message) {
+    async send(memberId, message, sendOptions) {
       const withSettingsLink: OutboundMessage = {
         ...message,
         footerLinks: [
@@ -117,8 +122,11 @@ export async function createNotifier(
           // Tag the Hub links so a visit through one says which notification it came from. In-app
           // notifications aren't tagged: the click is recorded in the Hub.
           const outgoing = channel === "in_app" ? withSettingsLink : attributeMessage(withSettingsLink, APP_URL, { kind, channel });
-          await CHANNEL_ADAPTERS[channel].send(addresses.get(channel)!.get(memberId)!, outgoing, { kind, memberId });
+          const receipt = await CHANNEL_ADAPTERS[channel].send(addresses.get(channel)!.get(memberId)!, outgoing, { kind, memberId });
           delivered.push(channel);
+          if (receipt && sendOptions?.onReceipt) {
+            await (async () => sendOptions.onReceipt!(channel, receipt))().catch((error) => console.error(`[notifications] ${kind} receipt from ${channel} for member ${memberId} not handled`, error));
+          }
         } catch (error) {
           console.error(`[notifications] ${kind} via ${channel} to member ${memberId} failed`, error);
           if (channel === "slack") {

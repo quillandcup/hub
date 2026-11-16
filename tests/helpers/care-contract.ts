@@ -442,6 +442,72 @@ export function defineCareContract(name: string, setup: () => CareContractContex
         await refused(as(owner()).claim(c.id), "has_owner");
       });
 
+      describe("an admin takes a plan over", () => {
+        it("takes an open plan from its owner in one step, clears a pending offer, and records the takeover for the previous owner", async () => {
+          const c = await owned(ada);
+          await as(owner()).proposeHandover(c.id, colleague());
+
+          const taken = await as(ctx.admin).claim(c.id);
+          expect(taken).toMatchObject({
+            ok: true,
+            engagement: { owned_by: ctx.admin, handover_to: null, handover_by: null, handover_at: null, taken_from: owner(), taken_by: ctx.admin, taken_seen_at: null },
+          });
+          if (!taken.ok) throw new Error("unreachable");
+          expect(taken.engagement.taken_at).not.toBeNull();
+          expect(await ctx.repo().byId(c.id)).toMatchObject({ owned_by: ctx.admin, taken_from: owner() });
+          // The offer that was waiting is gone: the receiver has nothing to accept.
+          await refused(as(colleague()).acceptHandover(c.id), "no_handover");
+        });
+
+        it("takes a plan nobody owns without a notice (nobody is taken it from)", async () => {
+          const c = await opened(ada, { ownedBy: null });
+          expect(await as(ctx.admin).claim(c.id)).toMatchObject({ ok: true, engagement: { owned_by: ctx.admin, taken_from: null, taken_by: null, taken_at: null } });
+        });
+
+        it("refuses an admin who already owns it, a community manager, an assistant, a plain member, a closed plan and one that is not there", async () => {
+          const c = await owned(ada);
+          await refused(as(colleague()).claim(c.id), "has_owner"); // a community manager needs the receiver's agreement
+          await refused(as(owner()).claim(c.id), "has_owner"); // even for her own plan she asks nobody
+          await refused(as(ctx.assistant).claim(c.id), "not_allowed");
+          await refused(as(ctx.plain).claim(c.id), "not_allowed");
+          await refused(as(ctx.admin).claim(ctx.missingId), "not_found");
+          expect(await ownerOf(c.id)).toBe(owner());
+
+          expect((await as(ctx.admin).claim(c.id)).ok).toBe(true);
+          await refused(as(ctx.admin).claim(c.id), "already_yours");
+
+          const closed = await owned(bo);
+          await ctx.repo().close(closed.id, "ran_its_course", "2026-03-09T09:00:00.000Z");
+          await refused(as(ctx.admin).claim(closed.id), "plan_closed"); // a closed plan keeps its owner
+          expect(await ownerOf(closed.id)).toBe(owner());
+        });
+
+        it("tells only the previous owner, who dismisses the notice once; a later takeover replaces it", async () => {
+          const c = await owned(ada);
+          await as(ctx.admin).claim(c.id);
+
+          await refused(as(ctx.admin).dismissTakeoverNotice(c.id), "no_notice"); // not the one it was taken from
+          await refused(as(colleague()).dismissTakeoverNotice(c.id), "no_notice");
+          await refused(as(ctx.plain).dismissTakeoverNotice(c.id), "not_allowed");
+          await refused(as(owner()).dismissTakeoverNotice(ctx.missingId), "not_found");
+          expect((await ctx.repo().byId(c.id))?.taken_seen_at).toBeNull();
+
+          const seen = await as(owner()).dismissTakeoverNotice(c.id);
+          expect(seen).toMatchObject({ ok: true, engagement: { taken_from: owner(), taken_by: ctx.admin, owned_by: ctx.admin } });
+          const seenAt = (await ctx.repo().byId(c.id))?.taken_seen_at;
+          expect(seenAt).not.toBeNull();
+          // A second click changes nothing.
+          expect((await as(owner()).dismissTakeoverNotice(c.id)).ok).toBe(true);
+          expect(iso((await ctx.repo().byId(c.id))?.taken_seen_at ?? null)).toBe(iso(seenAt ?? null));
+
+          // The plan goes to a colleague who accepts it (a hand-over leaves the notice as it is), and an admin takes it again: a new notice.
+          await as(ctx.admin).proposeHandover(c.id, colleague());
+          await as(colleague()).acceptHandover(c.id);
+          expect(await ctx.repo().byId(c.id)).toMatchObject({ owned_by: colleague(), taken_from: owner(), taken_seen_at: seenAt });
+          expect(await as(ctx.admin).claim(c.id)).toMatchObject({ ok: true, engagement: { owned_by: ctx.admin, taken_from: colleague(), taken_by: ctx.admin, taken_seen_at: null } });
+        });
+      });
+
       it("carries a pending offer to the renewal and keeps the owner", async () => {
         const c = await owned(ada);
         await as(owner()).proposeHandover(c.id, colleague());

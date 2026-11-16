@@ -13,7 +13,7 @@ function getServiceClient() {
 }
 
 // members can exceed Supabase's default 1000-row query limit (former members
-// are retained, not deleted — see CLAUDE.md), and this endpoint needs the
+// are retained, not deleted — see .claude/rules/data-architecture.md), and this endpoint needs the
 // full table both to resolve every user's linked member and to let the
 // frontend offer every unlinked member as a link target. Paginate to avoid
 // silently truncating to the first 1000 rows.

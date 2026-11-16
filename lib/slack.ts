@@ -22,12 +22,13 @@ export interface SendSlackDMParams {
 }
 
 /**
- * Low-level Slack DM sender. Member notifications don't call this directly: they go through
+ * Low-level Slack DM sender. Returns the posted message's conversation and timestamp (null if Slack did not say).
+ * Member notifications don't call this directly: they go through
  * createNotifier (lib/notifications/notify.ts), whose Slack channel uses it, so they honor the
  * member's notification settings. wheel-of-wonder/actions.ts and feedback/route.ts keep their own
  * WebClient calls, so their sends are unaffected by SLACK_TEST_MODE.
  */
-export async function sendSlackDM(params: SendSlackDMParams): Promise<void> {
+export async function sendSlackDM(params: SendSlackDMParams): Promise<{ channel: string; ts: string } | null> {
   const token = await getSlackBotToken();
   if (!token) {
     throw new Error("sendSlackDM: SLACK_BOT_TOKEN not configured");
@@ -46,7 +47,9 @@ export async function sendSlackDM(params: SendSlackDMParams): Promise<void> {
   }
 
   const slack = createSlackClient(token);
-  await slack.chat.postMessage({ channel: slackUserId, text, blocks, unfurl_links: false, unfurl_media: false });
+  const posted = await slack.chat.postMessage({ channel: slackUserId, text, blocks, unfurl_links: false, unfurl_media: false });
+  // Where the message landed (the DM conversation, not the user id it was addressed to), for callers that edit it later.
+  return posted.channel && posted.ts ? { channel: posted.channel, ts: posted.ts } : null;
 }
 
 

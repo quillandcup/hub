@@ -44,6 +44,8 @@ const actions = vi.hoisted(() => ({
   declineCareHandover: vi.fn(),
   cancelCareHandover: vi.fn(),
   claimCarePlan: vi.fn(),
+  takeOverCarePlan: vi.fn(),
+  dismissCareTakeoverNotice: vi.fn(),
   loadPreviousCareOwner: vi.fn(),
   deleteEngagement: vi.fn(),
   getEngagementResults: vi.fn(),
@@ -55,6 +57,7 @@ vi.mock("@/app/(admin)/admin/care/actions", () => actions);
 import CareIndex from "@/app/(admin)/admin/care/page";
 import CareEarlierPage from "@/app/(admin)/admin/care/earlier/page";
 import { SLACK_DM_SCOPES } from "@/lib/slack-connect";
+import { formatDateOnly } from "@/lib/formatters";
 
 const CM_USER = { id: "user-community-manager", email: "cm@example.test" };
 const activePage = (searchParams: Record<string, string> = {}) => CareIndex({ searchParams: Promise.resolve(searchParams) } as never);
@@ -80,6 +83,10 @@ const row = (id: string, member: string, over: Record<string, unknown> = {}) => 
   handover_to: null,
   handover_by: null,
   handover_at: null,
+  taken_from: null,
+  taken_by: null,
+  taken_at: null,
+  taken_seen_at: null,
   next_step: null,
   notes: null,
   deleted_at: null,
@@ -156,7 +163,7 @@ beforeEach(() => {
   actions.updateEngagement.mockResolvedValue({ success: true });
   actions.closeEngagement.mockResolvedValue({ success: true });
   actions.renewEngagement.mockResolvedValue({ success: true });
-  for (const fn of [actions.proposeCareHandover, actions.acceptCareHandover, actions.declineCareHandover, actions.cancelCareHandover, actions.claimCarePlan]) fn.mockResolvedValue({ success: true });
+  for (const fn of [actions.proposeCareHandover, actions.acceptCareHandover, actions.declineCareHandover, actions.cancelCareHandover, actions.claimCarePlan, actions.takeOverCarePlan, actions.dismissCareTakeoverNotice]) fn.mockResolvedValue({ success: true });
   actions.loadPreviousCareOwner.mockResolvedValue({ name: null });
   actions.getEngagementResults.mockResolvedValue({ results: RESULTS });
   actions.deleteEngagement.mockResolvedValue({ success: true });
@@ -927,6 +934,121 @@ describe("the owner filter", () => {
     expect(cards()).toHaveLength(3);
     await user.click(screen.getByRole("button", { name: "Mine" }));
     expect(cards()).toHaveLength(2); // the lapsed one is Abe's
+  });
+});
+
+describe("an admin takes a plan over, and the previous owner is told", () => {
+  const open = async (user: Parameters<typeof signInAs>[0] = CM_USER) => {
+    signInAs(user);
+    await renderServerRoute(activePage, undefined as never);
+    return userEvent.setup();
+  };
+  const planOf = (name: string) => cards().find((c) => within(c).queryByText(name))!;
+
+  it("offers an admin Take over on an open plan someone else owns, and on no other", async () => {
+    await open(ADMIN_USER);
+
+    expect(within(planOf("Ada E.")).getByRole("button", { name: "Take over" })).toBeInTheDocument(); // Cam's
+    expect(within(planOf("Cy Example")).getByRole("button", { name: "Take over" })).toBeInTheDocument(); // Cam's
+    expect(within(planOf("Bo Example")).queryByRole("button", { name: "Take over" })).not.toBeInTheDocument(); // already hers
+  });
+
+  it("offers it on no closed plan, which keeps its owner", async () => {
+    signInAs(ADMIN_USER);
+    await renderServerRoute(earlierPage, undefined as never);
+
+    expect(screen.queryByRole("button", { name: "Take over" })).not.toBeInTheDocument();
+  });
+
+  it("offers it to no community manager: they hand over, and the receiver accepts", async () => {
+    await open(CM_USER);
+
+    expect(screen.queryByRole("button", { name: "Take over" })).not.toBeInTheDocument();
+    expect(within(planOf("Bo Example")).queryByRole("button", { name: "Take over" })).not.toBeInTheDocument(); // an admin's plan
+  });
+
+  it("asks first, naming who it is taken from and that they will see a notice, then takes it", async () => {
+    const user = await open(ADMIN_USER);
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const ada = planOf("Ada E.");
+
+    await user.click(within(ada).getByRole("button", { name: "Take over" }));
+    expect(confirm).toHaveBeenCalledWith("Take this care plan over from Cam Manager? They will see a notice on their page.");
+    expect(actions.takeOverCarePlan).not.toHaveBeenCalled();
+
+    confirm.mockReturnValue(true);
+    await user.click(within(ada).getByRole("button", { name: "Take over" }));
+    expect(actions.takeOverCarePlan).toHaveBeenCalledWith("care_AAAAAAAAAAA2");
+    expect(track).toHaveBeenCalledWith("care_plan_taken_over", {});
+    confirm.mockRestore();
+  });
+
+  it("shows why it was refused, and does not count it", async () => {
+    actions.takeOverCarePlan.mockResolvedValue({ error: "You already own this care plan." });
+    const user = await open(ADMIN_USER);
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    await user.click(within(planOf("Ada E.")).getByRole("button", { name: "Take over" }));
+
+    expect(await within(planOf("Ada E.")).findByRole("alert")).toHaveTextContent("You already own this care plan.");
+    expect(track).not.toHaveBeenCalledWith("care_plan_taken_over", {});
+    confirm.mockRestore();
+  });
+
+  it("keeps Take this care plan for a plan nobody owns, with no Take over beside it", async () => {
+    dataset.careEngagements.find((c) => c.id === "care_AAAAAAAAAAA2")!.owned_by = null;
+    await open(ADMIN_USER);
+
+    const ada = planOf("Ada E.");
+    expect(within(ada).getByRole("button", { name: "Take this care plan" })).toBeInTheDocument();
+    expect(within(ada).queryByRole("button", { name: "Take over" })).not.toBeInTheDocument();
+  });
+
+  describe("the notice for the previous owner", () => {
+    const tookOver = (over: Record<string, unknown> = {}) =>
+      Object.assign(dataset.careEngagements.find((c) => c.id === "care_AAAAAAAAAAA2")!, { owned_by: ADMIN_USER.id, taken_from: CM_USER.id, taken_by: ADMIN_USER.id, taken_at: ago(1), taken_seen_at: null, ...over });
+
+    it("says who took which member's care plan and when, with Dismiss, next to where hand-overs are answered", async () => {
+      tookOver();
+      const user = await open(CM_USER);
+      const section = screen.getByRole("region", { name: "Taken over" });
+
+      expect(within(section).getByText(/Abe Admin took over/)).toHaveTextContent(`Abe Admin took over Ada E.'s care plan on ${formatDateOnly("2026-03-19")}.`);
+      expect(within(section).getByRole("link", { name: "Ada E." })).toHaveAttribute("href", `/admin/members/${ADA}`);
+
+      await user.click(within(section).getByRole("button", { name: "Dismiss" }));
+      expect(actions.dismissCareTakeoverNotice).toHaveBeenCalledWith("care_AAAAAAAAAAA2");
+      expect(track).toHaveBeenCalledWith("care_takeover_notice_dismissed", {});
+    });
+
+    it("is shown on the Earlier tab too, to the previous owner only, and not once dismissed", async () => {
+      tookOver();
+      signInAs(CM_USER);
+      await renderServerRoute(earlierPage, undefined as never);
+      expect(screen.getByRole("region", { name: "Taken over" })).toBeInTheDocument();
+      cleanup();
+
+      await open(ADMIN_USER); // the one who took it
+      expect(screen.queryByRole("region", { name: "Taken over" })).not.toBeInTheDocument();
+      cleanup();
+
+      tookOver({ taken_seen_at: ago(0) });
+      await open(CM_USER);
+      expect(screen.queryByRole("region", { name: "Taken over" })).not.toBeInTheDocument();
+    });
+
+    it("says an admin when the account that took it is gone, and shows why a dismissal was refused", async () => {
+      tookOver({ taken_by: null });
+      actions.dismissCareTakeoverNotice.mockResolvedValue({ error: "That notice is already gone." });
+      const user = await open(CM_USER);
+      const section = screen.getByRole("region", { name: "Taken over" });
+      expect(within(section).getByText(/An admin took over/)).toBeInTheDocument();
+
+      await user.click(within(section).getByRole("button", { name: "Dismiss" }));
+
+      expect(await within(section).findByRole("alert")).toHaveTextContent("That notice is already gone.");
+      expect(track).not.toHaveBeenCalledWith("care_takeover_notice_dismissed", {});
+    });
   });
 });
 

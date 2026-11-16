@@ -22,7 +22,7 @@ By hand: **pick a big sister for each new member** (with recommendations), and n
 
 ## Data
 
-`mentorships` is a **Local** table (see CLAUDE.md): one row per match, never reprocessed.
+`mentorships` is a **Local** table (see `.claude/rules/data-architecture.md`): one row per match, never reprocessed.
 
 | Column | Meaning |
 |---|---|

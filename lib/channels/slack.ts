@@ -10,7 +10,8 @@ export const slackChannel: ChannelAdapter = {
   id: "slack",
   resolveAddresses: (repos, memberIds) => resolveSlackUserIds(repos, memberIds),
   async send(slackUserId, message) {
-    await sendSlackDM({ slackUserId, text: message.text, blocks: slackBlocks(message) });
+    const posted = await sendSlackDM({ slackUserId, text: message.text, blocks: slackBlocks(message) });
+    return posted ? { slack: { channelId: posted.channel, ts: posted.ts } } : undefined;
   },
 };
 

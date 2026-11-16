@@ -1,4 +1,4 @@
--- pgTAP tests for the page builder's tables (20270802000000): only admins read or write landing pages and their versions
+-- pgTAP tests for the page builder's tables (20270805000000): only admins read or write landing pages and their versions
 -- (a member and a signed-out visitor get nothing), the address is unique among live pages and frees up when a page is
 -- deleted, publishing keeps a version in one step, restoring puts a version into the draft without publishing it, and the
 -- audit log records the intent (publish, restore, rename) as the admin but not the autosave of the draft. Runs in one

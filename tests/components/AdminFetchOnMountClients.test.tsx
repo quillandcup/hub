@@ -192,5 +192,12 @@ describe("admin pages that fetch on mount", () => {
       const order = text.map((t) => (t.includes("Abe E") ? "Abe" : t.includes("Zed E") ? "Zed" : "Mid")).filter((n) => n !== "Mid");
       expect(order).toEqual(["Abe", "Zed"]);
     }
+
+    // Every member in the three member tables links to their admin detail page.
+    for (const header of headers) {
+      const table = header.closest("table") as HTMLElement;
+      const link = within(table).getAllByRole("link", { name: /Zed E/ })[0];
+      expect(link).toHaveAttribute("href", "/admin/members/m1");
+    }
   });
 });

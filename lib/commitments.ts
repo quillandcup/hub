@@ -233,7 +233,7 @@ export function assignOccurrencePrickles(
 
 /**
  * Distinct attended prickle ids from raw prickle_attendance rows. A member can leave and rejoin
- * (multiple rows per prickle, see CLAUDE.md), but an occurrence is kept once no matter how many rows.
+ * (multiple rows per prickle, see .claude/rules/attendance-table.md), but an occurrence is kept once no matter how many rows.
  */
 export function buildAttendedSet(rows: { prickle_id: string }[]): Set<string> {
   return new Set(rows.map((r) => r.prickle_id));

@@ -120,6 +120,17 @@ describe("a care plan's audit row", () => {
     expect(describeRow(audit({ actor_user_id: RECEIVER, refs, fields: { owned_by: { old: OWNER, new: RECEIVER }, handover_to: { old: null, new: RECEIVER } } }))).toBe("took over the care plan from Owner Example");
   });
 
+  it("reads an admin's takeover as a takeover even when it cleared a waiting offer (which would otherwise read as an accept), and the dismissal of its notice", () => {
+    const takeover = { owned_by: { old: OWNER, new: RECEIVER }, taken_from: { old: null, new: OWNER }, taken_by: { old: null, new: RECEIVER }, taken_at: { old: null, new: "2027-03-02T10:00:00Z" } };
+    const cleared = { handover_to: { old: OFFERER, new: null }, handover_by: { old: OWNER, new: null }, handover_at: { old: "2027-03-01T10:00:00Z", new: null } };
+    expect(read({ actor_user_id: RECEIVER, fields: takeover })).toBe("took over the care plan from Owner Example");
+    expect(read({ actor_user_id: RECEIVER, fields: { ...takeover, ...cleared } })).toBe("took over the care plan from Owner Example");
+    // The previous owner dismisses the notice: one change, one sentence.
+    expect(read({ actor_user_id: OWNER, fields: { taken_seen_at: { old: null, new: "2027-03-03T10:00:00Z" } } })).toBe("dismissed the notice that a care plan of theirs was taken over");
+    // A later takeover shows the notice again: the owner changes, so it is a takeover and not a dismissal.
+    expect(read({ actor_user_id: OFFERER, fields: { ...takeover, owned_by: { old: RECEIVER, new: OFFERER }, taken_seen_at: { old: "2027-03-03T10:00:00Z", new: null } } })).toBe(`took over the care plan from ${TRICKY}`);
+  });
+
   it("falls back to plain words when a name could not be resolved", () => {
     expect(describeRow(audit({ fields: { handover_to: { old: null, new: RECEIVER } } }))).toBe("offered the care plan to a colleague");
   });
@@ -167,6 +178,8 @@ describe("a care plan's row on the member's timeline", () => {
     expect(sentence("care_handover_declined", { from_user_id: OFFERER })).toBe("declined the care plan Offerer Example offered");
     expect(sentence("care_handover_cancelled", { to_user_id: RECEIVER })).toBe(`took back the offer of the care plan to ${TRICKY}`);
     expect(sentence("care_plan_claimed", null)).toBe("took a care plan that had no owner");
+    expect(sentence("care_plan_taken_over", { from_user_id: OWNER })).toBe("took over the care plan from Owner Example");
+    expect(sentence("care_plan_taken_over", null)).toBe("took over a care plan");
   });
 
   it("reads a close written before the ending was in its data from the fixed labels in its description", () => {

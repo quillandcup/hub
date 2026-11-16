@@ -10,7 +10,7 @@ import { isReferenceValue, UUID_RE } from "@/lib/audit-details";
  * Makes the details of an audit row readable: the row's own id and other pure plumbing are left out, and a
  * field that holds the id of something we know (a member, a prickle, a prickle type, a signed-in account) shows
  * that thing's name instead, linked where there is an admin page for it. Only Tier 1 ids are ever linked
- * (CLAUDE.md, "Resource ID Tiers"); an id we could not resolve is left out rather than shown raw.
+ * (.claude/rules/resource-ids.md, "Resource ID Tiers"); an id we could not resolve is left out rather than shown raw.
  */
 
 /** Every id-shaped value in a page of audit rows' deltas. */

@@ -460,6 +460,19 @@ function specialAuditPhrase(row: ActivityFeedRow): string | null {
     const what = row.entity_type === "course_lesson_order" ? "lessons" : "modules";
     return `reordered the${count} ${what}${row.description ? ` in “${formatValue(row.description)}”` : ""}`;
   }
+  // Staff moderation of a lesson comment is one entry with the lesson's title and what changed, never the comment's text (the migration says why).
+  if (row.entity_type === "lesson_comment" && row.event_type === "update") {
+    const lesson = row.description ? ` on “${formatValue(row.description)}”` : "";
+    const settled = fields.reports_resolved ? ", settling its reports" : "";
+    const before = fields.visibility?.old;
+    const after = fields.visibility?.new;
+    if (after === "hidden") return `hid a comment${lesson}${settled}`;
+    if (after === "deleted") return `deleted a comment${lesson}${settled}`;
+    if (before === "held" && after === "visible") return `approved a held comment${lesson}`;
+    if (before === "hidden") return `showed a hidden comment again${lesson}`;
+    if (fields.handled?.new) return `marked a question as handled${lesson}`;
+    if (fields.reports_resolved) return `dismissed the reports on a comment${lesson}`;
+  }
   // A course made by duplicating another is one entry with where it came from and what it holds (the migration says why not one per row).
   if (row.entity_type === "course" && row.event_type === "insert" && fields.copied_from?.new) {
     const lessons = Number(fields.lessons_copied?.new);

@@ -10,7 +10,7 @@ The local database is a seed, not a copy of production. Row counts, data shapes,
 **Limits**
 - Only `select`/`explain`. Never write, migrate, reset or delete in production from an agent session; writes go through a reviewed PR and CI (`push-migrations`), or the user runs them. If a one-off production write is truly needed, give the user the exact statement and ask.
 - Production holds member data and the repo is public: use the results to decide and to report counts, but don't paste names, emails or other personal data into commits, docs, tests or PR text.
-- A single query hits the 8s statement timeout on big tables (see the Slack reprocess notes in `CLAUDE.md`); page or narrow it instead of retrying.
+- A single query hits the 8s statement timeout on big tables (see the Slack reprocess notes in `data-architecture.md`); page or narrow it instead of retrying.
 
 **In the report, say where a number came from** ("prod: 1,312 events", "local: 11"). Don't project production timing from a laptop: when it matters, measure the same job in both places, or build a small benchmark, and use the ratio.
 

@@ -97,7 +97,7 @@ export default async function MemberProfilePage({
   const books = booksData
   const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref
 
-  // Total prickles attended feeds the Badges section below. Computed live from prickle_attendance (distinct prickle_id, per CLAUDE.md) rather
+  // Total prickles attended feeds the Badges section below. Computed live from prickle_attendance (distinct prickle_id, per .claude/rules/attendance-table.md) rather
   // than the member_metrics table, which nothing in the app populates -- see
   // docs/MEDALLION_ARCHITECTURE.md.
   // Hosting stats are the public subset only (no punctuality), and the schedule is the

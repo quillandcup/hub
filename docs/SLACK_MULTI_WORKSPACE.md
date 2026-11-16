@@ -47,7 +47,7 @@ Four PRs, merged in order.
 
 ## Cautions for whoever builds it
 
-- **Expand, then contract** (`CLAUDE.md`). Production code keeps running against the new schema during a deploy, so add the new columns and keys first and switch the code before removing the old ones. Squawk bans dropping or replacing constraints (`ban-drop-constraint` and others): each such statement needs the user's explicit approval, never an ignore added on your own.
+- **Expand, then contract** (`.claude/rules/migrations.md`). Production code keeps running against the new schema during a deploy, so add the new columns and keys first and switch the code before removing the old ones. Squawk bans dropping or replacing constraints (`ban-drop-constraint` and others): each such statement needs the user's explicit approval, never an ignore added on your own.
 - **Large tables.** Check production sizes read-only first (`.claude/rules/verify-against-prod.md`); `slack_messages` is big, so backfills are batched to fit the 8s statement timeout.
 - **One-time step:** installing Billie Bot into the second workspace is done by a person in Slack; the code only provides the flow.
 - **Slack content privacy** (service role only text, column grants on `raw_payload`) applies to every new column and table.
