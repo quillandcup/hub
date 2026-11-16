@@ -106,6 +106,14 @@ export const CRON_HEARTBEATS = {
     grace: 1,
     graceUnit: "days",
   },
+  "lesson-comment-notifications": {
+    name: "Cron: lesson comment notifications (daily 14:30 UTC)",
+    path: "/api/internal/lesson-comment-notifications",
+    scheduler: "vercel",
+    envVar: "CHECKLY_HEARTBEAT_LESSON_COMMENT_NOTIFICATIONS",
+    unmonitored: "Checkly plan limit of 10 uptime monitors reached",
+    ...daily,
+  },
   "reconcile-retention": {
     name: "Cron: raw network details retention (daily 04:00 UTC)",
     path: "/api/reconcile/retention",

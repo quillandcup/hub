@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { deleteLessonComment, editLessonComment, postLessonComment, reportLessonComment } from "@/app/(member)/courses/comment-actions";
+import { deleteLessonComment, editLessonComment, postLessonComment, reportLessonComment, setLessonCommentFollow } from "@/app/(member)/courses/comment-actions";
 import { track } from "@/lib/analytics/client";
 import { COMMENT_EDIT_WINDOW_MS, COMMENT_MAX_LENGTH, REPORT_REASON_MAX_LENGTH, commentCountBucket } from "@/lib/courses/comments";
 import { fullDate, linkifyText, relativeAgo } from "@/lib/courses/comment-text";
@@ -20,6 +20,10 @@ interface Props {
   entries: ThreadEntry[];
   /** Live comments in the thread (removed ones left out). */
   count: number;
+  /** The member follows this lesson's thread: they hear about new comments in the daily note and about instructors' replies. */
+  following: boolean;
+  /** Comments by others since the member last opened the thread (0 on a first visit). */
+  unread: number;
   /** The member the page is for: their own comments get edit and delete. */
   currentMemberId: string;
   /** The viewer is staff acting as themselves, so what they post carries the Instructor badge. */
@@ -35,6 +39,7 @@ interface Props {
 const buttonClass =
   "rounded-lg px-3 py-1.5 text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500 disabled:cursor-not-allowed disabled:opacity-50";
 const primaryButton = `${buttonClass} bg-plum-600 text-white hover:bg-plum-700`;
+const highlightClass = "-m-2 rounded-lg bg-plum-50 p-2 ring-2 ring-plum-300 dark:bg-plum-950 dark:ring-plum-700";
 const quietButton = `${buttonClass} text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800`;
 
 interface ComposerProps {
@@ -325,6 +330,32 @@ export default function CommentThread(props: Props) {
   const [announcement, setAnnouncement] = useState("");
   const [resetKey, setResetKey] = useState(0);
   const [pending, startTransition] = useTransition();
+  const [following, setFollowing] = useState(props.following);
+  const [followError, setFollowError] = useState<string | null>(null);
+  // A link from a notification names the comment (?comment=cmnt_...): scroll to it and mark it.
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+
+  useEffect(() => setFollowing(props.following), [props.following]);
+
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("comment");
+    const target = id ? document.getElementById(id) : null;
+    if (!id || !target) return;
+    setHighlightId(id);
+    target.scrollIntoView({ block: "center" });
+  }, [props.lessonId, props.entries]);
+
+  function toggleFollow() {
+    const next = !following;
+    setFollowError(null);
+    startTransition(async () => {
+      const result = await setLessonCommentFollow(props.lessonId, next);
+      if (result.error) return setFollowError(result.error);
+      setFollowing(next);
+      track("lesson_follow_toggled", { course_id: props.courseId, following: next });
+      setAnnouncement(next ? "You follow this lesson's comments" : "You no longer follow this lesson's comments");
+    });
+  }
 
   useEffect(() => {
     track("lesson_comments_viewed", { course_id: props.courseId, count_bucket: commentCountBucket(props.count) });
@@ -373,9 +404,27 @@ export default function CommentThread(props: Props) {
 
   return (
     <section aria-labelledby={headingId} className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
-      <h2 id={headingId} className="text-lg font-semibold">
-        Comments ({props.count})
-      </h2>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 id={headingId} className="text-lg font-semibold">
+          Comments ({props.count})
+          {props.unread > 0 && <span className="ml-2 text-sm font-normal text-plum-700 dark:text-plum-300">{props.unread} new since your last visit</span>}
+        </h2>
+        {!props.readOnly && (
+          <button type="button" onClick={toggleFollow} disabled={pending} aria-pressed={following} className={quietButton} data-track="lesson-comments-follow">
+            {following ? "Following" : "Follow"}
+          </button>
+        )}
+      </div>
+      {followError && (
+        <p role="alert" className="mt-1 text-sm text-red-700 dark:text-red-400">
+          {followError}
+        </p>
+      )}
+      {!props.readOnly && (
+        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+          {following ? "You'll hear about instructors' replies here and new comments in a daily note." : "Follow to hear about instructors' replies here and new comments in a daily note."}
+        </p>
+      )}
 
       <div className="mt-4">
         <Composer
@@ -403,13 +452,13 @@ export default function CommentThread(props: Props) {
       ) : (
         <ul className="mt-6 space-y-6">
           {props.entries.map((entry) => (
-            <li key={entry.comment.id} id={entry.comment.id}>
+            <li key={entry.comment.id} id={entry.comment.id} className={highlightId === entry.comment.id ? highlightClass : undefined}>
               <CommentItem comment={entry.comment} isReply={false} props={props} onReply={() => setReplyingTo(entry.comment.id)} onChanged={changed} />
               {(entry.replies.length > 0 || replyingTo === entry.comment.id) && (
                 <div className="mt-3 border-l-2 border-slate-200 pl-4 dark:border-slate-700">
                   <ul className="space-y-4">
                     {entry.replies.map((reply) => (
-                      <li key={reply.id} id={reply.id}>
+                      <li key={reply.id} id={reply.id} className={highlightId === reply.id ? highlightClass : undefined}>
                         <CommentItem comment={reply} isReply props={props} onReply={() => setReplyingTo(entry.comment.id)} onChanged={changed} />
                       </li>
                     ))}

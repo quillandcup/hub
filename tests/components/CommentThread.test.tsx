@@ -12,11 +12,13 @@ const postLessonComment = vi.fn();
 const editLessonComment = vi.fn();
 const deleteLessonComment = vi.fn();
 const reportLessonComment = vi.fn();
+const setLessonCommentFollow = vi.fn();
 vi.mock("@/app/(member)/courses/comment-actions", () => ({
   postLessonComment: (...a: unknown[]) => postLessonComment(...a),
   editLessonComment: (...a: unknown[]) => editLessonComment(...a),
   deleteLessonComment: (...a: unknown[]) => deleteLessonComment(...a),
   reportLessonComment: (...a: unknown[]) => reportLessonComment(...a),
+  setLessonCommentFollow: (...a: unknown[]) => setLessonCommentFollow(...a),
 }));
 
 import CommentThread from "@/components/courses/CommentThread";
@@ -44,6 +46,8 @@ function renderThread(entries: ThreadEntry[], over: Partial<React.ComponentProps
       courseId="crs_AAAAAAAAAAA1"
       entries={entries}
       count={entries.reduce((n, e) => n + (e.comment.removed ? 0 : 1) + e.replies.length, 0)}
+      following={false}
+      unread={0}
       currentMemberId="m1"
       isStaff={false}
       readOnly={false}
@@ -62,6 +66,9 @@ beforeEach(() => {
   editLessonComment.mockReset().mockResolvedValue({ id: "x" });
   deleteLessonComment.mockReset().mockResolvedValue({ id: "x" });
   reportLessonComment.mockReset().mockResolvedValue({ id: "x" });
+  setLessonCommentFollow.mockReset().mockResolvedValue({ id: "les_AAAAAAAAAAA1" });
+  window.history.replaceState(null, "", "/");
+  window.HTMLElement.prototype.scrollIntoView = vi.fn();
 });
 
 describe("CommentThread", () => {
@@ -112,7 +119,8 @@ describe("CommentThread", () => {
 
   it("replies with the keyboard, under the question, and announces it", async () => {
     renderThread([{ comment: comment({ id: "cmnt_AAAAAAAAAAA1" }), replies: [] }]);
-    // Reach the Reply button with the keyboard alone: the composer's textarea (Post is disabled while empty), then Reply.
+    // Reach the Reply button with the keyboard alone: Follow, the composer's textarea (Post is disabled while empty), then Reply.
+    await userEvent.tab();
     await userEvent.tab();
     await userEvent.tab();
     expect(screen.getByRole("button", { name: "Reply" })).toHaveFocus();
@@ -281,4 +289,49 @@ describe("CommentThread", () => {
       expect(await screen.findByText(/will show to others once staff have looked/)).toBeInTheDocument();
     });
   });
+  it("follows and unfollows the lesson's comments, saying what that means, and records the choice without who", async () => {
+    const user = userEvent.setup();
+    renderThread([]);
+    const button = screen.getByRole("button", { name: "Follow" });
+    expect(button).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByText(/Follow to hear about instructors' replies/)).toBeInTheDocument();
+    await user.click(button);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Following" })).toHaveAttribute("aria-pressed", "true"));
+    expect(setLessonCommentFollow).toHaveBeenCalledWith("les_AAAAAAAAAAA1", true);
+    expect(track).toHaveBeenCalledWith("lesson_follow_toggled", { course_id: "crs_AAAAAAAAAAA1", following: true });
+    expect(screen.getByText("You follow this lesson's comments")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Following" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Follow" })).toBeInTheDocument());
+    expect(setLessonCommentFollow).toHaveBeenLastCalledWith("les_AAAAAAAAAAA1", false);
+  });
+
+  it("keeps the old state and shows the error when following is refused", async () => {
+    setLessonCommentFollow.mockResolvedValue({ error: "Couldn't save that" });
+    const user = userEvent.setup();
+    renderThread([]);
+    await user.click(screen.getByRole("button", { name: "Follow" }));
+    expect(await screen.findByText("Couldn't save that")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Follow" })).toBeInTheDocument();
+  });
+
+  it("has no follow button while previewing as a member", () => {
+    renderThread([], { readOnly: true });
+    expect(screen.queryByRole("button", { name: /^Follow/ })).toBeNull();
+  });
+
+  it("says how many comments are new since the last visit", () => {
+    renderThread([], { unread: 3, following: true });
+    expect(screen.getByText("3 new since your last visit")).toBeInTheDocument();
+    expect(screen.getByText(/You'll hear about instructors' replies here/)).toBeInTheDocument();
+  });
+
+  it("scrolls to and marks the comment a notification linked to", () => {
+    window.history.replaceState(null, "", "/courses/c/lessons/l?comment=cmnt_AAAAAAAAAAA2");
+    const entry = { comment: comment({ id: "cmnt_AAAAAAAAAAA1" }), replies: [comment({ id: "cmnt_AAAAAAAAAAA2", parentId: "cmnt_AAAAAAAAAAA1", body: "The reply" })] };
+    renderThread([entry]);
+    expect(window.HTMLElement.prototype.scrollIntoView).toHaveBeenCalled();
+    expect(document.getElementById("cmnt_AAAAAAAAAAA2")?.className).toContain("ring-2");
+    expect(document.getElementById("cmnt_AAAAAAAAAAA1")?.className ?? "").not.toContain("ring-2");
+  });
+
 });

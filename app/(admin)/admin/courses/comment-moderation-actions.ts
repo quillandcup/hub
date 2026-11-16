@@ -1,11 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { requireAdminAction } from "@/lib/admin-auth";
 import { withAction } from "@/lib/analytics/server";
 import type { ModerationAction } from "@/lib/data/course-comments";
+import { notifyLessonComment } from "@/lib/courses/comment-notifications";
 import { createRepos } from "@/lib/data/repos";
 import { isId } from "@/lib/ids";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 
 /**
  * Staff moderation of lesson comments (docs/COURSES.md, "Lesson comments"): hide, unhide, delete, approve a held comment,
@@ -30,6 +33,8 @@ async function moderateImpl(auth: Auth, courseId: string, commentId: string, act
   try {
     const outcome = await repos.courseComments.moderate(commentId, action, null);
     if (outcome === "not_found") return { error: NOT_FOUND };
+    // A reply released from review tells the people it is for now (its claim is the comment, so a repeat sends nothing twice).
+    if (action === "approve" && outcome === "done" && comment.parentId) after(() => notifyLessonComment(createRepos(createServiceRoleClient()), commentId));
     revalidatePath(`/admin/courses/${courseId}/comments`, "layout");
     revalidatePath("/courses", "layout");
     return { changed: outcome === "done" };

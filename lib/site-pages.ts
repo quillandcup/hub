@@ -77,7 +77,7 @@ function settingsSections(): SitePage[] {
     ...NOTIFICATION_KINDS.map((k) => ({
       title: k.label,
       href: `${tabHref("notifications")}#notification-${k.id}`,
-      audience: "member" as const,
+      audience: ("staffOnly" in k ? "admin" : "member") as "admin" | "member",
       section: section("notifications"),
       keywords: [k.category, "notification", "reminder"],
       ...("feature" in k ? { feature: k.feature } : {}),

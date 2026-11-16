@@ -1,5 +1,5 @@
 import { linkifyText } from "@/lib/courses/comment-text";
-import type { LessonCommentRecord } from "@/lib/data/course-comments";
+import type { LessonCommentRecord, ThreadEntry } from "@/lib/data/course-comments";
 import type { CoursesCaller } from "@/lib/courses/caller";
 import { canOpenLessons, loadMemberCourseAccess } from "@/lib/courses/member";
 import type { Repos } from "@/lib/data/repos";
@@ -81,6 +81,23 @@ export async function lessonOpenForComments(repos: CommentRepos, caller: Courses
   const access = await loadMemberCourseAccess(repos, caller.scope, lesson.course_id);
   if (!canOpenLessons(access)) return null;
   return { lessonId: lesson.id, courseId: lesson.course_id };
+}
+
+/**
+ * How many comments in a thread are new to a member: live comments by others made after `since`, when they last opened it.
+ * A first visit (`since` null) has no "new": the whole thread is new to them, which says nothing.
+ */
+export function countUnread(entries: ThreadEntry[], viewerId: string, since: string | null): number {
+  if (!since) return 0;
+  const after = Date.parse(since);
+  let count = 0;
+  for (const entry of entries) {
+    for (const comment of [entry.comment, ...entry.replies]) {
+      if (comment.removed || comment.held || comment.hidden || comment.memberId === viewerId) continue;
+      if (Date.parse(comment.createdAt) > after) count += 1;
+    }
+  }
+  return count;
 }
 
 /** How many comments a member saw, in the buckets the analytics event allows. */

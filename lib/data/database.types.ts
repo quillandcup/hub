@@ -4005,6 +4005,84 @@ export type Database = {
           },
         ]
       }
+      lesson_comment_follows: {
+        Row: {
+          created_at: string
+          following: boolean
+          id: string
+          lesson_id: string
+          member_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          following?: boolean
+          id?: string
+          lesson_id: string
+          member_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          following?: boolean
+          id?: string
+          lesson_id?: string
+          member_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_comment_follows_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "course_lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_comment_follows_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lesson_comment_reads: {
+        Row: {
+          id: string
+          last_seen_at: string
+          lesson_id: string
+          member_id: string
+        }
+        Insert: {
+          id?: string
+          last_seen_at?: string
+          lesson_id: string
+          member_id: string
+        }
+        Update: {
+          id?: string
+          last_seen_at?: string
+          lesson_id?: string
+          member_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_comment_reads_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "course_lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_comment_reads_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lesson_comment_reports: {
         Row: {
           comment_id: string
