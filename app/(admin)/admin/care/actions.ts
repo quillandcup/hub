@@ -322,14 +322,17 @@ async function renewImpl(repos: Repos, userId: string, id: string, why: unknown)
   return { success: true };
 }
 
+/** The hand-over steps that leave a row on the member's timeline. */
+type HandoverKind = "offered" | "accepted" | "declined" | "cancelled" | "claimed" | "took_over";
+
 /** The staff accounts a hand-over step names, for the member's timeline row (fixed ids, no names: they are worded when read). */
-function handoverData(kind: "offered" | "accepted" | "declined" | "cancelled" | "claimed", before: CareEngagementRow | null, after: CareEngagementRow): CareActivityData {
+function handoverData(kind: HandoverKind, before: CareEngagementRow | null, after: CareEngagementRow): CareActivityData {
   const data: CareActivityData = {};
   const set = (key: "from_user_id" | "to_user_id", value: string | null | undefined) => {
     if (value) data[key] = value;
   };
   if (kind === "offered") set("to_user_id", after.handover_to);
-  if (kind === "accepted") set("from_user_id", before?.owned_by);
+  if (kind === "accepted" || kind === "took_over") set("from_user_id", before?.owned_by);
   if (kind === "declined") set("from_user_id", before?.handover_by);
   if (kind === "cancelled") set("to_user_id", before?.handover_to);
   return data;
@@ -345,7 +348,7 @@ async function handoverStep(
   userId: string,
   id: string,
   step: string,
-  kind: "offered" | "accepted" | "declined" | "cancelled" | "claimed",
+  kind: HandoverKind | null,
   run: () => Promise<HandoverResult>,
   onDone?: (plan: CareEngagementRow) => Promise<void>
 ): Promise<CareActionResult> {
@@ -358,7 +361,8 @@ async function handoverStep(
     return { error: "Couldn't do that. Try again." };
   }
   if (!result.ok) return { error: HANDOVER_REFUSAL_MESSAGES[result.reason] };
-  await recordCareEvent(repos, userId, result.engagement, kind, handoverData(kind, before, result.engagement), nowIso());
+  // No kind: nothing on the member's timeline (a notice dismissed is the staff member's own business; the audit row of the plan says it).
+  if (kind) await recordCareEvent(repos, userId, result.engagement, kind, handoverData(kind, before, result.engagement), nowIso());
   if (onDone) await onDone(result.engagement);
   revalidate();
   return { success: true };
@@ -393,6 +397,19 @@ async function claimImpl(repos: Repos, userId: string, id: string, dms?: DmTrack
   return handoverStep(repos, userId, id, "claim a care plan", "claimed", () => repos.care.claim(id), async (plan) => {
     if (dms && plan.closed_at === null) await trackDmWithMember(repos, dms, plan.member_id);
   });
+}
+
+/** An admin takes an open plan from its owner (the database says whether they may: `claim_care_plan`): the same step as claiming, worded as what it is. */
+async function takeOverImpl(repos: Repos, userId: string, id: string, dms?: DmTracking): Promise<CareActionResult> {
+  if (!isCareId(id)) return { error: MISSING };
+  return handoverStep(repos, userId, id, "take a care plan over", "took_over", () => repos.care.claim(id), async (plan) => {
+    if (dms && plan.closed_at === null) await trackDmWithMember(repos, dms, plan.member_id);
+  });
+}
+
+async function dismissNoticeImpl(repos: Repos, userId: string, id: string): Promise<CareActionResult> {
+  if (!isCareId(id)) return { error: MISSING };
+  return handoverStep(repos, userId, id, "dismiss a takeover notice", null, () => repos.care.dismissTakeoverNotice(id));
 }
 
 /** The name of whoever cared for this member before, when it is someone else (the start form says it; nothing changes hands). */
@@ -520,12 +537,32 @@ export async function cancelCareHandover(id: string): Promise<CareActionResult> 
   return withAction("care_handover_cancelled", () => cancelImpl(createRepos(auth.supabase), auth.user.id, id), (r) => ({ ok: "success" in r }));
 }
 
-/** Takes a care plan that has no owner (its owner's account was removed): the staff member who takes it accepts it. */
+/** Takes a care plan that has no owner (its owner's account was removed): the staff member who takes it accepts it. An admin taking it from an owner is `takeOverCarePlan`. */
 export async function claimCarePlan(id: string): Promise<CareActionResult> {
   const auth = await requireStaffAction();
   if (!auth.ok) return { error: auth.error };
   if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
   return withAction("care_plan_claimed", () => claimImpl(createRepos(auth.supabase), auth.user.id, id, { service: getServiceRepos(), user: auth.user }), (r) => ({ ok: "success" in r }));
+}
+
+/**
+ * An admin takes an open care plan from its owner without their agreement: the one exception to "hand-overs need both sides" (for an
+ * owner who is unreachable, or when an admin has to step in). The previous owner sees a notice on their page; their own DM with
+ * the member is not read any more and the admin's is. Admins only: a community manager needs the receiver's agreement.
+ */
+export async function takeOverCarePlan(id: string): Promise<CareActionResult> {
+  const auth = await requireStaffAction();
+  if (!auth.ok) return { error: auth.error };
+  if (auth.role !== "admin" || !staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
+  return withAction("care_plan_taken_over", () => takeOverImpl(createRepos(auth.supabase), auth.user.id, id, { service: getServiceRepos(), user: auth.user }), (r) => ({ ok: "success" in r }));
+}
+
+/** The previous owner dismisses the notice that an admin took their care plan over. Only they can. */
+export async function dismissCareTakeoverNotice(id: string): Promise<CareActionResult> {
+  const auth = await requireStaffAction();
+  if (!auth.ok) return { error: auth.error };
+  if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
+  return withAction("care_takeover_notice_dismissed", () => dismissNoticeImpl(createRepos(auth.supabase), auth.user.id, id), (r) => ({ ok: "success" in r }));
 }
 
 /** Who cared for this member before, when it is someone else: the start form says so (information, nothing changes hands). Staff with the write feature only. */

@@ -30,7 +30,8 @@ const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]
   [() => import("@/app/(member)/bookshelf/actions"), "app/(member)/bookshelf/actions.ts", [["addBook", "book_added"], ["updateBook", "book_edited"], ["deleteBook", "book_deleted"]]],
   [() => import("@/app/(member)/awards/actions"), "app/(member)/awards/actions.ts", [["addAward", "award_added"], ["updateAward", "award_edited"], ["deleteAward", "award_deleted"]]],
   [() => import("@/app/(member)/courses/actions"), "app/(member)/courses/actions.ts", [["setLessonComplete", "lesson_completion_saved"], ["clearMyLessonProgress", "lesson_progress_cleared"]]],
-  [() => import("@/app/(member)/chat/actions"), "app/(member)/chat/actions.ts", [["sendChatMessage", "chat_message_sent"], ["toggleChatReaction", "chat_reaction_toggled"], ["retryChatMessage", "chat_message_retried"], ["markChatUnread", "chat_message_marked_unread"]]],
+  [() => import("@/app/(member)/courses/comment-actions"), "app/(member)/courses/comment-actions.ts", [["postLessonComment", "lesson_comment_posted"], ["editLessonComment", "lesson_comment_edited"], ["deleteLessonComment", "lesson_comment_deleted"]]],
+  [() => import("@/app/(member)/chat/actions"),"app/(member)/chat/actions.ts", [["sendChatMessage", "chat_message_sent"], ["toggleChatReaction", "chat_reaction_toggled"], ["retryChatMessage", "chat_message_retried"], ["markChatUnread", "chat_message_marked_unread"]]],
   [() => import("@/app/(member)/chat/notify-actions"), "app/(member)/chat/notify-actions.ts", [["setChatNotifySetting", "chat_notify_setting_set"]]],
   [() => import("@/app/(member)/chat/dm-controls-actions"), "app/(member)/chat/dm-controls-actions.ts", [["pressChatDmControl", "chat_dm_control_pressed"]]],
   [() => import("@/app/(member)/chat/dm-actions"), "app/(member)/chat/dm-actions.ts", [["startDirectMessage", "chat_dm_started"]]],
@@ -70,7 +71,7 @@ const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]
   [
     () => import("@/app/(admin)/admin/care/actions"),
     "app/(admin)/admin/care/actions.ts",
-    [["startEngagement", "care_engagement_started"], ["logCareMessage", "care_message_logged"], ["updateEngagement", "care_engagement_updated"], ["closeEngagement", "care_engagement_closed"], ["renewEngagement", "care_engagement_renewed"], ["deleteEngagement", "care_engagement_deleted"], ["proposeCareHandover", "care_handover_proposed"], ["acceptCareHandover", "care_handover_accepted"], ["declineCareHandover", "care_handover_declined"], ["cancelCareHandover", "care_handover_cancelled"], ["claimCarePlan", "care_plan_claimed"]],
+    [["startEngagement", "care_engagement_started"], ["logCareMessage", "care_message_logged"], ["updateEngagement", "care_engagement_updated"], ["closeEngagement", "care_engagement_closed"], ["renewEngagement", "care_engagement_renewed"], ["deleteEngagement", "care_engagement_deleted"], ["proposeCareHandover", "care_handover_proposed"], ["acceptCareHandover", "care_handover_accepted"], ["declineCareHandover", "care_handover_declined"], ["cancelCareHandover", "care_handover_cancelled"], ["claimCarePlan", "care_plan_claimed"], ["takeOverCarePlan", "care_plan_taken_over"], ["dismissCareTakeoverNotice", "care_takeover_notice_dismissed"]],
   ],
   [() => import("@/app/(admin)/admin/courses/take-over-actions"), "app/(admin)/admin/courses/take-over-actions.ts", [["takeOverCourse", "course_taken_over"]]],
   [() => import("@/app/(admin)/admin/courses/duplicate-actions"), "app/(admin)/admin/courses/duplicate-actions.ts", [["duplicateCourse", "course_duplicated"]]],

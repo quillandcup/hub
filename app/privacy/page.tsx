@@ -303,7 +303,8 @@ export default async function PrivacyPage() {
           When a care plan starts, the staff member&apos;s one-on-one Slack DM with you is tracked automatically, when the Hub has it:
           there is nothing to choose or switch off. Admins and community managers can then read, in Hedgie Care, the messages sent in
           that DM from the start of each of your plans to its end, or until now while a plan is open. A plan can be handed over to another
-          staff member, who sees the messages of your earlier plans once they accept it, and their own DM with you is tracked too. They read
+          staff member, or taken over by an admin, and whoever holds it then sees the messages of your earlier plans, and their own DM
+          with you is tracked too. They read
           the full messages, as they were sent; deleted messages are not shown.
         </p>
         <p>

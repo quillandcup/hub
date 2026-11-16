@@ -108,6 +108,16 @@ export const EVENTS = {
   /** A course lesson page was opened by a member (components/courses/LessonViewed.tsx): `has_video` tells a video lesson from a text one. */
   course_lesson_viewed: { has_video: bool() },
 
+  /**
+   * Lesson comments (components/courses/CommentThread.tsx, app/(member)/courses/comment-actions.ts). Never the text, a name or an
+   * id of a person: `course_id` is the course's own id, `is_staff` whether an instructor wrote it, `count_bucket` how many
+   * comments the member saw under the lesson.
+   */
+  lesson_comment_posted: { course_id: text(24), is_reply: bool(), is_staff: bool() },
+  lesson_comment_edited: { course_id: text(24) },
+  lesson_comment_deleted: { course_id: text(24), is_reply: bool() },
+  lesson_comments_viewed: { course_id: text(24), count_bucket: oneOf("0", "1-5", "6-20", "21+") },
+
   /** The lesson's video started playing, once per page view (components/courses/LessonPlayer.tsx): `resumed` is whether it picked up from a saved position. */
   course_video_played: { resumed: bool() },
 
@@ -230,13 +240,17 @@ export const EVENTS = {
   care_engagement_renewed: { days_open: int(3650) },
   /**
    * Hand-overs need both sides (docs/HEDGIE_CARE.md, "Owners"): a staff member offered a care plan to someone, the receiver
-   * accepted or declined it, the offer was taken back, or a care plan with no owner was claimed. No names, no ids.
+   * accepted or declined it, the offer was taken back, or a care plan with no owner was claimed. An admin may also take an open
+   * plan over from its owner without their agreement (`care_plan_taken_over`: the one exception, docs/HEDGIE_CARE.md, "Owners"),
+   * and the previous owner may dismiss the notice that tells them (`care_takeover_notice_dismissed`). No names, no ids.
    */
   care_handover_proposed: {},
   care_handover_accepted: {},
   care_handover_declined: {},
   care_handover_cancelled: {},
   care_plan_claimed: {},
+  care_plan_taken_over: {},
+  care_takeover_notice_dismissed: {},
 
   /**
    * A server action finished (lib/analytics/server.ts: `withAction`): `action` is which one, `ok`

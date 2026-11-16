@@ -23,6 +23,7 @@ import HandoverInbox from "./HandoverInbox";
 import MemberOnly from "./MemberOnly";
 import { CARE_SLACK_CONNECT_HREF } from "./slack-connect";
 import StartEngagementForm from "./StartEngagementForm";
+import TakeoverNotices from "./TakeoverNotices";
 import { CARE_TAB_LABELS, CARE_TITLE, type CareTabId } from "./tabs";
 
 /**
@@ -108,6 +109,8 @@ export default async function CarePage({ tab, staff, memberId }: { tab: CareTabI
   const shownMember = memberId ? [...active, ...earlier].find((card) => card.memberId === memberId)?.memberName ?? null : null;
   // What is waiting for her to accept or decline, wherever the plan is listed (Active or Earlier).
   const waiting = canWrite ? [...active, ...earlier].filter((card) => card.controls.offeredToMe) : [];
+  // Plans an admin took from her without her agreement, until she dismisses the notice (wherever the plan is listed).
+  const takenOver = canWrite ? [...active, ...earlier].filter((card) => card.takeoverNotice) : [];
   const needsSlack = canWrite && access === "needs_slack";
 
   return (
@@ -147,6 +150,7 @@ export default async function CarePage({ tab, staff, memberId }: { tab: CareTabI
                     </AnnouncementBar>
                   )}
                   <HandoverInbox cards={waiting} />
+                  <TakeoverNotices cards={takenOver} />
                   {canWrite && <StartEngagementForm today={orgYmd(now)} />}
                   <MemberOnly name={shownMember} base="/admin/care" show={!!memberId} />
                   <ActiveList cards={only(active)} canWrite={canWrite} owners={owners} meId={staff.id} />
@@ -160,6 +164,7 @@ export default async function CarePage({ tab, staff, memberId }: { tab: CareTabI
               content: (
                 <>
                   <HandoverInbox cards={waiting} />
+                  <TakeoverNotices cards={takenOver} />
                   <MemberOnly name={shownMember} base="/admin/care/earlier" show={!!memberId} />
                   <EarlierList cards={only(earlier)} canWrite={canWrite} owners={owners} meId={staff.id} />
                 </>

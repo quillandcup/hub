@@ -41,6 +41,10 @@ const plan = (over: Partial<Row<"care_engagements">> & { member_id: string; open
   handover_to: null,
   handover_by: null,
   handover_at: null,
+  taken_at: null,
+  taken_by: null,
+  taken_from: null,
+  taken_seen_at: null,
   ...over,
 });
 const tracked = (tracked_by: string, slack_channel_id: string, member_id: string, deleted_at: string | null = null): Row<"care_tracked_dms"> => ({

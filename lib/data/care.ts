@@ -72,7 +72,7 @@ export type ChangeStartResult =
   | { ok: false; reason: StartChangeRefusal; limit: string };
 
 /** Why a hand-over step was refused (the database says it: `care_handover:<reason>`), for the caller to word. */
-export const HANDOVER_REFUSALS = ["not_found", "not_allowed", "receiver_not_allowed", "same_owner", "self", "already_pending", "no_handover", "has_owner"] as const;
+export const HANDOVER_REFUSALS = ["not_found", "not_allowed", "receiver_not_allowed", "same_owner", "self", "already_pending", "no_handover", "has_owner", "already_yours", "plan_closed", "no_notice"] as const;
 export type HandoverRefusal = (typeof HANDOVER_REFUSALS)[number];
 
 /** A hand-over step answers with the plan as it is now, or why it was refused. */
@@ -143,8 +143,16 @@ export interface CareRepository {
   declineHandover(id: string): Promise<HandoverResult>;
   /** The proposer, the owner or an admin takes the offer back. */
   cancelHandover(id: string): Promise<HandoverResult>;
-  /** A staff member who may own plans takes a plan that has no owner (its owner's account was removed). */
+  /**
+   * A staff member who may own plans takes a plan that has no owner (its owner's account was removed). An **admin** may also take
+   * an open plan from its owner without their agreement (the one exception to "hand-overs need both sides", for an unreachable
+   * owner or when an admin has to step in): any pending offer is cleared and the plan records the takeover (`taken_from`,
+   * `taken_by`, `taken_at`; `taken_seen_at` null) for the previous owner's page. A community manager is refused (`has_owner`), a
+   * closed plan keeps its owner (`plan_closed`), an admin who owns it already is refused (`already_yours`).
+   */
   claim(id: string): Promise<HandoverResult>;
+  /** The previous owner (`taken_from`) marks the notice of a takeover as seen; only they can (`no_notice` otherwise). A second call changes nothing. */
+  dismissTakeoverNotice(id: string): Promise<HandoverResult>;
 }
 
 const UNIQUE_VIOLATION = "23505";
@@ -408,6 +416,10 @@ export class SupabaseCareRepository implements CareRepository {
     return handoverResult(await this.db.rpc("claim_care_plan", { p_id: id }));
   }
 
+  async dismissTakeoverNotice(id: string) {
+    return handoverResult(await this.db.rpc("dismiss_care_takeover_notice", { p_id: id }));
+  }
+
   async softDelete(id: string, at: string) {
     const { data, error } = await this.db.from("care_engagements").update({ deleted_at: at }).eq("id", id).is("deleted_at", null).select("id").maybeSingle();
     if (error) throw new Error(error.message);
@@ -513,6 +525,10 @@ export class InMemoryCareRepository implements CareRepository {
       handover_to: null,
       handover_by: null,
       handover_at: null,
+      taken_from: null,
+      taken_by: null,
+      taken_at: null,
+      taken_seen_at: null,
       renewed_from: null,
       closed_at: null,
       ended_how: null,
@@ -540,6 +556,10 @@ export class InMemoryCareRepository implements CareRepository {
       owned_by: previous.owned_by,
       reason: previous.reason,
       ...offer,
+      taken_from: null,
+      taken_by: null,
+      taken_at: null,
+      taken_seen_at: null,
       opened_at: input.at,
       period_ends_on: input.periodEndsOn,
       renewed_from: previous.id,
@@ -658,8 +678,23 @@ export class InMemoryCareRepository implements CareRepository {
 
   async claim(id: string): Promise<HandoverResult> {
     return this.handover(id, (plan, me) => {
-      if (plan.owned_by !== null) return "has_owner";
-      Object.assign(plan, { owned_by: me, handover_to: null, handover_by: null, handover_at: null });
+      if (plan.owned_by === null) {
+        Object.assign(plan, { owned_by: me, handover_to: null, handover_by: null, handover_at: null });
+        return null;
+      }
+      // An owner is there: only an admin may take the plan, and only an open one.
+      if (this.roleOf(me) !== "admin") return "has_owner";
+      if (plan.owned_by === me) return "already_yours";
+      if (plan.closed_at !== null) return "plan_closed";
+      Object.assign(plan, { taken_from: plan.owned_by, taken_by: me, taken_at: new Date().toISOString(), taken_seen_at: null, owned_by: me, handover_to: null, handover_by: null, handover_at: null });
+      return null;
+    });
+  }
+
+  async dismissTakeoverNotice(id: string): Promise<HandoverResult> {
+    return this.handover(id, (plan, me) => {
+      if (plan.taken_from !== me) return "no_notice";
+      if (plan.taken_seen_at === null) plan.taken_seen_at = new Date().toISOString();
       return null;
     });
   }

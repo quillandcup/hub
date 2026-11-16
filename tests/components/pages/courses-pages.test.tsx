@@ -41,9 +41,10 @@ vi.mock("@/components/courses/LessonPlayer", () => ({
   ),
 }));
 const sharing = { on: false };
+// Lesson comments are off on these pages (tests/components/pages/lesson-comments-page.test.tsx covers them on).
 vi.mock("@/lib/features.server", () => ({
   getUserFeaturePreviews: async () => [],
-  effectiveMemberHasFeature: async () => sharing.on,
+  effectiveMemberHasFeature: async (key: string) => key !== "lesson_comments" && sharing.on,
 }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({}) }));
 vi.mock("@/app/(member)/courses/actions", () => ({ setLessonComplete: vi.fn(async () => ({})), clearMyLessonProgress: vi.fn(async () => ({})) }));

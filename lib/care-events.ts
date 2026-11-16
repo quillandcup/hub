@@ -22,6 +22,7 @@ export type CareEventKind =
   | "cancelled"
   | "claimed"
   | "took_over"
+  | "notice_seen"
   | "start_moved"
   | "edited"
   | "removed"
@@ -54,6 +55,7 @@ export const CARE_ACTIVITY_TYPES = {
   declined: "care_handover_declined",
   cancelled: "care_handover_cancelled",
   claimed: "care_plan_claimed",
+  took_over: "care_plan_taken_over",
 } as const satisfies Partial<Record<CareEventKind, string>>;
 
 const KIND_BY_ACTIVITY_TYPE = new Map<string, CareEventKind>(Object.entries(CARE_ACTIVITY_TYPES).map(([kind, type]) => [type, kind as CareEventKind]));
@@ -73,6 +75,7 @@ export const CARE_ACTIVITY_TITLES: Record<keyof typeof CARE_ACTIVITY_TYPES, stri
   declined: "Declined a care plan offered to them",
   cancelled: "Took back the offer of a care plan",
   claimed: "Took a care plan that had no owner",
+  took_over: "Took over a care plan from a colleague",
 };
 
 const FIELD_NAMES: Record<string, string> = {
@@ -113,6 +116,8 @@ export function careSentence(kind: CareEventKind, context: CareEventContext = {}
       return "took a care plan that had no owner";
     case "took_over":
       return name ? `took over the care plan from ${name}` : "took over a care plan";
+    case "notice_seen":
+      return "dismissed the notice that a care plan of theirs was taken over";
     case "start_moved":
       return context.day ? `moved the care plan's start to ${formatDateOnly(context.day)}` : "moved the care plan's start";
     case "edited": {
@@ -152,10 +157,12 @@ export function careEventOfAudit(row: {
     return { kind: "closed", context: { endedHow: typeof f.ended_how?.new === "string" ? f.ended_how.new : null } };
   }
   if (f.owned_by) {
-    // Three ways an owner changes. The receiver accepts an offer: the offer is cleared in the same row, and the owner it came from is the old one.
-    // Someone takes a plan with no owner (the old owner is none). Or a plan is taken over with no offer accepted (an owner who is there, no offer
-    // cleared); nothing makes that change today, so the sentence waits for the day something does.
+    // Four ways an owner changes. Someone takes a plan with no owner (the old owner is none). An admin takes a plan over from its owner
+    // without an offer being accepted: the same row records the takeover (`taken_*`), whether or not an offer was waiting and cleared
+    // with it, so it is read before the accept. Or the receiver accepts an offer: it is cleared in the same row, and the owner it came
+    // from is the old one.
     if (!f.owned_by.old) return { kind: "claimed", context: {} };
+    if (f.taken_at?.new) return { kind: "took_over", context: { name: label(f.owned_by.old) } };
     const offerCleared = !!f.handover_to && !!f.handover_to.old && !f.handover_to.new;
     return { kind: offerCleared ? "accepted" : "took_over", context: { name: label(f.owned_by.old) } };
   }
@@ -166,6 +173,8 @@ export function careEventOfAudit(row: {
     if (receiver && receiver === row.actor_user_id) return { kind: "declined", context: { name: label(f.handover_by?.old) } };
     return { kind: "cancelled", context: { name: label(receiver) } };
   }
+  // The previous owner dismissed the notice of a takeover (nothing else changed in the row).
+  if (f.taken_seen_at?.new && !f.taken_seen_at.old) return { kind: "notice_seen", context: {} };
   if (f.opened_at) {
     const at = typeof f.opened_at.new === "string" ? new Date(f.opened_at.new) : null;
     return { kind: "start_moved", context: { day: at && !Number.isNaN(at.getTime()) ? orgYmd(at) : null } };
@@ -212,6 +221,7 @@ export function careActivitySentence(row: { activity_type: string; data: unknown
       return careSentence(kind, { name: user("to_user_id") });
     case "accepted":
     case "declined":
+    case "took_over":
       return careSentence(kind, { name: user("from_user_id") });
     default:
       return careSentence(kind);

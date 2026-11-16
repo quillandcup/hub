@@ -195,7 +195,7 @@ describe("/privacy page", () => {
     expect(text).toMatch(/When a care plan starts, the staff member's one-on-one Slack DM with you is tracked automatically, when the Hub has it: there is nothing to choose or switch off/);
     expect(text).not.toMatch(/stop tracking/);
     expect(text).toMatch(/Admins and community managers can then read, in Hedgie Care, the messages sent in that DM from the start of each of your plans to its end, or until now while a plan is open/);
-    expect(text).toMatch(/A plan can be handed over to another staff member, who sees the messages of your earlier plans once they accept it, and their own DM with you is tracked too/);
+    expect(text).toMatch(/A plan can be handed over to another staff member, or taken over by an admin, and whoever holds it then sees the messages of your earlier plans, and their own DM with you is tracked too/);
     expect(text).toMatch(/full messages, as they were sent; deleted messages are not shown/);
     expect(text).toMatch(/other direct messages with staff are treated like direct messages between members, so staff can read them only through break-glass access/);
     expect(text).toMatch(/we record who looked and whose plan it was, but not the messages, and Hub Chat shows a short note at the top/);

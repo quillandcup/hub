@@ -23,6 +23,10 @@ const row = (over: Partial<CareEngagementWithMember> = {}): CareEngagementWithMe
   handover_to: null,
   handover_by: null,
   handover_at: null,
+  taken_from: null,
+  taken_by: null,
+  taken_at: null,
+  taken_seen_at: null,
   next_step: null,
   notes: null,
   deleted_at: null,
@@ -179,6 +183,37 @@ describe("toEngagementCard", () => {
       expect(toEngagementCard(offered, NOW, { owners, viewer: { userId: owner, isAdmin: false } }).controls).toMatchObject({ pending: true, canCancel: true, canPropose: false, offeredToMe: false });
       expect(toEngagementCard(offered, NOW, { owners, viewer: { userId: other, isAdmin: true } }).controls).toMatchObject({ offeredToMe: true, canCancel: true });
       expect(toEngagementCard(row({ owned_by: null }), NOW, { owners, viewer: { userId: other, isAdmin: false } }).controls).toMatchObject({ canClaim: true, canPropose: false });
+    });
+
+    it("lets an admin take an open plan over, and no one else", () => {
+      expect(toEngagementCard(row(), NOW, { owners, viewer: { userId: other, isAdmin: true } }).controls.canTakeOver).toBe(true);
+      expect(toEngagementCard(row(), NOW, { owners, viewer: { userId: other, isAdmin: false } }).controls.canTakeOver).toBe(false);
+      expect(toEngagementCard(row({ closed_at: ago(1), ended_how: "no_reply" }), NOW, { owners, viewer: { userId: other, isAdmin: true } }).controls.canTakeOver).toBe(false);
+    });
+  });
+
+  describe("takeover notice", () => {
+    const owner = "11111111-1111-4111-8111-111111111111";
+    const admin = "22222222-2222-4222-8222-222222222222";
+    const owners = [
+      { id: owner, name: "Cam Example", role: "community_manager" },
+      { id: admin, name: "Dee Example", role: "admin" },
+    ];
+    const taken = row({ owned_by: admin, taken_from: owner, taken_by: admin, taken_at: "2026-03-19T15:00:00.000Z" });
+
+    it("tells the previous owner who took the plan and on which day (Eastern), until they dismiss it", () => {
+      expect(toEngagementCard(taken, NOW, { owners, viewer: { userId: owner, isAdmin: false } }).takeoverNotice).toEqual({ byName: "Dee Example", onLabel: "3/19/2026" });
+      expect(toEngagementCard({ ...taken, taken_seen_at: ago(0) }, NOW, { owners, viewer: { userId: owner, isAdmin: false } }).takeoverNotice).toBeNull();
+    });
+
+    it("tells no one else, not even the admin who took it", () => {
+      expect(toEngagementCard(taken, NOW, { owners, viewer: { userId: admin, isAdmin: true } }).takeoverNotice).toBeNull();
+      expect(toEngagementCard(taken, NOW, { owners }).takeoverNotice).toBeNull();
+      expect(toEngagementCard(row(), NOW, { owners, viewer: { userId: owner, isAdmin: false } }).takeoverNotice).toBeNull();
+    });
+
+    it("says an admin when the account that took it is gone", () => {
+      expect(toEngagementCard({ ...taken, taken_by: null }, NOW, { owners, viewer: { userId: owner, isAdmin: false } }).takeoverNotice?.byName).toBe("An admin");
     });
   });
 });
