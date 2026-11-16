@@ -34,6 +34,8 @@ Tokens last 1 hour. A lesson tab open longer gets fresh ones from `POST /api/cou
 3. In a real browser, on production and on a preview, open a lesson with video: desktop Chrome and Safari, and a phone including Safari on iOS (which sends no `Referer`, allowed by `allowNoReferrer`). Check the video plays, seeking works, and that a request from another site is refused (403).
 4. Widen the flag. To back out at any time, turn the flag off (tokens revert at once) or unset the env var.
 
+**Status: on for everyone since 2026-11-16 04:07 UTC.** Watch Mux Data's Errors page and the staff alert (it carries the failing request's HTTP status and whether the token carried the restriction) for failures a member could not recover from; the 1-hour link is refreshed once automatically. To back out, turn `mux_playback_restriction` off. When it has been clean for a few weeks, retire the flag (see docs/TODO.md).
+
 ## Mux Data
 
 The course player reports how each view plays (start time, rebuffering, errors, watch time) to Mux Data, which is included with Mux Video for video hosted on Mux (Mux's pricing page, checked 2026-11-03; 100k monitored views a month are free otherwise). This is what the Mux dashboard's Data section shows; before it was connected it said "No views received".

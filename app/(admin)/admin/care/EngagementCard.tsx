@@ -27,6 +27,7 @@ import { formatDateOnly } from "@/lib/formatters";
 import CareFacts from "./CareFacts";
 import { CARE_SLACK_CONNECT_HREF } from "./slack-connect";
 import type { EngagementCardData } from "./card";
+import EngagementActivity from "./EngagementActivity";
 import EngagementResults from "./EngagementResults";
 import {
   changeEngagementStart,
@@ -38,6 +39,7 @@ import {
   logCareMessage,
   proposeCareHandover,
   renewEngagement,
+  takeOverCarePlan,
   updateEngagement,
   type CareActionResult,
 } from "./actions";
@@ -56,7 +58,7 @@ const STATUS_STYLE: Record<CareStatus, string> = {
   closed: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
 };
 
-type Panel = "edit" | "close" | "renew" | "results" | "handover" | "start";
+type Panel = "edit" | "close" | "renew" | "results" | "activity" | "handover" | "start";
 
 /** One care plan: who, why, where it stands, and the few things she does with it (log a reply, renew, hand it over to someone who accepts it, set a follow-up, change its start, close, see results). */
 export default function EngagementCard({ card, canWrite, owners, meId }: { card: EngagementCardData; canWrite: boolean; owners: readonly CareOwner[]; meId: string }) {
@@ -159,6 +161,11 @@ export default function EngagementCard({ card, canWrite, owners, meId }: { card:
     );
   const cancelHandover = () => run(() => cancelCareHandover(card.id), () => track("care_handover_cancelled", {}));
   const claim = () => run(() => claimCarePlan(card.id), () => track("care_plan_claimed", {}));
+  // The one exception to "hand-overs need both sides": an admin takes an open plan from its owner, who sees a notice on their page.
+  const takeOver = () => {
+    if (!window.confirm(`Take this care plan over from ${card.ownerName}? They will see a notice on their page.`)) return;
+    run(() => takeOverCarePlan(card.id), () => track("care_plan_taken_over", {}));
+  };
 
   const remove = () => {
     if (!window.confirm("Remove this care plan from the lists?")) return;
@@ -284,6 +291,9 @@ export default function EngagementCard({ card, canWrite, owners, meId }: { card:
           <button type="button" className={BUTTON} disabled={pending} onClick={() => open("results")}>
             Results
           </button>
+          <button type="button" className={BUTTON} aria-expanded={panel === "activity"} disabled={pending} onClick={() => open("activity")}>
+            Activity during this plan
+          </button>
           {card.controls.canPropose && (
             <button type="button" data-track="care-handover-open" className={BUTTON} disabled={pending} onClick={() => open("handover")}>
               Hand over to…
@@ -292,6 +302,11 @@ export default function EngagementCard({ card, canWrite, owners, meId }: { card:
           {card.controls.canClaim && (
             <button type="button" data-track="care-claim" className={BUTTON} disabled={pending} onClick={claim}>
               Take this care plan
+            </button>
+          )}
+          {card.controls.canTakeOver && (
+            <button type="button" data-track="care-take-over" className={BUTTON} disabled={pending} onClick={takeOver}>
+              Take over
             </button>
           )}
           <button type="button" className={BUTTON} disabled={pending} onClick={() => open("edit")}>
@@ -325,6 +340,8 @@ export default function EngagementCard({ card, canWrite, owners, meId }: { card:
           {resultsBlock}
         </>
       )}
+
+      {canWrite && panel === "activity" && <EngagementActivity planId={card.id} />}
 
       {canWrite && panel === "start" && (
         <div className="mt-3 space-y-2">

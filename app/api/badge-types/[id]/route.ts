@@ -2,7 +2,7 @@ import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
-// Hard delete -- badge_types is an admin-curated LOCAL definitions table (see CLAUDE.md),
+// Hard delete -- badge_types is an admin-curated LOCAL definitions table (see .claude/rules/data-architecture.md),
 // not attendance/event history that needs preserving. badge_levels and member_badges both
 // have ON DELETE CASCADE on badge_type_id, so this also removes the badge's levels and any
 // awards logged against it.

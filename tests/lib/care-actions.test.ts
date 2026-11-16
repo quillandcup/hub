@@ -41,16 +41,19 @@ import {
   closeEngagement,
   deleteEngagement,
   getEngagementResults,
+  loadCarePlanActivity,
   acceptCareHandover,
   cancelCareHandover,
   claimCarePlan,
   declineCareHandover,
+  dismissCareTakeoverNotice,
   loadPreviousCareOwner,
   logCareMessage,
   proposeCareHandover,
   renewEngagement,
   searchCareMembers,
   startEngagement,
+  takeOverCarePlan,
   updateEngagement,
 } from "@/app/(admin)/admin/care/actions";
 import { SLACK_DM_SCOPES } from "@/lib/slack-connect";
@@ -73,6 +76,10 @@ const engagementRow = (id: string, member: string, openedAt: string) => ({
   handover_to: null,
   handover_by: null,
   handover_at: null,
+  taken_from: null,
+  taken_by: null,
+  taken_at: null,
+  taken_seen_at: null,
   next_step: null,
   notes: null,
   deleted_at: null,
@@ -120,7 +127,10 @@ describe("who may write Hedgie Care", () => {
     ["declineCareHandover", () => declineCareHandover("care_AAAAAAAAAAA1")],
     ["cancelCareHandover", () => cancelCareHandover("care_AAAAAAAAAAA1")],
     ["claimCarePlan", () => claimCarePlan("care_AAAAAAAAAAA1")],
+    ["takeOverCarePlan", () => takeOverCarePlan("care_AAAAAAAAAAA1")],
+    ["dismissCareTakeoverNotice", () => dismissCareTakeoverNotice("care_AAAAAAAAAAA1")],
     ["getEngagementResults", () => getEngagementResults("care_AAAAAAAAAAA1")],
+    ["loadCarePlanActivity", () => loadCarePlanActivity("care_AAAAAAAAAAA1")],
     ["deleteEngagement", () => deleteEngagement("care_AAAAAAAAAAA1")],
   ];
 
@@ -341,7 +351,7 @@ describe("changeEngagementStart", () => {
       expect(mine().occurred_at).toBe("2026-03-10T16:00:00.000Z");
       expect(mine().occurred_at).toBe(onlyEngagementOf(id).opened_at);
       expect(careRows("care_started").find((a) => a.related_id === bo.id)!.occurred_at).toBe("2026-03-20T15:00:00.000Z");
-      expect(mine()).toMatchObject({ title: "Hedgie Care started", member_id: ADA });
+      expect(mine()).toMatchObject({ title: "Started a care plan", member_id: ADA });
     });
 
     it("moves the row of a renewal, which is where a renewed care plan's start is written, and leaves the close row", async () => {
@@ -493,7 +503,7 @@ describe("the rest of an engagement's life", () => {
 
     const closing = data.activities.filter((a) => a.source === "care" && a.activity_type === "care_closed");
     expect(closing).toHaveLength(1);
-    expect(closing[0]).toMatchObject({ member_id: ADA, actor_kind: "staff", engagement_value: 0, description: "A writing check-in: Back in the community" });
+    expect(closing[0]).toMatchObject({ member_id: ADA, actor_kind: "staff", engagement_value: 0, description: "Back in the community", data: { ended_how: "back_in_community" } });
 
     await expect(closeEngagement(id, "no_reply")).resolves.toEqual({ error: "That care plan is already closed or gone." });
     expect(data.activities.filter((a) => a.activity_type === "care_closed")).toHaveLength(1);
@@ -652,6 +662,10 @@ describe("getEngagementResults", () => {
       handover_to: null,
       handover_by: null,
       handover_at: null,
+      taken_from: null,
+      taken_by: null,
+      taken_at: null,
+      taken_seen_at: null,
       next_step: null,
       notes: null,
       deleted_at: null,
@@ -855,6 +869,86 @@ describe("hand-over actions: a care plan changes hands only when the receiver ac
   });
 });
 
+describe("an admin takes a plan over", () => {
+  const actAs = (user: { id: string; email?: string | null }) => {
+    signInAs(user as never);
+    repos = createInMemoryRepos(data, { signedInAs: user.id });
+  };
+  let id: string;
+  beforeEach(async () => {
+    actAs(CM_USER);
+    await start();
+    id = onlyEngagement().id;
+  });
+
+  it("takes an open plan from its owner in one step, clears an offer waiting on it, and leaves a notice for the previous owner", async () => {
+    await proposeCareHandover(id, OWNER_B);
+    actAs(ADMIN_USER);
+    await expect(takeOverCarePlan(id)).resolves.toEqual({ success: true });
+    expect(onlyEngagement()).toMatchObject({ owned_by: ADMIN_USER.id, handover_to: null, handover_by: null, taken_from: CM_USER.id, taken_by: ADMIN_USER.id, taken_seen_at: null });
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/care");
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/care/earlier");
+  });
+
+  it("writes the takeover to the member's timeline with who it was taken from (an account id, no name), and a dismissal writes nothing there", async () => {
+    actAs(ADMIN_USER);
+    await takeOverCarePlan(id);
+    const rows = () => data.activities.filter((a) => a.source === "care" && a.activity_type === "care_plan_taken_over");
+    expect(rows()).toHaveLength(1);
+    expect(rows()[0]).toMatchObject({ actor_user_id: ADMIN_USER.id, related_id: id, data: { from_user_id: CM_USER.id } });
+
+    const before = data.activities.length;
+    actAs(CM_USER);
+    await dismissCareTakeoverNotice(id);
+    expect(data.activities).toHaveLength(before);
+  });
+
+  it("is for admins only: a community manager is refused before anything is asked of the database, and so is an admin previewing one", async () => {
+    actAs({ id: OWNER_B, email: "owner-b@example.test" });
+    data.userProfiles.find((p) => p.id === OWNER_B)!.role = "community_manager";
+    await expect(takeOverCarePlan(id)).resolves.toEqual({ error: "Not authorized" });
+    preview.role = "community_manager";
+    actAs(ADMIN_USER);
+    await expect(takeOverCarePlan(id)).resolves.toEqual({ error: "Not authorized" });
+    expect(onlyEngagement()).toMatchObject({ owned_by: CM_USER.id, taken_from: null });
+  });
+
+  it("says in the page's words why it was refused: already theirs, closed, gone", async () => {
+    actAs(ADMIN_USER);
+    await expect(takeOverCarePlan(id)).resolves.toEqual({ success: true });
+    await expect(takeOverCarePlan(id)).resolves.toEqual({ error: "You already own this care plan." });
+    await expect(takeOverCarePlan("nope")).resolves.toEqual({ error: "That care plan is gone." });
+
+    data.careEngagements[0].owned_by = CM_USER.id;
+    data.careEngagements[0].closed_at = "2026-03-05T00:00:00.000Z";
+    data.careEngagements[0].ended_how = "ran_its_course";
+    await expect(takeOverCarePlan(id)).resolves.toEqual({ error: "That care plan is closed, so it stays with its owner." });
+    expect(onlyEngagement().owned_by).toBe(CM_USER.id);
+  });
+
+  it("lets only the previous owner dismiss the notice, and tells another person there is nothing to dismiss", async () => {
+    actAs(ADMIN_USER);
+    await takeOverCarePlan(id);
+
+    await expect(dismissCareTakeoverNotice(id)).resolves.toEqual({ error: "That notice is already gone." }); // the admin who took it
+    expect(onlyEngagement().taken_seen_at).toBeNull();
+
+    actAs(CM_USER);
+    await expect(dismissCareTakeoverNotice(id)).resolves.toEqual({ success: true });
+    expect(onlyEngagement().taken_seen_at).not.toBeNull();
+    await expect(dismissCareTakeoverNotice(id)).resolves.toEqual({ success: true }); // a second click
+    await expect(dismissCareTakeoverNotice("nope")).resolves.toEqual({ error: "That care plan is gone." });
+  });
+
+  it("says it could not do it when the database fails, without its message", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    actAs(ADMIN_USER);
+    vi.spyOn(repos.care, "claim").mockRejectedValueOnce(new Error("connection reset"));
+    await expect(takeOverCarePlan(id)).resolves.toEqual({ error: "Couldn't do that. Try again." });
+    expect(log).toHaveBeenCalledWith("[care] take a care plan over failed:", "connection reset");
+  });
+});
+
 describe("tracking Slack DMs", () => {
   const CM_MEMBER = "mbr_CCCCCCCCCCC1";
   const STAFF_MEMBER = "mbr_SSSSSSSSSSS1";
@@ -1018,6 +1112,21 @@ describe("tracking Slack DMs", () => {
       expect(data.careTrackedDms).toEqual([]);
     });
 
+    it("an admin taking a plan over tracks their own DM with the member, and who spoke last follows it", async () => {
+      world();
+      // The admin is the one with the Slack connection and the DM with Ada; the plan is the community manager's.
+      data.members.find((m) => m.id === CM_MEMBER)!.userId = ADMIN_USER.id;
+      plan(ADA, { id: "care_TakeoverAAAA", owned_by: CM_USER.id, opened_by: CM_USER.id });
+      repos = createInMemoryRepos(data, { signedInAs: ADMIN_USER.id });
+      signInAs(ADMIN_USER);
+
+      await expect(takeOverCarePlan(onlyEngagementId())).resolves.toEqual({ success: true });
+
+      expect(onlyEngagement()).toMatchObject({ owned_by: ADMIN_USER.id, taken_from: CM_USER.id });
+      expect(data.careTrackedDms.map((dm) => [dm.tracked_by, dm.slack_channel_id, dm.member_id])).toEqual([[ADMIN_USER.id, D.ada, ADA]]);
+      expect(onlyEngagement().last_member_message_at).not.toBeNull();
+    });
+
     it("claiming a plan nobody owns tracks her DM the same way", async () => {
       world();
       plan(ADA, { id: "care_AcceptCCCCCC", owned_by: null, opened_by: null });
@@ -1097,5 +1206,208 @@ describe("tracking Slack DMs", () => {
       await expect(changeEngagementStart(onlyEngagement().id, "2026-03-18")).resolves.toEqual({ success: true });
       expect(log).toHaveBeenCalledWith("[care] filling in from tracked DMs after a start change failed:", "connection reset");
     });
+  });
+});
+
+describe("a care plan's events on the member's timeline", () => {
+  const actAs = (user: { id: string; email?: string | null }) => {
+    signInAs(user as never);
+    repos = createInMemoryRepos(data, { signedInAs: user.id });
+  };
+  const OWNER_B_USER = { id: OWNER_B, email: "owner-b@example.test" };
+  const careRows = () => data.activities.filter((a) => a.source === "care");
+  const typesOf = () => careRows().map((a) => a.activity_type);
+  let id: string;
+  beforeEach(async () => {
+    actAs(CM_USER);
+    await start({ notes: "private words", nextStep: "private step" });
+    id = onlyEngagement().id;
+  });
+
+  it("writes a row for each hand-over step, as the person who took it, naming only account ids", async () => {
+    await proposeCareHandover(id, OWNER_B);
+    actAs(OWNER_B_USER);
+    await declineCareHandover(id);
+    actAs(CM_USER);
+    await proposeCareHandover(id, OWNER_B);
+    await cancelCareHandover(id);
+    await proposeCareHandover(id, OWNER_B);
+    actAs(OWNER_B_USER);
+    await acceptCareHandover(id);
+    data.careEngagements[0].owned_by = null;
+    await claimCarePlan(id);
+
+    expect(typesOf()).toEqual([
+      "care_started",
+      "care_handover_offered",
+      "care_handover_declined",
+      "care_handover_offered",
+      "care_handover_cancelled",
+      "care_handover_offered",
+      "care_handover_accepted",
+      "care_plan_claimed",
+    ]);
+    const rows = careRows();
+    expect(rows[1]).toMatchObject({ actor_kind: "staff", actor_user_id: CM_USER.id, engagement_value: 0, related_id: id, title: "Offered a care plan to a colleague", data: { to_user_id: OWNER_B } });
+    expect(rows[2]).toMatchObject({ actor_user_id: OWNER_B, data: { from_user_id: CM_USER.id } }); // declined: whose offer
+    expect(rows[4]).toMatchObject({ actor_user_id: CM_USER.id, data: { to_user_id: OWNER_B } }); // taken back: offered to whom
+    expect(rows[6]).toMatchObject({ actor_user_id: OWNER_B, data: { from_user_id: CM_USER.id } }); // accepted: from whom
+    expect(rows[7].data).toBeNull();
+    expect(JSON.stringify(rows)).not.toContain("private");
+  });
+
+  it("writes nothing for a hand-over step that was refused", async () => {
+    await expect(acceptCareHandover(id)).resolves.toEqual({ error: "That hand-over is no longer waiting. Refresh the list." });
+    await expect(proposeCareHandover(id, NOT_STAFF)).resolves.toMatchObject({ error: expect.any(String) });
+    expect(typesOf()).toEqual(["care_started"]);
+  });
+
+  it("still hands over when the timeline row cannot be written", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(repos.activities, "record").mockRejectedValueOnce(new Error("connection reset"));
+    await expect(proposeCareHandover(id, OWNER_B)).resolves.toEqual({ success: true });
+    expect(onlyEngagement().handover_to).toBe(OWNER_B);
+  });
+
+  it("puts the ending and the plan's number in the data, never what she typed", async () => {
+    await renewEngagement(id, "private reason to renew");
+    const renewed = careRows().find((a) => a.activity_type === "care_renewed")!;
+    expect(renewed.data).toEqual({ plan_number: 2 });
+    await closeEngagement(data.careEngagements[1].id, "no_reply");
+    const closed = careRows().find((a) => a.activity_type === "care_closed")!;
+    expect(closed.data).toEqual({ ended_how: "no_reply" });
+    expect(JSON.stringify(careRows())).not.toContain("private");
+  });
+
+  it("numbers a third plan as the third", async () => {
+    await renewEngagement(id, "again");
+    await renewEngagement(data.careEngagements[1].id, "and again");
+    expect(careRows().filter((a) => a.activity_type === "care_renewed").map((a) => a.data)).toEqual([{ plan_number: 2 }, { plan_number: 3 }]);
+  });
+});
+
+describe("loadCarePlanActivity: what the member did during a care plan", () => {
+  const fake = useFakeClock(() => Date.parse("2027-03-20T15:00:00Z"));
+  const OPENED = "2027-03-01T17:00:00.000Z";
+  const STAFF_A = { id: "user-staff-a", email: "a@example.test" };
+  let id: string;
+  const log = (type: string, at: string, over: Record<string, unknown> = {}) =>
+    repos.activities.record({ memberId: ADA, type, category: "event", title: type, occurredAt: at, source: "prickle_attendance", relatedId: `rel-${type}-${at}`, actorKind: "member", ...over });
+  beforeEach(async () => {
+    signInAs(CM_USER);
+    repos = createInMemoryRepos(data, { signedInAs: CM_USER.id });
+    data.members.push({ id: "mbr_AAAAAAAAAAA3", name: "Cam & <Mgr>", email: "cam@example.test", userId: CM_USER.id } as never);
+    await start({ startedOn: "2027-03-01" });
+    id = onlyEngagement().id;
+    data.careEngagements[0].opened_at = OPENED;
+  });
+
+  it("lists the plan's window, newest first, with the plan's own moments named by the staff member who did them", async () => {
+    await log("prickle_attended", "2027-03-05T15:00:00Z", { title: "Attended Morning Writing" });
+    await log("slack_message", "2027-03-06T15:00:00Z", { source: "slack", title: "Posted in #writing", description: "the words she wrote" });
+    await log("prickle_attended", "2027-02-20T15:00:00Z", { title: "Before the plan" });
+    // The started row is at the opening; make its time the plan's.
+    careStartedRow().occurred_at = OPENED;
+
+    const answer = await loadCarePlanActivity(id);
+
+    expect("items" in answer).toBe(true);
+    if (!("items" in answer)) return;
+    expect(answer.items.map((i) => i.label)).toEqual(["Posted in #writing", "Attended Morning Writing", "Cam & <Mgr> started a care plan"]);
+    expect(answer.items.map((i) => i.care)).toEqual([false, false, true]);
+    expect(answer).toMatchObject({ total: 3, page: 1, open: true, fromIso: OPENED, toIso: "2027-03-20T15:00:00.000Z" });
+    expect(JSON.stringify(answer)).not.toContain("the words she wrote");
+  });
+
+  const careStartedRow = () => data.activities.find((a) => a.activity_type === "care_started")!;
+
+  it("ends an open plan's window at now, not including it, and a closed plan's at its close", async () => {
+    await log("prickle_attended", "2027-03-20T15:00:00Z", { title: "Right now" });
+    await log("prickle_attended", "2027-03-20T14:59:59Z", { title: "A second ago" });
+    let answer = await loadCarePlanActivity(id);
+    if (!("items" in answer)) throw new Error("expected a list");
+    expect(answer.items.map((i) => i.label)).toContain("A second ago");
+    expect(answer.items.map((i) => i.label)).not.toContain("Right now");
+
+    await closeEngagement(id, "ran_its_course");
+    const closedAt = data.careEngagements[0].closed_at!;
+    await log("prickle_attended", closedAt, { title: "At the close" });
+    await log("prickle_attended", "2027-03-10T15:00:00Z", { title: "While it ran" });
+    answer = await loadCarePlanActivity(id);
+    if (!("items" in answer)) throw new Error("expected a list");
+    expect(answer.open).toBe(false);
+    expect(answer.toIso).toBe(new Date(closedAt).toISOString());
+    const labels = answer.items.map((i) => i.label);
+    expect(labels).toContain("While it ran");
+    expect(labels).not.toContain("At the close");
+    expect(labels).toContain("Cam & <Mgr> closed the care plan: ran its course"); // its own row stays, though it is at the end
+  });
+
+  it("gives each plan its own window: an earlier plan lists its own stretch", async () => {
+    await log("prickle_attended", "2027-03-05T15:00:00Z", { title: "In the first plan" });
+    fake.clock.advance(-10 * 86_400_000); // the renewal is on March 10
+    await renewEngagement(id, "keep going");
+    fake.clock.advance(10 * 86_400_000);
+    await log("prickle_attended", "2027-03-15T15:00:00Z", { title: "In the second plan" });
+    // The renewal closed the first at the renewal's instant.
+    const [first, second] = data.careEngagements;
+    first.opened_at = OPENED;
+    const one = await loadCarePlanActivity(first.id);
+    const two = await loadCarePlanActivity(second.id);
+    if (!("items" in one) || !("items" in two)) throw new Error("expected lists");
+    expect(one.items.map((i) => i.label)).toContain("In the first plan");
+    expect(one.items.map((i) => i.label)).not.toContain("In the second plan");
+    expect(two.items.map((i) => i.label)).toContain("In the second plan");
+    expect(two.items.map((i) => i.label)).not.toContain("In the first plan");
+    expect(two.items.map((i) => i.label)).toContain("Cam & <Mgr> renewed the care plan (second plan)");
+  });
+
+  it("names hand-over steps with the colleague's display name, as the community knows them", async () => {
+    data.members.push({ id: "mbr_AAAAAAAAAAA4", name: "Legal Owner", displayName: "Bee & <Owner>", email: "b@example.test", userId: OWNER_B } as never);
+    await proposeCareHandover(id, OWNER_B);
+    const answer = await loadCarePlanActivity(id);
+    if (!("items" in answer)) throw new Error("expected a list");
+    expect(answer.items[0].label).toBe("Cam & <Mgr> offered the care plan to Bee & <Owner>");
+  });
+
+  it("pages, a page at a time, and clamps a page past the end", async () => {
+    for (let i = 0; i < 30; i += 1) await log("slack_reaction", new Date(Date.parse("2027-03-02T12:00:00Z") + i * 60_000).toISOString(), { source: "slack", title: `Reacted ${i}` });
+    const first = await loadCarePlanActivity(id, 1);
+    const second = await loadCarePlanActivity(id, 2);
+    const beyond = await loadCarePlanActivity(id, 99);
+    if (!("items" in first) || !("items" in second) || !("items" in beyond)) throw new Error("expected lists");
+    expect(first).toMatchObject({ total: 31, page: 1, pageSize: 25 });
+    expect(first.items).toHaveLength(25);
+    expect(second.items).toHaveLength(6);
+    expect(new Set([...first.items, ...second.items].map((i) => i.id)).size).toBe(31);
+    expect(beyond.page).toBe(2);
+    await expect(loadCarePlanActivity(id, -3)).resolves.toMatchObject({ page: 1 });
+  });
+
+  it("is for admins and the community manager: not an assistant, not a plain member, not someone signed out", async () => {
+    data.userProfiles.push({ id: STAFF_A.id, email: STAFF_A.email, role: "assistant" });
+    signInAs(STAFF_A);
+    await expect(loadCarePlanActivity(id)).resolves.toEqual({ error: "Not authorized" });
+    signInAs(MEMBER_USER);
+    await expect(loadCarePlanActivity(id)).resolves.toEqual({ error: "Not authorized" });
+    signInAs(null);
+    await expect(loadCarePlanActivity(id)).resolves.toEqual({ error: "Not authenticated" });
+    signInAs(ADMIN_USER);
+    await expect(loadCarePlanActivity(id)).resolves.toMatchObject({ total: expect.any(Number) });
+  });
+
+  it("refuses something that is not a care plan id and a plan that is gone, and says it could not load when a read fails, without the message", async () => {
+    await expect(loadCarePlanActivity("nope")).resolves.toEqual({ error: "That care plan is gone." });
+    await expect(loadCarePlanActivity("care_ZZZZZZZZZZZZ")).resolves.toEqual({ error: "That care plan is gone." });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(repos.activities, "planActivity").mockRejectedValueOnce(new Error("connection reset"));
+    await expect(loadCarePlanActivity(id)).resolves.toEqual({ error: "Couldn't load the activity." });
+  });
+
+  it("says a staff member with no member record as a staff member", async () => {
+    data.members = data.members.filter((m) => m.userId !== CM_USER.id);
+    const answer = await loadCarePlanActivity(id);
+    if (!("items" in answer)) throw new Error("expected a list");
+    expect(answer.items.at(-1)?.label).toBe("A staff member started a care plan");
   });
 });

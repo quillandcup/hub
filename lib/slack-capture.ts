@@ -12,7 +12,7 @@ import type { SlackMemberEvent } from "@/lib/data/slack-workspace";
  * On Slack's free plan anything not copied while Slack still has it is gone
  * (about 90 days through the API), so each of these is pulled on every import.
  * The webhook handles the same things as they happen, but the pull is the
- * guaranteed path (CLAUDE.md, "Nothing through webhooks alone").
+ * guaranteed path (.claude/rules/data-pipeline-reprocessability.md, "Nothing through webhooks alone").
  *
  * Group DMs and emoji need scopes (mpim:read, emoji:read) that are only granted
  * once the app is reinstalled after a manifest change. Until then Slack answers

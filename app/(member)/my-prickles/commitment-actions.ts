@@ -59,7 +59,7 @@ function toSlotPrickle(p: PrickleDetail): SlotPrickle {
 /**
  * The acting member's commitments (newest first) with kept/missed progress per occurrence,
  * summarized per commitment and per slot. Re-derives the member from effectiveIdentity
- * (sudo-aware), never from a client-passed id. Paginated per CLAUDE.md -- prickles and
+ * (sudo-aware), never from a client-passed id. Paginated per .claude/rules/api-routes-and-queries.md -- prickles and
  * prickle_attendance can each exceed 1000 rows. Also flips any 'active' commitment whose window
  * has passed to 'completed' (best-effort; the status is derived on read either way).
  */

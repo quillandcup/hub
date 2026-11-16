@@ -5,7 +5,7 @@ export const HOST_LATE_THRESHOLD_MS = 5 * 60 * 1000;
 export type HostPunctuality = "on_time" | "late" | "missing";
 
 /** `earliestJoinTime` should be the host's earliest prickle_attendance.join_time for that
- * prickle (a host can leave/rejoin, per CLAUDE.md's attendance model) or null if they never
+ * prickle (a host can leave/rejoin, per .claude/rules/attendance-table.md) or null if they never
  * showed up. */
 export function computeHostPunctuality(
   prickleStartTime: string,

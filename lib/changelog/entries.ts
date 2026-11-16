@@ -69,6 +69,38 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     ].join("\n\n"),
   },
   {
+    slug: "lesson-comments-moderation",
+    date: "2026-11-16",
+    audience: "engineering",
+    category: "new",
+    title: "Lesson comments: reports, held links and staff moderation, one audit entry per action",
+    summary: "Members can report a comment, a comment with more than two links waits for staff, and staff hide, delete, approve or dismiss from a moderation page. Each staff action writes one audit entry without the comment's text. Still behind the lesson comments flag.",
+    body: `Moderation for lesson comments builds on the thread, behind the same flag.
+
+- **One function, one entry.** Staff actions call a database function that checks the caller is an admin, changes the comment, settles its reports and writes a single audit entry as that admin (who, which comment, the lesson's title, before and after). The table has no row-level audit trigger because that would copy every comment's text into the log; the entry never holds text either. It follows "Record the intent, not the noise" in \`docs/ACTIVITY_AND_AUDIT_LOG.md\`.
+- **Visibility is enforced twice.** A held comment is its author's and staff's alone, and a hidden one is a tombstone for members, both in the row-level policy and in the repository's \`threadFor(lessonId, viewer)\`.
+- **The link rule is one helper** (\`shouldHoldComment\`), counting links the way the thread auto-links them. There is no word filter.
+- **Reports** have their own table, one open report per reporter and comment, readable by admins only; the author is never told who reported.
+- **Admin pages** are tabs by path (Unanswered questions, Moderation), admin only.
+
+Detail: "Phase 2 (moderation), as built" in \`docs/COURSES.md\`.`,
+  },
+  {
+    slug: "lesson-comments-foundation",
+    date: "2026-11-15",
+    audience: "engineering",
+    category: "improved",
+    title: "Lesson comments: the thread, behind a flag",
+    summary: "Course lessons can carry a comment thread: a repository for it, access rules in the database, and a shared thread component. It is off for everyone until the flag is switched on.",
+    body: `Members with access to a course can ask questions under an open lesson, and staff answer where they were asked. Everything is behind the \`lesson_comments\` flag.
+
+- **Data.** One repository (\`CourseCommentRepository\`, with an in-memory twin) owns the queries and builds the thread: questions newest first, replies oldest first, a "Comment removed" placeholder only when replies hang under it. Access follows the lesson: current course access, lesson open, and read-only while an admin previews as a member. The database also enforces the one-level threading and the 15-minute edit window, so a direct client can't get around the actions.
+- **Writes.** Server actions check the flag, the lesson, sudo and rate limits, and keep the text out of analytics and logs.
+- **UI.** \`CommentThread\` renders plain text and links only http(s) addresses.
+
+Moderation, notifications and the Kajabi import are later phases: see "Lesson comments" in \`docs/COURSES.md\`.`,
+  },
+  {
     slug: "course-video-playback-quality-in-mux-data",
     date: "2026-11-15",
     audience: "engineering",
@@ -82,30 +114,35 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-11-15",
     audience: "product",
     category: "new",
-    title: "Answer your check-in and check-out right in Hub chat",
-    summary: "When Billie Bot sends you a check-in or check-out, you can now answer it in Hub chat, the same way you do in Slack. Your answers are saved to your check-in and show up in Slack too.",
+    title: "Answer your check-in and check-out in Hub Chat",
+    summary: "When Billie Bot, our Slack helper, sends you a check-in or check-out, you can now answer it in Hub Chat as well as in Slack. Your answers are saved to your check-in for that prickle.",
     body: [
-      "Billie Bot's check-in and check-out messages now work in Hub chat. Pick a number on the scales, choose a feeling from the list, say what you need, type how much you wrote and press Enter, then tap Submit or Skip.",
-      "It does the same thing as the buttons in Slack: your answers go to your check-in for that prickle, and the message in Slack updates to match. Links in these messages, and bold titles, now look the way they do in Slack.",
+      "Billie Bot's check-in and check-out messages now work in Hub Chat. Pick a number on each scale, choose a feeling from the list, say what you need, and type how much you wrote and press Enter. Then tap Submit or Skip.",
+      "![Billie Bot's check-in in Hub Chat, with scales to tap, a feeling and an intention to pick, and Submit and Skip check-in buttons](/changelog/answer-check-ins-in-hub-chat/01-check-in-controls.webp)",
+      "It works the same as the buttons in Slack: your answers go to your check-in for that prickle, and the message in Slack updates to show them. Links in these messages, and bold titles, now look the way they do in Slack.",
     ].join("\n\n"),
+    image: { src: "/changelog/answer-check-ins-in-hub-chat/01-check-in-controls.webp", alt: "Billie Bot's check-in in Hub Chat, with scales to tap, a feeling and an intention to pick, and Submit and Skip check-in buttons" },
   },
   {
     slug: "block-link-previews-in-hub-chat",
     date: "2026-11-15",
     audience: "product",
     category: "improved",
-    title: "Choose which sites get a preview in Hub Chat",
-    summary: "When you remove a link preview from your message, you can also block previews from that website, from one part of it, or from just that link, in the messages you write from now on.",
+    title: "Choose which sites show a preview in Hub Chat",
+    summary: "When you remove the preview that appears when you share a link, you can also block previews from that whole website, from one part of it, or from just that link. This applies to messages you write from now on.",
     body: [
       "The X on a preview now asks \"Remove preview?\" before it goes. Leave the box ticked to also block previews like it, then pick how much to block.",
+      "![The Remove preview question in Hub Chat, with a ticked box to also block previews from the website and a choice of how much to block](/changelog/block-link-previews-in-hub-chat/01-remove-preview.webp)",
       [
-        "- **A whole website, one part of it, or just that link.** You pick one of the three before you confirm.",
+        "- **A whole website, one part of it, or just that link.** You choose one before you confirm.",
         "- **Only your own messages, from now on.** Previews already in a conversation stay as they are, and other people's messages are not affected.",
-        "- **If every link in a message is blocked, Slack doesn't make a preview for it either.**",
+        "- **If every link in a message is blocked, Slack doesn't show a preview for it either.**",
         "- **Change your mind any time** in Settings, under Preferences: your blocked sites are listed there, each with a button to stop blocking it.",
         "- **Untick the box** to remove just that one preview, as before.",
       ].join("\n"),
+      "![Your blocked sites in Settings, under Preferences, each with a Stop blocking button](/changelog/block-link-previews-in-hub-chat/01-blocked-sites.webp)",
     ].join("\n\n"),
+    image: { src: "/changelog/block-link-previews-in-hub-chat/01-remove-preview.webp", alt: "The Remove preview question in Hub Chat, with a ticked box to also block previews from the website and a choice of how much to block" },
   },
   {
     slug: "stripe-invoices-and-charges-in-bronze",
@@ -147,6 +184,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     summary: "Not ready to answer yet? Choose Mark unread on a message, and it and everything after it show as unread again until you come back.",
     body: [
       "Open the three dots on a message and choose **Mark unread**. That message and everything after it counts as new again: the conversation shows its number in the sidebar, and the next time you open it the \"New\" line sits above that message and you land right there.",
+      "![A message's More actions menu in Hub Chat, with Mark unread at the top](/changelog/mark-unread-in-hub-chat/01-mark-unread-menu.webp)",
       "The conversation stays unread while you're in it and when you leave, so you can read on and still find your place later. It only marks your own view, so nobody else sees a change.",
       "If you've connected Slack, the message looks unread there too.",
     ].join("\n\n"),
@@ -183,6 +221,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     summary: "When a conversation has more new messages than fit on screen, a small label at the top tells you how many there are. Tap it to jump back to where the new ones start.",
     body: [
       "If you open a conversation with a lot of unread messages and scroll away from the \"New\" line, a small label appears at the top saying, for example, \"↑ 13 new messages\".",
+      "![A conversation in Hub Chat with a small label at the top reading 5 new messages](/changelog/chat-new-messages-banner/01-new-messages-pill.webp)",
       "- **Tap it** to scroll back up to the \"New\" line.",
       "- **Tap the ✕** to hide it until you open the conversation again.",
       "- It goes away by itself once the \"New\" line is on screen. The number is every message from the \"New\" line down, including any you wrote yourself, counted when you opened the conversation. It doesn't change as more messages arrive.",
@@ -346,10 +385,11 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "**A care plan** is one stretch of reaching out to one member. Press **Start a care plan**, pick the member, why you are reaching out (an introduction, a welcome, a check-in, a writing check-in, encouragement or something else), the day it really started (today, or an earlier day if you are catching up, never a later one) and a short note with nothing sensitive in it. A plan belongs to the member, not to a channel: a member has one open plan, whether you reach them in Slack, by email or in a prickle, so what you read about them stays in one place. A plan runs for 30 days from its start. \"Change start date\" fixes a plan entered with the wrong day; the end moves with it. When a plan ends there is simply no explicit plan for the member: you **renew** it (a new plan that continues the one before, \"second plan\", with a short reason and the results so far in front of you) or **close** it with how it ended: handed to someone else, no reply, back in the community, or ran its course.",
       "**Where each one stands** is worked out, not typed: needs your reply, waiting on them, gone quiet, review due or lapsed. A member who wrote last stays on \"needs your reply\" until you answer, renew or close, however old the plan is. The Active tab lists what needs you; the Earlier tab holds closed and lapsed plans; a summary at the top counts what is overdue and whose it is.",
       "**Slack DMs fill in who spoke last, with nothing to choose.** When you hold a care plan with a member, your own 1:1 Slack DM with them is read for it: starting a plan tracks the DM when the Hub has one, and so does a plan you hold when you open Hedgie Care. The plan is the reason, so there is no list of DMs to pick from and nothing to switch off. Only who wrote and when is read, never what was said; DMs with staff are never read, group DMs are not included, and other staff cannot see which DMs you track. On a plan that follows your DM, the \"They replied\" and \"I replied\" buttons give way to \"Filled in from your Slack DM\", and **Open the DM** takes you to it. Where your DM is not available the plan says so quietly: \"Connect Slack so your DM with them fills in\" (a link, and one dismissible note on the Active tab while you hold an open plan), or \"No DM with them yet.\" This needs Slack connected with direct message access and the `slack_dm_bridge` feature on for you. Where nothing is filled in, you log \"They replied\" and \"I replied\" yourself.",
-      "**Owners and hand-overs.** A new plan is owned by whoever starts it; if someone else cared for that member before, the start form says so. A plan changes hands only when the other person agrees: the owner (or an admin, for an owner who is gone) offers it to another admin or community manager with **Hand over to…**, and it waits, showing \"Waiting for\" their name \"to accept\" until they answer. The receiver finds it under **Waiting for you** at the top of Active and Earlier and accepts or declines; the plan stays with its owner until then, and an offer can be cancelled. Accepting also starts reading the new owner's own DM with that member. A plan whose owner's account was removed can be taken by anyone who looks after care plans. The receiver hears about an offer on this page only for now. Both tabs still filter by Mine or Everyone.",
+      "**Owners and hand-overs.** A new plan is owned by whoever starts it; if someone else cared for that member before, the start form says so. A plan changes hands when the other person agrees, with one exception for admins (below): the owner (or an admin, for an owner who is gone) offers it to another admin or community manager with **Hand over to…**, and it waits, showing \"Waiting for\" their name \"to accept\" until they answer. The receiver finds it under **Waiting for you** at the top of Active and Earlier and accepts or declines; the plan stays with its owner until then, and an offer can be cancelled. Accepting also starts reading the new owner's own DM with that member. A plan whose owner's account was removed can be taken by anyone who looks after care plans. **The exception:** an admin can **take over** any open plan from its owner without waiting for a yes, for an owner who cannot be reached or when you have to step in; a closed plan stays with its owner. The person it was taken from sees \"Taken over\" at the top of their Active and Earlier tabs, saying who took which member's plan and when, with a Dismiss button. Nothing is sent: the receiver of an offer, and the person a plan was taken from, hear about it on this page only for now. Both tabs still filter by Mine or Everyone.",
       "**On every plan** you see the member's engagement score and tier when the plan started and now, and when they last took part in the community and in what (a prickle, a Slack message or reaction, a lesson, a writing log; never a login).",
       "**Results** (the button on a plan) set the member's own activity before the plan, during it and 30 to 60 days after it ends: distinct prickles attended, Slack messages, whether their first prickle or first Slack post fell in the window, and how many other members they connected with. It also says whether they were active, on hiatus or cancelled 60, 90 and 180 days after the plan, when they first went on hiatus or left, the programs they hold and how long each runs, and the programs they started. These describe what happened; they do not prove the outreach caused it.",
-      "**What is recorded.** Starting, renewing and closing a plan appear on the member's timeline (the reason, never your note), and changes are in the audit log. Behind the scenes the table is `care_engagements`; routes, settings and events keep that name.",
+      "**Activity during this plan** (the button on a plan, open or earlier) lists what the member did while that plan ran, newest first: their prickles, Slack and Hub chat messages and reactions, check-ins, lessons and writing logs, the emails the Hub sent them and what they did with them, and the plan's own moments (started, renewed, handed over, closed). A message shows where and when, never what was said, and logins are left out. Admins and the community manager can open it, and each plan lists only its own stretch of time.",
+      "**What is recorded.** Every step of a plan is a line in the Activity Log (`/admin/activity`, and the member's Activity tab) in plain words: \"started a care plan\", \"renewed the care plan (second plan)\", \"closed the care plan: ran its course\", \"offered the care plan to\" a colleague, \"accepted\" it, \"declined\" it, \"took back the offer\", \"took a care plan that had no owner\", \"took over the care plan from\" a colleague, \"dismissed the notice that a care plan of theirs was taken over\", \"moved the care plan's start to\" a day, and \"removed the care plan\". The note and the next step are never in the log, only that they changed, and the member cannot read these rows about themselves. Behind the scenes the table is `care_engagements`; routes, settings and events keep that name.",
     ].join("\n\n"),
   },
   {
@@ -2319,6 +2359,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "The privacy page opens with a short summary and can be read without signing in. A switch lets you stop the Hub recording how you use it, and removes what was already recorded about you.",
     body: [
       "[/privacy](/privacy) now covers what we collect, who can see it, chat and messages, how long we keep things, your choices and the services we use.",
+      "![The top of the privacy page: a short summary, then a table of what we collect](/changelog/privacy-page/01-privacy.webp)",
       "Turn off Share usage statistics and the Hub stops recording your usage and removes the usage events already stored under your account. Error recordings, used to fix crashes, continue.",
     ].join("\n\n"),
     image: { src: "/changelog/privacy-page/01-privacy.webp", alt: "The top of the privacy page: a short summary, then a table of what we collect" },
@@ -2780,6 +2821,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     summary: "Tap the day label in a conversation to jump to today, yesterday, last week, last month, the very beginning, or any date you pick on a calendar.",
     body: [
       "In Hub Chat, the day label above each group of messages (like \"Wednesday, November 11th\") is now a button. Tap it to open Jump to... and choose Today, Yesterday, Last week, Last month or The very beginning, or pick a specific date on a calendar.",
+      "![The Jump to menu opened from a day label, listing Today, Yesterday, Last week, Last month, The very beginning and a specific date](/changelog/chat-jump-to-a-day/01-jump-to-menu.webp)",
       "The conversation opens on the first message of that day. If nothing was posted that day, it opens on the next day that has messages, and tells you so. A Jump to latest link takes you back to the newest messages, and Show newer messages carries on from where the page ends.",
       "Days follow your own time zone setting. Looking back this way does not mark the conversation as read.",
     ].join("\n\n"),
@@ -2792,7 +2834,10 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "improved",
     title: "Apps now have their own place in the chat list",
     summary: "In Hub Chat, your private messages with apps like Billie Bot, our Slack helper, now sit under their own Apps heading, apart from the people you talk to.",
-    body: "Your chat list now has an Apps heading under Direct messages. A conversation with an app shows under the app's name instead of a plain \"Direct message\", so the list under Direct messages is only people.",
+    body: [
+      "Your chat list now has an Apps heading under Direct messages. A conversation with an app shows under the app's name instead of a plain \"Direct message\", so the list under Direct messages is only people.",
+      "![The Hub Chat sidebar with an Apps heading under Direct messages, holding Billie Bot](/changelog/chat-apps-section/01-apps-heading.webp)",
+    ].join("\n\n"),
     image: { src: "/changelog/chat-apps-section/01-apps-heading.webp", alt: "The Hub Chat sidebar with an Apps heading under Direct messages, holding Billie Bot" },
   },
 ];

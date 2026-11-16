@@ -1,4 +1,4 @@
-export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat_dms' | 'chat_videos' | 'slack_dm_bridge' | 'big_sisters' | 'prickle_reminders' | 'checkin_dropins' | 'hosting' | 'writing_journey' | 'mux_playback_restriction' | 'changelog_digest' | 'chat_notifications' | 'chat_link_previews' | 'chat_link_cards';
+export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat_dms' | 'chat_videos' | 'slack_dm_bridge' | 'big_sisters' | 'prickle_reminders' | 'checkin_dropins' | 'hosting' | 'writing_journey' | 'mux_playback_restriction' | 'changelog_digest' | 'chat_notifications' | 'chat_link_previews' | 'chat_link_cards' | 'lesson_comments';
 
 export interface FeaturePreview {
   key: FeatureKey;
@@ -96,6 +96,11 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     key: 'writing_journey',
     name: 'Journey',
     description: 'The Journey tab in My Writing: the stages a book goes through at Quill & Cup (draft, edits, beta readers, publishing) with the Quill & Cup offer at each, and where each of your projects is on it',
+  },
+  {
+    key: 'lesson_comments',
+    name: 'Lesson comments',
+    description: 'A Comments section below each open course lesson, where members with access to the course ask questions and reply, and instructors answer where the question was asked. Comments are plain text, visible to members of the course and staff only, and can be edited for 15 minutes and deleted by their author. This decides who sees the section and can post; with it off nothing about comments appears. Staff find unanswered questions under Admin, Courses, Comments',
   },
   {
     key: 'mux_playback_restriction',

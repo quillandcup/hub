@@ -16,6 +16,7 @@ import {
   type StartChangeRefusal,
   isCareId,
   isCareReason,
+  periodNumber,
   isCloseOption,
   isMessageDirection,
   type CareEndedHow,
@@ -25,10 +26,13 @@ import {
 } from "@/lib/care";
 import { loadCareResults } from "@/lib/care-results";
 import { HANDOVER_REFUSAL_MESSAGES } from "@/lib/care-handover";
+import { planActivityLabel, planActivityWindow, PLAN_ACTIVITY_PAGE_SIZE } from "@/lib/care-activity";
+import { CARE_ACTIVITY_SOURCE, CARE_ACTIVITY_TITLES, CARE_ACTIVITY_TYPES, careActivitySentence, careActivityUserIds, type CareActivityData } from "@/lib/care-events";
 import { findOwnDmWith, projectCareFromDms, type CareDmServiceRepos, type StaffIdentity } from "@/lib/care-dm";
 import { clock } from "@/lib/clock";
 import { formatDateOnly } from "@/lib/formatters";
 import type { CareEngagementRow, CarePatch, HandoverResult } from "@/lib/data/care";
+import type { Json } from "@/lib/data/database.types";
 import { createRepos, type Repos } from "@/lib/data/repos";
 import { getServiceRepos } from "@/lib/data/server";
 import { isId, isUuid } from "@/lib/ids";
@@ -88,29 +92,43 @@ function reasonLabel(reason: string): string {
   return CARE_REASON_LABELS[reason as CareReason] ?? reason;
 }
 
-type TimelineKind = "started" | "renewed" | "closed";
+type TimelineKind = keyof typeof CARE_ACTIVITY_TYPES;
 
 /**
- * The member's timeline row for an engagement starting, being renewed or closing (like an outreach touch). Best effort,
- * log and continue: the engagement is the record. Nothing the staff member wrote goes in it.
+ * The member's timeline row for something that happened to a care plan: it started, was renewed or closed, was offered to a
+ * colleague, accepted, declined, taken back or claimed (like an outreach touch; `lib/care-events.ts` words each). Best effort, log
+ * and continue: the care plan is the record. Nothing the staff member typed goes in it, and its data holds only fixed values and
+ * the ids of staff accounts. The central Activity Log reads these events from the audit rows of the plan (which carry the same
+ * facts and are written by the database), so it does not list these rows too; the plan card's "Activity during this plan" does.
  */
-async function mirrorToTimeline(repos: Repos, userId: string, row: CareEngagementRow, kind: TimelineKind) {
-  const closed = kind === "closed";
+async function recordCareEvent(repos: Repos, userId: string, row: CareEngagementRow, kind: TimelineKind, data: CareActivityData = {}, at?: string | null) {
   await repos.activities
     .record({
       memberId: row.member_id,
-      type: `care_${kind}`,
+      type: CARE_ACTIVITY_TYPES[kind],
       category: "communication",
-      title: closed ? "Hedgie Care closed" : kind === "renewed" ? "Hedgie Care renewed" : "Hedgie Care started",
-      description: closed ? `${reasonLabel(row.reason)}: ${CARE_ENDED_HOW_LABELS[row.ended_how as CareEndedHow] ?? row.ended_how}` : reasonLabel(row.reason),
+      title: CARE_ACTIVITY_TITLES[kind],
+      description: kind === "started" || kind === "renewed" ? reasonLabel(row.reason) : kind === "closed" ? (CARE_ENDED_HOW_LABELS[row.ended_how as CareEndedHow] ?? null) : null,
       actorKind: "staff",
       actorUserId: userId,
       engagementValue: 0, // our action, not the member's engagement
-      occurredAt: (closed ? row.closed_at : row.opened_at) ?? nowIso(),
-      source: "care",
+      occurredAt: at ?? (kind === "closed" ? row.closed_at : row.opened_at) ?? nowIso(),
+      source: CARE_ACTIVITY_SOURCE,
       relatedId: row.id,
+      data: Object.keys(data).length > 0 ? (data as Json) : null,
     })
-    .catch((error) => console.error("Error mirroring a Hedgie Care engagement to member_activities:", error instanceof Error ? error.message : error));
+    .catch((error) => console.error("Error mirroring a Hedgie Care event to member_activities:", error instanceof Error ? error.message : error));
+}
+
+/** Which plan of the member's chain of renewals this is: counted along `renewed_from`, a removed plan ending the count. */
+async function planNumberOf(repos: Repos, row: CareEngagementRow): Promise<number | undefined> {
+  try {
+    const plans = await repos.care.forMember(row.member_id);
+    return periodNumber(row, new Map(plans.map((plan) => [plan.id, plan])));
+  } catch (error) {
+    console.error("[care] counting the plan's number failed:", error instanceof Error ? error.message : error);
+    return undefined;
+  }
 }
 
 export type StartEngagementInput = {
@@ -163,7 +181,7 @@ async function startImpl(repos: Repos, userId: string, input: StartEngagementInp
   }
   if (!result.ok) return { error: "There is already an open care plan with them. Log a message there, or renew it." };
 
-  await mirrorToTimeline(repos, userId, result.engagement, "started");
+  await recordCareEvent(repos, userId, result.engagement, "started");
   // The plan is hers, so her DM with them is read for it.
   if (dms) await trackDmWithMember(repos, dms, input.memberId);
   revalidate();
@@ -277,7 +295,7 @@ async function closeImpl(repos: Repos, userId: string, id: string, endedHow: str
   }
   if (!closed) return { error: "That care plan is already closed or gone." };
 
-  await mirrorToTimeline(repos, userId, closed, "closed");
+  await recordCareEvent(repos, userId, closed, "closed", { ended_how: endedHow });
   revalidate();
   return { success: true };
 }
@@ -297,13 +315,43 @@ async function renewImpl(repos: Repos, userId: string, id: string, why: unknown)
   }
   if (!result.ok) return { error: "That care plan is already renewed, closed or gone. Refresh the list." };
 
-  await mirrorToTimeline(repos, userId, result.engagement, "renewed");
+  const planNumber = await planNumberOf(repos, result.engagement);
+  await recordCareEvent(repos, userId, result.engagement, "renewed", planNumber ? { plan_number: planNumber } : {});
   revalidate();
   return { success: true };
 }
 
-/** What a hand-over step does, from the repository to the words: a refusal is the page's sentence, a plan is success. */
-async function handoverStep(step: string, run: () => Promise<HandoverResult>, onDone?: (plan: CareEngagementRow) => Promise<void>): Promise<CareActionResult> {
+/** The hand-over steps that leave a row on the member's timeline. */
+type HandoverKind = "offered" | "accepted" | "declined" | "cancelled" | "claimed" | "took_over";
+
+/** The staff accounts a hand-over step names, for the member's timeline row (fixed ids, no names: they are worded when read). */
+function handoverData(kind: HandoverKind, before: CareEngagementRow | null, after: CareEngagementRow): CareActivityData {
+  const data: CareActivityData = {};
+  const set = (key: "from_user_id" | "to_user_id", value: string | null | undefined) => {
+    if (value) data[key] = value;
+  };
+  if (kind === "offered") set("to_user_id", after.handover_to);
+  if (kind === "accepted" || kind === "took_over") set("from_user_id", before?.owned_by);
+  if (kind === "declined") set("from_user_id", before?.handover_by);
+  if (kind === "cancelled") set("to_user_id", before?.handover_to);
+  return data;
+}
+
+/**
+ * What a hand-over step does, from the repository to the words: a refusal is the page's sentence, a plan is success, and the step is
+ * written to the member's timeline (who it was offered to or came from, by account id). `before` is the plan as it stood: who owned it,
+ * who offered it.
+ */
+async function handoverStep(
+  repos: Repos,
+  userId: string,
+  id: string,
+  step: string,
+  kind: HandoverKind | null,
+  run: () => Promise<HandoverResult>,
+  onDone?: (plan: CareEngagementRow) => Promise<void>
+): Promise<CareActionResult> {
+  const before = await repos.care.byId(id).catch(() => null);
   let result;
   try {
     result = await run();
@@ -312,40 +360,55 @@ async function handoverStep(step: string, run: () => Promise<HandoverResult>, on
     return { error: "Couldn't do that. Try again." };
   }
   if (!result.ok) return { error: HANDOVER_REFUSAL_MESSAGES[result.reason] };
+  // No kind: nothing on the member's timeline (a notice dismissed is the staff member's own business; the audit row of the plan says it).
+  if (kind) await recordCareEvent(repos, userId, result.engagement, kind, handoverData(kind, before, result.engagement), nowIso());
   if (onDone) await onDone(result.engagement);
   revalidate();
   return { success: true };
 }
 
-async function proposeImpl(repos: Repos, id: string, toUserId: unknown): Promise<CareActionResult> {
+async function proposeImpl(repos: Repos, userId: string, id: string, toUserId: unknown): Promise<CareActionResult> {
   if (!isCareId(id)) return { error: MISSING };
   if (typeof toUserId !== "string" || !isUuid(toUserId)) return { error: "Pick who it goes to." };
-  return handoverStep("propose a hand-over", () => repos.care.proposeHandover(id, toUserId));
+  return handoverStep(repos, userId, id, "propose a hand-over", "offered", () => repos.care.proposeHandover(id, toUserId));
 }
 
-async function acceptImpl(repos: Repos, id: string, dms?: DmTracking): Promise<CareActionResult> {
+async function acceptImpl(repos: Repos, userId: string, id: string, dms?: DmTracking): Promise<CareActionResult> {
   if (!isCareId(id)) return { error: MISSING };
   // Becoming the owner is the reason to read her own DM with them: track it, and bring who spoke last up to date from it.
-  return handoverStep("accept a hand-over", () => repos.care.acceptHandover(id), async (plan) => {
+  return handoverStep(repos, userId, id, "accept a hand-over", "accepted", () => repos.care.acceptHandover(id), async (plan) => {
     if (dms && plan.closed_at === null) await trackDmWithMember(repos, dms, plan.member_id);
   });
 }
 
-async function declineImpl(repos: Repos, id: string): Promise<CareActionResult> {
+async function declineImpl(repos: Repos, userId: string, id: string): Promise<CareActionResult> {
   if (!isCareId(id)) return { error: MISSING };
-  return handoverStep("decline a hand-over", () => repos.care.declineHandover(id));
+  return handoverStep(repos, userId, id, "decline a hand-over", "declined", () => repos.care.declineHandover(id));
 }
 
-async function cancelImpl(repos: Repos, id: string): Promise<CareActionResult> {
+async function cancelImpl(repos: Repos, userId: string, id: string): Promise<CareActionResult> {
   if (!isCareId(id)) return { error: MISSING };
-  return handoverStep("cancel a hand-over", () => repos.care.cancelHandover(id));
+  return handoverStep(repos, userId, id, "cancel a hand-over", "cancelled", () => repos.care.cancelHandover(id));
 }
 
-async function claimImpl(repos: Repos, id: string, dms?: DmTracking): Promise<CareActionResult> {
+async function claimImpl(repos: Repos, userId: string, id: string, dms?: DmTracking): Promise<CareActionResult> {
   if (!isCareId(id)) return { error: MISSING };
-  return handoverStep("claim a care plan", () => repos.care.claim(id), async (plan) => {
+  return handoverStep(repos, userId, id, "claim a care plan", "claimed", () => repos.care.claim(id), async (plan) => {
     if (dms && plan.closed_at === null) await trackDmWithMember(repos, dms, plan.member_id);
   });
+}
+
+/** An admin takes an open plan from its owner (the database says whether they may: `claim_care_plan`): the same step as claiming, worded as what it is. */
+async function takeOverImpl(repos: Repos, userId: string, id: string, dms?: DmTracking): Promise<CareActionResult> {
+  if (!isCareId(id)) return { error: MISSING };
+  return handoverStep(repos, userId, id, "take a care plan over", "took_over", () => repos.care.claim(id), async (plan) => {
+    if (dms && plan.closed_at === null) await trackDmWithMember(repos, dms, plan.member_id);
+  });
+}
+
+async function dismissNoticeImpl(repos: Repos, userId: string, id: string): Promise<CareActionResult> {
+  if (!isCareId(id)) return { error: MISSING };
+  return handoverStep(repos, userId, id, "dismiss a takeover notice", null, () => repos.care.dismissTakeoverNotice(id));
 }
 
 /** The name of whoever cared for this member before, when it is someone else (the start form says it; nothing changes hands). */
@@ -446,7 +509,7 @@ export async function proposeCareHandover(id: string, toUserId: string): Promise
   const auth = await requireStaffAction();
   if (!auth.ok) return { error: auth.error };
   if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
-  return withAction("care_handover_proposed", () => proposeImpl(createRepos(auth.supabase), id, toUserId), (r) => ({ ok: "success" in r }));
+  return withAction("care_handover_proposed", () => proposeImpl(createRepos(auth.supabase), auth.user.id, id, toUserId), (r) => ({ ok: "success" in r }));
 }
 
 /** The receiver accepts a hand-over: they own the care plan now, and their own DM with the member is read for it. */
@@ -454,7 +517,7 @@ export async function acceptCareHandover(id: string): Promise<CareActionResult> 
   const auth = await requireStaffAction();
   if (!auth.ok) return { error: auth.error };
   if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
-  return withAction("care_handover_accepted", () => acceptImpl(createRepos(auth.supabase), id, { service: getServiceRepos(), user: auth.user }), (r) => ({ ok: "success" in r }));
+  return withAction("care_handover_accepted", () => acceptImpl(createRepos(auth.supabase), auth.user.id, id, { service: getServiceRepos(), user: auth.user }), (r) => ({ ok: "success" in r }));
 }
 
 /** The receiver declines a hand-over: the owner stays. */
@@ -462,7 +525,7 @@ export async function declineCareHandover(id: string): Promise<CareActionResult>
   const auth = await requireStaffAction();
   if (!auth.ok) return { error: auth.error };
   if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
-  return withAction("care_handover_declined", () => declineImpl(createRepos(auth.supabase), id), (r) => ({ ok: "success" in r }));
+  return withAction("care_handover_declined", () => declineImpl(createRepos(auth.supabase), auth.user.id, id), (r) => ({ ok: "success" in r }));
 }
 
 /** Takes a pending hand-over back: whoever proposed it, the owner, or an admin. */
@@ -470,15 +533,35 @@ export async function cancelCareHandover(id: string): Promise<CareActionResult> 
   const auth = await requireStaffAction();
   if (!auth.ok) return { error: auth.error };
   if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
-  return withAction("care_handover_cancelled", () => cancelImpl(createRepos(auth.supabase), id), (r) => ({ ok: "success" in r }));
+  return withAction("care_handover_cancelled", () => cancelImpl(createRepos(auth.supabase), auth.user.id, id), (r) => ({ ok: "success" in r }));
 }
 
-/** Takes a care plan that has no owner (its owner's account was removed): the staff member who takes it accepts it. */
+/** Takes a care plan that has no owner (its owner's account was removed): the staff member who takes it accepts it. An admin taking it from an owner is `takeOverCarePlan`. */
 export async function claimCarePlan(id: string): Promise<CareActionResult> {
   const auth = await requireStaffAction();
   if (!auth.ok) return { error: auth.error };
   if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
-  return withAction("care_plan_claimed", () => claimImpl(createRepos(auth.supabase), id, { service: getServiceRepos(), user: auth.user }), (r) => ({ ok: "success" in r }));
+  return withAction("care_plan_claimed", () => claimImpl(createRepos(auth.supabase), auth.user.id, id, { service: getServiceRepos(), user: auth.user }), (r) => ({ ok: "success" in r }));
+}
+
+/**
+ * An admin takes an open care plan from its owner without their agreement: the one exception to "hand-overs need both sides" (for an
+ * owner who is unreachable, or when an admin has to step in). The previous owner sees a notice on their page; their own DM with
+ * the member is not read any more and the admin's is. Admins only: a community manager needs the receiver's agreement.
+ */
+export async function takeOverCarePlan(id: string): Promise<CareActionResult> {
+  const auth = await requireStaffAction();
+  if (!auth.ok) return { error: auth.error };
+  if (auth.role !== "admin" || !staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
+  return withAction("care_plan_taken_over", () => takeOverImpl(createRepos(auth.supabase), auth.user.id, id, { service: getServiceRepos(), user: auth.user }), (r) => ({ ok: "success" in r }));
+}
+
+/** The previous owner dismisses the notice that an admin took their care plan over. Only they can. */
+export async function dismissCareTakeoverNotice(id: string): Promise<CareActionResult> {
+  const auth = await requireStaffAction();
+  if (!auth.ok) return { error: auth.error };
+  if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
+  return withAction("care_takeover_notice_dismissed", () => dismissNoticeImpl(createRepos(auth.supabase), auth.user.id, id), (r) => ({ ok: "success" in r }));
 }
 
 /** Who cared for this member before, when it is someone else: the start form says so (information, nothing changes hands). Staff with the write feature only. */
@@ -516,6 +599,67 @@ export async function getEngagementResults(id: string): Promise<{ error: string 
   } catch (error) {
     console.error("[care] results failed:", error instanceof Error ? error.message : error);
     return { error: "Couldn't work out the results." };
+  }
+}
+
+/** One line of "Activity during this plan": when, and what it was in the log's own words (a care row says who did it). */
+export type PlanActivityItem = { id: string; occurredAt: string; label: string; care: boolean };
+
+export type PlanActivityPage = {
+  items: PlanActivityItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  /** The window the list covers: the plan's start (included) to when it closed, or now while it is open (not included). */
+  fromIso: string;
+  toIso: string;
+  open: boolean;
+};
+
+/**
+ * What one member did while a care plan ran (`lib/care-activity.ts`), newest first, a page at a time, read from the activity log
+ * through the signed-in user's own client (an admin or the community manager may read it; the admin-only feed function is not
+ * used). A plan's window is its own, so an earlier plan lists its own stretch. Never any text of a message.
+ */
+export async function loadCarePlanActivity(id: string, page = 1): Promise<{ error: string } | PlanActivityPage> {
+  const auth = await requireStaffAction();
+  if (!auth.ok) return { error: auth.error };
+  if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
+  if (!isCareId(id)) return { error: MISSING };
+  const repos = createRepos(auth.supabase);
+  try {
+    const plan = await repos.care.byId(id);
+    if (!plan) return { error: MISSING };
+    const { fromIso, toIso } = planActivityWindow(plan, new Date(clock.now()));
+    const found = await repos.activities.planActivity({
+      memberId: plan.member_id,
+      fromIso,
+      toIso,
+      carePlanId: plan.id,
+      page: Number.isInteger(page) && page > 0 ? page : 1,
+      pageSize: PLAN_ACTIVITY_PAGE_SIZE,
+    });
+    // Care rows name staff accounts (who did it, who it was offered to): their display names, as the community knows them.
+    const userIds = [...new Set(found.rows.flatMap((r) => [...(r.actorUserId ? [r.actorUserId] : []), ...careActivityUserIds(r.careData)]))];
+    const names = new Map<string, string>();
+    if (userIds.length > 0) {
+      const memberByUser = await repos.members.idsByUserId(userIds);
+      const members = await repos.members.byIds([...new Set(memberByUser.values())]);
+      for (const [userId, memberId] of memberByUser) {
+        const m = members.find((x) => x.id === memberId);
+        if (m) names.set(userId, getMemberDisplayName({ name: m.name, display_name: m.displayName }));
+      }
+    }
+    const items = found.rows.map((row): PlanActivityItem => {
+      const sentence = careActivitySentence({ activity_type: row.type, data: row.careData }, (userId) => names.get(userId) ?? null);
+      if (sentence === null) return { id: row.id, occurredAt: row.occurredAt, label: planActivityLabel({ activity_type: row.type, title: row.title }), care: false };
+      const who = (row.actorUserId && names.get(row.actorUserId)) || "A staff member";
+      return { id: row.id, occurredAt: row.occurredAt, label: `${who} ${sentence}`, care: true };
+    });
+    return { items, total: found.total, page: found.page, pageSize: PLAN_ACTIVITY_PAGE_SIZE, fromIso, toIso, open: plan.closed_at === null };
+  } catch (error) {
+    console.error("[care] reading the plan's activity failed:", error instanceof Error ? error.message : error);
+    return { error: "Couldn't load the activity." };
   }
 }
 

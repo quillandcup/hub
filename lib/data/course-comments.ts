@@ -1,0 +1,580 @@
+import { fetchAllRows } from "@/lib/supabase/paginate";
+import { getMemberDisplayName } from "@/lib/member-display-name";
+import type { Db } from "./db";
+import type { InMemoryDataset } from "./in-memory";
+import { compareText, inChunks, must } from "./query";
+
+/**
+ * Lesson comments (`lesson_comments`, docs/COURSES.md "Lesson comments"): questions and answers on a course lesson, plain
+ * text, one level of replies. Reads and writes here are as the client's role says: the member pages use the service role
+ * scoped to the effective member (the actions decide who may post), and row-level security is the second layer for a
+ * signed-in client. Text is stored as typed and never decoded or escaped here. Throws on a database error.
+ */
+
+/** A comment as stored. */
+export interface LessonCommentRecord {
+  id: string;
+  lessonId: string;
+  memberId: string;
+  parentId: string | null;
+  body: string;
+  isStaffReply: boolean;
+  createdAt: string;
+  editedAt: string | null;
+  hiddenAt: string | null;
+  deletedAt: string | null;
+  /** Held for staff review (too many links) until approved. */
+  heldAt: string | null;
+  /** Staff marked this question as needing no answer. */
+  handledAt: string | null;
+}
+
+/** A comment as shown in a thread: the author by display name, and the text only while it is there to read. */
+export interface ThreadComment {
+  id: string;
+  lessonId: string;
+  memberId: string;
+  parentId: string | null;
+  authorName: string;
+  isStaffReply: boolean;
+  createdAt: string;
+  editedAt: string | null;
+  /** True for a deleted or hidden comment kept in the thread because it has replies: no text, no author, no badge. */
+  removed: boolean;
+  /** The text, or null when `removed`. */
+  body: string | null;
+  /** Staff only: hidden from members, shown to staff with its text. */
+  hidden: boolean;
+  /** Held for staff review: shown only to its author (with a note) and to staff. */
+  held: boolean;
+}
+
+/** Who is reading a thread: decides whether a hidden or held comment shows, and its text. */
+export interface ThreadViewer {
+  memberId: string;
+  /** Staff acting as themselves (an admin, not one previewing as a member). */
+  isStaff: boolean;
+}
+
+/** One top-level comment with its replies (oldest first). */
+export interface ThreadEntry {
+  comment: ThreadComment;
+  replies: ThreadComment[];
+}
+
+export interface LessonThread {
+  /** Top-level comments, newest first. A removed one is present only when a live reply hangs under it. */
+  entries: ThreadEntry[];
+  /** Live comments and replies (removed ones are not counted). */
+  count: number;
+}
+
+/** A question nobody on staff has answered yet, for the admin list. */
+export interface UnansweredQuestion {
+  id: string;
+  lessonId: string;
+  lessonTitle: string;
+  authorName: string;
+  createdAt: string;
+  /** The text, for staff reading the list. */
+  body: string;
+}
+
+/** A comment staff are asked to look at: reported, with how many times and why. Reporters are never named. */
+export interface ReportedComment {
+  commentId: string;
+  lessonId: string;
+  lessonTitle: string;
+  authorName: string;
+  body: string;
+  isReply: boolean;
+  /** `visible` or `held` (a hidden or deleted comment has its reports settled). */
+  state: "visible" | "held";
+  reportCount: number;
+  reasons: string[];
+  /** When the oldest open report came in. */
+  firstReportedAt: string;
+}
+
+/** A comment held for review because it had more than two links. */
+export interface HeldComment {
+  id: string;
+  lessonId: string;
+  lessonTitle: string;
+  authorName: string;
+  body: string;
+  isReply: boolean;
+  createdAt: string;
+}
+
+export type ModerationAction = "hide" | "unhide" | "delete" | "approve" | "handle" | "dismiss";
+/** `no_change` is an action that was already so: nothing was written. */
+export type ModerationOutcome = "done" | "no_change" | "not_found";
+export type ReportOutcome = "reported" | "already_reported" | "not_found";
+
+export interface NewLessonComment {
+  lessonId: string;
+  memberId: string;
+  /** A top-level comment's id; null for a new question. */
+  parentId: string | null;
+  body: string;
+  isStaffReply: boolean;
+  /** Held for staff review from the start (more than two links): its author and staff see it until approved. */
+  held?: boolean;
+}
+
+export interface CourseCommentRepository {
+  /** Adds a comment. Throws when the parent is not a top-level comment on the same lesson (the database refuses it). */
+  create(comment: NewLessonComment): Promise<LessonCommentRecord>;
+  /** One comment as stored (deleted and hidden ones too), or null when there is none. */
+  byId(id: string): Promise<LessonCommentRecord | null>;
+  /** Replaces the text and stamps `edited_at` with `editedAt`; null when the comment is not there. The caller checks the edit window. */
+  edit(id: string, body: string, editedAt: string): Promise<LessonCommentRecord | null>;
+  /** Soft deletes a comment (idempotent: an already deleted one keeps its first time). False when it is not there. */
+  softDelete(id: string, deletedBy: string, deletedAt: string): Promise<boolean>;
+  /**
+   * A lesson's comments as a thread for this viewer (newest question first, replies oldest first): a hidden comment is a
+   * tombstone to members and text to staff; a held one shows only to its author and staff. Reads every row past 1000.
+   */
+  threadFor(lessonId: string, viewer: ThreadViewer): Promise<LessonThread>;
+  /** The live, released, unhandled top-level comments of a course's lessons with no live staff reply, oldest first. */
+  unansweredQuestions(courseId: string): Promise<UnansweredQuestion[]>;
+  /** Records a member's report. The same reporter reporting the same comment while it is open is `already_reported`. */
+  report(input: { commentId: string; reporterId: string; reason: string }): Promise<ReportOutcome>;
+  /** Comments with open reports across a course's lessons, the most reported first. Reads past 1000. */
+  openReports(courseId: string): Promise<ReportedComment[]>;
+  /** Comments held for review across a course's lessons, oldest first. Reads past 1000. */
+  heldComments(courseId: string): Promise<HeldComment[]>;
+  /**
+   * A staff action on a comment (hide, unhide, delete, approve, handle, dismiss its reports). The Supabase class calls the
+   * database function that checks the caller is an admin and writes the one audit entry as them; `actorMemberId` is for the
+   * twin, which has no session.
+   */
+  moderate(commentId: string, action: ModerationAction, actorMemberId: string | null): Promise<ModerationOutcome>;
+}
+
+type Embedded = { name: string; display_name: string | null };
+type StoredRow = {
+  id: string;
+  lesson_id: string;
+  member_id: string;
+  parent_id: string | null;
+  body: string;
+  is_staff_reply: boolean;
+  created_at: string;
+  edited_at: string | null;
+  hidden_at: string | null;
+  deleted_at: string | null;
+  held_at: string | null;
+  handled_at: string | null;
+};
+
+const COLUMNS = "id, lesson_id, member_id, parent_id, body, is_staff_reply, created_at, edited_at, hidden_at, deleted_at, held_at, handled_at";
+
+const record = (row: StoredRow): LessonCommentRecord => ({
+  id: row.id,
+  lessonId: row.lesson_id,
+  memberId: row.member_id,
+  parentId: row.parent_id,
+  body: row.body,
+  isStaffReply: row.is_staff_reply,
+  createdAt: row.created_at,
+  editedAt: row.edited_at,
+  hiddenAt: row.hidden_at,
+  deletedAt: row.deleted_at,
+  heldAt: row.held_at,
+  handledAt: row.handled_at,
+});
+
+const isRemoved = (row: { hidden_at: string | null; deleted_at: string | null }) => Boolean(row.hidden_at || row.deleted_at);
+/** Held and not otherwise removed. */
+const isHeld = (row: { held_at: string | null; hidden_at: string | null; deleted_at: string | null }) => Boolean(row.held_at && !row.hidden_at && !row.deleted_at);
+/** What everyone can read: not deleted, hidden or held. */
+const isLive = (row: StoredRow) => !isRemoved(row) && !row.held_at;
+
+/** Builds the thread from every row of a lesson as `viewer` sees it; `nameOf` gives an author's display name. Shared by both implementations. */
+export function buildThread(rows: StoredRow[], nameOf: (memberId: string) => string, viewer: ThreadViewer): LessonThread {
+  // What the viewer may see at all: deleted comments are tombstones for everyone, hidden ones for members; a held one is its author's and staff's.
+  const canSeeHeld = (row: StoredRow) => viewer.isStaff || row.member_id === viewer.memberId;
+  const goneFor = (row: StoredRow) => Boolean(row.deleted_at || (row.hidden_at && !viewer.isStaff));
+  const present = (row: StoredRow) => !isHeld(row) || canSeeHeld(row);
+  const repliesOf = new Map<string, StoredRow[]>();
+  for (const row of rows) {
+    if (!row.parent_id || goneFor(row) || !present(row)) continue;
+    const list = repliesOf.get(row.parent_id) ?? [];
+    list.push(row);
+    repliesOf.set(row.parent_id, list);
+  }
+  const shown = (row: StoredRow): ThreadComment => {
+    const removed = goneFor(row);
+    return {
+      id: row.id,
+      lessonId: row.lesson_id,
+      memberId: removed ? "" : row.member_id,
+      parentId: row.parent_id,
+      authorName: removed ? "" : nameOf(row.member_id),
+      isStaffReply: removed ? false : row.is_staff_reply,
+      createdAt: row.created_at,
+      editedAt: removed ? null : row.edited_at,
+      removed,
+      body: removed ? null : row.body,
+      hidden: !removed && Boolean(row.hidden_at),
+      held: !removed && isHeld(row),
+    };
+  };
+  const byNewest = (a: StoredRow, b: StoredRow) => compareText(b.created_at, a.created_at) || compareText(b.id, a.id);
+  const byOldest = (a: StoredRow, b: StoredRow) => compareText(a.created_at, b.created_at) || compareText(a.id, b.id);
+  const entries: ThreadEntry[] = [];
+  let count = 0;
+  for (const row of rows.filter((r) => !r.parent_id && present(r)).sort(byNewest)) {
+    const replies = (repliesOf.get(row.id) ?? []).sort(byOldest);
+    // A removed comment with nothing under it is gone; one with replies stays as a tombstone so they keep their place.
+    if (goneFor(row) && replies.length === 0) continue;
+    if (isLive(row)) count += 1;
+    count += replies.filter(isLive).length;
+    entries.push({ comment: shown(row), replies: replies.map(shown) });
+  }
+  return { entries, count };
+}
+
+/** The questions with no live staff reply that nobody has marked handled, oldest first; `lessonTitle` and `nameOf` come from the caller's join. */
+export function pickUnanswered(
+  rows: StoredRow[],
+  lessonTitle: (lessonId: string) => string,
+  nameOf: (memberId: string) => string,
+): UnansweredQuestion[] {
+  const answered = new Set(rows.filter((r) => r.parent_id && r.is_staff_reply && isLive(r)).map((r) => r.parent_id as string));
+  return rows
+    .filter((r) => !r.parent_id && isLive(r) && !answered.has(r.id) && !r.is_staff_reply && !r.handled_at)
+    .sort((a, b) => compareText(a.created_at, b.created_at) || compareText(a.id, b.id))
+    .map((r) => ({ id: r.id, lessonId: r.lesson_id, lessonTitle: lessonTitle(r.lesson_id), authorName: nameOf(r.member_id), createdAt: r.created_at, body: r.body }));
+}
+
+type ReportRow = { comment_id: string; reason: string; created_at: string };
+type ReportEmbed = ReportRow & { id: string; lesson_comments: StoredRow };
+
+const REPORT_SELECT =
+  "id, comment_id, reason, created_at, lesson_comments!inner(id, lesson_id, member_id, parent_id, body, is_staff_reply, created_at, edited_at, hidden_at, deleted_at, held_at, handled_at)";
+
+/** Groups open reports by comment, most reported first (then oldest first). A comment that is deleted or hidden is left out: its reports are settled. */
+export function groupReports(
+  reports: ReportRow[],
+  commentOf: (commentId: string) => StoredRow | undefined,
+  lessonTitle: (lessonId: string) => string,
+  nameOf: (memberId: string) => string,
+): ReportedComment[] {
+  const byComment = new Map<string, ReportRow[]>();
+  for (const report of reports) {
+    const list = byComment.get(report.comment_id) ?? [];
+    list.push(report);
+    byComment.set(report.comment_id, list);
+  }
+  const out: ReportedComment[] = [];
+  for (const [commentId, list] of byComment) {
+    const row = commentOf(commentId);
+    if (!row || isRemoved(row)) continue;
+    const sorted = [...list].sort((a, b) => compareText(a.created_at, b.created_at));
+    out.push({
+      commentId,
+      lessonId: row.lesson_id,
+      lessonTitle: lessonTitle(row.lesson_id),
+      authorName: nameOf(row.member_id),
+      body: row.body,
+      isReply: Boolean(row.parent_id),
+      state: row.held_at ? "held" : "visible",
+      reportCount: list.length,
+      reasons: sorted.map((r) => r.reason),
+      firstReportedAt: sorted[0].created_at,
+    });
+  }
+  return out.sort((a, b) => b.reportCount - a.reportCount || compareText(a.firstReportedAt, b.firstReportedAt) || compareText(a.commentId, b.commentId));
+}
+
+export function pickHeld(rows: StoredRow[], lessonTitle: (lessonId: string) => string, nameOf: (memberId: string) => string): HeldComment[] {
+  return rows
+    .filter((r) => isHeld(r))
+    .sort((a, b) => compareText(a.created_at, b.created_at) || compareText(a.id, b.id))
+    .map((r) => ({ id: r.id, lessonId: r.lesson_id, lessonTitle: lessonTitle(r.lesson_id), authorName: nameOf(r.member_id), body: r.body, isReply: Boolean(r.parent_id), createdAt: r.created_at }));
+}
+
+export class SupabaseCourseCommentRepository implements CourseCommentRepository {
+  constructor(private readonly db: Db) {}
+
+  async create(comment: NewLessonComment) {
+    const row = must(
+      await this.db
+        .from("lesson_comments")
+        .insert({
+          lesson_id: comment.lessonId,
+          member_id: comment.memberId,
+          parent_id: comment.parentId,
+          body: comment.body,
+          is_staff_reply: comment.isStaffReply,
+          ...(comment.held ? { held_at: new Date().toISOString(), held_reason: "links" } : {}),
+        })
+        .select(COLUMNS)
+        .single(),
+    );
+    if (!row) throw new Error("lesson_comments insert returned no row");
+    return record(row);
+  }
+
+  async byId(id: string) {
+    const row = must(await this.db.from("lesson_comments").select(COLUMNS).eq("id", id).maybeSingle());
+    return row ? record(row) : null;
+  }
+
+  async edit(id: string, body: string, editedAt: string) {
+    const row = must(await this.db.from("lesson_comments").update({ body, edited_at: editedAt }).eq("id", id).select(COLUMNS).maybeSingle());
+    return row ? record(row) : null;
+  }
+
+  async softDelete(id: string, deletedBy: string, deletedAt: string) {
+    const existing = await this.byId(id);
+    if (!existing) return false;
+    if (existing.deletedAt) return true;
+    must(await this.db.from("lesson_comments").update({ deleted_at: deletedAt, deleted_by: deletedBy }).eq("id", id).is("deleted_at", null));
+    return true;
+  }
+
+  private async authorNames(memberIds: string[]): Promise<Map<string, string>> {
+    const rows = await inChunks(memberIds, 200, async (part) => must(await this.db.from("members").select("id, name, display_name").in("id", part)) ?? []);
+    return new Map(rows.map((m) => [m.id, getMemberDisplayName(m as Embedded)]));
+  }
+
+  async threadFor(lessonId: string, viewer: ThreadViewer) {
+    const rows = await fetchAllRows<StoredRow>((from, to) =>
+      this.db.from("lesson_comments").select(COLUMNS).eq("lesson_id", lessonId).order("id").range(from, to),
+    );
+    const names = await this.authorNames(rows.filter((r) => !r.deleted_at && (viewer.isStaff || !isRemoved(r))).map((r) => r.member_id));
+    return buildThread(rows, (id) => names.get(id) ?? "Former member", viewer);
+  }
+
+  async report(input: { commentId: string; reporterId: string; reason: string }): Promise<ReportOutcome> {
+    const { error } = await this.db.from("lesson_comment_reports").insert({ comment_id: input.commentId, reporter_id: input.reporterId, reason: input.reason });
+    if (!error) return "reported";
+    // The one open report per reporter and comment (unique index), and a comment that is not there (foreign key).
+    if (error.code === "23505") return "already_reported";
+    if (error.code === "23503") return "not_found";
+    throw new Error(error.message);
+  }
+
+  private async lessonTitles(courseId: string): Promise<Map<string, string>> {
+    const lessons = must(await this.db.from("course_lessons").select("id, title").eq("course_id", courseId));
+    return new Map((lessons ?? []).map((l) => [l.id, l.title]));
+  }
+
+  async openReports(courseId: string) {
+    const titles = await this.lessonTitles(courseId);
+    const rows = await inChunks([...titles.keys()], 100, (part) =>
+      fetchAllRows<ReportEmbed>((from, to) =>
+        this.db
+          .from("lesson_comment_reports")
+          .select(REPORT_SELECT)
+          .is("resolved_at", null)
+          .in("lesson_comments.lesson_id", part)
+          .order("id")
+          .range(from, to)
+          .overrideTypes<ReportEmbed[], { merge: false }>(),
+      ),
+    );
+    const comments = new Map(rows.map((r) => [r.lesson_comments.id, r.lesson_comments]));
+    const names = await this.authorNames([...comments.values()].map((c) => c.member_id));
+    return groupReports(rows, (id) => comments.get(id), (id) => titles.get(id) ?? "", (id) => names.get(id) ?? "Former member");
+  }
+
+  async heldComments(courseId: string) {
+    const titles = await this.lessonTitles(courseId);
+    const rows = (await inChunks([...titles.keys()], 100, (part) =>
+      fetchAllRows<StoredRow>((from, to) =>
+        this.db.from("lesson_comments").select(COLUMNS).in("lesson_id", part).not("held_at", "is", null).is("deleted_at", null).is("hidden_at", null).order("id").range(from, to),
+      ),
+    )) as StoredRow[];
+    const names = await this.authorNames(rows.map((r) => r.member_id));
+    return pickHeld(rows, (id) => titles.get(id) ?? "", (id) => names.get(id) ?? "Former member");
+  }
+
+  async moderate(commentId: string, action: ModerationAction): Promise<ModerationOutcome> {
+    const outcome = must(await this.db.rpc("moderate_lesson_comment", { p_comment_id: commentId, p_action: action }));
+    return outcome === "done" || outcome === "no_change" || outcome === "not_found" ? outcome : "not_found";
+  }
+
+  async unansweredQuestions(courseId: string) {
+    const titles = await this.lessonTitles(courseId);
+    const lessonIds = [...titles.keys()];
+    const rows = (
+      await inChunks(lessonIds, 100, (part) =>
+        fetchAllRows<StoredRow>((from, to) =>
+          this.db.from("lesson_comments").select(COLUMNS).in("lesson_id", part).is("deleted_at", null).is("hidden_at", null).order("id").range(from, to),
+        ),
+      )
+    ) as StoredRow[];
+    const names = await this.authorNames(rows.filter((r) => !r.parent_id).map((r) => r.member_id));
+    return pickUnanswered(rows, (id) => titles.get(id) ?? "", (id) => names.get(id) ?? "Former member");
+  }
+}
+
+const BASE58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+
+/** The next id in order: `cmnt_` and 12 base58 digits counting up from the rows held, so ids sort in the order they were made. */
+export function nextCommentId(data: Pick<InMemoryDataset, "lessonComments">): string {
+  return `cmnt_${base58Counter(data.lessonComments.length + 1)}`;
+}
+
+function base58Counter(count: number): string {
+  let n = count;
+  let digits = "";
+  while (digits.length < 12) {
+    digits = BASE58[n % 58] + digits;
+    n = Math.floor(n / 58);
+  }
+  return digits;
+}
+
+/** In-memory twin over an `InMemoryDataset`. */
+export class InMemoryCourseCommentRepository implements CourseCommentRepository {
+  constructor(private readonly data: InMemoryDataset) {}
+
+  private name(memberId: string): string {
+    const member = this.data.members.find((m) => m.id === memberId);
+    return member ? getMemberDisplayName({ name: member.name, display_name: member.displayName ?? null }) : "Former member";
+  }
+
+  async create(comment: NewLessonComment) {
+    if (comment.body.length < 1 || comment.body.length > 4000) throw new Error('new row for relation "lesson_comments" violates check constraint "lesson_comments_body_check"');
+    if (comment.parentId) {
+      const parent = this.data.lessonComments.find((c) => c.id === comment.parentId);
+      if (!parent) throw new Error("The comment being replied to does not exist");
+      if (parent.parent_id) throw new Error("A reply goes under a top-level comment, not under another reply");
+      if (parent.lesson_id !== comment.lessonId) throw new Error("A reply belongs to the same lesson as the comment it answers");
+    }
+    const row: StoredRow = {
+      id: nextCommentId(this.data),
+      lesson_id: comment.lessonId,
+      member_id: comment.memberId,
+      parent_id: comment.parentId,
+      body: comment.body,
+      is_staff_reply: comment.isStaffReply,
+      created_at: new Date().toISOString(),
+      edited_at: null,
+      hidden_at: null,
+      deleted_at: null,
+      held_at: comment.held ? new Date().toISOString() : null,
+      handled_at: null,
+    };
+    this.data.lessonComments.push({ ...row, deleted_by: null, handled_by: null, held_reason: comment.held ? "links" : null });
+    return record(row);
+  }
+
+  async byId(id: string) {
+    const row = this.data.lessonComments.find((c) => c.id === id);
+    return row ? record(row) : null;
+  }
+
+  async edit(id: string, body: string, editedAt: string) {
+    const row = this.data.lessonComments.find((c) => c.id === id);
+    if (!row) return null;
+    if (body.length < 1 || body.length > 4000) throw new Error('new row for relation "lesson_comments" violates check constraint "lesson_comments_body_check"');
+    row.body = body;
+    row.edited_at = editedAt;
+    return record(row);
+  }
+
+  async softDelete(id: string, deletedBy: string, deletedAt: string) {
+    const row = this.data.lessonComments.find((c) => c.id === id);
+    if (!row) return false;
+    if (!row.deleted_at) {
+      row.deleted_at = deletedAt;
+      row.deleted_by = deletedBy;
+    }
+    return true;
+  }
+
+  async threadFor(lessonId: string, viewer: ThreadViewer) {
+    return buildThread(
+      this.data.lessonComments.filter((c) => c.lesson_id === lessonId),
+      (id) => this.name(id),
+      viewer,
+    );
+  }
+
+  async report(input: { commentId: string; reporterId: string; reason: string }): Promise<ReportOutcome> {
+    if (input.reason.length < 1 || input.reason.length > 500) throw new Error('new row for relation "lesson_comment_reports" violates check constraint "lesson_comment_reports_reason_check"');
+    if (!this.data.lessonComments.some((c) => c.id === input.commentId)) return "not_found";
+    if (this.data.lessonCommentReports.some((r) => r.comment_id === input.commentId && r.reporter_id === input.reporterId && !r.resolved_at)) return "already_reported";
+    this.data.lessonCommentReports.push({
+      id: `cmrp_${base58Counter(this.data.lessonCommentReports.length + 1)}`,
+      comment_id: input.commentId,
+      reporter_id: input.reporterId,
+      reason: input.reason,
+      created_at: new Date().toISOString(),
+      resolved_at: null,
+      resolved_by: null,
+    });
+    return "reported";
+  }
+
+  private titles(courseId: string): Map<string, string> {
+    return new Map(this.data.courseLessons.filter((l) => l.course_id === courseId).map((l) => [l.id, l.title]));
+  }
+
+  async openReports(courseId: string) {
+    const titles = this.titles(courseId);
+    const comments = new Map(this.data.lessonComments.filter((c) => titles.has(c.lesson_id)).map((c) => [c.id, c]));
+    const open = this.data.lessonCommentReports.filter((r) => !r.resolved_at && comments.has(r.comment_id));
+    return groupReports(open, (id) => comments.get(id), (id) => titles.get(id) ?? "", (id) => this.name(id));
+  }
+
+  async heldComments(courseId: string) {
+    const titles = this.titles(courseId);
+    return pickHeld(this.data.lessonComments.filter((c) => titles.has(c.lesson_id)), (id) => titles.get(id) ?? "", (id) => this.name(id));
+  }
+
+  async moderate(commentId: string, action: ModerationAction, actorMemberId: string | null): Promise<ModerationOutcome> {
+    const row = this.data.lessonComments.find((c) => c.id === commentId);
+    if (!row) return "not_found";
+    const now = new Date().toISOString();
+    const settle = () => {
+      let n = 0;
+      for (const report of this.data.lessonCommentReports) {
+        if (report.comment_id === commentId && !report.resolved_at) {
+          report.resolved_at = now;
+          report.resolved_by = actorMemberId;
+          n += 1;
+        }
+      }
+      return n;
+    };
+    if (action === "hide") {
+      if (row.deleted_at || row.hidden_at) return "no_change";
+      row.hidden_at = now;
+      settle();
+    } else if (action === "unhide") {
+      if (row.deleted_at || !row.hidden_at) return "no_change";
+      row.hidden_at = null;
+    } else if (action === "delete") {
+      if (row.deleted_at) return "no_change";
+      row.deleted_at = now;
+      row.deleted_by = actorMemberId;
+      settle();
+    } else if (action === "approve") {
+      if (row.deleted_at || !row.held_at) return "no_change";
+      row.held_at = null;
+      row.held_reason = null;
+    } else if (action === "handle") {
+      if (row.parent_id || row.deleted_at || row.handled_at) return "no_change";
+      row.handled_at = now;
+      row.handled_by = actorMemberId;
+    } else if (settle() === 0) {
+      return "no_change";
+    }
+    return "done";
+  }
+
+  async unansweredQuestions(courseId: string) {
+    const lessons = this.data.courseLessons.filter((l) => l.course_id === courseId);
+    const titles = new Map(lessons.map((l) => [l.id, l.title]));
+    const rows = this.data.lessonComments.filter((c) => titles.has(c.lesson_id));
+    return pickUnanswered(rows, (id) => titles.get(id) ?? "", (id) => this.name(id));
+  }
+}

@@ -2247,6 +2247,10 @@ export type Database = {
           period_ends_on: string
           reason: string
           renewed_from: string | null
+          taken_at: string | null
+          taken_by: string | null
+          taken_from: string | null
+          taken_seen_at: string | null
           updated_at: string
         }
         Insert: {
@@ -2270,6 +2274,10 @@ export type Database = {
           period_ends_on: string
           reason: string
           renewed_from?: string | null
+          taken_at?: string | null
+          taken_by?: string | null
+          taken_from?: string | null
+          taken_seen_at?: string | null
           updated_at?: string
         }
         Update: {
@@ -2293,6 +2301,10 @@ export type Database = {
           period_ends_on?: string
           reason?: string
           renewed_from?: string | null
+          taken_at?: string | null
+          taken_by?: string | null
+          taken_from?: string | null
+          taken_seen_at?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -3883,6 +3895,148 @@ export type Database = {
             columns: ["member_id"]
             isOneToOne: false
             referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lesson_comment_reports: {
+        Row: {
+          comment_id: string
+          created_at: string
+          id: string
+          reason: string
+          reporter_id: string
+          resolved_at: string | null
+          resolved_by: string | null
+        }
+        Insert: {
+          comment_id: string
+          created_at?: string
+          id?: string
+          reason: string
+          reporter_id: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+        }
+        Update: {
+          comment_id?: string
+          created_at?: string
+          id?: string
+          reason?: string
+          reporter_id?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_comment_reports_comment_id_fkey"
+            columns: ["comment_id"]
+            isOneToOne: false
+            referencedRelation: "lesson_comments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_comment_reports_reporter_id_fkey"
+            columns: ["reporter_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_comment_reports_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lesson_comments: {
+        Row: {
+          body: string
+          created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+          edited_at: string | null
+          handled_at: string | null
+          handled_by: string | null
+          held_at: string | null
+          held_reason: string | null
+          hidden_at: string | null
+          id: string
+          is_staff_reply: boolean
+          lesson_id: string
+          member_id: string
+          parent_id: string | null
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          edited_at?: string | null
+          handled_at?: string | null
+          handled_by?: string | null
+          held_at?: string | null
+          held_reason?: string | null
+          hidden_at?: string | null
+          id?: string
+          is_staff_reply?: boolean
+          lesson_id: string
+          member_id: string
+          parent_id?: string | null
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          edited_at?: string | null
+          handled_at?: string | null
+          handled_by?: string | null
+          held_at?: string | null
+          held_reason?: string | null
+          hidden_at?: string | null
+          id?: string
+          is_staff_reply?: boolean
+          lesson_id?: string
+          member_id?: string
+          parent_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_comments_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_comments_handled_by_fkey"
+            columns: ["handled_by"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_comments_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "course_lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_comments_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_comments_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "lesson_comments"
             referencedColumns: ["id"]
           },
         ]
@@ -7272,6 +7426,10 @@ export type Database = {
           period_ends_on: string
           reason: string
           renewed_from: string | null
+          taken_at: string | null
+          taken_by: string | null
+          taken_from: string | null
+          taken_seen_at: string | null
           updated_at: string
         }[]
         SetofOptions: {
@@ -7564,6 +7722,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      can_open_lesson: { Args: { p_lesson_id: string }; Returns: boolean }
       can_own_care_plans: { Args: { p_user: string }; Returns: boolean }
       cancel_care_handover: {
         Args: { p_id: string }
@@ -7588,6 +7747,10 @@ export type Database = {
           period_ends_on: string
           reason: string
           renewed_from: string | null
+          taken_at: string | null
+          taken_by: string | null
+          taken_from: string | null
+          taken_seen_at: string | null
           updated_at: string
         }[]
         SetofOptions: {
@@ -7770,6 +7933,10 @@ export type Database = {
           period_ends_on: string
           reason: string
           renewed_from: string | null
+          taken_at: string | null
+          taken_by: string | null
+          taken_from: string | null
+          taken_seen_at: string | null
           updated_at: string
         }[]
         SetofOptions: {
@@ -7851,6 +8018,10 @@ export type Database = {
           period_ends_on: string
           reason: string
           renewed_from: string | null
+          taken_at: string | null
+          taken_by: string | null
+          taken_from: string | null
+          taken_seen_at: string | null
           updated_at: string
         }[]
         SetofOptions: {
@@ -7867,6 +8038,42 @@ export type Database = {
           p_time_min: string
         }
         Returns: number
+      }
+      dismiss_care_takeover_notice: {
+        Args: { p_id: string }
+        Returns: {
+          closed_at: string | null
+          created_at: string
+          deleted_at: string | null
+          ended_how: string | null
+          follow_up_on: string | null
+          handover_at: string | null
+          handover_by: string | null
+          handover_to: string | null
+          id: string
+          last_member_message_at: string | null
+          last_staff_message_at: string | null
+          member_id: string
+          next_step: string | null
+          notes: string | null
+          opened_at: string
+          opened_by: string | null
+          owned_by: string | null
+          period_ends_on: string
+          reason: string
+          renewed_from: string | null
+          taken_at: string | null
+          taken_by: string | null
+          taken_from: string | null
+          taken_seen_at: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "care_engagements"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       duplicate_course: { Args: { p_course_id: string }; Returns: string }
       duplicate_course_lesson: {
@@ -8111,6 +8318,10 @@ export type Database = {
           mentored_count: number
         }[]
       }
+      moderate_lesson_comment: {
+        Args: { p_action: string; p_comment_id: string }
+        Returns: string
+      }
       move_course_lesson: {
         Args: { p_lesson_id: string; p_module_id: string }
         Returns: undefined
@@ -8212,6 +8423,10 @@ export type Database = {
           period_ends_on: string
           reason: string
           renewed_from: string | null
+          taken_at: string | null
+          taken_by: string | null
+          taken_from: string | null
+          taken_seen_at: string | null
           updated_at: string
         }[]
         SetofOptions: {
@@ -8266,6 +8481,10 @@ export type Database = {
           period_ends_on: string
           reason: string
           renewed_from: string | null
+          taken_at: string | null
+          taken_by: string | null
+          taken_from: string | null
+          taken_seen_at: string | null
           updated_at: string
         }[]
         SetofOptions: {

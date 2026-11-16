@@ -12,6 +12,6 @@ Quill & Cup talks in Eastern time: prickles are announced, scheduled and counted
 **Store instants, convert at the edges.** Database columns are `timestamptz` (UTC). Do the Eastern-day arithmetic in code or in SQL with `AT TIME ZONE`, naming the zone; never store a local wall-clock time without its zone.
 
 **Tests**
-- Pin "now" and test both sides of the boundary: 23:30 and 00:30 Eastern, and a day in each daylight saving change (the second Sunday of March, the first Sunday of November), where a day is 23 or 25 hours long. Use `lib/clock` with `useFakeClock()`, or `vi.useFakeTimers({ toFake: ["Date"] })` with `vi.setSystemTime()` (see `CLAUDE.md`).
+- Pin "now" and test both sides of the boundary: 23:30 and 00:30 Eastern, and a day in each daylight saving change (the second Sunday of March, the first Sunday of November), where a day is 23 or 25 hours long. Use `lib/clock` with `useFakeClock()`, or `vi.useFakeTimers({ toFake: ["Date"] })` with `vi.setSystemTime()` (see `testing-requirements.md`).
 - Don't depend on the machine's zone: CI runs in UTC and a laptop in another zone. If a test passes only in your zone, it is wrong. Don't copy `tests/calendar-week-start.test.ts`, which reimplements the logic with local time.
 - When you fix a timezone bug, the test that fails first is one at the boundary where it went wrong.

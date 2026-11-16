@@ -175,6 +175,18 @@ describe("describeRow", () => {
     expect(describeRow(row({ entity_type: "course_lesson_order", description: null, data: {} }))).toBe("reordered the lessons");
   });
 
+  it("reads staff moderation of a lesson comment as one sentence with the lesson, never text", () => {
+    const entry = (data: Record<string, unknown>) => row({ entity_type: "lesson_comment", description: "Lesson <1> & more", data });
+    expect(describeRow(entry({ visibility: { old: "visible", new: "hidden" }, reports_resolved: { old: 2, new: 0 } }))).toBe("hid a comment on “Lesson <1> & more”, settling its reports");
+    expect(describeRow(entry({ visibility: { old: "held", new: "hidden" } }))).toBe("hid a comment on “Lesson <1> & more”");
+    expect(describeRow(entry({ visibility: { old: "visible", new: "deleted" } }))).toBe("deleted a comment on “Lesson <1> & more”");
+    expect(describeRow(entry({ visibility: { old: "held", new: "visible" } }))).toBe("approved a held comment on “Lesson <1> & more”");
+    expect(describeRow(entry({ visibility: { old: "hidden", new: "visible" } }))).toBe("showed a hidden comment again on “Lesson <1> & more”");
+    expect(describeRow(entry({ handled: { old: false, new: true } }))).toBe("marked a question as handled on “Lesson <1> & more”");
+    expect(describeRow(entry({ reports_resolved: { old: 1, new: 0 } }))).toBe("dismissed the reports on a comment on “Lesson <1> & more”");
+    expect(describeRow(row({ entity_type: "lesson_comment", description: null, data: { visibility: { old: "visible", new: "hidden" } } }))).toBe("hid a comment");
+  });
+
   it("reads a duplicated course as one sentence with what it holds", () => {
     const data = { copied_from: { old: null, new: "crs_AAAAAAAAAAA1" }, lessons_copied: { old: null, new: 12 } };
     expect(describeRow(row({ entity_type: "course", event_type: "insert", description: "Plot Lab (copy)", data }))).toBe("duplicated a course as “Plot Lab (copy)” (12 lessons)");
@@ -457,5 +469,90 @@ describe("fetchRecordHistory", () => {
     const rows = await fetchRecordHistory({ rpc } as unknown as SupabaseClient, ["member"], "mbr_AAAAAAAAAAA1");
     expect(rows[0]).toMatchObject({ member_name: "Ada E", actor_label: "Ada E", description: "@Fern hi" });
     expect(rows[1]).toMatchObject({ member_name: "Bo Example" });
+  });
+});
+
+describe("a care plan's rows in the Activity Log", () => {
+  const OWNER_USER = "00000000-0000-4000-a000-0000000000b1";
+  const RECEIVER_USER = "00000000-0000-4000-a000-0000000000b2";
+  const plan = (id: string, memberId: string, renewedFrom: string | null) => ({
+    id,
+    member_id: memberId,
+    opened_by: OWNER_USER,
+    owned_by: OWNER_USER,
+    reason: "check_in",
+    channel: "other",
+    opened_at: "2027-01-01T17:00:00Z",
+    period_ends_on: "2027-01-31",
+    renewed_from: renewedFrom,
+    closed_at: null,
+    ended_how: null,
+    last_staff_message_at: null,
+    last_member_message_at: null,
+    follow_up_on: null,
+    handover_to: null,
+    handover_by: null,
+    handover_at: null,
+    next_step: null,
+    notes: null,
+    deleted_at: null,
+    created_at: "2027-01-01T17:00:00Z",
+    updated_at: "2027-01-01T17:00:00Z",
+  });
+  const careRow = (overrides: Partial<ActivityFeedRow>) =>
+    row({ entity_type: "care_engagement", entity_id: "care_AAAAAAAAAAA3", member_id: "mbr_AAAAAAAAAAA1", member_name: "Ada Example", ...overrides });
+
+  it("reads each change as what was done, with colleagues by display name and the renewal's number counted along the chain", async () => {
+    const data = new InMemoryDataset({
+      members: [
+        { id: "mbr_AAAAAAAAAAA1", name: "Ada Example" },
+        { id: "mbr_AAAAAAAAAAA2", name: "Legal Owner", displayName: "Owner & <Co>", userId: OWNER_USER },
+        { id: "mbr_AAAAAAAAAAA3", name: "Legal Receiver", displayName: "Rae & <Ceiver>", userId: RECEIVER_USER },
+      ],
+    });
+    data.careEngagements.push(plan("care_AAAAAAAAAAA1", "mbr_AAAAAAAAAAA1", null) as never, plan("care_AAAAAAAAAAA2", "mbr_AAAAAAAAAAA1", "care_AAAAAAAAAAA1") as never, plan("care_AAAAAAAAAAA3", "mbr_AAAAAAAAAAA1", "care_AAAAAAAAAAA2") as never);
+    repos = createInMemoryRepos(data);
+    const rpc = vi.fn(async () => ({
+      data: [
+        careRow({ event_id: "audit:1", event_type: "insert", data: { renewed_from: { old: null, new: "care_AAAAAAAAAAA2" }, notes: { old: null, new: "[redacted]" } } }),
+        careRow({ event_id: "audit:2", event_type: "update", actor_user_id: OWNER_USER, data: { handover_to: { old: null, new: RECEIVER_USER }, handover_by: { old: null, new: OWNER_USER } } }),
+        careRow({ event_id: "audit:3", event_type: "update", actor_user_id: RECEIVER_USER, data: { owned_by: { old: OWNER_USER, new: RECEIVER_USER }, handover_to: { old: RECEIVER_USER, new: null } } }),
+        row({ event_id: "audit:4", entity_type: "prickle_type", event_type: "insert", data: {} }),
+      ],
+      error: null,
+    }));
+
+    const rows = await fetchRecordHistory({ rpc } as unknown as SupabaseClient, ["care_engagement"], "care_AAAAAAAAAAA3");
+
+    expect(rows.map(describeRow)).toEqual([
+      "renewed the care plan (third plan)",
+      "offered the care plan to Rae & <Ceiver>",
+      "accepted the care plan from Owner & <Co>",
+      "added prickle type",
+    ]);
+    expect(rows[3].planNumber).toBeUndefined();
+  });
+
+  it("leaves a renewal without a number when its chain cannot be read, and reads nothing for a page with no renewal", async () => {
+    const data = new InMemoryDataset({ members: [{ id: "mbr_AAAAAAAAAAA1", name: "Ada Example" }] });
+    repos = createInMemoryRepos(data);
+    const spy = vi.spyOn(repos.care, "forMember");
+    const rpc = vi.fn(async () => ({ data: [careRow({ event_type: "insert", data: { renewed_from: { old: null, new: "care_GoneGoneGone" } } })], error: null }));
+    const [renewed] = await fetchRecordHistory({ rpc } as unknown as SupabaseClient, ["care_engagement"]);
+    expect(describeRow(renewed)).toBe("renewed the care plan"); // the chain ends at a plan that is gone: no number rather than a wrong one
+    spy.mockClear();
+    await fetchRecordHistory({ rpc: async () => ({ data: [careRow({ event_type: "insert", data: { reason: { old: null, new: "check_in" } } })], error: null }) } as unknown as SupabaseClient, ["care_engagement"]);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("reads the same through the central feed", async () => {
+    const data = new InMemoryDataset({ members: [{ id: "mbr_AAAAAAAAAAA1", name: "Ada Example" }] });
+    data.careEngagements.push(plan("care_AAAAAAAAAAA1", "mbr_AAAAAAAAAAA1", null) as never, plan("care_AAAAAAAAAAA3", "mbr_AAAAAAAAAAA1", "care_AAAAAAAAAAA1") as never);
+    repos = createInMemoryRepos(data);
+    const rpc = vi.fn(async (name: string) =>
+      name === "count_activity_feed" ? { data: 1, error: null } : { data: [careRow({ event_type: "insert", data: { renewed_from: { old: null, new: "care_AAAAAAAAAAA1" } } })], error: null }
+    );
+    const feed = await fetchActivityFeed({ rpc } as unknown as SupabaseClient, { ...parseFeedFilters({}), page: 1, pageSize: 50 });
+    expect(feed.rows.map(describeRow)).toEqual(["renewed the care plan (second plan)"]);
   });
 });
