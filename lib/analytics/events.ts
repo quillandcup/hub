@@ -214,6 +214,8 @@ export const EVENTS = {
   care_engagement_started: { reason: oneOf(...CARE_REASONS), backdated: bool() },
   /** A staff member changed the day an engagement started: `days_moved` is how many days it moved (earlier or later). */
   care_start_date_changed: { days_moved: int(3650) },
+  /** A staff member opened "Activity during this plan" on a care plan: whether the plan is still open, and how many rows it had. No names, no ids, no text. */
+  care_activity_opened: { plan_open: bool(), rows: int(100000) },
   /** A staff member logged a message in an engagement: `direction` is who wrote it. */
   care_message_logged: { direction: oneOf(...MESSAGE_DIRECTIONS) },
   /** A staff member closed an engagement: `ended_how` is her read of how it went, `days_open` how many whole days it was open. */

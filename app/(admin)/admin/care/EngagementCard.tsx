@@ -27,6 +27,7 @@ import { formatDateOnly } from "@/lib/formatters";
 import CareFacts from "./CareFacts";
 import { CARE_SLACK_CONNECT_HREF } from "./slack-connect";
 import type { EngagementCardData } from "./card";
+import EngagementActivity from "./EngagementActivity";
 import EngagementResults from "./EngagementResults";
 import {
   changeEngagementStart,
@@ -56,7 +57,7 @@ const STATUS_STYLE: Record<CareStatus, string> = {
   closed: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
 };
 
-type Panel = "edit" | "close" | "renew" | "results" | "handover" | "start";
+type Panel = "edit" | "close" | "renew" | "results" | "activity" | "handover" | "start";
 
 /** One care plan: who, why, where it stands, and the few things she does with it (log a reply, renew, hand it over to someone who accepts it, set a follow-up, change its start, close, see results). */
 export default function EngagementCard({ card, canWrite, owners, meId }: { card: EngagementCardData; canWrite: boolean; owners: readonly CareOwner[]; meId: string }) {
@@ -284,6 +285,9 @@ export default function EngagementCard({ card, canWrite, owners, meId }: { card:
           <button type="button" className={BUTTON} disabled={pending} onClick={() => open("results")}>
             Results
           </button>
+          <button type="button" className={BUTTON} aria-expanded={panel === "activity"} disabled={pending} onClick={() => open("activity")}>
+            Activity during this plan
+          </button>
           {card.controls.canPropose && (
             <button type="button" data-track="care-handover-open" className={BUTTON} disabled={pending} onClick={() => open("handover")}>
               Hand over to…
@@ -325,6 +329,8 @@ export default function EngagementCard({ card, canWrite, owners, meId }: { card:
           {resultsBlock}
         </>
       )}
+
+      {canWrite && panel === "activity" && <EngagementActivity planId={card.id} />}
 
       {canWrite && panel === "start" && (
         <div className="mt-3 space-y-2">
