@@ -1,3 +1,13 @@
+---
+paths:
+  - "env-vars.config.ts"
+  - "app.config.ts"
+  - "lib/config.ts"
+  - ".env*"
+  - "scripts/env-*"
+  - "scripts/sync-*"
+---
+
 ## new-env-var
 
 Adding an environment variable touches several places, and missing one has meant a production deploy that couldn't start, a template that drifted, or a sync that touched everything. Work through this in order. `docs/ENV_MANAGEMENT.md` explains the layout; `env-vars.config.ts` is the source of truth.
