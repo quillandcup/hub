@@ -481,7 +481,14 @@ export default function ReconciliationClient() {
                     }`}
                   >
                     <td className="px-4 py-3">
-                      <div className="font-medium dark:text-white">{shownName(member.member_name, member.member_display_name)}</div>
+                      <div className="font-medium">
+                        <a
+                          href={`/admin/members/${member.member_id}`}
+                          className="text-plum-600 dark:text-plum-400 hover:underline"
+                        >
+                          {shownName(member.member_name, member.member_display_name)}
+                        </a>
+                      </div>
                       <LegalName name={member.member_name} displayName={member.member_display_name} />
                       <div className="text-sm text-gray-600 dark:text-gray-400">
                         {member.member_email}
@@ -824,8 +831,13 @@ export default function ReconciliationClient() {
               <tbody className="divide-y divide-gray-200 dark:divide-slate-700 bg-white dark:bg-slate-900">
                 {zoomSort.rows.map((m) => (
                   <tr key={m.member_id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
-                    <td className="px-4 py-3 font-medium dark:text-white">
-                      {shownName(m.member_name, m.member_display_name)}
+                    <td className="px-4 py-3 font-medium">
+                      <a
+                        href={`/admin/members/${m.member_id}`}
+                        className="text-plum-600 dark:text-plum-400 hover:underline"
+                      >
+                        {shownName(m.member_name, m.member_display_name)}
+                      </a>
                       <LegalName name={m.member_name} displayName={m.member_display_name} />
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{m.prickle_count}</td>
