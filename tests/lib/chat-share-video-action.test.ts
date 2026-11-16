@@ -38,7 +38,7 @@ vi.mock("@/lib/chat/file-cleanup", () => ({ removeChatFileBytes: vi.fn() }));
 
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
-import { sendChatMessage, shareLessonVideoInChat } from "@/app/(member)/chat/actions";
+import { sendChatMessage } from "@/app/(member)/chat/actions";
 import { APP_URL } from "@/lib/config";
 
 const CHANNEL = "chn_AAAAAAAAAAC1";
@@ -66,80 +66,6 @@ beforeEach(() => {
   m.rpc.mockReset().mockResolvedValue({ data: POSTED, error: null });
   m.sendToSlack.mockReset();
   setLesson();
-});
-
-describe("shareLessonVideoInChat", () => {
-  it("posts the message and its video together in one call, closed to non-members of the course, and sends to Slack after", async () => {
-    const result = await shareLessonVideoInChat(CHANNEL, LESSON, "  This one helped me  ");
-
-    expect(result).toEqual({ ok: true, id: POSTED });
-    expect(m.rpc).toHaveBeenCalledTimes(1);
-    expect(m.rpc).toHaveBeenCalledWith("chat_post_shared_video", { p_channel_id: CHANNEL, p_body: "This one helped me", p_lesson_id: LESSON, p_open_to_channel: false, p_thread_root_id: null });
-    expect(m.sendToSlack).not.toHaveBeenCalled();
-    for (const cb of m.afterCallbacks) await cb();
-    expect(m.sendToSlack).toHaveBeenCalledWith({ service: true }, POSTED);
-  });
-
-  it("names the lesson when the member writes nothing", async () => {
-    await shareLessonVideoInChat(CHANNEL, LESSON, "   ");
-
-    expect(m.rpc).toHaveBeenCalledWith("chat_post_shared_video", expect.objectContaining({ p_body: "Shared a lesson video: Show up for the page" }));
-  });
-
-  it("is refused without the chat_videos feature, in sudo, or for a bad id, and posts nothing", async () => {
-    m.hasFeature.mockImplementation(async (key: string) => key !== "chat_videos");
-    expect(await shareLessonVideoInChat(CHANNEL, LESSON, "")).toEqual({ ok: false, error: "Sharing videos isn't available to you yet." });
-
-    m.hasFeature.mockResolvedValue(true);
-    m.getEffectiveIdentity.mockResolvedValue({ memberId: "member-fern", isSudo: true });
-    expect((await shareLessonVideoInChat(CHANNEL, LESSON, "")).ok).toBe(false);
-
-    m.getEffectiveIdentity.mockResolvedValue({ memberId: "member-fern", isSudo: false });
-    expect(await shareLessonVideoInChat("nope", LESSON, "")).toEqual({ ok: false, error: "Something went wrong." });
-    expect(await shareLessonVideoInChat(CHANNEL, "nope", "")).toEqual({ ok: false, error: "Something went wrong." });
-    expect(m.rpc).not.toHaveBeenCalled();
-  });
-
-  it("won't share a video the sharer can't open themselves", async () => {
-    m.canOpen.mockReturnValue(false);
-    expect(await shareLessonVideoInChat(CHANNEL, LESSON, "")).toEqual({ ok: false, error: "That video can't be shared." });
-
-    m.canOpen.mockReturnValue(true);
-    setLesson({ state: "coming_soon" });
-    expect((await shareLessonVideoInChat(CHANNEL, LESSON, "")).ok).toBe(false);
-    setLesson({ videoStatus: "preparing" });
-    expect((await shareLessonVideoInChat(CHANNEL, LESSON, "")).ok).toBe(false);
-    setLesson({ videoId: null });
-    expect((await shareLessonVideoInChat(CHANNEL, LESSON, "")).ok).toBe(false);
-
-    m.coursesCaller.mockResolvedValue(null);
-    setLesson();
-    expect((await shareLessonVideoInChat(CHANNEL, LESSON, "")).ok).toBe(false);
-    expect(m.rpc).not.toHaveBeenCalled();
-  });
-
-  it("lets an admin acting as themselves open it to the whole conversation, and no one else", async () => {
-    m.coursesCaller.mockResolvedValue({ userId: "auth-1", identity: { memberId: "member-fern", isSudo: false }, scope: { memberId: "member-fern", isAdminActing: true } });
-    expect(await shareLessonVideoInChat(CHANNEL, LESSON, "", true)).toEqual({ ok: true, id: POSTED });
-    expect(m.rpc).toHaveBeenLastCalledWith("chat_post_shared_video", expect.objectContaining({ p_open_to_channel: true }));
-
-    m.rpc.mockClear();
-    m.coursesCaller.mockResolvedValue({ userId: "auth-1", identity: { memberId: "member-fern", isSudo: false }, scope: { memberId: "member-fern", isAdminActing: false } });
-    expect(await shareLessonVideoInChat(CHANNEL, LESSON, "", true)).toEqual({ ok: false, error: "Only an admin can open a video to the whole conversation." });
-    expect(m.rpc).not.toHaveBeenCalled();
-  });
-
-  it("explains what the database refused, and sends nothing to Slack", async () => {
-    m.rpc.mockResolvedValue({ data: null, error: { message: "chat_post: bad_video" } });
-    expect(await shareLessonVideoInChat(CHANNEL, LESSON, "")).toEqual({ ok: false, error: "That video can't be shared." });
-
-    m.rpc.mockResolvedValue({ data: null, error: { message: "chat_post: not_allowed" } });
-    expect(await shareLessonVideoInChat(CHANNEL, LESSON, "")).toEqual({ ok: false, error: "Only an admin can open a video to the whole conversation." });
-
-    m.rpc.mockResolvedValue({ data: null, error: { message: "chat_post: not_in_channel" } });
-    expect((await shareLessonVideoInChat(CHANNEL, LESSON, "")).ok).toBe(false);
-    expect(m.afterCallbacks).toHaveLength(0);
-  });
 });
 
 describe("sendChatMessage with a lesson address pasted in", () => {

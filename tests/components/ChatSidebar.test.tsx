@@ -296,6 +296,22 @@ describe("ChatSidebar", () => {
       expect(screen.getByRole("link", { name: "#general" })).toBeInTheDocument();
     });
 
+    it("keeps the count of a conversation marked unread from a message when the reader leaves it", async () => {
+      pathname = "/chat/1";
+      const { rerender } = render(<ChatSidebar channels={CHANNELS} unread={{}} selfMemberId={ME} />);
+      act(() => {
+        window.dispatchEvent(new CustomEvent("chat-marked-unread", { detail: { channelId: "1", unread: 4 } }));
+      });
+      expect(screen.getByRole("link", { name: "#general" })).toBeInTheDocument(); // open: no count
+      pathname = "/chat/2";
+      rerender(<ChatSidebar channels={CHANNELS} unread={{}} selfMemberId={ME} />);
+      expect(screen.getByRole("link", { name: /^#general\s*4\s*unread$/ })).toBeInTheDocument();
+      // Opening it again reads it as usual.
+      pathname = "/chat/1";
+      rerender(<ChatSidebar channels={CHANNELS} unread={{}} selfMemberId={ME} />);
+      expect(screen.getByRole("link", { name: "#general" })).toBeInTheDocument();
+    });
+
     it("counts a message as it arrives in another conversation, but not your own, replies, deleted ones, the open one or ones you are not in", async () => {
       pathname = "/chat/2";
       render(<ChatSidebar channels={[...CHANNELS, channel("5", "#lurking", { joined: false })]} unread={{}} selfMemberId={ME} />);

@@ -95,6 +95,7 @@ uniqueness against Tier 1.
 | `chat_message_videos` | `cmv_` | `care_engagements` | `care_` |
 | `chat_reactions` | `rxn_` | `prickle_checkins` | `pci_` |
 | `course_access_grants` | `cgrant_` | `prickle_checkout_dismissals` | `pcod_` |
+| `course_address_redirects` | `cslug_` | | |
 | `event_attendees` | `evatt_` | `prickle_commitment_slots` | `cmts_` |
 | `feedback` | `fdbk_` | `prickle_host_vibes` | `hvib_` |
 | `ignored_zoom_names` | `ignz_` | `prickle_join_settings` | `pjoin_` |

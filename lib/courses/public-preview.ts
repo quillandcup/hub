@@ -59,7 +59,8 @@ export async function publicLessonPreview(
   if (!lesson) return { blocked: "not_found" };
 
   const course = await repos.courses.courseById(lesson.course_id);
-  if (!course || (opts.slug !== undefined && course.slug !== opts.slug)) return { blocked: "not_found" };
+  // The address may be one the course used to have: the preview is of the course either way, and the page sends the visitor to the current address.
+  if (!course || (opts.slug !== undefined && course.slug !== opts.slug && (await repos.courses.redirectedAddress(opts.slug)) !== course.slug)) return { blocked: "not_found" };
   if (course.is_draft) return { blocked: "course_not_live" };
   if (course.launch_at && new Date(course.launch_at).getTime() > (opts.now ?? new Date()).getTime()) return { blocked: "course_not_live" };
 
@@ -130,7 +131,14 @@ async function previewOfCourse(
 }
 
 export function publicCoursePreview(repos: PreviewRepos, slug: string, opts: { now?: Date } = {}) {
-  return previewOfCourse(repos, () => repos.courses.courseBySlug(slug), opts.now ?? new Date());
+  // An address the course used to have finds the course too; `preview.slug` is the current one, for the page to redirect to.
+  const find = async () => {
+    const course = await repos.courses.courseBySlug(slug);
+    if (course) return course;
+    const current = await repos.courses.redirectedAddress(slug);
+    return current ? repos.courses.courseBySlug(current) : null;
+  };
+  return previewOfCourse(repos, find, opts.now ?? new Date());
 }
 
 /** The same check by id, for the cover image route. */

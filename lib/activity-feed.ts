@@ -433,6 +433,12 @@ function specialAuditPhrase(row: ActivityFeedRow): string | null {
   }
   // An admin or community manager opened a member's Hedgie Care plan messages (the member is the row's subject). Only the fact is recorded, never the text.
   if (row.entity_type === "care_dm_read") return "opened a member's Hedgie Care plan messages (the messages are not recorded)";
+  // A course made by duplicating another is one entry with where it came from and what it holds (the migration says why not one per row).
+  if (row.entity_type === "course" && row.event_type === "insert" && fields.copied_from?.new) {
+    const lessons = Number(fields.lessons_copied?.new);
+    const count = Number.isFinite(lessons) ? ` (${lessons} ${lessons === 1 ? "lesson" : "lessons"})` : "";
+    return `duplicated a course as “${formatValue(row.description ?? "")}”${count}`;
+  }
   if (row.entity_type === "restricted_slack_channel") {
     const channel = row.description ? `#${formatValue(row.description)}` : "a Slack channel";
     if (row.event_type === "insert") return `restricted staff access to messages in ${channel}`;

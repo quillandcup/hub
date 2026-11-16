@@ -20,7 +20,7 @@ const share = (over: Record<string, unknown> = {}) => ({
   channel_id: "C123ABC",
   channel_name: "tea-room",
   from_url: "https://example.slack.com/archives/C123ABC/p1700000000000100",
-  footer: "Posted in #tea-room",
+  footer: "Slack Conversation",
   ...over,
 });
 
@@ -36,7 +36,6 @@ describe("parseSharedMessage", () => {
       slackChannelId: "C123ABC",
       channelName: "tea-room",
       slackUrl: "https://example.slack.com/archives/C123ABC/p1700000000000100",
-      footer: "Posted in #tea-room",
       files: [],
     });
   });

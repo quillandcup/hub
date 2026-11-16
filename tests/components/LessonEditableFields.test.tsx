@@ -89,30 +89,54 @@ describe("LessonModuleField", () => {
   const modules = [
     { kajabiId: "mod_AAAAAAAAAAA1", path: "Module 1" },
     { kajabiId: "mod_AAAAAAAAAAA2", path: "Module 1 / Week 1" },
+    { kajabiId: "mod_AAAAAAAAAAA3", path: "Bonus" },
   ];
 
-  it("lists No module and every module by its path, with the lesson's own chosen", () => {
+  it("shows the lesson's own module, with a way to clear it", () => {
     render(<LessonModuleField courseId={COURSE} lessonId={LESSON} moduleId="mod_AAAAAAAAAAA2" modules={modules} />);
-    const select = screen.getByRole("combobox", { name: "Select module" });
-    expect(select).toHaveValue("mod_AAAAAAAAAAA2");
-    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["No module", "Module 1", "Module 1 / Week 1"]);
+    expect(screen.getByText("Module 1 / Week 1")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Clear selection" })).toBeInTheDocument();
   });
 
-  it("moves the lesson to the module chosen, and refreshes the page", async () => {
+  it("lists only the course's modules when focused and narrows them as the person types in Find", async () => {
+    const user = userEvent.setup();
+    render(<LessonModuleField courseId={COURSE} lessonId={LESSON} moduleId="" modules={modules} />);
+    const box = screen.getByRole("combobox", { name: "Select module" });
+    expect(box).toHaveAttribute("placeholder", "Find…");
+    await user.click(box);
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["Module 1", "Module 1 / Week 1", "Bonus"]);
+    await user.type(box, "week");
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["Module 1 / Week 1"]);
+    await user.clear(box);
+    await user.type(box, "zzz");
+    expect(screen.getByText("No module found")).toBeInTheDocument();
+  });
+
+  it("moves the lesson to the module chosen with the mouse, and refreshes the page", async () => {
     actions.moveCourseLesson.mockResolvedValue({ id: LESSON });
     const user = userEvent.setup();
     render(<LessonModuleField courseId={COURSE} lessonId={LESSON} moduleId="" modules={modules} />);
-    await user.selectOptions(screen.getByRole("combobox", { name: "Select module" }), "mod_AAAAAAAAAAA1");
+    await user.click(screen.getByRole("combobox", { name: "Select module" }));
+    await user.click(screen.getByRole("option", { name: "Module 1" }));
 
     expect(actions.moveCourseLesson).toHaveBeenCalledWith(COURSE, LESSON, "mod_AAAAAAAAAAA1");
     await waitFor(() => expect(router.refresh).toHaveBeenCalled());
   });
 
-  it("takes the lesson out of every module with No module", async () => {
+  it("chooses with the keyboard: Arrow Down then Enter", async () => {
+    actions.moveCourseLesson.mockResolvedValue({ id: LESSON });
+    const user = userEvent.setup();
+    render(<LessonModuleField courseId={COURSE} lessonId={LESSON} moduleId="" modules={modules} />);
+    await user.click(screen.getByRole("combobox", { name: "Select module" }));
+    await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
+    expect(actions.moveCourseLesson).toHaveBeenCalledWith(COURSE, LESSON, "mod_AAAAAAAAAAA2");
+  });
+
+  it("takes the lesson out of its module when the choice is cleared", async () => {
     actions.moveCourseLesson.mockResolvedValue({ id: LESSON });
     const user = userEvent.setup();
     render(<LessonModuleField courseId={COURSE} lessonId={LESSON} moduleId="mod_AAAAAAAAAAA1" modules={modules} />);
-    await user.selectOptions(screen.getByRole("combobox", { name: "Select module" }), "");
+    await user.click(screen.getByRole("button", { name: "Clear selection" }));
     expect(actions.moveCourseLesson).toHaveBeenCalledWith(COURSE, LESSON, null);
   });
 
@@ -120,7 +144,8 @@ describe("LessonModuleField", () => {
     actions.moveCourseLesson.mockResolvedValue({ error: "That module isn't in this course. Refresh the page." });
     const user = userEvent.setup();
     render(<LessonModuleField courseId={COURSE} lessonId={LESSON} moduleId="" modules={modules} />);
-    await user.selectOptions(screen.getByRole("combobox", { name: "Select module" }), "mod_AAAAAAAAAAA1");
+    await user.click(screen.getByRole("combobox", { name: "Select module" }));
+    await user.click(screen.getByRole("option", { name: "Bonus" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("That module isn't in this course");
     expect(router.refresh).not.toHaveBeenCalled();

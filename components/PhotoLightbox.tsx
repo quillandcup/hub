@@ -41,7 +41,7 @@ export default function PhotoLightbox({ photos, openIndex, onClose, onNavigate }
 
   return (
     <div
-      className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-8"
+      className="fixed inset-0 bg-black/70 flex items-center justify-center z-overlay p-8"
       onClick={onClose}
     >
       {openIndex! > 0 && (

@@ -1,4 +1,5 @@
 import { decodeEntities, isSafeHref } from "@/lib/chat/render";
+import type { HubLink } from "@/lib/chat/hub-links";
 import { parseSharedMessage, type SharedMessage, type SharedMessageSource } from "@/lib/chat/shared-message";
 
 /**
@@ -96,7 +97,20 @@ export interface BlocksUnfurl {
   blocks: UnfurlBlock[];
 }
 
-export type Unfurl = CardUnfurl | ShareUnfurl | BlocksUnfurl;
+/**
+ * A link to a page of the Hub itself, drawn as a card the viewer's own access decides (components/chat/HubLinkCard.tsx fetches what it
+ * shows, lib/chat/hub-link-card.ts). Carries only the address and what it points at: nothing about the target, which is read per viewer.
+ */
+export interface HubLinkUnfurl {
+  kind: "hub";
+  /** The address as written in the message. */
+  url: string;
+  link: HubLink;
+  /** What removes this card (`url:<address>`); set by the loader. */
+  removeKey?: string;
+}
+
+export type Unfurl = CardUnfurl | ShareUnfurl | BlocksUnfurl | HubLinkUnfurl;
 
 export interface ParsedUnfurls {
   unfurls: Unfurl[];

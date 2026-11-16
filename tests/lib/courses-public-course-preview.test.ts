@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
-import { courseRow } from "@/tests/helpers/course-fixtures";
-import { publicCoursePreview, publicCoursePreviewById } from "@/lib/courses/public-preview";
+import { courseRow, lessonRow } from "@/tests/helpers/course-fixtures";
+import { publicCoursePreview, publicCoursePreviewById, publicLessonPreview } from "@/lib/courses/public-preview";
 
 /**
  * What anyone may see of a course without signing in: its title, a plain-text teaser of the description and
@@ -75,6 +75,45 @@ describe("publicCoursePreview", () => {
     expect(await publicCoursePreview(r, "the-ready-writer", { now: new Date("2026-11-10T00:00:00Z") })).toHaveProperty("preview");
   });
 
+});
+
+describe("publicCoursePreview at an old address", () => {
+  const renamed = (course: Partial<Parameters<typeof courseRow>[0]> = {}) =>
+    createInMemoryRepos(
+      new InMemoryDataset({
+        courses: [courseRow({ id: ID, slug: "ready-writer", title: "The Ready Writer", ...course })],
+        courseAddressRedirects: [{ id: "cslug_AAAAAAAAAAA1", address: "the-ready-writer", course_id: ID, created_at: "2097-01-01T00:00:00.000Z" }],
+      })
+    );
+
+  it("finds the course, whose slug is the current address for the page to redirect to", async () => {
+    expect(await publicCoursePreview(renamed(), "the-ready-writer", { now: NOW })).toMatchObject({ preview: { courseId: ID, slug: "ready-writer" } });
+  });
+
+  it("keeps the same rule: a draft or not yet open course is blocked at its old address too", async () => {
+    expect(await publicCoursePreview(renamed({ is_draft: true }), "the-ready-writer", { now: NOW })).toEqual({ blocked: "course_not_live" });
+    expect(await publicCoursePreview(renamed({ launch_at: "2026-11-10T00:00:00Z" }), "the-ready-writer", { now: NOW })).toEqual({ blocked: "course_not_live" });
+  });
+
+  it("is still blocked for an address that was never the course's", async () => {
+    expect(await publicCoursePreview(renamed(), "something-else", { now: NOW })).toEqual({ blocked: "not_found" });
+  });
+});
+
+describe("publicLessonPreview at an old address", () => {
+  it("accepts the course's old address, and refuses another course's", async () => {
+    const lesson = "les_AAAAAAAAAAA1";
+    const r = createInMemoryRepos(
+      new InMemoryDataset({
+        courses: [courseRow({ id: ID, slug: "ready-writer", title: "The Ready Writer" }), courseRow({ id: "crs_BBBBBBBBBBB2", slug: "other", title: "Other" })],
+        courseLessons: [lessonRow({ id: lesson, course_id: ID, title: "Welcome" })],
+        courseAddressRedirects: [{ id: "cslug_AAAAAAAAAAA1", address: "the-ready-writer", course_id: ID, created_at: "2097-01-01T00:00:00.000Z" }],
+      })
+    );
+    expect(await publicLessonPreview(r, lesson, { slug: "the-ready-writer", now: NOW })).toMatchObject({ preview: { courseSlug: "ready-writer" } });
+    expect(await publicLessonPreview(r, lesson, { slug: "other", now: NOW })).toEqual({ blocked: "not_found" });
+    expect(await publicLessonPreview(r, lesson, { slug: "nothing", now: NOW })).toEqual({ blocked: "not_found" });
+  });
 });
 
 describe("publicCoursePreviewById", () => {

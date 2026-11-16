@@ -185,8 +185,8 @@ export default async function PrivacyPage() {
             />
             <CollectRow
               what="Course videos"
-              detail="Where you stopped, which parts you watched, how fast, whether captions were on, whether the tab was in view, and your device and browser."
-              why="To pick up where you left off, and to learn which lessons work."
+              detail="Where you stopped, which parts you watched, how fast, whether captions were on, whether the tab was in view, and your device and browser. For a video shared in a chat message, also which message you watched it in. This is part of how courses work, so turning usage statistics off does not change it."
+              why="To pick up where you left off, to mark a lesson complete once you have watched it, and to learn which lessons work."
             />
             <CollectRow
               what="How well course videos play"
@@ -300,10 +300,11 @@ export default async function PrivacyPage() {
           welcome you back. Each time is recorded as a care plan, with a start and an end.
         </p>
         <p>
-          Starting a care plan tracks the staff member&apos;s one-on-one Slack DM with you, when the Hub has it, and she can stop
-          tracking it. While it is tracked, admins and community managers can read, in Hedgie Care, the messages sent in that DM from
-          the start of each of your plans to its end, or until now while a plan is open. That includes your earlier plans, even ones
-          another staff member held. They read the full messages, as they were sent; deleted messages are not shown.
+          When a care plan starts, the staff member&apos;s one-on-one Slack DM with you is tracked automatically, when the Hub has it:
+          there is nothing to choose or switch off. Admins and community managers can then read, in Hedgie Care, the messages sent in
+          that DM from the start of each of your plans to its end, or until now while a plan is open. A plan can be handed over to another
+          staff member, who sees the messages of your earlier plans once they accept it, and their own DM with you is tracked too. They read
+          the full messages, as they were sent; deleted messages are not shown.
         </p>
         <p>
           Messages sent outside a plan are not shown there, and other direct messages with staff are treated like direct messages between

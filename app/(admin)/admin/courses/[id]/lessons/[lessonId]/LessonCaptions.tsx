@@ -57,8 +57,7 @@ export default function LessonCaptions({ courseId, lessonId, tracks }: { courseI
   };
 
   return (
-    <div className="mt-6">
-      <h3 className="mb-2 font-semibold">Captions</h3>
+    <div>
       {tracks.length > 0 ? (
         <ul className="space-y-2">
           {tracks.map((t) => (

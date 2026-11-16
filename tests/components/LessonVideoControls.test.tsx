@@ -189,3 +189,57 @@ describe("a lesson with a video", () => {
     expect(actions.refreshLessonVideo).not.toHaveBeenCalled();
   });
 });
+
+describe("with the Video actions menu", () => {
+  const menuProps = { statsHref: null, lessonUrl: null, thumbnailLink: null, thumbnailLinkBlocked: "" };
+
+  it("is one row: the menu on the left holding Replace video, Remove video and Captions, and no separate buttons", async () => {
+    const user = userEvent.setup();
+    render(<LessonVideoControls courseId={COURSE} lessonId={LESSON} status="ready" actions={menuProps} />);
+    expect(screen.queryByRole("button", { name: "Replace video" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove video" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Video actions/ }));
+    expect(screen.getByRole("menuitem", { name: "Replace video" })).toBeEnabled();
+    expect(screen.getByRole("menuitem", { name: "Remove video" })).toBeEnabled();
+    expect(screen.getByRole("menuitem", { name: "Captions…" })).toBeEnabled();
+  });
+
+  it("opens the file chooser from Replace video", async () => {
+    const user = userEvent.setup();
+    render(<LessonVideoControls courseId={COURSE} lessonId={LESSON} status="ready" actions={menuProps} />);
+    const clicked = vi.fn();
+    screen.getByLabelText("Choose a video file").addEventListener("click", clicked);
+    await user.click(screen.getByRole("button", { name: /Video actions/ }));
+    await user.click(screen.getByRole("menuitem", { name: "Replace video" }));
+    expect(clicked).toHaveBeenCalled();
+  });
+
+  it("takes the video off from Remove video", async () => {
+    actions.removeLessonVideo.mockResolvedValue({ id: LESSON });
+    const user = userEvent.setup();
+    render(<LessonVideoControls courseId={COURSE} lessonId={LESSON} status="ready" actions={menuProps} />);
+    await user.click(screen.getByRole("button", { name: /Video actions/ }));
+    await user.click(screen.getByRole("menuitem", { name: "Remove video" }));
+    expect(actions.removeLessonVideo).toHaveBeenCalledWith(COURSE, LESSON);
+  });
+
+  it("opens the captions in a dialog from Captions…, only once the video is ready", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(<LessonVideoControls courseId={COURSE} lessonId={LESSON} status="ready" actions={menuProps} captions={[{ id: "cap1", label: "English", language: "en", kind: "captions", source: "manual" }]} />);
+    expect(screen.queryByRole("button", { name: "Upload captions" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Video actions/ }));
+    await user.click(screen.getByRole("menuitem", { name: "Captions…" }));
+    expect(screen.getByRole("button", { name: "Upload captions" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove English" })).toBeInTheDocument();
+    unmount();
+
+    render(<LessonVideoControls courseId={COURSE} lessonId={LESSON} status="preparing" actions={menuProps} />);
+    await user.click(screen.getByRole("button", { name: /Video actions/ }));
+    expect(screen.getByRole("menuitem", { name: "Captions…" })).toBeDisabled();
+  });
+
+  it("puts a quiet Use current frame as thumbnail on the right when there is a player", () => {
+    render(<LessonVideoControls courseId={COURSE} lessonId={LESSON} status="ready" actions={menuProps} frameThumbnail seconds={12} />);
+    expect(screen.getByRole("button", { name: "Use current frame as thumbnail" })).toBeEnabled();
+  });
+});

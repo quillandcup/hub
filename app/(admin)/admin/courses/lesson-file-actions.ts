@@ -99,7 +99,8 @@ async function removeImpl(auth: Auth, courseId: string, lessonId: string, fileId
     if (!file) return { error: "Not found." };
     // The row first: if that fails the file is still whole and listed; an object left behind by a failed second step is only unreferenced.
     await courses.deleteLessonFile(file.id);
-    await supabase.storage.from(COURSE_FILES_BUCKET).remove([file.storage_path]);
+    // A duplicated lesson's download is the same stored object: it goes only when no other row still uses it.
+    if (!(await courses.storagePathShared(file.storage_path, file.id))) await supabase.storage.from(COURSE_FILES_BUCKET).remove([file.storage_path]);
   } catch (error) {
     console.error("lesson file: couldn't remove a file:", error instanceof Error ? error.message : error);
     return { error: "Couldn't remove the file." };

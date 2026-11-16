@@ -11,6 +11,8 @@ export type CareDmsContractContext = {
   channel: (label: string) => string;
   /** Removes every tracked DM of the two users. */
   clear: () => Promise<void>;
+  /** Soft deletes a user's live row for a DM, the way the earlier opt-in design left some behind (nothing in the app does it now). */
+  retire: (userId: string, channelId: string) => Promise<void>;
 };
 
 /** Behavior every `CareTrackedDmRepository` must have; run against the in-memory twin (unit) and Supabase (db). */
@@ -57,28 +59,19 @@ export function defineCareDmsContract(name: string, setup: () => CareDmsContract
       expect((await ctx.repo().forUser(theirs())).map((d) => d.channelId)).toEqual([c]);
     });
 
-    it("stops tracking: the row is hidden, the answer says whether there was one, and the DM can be tracked again", async () => {
+    it("leaves a row the earlier opt-in design soft deleted out of every read, and tracking the DM again restores it with a new row", async () => {
       const channel = ctx.channel("a");
       const first = await ctx.repo().track({ trackedBy: mine(), channelId: channel, memberId: ctx.members[ada].id });
 
-      expect(await ctx.repo().untrack(mine(), channel, "2026-03-02T10:00:00.000Z")).toBe(true);
+      await ctx.retire(mine(), channel);
       expect(await ctx.repo().forUser(mine())).toEqual([]);
-      expect(await ctx.repo().untrack(mine(), channel, "2026-03-02T11:00:00.000Z")).toBe(false);
-      expect(await ctx.repo().untrack(mine(), ctx.channel("never"), "2026-03-02T10:00:00.000Z")).toBe(false);
+      expect(await ctx.repo().forChannel(channel)).toEqual([]);
+      expect((await ctx.repo().allLive()).some((d) => d.channelId === channel)).toBe(false);
 
       const again = await ctx.repo().track({ trackedBy: mine(), channelId: channel, memberId: ctx.members[ada].id });
       expect(again.created).toBe(true);
       expect(again.dm.id).not.toBe(first.dm.id);
-    });
-
-    it("untracking is the caller's own: another staff member's tracking of the same DM stays", async () => {
-      const channel = ctx.channel("a");
-      await ctx.repo().track({ trackedBy: mine(), channelId: channel, memberId: ctx.members[ada].id });
-      await ctx.repo().track({ trackedBy: theirs(), channelId: channel, memberId: ctx.members[ada].id });
-
-      await ctx.repo().untrack(mine(), channel, "2026-03-02T10:00:00.000Z");
-
-      expect((await ctx.repo().forChannel(channel)).map((d) => d.trackedBy)).toEqual([theirs()]);
+      expect((await ctx.repo().forUser(mine())).map((d) => d.channelId)).toEqual([channel]);
     });
 
     it("lists everyone's live tracked DMs, and who tracks a given DM", async () => {
@@ -86,7 +79,7 @@ export function defineCareDmsContract(name: string, setup: () => CareDmsContract
       await ctx.repo().track({ trackedBy: mine(), channelId: a, memberId: ctx.members[ada].id });
       await ctx.repo().track({ trackedBy: theirs(), channelId: a, memberId: ctx.members[ada].id });
       await ctx.repo().track({ trackedBy: theirs(), channelId: b, memberId: ctx.members[bo].id });
-      await ctx.repo().untrack(theirs(), b, "2026-03-02T10:00:00.000Z");
+      await ctx.retire(theirs(), b);
 
       const all = (await ctx.repo().allLive()).filter((d) => [a, b].includes(d.channelId));
       expect(all.map((d) => `${d.trackedBy}|${d.channelId}`).sort()).toEqual([`${mine()}|${a}`, `${theirs()}|${a}`].sort());
@@ -99,30 +92,13 @@ export function defineCareDmsContract(name: string, setup: () => CareDmsContract
       await ctx.repo().track({ trackedBy: mine(), channelId: a, memberId: ctx.members[ada].id });
       await ctx.repo().track({ trackedBy: theirs(), channelId: b, memberId: ctx.members[ada].id });
       await ctx.repo().track({ trackedBy: theirs(), channelId: c, memberId: ctx.members[bo].id });
-      await ctx.repo().untrack(mine(), a, "2026-03-02T10:00:00.000Z");
+      await ctx.retire(mine(), a);
       await ctx.repo().track({ trackedBy: mine(), channelId: d, memberId: ctx.members[ada].id });
 
       const withAda = await ctx.repo().forMember(ctx.members[ada].id);
       expect(withAda.map((d) => d.channelId).sort()).toEqual([b, d].sort());
       expect((await ctx.repo().forMember(ctx.members[bo].id)).map((d) => d.channelId)).toEqual([c]);
       expect(await ctx.repo().forMember("mbr_ZZZZZZZZZZZZ")).toEqual([]);
-    });
-
-    it("remembers the DMs a staff member stopped tracking, until she tracks them again, so nothing tracks one for her on its own", async () => {
-      const [a, b, c] = [ctx.channel("a"), ctx.channel("b"), ctx.channel("c")];
-      await ctx.repo().track({ trackedBy: mine(), channelId: a, memberId: ctx.members[ada].id });
-      await ctx.repo().track({ trackedBy: mine(), channelId: b, memberId: ctx.members[bo].id });
-      await ctx.repo().track({ trackedBy: theirs(), channelId: c, memberId: ctx.members[ada].id });
-      await ctx.repo().untrack(mine(), a, "2026-03-02T10:00:00.000Z");
-      await ctx.repo().untrack(mine(), b, "2026-03-02T10:00:00.000Z");
-      await ctx.repo().track({ trackedBy: mine(), channelId: b, memberId: ctx.members[bo].id }); // her own choice, again
-
-      const stopped = await ctx.repo().untrackedChannels([mine(), theirs()]);
-
-      expect([...(stopped.get(mine()) ?? [])]).toEqual([a]);
-      expect(stopped.has(theirs())).toBe(false);
-      expect((await ctx.repo().untrackedChannels([theirs()])).size).toBe(0);
-      expect((await ctx.repo().untrackedChannels([])).size).toBe(0);
     });
 
     it("refuses an empty conversation id and a member nobody has", async () => {

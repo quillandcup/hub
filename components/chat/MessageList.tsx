@@ -2,7 +2,10 @@
 
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import MessageItem from "@/components/chat/MessageItem";
+import DayJump from "@/components/chat/DayJump";
 import UnreadDivider from "@/components/chat/UnreadDivider";
+import NewMessagesBanner from "@/components/chat/NewMessagesBanner";
+import { newMessagesSince } from "@/lib/chat/unread";
 import type { ChatTextContext } from "@/components/chat/ChatText";
 import type { ChatMessageView } from "@/lib/chat/load";
 import { focusedMessageDomId, scrollParent, scrollToHashMessage } from "@/lib/chat/scroll";
@@ -226,15 +229,15 @@ export default function MessageList({
           </button>
         )}
       </div>
+      {unreadId && <NewMessagesBanner key={unreadId} count={newMessagesSince(messages, unreadId)} />}
       {messages.length === 0 && <p className="py-3 text-sm text-slate-600 dark:text-slate-400">No messages here yet.</p>}
       {groupByDay(messages, timeZone, unreadId).map((day) => (
         <section key={day.key} aria-label={day.label}>
-          {/* Each day's marker sticks to the top while its messages scroll; the next one pushes it off. */}
-          <div role="separator" aria-label={day.label} className="sticky top-0 z-10 flex items-center bg-canvas py-2 dark:bg-slate-950">
+          {/* Each day's marker sticks to the top while its messages scroll; the next one pushes it off.
+              Sticky + z is a stacking context: z-sticky keeps it over the cards and buttons in the messages (z-raised, z-float), and an open jump menu rises (z-dropdown) above the next day label and the message popups. */}
+          <div role="separator" aria-label={day.label} className="sticky top-0 z-sticky has-[[aria-expanded=true]]:z-dropdown flex items-center bg-canvas py-2 dark:bg-slate-950">
             <span className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
-            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold dark:border-slate-700 dark:bg-slate-900">
-              {day.label}
-            </span>
+            <DayJump channelId={channelId} label={day.label} timeZone={timeZone} />
             <span className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
           </div>
           {day.items.map(({ message: m, compact }) => (

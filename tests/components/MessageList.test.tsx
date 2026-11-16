@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -45,6 +45,16 @@ beforeEach(() => {
 });
 
 describe("MessageList", () => {
+  it("keeps a day's label over the messages' cards and buttons, and over the later labels while its jump menu is open", async () => {
+    const days = [view(1), view(2, { createdAt: new Date(Date.UTC(2026, 9, 5, 12)).toISOString() })];
+    render(<MessageList channelId="c1" views={days} ctx={CTX} olderBefore={null} />);
+    const [first] = screen.getAllByRole("separator");
+    expect(first.className).toContain("z-sticky");
+    expect(first.className).toContain("has-[[aria-expanded=true]]:z-dropdown");
+    await userEvent.click(within(first).getByRole("button"));
+    expect(first.querySelector("[aria-expanded=true]")).not.toBeNull();
+  });
+
   it("shows the server's messages oldest first, with the line above the first unread one", () => {
     render(<MessageList channelId="c1" views={[view(1), view(2), view(3)]} ctx={CTX} olderBefore={null} firstUnreadId="m2" />);
     expect(texts()).toEqual(["message 1", "message 2", "message 3"]);

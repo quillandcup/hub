@@ -1,4 +1,4 @@
-export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat_dms' | 'chat_videos' | 'slack_dm_bridge' | 'big_sisters' | 'prickle_reminders' | 'checkin_dropins' | 'hosting' | 'writing_journey' | 'mux_playback_restriction' | 'mux_data' | 'changelog_digest' | 'chat_notifications' | 'chat_link_previews';
+export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat_dms' | 'chat_videos' | 'slack_dm_bridge' | 'big_sisters' | 'prickle_reminders' | 'checkin_dropins' | 'hosting' | 'writing_journey' | 'mux_playback_restriction' | 'mux_data' | 'changelog_digest' | 'chat_notifications' | 'chat_link_previews' | 'chat_link_cards';
 
 export interface FeaturePreview {
   key: FeatureKey;
@@ -51,6 +51,11 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     key: 'chat_link_previews',
     name: 'Chat link previews',
     description: 'A link in a message you send from Hub Chat gets a preview card under it (the page\'s title, description, site and picture; or the picture itself when the link points straight at one). This decides whose messages get previews: the Hub looks at the page once, right after the message is sent (never when someone reads it), and everyone who can read the message sees the card. Messages that come from Slack already carry Slack\'s own previews. For everyone else nothing is fetched and the link stays plain text',
+  },
+  {
+    key: 'chat_link_cards',
+    name: 'Chat cards for links to the Hub',
+    description: 'A link to a Hub page in a chat message (a message in Hub Chat, a prickle, a member\'s profile) is drawn as a card under the message instead of Slack\'s "Login | Hedgie Hub" preview. This is decided for each reader: a card shows what that reader may see (a quoted message only to someone who can read it, otherwise a plain "Link to the Hub"). It changes what the reader sees, so it covers the members it is on for; for everyone else the link stays as it is today. Nothing is fetched from the Hub\'s own address',
   },
   {
     key: 'slack_dm_bridge',

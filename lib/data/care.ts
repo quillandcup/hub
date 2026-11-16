@@ -29,7 +29,7 @@ export type NewCareEngagement = {
   periodEndsOn: string;
   /** The staff member's auth user id; null for an import or a system caller. */
   openedBy: string | null;
-  /** Who owns it: the owner of the member's latest engagement (the caller works that out), else, when not given, whoever opened it. */
+  /** Who owns it: whoever starts it, never the owner of the member's earlier plan unless that is them (a plan changes hands only through a hand-over). Whoever opened it when not given; null for none (an import). */
   ownedBy?: string | null;
   /** When it started; now when not given. */
   openedAt?: string;
@@ -70,6 +70,13 @@ export type ChangeStartResult =
   | { ok: true; engagement: CareEngagementRow; changed: boolean }
   | { ok: false; reason: "not_found" }
   | { ok: false; reason: StartChangeRefusal; limit: string };
+
+/** Why a hand-over step was refused (the database says it: `care_handover:<reason>`), for the caller to word. */
+export const HANDOVER_REFUSALS = ["not_found", "not_allowed", "receiver_not_allowed", "same_owner", "self", "already_pending", "no_handover", "has_owner"] as const;
+export type HandoverRefusal = (typeof HANDOVER_REFUSALS)[number];
+
+/** A hand-over step answers with the plan as it is now, or why it was refused. */
+export type HandoverResult = { ok: true; engagement: CareEngagementRow } | { ok: false; reason: HandoverRefusal };
 
 /** Which engagements `list` returns: every open one, and the closed ones too when `includeClosed`. */
 export type CareListOptions = { includeClosed?: boolean };
@@ -122,8 +129,22 @@ export interface CareRepository {
    * reader who is not staff). Call it with the reader's own client, before the messages are read. Throws on a database error.
    */
   logMessagesRead(memberId: string): Promise<boolean>;
-  /** Gives an engagement (open or closed) to another staff user, or to nobody. The engagement, or null when there is none. The caller checks the user is staff. */
-  reassign(id: string, ownedBy: string | null): Promise<CareEngagementRow | null>;
+  /**
+   * Hand-overs need both sides (docs/HEDGIE_CARE.md, "Owners"): a plan, open or closed, changes owner only when the receiver
+   * accepts, and the database refuses any other change of `owned_by`. The steps answer for the signed-in caller: the owner (or
+   * an admin on their behalf) proposes to a staff member who may own plans, who accepts or declines; the proposer, the owner
+   * or an admin cancels; a plan with no owner is claimed. The plan keeps its owner while an offer is pending; one offer per plan.
+   * A refusal is a result (`HandoverRefusal`), not a throw. The pending offer is `handover_to` / `handover_by` / `handover_at` on the row.
+   */
+  proposeHandover(id: string, toUserId: string): Promise<HandoverResult>;
+  /** The receiver accepts the offer: they are the owner now and the offer is gone. */
+  acceptHandover(id: string): Promise<HandoverResult>;
+  /** The receiver declines the offer: the owner stays and the offer is gone. */
+  declineHandover(id: string): Promise<HandoverResult>;
+  /** The proposer, the owner or an admin takes the offer back. */
+  cancelHandover(id: string): Promise<HandoverResult>;
+  /** A staff member who may own plans takes a plan that has no owner (its owner's account was removed). */
+  claim(id: string): Promise<HandoverResult>;
 }
 
 const UNIQUE_VIOLATION = "23505";
@@ -195,6 +216,20 @@ function startChange(
       ...(wasOpening(current.last_member_message_at) ? { last_member_message_at: newPlaceholder } : {}),
     },
   };
+}
+
+const HANDOVER_PREFIX = "care_handover:";
+
+/** What a hand-over function answers (a one-row set, or a `care_handover:<reason>` refusal) as a result; any other database error throws. */
+function handoverResult(answer: { data: CareEngagementRow[] | null; error: { message: string } | null }): HandoverResult {
+  if (answer.error) {
+    const reason = answer.error.message.startsWith(HANDOVER_PREFIX) ? answer.error.message.slice(HANDOVER_PREFIX.length) : "";
+    if ((HANDOVER_REFUSALS as readonly string[]).includes(reason)) return { ok: false, reason: reason as HandoverRefusal };
+    throw new Error(answer.error.message);
+  }
+  const row = answer.data?.[0];
+  // A function that raised nothing and returned nothing: the plan went between the steps. Said the way a missing plan is.
+  return row ? { ok: true, engagement: row } : { ok: false, reason: "not_found" };
 }
 
 export class SupabaseCareRepository implements CareRepository {
@@ -353,10 +388,24 @@ export class SupabaseCareRepository implements CareRepository {
     return data === true;
   }
 
-  async reassign(id: string, ownedBy: string | null) {
-    const { data, error } = await this.db.from("care_engagements").update({ owned_by: ownedBy }).eq("id", id).is("deleted_at", null).select("*").maybeSingle();
-    if (error) throw new Error(error.message);
-    return data;
+  async proposeHandover(id: string, toUserId: string) {
+    return handoverResult(await this.db.rpc("propose_care_handover", { p_id: id, p_to: toUserId }));
+  }
+
+  async acceptHandover(id: string) {
+    return handoverResult(await this.db.rpc("accept_care_handover", { p_id: id }));
+  }
+
+  async declineHandover(id: string) {
+    return handoverResult(await this.db.rpc("decline_care_handover", { p_id: id }));
+  }
+
+  async cancelHandover(id: string) {
+    return handoverResult(await this.db.rpc("cancel_care_handover", { p_id: id }));
+  }
+
+  async claim(id: string) {
+    return handoverResult(await this.db.rpc("claim_care_plan", { p_id: id }));
   }
 
   async softDelete(id: string, at: string) {
@@ -381,9 +430,37 @@ function twinId(n: number): string {
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
-/** In-memory twin over an `InMemoryDataset`, enforcing the constraints the database does. */
+/**
+ * In-memory twin over an `InMemoryDataset`, enforcing the constraints the database does. The hand-over steps answer for the
+ * signed-in caller, which the database knows from the session: the twin has none, so it is told who `signedInAs` is (an auth user
+ * id whose role is in the dataset's `userProfiles`); with none, every step is refused as `not_allowed`.
+ */
 export class InMemoryCareRepository implements CareRepository {
-  constructor(private readonly data: InMemoryDataset) {}
+  constructor(
+    private readonly data: InMemoryDataset,
+    private readonly signedInAs: string | null = null
+  ) {}
+
+  private roleOf(userId: string | null): string | null {
+    return userId ? (this.data.userProfiles.find((p) => p.id === userId)?.role ?? "member") : null;
+  }
+
+  /** `can_own_care_plans`: an admin or a community manager; an assistant or a member is not. */
+  private mayOwn(userId: string | null) {
+    const role = this.roleOf(userId);
+    return role === "admin" || role === "community_manager";
+  }
+
+  private handover(id: string, step: (plan: CareEngagementRow, me: string) => HandoverRefusal | null): HandoverResult {
+    const me = this.signedInAs;
+    if (!me || !this.mayOwn(me)) return { ok: false, reason: "not_allowed" };
+    const plan = this.live().find((c) => c.id === id);
+    if (!plan) return { ok: false, reason: "not_found" };
+    const refusal = step(plan, me);
+    if (refusal) return { ok: false, reason: refusal };
+    plan.updated_at = new Date().toISOString();
+    return { ok: true, engagement: { ...plan } };
+  }
 
   private live() {
     return this.data.careEngagements.filter((c) => c.deleted_at === null);
@@ -434,6 +511,9 @@ export class InMemoryCareRepository implements CareRepository {
       id: this.nextId(),
       ...insertOf(engagement),
       channel: "other", // the deprecated column's database default
+      handover_to: null,
+      handover_by: null,
+      handover_at: null,
       renewed_from: null,
       closed_at: null,
       ended_how: null,
@@ -451,7 +531,9 @@ export class InMemoryCareRepository implements CareRepository {
     if (!DAY.test(input.periodEndsOn)) throw new Error("invalid input syntax for type date");
     this.checkText(input.reason, null);
     const now = new Date().toISOString();
-    Object.assign(previous, { closed_at: input.at, ended_how: "renewed", updated_at: now });
+    // A pending hand-over follows the plan that is live: the closed one no longer shows it, the new one carries it.
+    const offer = { handover_to: previous.handover_to, handover_by: previous.handover_by, handover_at: previous.handover_at };
+    Object.assign(previous, { closed_at: input.at, ended_how: "renewed", updated_at: now, handover_to: null, handover_by: null, handover_at: null });
     const row: CareEngagementRow = {
       id: this.nextId(),
       member_id: previous.member_id,
@@ -459,6 +541,7 @@ export class InMemoryCareRepository implements CareRepository {
       owned_by: previous.owned_by,
       reason: previous.reason,
       channel: "other",
+      ...offer,
       opened_at: input.at,
       period_ends_on: input.periodEndsOn,
       renewed_from: previous.id,
@@ -538,12 +621,49 @@ export class InMemoryCareRepository implements CareRepository {
     return this.data.members.some((m) => m.id === memberId);
   }
 
-  async reassign(id: string, ownedBy: string | null) {
-    const row = this.live().find((c) => c.id === id);
-    if (!row) return null;
-    row.owned_by = ownedBy;
-    row.updated_at = new Date().toISOString();
-    return { ...row };
+  async proposeHandover(id: string, toUserId: string): Promise<HandoverResult> {
+    return this.handover(id, (plan, me) => {
+      if (plan.owned_by !== me && this.roleOf(me) !== "admin") return "not_allowed";
+      if (!this.mayOwn(toUserId)) return "receiver_not_allowed";
+      if (toUserId === plan.owned_by) return "same_owner";
+      if (toUserId === me) return "self";
+      if (plan.handover_to !== null) return "already_pending";
+      Object.assign(plan, { handover_to: toUserId, handover_by: me, handover_at: new Date().toISOString() });
+      return null;
+    });
+  }
+
+  async acceptHandover(id: string): Promise<HandoverResult> {
+    return this.handover(id, (plan, me) => {
+      if (plan.handover_to !== me) return "no_handover";
+      Object.assign(plan, { owned_by: me, handover_to: null, handover_by: null, handover_at: null });
+      return null;
+    });
+  }
+
+  async declineHandover(id: string): Promise<HandoverResult> {
+    return this.handover(id, (plan, me) => {
+      if (plan.handover_to !== me) return "no_handover";
+      Object.assign(plan, { handover_to: null, handover_by: null, handover_at: null });
+      return null;
+    });
+  }
+
+  async cancelHandover(id: string): Promise<HandoverResult> {
+    return this.handover(id, (plan, me) => {
+      if (plan.handover_to === null) return "no_handover";
+      if (me !== plan.handover_by && me !== plan.owned_by && this.roleOf(me) !== "admin") return "not_allowed";
+      Object.assign(plan, { handover_to: null, handover_by: null, handover_at: null });
+      return null;
+    });
+  }
+
+  async claim(id: string): Promise<HandoverResult> {
+    return this.handover(id, (plan, me) => {
+      if (plan.owned_by !== null) return "has_owner";
+      Object.assign(plan, { owned_by: me, handover_to: null, handover_by: null, handover_at: null });
+      return null;
+    });
   }
 
   async softDelete(id: string, at: string) {

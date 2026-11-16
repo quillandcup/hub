@@ -4,6 +4,8 @@ import { blocksToBody } from "@/lib/chat/rich-blocks";
 import { parseUnfurls, unfurlTexts, withoutLessonPreview, type Unfurl } from "@/lib/chat/unfurls";
 import { proxyUnfurlImages } from "@/lib/chat/unfurl-images";
 import { withLinkPreviews } from "@/lib/chat/link-preview-cards";
+import { hubLinksIn } from "@/lib/chat/hub-links";
+import { hubLinkUnfurls, withHubLinks } from "@/lib/chat/hub-link-cards";
 import type { LinkPreview } from "@/lib/data/chat-link-previews";
 import { parseSharedMessage, sharedMessageSource, type SharedSourceLookup } from "@/lib/chat/shared-message";
 import { sharedSourceKey, type SharedSourceRow } from "@/lib/data/chat";
@@ -291,17 +293,30 @@ export interface MessagePage {
   messages: MessageRow[];
   /** created_at to pass as ?before= for the page of older messages, when there is one. */
   olderBefore: string | null;
+  /** created_at to pass as `?after=` for the messages after a window that started at a date, when there are more. */
+  newerAfter?: string | null;
 }
 
 /** Top-level messages, newest page first, or one thread's replies in order. */
 export async function loadMessages(
   repos: ChatLoadRepos,
   channelId: string,
-  opts: { before?: string | null; threadRootId?: string | null } = {}
+  opts: { before?: string | null; from?: string | null; fromExclusive?: boolean; threadRootId?: string | null } = {}
 ): Promise<MessagePage> {
   const { chat } = repos;
   if (opts.threadRootId) {
     return { messages: await ignoringErrors(chat.threadMessages(channelId, opts.threadRootId, THREAD_LIMIT)), olderBefore: null };
+  }
+
+  if (opts.from) {
+    // A window that starts at a date: that day's first message (or the next day's, when nothing was posted) and on.
+    const rows = await ignoringErrors(chat.channelMessagesFrom(channelId, { from: opts.from, exclusive: opts.fromExclusive, limit: MESSAGE_PAGE_SIZE + 1 }));
+    const messages = rows.slice(0, MESSAGE_PAGE_SIZE);
+    const newerAfter = rows.length > MESSAGE_PAGE_SIZE ? messages[messages.length - 1].created_at : null;
+    // Older ones are read from just before the window's first message (or before the date, when the window is empty).
+    const edge = messages[0]?.created_at ?? opts.from;
+    const older = await ignoringErrors(chat.channelMessages(channelId, { before: edge, limit: 1 }));
+    return { messages, olderBefore: older.length > 0 ? edge : null, newerAfter };
   }
 
   const rows = await ignoringErrors(chat.channelMessages(channelId, { before: opts.before, limit: MESSAGE_PAGE_SIZE + 1 }));
@@ -415,7 +430,7 @@ export function botOf(raw: unknown): { name: string; icon: string | null } | nul
   return { name: name.trim().slice(0, 100), icon: typeof icon === "string" && /^https:\/\//i.test(icon) ? icon : null };
 }
 
-const contentOf = (row: MessageRow) =>
+export const contentOf = (row: MessageRow) =>
   Array.isArray(row.chat_message_contents) ? row.chat_message_contents[0] : row.chat_message_contents;
 
 /**
@@ -423,7 +438,7 @@ const contentOf = (row: MessageRow) =>
  * the body is rebuilt from the blocks (lib/chat/rich-blocks.ts), kept the way the message was written (a Hub message
  * unescaped, a Slack one in Slack's escapes).
  */
-const bodyOf = (row: MessageRow): string | null => {
+export const bodyOf = (row: MessageRow): string | null => {
   const content = contentOf(row);
   if (!content) return null;
   return blocksToBody(content.blocks, { plain: row.origin === "app" }) ?? content.body;
@@ -464,9 +479,11 @@ export function loadReactionRows(repos: ChatLoadRepos, messageIds: string[]) {
 }
 
 /** Fills a share with what this viewer may see of the message it quotes. The embedded copy is always shown; a failed lookup (null) only means no Hub link. */
-export function withShareSource(u: Extract<Unfurl, { kind: "share" }>, sources: Map<string, SharedSourceRow> | null): Extract<Unfurl, { kind: "share" }> {
-  const shared = parseSharedMessage(u.attachment);
-  if (!shared) return u;
+export function withShareSource(u: Extract<Unfurl, { kind: "share" }>, sources: Map<string, SharedSourceRow> | null, channelNames: Record<string, string> = {}): Extract<Unfurl, { kind: "share" }> {
+  const parsed = parseSharedMessage(u.attachment);
+  if (!parsed) return u;
+  // The channel line is the Hub's own channel name by id (public channels), when Slack's attachment named none.
+  const shared = { ...parsed, channelName: parsed.channelName ?? (parsed.slackChannelId ? (channelNames[parsed.slackChannelId] ?? null) : null) };
   let lookup: SharedSourceLookup | undefined;
   if (sources) {
     const row = shared.slackChannelId && shared.ts ? sources.get(sharedSourceKey(shared.slackChannelId, shared.ts)) : undefined;
@@ -479,13 +496,22 @@ export function withShareSource(u: Extract<Unfurl, { kind: "share" }>, sources: 
   return { ...u, shared, source: sharedMessageSource(lookup) };
 }
 
+export interface ViewOptions {
+  /**
+   * Whether this viewer gets cards for links to the Hub (the `chat_link_cards` feature, per viewer). Asked only when a message has such
+   * a link, so a conversation without one never pays for the flag lookup. Absent: no cards, and Slack's own card for the link stays.
+   */
+  hubLinkCards?: () => Promise<boolean>;
+}
+
 /** Messages with their authors' names, reactions and body state, ready to render. */
 export async function buildMessageViews(
   repos: ChatLoadRepos,
   channel: Pick<ChannelSummary, "slackChannelId">,
   allRows: MessageRow[],
   viewerMemberId: string,
-  timer?: StageTimer
+  timer?: StageTimer,
+  opts: ViewOptions = {}
 ): Promise<ChatMessages> {
   // A deleted message is not shown at all. Exception: a deleted thread root that still has
   // live replies stays as a row with no content (the UI shows a tombstone), so its replies link
@@ -525,6 +551,10 @@ export async function buildMessageViews(
     })
   );
 
+  // Links to the Hub in the messages: cards for them are the viewer's own flag, asked once and only when there is one to draw.
+  const hasHubLink = opts.hubLinkCards ? rows.some((r) => hubLinksIn(bodyOf(r), APP_URL).length > 0) : false;
+  const hubCardsOn = hasHubLink && opts.hubLinkCards ? opts.hubLinkCards().catch(() => false) : Promise.resolve(false);
+
   const [profiles, slackAuthorByTs, reactionRows, replies, userMembers, hubNames, channelNames, sharedVideos, linkPreviews, hiddenCards, sharedSources] = await Promise.all([
     t("b1.profiles", memberProfiles(repos, matched)),
     t(
@@ -537,7 +567,7 @@ export async function buildMessageViews(
     t("b1.replyAuthors", loadReplyAuthors(repos, threadRoots)),
     t("b1.userMembers", slackUserMemberIds(mentioned)),
     t("b1.hubNames", slackUserHubNames(mentionedInNotices)),
-    t("b1.channelNames", slackChannelNames(rows.flatMap((r) => mentionedChannelIds(`${bodyOf(r) ?? ""}\n${unfurlText(r)}`)))),
+    t("b1.channelNames", slackChannelNames([...rows.flatMap((r) => mentionedChannelIds(`${bodyOf(r) ?? ""}\n${unfurlText(r)}`)), ...shareRefs.map((s) => s.slackChannelId)])),
     // A failed read only hides the card (the message and its text still show), so it never fails the page.
     t("b1.sharedVideos", repos.chatVideos.lessonIdsOf(rows.map((r) => r.id)).catch((e) => { console.error("chat shared videos failed:", e); return new Map<string, string>(); })),
     // The cards the Hub made for links in Hub-written messages, read as the viewer. A failed read only hides them.
@@ -572,6 +602,7 @@ export async function buildMessageViews(
           })
     ),
   ]);
+  const hubCards = await hubCardsOn;
   timer?.mark("views.batch1");
 
   const replyList = [...replies.values()].flat();
@@ -644,8 +675,12 @@ export async function buildMessageViews(
     const parsed = contentState === "ok" ? unfurlsByRow.get(row.id) : undefined;
     // Pictures on other people's servers go through our own route, so those servers never see who looked (lib/chat/unfurl-images.ts).
     // Only a message that is shown gets proxy addresses; the logo is position 0 and counts whether or not it is used below.
+    const withPreviews = (parsed: { unfurls: Unfurl[] }) =>
+      withLinkPreviews(withoutLessonPreview(parsed.unfurls, sharedLesson).map((u) => (u.kind === "share" ? withShareSource(u, sharedSources, channelNames) : u)), hiddenCards ? linkPreviews.get(row.id) : undefined, hiddenCards?.get(row.id));
+    // Links to the Hub get a card of their own (decided per viewer when it draws), and Slack's card for the same link, the sign-in page, goes.
+    const hubLinks = hubCards && parsed && body ? hubLinkUnfurls(body, APP_URL) : [];
     const proxied = parsed
-      ? proxyUnfurlImages(row.id, withLinkPreviews(withoutLessonPreview(parsed.unfurls, sharedLesson).map((u) => (u.kind === "share" ? withShareSource(u, sharedSources) : u)), hiddenCards ? linkPreviews.get(row.id) : undefined, hiddenCards?.get(row.id)), bot?.icon ?? null)
+      ? proxyUnfurlImages(row.id, withHubLinks(withPreviews(parsed), hubLinks, hiddenCards ? (hiddenCards.get(row.id) ?? new Set<string>()) : null), bot?.icon ?? null)
       : null;
     const author =
       (row.author_member_id ? profiles.get(row.author_member_id) : undefined) ??

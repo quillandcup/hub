@@ -65,7 +65,7 @@ describe("CourseDetailsForm, creating", () => {
   });
 
   it("marks each field the server refused, in the field's own description, and doesn't leave the page", async () => {
-    createCourse.mockResolvedValue({ fieldErrors: { title: "Give the course a name.", accessChoice: "Choose how long access lasts.", slug: "Another course already uses that address." } });
+    createCourse.mockResolvedValue({ fieldErrors: { title: "Give the course a name.", accessChoice: "Choose how long access lasts.", slug: "Another course uses that address now or used to." } });
     const user = userEvent.setup();
     render(<CourseDetailsForm initial={BLANK} programs={PROGRAMS} />);
     await user.click(screen.getByRole("button", { name: "Create course" }));
@@ -75,7 +75,7 @@ describe("CourseDetailsForm, creating", () => {
     expect(screen.getByLabelText("Name")).toHaveAccessibleDescription("Give the course a name.");
     expect(screen.getByLabelText("Access length")).toHaveAccessibleDescription("Choose how long access lasts.");
     // A hint and an error are both read with the field, and neither is part of its name.
-    expect(screen.getByLabelText("Address")).toHaveAccessibleDescription(/Members open it at.*Another course already uses that address\./);
+    expect(screen.getByLabelText("Address")).toHaveAccessibleDescription(/Members open it at.*Another course uses that address now or used to\./);
     // One alert per refused field, plus the summary beside the button.
     expect(screen.getAllByRole("alert")).toHaveLength(4);
     expect(screen.getByText("Fix what's marked and save again.")).toBeInTheDocument();
@@ -117,9 +117,56 @@ describe("CourseDetailsForm, editing", () => {
     expect(router.push).not.toHaveBeenCalled();
   });
 
-  it("warns that changing the address breaks links people have", () => {
+  it("says old links keep working for a course that is or was published, and says nothing for one that never was", () => {
+    const { unmount } = render(<CourseDetailsForm courseId={COURSE} everPublished initial={initial} programs={PROGRAMS} />);
+    expect(screen.getByText(/Links to its old addresses keep working/)).toBeInTheDocument();
+    expect(screen.queryByText(/breaks links/)).not.toBeInTheDocument();
+    unmount();
     render(<CourseDetailsForm courseId={COURSE} initial={initial} programs={PROGRAMS} />);
-    expect(screen.getByText(/Changing it breaks links people already have/)).toBeInTheDocument();
+    expect(screen.queryByText(/old addresses/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/breaks links/)).not.toBeInTheDocument();
+  });
+
+  it("offers the new name's address when the address was following the name, and takes it on one click", async () => {
+    updateCourseDetails.mockResolvedValue({ id: COURSE });
+    const user = userEvent.setup();
+    render(<CourseDetailsForm courseId={COURSE} initial={initial} programs={PROGRAMS} />);
+    expect(screen.queryByRole("button", { name: /^Use / })).not.toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText("Name"));
+    await user.type(screen.getByLabelText("Name"), "Finish Your Novel");
+    // A suggestion, not an overwrite: the address is as it was until it is taken.
+    expect(screen.getByLabelText("Address")).toHaveValue("the-ready-writer");
+    await user.click(screen.getByRole("button", { name: "Use finish-your-novel" }));
+    expect(screen.getByLabelText("Address")).toHaveValue("finish-your-novel");
+    expect(screen.queryByRole("button", { name: /^Use / })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(updateCourseDetails).toHaveBeenCalledWith(COURSE, expect.objectContaining({ title: "Finish Your Novel", slug: "finish-your-novel" }));
+  });
+
+  it("offers it for a duplicate's placeholder address once the name loses its (copy)", async () => {
+    const user = userEvent.setup();
+    render(<CourseDetailsForm courseId={COURSE} initial={{ ...initial, title: "The Ready Writer (copy)", slug: "the-ready-writer-copy" }} programs={PROGRAMS} />);
+    expect(screen.queryByRole("button", { name: /^Use / })).not.toBeInTheDocument();
+    await user.clear(screen.getByLabelText("Name"));
+    await user.type(screen.getByLabelText("Name"), "Ready Writer Two");
+    expect(screen.getByRole("button", { name: "Use ready-writer-two" })).toBeInTheDocument();
+  });
+
+  it("leaves an address that was chosen by hand alone", async () => {
+    const user = userEvent.setup();
+    render(<CourseDetailsForm courseId={COURSE} initial={{ ...initial, slug: "writer-bootcamp" }} programs={PROGRAMS} />);
+    await user.clear(screen.getByLabelText("Name"));
+    await user.type(screen.getByLabelText("Name"), "Finish Your Novel");
+    expect(screen.queryByRole("button", { name: /^Use / })).not.toBeInTheDocument();
+  });
+
+  it("doesn't suggest anything while creating: the address comes from the name when left empty", async () => {
+    const user = userEvent.setup();
+    render(<CourseDetailsForm initial={BLANK} programs={PROGRAMS} />);
+    await user.type(screen.getByLabelText("Name"), "Finish Your Novel");
+    expect(screen.queryByRole("button", { name: /^Use / })).not.toBeInTheDocument();
   });
 
   it("shows why a save was refused, without saying Saved", async () => {

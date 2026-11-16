@@ -70,11 +70,27 @@ describe("SharedMessageCard", () => {
     expect(screen.getByText("ada")).toBeTruthy();
   });
 
-  it("shows the channel line from Slack's footer when the attachment has no channel name, decoded", () => {
-    const f = parseSharedMessage({ is_share: true, text: "hi", footer: "Posted in #r&amp;d <b>" })!;
+  it("never shows Slack's footer as the channel line, and shows no line when no name is known", () => {
+    const f = parseSharedMessage({ is_share: true, text: "hi", footer: "Slack Conversation" })!;
     render(<SharedMessageCard shared={f} source={{ hubUrl: null, deleted: false }} ctx={ctx} />);
-    expect(screen.getByTestId("shared-message-card").textContent).toContain("Posted in #r&d <b>");
-    expect(screen.getByTestId("shared-message-card").textContent).not.toContain("&amp;");
+    expect(screen.getByTestId("shared-message-card").textContent).not.toContain("Slack Conversation");
+    expect(screen.getByTestId("shared-message-card").textContent).not.toContain("Posted in");
+  });
+
+  it("shows 'Posted in #name' for a name the loader filled in", () => {
+    const f = { ...parseSharedMessage({ is_share: true, text: "hi" })!, channelName: "cody-test1" };
+    render(<SharedMessageCard shared={f} source={{ hubUrl: null, deleted: false }} ctx={ctx} />);
+    expect(screen.getByTestId("shared-message-card").textContent).toContain("Posted in #cody-test1");
+  });
+
+  it("has dark styling on the box, text, link, accent and the X's own classes", () => {
+    render(<SharedMessageCard shared={shared} source={readable} ctx={ctx} />);
+    const card = screen.getByTestId("shared-message-card");
+    for (const c of ["dark:bg-slate-800/40", "dark:border-mist-700", "dark:hover:bg-slate-800/70"]) expect(card.className).toContain(c);
+    expect(screen.getByRole("link", { name: "View in Chat" }).className).toContain("dark:text-plum-400");
+    expect(screen.getByRole("link", { name: "View in Chat" }).className).toContain("dark:focus-visible:after:ring-plum-400");
+    expect(card.innerHTML).not.toMatch(/text-gray-|bg-gray-/);
+    for (const el of card.querySelectorAll("[class*='text-slate-']")) expect(el.className).toMatch(/dark:text-/);
   });
 
   describe("the time", () => {

@@ -30,7 +30,7 @@ const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]
   [() => import("@/app/(member)/bookshelf/actions"), "app/(member)/bookshelf/actions.ts", [["addBook", "book_added"], ["updateBook", "book_edited"], ["deleteBook", "book_deleted"]]],
   [() => import("@/app/(member)/awards/actions"), "app/(member)/awards/actions.ts", [["addAward", "award_added"], ["updateAward", "award_edited"], ["deleteAward", "award_deleted"]]],
   [() => import("@/app/(member)/courses/actions"), "app/(member)/courses/actions.ts", [["setLessonComplete", "lesson_completion_saved"], ["clearMyLessonProgress", "lesson_progress_cleared"]]],
-  [() => import("@/app/(member)/chat/actions"), "app/(member)/chat/actions.ts", [["sendChatMessage", "chat_message_sent"], ["toggleChatReaction", "chat_reaction_toggled"], ["retryChatMessage", "chat_message_retried"]]],
+  [() => import("@/app/(member)/chat/actions"), "app/(member)/chat/actions.ts", [["sendChatMessage", "chat_message_sent"], ["toggleChatReaction", "chat_reaction_toggled"], ["retryChatMessage", "chat_message_retried"], ["markChatUnread", "chat_message_marked_unread"]]],
   [() => import("@/app/(member)/chat/notify-actions"), "app/(member)/chat/notify-actions.ts", [["setChatNotifySetting", "chat_notify_setting_set"]]],
   [() => import("@/app/(member)/chat/dm-actions"), "app/(member)/chat/dm-actions.ts", [["startDirectMessage", "chat_dm_started"]]],
   [() => import("@/app/(member)/chat/membership-actions"), "app/(member)/chat/membership-actions.ts", [["addChatMembers", "chat_members_added"], ["joinChatChannel", "chat_channel_joined"], ["removeChatMember", "chat_member_removed"]]],
@@ -69,9 +69,10 @@ const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]
   [
     () => import("@/app/(admin)/admin/care/actions"),
     "app/(admin)/admin/care/actions.ts",
-    [["startEngagement", "care_engagement_started"], ["logCareMessage", "care_message_logged"], ["updateEngagement", "care_engagement_updated"], ["closeEngagement", "care_engagement_closed"], ["renewEngagement", "care_engagement_renewed"], ["deleteEngagement", "care_engagement_deleted"], ["trackCareDm", "care_dm_tracked"], ["untrackCareDm", "care_dm_untracked"]],
+    [["startEngagement", "care_engagement_started"], ["logCareMessage", "care_message_logged"], ["updateEngagement", "care_engagement_updated"], ["closeEngagement", "care_engagement_closed"], ["renewEngagement", "care_engagement_renewed"], ["deleteEngagement", "care_engagement_deleted"], ["proposeCareHandover", "care_handover_proposed"], ["acceptCareHandover", "care_handover_accepted"], ["declineCareHandover", "care_handover_declined"], ["cancelCareHandover", "care_handover_cancelled"], ["claimCarePlan", "care_plan_claimed"]],
   ],
   [() => import("@/app/(admin)/admin/courses/take-over-actions"), "app/(admin)/admin/courses/take-over-actions.ts", [["takeOverCourse", "course_taken_over"]]],
+  [() => import("@/app/(admin)/admin/courses/duplicate-actions"), "app/(admin)/admin/courses/duplicate-actions.ts", [["duplicateCourse", "course_duplicated"]]],
   [() => import("@/app/api/feedback/route"), "app/api/feedback/route.ts", [["POST", "feedback_submitted"]]],
   [() => import("@/app/api/feature-previews/route"), "app/api/feature-previews/route.ts", [["POST", "feature_preview_changed"]]],
   [() => import("@/app/api/projects/import/trackbear/route"), "app/api/projects/import/trackbear/route.ts", [["POST", "trackbear_imported"]]],
@@ -80,6 +81,7 @@ const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]
   [() => import("@/app/api/media/route"), "app/api/media/route.ts", [["POST", "media_asset_uploaded"]]],
   [() => import("@/app/api/media/[id]/route"), "app/api/media/[id]/route.ts", [["PATCH", "media_asset_edited"], ["DELETE", "media_asset_deleted"]]],
   [() => import("@/app/api/media/from-event-photo/route"), "app/api/media/from-event-photo/route.ts", [["POST", "media_asset_copied_from_event"]]],
+  [() => import("@/app/(admin)/admin/hygiene/zoom-meetings/actions"), "app/(admin)/admin/hygiene/zoom-meetings/actions.ts", [["decideZoomMeetings", "zoom_meetings_decided"]]],
   [() => import("@/app/(member)/wheel-of-wonder/actions"), "app/(member)/wheel-of-wonder/actions.ts", [["spinWheel", "wheel_spun"], ["introduceOnSlack", "wheel_introduced"]]],
 ];
 

@@ -106,7 +106,7 @@ defineChatContract("InMemoryChatRepository", () => {
       data.careEngagements.push({
         id: `care_${String(++n).padStart(12, "A")}`, member_id: member, reason: "introduction", channel: "slack_dm", opened_by: owner, owned_by: owner,
         opened_at: "2026-11-01T00:00:00Z", closed_at: null, period_ends_on: "2026-12-01", last_staff_message_at: null, last_member_message_at: null,
-        notes: null, next_step: null, follow_up_on: null, ended_how: null, renewed_from: null, created_at: "2026-11-01T00:00:00Z", updated_at: "2026-11-01T00:00:00Z", deleted_at: null,
+        notes: null, next_step: null, follow_up_on: null, ended_how: null, renewed_from: null, handover_to: null, handover_by: null, handover_at: null, created_at: "2026-11-01T00:00:00Z", updated_at: "2026-11-01T00:00:00Z", deleted_at: null,
       });
     },
     seedMemberships: async (rows) => {

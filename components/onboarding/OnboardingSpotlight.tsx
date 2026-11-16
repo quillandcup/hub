@@ -190,7 +190,7 @@ export default function OnboardingSpotlight({
         // One box-shadow for both the plum outline and the dimming around it: a `ring` class would
         // be overridden by a separate dimming shadow. Darker dimming in dark mode, where the page
         // is already dark and a light veil barely shows.
-        className="fixed z-40 pointer-events-none rounded-lg shadow-[0_0_0_2px_theme(colors.plum.400),0_0_0_9999px_rgba(15,23,42,0.45)] dark:shadow-[0_0_0_2px_theme(colors.plum.400),0_0_0_9999px_rgba(0,0,0,0.65)]"
+        className="fixed z-overlay pointer-events-none rounded-lg shadow-[0_0_0_2px_theme(colors.plum.400),0_0_0_9999px_rgba(15,23,42,0.45)] dark:shadow-[0_0_0_2px_theme(colors.plum.400),0_0_0_9999px_rgba(0,0,0,0.65)]"
         style={{
           top: rect.top - PADDING,
           left: rect.left - PADDING,
@@ -202,8 +202,8 @@ export default function OnboardingSpotlight({
         ref={calloutRef}
         role="dialog"
         aria-label={step.calloutTitle}
-        // Above the mobile menu button (fixed, z-50), which would otherwise poke through it.
-        className="fixed z-[55] rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-4"
+        // Above the mobile menu button (fixed, z-overlay), which would otherwise poke through it.
+        className="fixed z-overlay-top rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-4"
         style={{ top, left, width: calloutW }}
       >
         <p className="text-xs font-medium text-plum-600 dark:text-plum-400">

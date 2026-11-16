@@ -525,6 +525,54 @@ describe('Members stripe_customer_id matching', () => {
   })
 })
 
+describe('Members stripe_customer_id with two customers on one email', () => {
+  const supabase = getTestSupabaseAdminClient()
+  const ts = Date.now()
+  const email = `stripe-two-cust-${ts}@example.com`
+  const olderLive = `cus_two_older_${ts}`
+  const newerEmpty = `cus_two_newer_${ts}`
+  const subId = `sub_two_${ts}`
+
+  beforeAll(async () => {
+    await supabase.schema('bronze').from('kajabi_contacts').insert({
+      kajabi_contact_id: `stripe-two-contact-${ts}`,
+      email,
+      name: 'Ada Example',
+      created_at_kajabi: '2022-01-01T00:00:00Z',
+      data: {},
+    })
+    await supabase.schema('bronze').from('stripe_customers').insert([
+      { stripe_customer_id: olderLive, email, created_at_stripe: '2022-01-01T00:00:00Z', data: {} },
+      { stripe_customer_id: newerEmpty, email, created_at_stripe: '2024-01-01T00:00:00Z', data: {} },
+    ])
+    await supabase.schema('bronze').from('stripe_subscriptions').insert({
+      stripe_subscription_id: subId,
+      stripe_customer_id: olderLive,
+      status: 'active',
+      created_at_stripe: '2022-01-01T00:00:00Z',
+      data: {},
+    })
+  })
+
+  afterAll(async () => {
+    await supabase.schema('bronze').from('stripe_subscriptions').delete().eq('stripe_subscription_id', subId)
+    await supabase.schema('bronze').from('stripe_customers').delete().in('stripe_customer_id', [olderLive, newerEmpty])
+    await supabase.schema('bronze').from('kajabi_contacts').delete().eq('email', email)
+    await supabase.from('members').delete().eq('email', email)
+  })
+
+  it('links the customer that holds the live subscription, not the newest', async () => {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/members`, {
+      method: 'POST',
+      headers: getTestAuthHeaders(),
+    })
+    expect(response.ok).toBe(true)
+
+    const { data: member } = await supabase.from('members').select('stripe_customer_id').eq('email', email).single()
+    expect(member?.stripe_customer_id).toBe(olderLive)
+  })
+})
+
 /**
  * Member tenure fields (first_joined_at, most_recent_joined_at,
  * total_active_months) computed during reprocessing — see

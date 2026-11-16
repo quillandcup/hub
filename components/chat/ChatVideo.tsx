@@ -1,24 +1,59 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import LessonPlayer from "@/components/courses/LessonPlayer";
+import { SKIN_TOKENS } from "@/components/courses/skin-theme";
+import { LessonCompletionProvider, useLessonCompletion } from "@/components/courses/LessonCompletion";
 import type { PlaybackTokens } from "@/lib/mux";
+import type { MuxDataConsent } from "@/lib/mux-data";
 
 /** What the card shows before play, from GET /api/chat/videos/<message id>; `canWatch` null until it has answered (or when it couldn't). */
 interface CardInfo {
   title: string | null;
   courseTitle: string | null;
   thumbnailUrl: string | null;
+  /** The lesson's page, when this viewer has the course. */
+  lessonHref: string | null;
   canWatch: boolean | null;
 }
 
 type State =
   | { kind: "idle" }
   | { kind: "loading" }
-  | { kind: "ready"; title: string; lessonId: string; playbackId: string; tokens: PlaybackTokens; restricted: boolean; record: boolean; resumeSeconds: number }
+  | { kind: "ready"; title: string; lessonId: string; lessonHref: string | null; playbackId: string; tokens: PlaybackTokens; restricted: boolean; muxData: MuxDataConsent | null; record: boolean; resumeSeconds: number; completion: { completed: boolean } | null }
   | { kind: "error"; message: string };
 
-const NO_INFO: CardInfo = { title: null, courseTitle: null, thumbnailUrl: null, canWatch: null };
+/**
+ * The way to the lesson's own page, in the corner of the card and of the player (YouTube's "Watch on YouTube"): there before anything is played,
+ * a smaller icon-only pill while the video plays. Drawn with the player skin's own tokens (`.lesson-open-link`, app/globals.css), so the
+ * wrapper brings those into scope when it sits on the card, outside the skin; inside the player it changes nothing.
+ */
+function OpenLessonLink({ href }: { href: string }) {
+  return (
+    <span className="media-skin contents" style={SKIN_TOKENS}>
+      <Link href={href} target="_blank" rel="noopener noreferrer" data-track="chat-video-open-lesson" className="lesson-open-link">
+        <svg viewBox="0 0 24 24" className="lesson-open-link-icon" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M7 17 17 7M8 7h9v9" />
+        </svg>
+        <span className="lesson-open-link-label">Open lesson</span>
+      </Link>
+    </span>
+  );
+}
+
+/** Under the title of a video whose lesson the member has completed (by watching it through, here or on the lesson page): says so, and nothing otherwise. */
+function CompleteNote() {
+  const completion = useLessonCompletion();
+  return (
+    <div className="px-3 pb-2" role="status">
+      {completion?.completed && <p className="text-xs text-slate-600 dark:text-slate-400">✓ Lesson complete</p>}
+      {completion?.error && <p className="text-xs text-red-600 dark:text-red-400">{completion.error}</p>}
+    </div>
+  );
+}
+
+const NO_INFO: CardInfo = { title: null, courseTitle: null, thumbnailUrl: null, lessonHref: null, canWatch: null };
 
 /**
  * A course lesson's video shared in a message. The card shows the lesson's thumbnail, title and course as soon as it appears (one light
@@ -38,7 +73,7 @@ export default function ChatVideo({ messageId }: { messageId: string }) {
     fetch(`/api/chat/videos/${messageId}`)
       .then(async (res) => (res.ok ? ((await res.json()) as Partial<CardInfo>) : null))
       .then((info) => {
-        if (alive && info) setCard({ title: info.title ?? null, courseTitle: info.courseTitle ?? null, thumbnailUrl: info.thumbnailUrl ?? null, canWatch: typeof info.canWatch === "boolean" ? info.canWatch : null });
+        if (alive && info) setCard({ title: info.title ?? null, courseTitle: info.courseTitle ?? null, thumbnailUrl: info.thumbnailUrl ?? null, lessonHref: info.lessonHref ?? null, canWatch: typeof info.canWatch === "boolean" ? info.canWatch : null });
       })
       .catch(() => {});
     return () => {
@@ -59,30 +94,46 @@ export default function ChatVideo({ messageId }: { messageId: string }) {
         setState({ kind: "error", message: res.status === 429 ? "Too many videos opened just now. Try again in a few minutes." : "This video isn't available right now." });
         return;
       }
-      const body = (await res.json()) as { title: string; lessonId: string; playbackId: string; tokens: PlaybackTokens; restricted: boolean; record: boolean; resumeSeconds: number };
-      setState({ kind: "ready", ...body });
+      const body = (await res.json()) as { title: string; lessonId: string; lessonHref?: string | null; playbackId: string; tokens: PlaybackTokens; restricted: boolean; muxData?: MuxDataConsent | null; record: boolean; resumeSeconds: number; completion?: { completed: boolean } | null };
+      setState({ kind: "ready", ...body, muxData: body.muxData ?? null, lessonHref: body.lessonHref ?? null, completion: body.completion ?? null });
     } catch {
       setState({ kind: "error", message: "This video isn't available right now." });
     }
   }
 
   if (state.kind === "ready") {
+    const media = (
+          <LessonPlayer
+            title={state.title}
+            playbackId={state.playbackId}
+            tokens={state.tokens}
+            restricted={state.restricted}
+            muxData={state.muxData}
+            lessonId={state.lessonId}
+            chatMessageId={messageId}
+            resumeSeconds={state.resumeSeconds}
+            trackProgress={state.record}
+            autoPlay
+            // The card's own thumbnail as the player's poster, so opening it doesn't swap to a different frame (Mux's, from two seconds in) before the video starts.
+            posterUrl={card.thumbnailUrl && !imageFailed ? card.thumbnailUrl : null}
+            overlay={state.lessonHref ? <OpenLessonLink href={state.lessonHref} /> : null}
+          />
+    );
     return (
-      <div className="mt-2 max-w-xl overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
-        <LessonPlayer
-          title={state.title}
-          playbackId={state.playbackId}
-          tokens={state.tokens}
-          restricted={state.restricted}
-          lessonId={state.lessonId}
-          chatMessageId={messageId}
-          resumeSeconds={state.resumeSeconds}
-          trackProgress={state.record}
-          autoPlay
-          // The card's own thumbnail as the player's poster, so opening it doesn't swap to a different frame (Mux's, from two seconds in) before the video starts.
-          posterUrl={card.thumbnailUrl && !imageFailed ? card.thumbnailUrl : null}
-        />
-        <p className="px-3 py-2 text-sm font-medium text-slate-800 dark:text-slate-100">{state.title}</p>
+      <div className="isolate mt-2 max-w-xl overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
+        {state.completion ? (
+          // The same completion the lesson page keeps: the player completes the lesson once it is watched through (~90%).
+          <LessonCompletionProvider lessonId={state.lessonId} initiallyCompleted={state.completion.completed} readOnlyReason={null}>
+            {media}
+            <p className="px-3 pt-2 text-sm font-medium text-slate-800 dark:text-slate-100">{state.title}</p>
+            <CompleteNote />
+          </LessonCompletionProvider>
+        ) : (
+          <>
+            {media}
+            <p className="px-3 py-2 text-sm font-medium text-slate-800 dark:text-slate-100">{state.title}</p>
+          </>
+        )}
       </div>
     );
   }
@@ -104,7 +155,8 @@ export default function ChatVideo({ messageId }: { messageId: string }) {
 
   const busy = state.kind === "loading";
   return (
-    <div className="mt-2 max-w-xl overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
+    // `media-root` is the container the skin's own breakpoint (and the link's) measures, so the card narrows the link at the same width the player does.
+    <div className="relative isolate mt-2 max-w-xl overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 [container:media-root/inline-size]">
       <button
         type="button"
         onClick={open}
@@ -129,6 +181,7 @@ export default function ChatVideo({ messageId }: { messageId: string }) {
           <span className="block text-xs text-slate-600 dark:text-slate-400">{busy ? "Opening…" : subtitle}</span>
         </span>
       </button>
+      {card.lessonHref && <OpenLessonLink href={card.lessonHref} />}
       {state.kind === "error" && (
         <p role="alert" className="border-t border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
           {state.message}

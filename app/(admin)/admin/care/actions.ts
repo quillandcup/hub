@@ -25,16 +25,15 @@ import {
 } from "@/lib/care";
 import { loadCareMessages, type CareMessagesPage } from "@/lib/care-messages";
 import { loadCareResults } from "@/lib/care-results";
-import { isCareOwner } from "@/lib/care-owners";
-import { careOwnerOf } from "@/lib/care-dm-rules";
-import { findOwnDm, findOwnDmWith, projectCareFromDms, type CareDmServiceRepos, type StaffIdentity } from "@/lib/care-dm";
+import { HANDOVER_REFUSAL_MESSAGES } from "@/lib/care-handover";
+import { findOwnDmWith, projectCareFromDms, type CareDmServiceRepos, type StaffIdentity } from "@/lib/care-dm";
 import { clock } from "@/lib/clock";
 import { formatDateOnly } from "@/lib/formatters";
-import type { CareEngagementRow, CarePatch } from "@/lib/data/care";
+import type { CareEngagementRow, CarePatch, HandoverResult } from "@/lib/data/care";
 import { createRepos, type Repos } from "@/lib/data/repos";
 import { getServiceRepos } from "@/lib/data/server";
 import { isId, isUuid } from "@/lib/ids";
-import { getUserFeaturePreviews } from "@/lib/features.server";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { memberSearchItem } from "@/lib/member-search-item";
 import { orgYmd } from "@/lib/org-week";
 import { staffCan } from "@/lib/staff-access";
@@ -49,9 +48,7 @@ export type CareActionResult = { error: string } | { success: true };
 
 const NOT_AUTHORIZED = "Not authorized";
 const MISSING = "That care plan is gone.";
-const PAGES = ["/admin/care", "/admin/care/earlier", "/admin/care/dms"];
-/** A Slack conversation id: capital letters and digits (a DM's starts with D). Anything else is not one of ours to look up. */
-const SLACK_CHANNEL_ID = /^[A-Z0-9]{3,40}$/;
+const PAGES = ["/admin/care", "/admin/care/earlier"];
 
 const nowIso = () => new Date(clock.now()).toISOString();
 const revalidate = () => PAGES.forEach((path) => revalidatePath(path));
@@ -147,14 +144,14 @@ async function startImpl(repos: Repos, userId: string, input: StartEngagementInp
   const openedAt = careStartInstant(started.value, now);
   let result;
   try {
-    // Continuity: the member's latest engagement (newest first) keeps its owner; otherwise it is whoever starts this one.
-    const latest = (await repos.care.forMember(input.memberId))[0];
+    // A new care plan belongs to whoever starts it, never silently to the owner of the member's earlier plan: nobody is given a
+    // member's care without agreeing (a hand-over needs both sides). A renewal keeps its owner; that is the same person.
     result = await repos.care.open({
       memberId: input.memberId,
       reason: input.reason,
       periodEndsOn: periodEndsOn(openedAt),
       openedBy: userId,
-      ownedBy: latest?.owned_by ?? userId,
+      ownedBy: userId,
       openedAt: openedAt.toISOString(),
       firstMessageAt: careFirstMessageInstant(started.value, now).toISOString(),
       notes: notes.value,
@@ -168,18 +165,16 @@ async function startImpl(repos: Repos, userId: string, input: StartEngagementInp
   if (!result.ok) return { error: "There is already an open care plan with them. Log a message there, or renew it." };
 
   await mirrorToTimeline(repos, userId, result.engagement, "started");
-  // Who holds it follows the member's latest plan (continuity), so it is hers only when she is that owner: her DM is read for
-  // a plan she owns and for no one else's.
-  if (dms && careOwnerOf(result.engagement) === userId) await trackDmWithMember(repos, dms, input.memberId);
+  // The plan is hers, so her DM with them is read for it.
+  if (dms) await trackDmWithMember(repos, dms, input.memberId);
   revalidate();
   return { success: true };
 }
 
 /**
- * Starting a care plan tracks her 1:1 DM with that member, if she has one in Bronze, whatever the plan is about (she can stop
- * tracking it), and brings who spoke last up to date from it. Starting is a choice, so it tracks even a DM she stopped tracking
- * before. Best effort: the engagement is the record, so a failure here is logged (the error
- * message only, never anything from Slack) and the start still succeeds.
+ * A care plan is the reason a DM is tracked: starting one (or accepting one handed to her) tracks her 1:1 DM with that member, if
+ * she has one in Bronze, whatever the plan is about, and brings who spoke last up to date from it. Best effort: the care plan is
+ * the record, so a failure here is logged (the error message only, never anything from Slack) and the step still succeeds.
  */
 async function trackDmWithMember(repos: Repos, dms: DmTracking, memberId: string) {
   try {
@@ -308,20 +303,59 @@ async function renewImpl(repos: Repos, userId: string, id: string, why: unknown)
   return { success: true };
 }
 
-async function reassignImpl(repos: Repos, id: string, ownerId: unknown): Promise<CareActionResult> {
-  if (!isCareId(id)) return { error: MISSING };
-  if (typeof ownerId !== "string" || !isUuid(ownerId)) return { error: "Pick who it goes to." };
+/** What a hand-over step does, from the repository to the words: a refusal is the page's sentence, a plan is success. */
+async function handoverStep(step: string, run: () => Promise<HandoverResult>, onDone?: (plan: CareEngagementRow) => Promise<void>): Promise<CareActionResult> {
+  let result;
   try {
-    // Only staff who work Hedgie Care may own one; the profile's role says so (read with the service role: a community
-    // manager's own client cannot read other users' profiles).
-    if (!(await isCareOwner(getServiceRepos(), ownerId))) return { error: "Pick someone on the team." };
-    if (!(await repos.care.reassign(id, ownerId))) return { error: MISSING };
+    result = await run();
   } catch (error) {
-    console.error("[care] reassign failed:", error instanceof Error ? error.message : error);
-    return { error: "Couldn't hand it over." };
+    console.error(`[care] ${step} failed:`, error instanceof Error ? error.message : error);
+    return { error: "Couldn't do that. Try again." };
   }
+  if (!result.ok) return { error: HANDOVER_REFUSAL_MESSAGES[result.reason] };
+  if (onDone) await onDone(result.engagement);
   revalidate();
   return { success: true };
+}
+
+async function proposeImpl(repos: Repos, id: string, toUserId: unknown): Promise<CareActionResult> {
+  if (!isCareId(id)) return { error: MISSING };
+  if (typeof toUserId !== "string" || !isUuid(toUserId)) return { error: "Pick who it goes to." };
+  return handoverStep("propose a hand-over", () => repos.care.proposeHandover(id, toUserId));
+}
+
+async function acceptImpl(repos: Repos, id: string, dms?: DmTracking): Promise<CareActionResult> {
+  if (!isCareId(id)) return { error: MISSING };
+  // Becoming the owner is the reason to read her own DM with them: track it, and bring who spoke last up to date from it.
+  return handoverStep("accept a hand-over", () => repos.care.acceptHandover(id), async (plan) => {
+    if (dms && plan.closed_at === null) await trackDmWithMember(repos, dms, plan.member_id);
+  });
+}
+
+async function declineImpl(repos: Repos, id: string): Promise<CareActionResult> {
+  if (!isCareId(id)) return { error: MISSING };
+  return handoverStep("decline a hand-over", () => repos.care.declineHandover(id));
+}
+
+async function cancelImpl(repos: Repos, id: string): Promise<CareActionResult> {
+  if (!isCareId(id)) return { error: MISSING };
+  return handoverStep("cancel a hand-over", () => repos.care.cancelHandover(id));
+}
+
+async function claimImpl(repos: Repos, id: string, dms?: DmTracking): Promise<CareActionResult> {
+  if (!isCareId(id)) return { error: MISSING };
+  return handoverStep("claim a care plan", () => repos.care.claim(id), async (plan) => {
+    if (dms && plan.closed_at === null) await trackDmWithMember(repos, dms, plan.member_id);
+  });
+}
+
+/** The name of whoever cared for this member before, when it is someone else (the start form says it; nothing changes hands). */
+async function previousCarerOf(repos: Repos, memberId: unknown, userId: string): Promise<{ name: string | null }> {
+  if (typeof memberId !== "string" || !isId(memberId, "mbr")) return { name: null };
+  const previous = (await repos.care.forMember(memberId)).find((plan) => plan.owned_by !== null);
+  if (!previous?.owned_by || previous.owned_by === userId) return { name: null };
+  const carer = await repos.members.byUserId(previous.owned_by);
+  return { name: carer ? getMemberDisplayName({ name: carer.name, display_name: carer.displayName }) : "someone else on the team" };
 }
 
 async function deleteImpl(repos: Repos, id: string): Promise<CareActionResult> {
@@ -331,37 +365,6 @@ async function deleteImpl(repos: Repos, id: string): Promise<CareActionResult> {
   } catch (error) {
     console.error("[care] delete failed:", error instanceof Error ? error.message : error);
     return { error: "Couldn't remove the care plan." };
-  }
-  revalidate();
-  return { success: true };
-}
-
-async function trackDmImpl(repos: Repos, service: CareDmServiceRepos, user: StaffIdentity, channelId: unknown, bridgeOn: boolean): Promise<CareActionResult> {
-  if (typeof channelId !== "string" || !SLACK_CHANNEL_ID.test(channelId)) return { error: "That DM isn't available." };
-  if (!bridgeOn) return { error: "Slack DMs aren't switched on for you yet." };
-  try {
-    // Only a DM she is in, with a member who is not staff: the list is built the same way, so nothing else can be tracked.
-    const dm = await findOwnDm(service, user, channelId);
-    if (!dm) return { error: "That DM isn't one you can track." };
-    // A DM is tracked because a care plan of hers exists with the member (open or past): never a DM of a member she has none with.
-    if (!(await repos.care.forMember(dm.memberId)).some((plan) => careOwnerOf(plan) === user.id)) return { error: "Start a care plan with them first." };
-    await repos.careDms.track({ trackedBy: user.id, channelId, memberId: dm.memberId });
-    await projectCareFromDms({ care: repos.care, careDms: repos.careDms, service }, { userId: user.id });
-  } catch (error) {
-    console.error("[care] tracking a DM failed:", error instanceof Error ? error.message : error);
-    return { error: "Couldn't track that DM." };
-  }
-  revalidate();
-  return { success: true };
-}
-
-async function untrackDmImpl(repos: Repos, userId: string, channelId: unknown): Promise<CareActionResult> {
-  if (typeof channelId !== "string" || !SLACK_CHANNEL_ID.test(channelId)) return { error: "That DM isn't available." };
-  try {
-    if (!(await repos.careDms.untrack(userId, channelId, nowIso()))) return { error: "That DM isn't tracked." };
-  } catch (error) {
-    console.error("[care] untracking a DM failed:", error instanceof Error ? error.message : error);
-    return { error: "Couldn't stop tracking that DM." };
   }
   revalidate();
   return { success: true };
@@ -436,12 +439,59 @@ export async function renewEngagement(id: string, reason: string): Promise<CareA
   return withAction("care_engagement_renewed", () => renewImpl(createRepos(auth.supabase), auth.user.id, id, reason), (r) => ({ ok: "success" in r }));
 }
 
-/** Hands an engagement (open or closed) to another staff member. */
-export async function reassignEngagement(id: string, ownerId: string): Promise<CareActionResult> {
+/**
+ * Offers a care plan (open or closed) to another staff member. Nothing changes hands until they accept: the plan keeps its owner,
+ * and the database refuses any other change of owner. By the owner, or an admin acting for them.
+ */
+export async function proposeCareHandover(id: string, toUserId: string): Promise<CareActionResult> {
   const auth = await requireStaffAction();
   if (!auth.ok) return { error: auth.error };
   if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
-  return withAction("care_engagement_reassigned", () => reassignImpl(createRepos(auth.supabase), id, ownerId), (r) => ({ ok: "success" in r }));
+  return withAction("care_handover_proposed", () => proposeImpl(createRepos(auth.supabase), id, toUserId), (r) => ({ ok: "success" in r }));
+}
+
+/** The receiver accepts a hand-over: they own the care plan now, and their own DM with the member is read for it. */
+export async function acceptCareHandover(id: string): Promise<CareActionResult> {
+  const auth = await requireStaffAction();
+  if (!auth.ok) return { error: auth.error };
+  if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
+  return withAction("care_handover_accepted", () => acceptImpl(createRepos(auth.supabase), id, { service: getServiceRepos(), user: auth.user }), (r) => ({ ok: "success" in r }));
+}
+
+/** The receiver declines a hand-over: the owner stays. */
+export async function declineCareHandover(id: string): Promise<CareActionResult> {
+  const auth = await requireStaffAction();
+  if (!auth.ok) return { error: auth.error };
+  if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
+  return withAction("care_handover_declined", () => declineImpl(createRepos(auth.supabase), id), (r) => ({ ok: "success" in r }));
+}
+
+/** Takes a pending hand-over back: whoever proposed it, the owner, or an admin. */
+export async function cancelCareHandover(id: string): Promise<CareActionResult> {
+  const auth = await requireStaffAction();
+  if (!auth.ok) return { error: auth.error };
+  if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
+  return withAction("care_handover_cancelled", () => cancelImpl(createRepos(auth.supabase), id), (r) => ({ ok: "success" in r }));
+}
+
+/** Takes a care plan that has no owner (its owner's account was removed): the staff member who takes it accepts it. */
+export async function claimCarePlan(id: string): Promise<CareActionResult> {
+  const auth = await requireStaffAction();
+  if (!auth.ok) return { error: auth.error };
+  if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
+  return withAction("care_plan_claimed", () => claimImpl(createRepos(auth.supabase), id, { service: getServiceRepos(), user: auth.user }), (r) => ({ ok: "success" in r }));
+}
+
+/** Who cared for this member before, when it is someone else: the start form says so (information, nothing changes hands). Staff with the write feature only. */
+export async function loadPreviousCareOwner(memberId: string): Promise<{ name: string | null }> {
+  const auth = await requireStaffAction();
+  if (!auth.ok || !staffCan(auth.role, "care.write")) return { name: null };
+  try {
+    return await previousCarerOf(createRepos(auth.supabase), memberId, auth.user.id);
+  } catch (error) {
+    console.error("[care] reading the previous owner failed:", error instanceof Error ? error.message : error);
+    return { name: null };
+  }
 }
 
 /** Removes an engagement from the lists (kept in the database, hidden everywhere). */
@@ -450,30 +500,6 @@ export async function deleteEngagement(id: string): Promise<CareActionResult> {
   if (!auth.ok) return { error: auth.error };
   if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
   return withAction("care_engagement_deleted", () => deleteImpl(createRepos(auth.supabase), id), (r) => ({ ok: "success" in r }));
-}
-
-/**
- * Tracks one of her 1:1 Slack DMs with a member she has a care plan with, so who spoke last fills in on it. Only for a member with a
- * plan of hers, open or past: the DMs tab has no "Track" for anyone else (it offers "Start a care plan"); this is how she
- * starts reading a DM again after she stopped tracking it.
- */
-export async function trackCareDm(channelId: string): Promise<CareActionResult> {
-  const auth = await requireStaffAction();
-  if (!auth.ok) return { error: auth.error };
-  if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
-  return withAction(
-    "care_dm_tracked",
-    async () => trackDmImpl(createRepos(auth.supabase), getServiceRepos(), auth.user, channelId, (await getUserFeaturePreviews(auth.user.id)).includes("slack_dm_bridge")),
-    (r) => ({ ok: "success" in r })
-  );
-}
-
-/** Stops tracking one of her Slack DMs. The times it already filled in stay; nothing new comes from it. */
-export async function untrackCareDm(channelId: string): Promise<CareActionResult> {
-  const auth = await requireStaffAction();
-  if (!auth.ok) return { error: auth.error };
-  if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
-  return withAction("care_dm_untracked", () => untrackDmImpl(createRepos(auth.supabase), auth.user.id, channelId), (r) => ({ ok: "success" in r }));
 }
 
 /** An engagement's measured results (before, during, after), counted on request from the member's own activity. */

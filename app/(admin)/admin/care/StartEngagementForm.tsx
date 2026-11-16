@@ -6,33 +6,18 @@ import EntitySearch, { type SearchItem } from "@/components/EntitySearch";
 import Modal from "@/components/Modal";
 import { track } from "@/lib/analytics/client";
 import { CARE_NOTES_MAX, CARE_REASONS, CARE_REASON_HELP, CARE_REASON_LABELS, isCareReason } from "@/lib/care";
-import { searchCareMembers, startEngagement } from "./actions";
+import { loadPreviousCareOwner, searchCareMembers, startEngagement } from "./actions";
 
 const FIELD = "w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-sm";
 const LABEL = "block text-sm font-medium mb-1";
 
-const BUTTON_LOOK = {
-  primary: "rounded-lg bg-plum-600 px-4 py-2 text-sm font-medium text-white hover:bg-plum-700",
-  row: "rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800",
-};
-
 /**
- * "Start a care plan" button, at the top of the Active tab or on a row of the DMs tab. The form opens in a dialog, so it does
- * not push the care plans down; closing it (Escape, the close button, a click outside) drops what was typed, and starting one
- * closes it. With `member` the form is for that member (the DMs tab: the row says who), else she searches for one. A care plan
- * belongs to the member, not to a channel, so the form never asks where.
+ * "Start a care plan" button, at the top of the Active tab. The form opens in a dialog, so it does not push the care plans
+ * down; closing it (Escape, the close button, a click outside) drops what was typed, and starting one closes it. A care plan
+ * belongs to the member, not to a channel, so the form never asks where. It belongs to whoever starts it: when someone else
+ * cared for the member before, the form says so (information only, nothing is handed over).
  */
-export default function StartEngagementForm({
-  today,
-  member,
-  label = "Start a care plan",
-  look = "primary",
-}: {
-  today: string;
-  member?: SearchItem;
-  label?: string;
-  look?: keyof typeof BUTTON_LOOK;
-}) {
+export default function StartEngagementForm({ today }: { today: string }) {
   const [open, setOpen] = useState(false);
   // A start in flight can't be walked away from: she would not see whether it worked.
   const busy = useRef(false);
@@ -40,12 +25,17 @@ export default function StartEngagementForm({
     busy.current = b;
   }, []);
   return (
-    <div className={look === "primary" ? "flex justify-end" : undefined}>
-      <button type="button" data-track="care-start-open" onClick={() => setOpen(true)} className={BUTTON_LOOK[look]}>
-        {label}
+    <div className="flex justify-end">
+      <button
+        type="button"
+        data-track="care-start-open"
+        onClick={() => setOpen(true)}
+        className="rounded-lg bg-plum-600 px-4 py-2 text-sm font-medium text-white hover:bg-plum-700"
+      >
+        Start a care plan
       </button>
       <Modal isOpen={open} onClose={() => !busy.current && setOpen(false)} title="Start a care plan" maxWidth="2xl">
-        <StartForm today={today} fixedMember={member} onBusy={setBusy} onStarted={() => setOpen(false)} />
+        <StartForm today={today} onBusy={setBusy} onStarted={() => setOpen(false)} />
       </Modal>
     </div>
   );
@@ -53,21 +43,12 @@ export default function StartEngagementForm({
 
 /**
  * The form: who, why, the day it started, an optional note and follow-up. Who spoke first is not asked: her Slack DM with
- * them (starting tracks it) or the "They replied" / "I replied" buttons on the care plan say so.
+ * them (a care plan tracks it) or the "They replied" / "I replied" buttons on the care plan say so.
  */
-function StartForm({
-  today,
-  fixedMember,
-  onBusy,
-  onStarted,
-}: {
-  today: string;
-  fixedMember?: SearchItem;
-  onBusy: (busy: boolean) => void;
-  onStarted: () => void;
-}) {
-  const [chosen, setMember] = useState<SearchItem | null>(null);
-  const member = fixedMember ?? chosen;
+function StartForm({ today, onBusy, onStarted }: { today: string; onBusy: (busy: boolean) => void; onStarted: () => void }) {
+  const [member, setMember] = useState<SearchItem | null>(null);
+  // Who cared for this member before, when it is someone else: told, not asked.
+  const [previousOwner, setPreviousOwner] = useState<{ memberId: string; name: string } | null>(null);
   const [reason, setReason] = useState("");
   const [notes, setNotes] = useState("");
   const [followUpOn, setFollowUpOn] = useState("");
@@ -78,6 +59,18 @@ function StartForm({
   useEffect(() => {
     onBusy(pending);
   }, [pending, onBusy]);
+
+  const memberId = member?.id ?? null;
+  useEffect(() => {
+    if (!memberId) return;
+    let current = true;
+    loadPreviousCareOwner(memberId)
+      .then(({ name }) => current && setPreviousOwner(name ? { memberId, name } : null))
+      .catch(() => current && setPreviousOwner(null));
+    return () => {
+      current = false;
+    };
+  }, [memberId]);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -100,22 +93,18 @@ function StartForm({
           <span className={LABEL} id="care-member-label">
             Member
           </span>
-          {fixedMember ? (
-            <p className="text-sm font-medium" aria-labelledby="care-member-label">
-              {fixedMember.name}
-              {fixedMember.detail && <span className="ml-2 text-xs font-normal text-slate-600 dark:text-slate-400">{fixedMember.detail}</span>}
-            </p>
-          ) : (
-            <EntitySearch
-              search={searchCareMembers}
-              selectedId={member?.id ?? null}
-              selectedName={member?.name ?? null}
-              selectedDetail={member?.detail ?? null}
-              onSelect={setMember}
-              placeholder="Search for a member"
-              ariaLabel="Member"
-              emptyText="No one found."
-            />
+          <EntitySearch
+            search={searchCareMembers}
+            selectedId={member?.id ?? null}
+            selectedName={member?.name ?? null}
+            selectedDetail={member?.detail ?? null}
+            onSelect={setMember}
+            placeholder="Search for a member"
+            ariaLabel="Member"
+            emptyText="No one found."
+          />
+          {member && previousOwner?.memberId === member.id && (
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Previously cared for by {previousOwner.name}.</p>
           )}
         </div>
         <fieldset className="@pair:col-span-2">

@@ -1,4 +1,4 @@
-import { randomInt } from "node:crypto";
+import { randomInt, randomUUID } from "node:crypto";
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
 import { byKeyThenId, compareText, inChunks, must, upsertInChunks } from "./query";
 import type { Db, Insert, Row, Update } from "./db";
@@ -63,6 +63,13 @@ export interface CourseRepository {
   courseById(id: string): Promise<CourseRecord | null>;
   /** A course by its address; `isDraft` / `source` narrow it (a member's lookup passes `isDraft: false`). */
   courseBySlug(slug: string, filter?: { source?: string; isDraft?: boolean }): Promise<CourseRecord | null>;
+  /**
+   * The current address of the course an old address redirects to (a published or once-published Hub course that was renamed),
+   * or null when the address isn't an old one. The database keeps these (a trigger on `courses`): there is no write here.
+   */
+  redirectedAddress(address: string): Promise<string | null>;
+  /** The old addresses of a course that redirect to it, by address. */
+  oldAddressesOf(courseId: string): Promise<string[]>;
   /** A course by where it came from (a Kajabi course by its Kajabi id), or null. */
   courseBySource(source: string, sourceKey: string): Promise<CourseRecord | null>;
   /** Courses matching the filter, by slug. Paginated; `ids` chunked. */
@@ -147,6 +154,11 @@ export interface CourseRepository {
   /** Adds a download or updates the one with the same source key. */
   saveLessonFile(file: NewLessonFile): Promise<void>;
   deleteLessonFile(id: string): Promise<void>;
+  /**
+   * Whether a stored object is also the download of another row. A duplicated lesson's downloads point at the same stored object as
+   * the original's (no second copy in storage), so whoever deletes an object checks this first and keeps it while another row uses it.
+   */
+  storagePathShared(storagePath: string, exceptFileId: string): Promise<boolean>;
   /** The videos with these ids, by id, in chunks. */
   videosByIds(ids: string[]): Promise<VideoRecord[]>;
   /** The videos of one kind (`kajabi`, `upload`) with these source keys, in chunks. */
@@ -178,6 +190,14 @@ export interface CourseRepository {
    * for modules nested deeper than the editor does).
    */
   takeOverCourse(courseId: string): Promise<void>;
+  /**
+   * Copies a course (imported or Hub-owned) into a new Hub-owned course and returns its id: a draft (hidden from members) with no
+   * Kajabi key and no program, a free address ("<slug>-copy", "-copy-2"...) and the title "<title> (copy)"; every module (submodules
+   * too) and lesson (also those in no module) is a draft copy in the same order, sharing the same videos and images. Members'
+   * progress, access and grants, the downloads and the Kajabi link are not copied. Throws a {@link CourseWriteError} (`not_found`,
+   * `too_deep` for modules nested deeper than the editor does, `not_editable` for a caller who may not).
+   */
+  duplicateCourse(courseId: string): Promise<string>;
   /** Copies the length of the video of this Mux asset onto the Hub-owned lessons that use it (whole seconds). */
   syncLessonDurations(assetId: string): Promise<void>;
 }
@@ -201,6 +221,17 @@ export class SupabaseCourseRepository implements CourseRepository {
     if (filter.source !== undefined) query = query.eq("source", filter.source);
     if (filter.isDraft !== undefined) query = query.eq("is_draft", filter.isDraft);
     return must(await query.maybeSingle());
+  }
+
+  async redirectedAddress(address: string) {
+    const row = must(await this.db.from("course_address_redirects").select("course:courses(slug)").eq("address", address).maybeSingle());
+    return (row?.course as { slug: string } | null)?.slug ?? null;
+  }
+
+  async oldAddressesOf(courseId: string) {
+    const { data, error } = await this.db.from("course_address_redirects").select("address").eq("course_id", courseId).order("address");
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((r) => r.address);
   }
 
   async courseBySource(source: string, sourceKey: string) {
@@ -442,6 +473,12 @@ export class SupabaseCourseRepository implements CourseRepository {
     await upsertInChunks(this.db.from("course_lesson_files"), [file], "source_key");
   }
 
+  async storagePathShared(storagePath: string, exceptFileId: string) {
+    const { data, error } = await this.db.from("course_lesson_files").select("id").eq("storage_path", storagePath).neq("id", exceptFileId).limit(1);
+    if (error) throw new Error(error.message);
+    return (data ?? []).length > 0;
+  }
+
   async deleteLessonFile(id: string) {
     const { error } = await this.db.from("course_lesson_files").delete().eq("id", id);
     if (error) throw new Error(error.message);
@@ -520,6 +557,12 @@ export class SupabaseCourseRepository implements CourseRepository {
     if (error) throw writeError(error);
   }
 
+  async duplicateCourse(courseId: string) {
+    const { data, error } = await this.db.rpc("duplicate_course", { p_course_id: courseId });
+    if (error) throw writeError(error);
+    return data;
+  }
+
   async syncLessonDurations(assetId: string) {
     const video = must(await this.db.from("videos").select("id, duration_seconds").eq("mux_asset_id", assetId).maybeSingle());
     if (!video || video.duration_seconds === null) return;
@@ -561,6 +604,15 @@ export class InMemoryCourseRepository implements CourseRepository {
     return course ? copy(course) : null;
   }
 
+  async redirectedAddress(address: string) {
+    const redirect = this.data.courseAddressRedirects.find((r) => r.address === address);
+    return (redirect && this.data.courses.find((c) => c.id === redirect.course_id)?.slug) || null;
+  }
+
+  async oldAddressesOf(courseId: string) {
+    return this.data.courseAddressRedirects.filter((r) => r.course_id === courseId).map((r) => r.address).sort(compareText);
+  }
+
   async courseBySource(source: string, sourceKey: string) {
     const course = this.data.courses.find((c) => c.source === source && c.source_key === sourceKey);
     return course ? copy(course) : null;
@@ -575,7 +627,7 @@ export class InMemoryCourseRepository implements CourseRepository {
   }
 
   private insertCourse(course: NewCourse): CourseRecord {
-    if (this.data.courses.some((c) => c.slug === course.slug)) throw unique("courses_slug_key");
+    if (this.data.courses.some((c) => c.slug === course.slug) || this.data.courseAddressRedirects.some((r) => r.address === course.slug)) throw unique("courses_slug_key");
     if (course.source_key && this.data.courses.some((c) => c.source === (course.source ?? "kajabi") && c.source_key === course.source_key)) throw unique("courses_source_source_key_key");
     const stamp = now();
     const row: CourseRecord = {
@@ -583,6 +635,7 @@ export class InMemoryCourseRepository implements CourseRepository {
       access_duration: null,
       created_at: stamp,
       description: null,
+      first_published_at: null,
       hero_asset_id: null,
       hero_source: null,
       hero_url: null,
@@ -598,6 +651,8 @@ export class InMemoryCourseRepository implements CourseRepository {
       updated_at: stamp,
       ...(Object.fromEntries(Object.entries(course).filter(([, v]) => v !== undefined)) as NewCourse),
     } as CourseRecord;
+    // As the trigger on `courses` does: the first publication is stamped.
+    if (!row.is_draft && !row.first_published_at) row.first_published_at = stamp;
     this.data.courses.push(row);
     return row;
   }
@@ -614,7 +669,18 @@ export class InMemoryCourseRepository implements CourseRepository {
     const course = this.data.courses.find((c) => c.id === id && (only.source === undefined || c.source === only.source));
     if (!course) return null;
     if (patch.slug !== undefined && this.data.courses.some((c) => c.id !== id && c.slug === patch.slug)) throw unique("courses_slug_key");
+    // The twin of the trigger on `courses`: another course's old address isn't free; renaming back clears the redirect;
+    // leaving an address with a published or once-published Hub course keeps it working (pointing at the course, so a
+    // later rename needs no change here).
+    if (patch.slug !== undefined && patch.slug !== course.slug) {
+      if (this.data.courseAddressRedirects.some((r) => r.address === patch.slug && r.course_id !== id)) throw unique("courses_slug_key");
+      this.data.courseAddressRedirects = this.data.courseAddressRedirects.filter((r) => !(r.course_id === id && r.address === patch.slug));
+      if (course.source === "hub" && (course.first_published_at || !course.is_draft)) {
+        this.data.courseAddressRedirects.push({ id: newCourseId("cslug"), address: course.slug, course_id: id, created_at: now() });
+      }
+    }
     apply(course, patch);
+    if (!course.is_draft && !course.first_published_at) course.first_published_at = now();
     course.updated_at = now();
     return copy(course);
   }
@@ -858,6 +924,7 @@ export class InMemoryCourseRepository implements CourseRepository {
         source: "hub",
       });
       this.data.courseLessons.push(row);
+      this.copyFiles(l.id, row.id);
       return row.id;
     };
     if (kind === "lesson") {
@@ -961,6 +1028,17 @@ export class InMemoryCourseRepository implements CourseRepository {
   async lessonFile(lessonId: string, fileId: string) {
     const file = this.data.courseLessonFiles.find((f) => f.id === fileId && f.lesson_id === lessonId);
     return file ? copy(file) : null;
+  }
+
+  async storagePathShared(storagePath: string, exceptFileId: string) {
+    return this.data.courseLessonFiles.some((f) => f.storage_path === storagePath && f.id !== exceptFileId);
+  }
+
+  /** The downloads of one lesson on another, as the database does: a key of its own ("up-<uuid>", like a download added in the Hub), the same stored object. */
+  private copyFiles(fromLesson: string, toLesson: string) {
+    for (const f of this.data.courseLessonFiles.filter((x) => x.lesson_id === fromLesson)) {
+      this.data.courseLessonFiles.push({ ...f, id: newCourseId("file"), lesson_id: toLesson, source_key: `up-${randomUUID()}`, created_at: now() });
+    }
   }
 
   async saveLessonFile(file: NewLessonFile) {
@@ -1088,6 +1166,76 @@ export class InMemoryCourseRepository implements CourseRepository {
     course.source = "hub";
     course.updated_at = now();
     this.recompute(courseId);
+  }
+
+  async duplicateCourse(courseId: string) {
+    const src = this.data.courses.find((c) => c.id === courseId);
+    if (!src) throw new CourseWriteError("not_found");
+    const modules = this.data.courseModules.filter((m) => m.course_id === courseId);
+    const byId = new Map(modules.map((m) => [m.id, m]));
+    if (modules.some((m) => m.parent_id && byId.get(m.parent_id)?.parent_id)) throw new CourseWriteError("too_deep");
+
+    const base = `${src.slug.slice(0, 60)}-copy`;
+    let slug = base;
+    for (let n = 2; this.data.courses.some((c) => c.slug === slug) || this.data.courseAddressRedirects.some((r) => r.address === slug); n++) slug = `${base}-${n}`;
+    const course = this.insertCourse({
+      slug,
+      title: `${src.title.slice(0, 112)} (copy)`,
+      description: src.description,
+      source: "hub",
+      source_key: null,
+      kind: src.kind,
+      program_id: null,
+      access_duration: src.access_duration,
+      launch_at: src.launch_at,
+      is_draft: true,
+      thumbnail_url: src.thumbnail_url,
+      thumbnail_source: src.thumbnail_source,
+      thumbnail_asset_id: src.thumbnail_asset_id,
+      hero_url: src.hero_url,
+      hero_source: src.hero_source,
+      hero_asset_id: src.hero_asset_id,
+    } as NewCourse);
+
+    const moduleIds = new Map<string, string>();
+    // Top-level modules first, then submodules, as the database does.
+    for (const m of [...modules.filter((x) => !x.parent_id), ...modules.filter((x) => x.parent_id)]) {
+      const row = this.newModule({
+        course_id: course.id,
+        parent_id: m.parent_id ? (moduleIds.get(m.parent_id) ?? null) : null,
+        title: m.title,
+        position: m.position,
+        state: "hidden",
+        publishing_option: "draft",
+        poster_url: m.poster_url,
+        poster_source: m.poster_source,
+        poster_asset_id: m.poster_asset_id,
+        source: "hub",
+      });
+      this.data.courseModules.push(row);
+      moduleIds.set(m.id, row.id);
+    }
+    for (const l of this.data.courseLessons.filter((x) => x.course_id === courseId)) {
+      const lesson = this.newLesson({
+          course_id: course.id,
+          module_id: l.module_id ? (moduleIds.get(l.module_id) ?? null) : null,
+          title: l.title,
+          position: l.position,
+          state: "hidden",
+          publishing_option: "draft",
+          body_html: l.body_html,
+          excerpt: l.excerpt,
+          thumbnail_url: l.thumbnail_url,
+          thumbnail_source: l.thumbnail_source,
+          thumbnail_asset_id: l.thumbnail_asset_id,
+          video_id: l.video_id,
+          duration_seconds: l.duration_seconds,
+          source: "hub",
+        });
+      this.data.courseLessons.push(lesson);
+      this.copyFiles(l.id, lesson.id);
+    }
+    return course.id;
   }
 
   async syncLessonDurations(assetId: string) {

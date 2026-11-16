@@ -50,7 +50,11 @@ describe("SupabaseCareRepository database errors", () => {
     ["close", () => repo.close(id, "no_reply", at)],
     ["changeStart", () => repo.changeStart(id, at)],
     ["softDelete", () => repo.softDelete(id, at)],
-    ["reassign", () => repo.reassign(id, "11111111-1111-4111-8111-111111111111")],
+    ["proposeHandover", () => repo.proposeHandover(id, "11111111-1111-4111-8111-111111111111")],
+    ["acceptHandover", () => repo.acceptHandover(id)],
+    ["declineHandover", () => repo.declineHandover(id)],
+    ["cancelHandover", () => repo.cancelHandover(id)],
+    ["claim", () => repo.claim(id)],
   ])("%s throws the database's error", async (_name, run) => {
     await expect(run()).rejects.toThrow("database is down");
   });
@@ -235,15 +239,32 @@ describe("SupabaseCareRepository queries", () => {
     expect(none.queries).toEqual([]);
   });
 
-  it("hands an engagement over on any engagement that is not removed, and answers null when there is none", async () => {
+  it("calls the hand-over functions with the plan (and the receiver) and answers the plan as it is now", async () => {
     const owner = "22222222-2222-4222-8222-222222222222";
-    const handed = scriptedDb([{ data: { id, owned_by: owner }, error: null }]);
-    expect(await new SupabaseCareRepository(handed.db).reassign(id, owner)).toEqual({ id, owned_by: owner });
-    expect(handed.queries[0].calls[0]).toEqual({ method: "update", args: [{ owned_by: owner }] });
-    expect(handed.queries[0].calls).toContainEqual({ method: "is", args: ["deleted_at", null] });
-    expect(handed.queries[0].calls.some((c) => c.method === "is" && c.args[0] === "closed_at")).toBe(false);
+    const plan = { id, owned_by: owner, handover_to: null };
+    const steps = [
+      ["propose_care_handover", { p_id: id, p_to: owner }, (r: SupabaseCareRepository) => r.proposeHandover(id, owner)],
+      ["accept_care_handover", { p_id: id }, (r: SupabaseCareRepository) => r.acceptHandover(id)],
+      ["decline_care_handover", { p_id: id }, (r: SupabaseCareRepository) => r.declineHandover(id)],
+      ["cancel_care_handover", { p_id: id }, (r: SupabaseCareRepository) => r.cancelHandover(id)],
+      ["claim_care_plan", { p_id: id }, (r: SupabaseCareRepository) => r.claim(id)],
+    ] as const;
+    for (const [fn, args, run] of steps) {
+      const answered = scriptedDb([{ data: [plan], error: null }]);
+      expect(await run(new SupabaseCareRepository(answered.db))).toEqual({ ok: true, engagement: plan });
+      expect(answered.queries[0]).toEqual({ table: `rpc:${fn}`, calls: [{ method: "args", args: [args] }] });
+    }
+  });
 
-    expect(await new SupabaseCareRepository(scriptedDb([{ data: null, error: null }]).db).reassign(id, null)).toBeNull();
+  it("answers a refusal the database names as a result, any other error as a throw, and no row as a plan that is gone", async () => {
+    const refusal = (message: string) => new SupabaseCareRepository(scriptedDb([{ data: null, error: { message } }]).db).acceptHandover(id);
+    for (const reason of ["not_found", "not_allowed", "receiver_not_allowed", "same_owner", "self", "already_pending", "no_handover", "has_owner"]) {
+      expect(await refusal(`care_handover:${reason}`)).toEqual({ ok: false, reason });
+    }
+    await expect(refusal("care_handover:something_new")).rejects.toThrow("care_handover:something_new");
+    await expect(refusal("connection reset")).rejects.toThrow("connection reset");
+    expect(await new SupabaseCareRepository(scriptedDb([{ data: [], error: null }]).db).acceptHandover(id)).toEqual({ ok: false, reason: "not_found" });
+    expect(await new SupabaseCareRepository(scriptedDb([{ data: null, error: null }]).db).acceptHandover(id)).toEqual({ ok: false, reason: "not_found" });
   });
 
   it("opens with the owner given, or whoever opened it when none is named", async () => {

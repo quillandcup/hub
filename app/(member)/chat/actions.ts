@@ -3,13 +3,14 @@
 import { after } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity, type EffectiveIdentity } from "@/lib/sudo";
+import { hubLinkCardsFor } from "@/lib/chat/hub-link-flag";
 import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
 import { createRepos } from "@/lib/data/repos";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { sendChatMessageToSlack } from "@/lib/chat/slack-post";
 import { syncReactionToSlack } from "@/lib/chat/slack-react";
-import { pullReadFromSlack, pushReadToSlack } from "@/lib/chat/slack-read";
+import { pullReadFromSlack, pushReadToSlack, pushUnreadToSlack } from "@/lib/chat/slack-read";
 import { pullMemberDms } from "@/lib/chat/slack-dms";
 import { notifyChatMessage, resolveChatNotifications } from "@/lib/chat/notifications";
 import { removeChatFileBytes } from "@/lib/chat/file-cleanup";
@@ -105,6 +106,44 @@ export async function markChatRead(channelId: string, through: string): Promise<
   after(() => resolveChatNotifications(createRepos(createServiceRoleClient()), caller.identity.memberId, channelId));
 }
 
+export type MarkUnreadResult = { ok: true; unread: number } | { ok: false; error: string };
+
+/**
+ * "Mark unread" on a message: the signed-in member's read marker moves back to just before it, so it
+ * and everything after it is unread again (`ChatRepository.markUnread`, the only way the marker goes
+ * backward). Answers the conversation's unread count as it now stands, for the sidebar badge. Slack's
+ * marker follows for members who connected it, after the response (`pushUnreadToSlack`), because the
+ * Slack -> Hub pull would otherwise carry the Hub marker forward again. Refused in sudo (read-only).
+ */
+async function markChatUnreadImpl(channelId: string, messageId: string): Promise<MarkUnreadResult> {
+  if (!isId(channelId, "chn") || !isId(messageId, "msg")) return { ok: false, error: "That message isn't available." };
+  const caller = await chatCaller();
+  if (!caller) return { ok: false, error: "Chat isn't available." };
+  if (caller.identity.isSudo) return { ok: false, error: "Viewing as a member is read-only." };
+
+  const supabase = await createClient();
+  let marker: string | null;
+  try {
+    marker = await createRepos(supabase).chat.markUnread(channelId, messageId, caller.identity.memberId);
+  } catch (e) {
+    console.error("chat_mark_unread failed:", e instanceof Error ? e.message : e);
+    return { ok: false, error: "Couldn't mark it unread. Try again." };
+  }
+  if (!marker) return { ok: false, error: "That message isn't available." };
+
+  after(() =>
+    pushUnreadToSlack(createServiceRoleClient(), { memberId: caller.identity.memberId, channelId, messageId, marker: marker as string }).catch((e) =>
+      console.error("pushUnreadToSlack failed:", e)
+    )
+  );
+  const counts = await loadUnreadCounts(supabase);
+  return { ok: true, unread: counts[channelId] ?? 0 };
+}
+
+export async function markChatUnread(...args: Parameters<typeof markChatUnreadImpl>): ReturnType<typeof markChatUnreadImpl> {
+  return withAction("chat_message_marked_unread", () => markChatUnreadImpl(...args));
+}
+
 /**
  * The member came back to the Hub (or opened the search box): bring their read markers up to what
  * they have read in Slack, and answer with the unread counts as they now stand. `openChannelId` is
@@ -161,7 +200,7 @@ export async function loadOlderChat(channelId: string, before: string): Promise<
 
   const page = await loadMessages(createRepos(supabase), channel.id, { before });
   const [{ views, ...rendered }, channels] = await Promise.all([
-    buildMessageViews(createRepos(supabase), channel, page.messages, identity.memberId),
+    buildMessageViews(createRepos(supabase), channel, page.messages, identity.memberId, undefined, { hubLinkCards: hubLinkCardsFor(caller) }),
     loadChatChannels(createRepos(supabase), identity.memberId, identity.isSudo),
   ]);
   return { views, ctx: chatTextContext(rendered, channels), olderBefore: page.olderBefore };
@@ -206,7 +245,7 @@ export async function loadLatestChat(channelId: string, alsoMessageIds: string[]
   // The newest page, plus any other messages asked for (ones whose reactions changed), once each.
   const inPage = new Set(page.messages.map((m) => m.id));
   const messages = [...page.messages, ...extra.filter((m) => !inPage.has(m.id))];
-  const { views, ...rendered } = await buildMessageViews(createRepos(supabase), channel, messages, identity.memberId);
+  const { views, ...rendered } = await buildMessageViews(createRepos(supabase), channel, messages, identity.memberId, undefined, { hubLinkCards: hubLinkCardsFor(caller) });
   const done = performance.now();
   // Where the time goes, for tuning: this runs on every live change in an open conversation.
   console.info(
@@ -261,7 +300,7 @@ export async function loadThreadChat(channelId: string, threadRootId: string, al
     loadMessages(createRepos(supabase), channel.id, { threadRootId }),
   ]);
   if (!root) return null;
-  const { views, ...rendered } = await buildMessageViews(createRepos(supabase), channel, [root, ...replies.messages], identity.memberId);
+  const { views, ...rendered } = await buildMessageViews(createRepos(supabase), channel, [root, ...replies.messages], identity.memberId, undefined, { hubLinkCards: hubLinkCardsFor(caller) });
   // Messages that changed and aren't in what came back: a reply deleted in Slack is left out of the views, but one
   // beyond the page, or in another view of the conversation, is merely not shown here. Look each up to tell which is gone.
   const shown = new Set(views.map((v) => v.id));
@@ -463,27 +502,6 @@ async function checkShareable(caller: NonNullable<Awaited<ReturnType<typeof post
   if (!courses || !lesson || !(lesson.state === "open" || courses.scope.isAdminActing) || video?.status !== "ready") return refused;
   if (!canOpenLessons(await loadMemberCourseAccess(repos, courses.scope, lesson.course_id))) return refused;
   return { ok: true, lessonTitle: lesson.title, isAdminActing: courses.scope.isAdminActing };
-}
-
-/**
- * The signed-in member shares a course lesson's video into a conversation: a message (their own words, or "Shared a lesson
- * video: <title>") that shows the lesson's video as a card everyone who can read the message sees. Behind `chat_videos` on
- * top of posting. The sharer must be able to open the lesson themselves (same checks as the lesson page, repeated in the
- * database by `chat_post_shared_video`). Playing needs the course too, unless an admin shares it with `openToChannel`: then
- * every member who can read the message may play it (default off; admins only, checked here and in the database).
- * The message and its video row are written in one call (no window in which the message exists without its card), and
- * Slack gets it after the response with links back to the Hub. The same share happens when a lesson address is pasted into
- * any message (`sendChatMessageImpl`), where it also works in threads and direct messages.
- */
-async function shareLessonVideoImpl(channelId: string, lessonId: string, note: string, openToChannel = false): Promise<SendChatResult> {
-  if (!isId(channelId, "chn") || !isId(lessonId, "les") || typeof note !== "string" || typeof openToChannel !== "boolean") return { ok: false, error: "Something went wrong." };
-  const caller = await postingCaller();
-  if (!caller) return { ok: false, error: "Sharing videos isn't available to you yet." };
-  const check = await checkShareable(caller, lessonId);
-  if (!check.ok) return check;
-  if (openToChannel && !check.isAdminActing) return { ok: false, error: POST_ERRORS.not_allowed };
-
-  return sendChatMessageImpl(channelId, note.trim() || sharedVideoDefaultText(check.lessonTitle), undefined, [], { lessonId, openToChannel });
 }
 
 export type ToggleReactionResult = { ok: true; active: boolean } | { ok: false; error: string };
@@ -712,10 +730,6 @@ async function deleteChatFileImpl(messageId: string, fileId: string): Promise<Ch
 // Usage analytics: each action records whether it worked (lib/analytics/server.ts).
 export async function sendChatMessage(...args: Parameters<typeof sendChatMessageImpl>): ReturnType<typeof sendChatMessageImpl> {
   return withAction("chat_message_sent", () => sendChatMessageImpl(...args));
-}
-
-export async function shareLessonVideoInChat(...args: Parameters<typeof shareLessonVideoImpl>): ReturnType<typeof shareLessonVideoImpl> {
-  return withAction("chat_video_shared", () => shareLessonVideoImpl(...args));
 }
 
 export async function toggleChatReaction(...args: Parameters<typeof toggleChatReactionImpl>): ReturnType<typeof toggleChatReactionImpl> {

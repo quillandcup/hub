@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useStaffTools, type StaffToolsProps } from "../../LessonStaffTools";
 import { OPEN_SHARE_PARAM, OPEN_SHARE_VALUE } from "@/lib/chat/lesson-links";
 
 const SOON = "Not available yet: courses are imported from Kajabi for now";
@@ -22,6 +23,8 @@ export default function VideoActions({
   thumbnailLink,
   thumbnailLinkBlocked,
   chatShare = false,
+  edit,
+  staff,
 }: {
   /** The lesson's watch stats; null when the lesson has no video in the Hub. */
   statsHref: string | null;
@@ -33,12 +36,17 @@ export default function VideoActions({
   thumbnailLink?: { url: string; imageUrl: string; title: string } | null;
   /** Why there is no thumbnail link, shown on hover. */
   thumbnailLinkBlocked?: string;
-  /** Offer the two "paste in chat" links (the `chat_videos` feature is on for this admin). */
+  /** Offer the "open to everyone" link (the `chat_videos` feature is on for this admin). */
   chatShare?: boolean;
+  /** A Hub-owned lesson: the items that change the video are live. `onCaptions` is absent until the video is ready. */
+  /** Staff-only watch-tracking items (record in a preview, clear my progress), for a lesson in the Hub. */
+  staff?: StaffToolsProps;
+  edit?: { busy: boolean; onReplace: () => void; onRemove: () => void; onCaptions?: () => void };
 }) {
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const staffTools = useStaffTools(staff ?? { lessonId: "", lessonPath: "", preview: false });
 
   useEffect(() => {
     if (!open) return;
@@ -56,31 +64,25 @@ export default function VideoActions({
     };
   }, [open]);
 
-  async function copyTimestampUrl() {
+  /** The lesson's address, with the player's position when it has moved. Pasted into a Hub Chat message it becomes the video card (docs/SLACK_BRIDGED_CHAT.md, "Paste a lesson link, anywhere"). */
+  async function copyLink() {
     if (!lessonUrl) return;
     try {
       await navigator.clipboard.writeText(seconds > 0 ? `${lessonUrl}?t=${seconds}` : lessonUrl);
-      setStatus(seconds > 0 ? `Copied a link to ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}.` : "Copied a link to the lesson.");
+      const at = seconds > 0 ? ` at ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}` : "";
+      setStatus(chatShare ? `Copied the link${at}. Paste it into Hub Chat to share the video there.` : `Copied the link${at}.`);
     } catch {
       setStatus("Couldn't copy the link.");
     }
     setOpen(false);
   }
 
-  /**
-   * The lesson's address, to paste into any chat message (a thread or a direct message too), where it becomes the video card when the sender
-   * can share the lesson (docs/SLACK_BRIDGED_CHAT.md, "Paste a lesson link, anywhere"). The open form carries the marker that lets everyone
-   * in the conversation play it without the course; it only counts when an admin sends it.
-   */
-  async function copyChatLink(openToChannel: boolean) {
+  /** The same address with the marker that lets everyone in the conversation play it without the course; it only counts when an admin sends it. */
+  async function copyOpenLink() {
     if (!lessonUrl) return;
     try {
-      await navigator.clipboard.writeText(openToChannel ? `${lessonUrl}?${OPEN_SHARE_PARAM}=${OPEN_SHARE_VALUE}` : lessonUrl);
-      setStatus(
-        openToChannel
-          ? "Copied. Paste it into any chat message: everyone in that conversation can watch the video, even without the course."
-          : "Copied. Paste it into any chat message to share the video there; members with the course can play it.",
-      );
+      await navigator.clipboard.writeText(`${lessonUrl}?${OPEN_SHARE_PARAM}=${OPEN_SHARE_VALUE}`);
+      setStatus("Copied. Paste it into Hub Chat: everyone in that conversation can watch the video, even without the course.");
     } catch {
       setStatus("Couldn't copy the link.");
     }
@@ -117,7 +119,7 @@ export default function VideoActions({
         Video actions ▾
       </button>
       {open && (
-        <div role="menu" aria-label="Video actions" className="absolute left-0 z-10 mt-1 w-64 rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+        <div role="menu" aria-label="Video actions" className="absolute left-0 z-dropdown mt-1 w-64 rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
           {statsHref ? (
             <Link role="menuitem" href={statsHref} className={`${ITEM} hover:bg-slate-50 dark:hover:bg-slate-800`}>
               Video stats
@@ -127,18 +129,29 @@ export default function VideoActions({
               Video stats
             </button>
           )}
-          <button type="button" role="menuitem" disabled title={`${SOON} (the captions and transcript manager)`} className={OFF}>
-            Closed captions
-          </button>
+          {edit ? (
+            <>
+              <button type="button" role="menuitem" disabled={edit.busy} onClick={() => { setOpen(false); edit.onReplace(); }} className={edit.busy ? OFF : `${ITEM} hover:bg-slate-50 dark:hover:bg-slate-800`}>
+                Replace video
+              </button>
+              <button type="button" role="menuitem" disabled={!edit.onCaptions} onClick={() => { setOpen(false); edit.onCaptions?.(); }} title={edit.onCaptions ? undefined : "Captions can be added once the video is ready"} className={edit.onCaptions ? `${ITEM} hover:bg-slate-50 dark:hover:bg-slate-800` : OFF}>
+                Captions…
+              </button>
+            </>
+          ) : (
+            <button type="button" role="menuitem" disabled title={`${SOON} (the captions and transcript manager)`} className={OFF}>
+              Closed captions
+            </button>
+          )}
           <button
             type="button"
             role="menuitem"
-            onClick={copyTimestampUrl}
+            onClick={copyLink}
             disabled={!lessonUrl}
             title={lessonUrl ? undefined : "This lesson isn't in the Hub yet"}
             className={lessonUrl ? `${ITEM} hover:bg-slate-50 dark:hover:bg-slate-800` : OFF}
           >
-            Copy timestamp URL
+            Copy link
           </button>
           <button
             type="button"
@@ -148,41 +161,52 @@ export default function VideoActions({
             title={thumbnailLink ? undefined : thumbnailLinkBlocked}
             className={thumbnailLink ? `${ITEM} hover:bg-slate-50 dark:hover:bg-slate-800` : OFF}
           >
-            Copy link with thumbnail
+            Copy with thumbnail
           </button>
           {chatShare && (
-            <>
               <button
                 type="button"
                 role="menuitem"
-                onClick={() => copyChatLink(false)}
-                disabled={!lessonUrl}
-                title={lessonUrl ? undefined : "This lesson isn't in the Hub yet"}
-                className={lessonUrl ? `${ITEM} hover:bg-slate-50 dark:hover:bg-slate-800` : OFF}
-              >
-                Copy link to paste in chat
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => copyChatLink(true)}
+                onClick={copyOpenLink}
                 disabled={!lessonUrl}
                 title={lessonUrl ? "Everyone in the conversation can watch it, even without the course" : "This lesson isn't in the Hub yet"}
                 className={lessonUrl ? `${ITEM} hover:bg-slate-50 dark:hover:bg-slate-800` : OFF}
               >
                 Copy link, open to everyone
               </button>
-            </>
           )}
           <button type="button" role="menuitem" disabled title="Needs downloadable (MP4) copies of the video turned on in Mux, which has a cost" className={OFF}>
             Download video
           </button>
+          {staff && (
+            <>
+              <div role="separator" className="my-1 border-t border-slate-200 dark:border-slate-700" />
+              {staffTools.items.map((item) =>
+                item.href ? (
+                  <Link key={item.key} role="menuitem" href={item.href} data-track={item.track} className={`${ITEM} hover:bg-slate-50 dark:hover:bg-slate-800`}>
+                    {item.label}
+                  </Link>
+                ) : (
+                  <button key={item.key} type="button" role="menuitem" data-track={item.track} onClick={() => { setOpen(false); item.onSelect?.(); }} className={`${ITEM} hover:bg-slate-50 dark:hover:bg-slate-800`}>
+                    {item.label}
+                  </button>
+                ),
+              )}
+            </>
+          )}
           <div role="separator" className="my-1 border-t border-slate-200 dark:border-slate-700" />
-          <button type="button" role="menuitem" disabled title={SOON} className={`${OFF} text-red-700 dark:text-red-300`}>
-            Remove video
-          </button>
+          {edit ? (
+            <button type="button" role="menuitem" disabled={edit.busy} onClick={() => { setOpen(false); edit.onRemove(); }} className={`${edit.busy ? OFF : `${ITEM} hover:bg-slate-50 dark:hover:bg-slate-800`} text-red-700 dark:text-red-300`}>
+              Remove video
+            </button>
+          ) : (
+            <button type="button" role="menuitem" disabled title={SOON} className={`${OFF} text-red-700 dark:text-red-300`}>
+              Remove video
+            </button>
+          )}
         </div>
       )}
+      {staff && staffTools.notice}
       {status && (
         <p role="status" className="mt-2 text-xs text-slate-600 dark:text-slate-400">
           {status}

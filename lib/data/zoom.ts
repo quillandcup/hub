@@ -3,6 +3,18 @@ import { upsertInChunks } from "./query";
 import type { Database } from "./database.types";
 import type { Db } from "./db";
 import type { InMemoryDataset } from "./in-memory";
+import {
+  buildKeepPolicy,
+  isMeetingKept,
+  PRIMARY_ZOOM_ACCOUNT_ID,
+  meetingState,
+  type ZoomDecision,
+  type ZoomDecisionRef,
+  type ZoomDecisionScope,
+  type ZoomDefaultPolicy,
+  type ZoomKeepPolicy,
+  type ZoomMeetingState,
+} from "@/lib/zoom-accounts";
 
 /** One row of Zoom's participant report as the Bronze import keeps it (`bronze.zoom_attendees`). */
 export type ZoomAttendeeRow = Database["bronze"]["Tables"]["zoom_attendees"]["Row"];
@@ -10,6 +22,41 @@ export type NewZoomAttendee = Database["bronze"]["Tables"]["zoom_attendees"]["In
 /** A meeting as the Bronze import keeps it (`bronze.zoom_meetings`). */
 export type ZoomMeetingRow = Database["bronze"]["Tables"]["zoom_meetings"]["Row"];
 export type NewZoomMeeting = Database["bronze"]["Tables"]["zoom_meetings"]["Insert"];
+/** A Zoom account the Hub imports from (`zoom_accounts`) and an admin's keep/ignore decision about its meetings (`zoom_meeting_decisions`). */
+export type ZoomAccountRow = Database["public"]["Tables"]["zoom_accounts"]["Row"];
+export type ZoomDecisionRow = Database["public"]["Tables"]["zoom_meeting_decisions"]["Row"];
+export interface ZoomAccount {
+  id: string;
+  slug: string;
+  label: string;
+  hostEmail: string | null;
+  defaultPolicy: ZoomDefaultPolicy;
+  /** Environment variable prefix of the account's credentials (`<prefix>_ACCOUNT_ID`, ...). */
+  credentialsPrefix: string;
+}
+/** A meeting listed for review, with what applies to it now. */
+export interface ZoomReviewMeeting {
+  zoomAccount: string;
+  meetingUuid: string;
+  meetingId: string;
+  topic: string;
+  startTime: string;
+  endTime: string | null;
+  hostEmail: string | null;
+  participantCount: number | null;
+  /** `kept` and `ignored` are decisions; `undecided` means the account's default applies. */
+  state: ZoomMeetingState;
+}
+
+/** The Bronze row types as seeds: a row with no `zoom_account` is the primary account's (the column's default). */
+type WithOptionalAccount<T> = Omit<T, "zoom_account"> & { zoom_account?: string };
+export interface ZoomSeeds {
+  zoomAttendees: WithOptionalAccount<Database["bronze"]["Tables"]["zoom_attendees"]["Row"]>[];
+  zoomMeetings: WithOptionalAccount<Database["bronze"]["Tables"]["zoom_meetings"]["Row"]>[];
+  zoomParticipantEvents: WithOptionalAccount<Database["bronze"]["Tables"]["zoom_participant_events"]["Row"]>[];
+  zoomChatMessages: WithOptionalAccount<Database["bronze"]["Tables"]["zoom_chat_messages"]["Row"]>[];
+}
+
 /** A Zoom name an admin ignores everywhere (`ignored_zoom_names`). */
 export type IgnoredZoomNameRow = Database["public"]["Tables"]["ignored_zoom_names"]["Row"];
 
@@ -97,6 +144,24 @@ export interface ZoomRepository {
   /** Zoom host ids of the meetings that started at or after an instant (the rooms the import covers). */
   importedHostIds(since: string): Promise<Set<string>>;
 
+  // --- accounts and which of their meetings are kept ---
+  /** Every account, oldest first. */
+  accounts(): Promise<ZoomAccount[]>;
+  /** Registers an account. Throws when the slug or credentials prefix is taken. */
+  createAccount(input: { slug: string; label: string; hostEmail: string | null; defaultPolicy: ZoomDefaultPolicy; credentialsPrefix: string }): Promise<ZoomAccount>;
+  /** What the keep/ignore rules read: the accounts' defaults and every decision. */
+  keepPolicy(): Promise<ZoomKeepPolicy>;
+  /** Keeps or ignores one meeting (`instance`, by uuid) or every occurrence of a link (`series`, by meeting id), replacing an earlier decision for the same key. */
+  setDecision(input: { zoomAccount: string; scope: ZoomDecisionScope; zoomKey: string; decision: ZoomDecision; decidedBy: string | null }): Promise<void>;
+  /** Takes a decision back: the meeting follows the next rule down (its link's, then the account's default). */
+  clearDecision(input: { zoomAccount: string; scope: ZoomDecisionScope; zoomKey: string }): Promise<void>;
+  /** The meetings of accounts whose default is to exclude them, newest first, each with its state. */
+  reviewMeetings(): Promise<ZoomReviewMeeting[]>;
+  /** How many of those meetings no one has decided about. */
+  undecidedMeetingCount(): Promise<number>;
+  /** The first start and last end of the meetings a decision covers (the range to reprocess), or null when there are none. */
+  meetingSpan(input: { zoomAccount: string; scope: ZoomDecisionScope; zoomKey: string }): Promise<{ from: string; to: string } | null>;
+
   // --- ignored names ---
   /** Every Zoom name ignored everywhere. */
   ignoredNames(): Promise<string[]>;
@@ -163,6 +228,83 @@ export class SupabaseZoomRepository implements ZoomRepository {
     return this.db.from("ignored_zoom_names");
   }
 
+  /** The rows whose meeting the Silver layer takes in (see `isMeetingKept`). */
+  private async onlyKept<T extends { zoom_account?: string | null; meeting_uuid?: string | null; meeting_id?: string | null }>(rows: T[]): Promise<T[]> {
+    if (rows.length === 0) return rows;
+    const policy = await this.keepPolicy();
+    return rows.filter((r) => isMeetingKept(policy, { zoomAccount: r.zoom_account, meetingUuid: r.meeting_uuid, meetingId: r.meeting_id }));
+  }
+
+  async accounts() {
+    const rows = await fetchAllRows<ZoomAccountRow>((a, b) => this.db.from("zoom_accounts").select("*").order("created_at").order("id").range(a, b));
+    return rows.map(toAccount);
+  }
+
+  async createAccount(input: { slug: string; label: string; hostEmail: string | null; defaultPolicy: ZoomDefaultPolicy; credentialsPrefix: string }) {
+    const { data, error } = await this.db
+      .from("zoom_accounts")
+      .insert({ slug: input.slug, label: input.label, host_email: input.hostEmail, default_policy: input.defaultPolicy, credentials_prefix: input.credentialsPrefix })
+      .select("*")
+      .single();
+    if (error) throw new Error(error.message);
+    return toAccount(data);
+  }
+
+  async keepPolicy() {
+    const [accounts, rows] = await Promise.all([
+      this.accounts(),
+      fetchAllRows<ZoomDecisionRow>((a, b) => this.db.from("zoom_meeting_decisions").select("*").order("id").range(a, b)),
+    ]);
+    return buildKeepPolicy(accounts, rows.map(toDecisionRef));
+  }
+
+  async setDecision({ zoomAccount, scope, zoomKey, decision, decidedBy }: { zoomAccount: string; scope: ZoomDecisionScope; zoomKey: string; decision: ZoomDecision; decidedBy: string | null }) {
+    const { error } = await this.db
+      .from("zoom_meeting_decisions")
+      .upsert(
+        { zoom_account: zoomAccount, scope, zoom_key: zoomKey, decision, decided_by: decidedBy, decided_at: new Date().toISOString() },
+        { onConflict: "zoom_account,scope,zoom_key" }
+      );
+    if (error) throw new Error(error.message);
+  }
+
+  async clearDecision({ zoomAccount, scope, zoomKey }: { zoomAccount: string; scope: ZoomDecisionScope; zoomKey: string }) {
+    const { error } = await this.db.from("zoom_meeting_decisions").delete().eq("zoom_account", zoomAccount).eq("scope", scope).eq("zoom_key", zoomKey);
+    if (error) throw new Error(error.message);
+  }
+
+  async reviewMeetings() {
+    const policy = await this.keepPolicy();
+    const accountIds = [...policy.accounts.values()].filter((a) => a.defaultPolicy === "exclude").map((a) => a.id);
+    if (accountIds.length === 0) return [];
+    type R = Pick<ZoomMeetingRow, "zoom_account" | "meeting_uuid" | "meeting_id" | "topic" | "start_time" | "end_time" | "host_email" | "participant_count">;
+    const rows = await fetchAllRows<R>((a, b) =>
+      this.meetings
+        .select("zoom_account, meeting_uuid, meeting_id, topic, start_time, end_time, host_email, participant_count")
+        .in("zoom_account", accountIds)
+        .order("start_time", { ascending: false })
+        .order("id")
+        .range(a, b)
+    );
+    return rows.map((r) => toReviewMeeting(policy, r));
+  }
+
+  async undecidedMeetingCount() {
+    return (await this.reviewMeetings()).filter((m) => m.state === "undecided").length;
+  }
+
+  async meetingSpan({ zoomAccount, scope, zoomKey }: { zoomAccount: string; scope: ZoomDecisionScope; zoomKey: string }) {
+    const rows = await fetchAllRows<Pick<ZoomMeetingRow, "start_time" | "end_time">>((a, b) =>
+      this.meetings
+        .select("start_time, end_time")
+        .eq("zoom_account", zoomAccount)
+        .eq(scope === "instance" ? "meeting_uuid" : "meeting_id", zoomKey)
+        .order("id")
+        .range(a, b)
+    );
+    return spanOf(rows);
+  }
+
   async attendeeCount() {
     const { count, error } = await this.attendees.select("*", { count: "exact", head: true });
     if (error) throw new Error(error.message);
@@ -170,51 +312,58 @@ export class SupabaseZoomRepository implements ZoomRepository {
   }
 
   async attendeesForMatching({ withMeetingOnly = false }: { withMeetingOnly?: boolean } = {}) {
-    return fetchAllRows<ZoomAttendeeRef>((a, b) => {
-      let query = this.attendees.select("name, email, meeting_uuid, join_time, leave_time");
+    const rows = await fetchAllRows<ZoomAttendeeRef & { meeting_id: string; zoom_account: string }>((a, b) => {
+      let query = this.attendees.select("name, email, meeting_uuid, join_time, leave_time, meeting_id, zoom_account");
       if (withMeetingOnly) query = query.not("meeting_uuid", "is", null);
       return query.order("id").range(a, b);
     });
+    return (await this.onlyKept(rows)).map(({ name, email, meeting_uuid, join_time, leave_time }) => ({ name, email, meeting_uuid, join_time, leave_time }));
   }
 
   async attendeesSince(from: string) {
-    return fetchAllRows<Pick<ZoomAttendeeRow, "name" | "email" | "meeting_uuid">>(
-      (a, b) => this.attendees.select("name, email, meeting_uuid").gte("join_time", from).order("id").range(a, b)
+    const rows = await fetchAllRows<Pick<ZoomAttendeeRow, "name" | "email" | "meeting_uuid" | "meeting_id" | "zoom_account">>(
+      (a, b) => this.attendees.select("name, email, meeting_uuid, meeting_id, zoom_account").gte("join_time", from).order("id").range(a, b)
     );
+    return (await this.onlyKept(rows)).map(({ name, email, meeting_uuid }) => ({ name, email, meeting_uuid }));
   }
 
   async attendeeNamesOverlapping(from: string, to: string) {
-    return fetchAllRows<Pick<ZoomAttendeeRow, "name" | "email">>(
+    const rows = await fetchAllRows<Pick<ZoomAttendeeRow, "name" | "email" | "meeting_uuid" | "meeting_id" | "zoom_account">>(
       (a, b) =>
-        this.attendees.select("name, email").lt("join_time", to).gt("leave_time", from).order("id").range(a, b)
+        this.attendees.select("name, email, meeting_uuid, meeting_id, zoom_account").lt("join_time", to).gt("leave_time", from).order("id").range(a, b)
     );
+    return (await this.onlyKept(rows)).map(({ name, email }) => ({ name, email }));
   }
 
   async attendeesOverlapping(from: string, to: string) {
-    return fetchAllRows<ZoomAttendeeRow>(
-      (a, b) => this.attendees.select("*").lt("join_time", to).gt("leave_time", from).order("join_time").order("id").range(a, b)
+    return this.onlyKept(
+      await fetchAllRows<ZoomAttendeeRow>(
+        (a, b) => this.attendees.select("*").lt("join_time", to).gt("leave_time", from).order("join_time").order("id").range(a, b)
+      )
     );
   }
 
   async appearancesOf(names: string[]) {
-    const rows: ZoomNameAppearance[] = [];
+    const rows: (ZoomNameAppearance & { zoom_account: string })[] = [];
     for (const part of chunk([...new Set(names)], PAGE_CHUNK)) {
       rows.push(
-        ...(await fetchAllRows<ZoomNameAppearance>(
+        ...(await fetchAllRows<ZoomNameAppearance & { zoom_account: string }>(
           (a, b) =>
-            this.attendees.select("name, email, join_time, topic, meeting_uuid, meeting_id").in("name", part).order("id").range(a, b)
+            this.attendees.select("name, email, join_time, topic, meeting_uuid, meeting_id, zoom_account").in("name", part).order("id").range(a, b)
         ))
       );
     }
-    return rows;
+    return (await this.onlyKept(rows)).map(({ name, email, join_time, topic, meeting_uuid, meeting_id }) => ({ name, email, join_time, topic, meeting_uuid, meeting_id }));
   }
 
   async meetingCountsByName(names: string[]) {
     const meetings = new Map<string, Set<string>>();
     for (const part of chunk([...new Set(names)], PAGE_CHUNK)) {
-      const rows = await fetchAllRows<{ name: string; meeting_uuid: string | null }>(
-        (a, b) =>
-          this.attendees.select("name, meeting_uuid").in("name", part).not("meeting_uuid", "is", null).order("id").range(a, b)
+      const rows = await this.onlyKept(
+        await fetchAllRows<{ name: string; meeting_uuid: string | null; meeting_id: string; zoom_account: string }>(
+          (a, b) =>
+            this.attendees.select("name, meeting_uuid, meeting_id, zoom_account").in("name", part).not("meeting_uuid", "is", null).order("id").range(a, b)
+        )
       );
       for (const r of rows) {
         if (!r.meeting_uuid) continue;
@@ -227,21 +376,25 @@ export class SupabaseZoomRepository implements ZoomRepository {
   }
 
   async meetingUuidsForName(name: string) {
-    const rows = await fetchAllRows<{ meeting_uuid: string | null }>(
-      (a, b) => this.attendees.select("meeting_uuid").eq("name", name).not("meeting_uuid", "is", null).order("id").range(a, b)
+    const rows = await this.onlyKept(
+      await fetchAllRows<{ meeting_uuid: string | null; meeting_id: string; zoom_account: string }>(
+        (a, b) => this.attendees.select("meeting_uuid, meeting_id, zoom_account").eq("name", name).not("meeting_uuid", "is", null).order("id").range(a, b)
+      )
     );
     return [...new Set(rows.flatMap((r) => (r.meeting_uuid ? [r.meeting_uuid] : [])))];
   }
 
   async attendeesInSessions(sessionKeys: string[]) {
-    type Row = Pick<ZoomAttendeeRow, "id" | "name" | "email" | "meeting_uuid" | "meeting_id">;
+    type Row = Pick<ZoomAttendeeRow, "id" | "name" | "email" | "meeting_uuid" | "meeting_id" | "zoom_account">;
     const result = new Map<string, { name: string; email: string | null }[]>();
     const seen = new Set<string>();
     for (const part of chunk([...new Set(sessionKeys)], SESSION_CHUNK)) {
       // The attendance run groups by meeting_uuid, falling back to meeting_id; look up both.
       for (const column of ["meeting_uuid", "meeting_id"] as const) {
-        const rows = await fetchAllRows<Row>(
-          (a, b) => this.attendees.select("id, name, email, meeting_uuid, meeting_id").in(column, part).order("id").range(a, b)
+        const rows = await this.onlyKept(
+          await fetchAllRows<Row>(
+            (a, b) => this.attendees.select("id, name, email, meeting_uuid, meeting_id, zoom_account").in(column, part).order("id").range(a, b)
+          )
         );
         for (const r of rows) {
           const key = r.meeting_uuid || r.meeting_id;
@@ -260,8 +413,10 @@ export class SupabaseZoomRepository implements ZoomRepository {
     for (const part of chunk([...new Set(sessionKeys)], SESSION_CHUNK)) {
       // The attendance run groups by meeting_uuid, falling back to meeting_id; look up both.
       for (const column of ["meeting_uuid", "meeting_id"] as const) {
-        const rows = await fetchAllRows<ZoomAttendeeRow>(
-          (a, b) => this.attendees.select("*").in(column, part).order("id").range(a, b)
+        const rows = await this.onlyKept(
+          await fetchAllRows<ZoomAttendeeRow>(
+            (a, b) => this.attendees.select("*").in(column, part).order("id").range(a, b)
+          )
         );
         for (const r of rows) {
           const key = r.meeting_uuid || r.meeting_id;
@@ -290,8 +445,10 @@ export class SupabaseZoomRepository implements ZoomRepository {
   }
 
   async importedHostIds(since: string) {
-    const rows = await fetchAllRows<{ host_id: string | null }>(
-      (a, b) => this.meetings.select("id, host_id:data->>host_id").gte("start_time", since).order("id").range(a, b)
+    const rows = await this.onlyKept(
+      await fetchAllRows<{ host_id: string | null; zoom_account: string; meeting_uuid: string; meeting_id: string }>(
+        (a, b) => this.meetings.select("id, host_id:data->>host_id, zoom_account, meeting_uuid, meeting_id").gte("start_time", since).order("id").range(a, b)
+      )
     );
     return new Set(rows.flatMap((r) => (r.host_id ? [r.host_id] : [])));
   }
@@ -421,18 +578,20 @@ export class SupabaseZoomRepository implements ZoomRepository {
   }
 
   async participantEventsSince(since: string) {
-    const rows = await fetchAllRows(
-      (a, b) =>
-        this.db
-          .schema("bronze")
-          .from("zoom_participant_events")
-          .select("id, meeting_uuid, host_id, participant_key, participant_name, participant_email, event, event_time")
-          .gte("event_time", since)
-          .order("id")
-          .range(a, b)
+    const rows = await this.onlyKept(
+      await fetchAllRows(
+        (a, b) =>
+          this.db
+            .schema("bronze")
+            .from("zoom_participant_events")
+            .select("id, meeting_uuid, host_id, participant_key, participant_name, participant_email, event, event_time, zoom_account")
+            .gte("event_time", since)
+            .order("id")
+            .range(a, b)
+      )
     );
     // The column is text; the webhook only writes "joined" and "left".
-    return rows.map((row) => ({ ...row, event: row.event as ZoomParticipantEvent["event"] }));
+    return rows.map(({ zoom_account: _account, ...row }) => ({ ...row, event: row.event as ZoomParticipantEvent["event"] }));
   }
 
   async recordChatMessage(message: NewZoomChatMessage) {
@@ -444,16 +603,63 @@ export class SupabaseZoomRepository implements ZoomRepository {
   }
 
   async chatMessagesSince(since: string) {
-    return fetchAllRows((a, b) =>
-      this.db
-        .schema("bronze")
-        .from("zoom_chat_messages")
-        .select("*")
-        .gte("sent_at", since)
-        .order("id")
-        .range(a, b)
+    return this.onlyKept(
+      await fetchAllRows((a, b) =>
+        this.db
+          .schema("bronze")
+          .from("zoom_chat_messages")
+          .select("*")
+          .gte("sent_at", since)
+          .order("id")
+          .range(a, b)
+      )
     );
   }
+}
+
+function toAccount(row: ZoomAccountRow): ZoomAccount {
+  return {
+    id: row.id,
+    slug: row.slug,
+    label: row.label,
+    hostEmail: row.host_email,
+    defaultPolicy: row.default_policy as ZoomDefaultPolicy,
+    credentialsPrefix: row.credentials_prefix,
+  };
+}
+
+function toDecisionRef(row: ZoomDecisionRow): ZoomDecisionRef {
+  return { zoomAccount: row.zoom_account, scope: row.scope as ZoomDecisionScope, zoomKey: row.zoom_key, decision: row.decision as ZoomDecision };
+}
+
+function toReviewMeeting(
+  policy: ZoomKeepPolicy,
+  r: Pick<ZoomMeetingRow, "zoom_account" | "meeting_uuid" | "meeting_id" | "topic" | "start_time" | "end_time" | "host_email" | "participant_count">
+): ZoomReviewMeeting {
+  return {
+    zoomAccount: r.zoom_account,
+    meetingUuid: r.meeting_uuid,
+    meetingId: r.meeting_id,
+    topic: r.topic,
+    startTime: r.start_time,
+    endTime: r.end_time,
+    hostEmail: r.host_email,
+    participantCount: r.participant_count,
+    state: meetingState(policy, { zoomAccount: r.zoom_account, meetingUuid: r.meeting_uuid, meetingId: r.meeting_id }),
+  };
+}
+
+/** The earliest start and latest end of some meetings (a meeting with no end ends where it starts), or null for none. */
+function spanOf(rows: { start_time: string; end_time: string | null }[]): { from: string; to: string } | null {
+  if (rows.length === 0) return null;
+  let from = rows[0].start_time;
+  let to = rows[0].end_time ?? rows[0].start_time;
+  for (const r of rows) {
+    if (r.start_time < from) from = r.start_time;
+    const end = r.end_time ?? r.start_time;
+    if (end > to) to = end;
+  }
+  return { from, to };
 }
 
 /** The candidate ids with `from` swapped for `to` (kept once, at the end). */
@@ -468,30 +674,91 @@ const byId = <T extends { id: string }>(rows: T[]) => [...rows].sort((a, b) => (
 export class InMemoryZoomRepository implements ZoomRepository {
   constructor(private readonly data: InMemoryDataset) {}
 
+  private kept<T extends { zoom_account?: string | null; meeting_uuid?: string | null; meeting_id?: string | null }>(rows: T[]): T[] {
+    const policy = buildKeepPolicy(this.data.zoomAccounts.map(toAccount), this.data.zoomDecisions.map(toDecisionRef));
+    return rows.filter((r) => isMeetingKept(policy, { zoomAccount: r.zoom_account, meetingUuid: r.meeting_uuid, meetingId: r.meeting_id }));
+  }
+
+  async accounts() {
+    return [...this.data.zoomAccounts].sort((a, b) => (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : a.id < b.id ? -1 : 1)).map(toAccount);
+  }
+
+  async createAccount(input: { slug: string; label: string; hostEmail: string | null; defaultPolicy: ZoomDefaultPolicy; credentialsPrefix: string }) {
+    if (this.data.zoomAccounts.some((a) => a.slug === input.slug || a.credentials_prefix === input.credentialsPrefix)) {
+      throw new Error("duplicate key value violates unique constraint on zoom_accounts");
+    }
+    const now = new Date().toISOString();
+    const row: ZoomAccountRow = {
+      id: `zacc_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`,
+      slug: input.slug,
+      label: input.label,
+      host_email: input.hostEmail,
+      default_policy: input.defaultPolicy,
+      credentials_prefix: input.credentialsPrefix,
+      created_at: now,
+      updated_at: now,
+    };
+    this.data.zoomAccounts.push(row);
+    return toAccount(row);
+  }
+
+  async keepPolicy() {
+    return buildKeepPolicy(this.data.zoomAccounts.map(toAccount), this.data.zoomDecisions.map(toDecisionRef));
+  }
+
+  async setDecision({ zoomAccount, scope, zoomKey, decision, decidedBy }: { zoomAccount: string; scope: ZoomDecisionScope; zoomKey: string; decision: ZoomDecision; decidedBy: string | null }) {
+    if (!this.data.zoomAccounts.some((a) => a.id === zoomAccount)) throw new Error("violates foreign key constraint zoom_meeting_decisions_zoom_account_fkey");
+    const existing = this.data.zoomDecisions.find((d) => d.zoom_account === zoomAccount && d.scope === scope && d.zoom_key === zoomKey);
+    const decidedAt = new Date().toISOString();
+    if (existing) Object.assign(existing, { decision, decided_by: decidedBy, decided_at: decidedAt });
+    else this.data.zoomDecisions.push({ id: `zmdc_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`, zoom_account: zoomAccount, scope, zoom_key: zoomKey, decision, decided_by: decidedBy, decided_at: decidedAt });
+  }
+
+  async clearDecision({ zoomAccount, scope, zoomKey }: { zoomAccount: string; scope: ZoomDecisionScope; zoomKey: string }) {
+    this.data.zoomDecisions = this.data.zoomDecisions.filter((d) => !(d.zoom_account === zoomAccount && d.scope === scope && d.zoom_key === zoomKey));
+  }
+
+  async reviewMeetings() {
+    const policy = await this.keepPolicy();
+    const accountIds = new Set([...policy.accounts.values()].filter((a) => a.defaultPolicy === "exclude").map((a) => a.id));
+    return this.data.zoomMeetings
+      .filter((m) => accountIds.has(m.zoom_account))
+      .sort((a, b) => (a.start_time < b.start_time ? 1 : a.start_time > b.start_time ? -1 : a.id < b.id ? -1 : 1))
+      .map((m) => toReviewMeeting(policy, m));
+  }
+
+  async undecidedMeetingCount() {
+    return (await this.reviewMeetings()).filter((m) => m.state === "undecided").length;
+  }
+
+  async meetingSpan({ zoomAccount, scope, zoomKey }: { zoomAccount: string; scope: ZoomDecisionScope; zoomKey: string }) {
+    return spanOf(this.data.zoomMeetings.filter((m) => m.zoom_account === zoomAccount && (scope === "instance" ? m.meeting_uuid : m.meeting_id) === zoomKey));
+  }
+
   async attendeeCount() {
     return this.data.zoomAttendees.length;
   }
 
   async attendeesForMatching({ withMeetingOnly = false }: { withMeetingOnly?: boolean } = {}) {
-    return byId(this.data.zoomAttendees)
+    return byId(this.kept(this.data.zoomAttendees))
       .filter((a) => !withMeetingOnly || a.meeting_uuid !== null)
       .map(({ name, email, meeting_uuid, join_time, leave_time }) => ({ name, email, meeting_uuid, join_time, leave_time }));
   }
 
   async attendeesSince(from: string) {
-    return byId(this.data.zoomAttendees)
+    return byId(this.kept(this.data.zoomAttendees))
       .filter((a) => a.join_time >= from)
       .map(({ name, email, meeting_uuid }) => ({ name, email, meeting_uuid }));
   }
 
   async attendeeNamesOverlapping(from: string, to: string) {
-    return byId(this.data.zoomAttendees)
+    return byId(this.kept(this.data.zoomAttendees))
       .filter((a) => a.join_time < to && a.leave_time > from)
       .map(({ name, email }) => ({ name, email }));
   }
 
   async attendeesOverlapping(from: string, to: string) {
-    return [...this.data.zoomAttendees]
+    return this.kept(this.data.zoomAttendees)
       .filter((a) => a.join_time < to && a.leave_time > from)
       .sort((a, b) => (a.join_time < b.join_time ? -1 : a.join_time > b.join_time ? 1 : a.id < b.id ? -1 : 1))
       .map((a) => ({ ...a }));
@@ -499,7 +766,7 @@ export class InMemoryZoomRepository implements ZoomRepository {
 
   async appearancesOf(names: string[]) {
     const wanted = new Set(names);
-    return byId(this.data.zoomAttendees)
+    return byId(this.kept(this.data.zoomAttendees))
       .filter((a) => wanted.has(a.name))
       .map(({ name, email, join_time, topic, meeting_uuid, meeting_id }) => ({ name, email, join_time, topic, meeting_uuid, meeting_id }));
   }
@@ -507,7 +774,7 @@ export class InMemoryZoomRepository implements ZoomRepository {
   async meetingCountsByName(names: string[]) {
     const wanted = new Set(names);
     const meetings = new Map<string, Set<string>>();
-    for (const a of this.data.zoomAttendees) {
+    for (const a of this.kept(this.data.zoomAttendees)) {
       if (!wanted.has(a.name) || !a.meeting_uuid) continue;
       meetings.set(a.name, (meetings.get(a.name) ?? new Set()).add(a.meeting_uuid));
     }
@@ -515,13 +782,13 @@ export class InMemoryZoomRepository implements ZoomRepository {
   }
 
   async meetingUuidsForName(name: string) {
-    return [...new Set(byId(this.data.zoomAttendees).flatMap((a) => (a.name === name && a.meeting_uuid ? [a.meeting_uuid] : [])))];
+    return [...new Set(byId(this.kept(this.data.zoomAttendees)).flatMap((a) => (a.name === name && a.meeting_uuid ? [a.meeting_uuid] : [])))];
   }
 
   async attendeesInSessions(sessionKeys: string[]) {
     const wanted = new Set(sessionKeys);
     const result = new Map<string, { name: string; email: string | null }[]>();
-    for (const a of byId(this.data.zoomAttendees)) {
+    for (const a of byId(this.kept(this.data.zoomAttendees))) {
       const key = a.meeting_uuid || a.meeting_id;
       if (!wanted.has(key)) continue;
       result.set(key, [...(result.get(key) ?? []), { name: a.name, email: a.email }]);
@@ -531,7 +798,7 @@ export class InMemoryZoomRepository implements ZoomRepository {
 
   async attendeesOfSessions(sessionKeys: string[]) {
     const wanted = new Set(sessionKeys);
-    return this.data.zoomAttendees
+    return this.kept(this.data.zoomAttendees)
       .filter((a) => wanted.has(a.meeting_uuid || a.meeting_id))
       .sort((a, b) => (a.join_time < b.join_time ? -1 : a.join_time > b.join_time ? 1 : a.id < b.id ? -1 : 1))
       .map((a) => ({ ...a }));
@@ -557,6 +824,7 @@ export class InMemoryZoomRepository implements ZoomRepository {
           status: null,
           topic: null,
           user_id: null,
+          zoom_account: PRIMARY_ZOOM_ACCOUNT_ID,
           ...r,
         });
       }
@@ -582,13 +850,14 @@ export class InMemoryZoomRepository implements ZoomRepository {
         imported_at: null,
         participant_count: null,
         updated_at: null,
+        zoom_account: PRIMARY_ZOOM_ACCOUNT_ID,
         ...meeting,
       });
     }
   }
 
   async importedHostIds(since: string) {
-    const hosts = this.data.zoomMeetings
+    const hosts = this.kept(this.data.zoomMeetings)
       .filter((m) => m.start_time >= since)
       .map((m) => (m.data && typeof m.data === "object" && !Array.isArray(m.data) ? m.data.host_id : null))
       .flatMap((h) => (typeof h === "string" && h ? [h] : []));
@@ -692,13 +961,14 @@ export class InMemoryZoomRepository implements ZoomRepository {
       participant_email: null,
       participant_name: null,
       received_at: new Date().toISOString(),
+      zoom_account: PRIMARY_ZOOM_ACCOUNT_ID,
       ...event,
       raw_payload: event.raw_payload ?? null,
     });
   }
 
   async participantEventsSince(since: string) {
-    return byId(this.data.zoomParticipantEvents)
+    return byId(this.kept(this.data.zoomParticipantEvents))
       .filter((r) => r.event_time >= since)
       .map(({ id, meeting_uuid, host_id, participant_key, participant_name, participant_email, event, event_time }) => ({
         id,
@@ -731,12 +1001,13 @@ export class InMemoryZoomRepository implements ZoomRepository {
       sender_name: null,
       sender_session_id: null,
       sender_type: null,
+      zoom_account: PRIMARY_ZOOM_ACCOUNT_ID,
       ...message,
       raw_payload: message.raw_payload ?? null,
     });
   }
 
   async chatMessagesSince(since: string) {
-    return byId(this.data.zoomChatMessages).filter((r) => r.sent_at >= since);
+    return byId(this.kept(this.data.zoomChatMessages)).filter((r) => r.sent_at >= since);
   }
 }

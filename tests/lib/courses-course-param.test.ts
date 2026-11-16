@@ -19,6 +19,17 @@ describe("resolveCourseParam", () => {
     expect(await resolveCourseParam(repos(), "the-ready-writer")).toBe(ID);
   });
 
+  it("turns an address the course used to have into its id too, so an old link to its admin page still opens", async () => {
+    const r = createInMemoryRepos(
+      new InMemoryDataset({
+        courses: [courseRow({ id: ID, slug: "ready-writer", title: "The Ready Writer" })],
+        courseAddressRedirects: [{ id: "cslug_AAAAAAAAAAA1", address: "the-ready-writer", course_id: ID, created_at: "2097-01-01T00:00:00.000Z" }],
+      })
+    );
+    expect(await resolveCourseParam(r, "the-ready-writer")).toBe(ID);
+    expect(await resolveCourseParam(r, "ready-writer")).toBe(ID);
+  });
+
   it("returns an unknown slug as it came, for a 404", async () => {
     expect(await resolveCourseParam(repos(), "no-such-course")).toBe("no-such-course");
   });

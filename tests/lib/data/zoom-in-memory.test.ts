@@ -1,5 +1,6 @@
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { InMemoryZoomRepository } from "@/lib/data/zoom";
+import { primaryZoomAccountRow } from "@/lib/zoom-accounts";
 import { defineZoomContract } from "@/tests/helpers/zoom-contract";
 
 defineZoomContract("InMemoryZoomRepository", () => {
@@ -18,6 +19,8 @@ defineZoomContract("InMemoryZoomRepository", () => {
       data.ambiguousZoomNames = [];
       data.zoomParticipantEvents = [];
       data.zoomChatMessages = [];
+      data.zoomDecisions = [];
+      data.zoomAccounts = [primaryZoomAccountRow()];
       data.joinSettings = [];
     },
     seedAmbiguousName: async ({ zoomName, zoomEmail, candidates, status = "unresolved", resolvedMemberId }) => {

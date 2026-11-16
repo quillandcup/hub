@@ -5,7 +5,7 @@ import { createRepos } from "@/lib/data/repos";
 import { attendedPrickleRow } from "@/lib/attendance-view";
 import { cache } from "react";
 import RecordHistoryButton from "@/components/RecordHistoryButton";
-import { withMentionNames } from "@/lib/chat/names";
+import { withConversationParticipants, withMentionNames } from "@/lib/chat/names";
 import { withReactionEmoji } from "@/lib/slack-reaction-emoji";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
@@ -17,7 +17,6 @@ import type { Metadata } from "next";
 import MemberDetails, { type MemberView } from "./MemberDetails";
 import MergeButton from "./MergeButton";
 import SplitButton from "./SplitButton";
-import RemoveMemberPanel from "./RemoveMemberPanel";
 import { ADMIN_NOTE_EDIT_MINUTES } from "@/lib/config";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { startSudo } from "@/app/actions/sudo";
@@ -373,7 +372,7 @@ export default async function MemberDetailPage({
           latestNote={latestNote}
           slackSummary={slackSummary}
           slackPage={{
-            rows: await withReactionEmoji(await withMentionNames(slackPage.rows)),
+            rows: await withReactionEmoji(await withConversationParticipants(await withMentionNames(slackPage.rows), id)),
             total: slackPage.total,
             page: slackPage.page,
             pageSize: slackQuery.pageSize,
@@ -394,7 +393,6 @@ export default async function MemberDetailPage({
           notificationsInfo={notificationsInfo}
           features={features}
         />
-        {can("member.remove") && <RemoveMemberPanel member={{ id: member.id, name: member.name, removed: member.email.endsWith("@removed.invalid") }} />}
       </main>
     </div>
   );

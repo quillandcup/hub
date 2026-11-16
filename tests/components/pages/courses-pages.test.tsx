@@ -23,6 +23,10 @@ vi.mock("@/lib/courses/member", async (importOriginal) => ({
   loadLessonView: (...a: unknown[]) => loadLessonView(...a),
 }));
 
+// A missing course asks whether the address is an old one (a permanent redirect); the real rule has its own tests (tests/lib/courses-address-redirect.test.ts).
+const redirectOldCourseAddress = vi.fn();
+vi.mock("@/lib/courses/address-redirect", () => ({ redirectOldCourseAddress: (...a: unknown[]) => redirectOldCourseAddress(...a) }));
+
 const signPlaybackTokens = vi.fn();
 vi.mock("@/lib/mux", () => ({ createMuxClient: () => ({}), signPlaybackTokens: (...a: unknown[]) => signPlaybackTokens(...a) }));
 const restrictionIdForViewer = vi.fn();
@@ -36,17 +40,15 @@ vi.mock("@/components/courses/LessonPlayer", () => ({
     </div>
   ),
 }));
-const sharing = { on: false, targets: [{ id: "chn_AAAAAAAAAAA1", label: "#writing" }] };
+const sharing = { on: false };
 vi.mock("@/lib/features.server", () => ({
   getUserFeaturePreviews: async () => [],
   effectiveMemberHasFeature: async () => sharing.on,
 }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({}) }));
-vi.mock("@/lib/chat/share-targets", () => ({ shareTargets: async () => sharing.targets }));
-vi.mock("@/app/(member)/chat/actions", () => ({ shareLessonVideoInChat: vi.fn() }));
 vi.mock("@/app/(member)/courses/actions", () => ({ setLessonComplete: vi.fn(async () => ({})), clearMyLessonProgress: vi.fn(async () => ({})) }));
 
-import LessonPlayerMock from "@/components/courses/LessonPlayer";
+import { TimedLessonPlayer } from "@/components/courses/PlayerTime";
 import CoursesPage from "@/app/(member)/courses/page";
 import CoursePage, { generateMetadata as generateCourseMetadata } from "@/app/(member)/courses/[slug]/page";
 import ModulePage, { generateMetadata as generateModuleMetadata } from "@/app/(member)/courses/[slug]/modules/[moduleId]/page";
@@ -74,6 +76,7 @@ beforeEach(() => {
   loadCourseList.mockReset();
   loadCourseView.mockReset();
   loadLessonView.mockReset();
+  redirectOldCourseAddress.mockReset();
   signPlaybackTokens.mockReset();
   restrictionIdForViewer.mockReset();
   restrictionIdForViewer.mockResolvedValue(null);
@@ -82,7 +85,6 @@ beforeEach(() => {
   caller.identity.isSudo = false;
   caller.scope.isAdminActing = false;
   sharing.on = false;
-  sharing.targets = [{ id: "chn_AAAAAAAAAAA1", label: "#writing" }];
 });
 
 describe("/courses", () => {
@@ -177,6 +179,12 @@ describe("/courses for a pre-order", () => {
 
 describe("/courses/[slug]", () => {
   const params = (slug = "the-ready-writer") => ({ params: Promise.resolve({ slug }) });
+
+  it("asks about an old course address before it answers 404, and never for a course it found", async () => {
+    loadCourseView.mockResolvedValue(null);
+    await expect(Promise.resolve().then(() => CoursePage(params("old-name")))).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
+    expect(redirectOldCourseAddress).toHaveBeenCalledWith(expect.anything(), "old-name", caller.scope, "");
+  });
 
   it("is a 404 for a course that doesn't exist", async () => {
     loadCourseView.mockResolvedValue(null);
@@ -284,6 +292,12 @@ describe("/courses/[slug]/modules/[moduleId]", () => {
   const open = (completed = new Set<string>()) =>
     loadCourseView.mockResolvedValue({ course, access: { kind: "open", endsAt: null }, outline, completed, progress: courseProgress(outline, completed) });
 
+  it("asks about an old course address when the course isn't found, with the module's own path to carry over", async () => {
+    loadCourseView.mockResolvedValue(null);
+    await expect(Promise.resolve().then(() => ModulePage(params("mod")))).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
+    expect(redirectOldCourseAddress).toHaveBeenCalledWith(expect.anything(), "the-ready-writer", caller.scope, "/modules/mod");
+  });
+
   it("is a 404 for a module that isn't in the course", async () => {
     open();
     await expect(Promise.resolve().then(() => ModulePage(params("nope")))).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
@@ -370,6 +384,15 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
     resumeSeconds: 0,
     files: [],
     ...over,
+  });
+
+  it("asks about an old course address when the lesson isn't found, and the redirect (a 308) is the redirect helper's to throw", async () => {
+    loadLessonView.mockResolvedValue({ kind: "not_found" });
+    redirectOldCourseAddress.mockImplementation(async () => {
+      throw Object.assign(new Error("NEXT_REDIRECT"), { digest: "NEXT_REDIRECT;replace;/courses/new/lessons/x;308;" });
+    });
+    await expect(Promise.resolve().then(() => LessonPage(params()))).rejects.toMatchObject({ digest: expect.stringContaining(";308;") });
+    expect(redirectOldCourseAddress).toHaveBeenCalledWith(expect.anything(), "the-ready-writer", caller.scope, `/lessons/${LESSON_B}`);
   });
 
   it("is a 404 for an id that isn't a lesson id or isn't found", async () => {
@@ -795,7 +818,7 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
           if (Array.isArray(node)) return node.map(find).find((k) => k !== undefined);
           if (!node || typeof node !== "object" || !("props" in node)) return undefined;
           const el = node as { type: unknown; key: string | null; props: { children?: unknown } };
-          return el.type === LessonPlayerMock ? el.key : find(el.props.children);
+          return el.type === TimedLessonPlayer ? el.key : find(el.props.children);
         };
         return find(await LessonPage(params(lessonId)));
       };
@@ -860,73 +883,41 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
     });
   });
 
-  describe("Share this video in chat", () => {
+  describe("Copy link", () => {
     const ready = () => {
       signPlaybackTokens.mockResolvedValue({ playback: "p", poster: "t", storyboard: "s" });
       loadLessonView.mockResolvedValue(ok({ video: { status: "ready", playbackId: "pb-1" } }));
     };
-    const shareButton = () => screen.queryByRole("button", { name: /share this video in chat/i });
+    const copyButton = () => screen.queryByRole("button", { name: "Copy link" });
 
-    it("is offered when chat, posting and chat videos are on and the video is ready", async () => {
-      sharing.on = true;
-      ready();
-      await renderServerPage(LessonPage, params());
-
-      expect(shareButton()).toBeInTheDocument();
-    });
-
-    it("copies this lesson's address for pasting into chat", async () => {
+    it("copies this lesson's address when chat videos are on and the video is ready", async () => {
       const writeText = vi.fn().mockResolvedValue(undefined);
       Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
       sharing.on = true;
       ready();
       await renderServerPage(LessonPage, params());
 
-      await userEvent.click(screen.getByRole("button", { name: "Copy link to paste in chat" }));
+      await userEvent.click(copyButton()!);
 
       expect(writeText).toHaveBeenCalledWith(`${APP_URL}/courses/the-ready-writer/lessons/${LESSON_B}`);
     });
 
-    it("offers admins acting as themselves the choice to open it to the whole conversation, and members not", async () => {
-      sharing.on = true;
+    it("is not offered when the feature is off, in sudo, or before the video is ready", async () => {
       ready();
       await renderServerPage(LessonPage, params());
-      await userEvent.click(shareButton()!);
-      expect(screen.queryByRole("checkbox", { name: /even without the course/i })).not.toBeInTheDocument();
-      cleanup();
-
-      caller.scope.isAdminActing = true;
-      await renderServerPage(LessonPage, params());
-      await userEvent.click(shareButton()!);
-      expect(screen.getByRole("checkbox", { name: /even without the course/i })).toBeInTheDocument();
-    });
-
-    it("is not offered when a feature is off, in sudo, with nowhere to share, or before the video is ready", async () => {
-      ready();
-      await renderServerPage(LessonPage, params());
-      expect(shareButton()).not.toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Copy link to paste in chat" })).not.toBeInTheDocument();
+      expect(copyButton()).not.toBeInTheDocument();
       cleanup();
 
       sharing.on = true;
       caller.identity.isSudo = true;
       await renderServerPage(LessonPage, params());
-      expect(shareButton()).not.toBeInTheDocument();
+      expect(copyButton()).not.toBeInTheDocument();
       cleanup();
 
       caller.identity.isSudo = false;
-      // With nowhere to pick from there is no Share panel, but the copy button is still there (a pasted link works anywhere).
-      sharing.targets = [];
-      await renderServerPage(LessonPage, params());
-      expect(shareButton()).not.toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Copy link to paste in chat" })).toBeInTheDocument();
-      cleanup();
-
-      sharing.targets = [{ id: "chn_AAAAAAAAAAA1", label: "#writing" }];
       loadLessonView.mockResolvedValue(ok({ video: { status: "preparing", playbackId: null } }));
       await renderServerPage(LessonPage, params());
-      expect(shareButton()).not.toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Copy link to paste in chat" })).not.toBeInTheDocument();
+      expect(copyButton()).not.toBeInTheDocument();
     });
   });
 

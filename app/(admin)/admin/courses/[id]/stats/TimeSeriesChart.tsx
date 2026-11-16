@@ -122,7 +122,7 @@ export default function TimeSeriesChart({
         {hovered && active !== null && (
           <div
             role="status"
-            className="pointer-events-none absolute top-2 z-10 w-48 rounded-md border border-slate-200 bg-white p-2 text-xs shadow-md dark:border-slate-700 dark:bg-slate-900"
+            className="pointer-events-none absolute top-2 z-dropdown w-48 rounded-md border border-slate-200 bg-white p-2 text-xs shadow-md dark:border-slate-700 dark:bg-slate-900"
             style={tooltipOnRight ? { left: `${(x(active) / W) * 100 + 2}%` } : { right: `${100 - (x(active) / W) * 100 + 2}%` }}
           >
             <p className="text-slate-600 dark:text-slate-400">{granularityLabel === "day" ? hovered.label : `${granularityLabel === "week" ? "Week of" : ""} ${hovered.label}`.trim()}</p>

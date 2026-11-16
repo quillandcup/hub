@@ -6,6 +6,7 @@ vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: vi.fn() }));
 vi.mock("@/lib/courses/caller", () => ({ getCoursesCaller: vi.fn() }));
 vi.mock("@/lib/courses/member", () => ({ loadMemberCourseAccess: vi.fn(), canOpenLessons: vi.fn() }));
 vi.mock("@/lib/mux", () => ({ createMuxClient: vi.fn(() => ({})), signPlaybackTokens: vi.fn() }));
+vi.mock("@/lib/mux-data.server", () => ({ muxDataConsentFor: vi.fn() }));
 vi.mock("@/lib/mux-restriction.server", () => ({ restrictionIdForViewer: vi.fn() }));
 vi.mock("@/lib/rate-limit", () => ({ hitRateLimits: vi.fn() }));
 
@@ -14,6 +15,7 @@ import { createInMemoryRepos } from "@/lib/data/repos";
 import { getCoursesCaller } from "@/lib/courses/caller";
 import { canOpenLessons, loadMemberCourseAccess } from "@/lib/courses/member";
 import { signPlaybackTokens } from "@/lib/mux";
+import { muxDataConsentFor } from "@/lib/mux-data.server";
 import { restrictionIdForViewer } from "@/lib/mux-restriction.server";
 import { hitRateLimits } from "@/lib/rate-limit";
 import { GET, POST } from "@/app/api/chat/videos/[messageId]/route";
@@ -56,6 +58,7 @@ beforeEach(() => {
   vi.mocked(canOpenLessons).mockReturnValue(true);
   vi.mocked(hitRateLimits).mockResolvedValue(true);
   vi.mocked(restrictionIdForViewer).mockResolvedValue(null);
+  vi.mocked(muxDataConsentFor).mockReset().mockResolvedValue(null);
   vi.mocked(signPlaybackTokens).mockReset().mockResolvedValue(TOKENS);
 });
 
@@ -83,7 +86,7 @@ describe("POST /api/chat/videos/[messageId]", () => {
 
     expect(res.status).toBe(200);
     expect(res.headers.get("Cache-Control")).toBe("no-store");
-    expect(await res.json()).toEqual({ title: "Show up for the page", lessonId: LESSON, playbackId: "pb123", tokens: TOKENS, restricted: false, record: true, resumeSeconds: 0 });
+    expect(await res.json()).toEqual({ title: "Show up for the page", lessonId: LESSON, lessonHref: `/courses/c/lessons/${LESSON}`, playbackId: "pb123", tokens: TOKENS, restricted: false, muxData: null, record: true, resumeSeconds: 0, completion: { completed: false } });
     expect(signPlaybackTokens).toHaveBeenCalledWith(expect.anything(), "pb123", undefined, null);
   });
 
@@ -94,6 +97,55 @@ describe("POST /api/chat/videos/[messageId]", () => {
     // A position barely into the video isn't worth resuming.
     await repos.courseProgress.savePosition("mbr_AAAAAAAAAAA1", LESSON, 3);
     expect(await (await call()).json()).toMatchObject({ resumeSeconds: 0 });
+  });
+
+  it("says whether watching on completes the lesson: for a viewer with the course who is being recorded, and whether it is already complete", async () => {
+    expect((await (await call()).json()).completion).toEqual({ completed: false });
+
+    await repos.courseProgress.setCompletion("mbr_AAAAAAAAAAA1", LESSON, "2026-01-01T00:00:00.000Z");
+    expect((await (await call()).json()).completion).toEqual({ completed: true });
+  });
+
+  it("still plays when reading the member's progress fails: from the start, and not yet complete", async () => {
+    vi.spyOn(repos.courseProgress, "lessonPosition").mockRejectedValue(new Error("db down"));
+    vi.spyOn(repos.courseProgress, "completedLessonIds").mockRejectedValue(new Error("db down"));
+
+    const res = await call();
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ playbackId: "pb123", resumeSeconds: 0, completion: { completed: false } });
+  });
+
+  it("offers no completion in sudo, for a lesson only staff can open, or to a reader without the course", async () => {
+    vi.mocked(getCoursesCaller).mockResolvedValue({
+      userId: "user-1",
+      identity: { memberId: "mbr_AAAAAAAAAAA1", memberName: "Ada Example", memberEmail: "ada@example.com", isSudo: true },
+      scope: { memberId: "mbr_AAAAAAAAAAA1", isAdminActing: false },
+    });
+    expect((await (await call()).json()).completion).toBeNull();
+
+    vi.mocked(getCoursesCaller).mockResolvedValue({
+      userId: "user-1",
+      identity: { memberId: "mbr_AAAAAAAAAAA1", memberName: "Ada Example", memberEmail: "ada@example.com", isSudo: false },
+      scope: { memberId: "mbr_AAAAAAAAAAA1", isAdminActing: false },
+    });
+    setup({ lessonState: "coming_soon" });
+    vi.mocked(getCoursesCaller).mockResolvedValue({
+      userId: "user-1",
+      identity: { memberId: "mbr_AAAAAAAAAAA1", memberName: "Ada Example", memberEmail: "ada@example.com", isSudo: false },
+      scope: { memberId: "mbr_AAAAAAAAAAA1", isAdminActing: true },
+    });
+    expect((await (await call()).json()).completion).toBeNull();
+
+    // Open to the whole channel, but the reader has no course: they watch, and nothing of theirs is completed.
+    setup({ open: true });
+    vi.mocked(canOpenLessons).mockReturnValue(false);
+    vi.mocked(getCoursesCaller).mockResolvedValue({
+      userId: "user-1",
+      identity: { memberId: "mbr_AAAAAAAAAAA1", memberName: "Ada Example", memberEmail: "ada@example.com", isSudo: false },
+      scope: { memberId: "mbr_AAAAAAAAAAA1", isAdminActing: false },
+    });
+    expect((await (await call()).json()).completion).toBeNull();
   });
 
   it("says not to record in sudo or for a lesson only staff can open", async () => {
@@ -111,6 +163,13 @@ describe("POST /api/chat/videos/[messageId]", () => {
     });
     setup({ lessonState: "coming_soon" });
     expect(await (await call()).json()).toMatchObject({ record: false });
+  });
+
+  it("hands the player the Mux Data consent facts when the flag is on for the viewer, and none otherwise", async () => {
+    vi.mocked(muxDataConsentFor).mockResolvedValue({ needsConsent: true, optedOut: false });
+    const body = await (await call()).json();
+    expect(body.muxData).toEqual({ needsConsent: true, optedOut: false });
+    expect(muxDataConsentFor).toHaveBeenCalledWith("user-1", expect.objectContaining({ memberId: "mbr_AAAAAAAAAAA1", isSudo: false }));
   });
 
   it("restricts the links by the same rule as the lesson page", async () => {
@@ -141,7 +200,7 @@ describe("POST /api/chat/videos/[messageId]", () => {
       const res = await call();
 
       expect(res.status).toBe(200);
-      expect(await res.json()).toMatchObject({ playbackId: "pb123", record: true, resumeSeconds: 0 });
+      expect(await res.json()).toMatchObject({ playbackId: "pb123", record: true, resumeSeconds: 0, lessonHref: null });
     });
 
     it("still refuses a reader without the course when it isn't open to the channel", async () => {
@@ -213,7 +272,7 @@ describe("GET /api/chat/videos/[messageId] (what the card shows before anyone pr
 
     expect(res.status).toBe(200);
     expect(res.headers.get("Cache-Control")).toBe("no-store");
-    expect(await res.json()).toEqual({ title: "Show up for the page", courseTitle: "The Ready Writer", thumbnailUrl: `/api/courses/image/lesson/${LESSON}`, canWatch: true });
+    expect(await res.json()).toEqual({ title: "Show up for the page", courseTitle: "The Ready Writer", thumbnailUrl: `/api/courses/image/lesson/${LESSON}`, lessonHref: `/courses/c/lessons/${LESSON}`, canWatch: true });
     expect(signPlaybackTokens).not.toHaveBeenCalled();
   });
 
@@ -229,7 +288,14 @@ describe("GET /api/chat/videos/[messageId] (what the card shows before anyone pr
   it("says a reader without the course can't watch it, and still names it (the sharer chose to put it in that conversation)", async () => {
     vi.mocked(canOpenLessons).mockReturnValue(false);
 
-    expect(await (await card()).json()).toMatchObject({ title: "Show up for the page", courseTitle: "The Ready Writer", canWatch: false });
+    expect(await (await card()).json()).toMatchObject({ title: "Show up for the page", courseTitle: "The Ready Writer", canWatch: false, lessonHref: null });
+  });
+
+  it("gives no lesson address to a reader who can watch only because the share was opened to the channel", async () => {
+    vi.mocked(canOpenLessons).mockReturnValue(false);
+    setup({ open: true });
+
+    expect(await (await card()).json()).toMatchObject({ canWatch: true, lessonHref: null });
   });
 
   it("says a reader without the course can watch it when an admin opened the share to the channel, but not for a draft course or a video that isn't ready", async () => {

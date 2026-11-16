@@ -85,15 +85,14 @@ describe("a link preview card while its picture loads", () => {
   });
   const ctx = { members: {}, channels: {}, slackUsers: {} } as never;
 
-  it("reserves the picture's space instead of drawing a domain-only card that then grows, and drops the picture (not the card) when it fails", () => {
+  it("reserves the picture's space, draws the picture alone (no domain line), and drops it when it fails", () => {
     const { container } = render(<MessageUnfurls unfurls={[card()]} ctx={ctx} permalink={null} />);
     expect(screen.getByTestId("unfurl-picture-placeholder")).toBeInTheDocument();
-    expect(screen.getByText("commons.example.test")).toBeInTheDocument();
+    expect(screen.queryByText("commons.example.test")).toBeNull();
 
     fireEvent.error(container.querySelector("img")!);
 
     expect(container.querySelector("img")).toBeNull();
     expect(container.querySelector("a[aria-label='Open picture']")).toBeNull();
-    expect(screen.getByText("commons.example.test")).toBeInTheDocument();
   });
 });

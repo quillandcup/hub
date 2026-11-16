@@ -39,6 +39,9 @@ const plan = (over: Partial<Row<"care_engagements">> & { member_id: string; open
   created_at: over.opened_at,
   updated_at: over.opened_at,
   deleted_at: null,
+  handover_to: null,
+  handover_by: null,
+  handover_at: null,
   ...over,
 });
 const tracked = (tracked_by: string, slack_channel_id: string, member_id: string, deleted_at: string | null = null): Row<"care_tracked_dms"> => ({
@@ -114,10 +117,10 @@ describe("loadCareMessages", () => {
     const page = await loadCareMessages(repos({ plans: [first], tracking: [], messages: [say(DM_A_ADA, SLACK.ada, "2026-11-02T10:00:00Z", "hello")] }), ADA, { now: NOW });
     expect(page).toMatchObject({ tracked: false, messages: [], olderBefore: null });
     expect(page.plans.map((p) => p.id)).toEqual([first.id]);
-    // A DM tracked by someone who owns none of the member's plans is not one either.
-    const other = await loadCareMessages(repos({ plans: [first], tracking: [tracked(B_USER, DM_B_ADA, ADA)], messages: [say(DM_B_ADA, SLACK.ada, "2026-11-02T10:00:00Z", "hello")] }), ADA, { now: NOW });
-    expect(other.tracked).toBe(false);
-    expect(other.messages).toEqual([]);
+    // With no care plan at all, a tracked DM is not read (tracking only exists because a plan does).
+    const noPlan = await loadCareMessages(repos({ plans: [], tracking: [tracked(B_USER, DM_B_ADA, ADA)], messages: [say(DM_B_ADA, SLACK.ada, "2026-11-02T10:00:00Z", "hello")] }), ADA, { now: NOW });
+    expect(noPlan.tracked).toBe(false);
+    expect(noPlan.messages).toEqual([]);
   });
 
   it("shows the full messages sent inside each plan's window, grouped by plan, who and when; nothing before, after or between", async () => {
@@ -158,7 +161,7 @@ describe("loadCareMessages", () => {
     expect(page.olderBefore).toBeNull();
   });
 
-  it("is per member, across plans and owners: a later owner reads the earlier plan's messages, and a reassigned plan keeps them", async () => {
+  it("is per member, across plans and owners: a later owner reads the earlier plan's messages, and a handed-over plan keeps them", async () => {
     // The first plan was owned by A, who tracks the DM; the second (open) was handed to B, who tracks nothing yet.
     const handed = plan({ ...second, owned_by: B_USER, opened_by: A_USER });
     const page = await loadCareMessages(
@@ -187,16 +190,17 @@ describe("loadCareMessages", () => {
     expect(both.messages.map((m) => [m.author, m.text])).toEqual([["Ada E.", "reply"], ["Bea Example", "from the new owner"], ["Cam", "early"]]);
   });
 
-  it("reads only DMs tracked by an owner of one of the member's plans, never a staff member's other tracking, an untracked DM or a removed plan", async () => {
+  it("reads every live DM tracked with the member, a previous owner's after a hand-over included, and no other member's", async () => {
     const removed = plan({ member_id: ADA, opened_at: "2026-11-05T10:00:00Z", closed_at: "2026-11-08T10:00:00Z", owned_by: C_USER, opened_by: C_USER, deleted_at: "2026-11-09T00:00:00Z" });
+    // A held the plan and has handed it to B (who accepted: B owns it and tracks their own DM); A's tracked DM stays and holds the earlier messages.
+    const handed = plan({ ...first, owned_by: B_USER, closed_at: "2026-11-10T10:00:00Z" });
     const page = await loadCareMessages(
       repos({
-        plans: [first, removed],
-        tracking: [tracked(A_USER, DM_A_ADA, ADA), tracked(B_USER, DM_B_ADA, ADA), tracked(C_USER, DM_C_ADA, ADA), tracked(A_USER, DM_A_BO, BO), tracked(A_USER, "D0GONE", ADA, "2026-11-08T00:00:00Z")],
+        plans: [handed, removed],
+        tracking: [tracked(A_USER, DM_A_ADA, ADA), tracked(B_USER, DM_B_ADA, ADA), tracked(A_USER, DM_A_BO, BO), tracked(A_USER, "D0GONE", ADA, "2026-11-08T00:00:00Z")],
         messages: [
-          say(DM_A_ADA, SLACK.a, "2026-11-02T10:00:00Z", "mine"),
-          say(DM_B_ADA, SLACK.b, "2026-11-02T11:00:00Z", "B owns none of the plans"),
-          say(DM_C_ADA, SLACK.c, "2026-11-06T10:00:00Z", "C owned only a removed plan"),
+          say(DM_A_ADA, SLACK.a, "2026-11-02T10:00:00Z", "from the earlier owner"),
+          say(DM_B_ADA, SLACK.b, "2026-11-03T10:00:00Z", "from the new owner"),
           say(DM_A_BO, SLACK.bo, "2026-11-02T12:00:00Z", "Bo's"),
           say("D0GONE", SLACK.a, "2026-11-02T13:00:00Z", "no longer tracked"),
         ],
@@ -204,7 +208,23 @@ describe("loadCareMessages", () => {
       ADA,
       { now: NOW }
     );
-    expect(page.messages.map((m) => m.text)).toEqual(["mine"]);
+    expect(page.messages.map((m) => m.text)).toEqual(["from the new owner", "from the earlier owner"]);
+  });
+
+  it("works for a plan with no owner and while a hand-over is pending", async () => {
+    const ownerless = plan({ ...first, owned_by: null, opened_by: null });
+    const pending = plan({ ...second, handover_to: B_USER, handover_by: A_USER, handover_at: "2026-11-15T10:00:00Z" });
+    const page = await loadCareMessages(
+      repos({
+        plans: [pending, ownerless],
+        tracking: [tracked(A_USER, DM_A_ADA, ADA)],
+        messages: [say(DM_A_ADA, SLACK.a, "2026-11-02T10:00:00Z", "in the ownerless plan"), say(DM_A_ADA, SLACK.ada, "2026-11-12T10:00:00Z", "while the offer waits")],
+      }),
+      ADA,
+      { now: NOW }
+    );
+    expect(page.plans.map((p) => p.ownerName)).toEqual(["Cam", "Unassigned"]);
+    expect(page.messages.map((m) => m.text)).toEqual(["while the offer waits", "in the ownerless plan"]);
   });
 
   it("pages newest first, a page at a time, without repeating or missing a message", async () => {

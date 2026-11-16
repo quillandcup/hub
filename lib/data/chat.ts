@@ -215,6 +215,8 @@ export interface ChatRepository {
   // --- message reads ---
   /** Top-level messages of a conversation, newest first, at most `limit`; with `before`, only those created earlier. */
   channelMessages(channelId: string, opts: { before?: string | null; limit: number }): Promise<ChatMessageRow[]>;
+  /** Top-level messages created at or after `from` (after it, with `exclusive`), oldest first, at most `limit`: a window that starts at a date. */
+  channelMessagesFrom(channelId: string, opts: { from: string; exclusive?: boolean; limit: number }): Promise<ChatMessageRow[]>;
   /** One thread's replies, oldest first, at most `limit`. */
   threadMessages(channelId: string, threadRootId: string, limit: number): Promise<ChatMessageRow[]>;
   /** Specific top-level messages of a conversation (replies are left out), in no particular order. */
@@ -254,7 +256,7 @@ export interface ChatRepository {
   dmCounterparts(memberId: string): Promise<Map<string, string[]>>;
   /**
    * Whether this Slack DM is tracked in a Hedgie Care plan of its member, open or past: a live tracked DM for its Slack
-   * conversation, whose member has a care plan owned by the person who tracks it (the owner, else who opened it). The team can read the
+   * conversation, whose member has a care plan (tracking exists only because a plan does, so a hand-over leaves the earlier owner's DM in it). The team can read the
    * messages sent in a plan (docs/HEDGIE_CARE.md), and Hub Chat says so at the top of the conversation. False for a channel, a
    * group message, and a conversation the caller cannot see.
    */
@@ -263,6 +265,14 @@ export interface ChatRepository {
   presentMembers(channelId: string, memberIds: string[]): Promise<Set<string>>;
   /** Where the member has read up to (their marker, else when they joined), or null when they are not in the conversation. */
   readMarker(channelId: string, memberId: string): Promise<string | null>;
+  /**
+   * "Mark unread": move the caller's read marker back to just before the message (a microsecond before its created_at, raw
+   * precision), so it and everything after it counts as unread again. Backward only: a message already after the marker
+   * changes nothing. Answers the marker as it stands, or null when the caller is not in the conversation or the message is
+   * not a live top-level message of it. The Supabase class runs as the signed-in caller (the database function is bound to
+   * them and `memberId` is not sent); the in-memory twin needs `memberId` to know who the caller is.
+   */
+  markUnread(channelId: string, messageId: string, memberId: string): Promise<string | null>;
   /** Put people in a conversation; one who left and returns is back, not added twice. */
   addMembers(channelId: string, people: { memberId: string; source: "slack" | "app" }[], joinedAt: string): Promise<void>;
   /** Mark the member as having left the conversation (a no-op when they are not in it). */
@@ -485,6 +495,14 @@ export class SupabaseChatRepository implements ChatRepository {
     let query = this.db.from("chat_messages").select(MESSAGE_COLUMNS).eq("channel_id", channelId).is("thread_root_id", null);
     if (opts.before) query = query.lt("created_at", opts.before);
     const { data, error } = await query.order("created_at", { ascending: false }).order("id", { ascending: false }).limit(opts.limit).overrideTypes<ChatMessageRow[], { merge: false }>(); // text columns held to unions by check constraints
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  }
+
+  async channelMessagesFrom(channelId: string, opts: { from: string; exclusive?: boolean; limit: number }) {
+    let query = this.db.from("chat_messages").select(MESSAGE_COLUMNS).eq("channel_id", channelId).is("thread_root_id", null);
+    query = opts.exclusive ? query.gt("created_at", opts.from) : query.gte("created_at", opts.from);
+    const { data, error } = await query.order("created_at", { ascending: true }).order("id", { ascending: true }).limit(opts.limit).overrideTypes<ChatMessageRow[], { merge: false }>(); // text columns held to unions by check constraints
     if (error) throw new Error(error.message);
     return data ?? [];
   }
@@ -722,6 +740,12 @@ export class SupabaseChatRepository implements ChatRepository {
       .maybeSingle();
     if (error) throw new Error(error.message);
     return data ? (data.last_read_at ?? data.joined_at) : null;
+  }
+
+  async markUnread(channelId: string, messageId: string, _memberId: string) {
+    const { data, error } = await this.db.rpc("chat_mark_unread", { p_channel_id: channelId, p_message_id: messageId });
+    if (error) throw new Error(error.message);
+    return data ?? null;
   }
 
   async addMembers(channelId: string, people: { memberId: string; source: "slack" | "app" }[], joinedAt: string) {
@@ -1144,6 +1168,15 @@ export class InMemoryChatRepository implements ChatRepository {
       .map((m) => this.messageRow(m));
   }
 
+  async channelMessagesFrom(channelId: string, opts: { from: string; exclusive?: boolean; limit: number }) {
+    const from = Date.parse(opts.from);
+    return this.data.chatMessages
+      .filter((m) => m.channel_id === channelId && !m.thread_root_id && (opts.exclusive ? time(m) > from : time(m) >= from))
+      .sort(oldestFirst)
+      .slice(0, opts.limit)
+      .map((m) => this.messageRow(m));
+  }
+
   async threadMessages(channelId: string, threadRootId: string, limit: number) {
     return this.data.chatMessages
       .filter((m) => m.channel_id === channelId && m.thread_root_id === threadRootId)
@@ -1294,9 +1327,7 @@ export class InMemoryChatRepository implements ChatRepository {
     if (!channel || (channel.kind ?? "channel") !== "dm" || !slackId) return false;
     return this.data.careTrackedDms
       .filter((t) => t.slack_channel_id === slackId && t.deleted_at === null)
-      .some((t) =>
-        this.data.careEngagements.some((e) => e.member_id === t.member_id && e.deleted_at === null && (e.owned_by ?? e.opened_by) === t.tracked_by)
-      );
+      .some((t) => this.data.careEngagements.some((e) => e.member_id === t.member_id && e.deleted_at === null));
   }
 
   async dmCounterparts(memberId: string) {
@@ -1342,6 +1373,16 @@ export class InMemoryChatRepository implements ChatRepository {
   async readMarker(channelId: string, memberId: string) {
     const m = this.active(channelId).find((x) => x.member_id === memberId);
     return m ? (m.last_read_at ?? m.joined_at ?? null) : null;
+  }
+
+  async markUnread(channelId: string, messageId: string, memberId: string) {
+    const member = this.active(channelId).find((x) => x.member_id === memberId);
+    const message = this.data.chatMessages.find((x) => x.id === messageId && x.channel_id === channelId && !x.thread_root_id && !x.deleted_at);
+    if (!member || !message || message.created_at === undefined) return null;
+    const before = new Date(Date.parse(message.created_at) - 1).toISOString();
+    const current = member.last_read_at ?? member.joined_at;
+    if (current && Date.parse(current) >= Date.parse(message.created_at)) member.last_read_at = before;
+    return member.last_read_at ?? member.joined_at ?? null;
   }
 
   async addMembers(channelId: string, people: { memberId: string; source: "slack" | "app" }[], joinedAt: string) {

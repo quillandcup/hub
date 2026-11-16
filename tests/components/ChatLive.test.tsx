@@ -287,6 +287,28 @@ describe("ChatLive", () => {
       expect(markChatRead).toHaveBeenCalledWith("c1", "2026-10-03T12:00:00Z");
     });
 
+    it("does not mark it read when the reader leaves after Mark unread on a message, nor when the tab hides", async () => {
+      const { unmount } = await mount("latest", { markRead: true, latestAt: "2026-10-03T12:00:00Z" });
+      await settle();
+      act(() => {
+        window.dispatchEvent(new CustomEvent("chat-marked-unread", { detail: { channelId: "c1", unread: 2 } }));
+      });
+      vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+      document.dispatchEvent(new Event("visibilitychange"));
+      unmount();
+      expect(markChatRead).not.toHaveBeenCalled();
+    });
+
+    it("still marks it read after Mark unread was chosen in a different conversation", async () => {
+      const { unmount } = await mount("latest", { markRead: true, latestAt: "2026-10-03T12:00:00Z" });
+      await settle();
+      act(() => {
+        window.dispatchEvent(new CustomEvent("chat-marked-unread", { detail: { channelId: "other", unread: 2 } }));
+      });
+      unmount();
+      expect(markChatRead).toHaveBeenCalledWith("c1", "2026-10-03T12:00:00Z");
+    });
+
     it("ignores the development double-mount, which unmounts at once", async () => {
       const { unmount } = await mount("latest", { markRead: true, latestAt: "2026-10-03T12:00:00Z" });
       unmount();

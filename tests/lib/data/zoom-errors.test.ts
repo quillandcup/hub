@@ -8,6 +8,7 @@ function failingDb(): Db {
   const chain: Record<string, unknown> = {};
   for (const m of ["select", "insert", "update", "upsert", "delete", "eq", "in", "gte", "lt", "gt", "not", "order", "range", "limit", "contains", "select"]) chain[m] = () => chain;
   chain.maybeSingle = async () => answer;
+  chain.single = async () => answer;
   chain.then = (resolve: (v: unknown) => unknown) => resolve(answer);
   const client = { from: () => chain, schema: () => client };
   return client as unknown as Db;
@@ -52,6 +53,14 @@ describe("SupabaseZoomRepository on a database error", () => {
     ["joinSettings", () => repo.joinSettings()],
     ["addJoinSetting", () => repo.addJoinSetting({ joinUrl: "https://zoom.example.test/j/1", meetingId: null, passcode: null, effectiveFrom: "2026-01-01T00:00:00Z", createdBy: null })],
     ["removeJoinSetting", () => repo.removeJoinSetting("id")],
+    ["accounts", () => repo.accounts()],
+    ["createAccount", () => repo.createAccount({ slug: "secondary", label: "Second", hostEmail: null, defaultPolicy: "exclude", credentialsPrefix: "ZOOM_SECONDARY" })],
+    ["keepPolicy", () => repo.keepPolicy()],
+    ["setDecision", () => repo.setDecision({ zoomAccount: "zacc_AAAAAAAAAAA1", scope: "instance", zoomKey: "u1", decision: "kept", decidedBy: null })],
+    ["clearDecision", () => repo.clearDecision({ zoomAccount: "zacc_AAAAAAAAAAA1", scope: "series", zoomKey: "1" })],
+    ["reviewMeetings", () => repo.reviewMeetings()],
+    ["undecidedMeetingCount", () => repo.undecidedMeetingCount()],
+    ["meetingSpan", () => repo.meetingSpan({ zoomAccount: "zacc_AAAAAAAAAAA1", scope: "series", zoomKey: "1" })],
   ])("%s throws the database's error", async (_name, run) => {
     await expect(run()).rejects.toThrow("database is down");
   });

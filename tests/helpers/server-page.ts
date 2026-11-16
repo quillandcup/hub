@@ -40,6 +40,11 @@ export const redirect = vi.fn((url: string): never => {
   throw Object.assign(new Error(`NEXT_REDIRECT: ${url}`), { digest: `NEXT_REDIRECT;replace;${url};307;` });
 });
 
+/** Like Next's real `permanentRedirect()`: the same throw, with the 308 status. */
+export const permanentRedirect = vi.fn((url: string): never => {
+  throw Object.assign(new Error(`NEXT_REDIRECT: ${url}`), { digest: `NEXT_REDIRECT;replace;${url};308;` });
+});
+
 /** Like Next's real `notFound()`: throws with the 404 fallback digest. */
 export const notFound = vi.fn((): never => {
   throw Object.assign(new Error("NEXT_HTTP_ERROR_FALLBACK;404"), { digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
@@ -49,6 +54,7 @@ export const routerMock = { push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), b
 
 export const nextNavigationModule = {
   redirect,
+  permanentRedirect,
   notFound,
   useRouter: () => routerMock,
   usePathname: () => "/",
@@ -189,6 +195,7 @@ export const supabaseServerModule = { createClient };
 /** Clears call history on the shared mocks and resets the fake client (implementations are kept). */
 export function resetServerPageMocks() {
   redirect.mockClear();
+  permanentRedirect.mockClear();
   notFound.mockClear();
   getCurrentUser.mockReset();
   getEffectiveIdentity.mockReset();
@@ -229,4 +236,16 @@ export async function expectRedirect<P>(
     digest: `NEXT_REDIRECT;replace;${url};307;`,
   });
   expect(redirect).toHaveBeenCalledWith(url);
+}
+
+/** Asserts the page redirects permanently (308) to `url` via the mocked `permanentRedirect()`. */
+export async function expectPermanentRedirect<P>(
+  Page: (props: P) => Promise<ReactNode> | ReactNode,
+  props: P,
+  url: string
+): Promise<void> {
+  await expect(Promise.resolve().then(() => Page(props))).rejects.toMatchObject({
+    digest: `NEXT_REDIRECT;replace;${url};308;`,
+  });
+  expect(permanentRedirect).toHaveBeenCalledWith(url);
 }

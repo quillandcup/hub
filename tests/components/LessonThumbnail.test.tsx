@@ -96,7 +96,9 @@ describe("LessonThumbnailField", () => {
 describe("FrameThumbnailButton", () => {
   it("says which moment it would use", () => {
     render(<FrameThumbnailButton courseId={COURSE} lessonId={LESSON} seconds={75} />);
-    expect(screen.getByRole("button", { name: "Use the frame at 1:15 as the thumbnail" })).toBeEnabled();
+    const button = screen.getByRole("button", { name: "Use current frame as thumbnail" });
+    expect(button).toBeEnabled();
+    expect(button).toHaveAttribute("title", "Uses the frame at 1:15");
   });
 
   it("makes the thumbnail from the player's moment, says so, and refreshes the page", async () => {

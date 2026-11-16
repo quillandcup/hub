@@ -1,7 +1,8 @@
 import { cache } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound, permanentRedirect, redirect } from "next/navigation";
+import { searchSuffix } from "@/lib/courses/address-redirect";
 import { getCurrentUser } from "@/lib/auth";
 import { APP_URL } from "@/lib/config";
 import { isId } from "@/lib/ids";
@@ -39,12 +40,12 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     description,
     // Not for search engines (these are lessons of a members' course); link unfurlers ignore this.
     robots: { index: false, follow: false },
-    openGraph: { title, description, type: "article", url: `${APP_URL}${lessonPath(slug, lessonId)}`, images },
+    openGraph: { title, description, type: "article", url: `${APP_URL}${lessonPath(preview.courseSlug, lessonId)}`, images },
     twitter: { card: images ? "summary_large_image" : "summary", title, description, images: images?.map((i) => i.url) },
   };
 }
 
-export default async function LessonPreviewPage({ params }: Params) {
+export default async function LessonPreviewPage({ params, searchParams }: Params & { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
   const { slug, lessonId } = await params;
   if (!isId(lessonId, "les")) notFound();
   // Someone who is signed in belongs on the lesson itself.
@@ -52,6 +53,8 @@ export default async function LessonPreviewPage({ params }: Params) {
   const preview = await loadPreview(slug, lessonId);
   // Not public (coming soon, a draft, an unknown lesson, the feature off): the login page, as before. The proxy has already remembered where they were headed.
   if (!preview) redirect("/login");
+  // An address the course used to have, and the lesson is public: on to the lesson at the course's current address.
+  if (preview.courseSlug !== slug) permanentRedirect(`${lessonPath(preview.courseSlug, lessonId)}${searchSuffix(await searchParams)}`);
 
   return (
     <main className="mx-auto flex min-h-screen max-w-xl flex-col justify-center px-6 py-10">

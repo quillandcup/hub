@@ -509,7 +509,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
       </button>
 
       {open && createPortal(
-        <div className="fixed inset-0 z-[60] flex items-start justify-center bg-black/50 sm:p-4 sm:pt-[10vh]" onClick={close}>
+        <div className="fixed inset-0 z-overlay-top flex items-start justify-center bg-black/50 sm:p-4 sm:pt-[10vh]" onClick={close}>
           <div
             role="dialog"
             aria-modal="true"

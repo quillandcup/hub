@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { InMemoryDataset } from "@/lib/data/in-memory";
+import { PRIMARY_ZOOM_ACCOUNT_ID } from "@/lib/zoom-accounts";
 import { InMemoryPrickleActivityRepository } from "@/lib/data/prickle-activity";
 import { createInMemoryRepos, type Repos } from "@/lib/data/repos";
 import { EMPTY_CHECKIN, NO_GOAL_TIP, type CheckinInput } from "@/lib/prickle-checkins";
@@ -330,6 +331,7 @@ describe("check-in for a member who joins a running prickle", () => {
     event_time: at,
     leave_reason: null,
     raw_payload: {},
+    zoom_account: PRIMARY_ZOOM_ACCOUNT_ID,
     received_at: at,
   });
   const meeting = {
@@ -423,7 +425,7 @@ describe("check-out for a member who only lingered into the next prickle", () =>
   const B = { ...PRICKLE, id: "pB", startTime: hoursAgo(6 + 5 / 60), endTime: hoursAgo(5 + 5 / 60) };
   const event = (id: string, name: string, event: "joined" | "left", at: string) => ({
     id, meeting_uuid: "mtg-1", meeting_id: null, host_id: "host-1", participant_key: `dev-${name}`, participant_name: name,
-    participant_email: null, event, event_time: at, leave_reason: null, raw_payload: {}, received_at: at,
+    participant_email: null, event, event_time: at, leave_reason: null, raw_payload: {}, received_at: at, zoom_account: PRIMARY_ZOOM_ACCOUNT_ID,
   });
   const meeting = {
     id: "z1", meeting_id: "z1", meeting_uuid: "mtg-1", topic: "Prickle", start_time: hoursAgo(8), end_time: null, duration_minutes: null,

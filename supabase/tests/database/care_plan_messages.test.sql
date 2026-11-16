@@ -1,4 +1,4 @@
--- pgTAP test for 20270708000000_care_plan_messages.sql: the one definition of a staff member, which chat DMs are tracked in a
+-- pgTAP test for 20270730000000_care_plan_messages.sql: the one definition of a staff member, which chat DMs are tracked in a
 -- Hedgie Care plan (the notice in Hub Chat), the audit entry for opening a member's plan messages, and that no chat read policy
 -- was widened for staff. Rolled back; run with `pnpm test:pgtap`.
 BEGIN;
@@ -62,7 +62,7 @@ INSERT INTO public.care_tracked_dms (tracked_by, slack_channel_id, member_id, de
   ('00000000-0000-4000-a000-00000000e5d5', 'CP_D3', 'mbr_CPAAAAAAAAF1', now()),
   ('00000000-0000-4000-a000-00000000e5d3', 'CP_D4', 'mbr_CPAAAAAAAAG1', NULL),
   ('00000000-0000-4000-a000-00000000e5d5', 'CP_D5', 'mbr_CPAAAAAAAAF1', NULL);
--- Fern's plan is owned by Cleo; Gale's by Ada (who opened it, so owned_by is empty: the owner is who opened it).
+-- Fern's plan is owned by Cleo; Gale's by Ada (Cleo is not an owner of Gale's plan any more, as after a hand-over; her tracked DM stays).
 INSERT INTO public.care_engagements (member_id, reason, channel, opened_by, owned_by, period_ends_on) VALUES
   ('mbr_CPAAAAAAAAF1', 'introduction', 'slack_dm', '00000000-0000-4000-a000-00000000e5d5', '00000000-0000-4000-a000-00000000e5d5', '2026-12-01'),
   ('mbr_CPAAAAAAAAG1', 'introduction', 'slack_dm', '00000000-0000-4000-a000-00000000e5d3', NULL, '2026-12-01');
@@ -87,10 +87,10 @@ SELECT ok(NOT public.chat_dm_in_care_plan('chn_CPDM00000006'), 'a DM nobody trac
 SELECT ok(NOT public.chat_dm_in_care_plan('chn_CPDM00000002'), 'and she cannot ask about a conversation she cannot see');
 SELECT ok(NOT public.care_log_messages_read('mbr_CPAAAAAAAAF1'), 'a member leaves no read on record, not even of herself');
 
--- Gale: D2 is tracked by Cleo, who owns none of Gale's plans; D4 is tracked by Ada, who owns Gale's plan --------------------
+-- Gale: D2 is tracked by Cleo, who handed her plan on (Ada owns it now); D4 is tracked by Ada, who owns Gale's plan --------------------
 SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-00000000e5d2","role":"authenticated","email":"cp-gale@example.test"}', true);
-SELECT ok(NOT public.chat_dm_in_care_plan('chn_CPDM00000002'), 'tracked by someone who owns none of the member''s plans: not in a plan');
-SELECT ok(public.chat_dm_in_care_plan('chn_CPDM00000004'), 'tracked by the person who opened the member''s plan (no separate owner): in a plan');
+SELECT ok(public.chat_dm_in_care_plan('chn_CPDM00000002'), 'tracked by someone who no longer owns the member''s plan (after a hand-over): still in a plan');
+SELECT ok(public.chat_dm_in_care_plan('chn_CPDM00000004'), 'tracked by the person who owns the member''s plan: in a plan');
 
 -- Orla, in none of them ------------------------------------------------------------------------------------------------
 SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-00000000e5d6","role":"authenticated","email":"cp-orla@example.test"}', true);
@@ -136,7 +136,7 @@ SELECT is((SELECT count(*)::int FROM public.audit_log WHERE entity_type = 'care_
 SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
 SET LOCAL ROLE service_role;
 SELECT ok(public.chat_dm_in_care_plan('chn_CPDM00000001'), 'the server sees every conversation');
-SELECT ok(NOT public.chat_dm_in_care_plan('chn_CPDM00000002'), 'and the same rule applies to it');
+SELECT ok(NOT public.chat_dm_in_care_plan('chn_CPDM00000003'), 'and the same rule applies to it');
 SELECT ok(NOT public.care_log_messages_read('mbr_CPAAAAAAAAF1'), 'the server is no reader: it leaves no entry');
 RESET ROLE;
 

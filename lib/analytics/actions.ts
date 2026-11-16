@@ -52,17 +52,18 @@ export const OUTCOME_ACTIONS = [
   "course_lesson_file_added",
   "course_lesson_file_removed",
   "course_taken_over",
+  "course_duplicated",
   // Chat
   "chat_message_sent",
   "chat_reaction_toggled",
   "chat_message_edited",
   "chat_message_deleted",
+  "chat_message_marked_unread",
   "chat_members_added",
   "chat_member_removed",
   "chat_channel_joined",
   "chat_file_deleted",
   "chat_dm_started",
-  "chat_video_shared",
   "chat_notify_setting_set",
   // Community
   "wheel_spun",
@@ -101,10 +102,12 @@ export const OUTCOME_ACTIONS = [
   "care_start_date_changed",
   "care_engagement_closed",
   "care_engagement_renewed",
-  "care_engagement_reassigned",
+  "care_handover_proposed",
+  "care_handover_accepted",
+  "care_handover_declined",
+  "care_handover_cancelled",
+  "care_plan_claimed",
   "care_engagement_deleted",
-  "care_dm_tracked",
-  "care_dm_untracked",
   // Onboarding
   "onboarding_started",
   "onboarding_dismissed",
@@ -152,6 +155,8 @@ export const OUTCOME_ACTIONS = [
   "media_asset_deleted",
   "media_asset_copied_from_event",
   "big_sister_note_saved",
+  // Data hygiene (staff)
+  "zoom_meetings_decided",
 ] as const;
 
 export type OutcomeAction = (typeof OUTCOME_ACTIONS)[number];

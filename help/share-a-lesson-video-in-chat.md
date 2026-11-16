@@ -2,21 +2,17 @@
 
 Found a lesson that would help someone? Put its video in a conversation in Hub Chat, the chat inside the Hub, and anyone who has the course can watch it right there.
 
-## Share it from the lesson
+## Copy the lesson's link
 
-Open the lesson and choose **Share this video in chat**. Pick the conversation, add a few words if you like, and send.
+Open the lesson and choose **Copy link** under the video. Then paste it into any message in Hub Chat: a channel, replies under a message, a private message. The link becomes the video. You can paste it into Slack too, but Slack can't play it (see below).
 
-![The share box under a lesson's video](img:share-a-lesson-video-in-chat/01-share-box.png)
-
-## Or paste a link
-
-Choose **Copy link to paste in chat** on the lesson, then paste it into any message: a channel, replies under a message, a private message, or Slack. In Hub Chat the link becomes the video. Slack can't play it (see below).
+![The Copy link button under a lesson's video](img:share-a-lesson-video-in-chat/01-copy-link.png)
 
 ## Watching it
 
-Press the picture and the video plays right in the message, from where you left off. This only works in Hub Chat: Slack can't remember where you stopped or keep track of what you've watched. You need the course to watch it. If you don't have it, the message says the video is part of a course instead.
+Press the picture and the video plays right in the message, from where you left off. This only works in Hub Chat: Slack can't remember where you stopped, keep track of what you've watched, or mark the lesson complete. You need the course to watch it. If you don't have it, the message says the video is part of a course instead.
 
-Watching here records where you stopped and which parts you watched, as on the lesson page. Quill & Cup admins can see this in the course statistics. Other members can't.
+Watching here records where you stopped and which parts you watched, as on the lesson page. Once you've watched nearly all of the video, the lesson is marked complete, just as it is on the lesson page. You can still change that from the lesson. Quill & Cup admins can see this in the course statistics. Other members can't.
 
 ![A shared video in a conversation](img:share-a-lesson-video-in-chat/02-video-card.png)
 

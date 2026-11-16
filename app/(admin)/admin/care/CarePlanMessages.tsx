@@ -69,8 +69,8 @@ export default function CarePlanMessages({ memberId }: { memberId: string }) {
       {tracked === null && !error && <p className="text-sm text-slate-600 dark:text-slate-400">Loading the messages…</p>}
       {tracked === false && (
         <p className="text-sm text-slate-700 dark:text-slate-300">
-          No DM with this member is tracked for their care plans, so there are no messages to show. Track a DM with them in Your DMs and the
-          messages sent in the plans you own will appear here.
+          No DM with this member is tracked for their care plans, so there are no messages to show. A DM is tracked automatically when
+          the owner of a plan has a Slack DM with the member, and Slack is connected for them.
         </p>
       )}
       {tracked && withMessages.length === 0 && !pending && <p className="text-sm text-slate-700 dark:text-slate-300">No messages were sent in the tracked DMs during these care plans.</p>}

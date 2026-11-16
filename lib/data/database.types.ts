@@ -951,6 +951,66 @@ export type Database = {
         }
         Relationships: []
       }
+      stripe_charges: {
+        Row: {
+          amount: number
+          amount_refunded: number
+          created_at_stripe: string
+          currency: string | null
+          data: Json | null
+          description: string | null
+          disputed: boolean
+          failure_code: string | null
+          id: string
+          imported_at: string
+          paid: boolean
+          refunded: boolean
+          status: string
+          stripe_charge_id: string
+          stripe_customer_id: string | null
+          stripe_invoice_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          amount_refunded?: number
+          created_at_stripe: string
+          currency?: string | null
+          data?: Json | null
+          description?: string | null
+          disputed?: boolean
+          failure_code?: string | null
+          id?: string
+          imported_at?: string
+          paid?: boolean
+          refunded?: boolean
+          status: string
+          stripe_charge_id: string
+          stripe_customer_id?: string | null
+          stripe_invoice_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          amount_refunded?: number
+          created_at_stripe?: string
+          currency?: string | null
+          data?: Json | null
+          description?: string | null
+          disputed?: boolean
+          failure_code?: string | null
+          id?: string
+          imported_at?: string
+          paid?: boolean
+          refunded?: boolean
+          status?: string
+          stripe_charge_id?: string
+          stripe_customer_id?: string | null
+          stripe_invoice_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       stripe_customers: {
         Row: {
           created_at_stripe: string | null
@@ -980,6 +1040,90 @@ export type Database = {
           imported_at?: string
           name?: string | null
           stripe_customer_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      stripe_invoices: {
+        Row: {
+          amount_due: number
+          amount_paid: number
+          amount_remaining: number
+          attempt_count: number
+          billing_reason: string | null
+          collection_method: string | null
+          created_at_stripe: string
+          currency: string | null
+          data: Json | null
+          description: string | null
+          due_date: string | null
+          id: string
+          imported_at: string
+          next_payment_attempt: string | null
+          paid_at: string | null
+          paid_out_of_band: boolean
+          period_end: string | null
+          period_start: string | null
+          status: string
+          stripe_charge_id: string | null
+          stripe_customer_id: string
+          stripe_invoice_id: string
+          stripe_product_id: string | null
+          stripe_subscription_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount_due?: number
+          amount_paid?: number
+          amount_remaining?: number
+          attempt_count?: number
+          billing_reason?: string | null
+          collection_method?: string | null
+          created_at_stripe: string
+          currency?: string | null
+          data?: Json | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          imported_at?: string
+          next_payment_attempt?: string | null
+          paid_at?: string | null
+          paid_out_of_band?: boolean
+          period_end?: string | null
+          period_start?: string | null
+          status: string
+          stripe_charge_id?: string | null
+          stripe_customer_id: string
+          stripe_invoice_id: string
+          stripe_product_id?: string | null
+          stripe_subscription_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount_due?: number
+          amount_paid?: number
+          amount_remaining?: number
+          attempt_count?: number
+          billing_reason?: string | null
+          collection_method?: string | null
+          created_at_stripe?: string
+          currency?: string | null
+          data?: Json | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          imported_at?: string
+          next_payment_attempt?: string | null
+          paid_at?: string | null
+          paid_out_of_band?: boolean
+          period_end?: string | null
+          period_start?: string | null
+          status?: string
+          stripe_charge_id?: string | null
+          stripe_customer_id?: string
+          stripe_invoice_id?: string
+          stripe_product_id?: string | null
+          stripe_subscription_id?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -1144,6 +1288,7 @@ export type Database = {
           status: string | null
           topic: string | null
           user_id: string | null
+          zoom_account: string
         }
         Insert: {
           attentiveness_score?: number | null
@@ -1163,6 +1308,7 @@ export type Database = {
           status?: string | null
           topic?: string | null
           user_id?: string | null
+          zoom_account?: string
         }
         Update: {
           attentiveness_score?: number | null
@@ -1182,6 +1328,7 @@ export type Database = {
           status?: string | null
           topic?: string | null
           user_id?: string | null
+          zoom_account?: string
         }
         Relationships: []
       }
@@ -1207,6 +1354,7 @@ export type Database = {
           sender_session_id: string | null
           sender_type: string | null
           sent_at: string
+          zoom_account: string
         }
         Insert: {
           breakout_room_uuid?: string | null
@@ -1229,6 +1377,7 @@ export type Database = {
           sender_session_id?: string | null
           sender_type?: string | null
           sent_at: string
+          zoom_account?: string
         }
         Update: {
           breakout_room_uuid?: string | null
@@ -1251,6 +1400,7 @@ export type Database = {
           sender_session_id?: string | null
           sender_type?: string | null
           sent_at?: string
+          zoom_account?: string
         }
         Relationships: []
       }
@@ -1269,6 +1419,7 @@ export type Database = {
           start_time: string
           topic: string
           updated_at: string | null
+          zoom_account: string
         }
         Insert: {
           data: Json
@@ -1284,6 +1435,7 @@ export type Database = {
           start_time: string
           topic: string
           updated_at?: string | null
+          zoom_account?: string
         }
         Update: {
           data?: Json
@@ -1299,6 +1451,7 @@ export type Database = {
           start_time?: string
           topic?: string
           updated_at?: string | null
+          zoom_account?: string
         }
         Relationships: []
       }
@@ -1316,6 +1469,7 @@ export type Database = {
           participant_name: string | null
           raw_payload: Json
           received_at: string
+          zoom_account: string
         }
         Insert: {
           event: string
@@ -1330,6 +1484,7 @@ export type Database = {
           participant_name?: string | null
           raw_payload: Json
           received_at?: string
+          zoom_account?: string
         }
         Update: {
           event?: string
@@ -1344,6 +1499,7 @@ export type Database = {
           participant_name?: string | null
           raw_payload?: Json
           received_at?: string
+          zoom_account?: string
         }
         Relationships: []
       }
@@ -2077,6 +2233,9 @@ export type Database = {
           deleted_at: string | null
           ended_how: string | null
           follow_up_on: string | null
+          handover_at: string | null
+          handover_by: string | null
+          handover_to: string | null
           id: string
           last_member_message_at: string | null
           last_staff_message_at: string | null
@@ -2098,6 +2257,9 @@ export type Database = {
           deleted_at?: string | null
           ended_how?: string | null
           follow_up_on?: string | null
+          handover_at?: string | null
+          handover_by?: string | null
+          handover_to?: string | null
           id?: string
           last_member_message_at?: string | null
           last_staff_message_at?: string | null
@@ -2119,6 +2281,9 @@ export type Database = {
           deleted_at?: string | null
           ended_how?: string | null
           follow_up_on?: string | null
+          handover_at?: string | null
+          handover_by?: string | null
+          handover_to?: string | null
           id?: string
           last_member_message_at?: string | null
           last_staff_message_at?: string | null
@@ -2710,6 +2875,8 @@ export type Database = {
           event_id: string
           id: string
           kajabi_offer_id: string
+          purchased_from: string | null
+          purchased_until: string | null
         }
         Insert: {
           created_at?: string
@@ -2717,6 +2884,8 @@ export type Database = {
           event_id: string
           id?: string
           kajabi_offer_id: string
+          purchased_from?: string | null
+          purchased_until?: string | null
         }
         Update: {
           created_at?: string
@@ -2724,6 +2893,8 @@ export type Database = {
           event_id?: string
           id?: string
           kajabi_offer_id?: string
+          purchased_from?: string | null
+          purchased_until?: string | null
         }
         Relationships: [
           {
@@ -2906,6 +3077,35 @@ export type Database = {
             columns: ["member_id"]
             isOneToOne: false
             referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_address_redirects: {
+        Row: {
+          address: string
+          course_id: string
+          created_at: string
+          id: string
+        }
+        Insert: {
+          address: string
+          course_id: string
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          address?: string
+          course_id?: string
+          created_at?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_address_redirects_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
             referencedColumns: ["id"]
           },
         ]
@@ -3141,6 +3341,7 @@ export type Database = {
           access_duration: string | null
           created_at: string
           description: string | null
+          first_published_at: string | null
           hero_asset_id: string | null
           hero_source: string | null
           hero_url: string | null
@@ -3162,6 +3363,7 @@ export type Database = {
           access_duration?: string | null
           created_at?: string
           description?: string | null
+          first_published_at?: string | null
           hero_asset_id?: string | null
           hero_source?: string | null
           hero_url?: string | null
@@ -3183,6 +3385,7 @@ export type Database = {
           access_duration?: string | null
           created_at?: string
           description?: string | null
+          first_published_at?: string | null
           hero_asset_id?: string | null
           hero_source?: string | null
           hero_url?: string | null
@@ -6854,6 +7057,77 @@ export type Database = {
           },
         ]
       }
+      zoom_accounts: {
+        Row: {
+          created_at: string
+          credentials_prefix: string
+          default_policy: string
+          host_email: string | null
+          id: string
+          label: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          credentials_prefix: string
+          default_policy?: string
+          host_email?: string | null
+          id?: string
+          label: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          credentials_prefix?: string
+          default_policy?: string
+          host_email?: string | null
+          id?: string
+          label?: string
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      zoom_meeting_decisions: {
+        Row: {
+          decided_at: string
+          decided_by: string | null
+          decision: string
+          id: string
+          scope: string
+          zoom_account: string
+          zoom_key: string
+        }
+        Insert: {
+          decided_at?: string
+          decided_by?: string | null
+          decision: string
+          id?: string
+          scope: string
+          zoom_account: string
+          zoom_key: string
+        }
+        Update: {
+          decided_at?: string
+          decided_by?: string | null
+          decision?: string
+          id?: string
+          scope?: string
+          zoom_account?: string
+          zoom_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zoom_meeting_decisions_zoom_account_fkey"
+            columns: ["zoom_account"]
+            isOneToOne: false
+            referencedRelation: "zoom_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       community_event_details: {
@@ -6937,6 +7211,39 @@ export type Database = {
       }
     }
     Functions: {
+      accept_care_handover: {
+        Args: { p_id: string }
+        Returns: {
+          channel: string
+          closed_at: string | null
+          created_at: string
+          deleted_at: string | null
+          ended_how: string | null
+          follow_up_on: string | null
+          handover_at: string | null
+          handover_by: string | null
+          handover_to: string | null
+          id: string
+          last_member_message_at: string | null
+          last_staff_message_at: string | null
+          member_id: string
+          next_step: string | null
+          notes: string | null
+          opened_at: string
+          opened_by: string | null
+          owned_by: string | null
+          period_ends_on: string
+          reason: string
+          renewed_from: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "care_engagements"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       access_locations_at: {
         Args: { p_times: string[]; p_user_ids: string[]; p_window?: string }
         Returns: {
@@ -7220,6 +7527,40 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      can_own_care_plans: { Args: { p_user: string }; Returns: boolean }
+      cancel_care_handover: {
+        Args: { p_id: string }
+        Returns: {
+          channel: string
+          closed_at: string | null
+          created_at: string
+          deleted_at: string | null
+          ended_how: string | null
+          follow_up_on: string | null
+          handover_at: string | null
+          handover_by: string | null
+          handover_to: string | null
+          id: string
+          last_member_message_at: string | null
+          last_staff_message_at: string | null
+          member_id: string
+          next_step: string | null
+          notes: string | null
+          opened_at: string
+          opened_by: string | null
+          owned_by: string | null
+          period_ends_on: string
+          reason: string
+          renewed_from: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "care_engagements"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       care_dm_last_messages: {
         Args: { p_channel_ids: string[]; p_exclude_types: string[] }
         Returns: {
@@ -7295,6 +7636,10 @@ export type Database = {
         Args: { p_channel_id: string; p_through?: string }
         Returns: undefined
       }
+      chat_mark_unread: {
+        Args: { p_channel_id: string; p_message_id: string }
+        Returns: string
+      }
       chat_post_message:
         | {
             Args: {
@@ -7352,6 +7697,39 @@ export type Database = {
         Args: { p_commitment_id: string }
         Returns: undefined
       }
+      claim_care_plan: {
+        Args: { p_id: string }
+        Returns: {
+          channel: string
+          closed_at: string | null
+          created_at: string
+          deleted_at: string | null
+          ended_how: string | null
+          follow_up_on: string | null
+          handover_at: string | null
+          handover_by: string | null
+          handover_to: string | null
+          id: string
+          last_member_message_at: string | null
+          last_staff_message_at: string | null
+          member_id: string
+          next_step: string | null
+          notes: string | null
+          opened_at: string
+          opened_by: string | null
+          owned_by: string | null
+          period_ends_on: string
+          reason: string
+          renewed_from: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "care_engagements"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       claim_chat_gap_fill: {
         Args: {
           p_channel: string
@@ -7361,6 +7739,10 @@ export type Database = {
           p_ts: string
         }
         Returns: string
+      }
+      copy_course_lesson_files: {
+        Args: { p_from_lesson: string; p_to_lesson: string }
+        Returns: number
       }
       count_activity_feed: {
         Args: {
@@ -7397,6 +7779,39 @@ export type Database = {
       current_acting_as_member_id: { Args: never; Returns: string }
       current_member_id: { Args: never; Returns: string }
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
+      decline_care_handover: {
+        Args: { p_id: string }
+        Returns: {
+          channel: string
+          closed_at: string | null
+          created_at: string
+          deleted_at: string | null
+          ended_how: string | null
+          follow_up_on: string | null
+          handover_at: string | null
+          handover_by: string | null
+          handover_to: string | null
+          id: string
+          last_member_message_at: string | null
+          last_staff_message_at: string | null
+          member_id: string
+          next_step: string | null
+          notes: string | null
+          opened_at: string
+          opened_by: string | null
+          owned_by: string | null
+          period_ends_on: string
+          reason: string
+          renewed_from: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "care_engagements"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       delete_stale_calendar_events: {
         Args: {
           p_current_google_ids: string[]
@@ -7405,6 +7820,7 @@ export type Database = {
         }
         Returns: number
       }
+      duplicate_course: { Args: { p_course_id: string }; Returns: string }
       duplicate_course_lesson: {
         Args: { p_lesson_id: string }
         Returns: string
@@ -7716,6 +8132,39 @@ export type Database = {
         Args: { p_channel_id: string; p_members: Json }
         Returns: Json
       }
+      propose_care_handover: {
+        Args: { p_id: string; p_to: string }
+        Returns: {
+          channel: string
+          closed_at: string | null
+          created_at: string
+          deleted_at: string | null
+          ended_how: string | null
+          follow_up_on: string | null
+          handover_at: string | null
+          handover_by: string | null
+          handover_to: string | null
+          id: string
+          last_member_message_at: string | null
+          last_staff_message_at: string | null
+          member_id: string
+          next_step: string | null
+          notes: string | null
+          opened_at: string
+          opened_by: string | null
+          owned_by: string | null
+          period_ends_on: string
+          reason: string
+          renewed_from: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "care_engagements"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       rate_limit_hit: {
         Args: { p_bucket: string; p_max_hits: number; p_window_seconds: number }
         Returns: boolean
@@ -7747,6 +8196,9 @@ export type Database = {
           deleted_at: string | null
           ended_how: string | null
           follow_up_on: string | null
+          handover_at: string | null
+          handover_by: string | null
+          handover_to: string | null
           id: string
           last_member_message_at: string | null
           last_staff_message_at: string | null

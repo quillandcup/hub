@@ -3,6 +3,7 @@ import { getMemberDisplayName } from "@/lib/member-display-name";
 import { membersForPurchases } from "@/lib/kajabi-purchase-members";
 import { resolveMatchDate } from "@/lib/kajabi-cohort-matching";
 import type { TicketSource } from "@/lib/event-tickets";
+import { hasWindow, purchaseCountsForEvent } from "@/lib/event-offer-window";
 
 type EventRepos = Pick<Repos, "aliases" | "billing" | "events" | "members">;
 
@@ -97,8 +98,9 @@ const EXPLAINED_WITHOUT_PURCHASE: ReadonlySet<TicketSource | null> = new Set(["c
 
 /**
  * Compares who bought the event's linked Kajabi offers with who is on its attendee list.
- * Read-only: nothing is added. Unlike the program cohorts there is no date window (an event's
- * offers belong to that event), and a buyer with no member is listed, not skipped.
+ * Read-only: nothing is added. A purchase counts only when it was made inside the purchase window of
+ * the linked offer it was bought on (an offer reused for a later event has windows), and a buyer with
+ * no member is listed, not skipped.
  */
 export async function findKajabiMatchesForEvent(
   repos: EventRepos,
@@ -106,14 +108,17 @@ export async function findKajabiMatchesForEvent(
   /** Reads the offer ids a Kajabi contact holds (null when Kajabi didn't say). Left out: nobody is looked up. */
   contactOfferIds?: (kajabiContactId: string) => Promise<string[] | null>
 ): Promise<EventKajabiMatches> {
-  const offerIds = await repos.events.offerIdsOf(eventId);
+  const links = await repos.events.offersOf(eventId);
+  const offerIds = Array.from(new Set(links.map((l) => l.kajabi_offer_id)));
   if (offerIds.length === 0) return { offersLinked: false, multiTicketBuyers: [], passedOn: [], buyers: [], unmatched: [], attendeesWithoutTicket: [] };
 
-  const [offers, purchases, attendees] = await Promise.all([
+  const [offers, allPurchases, attendees, allLinks] = await Promise.all([
     repos.billing.kajabiOffersByIds(offerIds),
     repos.billing.kajabiPurchases({ offerIds }),
     repos.events.attendeesOf(eventId),
+    repos.events.linkedOffers(),
   ]);
+  const purchases = allPurchases.filter((p) => purchaseCountsForEvent(p, links));
   const offerNameById = new Map(offers.map((o) => [o.kajabi_offer_id, o.name ?? "Unknown offer"]));
   const { emailByCustomerId, memberByEmail } = await membersForPurchases(repos, purchases);
 
@@ -220,7 +225,10 @@ export async function findKajabiMatchesForEvent(
     buyer.possible_duplicate = { member_id: attendee.member_id, member_name: attendee.member_name };
   }
 
-  await checkGrants(repos, attendeesWithoutTicket, new Set(offerIds), contactOfferIds);
+  // Kajabi says which offers a contact holds, not when they got them, so a held offer can't be placed
+  // inside a window or told apart from the same offer sold for another event: report "unknown" then.
+  const grantsAttributable = links.every((l) => !hasWindow(l)) && allLinks.every((l) => !offerIds.includes(l.kajabi_offer_id) || l.event_id === eventId);
+  await checkGrants(repos, attendeesWithoutTicket, new Set(offerIds), grantsAttributable ? contactOfferIds : undefined);
 
   // Two active purchases of the same offer are two tickets: Kajabi records no failed or pending
   // payments here, so the extra one is for someone else, whoever the buyer is.
@@ -284,13 +292,14 @@ async function checkGrants(
 /**
  * The members who hold an active purchase of one of the event's linked offers. An attendee in this
  * set was bought a ticket in Kajabi, so the admin page can say "Purchased" without anyone writing it
- * down (it is derived from Kajabi, not stored, so a cancelled purchase stops counting). Empty when no
- * offer is linked.
+ * down (it is derived from Kajabi, not stored, so a cancelled purchase stops counting). Only purchases
+ * inside the linked offer's window count. Empty when no offer is linked.
  */
 export async function purchasersOfEvent(repos: EventRepos, eventId: string): Promise<Set<string>> {
-  const offerIds = await repos.events.offerIdsOf(eventId);
+  const links = await repos.events.offersOf(eventId);
+  const offerIds = Array.from(new Set(links.map((l) => l.kajabi_offer_id)));
   if (offerIds.length === 0) return new Set();
-  const purchases = (await repos.billing.kajabiPurchases({ offerIds })).filter((p) => p.deactivated_at === null);
+  const purchases = (await repos.billing.kajabiPurchases({ offerIds })).filter((p) => p.deactivated_at === null && purchaseCountsForEvent(p, links));
   const { emailByCustomerId, memberByEmail } = await membersForPurchases(repos, purchases);
   const ids = new Set<string>();
   for (const p of purchases) {

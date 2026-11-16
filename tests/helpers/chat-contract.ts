@@ -48,7 +48,7 @@ export type ChatContractContext = {
   seedMemberships: (rows: SeedMembership[]) => Promise<void>;
   /**
    * Tracks a Slack DM with the member (by index into `seedMembers`' ids) for Hedgie Care, as one staff user, who owns a care plan of
-   * that member (`owner: "tracker"`) or whose plan of that member is owned by someone else (`"someone_else"`); `untracked` stops tracking it.
+   * that member (`owner: "tracker"`) or whose plan of that member is owned by someone else (`"someone_else"`, as after a hand-over); `untracked` stops tracking it.
    */
   seedCareTracking: (c: { slackChannelId: string; member: number; owner: "tracker" | "someone_else" | "none"; untracked?: boolean }) => Promise<void>;
   /** Adds messages (channel by key); returns their ids by key. */
@@ -200,6 +200,31 @@ export function defineChatContract(name: string, setup: () => ChatContractContex
         expect(idsOf(await ctx.repo().channelMessages(channel, { limit: 2 }))).toEqual([m.c, m.b]);
         expect(idsOf(await ctx.repo().channelMessages(channel, { limit: 10, before: all[1].created_at }))).toEqual([m.a]);
         expect(await ctx.repo().channelMessages(channel, { limit: 10, before: all[2].created_at })).toEqual([]);
+      });
+
+      it("lists a window of top-level messages from a date on, oldest first, leaving out replies and other conversations", async () => {
+        const { channel, m } = await conversation();
+
+        expect(idsOf(await ctx.repo().channelMessagesFrom(channel, { from: T(0), limit: 10 }))).toEqual([m.a, m.b, m.c]);
+        expect(idsOf(await ctx.repo().channelMessagesFrom(channel, { from: T(2), limit: 10 }))).toEqual([m.b, m.c]); // inclusive
+        expect(idsOf(await ctx.repo().channelMessagesFrom(channel, { from: T(2), exclusive: true, limit: 10 }))).toEqual([m.c]);
+        expect(idsOf(await ctx.repo().channelMessagesFrom(channel, { from: T(0), limit: 2 }))).toEqual([m.a, m.b]);
+        expect(await ctx.repo().channelMessagesFrom(channel, { from: T(30), limit: 10 })).toEqual([]);
+        const [first] = await ctx.repo().channelMessagesFrom(channel, { from: "1970-01-01T00:00:00.000Z", limit: 1 });
+        expect(first).toMatchObject({ id: m.a, chat_message_contents: { body: "first" } });
+      });
+
+      it("opens a window at a date in a conversation of more than a thousand messages, and walks on from it", async () => {
+        const [channel] = Object.values(await ctx.seedChannels([{ key: "big" }]));
+        const at = (i: number) => new Date(Date.UTC(2026, 0, 1) + i * 60_000).toISOString();
+        const seeded = await ctx.seedMessages(channel, Array.from({ length: 1100 }, (_, i) => ({ key: `k${i}`, createdAt: at(i) })));
+
+        const window = await ctx.repo().channelMessagesFrom(channel, { from: at(1050), limit: 100 });
+        expect(idsOf(window)).toEqual(Array.from({ length: 50 }, (_, i) => seeded[`k${1050 + i}`]));
+        const early = await ctx.repo().channelMessagesFrom(channel, { from: at(0), limit: 41 });
+        expect(early).toHaveLength(41);
+        const next = await ctx.repo().channelMessagesFrom(channel, { from: early[39].created_at, exclusive: true, limit: 2 });
+        expect(idsOf(next)).toEqual([seeded.k40, seeded.k41]);
       });
 
       it("lists one thread's replies oldest first, up to a limit", async () => {
@@ -446,7 +471,7 @@ export function defineChatContract(name: string, setup: () => ChatContractContex
         const [t1, t2, t3, t4, t5] = [ctx.unique("D"), ctx.unique("D"), ctx.unique("D"), ctx.unique("D"), ctx.unique("D")];
         const ids = await ctx.seedChannelRows([
           { key: "tracked", kind: "dm", visibility: "private", restricted: true, name: null, slackChannelId: t1 },
-          { key: "notOwner", kind: "dm", visibility: "private", restricted: true, name: null, slackChannelId: t2 },
+          { key: "handedOver", kind: "dm", visibility: "private", restricted: true, name: null, slackChannelId: t2 },
           { key: "untracked", kind: "dm", visibility: "private", restricted: true, name: null, slackChannelId: t3 },
           { key: "noPlan", kind: "dm", visibility: "private", restricted: true, name: null, slackChannelId: t4 },
           { key: "group", kind: "group_dm", visibility: "private", restricted: true, name: null, slackChannelId: t5 },
@@ -460,8 +485,9 @@ export function defineChatContract(name: string, setup: () => ChatContractContex
         const repo = ctx.repo();
 
         expect(await repo.dmInCarePlan(ids.tracked)).toBe(true);
-        // Tracked by someone who owns none of the member's plans, no longer tracked, or no plan at all: not in a plan.
-        expect(await repo.dmInCarePlan(ids.notOwner)).toBe(false);
+        // A DM tracked by someone who has since handed the member's plan to another is still in a plan (the plan, not the tracker, makes it one).
+        expect(await repo.dmInCarePlan(ids.handedOver)).toBe(true);
+        // No longer tracked, or no plan of the member at all: not in a plan.
         expect(await repo.dmInCarePlan(ids.untracked)).toBe(false);
         expect(await repo.dmInCarePlan(ids.noPlan)).toBe(false);
         // Only a one-on-one DM, and only one that is tracked.

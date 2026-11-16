@@ -171,6 +171,22 @@ export function defineSlackWorkspaceContract(name: string, setup: () => SlackWor
       expect(await ctx.repo().currentMemberUserIds(ctx.unique("empty"))).toEqual([]);
     });
 
+    it("lists who is in each of several conversations now, leaving out empty ones", async () => {
+      const [r1, r2, empty, ada, grace, bea] = [ctx.unique("r1"), ctx.unique("r2"), ctx.unique("empty"), ctx.unique("ada"), ctx.unique("grace"), ctx.unique("bea")];
+      const at = "2031-02-01T10:00:00.000Z";
+      await ctx.repo().upsertMemberships([
+        { channel_id: r1, user_id: ada, left_at: null, imported_at: at },
+        { channel_id: r1, user_id: grace, left_at: null, imported_at: at },
+        { channel_id: r2, user_id: bea, left_at: null, imported_at: at },
+      ]);
+      await ctx.repo().markMembersLeft(r2, [bea], "2031-02-02T10:00:00.000Z");
+      const got = await ctx.repo().currentParticipants([r1, r2, empty, r1]);
+      expect(got.get(r1)).toEqual([ada, grace].sort());
+      expect(got.has(r2)).toBe(false);
+      expect(got.has(empty)).toBe(false);
+      expect(await ctx.repo().currentParticipants([])).toEqual(new Map());
+    });
+
     it("lists the 1:1 DMs a Slack user is in now, with everyone in each, and never a group DM, a channel or anyone else's DM", async () => {
       const [me, ada, bea, cyd] = [ctx.unique("me"), ctx.unique("ada"), ctx.unique("bea"), ctx.unique("cyd")];
       const dmAda = channel("dm-ada", { is_im: true, is_private: true });

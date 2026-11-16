@@ -3,9 +3,11 @@ import { getCoursesCaller } from "@/lib/courses/caller";
 import { courseImageSrc } from "@/lib/courses/image-urls";
 import { canOpenLessons, loadMemberCourseAccess } from "@/lib/courses/member";
 import { mayWatchSharedVideo } from "@/lib/chat/video-access";
+import { lessonPath } from "@/lib/chat/video-link";
 import { createRepos } from "@/lib/data/repos";
 import { isId } from "@/lib/ids";
 import { createMuxClient, signPlaybackTokens } from "@/lib/mux";
+import { muxDataConsentFor } from "@/lib/mux-data.server";
 import { restrictionIdForViewer } from "@/lib/mux-restriction.server";
 import { resumeSeconds } from "@/lib/courses/watch";
 import { hitRateLimits } from "@/lib/rate-limit";
@@ -51,10 +53,13 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     lesson.video_id ? repos.courses.videosByIds([lesson.video_id]).then((v) => v[0]) : Promise.resolve(undefined),
     loadMemberCourseAccess(repos, caller.scope, lesson.course_id),
   ]);
-  const watchable = video?.status === "ready" && Boolean(video.mux_playback_id) && (await mayWatchSharedVideo(repos, share, lesson, canOpenLessons(access)));
+  const hasCourse = canOpenLessons(access);
+  const watchable = video?.status === "ready" && Boolean(video.mux_playback_id) && (await mayWatchSharedVideo(repos, share, lesson, hasCourse));
   return NextResponse.json(
     {
       title: lesson.title,
+      // The lesson's own page, for a viewer with the course (the card links to it before anything is played); one who may watch only because the share was opened to the channel can't open it.
+      lessonHref: hasCourse && course ? lessonPath(course.slug, lesson.id) : null,
       courseTitle: course?.title ?? null,
       // The same picture the lesson page shows: our copy when there is one (what the course builder chose), else the original link.
       thumbnailUrl: courseImageSrc("lesson", lesson.id, lesson.thumbnail_asset_id, lesson.thumbnail_url),
@@ -102,13 +107,21 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
   if (!video || video.status !== "ready" || !video.mux_playback_id) return notFound();
 
   const restrictionId = await restrictionIdForViewer(caller.userId, caller.identity);
+  // Mux Data (the `mux_data` flag), as on the lesson page: null for no Mux Data; the player still waits for consent.
+  const muxData = await muxDataConsentFor(caller.userId, caller.identity);
   try {
     const tokens = await signPlaybackTokens(createMuxClient(), video.mux_playback_id, undefined, restrictionId);
     // Watching is recorded for members' open lessons, and not in sudo (an admin previewing leaves no viewing history).
     const record = lesson.state === "open" && !caller.identity.isSudo;
-    const position = record && hasCourse ? await createRepos(await createClient()).courseProgress.lessonPosition(caller.identity.memberId, lesson.id).catch(() => null) : null;
+    // The lesson's own page, for a viewer with the course; one who may watch only because an admin opened the share to the channel can't open it.
+    const course = hasCourse ? await repos.courses.courseById(lesson.course_id) : null;
+    const progress = createRepos(await createClient()).courseProgress;
+    const position = record && hasCourse ? await progress.lessonPosition(caller.identity.memberId, lesson.id).catch(() => null) : null;
+    // Watching on to the end completes the lesson, as on the lesson page, for whoever has the course and is being recorded (the
+    // completion action checks access and sudo again). `completed` is where it stands now, so a lesson already done is not redone.
+    const completion = record && hasCourse ? { completed: (await progress.completedLessonIds(caller.identity.memberId, [lesson.id]).catch(() => new Set<string>())).has(lesson.id) } : null;
     return NextResponse.json(
-      { title: lesson.title, lessonId: lesson.id, playbackId: video.mux_playback_id, tokens, restricted: restrictionId !== null, record, resumeSeconds: resumeSeconds(position) },
+      { title: lesson.title, lessonId: lesson.id, lessonHref: course ? lessonPath(course.slug, lesson.id) : null, playbackId: video.mux_playback_id, tokens, restricted: restrictionId !== null, muxData, record, resumeSeconds: resumeSeconds(position), completion },
       { headers: NO_STORE },
     );
   } catch (error) {

@@ -92,7 +92,7 @@ describe("loadLatestChat", () => {
 
     // Only real ids, each once; and the one already in the newest page isn't built twice.
     expect(m.loadMessagesByIds).toHaveBeenCalledWith(REPOS, CHANNEL, [OLD]);
-    expect(m.buildMessageViews).toHaveBeenCalledWith(REPOS, expect.anything(), [{ id: "m1" }, { id: OLD }], "member-fern");
+    expect(m.buildMessageViews).toHaveBeenCalledWith(REPOS, expect.anything(), [{ id: "m1" }, { id: OLD }], "member-fern", undefined, { hubLinkCards: expect.any(Function) });
   });
 
   it("names the asked-for messages that are gone (deleted with no replies, or not readable), so the open list drops them", async () => {
@@ -156,7 +156,7 @@ describe("loadThreadChat", () => {
     await expect(loadThreadChat(CHANNEL, ROOT)).resolves.toEqual({ views: [{ id: ROOT }, { id: "r1" }, { id: "r2" }], ctx: { ctx: true }, removedIds: [] });
     expect(m.loadMessage).toHaveBeenCalledWith(REPOS, CHANNEL, ROOT);
     expect(m.loadMessages).toHaveBeenCalledWith(REPOS, CHANNEL, { threadRootId: ROOT });
-    expect(m.buildMessageViews).toHaveBeenCalledWith(REPOS, expect.anything(), [{ id: ROOT }, { id: "r1" }, { id: "r2" }], "member-fern");
+    expect(m.buildMessageViews).toHaveBeenCalledWith(REPOS, expect.anything(), [{ id: ROOT }, { id: "r1" }, { id: "r2" }], "member-fern", undefined, { hubLinkCards: expect.any(Function) });
     expect(m.loadChatChannels).not.toHaveBeenCalled();
   });
 

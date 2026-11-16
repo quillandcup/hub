@@ -137,11 +137,17 @@ export const EVENTS = {
   /** Files were added to a message being edited (components/chat/MessageBody.tsx): `via` is how, `count` how many. */
   chat_files_added_to_edit: { via: oneOf("picker", "paste", "drop"), count: int() },
 
+  /** A member jumped to another day in a conversation from its date divider (components/chat/DayJump.tsx): `option` is which choice (a quick one, or `date` for the calendar). */
+  chat_jumped: { option: oneOf("today", "yesterday", "last_week", "last_month", "beginning", "date") },
+
   /** A saved draft was put back in a chat message box when it opened (components/chat/Composer.tsx): `thread` whether it is a thread's reply box. */
   chat_draft_restored: { thread: bool() },
 
   /** A member cancelled the upload of a message's files while sending (components/chat/Composer.tsx): `count` files were attached. */
   chat_upload_cancelled: { count: int() },
+
+  /** The "N new messages" pill in a conversation was used (components/chat/NewMessagesBanner.tsx): jumped up to the New line, or dismissed. `count` is the number it showed. */
+  chat_new_messages_banner: { action: oneOf("jumped", "dismissed"), count: int() },
 
   /** A reaction was chosen in the full emoji picker (components/chat/EmojiPicker.tsx): `via` is its Frequently used row, browsing a category, or search; `custom` whether it was a workspace emoji. */
   chat_reaction_picked: { via: oneOf("recent", "browse", "search"), custom: bool() },
@@ -191,6 +197,9 @@ export const EVENTS = {
   /** The author removed a preview card from their message with the X in its corner (components/chat/RemoveUnfurlButton.tsx): `source` is a preview the Hub made for a link or one of Slack's unfurls. `slack` whether the Slack copy of a message written in the Hub was updated, had nothing to update, or could not be. Never the address. */
   chat_unfurl_removed: { source: oneOf("hub", "slack"), slack: oneOf("updated", "not_needed", "failed") },
 
+  /** A card for a link to the Hub was drawn under a chat message (components/chat/HubLinkCard.tsx): `kind` what it points at, `state` whether it showed the target (`card`) or only said it is a link to the Hub (`stub`, nothing this reader may see). Never the address. */
+  chat_hub_link_card_shown: { kind: oneOf("message", "prickle", "member"), state: oneOf("card", "stub") },
+
   /** An emoji was picked from the `:name` suggestions in a message box (components/chat/MessageBox.tsx): `custom` whether it was a workspace emoji, `via` the keyboard or the pointer. */
   chat_emoji_suggestion_picked: { custom: bool(), via: oneOf("keyboard", "pointer") },
 
@@ -211,9 +220,15 @@ export const EVENTS = {
   care_engagement_closed: { ended_how: oneOf(...CARE_ENDED_HOW), days_open: int(3650) },
   /** A staff member renewed an engagement into a new period: `days_open` is how long the one they renewed had run. */
   care_engagement_renewed: { days_open: int(3650) },
-  /** A staff member chose to track one of their Slack DMs (or stopped): `dms_tracked` is how many they track now. Never whose DM it is. */
-  care_dm_tracked: { dms_tracked: int(5000) },
-  care_dm_untracked: { dms_tracked: int(5000) },
+  /**
+   * Hand-overs need both sides (docs/HEDGIE_CARE.md, "Owners"): a staff member offered a care plan to someone, the receiver
+   * accepted or declined it, the offer was taken back, or a care plan with no owner was claimed. No names, no ids.
+   */
+  care_handover_proposed: {},
+  care_handover_accepted: {},
+  care_handover_declined: {},
+  care_handover_cancelled: {},
+  care_plan_claimed: {},
 
   /**
    * A server action finished (lib/analytics/server.ts: `withAction`): `action` is which one, `ok`

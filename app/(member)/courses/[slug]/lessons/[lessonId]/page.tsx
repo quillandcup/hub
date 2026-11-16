@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireCoursesPage } from "@/lib/courses/caller";
 import { loadLessonView } from "@/lib/courses/member";
+import { redirectOldCourseAddress } from "@/lib/courses/address-redirect";
 import { lessonContext, lessonSection, nextModuleLesson, type OutlineLesson } from "@/lib/courses/outline";
 import { createMuxClient, signPlaybackTokens } from "@/lib/mux";
 import { restrictionIdForViewer } from "@/lib/mux-restriction.server";
@@ -11,18 +12,18 @@ import { startSeconds } from "@/lib/courses/watch";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { createClient } from "@/lib/supabase/server";
 import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
-import { shareTargets } from "@/lib/chat/share-targets";
 import { lessonPath } from "@/lib/chat/video-link";
 import { APP_URL } from "@/lib/config";
-import ShareLessonInChat from "../../../ShareLessonInChat";
+import CopyLessonLink from "../../../CopyLessonLink";
 import { courseTitle, lessonTitles } from "@/lib/courses/page-title";
 import { isId } from "@/lib/ids";
 import PageBanner from "@/components/PageBanner";
 import LessonSectionList from "../../../LessonSectionList";
 import LessonDownloads from "../../../LessonDownloads";
-import LessonPlayer, { type PlaybackTokens } from "@/components/courses/LessonPlayer";
+import { type PlaybackTokens } from "@/components/courses/LessonPlayer";
 import LessonViewed from "@/components/courses/LessonViewed";
 import { LessonCompletionProvider } from "@/components/courses/LessonCompletion";
+import { PlayerTimeProvider, TimedLessonPlayer } from "@/components/courses/PlayerTime";
 import MarkCompleteButton from "../../../MarkCompleteButton";
 import NextLessonPreview from "../../../NextLessonPreview";
 import { createRepos } from "@/lib/data/repos";
@@ -105,9 +106,14 @@ export default async function LessonPage({
   const trackPreview = query?.track === "1";
   if (!isId(lessonId, "les")) notFound();
   const caller = await requireCoursesPage();
-  const result = await loadLessonView(createRepos(createServiceRoleClient()), slug, lessonId, caller.scope);
+  const repos = createRepos(createServiceRoleClient());
+  const result = await loadLessonView(repos, slug, lessonId, caller.scope);
 
-  if (result.kind === "not_found") notFound();
+  if (result.kind === "not_found") {
+    // An address the course used to have goes to its current one (nothing happens for any other missing page).
+    await redirectOldCourseAddress(repos, slug, caller.scope, `/lessons/${lessonId}`);
+    notFound();
+  }
   // Lessons that can't be opened (no access, ended access, coming soon for members) go back to the course page, which says why.
   if (result.kind !== "ok") redirect(`/courses/${slug}`);
 
@@ -116,14 +122,13 @@ export default async function LessonPage({
   // Watching is recorded for members' open lessons, and nowhere else (sudo, a staff preview) unless staff turn it on for a preview.
   const watchRecorded = !caller.identity.isSudo && (!preview || (caller.scope.isAdminActing && trackPreview));
 
-  // "Share in chat": the chat videos preview on, not in sudo (read-only), on a lesson whose video is ready. A failed channel read just leaves the copy button.
+  // "Copy link": the chat videos preview on, not in sudo (read-only), on a lesson whose video is ready. Pasted into a Hub Chat message, the address becomes the video card.
   let shareButton: React.ReactNode = null;
   if (video?.status === "ready" && !caller.identity.isSudo) {
     const own = await getUserFeaturePreviews(caller.userId);
-    const allOn = await effectiveMemberHasFeature("chat_videos", caller.identity, own);
-    const targets = allOn ? await shareTargets(createRepos(await createClient()), caller.identity.memberId).catch(() => []) : [];
-    // Also offered with nowhere to pick from: the copied link works in any thread or direct message.
-    if (allOn) shareButton = <ShareLessonInChat lessonId={lesson.id} targets={targets} shareUrl={`${APP_URL}${lessonPath(view.course.slug, lesson.id)}`} canOpenToChannel={caller.scope.isAdminActing} />;
+    if (await effectiveMemberHasFeature("chat_videos", caller.identity, own)) {
+      shareButton = <CopyLessonLink url={`${APP_URL}${lessonPath(view.course.slug, lesson.id)}`} />;
+    }
   }
 
   let player: React.ReactNode = null;
@@ -133,7 +138,7 @@ export default async function LessonPage({
     const muxData = tokens ? await muxDataConsentFor(caller.userId, caller.identity) : null;
     player =
       tokens && video.playbackId ? (
-        <LessonPlayer
+        <TimedLessonPlayer
           // A new player per lesson, so the watch tracker flushes the old lesson and starts clean on the next one.
           key={lesson.id}
           title={lesson.title}
@@ -220,6 +225,7 @@ export default async function LessonPage({
 
         {/* Completion is shared by the player (which sets it at ~90% watched), the button and the next-lesson card. */}
         <LessonCompletionProvider lessonId={lesson.id} initiallyCompleted={completed} readOnlyReason={readOnlyReason}>
+        <PlayerTimeProvider>
         <div className="mt-4 grid grid-cols-[minmax(0,1fr)] @outline:grid-cols-[minmax(0,1fr)_22rem]">
           {/* The video and this section's lessons are one component: a dark panel flush against the player, the same height. */}
           {player && (
@@ -290,6 +296,7 @@ export default async function LessonPage({
             </div>
           )}
         </div>
+        </PlayerTimeProvider>
         </LessonCompletionProvider>
       </div>
     </>

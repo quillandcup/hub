@@ -56,6 +56,7 @@ function blankCard(): CardUnfurl {
  */
 export function unfurlKey(u: Unfurl, index: number): string | null {
   if (u.kind === "share") return shareRemoveKey(u.attachment);
+  if (u.kind === "hub") return u.removeKey ?? `url:${u.url}`;
   if (u.kind !== "card") return null;
   if (u.removeKey) return u.removeKey;
   const address = u.fromUrl ?? u.titleLink;

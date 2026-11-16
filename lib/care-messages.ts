@@ -5,15 +5,17 @@
  * What makes this safe to read with the service role (Slack content is service role only):
  * - **Who asks is checked first**, by the caller (`requireStaffAction()` and `staffCan(role, "care.write")`), which also puts the read on
  *   record (`CareRepository.logMessagesRead`) before anything is read. This file never decides who may read.
- * - **Which conversations** comes from the database, never from the request: a DM is read only if it is tracked (`care_tracked_dms`, live)
- *   by someone who owns a care plan of THIS member (the owner, else who opened it, `careOwnerOf`). The caller supplies a member id and a
- *   cursor, nothing else.
+ * - **Which conversations** comes from the database, never from the request: the live `care_tracked_dms` with THIS member. Since tracking
+ *   exists only because a care plan does (made when a plan is started, a hand-over accepted or an ownerless plan claimed, and by the
+ *   projection for a plan's owner), a row is a staff member's DM with the member for the plans they held, so it stays after a hand-over.
+ *   The caller supplies a member id and a cursor, nothing else.
  * - **Which messages**: those sent inside a plan's window, from its start (`opened_at`) to its end (`closed_at`, or now while it is open;
  *   the end is not included, so two plans that follow each other never claim the same message). A message in no window is never read.
  *   Deleted messages and the notices Slack posts itself are left out (`SlackMessageRepository.dmMessagesBetween`).
- * - **Per member, across plans and owners**: a new owner of a plan sees the member's earlier plans, and so does the owner of a later one.
- *   The messages come from the DMs of every owner of the member's plans that is still tracked, so they stay readable after a plan is
- *   reassigned or an owner leaves; a new owner's own DM with the member is a different Slack conversation and is captured only once they track it.
+ * - **Per member, across plans and owners**: a new owner of a plan (once they accept it) sees the member's earlier plans, and so does the
+ *   owner of a later one. The messages come from every DM tracked with the member, so they stay readable after a plan is handed over,
+ *   after an owner leaves, and while a plan has no owner or an offer is pending; the receiver's own DM with the member is a different
+ *   Slack conversation and is captured once accepting the plan tracks it.
  */
 import { clock } from "@/lib/clock";
 import { careOwnerOf } from "@/lib/care-dm-rules";
@@ -78,7 +80,7 @@ export function plainSlackText(text: string): string {
 
 /**
  * One page of a member's plan messages, newest first. `before` (an instant from a previous page's `olderBefore`) asks for older ones.
- * Reads nothing, and says so (`tracked: false`), when no DM with the member is tracked by an owner of one of their plans.
+ * Reads nothing, and says so (`tracked: false`), when the member has no care plan or no DM with them is tracked.
  */
 export async function loadCareMessages(
   repos: CareMessagesRepos,
@@ -87,9 +89,9 @@ export async function loadCareMessages(
 ): Promise<CareMessagesPage> {
   const now = options.now ?? new Date(clock.now());
   const plans = await repos.care.forMember(memberId); // newest first, removed ones left out
+  // The DMs holding the messages: every live tracked DM with this member (each exists because a plan of theirs did).
+  const dms = plans.length === 0 ? [] : await repos.careDms.forMember(memberId);
   const owners = new Set(plans.map((p) => careOwnerOf(p)).filter((id): id is string => !!id));
-  // The DMs holding the messages: tracked by an owner of one of this member's plans.
-  const dms = (await repos.careDms.forMember(memberId)).filter((d) => owners.has(d.trackedBy));
   const trackers = [...new Set(dms.map((d) => d.trackedBy))];
 
   const [people, trackerMembers] = await Promise.all([

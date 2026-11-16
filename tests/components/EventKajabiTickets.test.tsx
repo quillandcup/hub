@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 
@@ -27,13 +27,15 @@ const MATCHES = {
 };
 
 let calls: { url: string; method: string; body: unknown }[];
-let linked: typeof SUMMER[];
+let linked: (typeof SUMMER & { purchasedFrom?: string | null; purchasedUntil?: string | null })[];
+let available: (typeof AUTUMN & { otherEvents?: { title: string }[] })[];
 let matches: unknown;
 let failNext: string | null;
 
 beforeEach(() => {
   calls = [];
   linked = [SUMMER];
+  available = [AUTUMN];
   matches = MATCHES;
   failNext = null;
   vi.stubGlobal(
@@ -42,7 +44,7 @@ beforeEach(() => {
       const method = init?.method ?? "GET";
       calls.push({ url, method, body: init?.body ? JSON.parse(String(init.body)) : undefined });
       if (failNext && method !== "GET") return { ok: false, json: async () => ({ error: failNext }) } as Response;
-      if (url.endsWith("/offers") && method === "GET") return { ok: true, json: async () => ({ linked, available: [AUTUMN] }) } as Response;
+      if (url.endsWith("/offers") && method === "GET") return { ok: true, json: async () => ({ linked, available }) } as Response;
       if (url.endsWith("/kajabi-matches")) return { ok: true, json: async () => matches } as Response;
       return { ok: true, json: async () => ({ success: true }) } as Response;
     }),
@@ -91,6 +93,62 @@ describe("Kajabi tickets on an event", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Unlink" }));
 
     await waitFor(() => expect(calls.some((c) => c.method === "DELETE" && c.url === `/api/admin/events/${EVENT}/offers/o1`)).toBe(true));
+  });
+
+  it("links an offer for purchases between two days", async () => {
+    render(<EventKajabiTickets eventId={EVENT} onAttendeesChanged={vi.fn()} />);
+    await screen.findByText("Summer Retreat");
+
+    await userEvent.selectOptions(screen.getByLabelText("Kajabi offer to link"), "o3");
+    fireEvent.change(screen.getByLabelText("Purchases from"), { target: { value: "2026-02-01" } });
+    fireEvent.change(screen.getByLabelText("Purchases until"), { target: { value: "2026-03-01" } });
+    await userEvent.click(screen.getByRole("button", { name: "Link offer" }));
+
+    await waitFor(() => expect(calls.find((c) => c.method === "POST")?.body).toEqual({ kajabiOfferId: "o3", purchasedFrom: "2026-02-01", purchasedUntil: "2026-03-01" }));
+  });
+
+  it("labels an offer that is already linked to another event in the list", async () => {
+    available = [{ ...AUTUMN, otherEvents: [{ title: "Winter Retreat" }] }];
+    render(<EventKajabiTickets eventId={EVENT} onAttendeesChanged={vi.fn()} />);
+
+    expect(await screen.findByRole("option", { name: /Autumn Retreat.*also linked to Winter Retreat/ })).toBeInTheDocument();
+  });
+
+  it("shows each linked offer's window and edits or clears it", async () => {
+    linked = [{ ...SUMMER, purchasedFrom: "2026-02-01", purchasedUntil: null }];
+    render(<EventKajabiTickets eventId={EVENT} onAttendeesChanged={vi.fn()} />);
+
+    expect(await screen.findByText("purchases from 2026-02-01")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Edit purchase dates for Summer Retreat" }));
+    const [editFrom, editUntil] = screen.getAllByLabelText(/Purchases (from|until)/).slice(0, 2);
+    expect(editFrom).toHaveValue("2026-02-01");
+    fireEvent.change(editUntil, { target: { value: "2026-03-15" } });
+    await userEvent.click(screen.getByRole("button", { name: "Save dates" }));
+
+    await waitFor(() => expect(calls.find((c) => c.method === "PATCH")).toEqual({ url: `/api/admin/events/${EVENT}/offers/o1`, method: "PATCH", body: { purchasedFrom: "2026-02-01", purchasedUntil: "2026-03-15" } }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit purchase dates for Summer Retreat" }));
+    await userEvent.click(screen.getByRole("button", { name: "Clear dates" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save dates" }));
+    await waitFor(() => expect(calls.filter((c) => c.method === "PATCH").at(-1)?.body).toEqual({ purchasedFrom: null, purchasedUntil: null }));
+  });
+
+  it("describes a window with only an end", async () => {
+    linked = [{ ...SUMMER, purchasedFrom: null, purchasedUntil: "2026-03-15" }];
+    render(<EventKajabiTickets eventId={EVENT} onAttendeesChanged={vi.fn()} />);
+    expect(await screen.findByText("purchases until 2026-03-15")).toBeInTheDocument();
+  });
+
+  it("shows the message when the dates overlap another event", async () => {
+    linked = [{ ...SUMMER, purchasedFrom: "2026-02-01", purchasedUntil: null }];
+    render(<EventKajabiTickets eventId={EVENT} onAttendeesChanged={vi.fn()} />);
+    await screen.findByText("purchases from 2026-02-01");
+    failNext = "That offer is already linked to another event for purchases on overlapping days.";
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit purchase dates for Summer Retreat" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save dates" }));
+
+    expect(await screen.findByText(/overlapping days/)).toBeInTheDocument();
   });
 
   it("shows the error when linking is refused", async () => {

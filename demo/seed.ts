@@ -25,7 +25,7 @@ import { eventCalendarRows, seedEventDetails, seedKajabiContact, withFormattedDe
 import { addLivePrickleToCalendar, liveCalendarEvent, seedLiveRoom, withLapsedStreak } from "./live-seed";
 import { seedChat, seedChatVideoShare } from "./chat-seed";
 import { seedCourses } from "./courses-seed";
-import { seedAliases, seedBooks, seedGuestSpeaker, seedNewcomerTour, seedProfileLinks, seedWritingGoals } from "./member-content-seed";
+import { seedAliases, seedBooks, seedCheckinHistory, seedGuestSpeaker, seedNewcomerTour, seedProfileLinks, seedWritingGoals } from "./member-content-seed";
 
 /** Today's date in the org's timezone as YYYY-MM-DD, plus a number of days. */
 export function orgDate(offsetDays: number, now: Date = new Date()): string {
@@ -132,6 +132,7 @@ export async function seed(now: Date = new Date()) {
     });
     const tide = projectId("demo-tide");
     await seedWritingGoals(admin, memberId, now);
+    await seedCheckinHistory(admin, memberId, now);
     if (tide) {
       for (const [daysAgo, amount] of [[12, 3], [9, 2], [5, 4], [2, 3]] as const) {
         entries.push({ member_id: memberId, project_id: tide, entry_date: orgDate(-daysAgo, now), measure: "pages", mode: "delta", amount, tags: [] });

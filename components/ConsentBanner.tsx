@@ -75,7 +75,7 @@ export function ConsentBanner({ needsConsent, optedOut = false }: { needsConsent
   }
 
   return (
-    <div className="fixed bottom-0 inset-x-0 z-50 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg">
+    <div className="fixed bottom-0 inset-x-0 z-overlay border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg">
       <div className="max-w-3xl mx-auto px-4 py-3 flex flex-col sm:flex-row items-center gap-3 text-sm text-slate-700 dark:text-slate-300">
         <p className="flex-1">
           We use Google Analytics and our own usage log (which pages and buttons you use, never what

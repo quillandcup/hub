@@ -113,7 +113,7 @@ graph TB
 **Postgres schema:** `bronze`
 
 - `kajabi_contacts`, `kajabi_customers`, `kajabi_purchases`, `kajabi_offers` - raw Kajabi API responses, one table per resource type (replaced a single `kajabi_members` table — see below)
-- `zoom_meetings`, `zoom_attendees` - meeting metadata and individual join/leave events
+- `zoom_meetings`, `zoom_attendees` - meeting metadata and individual join/leave events, from every Zoom account (each row records its `zoom_account`; Bronze keeps all of them, and the Silver layer takes in only the meetings an account's `default_policy` and an admin's decisions keep, see `docs/ZOOM_ACCOUNTS.md`)
 - `calendar_events` - scheduled prickle events from Google Calendar
 - `slack_users`, `slack_channels`, `slack_messages`, `slack_reactions` - Slack data
 - `stripe_customers`, `stripe_products`, `stripe_subscriptions` - **comparison only**. Kajabi is the merchant of record; Stripe is Kajabi's payment processor underneath. This app pulls Stripe read-only to cross-check billing state (`/api/analyze/kajabi-stripe-comparison`, `/api/analyze/stripe-orphans`) and to backfill `members.stripe_customer_id`. Manual import only — no cron, no webhook, and `/api/import/stripe` never triggers Silver reprocessing.
@@ -137,6 +137,7 @@ graph TB
 - `member_hiatus_history`, `member_status_overrides` - hiatus/gift/special-billing periods, managed via `/admin/hiatus` — not inferred from subscription data (that detection never worked; see the deprecation comment on `subscription_history`)
 - `ignored_zoom_names`, `ignored_slack_users` - names/users to skip during matching
 - `ambiguous_zoom_names` - Zoom display names that matched more than one member, queued for admin resolution
+- `zoom_accounts`, `zoom_meeting_decisions` - the Zoom accounts the Hub imports from (default: keep or exclude their meetings) and an admin's keep/ignore decision per meeting or per link; read when Silver is processed, so a changed decision plus a reprocess adds or removes the prickle and attendance (`docs/ZOOM_ACCOUNTS.md`)
 - `unmatched_calendar_events` - calendar events whose type/host couldn't be auto-matched, queued for admin resolution; once resolved, `/api/process/calendar` applies the same decision automatically on future reprocessing
 - `prickle_types` - event type definitions
 - `staff` - staff member records (always active regardless of subscription status)
@@ -179,6 +180,7 @@ member outright. Former members stay in the table with `status` updated to
 **Benefits:**
 - Deleted calendar events disappear from prickles
 - Members who left Zoom meetings are removed
+- A Zoom meeting an admin ignores (or that an excluded account never had kept) is removed with its prickle and attendance
 - Always reflects current truth from Bronze + Local
 
 ### "Gold Layer" — planned, not actually implemented

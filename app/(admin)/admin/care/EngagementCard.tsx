@@ -25,6 +25,7 @@ import {
 import type { CareOwner } from "@/lib/care-owners";
 import { formatDateOnly } from "@/lib/formatters";
 import CareFacts from "./CareFacts";
+import { CARE_SLACK_CONNECT_HREF } from "./slack-connect";
 import type { EngagementCardData } from "./card";
 import CarePlanMessages from "./CarePlanMessages";
 import EngagementResults from "./EngagementResults";
@@ -32,9 +33,11 @@ import {
   changeEngagementStart,
   closeEngagement,
   deleteEngagement,
+  cancelCareHandover,
+  claimCarePlan,
   getEngagementResults,
   logCareMessage,
-  reassignEngagement,
+  proposeCareHandover,
   renewEngagement,
   updateEngagement,
   type CareActionResult,
@@ -54,10 +57,10 @@ const STATUS_STYLE: Record<CareStatus, string> = {
   closed: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
 };
 
-type Panel = "edit" | "close" | "renew" | "results" | "messages" | "reassign" | "start";
+type Panel = "edit" | "close" | "renew" | "results" | "messages" | "handover" | "start";
 
-/** One care plan: who, why, where it stands, and the few things she does with it (log a reply, renew, hand it over, set a follow-up, change its start, close, see results). */
-export default function EngagementCard({ card, canWrite, owners }: { card: EngagementCardData; canWrite: boolean; owners: readonly CareOwner[] }) {
+/** One care plan: who, why, where it stands, and the few things she does with it (log a reply, renew, hand it over to someone who accepts it, set a follow-up, change its start, close, see results). */
+export default function EngagementCard({ card, canWrite, owners, meId }: { card: EngagementCardData; canWrite: boolean; owners: readonly CareOwner[]; meId: string }) {
   const [panel, setPanel] = useState<Panel | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<CareResults | null>(null);
@@ -146,7 +149,17 @@ export default function EngagementCard({ card, canWrite, owners }: { card: Engag
     );
   };
 
-  const reassign = (ownerId: string) => run(() => reassignEngagement(card.id, ownerId), () => setPanel(null));
+  // Hand-overs need both sides: this only offers the plan. It keeps its owner until the receiver accepts.
+  const propose = (ownerId: string) =>
+    run(
+      () => proposeCareHandover(card.id, ownerId),
+      () => {
+        track("care_handover_proposed", {});
+        setPanel(null);
+      }
+    );
+  const cancelHandover = () => run(() => cancelCareHandover(card.id), () => track("care_handover_cancelled", {}));
+  const claim = () => run(() => claimCarePlan(card.id), () => track("care_plan_claimed", {}));
 
   const remove = () => {
     if (!window.confirm("Remove this care plan from the lists?")) return;
@@ -171,6 +184,19 @@ export default function EngagementCard({ card, canWrite, owners }: { card: Engag
             {reasonLabel} · {planOrdinal(card.period)} plan
           </p>
           <p className="text-sm text-slate-600 dark:text-slate-400">Owner: {card.ownerName}</p>
+          {card.handover && (
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              {card.controls.offeredToMe && canWrite ? `Offered to you by ${card.handover.byName}. Answer it at the top of the page.` : `Waiting for ${card.handover.toName} to accept`}
+              {card.controls.canCancel && canWrite && (
+                <>
+                  {" · "}
+                  <button type="button" data-track="care-handover-cancel" className="font-medium text-plum-700 underline disabled:opacity-50 dark:text-plum-300" disabled={pending} onClick={cancelHandover}>
+                    Cancel
+                  </button>
+                </>
+              )}
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {card.followUpDue && (
@@ -216,6 +242,15 @@ export default function EngagementCard({ card, canWrite, owners }: { card: Engag
           </>
         )}
       </p>
+      {card.dmNote === "connect" && (
+        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+          <a href={CARE_SLACK_CONNECT_HREF} data-track="care-connect-slack" className="font-medium text-plum-700 underline dark:text-plum-300">
+            Connect Slack
+          </a>{" "}
+          so your DM with them fills in.
+        </p>
+      )}
+      {card.dmNote === "no_dm" && <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">No DM with them yet.</p>}
       <CareFacts card={card} />
       {card.nextStep && !ended && <p className="mt-1 text-sm">Next: {card.nextStep}</p>}
       {card.notes && <p className="mt-1 whitespace-pre-line text-sm text-slate-600 dark:text-slate-400">{card.notes}</p>}
@@ -253,9 +288,16 @@ export default function EngagementCard({ card, canWrite, owners }: { card: Engag
           <button type="button" data-track="care-plan-messages" className={BUTTON} disabled={pending} onClick={() => open("messages")}>
             Messages
           </button>
-          <button type="button" className={BUTTON} disabled={pending} onClick={() => open("reassign")}>
-            Reassign
-          </button>
+          {card.controls.canPropose && (
+            <button type="button" data-track="care-handover-open" className={BUTTON} disabled={pending} onClick={() => open("handover")}>
+              Hand over to…
+            </button>
+          )}
+          {card.controls.canClaim && (
+            <button type="button" data-track="care-claim" className={BUTTON} disabled={pending} onClick={claim}>
+              Take this care plan
+            </button>
+          )}
           <button type="button" className={BUTTON} disabled={pending} onClick={() => open("edit")}>
             Edit
           </button>
@@ -303,17 +345,18 @@ export default function EngagementCard({ card, canWrite, owners }: { card: Engag
         </div>
       )}
 
-      {canWrite && panel === "reassign" && (
+      {canWrite && panel === "handover" && (
         <div className="mt-3 max-w-sm">
-          <span className="mb-1 block text-sm font-medium">Hand it to</span>
+          <span className="mb-1 block text-sm font-medium">Hand it over to</span>
           <EntitySearch
-            items={owners.filter((o) => o.id !== card.ownerId).map((o) => ({ id: o.id, name: o.name, detail: o.role === "admin" ? "Admin" : "Community manager" }))}
+            items={owners.filter((o) => o.id !== card.ownerId && o.id !== meId).map((o) => ({ id: o.id, name: o.name, detail: o.role === "admin" ? "Admin" : "Community manager" }))}
             selectedId={null}
-            onSelect={(item) => item && reassign(item.id)}
+            onSelect={(item) => item && propose(item.id)}
             placeholder="Search the team"
-            ariaLabel="Hand it to"
+            ariaLabel="Hand it over to"
             browse
           />
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">They are asked to accept it. The care plan stays {card.ownerId === meId ? "yours" : "with its owner"} until they do.</p>
         </div>
       )}
 

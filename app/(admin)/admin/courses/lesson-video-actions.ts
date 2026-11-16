@@ -33,7 +33,7 @@ const STILL_BASE = "https://image.mux.com";
 const NOT_EDITABLE = "That course can't be edited here: it isn't in the Hub, or it's imported from Kajabi.";
 
 function revalidate(courseId: string, lessonId: string) {
-  revalidatePath(`/admin/courses/${courseId}`);
+  revalidatePath(`/admin/courses/${courseId}`, "layout");
   revalidatePath(`/admin/courses/${courseId}/lessons/${lessonId}`);
   revalidatePath("/courses", "layout");
 }
