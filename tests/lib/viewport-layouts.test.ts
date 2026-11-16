@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 /**
  * Viewport breakpoints (`sm:`/`md:`/`lg:`/`xl:`/`2xl:`) decide the app shell only; a layout inside the
  * content area follows the room it has, with a container query (`@container` + `@pair:`, `@split:`...;
- * "Responsive Layout" in CLAUDE.md). This fails on the structural viewport variants (stacking, wrapping, columns and
+ * "Responsive Layout" in .claude/rules/ui-layout.md). This fails on the structural viewport variants (stacking, wrapping, columns and
  * their placement) in app and components, so a page can't guess what the shell is doing. Visibility,
  * spacing and text variants (`lg:hidden`, `sm:p-6`) are not covered: the shell legitimately uses them.
  *

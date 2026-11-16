@@ -37,8 +37,6 @@ Next.js 15 App Router on Vercel (Pro; routes capped at 300s, see `maxDuration`),
 
 ## Path-scoped rules (`.claude/rules/`)
 
-Docs and code comments that cite `CLAUDE.md, "<Section>"` mean the rule file below that holds that section (same heading).
-
 | File | Covers |
 |---|---|
 | `api-routes-and-queries.md` | 1000-row limit, route performance, review checklist |

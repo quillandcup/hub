@@ -59,7 +59,7 @@ export type MemberAttendanceFilter = {
 
 /**
  * Everything the app asks of `prickle_attendance`. Records per (member, prickle) are NOT unique
- * (CLAUDE.md, "Attendance Table Design"), so "who attended" is always distinct and "how many
+ * (.claude/rules/attendance-table.md, "Attendance Table Design"), so "who attended" is always distinct and "how many
  * prickles" never counts records; that rule lives here once, not in each caller.
  */
 export interface AttendanceRepository {

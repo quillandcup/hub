@@ -286,7 +286,7 @@ export function toFeedPrickle(p: PrickleDetail): FeedPrickle {
 
 /**
  * Load one member's feed events. `repos` run over the service-role client (the feed has no session),
- * so every query here is scoped to `memberId`. Paginated per CLAUDE.md.
+ * so every query here is scoped to `memberId`. Paginated per .claude/rules/api-routes-and-queries.md.
  */
 export async function loadCalendarFeedEvents(
   repos: FeedRepos,

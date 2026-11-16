@@ -24,7 +24,7 @@ Images are handled four different ways today, and none of them can be reused:
 
 ### Ids
 
-Asset ids appear in URLs (`/api/media/<id>/...`), so by `CLAUDE.md` ("Resource ID Tiers") the table is **Tier 1**. The prefix is `media_`, not `img_`, because the table is the catalog for more than images (next section). It is in `ID_PREFIXES` and `docs/SHORT_IDS_PLAN.md`.
+Asset ids appear in URLs (`/api/media/<id>/...`), so by `.claude/rules/resource-ids.md` ("Resource ID Tiers") the table is **Tier 1**. The prefix is `media_`, not `img_`, because the table is the catalog for more than images (next section). It is in `ID_PREFIXES` and `docs/SHORT_IDS_PLAN.md`.
 
 ### One catalog
 

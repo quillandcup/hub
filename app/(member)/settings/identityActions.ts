@@ -313,7 +313,7 @@ async function resendEmailVerificationImpl(aliasId: string): Promise<{ success: 
 const REAUTH_WINDOW_MS = 10 * 60_000;
 
 async function hasRecentSignIn(supabase: Awaited<ReturnType<typeof createClient>>): Promise<boolean> {
-  // The user record, not the token: only it carries when they last signed in (CLAUDE.md, "Auth lookups in server code").
+  // The user record, not the token: only it carries when they last signed in (.claude/rules/member-identity.md, "Auth lookups in server code").
   const { data } = await supabase.auth.getUser();
   const lastSignInAt = data.user?.last_sign_in_at;
   return Boolean(lastSignInAt) && clock.now() - Date.parse(lastSignInAt!) <= REAUTH_WINDOW_MS;

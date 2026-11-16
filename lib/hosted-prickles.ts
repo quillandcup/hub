@@ -66,9 +66,9 @@ async function fetchHostedPrickleAttendance(
 
 /**
  * Every prickle `memberId` has hosted that has already started, with the host's earliest
- * join_time (a host can leave and rejoin, per CLAUDE.md's attendance model) and optionally the
+ * join_time (a host can leave and rejoin, per .claude/rules/attendance-table.md) and optionally the
  * distinct attendee count. Future scheduled prickles (already synced from the calendar) haven't
- * happened yet, so they're excluded. Paginated per CLAUDE.md: prickles and prickle_attendance
+ * happened yet, so they're excluded. Paginated per .claude/rules/api-routes-and-queries.md: prickles and prickle_attendance
  * can each exceed 1000 rows.
  *
  * With includeAttendeeCounts the whole thing is one aggregated RPC (O(hosted prickles) rows);
