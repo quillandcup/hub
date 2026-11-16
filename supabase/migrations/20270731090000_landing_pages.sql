@@ -67,7 +67,9 @@ CREATE POLICY "Admins read landing page versions" ON public.landing_page_version
 CREATE POLICY "Admins add landing page versions" ON public.landing_page_versions
   FOR INSERT TO authenticated WITH CHECK ((SELECT public.is_admin()));
 
--- No anon grants: no signed-out visitor reads these tables. Pages are deleted softly (deleted_at), so no DELETE.
+-- No anon grants: no signed-out visitor reads these tables (Supabase's default privileges would otherwise hand them out).
+REVOKE ALL ON public.landing_pages, public.landing_page_versions FROM anon;
+-- Pages are deleted softly (deleted_at), so no DELETE.
 GRANT SELECT, INSERT, UPDATE ON public.landing_pages TO authenticated;
 GRANT SELECT, INSERT ON public.landing_page_versions TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.landing_pages TO service_role;
