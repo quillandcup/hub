@@ -8327,13 +8327,10 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      publish_landing_page: { Args: { p_page_id: string }; Returns: undefined }
       rate_limit_hit: {
         Args: { p_bucket: string; p_max_hits: number; p_window_seconds: number }
         Returns: boolean
-      }
-      publish_landing_page: {
-        Args: { p_page_id: string }
-        Returns: undefined
       }
       recompute_course_states: {
         Args: { p_course_id: string }
