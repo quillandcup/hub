@@ -73,6 +73,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     summary: "When Billie Bot, our Slack helper, sends you a check-in or check-out, you can now answer it in Hub Chat as well as in Slack. Your answers are saved to your check-in for that prickle.",
     body: [
       "Billie Bot's check-in and check-out messages now work in Hub Chat. Pick a number on each scale, choose a feeling from the list, say what you need, and type how much you wrote and press Enter. Then tap Submit or Skip.",
+      "![Billie Bot's check-in in Hub Chat, with scales to tap, a feeling and an intention to pick, and Submit and Skip check-in buttons](/changelog/answer-check-ins-in-hub-chat/01-check-in-controls.webp)",
       "It works the same as the buttons in Slack: your answers go to your check-in for that prickle, and the message in Slack updates to show them. Links in these messages, and bold titles, now look the way they do in Slack.",
     ].join("\n\n"),
     image: { src: "/changelog/answer-check-ins-in-hub-chat/01-check-in-controls.webp", alt: "Billie Bot's check-in in Hub Chat, with scales to tap, a feeling and an intention to pick, and Submit and Skip check-in buttons" },
@@ -86,6 +87,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     summary: "When you remove the preview that appears when you share a link, you can also block previews from that whole website, from one part of it, or from just that link. This applies to messages you write from now on.",
     body: [
       "The X on a preview now asks \"Remove preview?\" before it goes. Leave the box ticked to also block previews like it, then pick how much to block.",
+      "![The Remove preview question in Hub Chat, with a ticked box to also block previews from the website and a choice of how much to block](/changelog/block-link-previews-in-hub-chat/01-remove-preview.webp)",
       [
         "- **A whole website, one part of it, or just that link.** You choose one before you confirm.",
         "- **Only your own messages, from now on.** Previews already in a conversation stay as they are, and other people's messages are not affected.",
@@ -137,6 +139,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     summary: "Not ready to answer yet? Choose Mark unread on a message, and it and everything after it show as unread again until you come back.",
     body: [
       "Open the three dots on a message and choose **Mark unread**. That message and everything after it counts as new again: the conversation shows its number in the sidebar, and the next time you open it the \"New\" line sits above that message and you land right there.",
+      "![A message's More actions menu in Hub Chat, with Mark unread at the top](/changelog/mark-unread-in-hub-chat/01-mark-unread-menu.webp)",
       "The conversation stays unread while you're in it and when you leave, so you can read on and still find your place later. It only marks your own view, so nobody else sees a change.",
       "If you've connected Slack, the message looks unread there too.",
     ].join("\n\n"),
@@ -173,6 +176,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     summary: "When a conversation has more new messages than fit on screen, a small label at the top tells you how many there are. Tap it to jump back to where the new ones start.",
     body: [
       "If you open a conversation with a lot of unread messages and scroll away from the \"New\" line, a small label appears at the top saying, for example, \"↑ 13 new messages\".",
+      "![A conversation in Hub Chat with a small label at the top reading 5 new messages](/changelog/chat-new-messages-banner/01-new-messages-pill.webp)",
       "- **Tap it** to scroll back up to the \"New\" line.",
       "- **Tap the ✕** to hide it until you open the conversation again.",
       "- It goes away by itself once the \"New\" line is on screen. The number is every message from the \"New\" line down, including any you wrote yourself, counted when you opened the conversation. It doesn't change as more messages arrive.",
@@ -2309,6 +2313,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "The privacy page opens with a short summary and can be read without signing in. A switch lets you stop the Hub recording how you use it, and removes what was already recorded about you.",
     body: [
       "[/privacy](/privacy) now covers what we collect, who can see it, chat and messages, how long we keep things, your choices and the services we use.",
+      "![The top of the privacy page: a short summary, then a table of what we collect](/changelog/privacy-page/01-privacy.webp)",
       "Turn off Share usage statistics and the Hub stops recording your usage and removes the usage events already stored under your account. Error recordings, used to fix crashes, continue.",
     ].join("\n\n"),
     image: { src: "/changelog/privacy-page/01-privacy.webp", alt: "The top of the privacy page: a short summary, then a table of what we collect" },
@@ -2770,6 +2775,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     summary: "Tap the day label in a conversation to jump to today, yesterday, last week, last month, the very beginning, or any date you pick on a calendar.",
     body: [
       "In Hub Chat, the day label above each group of messages (like \"Wednesday, November 11th\") is now a button. Tap it to open Jump to... and choose Today, Yesterday, Last week, Last month or The very beginning, or pick a specific date on a calendar.",
+      "![The Jump to menu opened from a day label, listing Today, Yesterday, Last week, Last month, The very beginning and a specific date](/changelog/chat-jump-to-a-day/01-jump-to-menu.webp)",
       "The conversation opens on the first message of that day. If nothing was posted that day, it opens on the next day that has messages, and tells you so. A Jump to latest link takes you back to the newest messages, and Show newer messages carries on from where the page ends.",
       "Days follow your own time zone setting. Looking back this way does not mark the conversation as read.",
     ].join("\n\n"),
@@ -2782,7 +2788,10 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     category: "improved",
     title: "Apps now have their own place in the chat list",
     summary: "In Hub Chat, your private messages with apps like Billie Bot, our Slack helper, now sit under their own Apps heading, apart from the people you talk to.",
-    body: "Your chat list now has an Apps heading under Direct messages. A conversation with an app shows under the app's name instead of a plain \"Direct message\", so the list under Direct messages is only people.",
+    body: [
+      "Your chat list now has an Apps heading under Direct messages. A conversation with an app shows under the app's name instead of a plain \"Direct message\", so the list under Direct messages is only people.",
+      "![The Hub Chat sidebar with an Apps heading under Direct messages, holding Billie Bot](/changelog/chat-apps-section/01-apps-heading.webp)",
+    ].join("\n\n"),
     image: { src: "/changelog/chat-apps-section/01-apps-heading.webp", alt: "The Hub Chat sidebar with an Apps heading under Direct messages, holding Billie Bot" },
   },
 ];
