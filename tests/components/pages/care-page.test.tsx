@@ -48,6 +48,7 @@ const actions = vi.hoisted(() => ({
   deleteEngagement: vi.fn(),
   getEngagementResults: vi.fn(),
   getCareMessages: vi.fn(),
+  loadCarePlanActivity: vi.fn(),
   searchCareMembers: vi.fn(),
 }));
 vi.mock("@/app/(admin)/admin/care/actions", () => actions);
@@ -485,6 +486,87 @@ describe("the controls", () => {
     expect(within(ada).getByLabelText("Next step")).toBeInTheDocument();
     await user.click(within(ada).getByRole("button", { name: "Edit" }));
     expect(within(ada).queryByLabelText("Next step")).not.toBeInTheDocument();
+  });
+});
+
+describe("activity during this plan", () => {
+  const page = (over: Record<string, unknown> = {}) => ({
+    items: [
+      { id: "act_1", occurredAt: "2026-03-18T15:00:00.000Z", label: "Posted in #writing", care: false },
+      { id: "act_2", occurredAt: "2026-03-10T15:00:00.000Z", label: "Cam Manager started a care plan", care: true },
+    ],
+    total: 2,
+    page: 1,
+    pageSize: 25,
+    fromIso: "2026-03-10T15:00:00.000Z",
+    toIso: "2026-03-20T12:00:00.000Z",
+    open: true,
+    ...over,
+  });
+
+  it("opens under the plan on request, newest first, with its window and no message text, and tells the tracking plan once", async () => {
+    actions.loadCarePlanActivity.mockResolvedValue(page());
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+    const user = userEvent.setup();
+    const ada = cards()[0];
+
+    expect(actions.loadCarePlanActivity).not.toHaveBeenCalled();
+    await user.click(within(ada).getByRole("button", { name: "Activity during this plan" }));
+
+    const list = (await within(ada).findByText("Posted in #writing")).closest("ul")!;
+    const rows = within(list).getAllByRole("listitem");
+    expect(rows.map((r) => r.textContent)).toEqual([expect.stringContaining("Posted in #writing"), expect.stringContaining("Cam Manager started a care plan")]);
+    expect(actions.loadCarePlanActivity).toHaveBeenCalledWith("care_AAAAAAAAAAA2", 1);
+    expect(within(ada).getByText(/until now: 2 things\. Messages show where and when, never what was said\./)).toBeInTheDocument();
+    expect(track).toHaveBeenCalledWith("care_activity_opened", { plan_open: true, rows: 2 });
+    expect(track).toHaveBeenCalledTimes(1);
+
+    // Closing and reopening the panel asks again, and a Results panel is not opened by it.
+    await user.click(within(ada).getByRole("button", { name: "Activity during this plan" }));
+    expect(within(ada).queryByText("Posted in #writing")).not.toBeInTheDocument();
+    expect(within(ada).queryAllByRole("table")).toHaveLength(0);
+  });
+
+  it("shows older rows a page at a time, never the same row twice, and hides the button when there are no more", async () => {
+    actions.loadCarePlanActivity
+      .mockResolvedValueOnce(page({ total: 3, items: [{ id: "act_1", occurredAt: "2026-03-18T15:00:00.000Z", label: "Posted in #writing", care: false }, { id: "act_2", occurredAt: "2026-03-17T15:00:00.000Z", label: "Attended Morning Writing", care: false }] }))
+      .mockResolvedValueOnce(page({ total: 3, page: 2, items: [{ id: "act_2", occurredAt: "2026-03-17T15:00:00.000Z", label: "Attended Morning Writing", care: false }, { id: "act_3", occurredAt: "2026-03-10T15:00:00.000Z", label: "Cam Manager started a care plan", care: true }] }));
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+    const user = userEvent.setup();
+    const ada = cards()[0];
+    await user.click(within(ada).getByRole("button", { name: "Activity during this plan" }));
+    await user.click(await within(ada).findByRole("button", { name: "Show older" }));
+
+    await waitFor(() => expect(within(ada).getAllByRole("listitem")).toHaveLength(3));
+    expect(actions.loadCarePlanActivity).toHaveBeenLastCalledWith("care_AAAAAAAAAAA2", 2);
+    expect(within(ada).queryByRole("button", { name: "Show older" })).not.toBeInTheDocument();
+    expect(track).toHaveBeenCalledTimes(1); // only the first page counts as opening it
+  });
+
+  it("says so when there is nothing, says where an earlier plan's window ended, and shows the error when it can't load", async () => {
+    actions.loadCarePlanActivity.mockResolvedValue(page({ items: [], total: 0, open: false, fromIso: "2026-03-01T17:00:00.000Z", toIso: "2026-03-05T17:00:00.000Z" }));
+    signInAs(CM_USER);
+    await renderServerRoute(activePage, undefined as never);
+    const user = userEvent.setup();
+    await user.click(within(cards()[0]).getByRole("button", { name: "Activity during this plan" }));
+    expect(await within(cards()[0]).findByText("Nothing yet in the Hub during this care plan.")).toBeInTheDocument();
+    expect(within(cards()[0]).getByText(/3\/1\/2026 to 3\/5\/2026: 0 things/)).toBeInTheDocument();
+
+    actions.loadCarePlanActivity.mockResolvedValue({ error: "Couldn't load the activity." });
+    await user.click(within(cards()[0]).getByRole("button", { name: "Activity during this plan" }));
+    await user.click(within(cards()[0]).getByRole("button", { name: "Activity during this plan" }));
+    expect(await within(cards()[0]).findByRole("alert")).toHaveTextContent("Couldn't load the activity.");
+  });
+
+  it("is on closed plans too, each asking for its own window by its own id", async () => {
+    actions.loadCarePlanActivity.mockResolvedValue(page({ open: false }));
+    signInAs(CM_USER);
+    await renderServerRoute(earlierPage, undefined as never);
+    const closed = within(screen.getAllByRole("listitem").find((li) => li.textContent?.includes("Cy Example"))!);
+    await userEvent.setup().click(closed.getAllByRole("button", { name: "Activity during this plan" })[0]);
+    await waitFor(() => expect(actions.loadCarePlanActivity).toHaveBeenCalledWith(expect.stringMatching(/^care_/), 1));
   });
 });
 
@@ -1350,7 +1432,7 @@ describe("Slack DMs on the engagement list", () => {
       expect(within(card).getByText("Filled in from your Slack DM")).toBeInTheDocument();
       expect(within(card).getByText("from Slack")).toBeInTheDocument();
       expect(within(card).getByText(/Last message: they wrote yesterday/)).toBeInTheDocument();
-      for (const name of ["Renew", "Close", "Results", "Hand over to…", "Edit", "Change start date", "Remove"]) {
+      for (const name of ["Renew", "Close", "Results", "Activity during this plan", "Hand over to…", "Edit", "Change start date", "Remove"]) {
         expect(within(card).getByRole("button", { name })).toBeInTheDocument();
       }
     });

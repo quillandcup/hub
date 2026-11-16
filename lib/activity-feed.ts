@@ -7,6 +7,8 @@ import { throwIfDbError } from "@/lib/db-error";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { FEATURE_PREVIEWS } from "@/lib/features";
 import { withReferenceNames } from "@/lib/audit-references";
+import { careActivitySentence, careEventOfAudit, careSentence } from "@/lib/care-events";
+import { periodNumber } from "@/lib/care";
 
 /**
  * The central activity log: audit_log rows, member_activities rows and page
@@ -46,6 +48,8 @@ export interface ActivityFeedRow {
   data: Record<string, unknown> | null;
   /** Names (and admin pages) of the ids in an audit row's details, by id; set by the fetchers. */
   refs?: Record<string, ResolvedRef>;
+  /** On the audit row of a renewed care plan: which plan of the chain it is (the first is 1); set by the fetchers. */
+  planNumber?: number;
 }
 
 export interface ResolvedRef {
@@ -188,7 +192,7 @@ export async function fetchActivityFeed(
     p_limit: bounds.pageSize,
   });
   throwIfDbError("activity feed: get_activity_feed", error);
-  return { rows: await withReferenceNames(supabase, await withMemberDisplayNames(supabase, await withMentionNames((data ?? []) as ActivityFeedRow[]))), total, page: bounds.page, pageSize: bounds.pageSize };
+  return { rows: await withCarePlanNumbers(supabase, await withReferenceNames(supabase, await withMemberDisplayNames(supabase, await withMentionNames((data ?? []) as ActivityFeedRow[])))), total, page: bounds.page, pageSize: bounds.pageSize };
 }
 
 /**
@@ -253,7 +257,34 @@ export async function fetchRecordHistory(
     p_member_rows: scope.memberRows ?? false,
   });
   throwIfDbError("record history: get_record_history", error);
-  return withReferenceNames(supabase, await withMemberDisplayNames(supabase, await withMentionNames((data ?? []) as ActivityFeedRow[])));
+  return withCarePlanNumbers(supabase, await withReferenceNames(supabase, await withMemberDisplayNames(supabase, await withMentionNames((data ?? []) as ActivityFeedRow[]))));
+}
+
+/**
+ * "Renewed the care plan (second plan)": a renewal's audit row says which plan it continues, not how many came before, so count
+ * along the member's chain (`renewed_from`). One read of the member's plans per renewal row on the page; a plan that was removed
+ * ends the count there, as on the plan card.
+ */
+export async function withCarePlanNumbers(supabase: SupabaseClient, rows: ActivityFeedRow[]): Promise<ActivityFeedRow[]> {
+  const renewals = rows.filter((r) => r.kind === "audit" && r.entity_type === "care_engagement" && r.event_type === "insert" && r.member_id && r.entity_id && changedFields(r.data).some(([k, v]) => k === "renewed_from" && v.new));
+  if (renewals.length === 0) return rows;
+  const care = createRepos(supabase).care;
+  const memberIds = [...new Set(renewals.map((r) => r.member_id as string))];
+  const chains = new Map<string, Map<string, { renewed_from: string | null }>>();
+  await Promise.all(
+    memberIds.map(async (memberId) => {
+      chains.set(memberId, new Map((await care.forMember(memberId)).map((plan) => [plan.id, plan])));
+    })
+  );
+  return rows.map((r) => {
+    if (!renewals.includes(r)) return r;
+    const byId = chains.get(r.member_id as string);
+    const renewedFrom = changedFields(r.data).find(([k]) => k === "renewed_from")?.[1].new;
+    if (!byId || typeof renewedFrom !== "string") return r;
+    // A renewal is at least the second; a chain that ends at a plan that is gone says nothing rather than "first".
+    const number = periodNumber({ id: r.entity_id as string, renewed_from: renewedFrom }, byId);
+    return number >= 2 ? { ...r, planNumber: number } : r;
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -356,7 +387,7 @@ const ENTITY_LABELS: Record<string, string> = {
   member_status_override: "status override",
   prickle_host_vibe: "host vibe",
   mentorship: "Big Sister match",
-  care_engagement: "Hedgie Care engagement",
+  care_engagement: "care plan",
 };
 
 const NAME_FIELDS = ["title", "name", "alias"] as const;
@@ -445,6 +476,10 @@ function specialAuditPhrase(row: ActivityFeedRow): string | null {
     if (row.event_type === "delete") return `lifted the restriction on messages in ${channel}`;
   }
 
+  // A care plan's changes read as what the person did (lib/care-events.ts); never the typed fields, which the trigger redacts.
+  const care = careEventOfAudit({ entity_type: row.entity_type, event_type: row.event_type, actor_user_id: row.actor_user_id, fields, refs: row.refs, planNumber: row.planNumber });
+  if (care) return careSentence(care.kind, care.context);
+
   const name = recordName(row);
   const quoted = name ? ` “${name}”` : "";
   // Members' deletes are soft: the row stays and `deleted_at` is set (or cleared, if restored).
@@ -521,6 +556,11 @@ export function describeRow(row: ActivityFeedRow): string {
       .map((p) => `${p.label} ×${p.count}`)
       .join(", ");
     return `visited ${pages.length} page${pages.length === 1 ? "" : "s"}${pages.length > 1 ? ` (${top})` : ""}`;
+  }
+  // A care plan's own rows on the member's timeline (the plan card's activity list); the central log gets these events from the audit rows.
+  if (row.source === "care") {
+    const care = careActivitySentence({ activity_type: row.event_type, data: row.data, description: row.description });
+    if (care) return care;
   }
   const base = row.title ?? humanize(row.event_type);
   // Check-ins and check-outs say where they happened: "(via Slack)" vs "(via web)".

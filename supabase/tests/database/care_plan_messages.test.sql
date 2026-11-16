@@ -1,11 +1,11 @@
--- pgTAP test for 20270730000000_care_plan_messages.sql: the one definition of a staff member, which chat DMs are tracked in a
+-- pgTAP test for 20270803000000_care_plan_messages.sql: the one definition of a staff member, which chat DMs are tracked in a
 -- Hedgie Care plan (the notice in Hub Chat), the audit entry for opening a member's plan messages, and that no chat read policy
 -- was widened for staff. Rolled back; run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(33);
+SELECT plan(35);
 
 -- People: Fern, Gale and Orla are plain members (Orla is in none of the conversations); Stella is linked in the staff roster
 -- (no account); Ada is an admin with a member record; Cleo is a community manager with a member record; Ines has an assistant account.
@@ -116,6 +116,18 @@ SELECT is(
     WHERE f.entity_id = 'mbr_CPAAAAAAAAF1' AND f.actor_user_id = '00000000-0000-4000-a000-00000000e5d3' AND f.member_id = 'mbr_CPAAAAAAAAF1'),
   1,
   'the Activity Log''s Privacy view lists it, with who looked and whose messages'
+);
+
+SELECT is(
+  (SELECT count(*)::int FROM public.get_activity_feed(p_audit_only := true, p_kinds := ARRAY['audit'], p_member_id := 'mbr_CPAAAAAAAAF1') f
+    WHERE f.entity_type = 'care_dm_read' AND f.actor_user_id = '00000000-0000-4000-a000-00000000e5d3'),
+  1,
+  'the entry is on the member''s own Activity Log tab (the feed narrowed to the member)'
+);
+SELECT is(
+  (SELECT count(*)::int FROM public.audit_log WHERE entity_type = 'care_dm_read' AND (changes::text || coalesce(comment, '') || coalesce(entity_label, '')) ~* '(one|two|six|three)'),
+  0,
+  'and the entry holds none of the message text'
 );
 
 -- Cleo, the community manager who tracks the DM: she reads no chat she is not in and cannot see the audit log -----------------
