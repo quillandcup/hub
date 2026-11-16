@@ -1,3 +1,4 @@
+import { loadAuthorBlocks } from "@/lib/chat/author-blocks";
 import { buildMessageViews, ignoringErrors, type ChatLoadRepos, type MessageRow, type ChannelSummary, type ChatMessages, type ChatMessageView } from "@/lib/chat/load";
 
 type ChatSearchRepos = ChatLoadRepos;
@@ -98,7 +99,7 @@ export async function searchChat(repos: ChatSearchRepos, viewerMemberId: string,
     [...byChannel].map(async ([channelId, channelRows]) => {
       const channel = channelById.get(channelId);
       if (!channel) return;
-      const built = await buildMessageViews(repos, channel, channelRows as MessageRow[], viewerMemberId);
+      const built = await buildMessageViews(repos, channel, channelRows as MessageRow[], viewerMemberId, undefined, { authorBlocks: loadAuthorBlocks });
       channelRows.forEach((r, i) => viewById.set(r.id, built.views[i]));
       Object.assign(render.userNames, built.userNames);
       Object.assign(render.userMembers, built.userMembers);

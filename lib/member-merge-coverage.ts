@@ -13,6 +13,7 @@
 export const MOVED = [
   "ambiguous_zoom_names",
   "big_sister_volunteers",
+  "chat_preview_blocks",
   "event_attendees",
   "member_activities",
   "member_badges",
@@ -39,7 +40,6 @@ export const NOT_MOVED = [
   "chat_channel_members",
   "chat_drafts",
   "chat_messages",
-  "chat_preview_blocks",
   "chat_reactions",
   "chat_slack_authors",
   "care_engagements",

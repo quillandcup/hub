@@ -26,6 +26,7 @@ import { PENDING_FILE_PREFIX, parseChatFiles, type ChatFile } from "@/lib/chat/f
 import { MAX_CHAT_FILES, MAX_CHAT_FILE_BYTES, isOwnStagingPath, newStagingPath, type StagedUpload } from "@/lib/chat/staging";
 import { SLACK_FILES_BUCKET } from "@/lib/slack-capture";
 import { clock } from "@/lib/clock";
+import { loadAuthorBlocks } from "@/lib/chat/author-blocks";
 import {
   buildMessageViews,
   chatTextContext,
@@ -202,7 +203,7 @@ export async function loadOlderChat(channelId: string, before: string): Promise<
 
   const page = await loadMessages(createRepos(supabase), channel.id, { before });
   const [{ views, ...rendered }, channels] = await Promise.all([
-    buildMessageViews(createRepos(supabase), channel, page.messages, identity.memberId, undefined, { hubLinkCards: hubLinkCardsFor(caller) }),
+    buildMessageViews(createRepos(supabase), channel, page.messages, identity.memberId, undefined, { hubLinkCards: hubLinkCardsFor(caller), authorBlocks: loadAuthorBlocks }),
     loadChatChannels(createRepos(supabase), identity.memberId, identity.isSudo),
   ]);
   return { views, ctx: chatTextContext(rendered, channels), olderBefore: page.olderBefore };
@@ -247,7 +248,7 @@ export async function loadLatestChat(channelId: string, alsoMessageIds: string[]
   // The newest page, plus any other messages asked for (ones whose reactions changed), once each.
   const inPage = new Set(page.messages.map((m) => m.id));
   const messages = [...page.messages, ...extra.filter((m) => !inPage.has(m.id))];
-  const { views, ...rendered } = await buildMessageViews(createRepos(supabase), channel, messages, identity.memberId, undefined, { hubLinkCards: hubLinkCardsFor(caller) });
+  const { views, ...rendered } = await buildMessageViews(createRepos(supabase), channel, messages, identity.memberId, undefined, { hubLinkCards: hubLinkCardsFor(caller), authorBlocks: loadAuthorBlocks });
   const done = performance.now();
   // Where the time goes, for tuning: this runs on every live change in an open conversation.
   console.info(
@@ -302,7 +303,7 @@ export async function loadThreadChat(channelId: string, threadRootId: string, al
     loadMessages(createRepos(supabase), channel.id, { threadRootId }),
   ]);
   if (!root) return null;
-  const { views, ...rendered } = await buildMessageViews(createRepos(supabase), channel, [root, ...replies.messages], identity.memberId, undefined, { hubLinkCards: hubLinkCardsFor(caller) });
+  const { views, ...rendered } = await buildMessageViews(createRepos(supabase), channel, [root, ...replies.messages], identity.memberId, undefined, { hubLinkCards: hubLinkCardsFor(caller), authorBlocks: loadAuthorBlocks });
   // Messages that changed and aren't in what came back: a reply deleted in Slack is left out of the views, but one
   // beyond the page, or in another view of the conversation, is merely not shown here. Look each up to tell which is gone.
   const shown = new Set(views.map((v) => v.id));

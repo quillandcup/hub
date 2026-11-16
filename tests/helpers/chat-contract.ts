@@ -824,8 +824,8 @@ export function defineChatContract(name: string, setup: () => ChatContractContex
           { key: "gone", channelId: c, body: "deleted", attachments, deleted: true },
         ]);
 
-        expect(await ctx.repo().unfurlContext(ids.m)).toEqual({ body: "see this", blocks: null, attachments, bot });
-        expect(await ctx.repo().unfurlContext(ids.plain)).toEqual({ body: "just text", blocks: null, attachments: null, bot: null });
+        expect(await ctx.repo().unfurlContext(ids.m)).toEqual({ body: "see this", blocks: null, attachments, bot, origin: "slack", authorMemberId: null });
+        expect(await ctx.repo().unfurlContext(ids.plain)).toEqual({ body: "just text", blocks: null, attachments: null, bot: null, origin: "slack", authorMemberId: null });
         expect(await ctx.repo().unfurlContext(ids.gone)).toBeNull();
         expect(await ctx.repo().unfurlContext(NONE)).toBeNull();
       });

@@ -33,7 +33,7 @@ describe("the Remove preview dialog", () => {
   it("opens on the X without removing anything, with the block box ticked and the choice still to make", () => {
     open();
     expect(hideChatUnfurl).not.toHaveBeenCalled();
-    expect(screen.getByRole("checkbox", { name: "Also block previews from this website in the future" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Also block previews from this website" })).toBeChecked();
     expect(select()).toHaveValue("");
     expect(within(select()).getByRole("option", { name: "--Select an option--" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Remove and Block" })).toBeDisabled();

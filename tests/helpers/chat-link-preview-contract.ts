@@ -116,6 +116,39 @@ export function defineChatLinkPreviewContract(name: string, setup: () => ChatLin
       expect(await ctx.repo().blocksOf(moss)).toEqual([site]);
     });
 
+    it("reads the rules of several members at once, and leaves out a member with none", async () => {
+      const [fern, moss] = ctx.members;
+      const site = { scope: "site", host: "example.test", pathPrefix: null, url: null } as const;
+      const path = { scope: "path", host: "example.test", pathPrefix: "/blog", url: null } as const;
+      await ctx.repo().block(fern, site);
+      await ctx.repo().block(fern, path);
+
+      const got = await ctx.repo().blocksOfMembers([fern, moss, fern]);
+      expect([...got.keys()]).toEqual([fern]);
+      expect(got.get(fern)).toEqual([site, path]);
+      expect((await ctx.repo().blocksOfMembers([])).size).toBe(0);
+    });
+
+    it("moves a member's rules to another member without doubling the ones they share", async () => {
+      const [fern, moss] = ctx.members;
+      const site = { scope: "site", host: "example.test", pathPrefix: null, url: null } as const;
+      const path = { scope: "path", host: "example.test", pathPrefix: "/blog", url: null } as const;
+      const link = { scope: "link", host: "example.test", pathPrefix: null, url: "https://example.test/a" } as const;
+      await ctx.repo().block(fern, site);
+      await ctx.repo().block(fern, path);
+      await ctx.repo().block(moss, site);
+      await ctx.repo().block(moss, link);
+
+      await ctx.repo().moveBlocks(fern, moss);
+
+      expect(await ctx.repo().blocksOf(fern)).toEqual([]);
+      const kept = await ctx.repo().blocksOf(moss);
+      expect(kept).toHaveLength(3);
+      expect(kept).toEqual(expect.arrayContaining([site, path, link]));
+      await ctx.repo().moveBlocks(fern, moss);
+      expect(await ctx.repo().blocksOf(moss)).toHaveLength(3);
+    });
+
     it("lifts one rule only, and lifting a rule that is not there is not an error", async () => {
       const [fern, moss] = ctx.members;
       const site = { scope: "site", host: "example.test", pathPrefix: null, url: null } as const;

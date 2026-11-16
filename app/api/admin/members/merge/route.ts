@@ -62,6 +62,8 @@ export async function POST(request: NextRequest) {
       createRepos(supabase).events.moveTicketGiver(secondaryId, primaryId),
       createRepos(supabase).badges.moveAwards(secondaryId, primaryId),
       createRepos(supabase).mentorship.moveMemberRecords(secondaryId, primaryId),
+      // The secondary's blocked link previews (they cascade on delete); the kept member's own rules are not doubled.
+      createRepos(supabase).chatLinkPreviews.moveBlocks(secondaryId, primaryId),
       createRepos(supabase).activities.reassign(secondaryId, primaryId),
       createRepos(supabase).memberStatus.reassignMember(secondaryId, primaryId),
       // prickles.host (not host_id) -- a wrong column name here used to fail silently, and deleting

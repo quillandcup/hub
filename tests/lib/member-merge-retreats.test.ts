@@ -51,6 +51,11 @@ beforeEach(() => {
       { id: "m1", mentor_member_id: DUP, new_member_id: OTHER, started_on: "2023-08-11", status: "matched", kind: "direct" },
       { id: "m2", mentor_member_id: OTHER, new_member_id: DUP, started_on: "2023-12-11", status: "matched", kind: "trial" },
     ],
+    chatPreviewBlocks: [
+      { id: "cpbk_AAAAAAAAAAA1", member_id: DUP, scope: "site", host: "example.test", path_prefix: "", url: "", created_at: "2026-01-01T00:00:00Z" },
+      { id: "cpbk_AAAAAAAAAAA2", member_id: DUP, scope: "path", host: "example.test", path_prefix: "/blog", url: "", created_at: "2026-01-02T00:00:00Z" },
+      { id: "cpbk_AAAAAAAAAAA3", member_id: KEEP, scope: "site", host: "example.test", path_prefix: "", url: "", created_at: "2026-01-03T00:00:00Z" },
+    ],
     bigSisterVolunteers: [{ member_id: DUP, note: "Happy to help", created_at: "2023-01-01T00:00:00Z", updated_at: "2023-01-01T00:00:00Z", deleted_at: null }],
   } as never);
   state.repos = createInMemoryRepos(dataset);
@@ -74,6 +79,17 @@ describe("POST /api/admin/members/merge keeps retreats, badges and Big Sister re
     await merge();
 
     expect(dataset.eventAttendees.find((a) => a.id === "a4")?.ticket_giver_id).toBe(KEEP);
+  });
+
+  it("moves the duplicate's blocked link previews to the kept member, without doubling one they already have", async () => {
+    const res = await merge();
+    expect(res.status).toBe(200);
+
+    expect(dataset.chatPreviewBlocks.filter((b) => b.member_id === DUP)).toEqual([]);
+    expect(dataset.chatPreviewBlocks.filter((b) => b.member_id === KEEP).map((b) => [b.scope, b.host, b.path_prefix]).sort()).toEqual([
+      ["path", "example.test", "/blog"],
+      ["site", "example.test", ""],
+    ]);
   });
 
   it("moves the duplicate's Big Sister matches and volunteer record", async () => {

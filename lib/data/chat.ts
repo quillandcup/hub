@@ -378,6 +378,9 @@ export interface MessageUnfurlContext {
   blocks: unknown;
   attachments: unknown;
   bot: unknown;
+  /** Where the message was written, and by whom: a card for a link its Hub author blocked is not drawn (lib/chat/link-preview-blocks.ts). */
+  origin: "app" | "slack";
+  authorMemberId: string | null;
 }
 
 export interface MessageFileContext {
@@ -927,12 +930,12 @@ export class SupabaseChatRepository implements ChatRepository {
   async unfurlContext(messageId: string) {
     const { data, error } = await this.db
       .from("chat_message_contents")
-      .select("body, blocks, attachments, bot, chat_messages(deleted_at)")
+      .select("body, blocks, attachments, bot, chat_messages(deleted_at, origin, author_member_id)")
       .eq("message_id", messageId)
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!data || data.chat_messages?.deleted_at) return null;
-    return { body: data.body, blocks: data.blocks, attachments: data.attachments, bot: data.bot };
+    return { body: data.body, blocks: data.blocks, attachments: data.attachments, bot: data.bot, origin: (data.chat_messages?.origin === "app" ? "app" : "slack") as "app" | "slack", authorMemberId: data.chat_messages?.author_member_id ?? null };
   }
 
   async fileIsListed(fileId: string) {
@@ -1547,7 +1550,7 @@ export class InMemoryChatRepository implements ChatRepository {
     const content = this.data.chatMessageContents.find((c) => c.message_id === messageId);
     const message = this.data.chatMessages.find((m) => m.id === messageId);
     if (!content || !message || message.deleted_at) return null;
-    return { body: content.body ?? "", blocks: content.blocks ?? null, attachments: content.attachments ?? null, bot: content.bot ?? null };
+    return { body: content.body ?? "", blocks: content.blocks ?? null, attachments: content.attachments ?? null, bot: content.bot ?? null, origin: (message.origin === "app" ? "app" : "slack") as "app" | "slack", authorMemberId: message.author_member_id ?? null };
   }
 
   async fileIsListed(fileId: string) {

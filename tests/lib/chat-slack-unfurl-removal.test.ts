@@ -21,7 +21,7 @@ vi.mock("@/lib/operations-alerts", () => ({ sendOperationsAlert: (...args: unkno
 import { InMemoryDataset } from "@/lib/data/in-memory";
 
 import { hubMessageMetadata } from "@/lib/chat/slack-post";
-import { removeSlackUnfurl, splitAttachments } from "@/lib/chat/slack-unfurl-removal";
+import { removeBlockedSlackUnfurls, removeSlackUnfurl, splitAttachments, splitBlockedAttachments } from "@/lib/chat/slack-unfurl-removal";
 import { shareRemoveKey } from "@/lib/chat/shared-message";
 import { normalizeLinkForMatch } from "@/lib/chat/unfurl-dedupe";
 import { withLinkPreviews } from "@/lib/chat/link-preview-cards";
@@ -238,6 +238,73 @@ describe("after Slack's message_changed comes back", () => {
     expect(withLinkPreviews(unfurls, [hubPreview], new Set([key(ONE)]))).toEqual([]);
     // Without the Hub's own preview, Slack's card is hidden by the same mark.
     expect(withLinkPreviews(unfurls, [], new Set([key(ONE)]))).toEqual([]);
+  });
+});
+
+describe("removeBlockedSlackUnfurls (a link its author blocked, when Slack's unfurl arrives)", () => {
+  const BLOCKED = "https://blocked.example.test/page";
+  const arrival = (attachments: unknown, over: Record<string, unknown> = {}) => [{ channel_id: "C_HOSTS", message_ts: TS, raw_payload: { type: "message", ts: TS, text: "two &amp; links", blocks: SLACK_PAYLOAD.blocks, attachments, ...over } }];
+  const block = (member = FERN) => dataset.chatPreviewBlocks.push({ id: "cpbk_AAAAAAAAAAA1", member_id: member, scope: "site", host: "blocked.example.test", path_prefix: "", url: "", created_at: "2026-01-01T00:00:00Z" } as never);
+
+  it("takes only the blocked link's card off the Slack copy, as the author, sending the arrived text and blocks and keeping the other card", async () => {
+    block();
+    await expect(removeBlockedSlackUnfurls(supabase, arrival([slackCard(BLOCKED), slackCard(TWO)]))).resolves.toBe(1);
+    expect(update).toHaveBeenCalledTimes(1);
+    const sent = update.mock.calls[0][0];
+    expect(sent).toMatchObject({ channel: "C_HOSTS", ts: TS, text: "two &amp; links", blocks: SLACK_PAYLOAD.blocks, parse: "none", metadata: hubMessageMetadata(MESSAGE) });
+    expect(sent.attachments).toHaveLength(1);
+    expect(sent.attachments[0]).toMatchObject({ title_link: TWO });
+    expect(update.mock.calls[0][1]).toBe("xoxp-fern");
+  });
+
+  it("does nothing when no rule covers the cards, the author has none, the message came from Slack, or there are no cards", async () => {
+    await expect(removeBlockedSlackUnfurls(supabase, arrival([slackCard(BLOCKED)]))).resolves.toBe(0);
+    block();
+    await expect(removeBlockedSlackUnfurls(supabase, arrival([slackCard(TWO)]))).resolves.toBe(0);
+    await expect(removeBlockedSlackUnfurls(supabase, arrival([]))).resolves.toBe(0);
+    await expect(removeBlockedSlackUnfurls(supabase, [{ channel_id: "C_HOSTS", message_ts: TS, raw_payload: null }])).resolves.toBe(0);
+    seed({ origin: "slack" });
+    block();
+    await expect(removeBlockedSlackUnfurls(supabase, arrival([slackCard(BLOCKED)]))).resolves.toBe(0);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("does nothing off production", async () => {
+    block();
+    config.isProduction = false;
+    await expect(removeBlockedSlackUnfurls(supabase, arrival([slackCard(BLOCKED)]))).resolves.toBe(0);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("is best effort: a refusal by Slack alerts and returns, a missing text alerts, and nothing throws", async () => {
+    block();
+    update.mockRejectedValueOnce({ data: { error: "cant_update_message" } });
+    await expect(removeBlockedSlackUnfurls(supabase, arrival([slackCard(BLOCKED)]))).resolves.toBe(0);
+    expect(alert).toHaveBeenLastCalledWith(expect.anything(), { type: "slack_unfurl_removal_failed", reason: "cant_update_message" });
+
+    await expect(removeBlockedSlackUnfurls(supabase, arrival([slackCard(BLOCKED)], { text: "", blocks: undefined }))).resolves.toBe(0);
+    expect(alert).toHaveBeenLastCalledWith(expect.anything(), { type: "slack_unfurl_removal_failed", reason: "no_slack_content" });
+
+    getSlackUserToken.mockRejectedValueOnce(new Error("vault down"));
+    await expect(removeBlockedSlackUnfurls(supabase, arrival([slackCard(BLOCKED)]))).resolves.toBe(0);
+  });
+
+  it("stays quiet for a member who has not connected Slack", async () => {
+    block();
+    getSlackUserToken.mockResolvedValueOnce(null);
+    await expect(removeBlockedSlackUnfurls(supabase, arrival([slackCard(BLOCKED)]))).resolves.toBe(0);
+    expect(alert).not.toHaveBeenCalled();
+  });
+});
+
+describe("splitBlockedAttachments", () => {
+  it("splits on any of a card's addresses and sends the kept ones back with the documented fields only", () => {
+    const site = { scope: "site", host: "blocked.example.test", pathPrefix: null, url: null } as const;
+    const out = splitBlockedAttachments([slackCard("https://blocked.example.test/x"), slackCard(TWO), "junk"], [site]);
+    expect(out.removed).toBe(1);
+    expect(out.keep).toHaveLength(1);
+    expect(out.keep[0]).not.toHaveProperty("id");
+    expect(splitBlockedAttachments(undefined, [site])).toEqual({ removed: 0, keep: [] });
   });
 });
 

@@ -57,6 +57,13 @@ export interface ChatLinkPreviewRepository {
    * (row-level security shows only their own) or, for the server building previews for a message, with the service role.
    */
   blocksOf(memberId: string): Promise<PreviewBlock[]>;
+  /**
+   * The blocked previews of several members at once, for drawing the cards of messages they wrote (`withLinkPreviews`): a member with none is absent.
+   * Other members' rules are not readable as a member (owner-only policy), so this is the service role's, used only to filter and never returned to a browser.
+   */
+  blocksOfMembers(memberIds: string[]): Promise<Map<string, PreviewBlock[]>>;
+  /** A member merge: the rules of `fromMemberId` become `toMemberId`'s, those the kept member already has are not doubled, and none are left on `fromMemberId`. Service role. */
+  moveBlocks(fromMemberId: string, toMemberId: string): Promise<void>;
   /** Saves a rule for the member. Once per rule: adding it again is not an error. With the member's own client, row-level security refuses anyone else's. */
   block(memberId: string, block: PreviewBlock): Promise<void>;
   /** Lifts a rule. Nothing to lift is not an error. */
@@ -173,6 +180,25 @@ export class SupabaseChatLinkPreviewRepository implements ChatLinkPreviewReposit
     return rows.map(toBlock);
   }
 
+  async blocksOfMembers(memberIds: string[]) {
+    const rows = await inChunks(
+      [...new Set(memberIds)],
+      100,
+      async (part) => must(await this.db.from("chat_preview_blocks").select("member_id, scope, host, path_prefix, url").in("member_id", part).order("created_at").order("id")) ?? [],
+    );
+    const out = new Map<string, PreviewBlock[]>();
+    for (const r of rows) out.set(r.member_id, [...(out.get(r.member_id) ?? []), toBlock(r)]);
+    return out;
+  }
+
+  async moveBlocks(fromMemberId: string, toMemberId: string) {
+    const rows = must(await this.db.from("chat_preview_blocks").select("scope, host, path_prefix, url").eq("member_id", fromMemberId)) ?? [];
+    if (rows.length > 0) {
+      must(await this.db.from("chat_preview_blocks").upsert(rows.map((r) => ({ member_id: toMemberId, scope: r.scope, host: r.host, path_prefix: r.path_prefix, url: r.url })), { onConflict: "member_id,scope,host,path_prefix,url", ignoreDuplicates: true }));
+    }
+    must(await this.db.from("chat_preview_blocks").delete().eq("member_id", fromMemberId));
+  }
+
   async block(memberId: string, block: PreviewBlock) {
     must(await this.db.from("chat_preview_blocks").upsert({ member_id: memberId, ...blockColumns(block) }, { onConflict: "member_id,scope,host,path_prefix,url", ignoreDuplicates: true }));
   }
@@ -238,6 +264,19 @@ export class InMemoryChatLinkPreviewRepository implements ChatLinkPreviewReposit
 
   async blocksOf(memberId: string) {
     return this.data.chatPreviewBlocks.filter((r) => r.member_id === memberId).map(toBlock);
+  }
+
+  async blocksOfMembers(memberIds: string[]) {
+    const wanted = new Set(memberIds);
+    const out = new Map<string, PreviewBlock[]>();
+    for (const r of this.data.chatPreviewBlocks) if (wanted.has(r.member_id)) out.set(r.member_id, [...(out.get(r.member_id) ?? []), toBlock(r)]);
+    return out;
+  }
+
+  async moveBlocks(fromMemberId: string, toMemberId: string) {
+    const mine = this.data.chatPreviewBlocks.filter((r) => r.member_id === fromMemberId);
+    this.data.chatPreviewBlocks = this.data.chatPreviewBlocks.filter((r) => r.member_id !== fromMemberId);
+    for (const r of mine) await this.block(toMemberId, toBlock(r));
   }
 
   async block(memberId: string, block: PreviewBlock) {

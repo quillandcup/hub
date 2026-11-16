@@ -7,7 +7,7 @@ import { blockOptionsFor, type BlockScope } from "@/lib/chat/link-preview-blocks
 
 /**
  * "Remove preview?", like Slack's: the author confirms taking a card off their message, and may also block previews from the site (or the
- * path, or just that link) in the messages they send from then on. The choice of scope is the member's: nothing is blocked until one is picked,
+ * path, or just that link) in the messages they send, sent before or after. The choice of scope is the member's: nothing is blocked until one is picked,
  * so "Remove and Block" stays off until then. `address` is the card's own address; a card without one (or one that cannot be blocked) offers
  * the plain confirm. The server works the rule out again from the address itself (`hideChatUnfurl`). Shown in a portal so a card's own
  * layout can't clip or move it; its clicks stay out of the card underneath.
@@ -57,7 +57,7 @@ export default function RemoveUnfurlDialog({
                 onChange={(e) => setBlock(e.target.checked)}
                 className="mt-0.5 size-4 rounded border-slate-300 text-plum-600 focus:ring-plum-500 dark:border-slate-600"
               />
-              <span>Also block previews from this website in the future</span>
+              <span>Also block previews from this website</span>
             </label>
             {block && (
               <div>

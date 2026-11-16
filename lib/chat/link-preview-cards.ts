@@ -3,6 +3,7 @@ import { safeImageUrl, safeLinkUrl, type CardUnfurl, type Unfurl } from "@/lib/c
 import type { LinkPreview } from "@/lib/data/chat-link-previews";
 import { shareRemoveKey } from "@/lib/chat/shared-message";
 import { isDuplicateOfHubPreview, previewedAddresses } from "@/lib/chat/unfurl-dedupe";
+import { isBlocked, type PreviewBlock } from "@/lib/chat/link-preview-blocks";
 
 /**
  * Drawing a stored link preview (lib/chat/link-previews.ts makes them): the card the chat already knows, the key that removes it, and the
@@ -63,12 +64,21 @@ export function unfurlKey(u: Unfurl, index: number): string | null {
   return address ? `url:${address}` : `idx:${index}`;
 }
 
+/** Whether this card is for an address its author blocked (lib/chat/link-preview-blocks.ts): Slack's card and the Hub's alike, by any address the card carries. Pure. */
+export function cardIsBlocked(card: CardUnfurl, blocks: readonly PreviewBlock[]): boolean {
+  if (blocks.length === 0) return false;
+  const written = card.removeKey?.startsWith("url:") ? card.removeKey.slice("url:".length) : null;
+  return [card.originalUrl, card.fromUrl, card.titleLink, written].some((a) => !!a && isBlocked(a, blocks));
+}
+
 /**
  * A message's cards with its link previews after them, in the order the links were written, minus the ones its author removed (`hidden`: the
- * message's keys from `ChatLinkPreviewRepository.hiddenKeys`); each remaining card says which key removes it. The loader and the picture route
+ * message's keys from `ChatLinkPreviewRepository.hiddenKeys`) and minus the ones for an address its author blocked (`blocks`: the rules of the
+ * author of a message written in the Hub. A rule therefore applies to messages already sent, and Slack's card for a blocked link in a message
+ * with other links, which Slack unfurls as a whole, never reaches the reader); each remaining card says which key removes it. The loader and the picture route
  * both use this, so a picture's position means the same on both sides and a removed card's picture is refused.
  */
-export function withLinkPreviews(unfurls: Unfurl[], previews: LinkPreview[] | undefined, hidden?: Set<string>): Unfurl[] {
+export function withLinkPreviews(unfurls: Unfurl[], previews: LinkPreview[] | undefined, hidden?: Set<string>, blocks?: readonly PreviewBlock[]): Unfurl[] {
   const hubCards = (previews ?? []).flatMap((p) => previewToCard(p) ?? []);
   const all = [...unfurls, ...hubCards];
   // A message written in the Hub is unfurled by Slack too: where the Hub has its own card for a link, Slack's card for that link is dropped
@@ -76,7 +86,7 @@ export function withLinkPreviews(unfurls: Unfurl[], previews: LinkPreview[] | un
   // the same card whether or not Slack's duplicate has arrived yet.
   const previewed = previewedAddresses(previews);
   return all.flatMap((u, i): Unfurl[] => {
-    if (u.kind === "card" && isDuplicateOfHubPreview(u, previewed)) return [];
+    if (u.kind === "card" && (isDuplicateOfHubPreview(u, previewed) || cardIsBlocked(u, blocks ?? []))) return [];
     const key = unfurlKey(u, i);
     if (!key) return [u];
     return hidden?.has(key) ? [] : [{ ...u, removeKey: key } as Unfurl];

@@ -43,11 +43,12 @@ const ATTACHMENTS = [
 ];
 const BOT = { name: "Deploy Bot", icon: "https://img.example.test/logo.png" };
 
-function setMessage(over: { attachments?: unknown; blocks?: unknown; bot?: unknown; deleted?: boolean; hidden?: boolean } = {}) {
+function setMessage(over: { attachments?: unknown; blocks?: unknown; bot?: unknown; deleted?: boolean; hidden?: boolean; origin?: "app" | "slack"; author?: string; blocked?: { scope: "site"; host: string }[] } = {}) {
   repos = createInMemoryRepos(
     new InMemoryDataset({
       chatChannels: [{ id: "chn_AAAAAAAAAAA1", slack_channel_id: "C1" }],
-      chatMessages: [{ id: MESSAGE, channel_id: "chn_AAAAAAAAAAA1", slack_ts: "1.1", deleted_at: over.deleted ? "2026-01-01T00:00:00Z" : null }],
+      chatMessages: [{ id: MESSAGE, channel_id: "chn_AAAAAAAAAAA1", slack_ts: "1.1", deleted_at: over.deleted ? "2026-01-01T00:00:00Z" : null, ...(over.origin ? { origin: over.origin } : {}), ...(over.author ? { author_member_id: over.author } : {}) }],
+      chatPreviewBlocks: (over.blocked ?? []).map((b, i) => ({ id: `cpbk_AAAAAAAAAAA${i + 1}`, member_id: "mbr_AAAAAAAAAAA1", scope: b.scope, host: b.host, path_prefix: "", url: "", created_at: "2026-01-01T00:00:00Z" })),
       // hidden: row-level security shows the caller no content row at all
       chatMessageContents: over.hidden ? [] : [{ message_id: MESSAGE, body: "hello", attachments: (over.attachments ?? ATTACHMENTS) as never, blocks: (over.blocks ?? null) as never, bot: (over.bot ?? null) as never }],
     }),
@@ -321,5 +322,28 @@ describe("GET /api/chat/unfurl-image: the Hub's own link previews and removed ca
       throw new Error("db down");
     };
     expect((await get(named("big"))).status).toBe(404);
+  });
+
+  describe("an address its author blocked", () => {
+    const FERN = "mbr_AAAAAAAAAAA1";
+    const cards = [
+      { title: "Blocked", title_link: "https://blocked.example.test/page", image_url: "https://img.example.test/big.png" },
+      { title: "Fine", title_link: "https://fine.example.test/page", image_url: "https://img.example.test/second.png" },
+    ];
+
+    it("is refused for a message written in the Hub, picture and all, while the other card's picture is served", async () => {
+      setMessage({ attachments: cards, origin: "app", author: FERN, blocked: [{ scope: "site", host: "blocked.example.test" }] });
+      await repos.chatLinkPreviews.save(MESSAGE, [draft("https://blocked.example.test/hub", 0, "https://img.example.test/small.png")]);
+
+      expect((await get(named("big"))).status).toBe(404);
+      expect((await get(named("small"))).status).toBe(404);
+      expect((await get(named("second"))).status).toBe(200);
+      expect(requests.map((r) => r.url.pathname)).toEqual(["/second.png"]);
+    });
+
+    it("does not apply to a message written in Slack, whose author made no such rule here", async () => {
+      setMessage({ attachments: cards, origin: "slack", author: FERN, blocked: [{ scope: "site", host: "blocked.example.test" }] });
+      expect((await get(named("big"))).status).toBe(200);
+    });
   });
 });

@@ -4,6 +4,7 @@ import { blocksToBody } from "@/lib/chat/rich-blocks";
 import { parseUnfurls, unfurlTexts, withoutLessonPreview, type Unfurl } from "@/lib/chat/unfurls";
 import { proxyUnfurlImages } from "@/lib/chat/unfurl-images";
 import { withLinkPreviews } from "@/lib/chat/link-preview-cards";
+import type { PreviewBlock } from "@/lib/chat/link-preview-blocks";
 import { hubLinksIn } from "@/lib/chat/hub-links";
 import { hubLinkUnfurls, withHubLinks } from "@/lib/chat/hub-link-cards";
 import type { LinkPreview } from "@/lib/data/chat-link-previews";
@@ -516,6 +517,8 @@ export interface ViewOptions {
    * a link, so a conversation without one never pays for the flag lookup. Absent: no cards, and Slack's own card for the link stays.
    */
   hubLinkCards?: () => Promise<boolean>;
+  /** The blocked previews of these authors (the callers pass `loadAuthorBlocks`, which reads them with the service role; absent: no rule applies). */
+  authorBlocks?: (memberIds: string[]) => Promise<Map<string, PreviewBlock[]>>;
 }
 
 /** Messages with their authors' names, reactions and body state, ready to render. */
@@ -567,6 +570,9 @@ export async function buildMessageViews(
 
   // Links to the Hub in the messages: cards for them are the viewer's own flag, asked once and only when there is one to draw.
   const hasHubLink = opts.hubLinkCards ? rows.some((r) => hubLinksIn(bodyOf(r), APP_URL).length > 0) : false;
+  // The authors' blocked previews, for the messages written in the Hub: one read for the page's distinct authors, started now, used when the cards are drawn.
+  const hubAuthors = [...new Set(rows.flatMap((r) => (r.origin === "app" && r.author_member_id ? [r.author_member_id] : [])))];
+  const authorBlocksOn = (opts.authorBlocks ? opts.authorBlocks(hubAuthors) : Promise.resolve(new Map<string, PreviewBlock[]>())).catch(() => new Map<string, PreviewBlock[]>());
   const hubCardsOn = hasHubLink && opts.hubLinkCards ? opts.hubLinkCards().catch(() => false) : Promise.resolve(false);
 
   const [profiles, slackAuthorByTs, reactionRows, replies, userMembers, hubNames, channelNames, sharedVideos, linkPreviews, hiddenCards, sharedSources] = await Promise.all([
@@ -617,6 +623,7 @@ export async function buildMessageViews(
     ),
   ]);
   const hubCards = await hubCardsOn;
+  const authorBlocks = await authorBlocksOn;
   timer?.mark("views.batch1");
 
   const replyList = [...replies.values()].flat();
@@ -690,7 +697,7 @@ export async function buildMessageViews(
     // Pictures on other people's servers go through our own route, so those servers never see who looked (lib/chat/unfurl-images.ts).
     // Only a message that is shown gets proxy addresses; the logo is position 0 and counts whether or not it is used below.
     const withPreviews = (parsed: { unfurls: Unfurl[] }) =>
-      withLinkPreviews(withoutLessonPreview(parsed.unfurls, sharedLesson, row.id).map((u) => (u.kind === "share" ? withShareSource(u, sharedSources, channelNames) : u)), hiddenCards ? linkPreviews.get(row.id) : undefined, hiddenCards?.get(row.id));
+      withLinkPreviews(withoutLessonPreview(parsed.unfurls, sharedLesson, row.id).map((u) => (u.kind === "share" ? withShareSource(u, sharedSources, channelNames) : u)), hiddenCards ? linkPreviews.get(row.id) : undefined, hiddenCards?.get(row.id), row.origin === "app" && row.author_member_id ? authorBlocks.get(row.author_member_id) : undefined);
     // Links to the Hub get a card of their own (decided per viewer when it draws), and Slack's card for the same link, the sign-in page, goes.
     const hubLinks = hubCards && parsed && body ? hubLinkUnfurls(body, APP_URL) : [];
     const proxied = parsed
