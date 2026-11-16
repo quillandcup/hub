@@ -397,7 +397,7 @@ describe('Members Bronze Pagination (>1000 rows)', () => {
       data: {},
     }))
 
-    // Insert in chunks of 500 (CLAUDE.md batching guidance)
+    // Insert in chunks of 500 (.claude/rules/api-routes-and-queries.md batching guidance)
     for (let i = 0; i < contacts.length; i += 500) {
       const { error } = await supabase
         .schema('bronze').from('kajabi_contacts')

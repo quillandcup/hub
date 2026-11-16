@@ -27,7 +27,7 @@ export type DmNote = "connect" | "no_dm";
 export type EngagementCardData = {
   id: string;
   memberId: string;
-  /** The name the community knows them by (CLAUDE.md, "Display Names"). */
+  /** The name the community knows them by (.claude/rules/display-names.md, "Display Names"). */
   memberName: string;
   /** The legal name, only when it differs, small and muted beside the display name. */
   legalName: string | null;

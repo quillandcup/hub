@@ -211,7 +211,7 @@ export async function updateSession(request: NextRequest) {
   // before any admin page/layout renders (including RSC fetches on client
   // navigation, which skip the layout). This is the pre-filter only -- the
   // secure check is requireAdminPage() (lib/admin-auth.ts) in the admin layout
-  // and every admin page. See "Admin route protection" in CLAUDE.md.
+  // and every admin page. See "Admin route protection" in .claude/rules/admin-route-protection.md.
   if (user && isAdminPath(pathname)) {
     // The role comes from the `app_role` claim that the custom access token
     // hook (supabase/migrations/20260926000900_add_role_to_access_token.sql)

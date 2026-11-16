@@ -15,7 +15,7 @@ import type { InMemoryDataset } from "./in-memory";
 /** An engagement as stored (`care_engagements`). `reason` and `ended_how` are held to their sets by CHECK constraints. */
 export type CareEngagementRow = Row<"care_engagements">;
 
-/** The slice of a member an engagement shows. Display name first, then the legal name (CLAUDE.md, "Display Names"). */
+/** The slice of a member an engagement shows. Display name first, then the legal name (.claude/rules/display-names.md, "Display Names"). */
 export type CareMember = { id: string; name: string; display_name: string | null };
 
 /** An engagement with its member joined in (null when the member no longer exists). */

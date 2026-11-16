@@ -288,7 +288,7 @@ export function computeEarnedBadges(
 }
 
 /** Distinct calendar quarters (UTC) in which `memberId` hosted at least one prickle, from
- * prickles.host -- real hosting history, not member_badges. Paginated per CLAUDE.md, though a
+ * prickles.host -- real hosting history, not member_badges. Paginated per .claude/rules/api-routes-and-queries.md, though a
  * single host's row count is well under the 1000-row default limit in practice. */
 export async function getHostedQuarterCount(
   repos: BadgeRepos,
@@ -544,7 +544,7 @@ async function getPublishedBookCountsByMember(
 /** Distinct prickles attended by a single member -- the per-member counterpart to
  * getAttendedPrickleCountsByMember, for pages that only need one member's count rather than a
  * bulk scan. Distinct, not records: a member can have several attendance records per prickle
- * from leaving/rejoining (CLAUDE.md). */
+ * from leaving/rejoining (.claude/rules/attendance-table.md). */
 export async function getAttendedPrickleCount(
   attendance: AttendanceRepository,
   memberId: string
@@ -581,7 +581,7 @@ export async function getMentorshipCounts(mentorships: MentorshipRepository): Pr
 /** Programs `memberId` has completed -- one entry per program_id with at least one enrolled
  * cohort whose expires_at has passed. A member can complete a program more than once (e.g. a
  * repeat 180 alumna enrolling in a later cohort), tracked as multiple occurrences. Enrollment
- * rows per member are few, so this doesn't need CLAUDE.md's pagination loop. */
+ * rows per member are few, so this doesn't need the pagination loop (.claude/rules/api-routes-and-queries.md). */
 export async function getProgramCompletions(
   repos: BadgeRepos,
   memberId: string

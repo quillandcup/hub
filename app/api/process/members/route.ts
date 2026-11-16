@@ -42,7 +42,7 @@ export const maxDuration = 300;
  * 4. Regenerates members table (UPSERT pattern to preserve UUIDs)
  */
 // Bronze reads (billing, Slack users) page past Supabase's default 1000-row cap inside their
-// repositories in lib/data/. See CLAUDE.md "Database Query Limits".
+// repositories in lib/data/. See .claude/rules/api-routes-and-queries.md "Database Query Limits".
 
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request);

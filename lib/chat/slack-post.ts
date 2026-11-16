@@ -41,7 +41,7 @@ export function chatSlackWritesEnabled(): boolean {
 
 /**
  * Whether Slack may build its own link previews for this member's message. A message a member wrote is conversation, so (unlike
- * everything the app sends on its own, which never unfurls: CLAUDE.md, "Notification Messages") Slack readers should see it as an ordinary
+ * everything the app sends on its own, which never unfurls: .claude/rules/member-notifications.md, "Notification Messages") Slack readers should see it as an ordinary
  * Slack message. Behind `chat_link_previews` for the sender, like the Hub's own previews, so a flag that is off changes nothing; a failed
  * lookup means no unfurling rather than a lost message.
  */

@@ -287,7 +287,7 @@ export interface PrickleAttendanceRow {
  * directly into computeHabitGoalProgress unchanged. Every writing prickle counts; purpose
  * filtering happens upstream, at the query that produces `attendance` (see
  * getMyPrickleAttendance). A member who left and rejoined has several rows for one prickle
- * (see CLAUDE.md), and that's still one prickle.
+ * (see .claude/rules/attendance-table.md), and that's still one prickle.
  */
 export function derivePrickleHabitEntries(attendance: PrickleAttendanceRow[]): { entryDate: string; amount: number }[] {
   const pricklesByDate = new Map<string, Set<string>>();
