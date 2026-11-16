@@ -11,6 +11,10 @@ import { ChangelogDigestEmail } from "./changelog-digest";
 import { ChatDmEmail } from "./chat-dm";
 import { ChatMentionEmail } from "./chat-mention";
 import { ChatChannelMessageEmail } from "./chat-channel-message";
+import { LessonCommentReplyEmail } from "./lesson-comment-reply";
+import { LessonCommentInstructorReplyEmail } from "./lesson-comment-instructor-reply";
+import { LessonCommentActivityEmail } from "./lesson-comment-activity";
+import { LessonCommentModerationEmail } from "./lesson-comment-moderation";
 
 /**
  * One template per notification kind, as React Email components. Member notification emails are
@@ -31,6 +35,10 @@ const TEMPLATES = {
   chat_dm: ChatDmEmail,
   chat_mention: ChatMentionEmail,
   chat_channel_message: ChatChannelMessageEmail,
+  lesson_comment_reply: LessonCommentReplyEmail,
+  lesson_comment_instructor_reply: LessonCommentInstructorReplyEmail,
+  lesson_comment_activity: LessonCommentActivityEmail,
+  lesson_comment_moderation: LessonCommentModerationEmail,
 } satisfies Record<NotificationKindId, (props: NotificationEmailProps) => React.ReactElement>;
 
 export interface RenderedNotificationEmail {

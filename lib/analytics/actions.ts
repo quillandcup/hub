@@ -32,6 +32,7 @@ export const OUTCOME_ACTIONS = [
   "lesson_comment_edited",
   "lesson_comment_deleted",
   "lesson_comment_reported",
+  "lesson_follow_toggled",
   "lesson_comment_hidden",
   "lesson_comment_unhidden",
   "lesson_comment_deleted_by_staff",

@@ -16,6 +16,10 @@ const clear = async () => {
   // Replies go with their question (ON DELETE CASCADE).
   const { error } = await db.from("lesson_comments").delete().in("lesson_id", lessons);
   if (error) throw new Error(error.message);
+  for (const table of ["lesson_comment_follows", "lesson_comment_reads"] as const) {
+    const cleared = await db.from(table).delete().in("lesson_id", lessons);
+    if (cleared.error) throw new Error(cleared.error.message);
+  }
 };
 
 beforeAll(async () => {
@@ -53,6 +57,7 @@ defineCourseCommentContract("SupabaseCourseCommentRepository", () => ({
   get courseId() {
     return courseId;
   },
+  course: { slug: RUN, title: `Comments ${RUN}` },
   lessonTitles: ["Lesson 1", "Lesson 2"],
   get members() {
     return members;

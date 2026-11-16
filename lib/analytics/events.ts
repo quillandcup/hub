@@ -125,6 +125,8 @@ export const EVENTS = {
     from: oneOf("unanswered", "reported", "held"),
   },
   lesson_comments_viewed: { course_id: text(24), count_bucket: oneOf("0", "1-5", "6-20", "21+") },
+  /** A member followed or stopped following a lesson's comments (components/courses/CommentThread.tsx): the course and which way, never who. */
+  lesson_follow_toggled: { course_id: text(24), following: bool() },
 
   /** The lesson's video started playing, once per page view (components/courses/LessonPlayer.tsx): `resumed` is whether it picked up from a saved position. */
   course_video_played: { resumed: bool() },

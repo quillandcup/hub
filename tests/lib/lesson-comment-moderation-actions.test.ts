@@ -4,7 +4,11 @@ import { createInMemoryRepos } from "@/lib/data/repos";
 
 const state = vi.hoisted(() => ({ auth: { ok: true } as unknown, fail: null as Error | null }));
 const revalidatePath = vi.hoisted(() => vi.fn());
+const notify = vi.hoisted(() => vi.fn(async (..._args: unknown[]) => ({ sent: [], dryRun: [] })));
 vi.mock("next/cache", () => ({ revalidatePath }));
+vi.mock("next/server", () => ({ after: (run: () => unknown) => void run() }));
+vi.mock("@/lib/courses/comment-notifications", () => ({ notifyLessonComment: (...args: unknown[]) => notify(...args) }));
+vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 vi.mock("@/lib/analytics/server", () => ({ withAction: (name: string, run: () => unknown) => run() }));
 vi.mock("@/lib/admin-auth", () => ({ requireAdminAction: async () => state.auth }));
 
@@ -44,6 +48,7 @@ beforeEach(() => {
   state.auth = { ok: true, user: { id: "user-admin", email: "admin@example.test" }, supabase: {} };
   state.fail = null;
   revalidatePath.mockReset();
+  notify.mockClear();
   data.members.push({ id: ADA, name: "Ada Example" }, { id: BEA, name: "Bea Example" });
   data.courseLessons.push({ id: LESSON, course_id: COURSE, state: "open", title: "One" } as never);
 });
@@ -119,5 +124,28 @@ describe("the staff moderation actions", () => {
     expect(log).toHaveBeenCalledWith("lesson comment moderation failed:", "permission denied");
     expect(JSON.stringify(log.mock.calls)).not.toContain("Private words");
     log.mockRestore();
+  });
+});
+
+describe("approving a held reply", () => {
+  it("tells the people the reply is for once it is released, and only then", async () => {
+    const question = await post("Question");
+    const heldReply = await comments().create({ lessonId: LESSON, memberId: BEA, parentId: question.id, body: "Held reply", isStaffReply: false, held: true });
+
+    expect(await approveHeldLessonComment(COURSE, heldReply.id)).toEqual({ changed: true });
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(notify).toHaveBeenCalledWith(expect.anything(), heldReply.id);
+
+    // Already released: nothing changed, nobody is told again.
+    expect(await approveHeldLessonComment(COURSE, heldReply.id)).toEqual({ changed: false });
+    expect(notify).toHaveBeenCalledTimes(1);
+  });
+
+  it("tells no one about a held question (top-level comments reach followers in the daily note), nor for other actions", async () => {
+    const heldQuestion = await post("Held question", true);
+    expect(await approveHeldLessonComment(COURSE, heldQuestion.id)).toEqual({ changed: true });
+    const other = await post("Other");
+    expect(await hideLessonComment(COURSE, other.id)).toEqual({ changed: true });
+    expect(notify).not.toHaveBeenCalled();
   });
 });

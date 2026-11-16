@@ -1,4 +1,4 @@
-export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat_dms' | 'chat_videos' | 'slack_dm_bridge' | 'big_sisters' | 'prickle_reminders' | 'checkin_dropins' | 'hosting' | 'writing_journey' | 'mux_playback_restriction' | 'changelog_digest' | 'chat_notifications' | 'chat_link_previews' | 'chat_link_cards' | 'lesson_comments';
+export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat_dms' | 'chat_videos' | 'slack_dm_bridge' | 'big_sisters' | 'prickle_reminders' | 'checkin_dropins' | 'hosting' | 'writing_journey' | 'mux_playback_restriction' | 'changelog_digest' | 'chat_notifications' | 'chat_link_previews' | 'chat_link_cards' | 'lesson_comments' | 'lesson_comment_notifications';
 
 export interface FeaturePreview {
   key: FeatureKey;
@@ -101,6 +101,11 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     key: 'lesson_comments',
     name: 'Lesson comments',
     description: 'A Comments section below each open course lesson, where members with access to the course ask questions and reply, and instructors answer where the question was asked. Comments are plain text, visible to members of the course and staff only, and can be edited for 15 minutes and deleted by their author. This decides who sees the section and can post; with it off nothing about comments appears. Staff find unanswered questions under Admin, Courses, Comments',
+  },
+  {
+    key: 'lesson_comment_notifications',
+    name: 'Send lesson comment notifications',
+    description: 'Tells members when someone replies to their comment on a course lesson, when an instructor replies in a thread they follow, and once a day about new comments on the lessons they follow; tells staff once a day how many reported or held comments wait for review. Members choose their channels in Settings → Notifications. For the members this covers (everyone when switched on globally, otherwise only members in a linked segment or with their own preview) the notifications go out for real; for everyone else the sender only logs who it would have told, on which channels and what it would have said, and records nothing, so switching it on starts clean (see the logs of the comment actions and of /api/internal/lesson-comment-notifications). It needs Lesson comments to be on for the members who should receive them',
   },
   {
     key: 'mux_playback_restriction',

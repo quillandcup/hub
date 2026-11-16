@@ -11,6 +11,7 @@ import { APP_URL } from "@/lib/config";
 import { digestMessage } from "@/lib/changelog/digest";
 import { listProductChangelog } from "@/lib/changelog";
 import type { NotificationKindId } from "@/lib/notifications/registry";
+import { activityMessage, moderationMessage, replyMessage } from "@/lib/courses/comment-notifications";
 
 type TestSendRepos = Repos;
 
@@ -83,6 +84,15 @@ export async function sampleMessages(
       return [mark(chatNotificationMessage("chat_mention", { authorName: "Marlow", channelKind: "channel", channelName: "writing-sprints", channelId: null, threadRootId: null }))];
     case "chat_channel_message":
       return [mark(chatNotificationMessage("chat_channel_message", { authorName: "Marlow", channelKind: "channel", channelName: "writing-sprints", channelId: null, threadRootId: null }))];
+    // Lesson comment samples link to the courses list: there is no real comment to point at.
+    case "lesson_comment_reply":
+      return [mark(replyMessage("lesson_comment_reply", { authorName: "Marlow", lessonTitle: "Writing your first scene", url: `${APP_URL}/courses`, lessonId: "sample" }))];
+    case "lesson_comment_instructor_reply":
+      return [mark(replyMessage("lesson_comment_instructor_reply", { authorName: "Linden", lessonTitle: "Writing your first scene", url: `${APP_URL}/courses`, lessonId: "sample" }))];
+    case "lesson_comment_activity":
+      return [mark(activityMessage([{ lessonId: "sample", title: "Writing your first scene", url: `${APP_URL}/courses`, count: 3 }]))];
+    case "lesson_comment_moderation":
+      return [mark(moderationMessage([{ courseId: "sample", courseTitle: "Story Basics", reported: 1, held: 2 }]))];
     case "big_sister_match":
       return [mark(bigSisterMessageForNewMember("Marlow", "sample")), mark(bigSisterMessageForMentor("Marlow", "Linden", "sample"))];
   }

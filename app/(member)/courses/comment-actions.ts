@@ -1,9 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { withAction } from "@/lib/analytics/server";
 import { clock } from "@/lib/clock";
 import { getCoursesCaller } from "@/lib/courses/caller";
+import { notifyLessonComment } from "@/lib/courses/comment-notifications";
 import { COMMENT_MAX_LINKS, COMMENT_RATE_LIMITS, REPORT_RATE_LIMIT, cleanCommentBody, cleanReportReason, isRemovedComment, lessonOpenForComments, shouldHoldComment, withinEditWindow } from "@/lib/courses/comments";
 import { createRepos } from "@/lib/data/repos";
 import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
@@ -75,6 +77,10 @@ async function postLessonCommentImpl(lessonId: string, rawBody: string, parentId
       isStaffReply: caller.scope.isAdminActing,
       held,
     });
+    // Posting follows the lesson (unless the member already chose), and a reply tells the people it is for: after the response, so
+    // the post never waits on Slack. Never throws; a held comment tells no one until staff release it.
+    await repos.courseComments.ensureFollowing(memberId, lessonId).catch((error) => console.error("lesson_comment_follows insert failed:", error instanceof Error ? error.message : error));
+    if (!held) after(() => notifyLessonComment(createRepos(createServiceRoleClient()), comment.id));
     revalidatePath("/courses", "layout");
     return held ? { id: comment.id, held: true } : { id: comment.id };
   } catch (error) {
@@ -173,6 +179,24 @@ async function reportLessonCommentImpl(commentId: string, rawReason: string): Pr
   }
 }
 
+async function setLessonCommentFollowImpl(lessonId: string, following: boolean): Promise<CommentResult> {
+  if (!isId(lessonId, "les") || typeof following !== "boolean") return { error: NOT_AVAILABLE };
+  const caller = await getCoursesCaller();
+  if (!caller) return { error: "Not available" };
+  if (caller.identity.isSudo) return { error: "Read-only while previewing" };
+  if (!(await commentsOn(caller))) return { error: NOT_AVAILABLE };
+
+  const repos = createRepos(createServiceRoleClient());
+  if (!(await lessonOpenForComments(repos, caller, lessonId))) return { error: NOT_AVAILABLE };
+  try {
+    await repos.courseComments.setFollowing(caller.identity.memberId, lessonId, following);
+    return { id: lessonId };
+  } catch (error) {
+    console.error("lesson_comment_follows write failed:", error instanceof Error ? error.message : error);
+    return { error: "Couldn't save that" };
+  }
+}
+
 // Usage analytics: each action records whether it worked (lib/analytics/server.ts).
 export async function postLessonComment(...args: Parameters<typeof postLessonCommentImpl>): ReturnType<typeof postLessonCommentImpl> {
   return withAction("lesson_comment_posted", () => postLessonCommentImpl(...args));
@@ -188,4 +212,8 @@ export async function deleteLessonComment(...args: Parameters<typeof deleteLesso
 
 export async function reportLessonComment(...args: Parameters<typeof reportLessonCommentImpl>): ReturnType<typeof reportLessonCommentImpl> {
   return withAction("lesson_comment_reported", () => reportLessonCommentImpl(...args));
+}
+
+export async function setLessonCommentFollow(...args: Parameters<typeof setLessonCommentFollowImpl>): ReturnType<typeof setLessonCommentFollowImpl> {
+  return withAction("lesson_follow_toggled", () => setLessonCommentFollowImpl(...args));
 }

@@ -4,7 +4,11 @@ import { createInMemoryRepos } from "@/lib/data/repos";
 import { setClock, systemClock } from "@/lib/clock";
 
 const state = vi.hoisted(() => ({ caller: null as unknown, feature: true }));
+const notify = vi.hoisted(() => vi.fn(async (..._args: unknown[]) => ({ sent: [], dryRun: [] })));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+// after() runs its callback when the response is done; here, at once.
+vi.mock("next/server", () => ({ after: (run: () => unknown) => void run() }));
+vi.mock("@/lib/courses/comment-notifications", () => ({ notifyLessonComment: (...args: unknown[]) => notify(...args) }));
 vi.mock("@/lib/analytics/server", () => ({ withAction: (_name: string, run: () => unknown) => run() }));
 vi.mock("@/lib/courses/caller", () => ({ getCoursesCaller: async () => state.caller }));
 vi.mock("@/lib/features.server", () => ({ effectiveMemberHasFeature: async () => state.feature, getUserFeaturePreviews: async () => [] }));
@@ -16,7 +20,7 @@ vi.mock("@/lib/data/repos", async (importOriginal) => {
   return { ...actual, createRepos: () => actual.createInMemoryRepos(data) };
 });
 
-import { deleteLessonComment, editLessonComment, postLessonComment, reportLessonComment } from "@/app/(member)/courses/comment-actions";
+import { deleteLessonComment, editLessonComment, postLessonComment, reportLessonComment, setLessonCommentFollow } from "@/app/(member)/courses/comment-actions";
 
 const COURSE = "crs_AAAAAAAAAAA1";
 const LESSON = "les_AAAAAAAAAAA1";
@@ -46,6 +50,8 @@ beforeEach(() => {
   const access = (member: string, endsAt: string | null) => ({ member_id: member, course_id: COURSE, starts_at: "2020-01-01T00:00:00Z", ends_at: endsAt }) as never;
   data.courseAccess.push(access(ADA, null), access(BEA, "2021-02-01T00:00:00Z"), access(CAL, null));
   data.lessonCommentReports.length = 0;
+  data.lessonCommentFollows.length = 0;
+  notify.mockClear();
 });
 
 const comments = () => createInMemoryRepos(data).courseComments;
@@ -120,6 +126,74 @@ describe("postLessonComment", () => {
     expect(hits).toEqual([true, true, true, true, true, false]);
     expect(data.lessonComments).toHaveLength(5);
     expect((await postLessonComment(LESSON, "More", null)).error).toMatch(/posting quickly/);
+  });
+});
+
+describe("following and telling people", () => {
+  it("follows the lesson when you post, and tells the people a reply is for after the response", async () => {
+    const question = await postLessonComment(LESSON, "Question", null);
+    expect(await comments().isFollowing(ADA, LESSON)).toBe(true);
+    expect(notify).toHaveBeenCalledTimes(1);
+
+    state.caller = callerFor(CAL);
+    const reply = await postLessonComment(LESSON, "Reply", question.id!);
+    expect(await comments().isFollowing(CAL, LESSON)).toBe(true);
+    expect(notify).toHaveBeenLastCalledWith(expect.anything(), reply.id);
+  });
+
+  it("keeps a member's choice not to follow when they post again", async () => {
+    await comments().setFollowing(ADA, LESSON, false);
+    await postLessonComment(LESSON, "Question", null);
+    expect(await comments().isFollowing(ADA, LESSON)).toBe(false);
+  });
+
+  it("follows but tells no one while a comment is held for review", async () => {
+    const held = await postLessonComment(LESSON, "see https://a.example https://b.example and https://c.example", null);
+    expect(held.held).toBe(true);
+    expect(await comments().isFollowing(ADA, LESSON)).toBe(true);
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  it("still posts when the follow can't be saved", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const spy = vi.spyOn(Object.getPrototypeOf(comments()), "ensureFollowing").mockRejectedValueOnce(new Error("db down"));
+    const result = await postLessonComment(LESSON, "Question", null);
+    expect(result.error).toBeUndefined();
+    expect(await comments().byId(result.id!)).not.toBeNull();
+    spy.mockRestore();
+  });
+});
+
+describe("setLessonCommentFollow", () => {
+  it("follows and unfollows a lesson as the member", async () => {
+    expect(await setLessonCommentFollow(LESSON, true)).toEqual({ id: LESSON });
+    expect(await comments().isFollowing(ADA, LESSON)).toBe(true);
+    expect(await setLessonCommentFollow(LESSON, false)).toEqual({ id: LESSON });
+    expect(await comments().isFollowing(ADA, LESSON)).toBe(false);
+  });
+
+  it("refuses a signed-out caller, the flag being off, sudo, bad input and a lesson the member can't open", async () => {
+    state.caller = null;
+    expect((await setLessonCommentFollow(LESSON, true)).error).toBeTruthy();
+    state.caller = callerFor(ADA);
+    state.feature = false;
+    expect((await setLessonCommentFollow(LESSON, true)).error).toBeTruthy();
+    state.feature = true;
+    state.caller = callerFor(ADA, { isSudo: true });
+    expect((await setLessonCommentFollow(LESSON, true)).error).toBe("Read-only while previewing");
+    state.caller = callerFor(ADA);
+    expect((await setLessonCommentFollow("not-an-id", true)).error).toBeTruthy();
+    expect((await setLessonCommentFollow(LESSON, "yes" as never)).error).toBeTruthy();
+    expect((await setLessonCommentFollow(SOON, true)).error).toBeTruthy();
+    state.caller = callerFor(BEA);
+    expect((await setLessonCommentFollow(LESSON, true)).error).toBeTruthy();
+    expect(data.lessonCommentFollows).toHaveLength(0);
+  });
+
+  it("says so when it can't be saved", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(Object.getPrototypeOf(comments()), "setFollowing").mockRejectedValueOnce(new Error("db down"));
+    expect((await setLessonCommentFollow(LESSON, true)).error).toBe("Couldn't save that");
   });
 });
 

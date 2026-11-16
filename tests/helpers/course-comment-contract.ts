@@ -6,6 +6,8 @@ export type CourseCommentContractContext = {
   /** Two lessons of one course. */
   lessons: [string, string];
   courseId: string;
+  /** The course's slug and title, as `lessonInfo` should report them. */
+  course: { slug: string; title: string };
   lessonTitles: [string, string];
   /** Three members: two ordinary ones and a staff member. */
   members: { ada: string; bea: string; staff: string };
@@ -334,6 +336,96 @@ export function defineCourseCommentContract(name: string, setup: () => CourseCom
 
         expect(await ctx.repo().openReports(ctx.courseId)).toHaveLength(1050);
         expect(await ctx.repo().heldComments(ctx.courseId)).toHaveLength(1050);
+      });
+    });
+    describe("following and reading", () => {
+      it("follows when you post, never undoing a choice you already made", async () => {
+        expect(await ctx.repo().isFollowing(ctx.members.ada, ctx.lessons[0])).toBe(false);
+        await ctx.repo().ensureFollowing(ctx.members.ada, ctx.lessons[0]);
+        expect(await ctx.repo().isFollowing(ctx.members.ada, ctx.lessons[0])).toBe(true);
+
+        await ctx.repo().setFollowing(ctx.members.ada, ctx.lessons[0], false);
+        await ctx.repo().ensureFollowing(ctx.members.ada, ctx.lessons[0]);
+        expect(await ctx.repo().isFollowing(ctx.members.ada, ctx.lessons[0])).toBe(false);
+
+        await ctx.repo().setFollowing(ctx.members.ada, ctx.lessons[0], true);
+        expect(await ctx.repo().isFollowing(ctx.members.ada, ctx.lessons[0])).toBe(true);
+        expect(await ctx.repo().isFollowing(ctx.members.ada, ctx.lessons[1])).toBe(false);
+      });
+
+      it("lists the followers of each lesson, leaving out those who stopped", async () => {
+        await ctx.repo().setFollowing(ctx.members.ada, ctx.lessons[0], true);
+        await ctx.repo().setFollowing(ctx.members.bea, ctx.lessons[0], true);
+        await ctx.repo().setFollowing(ctx.members.staff, ctx.lessons[0], false);
+        await ctx.repo().setFollowing(ctx.members.bea, ctx.lessons[1], true);
+
+        const followers = await ctx.repo().followers(ctx.lessons);
+
+        expect([...(followers.get(ctx.lessons[0]) ?? [])].sort()).toEqual([ctx.members.ada, ctx.members.bea].sort());
+        expect(followers.get(ctx.lessons[1])).toEqual([ctx.members.bea]);
+        expect((await ctx.repo().followers([])).size).toBe(0);
+      });
+
+      it("says when a member last opened the thread, null the first time", async () => {
+        expect(await ctx.repo().markRead(ctx.members.ada, ctx.lessons[0], "2027-01-02T00:00:00.000Z")).toBeNull();
+        const previous = await ctx.repo().markRead(ctx.members.ada, ctx.lessons[0], "2027-01-03T00:00:00.000Z");
+        expect(new Date(previous as string).toISOString()).toBe("2027-01-02T00:00:00.000Z");
+        // Another lesson and another member have their own marker.
+        expect(await ctx.repo().markRead(ctx.members.ada, ctx.lessons[1], "2027-01-03T00:00:00.000Z")).toBeNull();
+        expect(await ctx.repo().markRead(ctx.members.bea, ctx.lessons[0], "2027-01-03T00:00:00.000Z")).toBeNull();
+      });
+    });
+
+    describe("what the notification senders read", () => {
+      it("gives the live comments made in a window, with who and where but no text", async () => {
+        const before = new Date(Date.now() - 1000).toISOString();
+        const question = await post(ctx.lessons[0], ctx.members.ada, "A question");
+        const answer = await post(ctx.lessons[0], ctx.members.staff, "An answer", question.id, true);
+        const gone = await post(ctx.lessons[0], ctx.members.bea, "Deleted");
+        const hidden = await post(ctx.lessons[1], ctx.members.bea, "Hidden");
+        await ctx.repo().softDelete(gone.id, ctx.members.bea, AT);
+        await ctx.repo().moderate(hidden.id, "hide", ctx.members.staff);
+        await ctx.repo().create({ lessonId: ctx.lessons[1], memberId: ctx.members.ada, parentId: null, body: "Held", isStaffReply: false, held: true });
+        const after = new Date(Date.now() + 1000).toISOString();
+
+        const activity = (await ctx.repo().activityBetween(before, after)).filter((a) => ctx.lessons.includes(a.lessonId));
+
+        expect(activity.map((a) => a.id)).toEqual([question.id, answer.id]);
+        expect(activity[1]).toEqual({ id: answer.id, lessonId: ctx.lessons[0], memberId: ctx.members.staff, parentId: question.id, isStaffReply: true, createdAt: expect.any(String) });
+        expect(JSON.stringify(activity)).not.toContain("A question");
+        // Outside the window nothing shows.
+        expect((await ctx.repo().activityBetween(after, new Date(Date.now() + 60_000).toISOString())).filter((a) => ctx.lessons.includes(a.lessonId))).toEqual([]);
+      });
+
+      it("names lessons with their course, and leaves out ones that are not there", async () => {
+        const info = await ctx.repo().lessonInfo([ctx.lessons[0], ctx.lessons[1], "les_ZZZZZZZZZZZZ"]);
+
+        expect(info.get(ctx.lessons[1])).toEqual({ lessonId: ctx.lessons[1], title: ctx.lessonTitles[1], courseId: ctx.courseId, courseTitle: ctx.course.title, courseSlug: ctx.course.slug });
+        expect(info.has("les_ZZZZZZZZZZZZ")).toBe(false);
+        expect((await ctx.repo().lessonInfo([])).size).toBe(0);
+      });
+
+      it("counts what waits for staff in the course: comments reported and comments held", async () => {
+        const reported = await post(ctx.lessons[0], ctx.members.ada, "Reported twice");
+        await ctx.repo().report({ commentId: reported.id, reporterId: ctx.members.bea, reason: "a" });
+        await ctx.repo().report({ commentId: reported.id, reporterId: ctx.members.staff, reason: "b" });
+        const settled = await post(ctx.lessons[0], ctx.members.ada, "Reported then hidden");
+        await ctx.repo().report({ commentId: settled.id, reporterId: ctx.members.bea, reason: "c" });
+        await ctx.repo().moderate(settled.id, "hide", ctx.members.staff);
+        await ctx.repo().create({ lessonId: ctx.lessons[1], memberId: ctx.members.ada, parentId: null, body: "Held", isStaffReply: false, held: true });
+
+        const here = (await ctx.repo().moderationBacklog()).find((c) => c.courseId === ctx.courseId);
+
+        expect(here).toEqual({ courseId: ctx.courseId, courseTitle: ctx.course.title, reported: 1, held: 1 });
+      });
+
+      it("counts past 1,000 rows", async () => {
+        await ctx.bulkReported(ctx.lessons[0], ctx.members.ada, ctx.members.bea, 1050);
+        await ctx.bulk(ctx.lessons[1], ctx.members.ada, 1050, true);
+
+        const here = (await ctx.repo().moderationBacklog()).find((c) => c.courseId === ctx.courseId);
+
+        expect(here).toMatchObject({ reported: 1050, held: 1050 });
       });
     });
   });

@@ -72,6 +72,22 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
 Detail: "Read state shared with Slack" in \`docs/SLACK_BRIDGED_CHAT.md\`.`,
   },
   {
+    slug: "lesson-comments-notifications",
+    date: "2026-11-16",
+    audience: "engineering",
+    category: "new",
+    title: "Lesson comments: follows, reply notifications and a daily digest, in dry run first",
+    summary: "Members follow a lesson's comments, hear about replies and instructors' answers, and get one daily note about new comments; staff get a daily note while reported or held comments wait. All of it logs instead of sending until its flag is on for them.",
+    body: `Notifications for lesson comments, on the same notifier as everything else the app sends.
+
+- **Four registry kinds.** Replies to your comment, instructor replies, a daily digest of followed lessons, and a staff note about the review queue (a kind marked \`staffOnly\`, shown in settings only to admins). Each has a sample message and an email template, and a message links to the exact comment (\`?comment=\`, which the thread scrolls to and marks) and carries no comment text.
+- **Follows and read markers** are two small tables behind the comment repository. Posting follows the lesson unless the member already chose; opening the thread records the visit, which gives "N new since your last visit" and marks the thread's in-app notifications read.
+- **Replies go out as they happen**, after the response, claimed per comment so a retry or a staff approval of a held reply never sends twice. The digests run once a day from a cron route, claimed per member and Eastern day; the digest starts where the last real run ended.
+- **A new automated sender starts in dry run.** The \`lesson_comment_notifications\` flag decides who is told for real; for everyone else the sender logs the member, kind, why, channels and message, and writes no claim or run mark, so switching it on starts clean. A member with no reachable channel never uses a claim, and a member whose access ended is never told.
+
+Detail: "Phase 3 (notifications), as built" in \`docs/COURSES.md\`.`,
+  },
+  {
     slug: "lesson-comments-moderation",
     date: "2026-11-16",
     audience: "engineering",

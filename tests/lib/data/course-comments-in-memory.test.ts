@@ -12,6 +12,7 @@ const data = new InMemoryDataset({
     { id: MEMBERS.bea, name: "Bea Example" },
     { id: MEMBERS.staff, name: "Sam Staff" },
   ],
+  courses: [{ id: COURSE, slug: "story-basics", title: "Story Basics" } as never],
   courseLessons: LESSONS.map((id, i) => ({ id, course_id: COURSE, title: `Lesson ${i + 1}` }) as never),
 });
 
@@ -19,6 +20,7 @@ defineCourseCommentContract("InMemoryCourseCommentRepository", () => ({
   repo: () => new InMemoryCourseCommentRepository(data),
   lessons: LESSONS,
   courseId: COURSE,
+  course: { slug: "story-basics", title: "Story Basics" },
   lessonTitles: ["Lesson 1", "Lesson 2"],
   members: MEMBERS,
   setDisplayName: async (memberId, displayName) => {
@@ -39,5 +41,7 @@ defineCourseCommentContract("InMemoryCourseCommentRepository", () => ({
   clear: async () => {
     data.lessonComments.length = 0;
     data.lessonCommentReports.length = 0;
+    data.lessonCommentFollows.length = 0;
+    data.lessonCommentReads.length = 0;
   },
 }));

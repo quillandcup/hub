@@ -25,13 +25,18 @@ vi.mock("@/lib/features.server", () => ({
   effectiveMemberHasFeature: async (key: string) => key === "lesson_comments" && commenting.on,
 }));
 const thread = { entries: [] as unknown[], count: 0 };
+const read = { previous: null as string | null, following: false };
+const markRead = vi.fn(async (..._args: unknown[]) => read.previous);
+const resolveNotifications = vi.fn(async (..._args: unknown[]) => {});
+vi.mock("@/lib/courses/comment-notifications", () => ({ resolveLessonCommentNotifications: (...a: unknown[]) => resolveNotifications(...a) }));
 vi.mock("@/lib/data/repos", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/data/repos")>();
-  return { ...actual, createRepos: (client: never) => ({ ...actual.createRepos(client), courseComments: { threadFor: async () => thread } }) };
+  return { ...actual, createRepos: (client: never) => ({ ...actual.createRepos(client), courseComments: { threadFor: async () => thread, isFollowing: async () => read.following, markRead: (...a: unknown[]) => markRead(...a) } }) };
 });
 vi.mock("@/lib/timezone", () => ({ getUserTimezonePreference: async () => "browser" }));
 vi.mock("@/app/(member)/courses/actions", () => ({ setLessonComplete: vi.fn(async () => ({})), clearMyLessonProgress: vi.fn(async () => ({})) }));
 vi.mock("@/app/(member)/courses/comment-actions", () => ({
+  setLessonCommentFollow: vi.fn(async () => ({})),
   postLessonComment: vi.fn(async () => ({})),
   editLessonComment: vi.fn(async () => ({})),
   deleteLessonComment: vi.fn(async () => ({})),
@@ -65,6 +70,10 @@ beforeEach(() => {
   commenting.on = false;
   thread.entries = [];
   thread.count = 0;
+  read.previous = null;
+  read.following = false;
+  markRead.mockClear();
+  resolveNotifications.mockClear();
   caller.identity.isSudo = false;
   caller.scope.isAdminActing = false;
 });
@@ -91,6 +100,50 @@ describe("lesson page comments", () => {
     const region = screen.getByRole("region", { name: "Comments (1)" });
     expect(within(region).getByText("Ada <Quill> & Co")).toBeInTheDocument();
     expect(within(region).getByText("How do I start?")).toBeInTheDocument();
+  });
+
+  it("counts what is new since the last visit, marks the thread read and its notifications resolved", async () => {
+    commenting.on = true;
+    read.previous = "2027-03-01T10:00:00.000Z";
+    read.following = true;
+    thread.entries = [
+      {
+        comment: { id: "cmnt_AAAAAAAAAAA1", lessonId: LESSON, memberId: "m2", parentId: null, authorName: "Bea", isStaffReply: false, createdAt: "2027-03-01T12:00:00.000Z", editedAt: null, removed: false, body: "New one", hidden: false, held: false },
+        replies: [],
+      },
+    ];
+    thread.count = 1;
+    loadLessonView.mockResolvedValue(view());
+    await renderServerPage(LessonPage, params);
+
+    expect(screen.getByText("1 new since your last visit")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Following" })).toBeInTheDocument();
+    expect(markRead).toHaveBeenCalledWith("m1", LESSON, expect.any(String));
+    expect(resolveNotifications).toHaveBeenCalledWith(expect.anything(), "m1", LESSON);
+  });
+
+  it("says nothing is new on a first visit", async () => {
+    commenting.on = true;
+    thread.entries = [
+      {
+        comment: { id: "cmnt_AAAAAAAAAAA1", lessonId: LESSON, memberId: "m2", parentId: null, authorName: "Bea", isStaffReply: false, createdAt: "2027-03-01T12:00:00.000Z", editedAt: null, removed: false, body: "Old news", hidden: false, held: false },
+        replies: [],
+      },
+    ];
+    thread.count = 1;
+    loadLessonView.mockResolvedValue(view());
+    await renderServerPage(LessonPage, params);
+    expect(screen.queryByText(/new since your last visit/)).not.toBeInTheDocument();
+    expect(markRead).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not mark anything read in sudo", async () => {
+    commenting.on = true;
+    caller.identity.isSudo = true;
+    loadLessonView.mockResolvedValue(view());
+    await renderServerPage(LessonPage, params);
+    expect(markRead).not.toHaveBeenCalled();
+    expect(resolveNotifications).not.toHaveBeenCalled();
   });
 
   it("is read-only in sudo", async () => {

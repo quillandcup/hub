@@ -186,6 +186,8 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   // Lesson comments (CourseCommentRepository): every query is in the repository.
   lesson_comments: [],
   lesson_comment_reports: [],
+  lesson_comment_follows: [],
+  lesson_comment_reads: [],
   course_access: [],
   course_access_grants: [],
   video_watch_segments: [],
