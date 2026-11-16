@@ -1,3 +1,13 @@
+---
+paths:
+  - "lib/gates*.ts"
+  - "components/GateExit.tsx"
+  - "proxy.ts"
+  - "lib/supabase/middleware.ts"
+  - "lib/safe-next.ts"
+  - "tests/lib/gates.test.ts"
+---
+
 ## gates-and-return-to
 
 A **gate** is a system-mandated detour between a visitor and the page they asked for: sign-in, connect Slack before chat opens, and any new "you must do X first" interstitial or redirect. Because a gate stands in the way, it owes the visitor two things: **they end up where they were going once they have done it**, and **they can decline and still get somewhere useful**. Don't hand-roll a gate redirect with a hardcoded landing page.
