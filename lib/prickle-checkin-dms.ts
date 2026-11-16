@@ -1033,15 +1033,19 @@ export function checkoutMessage(
  * dedup log (nothing is logged, so it can't block the real one) and the already-answered checks.
  * It still shows their saved answers, and the check-out asks about every active goal (none, with
  * no goals). Over Slack and email, whatever their notification settings: they just asked for it.
- * Returns an error message, or the channels it went out on.
+ * Returns an error message, or the channels it went out on, plus the ones it didn't: `skipped`
+ * had no address for the member (no matched Slack account, no email), `failed` had one and the
+ * send threw (logged and reported by the notifier).
  */
+const TEST_CHANNELS: ChannelId[] = ["slack", "email"];
+
 export async function sendTestCheckinDM(
   repos: DmRepos,
   memberId: string,
   prickle: DMPrickle,
   kind: CheckinDMKind
-): Promise<{ error: string } | { delivered: ChannelId[] }> {
-  const notifier = await createNotifier(repos, kind, [memberId], { channels: ["slack", "email"] });
+): Promise<{ error: string } | { delivered: ChannelId[]; skipped: ChannelId[]; failed: ChannelId[] }> {
+  const notifier = await createNotifier(repos, kind, [memberId], { channels: TEST_CHANNELS });
   if (!notifier.canReach(memberId)) {
     return { error: "Neither a Slack account nor an email address is matched to your member record." };
   }
@@ -1060,7 +1064,13 @@ export async function sendTestCheckinDM(
     message = checkoutMessage(prickle, saved, await quickLogPrompts(repos, goals), { test: true, hasGoals: goals.length > 0, usual });
   }
   const delivered = await notifier.send(memberId, message);
-  return delivered.length > 0 ? { delivered } : { error: "Nothing went out; check the server logs." };
+  if (delivered.length === 0) return { error: "Nothing went out; check the server logs." };
+  const reachable = notifier.channelsFor(memberId);
+  return {
+    delivered,
+    skipped: TEST_CHANNELS.filter((c) => !reachable.includes(c)),
+    failed: reachable.filter((c) => !delivered.includes(c)),
+  };
 }
 
 // --- Check-in for a member who joins a running prickle -----------------------------------------
