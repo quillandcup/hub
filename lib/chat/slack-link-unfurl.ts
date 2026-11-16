@@ -4,6 +4,9 @@ import { APP_URL, ORG_TIMEZONE } from "@/lib/config";
 import type { Repos } from "@/lib/data/repos";
 import { prickleTitle } from "@/lib/domain/prickle";
 import { getMemberDisplayName } from "@/lib/member-display-name";
+import { isId } from "@/lib/ids";
+import { publicCoursePreview, publicLessonPreview } from "@/lib/courses/public-preview";
+import { courseShareCard, lessonShareCard, publicTarget, siteShareCard, type ShareCard } from "@/lib/link-unfurl/share-cards";
 
 /**
  * Cards for links to the Hub, in Slack (docs/SLACK_BRIDGED_CHAT.md, "Hub links in Slack"). The Slack app registers the Hub's domain, Slack
@@ -16,7 +19,8 @@ import { getMemberDisplayName } from "@/lib/member-display-name";
  * - a message: "A message from <display name> in #<channel> in Hub Chat", only for a public, not restricted channel, and only for a
  *   message that exists. Any other conversation (private, restricted, a direct or group message), a missing or deleted message: the neutral card;
  * - a prickle: its title and start, which are the community's public schedule; a member: the display name only (no photo, no profile text);
- * - anything else on the Hub's origin, or anything that cannot be read: the neutral card, "Link to the Hub".
+ * - anything that cannot be read: the neutral card, "Link to the Hub". Public pages (courses, lessons, the site's own) get their Open Graph card, and
+ *   any other page gets no card at all (see `unfurlHubLinks`).
  */
 
 export const NEUTRAL_CARD_TEXT = "Link to the Hub";
@@ -94,32 +98,73 @@ function unfurlFor(text: string, link: HubLink | null) {
 
 export type UnfurlResult = { status: "unfurled"; count: number } | { status: "nothing" } | { status: "failed"; code: string };
 
+type CardRepos = Pick<Repos, "chat" | "directory" | "prickles" | "courses" | "media">;
+
+/** The Slack attachment for a public page's card: the same title, description and picture its Open Graph tags give (lib/link-unfurl/share-cards.ts). */
+function attachmentFor(card: ShareCard) {
+  return {
+    title: cardLine(card.title),
+    title_link: card.url,
+    text: cardLine(card.description),
+    // Slack fetches it, so only a public https address.
+    ...(card.imageUrl?.startsWith("https://") ? { image_url: card.imageUrl } : {}),
+  };
+}
+
+/** The card for a link to a public page (a course, a lesson, the site's own pages), or null when it is not one or is not public (the page then sends the visitor to sign in, and the link stays plain). */
+async function publicCard(repos: CardRepos, pathname: string): Promise<ShareCard | null> {
+  const target = publicTarget(pathname);
+  if (!target) return null;
+  if (target.kind === "site") return siteShareCard(target.pathname, target.title);
+  if (target.kind === "course") {
+    const result = await publicCoursePreview(repos, target.slug);
+    return "preview" in result ? courseShareCard(result.preview) : null;
+  }
+  if (!isId(target.lessonId, "les")) return null;
+  const result = await publicLessonPreview(repos, target.lessonId, { slug: target.slug });
+  return "preview" in result ? lessonShareCard(result.preview) : null;
+}
+
 /**
- * Answers one `link_shared` event: a card for each link on the Hub's origin (at most {@link MAX_UNFURLS}), by `unfurl_id` and `source` when Slack
- * gave them, else by channel and ts. Links on any other host are left alone. `descriptive` is whether cards may say what the page is (the
- * `chat_link_cards` flag, on for everyone); off, every link gets the neutral card, which still beats the crawler's sign-in page.
+ * Answers one `link_shared` event, by `unfurl_id` and `source` when Slack gave them, else by channel and ts. Registering the Hub's domain
+ * makes the app the only source of previews for it, so every kind of link on the host is decided here and nowhere else:
+ * - a message, prickle or member link: the card for the whole conversation (see the top of this file); `descriptive` is whether it may say what the
+ *   page is (the `chat_link_cards` flag, on for everyone), else the neutral "Link to the Hub";
+ * - a public course, lesson or the site's own pages: the same card their Open Graph tags give, so nothing is worse than before the domain was registered;
+ * - anything else (a members-only page, a lesson that is not public, a token link): no answer, so the link stays a plain link rather than a
+ *   "Link to the Hub" card that says nothing about it. Links on any other host are left alone.
  */
 export async function unfurlHubLinks(
   event: LinkSharedEvent,
-  deps: { repos: Pick<Repos, "chat" | "directory" | "prickles">; slack: Pick<WebClient, "chat">; descriptive: boolean },
+  deps: { repos: CardRepos; slack: Pick<WebClient, "chat">; descriptive: boolean },
 ): Promise<UnfurlResult> {
-  const unfurls: Record<string, ReturnType<typeof unfurlFor>> = {};
+  const unfurls: Record<string, ReturnType<typeof unfurlFor> | ReturnType<typeof attachmentFor>> = {};
   for (const url of event.urls) {
     if (Object.keys(unfurls).length >= MAX_UNFURLS) break;
-    let own = false;
+    let address: URL;
     try {
-      own = new URL(url).origin === new URL(APP_URL).origin;
+      address = new URL(url);
+      if (address.origin !== new URL(APP_URL).origin || unfurls[url]) continue;
     } catch {
-      own = false;
+      continue;
     }
-    if (!own || unfurls[url]) continue;
-    const link = parseHubLink(url, APP_URL);
-    unfurls[url] = unfurlFor(link ? await slackCardText(deps.repos, link, { descriptive: deps.descriptive }) : NEUTRAL_CARD_TEXT, link);
+    try {
+      const link = parseHubLink(url, APP_URL);
+      if (link) {
+        unfurls[url] = unfurlFor(await slackCardText(deps.repos, link, { descriptive: deps.descriptive }), link);
+        continue;
+      }
+      const card = await publicCard(deps.repos, address.pathname);
+      if (card) unfurls[url] = attachmentFor(card);
+    } catch (error) {
+      // A failed read leaves the link plain; the address can carry a token, so it is not logged.
+      console.error("[slack] a Hub link card could not be built:", error instanceof Error ? error.message : "unknown error");
+    }
   }
   if (Object.keys(unfurls).length === 0) return { status: "nothing" };
   try {
     const target = event.unfurlId && event.source ? { unfurl_id: event.unfurlId, source: event.source } : { channel: event.channel, ts: event.messageTs };
-    const response = await deps.slack.chat.unfurl({ ...target, unfurls });
+    const response = await deps.slack.chat.unfurl({ ...target, unfurls: unfurls as never });
     return response.ok ? { status: "unfurled", count: Object.keys(unfurls).length } : { status: "failed", code: String(response.error ?? "unknown") };
   } catch (error) {
     // Slack's own error code (`cannot_unfurl_url`, `missing_scope`...), never the addresses.

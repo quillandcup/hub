@@ -146,14 +146,11 @@ describe("unfurlHubLinks", () => {
     expect(unfurl.mock.calls[0][0]).toMatchObject({ channel: "C1", ts: "1700000000.000100" });
   });
 
-  it("gives a neutral card to a Hub page without a card kind, and leaves other hosts alone", async () => {
+  it("leaves a Hub page it has no card for as a plain link (no answer), and other hosts alone", async () => {
     const { slack, unfurl } = fakeSlack();
-    const hubOnly = link("/courses/some-course");
-    await unfurlHubLinks(event([hubOnly, "https://elsewhere.example.test/x", `${APP_URL}.evil.test/prickles/${PRICKLE}`]), { repos: repos(), slack, descriptive: true });
-    const unfurls = (unfurl.mock.calls[0][0] as { unfurls: Record<string, { blocks: { text?: { text: string } }[] }> }).unfurls;
-    expect(Object.keys(unfurls)).toEqual([hubOnly]);
-    expect(unfurls[hubOnly].blocks).toHaveLength(1);
-    expect(unfurls[hubOnly].blocks[0].text?.text).toBe(NEUTRAL_CARD_TEXT);
+    const unknown = [link("/dashboard"), link("/courses/not-a-course"), link("/unsubscribe?t=secret"), link("/auth/slack/continue?token=abc"), "https://elsewhere.example.test/x", `${APP_URL}.evil.test/prickles/${PRICKLE}`];
+    expect(await unfurlHubLinks(event(unknown), { repos: repos(), slack, descriptive: true })).toEqual({ status: "nothing" });
+    expect(unfurl).not.toHaveBeenCalled();
   });
 
   it("does nothing, and asks Slack nothing, when no link is on the Hub", async () => {
