@@ -76,13 +76,21 @@ describe("sendChatMessage with a lesson address pasted in", () => {
     expect(await sendChatMessage(CHANNEL, `This one helped me ${ADDRESS}`)).toEqual({ ok: true, id: POSTED });
 
     expect(m.rpc).toHaveBeenCalledTimes(1);
-    expect(m.rpc).toHaveBeenCalledWith("chat_post_shared_video", { p_channel_id: CHANNEL, p_body: "This one helped me", p_lesson_id: LESSON, p_open_to_channel: false, p_thread_root_id: null });
+    expect(m.rpc).toHaveBeenCalledWith("chat_post_shared_video", { p_channel_id: CHANNEL, p_body: "This one helped me", p_lesson_id: LESSON, p_open_to_channel: false, p_thread_root_id: null, p_start_seconds: null });
+  });
+
+  it("passes the pasted link's timestamp to the share, and none when it isn't a valid one", async () => {
+    await sendChatMessage(CHANNEL, `${ADDRESS}?t=95`);
+    expect(m.rpc).toHaveBeenLastCalledWith("chat_post_shared_video", expect.objectContaining({ p_start_seconds: 95 }));
+
+    await sendChatMessage(CHANNEL, `${ADDRESS}?t=-4`);
+    expect(m.rpc).toHaveBeenLastCalledWith("chat_post_shared_video", expect.objectContaining({ p_start_seconds: null }));
   });
 
   it("works in a thread, and names the lesson when only the address was sent", async () => {
     await sendChatMessage(CHANNEL, ADDRESS, ROOT);
 
-    expect(m.rpc).toHaveBeenCalledWith("chat_post_shared_video", { p_channel_id: CHANNEL, p_body: "Shared a lesson video: Show up for the page", p_lesson_id: LESSON, p_open_to_channel: false, p_thread_root_id: ROOT });
+    expect(m.rpc).toHaveBeenCalledWith("chat_post_shared_video", { p_channel_id: CHANNEL, p_body: "Shared a lesson video: Show up for the page", p_lesson_id: LESSON, p_open_to_channel: false, p_thread_root_id: ROOT, p_start_seconds: null });
   });
 
   it("opens a pasted share to the channel only for an admin acting as themselves, and only with the marker", async () => {

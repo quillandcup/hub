@@ -24,7 +24,6 @@ let seq = 0;
 const plan = (over: Partial<Row<"care_engagements">> & { member_id: string; opened_at: string }): Row<"care_engagements"> => ({
   id: `care_${String(++seq).padStart(12, "A")}`,
   reason: "introduction",
-  channel: "slack_dm",
   opened_by: A_USER,
   owned_by: A_USER,
   closed_at: null,

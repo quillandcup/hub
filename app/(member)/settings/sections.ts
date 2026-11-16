@@ -1,3 +1,4 @@
+import type { FeatureKey } from "@/lib/features";
 import type { SettingsTabId } from "./tabs";
 
 /**
@@ -13,6 +14,8 @@ export interface SettingsSection {
   id: string;
   title: string;
   keywords?: string[];
+  /** Shown in search only when this feature is on for the viewer. */
+  feature?: FeatureKey;
 }
 
 export const SETTINGS_SECTIONS: SettingsSection[] = [
@@ -35,6 +38,8 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
 
   { tab: "preferences", id: "theme", title: "Theme", keywords: ["dark mode", "light mode", "appearance", "color"] },
   { tab: "preferences", id: "timezone", title: "Time zone", keywords: ["timezone", "clock", "local time"] },
+
+  { tab: "preferences", id: "link-previews", title: "Blocked link previews", keywords: ["chat", "unfurl", "block", "website", "remove preview", "sites"], feature: "chat_link_previews" },
 
   { tab: "notifications", id: "browser-notifications", title: "Browser notifications", keywords: ["push", "devices", "test notification"] },
 

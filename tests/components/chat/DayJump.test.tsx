@@ -29,10 +29,15 @@ const setup = () => {
   render(<DayJump channelId={CHANNEL} label="Wednesday, November 11th" timeZone={NY} />);
   return userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 };
-const open = async (user: ReturnType<typeof setup>) => user.click(screen.getByRole("button", { name: /Jump to/ }));
+const open = async (user: ReturnType<typeof setup>) => user.click(screen.getByRole("button", { name: /jump to another day/ }));
 const from = (iso: string) => `/chat/${CHANNEL}?from=${encodeURIComponent(iso)}`;
 
 describe("DayJump", () => {
+  it("names the button with its visible day first, so a screen reader and a voice command agree", () => {
+    setup();
+    expect(screen.getByRole("button", { name: "Wednesday, November 11th, jump to another day" })).toBeInTheDocument();
+  });
+
   it("shows the day's label on a button, and lists the choices when it is pressed", async () => {
     const user = setup();
     expect(screen.getByRole("button", { name: /Wednesday, November 11th/ })).toHaveAttribute("aria-haspopup", "menu");
@@ -84,7 +89,7 @@ describe("DayJump", () => {
 
     const dialog = screen.getByRole("dialog", { name: "Jump to a specific date" });
     // Out of the sticky day label's stacking layer, so nothing later in the list can paint over it.
-    expect(screen.getByRole("button", { name: /Jump to/ }).closest("div")!.contains(dialog)).toBe(false);
+    expect(screen.getByRole("button", { name: /jump to another day/ }).closest("div")!.contains(dialog)).toBe(false);
     expect(within(dialog).getByText("November 2026")).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "November 13, 2026" })).toHaveAttribute("aria-current", "date");
     expect(push).not.toHaveBeenCalled();

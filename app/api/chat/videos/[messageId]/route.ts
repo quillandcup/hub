@@ -59,7 +59,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     {
       title: lesson.title,
       // The lesson's own page, for a viewer with the course (the card links to it before anything is played); one who may watch only because the share was opened to the channel can't open it.
-      lessonHref: hasCourse && course ? lessonPath(course.slug, lesson.id) : null,
+      lessonHref: hasCourse && course ? lessonPath(course.slug, lesson.id, share.startSeconds) : null,
+      // Where the shared link starts the video, so the card can say so.
+      startSeconds: share.startSeconds,
       courseTitle: course?.title ?? null,
       // The same picture the lesson page shows: our copy when there is one (what the course builder chose), else the original link.
       thumbnailUrl: courseImageSrc("lesson", lesson.id, lesson.thumbnail_asset_id, lesson.thumbnail_url),
@@ -107,7 +109,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
   if (!video || video.status !== "ready" || !video.mux_playback_id) return notFound();
 
   const restrictionId = await restrictionIdForViewer(caller.userId, caller.identity);
-  // Mux Data (the `mux_data` flag), as on the lesson page: null for no Mux Data; the player still waits for consent.
+  // Mux Data, as on the lesson page: null in sudo; the player still waits for consent.
   const muxData = await muxDataConsentFor(caller.userId, caller.identity);
   try {
     const tokens = await signPlaybackTokens(createMuxClient(), video.mux_playback_id, undefined, restrictionId);
@@ -121,7 +123,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     // completion action checks access and sudo again). `completed` is where it stands now, so a lesson already done is not redone.
     const completion = record && hasCourse ? { completed: (await progress.completedLessonIds(caller.identity.memberId, [lesson.id]).catch(() => new Set<string>())).has(lesson.id) } : null;
     return NextResponse.json(
-      { title: lesson.title, lessonId: lesson.id, lessonHref: course ? lessonPath(course.slug, lesson.id) : null, playbackId: video.mux_playback_id, tokens, restricted: restrictionId !== null, muxData, record, resumeSeconds: resumeSeconds(position), completion },
+      { title: lesson.title, lessonId: lesson.id, lessonHref: course ? lessonPath(course.slug, lesson.id, share.startSeconds) : null, playbackId: video.mux_playback_id, tokens, restricted: restrictionId !== null, muxData, record, resumeSeconds: share.startSeconds ?? resumeSeconds(position), startSeconds: share.startSeconds, completion },
       { headers: NO_STORE },
     );
   } catch (error) {

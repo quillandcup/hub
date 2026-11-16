@@ -21,24 +21,44 @@ export interface RemovalPreviewRow {
   count: number;
 }
 
+/** One thing a removal does outside the catalog: sign-in rows, the auth user, stored files, cleared text, audit entries. */
+export interface RemovalExtra {
+  /** Stable key from `member_removal_extras`; the panel maps it to plain words. */
+  item: string;
+  action: "delete" | "clear" | "replace";
+  /** The full count; `samples` is at most the first few. */
+  count: number;
+  /** Short labels naming them (never a path, token or note text). */
+  samples: string[];
+}
+
 export interface RemovalPreview {
   /** Only the choices that touch at least one row, deletes first. */
   rows: RemovalPreviewRow[];
   /** Live books on their shelf: the ones staff ask the member about keeping. */
   liveBooks: number;
+  /** Everything else the removal does, only the items that touch something. */
+  extras: RemovalExtra[];
 }
 
 const ACTION_ORDER = ["delete", "ask", "null", "repoint", "keep"];
 
 /** What a removal would do for one member: a count per decision in the catalog. Changes nothing. */
 export async function previewMemberRemoval(db: Db, memberId: string): Promise<RemovalPreview> {
-  const { data, error } = await db.rpc("member_data_report", { p_member_id: memberId });
-  if (error) throw new Error(error.message);
-  const rows = (data ?? [])
+  const [report, extraReport] = await Promise.all([
+    db.rpc("member_data_report", { p_member_id: memberId }),
+    db.rpc("member_removal_extras", { p_member_id: memberId }),
+  ]);
+  if (report.error) throw new Error(report.error.message);
+  if (extraReport.error) throw new Error(extraReport.error.message);
+  const rows = (report.data ?? [])
     .filter((r) => r.row_count > 0)
     .map((r) => ({ table: r.table_name, column: r.column_name, action: r.action, why: r.why, count: Number(r.row_count) }))
     .sort((a, b) => ACTION_ORDER.indexOf(a.action) - ACTION_ORDER.indexOf(b.action) || a.table.localeCompare(b.table));
-  return { rows, liveBooks: await createRepos(db).books.countLive(memberId) };
+  const extras = (extraReport.data ?? [])
+    .filter((r) => r.row_count > 0)
+    .map((r) => ({ item: r.item, action: r.action as RemovalExtra["action"], count: Number(r.row_count), samples: r.samples ?? [] }));
+  return { rows, extras, liveBooks: await createRepos(db).books.countLive(memberId) };
 }
 
 const MEDIA_BUCKET = "media";

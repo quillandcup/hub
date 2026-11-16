@@ -12,7 +12,7 @@ import { byKeyThenId } from "./query";
 import type { Db, Row } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 
-/** An engagement as stored (`care_engagements`). `reason` and `ended_how` are held to their sets by CHECK constraints. (The `channel` column is deprecated: not read, not written, see docs/TODO.md.) */
+/** An engagement as stored (`care_engagements`). `reason` and `ended_how` are held to their sets by CHECK constraints. */
 export type CareEngagementRow = Row<"care_engagements">;
 
 /** The slice of a member an engagement shows. Display name first, then the legal name (CLAUDE.md, "Display Names"). */
@@ -510,7 +510,6 @@ export class InMemoryCareRepository implements CareRepository {
     const row: CareEngagementRow = {
       id: this.nextId(),
       ...insertOf(engagement),
-      channel: "other", // the deprecated column's database default
       handover_to: null,
       handover_by: null,
       handover_at: null,
@@ -540,7 +539,6 @@ export class InMemoryCareRepository implements CareRepository {
       opened_by: input.openedBy,
       owned_by: previous.owned_by,
       reason: previous.reason,
-      channel: "other",
       ...offer,
       opened_at: input.at,
       period_ends_on: input.periodEndsOn,

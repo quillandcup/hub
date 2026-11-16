@@ -143,6 +143,22 @@ describe("ChatSidebar", () => {
     expect(screen.getByRole("heading", { name: "Group messages" })).toBeInTheDocument();
   });
 
+  it("lists a direct message with an app under Apps, after Direct messages, and not among the people", () => {
+    render(
+      <ChatSidebar
+        channels={[
+          ...CHANNELS,
+          channel("8", "Ania", { kind: "dm", visibility: "private", lastMessageAt: "2026-11-09T10:00:00Z" }),
+          channel("9", "Billie Bot", { kind: "dm", visibility: "private", app: true, lastMessageAt: "2026-11-10T10:00:00Z" }),
+        ]}
+      />
+    );
+    const group = (title: string) => screen.getByRole("heading", { name: title }).closest("div.group") as HTMLElement;
+    expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual(["Channels", "Group messages", "Direct messages", "Apps"]);
+    expect(within(group("Direct messages")).getAllByRole("link").map((a) => a.textContent)).toEqual(["Ania"]);
+    expect(within(group("Apps")).getAllByRole("link").map((a) => a.textContent)).toEqual(["Billie Bot"]);
+  });
+
   describe("order of direct and group messages", () => {
     const dm = (id: string, label: string, lastMessageAt: string | null) => channel(id, label, { kind: "dm", visibility: "private", lastMessageAt });
     const DMS = [dm("d1", "Ania", "2026-11-08T10:00:00Z"), dm("d2", "Birgit", "2026-11-09T10:00:00Z"), dm("d3", "Carly", null)];

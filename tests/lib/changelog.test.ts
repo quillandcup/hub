@@ -97,6 +97,13 @@ describe("validateChangelog", () => {
   });
 });
 
+describe("the entries as published", () => {
+  it("shows an entry's list image in its article too, since the article draws only the images written into the body", () => {
+    const missing = CHANGELOG_ENTRIES.filter((e) => e.image && !e.body.includes(`](${e.image.src})`)).map((e) => e.slug);
+    expect(missing).toEqual([]);
+  });
+});
+
 describe("audiences", () => {
   const product = entry({ slug: "product-one", date: "2026-11-02" });
   const eng = entry({ slug: "eng-one", date: "2026-11-03", audience: "engineering", title: "Repository pattern", summary: "Queries moved behind repositories.", body: "Every table has one interface and two implementations." });

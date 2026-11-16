@@ -21,14 +21,35 @@ beforeEach(() => {
 
 describe("previewMemberRemoval", () => {
   it("lists only the choices that touch rows, deletes first, with the live books", async () => {
-    rpc.mockResolvedValue({
-      data: [reportRow("prickle_attendance", "repoint", 5), reportRow("writing_goals", "delete", 0), reportRow("writing_projects", "delete", 2), reportRow("member_books", "ask", 3)],
-      error: null,
-    });
+    rpc.mockImplementation(async (name: string) =>
+      name === "member_removal_extras"
+        ? {
+            data: [
+              { item: "auth_user", action: "delete", row_count: 1, samples: [] },
+              { item: "access_events", action: "delete", row_count: 0, samples: [] },
+              { item: "hiatus_notes", action: "clear", row_count: 2, samples: ["Hiatus from 01 Mar 2026 (note)"] },
+            ],
+            error: null,
+          }
+        : {
+            data: [reportRow("prickle_attendance", "repoint", 5), reportRow("writing_goals", "delete", 0), reportRow("writing_projects", "delete", 2), reportRow("member_books", "ask", 3)],
+            error: null,
+          },
+    );
     const preview = await previewMemberRemoval(db, "mbr_AAAAAAAAAAA1");
     expect(rpc).toHaveBeenCalledWith("member_data_report", { p_member_id: "mbr_AAAAAAAAAAA1" });
     expect(preview.rows.map((r) => `${r.action}:${r.table}:${r.count}`)).toEqual(["delete:writing_projects:2", "ask:member_books:3", "repoint:prickle_attendance:5"]);
     expect(preview.liveBooks).toBe(2);
+    expect(rpc).toHaveBeenCalledWith("member_removal_extras", { p_member_id: "mbr_AAAAAAAAAAA1" });
+    expect(preview.extras).toEqual([
+      { item: "auth_user", action: "delete", count: 1, samples: [] },
+      { item: "hiatus_notes", action: "clear", count: 2, samples: ["Hiatus from 01 Mar 2026 (note)"] },
+    ]);
+  });
+
+  it("throws the error of the extras too", async () => {
+    rpc.mockImplementation(async (name: string) => (name === "member_removal_extras" ? { data: null, error: { message: "extras boom" } } : { data: [], error: null }));
+    await expect(previewMemberRemoval(db, "mbr_AAAAAAAAAAA1")).rejects.toThrow("extras boom");
   });
 
   it("throws the database's error", async () => {

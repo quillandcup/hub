@@ -3,7 +3,7 @@ import { pingCronHeartbeat } from "@/lib/cron-heartbeats";
 import { sendOperationsAlert } from "@/lib/operations-alerts";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { projectCareFromDms } from "@/lib/care-dm";
-import { pullDmsForCoveredMembers } from "@/lib/chat/slack-dms";
+import { DMS_STALE_HOURS, pullDmsForCoveredMembers } from "@/lib/chat/slack-dms";
 import { chatSlackWritesEnabled } from "@/lib/chat/slack-post";
 import { clock } from "@/lib/clock";
 import { NextRequest, NextResponse } from "next/server";
@@ -21,7 +21,7 @@ const CARE_BUDGET_MS = 270_000;
  * when a member opens chat can both miss something, and the bot can't read a DM, so this pulls the DMs of
  * every member the `slack_dm_bridge` feature covers with their own token (docs/SLACK_BRIDGED_CHAT.md).
  * Members are taken the one pulled longest ago first, so those left when the time runs out are first next time; a run that
- * defers anyone reports it, except one the admin's backfill button asked for (`?backfill=1`: it repeats the run until
+ * leaves anyone out is normal and says nothing, but a member not completed for `DMS_STALE_HOURS` is reported. The admin's backfill button (`?backfill=1`) repeats the run until
  * everyone is read, so a partial run is expected and neither alerts nor pings). Scheduled daily by Vercel Cron, which always invokes via GET. Does nothing off production.
  *
  * Once the DMs are pulled it fills in Hedgie Care from the DMs staff track (`projectCareFromDms`, docs/HEDGIE_CARE.md): who spoke
@@ -47,8 +47,8 @@ export async function GET(request: NextRequest) {
     });
     const problems = [
       ...(typeof care === "string" ? [`Hedgie Care from tracked DMs: ${care}`] : care.incomplete ? ["Hedgie Care from tracked DMs: out of time (the rest next run)"] : []),
-      ...(result.deferred > 0 ? [`${result.deferred} members' DMs left for the next run: out of time`] : []),
-      ...(result.incomplete > 0 ? [`${result.incomplete} members' DMs only partly read: out of time (the rest next run)`] : []),
+      // Out of time on a night is expected under Slack's rate limit (the rest is first next run); what is reported is a member not completed for days.
+      ...(result.stale > 0 ? [`${result.stale} members' DMs not fully read for over ${DMS_STALE_HOURS} hours (${result.deferred} left and ${result.incomplete} partly read this run)`] : []),
       ...result.errors,
     ];
     if (backfill) {

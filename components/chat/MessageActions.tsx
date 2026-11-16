@@ -173,7 +173,7 @@ export default function MessageActions({
       ref={root}
       role="toolbar"
       aria-label="Message actions"
-      className={`absolute -top-3 right-2 z-float ${visible} items-center gap-0.5 rounded-lg border border-slate-200 bg-white p-0.5 shadow dark:border-slate-700 dark:bg-slate-900`}
+      className={`absolute -top-3 right-2 z-dropdown ${visible} items-center gap-0.5 rounded-lg border border-slate-200 bg-white p-0.5 shadow dark:border-slate-700 dark:bg-slate-900`}
     >
       {copied && (
         <span role="status" className="px-2 text-xs text-slate-600 dark:text-slate-400">

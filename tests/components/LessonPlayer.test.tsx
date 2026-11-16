@@ -980,7 +980,7 @@ describe("LessonPlayer Mux Data", () => {
   it("is on with the flag where no consent is needed, anonymous: no cookies, no viewer id, only the lesson title", () => {
     renderWith({ needsConsent: false, optedOut: false });
     const props = JSON.parse(monitor()!.getAttribute("data-props")!);
-    expect(props).toEqual({ disableCookies: true, metadata: { video_title: "Your writing space", player_name: "Hub lesson player" }, playerSoftwareName: "mux-video" });
+    expect(props).toEqual({ disableCookies: true, metadata: { video_title: "Your writing space", player_name: "Hub Course player" }, playerSoftwareName: "mux-video" });
     expect(JSON.stringify(props)).not.toMatch(/viewer|user|email|member/i);
   });
 });

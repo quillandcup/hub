@@ -15,7 +15,7 @@ const repos = (over: ConstructorParameters<typeof InMemoryDataset>[0] = {}) =>
       chatChannels: [{ id: CHANNEL, slack_channel_id: SLACK_CHANNEL }],
       courses: [{ id: "crs_AAAAAAAAAAA1", slug: "ready-writer" } as never],
       courseLessons: [{ id: LESSON, course_id: "crs_AAAAAAAAAAA1" } as never],
-      chatMessageVideos: [{ id: "cmv_AAAAAAAAAAA1", message_id: MESSAGE, lesson_id: LESSON, open_to_channel: false, created_at: "2026-01-01T00:00:00Z" }],
+      chatMessageVideos: [{ id: "cmv_AAAAAAAAAAA1", message_id: MESSAGE, lesson_id: LESSON, open_to_channel: false, start_seconds: null, created_at: "2026-01-01T00:00:00Z" }],
       ...over,
     }),
   );
@@ -27,6 +27,11 @@ const LESSON_LINK = `<${APP_URL}${lessonPath("ready-writer", LESSON)}|Open the l
 describe("sharedVideoSlackLine", () => {
   it("links to the message in Hub Chat first, then to the lesson", async () => {
     expect(await sharedVideoSlackLine(repos(), MESSAGE, SLACK_CHANNEL)).toBe(`\n${CHAT_LINK} · ${LESSON_LINK}`);
+  });
+
+  it("keeps the shared moment on the lesson link only", async () => {
+    const timed = repos({ chatMessageVideos: [{ id: "cmv_AAAAAAAAAAA1", message_id: MESSAGE, lesson_id: LESSON, open_to_channel: false, start_seconds: 95, created_at: "2026-01-01T00:00:00Z" }] });
+    expect(await sharedVideoSlackLine(timed, MESSAGE, SLACK_CHANNEL)).toBe(`\n${CHAT_LINK} · <${APP_URL}/courses/ready-writer/lessons/${LESSON}?t=95|Open the lesson>`);
   });
 
   it("leaves out the link whose target can't be found", async () => {

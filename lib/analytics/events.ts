@@ -197,6 +197,12 @@ export const EVENTS = {
   /** The author removed a preview card from their message with the X in its corner (components/chat/RemoveUnfurlButton.tsx): `source` is a preview the Hub made for a link or one of Slack's unfurls. `slack` whether the Slack copy of a message written in the Hub was updated, had nothing to update, or could not be. Never the address. */
   chat_unfurl_removed: { source: oneOf("hub", "slack"), slack: oneOf("updated", "not_needed", "failed") },
 
+  /** The author opened the "Remove preview?" dialog on a card (components/chat/RemoveUnfurlDialog.tsx) and chose: removed it only (`none`), or removed it and blocked a whole `site`, the links under a `path`, or that one `link`; `saved` whether the block was stored. Never the address. */
+  chat_preview_block_chosen: { scope: oneOf("none", "site", "path", "link"), saved: bool() },
+
+  /** A member lifted one of their blocked previews from Settings (components/chat/BlockedPreviewsList.tsx). Never the address. */
+  chat_preview_unblocked: { scope: oneOf("site", "path", "link") },
+
   /** A card for a link to the Hub was drawn under a chat message (components/chat/HubLinkCard.tsx): `kind` what it points at, `state` whether it showed the target (`card`) or only said it is a link to the Hub (`stub`, nothing this reader may see). Never the address. */
   chat_hub_link_card_shown: { kind: oneOf("message", "prickle", "member"), state: oneOf("card", "stub") },
 

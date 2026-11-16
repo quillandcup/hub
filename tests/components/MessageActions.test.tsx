@@ -7,9 +7,12 @@ import "@testing-library/jest-dom/vitest";
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("@/app/(member)/chat/actions", () => ({ toggleChatReaction: vi.fn(), markChatUnread: vi.fn() }));
 import { markChatUnread, toggleChatReaction } from "@/app/(member)/chat/actions";
+import config from "@/tailwind.config";
 import MessageActions from "@/components/chat/MessageActions";
 import MessageItem from "@/components/chat/MessageItem";
 import { MARKED_UNREAD_EVENT, MESSAGE_CHANGE_EVENT, optimisticView, subscribeListEvents } from "@/lib/chat/list-events";
+
+const zIndex = (config.theme as { extend: { zIndex: Record<string, string> } }).extend.zIndex;
 
 beforeEach(cleanup);
 
@@ -37,6 +40,15 @@ describe("MessageActions reactions", () => {
     await userEvent.click(screen.getByRole("button", { name: "Add reaction…" }));
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByLabelText("Search emoji")).not.toBeInTheDocument();
+  });
+});
+
+describe("MessageActions layering", () => {
+  it("ranks the hover toolbar (and so its tooltips and emoji picker) above the sticky day divider", () => {
+    render(<MessageActions {...props} canReact />);
+    const toolbar = screen.getByRole("button", { name: "Add reaction…" }).closest("[class*='z-']") as HTMLElement;
+    expect(toolbar).toHaveClass("z-dropdown");
+    expect(Number(zIndex[toolbar.className.match(/\bz-([a-z-]+)/)![1]])).toBeGreaterThan(Number(zIndex.sticky));
   });
 });
 

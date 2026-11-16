@@ -119,6 +119,8 @@ describe("HubLinkCard", () => {
       render(<HubLinkCard unfurl={unfurl()} removable={{ channelId: CHANNEL, messageId: MESSAGE }} />);
       await screen.findByTestId("hub-link-card");
       screen.getByRole("button", { name: "Remove preview" }).click();
+      // A link to the Hub has nothing to block: only the confirm.
+      (await screen.findByRole("button", { name: "Remove" })).click();
       await waitFor(() => expect(hideChatUnfurl).toHaveBeenCalledWith(MESSAGE, `url:${ADDRESS}`));
       await waitFor(() => expect(track).toHaveBeenCalledWith("chat_unfurl_removed", { source: "hub", slack: "not_needed" }));
     });

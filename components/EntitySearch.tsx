@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useBelow } from "@/lib/hooks/useBelow";
 import { useBlurDelay } from "@/lib/hooks/useBlurDelay";
 import { useComboboxKeys } from "@/lib/hooks/useComboboxKeys";
 
@@ -133,6 +135,7 @@ export default function EntitySearch({
   const empty = !!emptyText && !!term && matches.length === 0 && !failed && !(search && remote.loading);
   const showList = matches.length > 0 && !failed;
   const showDropdown = isFocused && (showList || loading || failed || empty);
+  const below = useBelow(inputRef, showDropdown);
 
   function handleSelect(item: SearchItem | null) {
     onSelect(item);
@@ -195,11 +198,13 @@ export default function EntitySearch({
         {...combobox.inputProps(isFocused && showList)}
         className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded text-sm text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-plum-500"
       />
-      {showDropdown && (
-        // No text recorded by analytics: the options are often people.
+      {showDropdown && below && createPortal(
+        // No text recorded by analytics: the options are often people. On `<body>`, over a modal if the picker is in one.
         <div
           data-track-no-text
-          className="absolute z-dropdown w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+          data-entity-search-list
+          style={{ top: below.top, left: below.left, width: below.width }}
+          className="fixed z-overlay bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto"
         >
           {loading ? (
             <div className="px-3 py-2 text-sm text-slate-600 dark:text-slate-400" role="status">
@@ -229,7 +234,8 @@ export default function EntitySearch({
               ))}
             </ul>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

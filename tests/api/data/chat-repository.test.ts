@@ -159,7 +159,7 @@ defineChatContract("SupabaseChatRepository", () => ({
     if (tracked.error) throw new Error(tracked.error.message);
     if (c.owner === "none") return;
     const owner = c.owner === "tracker" ? tracker : other;
-    const plan = await db.from("care_engagements").insert({ member_id: member, reason: "introduction", channel: "slack_dm", opened_by: owner, owned_by: owner, period_ends_on: "2026-12-01" });
+    const plan = await db.from("care_engagements").insert({ member_id: member, reason: "introduction", opened_by: owner, owned_by: owner, period_ends_on: "2026-12-01" });
     if (plan.error) throw new Error(plan.error.message);
   },
   seedMemberships: async (rows) => {

@@ -63,9 +63,9 @@ INSERT INTO public.care_tracked_dms (tracked_by, slack_channel_id, member_id, de
   ('00000000-0000-4000-a000-00000000e5d3', 'CP_D4', 'mbr_CPAAAAAAAAG1', NULL),
   ('00000000-0000-4000-a000-00000000e5d5', 'CP_D5', 'mbr_CPAAAAAAAAF1', NULL);
 -- Fern's plan is owned by Cleo; Gale's by Ada (Cleo is not an owner of Gale's plan any more, as after a hand-over; her tracked DM stays).
-INSERT INTO public.care_engagements (member_id, reason, channel, opened_by, owned_by, period_ends_on) VALUES
-  ('mbr_CPAAAAAAAAF1', 'introduction', 'slack_dm', '00000000-0000-4000-a000-00000000e5d5', '00000000-0000-4000-a000-00000000e5d5', '2026-12-01'),
-  ('mbr_CPAAAAAAAAG1', 'introduction', 'slack_dm', '00000000-0000-4000-a000-00000000e5d3', NULL, '2026-12-01');
+INSERT INTO public.care_engagements (member_id, reason, opened_by, owned_by, period_ends_on) VALUES
+  ('mbr_CPAAAAAAAAF1', 'introduction', '00000000-0000-4000-a000-00000000e5d5', '00000000-0000-4000-a000-00000000e5d5', '2026-12-01'),
+  ('mbr_CPAAAAAAAAG1', 'introduction', '00000000-0000-4000-a000-00000000e5d3', NULL, '2026-12-01');
 
 -- Grants ---------------------------------------------------------------------------------------------------------------
 SELECT ok(NOT has_function_privilege('authenticated', 'public.staff_member_ids()', 'EXECUTE') AND has_function_privilege('service_role', 'public.staff_member_ids()', 'EXECUTE'), 'the staff list is for the server only');

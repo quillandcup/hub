@@ -55,8 +55,23 @@ export function defineChatVideoContract(name: string, setup: () => ChatVideoCont
       await ctx.repo().attach(ctx.messages[0], ctx.lessons[0]);
       await ctx.repo().attach(ctx.messages[1], ctx.lessons[1], true);
 
-      expect(await ctx.repo().shareOf(ctx.messages[0])).toEqual({ lessonId: ctx.lessons[0], openToChannel: false });
-      expect(await ctx.repo().shareOf(ctx.messages[1])).toEqual({ lessonId: ctx.lessons[1], openToChannel: true });
+      expect(await ctx.repo().shareOf(ctx.messages[0])).toEqual({ lessonId: ctx.lessons[0], openToChannel: false, startSeconds: null });
+      expect(await ctx.repo().shareOf(ctx.messages[1])).toEqual({ lessonId: ctx.lessons[1], openToChannel: true, startSeconds: null });
+      expect(await ctx.repo().shareOf(ctx.messages[2])).toBeNull();
+    });
+
+    it("keeps the second a share starts at, and none when the link had none", async () => {
+      await ctx.repo().attach(ctx.messages[0], ctx.lessons[0], false, 95);
+      await ctx.repo().attach(ctx.messages[1], ctx.lessons[1], true, null);
+
+      expect((await ctx.repo().shareOf(ctx.messages[0]))?.startSeconds).toBe(95);
+      expect((await ctx.repo().shareOf(ctx.messages[1]))?.startSeconds).toBeNull();
+    });
+
+    it("refuses a start of zero, a negative or more than a day", async () => {
+      for (const bad of [0, -1, 86401]) {
+        await expect(ctx.repo().attach(ctx.messages[2], ctx.lessons[0], false, bad)).rejects.toThrow();
+      }
       expect(await ctx.repo().shareOf(ctx.messages[2])).toBeNull();
     });
 
@@ -67,7 +82,7 @@ export function defineChatVideoContract(name: string, setup: () => ChatVideoCont
 
       expect(await ctx.repo().shareOf(ctx.messages[0])).toBeNull();
       expect([...(await ctx.repo().lessonIdsOf(ctx.messages)).entries()]).toEqual([[ctx.messages[1], ctx.lessons[1]]]);
-      expect(await ctx.repo().shareOf(ctx.messages[1])).toEqual({ lessonId: ctx.lessons[1], openToChannel: false });
+      expect(await ctx.repo().shareOf(ctx.messages[1])).toEqual({ lessonId: ctx.lessons[1], openToChannel: false, startSeconds: null });
     });
 
     it("answers an empty list with an empty map", async () => {

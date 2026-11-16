@@ -261,6 +261,8 @@ export interface ChatRepository {
    * group message, and a conversation the caller cannot see.
    */
   dmInCarePlan(channelId: string): Promise<boolean>;
+  /** The member's own DMs that are with an app (a bot and nobody else), by conversation, to the app's name. These are listed under Apps, not Direct messages. */
+  dmApps(memberId: string): Promise<Map<string, string>>;
   /** Which of these members are in the conversation now. */
   presentMembers(channelId: string, memberIds: string[]): Promise<Set<string>>;
   /** Where the member has read up to (their marker, else when they joined), or null when they are not in the conversation. */
@@ -698,6 +700,14 @@ export class SupabaseChatRepository implements ChatRepository {
       out.set(row.channel_id, [...(out.get(row.channel_id) ?? []), row.name]);
     }
     for (const [id, names] of out) out.set(id, [...new Set(names)].sort((a, b) => a.localeCompare(b)));
+    return out;
+  }
+
+  async dmApps(memberId: string) {
+    const { data, error } = await this.db.rpc("chat_dm_apps", { p_member: memberId });
+    if (error) throw new Error(error.message);
+    const out = new Map<string, string>();
+    for (const row of data ?? []) if (row.name && !out.has(row.channel_id)) out.set(row.channel_id, row.name);
     return out;
   }
 
@@ -1353,6 +1363,22 @@ export class InMemoryChatRepository implements ChatRepository {
         if (name) names.push(name);
       }
       if (names.length > 0) out.set(c.id, [...new Set(names)].sort((a, b) => a.localeCompare(b)));
+    }
+    return out;
+  }
+
+  async dmApps(memberId: string) {
+    const mine = new Set(this.active().filter((m) => m.member_id === memberId).map((m) => m.channel_id));
+    const out = new Map<string, string>();
+    for (const c of this.data.chatChannels) {
+      if (!c.slack_channel_id || !mine.has(c.id) || (c.kind ?? "channel") !== "dm") continue;
+      const people = this.data.slackChannelMembers.filter((x) => x.channel_id === c.slack_channel_id && !x.left_at);
+      const userOf = (userId: string) => this.data.slackUsers.find((u) => u.user_id === userId);
+      const authorOf = (userId: string) => this.data.chatSlackAuthors.find((a) => a.slack_user_id === userId)?.member_id ?? null;
+      if (people.some((b) => !userOf(b.user_id)?.is_bot && authorOf(b.user_id) !== memberId)) continue;
+      const bot = people.map((b) => userOf(b.user_id)).find((u) => u?.is_bot);
+      const name = bot?.real_name || bot?.display_name || bot?.name;
+      if (name) out.set(c.id, name);
     }
     return out;
   }

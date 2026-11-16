@@ -23,6 +23,23 @@ describe("extractLessonLink", () => {
     expect(extractLessonLink(`${URL_}#notes`, APP)?.lessonId).toBe(LESSON);
   });
 
+  it.each([
+    ["a whole number", "?t=95", 95],
+    ["the largest allowed, a day", "?t=86400", 86400],
+    ["among other parameters, and with the open marker", "?share=open&t=95", 95],
+    ["zero", "?t=0", null],
+    ["a negative number", "?t=-5", null],
+    ["a fraction", "?t=9.5", null],
+    ["more than a day", "?t=86401", null],
+    ["a huge number", "?t=99999999999", null],
+    ["not a number", "?t=abc", null],
+    ["empty", "?t=", null],
+    ["absent", "", null],
+  ])("reads the start second: %s", (_name, query, expected) => {
+    expect(extractLessonLink(`${URL_}${query}`, APP)?.startSeconds).toBe(expected);
+    expect(extractLessonLink(`<${URL_}${query}|here>`, APP)?.startSeconds).toBe(expected);
+  });
+
   it("reads the open-share marker from the query, bare or wrapped, and only that exact one", () => {
     expect(extractLessonLink(`${URL_}?${OPEN_SHARE_PARAM}=${OPEN_SHARE_VALUE}`, APP)).toMatchObject({ lessonId: LESSON, body: "", openToChannel: true });
     expect(extractLessonLink(`look <${URL_}?t=95&share=open|here>`, APP)).toMatchObject({ lessonId: LESSON, body: "look", openToChannel: true });
