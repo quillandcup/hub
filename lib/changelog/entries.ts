@@ -82,13 +82,13 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     audience: "product",
     category: "improved",
     title: "Choose which sites get a preview in Hub Chat",
-    summary: "When you remove a link preview from your message, you can also block previews from that website, from one part of it, or from just that link, in the messages you write from now on.",
+    summary: "When you remove a link preview from your message, you can also block previews from that website, from one part of it, or from just that link, in the messages you write.",
     body: [
       "The X on a preview now asks \"Remove preview?\" before it goes. Leave the box ticked to also block previews like it, then pick how much to block.",
       [
         "- **A whole website, one part of it, or just that link.** You pick one of the three before you confirm.",
-        "- **Only your own messages, from now on.** Previews already in a conversation stay as they are, and other people's messages are not affected.",
-        "- **If every link in a message is blocked, Slack doesn't make a preview for it either.**",
+        "- **Only your own messages.** It applies to the ones you already sent too, and other people's messages are not affected.",
+        "- **We also try to take a blocked link's preview off your message in Slack**, and the Hub never shows it, even when the message has other links.",
         "- **Change your mind any time** in Settings, under Preferences: your blocked sites are listed there, each with a button to stop blocking it.",
         "- **Untick the box** to remove just that one preview, as before.",
       ].join("\n"),

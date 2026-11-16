@@ -4,6 +4,7 @@ import type { Db } from "@/lib/data/db";
 import { chatSlackWritesEnabled } from "@/lib/chat/slack-post";
 import { setChatPreviewsInSlack } from "@/lib/chat/slack-edit";
 import { normalizeLinkForMatch } from "@/lib/chat/unfurl-dedupe";
+import { isBlocked, type PreviewBlock } from "@/lib/chat/link-preview-blocks";
 import { parseChatFiles } from "@/lib/chat/files";
 import { sendOperationsAlert } from "@/lib/operations-alerts";
 
@@ -51,6 +52,78 @@ export function splitAttachments(attachments: unknown, addresses: Set<string>): 
     else keep.push(forSlack(a));
   }
   return { removed, keep };
+}
+
+/**
+ * Like `splitAttachments`, but the ones to remove are Slack's previews of an address the author blocked (any of its `original_url`, `from_url`
+ * or `title_link` is covered by one of the rules; lib/chat/link-preview-blocks.ts). Pure.
+ */
+export function splitBlockedAttachments(attachments: unknown, blocks: readonly PreviewBlock[]): { removed: number; keep: Record<string, unknown>[] } {
+  const keep: Record<string, unknown>[] = [];
+  let removed = 0;
+  for (const a of Array.isArray(attachments) ? attachments : []) {
+    if (!isRecord(a)) continue;
+    if ([a.original_url, a.from_url, a.title_link].some((l) => typeof l === "string" && isBlocked(l, blocks))) removed++;
+    else keep.push(forSlack(a));
+  }
+  return { removed, keep };
+}
+
+/**
+ * Best effort: a message written in the Hub whose author blocked a link in it, when Slack's unfurl of that message arrives (the webhook, the
+ * import and the gap-fill all call this through `hideHubPreviewsRemovedInSlack`; an edit that adds a link is the same arrival, since Slack
+ * unfurls again after `chat.update`). Slack unfurls a message as a whole, so with one blocked link and another link there is a card for the
+ * blocked one: the Hub never shows it (`withLinkPreviews`), and this takes it off the Slack copy too, as removing a preview does. Works from the
+ * payload that just arrived, not from the projection (which may lag it). Never throws and a failure (alerted like a removal's) changes nothing
+ * on the Hub; once the card is gone Slack's next payload has nothing to match, so it does not repeat. Returns how many messages were updated.
+ */
+export async function removeBlockedSlackUnfurls(supabase: SupabaseClient, incoming: { channel_id: string; message_ts: string; raw_payload: unknown }[]): Promise<number> {
+  try {
+    if (!chatSlackWritesEnabled()) return 0;
+    const withCards = new Map<string, { channel_id: string; message_ts: string; payload: Record<string, unknown> }>();
+    for (const m of incoming) {
+      if (isRecord(m.raw_payload) && Array.isArray(m.raw_payload.attachments) && m.raw_payload.attachments.length > 0 && m.channel_id && m.message_ts) {
+        withCards.set(`${m.channel_id}|${m.message_ts}`, { channel_id: m.channel_id, message_ts: m.message_ts, payload: m.raw_payload });
+      }
+    }
+    if (withCards.size === 0) return 0;
+    const repos = createRepos(supabase as unknown as Db);
+    const hub = (await repos.chat.appMessagesBySlackTs([...withCards.values()].map((m) => m.message_ts))).filter(
+      (t) => t.slackChannelId && t.slackTs && t.authorMemberId && withCards.has(`${t.slackChannelId}|${t.slackTs}`)
+    );
+    if (hub.length === 0) return 0;
+    const blocksOf = await repos.chatLinkPreviews.blocksOfMembers(hub.map((t) => t.authorMemberId as string));
+    let updated = 0;
+    for (const t of hub) {
+      const blocks = blocksOf.get(t.authorMemberId as string);
+      const arrived = withCards.get(`${t.slackChannelId}|${t.slackTs}`);
+      if (!blocks || !arrived) continue;
+      const { removed, keep } = splitBlockedAttachments(arrived.payload.attachments, blocks);
+      if (removed === 0) continue;
+      const text = typeof arrived.payload.text === "string" && arrived.payload.text !== "" ? arrived.payload.text : undefined;
+      const slackBlocks = Array.isArray(arrived.payload.blocks) && arrived.payload.blocks.length > 0 ? arrived.payload.blocks : undefined;
+      if (text === undefined && !slackBlocks) {
+        await fail(repos, t.id, "no_slack_content");
+        continue;
+      }
+      const row = await repos.chat.outboxMessage(t.id);
+      const files = parseChatFiles(row?.files).map((f) => f.id);
+      const result = await setChatPreviewsInSlack(supabase, { messageId: t.id, memberId: t.authorMemberId as string, content: { text, blocks: slackBlocks }, attachments: keep, keepFileIds: files });
+      if (result.ok) {
+        updated++;
+        continue;
+      }
+      console.error("[chat] taking a blocked preview off the Slack copy of %s failed: %s", t.id, result.code ?? "unknown");
+      if (result.code !== "not_allowed" && result.code !== "token_dead") {
+        const reason = /^[a-z_]{1,40}$/.test(result.code ?? "") ? result.code! : "other";
+        await sendOperationsAlert(repos, { type: "slack_unfurl_removal_failed", reason }).catch(() => {});
+      }
+    }
+    return updated;
+  } catch (error) {
+    console.error("[chat] taking blocked previews off the Slack copies failed:", error instanceof Error ? error.message : "unknown error");
+    return 0;
+  }
 }
 
 /** Logs and alerts a failure of ours (a reason in lower-case words, never an address) and answers `failed`. */

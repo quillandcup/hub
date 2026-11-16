@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { botOf } from "@/lib/chat/load";
 import { withLinkPreviews } from "@/lib/chat/link-preview-cards";
+import { loadAuthorBlocks } from "@/lib/chat/author-blocks";
 import { cachedUnfurlImage } from "@/lib/chat/unfurl-image-cache";
 import { unfurlImageUrls, unfurlPictureKey } from "@/lib/chat/unfurl-images";
 import { parseUnfurls } from "@/lib/chat/unfurls";
@@ -60,9 +61,12 @@ export async function GET(request: NextRequest) {
   });
   if (!previews || !hidden) return notFound();
 
+  // And the author's blocked previews (read with the service role, only to refuse): a blocked card's picture is not served either.
+  const blocks = content.origin === "app" && content.authorMemberId ? ((await loadAuthorBlocks([content.authorMemberId])).get(content.authorMemberId) ?? []) : [];
+
   const bot = botOf(content.bot);
   const parsed = parseUnfurls({ attachments: content.attachments, blocks: content.blocks }, { bot: bot !== null, body: content.body });
-  const url = unfurlImageUrls(withLinkPreviews(parsed.unfurls, previews.get(messageId), hidden.get(messageId)), bot?.icon ?? null).find((u) => unfurlPictureKey(u) === keyParam);
+  const url = unfurlImageUrls(withLinkPreviews(parsed.unfurls, previews.get(messageId), hidden.get(messageId), blocks), bot?.icon ?? null).find((u) => unfurlPictureKey(u) === keyParam);
   if (!url) return notFound();
 
   if (!(await hitRateLimits(createRepos(createServiceRoleClient()), [{ bucket: `chat_unfurl_images:user:${user.id}`, ...LIMIT }]))) {

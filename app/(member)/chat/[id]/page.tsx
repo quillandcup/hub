@@ -18,6 +18,7 @@ import { isId } from "@/lib/ids";
 import { createStageTimer } from "@/lib/chat/timing";
 import { loadChatChannelsForRender } from "@/lib/chat/render-data";
 import { firstUnreadMessageId } from "@/lib/chat/unread";
+import { loadAuthorBlocks } from "@/lib/chat/author-blocks";
 import {
   buildMessageViews,
   chatTextContext,
@@ -184,7 +185,7 @@ export default async function ChatChannelPage({
   const timeZone = isValidTimeZone(preferredZone) ? preferredZone : ORG_TIMEZONE;
   const mainRows = page?.messages ?? [];
   const threadRows = root ? [root, ...(threadPage?.messages ?? [])] : [];
-  const { views, ...rendered } = await buildMessageViews(createRepos(supabase), channel, [...mainRows, ...threadRows], identity.memberId, timer, { hubLinkCards: hubLinkCardsFor({ userId: user.id, identity }) });
+  const { views, ...rendered } = await buildMessageViews(createRepos(supabase), channel, [...mainRows, ...threadRows], identity.memberId, timer, { hubLinkCards: hubLinkCardsFor({ userId: user.id, identity }), authorBlocks: loadAuthorBlocks });
   const ctx = chatTextContext(rendered, channels);
   timer.log(channel.kind === "channel" ? "channel" : "group");
   // Matched to their rows by id, not by position: a deleted message with no replies has a row but no view, so the

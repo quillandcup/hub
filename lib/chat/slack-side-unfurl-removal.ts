@@ -3,6 +3,7 @@ import { createRepos } from "@/lib/data/repos";
 import type { Db } from "@/lib/data/db";
 import { normalizeLinkForMatch } from "@/lib/chat/unfurl-dedupe";
 import { safeLinkUrl } from "@/lib/chat/unfurls";
+import { removeBlockedSlackUnfurls } from "@/lib/chat/slack-unfurl-removal";
 
 /**
  * The author of a message written in the Hub removed Slack's link preview INSIDE SLACK ("remove preview"): hide the Hub's own preview of
@@ -69,6 +70,8 @@ export function removedAttachmentAddresses(previous: Record<string, unknown>, ne
 
 /** Returns how many Hub previews were hidden. */
 export async function hideHubPreviewsRemovedInSlack(supabase: SupabaseClient, incoming: IncomingSlackMessage[]): Promise<number> {
+  // Slack's card for a link its author blocked is taken off the Slack copy as it arrives (best effort, never throws; the Hub hides it on its own).
+  await removeBlockedSlackUnfurls(supabase, incoming);
   try {
     // Only a payload that is a message object can be compared; the last one wins when a batch repeats a message.
     const latest = new Map<string, IncomingSlackMessage & { raw_payload: Record<string, unknown> }>();

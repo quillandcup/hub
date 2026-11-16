@@ -26,6 +26,7 @@ All three flows call the same API endpoint: `POST /api/admin/members/merge`.
 | `member_badges` | `member_id` | Reassigned to primary; an event award the primary already has for the same event is skipped (it would show twice), hand-given awards all move (`BadgeRepository.moveAwards`) |
 | `mentorships` | `mentor_member_id`, `new_member_id` | Big Sister matches, as the big sister or as the new member, reassigned to primary. A match between the two members stays behind (it would pair a member with themselves), and one that would be a second live match for the same arrival is left with the secondary (`MentorshipRepository.moveMemberRecords`) |
 | `big_sister_volunteers` | `member_id` | The volunteer record is reassigned to primary (same method), unless the primary already has one |
+| `chat_preview_blocks` | `member_id` | The secondary's blocked link previews become primary's; a rule primary already has is not doubled |
 | `ambiguous_zoom_names` | `resolved_member_id` | Reassigned to primary |
 | `ambiguous_zoom_names` | `candidate_member_ids[]` | Secondary ID replaced in-place; deduplicated if primary already present |
 | `member_name_aliases` | `member_id` | Non-conflicting aliases reassigned; conflicting aliases dropped; secondary's name added as a new alias |
