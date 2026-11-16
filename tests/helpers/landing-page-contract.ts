@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { LandingPageSlugTakenError, type LandingPageRepository } from "@/lib/data/landing-pages";
-import type { LandingData } from "@/lib/landing/data";
+import { normalizeLandingData, type LandingData } from "@/lib/landing/data";
 
 export type LandingPageContractContext = {
   repo: () => LandingPageRepository;
@@ -51,7 +51,7 @@ export function defineLandingPageContract(name: string, setup: () => LandingPage
       const after = await ctx.repo().bySlug(slug);
       expect(after?.draft_data).toEqual(doc("second"));
       expect(after?.published_data).toEqual(doc("first"));
-      expect((await ctx.repo().published(slug))?.data).toEqual(doc("first"));
+      expect((await ctx.repo().published(slug))?.data).toEqual(normalizeLandingData(doc("first")));
       expect(await ctx.repo().saveDraft(`lpg_${"A".repeat(12)}`, doc("x"), null)).toBeNull();
     });
 
@@ -85,13 +85,13 @@ export function defineLandingPageContract(name: string, setup: () => LandingPage
       expect(versions).toHaveLength(2);
       expect(await ctx.repo().versions(page.id, 1)).toHaveLength(1);
       const oldest = versions[versions.length - 1];
-      expect(await ctx.repo().versionData(oldest.id)).toEqual(doc("one"));
+      expect(await ctx.repo().versionData(oldest.id)).toEqual(normalizeLandingData(doc("one")));
 
       const restored = await ctx.repo().restoreVersion(oldest.id);
 
       expect(restored?.draft_data).toEqual(doc("one"));
       expect(restored?.restored_from_version_id).toBe(oldest.id);
-      expect((await ctx.repo().published(slug))?.data).toEqual(doc("two"));
+      expect((await ctx.repo().published(slug))?.data).toEqual(normalizeLandingData(doc("two")));
       expect(await ctx.repo().versions(page.id)).toHaveLength(2);
       expect(await ctx.repo().restoreVersion(`lpgv_${"A".repeat(12)}`)).toBeNull();
     });
