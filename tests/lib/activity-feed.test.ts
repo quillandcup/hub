@@ -175,6 +175,18 @@ describe("describeRow", () => {
     expect(describeRow(row({ entity_type: "course_lesson_order", description: null, data: {} }))).toBe("reordered the lessons");
   });
 
+  it("reads staff moderation of a lesson comment as one sentence with the lesson, never text", () => {
+    const entry = (data: Record<string, unknown>) => row({ entity_type: "lesson_comment", description: "Lesson <1> & more", data });
+    expect(describeRow(entry({ visibility: { old: "visible", new: "hidden" }, reports_resolved: { old: 2, new: 0 } }))).toBe("hid a comment on “Lesson <1> & more”, settling its reports");
+    expect(describeRow(entry({ visibility: { old: "held", new: "hidden" } }))).toBe("hid a comment on “Lesson <1> & more”");
+    expect(describeRow(entry({ visibility: { old: "visible", new: "deleted" } }))).toBe("deleted a comment on “Lesson <1> & more”");
+    expect(describeRow(entry({ visibility: { old: "held", new: "visible" } }))).toBe("approved a held comment on “Lesson <1> & more”");
+    expect(describeRow(entry({ visibility: { old: "hidden", new: "visible" } }))).toBe("showed a hidden comment again on “Lesson <1> & more”");
+    expect(describeRow(entry({ handled: { old: false, new: true } }))).toBe("marked a question as handled on “Lesson <1> & more”");
+    expect(describeRow(entry({ reports_resolved: { old: 1, new: 0 } }))).toBe("dismissed the reports on a comment on “Lesson <1> & more”");
+    expect(describeRow(row({ entity_type: "lesson_comment", description: null, data: { visibility: { old: "visible", new: "hidden" } } }))).toBe("hid a comment");
+  });
+
   it("reads a duplicated course as one sentence with what it holds", () => {
     const data = { copied_from: { old: null, new: "crs_AAAAAAAAAAA1" }, lessons_copied: { old: null, new: 12 } };
     expect(describeRow(row({ entity_type: "course", event_type: "insert", description: "Plot Lab (copy)", data }))).toBe("duplicated a course as “Plot Lab (copy)” (12 lessons)");

@@ -116,6 +116,14 @@ export const EVENTS = {
   lesson_comment_posted: { course_id: text(24), is_reply: bool(), is_staff: bool() },
   lesson_comment_edited: { course_id: text(24) },
   lesson_comment_deleted: { course_id: text(24), is_reply: bool() },
+  /** A member sent a report (components/courses/CommentThread.tsx): the course and whether it was a reply, never the reason or whose comment. */
+  lesson_comment_reported: { course_id: text(24), is_reply: bool() },
+  /** Staff moderated a comment from the course's comments pages (app/(admin)/admin/courses/[id]/comments): the action and where, never text or a name. */
+  lesson_comment_moderated: {
+    course_id: text(24),
+    action: oneOf("hide", "unhide", "delete", "approve", "handle", "dismiss"),
+    from: oneOf("unanswered", "reported", "held"),
+  },
   lesson_comments_viewed: { course_id: text(24), count_bucket: oneOf("0", "1-5", "6-20", "21+") },
 
   /** The lesson's video started playing, once per page view (components/courses/LessonPlayer.tsx): `resumed` is whether it picked up from a saved position. */

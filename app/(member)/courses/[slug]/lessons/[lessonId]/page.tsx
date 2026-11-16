@@ -139,7 +139,7 @@ export default async function LessonPage({
   // Comments (flag `lesson_comments`): only on a lesson members can open, never on a staff preview of one that is not.
   let comments: React.ReactNode = null;
   if (!preview && (await effectiveMemberHasFeature("lesson_comments", caller.identity, await getUserFeaturePreviews(caller.userId)))) {
-    const [thread, timezonePreference] = await Promise.all([repos.courseComments.threadFor(lesson.id), getUserTimezonePreference()]);
+    const [thread, timezonePreference] = await Promise.all([repos.courseComments.threadFor(lesson.id, { memberId: caller.identity.memberId, isStaff: caller.scope.isAdminActing }), getUserTimezonePreference()]);
     comments = (
       <CommentThread
         lessonId={lesson.id}
