@@ -53,6 +53,14 @@ export const OUTCOME_ACTIONS = [
   "course_lesson_file_removed",
   "course_taken_over",
   "course_duplicated",
+  // Landing pages (the page builder)
+  "landing_page_created",
+  "landing_page_details_saved",
+  "landing_page_published",
+  "landing_page_unpublished",
+  "landing_page_version_restored",
+  "landing_page_duplicated",
+  "landing_page_deleted",
   // Chat
   "chat_message_sent",
   "chat_reaction_toggled",

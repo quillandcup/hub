@@ -3887,6 +3887,112 @@ export type Database = {
           },
         ]
       }
+      landing_page_versions: {
+        Row: {
+          created_at: string
+          data: Json
+          id: string
+          page_id: string
+          published_by: string | null
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          data: Json
+          id?: string
+          page_id: string
+          published_by?: string | null
+          title: string
+        }
+        Update: {
+          created_at?: string
+          data?: Json
+          id?: string
+          page_id?: string
+          published_by?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "landing_page_versions_page_id_fkey"
+            columns: ["page_id"]
+            isOneToOne: false
+            referencedRelation: "landing_pages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      landing_pages: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          draft_data: Json
+          first_published_at: string | null
+          id: string
+          published_at: string | null
+          published_data: Json | null
+          restored_at: string | null
+          restored_from_version_id: string | null
+          seo_description: string | null
+          seo_title: string | null
+          slug: string
+          social_image_asset_id: string | null
+          status: string
+          title: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          draft_data?: Json
+          first_published_at?: string | null
+          id?: string
+          published_at?: string | null
+          published_data?: Json | null
+          restored_at?: string | null
+          restored_from_version_id?: string | null
+          seo_description?: string | null
+          seo_title?: string | null
+          slug: string
+          social_image_asset_id?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          draft_data?: Json
+          first_published_at?: string | null
+          id?: string
+          published_at?: string | null
+          published_data?: Json | null
+          restored_at?: string | null
+          restored_from_version_id?: string | null
+          seo_description?: string | null
+          seo_title?: string | null
+          slug?: string
+          social_image_asset_id?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "landing_pages_social_image_asset_id_fkey"
+            columns: ["social_image_asset_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lesson_progress: {
         Row: {
           completed_at: string | null
@@ -8225,6 +8331,10 @@ export type Database = {
         Args: { p_bucket: string; p_max_hits: number; p_window_seconds: number }
         Returns: boolean
       }
+      publish_landing_page: {
+        Args: { p_page_id: string }
+        Returns: undefined
+      }
       recompute_course_states: {
         Args: { p_course_id: string }
         Returns: undefined
@@ -8311,6 +8421,10 @@ export type Database = {
           user_member_map: Json
         }
         Returns: Json
+      }
+      restore_landing_page_version: {
+        Args: { p_version_id: string }
+        Returns: undefined
       }
       retention_pending_user_agents: {
         Args: { p_limit?: number; p_source: string }

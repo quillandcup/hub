@@ -74,6 +74,11 @@ const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]
   ],
   [() => import("@/app/(admin)/admin/courses/take-over-actions"), "app/(admin)/admin/courses/take-over-actions.ts", [["takeOverCourse", "course_taken_over"]]],
   [() => import("@/app/(admin)/admin/courses/duplicate-actions"), "app/(admin)/admin/courses/duplicate-actions.ts", [["duplicateCourse", "course_duplicated"]]],
+  [
+    () => import("@/app/(admin)/admin/pages/actions"),
+    "app/(admin)/admin/pages/actions.ts",
+    [["createLandingPage", "landing_page_created"], ["updateLandingPageDetails", "landing_page_details_saved"], ["publishLandingPage", "landing_page_published"], ["unpublishLandingPage", "landing_page_unpublished"], ["restoreLandingPageVersion", "landing_page_version_restored"], ["duplicateLandingPage", "landing_page_duplicated"], ["deleteLandingPage", "landing_page_deleted"]],
+  ],
   [() => import("@/app/api/feedback/route"), "app/api/feedback/route.ts", [["POST", "feedback_submitted"]]],
   [() => import("@/app/api/feature-previews/route"), "app/api/feature-previews/route.ts", [["POST", "feature_preview_changed"]]],
   [() => import("@/app/api/projects/import/trackbear/route"), "app/api/projects/import/trackbear/route.ts", [["POST", "trackbear_imported"]]],

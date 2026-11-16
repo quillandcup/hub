@@ -133,6 +133,42 @@ Some people who attend prickles have no Kajabi footprint at all (not a member, t
 
 ---
 
+## Landing pages (page builder)
+
+Slice 1 is built (`docs/LANDING_PAGES.md`). What it leaves out, with why and where to start.
+
+### Landing pages: the opt-in form block, submitting to Kajabi _(Needs Scheduling, the very next PR)_
+
+Missing: a block with name, email and an optional Instagram handle, a button label, a reassurance line and either a success message or a redirect to a thank-you page. Deferred because slice 1 was already large and the submit path needs Kajabi research first. Decision (owner): during the migration the sign-ups keep going into Kajabi (mailing list, newsletter, tags and automations stay there), so the Hub stores no submission yet. Plan: an `OptInDestination` interface (`submit(form, fields): Promise<Result>`) with a Kajabi implementation now and a Hub one later, a server relay route (so the form's endpoint and ids stay out of the page and there is a honeypot, a rate limit through `RateLimitRepository` and a calm failure message), the Kajabi form chosen in the block (no ids or hosts in code; any host from `app.config.ts` or an env var per `.claude/rules/new-env-var.md`). To find out first, read-only: how a Kajabi form accepts a post that did not come from its own page (the form's embed code, its public endpoint, whether it needs a token or a browser session); if only the embed works, fall back to the embed in a sandboxed frame. Never submit a real form to the owner's account to find out; test against a mock. Privacy: no name or email in analytics events or logs. Start at `components/landing/config.tsx` (the block extension point) and `lib/analytics/events.ts`.
+
+### Landing pages: move opt-in sign-ups from Kajabi to the Hub, one piece at a time _(Idea)_
+
+Order: a Hub leads table (service role only, a repository, soft delete) written alongside Kajabi for a dual-write period; a nightly reconcile against Kajabi's contacts (a webhook alone is never enough, see CLAUDE.md "Nothing through webhooks alone"); tag and segment mapping from the Kajabi form's tags to Hub segments; then the newsletter send and automations; last, stop writing to Kajabi. Each step is its own PR; the `OptInDestination` interface above is where the Hub implementation plugs in.
+
+### Landing pages: saved sections, site-wide header and footer defaults, and thank-you page templates _(Idea)_
+
+Many existing pages are clones with small text changes (thank-yous, challenge variants, waitlists), so duplicate page is in, but a reusable section (save a Section with its blocks, insert it anywhere, update it once) and a thank-you template (heading, text, countdown or video, a button to another page) would save more. Header and footer are per-page root fields today; a site-wide default that a page can override needs a small settings table (a repository, audit) read by `PageFrame`. Start at `components/landing/config.tsx` (root) and Puck's `Data` shape.
+
+### Landing pages: popups, A/B tests, custom code and tracking pixels _(Idea)_
+
+Kajabi has popups, A/B pages and custom code. Deferred: each needs its own consent and privacy decision (custom code and pixels are third-party scripts, so they must follow the consent banner in `docs/ANALYTICS.md`), and A/B needs anonymous visitor measurement the Hub does not have. Scheduled publish (publish at a time, and unpublish at a time) is also not built; it needs a nightly or minute job that calls the same `publish_landing_page` function.
+
+### Landing pages: anonymous visit analytics and a funnel _(Needs Scoping)_
+
+`landing_page_viewed` and a funnel (visit, click, sign-up) are not built: the usage events are for signed-in members and carry a `user_id` (`docs/ANALYTICS.md`), and there is no anonymous id or cookie by design. Visitors to a public page are anonymous. Decide first what may be recorded without a sign-in and under which consent (a consent-gated, aggregate-only counter with no id, or a provider's), then declare the events in `lib/analytics/events.ts`. Until then the builder records only what admins do (`landing_page_published`, ...) through `withAction`.
+
+### Landing pages: import the existing Kajabi pages _(Idea)_
+
+Kajabi can export a page as a ZIP. Map its sections and blocks to ours (rich text, button, image, split, FAQ, countdown, card grid, link list) and import as drafts, keeping the original for comparison. A survey of the owner's 34 pages found: rich text everywhere, a call-to-action button on most, a full-width picture with a boxed text card on 14, opt-in forms on 12, bullet lists on 10, testimonials on 9, countdowns on 9, split image and text on 5, FAQs on 4, and one each of video, an embedded quiz, a book grid, a link list, a header with social icons and event rows with a price and sold-out state. Not built yet: a generic iframe embed (a strict address allowlist and a sandbox), event rows with a sold-out state, social icons in the header, Kajabi checkout and offer buttons (plain links work today), legal-page niceties such as a table of contents.
+
+### Landing pages: pictures at the right shape and size _(Needs Scheduling)_
+
+Blocks ask the media route for the existing presets (`event_hero` 1600x900, `event_card` 800x450), which crop, so a logo or a tall picture is cropped to 16:9 unless the asset's own fit is set to keep the whole picture. Add presets that keep the picture's shape (a logo at a bounded height, a page-width image) in `lib/media/presets.ts`, and ask for them in `components/landing/blocks.tsx`. Also: an asset marked public when a page is published stays public after the page is unpublished (it may be used elsewhere); a sweep that lists public assets no live page or other feature shows would close that.
+
+### Landing pages: smaller things left _(Idea)_
+
+Custom colours and fonts beyond the theme list (kept to the palette on purpose so text stays readable); per-device layout overrides (hide a block on phones); a spacing and width picker per block (only Section has one); keyboard shortcut list in the editor (undo, redo and save work); autosave conflict warning when two admins edit the same page (last write wins today); preview inside the editor matching the public render exactly requires the editor iframe to load the same stylesheet, which Puck does by copying the app's styles; the admin preview route is wrapped in the admin shell, a bare route would match the public look better.
+
 ## Data Import
 
 ### Zoom accounts: registering an account and matching by host email
