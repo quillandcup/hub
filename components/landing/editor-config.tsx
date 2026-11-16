@@ -92,6 +92,22 @@ const FIELDS: Record<string, Fields> = {
   Divider: { look: select("Style", [{ label: "Short line", value: "short" }, { label: "Full line", value: "line" }]) },
   Spacer: { size: select("Size", opts("small", "medium", "large")) },
   Video: { url: text("YouTube, Vimeo or Mux link"), title: text("Title (for screen readers)") },
+  OptInForm: {
+    kajabiFormId: text("Kajabi form (its id: Kajabi, Marketing, Forms; the sign-up goes into that form)"),
+    instagramField: select("Ask for an Instagram handle, and keep it in", [
+      { label: "Don't ask", value: "none" },
+      { label: "Kajabi custom field 1", value: "custom_1" },
+      { label: "Kajabi custom field 2", value: "custom_2" },
+      { label: "Kajabi custom field 3", value: "custom_3" },
+    ]),
+    buttonLabel: text("Button label"),
+    reassurance: text("Line under the button (for example, no spam)"),
+    successMessage: text("Message after signing up"),
+    href: text("Or go to this page after signing up (https://, or a path on this site)"),
+    look: LOOK,
+    color: COLOR,
+    shape: select("Shape", [{ label: "Pill", value: "pill" }, { label: "Rectangle", value: "rect" }]),
+  },
 };
 
 const ROOT_FIELDS: Fields = {

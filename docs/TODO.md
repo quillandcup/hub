@@ -135,15 +135,11 @@ Some people who attend prickles have no Kajabi footprint at all (not a member, t
 
 ## Landing pages (page builder)
 
-Slice 1 is built (`docs/LANDING_PAGES.md`). What it leaves out, with why and where to start.
-
-### Landing pages: the opt-in form block, submitting to Kajabi _(Needs Scheduling, the very next PR)_
-
-Missing: a block with name, email and an optional Instagram handle, a button label, a reassurance line and either a success message or a redirect to a thank-you page. Deferred because slice 1 was already large and the submit path needs Kajabi research first. Decision (owner): during the migration the sign-ups keep going into Kajabi (mailing list, newsletter, tags and automations stay there), so the Hub stores no submission yet. Plan: an `OptInDestination` interface (`submit(form, fields): Promise<Result>`) with a Kajabi implementation now and a Hub one later, a server relay route (so the form's endpoint and ids stay out of the page and there is a honeypot, a rate limit through `RateLimitRepository` and a calm failure message), the Kajabi form chosen in the block (no ids or hosts in code; any host from `app.config.ts` or an env var per `.claude/rules/new-env-var.md`). To find out first, read-only: how a Kajabi form accepts a post that did not come from its own page (the form's embed code, its public endpoint, whether it needs a token or a browser session); if only the embed works, fall back to the embed in a sandboxed frame. Never submit a real form to the owner's account to find out; test against a mock. Privacy: no name or email in analytics events or logs. Start at `components/landing/config.tsx` (the block extension point) and `lib/analytics/events.ts`.
+Slice 1 and the opt-in form block are built (`docs/LANDING_PAGES.md`). What it leaves out, with why and where to start.
 
 ### Landing pages: move opt-in sign-ups from Kajabi to the Hub, one piece at a time _(Idea)_
 
-Order: a Hub leads table (service role only, a repository, soft delete) written alongside Kajabi for a dual-write period; a nightly reconcile against Kajabi's contacts (a webhook alone is never enough, see CLAUDE.md "Nothing through webhooks alone"); tag and segment mapping from the Kajabi form's tags to Hub segments; then the newsletter send and automations; last, stop writing to Kajabi. Each step is its own PR; the `OptInDestination` interface above is where the Hub implementation plugs in.
+The opt-in form block exists and submits to Kajabi through the `OptInDestination` interface (`lib/landing/opt-in.ts`, `docs/LANDING_PAGES.md`, "Opt-in forms"); the Hub stores nothing yet. Order of the move, each step its own PR: a Hub leads table (service role only, a repository with a contract suite, soft delete, a consent record) written alongside Kajabi by a dual-write destination; a nightly reconcile against Kajabi's contacts and form submissions (`/v1/form_submissions`; a webhook alone is never enough, see CLAUDE.md "Nothing through webhooks alone"); mapping a Kajabi form's tags to Hub segments (and the block's form setting to a Hub list); the newsletter send and automations (Resend, `lib/email.ts`, with a per-list unsubscribe and double opt-in, which Kajabi does for us today); last, stop writing to Kajabi. Also open: confirm with a real, owner-run test which Kajabi custom field holds the Instagram handle (the block leaves it out by default), and what status Kajabi answers for a refused address.
 
 ### Landing pages: saved sections, site-wide header and footer defaults, and thank-you page templates _(Idea)_
 

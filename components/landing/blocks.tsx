@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { parseEmbed, safeHref } from "@/lib/landing/data";
 import Countdown, { type CountdownProps } from "./Countdown";
+import OptInForm, { type OptInFormProps } from "./OptInForm";
 import { background, pageImage, pick, PADDING, WIDTHS } from "./theme";
 
 /**
@@ -317,4 +318,14 @@ export function Video({ url, title }: VideoProps) {
       />
     </div>
   );
+}
+
+// ---- Opt-in form ---------------------------------------------------------------------------------------------
+
+export type OptInBlockProps = Omit<OptInFormProps, "buttonClass"> & { look: "solid" | "outline"; color: "plum" | "light" | "brown"; shape: "pill" | "rect" };
+
+/** A sign-up form (name, email, optional Instagram handle) that goes to Kajabi through our relay; see OptInForm. A form with no Kajabi form chosen shows nothing to visitors. */
+export function OptInFormBlock({ look, color, shape, ...props }: OptInBlockProps) {
+  if (!props.kajabiFormId?.trim()) return null;
+  return <OptInForm {...props} buttonClass={buttonClasses(look, color, shape, true)} />;
 }
