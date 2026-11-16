@@ -1,0 +1,217 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos, type Repos } from "@/lib/data/repos";
+
+const state: { admin: boolean; repos: Repos; dataset: InMemoryDataset } = { admin: true, repos: undefined as never, dataset: undefined as never };
+const revalidated: string[] = [];
+
+vi.mock("next/cache", () => ({ revalidatePath: (path: string) => revalidated.push(path) }));
+vi.mock("@/lib/analytics/server", () => ({ withAction: async (_action: string, run: () => Promise<unknown>) => run() }));
+vi.mock("@/lib/admin-auth", () => ({
+  requireAdminAction: async () => (state.admin ? { ok: true, user: { id: "00000000-0000-4000-a000-0000000000a1", email: "admin@example.test" }, supabase: {} } : { ok: false, error: "Not authorized" }),
+}));
+vi.mock("@/lib/data/repos", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/data/repos")>()), createRepos: () => state.repos }));
+
+import {
+  createLandingPage,
+  deleteLandingPage,
+  duplicateLandingPage,
+  publishLandingPage,
+  restoreLandingPageVersion,
+  saveLandingDraft,
+  unpublishLandingPage,
+  updateLandingPageDetails,
+} from "@/app/(admin)/admin/pages/actions";
+
+const title = { type: "Heading", props: { id: "h", text: "Welcome", level: "h1", align: "center" } };
+const doc = (...blocks: unknown[]) => ({ content: [title, ...blocks], root: { props: {} } });
+
+async function asset(isPublic = false) {
+  return state.repos.media.add({ storage_path: `originals/shared/${crypto.randomUUID()}.png`, mime_type: "image/png", width: 800, height: 600, bytes: 1000, sha256: crypto.randomUUID(), title: "Picture", is_public: isPublic });
+}
+
+beforeEach(() => {
+  state.admin = true;
+  state.dataset = new InMemoryDataset();
+  state.repos = createInMemoryRepos(state.dataset);
+  revalidated.length = 0;
+  vi.spyOn(console, "error").mockImplementation(() => {});
+});
+
+describe("who may use the page builder", () => {
+  it("refuses every action to someone who isn't an admin, and writes nothing", async () => {
+    state.admin = false;
+    const id = "lpg_AAAAAAAAAAA1";
+    const results = await Promise.all([
+      createLandingPage({ title: "A" }),
+      saveLandingDraft(id, doc()),
+      updateLandingPageDetails(id, { title: "A", slug: "a", seoTitle: "", seoDescription: "", socialImageAssetId: "" }),
+      publishLandingPage(id, doc()),
+      unpublishLandingPage(id),
+      restoreLandingPageVersion("lpgv_AAAAAAAAAAA1"),
+      duplicateLandingPage(id),
+      deleteLandingPage(id),
+    ]);
+    for (const result of results) expect(result).toEqual({ error: "Not authorized" });
+    expect(state.dataset.landingPages).toEqual([]);
+  });
+});
+
+describe("createLandingPage", () => {
+  it("makes a draft whose address comes from the title", async () => {
+    expect(await createLandingPage({ title: "Spring Writing Challenge" })).toEqual({ slug: "spring-writing-challenge" });
+    expect(state.dataset.landingPages[0]).toMatchObject({ title: "Spring Writing Challenge", status: "draft" });
+  });
+
+  it("refuses a missing title, a bad or reserved address and one already used", async () => {
+    expect(await createLandingPage({ title: "  " })).toEqual({ error: "Give the page a title." });
+    expect((await createLandingPage({ title: "A", slug: "Not Valid" })).error).toContain("lowercase");
+    expect((await createLandingPage({ title: "New", slug: "new" })).error).toContain("lowercase");
+    await createLandingPage({ title: "Same", slug: "same" });
+    expect(await createLandingPage({ title: "Same again", slug: "same" })).toEqual({ error: "Another page already has that address." });
+  });
+});
+
+describe("saveLandingDraft (autosave)", () => {
+  it("saves a cleaned draft and leaves what is published alone", async () => {
+    const { slug } = await createLandingPage({ title: "Page" });
+    const page = (await state.repos.landingPages.bySlug(slug!))!;
+
+    const saved = await saveLandingDraft(page.id, doc({ type: "RichText", props: { id: "r", html: "<p>Hi</p><script>x</script>", align: "left" } }));
+
+    expect(saved.savedAt).toEqual(expect.any(String));
+    const after = (await state.repos.landingPages.bySlug(slug!))!;
+    expect(JSON.stringify(after.draft_data)).toContain("<p>Hi</p>");
+    expect(JSON.stringify(after.draft_data)).not.toContain("script");
+    expect(after.published_data).toBeNull();
+    expect(revalidated).not.toContain(`/p/${slug}`);
+  });
+
+  it("refuses an id that isn't a page's, a page that is gone and a document that is too large", async () => {
+    expect((await saveLandingDraft("not-an-id", doc())).error).toContain("no longer exists");
+    expect((await saveLandingDraft("lpg_AAAAAAAAAAA1", doc())).error).toContain("no longer exists");
+    const { slug } = await createLandingPage({ title: "Page" });
+    const page = (await state.repos.landingPages.bySlug(slug!))!;
+    expect((await saveLandingDraft(page.id, { content: [{ type: "RichText", props: { html: "x".repeat(2_100_000) } }], root: {} })).error).toContain("too large");
+  });
+
+  it("reports a failure calmly, without the database's words", async () => {
+    const { slug } = await createLandingPage({ title: "Page" });
+    const page = (await state.repos.landingPages.bySlug(slug!))!;
+    vi.spyOn(state.repos.landingPages, "saveDraft").mockRejectedValueOnce(new Error('relation "landing_pages" does not exist'));
+    const result = await saveLandingDraft(page.id, doc());
+    expect(result.error).toBe("Couldn't save. Your changes are still here; trying again.");
+    expect(result.error).not.toContain("relation");
+  });
+});
+
+describe("publishLandingPage", () => {
+  async function pageWith(_unused: null) {
+    const { slug } = await createLandingPage({ title: "Page" });
+    return { slug: slug!, id: (await state.repos.landingPages.bySlug(slug!))!.id };
+  }
+
+  it("goes live with the draft the editor is showing, keeps a version and makes the pictures public", async () => {
+    const picture = await asset();
+    const social = await asset();
+    const { slug, id } = await pageWith(null);
+    await updateLandingPageDetails(id, { title: "Page", slug, seoTitle: "", seoDescription: "", socialImageAssetId: social.id });
+
+    const result = await publishLandingPage(id, doc({ type: "Image", props: { id: "i", imageAssetId: picture.id, alt: "A picture", decorative: false } }));
+
+    expect(result.error).toBeUndefined();
+    expect(result.publishedAt).toEqual(expect.any(String));
+    const page = (await state.repos.landingPages.bySlug(slug))!;
+    expect(page.status).toBe("published");
+    expect(JSON.stringify(page.published_data)).toContain(picture.id);
+    expect(await state.repos.landingPages.versions(id)).toHaveLength(1);
+    expect((await state.repos.media.byId(picture.id))?.is_public).toBe(true);
+    expect((await state.repos.media.byId(social.id))?.is_public).toBe(true);
+    expect(revalidated).toContain(`/p/${slug}`);
+  });
+
+  it("stops on problems a visitor couldn't work around, and publishes nothing", async () => {
+    const { slug, id } = await pageWith(null);
+    const result = await publishLandingPage(id, doc({ type: "Image", props: { id: "i", imageAssetId: "media_AAAAAAAAAAA1", alt: "", decorative: false } }));
+    expect(result.error).toBe("Fix these before publishing.");
+    expect(result.issues?.some((i) => i.severity === "error")).toBe(true);
+    expect((await state.repos.landingPages.bySlug(slug))?.status).toBe("draft");
+    expect(await state.repos.landingPages.versions(id)).toEqual([]);
+  });
+
+  it("lets warnings through and reports them", async () => {
+    const { id } = await pageWith(null);
+    const result = await publishLandingPage(id, doc({ type: "Button", props: { id: "b", label: "Click here", href: "https://example.com", look: "solid" } }));
+    expect(result.error).toBeUndefined();
+    expect(result.issues?.map((i) => i.severity)).toEqual(["warning"]);
+  });
+
+  it("refuses a page that is gone", async () => {
+    expect((await publishLandingPage("lpg_AAAAAAAAAAA1", doc())).error).toContain("no longer exists");
+  });
+});
+
+describe("unpublish, restore, duplicate and delete", () => {
+  async function published() {
+    const { slug } = await createLandingPage({ title: "Page", slug: "page" });
+    const id = (await state.repos.landingPages.bySlug(slug!))!.id;
+    await publishLandingPage(id, doc());
+    return id;
+  }
+
+  it("takes a page off the public site", async () => {
+    const id = await published();
+    expect(await unpublishLandingPage(id)).toEqual({ slug: "page" });
+    expect(await state.repos.landingPages.published("page")).toBeNull();
+    expect(revalidated).toContain("/p/page");
+  });
+
+  it("brings an earlier version back into the draft without publishing it", async () => {
+    const id = await published();
+    await saveLandingDraft(id, doc({ type: "Spacer", props: { id: "s", size: "large" } }));
+    await publishLandingPage(id, doc({ type: "Spacer", props: { id: "s", size: "large" } }));
+    const versions = await state.repos.landingPages.versions(id);
+    const oldest = versions[versions.length - 1];
+
+    expect(await restoreLandingPageVersion(oldest.id)).toEqual({ slug: "page" });
+
+    const page = (await state.repos.landingPages.bySlug("page"))!;
+    expect(JSON.stringify(page.draft_data)).not.toContain("Spacer");
+    expect(JSON.stringify(page.published_data)).toContain("Spacer");
+    expect((await restoreLandingPageVersion("nope")).error).toContain("no longer exists");
+  });
+
+  it("copies a page as a new draft with a free address, again and again", async () => {
+    const id = await published();
+    const first = await duplicateLandingPage(id);
+    const second = await duplicateLandingPage(id);
+    expect([first.slug, second.slug]).toEqual(["page-copy", "page-copy-2"]);
+    const copy = (await state.repos.landingPages.bySlug("page-copy"))!;
+    expect(copy).toMatchObject({ title: "Page (copy)", status: "draft", published_data: null });
+  });
+
+  it("deletes a page, which frees its address and removes it from the public site", async () => {
+    const id = await published();
+    expect(await deleteLandingPage(id)).toEqual({});
+    expect(await state.repos.landingPages.published("page")).toBeNull();
+    expect(await state.repos.landingPages.bySlug("page")).toBeNull();
+    expect((await deleteLandingPage(id)).error).toContain("no longer exists");
+    expect(await createLandingPage({ title: "Page", slug: "page" })).toEqual({ slug: "page" });
+  });
+});
+
+describe("updateLandingPageDetails", () => {
+  it("changes the title, address and search details, and refuses an address in use", async () => {
+    await createLandingPage({ title: "One", slug: "one" });
+    await createLandingPage({ title: "Two", slug: "two" });
+    const id = (await state.repos.landingPages.bySlug("one"))!.id;
+
+    expect(await updateLandingPageDetails(id, { title: "Uno", slug: "uno", seoTitle: " Search ", seoDescription: "", socialImageAssetId: "" })).toEqual({ slug: "uno" });
+    expect(await state.repos.landingPages.bySlug("uno")).toMatchObject({ title: "Uno", seo_title: "Search", seo_description: null });
+    expect(revalidated).toEqual(expect.arrayContaining(["/p/one", "/p/uno"]));
+
+    expect((await updateLandingPageDetails(id, { title: "Uno", slug: "two", seoTitle: "", seoDescription: "", socialImageAssetId: "" })).error).toContain("already has that address");
+    expect((await updateLandingPageDetails(id, { title: "", slug: "uno", seoTitle: "", seoDescription: "", socialImageAssetId: "" })).error).toContain("title");
+    expect((await updateLandingPageDetails(id, { title: "x", slug: "Bad Slug", seoTitle: "", seoDescription: "", socialImageAssetId: "" })).error).toContain("lowercase");
+  });
+});

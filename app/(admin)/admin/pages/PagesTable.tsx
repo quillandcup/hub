@@ -1,0 +1,121 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { DataTablePager } from "@/components/DataTablePager";
+import { DataTableSearch } from "@/components/DataTableSearch";
+import { SortableTh } from "@/components/SortableTh";
+import { useDataTable } from "@/lib/hooks/useDataTable";
+import type { LandingPageSummary } from "@/lib/data/landing-pages";
+import { deleteLandingPage, duplicateLandingPage } from "./actions";
+import StatusChip from "./StatusChip";
+
+type Column = "title" | "status" | "updated";
+
+const ACTION = "rounded px-2 py-1 text-sm text-plum-700 hover:bg-plum-50 dark:text-plum-300 dark:hover:bg-slate-800";
+
+export default function PagesTable({ pages, publicBase }: { pages: LandingPageSummary[]; publicBase: string }) {
+  const router = useRouter();
+  const [message, setMessage] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+  const table = useDataTable<LandingPageSummary, Column>({
+    rows: pages,
+    search: (p) => `${p.title} ${p.slug} ${p.status}`,
+    getSortValue: (p, column) => (column === "title" ? p.title.toLowerCase() : column === "status" ? p.status : Date.parse(p.updated_at)),
+    defaultSort: { column: "updated", direction: "desc" },
+  });
+
+  async function copyLink(slug: string) {
+    try {
+      await navigator.clipboard.writeText(`${publicBase}/p/${slug}`);
+      setMessage("Link copied.");
+    } catch {
+      setMessage(`${publicBase}/p/${slug}`);
+    }
+  }
+
+  function run(task: () => Promise<{ error?: string; slug?: string }>, then?: (slug?: string) => void) {
+    setMessage(null);
+    startTransition(async () => {
+      const result = await task();
+      if (result.error) return setMessage(result.error);
+      if (then) then(result.slug);
+      else router.refresh();
+    });
+  }
+
+  return (
+    <div>
+      <div className="mb-3 flex flex-wrap items-center gap-3">
+        <DataTableSearch table={table} label="Search pages" />
+        {message && (
+          <p role="status" className="text-sm text-slate-700 dark:text-slate-300">
+            {message}
+          </p>
+        )}
+      </div>
+      {pages.length === 0 ? (
+        <p className="rounded-lg bg-white p-6 text-sm text-slate-600 shadow dark:bg-slate-900 dark:text-slate-400">No pages yet. Make the first one with New page.</p>
+      ) : (
+        <div className="overflow-x-auto rounded-lg bg-white shadow dark:bg-slate-900">
+          <table className="w-full text-left text-sm">
+            <thead className="border-b border-slate-200 dark:border-slate-800">
+              <tr>
+                <SortableTh label="Page" {...table.sortProps("title")} />
+                <SortableTh label="Status" {...table.sortProps("status")} />
+                <SortableTh label="Changed" {...table.sortProps("updated")} />
+                <th className="px-6 py-3" />
+              </tr>
+            </thead>
+            <tbody>
+              {table.rows.map((p) => (
+                <tr key={p.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
+                  <td className="px-6 py-3">
+                    <Link href={`/admin/pages/${p.slug}`} className="font-medium text-plum-700 hover:underline dark:text-plum-300">
+                      {p.title}
+                    </Link>
+                    <span className="block text-xs text-slate-600 dark:text-slate-400">/p/{p.slug}</span>
+                  </td>
+                  <td className="px-6 py-3">
+                    <StatusChip status={p.status} />
+                  </td>
+                  <td className="px-6 py-3 text-slate-600 dark:text-slate-400">
+                    <time dateTime={p.updated_at}>{new Date(p.updated_at).toLocaleString()}</time>
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-3 text-right">
+                    <Link href={`/admin/pages/${p.slug}`} className={ACTION}>
+                      Customize
+                    </Link>
+                    <Link href={`/admin/pages/${p.slug}/preview`} className={ACTION}>
+                      Preview
+                    </Link>
+                    {p.status === "published" && (
+                      <button type="button" onClick={() => void copyLink(p.slug)} className={ACTION}>
+                        Copy link
+                      </button>
+                    )}
+                    <button type="button" disabled={pending} onClick={() => run(() => duplicateLandingPage(p.id), (slug) => router.push(`/admin/pages/${slug}`))} className={ACTION}>
+                      Duplicate
+                    </button>
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() => {
+                        if (window.confirm(`Delete “${p.title}”? ${p.status === "published" ? "It disappears from the public site." : ""}`.trim())) run(() => deleteLandingPage(p.id));
+                      }}
+                      className={`${ACTION} text-red-700 dark:text-red-400`}
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <DataTablePager table={table} itemLabel="pages" />
+    </div>
+  );
+}

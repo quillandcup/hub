@@ -166,12 +166,14 @@ export async function updateSession(request: NextRequest) {
   // /privacy is the public privacy policy.
   // /unsubscribe and /verify-email are authorized by the signed token in their link
   // (lib/email-unsubscribe.ts, lib/email-verification.ts).
+  // /p/<slug> is a published landing page (docs/LANDING_PAGES.md): the route itself 404s anything that isn't published.
   // API routes handle their own auth via requireAdmin/createApiAuth
   const isPublic =
     pathname === '/login' ||
     pathname === '/unsubscribe' ||
     pathname === '/verify-email' ||
     pathname === '/privacy' ||
+    pathname.startsWith('/p/') ||
     pathname.startsWith('/auth/') ||
     pathname.startsWith('/api/')
 

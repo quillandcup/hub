@@ -150,6 +150,7 @@ export const SITE_PAGES: SitePage[] = [
   admin({ title: "Badges", href: "/admin/badges", section: "Community", nav: { icon: "🏅" } }),
   admin({ title: "Hosts", href: "/admin/hosts", section: "Accountability", nav: { icon: "🎙️" } }),
   admin({ title: "Events", href: "/admin/events", section: "Community", nav: { icon: "📸" } }),
+  admin({ title: "Pages", href: "/admin/pages", section: "Sales & Marketing", nav: { icon: "📄", activeFor: ["/admin/pages/"] }, keywords: ["landing", "page builder", "website", "opt-in", "funnel"] }),
   admin({ title: "Media", href: "/admin/media", section: "Community", nav: { icon: "🖼️" }, keywords: ["images", "photos", "covers", "library", "upload"] }),
   admin({ title: "Community Stats", href: "/admin/stats", section: "Analytics", nav: { icon: "✨" }, communityManager: true }),
   admin({ title: "Prickle Insights", href: "/admin/insights/prickles", section: "Accountability", nav: { icon: "✍️" } }),

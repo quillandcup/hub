@@ -150,3 +150,35 @@ html[data-animations="off"] *::after {
   transition: none !important;
   scroll-behavior: auto !important;
 }
+
+/* Landing page sections with "Fade in" on (components/landing): only for visitors who haven't asked for less motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .landing-fade-in {
+    animation: landing-fade-in 0.7s ease-out both;
+  }
+}
+@keyframes landing-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The page builder editor (app/(admin)/admin/pages/[slug]): Puck accent colours follow the theme plum. */
+.landing-editor {
+  --puck-color-azure-01: theme("colors.plum.950");
+  --puck-color-azure-02: theme("colors.plum.900");
+  --puck-color-azure-03: theme("colors.plum.800");
+  --puck-color-azure-04: theme("colors.plum.700");
+  --puck-color-azure-05: theme("colors.plum.600");
+  --puck-color-azure-06: theme("colors.plum.400");
+  --puck-color-azure-07: theme("colors.plum.300");
+  --puck-color-azure-08: theme("colors.plum.200");
+  --puck-color-azure-09: theme("colors.plum.100");
+  --puck-color-azure-10: theme("colors.plum.50");
+  --puck-color-azure-11: theme("colors.plum.50");
+}

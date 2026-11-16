@@ -218,6 +218,9 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   slack_sign_in_tokens: [],
   analytics_events: [],
   calendar_watch_channels: [],
+  // Landing pages from the page builder (LandingPageRepository): every query is in the repository.
+  landing_pages: [],
+  landing_page_versions: [],
 };
 
 /**
