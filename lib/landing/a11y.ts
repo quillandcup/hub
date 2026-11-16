@@ -70,6 +70,10 @@ export function checkLandingPage(value: unknown): A11yIssue[] {
       case "Countdown":
         if (!str(p.targetAt)) issues.push({ severity: "error", block: "Countdown", message: "The countdown has no date." });
         break;
+      case "OptInForm":
+        if (!str(p.kajabiFormId)) issues.push({ severity: "error", block: "Sign-up form", message: "The sign-up form has no Kajabi form chosen, so it would not show." });
+        if (!str(p.buttonLabel)) issues.push({ severity: "warning", block: "Sign-up form", message: "The sign-up button has no label." });
+        break;
       case "Video":
         if (str(p.url) && !parseEmbed(p.url)) issues.push({ severity: "error", block: "Video", message: "This video link isn't from YouTube, Vimeo or Mux, so it can't be shown." });
         if (str(p.url) && !str(p.title)) issues.push({ severity: "warning", block: "Video", message: "Give the video a title for screen readers." });

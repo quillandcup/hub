@@ -241,6 +241,25 @@ export class KajabiClient {
     return token;
   }
 
+  /**
+   * Submit a Kajabi form on someone's behalf (`POST /v1/forms/{id}/submit`). Returns the HTTP status and nothing from
+   * the response: the body can echo the visitor's name and email, so it is never read, logged or thrown.
+   */
+  async submitForm(formId: string, attributes: Record<string, string>): Promise<number> {
+    const token = await this.getAccessToken();
+    const response = await outboundFetch(
+      `${KAJABI_API_BASE}/v1/forms/${encodeURIComponent(formId)}/submit`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/vnd.api+json', Accept: 'application/vnd.api+json' },
+        body: JSON.stringify({ data: { type: 'form_submissions', attributes } }),
+      },
+      'opt-in'
+    );
+    await response.body?.cancel().catch(() => undefined);
+    return response.status;
+  }
+
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${KAJABI_API_BASE}${endpoint}`;
     const token = await this.getAccessToken();

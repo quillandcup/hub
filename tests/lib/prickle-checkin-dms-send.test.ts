@@ -642,7 +642,7 @@ describe("sendTestCheckinDM", () => {
     setup();
     saveCheckin("m1", answered);
 
-    expect(await sendTestCheckinDM(repos, "m1", PRICKLE_REF, "prickle_checkin")).toEqual({ delivered: ["slack"] });
+    expect(await sendTestCheckinDM(repos, "m1", PRICKLE_REF, "prickle_checkin")).toEqual({ delivered: ["slack"], skipped: ["email"], failed: [] });
 
     const dm = sendSlackDM.mock.calls[0][0];
     expect(dm.slackUserId).toBe("U-m1");
@@ -656,7 +656,7 @@ describe("sendTestCheckinDM", () => {
   it("sends the check-out with a quick-log for only that member's goals", async () => {
     setup();
 
-    expect(await sendTestCheckinDM(repos, "m1", PRICKLE_REF, "prickle_checkout")).toEqual({ delivered: ["slack"] });
+    expect(await sendTestCheckinDM(repos, "m1", PRICKLE_REF, "prickle_checkout")).toEqual({ delivered: ["slack"], skipped: ["email"], failed: [] });
 
     const dm = sendSlackDM.mock.calls[0][0];
     expect(dm.text).toBe("[Test] Checking out of Progress Prickle: did you get what you came for?");
@@ -685,10 +685,22 @@ describe("sendTestCheckinDM", () => {
     expect(sendSlackDM).not.toHaveBeenCalled();
   });
 
+  it("reports a channel that had an address but failed, next to the one that went out", async () => {
+    reset([PRICKLE], [{ id: "host", name: "Host Example" }, { id: "m1", name: "Ada Example", email: "alice@example.com" }, { id: "m2", name: "Bea Example" }]);
+    setup();
+    sendSlackDM.mockRejectedValueOnce(new Error("slack down"));
+
+    expect(await sendTestCheckinDM(repos, "m1", PRICKLE_REF, "prickle_checkin")).toEqual({
+      delivered: ["email"],
+      skipped: [],
+      failed: ["slack"],
+    });
+  });
+
   it("sends even when the admin turned that kind off: they just asked for it", async () => {
     setup();
     dataset.notificationPreferences.push(optIn("m1", "prickle_checkin", "slack", false));
-    expect(await sendTestCheckinDM(repos, "m1", PRICKLE_REF, "prickle_checkin")).toEqual({ delivered: ["slack"] });
+    expect(await sendTestCheckinDM(repos, "m1", PRICKLE_REF, "prickle_checkin")).toEqual({ delivered: ["slack"], skipped: ["email"], failed: [] });
     expect(sendSlackDM).toHaveBeenCalledTimes(1);
   });
 
@@ -698,6 +710,8 @@ describe("sendTestCheckinDM", () => {
 
     expect(await sendTestCheckinDM(repos, "m1", PRICKLE_REF, "prickle_checkout")).toEqual({
       delivered: ["slack", "email"],
+      skipped: [],
+      failed: [],
     });
     const email = sendEmail.mock.calls[0][0];
     expect(email.to).toBe("alice@example.com");

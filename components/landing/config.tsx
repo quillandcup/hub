@@ -11,6 +11,7 @@ import {
   Image,
   LinkList,
   List,
+  OptInFormBlock,
   RichText,
   Section,
   Spacer,
@@ -24,7 +25,7 @@ import { pageImage } from "./theme";
  * The block set and the page frame, with no editor-only parts: the public page renders `data` through this (on the
  * server), and the editor builds its own config from it by adding each block's fields (editor-config.tsx). A new
  * block is: a component in blocks.tsx, an entry here with its default props, and its fields in editor-config.tsx.
- * See docs/LANDING_PAGES.md, "Adding a block". The sign-up form block (slice 2) is an entry here too.
+ * See docs/LANDING_PAGES.md, "Adding a block".
  */
 
 // Puck types each component's props from its config; our blocks are plain components, so they are registered loosely.
@@ -117,6 +118,7 @@ export const BLOCK_DEFAULTS = {
   Divider: { look: "short" },
   Spacer: { size: "medium" },
   Video: { url: "", title: "" },
+  OptInForm: { kajabiFormId: "", instagramField: "none", buttonLabel: "Sign me up", reassurance: "No spam. Unsubscribe any time.", successMessage: "Thank you! Please check your email.", href: "", look: "solid", color: "plum", shape: "pill" },
 } as const;
 
 export const BLOCK_LABELS: Record<keyof typeof BLOCK_DEFAULTS, string> = {
@@ -135,6 +137,7 @@ export const BLOCK_LABELS: Record<keyof typeof BLOCK_DEFAULTS, string> = {
   Divider: "Divider",
   Spacer: "Spacer",
   Video: "Video",
+  OptInForm: "Sign-up form",
 };
 
 const RENDERERS: Record<keyof typeof BLOCK_DEFAULTS, (props: never) => ReactNode> = {
@@ -153,6 +156,7 @@ const RENDERERS: Record<keyof typeof BLOCK_DEFAULTS, (props: never) => ReactNode
   Divider: Divider as never,
   Spacer: Spacer as never,
   Video: Video as never,
+  OptInForm: OptInFormBlock as never,
 };
 
 const SECTION_DEFAULTS = { ...BLOCK_DEFAULTS.Section, content: [] };
@@ -176,6 +180,6 @@ export const renderConfig = {
   categories: {
     layout: { title: "Layout", components: ["Section", "Split", "CardGrid", "Divider", "Spacer"] },
     content: { title: "Content", components: ["Heading", "RichText", "List", "Image", "Video", "Testimonials", "Faq", "Countdown"] },
-    links: { title: "Links", components: ["Button", "LinkList"] },
+    links: { title: "Links", components: ["Button", "LinkList", "OptInForm"] },
   },
 } satisfies Config;
