@@ -23,7 +23,7 @@ INSERT INTO public.landing_pages (id, slug, title, draft_data) VALUES
   ('lpg_PagesTest0002', 'pgtap-pages-two', 'Page Two', '{"content": [], "root": {}}');
 
 CREATE TEMP TABLE result(label text, value jsonb) ON COMMIT DROP;
-GRANT INSERT ON result TO authenticated, anon;
+GRANT INSERT ON result TO authenticated, anon, service_role;
 
 CREATE FUNCTION pg_temp.refused(sql text) RETURNS boolean LANGUAGE plpgsql AS $$
 BEGIN
