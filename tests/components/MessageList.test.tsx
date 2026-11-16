@@ -48,7 +48,7 @@ describe("MessageList", () => {
   it("keeps a day's label over the messages' cards and buttons, and over the later labels while its jump menu is open", async () => {
     const days = [view(1), view(2, { createdAt: new Date(Date.UTC(2026, 9, 5, 12)).toISOString() })];
     render(<MessageList channelId="c1" views={days} ctx={CTX} olderBefore={null} />);
-    const [first] = screen.getAllByRole("separator");
+    const first = screen.getAllByRole("region")[0].firstElementChild as HTMLElement;
     expect(first.className).toContain("z-sticky");
     expect(first.className).toContain("has-[[aria-expanded=true]]:z-dropdown");
     await userEvent.click(within(first).getByRole("button"));
@@ -188,10 +188,10 @@ describe("MessageList days and hover", () => {
   it("puts a day marker before each day's messages, in the reader's time zone", () => {
     const views = [at("2026-10-08T03:30:00Z", 1), at("2026-10-08T05:00:00Z", 2)];
     const { unmount } = render(<MessageList channelId="c1" views={views} ctx={CTX} olderBefore={null} timeZone="America/New_York" />);
-    expect(screen.getAllByRole("separator").map((s) => s.getAttribute("aria-label"))).toEqual(["Wednesday, October 7th", "Thursday, October 8th"]);
+    expect(screen.getAllByRole("region").map((s) => s.getAttribute("aria-label"))).toEqual(["Wednesday, October 7th", "Thursday, October 8th"]);
     unmount();
     render(<MessageList channelId="c1" views={views} ctx={CTX} olderBefore={null} timeZone="UTC" />);
-    expect(screen.getAllByRole("separator").map((s) => s.getAttribute("aria-label"))).toEqual(["Thursday, October 8th"]);
+    expect(screen.getAllByRole("region").map((s) => s.getAttribute("aria-label"))).toEqual(["Thursday, October 8th"]);
   });
 
   it("shows times in the reader's zone and a follow-up without its own name", () => {

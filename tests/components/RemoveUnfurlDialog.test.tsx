@@ -130,6 +130,8 @@ describe("the Remove preview dialog", () => {
     expect(refresh).not.toHaveBeenCalled();
     // And it can be tried again.
     hideChatUnfurl.mockResolvedValue({ ok: true, slack: "not_needed", blocked: true });
+    // The button is back once the refused attempt has settled; a click before that is ignored.
+    await waitFor(() => expect(screen.getByRole("button", { name: "Remove and Block" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Remove and Block" }));
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });

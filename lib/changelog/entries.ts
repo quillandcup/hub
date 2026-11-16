@@ -137,6 +137,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "The conversation stays unread while you're in it and when you leave, so you can read on and still find your place later. It only marks your own view, so nobody else sees a change.",
       "If you've connected Slack, the message looks unread there too.",
     ].join("\n\n"),
+    image: { src: "/changelog/mark-unread-in-hub-chat/01-mark-unread-menu.webp", alt: "A message's More actions menu in Hub Chat, with Mark unread at the top" },
   },
   {
     slug: "more-than-one-zoom-account",
@@ -173,6 +174,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "- **Tap the ✕** to hide it until you open the conversation again.",
       "- It goes away by itself once the \"New\" line is on screen. The number is every message from the \"New\" line down, including any you wrote yourself, counted when you opened the conversation. It doesn't change as more messages arrive.",
     ].join("\n\n"),
+    image: { src: "/changelog/chat-new-messages-banner/01-new-messages-pill.webp", alt: "A conversation in Hub Chat with a small label at the top reading 5 new messages" },
   },
   {
     slug: "direct-messages-in-hub-chat",
@@ -2768,6 +2770,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "The conversation opens on the first message of that day. If nothing was posted that day, it opens on the next day that has messages, and tells you so. A Jump to latest link takes you back to the newest messages, and Show newer messages carries on from where the page ends.",
       "Days follow your own time zone setting. Looking back this way does not mark the conversation as read.",
     ].join("\n\n"),
+    image: { src: "/changelog/chat-jump-to-a-day/01-jump-to-menu.webp", alt: "The Jump to menu opened from a day label, listing Today, Yesterday, Last week, Last month, The very beginning and a specific date" },
   },
   {
     slug: "chat-apps-section",
@@ -2777,5 +2780,6 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     title: "Apps now have their own place in the chat list",
     summary: "In Hub Chat, your private messages with apps like Billie Bot, our Slack helper, now sit under their own Apps heading, apart from the people you talk to.",
     body: "Your chat list now has an Apps heading under Direct messages. A conversation with an app shows under the app's name instead of a plain \"Direct message\", so the list under Direct messages is only people.",
+    image: { src: "/changelog/chat-apps-section/01-apps-heading.webp", alt: "The Hub Chat sidebar with an Apps heading under Direct messages, holding Billie Bot" },
   },
 ];
