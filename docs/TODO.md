@@ -342,6 +342,9 @@ Production (2026-11-10): lesson thumbnails are all copied into the media library
 
 ## Infrastructure & Deployment
 
+### Repoint `CLAUDE.md, "<Section>"` References at the Rule Files
+`CLAUDE.md` was split into path-scoped files in `.claude/rules/` (the root keeps commands, layout, universal rules and an index). About 60 code comments and docs still say `CLAUDE.md, "Display Names"` and the like. They still resolve, since each section kept its heading and the root says so, but a reader opening `CLAUDE.md` finds an index instead. Deferred to keep the split a docs-only change (comment edits in `lib/` and `app/` run the full CI). Where to start: `grep -rn "CLAUDE.md" lib app components tests docs`, replace each with the file that holds the section (the index table in `CLAUDE.md` lists them), and drop the pointer sentence from the root once none are left.
+
 ### A Docs-Only Merge Can Leave an Earlier Code Merge Undeployed
 A code PR can merge, never deploy, and the `main` run that replaced it still report success. Seen on the video stats modal follow-up: the code merge's `main` run was cancelled when a docs-only PR (a `CLAUDE.md` edit) merged right after it, and the docs-only run succeeded with every test, migration and deploy job skipped, so the `production` tag stayed on an earlier commit. Two things combine:
 - `main` runs queue one at a time and a run still waiting is cancelled when a newer merge lands (`concurrency` in `.github/workflows/ci.yml`; `ship-via-pr.md`, step 7).
