@@ -27,6 +27,11 @@ import { PlayerTimeProvider, TimedLessonPlayer } from "@/components/courses/Play
 import MarkCompleteButton from "../../../MarkCompleteButton";
 import NextLessonPreview from "../../../NextLessonPreview";
 import { createRepos } from "@/lib/data/repos";
+import CommentThread from "@/components/courses/CommentThread";
+import { getUserTimezonePreference } from "@/lib/timezone";
+import { isValidTimeZone } from "@/lib/time-zone";
+import { ORG_TIMEZONE } from "@/lib/config";
+import { clock } from "@/lib/clock";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string; lessonId: string }> }): Promise<Metadata> {
   const { slug, lessonId } = await params;
@@ -129,6 +134,25 @@ export default async function LessonPage({
     if (await effectiveMemberHasFeature("chat_videos", caller.identity, own)) {
       shareButton = <CopyLessonLink url={`${APP_URL}${lessonPath(view.course.slug, lesson.id)}`} />;
     }
+  }
+
+  // Comments (flag `lesson_comments`): only on a lesson members can open, never on a staff preview of one that is not.
+  let comments: React.ReactNode = null;
+  if (!preview && (await effectiveMemberHasFeature("lesson_comments", caller.identity, await getUserFeaturePreviews(caller.userId)))) {
+    const [thread, timezonePreference] = await Promise.all([repos.courseComments.threadFor(lesson.id), getUserTimezonePreference()]);
+    comments = (
+      <CommentThread
+        lessonId={lesson.id}
+        courseId={view.course.id}
+        entries={thread.entries}
+        count={thread.count}
+        currentMemberId={caller.identity.memberId}
+        isStaff={caller.scope.isAdminActing}
+        readOnly={caller.identity.isSudo}
+        timeZone={isValidTimeZone(timezonePreference) ? timezonePreference : ORG_TIMEZONE}
+        nowMs={clock.now()}
+      />
+    );
   }
 
   let player: React.ReactNode = null;
@@ -295,6 +319,8 @@ export default async function LessonPage({
               <LessonDownloads slug={view.course.slug} lessonId={lesson.id} files={files} />
             </div>
           )}
+
+          {comments && <div className="mt-6 @outline:col-start-1 @outline:mr-8">{comments}</div>}
         </div>
         </PlayerTimeProvider>
         </LessonCompletionProvider>

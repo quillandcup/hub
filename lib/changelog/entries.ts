@@ -65,6 +65,21 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     body: "Kajabi's landing pages are moving into the Hub. A page is Puck's JSON, edited in a shell of ours and rendered by the same blocks in the editor and on the public route, so the preview is the page. Autosave writes only the draft; publishing runs accessibility checks, keeps a version and makes the page's pictures public, so an edit never goes live by accident and an earlier version can be brought back.\n\nThe rules to follow: a page's id never appears in a URL (the address is the slug); rich text is cleaned to an allowlist on save and again before every public render; props named `*AssetId`, `href`, `url` and `html` are picture ids, links and rich text everywhere, so one set of helpers covers any block; only a signed-in admin reads the tables, and the public route reads published pages with the service role. A block is a component, its defaults and its fields, with container-query layout. How to add one, the model and the checks: `docs/LANDING_PAGES.md`.",
   },
   {
+    slug: "lesson-comments-foundation",
+    date: "2026-11-15",
+    audience: "engineering",
+    category: "improved",
+    title: "Lesson comments: the thread, behind a flag",
+    summary: "Course lessons can carry a comment thread: a repository for it, access rules in the database, and a shared thread component. It is off for everyone until the flag is switched on.",
+    body: `Members with access to a course can ask questions under an open lesson, and staff answer where they were asked. Everything is behind the \`lesson_comments\` flag.
+
+- **Data.** One repository (\`CourseCommentRepository\`, with an in-memory twin) owns the queries and builds the thread: questions newest first, replies oldest first, a "Comment removed" placeholder only when replies hang under it. Access follows the lesson: current course access, lesson open, and read-only while an admin previews as a member. The database also enforces the one-level threading and the 15-minute edit window, so a direct client can't get around the actions.
+- **Writes.** Server actions check the flag, the lesson, sudo and rate limits, and keep the text out of analytics and logs.
+- **UI.** \`CommentThread\` renders plain text and links only http(s) addresses.
+
+Moderation, notifications and the Kajabi import are later phases: see "Lesson comments" in \`docs/COURSES.md\`.`,
+  },
+  {
     slug: "course-video-playback-quality-in-mux-data",
     date: "2026-11-15",
     audience: "engineering",
@@ -352,7 +367,8 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
       "**Owners and hand-overs.** A new plan is owned by whoever starts it; if someone else cared for that member before, the start form says so. A plan changes hands only when the other person agrees: the owner (or an admin, for an owner who is gone) offers it to another admin or community manager with **Hand over to…**, and it waits, showing \"Waiting for\" their name \"to accept\" until they answer. The receiver finds it under **Waiting for you** at the top of Active and Earlier and accepts or declines; the plan stays with its owner until then, and an offer can be cancelled. Accepting also starts reading the new owner's own DM with that member. A plan whose owner's account was removed can be taken by anyone who looks after care plans. The receiver hears about an offer on this page only for now. Both tabs still filter by Mine or Everyone.",
       "**On every plan** you see the member's engagement score and tier when the plan started and now, and when they last took part in the community and in what (a prickle, a Slack message or reaction, a lesson, a writing log; never a login).",
       "**Results** (the button on a plan) set the member's own activity before the plan, during it and 30 to 60 days after it ends: distinct prickles attended, Slack messages, whether their first prickle or first Slack post fell in the window, and how many other members they connected with. It also says whether they were active, on hiatus or cancelled 60, 90 and 180 days after the plan, when they first went on hiatus or left, the programs they hold and how long each runs, and the programs they started. These describe what happened; they do not prove the outreach caused it.",
-      "**What is recorded.** Starting, renewing and closing a plan appear on the member's timeline (the reason, never your note), and changes are in the audit log. Behind the scenes the table is `care_engagements`; routes, settings and events keep that name.",
+      "**Activity during this plan** (the button on a plan, open or earlier) lists what the member did while that plan ran, newest first: their prickles, Slack and Hub chat messages and reactions, check-ins, lessons and writing logs, the emails the Hub sent them and what they did with them, and the plan's own moments (started, renewed, handed over, closed). A message shows where and when, never what was said, and logins are left out. Admins and the community manager can open it, and each plan lists only its own stretch of time.",
+      "**What is recorded.** Every step of a plan is a line in the Activity Log (`/admin/activity`, and the member's Activity tab) in plain words: \"started a care plan\", \"renewed the care plan (second plan)\", \"closed the care plan: ran its course\", \"offered the care plan to\" a colleague, \"accepted\" it, \"declined\" it, \"took back the offer\", \"took a care plan that had no owner\", \"moved the care plan's start to\" a day, and \"removed the care plan\". The note and the next step are never in the log, only that they changed, and the member cannot read these rows about themselves. Behind the scenes the table is `care_engagements`; routes, settings and events keep that name.",
     ].join("\n\n"),
   },
   {

@@ -28,6 +28,9 @@ export const OUTCOME_ACTIONS = [
   "award_added",
   // Courses
   "lesson_completion_saved",
+  "lesson_comment_posted",
+  "lesson_comment_edited",
+  "lesson_comment_deleted",
   "course_created",
   "course_details_saved",
   "course_publish_changed",
