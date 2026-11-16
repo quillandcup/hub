@@ -6,7 +6,7 @@
 import type { HandoverRefusal } from "@/lib/data/care";
 
 /** The part of a care plan this reads. */
-export type HandoverPlan = { owned_by: string | null; handover_to: string | null; handover_by: string | null };
+export type HandoverPlan = { owned_by: string | null; handover_to: string | null; handover_by: string | null; closed_at: string | null };
 
 /** The signed-in staff user; `isAdmin` is the role they act as (an admin may act for an owner who is gone or unreachable). */
 export type HandoverViewer = { userId: string; isAdmin: boolean };
@@ -22,6 +22,12 @@ export type HandoverControls = {
   canCancel: boolean;
   /** The plan has no owner (its owner's account was removed): any staff member who may own plans can take it. */
   canClaim: boolean;
+  /**
+   * An admin may take an open plan from its owner without their agreement (the one exception to hand-overs needing both sides:
+   * for an owner who is unreachable, or when an admin has to step in; the previous owner is told on their page). Not for a closed
+   * plan, which keeps its owner, nor for a plan that is already theirs. Nobody else: a community manager needs the receiver's agreement.
+   */
+  canTakeOver: boolean;
 };
 
 export function handoverControls(plan: HandoverPlan, viewer: HandoverViewer): HandoverControls {
@@ -33,6 +39,7 @@ export function handoverControls(plan: HandoverPlan, viewer: HandoverViewer): Ha
     canPropose: !pending && (isOwner || viewer.isAdmin),
     canCancel: pending && (viewer.userId === plan.handover_by || isOwner || viewer.isAdmin),
     canClaim: plan.owned_by === null,
+    canTakeOver: viewer.isAdmin && plan.owned_by !== null && !isOwner && plan.closed_at === null,
   };
 }
 
@@ -46,4 +53,7 @@ export const HANDOVER_REFUSAL_MESSAGES: Record<HandoverRefusal, string> = {
   already_pending: "A hand-over is already waiting for an answer.",
   no_handover: "That hand-over is no longer waiting. Refresh the list.",
   has_owner: "Someone owns this care plan now. Refresh the list.",
+  already_yours: "You already own this care plan.",
+  plan_closed: "That care plan is closed, so it stays with its owner.",
+  no_notice: "That notice is already gone.",
 };

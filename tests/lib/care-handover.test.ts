@@ -7,8 +7,8 @@ const RECEIVER = "22222222-2222-4222-8222-222222222222";
 const ADMIN = "33333333-3333-4333-8333-333333333333";
 const OTHER = "44444444-4444-4444-8444-444444444444";
 
-const plan = { owned_by: OWNER, handover_to: null, handover_by: null };
-const offered = { owned_by: OWNER, handover_to: RECEIVER, handover_by: OWNER };
+const plan = { owned_by: OWNER, handover_to: null, handover_by: null, closed_at: null };
+const offered = { owned_by: OWNER, handover_to: RECEIVER, handover_by: OWNER, closed_at: null };
 
 describe("handoverControls: what a staff member may do with a care plan's hand-over", () => {
   it("lets the owner and an admin offer a plan nothing is pending on, and no one else", () => {
@@ -43,6 +43,25 @@ describe("handoverControls: what a staff member may do with a care plan's hand-o
     // Offering one nobody owns is for admins (the owner is nobody).
     expect(handoverControls({ ...plan, owned_by: null }, { userId: OTHER, isAdmin: false }).canPropose).toBe(false);
     expect(handoverControls({ ...plan, owned_by: null }, { userId: ADMIN, isAdmin: true }).canPropose).toBe(true);
+  });
+});
+
+describe("handoverControls: taking a plan over", () => {
+  it("lets an admin take an open plan from its owner, with or without an offer pending", () => {
+    expect(handoverControls(plan, { userId: ADMIN, isAdmin: true }).canTakeOver).toBe(true);
+    expect(handoverControls(offered, { userId: ADMIN, isAdmin: true }).canTakeOver).toBe(true);
+  });
+
+  it("offers it to no one else: a community manager needs the receiver's agreement, and the owner already has the plan", () => {
+    expect(handoverControls(plan, { userId: OTHER, isAdmin: false }).canTakeOver).toBe(false);
+    expect(handoverControls(offered, { userId: RECEIVER, isAdmin: false }).canTakeOver).toBe(false);
+    expect(handoverControls(plan, { userId: OWNER, isAdmin: false }).canTakeOver).toBe(false);
+  });
+
+  it("is not offered to an admin for a plan that is already theirs, a closed one (it keeps its owner) or one nobody owns (that is Take this care plan)", () => {
+    expect(handoverControls({ ...plan, owned_by: ADMIN }, { userId: ADMIN, isAdmin: true }).canTakeOver).toBe(false);
+    expect(handoverControls({ ...plan, closed_at: "2027-01-01T00:00:00Z" }, { userId: ADMIN, isAdmin: true }).canTakeOver).toBe(false);
+    expect(handoverControls({ ...plan, owned_by: null }, { userId: ADMIN, isAdmin: true })).toMatchObject({ canTakeOver: false, canClaim: true });
   });
 });
 

@@ -348,6 +348,11 @@ async function claimImpl(repos: Repos, id: string, dms?: DmTracking): Promise<Ca
   });
 }
 
+async function dismissNoticeImpl(repos: Repos, id: string): Promise<CareActionResult> {
+  if (!isCareId(id)) return { error: MISSING };
+  return handoverStep("dismiss a takeover notice", () => repos.care.dismissTakeoverNotice(id));
+}
+
 /** The name of whoever cared for this member before, when it is someone else (the start form says it; nothing changes hands). */
 async function previousCarerOf(repos: Repos, memberId: unknown, userId: string): Promise<{ name: string | null }> {
   if (typeof memberId !== "string" || !isId(memberId, "mbr")) return { name: null };
@@ -473,12 +478,32 @@ export async function cancelCareHandover(id: string): Promise<CareActionResult> 
   return withAction("care_handover_cancelled", () => cancelImpl(createRepos(auth.supabase), id), (r) => ({ ok: "success" in r }));
 }
 
-/** Takes a care plan that has no owner (its owner's account was removed): the staff member who takes it accepts it. */
+/** Takes a care plan that has no owner (its owner's account was removed): the staff member who takes it accepts it. An admin taking it from an owner is `takeOverCarePlan`. */
 export async function claimCarePlan(id: string): Promise<CareActionResult> {
   const auth = await requireStaffAction();
   if (!auth.ok) return { error: auth.error };
   if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
   return withAction("care_plan_claimed", () => claimImpl(createRepos(auth.supabase), id, { service: getServiceRepos(), user: auth.user }), (r) => ({ ok: "success" in r }));
+}
+
+/**
+ * An admin takes an open care plan from its owner without their agreement: the one exception to "hand-overs need both sides" (for an
+ * owner who is unreachable, or when an admin has to step in). The previous owner sees a notice on their page; their own DM with
+ * the member is not read any more and the admin's is. Admins only: a community manager needs the receiver's agreement.
+ */
+export async function takeOverCarePlan(id: string): Promise<CareActionResult> {
+  const auth = await requireStaffAction();
+  if (!auth.ok) return { error: auth.error };
+  if (auth.role !== "admin" || !staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
+  return withAction("care_plan_taken_over", () => claimImpl(createRepos(auth.supabase), id, { service: getServiceRepos(), user: auth.user }), (r) => ({ ok: "success" in r }));
+}
+
+/** The previous owner dismisses the notice that an admin took their care plan over. Only they can. */
+export async function dismissCareTakeoverNotice(id: string): Promise<CareActionResult> {
+  const auth = await requireStaffAction();
+  if (!auth.ok) return { error: auth.error };
+  if (!staffCan(auth.role, "care.write")) return { error: NOT_AUTHORIZED };
+  return withAction("care_takeover_notice_dismissed", () => dismissNoticeImpl(createRepos(auth.supabase), id), (r) => ({ ok: "success" in r }));
 }
 
 /** Who cared for this member before, when it is someone else: the start form says so (information, nothing changes hands). Staff with the write feature only. */

@@ -55,6 +55,7 @@ describe("SupabaseCareRepository database errors", () => {
     ["declineHandover", () => repo.declineHandover(id)],
     ["cancelHandover", () => repo.cancelHandover(id)],
     ["claim", () => repo.claim(id)],
+    ["dismissTakeoverNotice", () => repo.dismissTakeoverNotice(id)],
   ])("%s throws the database's error", async (_name, run) => {
     await expect(run()).rejects.toThrow("database is down");
   });
@@ -248,6 +249,7 @@ describe("SupabaseCareRepository queries", () => {
       ["decline_care_handover", { p_id: id }, (r: SupabaseCareRepository) => r.declineHandover(id)],
       ["cancel_care_handover", { p_id: id }, (r: SupabaseCareRepository) => r.cancelHandover(id)],
       ["claim_care_plan", { p_id: id }, (r: SupabaseCareRepository) => r.claim(id)],
+      ["dismiss_care_takeover_notice", { p_id: id }, (r: SupabaseCareRepository) => r.dismissTakeoverNotice(id)],
     ] as const;
     for (const [fn, args, run] of steps) {
       const answered = scriptedDb([{ data: [plan], error: null }]);
@@ -258,7 +260,7 @@ describe("SupabaseCareRepository queries", () => {
 
   it("answers a refusal the database names as a result, any other error as a throw, and no row as a plan that is gone", async () => {
     const refusal = (message: string) => new SupabaseCareRepository(scriptedDb([{ data: null, error: { message } }]).db).acceptHandover(id);
-    for (const reason of ["not_found", "not_allowed", "receiver_not_allowed", "same_owner", "self", "already_pending", "no_handover", "has_owner"]) {
+    for (const reason of ["not_found", "not_allowed", "receiver_not_allowed", "same_owner", "self", "already_pending", "no_handover", "has_owner", "already_yours", "plan_closed", "no_notice"]) {
       expect(await refusal(`care_handover:${reason}`)).toEqual({ ok: false, reason });
     }
     await expect(refusal("care_handover:something_new")).rejects.toThrow("care_handover:something_new");

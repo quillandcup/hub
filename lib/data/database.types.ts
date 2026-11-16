@@ -2247,6 +2247,10 @@ export type Database = {
           period_ends_on: string
           reason: string
           renewed_from: string | null
+          taken_at: string | null
+          taken_by: string | null
+          taken_from: string | null
+          taken_seen_at: string | null
           updated_at: string
         }
         Insert: {
@@ -2270,6 +2274,10 @@ export type Database = {
           period_ends_on: string
           reason: string
           renewed_from?: string | null
+          taken_at?: string | null
+          taken_by?: string | null
+          taken_from?: string | null
+          taken_seen_at?: string | null
           updated_at?: string
         }
         Update: {
@@ -2293,6 +2301,10 @@ export type Database = {
           period_ends_on?: string
           reason?: string
           renewed_from?: string | null
+          taken_at?: string | null
+          taken_by?: string | null
+          taken_from?: string | null
+          taken_seen_at?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -7272,6 +7284,10 @@ export type Database = {
           period_ends_on: string
           reason: string
           renewed_from: string | null
+          taken_at: string | null
+          taken_by: string | null
+          taken_from: string | null
+          taken_seen_at: string | null
           updated_at: string
         }[]
         SetofOptions: {
@@ -7588,6 +7604,10 @@ export type Database = {
           period_ends_on: string
           reason: string
           renewed_from: string | null
+          taken_at: string | null
+          taken_by: string | null
+          taken_from: string | null
+          taken_seen_at: string | null
           updated_at: string
         }[]
         SetofOptions: {
@@ -7770,6 +7790,10 @@ export type Database = {
           period_ends_on: string
           reason: string
           renewed_from: string | null
+          taken_at: string | null
+          taken_by: string | null
+          taken_from: string | null
+          taken_seen_at: string | null
           updated_at: string
         }[]
         SetofOptions: {
@@ -7851,6 +7875,10 @@ export type Database = {
           period_ends_on: string
           reason: string
           renewed_from: string | null
+          taken_at: string | null
+          taken_by: string | null
+          taken_from: string | null
+          taken_seen_at: string | null
           updated_at: string
         }[]
         SetofOptions: {
@@ -7867,6 +7895,42 @@ export type Database = {
           p_time_min: string
         }
         Returns: number
+      }
+      dismiss_care_takeover_notice: {
+        Args: { p_id: string }
+        Returns: {
+          closed_at: string | null
+          created_at: string
+          deleted_at: string | null
+          ended_how: string | null
+          follow_up_on: string | null
+          handover_at: string | null
+          handover_by: string | null
+          handover_to: string | null
+          id: string
+          last_member_message_at: string | null
+          last_staff_message_at: string | null
+          member_id: string
+          next_step: string | null
+          notes: string | null
+          opened_at: string
+          opened_by: string | null
+          owned_by: string | null
+          period_ends_on: string
+          reason: string
+          renewed_from: string | null
+          taken_at: string | null
+          taken_by: string | null
+          taken_from: string | null
+          taken_seen_at: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "care_engagements"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       duplicate_course: { Args: { p_course_id: string }; Returns: string }
       duplicate_course_lesson: {
@@ -8212,6 +8276,10 @@ export type Database = {
           period_ends_on: string
           reason: string
           renewed_from: string | null
+          taken_at: string | null
+          taken_by: string | null
+          taken_from: string | null
+          taken_seen_at: string | null
           updated_at: string
         }[]
         SetofOptions: {
@@ -8266,6 +8334,10 @@ export type Database = {
           period_ends_on: string
           reason: string
           renewed_from: string | null
+          taken_at: string | null
+          taken_by: string | null
+          taken_from: string | null
+          taken_seen_at: string | null
           updated_at: string
         }[]
         SetofOptions: {

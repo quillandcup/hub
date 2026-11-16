@@ -228,13 +228,17 @@ export const EVENTS = {
   care_engagement_renewed: { days_open: int(3650) },
   /**
    * Hand-overs need both sides (docs/HEDGIE_CARE.md, "Owners"): a staff member offered a care plan to someone, the receiver
-   * accepted or declined it, the offer was taken back, or a care plan with no owner was claimed. No names, no ids.
+   * accepted or declined it, the offer was taken back, or a care plan with no owner was claimed. An admin may also take an open
+   * plan over from its owner without their agreement (`care_plan_taken_over`: the one exception, docs/HEDGIE_CARE.md, "Owners"),
+   * and the previous owner may dismiss the notice that tells them (`care_takeover_notice_dismissed`). No names, no ids.
    */
   care_handover_proposed: {},
   care_handover_accepted: {},
   care_handover_declined: {},
   care_handover_cancelled: {},
   care_plan_claimed: {},
+  care_plan_taken_over: {},
+  care_takeover_notice_dismissed: {},
 
   /**
    * A server action finished (lib/analytics/server.ts: `withAction`): `action` is which one, `ok`

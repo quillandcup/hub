@@ -107,6 +107,8 @@ export const OUTCOME_ACTIONS = [
   "care_handover_declined",
   "care_handover_cancelled",
   "care_plan_claimed",
+  "care_plan_taken_over",
+  "care_takeover_notice_dismissed",
   "care_engagement_deleted",
   // Onboarding
   "onboarding_started",

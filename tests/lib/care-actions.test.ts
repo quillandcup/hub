@@ -45,12 +45,14 @@ import {
   cancelCareHandover,
   claimCarePlan,
   declineCareHandover,
+  dismissCareTakeoverNotice,
   loadPreviousCareOwner,
   logCareMessage,
   proposeCareHandover,
   renewEngagement,
   searchCareMembers,
   startEngagement,
+  takeOverCarePlan,
   updateEngagement,
 } from "@/app/(admin)/admin/care/actions";
 import { SLACK_DM_SCOPES } from "@/lib/slack-connect";
@@ -73,6 +75,10 @@ const engagementRow = (id: string, member: string, openedAt: string) => ({
   handover_to: null,
   handover_by: null,
   handover_at: null,
+  taken_from: null,
+  taken_by: null,
+  taken_at: null,
+  taken_seen_at: null,
   next_step: null,
   notes: null,
   deleted_at: null,
@@ -120,6 +126,8 @@ describe("who may write Hedgie Care", () => {
     ["declineCareHandover", () => declineCareHandover("care_AAAAAAAAAAA1")],
     ["cancelCareHandover", () => cancelCareHandover("care_AAAAAAAAAAA1")],
     ["claimCarePlan", () => claimCarePlan("care_AAAAAAAAAAA1")],
+    ["takeOverCarePlan", () => takeOverCarePlan("care_AAAAAAAAAAA1")],
+    ["dismissCareTakeoverNotice", () => dismissCareTakeoverNotice("care_AAAAAAAAAAA1")],
     ["getEngagementResults", () => getEngagementResults("care_AAAAAAAAAAA1")],
     ["deleteEngagement", () => deleteEngagement("care_AAAAAAAAAAA1")],
   ];
@@ -652,6 +660,10 @@ describe("getEngagementResults", () => {
       handover_to: null,
       handover_by: null,
       handover_at: null,
+      taken_from: null,
+      taken_by: null,
+      taken_at: null,
+      taken_seen_at: null,
       next_step: null,
       notes: null,
       deleted_at: null,
@@ -855,6 +867,73 @@ describe("hand-over actions: a care plan changes hands only when the receiver ac
   });
 });
 
+describe("an admin takes a plan over", () => {
+  const actAs = (user: { id: string; email?: string | null }) => {
+    signInAs(user as never);
+    repos = createInMemoryRepos(data, { signedInAs: user.id });
+  };
+  let id: string;
+  beforeEach(async () => {
+    actAs(CM_USER);
+    await start();
+    id = onlyEngagement().id;
+  });
+
+  it("takes an open plan from its owner in one step, clears an offer waiting on it, and leaves a notice for the previous owner", async () => {
+    await proposeCareHandover(id, OWNER_B);
+    actAs(ADMIN_USER);
+    await expect(takeOverCarePlan(id)).resolves.toEqual({ success: true });
+    expect(onlyEngagement()).toMatchObject({ owned_by: ADMIN_USER.id, handover_to: null, handover_by: null, taken_from: CM_USER.id, taken_by: ADMIN_USER.id, taken_seen_at: null });
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/care");
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/care/earlier");
+  });
+
+  it("is for admins only: a community manager is refused before anything is asked of the database, and so is an admin previewing one", async () => {
+    actAs({ id: OWNER_B, email: "owner-b@example.test" });
+    data.userProfiles.find((p) => p.id === OWNER_B)!.role = "community_manager";
+    await expect(takeOverCarePlan(id)).resolves.toEqual({ error: "Not authorized" });
+    preview.role = "community_manager";
+    actAs(ADMIN_USER);
+    await expect(takeOverCarePlan(id)).resolves.toEqual({ error: "Not authorized" });
+    expect(onlyEngagement()).toMatchObject({ owned_by: CM_USER.id, taken_from: null });
+  });
+
+  it("says in the page's words why it was refused: already theirs, closed, gone", async () => {
+    actAs(ADMIN_USER);
+    await expect(takeOverCarePlan(id)).resolves.toEqual({ success: true });
+    await expect(takeOverCarePlan(id)).resolves.toEqual({ error: "You already own this care plan." });
+    await expect(takeOverCarePlan("nope")).resolves.toEqual({ error: "That care plan is gone." });
+
+    data.careEngagements[0].owned_by = CM_USER.id;
+    data.careEngagements[0].closed_at = "2026-03-05T00:00:00.000Z";
+    data.careEngagements[0].ended_how = "ran_its_course";
+    await expect(takeOverCarePlan(id)).resolves.toEqual({ error: "That care plan is closed, so it stays with its owner." });
+    expect(onlyEngagement().owned_by).toBe(CM_USER.id);
+  });
+
+  it("lets only the previous owner dismiss the notice, and tells another person there is nothing to dismiss", async () => {
+    actAs(ADMIN_USER);
+    await takeOverCarePlan(id);
+
+    await expect(dismissCareTakeoverNotice(id)).resolves.toEqual({ error: "That notice is already gone." }); // the admin who took it
+    expect(onlyEngagement().taken_seen_at).toBeNull();
+
+    actAs(CM_USER);
+    await expect(dismissCareTakeoverNotice(id)).resolves.toEqual({ success: true });
+    expect(onlyEngagement().taken_seen_at).not.toBeNull();
+    await expect(dismissCareTakeoverNotice(id)).resolves.toEqual({ success: true }); // a second click
+    await expect(dismissCareTakeoverNotice("nope")).resolves.toEqual({ error: "That care plan is gone." });
+  });
+
+  it("says it could not do it when the database fails, without its message", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    actAs(ADMIN_USER);
+    vi.spyOn(repos.care, "claim").mockRejectedValueOnce(new Error("connection reset"));
+    await expect(takeOverCarePlan(id)).resolves.toEqual({ error: "Couldn't do that. Try again." });
+    expect(log).toHaveBeenCalledWith("[care] claim a care plan failed:", "connection reset");
+  });
+});
+
 describe("tracking Slack DMs", () => {
   const CM_MEMBER = "mbr_CCCCCCCCCCC1";
   const STAFF_MEMBER = "mbr_SSSSSSSSSSS1";
@@ -1016,6 +1095,21 @@ describe("tracking Slack DMs", () => {
       signInAs(CM_USER);
       await expect(acceptCareHandover(onlyEngagementId())).resolves.toEqual({ success: true });
       expect(data.careTrackedDms).toEqual([]);
+    });
+
+    it("an admin taking a plan over tracks their own DM with the member, and who spoke last follows it", async () => {
+      world();
+      // The admin is the one with the Slack connection and the DM with Ada; the plan is the community manager's.
+      data.members.find((m) => m.id === CM_MEMBER)!.userId = ADMIN_USER.id;
+      plan(ADA, { id: "care_TakeoverAAAA", owned_by: CM_USER.id, opened_by: CM_USER.id });
+      repos = createInMemoryRepos(data, { signedInAs: ADMIN_USER.id });
+      signInAs(ADMIN_USER);
+
+      await expect(takeOverCarePlan(onlyEngagementId())).resolves.toEqual({ success: true });
+
+      expect(onlyEngagement()).toMatchObject({ owned_by: ADMIN_USER.id, taken_from: CM_USER.id });
+      expect(data.careTrackedDms.map((dm) => [dm.tracked_by, dm.slack_channel_id, dm.member_id])).toEqual([[ADMIN_USER.id, D.ada, ADA]]);
+      expect(onlyEngagement().last_member_message_at).not.toBeNull();
     });
 
     it("claiming a plan nobody owns tracks her DM the same way", async () => {
