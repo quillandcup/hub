@@ -180,7 +180,7 @@ Order: run step A and `/api/process/courses` (so lessons and `course_access` exi
 - **"Complete" means Kajabi's mark, not 90%.** Kajabi completion is an explicit "Complete" click (or the lesson's own rule); the Hub completes at 90% of the playhead or by the button. Take Kajabi's completed flag as complete, with `completed_at` from Kajabi if given, else the fetch date. Never convert a percentage into complete. A last position is imported only if Kajabi gives seconds, and only when the Hub row has none.
 - **Activity and analytics**: imported rows do not write `member_activities` (they are not Hub viewing), so the engagement score and Activity Log are not inflated.
 - **Privacy**: progress is member data. Nothing real in the repo, PR or docs; tests use fake members; reports are counts and shapes. The import takes its input from outside the repo (the browser session or a downloaded CSV kept out of git).
-- **Tests** (per `CLAUDE.md`): Bronze idempotency (first import, re-import without duplicates, changed data updates, soft delete only after a full fetch); Silver reprocessability (insert-if-absent, never overwrites newer Hub progress, orphan lessons and unmatched members skipped, no access means no rows); a parser test over a fake fixture; and a pgTAP check that the Bronze table is service role only.
+- **Tests** (per `.claude/rules/testing-requirements.md`): Bronze idempotency (first import, re-import without duplicates, changed data updates, soft delete only after a full fetch); Silver reprocessability (insert-if-absent, never overwrites newer Hub progress, orphan lessons and unmatched members skipped, no access means no rows); a parser test over a fake fixture; and a pgTAP check that the Bronze table is service role only.
 
 ### Questions (decided 2026-10-28)
 
@@ -191,7 +191,7 @@ Order: run step A and `/api/process/courses` (so lessons and `course_access` exi
 
 ## Data model
 
-This follows the medallion rules in `CLAUDE.md`: Bronze mirrors Kajabi, upserted on Kajabi's IDs and soft-deleted with `deleted_at` when gone from a fully successful fetch; Silver is rebuilt from Bronze plus Local; Local is ours.
+This follows the medallion rules in `.claude/rules/data-architecture.md`: Bronze mirrors Kajabi, upserted on Kajabi's IDs and soft-deleted with `deleted_at` when gone from a fully successful fetch; Silver is rebuilt from Bronze plus Local; Local is ours.
 
 ### Bronze (raw Kajabi)
 
@@ -314,7 +314,7 @@ One command, `pnpm courses:migrate --course <slug>`, runs all four steps in orde
 - **Both routes write with the service role** after checking the caller is an admin: signed-in admins can read the Bronze and Silver course tables but not write them.
 - **Not built yet:** "includes membership" counting as active membership in `reprocess_members_atomic`.
 
-Tests, per `CLAUDE.md`:
+Tests, per `.claude/rules/testing-requirements.md`:
 - Bronze idempotency tests in `tests/api/idempotency/`: first import, re-import with no duplicates, a changed lesson, a removed lesson.
 - Silver reprocessability tests in `tests/api/reprocessability/`: create, a deleted source removes the lesson, a changed source updates it, and IDs stay stable.
 - Media tests with Mux mocked: a re-run uploads nothing new, and a changed source re-uploads.
@@ -411,9 +411,11 @@ Progress is counted against *available* lessons, since the course grows as lesso
 
 ## Lesson comments
 
-_Status: phase 1 is built, behind the `lesson_comments` feature flag (off for everyone until it is switched on); phases 2 to 4 are design only. Reverses the earlier "Not planned" call: Ania wants comments on lessons, mainly so instructors can see and answer questions where they are asked._
+_Status: phases 1 and 2 are built, behind the `lesson_comments` feature flag (off for everyone until it is switched on); phases 3 and 4 are design only. Reverses the earlier "Not planned" call: Ania wants comments on lessons, mainly so instructors can see and answer questions where they are asked._
 
-**Phase 1, as built.** `lesson_comments` (`cmnt_` ids; no `source` columns yet, they come with the Kajabi import) with row-level security (read for members with current access to an open lesson and for admins; post as yourself, never in sudo; the text editable for 15 minutes and soft delete for the author, enforced by a trigger as well as the actions) and `CourseCommentRepository` (`lib/data/course-comments.ts`: a lesson's thread with tombstones, the unanswered list, create, edit, soft delete). Members post, reply (one level; a reply to a reply attaches to the question), edit and delete through `app/(member)/courses/comment-actions.ts`, which check the flag, the lesson (open, course not a draft, access current or staff acting as themselves), sudo, the 5 a minute and 30 an hour limits and the text rules in `lib/courses/comments.ts`, and set the Instructor badge from the author's role. `components/courses/CommentThread.tsx` shows it under the downloads. Staff find questions with no staff reply at `/admin/courses/<id>/comments`, linked from the course page. There is no audit trigger on the table (it would copy every comment's text into the audit log); staff moderation in phase 2 writes its own entries. Events: `lesson_comment_posted`, `lesson_comment_edited`, `lesson_comment_deleted` and `lesson_comments_viewed`, none carrying text or names.
+**Phase 1, as built.** `lesson_comments` (`cmnt_` ids; no `source` columns yet, they come with the Kajabi import) with row-level security (read for members with current access to an open lesson and for admins; post as yourself, never in sudo; the text editable for 15 minutes and soft delete for the author, enforced by a trigger as well as the actions) and `CourseCommentRepository` (`lib/data/course-comments.ts`: a lesson's thread with tombstones, the unanswered list, create, edit, soft delete). Members post, reply (one level; a reply to a reply attaches to the question), edit and delete through `app/(member)/courses/comment-actions.ts`, which check the flag, the lesson (open, course not a draft, access current or staff acting as themselves), sudo, the 5 a minute and 30 an hour limits and the text rules in `lib/courses/comments.ts`, and set the Instructor badge from the author's role. `components/courses/CommentThread.tsx` shows it under the downloads. Staff find questions with no staff reply at `/admin/courses/<id>/comments`, linked from the course page. There is no audit trigger on the table (it would copy every comment's text into the audit log); staff moderation writes its own entries (phase 2). Events: `lesson_comment_posted`, `lesson_comment_edited`, `lesson_comment_deleted` and `lesson_comments_viewed`, none carrying text or names.
+
+**Phase 2 (moderation), as built** (migration `20270803000000`). *Reports:* `lesson_comment_reports` (`cmrp_` ids, never shown) holds a member's report of someone else's live comment with a reason of 1 to 500 characters; one open report per reporter and comment (partial unique index; a settled one can be made again). Row-level security lets a member with access to the lesson insert their own report (never on their own comment, a held or hidden one, or in sudo) and lets only admins read them; the author is never told who reported, and the page lists reasons and counts, not reporters. `reportLessonComment` (`app/(member)/courses/comment-actions.ts`) checks the flag, sudo, the lesson, that staff don't report (they hide), the reason (`cleanReportReason`) and a limit of 10 an hour and 30 a day. The thread shows a Report button on others' comments (a short reason form, keyboard reachable) and then "Reported". *Hold and hide:* `lesson_comments` gets `held_at`/`held_reason` (a comment with more than two `http(s)` links, counted by `countCommentLinks` with the same matching the thread uses to auto-link, is held when it is posted; never staff's own, and an edit that would add links is refused rather than held), `hidden_at` is now set by staff, and `handled_at`/`handled_by` mark a question that needs no answer. A held comment is read only by its author (with "Held for review" and no Reply) and staff, in the policy and in `threadFor(lessonId, viewer)`; a hidden one is a "Comment removed" tombstone for members and text with a "Hidden from members" badge for staff; neither counts in the comment total, nobody can reply under a held comment, and a held or handled question stays out of the unanswered list. *Staff actions:* `app/(admin)/admin/courses/comment-moderation-actions.ts` (hide, unhide, delete, approve, mark handled, dismiss reports; each starts with `requireAdminAction()`, runs as the signed-in admin's own client and calls `moderate_lesson_comment`, a `SECURITY DEFINER` function that refuses anyone but an admin or the service role). The function changes the comment, settles its open reports (hide, delete and dismiss) and writes **one** `audit_log` entry per action that changed something: entity `lesson_comment`, the comment id, the lesson's title as the label, and `changes` such as `{"visibility": {"old": "visible", "new": "hidden"}, "reports_resolved": {"old": 2, "new": 0}}`; never the text, and nothing when it was already so (`describeRow` reads them as "hid a comment on “Lesson”, settling its reports"). Both tables have no row-level audit trigger. *Admin pages:* `/admin/courses/<id>/comments` is a tabbed page by path: Unanswered questions (with Mark handled and Hide) at the base path, and Moderation at `/comments/moderation` with the reported comments (most reported first; Hide, Delete, Dismiss, and Approve when the comment is also held) and the held comments (Approve, Hide, Delete), as `ReportedTable` and `HeldTable`. Admin only; community managers stay out (`lib/staff-access.ts` is unchanged). Events: `lesson_comment_reported` (course, is-reply) from the thread and `lesson_comment_moderated` (course, action, which list) from the staff lists, and outcome records for each action; none carry text, names or reporter ids. Reports are removed with the member (`member_data_handling`: reporter deleted, resolver nulled).
 
 ### Recommendation: their own Local tables
 
@@ -426,14 +428,14 @@ We still copy chat's good parts: soft delete, tombstones, and the escaping and n
 
 ### Data model
 
-New Local tables (never reprocessed), text ids per `CLAUDE.md` "New Tables and Ids", grants and RLS in the same migration (`supabase-table-grants.md`):
+New Local tables (never reprocessed), text ids per `.claude/rules/resource-ids.md` "New Tables and Ids", grants and RLS in the same migration (`supabase-table-grants.md`):
 - **`lesson_comments`**: `id` (`cmnt_`), `lesson_id` (text FK to `course_lessons`), `member_id` (author, text FK to `members`), `parent_id` (null for a top-level comment), `body` (plain text, 1 to 4,000 characters), `is_staff_reply` (set by the server from the author's role when posted, so the badge survives a later role change), `created_at`, `edited_at`, `hidden_at`, `deleted_at`, `deleted_by`.
 - **`lesson_comment_reports`**: `id`, `comment_id`, `reporter_id`, `reason`, `created_at`, `resolved_at`, `resolved_by`. One open report per reporter and comment.
 - **`lesson_comment_follows`**: `(member_id, lesson_id, following)`. Posting or replying follows implicitly; rows exist only for explicit choices and unfollowing is `following = false`.
 - **`lesson_comment_reads`** (phase 3): last-seen per member and lesson, for unread counts.
 
 Decisions:
-- **Prefix and tier.** Notifications link to a comment, so its id is shown to people. A Tier 2 id must not be exposed (`CLAUDE.md` "Resource ID Tiers"), so `lesson_comments` needs a Tier 1 prefix agreed with the owner (`cmnt_`: `cmt_` is already `prickle_commitments`); reports, follows and reads stay Tier 2.
+- **Prefix and tier.** Notifications link to a comment, so its id is shown to people. A Tier 2 id must not be exposed (`.claude/rules/resource-ids.md` "Resource ID Tiers"), so `lesson_comments` needs a Tier 1 prefix agreed with the owner (`cmnt_`: `cmt_` is already `prickle_commitments`); reports, follows and reads stay Tier 2.
 - **Threading depth: one level.** A reply points at a top-level comment; replying to a reply attaches to the same parent, quoting the author's name. Alternatives: flat; unlimited nesting (unreadable on a phone).
 - **Edit window: 15 minutes**, then locked (the author can still delete). Edits set `edited_at` and show "edited". Alternative: always editable, which leaves replies out of context.
 - **Soft delete** with `deleted_at`. A deleted comment with replies shows a tombstone ("Comment removed"); without replies it disappears. Text is cleared by a retention job (below), not at delete time, so staff can undo.
@@ -453,13 +455,13 @@ Decisions:
 - **Hide vs delete**: staff can hide (reversible, tombstone for members) or delete (soft delete). Both write the audit log (`docs/ACTIVITY_AND_AUDIT_LOG.md`): who, which comment, which action, why. Authors can delete their own.
 - **Rate limits** in the server action, not the client: 5 comments a minute and 30 an hour per member.
 - **Spam and links**: links render as plain links with `rel="nofollow noopener"`; a comment with more than two links is held for staff review (visible to its author only). No profanity filter in phase 1: reports and the queue cover it, and filters mangle writing talk ("kill your darlings"). Alternative: a blocklist that holds, never rejects.
-- Admin pages start with `requireAdminPage()` and staff actions with `requireAdminAction()` (`CLAUDE.md` "Admin Route Protection").
+- Admin pages start with `requireAdminPage()` and staff actions with `requireAdminAction()` (`.claude/rules/admin-route-protection.md` "Admin Route Protection").
 
 ### Safety of rendered text
 
 - **Store plain text, render as text.** No HTML and no Markdown in phase 1; React escapes it. Line breaks are kept; only `http(s)` URLs are auto-linked.
 - **Mentions** (phase 4): `@name` autocompletes through `EntitySearch` (`reuse-ui-components.md`) and is stored as a token holding the member id, resolved to the current display name at render, as Slack tokens are (`lib/chat/names.ts`). Only people with access to the course can be mentioned; a mention is a notification.
-- **Escaping lessons from `CLAUDE.md`**: store text as typed, escape only where a target needs it (Slack: `&`, `<`, `>`), never decode on display. Tests use a name containing `&` and `<`, so a literal `&amp;` on screen fails.
+- **Escaping lessons from the rule files in `.claude/rules/`**: store text as typed, escape only where a target needs it (Slack: `&`, `<`, `>`), never decode on display. Tests use a name containing `&` and `<`, so a literal `&amp;` on screen fails.
 - Comment text never goes into analytics events, logs or Sentry (`docs/ANALYTICS.md`).
 
 ### Notifications
@@ -476,7 +478,7 @@ Every event is a registry kind sent through `createNotifier` (`lib/notifications
 ### UI
 
 - **Where**: a "Comments (N)" section below the downloads on the lesson page, composer first, top-level comments newest first (a new question is seen), replies oldest first. Alternative: a tab beside the outline, which hides comments on mobile.
-- **Layout** follows `CLAUDE.md`: a `@container` wrapper and mobile-first styles, no viewport breakpoints inside the content area, check widths either side of each breakpoint. Nothing `fixed` inside an `@container` ancestor.
+- **Layout** follows `.claude/rules/ui-layout.md`: a `@container` wrapper and mobile-first styles, no viewport breakpoints inside the content area, check widths either side of each breakpoint. Nothing `fixed` inside an `@container` ancestor.
 - **Components**: a shared `CommentThread` in `components/courses/` with a component test; `EntitySearch` for mentions; the existing avatar and relative-time pieces.
 - **Accessibility**: a labelled region; the composer has a visible label and a polite character counter; a new comment is announced via `aria-live`; all actions are real buttons reachable by keyboard; focus returns to the composer after posting; tombstones read "Comment removed".
 - **Empty state**: "No questions yet. Stuck on something in this lesson? Ask here."
@@ -520,7 +522,7 @@ Under `/admin/courses/<id>/comments`, every page starting with `requireAdminPage
 ### Phased build plan
 
 1. **Built: read, post, reply (smallest useful):** `lesson_comments`, RLS, pgTAP, the thread on the lesson page, plain text, one-level replies, edit window, delete own, rate limit, a `lesson_comments` feature flag, analytics events, the unanswered-questions admin list.
-2. **Moderation:** reports, hide/delete by staff with the audit log, the queue, held-link review.
+2. **Built: moderation:** reports, hide/delete by staff with the audit log, the queue, held-link review.
 3. **Notifications:** follows, reply and instructor-reply kinds in dry run then live, the follow digest, unread counts.
 4. **Polish:** mentions, video timestamps, instructor list, counts in the outline, Realtime updates.
 

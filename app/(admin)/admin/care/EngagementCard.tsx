@@ -39,6 +39,7 @@ import {
   logCareMessage,
   proposeCareHandover,
   renewEngagement,
+  takeOverCarePlan,
   updateEngagement,
   type CareActionResult,
 } from "./actions";
@@ -160,6 +161,11 @@ export default function EngagementCard({ card, canWrite, owners, meId }: { card:
     );
   const cancelHandover = () => run(() => cancelCareHandover(card.id), () => track("care_handover_cancelled", {}));
   const claim = () => run(() => claimCarePlan(card.id), () => track("care_plan_claimed", {}));
+  // The one exception to "hand-overs need both sides": an admin takes an open plan from its owner, who sees a notice on their page.
+  const takeOver = () => {
+    if (!window.confirm(`Take this care plan over from ${card.ownerName}? They will see a notice on their page.`)) return;
+    run(() => takeOverCarePlan(card.id), () => track("care_plan_taken_over", {}));
+  };
 
   const remove = () => {
     if (!window.confirm("Remove this care plan from the lists?")) return;
@@ -296,6 +302,11 @@ export default function EngagementCard({ card, canWrite, owners, meId }: { card:
           {card.controls.canClaim && (
             <button type="button" data-track="care-claim" className={BUTTON} disabled={pending} onClick={claim}>
               Take this care plan
+            </button>
+          )}
+          {card.controls.canTakeOver && (
+            <button type="button" data-track="care-take-over" className={BUTTON} disabled={pending} onClick={takeOver}>
+              Take over
             </button>
           )}
           <button type="button" className={BUTTON} disabled={pending} onClick={() => open("edit")}>

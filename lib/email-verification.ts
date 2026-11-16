@@ -21,7 +21,7 @@ type VerifyRepos = Pick<Repos, "aliases">;
  * which, like the unsubscribe links, must never be rotated while these are in mailboxes.
  *
  * This is a reply to something the member just did (adding an address), sent to that address rather than to
- * `members.email`, so it is sent directly and not through the notifier (CLAUDE.md, "Member Notifications").
+ * `members.email`, so it is sent directly and not through the notifier (.claude/rules/member-notifications.md, "Member Notifications").
  */
 
 export const VERIFICATION_PATH = "/verify-email";

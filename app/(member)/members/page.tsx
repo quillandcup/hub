@@ -42,7 +42,7 @@ export default async function MemberDirectoryPage({
   const supabase = await createClient()
 
   // get_member_directory returns only current members' public fields (see its migration).
-  // Paginated per CLAUDE.md -- the membership can pass 1000.
+  // Paginated per .claude/rules/api-routes-and-queries.md -- the membership can pass 1000.
   let rows: DirectoryRow[] = []
   let offset = 0
   let hasMore = true

@@ -23,6 +23,7 @@ import {
   loadUsualEmotions,
   sendCheckoutDMs,
   sendDropInCheckins,
+  keepDmMessage,
   tryRecordCheckinDM,
   releaseCheckinDM,
   type RecentPrickle,
@@ -189,7 +190,7 @@ async function sendCheckins(repos: RouteRepos, memberIds: string[], now: number)
     const shouldSend = await tryRecordCheckinDM(repos, prickle.id, memberId, "prickle_checkin");
     if (!shouldSend) continue;
 
-    const delivered = await notifier.send(memberId, checkinMessage(prickle, saved, { join: joinAt(joinSettings, prickle.startTime), usual: usualEmotions.get(memberId) }));
+    const delivered = await notifier.send(memberId, checkinMessage(prickle, saved, { join: joinAt(joinSettings, prickle.startTime), usual: usualEmotions.get(memberId) }), { onReceipt: keepDmMessage(repos, prickle.id, memberId, "prickle_checkin") });
     if (delivered.length > 0) sent++;
     else await releaseCheckinDM(repos, prickle.id, memberId, "prickle_checkin");
   }

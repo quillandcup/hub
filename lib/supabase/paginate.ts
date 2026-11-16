@@ -1,7 +1,7 @@
 const BATCH_SIZE = 1000;
 
 /**
- * Fetch every row matching a query, following CLAUDE.md's pagination rule
+ * Fetch every row matching a query, following the pagination rule (.claude/rules/api-routes-and-queries.md)
  * for tables/result sets that could exceed Supabase's default 1000-row
  * limit per request.
  *

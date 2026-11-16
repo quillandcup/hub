@@ -44,7 +44,7 @@ describe("fetchAllBronzeRows()", () => {
       data: {},
     }));
 
-    // Insert in chunks of 500 (CLAUDE.md batching guidance)
+    // Insert in chunks of 500 (.claude/rules/api-routes-and-queries.md batching guidance)
     for (let i = 0; i < rows.length; i += 500) {
       const { error } = await supabase
         .schema("bronze")

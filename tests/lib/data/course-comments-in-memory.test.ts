@@ -25,11 +25,19 @@ defineCourseCommentContract("InMemoryCourseCommentRepository", () => ({
     const member = data.members.find((m) => m.id === memberId);
     if (member) member.displayName = displayName;
   },
-  bulk: async (lessonId, memberId, count) => {
+  bulk: async (lessonId, memberId, count, held) => {
     const repo = new InMemoryCourseCommentRepository(data);
-    for (let i = 0; i < count; i++) await repo.create({ lessonId, memberId, parentId: null, body: `Comment ${i}`, isStaffReply: false });
+    for (let i = 0; i < count; i++) await repo.create({ lessonId, memberId, parentId: null, body: `Comment ${i}`, isStaffReply: false, held });
+  },
+  bulkReported: async (lessonId, authorId, reporterId, count) => {
+    const repo = new InMemoryCourseCommentRepository(data);
+    for (let i = 0; i < count; i++) {
+      const made = await repo.create({ lessonId, memberId: authorId, parentId: null, body: `Reported ${i}`, isStaffReply: false });
+      await repo.report({ commentId: made.id, reporterId, reason: "Reported" });
+    }
   },
   clear: async () => {
     data.lessonComments.length = 0;
+    data.lessonCommentReports.length = 0;
   },
 }));

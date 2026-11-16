@@ -1,3 +1,4 @@
+import { linkifyText } from "@/lib/courses/comment-text";
 import type { LessonCommentRecord } from "@/lib/data/course-comments";
 import type { CoursesCaller } from "@/lib/courses/caller";
 import { canOpenLessons, loadMemberCourseAccess } from "@/lib/courses/member";
@@ -24,6 +25,35 @@ export function cleanCommentBody(raw: unknown): { body: string } | { error: stri
   if (body.length === 0) return { error: "Write something first" };
   if (body.length > COMMENT_MAX_LENGTH) return { error: `Keep it under ${COMMENT_MAX_LENGTH.toLocaleString("en-US")} characters` };
   return { body };
+}
+
+/** Reports per member: a burst and a sustained rate, so a report can't be used to flood staff. */
+export const REPORT_RATE_LIMIT = [
+  { name: "hour", windowSeconds: 3600, maxHits: 10 },
+  { name: "day", windowSeconds: 86400, maxHits: 30 },
+] as const;
+
+/** A comment with more than this many links is held for staff review. */
+export const COMMENT_MAX_LINKS = 2;
+export const REPORT_REASON_MAX_LENGTH = 500;
+
+/** How many `http(s)` links a text has, counted the way the thread auto-links them, so what is held is what would show as links. */
+export function countCommentLinks(text: string): number {
+  return linkifyText(text).filter((part) => part.type === "link").length;
+}
+
+/** Whether a comment goes to staff for review before others see it: more than two links. No word filter. */
+export function shouldHoldComment(text: string): boolean {
+  return countCommentLinks(text) > COMMENT_MAX_LINKS;
+}
+
+/** A report's reason as it will be stored: trimmed, 1 to 500 characters. Returns an error to show otherwise. */
+export function cleanReportReason(raw: unknown): { reason: string } | { error: string } {
+  if (typeof raw !== "string") return { error: "Tell us briefly what's wrong" };
+  const reason = raw.replace(/\r\n?/g, "\n").trim();
+  if (reason.length === 0) return { error: "Tell us briefly what's wrong" };
+  if (reason.length > REPORT_REASON_MAX_LENGTH) return { error: `Keep it under ${REPORT_REASON_MAX_LENGTH} characters` };
+  return { reason };
 }
 
 /** Whether the author can still change the text, `now` being a time in milliseconds. */

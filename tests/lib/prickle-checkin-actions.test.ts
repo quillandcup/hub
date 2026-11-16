@@ -11,6 +11,7 @@ vi.mock("@/lib/auth", () => ({ getCurrentUser: vi.fn() }));
 vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/prickle-checkin-dms", () => ({ resolveAnsweredCheckinNotifications: vi.fn() }));
+vi.mock("@/lib/prickle-checkin-dm-close", async (original) => ({ ...(await original<typeof import("@/lib/prickle-checkin-dm-close")>()), closeCheckinDmsAfterResponse: vi.fn() }));
 let repos: Repos;
 let dataset: InMemoryDataset;
 vi.mock("@/lib/data/repos", async () => ({
@@ -23,6 +24,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
 import { resolveAnsweredCheckinNotifications } from "@/lib/prickle-checkin-dms";
+import { closeCheckinDmsAfterResponse } from "@/lib/prickle-checkin-dm-close";
 import { EMPTY_CHECKIN, type CheckinInput } from "@/lib/prickle-checkins";
 
 const USER = { id: "user-1", email: "m1@example.com" };
@@ -51,6 +53,26 @@ describe("saveCheckin", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/prickles/prickle-1");
     // Resolves the in-app check-in/check-out notifications it answered (tested in prickle-checkin-dms).
     expect(resolveAnsweredCheckinNotifications).toHaveBeenCalledWith(repos, "member-1", "prickle-1", CHECKIN);
+    // And closes the Slack DM of each half it answered (here only the check-in).
+    expect(closeCheckinDmsAfterResponse).toHaveBeenCalledWith({ memberId: "member-1", prickleId: "prickle-1", halves: ["checkin"] });
+  });
+
+  it("closes the check-out DM too when it answers the check-out half", async () => {
+    const both = { ...CHECKIN, intentionMet: 4, pleasantAfter: 4, energyAfter: 3 } as CheckinInput;
+    await saveCheckin("prickle-1", both);
+    expect(closeCheckinDmsAfterResponse).toHaveBeenCalledWith({ memberId: "member-1", prickleId: "prickle-1", halves: ["checkin", "checkout"] });
+  });
+
+  it("closes no DM for a partly answered check-in or one that fails to save", async () => {
+    await saveCheckin("prickle-1", { ...EMPTY, pleasantBefore: 3 } as CheckinInput);
+    expect(closeCheckinDmsAfterResponse).toHaveBeenCalledWith({ memberId: "member-1", prickleId: "prickle-1", halves: [] });
+    vi.mocked(closeCheckinDmsAfterResponse).mockClear();
+    repos.prickleActivity.saveCheckin = async () => {
+      throw new Error("boom");
+    };
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await saveCheckin("prickle-1", CHECKIN);
+    expect(closeCheckinDmsAfterResponse).not.toHaveBeenCalled();
   });
 
   it("soft-deletes the live row when every answer is cleared", async () => {

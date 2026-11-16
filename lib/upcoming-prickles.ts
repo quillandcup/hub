@@ -498,7 +498,7 @@ export async function getRankedUpcomingWithHistory(
   // For each upcoming series a sister-streak sister might show up to, check
   // whether they attended that same series in at least one of its last 2
   // occurrences before now. This is NOT a confirmed RSVP -- attendance for a
-  // future prickle is never knowable in advance (see CLAUDE.md), just a
+  // future prickle is never knowable in advance (see .claude/rules/attendance-table.md), just a
   // "they usually come to this one" signal.
   //
   // `highLikelihoodSistersBySeries` is a stricter cut of the same data --

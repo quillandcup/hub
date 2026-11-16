@@ -71,6 +71,17 @@ describe("sendSlackDM", () => {
     expect(call.text).toContain("hello");
   });
 
+  it("returns where the message landed: the DM conversation and its timestamp, or null when Slack does not say", async () => {
+    process.env.VERCEL_ENV = "production";
+    const { sendSlackDM } = await importSlackModule();
+
+    postMessage.mockResolvedValueOnce({ ok: true, channel: "D0FAKE", ts: "1700000000.000100" });
+    expect(await sendSlackDM({ slackUserId: "U_REAL_MEMBER", text: "hello" })).toEqual({ channel: "D0FAKE", ts: "1700000000.000100" });
+
+    postMessage.mockResolvedValueOnce({ ok: true });
+    expect(await sendSlackDM({ slackUserId: "U_REAL_MEMBER", text: "hello" })).toBeNull();
+  });
+
   it("reports a failure without sending when test mode is on but SLACK_DEV_USER_ID is unset", async () => {
     process.env.VERCEL_ENV = "preview";
     const { sendSlackDM } = await importSlackModule();

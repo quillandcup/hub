@@ -17,6 +17,9 @@ export type ParticipationCard = { dateLabel: string; what: string; agoLabel: str
 /** A hand-over waiting for the receiver's answer, worded for the row: names, never ids beyond the receiver's (the page compares it with the viewer). */
 export type HandoverCard = { toName: string; /** Who proposed it: the owner, or an admin on their behalf. */ byName: string; at: string };
 
+/** An admin took this plan over from its owner, worded for the previous owner's notice (`taken_from` is the viewer): names and a day, nothing else. */
+export type TakeoverNotice = { byName: string; /** The day it happened, as the page words it ("11/15/2026"). */ onLabel: string };
+
 /** What the plan card says when the owner's own Slack DM with the member is not there to fill it in: connect Slack, or there is no DM yet. */
 export type DmNote = "connect" | "no_dm";
 
@@ -24,7 +27,7 @@ export type DmNote = "connect" | "no_dm";
 export type EngagementCardData = {
   id: string;
   memberId: string;
-  /** The name the community knows them by (CLAUDE.md, "Display Names"). */
+  /** The name the community knows them by (.claude/rules/display-names.md, "Display Names"). */
   memberName: string;
   /** The legal name, only when it differs, small and muted beside the display name. */
   legalName: string | null;
@@ -67,8 +70,10 @@ export type EngagementCardData = {
   dmNote: DmNote | null;
   /** The pending hand-over, or null. The plan keeps its owner until the receiver accepts. */
   handover: HandoverCard | null;
-  /** What the signed-in user may do with the hand-over (offer, take back, accept or decline, claim). */
+  /** What the signed-in user may do with the hand-over (offer, take back, accept or decline, claim, take over). */
   controls: HandoverControls;
+  /** An admin took this plan over from the signed-in user and they have not dismissed the notice yet; null otherwise (never shown for anyone else). */
+  takeoverNotice: TakeoverNotice | null;
 };
 
 export type CardOptions = {
@@ -143,5 +148,9 @@ export function toEngagementCard(row: CareEngagementWithMember, now: Date, optio
     dmNote,
     handover: row.handover_to ? { toName: ownerName(row.handover_to, owners), byName: ownerName(row.handover_by, owners), at: row.handover_at ?? row.updated_at } : null,
     controls: handoverControls(row, viewer),
+    takeoverNotice:
+      viewer.userId !== "" && row.taken_from === viewer.userId && row.taken_seen_at === null && row.taken_at !== null
+        ? { byName: row.taken_by ? ownerName(row.taken_by, owners) : "An admin", onLabel: formatDateOnly(orgYmd(new Date(row.taken_at))) }
+        : null,
   };
 }

@@ -10,6 +10,8 @@ const pullReadFromSlack = vi.fn();
 vi.mock("@/lib/chat/slack-read", () => ({ pullReadFromSlack: (...args: unknown[]) => pullReadFromSlack(...args) }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({ service: true }) }));
 vi.mock("@/lib/search/metrics", () => ({ recordSearchTimings: vi.fn() }));
+const closeCheckinDmsAfterResponse = vi.fn();
+vi.mock("@/lib/prickle-checkin-dm-close", () => ({ closeCheckinDmsAfterResponse: (...a: unknown[]) => closeCheckinDmsAfterResponse(...a) }));
 
 const getRankedUpcomingPrickles = vi.fn();
 vi.mock("@/lib/upcoming-prickles", () => ({ getCheckinPrickles: (...a: unknown[]) => getRankedUpcomingPrickles(...a) }));
@@ -161,6 +163,7 @@ describe("markSuggestionsRead", () => {
   const B = "prkl_AAAAAAAAAAAb";
   const C = "chn_AAAAAAAAAAAc";
   const D = "00000000-0000-4000-a000-00000000000d";
+  beforeEach(() => closeCheckinDmsAfterResponse.mockClear());
 
   it("dismisses check-ins and check-outs, reads notifications, and ignores chats and junk", async () => {
     const writes: [string, string][] = [];
@@ -189,6 +192,11 @@ describe("markSuggestionsRead", () => {
     expect(n).toBe(3); // chat rows are never marked read here
     expect(writes).toContainEqual(["prickle_checkin_dismissals", "upsert"]);
     expect(writes).toContainEqual(["prickle_checkout_dismissals", "upsert"]);
+    // Each dismissed half closes its Slack DM; reading a notification or ignoring junk does not.
+    expect(closeCheckinDmsAfterResponse.mock.calls).toEqual([
+      [{ memberId: "me", prickleId: A, halves: ["checkin"] }],
+      [{ memberId: "me", prickleId: B, halves: ["checkout"] }],
+    ]);
     expect(writes.filter(([t]) => t === "in_app_notifications").length).toBe(3);
   });
 
@@ -217,6 +225,7 @@ describe("markSuggestionsRead", () => {
     );
     expect(await markSuggestionsRead([`notification:${D}`])).toBe(1);
     expect(writes).toContain("prickle_checkin_dismissals");
+    expect(closeCheckinDmsAfterResponse).toHaveBeenCalledWith({ memberId: "me", prickleId: A, halves: ["checkin"] });
   });
 
   it("does nothing in sudo", async () => {

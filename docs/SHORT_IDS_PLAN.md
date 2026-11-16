@@ -480,9 +480,9 @@ change and the migration together (CI pushes migrations before the Vercel deploy
   block/DM link builders, `lib/notifications/*` (`ref`, `url`), chat posting trigger.
 - Edge functions / SQL that generate ids (`gen_random_uuid()` grep: 64 defaults in
   migrations at last count).
-- Update `CLAUDE.md` and docs that mention uuids (e.g. a comment in
+- Update `CLAUDE.md`, `.claude/rules/resource-ids.md` and docs that mention uuids (e.g. a comment in
   `lib/activity-feed.ts`).
-- Tests required by CLAUDE.md still apply: reprocessability tests (silver DELETE+INSERT
+- Tests required by `.claude/rules/testing-requirements.md` still apply: reprocessability tests (silver DELETE+INSERT
   keeps working, prickle ids stay stable across reprocessing), idempotency tests,
   pgTAP for RLS and functions. Add a pgTAP test for `new_id` (format, prefix, uniqueness)
   and a migration-level check (no uuid-typed id columns left outside `auth` references).

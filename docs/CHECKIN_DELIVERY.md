@@ -16,7 +16,7 @@ offer appears and disappears, on which surface, and for whom.** It is written fr
 Defaults: Slack, in-app and browser push are on for both kinds; **email is off** until a member
 opts in per kind. A member who turned every channel off, or can be reached on none, is skipped
 without a dedup row, so turning it back on before the window ends still sends one. Details of the
-channel system: `docs/TODO.md`, "Channels, Notifications & Messaging", and `CLAUDE.md`, "Member
+channel system: `docs/TODO.md`, "Channels, Notifications & Messaging", and `.claude/rules/member-notifications.md`, "Member
 Notifications".
 
 ## Pop-Up Prickles are paused

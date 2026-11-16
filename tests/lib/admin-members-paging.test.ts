@@ -68,7 +68,7 @@ describe('admin members paging (admin_members_page / admin_member_filter_counts)
     ])
     // foxtrot gets 1200 more (old) attendances to prove aggregation isn't capped at 1000 rows.
     for (let i = 0; i < BIG_MEMBER_ROWS; i++) rows.push(activity(ids.foxtrot, 1000 + i, daysAgo(400 + (i % 300))))
-    // Insert in chunks of 500 (CLAUDE.md batching guidance).
+    // Insert in chunks of 500 (.claude/rules/api-routes-and-queries.md batching guidance).
     for (let i = 0; i < rows.length; i += 500) {
       const { error: insertError } = await supabase.from('member_activities').insert(rows.slice(i, i + 500))
       if (insertError) throw insertError

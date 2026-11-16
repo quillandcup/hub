@@ -32,6 +32,11 @@ export interface OutboundMessage {
   ref?: string;
 }
 
+/** What a channel can say about where a message landed, for a feature that edits it later. Slack: the DM conversation and the message's timestamp. */
+export interface ChannelReceipt {
+  slack?: { channelId: string; ts: string };
+}
+
 /** What a channel knows about the send besides the message itself. */
 export interface SendContext {
   /** The member being sent to. */
@@ -50,5 +55,5 @@ export interface ChannelAdapter {
   id: ChannelId;
   /** memberId -> this channel's address (e.g. Slack user id). Members missing from the map can't be reached on it. */
   resolveAddresses(repos: Repos, memberIds: string[]): Promise<Map<string, string>>;
-  send(address: string, message: OutboundMessage, context: SendContext): Promise<void>;
+  send(address: string, message: OutboundMessage, context: SendContext): Promise<ChannelReceipt | void>;
 }

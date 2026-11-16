@@ -1,6 +1,6 @@
 // Attendance allows multiple records per (member_id, prickle_id) to track
 // leave/rejoin patterns (see supabase/migrations/20260406181048_allow_multiple_attendance_per_prickle.sql
-// and CLAUDE.md) — use COUNT(DISTINCT prickle_id) to count unique prickles attended.
+// and .claude/rules/attendance-table.md) — use COUNT(DISTINCT prickle_id) to count unique prickles attended.
 export function countDistinctPrickles(records: any[]): number {
   const prickleIds = new Set<string>();
   for (const record of records) {
