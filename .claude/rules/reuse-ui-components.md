@@ -1,3 +1,9 @@
+---
+paths:
+  - "components/**"
+  - "app/**/*.tsx"
+---
+
 ## reuse-ui-components
 
 Before building UI, look in `components/` for what already does the job, and use it or extend it. Rebuilding a variant is the usual reason a review comes back with "use the X component instead".

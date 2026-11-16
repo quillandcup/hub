@@ -1,3 +1,9 @@
+---
+paths:
+  - "supabase/migrations/**"
+  - "supabase/tests/database/**"
+---
+
 ## supabase-table-grants
 
 Supabase stopped automatically granting Data API access to new tables in the `public` schema on 2026-10-30 (existing tables keep their grants). A table created without explicit grants returns "permission denied" from supabase-js, PostgREST and GraphQL. This also hits migrations that recreate the schema: new projects, preview branches and local `supabase db reset`.
