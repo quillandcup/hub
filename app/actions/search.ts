@@ -14,6 +14,7 @@ import { getCheckinPrickles } from "@/lib/upcoming-prickles";
 import { checkinAnswered, checkinHref } from "@/lib/prickle-checkins";
 import { getMyCheckins } from "@/app/(member)/prickles/checkin-actions";
 import { dismissCheckin, dismissCheckout, loadDismissedCheckinIds } from "@/lib/prickle-checkin-dms";
+import { closeCheckinDmsAfterResponse } from "@/lib/prickle-checkin-dm-close";
 import { getUnloggedRecentPrickles } from "@/app/(member)/projects/actions";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { ORG_TIMEZONE } from "@/lib/config";
@@ -190,20 +191,25 @@ export async function markSuggestionsRead(ids: string[]): Promise<number> {
   const searcher = await getSearcher();
   if (!searcher || searcher.isSudo || !searcher.ctx.viewerMemberId || !Array.isArray(ids)) return 0;
   const { supabase, viewerMemberId } = searcher.ctx;
+  // Closes the offer everywhere, including the Slack DM (collapsed and marked read once the response is out).
+  const dismissHalf = async (half: "checkin" | "checkout", prickleId: string) => {
+    const error = await (half === "checkout" ? dismissCheckout : dismissCheckin)(createRepos(supabase), viewerMemberId, prickleId);
+    if (error === null) closeCheckinDmsAfterResponse({ memberId: viewerMemberId, prickleId, halves: [half] });
+    return error === null;
+  };
   const results = await Promise.all(
     ids.slice(0, MAX_SUGGESTIONS).map(async (id) => {
       const [kind, ref] = String(id).split(":");
       // A check-in or check-out names a prickle; a notification names an in_app_notifications row (still a uuid).
       if (kind === "notification" ? !UUID.test(ref ?? "") : !isId(ref, "prkl")) return false;
       try {
-        if (kind === "checkout") return (await dismissCheckout(createRepos(supabase), viewerMemberId, ref)) === null;
-        if (kind === "checkin") return (await dismissCheckin(createRepos(supabase), viewerMemberId, ref)) === null;
+        if (kind === "checkout" || kind === "checkin") return dismissHalf(kind, ref);
         if (kind === "notification") {
           // A check-in or check-out notification closes its prickle's offer too (which also reads it), so it doesn't come back as a derived row.
           const note = await createRepos(supabase).notifications.inAppById(viewerMemberId, ref);
           if (note && isId(note.ref, "prkl")) {
-            if (note.kind === "prickle_checkin") return (await dismissCheckin(createRepos(supabase), viewerMemberId, note.ref)) === null;
-            if (note.kind === "prickle_checkout") return (await dismissCheckout(createRepos(supabase), viewerMemberId, note.ref)) === null;
+            if (note.kind === "prickle_checkin") return dismissHalf("checkin", note.ref);
+            if (note.kind === "prickle_checkout") return dismissHalf("checkout", note.ref);
           }
           await createRepos(supabase).notifications.markInAppRead(viewerMemberId, [ref]);
           return true;

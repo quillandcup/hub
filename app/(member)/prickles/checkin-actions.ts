@@ -14,6 +14,7 @@ import {
   type Emotion,
 } from "@/lib/prickle-checkins";
 import { resolveAnsweredCheckinNotifications } from "@/lib/prickle-checkin-dms";
+import { answeredHalves, closeCheckinDmsAfterResponse } from "@/lib/prickle-checkin-dm-close";
 import { prickleTitle as nameOfPrickle } from "@/lib/domain/prickle";
 import { createRepos } from "@/lib/data/repos";
 import { getUserTimezonePreference } from "@/lib/timezone";
@@ -214,6 +215,8 @@ async function saveCheckinImpl(prickleId: string, input: CheckinInput): Promise<
     return { error: "Couldn't save your check-in — please try again." };
   }
   await resolveAnsweredCheckinNotifications(createRepos(supabase), identity.memberId, prickleId, input);
+  // The same for the Slack DM: collapsed to the closed note and marked read, once the response is out.
+  closeCheckinDmsAfterResponse({ memberId: identity.memberId, prickleId, halves: answeredHalves(input) });
 
   revalidateCheckinPages(prickleId);
   return { success: true };

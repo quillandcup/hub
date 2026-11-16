@@ -12,7 +12,7 @@ import { closeAnsweredCheckinDms } from "@/lib/prickle-checkin-dm-cleanup";
 const TYPE = { id: "t1", name: "Progress Prickle", normalizedName: "progress", purpose: "writing", requiresHost: false, soloTaskFriendly: false, listedInEvents: false, announcedPublicly: false, guestsAllowed: false };
 const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 const prickle = (id: string) => ({ id, typeId: TYPE.id, hostId: "host", title: null, startTime: hourAgo, endTime: hourAgo, source: "calendar", calendarEventId: null });
-const log = (id: string, memberId: string, prickleId: string, kind: string) => ({ id, member_id: memberId, prickle_id: prickleId, kind, sent_at: hourAgo });
+const log = (id: string, memberId: string, prickleId: string, kind: string) => ({ id, member_id: memberId, prickle_id: prickleId, kind, sent_at: hourAgo, slack_channel_id: null, slack_ts: null, closed_at: null });
 const dm = (ts: string, half: string, prickleId: string) => ({ ts, blocks: [{ block_id: `prickle_dismiss:${half}:${prickleId}` }] });
 
 const DONE_IN = { ...EMPTY_CHECKIN, pleasantBefore: 4, energyBefore: 3, need: "company" } as typeof EMPTY_CHECKIN;

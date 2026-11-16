@@ -5665,25 +5665,34 @@ export type Database = {
       }
       prickle_checkin_dm_log: {
         Row: {
+          closed_at: string | null
           id: string
           kind: string
           member_id: string
           prickle_id: string
           sent_at: string
+          slack_channel_id: string | null
+          slack_ts: string | null
         }
         Insert: {
+          closed_at?: string | null
           id?: string
           kind: string
           member_id: string
           prickle_id: string
           sent_at?: string
+          slack_channel_id?: string | null
+          slack_ts?: string | null
         }
         Update: {
+          closed_at?: string | null
           id?: string
           kind?: string
           member_id?: string
           prickle_id?: string
           sent_at?: string
+          slack_channel_id?: string | null
+          slack_ts?: string | null
         }
         Relationships: [
           {

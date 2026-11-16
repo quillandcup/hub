@@ -4,6 +4,7 @@ import { getMemberDisplayName } from "@/lib/member-display-name";
 import { createRepos } from "@/lib/data/repos";
 import { BookExistsError } from "@/lib/data/books";
 import { dismissCheckout, recentPresentPrickles } from "@/lib/prickle-checkin-dms";
+import { closeCheckinDmsAfterResponse } from "@/lib/prickle-checkin-dm-close";
 import { createClient } from "@/lib/supabase/server";
 import type { ProjectPatch } from "@/lib/data/writing";
 import { getCurrentUser } from "@/lib/auth";
@@ -1050,6 +1051,7 @@ async function dismissUnloggedPrickleImpl(prickleId: string): Promise<{ success:
   if (await dismissCheckout(createRepos(supabase), effectiveIdentity.memberId, prickleId)) {
     return { error: "Couldn't dismiss that prickle — please try again." };
   }
+  closeCheckinDmsAfterResponse({ memberId: effectiveIdentity.memberId, prickleId, halves: ["checkout"] });
 
   revalidatePath("/dashboard");
   return { success: true };
