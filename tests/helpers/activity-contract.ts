@@ -288,6 +288,105 @@ export function defineActivityContract(name: string, setup: () => ActivityContra
         });
       });
 
+      describe("what a member did while a care plan ran", () => {
+        const FROM = "2097-04-01T16:00:00Z";
+        const TO = "2097-05-01T16:00:00Z";
+        const PLAN = "care_AAAAAAAAAAA1";
+        const own = (member: 0 | 1, type: string, at: string, over: Partial<NewActivity> = {}) =>
+          activity(member, { type, category: "event", source: over.source ?? "prickle_attendance", occurredAt: at, relatedId: ctx.unique("plan"), actorKind: "member", ...over });
+        const ask = (over: Record<string, unknown> = {}) =>
+          ctx.repo().planActivity({ memberId: ctx.memberIds[0], fromIso: FROM, toIso: TO, carePlanId: PLAN, page: 1, pageSize: 25, ...over });
+
+        it("lists the member's own participation and the emails they were sent, newest first, start included and end not", async () => {
+          await ctx.repo().record(own(0, "prickle_attended", FROM, { title: "Attended Morning Writing" })); // the start: in
+          await ctx.repo().record(own(0, "slack_message", "2097-04-10T10:00:00Z", { source: "slack", title: "Posted in #writing", description: "the words they wrote" }));
+          await ctx.repo().record(own(0, "email_sent", "2097-04-12T10:00:00Z", { source: "resend", actorKind: "system", title: "Email sent: Welcome", description: "From hello@example.test" }));
+          await ctx.repo().record(own(0, "email_clicked", "2097-04-13T10:00:00Z", { source: "resend", actorKind: "system", title: "Clicked a link in: Welcome" }));
+          await ctx.repo().record(own(0, "prickle_attended", TO, { title: "Attended at the end" })); // the end: out
+          await ctx.repo().record(own(0, "prickle_attended", "2097-03-31T23:59:59Z", { title: "Before" }));
+          await ctx.repo().record(own(0, "prickle_attended", "2097-05-01T16:00:01Z", { title: "After" }));
+
+          const found = await ask();
+
+          expect(found.total).toBe(4);
+          expect(found.rows.map((r) => r.title)).toEqual(["Clicked a link in: Welcome", "Email sent: Welcome", "Posted in #writing", "Attended Morning Writing"]);
+        });
+
+        it("leaves out logins, other members, what staff or the system wrote, and anything not in the vocabulary", async () => {
+          await ctx.repo().record(own(0, "prickle_attended", "2097-04-02T10:00:00Z", { title: "Counted" }));
+          await ctx.repo().record(own(0, "hedgie_hub_login", "2097-04-03T10:00:00Z", { source: "access_events", title: "Signed in" }));
+          await ctx.repo().record(own(0, "feedback_submitted", "2097-04-04T10:00:00Z", { source: "feedback", title: "Feedback" }));
+          await ctx.repo().record(own(0, "prickle_checkin_cleared", "2097-04-05T10:00:00Z", { source: "prickle_checkins", title: "Cleared" }));
+          await ctx.repo().record(own(0, "sudo_started", "2097-04-06T10:00:00Z", { source: "sudo", actorKind: "staff", title: "Sudo" }));
+          await ctx.repo().record(own(0, "email_complained", "2097-04-07T10:00:00Z", { source: "resend", actorKind: "system", title: "Spam" }));
+          await ctx.repo().record(own(0, "prickle_commitment_created", "2097-04-08T10:00:00Z", { source: "prickle_commitments", actorKind: "staff", title: "Made by staff" }));
+          await ctx.repo().record(own(1, "prickle_attended", "2097-04-09T10:00:00Z", { title: "Someone else" }));
+
+          expect((await ask()).rows.map((r) => r.title)).toEqual(["Counted"]);
+        });
+
+        it("lists the plan's own care rows whenever they happened, not another plan's, and gives their data and who did it", async () => {
+          const staff = "00000000-0000-4000-a000-0000000000a1";
+          const care = (type: string, at: string, plan: string, data: Record<string, string | number> | null) =>
+            activity(0, { type, category: "communication", title: type, source: "care", actorKind: "staff", actorUserId: null, occurredAt: at, relatedId: plan, data: data ?? undefined });
+          await ctx.repo().record(care("care_started", "2097-04-01T16:00:00Z", PLAN, null));
+          await ctx.repo().record({ ...care("care_handover_offered", "2097-04-20T10:00:00Z", PLAN, { to_user_id: staff, note: "typed text" }), actorUserId: null });
+          await ctx.repo().record(care("care_closed", TO, PLAN, { ended_how: "ran_its_course" })); // exactly at the end: still this plan's
+          await ctx.repo().record(care("care_started", "2097-04-05T10:00:00Z", "care_AAAAAAAAAAA2", null)); // another plan's
+          await ctx.repo().record(care("care_started", "2096-01-05T10:00:00Z", PLAN, null)); // this plan's, long before (a moved start)
+
+          const found = await ask();
+
+          expect(found.rows.map((r) => r.type)).toEqual(["care_closed", "care_handover_offered", "care_started", "care_started"]);
+          expect(found.rows[0].careData).toEqual({ ended_how: "ran_its_course" });
+          expect(found.rows[1].careData).toEqual({ to_user_id: staff }); // only the keys a care row may carry
+          expect(found.rows[1].actorKind).toBe("staff");
+        });
+
+        it("carries no text: not a description, and no data for a row that is not a care row", async () => {
+          await ctx.repo().record(own(0, "slack_message", "2097-04-10T10:00:00Z", { source: "slack", title: "Posted in #writing", description: "a secret sentence", data: { channel_name: "writing", text: "a secret sentence" } }));
+
+          const [row] = (await ask()).rows;
+
+          expect(JSON.stringify(row)).not.toContain("secret");
+          expect(row).toMatchObject({ source: "slack", careData: null, actorUserId: null });
+        });
+
+        it("pages a long window in a stable order, with no row repeated or missed, past 1000 rows", async () => {
+          const start = Date.parse(FROM) + 60_000;
+          await ctx.repo().recordMany(
+            Array.from({ length: 1230 }, (_, i) => own(0, "slack_reaction", new Date(start + Math.floor(i / 2) * 60_000).toISOString(), { source: "slack", category: "communication", title: `Reacted ${i}` }))
+          );
+
+          const first = await ask({ pageSize: 100 });
+          expect(first.total).toBe(1230);
+          expect(first.rows).toHaveLength(100);
+          const seen = new Set<string>();
+          for (let page = 1; page <= 13; page += 1) {
+            const { rows, page: served } = await ask({ pageSize: 100, page });
+            expect(served).toBe(page);
+            for (const r of rows) {
+              expect(seen.has(r.id)).toBe(false);
+              seen.add(r.id);
+            }
+          }
+          expect(seen.size).toBe(1230);
+          const last = await ask({ pageSize: 100, page: 13 });
+          expect(last.rows).toHaveLength(30);
+          // Newest first across pages.
+          const times = (await ask({ pageSize: 100, page: 2 })).rows.map((r) => Date.parse(r.occurredAt));
+          expect(times).toEqual([...times].sort((a, b) => b - a));
+        });
+
+        it("clamps a page past the end to the last one, and an empty window has no rows", async () => {
+          await ctx.repo().record(own(0, "prickle_attended", "2097-04-10T10:00:00Z"));
+
+          expect((await ask({ page: 9 })).page).toBe(1);
+          expect(await ask({ fromIso: "2097-06-01T00:00:00Z", toIso: "2097-06-02T00:00:00Z" })).toMatchObject({ rows: [], total: 0 });
+          expect(await ask({ fromIso: TO, toIso: FROM })).toMatchObject({ rows: [], total: 0 }); // an end before the start
+        });
+      });
+
       it("finds the first prickle and the first Slack post, whatever the date", async () => {
         const [a, b] = ctx.memberIds;
         await ctx.repo().record(prickle(0, "2097-02-10T10:00:00Z", ctx.unique("prkl")));

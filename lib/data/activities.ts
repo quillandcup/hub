@@ -1,3 +1,5 @@
+import { PLAN_EMAIL_SOURCE, PLAN_EMAIL_TYPES, PLAN_MEMBER_TYPES } from "@/lib/care-activity";
+import { CARE_ACTIVITY_SOURCE, type CareActivityData } from "@/lib/care-events";
 import { latestParticipation, PARTICIPATION_TYPES, type Participation } from "@/lib/care-participation";
 import { ENGAGEMENT_WINDOW_DAYS } from "@/lib/member-engagement";
 import { pageBounds } from "@/lib/pagination";
@@ -59,6 +61,61 @@ export interface ActivityCounts {
 export interface ActivityFirsts {
   firstPrickleAt: string | null;
   firstSlackPostAt: string | null;
+}
+
+/** What "Activity during this plan" asks for: one member, the plan's window (`fromIso` included, `toIso` not), the plan whose care rows belong in it, and the page. */
+export interface PlanActivityQuery {
+  memberId: string;
+  fromIso: string;
+  toIso: string;
+  /** The care plan's id: its own care rows are listed whenever they happened (a closing at the instant the window ends included). */
+  carePlanId: string;
+  page: number;
+  pageSize: number;
+}
+
+/**
+ * One row of that list. Deliberately narrow: no description (a Slack or chat row's description can be the message text) and no
+ * data except what a care row carries (fixed values and staff account ids), so nothing a person typed leaves the repository.
+ */
+export interface PlanActivityRow {
+  id: string;
+  occurredAt: string;
+  type: string;
+  source: string;
+  title: string | null;
+  actorKind: string;
+  /** The staff account that did it: only for a care row (it is the member's own action otherwise, and the list says nothing more). */
+  actorUserId: string | null;
+  careData: CareActivityData | null;
+}
+
+/** The ids and fixed values of a care row's data; anything else a row holds is dropped. */
+function careDataOf(source: string, data: Json | null): CareActivityData | null {
+  if (source !== CARE_ACTIVITY_SOURCE || data === null || typeof data !== "object" || Array.isArray(data)) return null;
+  const d = data as Record<string, Json | undefined>;
+  const out: CareActivityData = {};
+  if (typeof d.plan_number === "number") out.plan_number = d.plan_number;
+  if (typeof d.ended_how === "string") out.ended_how = d.ended_how;
+  const [from, to] = [d.from_user_id, d.to_user_id];
+  if (typeof from === "string") out.from_user_id = from;
+  if (typeof to === "string") out.to_user_id = to;
+  return out;
+}
+
+function toPlanActivityRow(a: Pick<ActivityRow, "id" | "occurred_at" | "activity_type" | "source" | "title" | "actor_kind" | "actor_user_id" | "data">): PlanActivityRow {
+  const care = a.source === CARE_ACTIVITY_SOURCE;
+  return { id: a.id, occurredAt: a.occurred_at, type: a.activity_type, source: a.source ?? "", title: a.title, actorKind: a.actor_kind, actorUserId: care ? a.actor_user_id : null, careData: careDataOf(a.source ?? "", a.data) };
+}
+
+/** Whether an activity belongs in the plan's list (the twin's copy of the filter the database runs). */
+function inPlanList(a: Pick<ActivityRow, "member_id" | "occurred_at" | "activity_type" | "source" | "actor_kind" | "related_id">, q: PlanActivityQuery): boolean {
+  if (a.member_id !== q.memberId) return false;
+  if (a.source === CARE_ACTIVITY_SOURCE) return a.related_id === q.carePlanId;
+  const at = Date.parse(a.occurred_at);
+  if (at < Date.parse(q.fromIso) || at >= Date.parse(q.toIso)) return false;
+  if (a.actor_kind === "member") return PLAN_MEMBER_TYPES.includes(a.activity_type);
+  return a.source === PLAN_EMAIL_SOURCE && PLAN_EMAIL_TYPES.includes(a.activity_type);
 }
 
 const ID_CHUNK = 100;
@@ -129,6 +186,14 @@ export interface ActivityRepository {
    * Batched in chunks of windows, paginated past 1000 rows with a stable order.
    */
   engagementRowsForWindows(requests: EngagementWindowRequest[]): Promise<Map<string, EngagementRow[]>>;
+  /**
+   * What one member did while a Hedgie Care plan ran (`lib/care-activity.ts` says what is listed): their own activity of the
+   * community-participation types and the emails they were sent, from `fromIso` up to, not including, `toIso`, plus the plan's own
+   * care rows whenever they happened. Newest first, one page at a time (`page` is clamped to the pages that exist; the database
+   * skips the rows before it, so a member with more than 1000 rows in a window is read in full, a page at a time). A stable
+   * order (time, then id) so no row is repeated or missed between pages. Rows carry no text (`PlanActivityRow`).
+   */
+  planActivity(query: PlanActivityQuery): Promise<{ rows: PlanActivityRow[]; total: number; page: number }>;
 }
 
 /** Looking back from now for a member's last participation: days, then all time (null). */
@@ -442,6 +507,32 @@ export class SupabaseActivityRepository implements ActivityRepository {
     return out;
   }
 
+  async planActivity(query: PlanActivityQuery) {
+    const inWindow = `occurred_at.gte.${new Date(query.fromIso).toISOString()},occurred_at.lt.${new Date(query.toIso).toISOString()}`;
+    // Three branches: the member's own participation and the emails they were sent, both inside the window, and this plan's care rows at any time.
+    const listed = [
+      `and(${inWindow},actor_kind.eq.member,activity_type.in.(${PLAN_MEMBER_TYPES.join(",")}))`,
+      `and(${inWindow},source.eq.${PLAN_EMAIL_SOURCE},activity_type.in.(${PLAN_EMAIL_TYPES.join(",")}))`,
+      `and(source.eq.${CARE_ACTIVITY_SOURCE},related_id.eq.${query.carePlanId})`,
+    ].join(",");
+    // The count first (no rows), so the page can be clamped before a range is asked for.
+    const counted = await this.db.from("member_activities").select("id", { count: "exact", head: true }).eq("member_id", query.memberId).or(listed);
+    if (counted.error) throw new Error(counted.error.message);
+    const total = counted.count ?? 0;
+    const bounds = pageBounds(query.page, query.pageSize, total);
+    if (total === 0) return { rows: [], total, page: bounds.page };
+    const { data, error } = await this.db
+      .from("member_activities")
+      .select("id, occurred_at, activity_type, source, title, actor_kind, actor_user_id, data")
+      .eq("member_id", query.memberId)
+      .or(listed)
+      .order("occurred_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(bounds.offset, bounds.offset + bounds.pageSize - 1);
+    if (error) throw new Error(error.message);
+    return { rows: (data ?? []).map(toPlanActivityRow), total, page: bounds.page };
+  }
+
   async relatedIdsWritten(source: string, relatedIds: string[]) {
     const written = new Set<string>();
     for (const ids of chunk(relatedIds, ID_CHUNK)) {
@@ -623,6 +714,14 @@ export class InMemoryActivityRepository implements ActivityRepository {
       .filter((a) => a.engagement_value !== null && a.engagement_value !== 0)
       .map((a) => ({ member_id: a.member_id, activity_type: a.activity_type, engagement_value: a.engagement_value, occurred_at: a.occurred_at }));
     return rowsByWindow(requests, rows);
+  }
+
+  async planActivity(query: PlanActivityQuery) {
+    const rows = this.data.activities
+      .filter((a) => inPlanList(a, query))
+      .sort((a, b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at) || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
+    const bounds = pageBounds(query.page, query.pageSize, rows.length);
+    return { rows: rows.slice(bounds.offset, bounds.offset + bounds.pageSize).map(toPlanActivityRow), total: rows.length, page: bounds.page };
   }
 
   async relatedIdsWritten(source: string, relatedIds: string[]) {

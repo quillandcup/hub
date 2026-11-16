@@ -286,6 +286,15 @@ The hook is tested by `supabase/tests/database/custom_access_token_hook.test.sql
 - **No entry when nothing changed, and none for a refused or stale attempt.**
 - **Test both halves**: that the one entry is there (who, what, before and after) and that the per-row noise isn't (pgTAP: see `supabase/tests/database/course_editor_outline.test.sql`).
 
+### A Feature Launches With Its Events in the Activity Log
+
+**RULE**: A feature that records something about a member, or that staff do to a member's record, ships with its events in the Activity Log (`/admin/activity` and the member's Activity tab), checked before launch, not as a later TODO. Staff reading a member's history must not have to guess what the feature did.
+
+- **Write the events.** A `member_activities` row for each event worth a line (`actor_kind` member, staff or system; best effort beside the primary write), or an audit row where the audit rules say (a change to a record: the trigger, one entry for the intent). Two rows for one fact are fine only when the feed lists one of them.
+- **Say each as a plain sentence** in `describeRow` (`lib/activity-feed.ts`), people by `getMemberDisplayName`, and **never anything a person typed** (a note, a reason, message text) in the sentence, `description` or `data`/`changes`: redact audit columns (`audit_row_change`'s third argument).
+- **Test it:** the sentences in a unit test (every event, a name with `&` and `<`, no typed text), the rows an action writes in that action's test, and the trigger and the feed in pgTAP. Hedgie Care is the pattern (`lib/care-events.ts`, `tests/lib/care-events.test.ts`, `supabase/tests/database/care_activity_log.test.sql`).
+- **Look before you ship:** run each action once and read the Activity Log. Detail: `docs/ACTIVITY_AND_AUDIT_LOG.md`, "A feature launches with its events in the activity log".
+
 ### Supabase config as code
 
 `supabase/config.toml` is the source of truth for the Auth/API/DB/storage settings it declares: the top of the file is local dev, and `[remotes.prod]` overrides it for production (project `bxwtougjidectvjegdlr`). Anything not overridden there, such as `[auth.hook.custom_access_token]`, applies to production as-is. `supabase config push` only writes declared properties; undeclared ones keep their dashboard values. So change declared settings in `config.toml`, not the dashboard, or the next push reverts them.
