@@ -53,6 +53,15 @@ Section (background colour or picture with a shade, width, space, optional white
 4. If it can be wrong in a way a visitor can't work around, a rule in `lib/landing/a11y.ts`.
 5. Tests: the block in `tests/components/landing-blocks.test.tsx`; the config test already fails for a block with no fields.
 
+### Changing a block's props
+
+Stored pages (draft, published copy, every saved version) keep the props they were saved with, so renaming or reshaping a prop needs a migration step, not just a code change. Append a step to `LANDING_MIGRATIONS` in `lib/landing/migrations.ts` (`version` is the next number; `blocks` maps a block name to a function from old props to new; `root` does the same for the page frame). Never edit or remove an earlier step, and write each one so running it twice changes nothing more.
+
+- The document carries `schemaVersion` (unmarked data is 0). `normalizeLandingData` runs the steps above the document's version wherever stored data is read, so the editor, the public page, preview, restore and copy all see current props, and the next save writes them back with the new version. Blocks nested in a slot (a Section's `content`) and in zones are migrated too.
+- The save and publish actions stamp what the editor sends as current (`stampLandingVersion`), because the editor only ever holds migrated data and Puck may drop the marker.
+- Adding a prop with a default needs no step (the block's `defaultProps` cover it); only renames, removals and changes of meaning do.
+- Tests: add a case for the step to `tests/lib/landing-migrations.test.ts` (old shape in, new shape out, run twice).
+
 ## Opt-in forms
 
 The Sign-up form block (name, email, optional Instagram handle, button label, a line under the button, a success message or a thank-you page) sends sign-ups to Kajabi. The decision (owner) is that during the migration the mailing list, tags and automations stay in Kajabi, so **the Hub stores no submission**: there is no table, and nothing about the person reaches a log, an analytics event or Sentry.

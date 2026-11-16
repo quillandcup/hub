@@ -76,8 +76,8 @@ describe("sanitizing", () => {
     const clean = sanitizeLandingData({ content: [{ type: "RichText", props: { html: "<p>ok</p><script>x</script>" } }, { type: "Button", props: { href: "javascript:x" } }] });
     expect(JSON.stringify(clean)).not.toMatch(/script|javascript/);
     expect(clean.root).toEqual({});
-    expect(normalizeLandingData(null)).toEqual({ content: [], root: {} });
-    expect(normalizeLandingData([1])).toEqual({ content: [], root: {} });
+    expect(normalizeLandingData(null)).toEqual({ content: [], root: {}, schemaVersion: 0 });
+    expect(normalizeLandingData([1])).toEqual({ content: [], root: {}, schemaVersion: 0 });
   });
 });
 

@@ -7,6 +7,7 @@ import { LandingPageSlugTakenError } from "@/lib/data/landing-pages";
 import { createRepos } from "@/lib/data/repos";
 import { checkLandingPage, type A11yIssue } from "@/lib/landing/a11y";
 import { collectAssetIds } from "@/lib/landing/data";
+import { stampLandingVersion } from "@/lib/landing/migrations";
 import { sanitizeLandingData } from "@/lib/landing/sanitize";
 import { isLandingPageId, isLandingVersionId, isValidSlug, slugify } from "@/lib/landing/slug";
 
@@ -71,7 +72,7 @@ export async function saveLandingDraft(pageId: string, data: unknown): Promise<{
   if (!isLandingPageId(pageId)) return { error: NOT_FOUND };
   if (tooBig(data)) return { error: "This page is too large to save." };
   try {
-    const savedAt = await createRepos(auth.supabase).landingPages.saveDraft(pageId, sanitizeLandingData(data), auth.user.id);
+    const savedAt = await createRepos(auth.supabase).landingPages.saveDraft(pageId, sanitizeLandingData(stampLandingVersion(data)), auth.user.id);
     return savedAt ? { savedAt } : { error: NOT_FOUND };
   } catch (error) {
     return failed("autosave", error, "Couldn't save. Your changes are still here; trying again.");
@@ -118,7 +119,7 @@ async function publishImpl(auth: Auth, pageId: string, data: unknown): Promise<P
   if (!isLandingPageId(pageId)) return { error: NOT_FOUND };
   if (tooBig(data)) return { error: "This page is too large to publish." };
   const repos = createRepos(auth.supabase);
-  const clean = sanitizeLandingData(data);
+  const clean = sanitizeLandingData(stampLandingVersion(data));
   const issues = checkLandingPage(clean);
   const errors = issues.filter((i) => i.severity === "error");
   if (errors.length > 0) return { error: "Fix these before publishing.", issues };
