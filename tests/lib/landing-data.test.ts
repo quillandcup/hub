@@ -118,6 +118,12 @@ describe("checks before publishing", () => {
     expect(unshaded.map((i) => i.message).join(" ")).toContain("no shade");
   });
 
+  it("stops a link-list link with no address and warns about vague link text", () => {
+    const found = checkLandingPage(page(title, { type: "LinkList", props: { items: [{ label: "Shop", href: "javascript:x" }, { label: "here", href: "https://x.example" }] } }));
+    expect(found.filter((i) => i.severity === "error").map((i) => i.message)).toEqual([expect.stringContaining("Shop")]);
+    expect(found.filter((i) => i.severity === "warning")).toHaveLength(1);
+  });
+
   it("stops a countdown with no date and a video from a host we don't allow", () => {
     expect(errors(page(title, { type: "Countdown", props: { targetAt: "" } }))).toEqual(["The countdown has no date."]);
     expect(errors(page(title, { type: "Video", props: { url: "https://evil.example/v", title: "x" } }))).toEqual([expect.stringContaining("YouTube, Vimeo or Mux")]);
