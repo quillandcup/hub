@@ -1,6 +1,6 @@
 # Landing pages (the page builder)
 
-Status: **slice 1 built**: the model, the editor, the blocks, publishing with history, the public route. The opt-in form block is the very next PR; the rest is in `docs/TODO.md`, "Landing pages (page builder)".
+Status: **slice 1 built**: the model, the editor, the blocks, publishing with history, the public route. The opt-in form block (sign-ups into Kajabi) is built too; the rest is in `docs/TODO.md`, "Landing pages (page builder)".
 
 Kajabi has landing pages with a block editor. The Hub has the same, on [Puck](https://puckeditor.com) (`@puckeditor/core`, MIT): a page is Puck's JSON, `{ content: [...], root: { props } }`, and the same React components render in the editor's canvas and on the public page. We chose an open source editor over writing our own: the drag and drop, the outline, undo and redo, the viewport preview and the iframe canvas are Puck's; the blocks, the shell around it, the model and the rules are ours.
 
@@ -53,10 +53,17 @@ Section (background colour or picture with a shade, width, space, optional white
 4. If it can be wrong in a way a visitor can't work around, a rule in `lib/landing/a11y.ts`.
 5. Tests: the block in `tests/components/landing-blocks.test.tsx`; the config test already fails for a block with no fields.
 
-## Opt-in forms (next PR)
+## Opt-in forms
 
-No form block yet. The decision (owner) is that during the migration sign-ups keep going into Kajabi, so the Hub stores nothing: the block will submit through an `OptInDestination` interface with a Kajabi implementation now and a Hub one later, through a server relay (honeypot, rate limit, calm errors, no name or email in logs or analytics). The migration steps are one entry in `docs/TODO.md`. The extension point is `components/landing/config.tsx`.
+The Sign-up form block (name, email, optional Instagram handle, button label, a line under the button, a success message or a thank-you page) sends sign-ups to Kajabi. The decision (owner) is that during the migration the mailing list, tags and automations stay in Kajabi, so **the Hub stores no submission**: there is no table, and nothing about the person reaches a log, an analytics event or Sentry.
+
+- **How Kajabi takes it.** Kajabi's public API: `POST /v1/forms/{id}/submit` (JSON:API, bearer token) with `name` and `email` (required) and optional `custom_1` to `custom_3`; Kajabi checks deliverability and does the rest of what the form is set up for (double opt-in, tags, offers, sequences, automations, webhooks). It uses the same client credentials as the Kajabi imports (`KajabiClient.submitForm`, no new variable, no new host). The reference is at `help.kajabi.com/api-reference/forms/submit-form`. Kajabi's other documented way, the one-line JavaScript embed, was not used because it brings Kajabi's own styling and scripts onto our page; it remains the fallback if the API ever stops accepting submissions.
+- **The block names a form, not an address.** "Kajabi form" is the form's id (Marketing, Forms), stored in the page data (`kajabiFormId`); no id or host is in code. The Instagram handle goes to the Kajabi custom field the block names (`instagramField`), or the question is left out (the default).
+- **The relay** (`POST /api/landing/opt-in`, public): the browser sends the page address, the form id and the fields; the server reads the **published page** and forwards only if that page really has an opt-in block for that form, so the route can't be used to post to any other form on the account. A hidden field is the honeypot (a bot gets a normal success and nothing is sent); two rate limits through `RateLimitRepository` (per visitor address and per form); calm messages. The visitor's address is the rate-limit key and nothing else.
+- **`OptInDestination`** (`lib/landing/opt-in.ts`: `submit(target, fields)`) is the extension point: `KajabiOptInDestination` is the only implementation, chosen in `lib/landing/opt-in-destination.ts`. A Hub destination (or a dual write) plugs in there; the migration steps are in `docs/TODO.md`.
+- **Editor and preview** send nothing: the form reads the page address in the browser and is disabled, with a note, anywhere but `/p/<address>`.
+- **Verified and not.** Verified from Kajabi's documentation: the endpoint, auth, body and side effects. Not verified: a live submission (never made, so nothing was added to the real account), which custom field the owner's Kajabi has set up (the block defaults to leaving Instagram out), and the exact status for a refused address (Kajabi documents only 401 and 403; the destination treats 400 and 422 as "check your details" and anything else as "try again").
 
 ## Tests
 
-Repository contract both ways (`tests/helpers/landing-page-contract.ts`), pgTAP for row-level security and audit, the actions, the public route (a draft, a deleted page and an unknown address are the same 404), the proxy allowlist for `/p/`, every block, the editor shell with Puck mocked, the list and the new-page form, the sanitizer and link rules, the checks and the countdown across daylight saving changes.
+Repository contract both ways (`tests/helpers/landing-page-contract.ts`), pgTAP for row-level security and audit, the actions, the opt-in relay (valid, honeypot, rate limit, a form the page doesn't show, malformed body, a failing destination) against a mocked Kajabi endpoint, the public route (a draft, a deleted page and an unknown address are the same 404), the proxy allowlist for `/p/`, every block, the editor shell with Puck mocked, the list and the new-page form, the sanitizer and link rules, the checks and the countdown across daylight saving changes.
