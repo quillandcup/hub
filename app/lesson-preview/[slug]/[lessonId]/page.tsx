@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound, permanentRedirect, redirect } from "next/navigation";
 import { searchSuffix } from "@/lib/courses/address-redirect";
 import { getCurrentUser } from "@/lib/auth";
-import { APP_URL } from "@/lib/config";
+import { lessonShareCard, shareCardMetadata } from "@/lib/link-unfurl/share-cards";
 import { isId } from "@/lib/ids";
 import { lessonPath } from "@/lib/courses/preview-path";
 import { publicLessonPreview } from "@/lib/courses/public-preview";
@@ -19,8 +19,6 @@ const loadPreview = cache(async (slug: string, lessonId: string) => {
   return "preview" in result ? result.preview : null;
 });
 
-const absolute = (src: string) => (src.startsWith("/") ? `${APP_URL}${src}` : src);
-
 /**
  * What a signed-out visitor, a link unfurler (Slack, iMessage) or a social card sees for a lesson
  * address. The proxy rewrites signed-out visits to `/courses/<course>/lessons/<lesson>` here
@@ -32,16 +30,11 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const preview = await loadPreview(slug, lessonId);
   if (!preview) return { title: "Login" };
 
-  const title = `${preview.title} · ${preview.courseTitle}`;
-  const description = preview.excerpt ?? `A lesson in ${preview.courseTitle}. Sign in to watch.`;
-  const images = preview.thumbnailSrc ? [{ url: absolute(preview.thumbnailSrc), alt: preview.title, ...preview.thumbnailSize }] : undefined;
   return {
-    title,
-    description,
+    // The same card the Slack app answers a link to this lesson with (lib/link-unfurl/share-cards.ts).
+    ...shareCardMetadata(lessonShareCard(preview)),
     // Not for search engines (these are lessons of a members' course); link unfurlers ignore this.
     robots: { index: false, follow: false },
-    openGraph: { title, description, type: "article", url: `${APP_URL}${lessonPath(preview.courseSlug, lessonId)}`, images },
-    twitter: { card: images ? "summary_large_image" : "summary", title, description, images: images?.map((i) => i.url) },
   };
 }
 

@@ -57,6 +57,10 @@ oauth_config:
       - files:write
       # /hub slash command (Slack sign-in)
       - commands
+      # Cards for links to the Hub in Slack: links:read delivers the link_shared event for the registered domain below,
+      # links:write lets the bot answer it with chat.unfurl (lib/chat/slack-link-shared.ts)
+      - links:read
+      - links:write
     # What a member lets the Hub do as them once they connect their Slack account (Settings,
     # lib/slack-connect.ts): post and react natively instead of through the bot.
     user:
@@ -110,6 +114,8 @@ settings:
       - emoji_changed
       # Home tab sign-in button
       - app_home_opened
+      # A link to the Hub, typed in Slack or written in a Hub message, for the domain registered below
+      - link_shared
       # Phase 2 candidates (not yet enabled — uncomment and add live if needed)
       # - message.deleted
       # - message.changed
@@ -117,6 +123,10 @@ settings:
       # - channel_rename
       # - channel_archive
       # - user_change
+    # The Hub's own host (the same one as the request URLs here): Slack sends link_shared only for links on it, and stops crawling those
+    # links itself, so the Hub's card is the whole preview. Registering or changing a domain needs the app reinstalled in the workspace.
+    unfurl_domains:
+      - hub.quillandcup.com
     # A member's 1:1 and group DM messages, on their behalf (their im:history and mpim:history user scopes): one event for each
     # DM message of every member who authorized it. The webhook keeps one only for a member the slack_dm_bridge feature covers
     # (lib/chat/slack-dm-events.ts) and drops the rest. The same goes for reactions on a DM; a reaction anywhere else delivered

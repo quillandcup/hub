@@ -44,6 +44,8 @@ export const SLACK_BOT_SCOPES = [
   "metadata.message:read",
   "files:write",
   "commands",
+  "links:read",
+  "links:write",
 ] as const;
 
 export function buildBotInstallUrl(state: string): string {

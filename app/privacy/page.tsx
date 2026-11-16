@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PUBLIC_PAGE_TITLES } from "@/lib/page-title";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
@@ -8,7 +9,7 @@ import { RETENTION } from "@/lib/retention";
 import { StatsOptOutSwitch } from "./StatsOptOutSwitch";
 
 export const metadata: Metadata = {
-  title: "Privacy",
+  title: PUBLIC_PAGE_TITLES.privacy,
 };
 
 /** When the wording below was last checked against the code. Bump it whenever the page changes. */

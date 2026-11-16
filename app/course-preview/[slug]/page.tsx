@@ -4,7 +4,7 @@ import Link from "next/link";
 import { permanentRedirect, redirect } from "next/navigation";
 import { searchSuffix } from "@/lib/courses/address-redirect";
 import { getCurrentUser } from "@/lib/auth";
-import { APP_URL } from "@/lib/config";
+import { courseShareCard, shareCardMetadata } from "@/lib/link-unfurl/share-cards";
 import { coursePath } from "@/lib/courses/preview-path";
 import { publicCoursePreview } from "@/lib/courses/public-preview";
 import { createServiceRoleClient } from "@/lib/supabase/service";
@@ -18,8 +18,6 @@ const loadPreview = cache(async (slug: string) => {
   return "preview" in result ? result.preview : null;
 });
 
-const absolute = (src: string) => (src.startsWith("/") ? `${APP_URL}${src}` : src);
-
 /**
  * What a signed-out visitor, a link unfurler (Slack, iMessage) or a social card sees for a course
  * address. The proxy rewrites signed-out visits to `/courses/<course>` here (lib/courses/preview-path.ts);
@@ -30,15 +28,11 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const preview = await loadPreview(slug);
   if (!preview) return { title: "Login" };
 
-  const description = preview.excerpt ?? `${preview.title}, a course for Quill & Cup members. Sign in to open it.`;
-  const images = preview.thumbnailSrc ? [{ url: absolute(preview.thumbnailSrc), alt: preview.title, ...preview.thumbnailSize }] : undefined;
   return {
-    title: preview.title,
-    description,
+    // The same card the Slack app answers a link to this course with (lib/link-unfurl/share-cards.ts).
+    ...shareCardMetadata(courseShareCard(preview)),
     // Not for search engines (a members' course); link unfurlers ignore this.
     robots: { index: false, follow: false },
-    openGraph: { title: preview.title, description, type: "website", url: `${APP_URL}${coursePath(preview.slug)}`, images },
-    twitter: { card: images ? "summary_large_image" : "summary", title: preview.title, description, images: images?.map((i) => i.url) },
   };
 }
 

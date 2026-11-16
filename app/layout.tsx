@@ -19,7 +19,7 @@ import { initialUserIdCommand } from "@/lib/analytics-identity";
 import { analyticsUserId } from "@/lib/analytics-user";
 import { countryNeedsConsent } from "@/lib/gdpr-countries";
 import { eventsNeedConsent as eventsNeedConsentFor } from "@/lib/analytics/consent";
-import { DEFAULT_TITLE, TITLE_TEMPLATE } from "@/lib/page-title";
+import { DEFAULT_TITLE, SITE_DESCRIPTION, TITLE_TEMPLATE } from "@/lib/page-title";
 import appConfig from "@/app.config";
 import { APP_URL } from "@/lib/config";
 
@@ -39,8 +39,7 @@ export const metadata: Metadata = {
     default: DEFAULT_TITLE,
     template: TITLE_TEMPLATE,
   },
-  description:
-    "The Quill & Cup member hub: find prickles and events, track your writing streaks and projects, and connect with fellow writers.",
+  description: SITE_DESCRIPTION,
   // No og:site_name: its "&" is escaped to "&amp;", which Slack's iPhone app shows literally.
   // Slack falls back to the domain.
   openGraph: { type: "website" },

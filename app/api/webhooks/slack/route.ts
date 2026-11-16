@@ -18,6 +18,7 @@ import {
   slackMemberNoticeEvent,
 } from "@/lib/slack-capture";
 import { isBeyondSlackHistory } from "@/lib/slack-deletions";
+import { handleLinkShared } from "@/lib/chat/slack-link-shared";
 import { decideDmEvent, isMemberTokenConversation } from "@/lib/chat/slack-dm-events";
 import { pullMemberDms } from "@/lib/chat/slack-dms";
 import { clock } from "@/lib/clock";
@@ -95,6 +96,9 @@ export async function POST(request: NextRequest) {
     if (payload.type === "event_callback") {
       if (payload.event?.type === "app_home_opened") {
         await publishHomeTab(payload.event, new URL(request.url).origin);
+      } else if (payload.event?.type === "link_shared") {
+        // A link to the Hub, typed in Slack or written in a Hub message: answer with its card (lib/chat/slack-link-shared.ts), after the response.
+        after(() => handleLinkShared(payload.event));
       } else {
         // A DM message delivered on behalf of a member (user_events) is kept only for members the Slack DM
         // bridge covers; everything else goes as it always has.

@@ -55,7 +55,7 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
   {
     key: 'chat_link_cards',
     name: 'Chat cards for links to the Hub',
-    description: 'A link to a Hub page in a chat message (a message in Hub Chat, a prickle, a member\'s profile) is drawn as a card under the message instead of Slack\'s "Login | Hedgie Hub" preview. This is decided for each reader: a card shows what that reader may see (a quoted message only to someone who can read it, otherwise a plain "Link to the Hub"). It changes what the reader sees, so it covers the members it is on for; for everyone else the link stays as it is today. Nothing is fetched from the Hub\'s own address',
+    description: 'A link to a Hub page in a chat message (a message in Hub Chat, a prickle, a member\'s profile) is drawn as a card under the message instead of Slack\'s "Login | Hedgie Hub" preview. This is decided for each reader: a card shows what that reader may see (a quoted message only to someone who can read it, otherwise a plain "Link to the Hub"). It changes what the reader sees, so it covers the members it is on for; for everyone else the link stays as it is today. Nothing is fetched from the Hub\'s own address. In Slack the app\'s card for a link to the Hub (seen by the whole conversation, so not decided per reader) says what the page is only once this is on for everyone; until then it only says "Link to the Hub"',
   },
   {
     key: 'slack_dm_bridge',
