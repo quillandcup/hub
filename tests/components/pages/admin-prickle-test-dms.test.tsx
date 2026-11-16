@@ -38,7 +38,7 @@ vi.mock("@/lib/data/repos", async () => ({
 }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => "service-client" }));
 
-const sendTestCheckinDM = vi.fn<(...args: unknown[]) => Promise<{ error: string } | { delivered: string[] }>>(async () => ({ delivered: ["slack", "email"] }));
+const sendTestCheckinDM = vi.fn<(...args: unknown[]) => Promise<{ error: string } | { delivered: string[]; skipped: string[]; failed: string[] }>>(async () => ({ delivered: ["slack", "email"], skipped: [], failed: [] }));
 vi.mock("@/lib/prickle-checkin-dms", () => ({ sendTestCheckinDM: (...args: unknown[]) => sendTestCheckinDM(...args) }));
 
 import { sendTestPrickleDM } from "@/app/(admin)/admin/prickles/[id]/actions";
@@ -53,7 +53,7 @@ beforeEach(() => {
 describe("sendTestPrickleDM", () => {
   it("sends the admin's own member the DM for this prickle", async () => {
     signInAs(ADMIN_USER, ADMIN_IDENTITY);
-    await expect(sendTestPrickleDM("p1", "prickle_checkout")).resolves.toEqual({ success: true, delivered: ["slack", "email"] });
+    await expect(sendTestPrickleDM("p1", "prickle_checkout")).resolves.toEqual({ success: true, delivered: ["slack", "email"], skipped: [], failed: [] });
     expect(sendTestCheckinDM).toHaveBeenCalledWith(
       repos,
       "member-bramble",

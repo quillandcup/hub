@@ -35,7 +35,7 @@ export async function sendTestPrickleDM(prickleId: string, kind: CheckinDMKind) 
     { id: prickle.id, typeName: type.name, title: prickleTitle(prickle) },
     kind
   );
-  return "error" in result ? { error: result.error } : { success: true as const, delivered: result.delivered };
+  return "error" in result ? { error: result.error } : { success: true as const, delivered: result.delivered, skipped: result.skipped, failed: result.failed };
 }
 
 /**
