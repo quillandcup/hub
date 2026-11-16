@@ -489,7 +489,7 @@ describe("how much a pull reads", () => {
     expect(historyCalls().filter((c) => ["DX20", "DX21", "DX22", "DX23", "DX24"].includes(c))).toHaveLength(5);
   });
 
-  it("on opening chat skips a conversation with no activity for a month; the nightly run reads it", async () => {
+  it("on opening chat skips a conversation with no activity for a month; the nightly run reads it once a week", async () => {
     m.history.mockResolvedValue(hi);
     await pullMemberDms(service, MEMBER);
     ds().chatChannels[0].last_message_at = "2026-09-01T00:00:00Z";
@@ -497,8 +497,34 @@ describe("how much a pull reads", () => {
     fake.clock.advance(24 * 60 * 60 * 1000);
     await pullMemberDms(service, MEMBER);
     expect(m.history).not.toHaveBeenCalled();
+    // The nightly run read it a day ago, so it is not read again yet; a week later it is.
+    await pullMemberDms(service, MEMBER, { force: true, patient: true });
+    expect(m.history).not.toHaveBeenCalled();
+    fake.clock.advance(7 * 24 * 60 * 60 * 1000);
     await pullMemberDms(service, MEMBER, { force: true, patient: true });
     expect(historyCalls()).toEqual(["D1"]);
+  });
+
+  it("nightly, reads a conversation with recent messages every time, and a dormant one only once a week", async () => {
+    m.list.mockResolvedValue({ channels: [{ id: "DA", user: "UGALE" }, { id: "DB", user: "UGALE" }] });
+    m.history.mockResolvedValue(hi);
+    registerChat("DA", [MEMBER]);
+    registerChat("DB", [MEMBER]);
+    const set = (id: string, at: string, pulled: string) => {
+      ds().chatChannels.find((c) => c.slack_channel_id === id)!.last_message_at = at;
+      ds().slackChannels.push({ channel_id: id, is_im: true, last_pulled_at: pulled } as never);
+    };
+    // DA had a message 3 days ago, DB none for two months; both were read 2 days ago (past the 6 hour freshness window).
+    set("DA", "2026-10-31T00:00:00Z", "2026-11-01T12:00:00Z");
+    set("DB", "2026-09-01T00:00:00Z", "2026-11-01T12:00:00Z");
+    await pullMemberDms(service, MEMBER, { force: true, patient: true });
+    expect(historyCalls()).toEqual(["DA"]);
+
+    // A week after DB was last read, it is read again.
+    m.history.mockClear();
+    ds().slackChannels.find((c) => c.channel_id === "DB")!.last_pulled_at = "2026-10-26T12:00:00Z";
+    await pullMemberDms(service, MEMBER, { force: true, patient: true });
+    expect(historyCalls()).toContain("DB");
   });
 
   it("reads the most recently active conversations first", async () => {
@@ -595,7 +621,7 @@ describe("pullDmsForCoveredMembers", () => {
     const result = await pullDmsForCoveredMembers(service, { deadline: later() });
     // The member without every scope and the revoked connection are left out; the other two are pulled (each with a token mock).
     // Both pull the same Slack channel, so its one message is stored once.
-    expect(result).toEqual({ members: 2, conversations: 2, messages: 1, deferred: 0, done: 0, incomplete: 0, errors: [] });
+    expect(result).toEqual({ members: 2, conversations: 2, messages: 1, deferred: 0, done: 0, incomplete: 0, stale: 0, errors: [] });
     expect(rpcCalls("chat_claim_slack_dm_pull").map(([, args]) => args.p_min_seconds)).toEqual([0, 0]);
   });
 
@@ -638,6 +664,16 @@ describe("pullDmsForCoveredMembers", () => {
     warn.mockRestore();
   });
 
+  it("counts as stale the covered members not read completely for three days, not those read within it", async () => {
+    const connections = (m.dataset as InstanceType<typeof InMemoryDataset>).slackConnections;
+    m.list.mockRejectedValue(Object.assign(new Error("rate limited"), { code: "slack_webapi_rate_limited_error", retryAfter: 600 }));
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    connections.find((c) => c.member_id === MEMBER)!.dms_completed_at = "2026-11-02T12:00:00Z";
+    connections.find((c) => c.member_id === GALE)!.dms_completed_at = "2026-10-30T12:00:00Z";
+    const result = await pullDmsForCoveredMembers(service, { deadline: fake.clock.now() + 100_000 });
+    expect(result).toMatchObject({ members: 2, stale: 1 });
+  });
+
   it("leaves out members the feature doesn't cover", async () => {
     m.covered = new Set([GALE]);
     const result = await pullDmsForCoveredMembers(service, { deadline: later() });
@@ -647,7 +683,7 @@ describe("pullDmsForCoveredMembers", () => {
 
   it("stops starting members when the time is up, and says how many are left", async () => {
     const result = await pullDmsForCoveredMembers(service, { deadline: Date.parse("2026-11-03T11:59:00Z") });
-    expect(result).toEqual({ members: 2, conversations: 0, messages: 0, deferred: 2, done: 0, incomplete: 0, errors: [] });
+    expect(result).toEqual({ members: 2, conversations: 0, messages: 0, deferred: 2, done: 0, incomplete: 0, stale: 2, errors: [] });
     expect(m.list).not.toHaveBeenCalled();
   });
 
