@@ -890,6 +890,19 @@ describe("an admin takes a plan over", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/admin/care/earlier");
   });
 
+  it("writes the takeover to the member's timeline with who it was taken from (an account id, no name), and a dismissal writes nothing there", async () => {
+    actAs(ADMIN_USER);
+    await takeOverCarePlan(id);
+    const rows = () => data.activities.filter((a) => a.source === "care" && a.activity_type === "care_plan_taken_over");
+    expect(rows()).toHaveLength(1);
+    expect(rows()[0]).toMatchObject({ actor_user_id: ADMIN_USER.id, related_id: id, data: { from_user_id: CM_USER.id } });
+
+    const before = data.activities.length;
+    actAs(CM_USER);
+    await dismissCareTakeoverNotice(id);
+    expect(data.activities).toHaveLength(before);
+  });
+
   it("is for admins only: a community manager is refused before anything is asked of the database, and so is an admin previewing one", async () => {
     actAs({ id: OWNER_B, email: "owner-b@example.test" });
     data.userProfiles.find((p) => p.id === OWNER_B)!.role = "community_manager";
@@ -932,7 +945,7 @@ describe("an admin takes a plan over", () => {
     actAs(ADMIN_USER);
     vi.spyOn(repos.care, "claim").mockRejectedValueOnce(new Error("connection reset"));
     await expect(takeOverCarePlan(id)).resolves.toEqual({ error: "Couldn't do that. Try again." });
-    expect(log).toHaveBeenCalledWith("[care] claim a care plan failed:", "connection reset");
+    expect(log).toHaveBeenCalledWith("[care] take a care plan over failed:", "connection reset");
   });
 });
 

@@ -1,4 +1,4 @@
--- pgTAP tests for 20270801000000_care_admin_takeover.sql: an admin may take any open care plan from its owner without their
+-- pgTAP tests for 20270801090000_care_admin_takeover.sql: an admin may take any open care plan from its owner without their
 -- agreement (the one exception to "hand-overs need both sides"), and the previous owner gets a notice on their page. A community
 -- manager still needs the receiver's agreement and may take only a plan with no owner; assistants and plain members are refused;
 -- an admin who already owns the plan is refused; a closed plan keeps its owner; the takeover clears a pending offer; the guard
@@ -172,6 +172,7 @@ SELECT is(
 
 -- The service role is refused too, and an account removal still empties the notice's users.
 SET LOCAL ROLE service_role;
+SELECT set_config('request.jwt.claims', '{"role": "service_role"}', true);
 SELECT throws_ok(
   $$UPDATE public.care_engagements SET owned_by = '00000000-0000-4000-a000-00000000fa03' WHERE id = 'care_Takeover0005'$$,
   '42501', 'care_handover:owner_change_refused', 'the service role cannot change an owner by writing the column');
