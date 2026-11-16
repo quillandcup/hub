@@ -56,6 +56,21 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "lesson-comments-foundation",
+    date: "2026-11-15",
+    audience: "engineering",
+    category: "improved",
+    title: "Lesson comments: the thread, behind a flag",
+    summary: "Course lessons can carry a comment thread: a repository for it, access rules in the database, and a shared thread component. It is off for everyone until the flag is switched on.",
+    body: `Members with access to a course can ask questions under an open lesson, and staff answer where they were asked. Everything is behind the \`lesson_comments\` flag.
+
+- **Data.** One repository (\`CourseCommentRepository\`, with an in-memory twin) owns the queries and builds the thread: questions newest first, replies oldest first, a "Comment removed" placeholder only when replies hang under it. Access follows the lesson: current course access, lesson open, and read-only while an admin previews as a member. The database also enforces the one-level threading and the 15-minute edit window, so a direct client can't get around the actions.
+- **Writes.** Server actions check the flag, the lesson, sudo and rate limits, and keep the text out of analytics and logs.
+- **UI.** \`CommentThread\` renders plain text and links only http(s) addresses.
+
+Moderation, notifications and the Kajabi import are later phases: see "Lesson comments" in \`docs/COURSES.md\`.`,
+  },
+  {
     slug: "course-video-playback-quality-in-mux-data",
     date: "2026-11-15",
     audience: "engineering",

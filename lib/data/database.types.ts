@@ -3887,6 +3887,77 @@ export type Database = {
           },
         ]
       }
+      lesson_comments: {
+        Row: {
+          body: string
+          created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+          edited_at: string | null
+          hidden_at: string | null
+          id: string
+          is_staff_reply: boolean
+          lesson_id: string
+          member_id: string
+          parent_id: string | null
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          edited_at?: string | null
+          hidden_at?: string | null
+          id?: string
+          is_staff_reply?: boolean
+          lesson_id: string
+          member_id: string
+          parent_id?: string | null
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          edited_at?: string | null
+          hidden_at?: string | null
+          id?: string
+          is_staff_reply?: boolean
+          lesson_id?: string
+          member_id?: string
+          parent_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_comments_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_comments_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "course_lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_comments_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_comments_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "lesson_comments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lesson_progress: {
         Row: {
           completed_at: string | null
@@ -7564,6 +7635,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      can_open_lesson: { Args: { p_lesson_id: string }; Returns: boolean }
       can_own_care_plans: { Args: { p_user: string }; Returns: boolean }
       cancel_care_handover: {
         Args: { p_id: string }

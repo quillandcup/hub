@@ -264,6 +264,13 @@ function CourseHeader({
             <span className={CHIP}>{chip}</span>
           </div>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{summary}</p>
+          {inHub && (
+            <p className="mt-1 text-sm">
+              <Link href={`/admin/courses/${courseId}/comments`} data-track="admin-course-unanswered-questions" className="text-plum-700 underline dark:text-plum-300">
+                Unanswered questions
+              </Link>
+            </p>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <CourseActions courseId={courseId} title={title} duplicate={duplicate} takeOver={takeOver} />
