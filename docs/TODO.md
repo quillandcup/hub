@@ -1630,6 +1630,11 @@ Decisions so far:
 
 ## Analytics & Matching
 
+### Slack matching: email aliases only count for the DM resolver _(Needs Scheduling)_
+`matchSlackUsersToMembers` (`lib/slack-matching.ts`) takes the member's active email aliases as a last-resort tier, but only `lib/slack-member-ids.ts` (the notification and DM recipient lookup) passes them. The other callers still match on the member email, a Slack alias and the name alone: the Slack processing routes (`app/api/process/slack`, `app/api/process/chat`), the Slack reconciliation and unmatched-user reports, Wheel of Wonder, and the admin hygiene pages (unmatched Slack users, members without Slack). A member whose Slack email is one of their aliases is therefore reachable by DM but still listed as unmatched there.
+
+**Why deferred:** the processing routes feed Bronze to Silver, so changing who a Slack user maps to changes stored data and needs a reprocess and a look at prod first (prod, 2026-11: 3 members would gain a match, 0 would collide). Start by loading `repos.aliases.emailAliases({ activeOnly: true })` in each caller and passing it as the fifth argument, then reprocess Slack and check the counts.
+
 ### Name matching: a first-name-only Zoom name can land on the wrong member _(Needs Scheduling)_
 `matchAttendeeToMember` (`lib/member-matching.ts`, rule 4) matches a one-word name such as a Zoom display name by comparing it with members' *legal* first names, and takes the match when exactly one member has that first name. A member who goes by a different first name than their legal one (their Zoom name is the name they use, the legal name differs) and has no alias for it yet is attributed to whichever other member happens to have that legal first name. It happened in the live room ("who is in the prickle now"): a member who signs in under their chosen first name showed as another member until they added the alias themselves. Nothing marks the match as a guess, so attendance and the live room trust it.
 
