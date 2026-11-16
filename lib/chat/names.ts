@@ -220,3 +220,49 @@ export async function withMentionNames<T extends { description?: string | null }
   const [userNames, channelNames] = await Promise.all([slackUserNames(users), slackChannelNames(channels)]);
   return rows.map((r) => (r.description ? { ...r, description: mentionsToPlainText(r.description, { userNames, channelNames }) } : r));
 }
+
+/** How many other people a row names before the panel's "+N" (the panel shows the first few). */
+const PARTICIPANTS_KEPT = 8;
+
+/**
+ * Activity rows for a DM or group DM, each given `data.participants`: the names of the others in that conversation
+ * (the member whose page it is left out, unless nobody else is in it). Staff may see who is in every conversation,
+ * never what was said (`/privacy`), so this reads membership and names only: a matched member by their Hub display
+ * name, anyone else by their Slack name. Bots are skipped. Callers have already checked the caller is staff.
+ */
+export async function withConversationParticipants<T extends { data?: unknown }>(rows: T[], memberId: string): Promise<T[]> {
+  const dataOf = (r: T): Record<string, unknown> | null => (r.data && typeof r.data === "object" && !Array.isArray(r.data) ? (r.data as Record<string, unknown>) : null);
+  const channelIds = [
+    ...new Set(
+      rows.flatMap((r) => {
+        const d = dataOf(r);
+        return (d?.channel_type === "im" || d?.channel_type === "mpim") && typeof d.channel_id === "string" ? [d.channel_id] : [];
+      }),
+    ),
+  ];
+  if (channelIds.length === 0) return rows;
+  const repos = createRepos(createServiceRoleClient());
+  const participants = await repos.slackWorkspace.currentParticipants(channelIds);
+  const userIds = [...new Set([...participants.values()].flat())];
+  if (userIds.length === 0) return rows;
+
+  const [authors, slackUsers] = await Promise.all([repos.chat.memberIdsBySlackUser(userIds), repos.slackUsers.byIds(userIds)]);
+  const members = authors.size > 0 ? await repos.directory.byIds([...new Set(authors.values())]) : [];
+  const hubName = new Map(members.map((m) => [m.id, m.display_name || m.name]));
+  const profile = new Map(slackUsers.map((u) => [u.user_id, u]));
+
+  const label = (id: string): string | null => {
+    const u = profile.get(id);
+    return (authors.get(id) && hubName.get(authors.get(id) as string)) || u?.display_name || u?.real_name || u?.name || null;
+  };
+  return rows.map((r) => {
+    const data = dataOf(r);
+    const channelId = data?.channel_id;
+    const people = typeof channelId === "string" ? participants.get(channelId) : undefined;
+    if (!people || !data) return r;
+    const real = people.filter((id) => !profile.get(id)?.is_bot);
+    const others = real.filter((id) => authors.get(id) !== memberId);
+    const names = (others.length > 0 ? others : real).map(label).filter((n): n is string => !!n);
+    return names.length === 0 ? r : { ...r, data: { ...data, participants: names.slice(0, PARTICIPANTS_KEPT), participantCount: names.length } };
+  });
+}

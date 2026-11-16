@@ -1,3 +1,4 @@
+import { purchaseCountsForEvent, type EventOfferLink } from "@/lib/event-offer-window";
 import type { Repos } from "@/lib/data/repos";
 import { membersForPurchases } from "@/lib/kajabi-purchase-members";
 
@@ -34,7 +35,11 @@ export async function eventSignups(repos: SignupRepos, events: { id: string; cap
 
   const linked = await repos.events.linkedOffers();
   const offersOf = new Map<string, string[]>();
-  for (const { event_id, kajabi_offer_id } of linked) offersOf.set(event_id, [...(offersOf.get(event_id) ?? []), kajabi_offer_id]);
+  const linksOf = new Map<string, EventOfferLink[]>();
+  for (const l of linked) {
+    offersOf.set(l.event_id, [...(offersOf.get(l.event_id) ?? []), l.kajabi_offer_id]);
+    linksOf.set(l.event_id, [...(linksOf.get(l.event_id) ?? []), l]);
+  }
 
   const withOffers = events.filter((e) => offersOf.has(e.id));
   if (withOffers.length === 0) return result;
@@ -58,7 +63,7 @@ export async function eventSignups(repos: SignupRepos, events: { id: string; cap
     }
     const taken = new Set((attendees.get(event.id) ?? []).map((a) => `m:${a.member_id}`));
     for (const p of purchases) {
-      if (p.deactivated_at || !p.kajabi_offer_id || !ids.includes(p.kajabi_offer_id)) continue;
+      if (p.deactivated_at || !p.kajabi_offer_id || !ids.includes(p.kajabi_offer_id) || !purchaseCountsForEvent(p, linksOf.get(event.id) ?? [])) continue;
       const email = p.kajabi_customer_id ? emailByCustomerId.get(p.kajabi_customer_id) : undefined;
       const member = email ? memberByEmail.get(email) : undefined;
       taken.add(member ? `m:${member.id}` : `b:${email ?? p.kajabi_customer_id ?? p.kajabi_purchase_id}`);

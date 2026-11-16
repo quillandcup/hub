@@ -67,7 +67,7 @@ function ReasonBadge({ reason }: { reason: ReasonBadgeData }) {
       {show && (
         <div
           role="tooltip"
-          className="absolute z-10 bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-max max-w-[220px] bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-xs rounded-lg px-2.5 py-1.5 shadow-lg"
+          className="absolute z-dropdown bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-max max-w-[220px] bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-xs rounded-lg px-2.5 py-1.5 shadow-lg"
         >
           <p className="font-medium">{REASON_LABEL[reason.kind]}</p>
           {reason.tooltip.map((line, i) => (

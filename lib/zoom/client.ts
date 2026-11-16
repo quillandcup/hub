@@ -1,4 +1,5 @@
 import { outboundFetch } from "@/lib/http/outbound";
+import { zoomCredentials } from "@/lib/zoom-accounts";
 
 interface ZoomTokenResponse {
   access_token: string;
@@ -203,15 +204,18 @@ export class ZoomClient {
   }
 }
 
+/** The client for the primary account. Throws when its credentials are not set. */
 export function createZoomClient(): ZoomClient {
-  const accountId = process.env.ZOOM_ACCOUNT_ID;
-  const clientId = process.env.ZOOM_CLIENT_ID;
-  const clientSecret = process.env.ZOOM_CLIENT_SECRET;
-  const userEmail = process.env.ZOOM_USER_EMAIL;
-
-  if (!accountId || !clientId || !clientSecret || !userEmail) {
+  const client = createZoomClientForPrefix("ZOOM");
+  if (!client) {
     throw new Error('Missing Zoom credentials. Please set ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET, and ZOOM_USER_EMAIL in .env.local');
   }
+  return client;
+}
 
-  return new ZoomClient(accountId, clientId, clientSecret, userEmail);
+/** The client for the account whose credentials start with `prefix` (`ZOOM`, `ZOOM_SECONDARY`, ...), or null when they are not all set. */
+export function createZoomClientForPrefix(prefix: string): ZoomClient | null {
+  const credentials = zoomCredentials(prefix);
+  if (!credentials) return null;
+  return new ZoomClient(credentials.accountId, credentials.clientId, credentials.clientSecret, credentials.userEmail);
 }

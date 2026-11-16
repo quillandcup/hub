@@ -45,6 +45,10 @@ const nextConfig: NextConfig = {
   // the server). Makes flipping between chat conversations instant; a server action that calls
   // revalidatePath still clears it, and the live conversation reconciles over Realtime.
   experimental: { staleTimes: { dynamic: 30 } },
+  // The member page's Identity tab is now Account; old links keep landing on it (the page there checks the admin).
+  async redirects() {
+    return [{ source: "/admin/members/:id/identity", destination: "/admin/members/:id/account", permanent: true }];
+  },
   // Report-Only Content-Security-Policy on every response (lib/csp.ts): reports what it would block, blocks nothing.
   async headers() {
     return [

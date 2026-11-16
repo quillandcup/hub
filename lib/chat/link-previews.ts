@@ -1,4 +1,5 @@
 import { decodePage, parsePagePreview } from "@/lib/chat/link-preview-html";
+import { isBlocked, type PreviewBlock } from "@/lib/chat/link-preview-blocks";
 import { safeImageUrl } from "@/lib/chat/unfurls";
 import { writtenLinks } from "@/lib/chat/written-links";
 import { APP_URL } from "@/lib/config";
@@ -76,14 +77,15 @@ export async function refreshLinkPreviews(
   repo: ChatLinkPreviewRepository,
   messageId: string,
   body: string,
-  opts: { ownOrigin?: string | null; fetchTheAddress?: (url: string) => Promise<FetchPageResult> } = {}
+  opts: { ownOrigin?: string | null; fetchTheAddress?: (url: string) => Promise<FetchPageResult>; blocks?: readonly PreviewBlock[] } = {}
 ): Promise<{ looked: LinkPreviewDraft[] }> {
   try {
     // Our own origin is never looked at, whatever the caller passed.
     const links = previewLinksIn(body, opts.ownOrigin ?? new URL(APP_URL).origin);
     const already = await repo.looked(messageId);
     const fresh = links.map((url, position) => ({ url, position })).filter((l) => !already.has(l.url));
-    const looked = await Promise.all(fresh.map((l) => buildPreview(l.url, l.position, opts.fetchTheAddress)));
+    // A link the author blocked (lib/chat/link-preview-blocks.ts) is recorded as `blocked` without a request: it draws nothing and is not asked for again.
+    const looked = await Promise.all(fresh.map((l) => (isBlocked(l.url, opts.blocks ?? []) ? Promise.resolve(empty(l.url, l.position, "blocked")) : buildPreview(l.url, l.position, opts.fetchTheAddress))));
     await repo.save(messageId, looked);
     await repo.forget(messageId, links);
     return { looked };

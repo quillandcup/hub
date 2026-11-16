@@ -1,14 +1,23 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import type { CareRepository } from "@/lib/data/care";
+import type { CareRepository, HandoverResult } from "@/lib/data/care";
 
 export type CareContractContext = {
   repo: () => CareRepository;
   /** Three members: "Ada Example" (display name "Ada E."), "Bo Example" and "Cy Example". */
   members: readonly { id: string; name: string }[];
-  /** The staff account that opens engagements (an auth user id), or null for none. */
-  openedBy: string | null;
-  /** A second staff account, to hand engagements to; null when the context has none (every owner then is `openedBy`). */
-  otherOwner: string | null;
+  /** The staff account (a community manager) that opens engagements (an auth user id). */
+  openedBy: string;
+  /** A second community manager, to hand engagements to. */
+  otherOwner: string;
+  /** An admin, an assistant (staff who may not own plans) and a plain member: auth users whose roles the database knows. */
+  admin: string;
+  assistant: string;
+  plain: string;
+  /**
+   * A repository acting as this signed-in user. The hand-over steps answer for the caller (the database knows it from the
+   * session, the twin is told), so each is called through the repository of the person doing it.
+   */
+  repoAs: (userId: string) => CareRepository;
   /** An engagement id nothing has. */
   missingId: string;
   /** Removes every engagement of the three members. */
@@ -322,7 +331,7 @@ export function defineCareContract(name: string, setup: () => CareContractContex
 
     describe("owners", () => {
       it("gives an engagement to whoever is named, or to whoever opened it, and a renewal keeps the owner", async () => {
-        const other = ctx.otherOwner ?? ctx.openedBy;
+        const other = ctx.otherOwner;
         const own = await opened(ada);
         expect(own.owned_by).toBe(ctx.openedBy);
 
@@ -336,23 +345,116 @@ export function defineCareContract(name: string, setup: () => CareContractContex
         const unowned = await opened(cy, { ownedBy: null });
         expect(unowned.owned_by).toBeNull();
       });
-
-      it("reassigns an open or a closed engagement, and answers null for one that is gone", async () => {
-        const other = ctx.otherOwner ?? ctx.openedBy;
-        const c = await opened(ada);
-
-        expect(await ctx.repo().reassign(c.id, other)).toMatchObject({ id: c.id, owned_by: other });
-        expect((await ctx.repo().byId(c.id))?.owned_by).toBe(other);
-
-        await ctx.repo().close(c.id, "ran_its_course", "2026-03-09T09:00:00.000Z");
-        expect(await ctx.repo().reassign(c.id, ctx.openedBy)).toMatchObject({ owned_by: ctx.openedBy, ended_how: "ran_its_course" });
-
-        expect(await ctx.repo().reassign(ctx.missingId, other)).toBeNull();
-        await ctx.repo().softDelete(c.id, "2026-03-10T09:00:00.000Z");
-        expect(await ctx.repo().reassign(c.id, other)).toBeNull();
-      });
     });
 
+    describe("hand-overs need both sides", () => {
+      const as = (user: string) => ctx.repoAs(user);
+      const owner = () => ctx.openedBy;
+      const colleague = () => ctx.otherOwner;
+      const owned = async (member: number, over: Partial<Parameters<CareRepository["open"]>[0]> = {}) => opened(member, { ownedBy: owner(), ...over });
+      const refused = async (result: Promise<HandoverResult>, reason: string) => expect(await result).toEqual({ ok: false, reason });
+      const ownerOf = async (planId: string) => (await ctx.repo().byId(planId))?.owned_by;
+
+      it("keeps the owner while the offer waits, and changes it only when the receiver accepts", async () => {
+        const c = await owned(ada);
+
+        const offered = await as(owner()).proposeHandover(c.id, colleague());
+        expect(offered).toMatchObject({ ok: true, engagement: { owned_by: owner(), handover_to: colleague(), handover_by: owner() } });
+        if (!offered.ok) throw new Error("unreachable");
+        expect(offered.engagement.handover_at).not.toBeNull();
+        expect(await ownerOf(c.id)).toBe(owner());
+
+        const accepted = await as(colleague()).acceptHandover(c.id);
+        expect(accepted).toMatchObject({ ok: true, engagement: { owned_by: colleague(), handover_to: null, handover_by: null, handover_at: null } });
+        expect(await ownerOf(c.id)).toBe(colleague());
+        await refused(as(colleague()).acceptHandover(c.id), "no_handover");
+      });
+
+      it("lets the receiver decline: the owner stays and the offer is gone", async () => {
+        const c = await owned(ada);
+        await as(owner()).proposeHandover(c.id, colleague());
+
+        expect(await as(colleague()).declineHandover(c.id)).toMatchObject({ ok: true, engagement: { owned_by: owner(), handover_to: null } });
+        await refused(as(colleague()).acceptHandover(c.id), "no_handover");
+        // It can be offered again after a no.
+        expect((await as(owner()).proposeHandover(c.id, colleague())).ok).toBe(true);
+      });
+
+      it("lets the proposer, the owner or an admin take an offer back, and not the receiver", async () => {
+        const c = await owned(ada);
+        await as(owner()).proposeHandover(c.id, colleague());
+        expect(await as(owner()).cancelHandover(c.id)).toMatchObject({ ok: true, engagement: { handover_to: null, handover_by: null } });
+        await refused(as(owner()).cancelHandover(c.id), "no_handover");
+
+        await as(ctx.admin).proposeHandover(c.id, colleague());
+        await refused(as(colleague()).cancelHandover(c.id), "not_allowed");
+        expect((await as(owner()).cancelHandover(c.id)).ok).toBe(true); // the owner, for an offer an admin made
+        await as(owner()).proposeHandover(c.id, colleague());
+        expect((await as(ctx.admin).cancelHandover(c.id)).ok).toBe(true); // an admin, for an offer the owner made
+      });
+
+      it("offers a closed plan too", async () => {
+        const c = await owned(ada);
+        await ctx.repo().close(c.id, "ran_its_course", "2026-03-09T09:00:00.000Z");
+
+        expect((await as(owner()).proposeHandover(c.id, colleague())).ok).toBe(true);
+        expect(await as(colleague()).acceptHandover(c.id)).toMatchObject({ ok: true, engagement: { owned_by: colleague(), ended_how: "ran_its_course" } });
+      });
+
+      it("refuses what the rules refuse: who may offer, to whom, how often, and a plan that is not there", async () => {
+        const c = await owned(ada);
+
+        await refused(as(colleague()).proposeHandover(c.id, ctx.admin), "not_allowed"); // not the owner, not an admin
+        await refused(as(ctx.plain).proposeHandover(c.id, colleague()), "not_allowed");
+        await refused(as(owner()).proposeHandover(c.id, ctx.assistant), "receiver_not_allowed"); // assistants are not offered plans
+        await refused(as(owner()).proposeHandover(c.id, ctx.plain), "receiver_not_allowed");
+        await refused(as(owner()).proposeHandover(c.id, owner()), "same_owner");
+        await refused(as(ctx.admin).proposeHandover(c.id, ctx.admin), "self"); // an admin acting for the owner is not also the receiver
+        await refused(as(owner()).proposeHandover(ctx.missingId, colleague()), "not_found");
+        await refused(as(owner()).acceptHandover(c.id), "no_handover"); // nothing offered
+        await refused(as(owner()).declineHandover(c.id), "no_handover");
+
+        expect((await as(owner()).proposeHandover(c.id, colleague())).ok).toBe(true);
+        await refused(as(owner()).proposeHandover(c.id, ctx.admin), "already_pending"); // one offer per plan
+        await refused(as(owner()).acceptHandover(c.id), "no_handover"); // only the receiver answers
+        await refused(as(ctx.admin).acceptHandover(c.id), "no_handover");
+        expect(await ownerOf(c.id)).toBe(owner());
+
+        await ctx.repo().softDelete(c.id, "2026-03-10T09:00:00.000Z");
+        await refused(as(colleague()).acceptHandover(c.id), "not_found");
+      });
+
+      it("lets an admin offer a plan on the owner's behalf, to someone who then accepts", async () => {
+        const c = await owned(ada);
+
+        expect(await as(ctx.admin).proposeHandover(c.id, colleague())).toMatchObject({ ok: true, engagement: { handover_by: ctx.admin, owned_by: owner() } });
+        expect((await as(colleague()).acceptHandover(c.id)).ok).toBe(true);
+        expect(await ownerOf(c.id)).toBe(colleague());
+      });
+
+      it("lets a staff member who may own plans claim one nobody owns, once", async () => {
+        const c = await opened(ada, { ownedBy: null });
+
+        await refused(as(ctx.assistant).claim(c.id), "not_allowed");
+        await refused(as(ctx.plain).claim(c.id), "not_allowed");
+        await refused(as(owner()).proposeHandover(c.id, colleague()), "not_allowed"); // offering one is for admins
+        expect(await as(colleague()).claim(c.id)).toMatchObject({ ok: true, engagement: { owned_by: colleague() } });
+        await refused(as(owner()).claim(c.id), "has_owner");
+      });
+
+      it("carries a pending offer to the renewal and keeps the owner", async () => {
+        const c = await owned(ada);
+        await as(owner()).proposeHandover(c.id, colleague());
+
+        const renewed = await ctx.repo().renew(c.id, { ...renewInput, openedBy: owner() });
+        if (!renewed.ok) throw new Error("unreachable");
+        expect(renewed.engagement).toMatchObject({ owned_by: owner(), handover_to: colleague(), handover_by: owner() });
+        expect(await ctx.repo().byId(c.id)).toMatchObject({ handover_to: null, handover_by: null });
+
+        expect((await as(colleague()).acceptHandover(renewed.engagement.id)).ok).toBe(true);
+        expect(await ownerOf(renewed.engagement.id)).toBe(colleague());
+      });
+    });
     describe("renewing needs a reason that fits", () => {
       it("refuses a reason over the note's limit and leaves the engagement open", async () => {
         const first = await opened(ada);

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-/** The staff "who's where" roster page and its sortable table. The loader is mocked; markup is real. */
+/** The course's Customers tab (the old "who's where" roster) and its sortable table. The loader is mocked; markup is real. */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ADMIN_USER, MEMBER_USER, expectRedirect, renderServerPage, resetServerPageMocks, signInAs, ROLE_PROFILES } from "@/tests/helpers/server-page";
 import { InMemoryDataset } from "@/lib/data/in-memory";
@@ -23,7 +23,19 @@ vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }
 const loadCourseRoster = vi.fn();
 vi.mock("@/lib/courses/roster-data", () => ({ loadCourseRoster: (...a: unknown[]) => loadCourseRoster(...a) }));
 
+vi.mock("@/app/(admin)/admin/courses/[id]/CourseAdminPage", () => ({
+  default: (props: { idParam: string; tab: string }) => <div data-testid="shell" data-id={props.idParam} data-tab={props.tab} />,
+  courseTabMetadata: async () => ({ title: "x" }),
+}));
+
 import CourseRosterPage from "@/app/(admin)/admin/courses/[id]/roster/page";
+import { customersPanel } from "@/app/(admin)/admin/courses/[id]/customers-panel";
+
+/** Renders the Customers tab's content. */
+async function renderPanel() {
+  const panel = await customersPanel("kaj-1");
+  return render(<>{panel!.content}</>);
+}
 
 const row = (id: string, name: string, over: object = {}) => ({
   memberId: id, name, startsAt: "2026-01-01T00:00:00Z", endsAt: null, origin: "purchase", accessActive: true,
@@ -46,9 +58,19 @@ beforeEach(() => {
 });
 
 describe("/admin/courses/[id]/roster", () => {
+  it("is the Customers tab of the course shell, at the old address", async () => {
+    await renderServerPage(CourseRosterPage, props);
+    expect(screen.getByTestId("shell")).toHaveAttribute("data-tab", "roster");
+    expect(screen.getByTestId("shell")).toHaveAttribute("data-id", "kaj-1");
+  });
+
+  it("counts the customers in the tab label", async () => {
+    expect((await customersPanel("kaj-1"))!.label).toBe("Customers (2)");
+  });
+
   it("shows the legal name under a display name", async () => {
     loadCourseRoster.mockResolvedValue({ course: { id: "c1", title: "Course" }, rows: [row("mbr_AAAAAAAAAAA1", "Ada E", { realName: "Ada Example" })] });
-    await renderServerPage(CourseRosterPage, props);
+    await renderPanel();
     expect(screen.getByRole("link", { name: "Ada E" })).toBeInTheDocument();
     expect(screen.getByText("Ada Example")).toBeInTheDocument();
   });
@@ -56,12 +78,10 @@ describe("/admin/courses/[id]/roster", () => {
   it("sends a member to /no-access", async () => {
     signInAs(MEMBER_USER, null);
     await expectRedirect(CourseRosterPage, props, "/no-access");
-    expect(loadCourseRoster).not.toHaveBeenCalled();
   });
 
   it("lists members with progress, last lesson and access", async () => {
-    await renderServerPage(CourseRosterPage, props);
-    expect(screen.getByRole("heading", { level: 1, name: "Who's where" })).toBeInTheDocument();
+    await renderPanel();
     const fern = screen.getByRole("link", { name: "Fern Example" }).closest("tr")!;
     expect(screen.getByRole("link", { name: "Fern Example" })).toHaveAttribute("href", "/admin/members/mbr_AAAAAAAAAAA1");
     expect(within(fern).getByText("4 of 4")).toBeInTheDocument();
@@ -72,7 +92,7 @@ describe("/admin/courses/[id]/roster", () => {
   });
 
   it("sorts by member name when the header is clicked", async () => {
-    await renderServerPage(CourseRosterPage, props);
+    await renderPanel();
     const names = () => screen.getAllByRole("link", { name: /Example/ }).map((a) => a.textContent);
     await userEvent.click(screen.getByText("Member"));
     expect(names()).toEqual(["Bramble Example", "Fern Example"]);
@@ -82,12 +102,12 @@ describe("/admin/courses/[id]/roster", () => {
 
   it("says so when nobody has access", async () => {
     loadCourseRoster.mockResolvedValue({ course: { id: "c1", title: "The Ready Writer" }, rows: [] });
-    await renderServerPage(CourseRosterPage, props);
+    await renderPanel();
     expect(screen.getByText("Nobody has access yet.")).toBeInTheDocument();
   });
 
-  it("is a 404 for a course that isn't in the Hub", async () => {
+  it("has no Customers tab for a course that isn't in the Hub", async () => {
     loadCourseRoster.mockResolvedValue(null);
-    await expect(renderServerPage(CourseRosterPage, props)).rejects.toThrow();
+    expect(await customersPanel("kaj-1")).toBeNull();
   });
 });

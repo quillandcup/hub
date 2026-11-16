@@ -52,6 +52,7 @@ export default async function DataHygienePage() {
     missingStripeCount,
     membersForDuplicates,
     slackChannelsForAccessCheck,
+    undecidedZoomMeetings,
   ] = await Promise.all([
     createRepos(supabase).calendarEvents.count(),
     createRepos(supabase).prickles.countBySource("calendar"),
@@ -89,6 +90,8 @@ export default async function DataHygienePage() {
     createRepos(supabase).members.list({ orderBy: "name" }),
     // Slack channels Billie Bot can currently see (workspace channel count stays well under 1000)
     createRepos(supabase).slackWorkspace.channels().catch(() => []), // a failed read shows as none, as before
+    // Meetings from a Zoom account that is excluded by default, waiting for someone to keep or ignore them
+    createRepos(supabase).zoom.undecidedMeetingCount().catch(() => 0), // a failed count shows as none, as before
   ]);
 
   // Dedupe by zoom_name -- UNIQUE(zoom_name, zoom_email) doesn't dedupe when
@@ -735,6 +738,35 @@ export default async function DataHygienePage() {
               {ambiguousNamesCount === 0 && (
                 <p className="text-xs text-green-600 dark:text-green-400 mt-2">
                   None pending ✓
+                </p>
+              )}
+            </Link>
+
+            {/* Zoom meetings from accounts that are excluded by default */}
+            <Link
+              href="/admin/hygiene/zoom-meetings"
+              className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                  Zoom Meetings
+                </h3>
+                <span className="text-2xl">🎥</span>
+              </div>
+              <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
+                {undecidedZoomMeetings}
+              </p>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                undecided meeting{undecidedZoomMeetings !== 1 ? "s" : ""} on other Zoom accounts
+              </p>
+              {undecidedZoomMeetings > 0 && (
+                <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
+                  Left out of attendance until kept — review →
+                </p>
+              )}
+              {undecidedZoomMeetings === 0 && (
+                <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+                  Nothing waiting ✓
                 </p>
               )}
             </Link>

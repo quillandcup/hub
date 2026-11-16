@@ -1,6 +1,6 @@
 -- pgTAP tests for 20270626000000_hedgie_care.sql: staff (admin and community manager) read and write care engagements, a
 -- plain member and a signed-out visitor do not, nothing is hard deleted by a user, one open engagement per member and
--- channel (now one open plan per member: see care_plans_per_member.test.sql), a period has an end date and a close has a way it ended, renewing is one step that a double click cannot
+-- channel (now one open plan per member, and no channel at all: see care_plans_per_member.test.sql), a period has an end date and a close has a way it ended, renewing is one step that a double click cannot
 -- repeat, a community manager may read member_interactions (and nothing more of it), and the audit log records her writes
 -- as staff without the message bookkeeping. The first build's `conversations` table is gone.
 -- Rolled back; run with `pnpm test:pgtap`.
@@ -8,7 +8,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(58);
+SELECT plan(57);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000cc01', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'cv-manager@example.test'),
@@ -56,41 +56,37 @@ SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000cc01", "email": "cv-manager@example.test", "role": "authenticated"}', true);
 
 SELECT lives_ok(
-  $$INSERT INTO public.care_engagements (id, member_id, opened_by, owned_by, reason, channel, period_ends_on, notes)
-    VALUES ('care_CareAAAAAA01', 'mbr_CareAAAAAAA1', '00000000-0000-4000-a000-00000000cc01', '00000000-0000-4000-a000-00000000cc01', 'writing_check_in', 'slack_dm', current_date + 30, 'said hello')$$,
+  $$INSERT INTO public.care_engagements (id, member_id, opened_by, owned_by, reason, period_ends_on, notes)
+    VALUES ('care_CareAAAAAA01', 'mbr_CareAAAAAAA1', '00000000-0000-4000-a000-00000000cc01', '00000000-0000-4000-a000-00000000cc01', 'writing_check_in', current_date + 30, 'said hello')$$,
   'a community manager starts an engagement');
 SELECT is((SELECT count(*)::int FROM public.care_engagements WHERE id = 'care_CareAAAAAA01'), 1, 'and reads it');
 SELECT throws_ok(
-  $$INSERT INTO public.care_engagements (member_id, opened_by, reason, channel, period_ends_on)
-    VALUES ('mbr_CareAAAAAAA2', '00000000-0000-4000-a000-00000000cc03', 'welcome', 'slack_dm', current_date + 30)$$,
+  $$INSERT INTO public.care_engagements (member_id, opened_by, reason, period_ends_on)
+    VALUES ('mbr_CareAAAAAAA2', '00000000-0000-4000-a000-00000000cc03', 'welcome', current_date + 30)$$,
   '42501', NULL, 'but cannot start one in someone else''s name');
 SELECT throws_ok(
-  $$INSERT INTO public.care_engagements (member_id, opened_by, reason, channel, period_ends_on)
-    VALUES ('mbr_CareAAAAAAA1', '00000000-0000-4000-a000-00000000cc01', 'welcome', 'slack_dm', current_date + 30)$$,
+  $$INSERT INTO public.care_engagements (member_id, opened_by, reason, period_ends_on)
+    VALUES ('mbr_CareAAAAAAA1', '00000000-0000-4000-a000-00000000cc01', 'welcome', current_date + 30)$$,
   '23505', NULL, 'a second open engagement with the same member is refused');
-SELECT throws_ok(
-  $$INSERT INTO public.care_engagements (member_id, opened_by, reason, channel, period_ends_on)
-    VALUES ('mbr_CareAAAAAAA1', '00000000-0000-4000-a000-00000000cc01', 'welcome', 'email', current_date + 30)$$,
-  '23505', NULL, 'and so is one on another channel: a care plan belongs to the member');
 SELECT lives_ok(
-  $$INSERT INTO public.care_engagements (id, member_id, opened_by, owned_by, reason, channel, period_ends_on)
-    VALUES ('care_CareAAAAAA02', 'mbr_CareAAAAAAA4', '00000000-0000-4000-a000-00000000cc01', '00000000-0000-4000-a000-00000000cc01', 'introduction', 'email', current_date + 30)$$,
+  $$INSERT INTO public.care_engagements (id, member_id, opened_by, owned_by, reason, period_ends_on)
+    VALUES ('care_CareAAAAAA02', 'mbr_CareAAAAAAA4', '00000000-0000-4000-a000-00000000cc01', '00000000-0000-4000-a000-00000000cc01', 'introduction', current_date + 30)$$,
   'another member is a separate engagement');
 SELECT throws_ok(
-  $$INSERT INTO public.care_engagements (member_id, opened_by, reason, channel, period_ends_on)
-    VALUES ('mbr_CareAAAAAAA2', '00000000-0000-4000-a000-00000000cc01', 'gossip', 'slack_dm', current_date + 30)$$,
+  $$INSERT INTO public.care_engagements (member_id, opened_by, reason, period_ends_on)
+    VALUES ('mbr_CareAAAAAAA2', '00000000-0000-4000-a000-00000000cc01', 'gossip', current_date + 30)$$,
   '23514', NULL, 'a reason outside the set is refused');
 SELECT throws_ok(
   $$INSERT INTO public.care_engagements (member_id, opened_by, reason, channel, period_ends_on)
-    VALUES ('mbr_CareAAAAAAA2', '00000000-0000-4000-a000-00000000cc01', 'welcome', 'carrier_pigeon', current_date + 30)$$,
-  '23514', NULL, 'a channel outside the set is refused');
+    VALUES ('mbr_CareAAAAAAA2', '00000000-0000-4000-a000-00000000cc01', 'welcome', 'slack_dm', current_date + 30)$$,
+  '42703', NULL, 'a plan cannot name a channel: it belongs to the member, and the column is gone');
 SELECT throws_ok(
-  $$INSERT INTO public.care_engagements (member_id, opened_by, reason, channel)
-    VALUES ('mbr_CareAAAAAAA2', '00000000-0000-4000-a000-00000000cc01', 'welcome', 'slack_dm')$$,
+  $$INSERT INTO public.care_engagements (member_id, opened_by, reason)
+    VALUES ('mbr_CareAAAAAAA2', '00000000-0000-4000-a000-00000000cc01', 'welcome')$$,
   '23502', NULL, 'a period needs its last day');
 SELECT throws_ok(
-  $$INSERT INTO public.care_engagements (member_id, opened_by, reason, channel, period_ends_on, notes)
-    VALUES ('mbr_CareAAAAAAA2', '00000000-0000-4000-a000-00000000cc01', 'welcome', 'slack_dm', current_date + 30, repeat('x', 1001))$$,
+  $$INSERT INTO public.care_engagements (member_id, opened_by, reason, period_ends_on, notes)
+    VALUES ('mbr_CareAAAAAAA2', '00000000-0000-4000-a000-00000000cc01', 'welcome', current_date + 30, repeat('x', 1001))$$,
   '23514', NULL, 'a note over the limit is refused');
 SELECT throws_ok(
   $$UPDATE public.care_engagements SET closed_at = now() WHERE id = 'care_CareAAAAAA01'$$,
@@ -172,8 +168,8 @@ SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-000000
 SELECT is_empty($$SELECT 1 FROM public.care_engagements$$, 'a plain member reads no engagements');
 SELECT is_empty($$SELECT 1 FROM public.member_interactions$$, 'nor member_interactions');
 SELECT throws_ok(
-  $$INSERT INTO public.care_engagements (member_id, opened_by, reason, channel, period_ends_on)
-    VALUES ('mbr_CareAAAAAAA2', '00000000-0000-4000-a000-00000000cc02', 'welcome', 'slack_dm', current_date + 30)$$,
+  $$INSERT INTO public.care_engagements (member_id, opened_by, reason, period_ends_on)
+    VALUES ('mbr_CareAAAAAAA2', '00000000-0000-4000-a000-00000000cc02', 'welcome', current_date + 30)$$,
   '42501', NULL, 'and cannot start one');
 SELECT is_empty($$UPDATE public.care_engagements SET notes = 'x' RETURNING 1$$, 'or change one');
 SELECT is((SELECT count(*)::int FROM public.renew_care_engagement('care_CareAAAAAA02', current_date + 60, '00000000-0000-4000-a000-00000000cc02', now(), 'x')), 0, 'or renew one');
@@ -189,12 +185,12 @@ SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000cc03", "email": "cv-admin@example.test", "role": "authenticated"}', true);
 SELECT is((SELECT count(*)::int FROM public.care_engagements WHERE id LIKE 'care_CareAAAAAA%'), 2, 'an admin reads them all');
 SELECT lives_ok(
-  $$INSERT INTO public.care_engagements (id, member_id, opened_by, reason, channel, period_ends_on)
-    VALUES ('care_CareAAAAAA05', 'mbr_CareAAAAAAA2', '00000000-0000-4000-a000-00000000cc03', 'welcome', 'prickle', current_date + 30)$$,
+  $$INSERT INTO public.care_engagements (id, member_id, opened_by, reason, period_ends_on)
+    VALUES ('care_CareAAAAAA05', 'mbr_CareAAAAAAA2', '00000000-0000-4000-a000-00000000cc03', 'welcome', current_date + 30)$$,
   'and starts one');
 SELECT lives_ok(
-  $$UPDATE public.care_engagements SET owned_by = '00000000-0000-4000-a000-00000000cc03' WHERE id = 'care_CareAAAAAA02'$$,
-  'an admin reassigns an engagement to themselves');
+  $$SELECT public.claim_care_plan('care_CareAAAAAA05')$$,
+  'an admin claims the plan nobody owns (a plan changes hands only through a hand-over: care_handover.test.sql)');
 RESET ROLE;
 
 -- The audit log: her writes are staff actions, once per intent, without the message bookkeeping.
@@ -218,10 +214,10 @@ SELECT is(
   (SELECT actor_kind FROM public.audit_log WHERE entity_type = 'care_engagement' AND entity_id = 'care_CareAAAAAA05' AND action = 'insert'),
   'staff', 'an admin''s is staff too');
 SELECT is(
-  (SELECT (changes -> 'owned_by' ->> 'old') || '>' || (changes -> 'owned_by' ->> 'new') FROM public.audit_log
-    WHERE entity_type = 'care_engagement' AND entity_id = 'care_CareAAAAAA02' AND action = 'update' AND changes ? 'owned_by'),
-  '00000000-0000-4000-a000-00000000cc01>00000000-0000-4000-a000-00000000cc03',
-  'reassigning shows in the audit log as a change of owner, old and new');
+  (SELECT COALESCE(changes -> 'owned_by' ->> 'old', 'nobody') || '>' || (changes -> 'owned_by' ->> 'new') FROM public.audit_log
+    WHERE entity_type = 'care_engagement' AND entity_id = 'care_CareAAAAAA05' AND changes ? 'owned_by' AND action IN ('update', 'insert') ORDER BY id DESC LIMIT 1),
+  'nobody>00000000-0000-4000-a000-00000000cc03',
+  'a change of owner shows in the audit log, old and new');
 
 SELECT * FROM finish(true);
 ROLLBACK;

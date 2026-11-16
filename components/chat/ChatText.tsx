@@ -46,7 +46,8 @@ function renderInline(nodes: Inline[], ctx: ChatTextContext): ReactNode[] {
       case "text":
         return n.v;
       case "bold":
-        return <strong key={i}>{renderInline(n.c, ctx)}</strong>;
+        // A link inside bold (the digest's `*<url|Title>*`) keeps the bold: the link style's medium weight would otherwise make it lighter than the text around it, unlike Slack.
+        return <strong key={i} className="[&_a]:font-bold">{renderInline(n.c, ctx)}</strong>;
       case "italic":
         return <em key={i}>{renderInline(n.c, ctx)}</em>;
       case "strike":

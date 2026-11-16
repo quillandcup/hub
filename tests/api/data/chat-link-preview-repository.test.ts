@@ -8,9 +8,12 @@ const db = getTestSupabaseAdminClient() as unknown as Db;
 const RUN = `${Date.now()}`;
 let channelId: string;
 let messages: [string, string, string];
+let members: [string, string];
 
 const clear = async () => {
   if (!messages) return;
+  const blocks = await db.from("chat_preview_blocks").delete().in("member_id", members);
+  if (blocks.error) throw new Error(blocks.error.message);
   for (const table of ["chat_link_previews", "chat_hidden_unfurls"] as const) {
     const { error } = await db.from(table).delete().in("message_id", messages);
     if (error) throw new Error(error.message);
@@ -27,10 +30,17 @@ beforeAll(async () => {
     .select("id");
   if (made.error) throw new Error(made.error.message);
   messages = made.data.map((m) => m.id) as [string, string, string];
+  const people = await db
+    .from("members")
+    .insert([0, 1].map((i) => ({ name: `Preview Block ${i} ${RUN}`, email: `preview-block-${RUN}-${i}@example.com`, joined_at: "2026-01-01", status: "active" })))
+    .select("id");
+  if (people.error) throw new Error(people.error.message);
+  members = people.data.map((m) => m.id) as [string, string];
 });
 
 afterAll(async () => {
   await clear();
+  if (members) await db.from("members").delete().in("id", members);
   // Messages go with their channel.
   await db.from("chat_channels").delete().eq("id", channelId ?? "");
 });
@@ -39,6 +49,9 @@ defineChatLinkPreviewContract("SupabaseChatLinkPreviewRepository", () => ({
   repo: () => new SupabaseChatLinkPreviewRepository(db),
   get messages() {
     return messages;
+  },
+  get members() {
+    return members;
   },
   clear,
 }));

@@ -73,7 +73,7 @@ function settingsSections(): SitePage[] {
   const tabHref = (tab: (typeof SETTINGS_TAB_IDS)[number]) => (tab === SETTINGS_TAB_IDS[0] ? "/settings" : `/settings/${tab}`);
   const section = (tab: (typeof SETTINGS_TAB_IDS)[number]) => `${SETTINGS_TITLE} · ${SETTINGS_TAB_LABELS[tab]}`;
   return [
-    ...SETTINGS_SECTIONS.map((s) => ({ title: s.title, href: `${tabHref(s.tab)}#${s.id}`, audience: "member" as const, section: section(s.tab), keywords: s.keywords, ...(s.tab === "hosting" ? { feature: "hosting" as const } : {}) })),
+    ...SETTINGS_SECTIONS.map((s) => ({ title: s.title, href: `${tabHref(s.tab)}#${s.id}`, audience: "member" as const, section: section(s.tab), keywords: s.keywords, ...(s.tab === "hosting" ? { feature: "hosting" as const } : s.feature ? { feature: s.feature } : {}) })),
     ...NOTIFICATION_KINDS.map((k) => ({
       title: k.label,
       href: `${tabHref("notifications")}#notification-${k.id}`,
@@ -142,7 +142,6 @@ export const SITE_PAGES: SitePage[] = [
   admin({ title: "Hedgieversaries", href: "/admin/hedgieversaries", section: "Member Programs", nav: { icon: "🎂" }, keywords: ["anniversary", "birthday"], feature: "hedgieversaries" }),
   admin({ title: "Hedgie Care", href: "/admin/care", section: "Member Programs", nav: { icon: "💌" }, keywords: ["reach out", "check in", "introduction", "welcome", "follow up", "dm", "engagement", "care plan"], communityManager: true }),
   admin({ title: "Hedgie Care: earlier", href: "/admin/care/earlier", section: "Member Programs", keywords: ["closed", "lapsed", "past engagements", "past care plans", "reach out"], communityManager: true }),
-  admin({ title: "Hedgie Care: your DMs", href: "/admin/care/dms", section: "Member Programs", keywords: ["slack", "direct messages", "dm", "track", "who spoke last"], communityManager: true }),
   admin({ title: "At-Risk Members", href: "/admin/at-risk", section: "Member Programs", nav: { icon: "⚠️" }, keywords: ["churn", "lapsing"], communityManager: true }),
   admin({ title: "Courses", href: "/admin/courses", section: "Education", nav: { icon: "📚", activeFor: ["/admin/courses/"] }, keywords: ["lessons", "kajabi", "ready writer", "publish", "launch"] }),
   admin({ title: "Kajabi Offers", href: "/admin/offers", section: "Sales & Marketing", nav: { icon: "🏷️" }, keywords: ["offers", "mapping", "migrate", "kajabi", "products", "tickets"] }),
@@ -178,6 +177,7 @@ export const SITE_PAGES: SitePage[] = [
   admin({ title: "Chat Gap-fills", href: "/admin/data-health/gap-fills", section: "System", keywords: ["slack", "webhook", "missed events", "catch-up"] }),
   admin({ title: "Unmatched Zoom Names", href: "/admin/hygiene/unmatched-zoom", section: "System" }),
   admin({ title: "Ambiguous Zoom Names", href: "/admin/hygiene/ambiguous-names", section: "System" }),
+  admin({ title: "Zoom Meetings", href: "/admin/hygiene/zoom-meetings", section: "System", keywords: ["zoom accounts", "ignore", "keep", "personal"] }),
   admin({ title: "Unmatched Slack Users", href: "/admin/hygiene/unmatched-slack", section: "System" }),
   admin({ title: "Members Without Slack", href: "/admin/hygiene/members-without-slack", section: "System" }),
   admin({ title: "Merge & Fix", href: "/admin/hygiene/merge-fix", section: "System", keywords: ["duplicates", "merge"] }),

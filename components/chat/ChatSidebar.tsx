@@ -9,6 +9,7 @@ import { byRecency, loadUnreadCounts, type ChannelSummary } from "@/lib/chat/loa
 import { LAST_CHAT_COOKIE } from "@/lib/chat/last-channel";
 import { mentionsToPlainText } from "@/lib/chat/render";
 import { subscribeDraftChanges } from "@/lib/chat/draft-events";
+import { MARKED_UNREAD_EVENT, type MarkedUnreadDetail } from "@/lib/chat/list-events";
 import { syncChatReadFromSlack } from "@/app/(member)/chat/actions";
 import NewMessagePicker from "@/components/chat/NewMessagePicker";
 
@@ -88,7 +89,7 @@ function BrowseChannels({ channels, pathname }: { channels: ChannelSummary[]; pa
         <div
           role="dialog"
           aria-label="Channels you can join"
-          className="absolute inset-x-0 top-full z-20 mt-1 rounded-lg border border-slate-300 bg-white p-2 shadow-lg dark:border-slate-700 dark:bg-slate-900"
+          className="absolute inset-x-0 top-full z-dropdown mt-1 rounded-lg border border-slate-300 bg-white p-2 shadow-lg dark:border-slate-700 dark:bg-slate-900"
         >
           <p className="px-1 pb-1 text-xs font-semibold text-slate-600 dark:text-slate-400">Channels you can join</p>
           <input
@@ -280,16 +281,28 @@ function useUnreadCounts(
   const [seen, setSeen] = useState(signature);
   const [counts, setCounts] = useState(fromServer);
   const [lastActive, setLastActive] = useState<string | null>(null);
+  // Conversations the member marked unread from a message while they were in them: leaving one doesn't read it.
+  const [keptUnread, setKeptUnread] = useState<ReadonlySet<string>>(new Set());
   if (signature !== seen) {
     setSeen(signature);
     setCounts(fromServer);
   }
   if (activeId !== lastActive) {
     setLastActive(activeId);
-    // Opening a conversation reads it; leaving it marks it read through what was on screen.
-    const cleared = [activeId, lastActive].filter((id): id is string => id !== null);
+    // Opening a conversation reads it; leaving it marks it read through what was on screen (not after "Mark unread").
+    const cleared = [activeId, lastActive].filter((id): id is string => id !== null && (id === activeId || !keptUnread.has(id)));
     if (cleared.length > 0) setCounts((c) => ({ ...c, ...Object.fromEntries(cleared.map((id) => [id, 0])) }));
+    if (activeId !== null && keptUnread.has(activeId)) setKeptUnread((s) => new Set([...s].filter((id) => id !== activeId)));
   }
+  useEffect(() => {
+    const onMarkedUnread = (e: Event) => {
+      const { channelId, unread } = (e as CustomEvent<MarkedUnreadDetail>).detail;
+      setKeptUnread((s) => new Set(s).add(channelId));
+      setCounts((c) => ({ ...c, [channelId]: unread }));
+    };
+    window.addEventListener(MARKED_UNREAD_EVENT, onMarkedUnread);
+    return () => window.removeEventListener(MARKED_UNREAD_EVENT, onMarkedUnread);
+  }, []);
 
   // Read through refs so the subscription is not rebuilt on every navigation.
   const router = useRouter();
@@ -484,11 +497,12 @@ export default function ChatSidebar({
       <Section title="Group messages" channels={recent(mine.filter((c) => c.kind === "group_dm" && hasActivity(c)))} pathname={pathname} unread={counts} />
       <Section
         title="Direct messages"
-        channels={recent(mine.filter((c) => c.kind === "dm" && hasActivity(c)))}
+        channels={recent(mine.filter((c) => c.kind === "dm" && !c.app && hasActivity(c)))}
         pathname={pathname}
         unread={counts}
         action={canStartDm && <NewMessagePicker pathname={pathname} />}
       />
+      <Section title="Apps" channels={recent(mine.filter((c) => c.kind === "dm" && c.app && hasActivity(c)))} pathname={pathname} unread={counts} />
       {channels.length === 0 && <p className="px-3 text-sm text-slate-600 dark:text-slate-400">No conversations yet.</p>}
       {channels.length > 0 && Boolean(wanted) && mine.length === 0 && <p className="px-3 text-sm text-slate-600 dark:text-slate-400">No channels match.</p>}
       <p className="mt-4 px-3 text-xs">

@@ -12,12 +12,14 @@ vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").the
 const requireAdminPage = vi.fn(async () => ({ id: "admin-1", email: "admin@example.test" }));
 const features = { on: [] as string[] };
 vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: async () => features.on }));
+const getEffectiveIdentity = vi.fn();
+vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: (...a: unknown[]) => getEffectiveIdentity(...a) }));
+const muxDataConsentFor = vi.fn();
+vi.mock("@/lib/mux-data.server", () => ({ muxDataConsentFor: (...a: unknown[]) => muxDataConsentFor(...a) }));
 vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: () => requireAdminPage() }));
 const loadAdminLesson = vi.fn();
 vi.mock("@/lib/courses/admin", () => ({ loadAdminLesson: (...a: unknown[]) => loadAdminLesson(...a) }));
-vi.mock("@/app/(admin)/admin/courses/[id]/LessonStaffTools", () => ({
-  default: (props: { lessonId: string; preview: boolean }) => <div data-testid="staff-tools" data-lesson={props.lessonId} data-preview={String(props.preview)} />,
-}));
+vi.mock("@/app/(member)/courses/actions", () => ({ clearMyLessonProgress: vi.fn() }));
 
 const publicLessonPreview = vi.fn();
 vi.mock("@/lib/courses/public-preview", () => ({ publicLessonPreview: (...a: unknown[]) => publicLessonPreview(...a) }));
@@ -25,8 +27,8 @@ vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }
 const signPlaybackTokens = vi.fn();
 vi.mock("@/lib/mux", () => ({ createMuxClient: () => ({}), signPlaybackTokens: (...a: unknown[]) => signPlaybackTokens(...a) }));
 vi.mock("@/components/courses/LessonPlayer", () => ({
-  default: (props: { title: string; playbackId: string; posterUrl?: string | null; trackProgress?: boolean }) => (
-    <div data-testid="player" data-playback={props.playbackId} data-poster={props.posterUrl ?? ""} data-tracking={String(!!props.trackProgress)} />
+  default: (props: { title: string; playbackId: string; posterUrl?: string | null; trackProgress?: boolean; muxData?: unknown; surface?: string }) => (
+    <div data-testid="player" data-surface={props.surface} data-muxdata={props.muxData ? JSON.stringify(props.muxData) : ""} data-playback={props.playbackId} data-poster={props.posterUrl ?? ""} data-tracking={String(!!props.trackProgress)} />
   ),
 }));
 
@@ -73,6 +75,8 @@ beforeEach(() => {
   loadAdminLesson.mockReset();
   publicLessonPreview.mockReset();
   publicLessonPreview.mockResolvedValue({ preview: { lessonId: "les_AAAAAAAAAAA1", title: "Reader Expectations vs. Reader Preferences", excerpt: null, courseSlug: "the-ready-writer", courseTitle: "The Ready Writer", thumbnailSrc: "/api/courses/image/lesson/les_AAAAAAAAAAA1" } });
+  getEffectiveIdentity.mockReset().mockResolvedValue({ memberId: "mbr_AAAAAAAAAAA1", memberName: "Ada Example", memberEmail: "ada@example.test", isSudo: false });
+  muxDataConsentFor.mockReset().mockResolvedValue(null);
   signPlaybackTokens.mockReset();
   signPlaybackTokens.mockResolvedValue({ playback: "p", poster: "t", storyboard: "s" });
 });
@@ -112,13 +116,18 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
   it("gives a Hub-owned lesson the buttons to upload, replace and remove its video, and an imported one none", async () => {
     loadAdminLesson.mockResolvedValue(detail({ editable: true }));
     const { unmount } = await renderServerPage(AdminLessonPage, params);
-    expect(screen.getByRole("button", { name: "Replace video" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Remove video" })).toBeInTheDocument();
+    // One compact row: the Video actions menu holds Replace video, Remove video and Captions.
+    expect(screen.queryByRole("button", { name: "Replace video" })).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: /Video actions/ }));
+    expect(screen.getByRole("menuitem", { name: "Replace video" })).toBeEnabled();
+    expect(screen.getByRole("menuitem", { name: "Remove video" })).toBeEnabled();
+    expect(screen.getByRole("menuitem", { name: "Captions…" })).toBeEnabled();
     unmount();
 
     loadAdminLesson.mockResolvedValue(detail({ editable: true, video: null }, { hasVideo: false }));
     const { unmount: second } = await renderServerPage(AdminLessonPage, params);
     expect(screen.getByRole("button", { name: "Upload video" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Video actions/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Remove video" })).not.toBeInTheDocument();
     second();
 
@@ -128,9 +137,10 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
   });
 
   it("lets a Hub-owned lesson's downloads be added and removed, and shows an imported lesson's as they are", async () => {
-    loadAdminLesson.mockResolvedValue(detail({ editable: true, files: [{ id: "file_AAAAAAAAAAA1", filename: "Tracker_Sheet.pdf", sizeBytes: 2048 }] }));
+    loadAdminLesson.mockResolvedValue(detail({ editable: true, files: [{ id: "file_AAAAAAAAAAA1", filename: "Tracker_Sheet.pdf", sizeBytes: 2048, href: "/courses/the-ready-writer/lessons/les_AAAAAAAAAAA1/files/file_AAAAAAAAAAA1" }] }));
     const { unmount } = await renderServerPage(AdminLessonPage, params);
     expect(screen.getByRole("button", { name: "Add files" })).toBeEnabled();
+    expect(screen.getByRole("link", { name: "Download Tracker_Sheet.pdf" })).toHaveAttribute("href", "/courses/the-ready-writer/lessons/les_AAAAAAAAAAA1/files/file_AAAAAAAAAAA1");
     expect(screen.getByRole("button", { name: "Remove Tracker_Sheet.pdf" })).toBeEnabled();
     unmount();
 
@@ -144,9 +154,11 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
   it("lets a Hub-owned lesson be moved to another module from its page, and keeps an imported lesson's picker off", async () => {
     loadAdminLesson.mockResolvedValue(detail({ editable: true }));
     const { unmount } = await renderServerPage(AdminLessonPage, params);
-    const picker = within(screen.getByRole("form", { name: "Lesson builder" })).getByRole("combobox", { name: "Select module" });
-    expect(picker).toBeEnabled();
-    expect(picker).toHaveValue("w1");
+    // A searchable list of modules (not a native select), showing the lesson's own module.
+    const form = within(screen.getByRole("form", { name: "Lesson builder" }));
+    expect(form.queryByRole("combobox", { name: "Select module" })).not.toBeInTheDocument();
+    expect(form.getByText("Module 2 / Week 1")).toBeInTheDocument();
+    expect(form.getByRole("button", { name: "Clear selection" })).toBeEnabled();
     unmount();
 
     loadAdminLesson.mockResolvedValue(detail({ editable: false }));
@@ -169,7 +181,7 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     loadAdminLesson.mockResolvedValue(detail({ editable: true }));
     const { unmount } = await renderServerPage(AdminLessonPage, params);
     expect(screen.getByRole("button", { name: "Choose thumbnail" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Use the frame at 0:00 as the thumbnail" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Use current frame as thumbnail" })).toBeEnabled();
     expect(screen.queryByRole("button", { name: "Image actions" })).not.toBeInTheDocument();
     unmount();
 
@@ -177,13 +189,17 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     await renderServerPage(AdminLessonPage, params);
     expect(screen.getByRole("button", { name: "Image actions" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Choose thumbnail" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /as the thumbnail$/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /frame as thumbnail$/ })).not.toBeInTheDocument();
   });
 
   it("lists the captions of a Hub-owned lesson's ready video with the means to add them, and shows an imported lesson's none", async () => {
     loadAdminLesson.mockResolvedValue(detail({ editable: true, captions: [{ id: "00000000-0000-4000-a000-000000000001", label: "English", language: "en", kind: "captions", source: "manual" }] }));
     const { unmount } = await renderServerPage(AdminLessonPage, params);
-    expect(screen.getByRole("heading", { name: "Captions" })).toBeInTheDocument();
+    // Captions live in a dialog opened from the Video actions menu.
+    expect(screen.queryByRole("button", { name: "Upload captions" })).not.toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /Video actions/ }));
+    await user.click(screen.getByRole("menuitem", { name: "Captions…" }));
     expect(screen.getByRole("button", { name: "Remove English" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Upload captions" })).toBeEnabled();
     unmount();
@@ -191,19 +207,22 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     // Not before the video is ready, and not for an imported lesson.
     loadAdminLesson.mockResolvedValue(detail({ editable: true, video: { status: "preparing", playbackId: null } }));
     const { unmount: second } = await renderServerPage(AdminLessonPage, params);
-    expect(screen.queryByRole("heading", { name: "Captions" })).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: /Video actions/ }));
+    expect(screen.getByRole("menuitem", { name: "Captions…" })).toBeDisabled();
     second();
 
     loadAdminLesson.mockResolvedValue(detail({ editable: false }));
     await renderServerPage(AdminLessonPage, params);
-    expect(screen.queryByRole("heading", { name: "Captions" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Captions…" })).not.toBeInTheDocument();
   });
 
   it("gives a Hub-owned lesson an editor for its text, and an imported one only the text", async () => {
     loadAdminLesson.mockResolvedValue(detail({ editable: true }, { bodyHtml: "<p>Hey Hedgies</p>" }));
     const { unmount } = await renderServerPage(AdminLessonPage, params);
     expect(await screen.findByRole("textbox", { name: "Lesson text" })).toHaveTextContent("Hey Hedgies");
-    expect(screen.getByRole("button", { name: "Save text" })).toBeInTheDocument();
+    // The text is saved with the page's own Save, which waits for a change.
+    expect(screen.queryByRole("button", { name: "Save text" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
     unmount();
 
     loadAdminLesson.mockResolvedValue(detail({ editable: false }));
@@ -211,6 +230,23 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     expect(screen.getByText("Hey Hedgies")).toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "Lesson text" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Save text" })).not.toBeInTheDocument();
+  });
+
+  it("gives the player Mux Data when the flag is on for the admin, and none when they have no member record", async () => {
+    loadAdminLesson.mockResolvedValue(detail());
+    muxDataConsentFor.mockResolvedValue({ needsConsent: false, optedOut: false });
+    await renderServerPage(AdminLessonPage, params);
+    expect(muxDataConsentFor).toHaveBeenCalledWith("admin-1", expect.objectContaining({ memberId: "mbr_AAAAAAAAAAA1" }));
+    expect(screen.getByTestId("player")).toHaveAttribute("data-muxdata", JSON.stringify({ needsConsent: false, optedOut: false }));
+    expect(screen.getByTestId("player")).toHaveAttribute("data-surface", "builder");
+  });
+
+  it("offers no Mux Data to an admin with no member record", async () => {
+    loadAdminLesson.mockResolvedValue(detail());
+    getEffectiveIdentity.mockResolvedValue(null);
+    await renderServerPage(AdminLessonPage, params);
+    expect(muxDataConsentFor).not.toHaveBeenCalled();
+    expect(screen.getByTestId("player")).toHaveAttribute("data-muxdata", "");
   });
 
   it("plays the lesson's video in the builder with the members' player, poster from the lesson thumbnail and no watch tracking", async () => {
@@ -342,6 +378,18 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     expect(screen.getByText(/can't be played right now/)).toBeInTheDocument();
   });
 
+  it("shows the Kajabi import banner for an imported course only, never for a Hub-owned one", async () => {
+    loadAdminLesson.mockResolvedValue(detail({ editable: true }));
+    const { unmount } = await renderServerPage(AdminLessonPage, params);
+    expect(screen.queryByText(/can't be edited here yet/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: SUPPORT_EMAIL })).not.toBeInTheDocument();
+    unmount();
+
+    loadAdminLesson.mockResolvedValue(detail({ editable: false }));
+    await renderServerPage(AdminLessonPage, params);
+    expect(screen.getByText(/can't be edited here yet/)).toBeInTheDocument();
+  });
+
   it("has no use-current-frame button: the thumbnail changes with Image actions, not from a paused frame", async () => {
     loadAdminLesson.mockResolvedValue(detail());
     await renderServerPage(AdminLessonPage, params);
@@ -367,8 +415,11 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     loadAdminLesson.mockResolvedValue(detail());
     await renderServerPage(AdminLessonPage, params);
     expect(screen.getByRole("link", { name: "Preview" })).toHaveAttribute("href", "/courses/the-ready-writer/lessons/les_AAAAAAAAAAA1");
-    expect(screen.getByTestId("staff-tools")).toHaveAttribute("data-lesson", "les_AAAAAAAAAAA1");
-    expect(screen.getByTestId("staff-tools")).toHaveAttribute("data-preview", "true");
+    // The staff tools are items of the Video actions menu, not a card of their own.
+    expect(screen.queryByLabelText("Staff tools")).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: /Video actions/ }));
+    expect(screen.getByRole("menuitem", { name: "Record my watching in this preview" })).toHaveAttribute("href", "/courses/the-ready-writer/lessons/les_AAAAAAAAAAA1?track=1");
+    expect(screen.getByRole("menuitem", { name: "Clear my progress for this lesson" })).toBeInTheDocument();
   });
 
   it("has neither preview nor staff tools for a lesson the Hub doesn't have, and says what's missing", async () => {
@@ -376,7 +427,7 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     await renderServerPage(AdminLessonPage, params);
 
     expect(screen.queryByRole("link", { name: "Preview" })).not.toBeInTheDocument();
-    expect(screen.queryByTestId("staff-tools")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Staff tools/ })).not.toBeInTheDocument();
     expect(screen.getByText(/text hasn't been imported yet/)).toBeInTheDocument();
     expect(screen.getByText("No video on this lesson.")).toBeInTheDocument();
     expect(screen.getByText("No downloads.")).toBeInTheDocument();

@@ -54,6 +54,8 @@ export interface ChannelSummary {
   slackChannelId: string | null;
   /** When it last had a message: direct and group messages are listed by it, newest first, as in Slack. */
   lastMessageAt: string | null;
+  /** A direct message with an app (a bot), listed under Apps rather than Direct messages; its label is the app's name. */
+  app?: boolean;
 }
 
 
@@ -80,20 +82,25 @@ export async function loadChatChannels(
   const dmIds = visible.filter((c) => c.kind !== "channel").map((c) => c.id);
   timer?.note("visible", visible.length);
   timer?.note("dms", dmIds.length);
-  const dmLabels = await groupDmLabels(repos, dmIds, memberId, timer, new Map(visible.map((c) => [c.id, c.kind])));
+  const [dmLabels, apps] = await Promise.all([
+    groupDmLabels(repos, dmIds, memberId, timer, new Map(visible.map((c) => [c.id, c.kind]))),
+    // Unreadable apps leave those DMs under Direct messages, as before.
+    dmIds.length > 0 ? repos.chat.dmApps(memberId).catch(() => new Map<string, string>()) : new Map<string, string>(),
+  ]);
   timer?.mark("dmLabels");
 
   const summaries = visible.map(
     (c): ChannelSummary => ({
       id: c.id,
       kind: c.kind,
-      label: c.kind === "channel" ? `#${c.name ?? "unnamed"}` : (dmLabels.get(c.id) ?? (c.kind === "dm" ? "Direct message" : "Group message")),
+      label: c.kind === "channel" ? `#${c.name ?? "unnamed"}` : (apps.get(c.id) ?? dmLabels.get(c.id) ?? (c.kind === "dm" ? "Direct message" : "Group message")),
       visibility: c.visibility,
       restricted: c.restricted,
       archived: c.archived_at !== null,
       joined: joined.has(c.id),
       slackChannelId: c.slack_channel_id,
       lastMessageAt: c.last_message_at,
+      ...(c.kind === "dm" && apps.has(c.id) ? { app: true } : {}),
     })
   );
   const rank = (c: ChannelSummary) => (c.archived ? 2 : c.kind === "channel" ? 0 : 1);
@@ -241,17 +248,24 @@ export async function loadChannelForMember(
   if (isSudo && channel.kind !== "channel") return null;
   if (channel.visibility === "private" && !membership) return null;
 
-  const labels = channel.kind === "channel" ? new Map<string, string>() : await groupDmLabels(repos, [channel.id], memberId, undefined, new Map([[channel.id, channel.kind]]));
+  const [labels, apps] =
+    channel.kind === "channel"
+      ? [new Map<string, string>(), new Map<string, string>()]
+      : await Promise.all([
+          groupDmLabels(repos, [channel.id], memberId, undefined, new Map([[channel.id, channel.kind]])),
+          channel.kind === "dm" ? repos.chat.dmApps(memberId).catch(() => new Map<string, string>()) : new Map<string, string>(),
+        ]);
   return {
     id: channel.id,
     kind: channel.kind,
-    label: channel.kind === "channel" ? `#${channel.name ?? "unnamed"}` : (labels.get(channel.id) ?? (channel.kind === "dm" ? "Direct message" : "Group message")),
+    label: channel.kind === "channel" ? `#${channel.name ?? "unnamed"}` : (apps.get(channel.id) ?? labels.get(channel.id) ?? (channel.kind === "dm" ? "Direct message" : "Group message")),
     visibility: channel.visibility,
     restricted: channel.restricted,
     archived: channel.archived_at !== null,
     joined: Boolean(membership),
     slackChannelId: channel.slack_channel_id,
     lastMessageAt: channel.last_message_at,
+    ...(channel.kind === "dm" && apps.has(channel.id) ? { app: true } : {}),
   };
 }
 
@@ -293,17 +307,30 @@ export interface MessagePage {
   messages: MessageRow[];
   /** created_at to pass as ?before= for the page of older messages, when there is one. */
   olderBefore: string | null;
+  /** created_at to pass as `?after=` for the messages after a window that started at a date, when there are more. */
+  newerAfter?: string | null;
 }
 
 /** Top-level messages, newest page first, or one thread's replies in order. */
 export async function loadMessages(
   repos: ChatLoadRepos,
   channelId: string,
-  opts: { before?: string | null; threadRootId?: string | null } = {}
+  opts: { before?: string | null; from?: string | null; fromExclusive?: boolean; threadRootId?: string | null } = {}
 ): Promise<MessagePage> {
   const { chat } = repos;
   if (opts.threadRootId) {
     return { messages: await ignoringErrors(chat.threadMessages(channelId, opts.threadRootId, THREAD_LIMIT)), olderBefore: null };
+  }
+
+  if (opts.from) {
+    // A window that starts at a date: that day's first message (or the next day's, when nothing was posted) and on.
+    const rows = await ignoringErrors(chat.channelMessagesFrom(channelId, { from: opts.from, exclusive: opts.fromExclusive, limit: MESSAGE_PAGE_SIZE + 1 }));
+    const messages = rows.slice(0, MESSAGE_PAGE_SIZE);
+    const newerAfter = rows.length > MESSAGE_PAGE_SIZE ? messages[messages.length - 1].created_at : null;
+    // Older ones are read from just before the window's first message (or before the date, when the window is empty).
+    const edge = messages[0]?.created_at ?? opts.from;
+    const older = await ignoringErrors(chat.channelMessages(channelId, { before: edge, limit: 1 }));
+    return { messages, olderBefore: older.length > 0 ? edge : null, newerAfter };
   }
 
   const rows = await ignoringErrors(chat.channelMessages(channelId, { before: opts.before, limit: MESSAGE_PAGE_SIZE + 1 }));
@@ -663,7 +690,7 @@ export async function buildMessageViews(
     // Pictures on other people's servers go through our own route, so those servers never see who looked (lib/chat/unfurl-images.ts).
     // Only a message that is shown gets proxy addresses; the logo is position 0 and counts whether or not it is used below.
     const withPreviews = (parsed: { unfurls: Unfurl[] }) =>
-      withLinkPreviews(withoutLessonPreview(parsed.unfurls, sharedLesson).map((u) => (u.kind === "share" ? withShareSource(u, sharedSources, channelNames) : u)), hiddenCards ? linkPreviews.get(row.id) : undefined, hiddenCards?.get(row.id));
+      withLinkPreviews(withoutLessonPreview(parsed.unfurls, sharedLesson, row.id).map((u) => (u.kind === "share" ? withShareSource(u, sharedSources, channelNames) : u)), hiddenCards ? linkPreviews.get(row.id) : undefined, hiddenCards?.get(row.id));
     // Links to the Hub get a card of their own (decided per viewer when it draws), and Slack's card for the same link, the sign-in page, goes.
     const hubLinks = hubCards && parsed && body ? hubLinkUnfurls(body, APP_URL) : [];
     const proxied = parsed

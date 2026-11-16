@@ -2,14 +2,18 @@
 
 import { useState } from "react";
 import LessonPlayer, { type PlaybackTokens } from "@/components/courses/LessonPlayer";
+import type { MuxDataConsent } from "@/lib/mux-data";
 import VideoActions from "./VideoActions";
-import FrameThumbnailButton from "./FrameThumbnailButton";
+import type { StaffToolsProps } from "../../LessonStaffTools";
+import LessonVideoControls from "./LessonVideoControls";
+import type { CaptionTrack } from "./LessonCaptions";
 
 /** The lesson's video with its Video actions menu, which needs to know where the player is. */
 export default function LessonMediaPanel({
   title,
   playbackId,
   tokens,
+  muxData = null,
   posterUrl,
   lessonId,
   statsHref,
@@ -17,11 +21,15 @@ export default function LessonMediaPanel({
   thumbnailLink,
   thumbnailLinkBlocked,
   chatShare = false,
+  staff,
   frameThumbnail = null,
+  captions = [],
 }: {
   title: string;
   playbackId: string;
   tokens: PlaybackTokens;
+  /** Present unless the admin is in sudo; the player still waits for consent. */
+  muxData?: MuxDataConsent | null;
   posterUrl: string | null;
   /** The Hub lesson: lets a tab left open past the links' hour fetch fresh ones. Absent when the lesson isn't in the Hub yet. */
   lessonId?: string | null;
@@ -31,18 +39,33 @@ export default function LessonMediaPanel({
   thumbnailLinkBlocked: string;
   /** Offer the "open to everyone" link in the Video actions menu. */
   chatShare?: boolean;
+  /** Staff-only watch-tracking items for the Video actions menu. */
+  staff?: StaffToolsProps;
   /** For a Hub-owned lesson: the course and lesson the current frame can become the thumbnail of. */
   frameThumbnail?: { courseId: string; lessonId: string } | null;
+  /** The video's caption tracks (a Hub-owned lesson, where the actions menu manages them). */
+  captions?: CaptionTrack[];
 }) {
   const [seconds, setSeconds] = useState(0);
   return (
     <div>
       {/* No watch tracking: this is an admin looking at the lesson, not a viewing. */}
-      <LessonPlayer title={title} playbackId={playbackId} tokens={tokens} posterUrl={posterUrl} lessonId={lessonId ?? undefined} onTime={setSeconds} />
+      <LessonPlayer title={title} playbackId={playbackId} tokens={tokens} muxData={muxData} surface="builder" posterUrl={posterUrl} lessonId={lessonId ?? undefined} onTime={setSeconds} />
       <div className="mt-3">
-        <VideoActions statsHref={statsHref} lessonUrl={lessonUrl} seconds={seconds} thumbnailLink={thumbnailLink} thumbnailLinkBlocked={thumbnailLinkBlocked} chatShare={chatShare} />
+        {frameThumbnail ? (
+          <LessonVideoControls
+            courseId={frameThumbnail.courseId}
+            lessonId={frameThumbnail.lessonId}
+            status="ready"
+            captions={captions}
+            seconds={seconds}
+            frameThumbnail
+            actions={{ statsHref, lessonUrl, thumbnailLink, thumbnailLinkBlocked, chatShare, staff }}
+          />
+        ) : (
+          <VideoActions statsHref={statsHref} lessonUrl={lessonUrl} staff={staff} seconds={seconds} thumbnailLink={thumbnailLink} thumbnailLinkBlocked={thumbnailLinkBlocked} chatShare={chatShare} />
+        )}
       </div>
-      {frameThumbnail && <FrameThumbnailButton courseId={frameThumbnail.courseId} lessonId={frameThumbnail.lessonId} seconds={seconds} />}
     </div>
   );
 }

@@ -8,10 +8,11 @@ import "@videojs/react/video/skin.css";
 import { track } from "@/lib/analytics/client";
 import { MuxData } from "@videojs/react/extensions/mux-data";
 import { useEventsAllowed } from "@/lib/analytics/use-events-allowed";
-import { muxDataMetadata, type MuxDataConsent } from "@/lib/mux-data";
+import { muxDataMetadata, type MuxDataConsent, type PlayerSurface } from "@/lib/mux-data";
 import { courseImageUrl } from "@/lib/courses/image-urls";
 import { describePlaybackError, shouldRefreshToken, type PlaybackErrorInfo } from "@/lib/courses/playback-refresh";
 import { MAX_SEGMENTS_PER_BATCH, RESUME_MAX_FRACTION, type WatchSegmentInput } from "@/lib/courses/watch";
+import { SKIN_TOKENS } from "./skin-theme";
 import { AUTO_COMPLETE_FRACTION, useLessonCompletion } from "./LessonCompletion";
 
 export interface PlaybackTokens {
@@ -145,8 +146,8 @@ function PlaybackReporter({
  * browser, so the player renders this only where usage statistics are allowed (`muxDataOn` in LessonPlayer).
  * Anonymous: no viewer id, no cookies. Renders nothing.
  */
-function MuxDataMonitor({ title }: { title: string }) {
-  const metadata = useMemo(() => muxDataMetadata(title), [title]);
+function MuxDataMonitor({ title, surface }: { title: string; surface: PlayerSurface }) {
+  const metadata = useMemo(() => muxDataMetadata(title, surface), [title, surface]);
   return <MuxData disableCookies metadata={metadata} playerSoftwareName="mux-video" />;
 }
 
@@ -458,7 +459,7 @@ function BigPlayButton() {
       aria-label="Play video"
       data-track="lesson-play-video"
       onClick={() => void playback.play()}
-      className="group absolute inset-x-0 top-0 bottom-14 z-30 flex items-center justify-center focus:outline-none"
+      className="group absolute inset-x-0 top-0 bottom-14 z-float flex items-center justify-center focus:outline-none"
     >
       <span className="flex h-20 w-28 items-center justify-center rounded-2xl sm:h-24 sm:w-36 lg:h-28 lg:w-40 bg-plum-600 text-white shadow-xl ring-1 ring-white/30 transition group-hover:scale-105 group-hover:bg-plum-500 group-focus-visible:ring-2 group-focus-visible:ring-white">
         <svg viewBox="0 0 24 24" className="h-11 w-11 sm:h-14 sm:w-14 lg:h-16 lg:w-16" fill="currentColor" aria-hidden="true">
@@ -469,13 +470,7 @@ function BigPlayButton() {
   );
 }
 
-// The skin's public theming properties; plum is the Hub's plum-600 from tailwind.config.ts.
-const SKIN_THEME = {
-  aspectRatio: "16 / 9",
-  "--media-accent-color": "#a64d79",
-  "--media-accent-text-color": "#ffffff",
-  "--media-border-radius": "1rem",
-} as React.CSSProperties;
+const SKIN_THEME = { aspectRatio: "16 / 9", ...SKIN_TOKENS } as React.CSSProperties;
 
 /**
  * The themed lesson player: signed Mux playback, speed and captions remembered, resuming where the member left off, and recording what they watched. The poster is the
@@ -489,6 +484,7 @@ export default function LessonPlayer({
   tokens: initialTokens,
   restricted,
   muxData,
+  surface = "course",
   posterUrl,
   lessonId,
   chatMessageId,
@@ -503,8 +499,10 @@ export default function LessonPlayer({
   tokens: PlaybackTokens;
   /** Whether the video token carries the referrer restriction (recorded with a playback error). */
   restricted?: boolean;
-  /** Present when Mux Data is on for this viewer (the `mux_data` flag); the player still waits for consent. Absent: no Mux Data. */
+  /** Present for everyone but sudo; the player still waits for consent. Absent: no Mux Data. */
   muxData?: MuxDataConsent | null;
+  /** Where this player is shown: the name Mux Data lists its views under. */
+  surface?: PlayerSurface;
   /** The lesson's thumbnail; only http(s) is used. */
   posterUrl?: string | null;
   lessonId?: string;
@@ -569,7 +567,7 @@ export default function LessonPlayer({
           {onTime && <ReportTime onTime={onTime} />}
           {trackProgress && lessonId && <WatchTracker lessonId={lessonId} chatMessageId={chatMessageId} />}
           <BigPlayButton />
-          {muxDataOn && <MuxDataMonitor title={title} />}
+          {muxDataOn && <MuxDataMonitor title={title} surface={surface} />}
           <MuxVideo
             source={{
               playbackId,

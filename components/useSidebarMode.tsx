@@ -99,7 +99,7 @@ export function NavModeButton({ mode, railOpen, onChange }: { mode: NavMode; rai
   if (mode === "auto" && !railOpen) return null;
   return (
     <div
-      className="relative z-20"
+      className="relative z-float"
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget)) setMenuOpen(false);
       }}

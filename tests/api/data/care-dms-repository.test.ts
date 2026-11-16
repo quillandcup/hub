@@ -37,4 +37,8 @@ defineCareDmsContract("SupabaseCareTrackedDmRepository", () => ({
     const { error } = await db.from("care_tracked_dms").delete().in("tracked_by", users);
     if (error) throw new Error(error.message);
   },
+  retire: async (userId, channelId) => {
+    const { error } = await db.from("care_tracked_dms").update({ deleted_at: new Date().toISOString() }).eq("tracked_by", userId).eq("slack_channel_id", channelId).is("deleted_at", null);
+    if (error) throw new Error(error.message);
+  },
 }));

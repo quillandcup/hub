@@ -951,6 +951,66 @@ export type Database = {
         }
         Relationships: []
       }
+      stripe_charges: {
+        Row: {
+          amount: number
+          amount_refunded: number
+          created_at_stripe: string
+          currency: string | null
+          data: Json | null
+          description: string | null
+          disputed: boolean
+          failure_code: string | null
+          id: string
+          imported_at: string
+          paid: boolean
+          refunded: boolean
+          status: string
+          stripe_charge_id: string
+          stripe_customer_id: string | null
+          stripe_invoice_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          amount_refunded?: number
+          created_at_stripe: string
+          currency?: string | null
+          data?: Json | null
+          description?: string | null
+          disputed?: boolean
+          failure_code?: string | null
+          id?: string
+          imported_at?: string
+          paid?: boolean
+          refunded?: boolean
+          status: string
+          stripe_charge_id: string
+          stripe_customer_id?: string | null
+          stripe_invoice_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          amount_refunded?: number
+          created_at_stripe?: string
+          currency?: string | null
+          data?: Json | null
+          description?: string | null
+          disputed?: boolean
+          failure_code?: string | null
+          id?: string
+          imported_at?: string
+          paid?: boolean
+          refunded?: boolean
+          status?: string
+          stripe_charge_id?: string
+          stripe_customer_id?: string | null
+          stripe_invoice_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       stripe_customers: {
         Row: {
           created_at_stripe: string | null
@@ -980,6 +1040,90 @@ export type Database = {
           imported_at?: string
           name?: string | null
           stripe_customer_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      stripe_invoices: {
+        Row: {
+          amount_due: number
+          amount_paid: number
+          amount_remaining: number
+          attempt_count: number
+          billing_reason: string | null
+          collection_method: string | null
+          created_at_stripe: string
+          currency: string | null
+          data: Json | null
+          description: string | null
+          due_date: string | null
+          id: string
+          imported_at: string
+          next_payment_attempt: string | null
+          paid_at: string | null
+          paid_out_of_band: boolean
+          period_end: string | null
+          period_start: string | null
+          status: string
+          stripe_charge_id: string | null
+          stripe_customer_id: string
+          stripe_invoice_id: string
+          stripe_product_id: string | null
+          stripe_subscription_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount_due?: number
+          amount_paid?: number
+          amount_remaining?: number
+          attempt_count?: number
+          billing_reason?: string | null
+          collection_method?: string | null
+          created_at_stripe: string
+          currency?: string | null
+          data?: Json | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          imported_at?: string
+          next_payment_attempt?: string | null
+          paid_at?: string | null
+          paid_out_of_band?: boolean
+          period_end?: string | null
+          period_start?: string | null
+          status: string
+          stripe_charge_id?: string | null
+          stripe_customer_id: string
+          stripe_invoice_id: string
+          stripe_product_id?: string | null
+          stripe_subscription_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount_due?: number
+          amount_paid?: number
+          amount_remaining?: number
+          attempt_count?: number
+          billing_reason?: string | null
+          collection_method?: string | null
+          created_at_stripe?: string
+          currency?: string | null
+          data?: Json | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          imported_at?: string
+          next_payment_attempt?: string | null
+          paid_at?: string | null
+          paid_out_of_band?: boolean
+          period_end?: string | null
+          period_start?: string | null
+          status?: string
+          stripe_charge_id?: string | null
+          stripe_customer_id?: string
+          stripe_invoice_id?: string
+          stripe_product_id?: string | null
+          stripe_subscription_id?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -1144,6 +1288,7 @@ export type Database = {
           status: string | null
           topic: string | null
           user_id: string | null
+          zoom_account: string
         }
         Insert: {
           attentiveness_score?: number | null
@@ -1163,6 +1308,7 @@ export type Database = {
           status?: string | null
           topic?: string | null
           user_id?: string | null
+          zoom_account?: string
         }
         Update: {
           attentiveness_score?: number | null
@@ -1182,6 +1328,7 @@ export type Database = {
           status?: string | null
           topic?: string | null
           user_id?: string | null
+          zoom_account?: string
         }
         Relationships: []
       }
@@ -1207,6 +1354,7 @@ export type Database = {
           sender_session_id: string | null
           sender_type: string | null
           sent_at: string
+          zoom_account: string
         }
         Insert: {
           breakout_room_uuid?: string | null
@@ -1229,6 +1377,7 @@ export type Database = {
           sender_session_id?: string | null
           sender_type?: string | null
           sent_at: string
+          zoom_account?: string
         }
         Update: {
           breakout_room_uuid?: string | null
@@ -1251,6 +1400,7 @@ export type Database = {
           sender_session_id?: string | null
           sender_type?: string | null
           sent_at?: string
+          zoom_account?: string
         }
         Relationships: []
       }
@@ -1269,6 +1419,7 @@ export type Database = {
           start_time: string
           topic: string
           updated_at: string | null
+          zoom_account: string
         }
         Insert: {
           data: Json
@@ -1284,6 +1435,7 @@ export type Database = {
           start_time: string
           topic: string
           updated_at?: string | null
+          zoom_account?: string
         }
         Update: {
           data?: Json
@@ -1299,6 +1451,7 @@ export type Database = {
           start_time?: string
           topic?: string
           updated_at?: string | null
+          zoom_account?: string
         }
         Relationships: []
       }
@@ -1316,6 +1469,7 @@ export type Database = {
           participant_name: string | null
           raw_payload: Json
           received_at: string
+          zoom_account: string
         }
         Insert: {
           event: string
@@ -1330,6 +1484,7 @@ export type Database = {
           participant_name?: string | null
           raw_payload: Json
           received_at?: string
+          zoom_account?: string
         }
         Update: {
           event?: string
@@ -1344,6 +1499,7 @@ export type Database = {
           participant_name?: string | null
           raw_payload?: Json
           received_at?: string
+          zoom_account?: string
         }
         Relationships: []
       }
@@ -2071,12 +2227,14 @@ export type Database = {
       }
       care_engagements: {
         Row: {
-          channel: string
           closed_at: string | null
           created_at: string
           deleted_at: string | null
           ended_how: string | null
           follow_up_on: string | null
+          handover_at: string | null
+          handover_by: string | null
+          handover_to: string | null
           id: string
           last_member_message_at: string | null
           last_staff_message_at: string | null
@@ -2092,12 +2250,14 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          channel?: string
           closed_at?: string | null
           created_at?: string
           deleted_at?: string | null
           ended_how?: string | null
           follow_up_on?: string | null
+          handover_at?: string | null
+          handover_by?: string | null
+          handover_to?: string | null
           id?: string
           last_member_message_at?: string | null
           last_staff_message_at?: string | null
@@ -2113,12 +2273,14 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          channel?: string
           closed_at?: string | null
           created_at?: string
           deleted_at?: string | null
           ended_how?: string | null
           follow_up_on?: string | null
+          handover_at?: string | null
+          handover_by?: string | null
+          handover_to?: string | null
           id?: string
           last_member_message_at?: string | null
           last_staff_message_at?: string | null
@@ -2511,6 +2673,7 @@ export type Database = {
           lesson_id: string
           message_id: string
           open_to_channel: boolean
+          start_seconds: number | null
         }
         Insert: {
           created_at?: string
@@ -2518,6 +2681,7 @@ export type Database = {
           lesson_id: string
           message_id: string
           open_to_channel?: boolean
+          start_seconds?: number | null
         }
         Update: {
           created_at?: string
@@ -2525,6 +2689,7 @@ export type Database = {
           lesson_id?: string
           message_id?: string
           open_to_channel?: boolean
+          start_seconds?: number | null
         }
         Relationships: [
           {
@@ -2615,6 +2780,44 @@ export type Database = {
             columns: ["thread_root_id"]
             isOneToOne: false
             referencedRelation: "chat_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_preview_blocks: {
+        Row: {
+          created_at: string
+          host: string
+          id: string
+          member_id: string
+          path_prefix: string
+          scope: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          host: string
+          id?: string
+          member_id: string
+          path_prefix?: string
+          scope: string
+          url?: string
+        }
+        Update: {
+          created_at?: string
+          host?: string
+          id?: string
+          member_id?: string
+          path_prefix?: string
+          scope?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_preview_blocks_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
             referencedColumns: ["id"]
           },
         ]
@@ -2710,6 +2913,8 @@ export type Database = {
           event_id: string
           id: string
           kajabi_offer_id: string
+          purchased_from: string | null
+          purchased_until: string | null
         }
         Insert: {
           created_at?: string
@@ -2717,6 +2922,8 @@ export type Database = {
           event_id: string
           id?: string
           kajabi_offer_id: string
+          purchased_from?: string | null
+          purchased_until?: string | null
         }
         Update: {
           created_at?: string
@@ -2724,6 +2931,8 @@ export type Database = {
           event_id?: string
           id?: string
           kajabi_offer_id?: string
+          purchased_from?: string | null
+          purchased_until?: string | null
         }
         Relationships: [
           {
@@ -6886,6 +7095,77 @@ export type Database = {
           },
         ]
       }
+      zoom_accounts: {
+        Row: {
+          created_at: string
+          credentials_prefix: string
+          default_policy: string
+          host_email: string | null
+          id: string
+          label: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          credentials_prefix: string
+          default_policy?: string
+          host_email?: string | null
+          id?: string
+          label: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          credentials_prefix?: string
+          default_policy?: string
+          host_email?: string | null
+          id?: string
+          label?: string
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      zoom_meeting_decisions: {
+        Row: {
+          decided_at: string
+          decided_by: string | null
+          decision: string
+          id: string
+          scope: string
+          zoom_account: string
+          zoom_key: string
+        }
+        Insert: {
+          decided_at?: string
+          decided_by?: string | null
+          decision: string
+          id?: string
+          scope: string
+          zoom_account: string
+          zoom_key: string
+        }
+        Update: {
+          decided_at?: string
+          decided_by?: string | null
+          decision?: string
+          id?: string
+          scope?: string
+          zoom_account?: string
+          zoom_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zoom_meeting_decisions_zoom_account_fkey"
+            columns: ["zoom_account"]
+            isOneToOne: false
+            referencedRelation: "zoom_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       community_event_details: {
@@ -6969,6 +7249,38 @@ export type Database = {
       }
     }
     Functions: {
+      accept_care_handover: {
+        Args: { p_id: string }
+        Returns: {
+          closed_at: string | null
+          created_at: string
+          deleted_at: string | null
+          ended_how: string | null
+          follow_up_on: string | null
+          handover_at: string | null
+          handover_by: string | null
+          handover_to: string | null
+          id: string
+          last_member_message_at: string | null
+          last_staff_message_at: string | null
+          member_id: string
+          next_step: string | null
+          notes: string | null
+          opened_at: string
+          opened_by: string | null
+          owned_by: string | null
+          period_ends_on: string
+          reason: string
+          renewed_from: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "care_engagements"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       access_locations_at: {
         Args: { p_times: string[]; p_user_ids: string[]; p_window?: string }
         Returns: {
@@ -7252,6 +7564,39 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      can_own_care_plans: { Args: { p_user: string }; Returns: boolean }
+      cancel_care_handover: {
+        Args: { p_id: string }
+        Returns: {
+          closed_at: string | null
+          created_at: string
+          deleted_at: string | null
+          ended_how: string | null
+          follow_up_on: string | null
+          handover_at: string | null
+          handover_by: string | null
+          handover_to: string | null
+          id: string
+          last_member_message_at: string | null
+          last_staff_message_at: string | null
+          member_id: string
+          next_step: string | null
+          notes: string | null
+          opened_at: string
+          opened_by: string | null
+          owned_by: string | null
+          period_ends_on: string
+          reason: string
+          renewed_from: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "care_engagements"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       care_dm_last_messages: {
         Args: { p_channel_ids: string[]; p_exclude_types: string[] }
         Returns: {
@@ -7289,6 +7634,13 @@ export type Database = {
         Args: { p_message_id: string }
         Returns: undefined
       }
+      chat_dm_apps: {
+        Args: { p_member: string }
+        Returns: {
+          channel_id: string
+          name: string
+        }[]
+      }
       chat_dm_counterparts: {
         Args: { p_member: string }
         Returns: {
@@ -7322,6 +7674,10 @@ export type Database = {
         Args: { p_channel_id: string; p_through?: string }
         Returns: undefined
       }
+      chat_mark_unread: {
+        Args: { p_channel_id: string; p_message_id: string }
+        Returns: string
+      }
       chat_post_message:
         | {
             Args: {
@@ -7340,16 +7696,28 @@ export type Database = {
             }
             Returns: string
           }
-      chat_post_shared_video: {
-        Args: {
-          p_body: string
-          p_channel_id: string
-          p_lesson_id: string
-          p_open_to_channel: boolean
-          p_thread_root_id: string
-        }
-        Returns: string
-      }
+      chat_post_shared_video:
+        | {
+            Args: {
+              p_body: string
+              p_channel_id: string
+              p_lesson_id: string
+              p_open_to_channel: boolean
+              p_thread_root_id: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_body: string
+              p_channel_id: string
+              p_lesson_id: string
+              p_open_to_channel: boolean
+              p_start_seconds: number
+              p_thread_root_id: string
+            }
+            Returns: string
+          }
       chat_set_notify_setting: {
         Args: { p_channel_id: string; p_setting: string }
         Returns: undefined
@@ -7378,6 +7746,38 @@ export type Database = {
       check_prickle_commitment_slot_overlap: {
         Args: { p_commitment_id: string }
         Returns: undefined
+      }
+      claim_care_plan: {
+        Args: { p_id: string }
+        Returns: {
+          closed_at: string | null
+          created_at: string
+          deleted_at: string | null
+          ended_how: string | null
+          follow_up_on: string | null
+          handover_at: string | null
+          handover_by: string | null
+          handover_to: string | null
+          id: string
+          last_member_message_at: string | null
+          last_staff_message_at: string | null
+          member_id: string
+          next_step: string | null
+          notes: string | null
+          opened_at: string
+          opened_by: string | null
+          owned_by: string | null
+          period_ends_on: string
+          reason: string
+          renewed_from: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "care_engagements"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       claim_chat_gap_fill: {
         Args: {
@@ -7428,6 +7828,38 @@ export type Database = {
       current_acting_as_member_id: { Args: never; Returns: string }
       current_member_id: { Args: never; Returns: string }
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
+      decline_care_handover: {
+        Args: { p_id: string }
+        Returns: {
+          closed_at: string | null
+          created_at: string
+          deleted_at: string | null
+          ended_how: string | null
+          follow_up_on: string | null
+          handover_at: string | null
+          handover_by: string | null
+          handover_to: string | null
+          id: string
+          last_member_message_at: string | null
+          last_staff_message_at: string | null
+          member_id: string
+          next_step: string | null
+          notes: string | null
+          opened_at: string
+          opened_by: string | null
+          owned_by: string | null
+          period_ends_on: string
+          reason: string
+          renewed_from: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "care_engagements"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       delete_stale_calendar_events: {
         Args: {
           p_current_google_ids: string[]
@@ -7644,6 +8076,15 @@ export type Database = {
           table_name: string
         }[]
       }
+      member_removal_extras: {
+        Args: { p_member_id: string }
+        Returns: {
+          action: string
+          item: string
+          row_count: number
+          samples: string[]
+        }[]
+      }
       member_slack_channels: {
         Args: { p_member_id: string }
         Returns: {
@@ -7748,6 +8189,38 @@ export type Database = {
         Args: { p_channel_id: string; p_members: Json }
         Returns: Json
       }
+      propose_care_handover: {
+        Args: { p_id: string; p_to: string }
+        Returns: {
+          closed_at: string | null
+          created_at: string
+          deleted_at: string | null
+          ended_how: string | null
+          follow_up_on: string | null
+          handover_at: string | null
+          handover_by: string | null
+          handover_to: string | null
+          id: string
+          last_member_message_at: string | null
+          last_staff_message_at: string | null
+          member_id: string
+          next_step: string | null
+          notes: string | null
+          opened_at: string
+          opened_by: string | null
+          owned_by: string | null
+          period_ends_on: string
+          reason: string
+          renewed_from: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "care_engagements"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       rate_limit_hit: {
         Args: { p_bucket: string; p_max_hits: number; p_window_seconds: number }
         Returns: boolean
@@ -7773,12 +8246,14 @@ export type Database = {
           p_period_ends_on: string
         }
         Returns: {
-          channel: string
           closed_at: string | null
           created_at: string
           deleted_at: string | null
           ended_how: string | null
           follow_up_on: string | null
+          handover_at: string | null
+          handover_by: string | null
+          handover_to: string | null
           id: string
           last_member_message_at: string | null
           last_staff_message_at: string | null

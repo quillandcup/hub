@@ -3,12 +3,13 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { setCoursePublished } from "./actions";
+import CourseStatusChip from "./CourseStatusChip";
 
 /**
  * Whether members can open the course. It is the same for a course imported from Kajabi and one made
  * in the Hub: where a course is authored is a separate matter from whether it is available.
  */
-export default function CoursePublishControl({ courseId, isDraft }: { courseId: string; isDraft: boolean }) {
+export default function CoursePublishControl({ courseId, isDraft, compact = false }: { courseId: string; isDraft: boolean; /** Just the button (and any error): the page header shows the status chip itself. */ compact?: boolean }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -24,16 +25,14 @@ export default function CoursePublishControl({ courseId, isDraft }: { courseId: 
 
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <span
-        className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-          isDraft ? "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300" : "bg-plum-100 text-plum-800 dark:bg-plum-900/30 dark:text-plum-200"
-        }`}
-      >
-        {isDraft ? "Draft" : "Published"}
-      </span>
-      <span className="text-sm text-slate-600 dark:text-slate-300">
-        {isDraft ? "Only staff can see it. Members who have access can open it once you publish." : "Members who have access can open it."}
-      </span>
+      {!compact && (
+        <>
+          <CourseStatusChip isDraft={isDraft} />
+          <span className="text-sm text-slate-600 dark:text-slate-300">
+            {isDraft ? "Only staff can see it. Members who have access can open it once you publish." : "Members who have access can open it."}
+          </span>
+        </>
+      )}
       <button
         type="button"
         onClick={change}

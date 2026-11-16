@@ -123,7 +123,7 @@ describe('Course editor actions', () => {
       const result = await updateCourseDetails(courseId, input({ slug: `${PREFIX}-edit`, title: 'After', accessChoice: '3', launchOn: '2026-07-01' }))
       expect(result).toEqual({ id: courseId })
       expect(await rowBySlug(`${PREFIX}-edit`)).toMatchObject({ title: 'After', launch_at: '2026-07-01T04:00:00+00:00' })
-      expect(revalidatePath).toHaveBeenCalledWith(`/admin/courses/${courseId}`)
+      expect(revalidatePath).toHaveBeenCalledWith(`/admin/courses/${courseId}`, "layout")
     })
 
     it('can clear the opening day and the program', async () => {
@@ -169,7 +169,7 @@ describe('Course editor actions', () => {
 
       expect(await setCoursePublished(created.id!, true)).toEqual({ id: created.id })
       expect((await rowBySlug(`${PREFIX}-pub`))!.is_draft).toBe(false)
-      expect(revalidatePath).toHaveBeenCalledWith(`/admin/courses/${created.id}`)
+      expect(revalidatePath).toHaveBeenCalledWith(`/admin/courses/${created.id}`, "layout")
 
       expect(await setCoursePublished(created.id!, false)).toEqual({ id: created.id })
       expect((await rowBySlug(`${PREFIX}-pub`))!.is_draft).toBe(true)

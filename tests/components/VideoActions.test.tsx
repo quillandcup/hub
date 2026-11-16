@@ -2,6 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+vi.mock("@/app/(member)/courses/actions", () => ({ clearMyLessonProgress: (...a: unknown[]) => clearMyLessonProgress(...a) }));
+const clearMyLessonProgress = vi.fn();
 import VideoActions from "@/app/(admin)/admin/courses/[id]/lessons/[lessonId]/VideoActions";
 
 const URL = "https://hub.example/courses/the-ready-writer/lessons/les_AAAAAAAAAAA1";
@@ -54,6 +56,32 @@ describe("VideoActions", () => {
   it("says why Download video isn't available", async () => {
     await open();
     expect(screen.getByRole("menuitem", { name: "Download video" })).toHaveAttribute("title", expect.stringMatching(/MP4.*Mux/));
+  });
+
+  describe("staff tools", () => {
+    const staff = { lessonId: "les_AAAAAAAAAAA1", lessonPath: "/courses/the-ready-writer/lessons/les_AAAAAAAAAAA1", preview: true };
+
+    it("has no staff items without staff props", async () => {
+      await open();
+      expect(screen.queryByRole("menuitem", { name: /Record my watching|Clear my progress/ })).not.toBeInTheDocument();
+    });
+
+    it("lists record (a link, preview only) and clear, and clears through the same action after a confirm", async () => {
+      clearMyLessonProgress.mockResolvedValue({ segments: 2 });
+      const user = await open(<VideoActions statsHref={STATS} lessonUrl={URL} staff={staff} />);
+      expect(screen.getByRole("menuitem", { name: "Record my watching in this preview" })).toHaveAttribute("href", `${staff.lessonPath}?track=1`);
+      await user.click(screen.getByRole("menuitem", { name: "Clear my progress for this lesson" }));
+      expect(clearMyLessonProgress).not.toHaveBeenCalled();
+      await user.click(screen.getByRole("button", { name: "Yes, clear" }));
+      expect(clearMyLessonProgress).toHaveBeenCalledWith("les_AAAAAAAAAAA1");
+      expect(await screen.findByRole("status")).toHaveTextContent("Cleared 2 watch segments");
+    });
+
+    it("leaves out recording when members can open the lesson", async () => {
+      await open(<VideoActions statsHref={STATS} lessonUrl={URL} staff={{ ...staff, preview: false }} />);
+      expect(screen.queryByRole("menuitem", { name: /Record my watching/ })).not.toBeInTheDocument();
+      expect(screen.getByRole("menuitem", { name: "Clear my progress for this lesson" })).toBeInTheDocument();
+    });
   });
 
   describe("Copy with thumbnail", () => {

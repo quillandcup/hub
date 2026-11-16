@@ -40,7 +40,7 @@ export default function StripeImportForm() {
     <div>
       <form onSubmit={handleSubmit} className="space-y-4">
         <p className="text-sm text-slate-600 dark:text-slate-400">
-          Imports all Stripe data (subscriptions, customers, products) to Bronze layer for analysis and comparison with Kajabi data.
+          Imports all Stripe data (subscriptions, customers, products, invoices, charges) to Bronze layer for analysis and comparison with Kajabi data.
         </p>
 
         <button
@@ -71,7 +71,12 @@ export default function StripeImportForm() {
                 <p>• {result.stripe.customers} customers</p>
                 <p>• {result.stripe.products} products</p>
                 <p>• {result.stripe.subscriptions} subscriptions</p>
+                {result.stripe.billing && <p>• {result.stripe.billing.invoices} invoices</p>}
+                {result.stripe.billing && <p>• {result.stripe.billing.charges} charges</p>}
               </div>
+              {result.stripe.billingError && (
+                <p className="mt-2 text-red-700 dark:text-red-300">Invoices and charges were not imported: {result.stripe.billingError}</p>
+              )}
 
               {result.stripe.statusBreakdown && (
                 <div className="mt-2 pt-2 border-t border-plum-200 dark:border-plum-700">

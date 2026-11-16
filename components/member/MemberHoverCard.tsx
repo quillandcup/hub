@@ -248,7 +248,7 @@ export default function MemberHoverCard({
               if (!cardRef.current?.contains(e.relatedTarget as Node | null)) scheduleClose();
             }}
             style={{ position: "fixed", width: CARD_WIDTH, left: pos?.left ?? 0, top: pos?.top ?? 0, visibility: pos ? "visible" : "hidden" }}
-            className="z-50 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-900 shadow-xl dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            className="z-overlay rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-900 shadow-xl dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
           >
             {!loaded && <p className="text-slate-600 dark:text-slate-400">Loading…</p>}
             {loaded && "error" in loaded && <p className="text-slate-600 dark:text-slate-400">{loaded.error}</p>}

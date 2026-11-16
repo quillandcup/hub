@@ -5,11 +5,14 @@ import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
-vi.mock("@/app/(member)/chat/actions", () => ({ toggleChatReaction: vi.fn() }));
-import { toggleChatReaction } from "@/app/(member)/chat/actions";
+vi.mock("@/app/(member)/chat/actions", () => ({ toggleChatReaction: vi.fn(), markChatUnread: vi.fn() }));
+import { markChatUnread, toggleChatReaction } from "@/app/(member)/chat/actions";
+import config from "@/tailwind.config";
 import MessageActions from "@/components/chat/MessageActions";
 import MessageItem from "@/components/chat/MessageItem";
-import { MESSAGE_CHANGE_EVENT, optimisticView } from "@/lib/chat/list-events";
+import { MARKED_UNREAD_EVENT, MESSAGE_CHANGE_EVENT, optimisticView, subscribeListEvents } from "@/lib/chat/list-events";
+
+const zIndex = (config.theme as { extend: { zIndex: Record<string, string> } }).extend.zIndex;
 
 beforeEach(cleanup);
 
@@ -37,6 +40,54 @@ describe("MessageActions reactions", () => {
     await userEvent.click(screen.getByRole("button", { name: "Add reaction…" }));
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByLabelText("Search emoji")).not.toBeInTheDocument();
+  });
+});
+
+describe("MessageActions layering", () => {
+  it("ranks the hover toolbar (and so its tooltips and emoji picker) above the sticky day divider", () => {
+    render(<MessageActions {...props} canReact />);
+    const toolbar = screen.getByRole("button", { name: "Add reaction…" }).closest("[class*='z-']") as HTMLElement;
+    expect(toolbar).toHaveClass("z-dropdown");
+    expect(Number(zIndex[toolbar.className.match(/\bz-([a-z-]+)/)![1]])).toBeGreaterThan(Number(zIndex.sticky));
+  });
+});
+
+describe("MessageActions mark unread", () => {
+  it("marks the message unread: the line moves above it and the conversation announces its count", async () => {
+    vi.mocked(markChatUnread).mockResolvedValue({ ok: true, unread: 5 });
+    const events: unknown[] = [];
+    const lists: unknown[] = [];
+    const onEvent = (e: Event) => events.push((e as CustomEvent).detail);
+    window.addEventListener(MARKED_UNREAD_EVENT, onEvent);
+    const stop = subscribeListEvents((e) => lists.push(e));
+    render(<MessageActions {...props} canReply />);
+    await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Mark unread" }));
+    window.removeEventListener(MARKED_UNREAD_EVENT, onEvent);
+    stop();
+    expect(markChatUnread).toHaveBeenCalledWith("c1", "m1");
+    expect(events).toEqual([{ channelId: "c1", unread: 5 }]);
+    expect(lists).toEqual([{ kind: "unread", channelId: "c1", firstUnreadId: "m1" }]);
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("says so, and announces nothing, when it can't", async () => {
+    vi.mocked(markChatUnread).mockResolvedValue({ ok: false, error: "That message isn't available." });
+    const events: unknown[] = [];
+    const onEvent = (e: Event) => events.push(e);
+    window.addEventListener(MARKED_UNREAD_EVENT, onEvent);
+    render(<MessageActions {...props} canReply />);
+    await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Mark unread" }));
+    window.removeEventListener(MARKED_UNREAD_EVENT, onEvent);
+    expect(await screen.findByRole("alert")).toHaveTextContent("That message isn't available.");
+    expect(events).toHaveLength(0);
+  });
+
+  it("is not offered where a message can't be replied to (inside a thread, or while it is being sent)", async () => {
+    render(<MessageActions {...props} canReply={false} />);
+    await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+    expect(screen.queryByRole("menuitem", { name: "Mark unread" })).not.toBeInTheDocument();
   });
 });
 

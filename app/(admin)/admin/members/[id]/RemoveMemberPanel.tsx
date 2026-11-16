@@ -13,6 +13,139 @@ const ACTION_LABELS: Record<string, string> = {
   keep: "Kept",
 };
 
+const EXTRA_LABELS: Record<string, string> = {
+  auth_user: "Sign-in account",
+  user_profiles: "Account profile",
+  slack_identities: "Slack sign-in link",
+  user_feature_previews: "Feature previews",
+  access_events: "Page-view log",
+  analytics_events: "Usage events",
+  media_files: "Stored images and files",
+  feedback_screenshots: "Feedback screenshots",
+  mentorship_notes: "Mentorship outcome notes",
+  hiatus_notes: "Hiatus notes and reasons",
+  enrolment_notes: "Enrolment notes",
+  feedback_details: "Feedback browser details",
+  audit_entries: "Audit-log entries about them",
+  audit_mentions: "Other audit-log entries that name them",
+};
+
+const EXTRA_ACTIONS: Record<string, string> = {
+  delete: "Deleted",
+  clear: "Text cleared, record stays",
+  replace: "Name and email replaced with \u201cFormer member\u201d",
+};
+
+/** What the table needs to show one kind of record, whether it came from the catalog or from the extras. */
+interface SummaryRow {
+  key: string;
+  label: string;
+  count: number;
+  action: string;
+  /** The catalog's reason for what happens to it. */
+  why?: string;
+  /** Short labels naming the records, at most a few. */
+  samples: string[];
+}
+
+const ACTION_RANK = ["delete", "ask", "clear", "null", "replace", "repoint", "keep"];
+
+function summaryRows(preview: RemovalPreview): SummaryRow[] {
+  const rows: SummaryRow[] = [
+    ...preview.rows.map((row) => ({
+      key: `${row.table}.${row.column}`,
+      label: row.table.replace(/_/g, " "),
+      count: row.count,
+      action: row.action,
+      why: row.why,
+      samples: [],
+    })),
+    ...preview.extras.map((extra) => ({
+      key: `extra.${extra.item}`,
+      label: EXTRA_LABELS[extra.item] ?? extra.item.replace(/_/g, " "),
+      count: extra.count,
+      action: extra.action,
+      samples: extra.samples,
+    })),
+  ];
+  return rows.sort((a, b) => ACTION_RANK.indexOf(a.action) - ACTION_RANK.indexOf(b.action) || a.label.localeCompare(b.label));
+}
+
+const ALL_ACTION_LABELS: Record<string, string> = { ...ACTION_LABELS, ...EXTRA_ACTIONS };
+
+/** One row per kind of record, counts only; each opens to what is behind it, the same way for every row. */
+function SummaryTable({ summary }: { summary: SummaryRow[] }) {
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  const toggle = (key: string) =>
+    setOpen((current) => {
+      const next = new Set(current);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
+
+  return (
+    <table className="w-full text-sm">
+      <thead>
+        <tr className="text-left text-slate-500 dark:text-slate-400">
+          <th className="py-1 pr-3 font-medium">What</th>
+          <th className="py-1 pr-3 font-medium">Records</th>
+          <th className="py-1 font-medium">What happens</th>
+        </tr>
+      </thead>
+      {summary.map((row) => {
+        const isOpen = open.has(row.key);
+        const detailId = `removal-detail-${row.key.replace(/[^a-zA-Z0-9]/g, "-")}`;
+        return (
+          <tbody key={row.key} className="border-t border-slate-100 dark:border-slate-800">
+            <tr>
+              <td className="py-1 pr-3">
+                <button
+                  type="button"
+                  aria-expanded={isOpen}
+                  aria-controls={detailId}
+                  onClick={() => toggle(row.key)}
+                  className="flex items-center gap-1 text-left hover:text-plum-700 dark:hover:text-plum-400"
+                >
+                  <span aria-hidden="true">{isOpen ? "\u25BE" : "\u25B8"}</span>
+                  {row.label}
+                </button>
+              </td>
+              <td className="py-1 pr-3">{row.count}</td>
+              <td className="py-1">{ALL_ACTION_LABELS[row.action] ?? row.action}</td>
+            </tr>
+            {isOpen && (
+              <tr id={detailId}>
+                <td colSpan={3} className="pb-2 pl-5 text-slate-600 dark:text-slate-400">
+                  {row.why && <p>{row.why}</p>}
+                  {row.samples.length > 0 ? (
+                    <ul className="list-disc pl-5">
+                      {row.samples.map((sample, index) => (
+                        <li key={`${sample}-${index}`}>{sample}</li>
+                      ))}
+                      {row.count > row.samples.length && !row.key.startsWith("extra.audit") && <li>and {row.count - row.samples.length} more</li>}
+                    </ul>
+                  ) : (
+                    !row.why && <p>No further detail.</p>
+                  )}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        );
+      })}
+      {summary.length === 0 && (
+        <tbody>
+          <tr>
+            <td colSpan={3} className="py-2 text-slate-500 dark:text-slate-400">
+              Nothing is stored against this member except their own record.
+            </td>
+          </tr>
+        </tbody>
+      )}
+    </table>
+  );
+}
+
 /**
  * "Remove this member on their request", at the bottom of the member page. A dry run first (what each kind of record
  * would do), the member's answer about their books on the bookshelf, and their name typed to confirm. Irreversible
@@ -86,6 +219,10 @@ export default function RemoveMemberPanel({ member }: { member: { id: string; na
         </p>
       </div>
 
+      <p className="text-sm text-slate-600 dark:text-slate-400">
+        Copies in the imports from Kajabi, Stripe, Zoom and Slack are not touched: remove them at the source, or the next import brings the person back.
+      </p>
+
       {preview === null ? (
         <button
           type="button"
@@ -97,31 +234,7 @@ export default function RemoveMemberPanel({ member }: { member: { id: string; na
         </button>
       ) : (
         <>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-slate-500 dark:text-slate-400">
-                <th className="py-1 pr-3 font-medium">What</th>
-                <th className="py-1 pr-3 font-medium">Records</th>
-                <th className="py-1 font-medium">What happens</th>
-              </tr>
-            </thead>
-            <tbody>
-              {preview.rows.map((row) => (
-                <tr key={`${row.table}.${row.column}`} className="border-t border-slate-100 dark:border-slate-800">
-                  <td className="py-1 pr-3">{row.table.replace(/_/g, " ")}</td>
-                  <td className="py-1 pr-3">{row.count}</td>
-                  <td className="py-1">{ACTION_LABELS[row.action] ?? row.action}</td>
-                </tr>
-              ))}
-              {preview.rows.length === 0 && (
-                <tr>
-                  <td colSpan={3} className="py-2 text-slate-500 dark:text-slate-400">
-                    Nothing is stored against this member except their own record.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          <SummaryTable summary={summaryRows(preview)} />
 
           {needsAnswer && (
             <fieldset className="space-y-1 text-sm">

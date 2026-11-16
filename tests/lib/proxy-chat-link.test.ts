@@ -56,7 +56,7 @@ async function slackLinkPath(): Promise<string> {
       chatChannels: [{ id: CHANNEL, slack_channel_id: SLACK_CHANNEL }],
       courses: [{ id: "crs_AAAAAAAAAAA1", slug: "ready-writer" } as never],
       courseLessons: [{ id: LESSON, course_id: "crs_AAAAAAAAAAA1" } as never],
-      chatMessageVideos: [{ id: "cmv_AAAAAAAAAAA1", message_id: MESSAGE, lesson_id: LESSON, open_to_channel: false, created_at: "2026-01-01T00:00:00Z" }],
+      chatMessageVideos: [{ id: "cmv_AAAAAAAAAAA1", message_id: MESSAGE, lesson_id: LESSON, open_to_channel: false, start_seconds: null, created_at: "2026-01-01T00:00:00Z" }],
     }),
   );
   const line = (await sharedVideoSlackLine(repos, MESSAGE, SLACK_CHANNEL)) as string;

@@ -40,6 +40,15 @@ const NIGHTLY_FILE_COPIES = Number.MAX_SAFE_INTEGER;
 /** A conversation someone's token read this recently is not read again by another's: opening chat, and the nightly run (where two people's passes are minutes apart). */
 const OPEN_FRESH_SECONDS = 10 * 60;
 const NIGHTLY_FRESH_SECONDS = 6 * 60 * 60;
+/**
+ * The nightly run reads a conversation with a message in the last this-many days every time (an edit, reaction or reply lands on
+ * recent messages), and a quieter one only when it was last read this many days ago (`NIGHTLY_DORMANT_REREAD_DAYS`): most of a
+ * member's conversations are dormant, and each costs a Slack call that the shared rate limit makes slow, so reading all of them
+ * every night did not fit the run. A member who never completes in `DMS_STALE_HOURS` is reported (the run's alert).
+ */
+const NIGHTLY_ACTIVE_DAYS = 14;
+const NIGHTLY_DORMANT_REREAD_DAYS = 7;
+export const DMS_STALE_HOURS = 72;
 /** Opening chat reads conversations active this recently; older ones are left to live events and the nightly run. */
 const RECENT_DAYS = 30;
 /** Conversations never read before that one pull of a member opening chat takes on; a member with hundreds is caught up over several pulls. */
@@ -257,6 +266,8 @@ async function planPull(
     const entry = { ...c, readHistory: opts.everything || !fresh, inChat: Boolean(chat), activity: chat?.last_message_at ? Date.parse(chat.last_message_at) : -Infinity };
     if (!opts.everything) {
       if (fresh && chat && joined.has(chat.id)) continue;
+      // Nightly: a dormant conversation this member is already in is read again only after a week (a new or unknown one always is).
+      if (opts.patient && chat && joined.has(chat.id) && last !== undefined && entry.activity < nowMs - NIGHTLY_ACTIVE_DAYS * 86400 * 1000 && nowMs - Date.parse(last) < NIGHTLY_DORMANT_REREAD_DAYS * 86400 * 1000) continue;
       if (!opts.patient && last !== undefined) {
         if (!chat) continue;
         // A conversation this member isn't in yet is always worth joining them to, however quiet.
@@ -573,6 +584,8 @@ export interface NightlyDmPullResult {
   done: number;
   /** Members whose pull ran out of time part way (their later conversations wait for the next run). */
   incomplete: number;
+  /** Covered members whose DMs have not been read completely for `DMS_STALE_HOURS`: what the run reports, since out of time on a night is expected. */
+  stale: number;
   errors: string[];
 }
 
@@ -598,7 +611,7 @@ export async function pullDmsForCoveredMembers(service: SupabaseClient, opts: { 
     const at = completedAt.get(id);
     return at === undefined || clock.now() - Date.parse(at) >= NIGHTLY_FRESH_SECONDS * 1000;
   });
-  const result: NightlyDmPullResult = { members: covered.length, conversations: 0, messages: 0, deferred: 0, done: covered.length - todo.length, incomplete: 0, errors: [] };
+  const result: NightlyDmPullResult = { members: covered.length, conversations: 0, messages: 0, deferred: 0, done: covered.length - todo.length, incomplete: 0, stale: 0, errors: [] };
   for (const [index, memberId] of todo.entries()) {
     if (clock.now() >= opts.deadline) {
       result.deferred = todo.length - index;
@@ -616,5 +629,10 @@ export async function pullDmsForCoveredMembers(service: SupabaseClient, opts: { 
       result.errors.push(`member ${memberId}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
+  const completedAfter = await repos.memberProfile.dmsCompletedAt();
+  result.stale = covered.filter((id) => {
+    const at = completedAfter.get(id);
+    return at === undefined || clock.now() - Date.parse(at) >= DMS_STALE_HOURS * 3600 * 1000;
+  }).length;
   return result;
 }

@@ -6,6 +6,8 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 import { createRepos } from "@/lib/data/repos";
 import { parseParticipantEvent } from "@/lib/zoom-presence";
 import { parseChatMessage } from "@/lib/zoom-chat";
+import { PRIMARY_ZOOM_ACCOUNT_ID, PRIMARY_ZOOM_ACCOUNT_SLUG, zoomWebhookSecret } from "@/lib/zoom-accounts";
+import type { ZoomAccount } from "@/lib/data/zoom";
 
 // Webhook should respond quickly
 export const maxDuration = 60;
@@ -30,13 +32,34 @@ export const maxDuration = 60;
  * Zoom's HMAC-SHA256 signature over `v0:{timestamp}:{body}`. Required: participant events write
  * to the database and drive check-out DMs, so an unsigned request is refused, not waved through.
  */
-function hasValidSignature(body: string, signature: string | null, timestamp: string | null): boolean {
-  const secretToken = process.env.ZOOM_WEBHOOK_SECRET_TOKEN;
-  if (!secretToken || !signature || !timestamp) return false;
+function signatureMatches(secretToken: string, body: string, signature: string, timestamp: string): boolean {
   const expected = `v0=${createHmac("sha256", secretToken).update(`v0:${timestamp}:${body}`).digest("hex")}`;
   const a = Buffer.from(signature);
   const b = Buffer.from(expected);
   return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/** The accounts a webhook can come from. Each Zoom app has its own secret token. Without the database, only the primary account. */
+async function webhookAccounts(): Promise<ZoomAccount[]> {
+  try {
+    return await createRepos(createServiceRoleClient()).zoom.accounts();
+  } catch (error) {
+    console.error("Could not load the Zoom accounts; accepting the primary account only:", error);
+    return [{ id: PRIMARY_ZOOM_ACCOUNT_ID, slug: PRIMARY_ZOOM_ACCOUNT_SLUG, label: "Primary account", hostEmail: null, defaultPolicy: "keep", credentialsPrefix: "ZOOM" }];
+  }
+}
+
+/**
+ * The account whose secret token signed the request, with that secret, or null when none did (or the request is unsigned).
+ * Every configured account's secret is tried; an account with no secret set never matches.
+ */
+async function signingAccount(body: string, signature: string | null, timestamp: string | null): Promise<{ account: ZoomAccount; secret: string } | null> {
+  if (!signature || !timestamp) return null;
+  for (const account of await webhookAccounts()) {
+    const secret = zoomWebhookSecret(account.credentialsPrefix);
+    if (secret && signatureMatches(secret, body, signature, timestamp)) return { account, secret };
+  }
+  return null;
 }
 
 export async function POST(request: NextRequest) {
@@ -45,7 +68,8 @@ export async function POST(request: NextRequest) {
     const signature = request.headers.get("x-zm-signature");
     const timestamp = request.headers.get("x-zm-request-timestamp");
 
-    if (!hasValidSignature(body, signature, timestamp)) {
+    const signer = await signingAccount(body, signature, timestamp);
+    if (!signer) {
       console.error("Missing or invalid Zoom webhook signature");
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }
@@ -60,10 +84,7 @@ export async function POST(request: NextRequest) {
       console.log("Zoom endpoint validation request");
       return NextResponse.json({
         plainToken: payload.payload.plainToken,
-        encryptedToken: createHmac(
-          "sha256",
-          process.env.ZOOM_WEBHOOK_SECRET_TOKEN || ""
-        )
+        encryptedToken: createHmac("sha256", signer.secret)
           .update(payload.payload.plainToken)
           .digest("hex"),
       });
@@ -71,7 +92,7 @@ export async function POST(request: NextRequest) {
 
     // Process meeting events
     if (eventType.startsWith("meeting.")) {
-      await processMeetingEvent(payload);
+      await processMeetingEvent(payload, signer.account);
     }
 
     // Return 200 OK immediately (webhook expects fast response)
@@ -95,7 +116,7 @@ export async function POST(request: NextRequest) {
 /**
  * Process Zoom meeting events
  */
-async function processMeetingEvent(payload: any) {
+async function processMeetingEvent(payload: any, account: ZoomAccount) {
   const eventType = payload.event;
   const meetingData = payload.payload.object;
 
@@ -117,7 +138,7 @@ async function processMeetingEvent(payload: any) {
   const participantEvent = parseParticipantEvent(payload);
   if (participantEvent) {
     try {
-      await createRepos(createServiceRoleClient()).zoom.recordParticipantEvent(participantEvent);
+      await createRepos(createServiceRoleClient()).zoom.recordParticipantEvent({ ...participantEvent, zoom_account: account.id });
     } catch (error) {
       console.error("Error recording Zoom participant event:", error);
     }
@@ -128,7 +149,7 @@ async function processMeetingEvent(payload: any) {
   const chatMessage = parseChatMessage(payload);
   if (chatMessage) {
     try {
-      await createRepos(createServiceRoleClient()).zoom.recordChatMessage(chatMessage);
+      await createRepos(createServiceRoleClient()).zoom.recordChatMessage({ ...chatMessage, zoom_account: account.id });
     } catch (error) {
       console.error("Error recording Zoom chat message:", error);
     }
@@ -159,7 +180,7 @@ async function processMeetingEvent(payload: any) {
       // Prickle check-out DMs follow from this import: the 5-minute check-in cron
       // (app/api/internal/prickle-checkins) sends them once a prickle's attendance exists.
       try {
-        await triggerZoomImport({ fromDate, toDate });
+        await triggerZoomImport({ fromDate, toDate, account: account.slug });
         console.log("Zoom import triggered successfully");
       } catch (error) {
         console.error("Error triggering Zoom import:", error);

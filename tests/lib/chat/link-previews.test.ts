@@ -116,6 +116,30 @@ describe("refreshLinkPreviews (the send path and the edit path)", () => {
     expect((await repo.forMessages([MESSAGE])).get(MESSAGE)!.map((p) => p.url)).toEqual(["https://c.test/three"]);
   });
 
+  it("makes no request for a link the author blocked, records it as blocked so it is not asked again, and still previews the others", async () => {
+    const { repo } = setup();
+    fetched.length = 0;
+    const blocks = [
+      { scope: "site", host: "a.test", pathPrefix: null, url: null },
+      { scope: "path", host: "b.test", pathPrefix: "/blog", url: null },
+      { scope: "link", host: "c.test", pathPrefix: null, url: "https://c.test/exact" },
+    ] as const;
+
+    const body = "https://www.a.test/x https://b.test/blog/post https://b.test/blogger https://c.test/exact https://c.test/exact2";
+    const { looked } = await refreshLinkPreviews(repo, MESSAGE, body, { ownOrigin: ORIGIN, fetchTheAddress: fetcher, blocks });
+
+    expect(looked.map((d) => d.status)).toEqual(["blocked", "blocked", "ok"]);
+    // Only three links get a preview; the first two are blocked, the third (`/blogger`, not under `/blog`) is fetched.
+    expect(fetched).toEqual(["https://b.test/blogger"]);
+    expect([...(await repo.looked(MESSAGE))].sort()).toEqual(["https://b.test/blog/post", "https://b.test/blogger", "https://www.a.test/x"]);
+    expect((await repo.forMessages([MESSAGE])).get(MESSAGE)!.map((p) => p.url)).toEqual(["https://b.test/blogger"]);
+
+    // An edit does not ask for the blocked one again, even if the rule is lifted since.
+    fetched.length = 0;
+    await refreshLinkPreviews(repo, MESSAGE, body, { ownOrigin: ORIGIN, fetchTheAddress: fetcher, blocks: [] });
+    expect(fetched).toEqual([]);
+  });
+
   it("fetches nothing for an edit that keeps the same links", async () => {
     const { repo } = setup();
     await refreshLinkPreviews(repo, MESSAGE, "hello https://a.test/one", { fetchTheAddress: fetcher });

@@ -22,11 +22,12 @@ export type TrackedDm = {
 export type TrackResult = { created: boolean; dm: TrackedDm };
 
 /**
- * The DMs staff track for Hedgie Care (`care_tracked_dms`, docs/HEDGIE_CARE.md, "Slack DMs fill it in"): opt-in per DM, a
- * staff member's private working list. With a signed-in client row-level security lets each staff user read and change
- * only their own rows (an admin does not see another's); `allLive` and `forChannel` are for the projection and need the
- * service role to see everyone's. Untracking is a soft delete (`deleted_at`) and every read leaves deleted ones out.
- * Methods throw on a database error.
+ * The DMs Hedgie Care reads (`care_tracked_dms`, docs/HEDGIE_CARE.md, "Slack DMs fill it in"): a DM is tracked because its
+ * staff member holds a care plan with the member, so there is no choice to record and nothing untracks one. It is still a staff
+ * member's private working list: with a signed-in client row-level security lets each staff user read and change only their own
+ * rows (an admin does not see another's); `allLive` and `forChannel` are for the projection and need the service role to see
+ * everyone's. A row soft deleted by the earlier opt-in design (`deleted_at`) is history: every read leaves it out, and `track`
+ * restores tracking with a new row. Methods throw on a database error.
  */
 export interface CareTrackedDmRepository {
   /** One staff member's live tracked DMs, oldest tracked first. */
@@ -35,16 +36,8 @@ export interface CareTrackedDmRepository {
   allLive(): Promise<TrackedDm[]>;
   /** Every staff member's live tracking of this Slack DM (service role), by user. */
   forChannel(channelId: string): Promise<TrackedDm[]>;
-  /**
-   * The Slack DMs each of these staff users stopped tracking and has not tracked again: the choices to respect, so nothing
-   * tracks one of them for her again on its own. By user id; a user with none has no entry. Read with the service role for
-   * several users (a signed-in client sees only its own rows).
-   */
-  untrackedChannels(userIds: readonly string[]): Promise<Map<string, Set<string>>>;
   /** Starts tracking a DM as `trackedBy`. Tracking one already tracked is not an error: it answers the existing row with `created: false`. */
   track(input: { trackedBy: string; channelId: string; memberId: string }): Promise<TrackResult>;
-  /** Stops tracking a DM at `at` (the row is kept). False when it was not tracked. */
-  untrack(userId: string, channelId: string, at: string): Promise<boolean>;
 }
 
 const UNIQUE_VIOLATION = "23505";
@@ -77,22 +70,6 @@ export class SupabaseCareTrackedDmRepository implements CareTrackedDmRepository 
     return rows.map(toDm);
   }
 
-  async untrackedChannels(userIds: readonly string[]) {
-    const out = new Map<string, Set<string>>();
-    if (userIds.length === 0) return out;
-    const rows = await fetchAllRows<Pick<Row<"care_tracked_dms">, "tracked_by" | "slack_channel_id" | "deleted_at">>((from, to) =>
-      this.db
-        .from("care_tracked_dms")
-        .select("tracked_by, slack_channel_id, deleted_at")
-        .in("tracked_by", [...userIds])
-        .order("tracked_by")
-        .order("slack_channel_id")
-        .order("id")
-        .range(from, to)
-    );
-    return untrackedFrom(rows);
-  }
-
   async track(input: { trackedBy: string; channelId: string; memberId: string }): Promise<TrackResult> {
     const { data, error } = await this.db
       .from("care_tracked_dms")
@@ -115,32 +92,6 @@ export class SupabaseCareTrackedDmRepository implements CareTrackedDmRepository 
     if (error) throw new Error(error.message);
     return { created: true, dm: toDm(data) };
   }
-
-  async untrack(userId: string, channelId: string, at: string) {
-    const { data, error } = await this.db
-      .from("care_tracked_dms")
-      .update({ deleted_at: at })
-      .eq("tracked_by", userId)
-      .eq("slack_channel_id", channelId)
-      .is("deleted_at", null)
-      .select("id")
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    return data !== null;
-  }
-}
-
-/** The channels with a deleted row and no live one, by user: every row of these users in, the answer out (shared by both implementations). */
-function untrackedFrom(rows: readonly Pick<Row<"care_tracked_dms">, "tracked_by" | "slack_channel_id" | "deleted_at">[]): Map<string, Set<string>> {
-  const live = new Set(rows.filter((r) => r.deleted_at === null).map((r) => `${r.tracked_by}|${r.slack_channel_id}`));
-  const out = new Map<string, Set<string>>();
-  for (const r of rows) {
-    if (r.deleted_at === null || live.has(`${r.tracked_by}|${r.slack_channel_id}`)) continue;
-    const set = out.get(r.tracked_by) ?? new Set<string>();
-    set.add(r.slack_channel_id);
-    out.set(r.tracked_by, set);
-  }
-  return out;
 }
 
 const BASE58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
@@ -184,10 +135,6 @@ export class InMemoryCareTrackedDmRepository implements CareTrackedDmRepository 
       .map(toDm);
   }
 
-  async untrackedChannels(userIds: readonly string[]) {
-    return untrackedFrom(this.data.careTrackedDms.filter((r) => userIds.includes(r.tracked_by)));
-  }
-
   async track(input: { trackedBy: string; channelId: string; memberId: string }): Promise<TrackResult> {
     if (input.channelId === "") throw new Error("violates check constraint on slack_channel_id");
     if (!this.data.members.some((m) => m.id === input.memberId)) throw new Error("violates foreign key constraint on member_id");
@@ -203,12 +150,5 @@ export class InMemoryCareTrackedDmRepository implements CareTrackedDmRepository 
     };
     this.data.careTrackedDms.push(row);
     return { created: true, dm: toDm(row) };
-  }
-
-  async untrack(userId: string, channelId: string, at: string) {
-    const row = this.live().find((r) => r.tracked_by === userId && r.slack_channel_id === channelId);
-    if (!row) return false;
-    row.deleted_at = at;
-    return true;
   }
 }

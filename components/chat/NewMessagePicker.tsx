@@ -19,7 +19,9 @@ export default function NewMessagePicker({ pathname }: { pathname: string }) {
   useEffect(() => {
     if (!open) return;
     const close = (e: Event) => {
-      if (e instanceof KeyboardEvent ? e.key === "Escape" : !root.current?.contains(e.target as Node)) setOpen(false);
+      // The search's list is drawn on <body> (so nothing clips it), outside `root`, but it is part of this picker.
+      const inside = (e.target as Element).closest?.("[data-entity-search-list]") || root.current?.contains(e.target as Node);
+      if (e instanceof KeyboardEvent ? e.key === "Escape" : !inside) setOpen(false);
     };
     document.addEventListener("pointerdown", close);
     document.addEventListener("keydown", close);
@@ -67,7 +69,7 @@ export default function NewMessagePicker({ pathname }: { pathname: string }) {
         <div
           role="dialog"
           aria-label="New message"
-          className="absolute inset-x-0 top-full z-20 mt-1 rounded-lg border border-slate-300 bg-white p-2 shadow-lg dark:border-slate-700 dark:bg-slate-900"
+          className="absolute inset-x-0 top-full z-dropdown mt-1 rounded-lg border border-slate-300 bg-white p-2 shadow-lg dark:border-slate-700 dark:bg-slate-900"
         >
           <p className="px-1 pb-1 text-xs font-semibold text-slate-600 dark:text-slate-400">Message someone</p>
           <fieldset disabled={pending} className="contents">

@@ -497,7 +497,7 @@ export default function MessageBox({
         <ul
           {...combobox.listboxProps}
           aria-label={open.trigger === "@" ? "People" : open.trigger === "#" ? "Channels" : "Emoji"}
-          className="absolute bottom-full left-0 z-30 mb-1 max-h-56 w-72 max-w-full overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-lg dark:border-slate-700 dark:bg-slate-900"
+          className="absolute bottom-full left-0 z-dropdown mb-1 max-h-56 w-72 max-w-full overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-lg dark:border-slate-700 dark:bg-slate-900"
         >
           {(open.trigger === ":"
             ? emoji.map((e) => ({ key: e.name, label: `:${e.name}:`, onPick: () => pickEmoji(e, "pointer"), lead: <Emoji name={e.name} custom={{ [e.name]: e.emoji }} /> }))

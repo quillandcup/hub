@@ -82,6 +82,8 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   // The ambiguous-name queue, the per-prickle ignores and the live join/leave events (ZoomRepository): every query is moved.
   ambiguous_zoom_names: [],
   ignored_zoom_appearances: [],
+  zoom_accounts: [],
+  zoom_meeting_decisions: [],
   zoom_participant_events: [],
   // The in-meeting chat the webhook saw (ZoomRepository): every query is moved.
   zoom_chat_messages: [],
@@ -107,6 +109,8 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   // The preview cards of links in Hub-written messages (ChatLinkPreviewRepository, lib/data/chat-link-previews.ts): every query is moved.
   chat_link_previews: [],
   chat_hidden_unfurls: [],
+  // A member's blocked link previews (ChatLinkPreviewRepository too).
+  chat_preview_blocks: [],
   // Derived per-member stats (MemberRepository.deleteDerivedStats): the merge route's cleanup was the only direct query.
   member_metrics: [],
   member_engagement: [],
@@ -149,6 +153,8 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   stripe_customers: [],
   stripe_products: [],
   stripe_subscriptions: [],
+  stripe_invoices: [],
+  stripe_charges: [],
   subscription_history: [],
   // Hiatus, status overrides, join-date corrections and the member-edited profile fields (MemberStatusRepository): every query is moved.
   member_hiatus_history: [],

@@ -33,7 +33,7 @@ const setup = (shares: { message: string; lesson: string; open?: boolean }[], dr
     new InMemoryDataset({
       courses: [courseRow({ id: "crs_AAAAAAAAAAA1", slug: "c", title: "C", is_draft: draftCourse })],
       courseLessons: [lessonRow({ id: LESSON, course_id: "crs_AAAAAAAAAAA1", title: "L", state: "open", video_id: "video_AAAAAAAAAAA1" })],
-      chatMessageVideos: shares.map((s, i) => ({ id: `cmv_AAAAAAAAAAA${i}`, message_id: s.message, lesson_id: s.lesson, open_to_channel: s.open ?? false, created_at: "2026-01-01T00:00:00Z" })),
+      chatMessageVideos: shares.map((s, i) => ({ id: `cmv_AAAAAAAAAAA${i}`, message_id: s.message, lesson_id: s.lesson, open_to_channel: s.open ?? false, start_seconds: null, created_at: "2026-01-01T00:00:00Z" })),
     }),
   );
 };

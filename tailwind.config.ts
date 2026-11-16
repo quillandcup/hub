@@ -81,6 +81,20 @@ export default {
         columns: "56rem", // three or more columns; a side column next to the main content
         outline: "62rem", // video with its outline beside it
       },
+      // Stacking layers, lowest to highest. Name the layer, never a number: `z-dropdown`, not `z-30`.
+      // `tests/lib/z-layers.test.ts` fails on a numeric `z-*`. A component with its own z-indexes inside
+      // should be `isolate` so they stay inside it. `docs/Z_LAYERS.md` says what goes where.
+      zIndex: {
+        raised: "10", // lifts one thing over its siblings inside a component (click area, resize handle)
+        float: "20", // floats over content: the "new messages" pill, a panel over the chat
+        sticky: "30", // sticky bars that cover the content scrolling under them (day divider, week header)
+        dropdown: "40", // popups anchored to a control: menus, tooltips, autocomplete, pickers, a message's hover toolbar
+        rail: "45", // the desktop sidebar rail, closed: under the app header
+        shell: "50", // the app header, announcement bars, fixed corner widgets
+        "rail-open": "55", // the rail open over the page and the header
+        overlay: "70", // modals, lightboxes, mobile drawers and their backdrops, banners
+        "overlay-top": "80", // above any modal: the search palette, the tour's spotlight
+      },
       fontFamily: {
         // Brand serif. Silver South (the licensed brand font) isn't web-licensed here yet, so
         // this is its Google Fonts stand-in, Playfair Display, loaded in app/layout.tsx.

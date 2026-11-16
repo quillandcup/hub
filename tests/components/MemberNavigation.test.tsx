@@ -140,8 +140,8 @@ describe("MemberNavigation auto-hide on chat", () => {
       act(() => { vi.advanceTimersByTime(200); });
       expect(sidebar()).toHaveClass("w-64", "absolute");
       expect(within(sidebar()).getByText("Chat")).toBeInTheDocument();
-      // Above the app header (z-30), or its search box covers the wordmark.
-      expect(sidebar().parentElement).toHaveClass("z-40");
+      // Above the app header (z-shell), or its search box covers the wordmark.
+      expect(sidebar().parentElement).toHaveClass("z-rail-open");
 
       fireEvent.mouseLeave(sidebar().parentElement!);
       expect(sidebar()).toHaveClass("w-16");

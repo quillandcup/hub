@@ -18,7 +18,6 @@ describe("isCommunityManagerPath", () => {
     "/admin/at-risk/",
     "/admin/care",
     "/admin/care/earlier",
-    "/admin/care/dms",
   ])("opens %s", (path) => {
     expect(isCommunityManagerPath(path)).toBe(true);
   });
@@ -30,7 +29,7 @@ describe("isCommunityManagerPath", () => {
     "/admin/insights/prickles",
     "/admin/members/network",
     "/admin/members/network/anything",
-    "/admin/members/mbr_AAAAAAAAAAA1/identity",
+    "/admin/members/mbr_AAAAAAAAAAA1/account",
     "/admin/members/mbr_AAAAAAAAAAA1/activity",
     "/admin/prickles",
     "/admin/data/import",

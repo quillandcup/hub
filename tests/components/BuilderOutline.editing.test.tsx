@@ -97,6 +97,55 @@ describe("an editable outline", () => {
   });
 });
 
+describe("the row ⋯ menu (the narrow layout's one control for a row's actions)", () => {
+  it("lists a module's actions, Add content included, and runs them", async () => {
+    const user = userEvent.setup();
+    render(<BuilderOutline course={course()} />);
+    await user.click(screen.getByRole("button", { name: "Actions for Module 2" }));
+    const menu = screen.getByRole("menu", { name: "Actions for Module 2" });
+    const names = within(menu).getAllByRole("menuitem").map((i) => i.textContent);
+    expect(names).toEqual(["Edit module", "Duplicate module", "Open module preview", "Add lesson", "Add submodule", "Delete module", "Move module up", "Move module down"]);
+    await user.click(within(menu).getByRole("menuitem", { name: "Move module up" }));
+    expect(actions.reorderCourseItems).toHaveBeenCalledWith(COURSE, "module", null, [M2, M1]);
+  });
+
+  it("adds a lesson from the menu, deletes with the same confirmation, and has no submodule inside a submodule", async () => {
+    const user = userEvent.setup();
+    render(<BuilderOutline course={course()} />);
+    await user.click(screen.getByRole("button", { name: "Actions for Module 2" }));
+    await user.click(screen.getByRole("menuitem", { name: "Add lesson" }));
+    expect(screen.getByRole("textbox", { name: "New lesson name" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Actions for Module 2" }));
+    await user.click(screen.getByRole("menuitem", { name: "Delete module" }));
+    expect(screen.getByRole("heading", { name: "Delete module?" })).toBeInTheDocument();
+    await user.click(dialog().getByRole("button", { name: "Cancel" }));
+    await open(user);
+    await user.click(screen.getByRole("button", { name: "Actions for Week 1" }));
+    expect(screen.queryByRole("menuitem", { name: "Add submodule" })).not.toBeInTheDocument();
+  });
+
+  it("lists a lesson's actions, with the first one's Move up off, and Escape closes it", async () => {
+    const user = userEvent.setup();
+    render(<BuilderOutline course={course()} />);
+    await open(user);
+    await user.click(screen.getByRole("button", { name: "Actions for Lesson one" }));
+    const menu = screen.getByRole("menu", { name: "Actions for Lesson one" });
+    expect(within(menu).getByRole("menuitem", { name: "Edit lesson" })).toHaveAttribute("href", `/admin/courses/${COURSE}/lessons/${L1}`);
+    expect(within(menu).getByRole("menuitem", { name: "Open lesson preview" })).toHaveAttribute("href", `/courses/plot-lab/lessons/${L1}`);
+    expect(within(menu).getByRole("menuitem", { name: "Move lesson up" })).toHaveAttribute("aria-disabled", "true");
+    expect(within(menu).queryByRole("menuitem", { name: /comments/ })).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("does not repeat where a row's settings live under its title when the status pill says it", async () => {
+    const user = userEvent.setup();
+    render(<BuilderOutline course={course()} />);
+    await open(user);
+    expect(screen.queryByText(/ in the Hub$/)).not.toBeInTheDocument();
+  });
+});
+
 describe("status", () => {
   it("sends the choice for that row", async () => {
     actions.setCourseItemStatus.mockResolvedValue({ id: L1 });
@@ -154,6 +203,14 @@ describe("adding", () => {
     await user.click(within(weekRow).getAllByRole("button", { name: "Add content" })[0]);
     expect(screen.getByRole("menuitem", { name: "Add lesson" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Add submodule" })).not.toBeInTheDocument();
+  });
+
+  it("closes a module's Add content menu with Escape", async () => {
+    const user = userEvent.setup();
+    render(<BuilderOutline course={course()} />);
+    await user.click(screen.getAllByRole("button", { name: "Add content" })[0]);
+    fireEvent.keyDown(screen.getByRole("menu", { name: "Add to Module 1" }), { key: "Escape" });
+    expect(screen.queryByRole("menu", { name: "Add to Module 1" })).not.toBeInTheDocument();
   });
 
   it("opens the module being added to, so the new field is seen", async () => {
@@ -424,5 +481,35 @@ describe("an imported course", () => {
     }
     await user.click(screen.getAllByRole("button", { name: "Duplicate module" })[0]);
     expect(actions.duplicateCourseItem).not.toHaveBeenCalled();
+  });
+});
+
+describe("a lesson row's edit control", () => {
+  it("opens the lesson's editor page, the same page its title links to", () => {
+    render(<BuilderOutline course={course()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Expand all" }));
+    const row = screen.getByText("Lesson one").closest("li")!;
+    const href = `/admin/courses/${COURSE}/lessons/${L1}`;
+    expect(within(row).getByRole("link", { name: "Edit lesson" })).toHaveAttribute("href", href);
+    expect(within(row).getByRole("link", { name: "Lesson one" })).toHaveAttribute("href", href);
+  });
+
+  it("links to the editor before the course has a slug (a draft Hub-owned course)", () => {
+    render(<BuilderOutline course={course({ slug: null })} />);
+    fireEvent.click(screen.getByRole("button", { name: "Expand all" }));
+    const row = screen.getByText("Lesson one").closest("li")!;
+    expect(within(row).getByRole("link", { name: "Edit lesson" })).toHaveAttribute("href", `/admin/courses/${COURSE}/lessons/${L1}`);
+  });
+
+  it("keeps renaming a click away, with Rename lesson or a double-click on the title, and leaves the page where it is", async () => {
+    const user = userEvent.setup();
+    render(<BuilderOutline course={course()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Expand all" }));
+    await user.click(within(screen.getByText("Lesson one").closest("li")!).getByRole("button", { name: "Rename lesson" }));
+    expect(screen.getByRole("textbox", { name: "Lesson name" })).toHaveValue("Lesson one");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    await user.dblClick(screen.getByRole("link", { name: "Lesson two" }));
+    expect(screen.getByRole("textbox", { name: "Lesson name" })).toHaveValue("Lesson two");
   });
 });

@@ -45,6 +45,10 @@
       "schedule": "15 4 * * *"
     },
     {
+      "path": "/api/reconcile/stripe-billing",
+      "schedule": "30 4 * * *"
+    },
+    {
       "path": "/api/internal/changelog-digest",
       "schedule": "0 14 * * 2"
     }

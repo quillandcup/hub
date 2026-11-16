@@ -66,6 +66,7 @@ vi.mock("@/lib/kajabi/membership-history", () => ({ fetchMembershipHistory: vi.f
 
 vi.mock("@/lib/channels/web-push", () => ({ loadPushDevices: vi.fn(async () => []) }));
 import { loadPushDevices } from "@/lib/channels/web-push";
+import AccountRoute, { generateMetadata as accountMetadata } from "@/app/(admin)/admin/members/[id]/account/page";
 import NotificationsRoute, { generateMetadata as notificationsMetadata } from "@/app/(admin)/admin/members/[id]/notifications/page";
 import { getMemberBadges } from "@/lib/badges";
 import MemberDetailPage, { memberTabMetadata } from "@/app/(admin)/admin/members/[id]/MemberDetailPage";
@@ -122,6 +123,14 @@ describe("MemberDetailPage controls", () => {
     expect(String((await notificationsMetadata({ params })).title)).toContain("Notifications");
     const element = await NotificationsRoute({ params } as never);
     expect(element.props).toMatchObject({ id: MEMBER.id, tab: "notifications" });
+  });
+
+  it("serves the Account tab at its own route, titled for the tab", async () => {
+    useFakeSupabase(memberTables());
+    const params = Promise.resolve({ id: MEMBER.id });
+    expect(String((await accountMetadata({ params })).title)).toContain("Account");
+    const element = await AccountRoute({ params } as never);
+    expect(element.props).toMatchObject({ id: MEMBER.id, tab: "account" });
   });
 
   it("hides the Notifications tab and its data from a community manager", async () => {

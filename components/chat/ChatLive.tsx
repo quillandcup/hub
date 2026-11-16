@@ -7,7 +7,7 @@ import { SupabaseChatRepository } from "@/lib/data/chat";
 import { authenticateRealtime } from "@/lib/chat/live";
 import { scrollParent, scrollToHashMessage } from "@/lib/chat/scroll";
 import { loadLatestChat, loadThreadChat, markChatRead } from "@/app/(member)/chat/actions";
-import { emitListEvent, onPoke } from "@/lib/chat/list-events";
+import { MARKED_UNREAD_EVENT, emitListEvent, onPoke, type MarkedUnreadDetail } from "@/lib/chat/list-events";
 import { firstUnreadMessageId } from "@/lib/chat/unread";
 
 /** Changes right behind the first one in a burst (a message plus its reactions) fold into one more fetch. */
@@ -280,8 +280,15 @@ export default function ChatLive({
   // read and new would vanish on the next refresh.
   useEffect(() => {
     if (!markRead || view !== "latest") return;
+    // After "Mark unread" the conversation stays unread when the reader goes: marking it read now
+    // would move the marker straight back past the message they chose.
+    let markedUnread = false;
+    const onMarkedUnread = (e: Event) => {
+      if ((e as CustomEvent<MarkedUnreadDetail>).detail?.channelId === channelId) markedUnread = true;
+    };
+    window.addEventListener(MARKED_UNREAD_EVENT, onMarkedUnread);
     const mark = () => {
-      if (leaveAt.current) void markChatRead(channelId, leaveAt.current);
+      if (leaveAt.current && !markedUnread) void markChatRead(channelId, leaveAt.current);
     };
     const onHide = () => {
       if (document.visibilityState === "hidden") mark();
@@ -295,6 +302,7 @@ export default function ChatLive({
     window.addEventListener("pagehide", mark);
     return () => {
       clearTimeout(settle);
+      window.removeEventListener(MARKED_UNREAD_EVENT, onMarkedUnread);
       document.removeEventListener("visibilitychange", onHide);
       window.removeEventListener("pagehide", mark);
       if (settled) mark();
@@ -357,7 +365,7 @@ export default function ChatLive({
             setAnnouncedAt(null);
             void reload();
           }}
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 rounded-full bg-plum-600 px-4 py-2 text-sm font-medium text-white shadow-lg hover:bg-plum-700"
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-float rounded-full bg-plum-600 px-4 py-2 text-sm font-medium text-white shadow-lg hover:bg-plum-700"
         >
           New messages ↓
         </button>

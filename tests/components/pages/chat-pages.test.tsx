@@ -480,6 +480,62 @@ describe("channel page", () => {
     expect(fake.queries.find((q) => q.table === "chat_messages")!.calls.some((c) => c.method === "lt")).toBe(false);
   });
 
+  describe("a window that starts at a date (?from=, Jump to...)", () => {
+    const FROM = "2026-10-01T04:00:00Z"; // the start of October 1st, Eastern
+
+    it("reads the messages from that instant on, oldest first, and offers a way back to the latest", async () => {
+      messages = [msg(1), msg(2)];
+      await renderChannel(GENERAL, { from: FROM });
+
+      const query = fake.queries.find((q) => q.table === "chat_messages")!;
+      expect(query.calls).toContainEqual({ method: "gte", args: ["created_at", "2026-10-01T04:00:00.000Z"] });
+      expect(query.calls).toContainEqual({ method: "order", args: ["created_at", { ascending: true }] });
+      expect(screen.getByRole("link", { name: "Jump to latest" })).toHaveAttribute("href", `/chat/${GENERAL}`);
+      expect(screen.queryByRole("status")).not.toBeInTheDocument(); // that day has messages
+      // The first message is the one the list lands on.
+      expect(screen.getAllByRole("article")[0]).toHaveTextContent("message 1");
+    });
+
+    it("says so when the day had no messages and the window starts on a later day", async () => {
+      messages = [msg(3)];
+      await renderChannel(GENERAL, { from: "2026-10-02T04:00:00Z" });
+      expect(screen.getByRole("status")).toHaveTextContent("Nothing was posted that day");
+    });
+
+    it("says so when nothing was posted on or after the day", async () => {
+      messages = [];
+      await renderChannel(GENERAL, { from: "2026-10-20T04:00:00Z" });
+      expect(screen.getByRole("status")).toHaveTextContent("No messages on or after that day");
+      expect(screen.getByRole("link", { name: "Jump to latest" })).toBeInTheDocument();
+    });
+
+    it("does not say a day was skipped for the very beginning", async () => {
+      messages = [msg(1)];
+      await renderChannel(GENERAL, { from: "1970-01-01T00:00:00.000Z" });
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    });
+
+    it("is not the live end: no catch-up with Slack and no read marker", async () => {
+      messages = [msg(1)];
+      readMarker = "2026-09-30T00:00:00Z";
+      await renderChannel(GENERAL, { from: FROM });
+      expect(afterCallbacks).toHaveLength(0);
+      expect(screen.queryByText("New")).not.toBeInTheDocument();
+    });
+
+    it("ignores a junk date and shows the latest as usual", async () => {
+      messages = [msg(1)];
+      await renderChannel(GENERAL, { from: "yesterday-ish" });
+      expect(screen.queryByRole("link", { name: "Jump to latest" })).not.toBeInTheDocument();
+    });
+
+    it("continues after a message with ?after= (exclusive)", async () => {
+      messages = [msg(2)];
+      await renderChannel(GENERAL, { after: "2026-10-01T12:00:00Z" });
+      expect(fake.queries.find((q) => q.table === "chat_messages")!.calls).toContainEqual({ method: "gt", args: ["created_at", "2026-10-01T12:00:00.000Z"] });
+    });
+  });
+
   it("opens a thread in a right panel beside the messages, which stay put", async () => {
     messages = [msg(1, { reply_count: 1 }), msg(2, { thread_root_id: id(101), chat_message_contents: { body: "the reply" } })];
     await renderChannel(GENERAL, { thread: id(101) });

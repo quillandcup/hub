@@ -12,6 +12,7 @@ import { triggerAttendanceReprocessing } from "@/lib/processing/trigger";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { INSTAGRAM_CUSTOM_FIELD_HANDLE, resolveInstagramUrl, toSocialUrl } from "@/lib/kajabi/profile-fields";
 import { applyProfileOverride, type ProfileOverride } from "@/lib/member-profile-overrides";
+import { pickStripeCustomerByEmail } from "@/lib/stripe-customer-link";
 import { attendanceMatchInputsChanged } from "@/lib/processing/attendance";
 
 // toSocialUrl, the "Instagram Handle" custom-field handle, and the Instagram
@@ -65,6 +66,7 @@ export async function POST(request: NextRequest) {
       staffMembers,
       emailAliases,
       stripeCustomers,
+      stripeSubscriptions,
       existingMembers,
       hiatusHistory,
       joinDateOverrides,
@@ -78,6 +80,7 @@ export async function POST(request: NextRequest) {
       createRepos(supabase).staff.all(),
       createRepos(supabase).aliases.emailOwners(),
       createRepos(supabase).billing.stripeCustomers(),
+      createRepos(supabase).billing.stripeSubscriptionRows(),
       createRepos(supabase).members.list().then((rows) => rows.map((m) => ({ id: m.id, email: m.email, kajabi_id: m.kajabiId, name: m.name }))),
       createRepos(supabase).memberStatus.allHiatuses(),
       createRepos(supabase).memberStatus.joinDateOverrides(),
@@ -210,15 +213,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Stripe customer ID lookup: email → stripe_customer_id
-    const stripeIdByEmail = new Map<string, string>();
-    if (stripeCustomers && stripeCustomers.length > 0) {
-      for (const sc of stripeCustomers) {
-        if (sc.email && sc.stripe_customer_id) {
-          stripeIdByEmail.set(resolveEmail(sc.email), sc.stripe_customer_id);
-        }
-      }
-    }
+    // Stripe customer ID lookup: email → stripe_customer_id. Several customers can share one email;
+    // the one with a live subscription wins (lib/stripe-customer-link.ts), not the last one read.
+    const stripeIdByEmail = pickStripeCustomerByEmail(stripeCustomers ?? [], stripeSubscriptions ?? [], resolveEmail);
 
     // Purchases by email (join via customer)
     const purchasesByEmail = new Map<string, any[]>();

@@ -15,25 +15,25 @@ export interface ChatVideoRepository {
    * at most one: a second attach for it throws. The app shares through `chat_post_shared_video` (the message and this row in one
    * transaction, with the sharer's access checked); this is for seeding and tests, and needs the service role.
    */
-  attach(messageId: string, lessonId: string, openToChannel?: boolean): Promise<void>;
+  attach(messageId: string, lessonId: string, openToChannel?: boolean, startSeconds?: number | null): Promise<void>;
   /** The lesson each given message shares; a message that shares none, or is deleted, is absent from the map. */
   lessonIdsOf(messageIds: string[]): Promise<Map<string, string>>;
-  /** What one message shares, or null when it shares nothing, is deleted, or the caller can't read it. */
-  shareOf(messageId: string): Promise<{ lessonId: string; openToChannel: boolean } | null>;
+  /** What one message shares (with the second the pasted link started at, if any), or null when it shares nothing, is deleted, or the caller can't read it. */
+  shareOf(messageId: string): Promise<{ lessonId: string; openToChannel: boolean; startSeconds: number | null } | null>;
 }
 
 export class SupabaseChatVideoRepository implements ChatVideoRepository {
   constructor(private readonly db: Db) {}
 
-  async attach(messageId: string, lessonId: string, openToChannel = false) {
-    must(await this.db.from("chat_message_videos").insert({ message_id: messageId, lesson_id: lessonId, open_to_channel: openToChannel }));
+  async attach(messageId: string, lessonId: string, openToChannel = false, startSeconds: number | null = null) {
+    must(await this.db.from("chat_message_videos").insert({ message_id: messageId, lesson_id: lessonId, open_to_channel: openToChannel, start_seconds: startSeconds }));
   }
 
   async shareOf(messageId: string) {
     const row = must(
-      await this.db.from("chat_message_videos").select("lesson_id, open_to_channel, chat_messages!inner(deleted_at)").eq("message_id", messageId).is("chat_messages.deleted_at", null).maybeSingle(),
+      await this.db.from("chat_message_videos").select("lesson_id, open_to_channel, start_seconds, chat_messages!inner(deleted_at)").eq("message_id", messageId).is("chat_messages.deleted_at", null).maybeSingle(),
     );
-    return row ? { lessonId: row.lesson_id, openToChannel: row.open_to_channel } : null;
+    return row ? { lessonId: row.lesson_id, openToChannel: row.open_to_channel, startSeconds: row.start_seconds } : null;
   }
 
   async lessonIdsOf(messageIds: string[]) {
@@ -48,13 +48,16 @@ export class SupabaseChatVideoRepository implements ChatVideoRepository {
 export class InMemoryChatVideoRepository implements ChatVideoRepository {
   constructor(private readonly data: InMemoryDataset) {}
 
-  async attach(messageId: string, lessonId: string, openToChannel = false) {
+  async attach(messageId: string, lessonId: string, openToChannel = false, startSeconds: number | null = null) {
     if (this.data.chatMessageVideos.some((v) => v.message_id === messageId)) throw new Error("duplicate key value violates unique constraint");
+    // The table's CHECK: a start is a second from 1 to a day.
+    if (startSeconds !== null && !(Number.isInteger(startSeconds) && startSeconds > 0 && startSeconds <= 86400)) throw new Error("violates check constraint chat_message_videos_start_seconds_check");
     this.data.chatMessageVideos.push({
       id: `cmv_${String(this.data.chatMessageVideos.length + 1).padStart(12, "A")}`,
       message_id: messageId,
       lesson_id: lessonId,
       open_to_channel: openToChannel,
+      start_seconds: startSeconds,
       created_at: new Date().toISOString(),
     });
   }
@@ -65,7 +68,7 @@ export class InMemoryChatVideoRepository implements ChatVideoRepository {
 
   async shareOf(messageId: string) {
     const row = this.data.chatMessageVideos.find((v) => v.message_id === messageId && !this.deleted(messageId));
-    return row ? { lessonId: row.lesson_id, openToChannel: row.open_to_channel } : null;
+    return row ? { lessonId: row.lesson_id, openToChannel: row.open_to_channel, startSeconds: row.start_seconds ?? null } : null;
   }
 
   async lessonIdsOf(messageIds: string[]) {

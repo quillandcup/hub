@@ -26,6 +26,17 @@ beforeEach(() => {
   storage.uploadToSignedUrl.mockResolvedValue({ data: {}, error: null });
 });
 
+describe("a file row", () => {
+  it("is compact: a download icon link (when there is an address) and a remove icon button, no text Remove button", () => {
+    render(<LessonFilesField courseId={COURSE} lessonId={LESSON} files={[{ id: FILE, filename: "Tracker.pdf", sizeBytes: 2048, href: "/courses/x/lessons/y/files/z" }, { id: "file_AAAAAAAAAAA2", filename: "Other.pdf", sizeBytes: null }]} />);
+    expect(screen.getByRole("link", { name: "Download Tracker.pdf" })).toHaveAttribute("href", "/courses/x/lessons/y/files/z");
+    expect(screen.queryByRole("link", { name: "Download Other.pdf" })).not.toBeInTheDocument();
+    const remove = screen.getByRole("button", { name: "Remove Tracker.pdf" });
+    expect(remove).not.toHaveTextContent(/\S/);
+    expect(screen.getByRole("button", { name: "Add files" })).toBeInTheDocument();
+  });
+});
+
 describe("the list", () => {
   it("says there are no downloads, and offers Add files", () => {
     render(<LessonFilesField courseId={COURSE} lessonId={LESSON} files={[]} />);

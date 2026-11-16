@@ -254,6 +254,30 @@ describe("labels of Slack direct messages", () => {
     expect(await labelOf(DM_PAIR)).toBe("Gale Prickleton");
   });
 
+  it("marks a DM with only an app in it as an app's, named after the app, and leaves a DM with a person in it alone", async () => {
+    const APP_DM = "chn_AAAAAAAAAAE6";
+    channels.push({ id: APP_DM, kind: "dm", visibility: "private", restricted: true, name: null, slack_channel_id: "D_APP" });
+    memberships.push({ channel_id: APP_DM, member_id: FERN });
+    slackChannels.push({ channel_id: "D_APP", name: "", is_im: true });
+    slackMembers.push({ channel_id: "D_APP", user_id: "U_FERN" }, { channel_id: "D_APP", user_id: "U_BOT" }, { channel_id: "D_PAIR", user_id: "U_BOT" });
+    const list = await loadChatChannels(repos(), FERN, false);
+    expect(list.find((c) => c.id === APP_DM)).toMatchObject({ label: "Billie Bot", app: true });
+    expect(list.find((c) => c.id === DM_PAIR)!.app).toBeUndefined();
+    await expect(loadChannelForMember(repos(), APP_DM, FERN, false)).resolves.toMatchObject({ label: "Billie Bot", app: true });
+  });
+
+  it("keeps an app's DM under Direct messages when the apps can't be read", async () => {
+    const APP_DM = "chn_AAAAAAAAAAE7";
+    channels.push({ id: APP_DM, kind: "dm", visibility: "private", restricted: true, name: null, slack_channel_id: "D_APP" });
+    memberships.push({ channel_id: APP_DM, member_id: FERN });
+    slackChannels.push({ channel_id: "D_APP", name: "", is_im: true });
+    slackMembers.push({ channel_id: "D_APP", user_id: "U_FERN" }, { channel_id: "D_APP", user_id: "U_BOT" });
+    failing = ["dmApps"];
+    const list = await loadChatChannels(repos(), FERN, false);
+    expect(list.find((c) => c.id === APP_DM)).toMatchObject({ label: "Direct message" });
+    expect(list.find((c) => c.id === APP_DM)!.app).toBeUndefined();
+  });
+
   it("leaves the bot out, and someone who has left", async () => {
     slackMembers.push({ channel_id: "D_PAIR", user_id: "U_BOT" }, { channel_id: "C_TOKEN_GROUP", user_id: "U_STRANGER", left_at: "2026-11-01T00:00:00Z" });
     expect(await labelOf(DM_PAIR)).toBe("Gale Prickleton");

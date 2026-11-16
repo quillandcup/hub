@@ -80,7 +80,7 @@ export default function FeedbackWidget({ open: isOpen, onClose }: { open: boolea
   }
 
   return (
-    <div data-feedback-widget className="fixed right-4 top-16 z-50">
+    <div data-feedback-widget className="fixed right-4 top-16 z-shell">
       {isOpen && (
         <div className="mt-2 w-80 bg-white dark:bg-slate-900 rounded-lg shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">

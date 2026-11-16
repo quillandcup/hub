@@ -255,7 +255,7 @@ export interface AdminLessonDetail {
   /** Every module of the course as a path ("Module 2 / Week 1"), for the module picker. */
   modules: { kajabiId: string; path: string }[];
   /** `id` is the Hub's, set for a Hub-owned lesson (its downloads can be removed); an imported lesson's are Kajabi's copies. */
-  files: { id: string | null; filename: string; sizeBytes: number | null }[];
+  files: { id: string | null; filename: string; sizeBytes: number | null; href?: string | null }[];
   /** The lesson in the Hub, when the course is published there. */
   hub: { slug: string; lessonId: string } | null;
   /** The lesson's video in the Hub (what plays), when it has one. */
@@ -409,7 +409,7 @@ async function loadHubLesson(repos: AdminCourseRepos, courseId: string, lesson: 
     },
     trail: trailOf(lesson.module_id),
     modules: modules.map((m) => ({ kajabiId: m.id, path: trailOf(m.id).map((t) => t.title).join(" / ") })).sort((a, b) => a.path.localeCompare(b.path)),
-    files: files.map((f) => ({ id: f.id, filename: f.filename, sizeBytes: f.size_bytes })),
+    files: files.map((f) => ({ id: f.id, filename: f.filename, sizeBytes: f.size_bytes, href: `/courses/${course.slug}/lessons/${lesson.id}/files/${f.id}` })),
     hub: { slug: course.slug, lessonId: lesson.id },
     video,
     captions,

@@ -1,4 +1,5 @@
 import type { AmbiguousZoomNameRow, ZoomAttendeeRow } from "@/lib/data/zoom";
+import { PRIMARY_ZOOM_ACCOUNT_ID } from "@/lib/zoom-accounts";
 
 let n = 0;
 
@@ -22,6 +23,7 @@ export function zoomAttendee(fields: Partial<ZoomAttendeeRow> & Pick<ZoomAttende
     status: null,
     topic: null,
     user_id: null,
+    zoom_account: PRIMARY_ZOOM_ACCOUNT_ID,
     ...fields,
   };
 }
