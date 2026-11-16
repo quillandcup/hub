@@ -1763,6 +1763,10 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 ## UI Enhancements
 
+### Standardize action icons across admin lists _(Needs Scheduling)_
+
+The shared icon set is `components/Icon.tsx` (moved out of the course builder): edit is a pencil, preview an eye, duplicate a copy, delete a trash can, copy link a link. The course builder and the Pages list use it. Other admin tables and lists still spell actions as text links or draw their own inline SVGs (grep for `<svg` and for action columns in `app/(admin)/admin/`). Deferred to keep this change small; convert them one table at a time, keep an accessible name on every icon-only control, and add any missing glyph to `ICONS` instead of drawing it in the page.
+
 ### Portal the remaining pickers' lists _(Needs Scheduling)_
 
 `EntitySearch` now draws its result list on `<body>` so a modal's `overflow-hidden` can't clip it (`docs/Z_LAYERS.md`, "Pickers inside a modal"). The other lists that open under a field are still positioned in place and clip the same way when they sit in a modal or a scrolling panel with `overflow-hidden`: the hand-written dropdown in `UnmatchedEventsTable`, `MemberSlackSearchForm`, `BuilderOutline`'s Add content menu, `VideoActions`, `AddToCalendar`. Deferred because each needs its own outside-click and keyboard handling checked. **Resolved:** `MultiEntitySearch` is portaled too, and the placing logic is the shared `useBelow` hook (`lib/hooks/useBelow.ts`). **Still open:** the rest above; reuse `useBelow` and check each one inside a modal.

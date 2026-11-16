@@ -4,6 +4,7 @@ import { createContext, useContext, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ActionMenu, { type ActionMenuItem } from "@/components/ActionMenu";
+import Icon, { ICONS } from "@/components/Icon";
 import Modal from "@/components/Modal";
 import type { ExplainedLesson, ExplainedModule } from "@/lib/courses/explain";
 import { moduleContents, moveBefore, moveBy } from "@/lib/courses/hub-outline";
@@ -35,30 +36,6 @@ const PILL: Record<string, string> = {
   locked: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300",
   drip: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
   scheduled: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
-};
-
-function Icon({ path, className = "h-4 w-4" }: { path: string; className?: string }) {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 20 20" className={className} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d={path} />
-    </svg>
-  );
-}
-
-const ICONS = {
-  folder: "M2.5 6a1.5 1.5 0 0 1 1.5-1.5h3.2l1.6 1.8H16A1.5 1.5 0 0 1 17.5 7.8V14A1.5 1.5 0 0 1 16 15.5H4A1.5 1.5 0 0 1 2.5 14z",
-  video: "M3 6.5A1.5 1.5 0 0 1 4.5 5h7A1.5 1.5 0 0 1 13 6.5v7a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 3 13.5zM13 9l4-2v6l-4-2",
-  edit: "M4 13.5V16h2.5l7-7L11 6.5zM12 5.5l2.5 2.5",
-  rename: "M7 4H5v12h2M13 4h2v12h-2M10 6v8",
-  copy: "M7 7h8v8H7zM5 13V5h8",
-  comment: "M4 5h12v8H9l-3 3v-3H4z",
-  eye: "M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5zM10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z",
-  trash: "M5 6h10M8 6V4h4v2M6.5 6l.5 10h6l.5-10",
-  plus: "M10 4v12M4 10h12",
-  chevron: "m5 8 5 5 5-5",
-  grip: "M4 7.5h12M4 12.5h12",
-  up: "m5 12 5-5 5 5",
-  down: "m5 8 5 5 5-5",
 };
 
 /** What the rows share: which course, whether it can be changed, and how a change is made. */
