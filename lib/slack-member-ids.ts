@@ -17,9 +17,10 @@ async function buildSlackUserIdToMemberIdMap(
   repos: SlackIdRepos,
   scope: { memberIds?: readonly string[]; slackUserId?: string }
 ): Promise<Map<string, string>> {
-  const [allMembers, aliases, everySlackUser] = await Promise.all([
+  const [allMembers, aliases, emailAliases, everySlackUser] = await Promise.all([
     repos.members.identities(),
     repos.aliases.nameAliases({ activeOnly: true }),
+    repos.aliases.emailAliases({ activeOnly: true }),
     repos.slackUsers.list(),
   ]);
   // A deactivated account can't receive a DM, and a person who moved to a new account keeps the old one
@@ -28,7 +29,7 @@ async function buildSlackUserIdToMemberIdMap(
   const slackUsers = everySlackUser.filter((user) => !user.is_deleted);
 
   const members: Member[] = allMembers;
-  const matched = await matchSlackUsersToMembers(slackUsers, members, aliases);
+  const matched = await matchSlackUsersToMembers(slackUsers, members, aliases, new Map(), emailAliases);
   const safe = new Map<string, string>();
   const collisions: Extract<OperationsAlert, { type: "ambiguous_slack_member_match" }>["collisions"][number][] = [];
 
@@ -60,11 +61,18 @@ async function buildSlackUserIdToMemberIdMap(
       ? members.filter((row) => row.email?.toLowerCase() === userEmail)
       : [];
     const realName = user.real_name;
+    // The members an alias of this Slack email points at (through the member's canonical email).
+    const aliasMatches = userEmail
+      ? emailAliases
+          .filter((row) => row.alias_email.toLowerCase() === userEmail)
+          .flatMap((row) => members.filter((m) => m.email?.toLowerCase() === row.canonical_email.toLowerCase()))
+      : [];
     const nameMatches = realName
       ? members.filter((row) => row.name && normalizeName(row.name) === normalizeName(realName))
       : [];
     const candidates = manual.length ? manual.map((row) => row.member_id) : emailMatches.length
-      ? emailMatches.map((row) => row.id) : nameMatches.map((row) => row.id);
+      ? emailMatches.map((row) => row.id) : nameMatches.length
+      ? nameMatches.map((row) => row.id) : aliasMatches.map((row) => row.id);
     const distinct = [...new Set(candidates)];
     if (distinct.length !== 1 || distinct[0] !== memberId) {
       reportCollision("ambiguous_candidate", [slackUserId], distinct);

@@ -47,6 +47,49 @@ describe("notification Slack recipient matching", () => {
     error.mockRestore();
   });
 
+  it("finds a member's Slack account through an active email alias", async () => {
+    const repos = createInMemoryRepos(
+      new InMemoryDataset({
+        members: [{ id: "m1", name: "Alex River", email: "alex.login@example.com" }],
+        emailAliases: [{ id: "mea_AAAAAAAAAAA1", memberId: "m1", active: true, alias_email: "alex@slack.example.com", canonical_email: "alex.login@example.com" }],
+        slackUsers: [{ user_id: "U1", real_name: "A. R.", email: "alex@slack.example.com" }],
+      })
+    );
+
+    expect(await resolveSlackUserIds(repos, ["m1"])).toEqual(new Map([["m1", "U1"]]));
+    expect(await resolveMemberIdForSlackUser(repos, "U1")).toBe("m1");
+  });
+
+  it("ignores an inactive email alias", async () => {
+    const repos = createInMemoryRepos(
+      new InMemoryDataset({
+        members: [{ id: "m1", name: "Alex River", email: "alex.login@example.com" }],
+        emailAliases: [{ id: "mea_AAAAAAAAAAA1", memberId: "m1", active: false, alias_email: "alex@slack.example.com", canonical_email: "alex.login@example.com" }],
+        slackUsers: [{ user_id: "U1", real_name: "A. R.", email: "alex@slack.example.com" }],
+      })
+    );
+
+    expect(await resolveSlackUserIds(repos, ["m1"])).toEqual(new Map());
+  });
+
+  it("keeps the account a member already has when an alias points at a second one", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const repos = createInMemoryRepos(
+      new InMemoryDataset({
+        members: [{ id: "m1", name: "Alex River", email: "alex@example.com" }],
+        emailAliases: [{ id: "mea_AAAAAAAAAAA1", memberId: "m1", active: true, alias_email: "alex.old@example.com", canonical_email: "alex@example.com" }],
+        slackUsers: [
+          { user_id: "U1", real_name: "Alex River", email: "alex@example.com" },
+          { user_id: "U2", real_name: "Other Name", email: "alex.old@example.com" },
+        ],
+      })
+    );
+
+    expect(await resolveSlackUserIds(repos, ["m1"])).toEqual(new Map([["m1", "U1"]]));
+    expect(error).not.toHaveBeenCalled();
+    error.mockRestore();
+  });
+
   it("ignores a deactivated Slack account that a manual alias still ties to the member", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     const repos = createInMemoryRepos(
