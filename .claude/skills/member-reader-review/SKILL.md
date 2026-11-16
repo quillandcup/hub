@@ -21,7 +21,7 @@ Write and judge for her. Never describe or talk about members in this register o
 
 ## How to run it
 
-Start an agent (it needs fresh context, so do not do this yourself in the session that wrote the copy) and give it this persona, the text to review, and these instructions. It reads only; it does not edit the repo.
+Start an agent (it needs fresh context, so do not do this yourself in the session that wrote the copy) and give it this persona, the text to review, and these instructions. It reads only; it does not edit the repo. Start it with `model: "haiku"`: it only reads and rewrites short copy, so the cheaper model is enough.
 
 For each piece of text, judge:
 
