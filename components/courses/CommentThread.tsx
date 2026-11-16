@@ -2,9 +2,9 @@
 
 import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { deleteLessonComment, editLessonComment, postLessonComment } from "@/app/(member)/courses/comment-actions";
+import { deleteLessonComment, editLessonComment, postLessonComment, reportLessonComment } from "@/app/(member)/courses/comment-actions";
 import { track } from "@/lib/analytics/client";
-import { COMMENT_EDIT_WINDOW_MS, COMMENT_MAX_LENGTH, commentCountBucket } from "@/lib/courses/comments";
+import { COMMENT_EDIT_WINDOW_MS, COMMENT_MAX_LENGTH, REPORT_REASON_MAX_LENGTH, commentCountBucket } from "@/lib/courses/comments";
 import { fullDate, linkifyText, relativeAgo } from "@/lib/courses/comment-text";
 import type { ThreadComment, ThreadEntry } from "@/lib/data/course-comments";
 
@@ -126,6 +126,54 @@ function Body({ text }: { text: string }) {
   );
 }
 
+interface ReportFormProps {
+  busy: boolean;
+  error: string | null;
+  onSubmit: (reason: string) => void;
+  onCancel: () => void;
+}
+
+/** A short reason for a report. The reporter's name never reaches the comment's author. */
+function ReportForm({ busy, error, onSubmit, onCancel }: ReportFormProps) {
+  const id = useId();
+  const [reason, setReason] = useState("");
+  return (
+    <form
+      className="mt-2"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!busy) onSubmit(reason);
+      }}
+    >
+      <label htmlFor={id} className="block text-sm font-medium">
+        What's wrong with this comment?
+      </label>
+      <textarea
+        id={id}
+        value={reason}
+        onChange={(event) => setReason(event.target.value)}
+        rows={2}
+        maxLength={REPORT_REASON_MAX_LENGTH}
+        autoFocus
+        aria-describedby={`${id}-error`}
+        className="mt-1 block w-full rounded-lg border border-slate-300 bg-white p-3 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500 dark:border-slate-700 dark:bg-slate-950"
+      />
+      <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Only our staff see your report. The person who wrote the comment isn't told.</p>
+      <div className="mt-2 flex gap-2">
+        <button type="submit" disabled={busy || reason.trim().length === 0} data-track="lesson-comment-report-submit" className={primaryButton}>
+          {busy ? "Sending…" : "Send report"}
+        </button>
+        <button type="button" onClick={onCancel} className={quietButton}>
+          Cancel
+        </button>
+      </div>
+      <p id={`${id}-error`} role="alert" className="mt-1 text-sm text-red-700 dark:text-red-400">
+        {error}
+      </p>
+    </form>
+  );
+}
+
 interface ItemProps {
   comment: ThreadComment;
   isReply: boolean;
@@ -138,6 +186,8 @@ interface ItemProps {
 function CommentItem({ comment, isReply, props, onReply, onChanged }: ItemProps) {
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [reporting, setReporting] = useState(false);
+  const [reported, setReported] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -150,6 +200,8 @@ function CommentItem({ comment, isReply, props, onReply, onChanged }: ItemProps)
   const mine = comment.memberId === props.currentMemberId;
   const canEdit = mine && !props.readOnly && props.nowMs - new Date(comment.createdAt).getTime() <= COMMENT_EDIT_WINDOW_MS;
   const canDelete = mine && !props.readOnly;
+  // Not your own, not while previewing, not for staff (who hide from the moderation queue), not for something staff are still reviewing.
+  const canReport = !mine && !props.readOnly && !props.isStaff && !comment.held && !comment.hidden;
 
   function save(text: string) {
     setError(null);
@@ -159,6 +211,18 @@ function CommentItem({ comment, isReply, props, onReply, onChanged }: ItemProps)
       track("lesson_comment_edited", { course_id: props.courseId });
       setEditing(false);
       onChanged("Comment updated");
+    });
+  }
+
+  function sendReport(reason: string) {
+    setError(null);
+    startTransition(async () => {
+      const result = await reportLessonComment(comment.id, reason);
+      if (result.error) return setError(result.error);
+      track("lesson_comment_reported", { course_id: props.courseId, is_reply: isReply });
+      setReporting(false);
+      setReported(true);
+      onChanged("Report sent. Thank you.");
     });
   }
 
@@ -183,7 +247,18 @@ function CommentItem({ comment, isReply, props, onReply, onChanged }: ItemProps)
           {relativeAgo(comment.createdAt, props.nowMs, props.timeZone)}
         </time>
         {comment.editedAt && <span className="text-xs text-slate-600 dark:text-slate-400">edited</span>}
+        {comment.held && (
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200">Held for review</span>
+        )}
+        {comment.hidden && (
+          <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-800 dark:bg-slate-700 dark:text-slate-100">Hidden from members</span>
+        )}
       </p>
+      {comment.held && (
+        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+          {mine ? "Only you and our staff can see this until it's reviewed. Comments with more than two links wait for a quick check." : "Held for review: not shown to members yet."}
+        </p>
+      )}
 
       {editing ? (
         <div className="mt-2">
@@ -195,9 +270,19 @@ function CommentItem({ comment, isReply, props, onReply, onChanged }: ItemProps)
 
       {!editing && (
         <div className="mt-1 flex flex-wrap items-center gap-1">
-          <button type="button" onClick={onReply} disabled={props.readOnly} className={quietButton} data-track="lesson-comment-reply">
-            Reply
-          </button>
+          {!comment.held && (
+            <button type="button" onClick={onReply} disabled={props.readOnly} className={quietButton} data-track="lesson-comment-reply">
+              Reply
+            </button>
+          )}
+          {canReport &&
+            (reported ? (
+              <span className="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-400">Reported</span>
+            ) : (
+              <button type="button" onClick={() => setReporting(true)} aria-expanded={reporting} className={quietButton} data-track="lesson-comment-report">
+                Report
+              </button>
+            ))}
           {canEdit && (
             <button type="button" onClick={() => setEditing(true)} className={quietButton} data-track="lesson-comment-edit">
               Edit
@@ -220,7 +305,8 @@ function CommentItem({ comment, isReply, props, onReply, onChanged }: ItemProps)
             ))}
         </div>
       )}
-      {!editing && error && (
+      {reporting && <ReportForm busy={pending} error={error} onSubmit={sendReport} onCancel={() => { setReporting(false); setError(null); }} />}
+      {!editing && !reporting && error && (
         <p role="alert" className="text-sm text-red-700 dark:text-red-400">
           {error}
         </p>
@@ -253,7 +339,7 @@ export default function CommentThread(props: Props) {
       const result = await postLessonComment(props.lessonId, text, parentId);
       if (result.error) return setFailure(result.error);
       track("lesson_comment_posted", { course_id: props.courseId, is_reply: parentId !== null, is_staff: props.isStaff });
-      setAnnouncement(parentId ? "Reply posted" : "Comment posted");
+      setAnnouncement(result.held ? "Posted. It will show to others once staff have looked at it." : parentId ? "Reply posted" : "Comment posted");
       setResetKey((key) => key + 1);
       setReplyingTo(null);
       router.refresh();

@@ -3899,6 +3899,58 @@ export type Database = {
           },
         ]
       }
+      lesson_comment_reports: {
+        Row: {
+          comment_id: string
+          created_at: string
+          id: string
+          reason: string
+          reporter_id: string
+          resolved_at: string | null
+          resolved_by: string | null
+        }
+        Insert: {
+          comment_id: string
+          created_at?: string
+          id?: string
+          reason: string
+          reporter_id: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+        }
+        Update: {
+          comment_id?: string
+          created_at?: string
+          id?: string
+          reason?: string
+          reporter_id?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_comment_reports_comment_id_fkey"
+            columns: ["comment_id"]
+            isOneToOne: false
+            referencedRelation: "lesson_comments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_comment_reports_reporter_id_fkey"
+            columns: ["reporter_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_comment_reports_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lesson_comments: {
         Row: {
           body: string
@@ -3906,6 +3958,10 @@ export type Database = {
           deleted_at: string | null
           deleted_by: string | null
           edited_at: string | null
+          handled_at: string | null
+          handled_by: string | null
+          held_at: string | null
+          held_reason: string | null
           hidden_at: string | null
           id: string
           is_staff_reply: boolean
@@ -3919,6 +3975,10 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           edited_at?: string | null
+          handled_at?: string | null
+          handled_by?: string | null
+          held_at?: string | null
+          held_reason?: string | null
           hidden_at?: string | null
           id?: string
           is_staff_reply?: boolean
@@ -3932,6 +3992,10 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           edited_at?: string | null
+          handled_at?: string | null
+          handled_by?: string | null
+          held_at?: string | null
+          held_reason?: string | null
           hidden_at?: string | null
           id?: string
           is_staff_reply?: boolean
@@ -3943,6 +4007,13 @@ export type Database = {
           {
             foreignKeyName: "lesson_comments_deleted_by_fkey"
             columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_comments_handled_by_fkey"
+            columns: ["handled_by"]
             isOneToOne: false
             referencedRelation: "members"
             referencedColumns: ["id"]
@@ -8246,6 +8317,10 @@ export type Database = {
           member_id: string
           mentored_count: number
         }[]
+      }
+      moderate_lesson_comment: {
+        Args: { p_action: string; p_comment_id: string }
+        Returns: string
       }
       move_course_lesson: {
         Args: { p_lesson_id: string; p_module_id: string }

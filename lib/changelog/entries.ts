@@ -56,6 +56,23 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "lesson-comments-moderation",
+    date: "2026-11-16",
+    audience: "engineering",
+    category: "new",
+    title: "Lesson comments: reports, held links and staff moderation, one audit entry per action",
+    summary: "Members can report a comment, a comment with more than two links waits for staff, and staff hide, delete, approve or dismiss from a moderation page. Each staff action writes one audit entry without the comment's text. Still behind the lesson comments flag.",
+    body: `Moderation for lesson comments builds on the thread, behind the same flag.
+
+- **One function, one entry.** Staff actions call a database function that checks the caller is an admin, changes the comment, settles its reports and writes a single audit entry as that admin (who, which comment, the lesson's title, before and after). The table has no row-level audit trigger because that would copy every comment's text into the log; the entry never holds text either. It follows "Record the intent, not the noise" in \`docs/ACTIVITY_AND_AUDIT_LOG.md\`.
+- **Visibility is enforced twice.** A held comment is its author's and staff's alone, and a hidden one is a tombstone for members, both in the row-level policy and in the repository's \`threadFor(lessonId, viewer)\`.
+- **The link rule is one helper** (\`shouldHoldComment\`), counting links the way the thread auto-links them. There is no word filter.
+- **Reports** have their own table, one open report per reporter and comment, readable by admins only; the author is never told who reported.
+- **Admin pages** are tabs by path (Unanswered questions, Moderation), admin only.
+
+Detail: "Phase 2 (moderation), as built" in \`docs/COURSES.md\`.`,
+  },
+  {
     slug: "lesson-comments-foundation",
     date: "2026-11-15",
     audience: "engineering",
