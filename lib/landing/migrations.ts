@@ -31,7 +31,8 @@ const isObject = (v: unknown): v is Props => !!v && typeof v === "object" && !Ar
 const isNode = (v: unknown): v is { type: string; props: Props } => isObject(v) && typeof v.type === "string" && isObject(v.props);
 
 function migrateNode(node: { type: string; props: Props }, step: LandingMigration): { type: string; props: Props } {
-  const transform = step.blocks?.[node.type];
+  // Own entries only: the type comes from stored JSON, and "constructor" or "toString" must not find a function on the prototype.
+  const transform = step.blocks && Object.hasOwn(step.blocks, node.type) ? step.blocks[node.type] : undefined;
   const props = transform ? transform(node.props) : node.props;
   return { ...node, props: migrateSlots(props, step) };
 }

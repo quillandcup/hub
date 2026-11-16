@@ -65,6 +65,12 @@ describe("landing data migrations", () => {
     expect(out.content[1]).toBe("junk");
   });
 
+  it("ignores a block type that is a prototype method name instead of calling it", () => {
+    const content = ["constructor", "toString", "__proto__", "hasOwnProperty"].map((type) => ({ type, props: { id: type, text: "x" } }));
+    const out = migrateLandingData({ root: {}, content }, STEPS) as any;
+    expect(out.content.map((n: any) => n.props)).toEqual(content.map((n) => n.props));
+  });
+
   it("reads the version marker defensively", () => {
     expect(landingDataVersion({ schemaVersion: 3 })).toBe(3);
     for (const bad of [{}, { schemaVersion: "2" }, { schemaVersion: -1 }, { schemaVersion: 1.5 }, null, []]) expect(landingDataVersion(bad)).toBe(0);
