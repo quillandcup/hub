@@ -48,9 +48,10 @@ describe("readKajabiZip", () => {
   });
 
   it("does not inflate what it doesn't read, so a huge script costs nothing", () => {
-    const read = readKajabiZip(zipSync({ "config/settings_data.json": settings, "assets/scripts.js": new Uint8Array(ZIP_LIMITS.totalBytes * 2) }));
+    // Just over the total is enough: inflating it would trip the limit. Compressing it still takes a while on a busy runner, so the test gets more than the default 5s.
+    const read = readKajabiZip(zipSync({ "config/settings_data.json": settings, "assets/scripts.js": new Uint8Array(ZIP_LIMITS.totalBytes + 1024) }));
     expect(read.ok).toBe(true);
-  });
+  }, 30_000);
 
   it("refuses too many entries, and an upload larger than the cap", () => {
     const many = Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`snippets/${i}.liquid`, strToU8("x")]));
