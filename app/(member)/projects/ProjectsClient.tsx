@@ -26,7 +26,7 @@ export default function ProjectsClient({ initialProjects, pastProjects = [] }: P
   const [showImport, setShowImport] = useState(false);
   const [logProgressFor, setLogProgressFor] = useState<string | null>(null);
   const [publishing, setPublishing] = useState<WritingProjectRow | null>(null);
-  const { shown, saving, error: orderError, note: orderNote, move, reorder } = useReorderableList(
+  const { shown, saving, error: orderError, note: orderNote, moveTo, reorder } = useReorderableList(
     initialProjects,
     (ids) => reorderMyProjects(ids),
     (project) => project.title,
@@ -107,7 +107,7 @@ export default function ProjectsClient({ initialProjects, pastProjects = [] }: P
       <p role="status" className="sr-only">
         {orderNote}
       </p>
-      <SortableList ids={shown.map((p) => p.id)} onReorder={(ids) => void reorder(ids)}>
+      <SortableList ids={shown.map((p) => p.id)} labels={Object.fromEntries(shown.map((p) => [p.id, p.title]))} onReorder={(ids) => void reorder(ids)}>
       <div className="space-y-4">
         {shown.map((project, index) => (
           <SortableRow
@@ -117,14 +117,18 @@ export default function ProjectsClient({ initialProjects, pastProjects = [] }: P
             index={index}
             count={shown.length}
             disabled={saving}
-            onMove={(delta) => move(project.id, delta)}
+            onMoveTo={(position) => moveTo(project.id, position)}
             track="projects"
+            handle="cover"
+            overPicture={!!(project.book?.coverUrl || project.coverUrl)}
             className="bg-white dark:bg-slate-900 rounded-lg border p-5"
             idleClassName="border-slate-200 dark:border-slate-800"
             liftedClassName="border-plum-400 shadow-xl ring-2 ring-plum-400 dark:border-plum-500 dark:ring-plum-500"
           >
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-start gap-3 min-w-0">
+            {(menu) => (
+            <>
+            <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+              <div className="flex min-w-0 flex-1 basis-44 items-start gap-3">
                 {project.book?.coverUrl || project.coverUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element -- fixed-size Supabase Storage upload, not optimizable by next/image
                   <img
@@ -150,7 +154,7 @@ export default function ProjectsClient({ initialProjects, pastProjects = [] }: P
                   </p>
                 </div>
               </div>
-              <div className="flex-shrink-0 flex items-center gap-2">
+              <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
                 <button data-track="projects-log-progress"
                   type="button"
                   onClick={() => setLogProgressFor(project.id)}
@@ -167,6 +171,7 @@ export default function ProjectsClient({ initialProjects, pastProjects = [] }: P
                     🚀 Publish
                   </button>
                 )}
+                {menu}
               </div>
             </div>
 
@@ -187,6 +192,8 @@ export default function ProjectsClient({ initialProjects, pastProjects = [] }: P
                   <GoalDisplay key={goal.id} goal={goal} />
                 ))}
               </div>
+            )}
+            </>
             )}
           </SortableRow>
         ))}

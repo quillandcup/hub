@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { DndContextProps } from "@dnd-kit/core";
+import { HANDLE_TOOLTIP } from "@/components/writing/SortableList";
 import ProjectsClient from "@/app/(member)/projects/ProjectsClient";
 import type { WritingProjectRow } from "@/app/(member)/projects/actions";
 
@@ -45,40 +46,63 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("ProjectsClient reordering", () => {
-  it("lists the projects in the order it is given, each with a grip and Move buttons", () => {
+  async function openMenu(title: string) {
+    await userEvent.click(screen.getByRole("button", { name: `More actions for ${title}` }));
+  }
+
+  it("lists the projects in the order it is given, each with a drag handle that explains itself", () => {
     render(<ProjectsClient initialProjects={projects()} />);
     expect(titles()).toEqual(["Alpha Draft", "Beta Draft", "Gamma Draft"]);
     expect(screen.getAllByRole("button", { name: /^Reorder / })).toHaveLength(3);
     expect(screen.getByRole("button", { name: /^Reorder Beta Draft/ })).toHaveAttribute("aria-roledescription", "sortable");
+    // Not only an aria-label: a tooltip that shows on hover and keyboard focus, with the keyboard steps.
+    expect(screen.getAllByText(HANDLE_TOOLTIP)).toHaveLength(3);
+    expect(HANDLE_TOOLTIP).toBe("Drag to reorder. Keyboard: press Space to pick up, arrow keys to move, Space to drop.");
+    expect(screen.getAllByText(HANDLE_TOOLTIP)[0].className).toMatch(/group-hover\/handle:block/);
+    expect(screen.getAllByText(HANDLE_TOOLTIP)[0].className).toMatch(/group-focus-within\/handle:block/);
+  });
+
+  it("has no Move up / Move down buttons any more", () => {
+    render(<ProjectsClient initialProjects={projects()} />);
+    expect(screen.queryByRole("button", { name: /^Move .* (up|down)$/ })).toBeNull();
   });
 
   it("has no ordering controls for a single project", () => {
     render(<ProjectsClient initialProjects={[project("wprj_a", "Alpha Draft")]} />);
     expect(screen.queryByRole("button", { name: /^Reorder / })).toBeNull();
-    expect(screen.queryByRole("button", { name: /^Move / })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^More actions for / })).toBeNull();
   });
 
-  it("disables Move up on the first card and Move down on the last", () => {
+  it("offers every position in the menu, with the current one marked and not choosable", async () => {
     render(<ProjectsClient initialProjects={projects()} />);
-    expect(screen.getByRole("button", { name: "Move Alpha Draft up" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Move Alpha Draft down" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Move Gamma Draft down" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Move Gamma Draft up" })).toBeEnabled();
+    await openMenu("Beta Draft");
+    expect(screen.getAllByRole("menuitem").map((i) => i.textContent)).toEqual(["Move to position 1", "Position 2 (current)", "Move to position 3"]);
+    expect(screen.getByRole("menuitem", { name: "Position 2 (current)" })).toHaveAttribute("aria-disabled", "true");
   });
 
-  it("moves a project down with its button, shows it at once, saves the whole order and refreshes", async () => {
+  it("moves a project to the chosen position in one step, shows it at once, saves the whole order, refreshes and announces it", async () => {
     render(<ProjectsClient initialProjects={projects()} />);
-    await userEvent.click(screen.getByRole("button", { name: "Move Alpha Draft down" }));
-    expect(titles()).toEqual(["Beta Draft", "Alpha Draft", "Gamma Draft"]);
-    expect(m.reorder).toHaveBeenCalledWith(["wprj_b", "wprj_a", "wprj_c"]);
+    await openMenu("Alpha Draft");
+    await userEvent.click(screen.getByRole("menuitem", { name: "Move to position 3" }));
+    expect(titles()).toEqual(["Beta Draft", "Gamma Draft", "Alpha Draft"]);
+    expect(m.reorder).toHaveBeenCalledWith(["wprj_b", "wprj_c", "wprj_a"]);
     await waitFor(() => expect(m.refresh).toHaveBeenCalledOnce());
-    expect(screen.getByText("Alpha Draft moved to position 2 of 3.")).toBeInTheDocument();
+    expect(screen.getByText("Alpha Draft moved to position 3 of 3.")).toBeInTheDocument();
   });
 
-  it("moves a project up with its button", async () => {
+  it("moves a project up to the first position", async () => {
     render(<ProjectsClient initialProjects={projects()} />);
-    await userEvent.click(screen.getByRole("button", { name: "Move Gamma Draft up" }));
-    expect(m.reorder).toHaveBeenCalledWith(["wprj_a", "wprj_c", "wprj_b"]);
+    await openMenu("Gamma Draft");
+    await userEvent.click(screen.getByRole("menuitem", { name: "Move to position 1" }));
+    expect(m.reorder).toHaveBeenCalledWith(["wprj_c", "wprj_a", "wprj_b"]);
+  });
+
+  it("works from the keyboard: open the menu, arrow to a position, Enter", async () => {
+    render(<ProjectsClient initialProjects={projects()} />);
+    screen.getByRole("button", { name: "More actions for Alpha Draft" }).focus();
+    await userEvent.keyboard("{Enter}");
+    await userEvent.keyboard("{ArrowDown}{Enter}");
+    expect(m.reorder).toHaveBeenCalledWith(["wprj_b", "wprj_c", "wprj_a"]);
   });
 
   it("saves the order a drag ended in, and ignores a drop where it started or outside the list", async () => {
@@ -99,7 +123,8 @@ describe("ProjectsClient reordering", () => {
   it("puts the list back and says so when the save is refused", async () => {
     m.reorder.mockResolvedValue({ error: "Failed to save the order" });
     render(<ProjectsClient initialProjects={projects()} />);
-    await userEvent.click(screen.getByRole("button", { name: "Move Alpha Draft down" }));
+    await openMenu("Alpha Draft");
+    await userEvent.click(screen.getByRole("menuitem", { name: "Move to position 2" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't save the new order");
     expect(titles()).toEqual(["Alpha Draft", "Beta Draft", "Gamma Draft"]);
     expect(m.refresh).not.toHaveBeenCalled();
@@ -108,14 +133,16 @@ describe("ProjectsClient reordering", () => {
   it("puts the list back when the request itself fails", async () => {
     m.reorder.mockRejectedValue(new Error("network"));
     render(<ProjectsClient initialProjects={projects()} />);
-    await userEvent.click(screen.getByRole("button", { name: "Move Beta Draft up" }));
+    await openMenu("Beta Draft");
+    await userEvent.click(screen.getByRole("menuitem", { name: "Move to position 1" }));
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(titles()).toEqual(["Alpha Draft", "Beta Draft", "Gamma Draft"]);
   });
 
   it("follows the page's list once it brings a new one", async () => {
     const { rerender } = render(<ProjectsClient initialProjects={projects()} />);
-    await userEvent.click(screen.getByRole("button", { name: "Move Alpha Draft down" }));
+    await openMenu("Alpha Draft");
+    await userEvent.click(screen.getByRole("menuitem", { name: "Move to position 2" }));
     const [a, b, c] = projects();
     rerender(<ProjectsClient initialProjects={[b, a, c]} />);
     expect(titles()).toEqual(["Beta Draft", "Alpha Draft", "Gamma Draft"]);
