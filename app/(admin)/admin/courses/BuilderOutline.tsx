@@ -4,7 +4,7 @@ import { createContext, useContext, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ActionMenu, { type ActionMenuItem } from "@/components/ActionMenu";
-import Icon, { ICONS } from "@/components/Icon";
+import Icon, { type IconName } from "@/components/Icon";
 import Modal from "@/components/Modal";
 import type { ExplainedLesson, ExplainedModule } from "@/lib/courses/explain";
 import { moduleContents } from "@/lib/courses/hub-outline";
@@ -101,12 +101,12 @@ function rowNote(reason: string): string | null {
 const ACTION ="flex items-center gap-1 rounded p-1.5 text-slate-600 disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-300";
 
 /** An action: a working button when `onClick` is given, otherwise off with the reason on hover. */
-function Action({ label, icon, count, onClick, disabled }: { label: string; icon: keyof typeof ICONS; count?: number; onClick?: () => void; disabled?: boolean }) {
+function Action({ label, icon, count, onClick, disabled }: { label: string; icon: IconName; count?: number; onClick?: () => void; disabled?: boolean }) {
   const { soon, editor } = useOutline();
   const working = !!onClick;
   return (
     <button type="button" disabled={!working || disabled || editor?.busy} onClick={onClick} title={working ? label : `${label}. ${soon}`} aria-label={label} className={ACTION}>
-      <Icon path={ICONS[icon]} />
+      <Icon name={icon} />
       {count !== undefined && <span className="text-xs">{count}</span>}
     </button>
   );
@@ -123,7 +123,7 @@ const HOVER_ACTIONS = "hidden items-center opacity-0 transition-opacity group-ho
 interface RowAction {
   key: string;
   label: string;
-  icon?: keyof typeof ICONS;
+  icon?: IconName;
   href?: string;
   onClick?: () => void;
   disabled?: boolean;
@@ -145,7 +145,7 @@ function RowActions({ name, actions }: { name: string; actions: RowAction[] }) {
           .map((a) =>
             a.href ? (
               <Link key={a.key} href={a.href} aria-label={a.label} title={a.label} className="rounded p-1.5 text-slate-600 dark:text-slate-300">
-                <Icon path={ICONS[a.icon!]} />
+                <Icon name={a.icon!} />
               </Link>
             ) : (
               <Action key={a.key} label={a.label} icon={a.icon!} onClick={a.onClick} disabled={a.disabled} />
@@ -173,7 +173,7 @@ function DragHandle({ label, sibling }: { label: string; sibling?: Sibling }) {
   if (!editor || !sibling) {
     return (
       <span role="img" aria-label={label} title={soon} className="-ml-1 hidden w-4 shrink-0 cursor-not-allowed text-slate-400 @split:block opacity-0 transition-opacity group-hover:opacity-100">
-        <Icon path={ICONS.grip} />
+        <Icon name="grip" />
       </span>
     );
   }
@@ -191,7 +191,7 @@ function DragHandle({ label, sibling }: { label: string; sibling?: Sibling }) {
       onDragEnd={() => editor.drag.end()}
       className="-ml-1 hidden w-4 shrink-0 cursor-grab text-slate-400 @split:block opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
     >
-      <Icon path={ICONS.grip} />
+      <Icon name="grip" />
     </span>
   );
 }
@@ -323,7 +323,7 @@ function LessonRow({ lesson, indent, sibling }: { lesson: ExplainedLesson; inden
       {...dropProps(editor, sibling)}
     >
       <DragHandle label="Drag to reorder lesson" sibling={sibling} />
-      <Icon path={ICONS.video} className="h-4 w-4 shrink-0 text-slate-500" />
+      <Icon name="video" className="h-4 w-4 shrink-0 text-slate-500" />
       {renaming && editor ? (
         <NameField label="Lesson name" initial={lesson.title} submitLabel="Save" onSubmit={(title) => editor.run(() => renameCourseItem(editor.courseId, "lesson", lesson.kajabiId, title))} onCancel={() => setRenaming(false)} />
       ) : (
@@ -411,7 +411,7 @@ function ModuleRow({
     <li className={submodule ?"border-t border-slate-100 dark:border-slate-800" : "overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700"} {...dropProps(editor, sibling)}>
       <div className={ROW_CLASS} style={{ paddingLeft: `${0.75 + depth * 1}rem` }}>
         <DragHandle label={`Drag to reorder ${noun}`} sibling={sibling} />
-        <Icon path={ICONS.folder} className="h-4 w-4 shrink-0 text-slate-500" />
+        <Icon name="folder" className="h-4 w-4 shrink-0 text-slate-500" />
         {renaming && editor ? (
           <NameField label={`${submodule ? "Submodule" : "Module"} name`} initial={mod.title} submitLabel="Save" onSubmit={(title) => editor.run(() => renameCourseItem(editor.courseId, "module", mod.kajabiId, title))} onCancel={() => setRenaming(false)} />
         ) : (
@@ -431,7 +431,7 @@ function ModuleRow({
             onClick={editor ? () => setMenu(!menu) : undefined}
             className="flex items-center gap-1 text-sm text-slate-600 disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-300"
           >
-            <Icon path={ICONS.plus} />
+            <Icon name="plus" />
             Add content
           </button>
           {menu && editor && (
@@ -449,7 +449,7 @@ function ModuleRow({
         </span>
         <StatusPill title={mod.title} option={mod.publishingOption} kind="module" id={mod.kajabiId} />
         <button type="button" onClick={() => setOpen(!open)} aria-expanded={shown} aria-label={`${shown ? "Collapse" : "Expand"} ${mod.title}`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded text-slate-600 @split:h-auto @split:w-auto @split:p-1 dark:text-slate-300">
-          <Icon path={ICONS.chevron} className={`h-4 w-4 transition-transform ${shown ? "rotate-180" : ""}`} />
+          <Icon name="chevron" className={`h-4 w-4 transition-transform ${shown ? "rotate-180" : ""}`} />
         </button>
       </div>
       {shown && (
