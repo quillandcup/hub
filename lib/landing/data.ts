@@ -8,16 +8,21 @@
  * - a prop named `html` is rich text and is cleaned (lib/landing/sanitize.ts) before the public render.
  */
 
-export type LandingData = { content: unknown[]; root: Record<string, unknown>; zones?: Record<string, unknown[]> };
+import { migrateLandingData } from "./migrations";
+
+export type LandingData = { content: unknown[]; root: Record<string, unknown>; zones?: Record<string, unknown[]>; schemaVersion?: number };
 
 export const EMPTY_LANDING_DATA: LandingData = { content: [], root: {} };
 
-/** Puck's JSON as stored: tolerates null and half-formed values (a row written by hand) and always returns the two keys. */
+/**
+ * Puck's JSON as stored: tolerates null and half-formed values (a row written by hand), always returns the two keys,
+ * and brings the document up to the current block props (lib/landing/migrations.ts).
+ */
 export function normalizeLandingData(value: unknown): LandingData {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return { content: [], root: {} };
+  if (!value || typeof value !== "object" || Array.isArray(value)) return migrateLandingData({ content: [], root: {} });
   const v = value as Record<string, unknown>;
   const root = v.root && typeof v.root === "object" && !Array.isArray(v.root) ? (v.root as Record<string, unknown>) : {};
-  return { ...(v as object), content: Array.isArray(v.content) ? v.content : [], root } as LandingData;
+  return migrateLandingData({ ...(v as object), content: Array.isArray(v.content) ? v.content : [], root } as LandingData);
 }
 
 /** A link that is safe to put in an `href`: http(s), mailto, a path on this site or an in-page anchor. Anything else is dropped. */

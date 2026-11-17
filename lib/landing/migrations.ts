@@ -1,0 +1,78 @@
+/**
+ * Landing page data migrations (docs/LANDING_PAGES.md, "Changing a block's props"). Stored page JSON outlives the
+ * code that wrote it: draft, published copy and every saved version keep the props a block had when they were saved.
+ * Rename or reshape a prop and old rows would render wrongly or lose content, so each such change is a step here.
+ *
+ * The document carries `schemaVersion`; unmarked data is version 0. `migrateLandingData` runs the steps above the
+ * document's version and stamps the current one. It runs wherever a stored document is read (`normalizeLandingData`),
+ * so the editor, the public page, restore and copy all see current props, and the next save writes them back.
+ * Pure: safe in the browser and on the server. Steps must be idempotent (running one twice changes nothing more).
+ */
+
+type Props = Record<string, unknown>;
+
+export type LandingMigration = {
+  /** The version this step produces; steps are numbered 1, 2, 3 in order, with no gaps. */
+  version: number;
+  /** One function per block name, given that block's props, returning the new props. A block not listed is untouched. */
+  blocks?: Record<string, (props: Props) => Props>;
+  /** The page frame's props (`root.props`). */
+  root?: (props: Props) => Props;
+};
+
+/** Append a step to change a block's props; never edit or remove an earlier one. */
+export const LANDING_MIGRATIONS: LandingMigration[] = [];
+
+export const LANDING_SCHEMA_VERSION = LANDING_MIGRATIONS.length;
+
+const isObject = (v: unknown): v is Props => !!v && typeof v === "object" && !Array.isArray(v);
+
+/** A block as Puck stores it: `{ type, props }`. */
+const isNode = (v: unknown): v is { type: string; props: Props } => isObject(v) && typeof v.type === "string" && isObject(v.props);
+
+function migrateNode(node: { type: string; props: Props }, step: LandingMigration): { type: string; props: Props } {
+  // Own entries only: the type comes from stored JSON, and "constructor" or "toString" must not find a function on the prototype.
+  const transform = step.blocks && Object.hasOwn(step.blocks, node.type) ? step.blocks[node.type] : undefined;
+  const props = transform ? transform(node.props) : node.props;
+  return { ...node, props: migrateSlots(props, step) };
+}
+
+/** Blocks nested in a prop (a Section's `content` slot) are migrated too. */
+function migrateSlots(props: Props, step: LandingMigration): Props {
+  const out: Props = {};
+  for (const [key, value] of Object.entries(props)) {
+    out[key] = Array.isArray(value) && value.length > 0 && value.every(isNode) ? value.map((n) => migrateNode(n, step)) : value;
+  }
+  return out;
+}
+
+function migrateList(list: unknown, step: LandingMigration): unknown {
+  return Array.isArray(list) ? list.map((n) => (isNode(n) ? migrateNode(n, step) : n)) : list;
+}
+
+/** The version a stored document is at: its marker, or 0 when it has none (written before migrations existed). */
+export function landingDataVersion(value: unknown): number {
+  const v = isObject(value) ? value.schemaVersion : undefined;
+  return typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : 0;
+}
+
+/** The document brought up to the current version and stamped with it. Expects the shape `normalizeLandingData` returns. */
+export function migrateLandingData<T extends { content: unknown[]; root: Props; zones?: Record<string, unknown[]> }>(
+  data: T,
+  steps: LandingMigration[] = LANDING_MIGRATIONS,
+): T & { schemaVersion: number } {
+  const target = steps.length;
+  let current: T = data;
+  for (const step of steps.filter((s) => s.version > landingDataVersion(data))) {
+    const rootProps = isObject(current.root.props) ? current.root.props : undefined;
+    const root = step.root && rootProps ? { ...current.root, props: step.root(rootProps) } : current.root;
+    const zones = current.zones && isObject(current.zones) ? Object.fromEntries(Object.entries(current.zones).map(([k, list]) => [k, migrateList(list, step) as unknown[]])) : current.zones;
+    current = { ...current, root, content: migrateList(current.content, step) as unknown[], ...(zones ? { zones } : {}) };
+  }
+  return { ...current, schemaVersion: target };
+}
+
+/** Marks a document the editor produced as current: it was migrated on load, and Puck may drop the marker on the way back. */
+export function stampLandingVersion(value: unknown): unknown {
+  return isObject(value) ? { ...value, schemaVersion: LANDING_SCHEMA_VERSION } : value;
+}

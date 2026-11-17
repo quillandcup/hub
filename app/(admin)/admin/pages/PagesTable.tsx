@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Icon, { type IconName } from "@/components/Icon";
 import { DataTablePager } from "@/components/DataTablePager";
 import { DataTableSearch } from "@/components/DataTableSearch";
 import { SortableTh } from "@/components/SortableTh";
@@ -13,7 +14,16 @@ import StatusChip from "./StatusChip";
 
 type Column = "title" | "status" | "updated";
 
-const ACTION = "rounded px-2 py-1 text-sm text-plum-700 hover:bg-plum-50 dark:text-plum-300 dark:hover:bg-slate-800";
+const ACTION = "inline-flex rounded p-1.5 text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-300 dark:hover:bg-slate-800";
+
+function Glyph({ name, label }: { name: IconName; label: string }) {
+  return (
+    <>
+      <Icon name={name} />
+      <span className="sr-only">{label}</span>
+    </>
+  );
+}
 
 export default function PagesTable({ pages, publicBase }: { pages: LandingPageSummary[]; publicBase: string }) {
   const router = useRouter();
@@ -84,19 +94,19 @@ export default function PagesTable({ pages, publicBase }: { pages: LandingPageSu
                     <time dateTime={p.updated_at}>{new Date(p.updated_at).toLocaleString()}</time>
                   </td>
                   <td className="whitespace-nowrap px-6 py-3 text-right">
-                    <Link href={`/admin/pages/${p.slug}`} className={ACTION}>
-                      Customize
+                    <Link href={`/admin/pages/${p.slug}`} className={ACTION} title="Customize">
+                      <Glyph name="edit" label="Customize" />
                     </Link>
-                    <Link href={`/admin/pages/${p.slug}/preview`} className={ACTION}>
-                      Preview
+                    <Link href={`/admin/pages/${p.slug}/preview`} className={ACTION} title="Preview">
+                      <Glyph name="eye" label="Preview" />
                     </Link>
                     {p.status === "published" && (
-                      <button type="button" onClick={() => void copyLink(p.slug)} className={ACTION}>
-                        Copy link
+                      <button type="button" onClick={() => void copyLink(p.slug)} className={ACTION} title="Copy link">
+                        <Glyph name="link" label="Copy link" />
                       </button>
                     )}
-                    <button type="button" disabled={pending} onClick={() => run(() => duplicateLandingPage(p.id), (slug) => router.push(`/admin/pages/${slug}`))} className={ACTION}>
-                      Duplicate
+                    <button type="button" disabled={pending} onClick={() => run(() => duplicateLandingPage(p.id), (slug) => router.push(`/admin/pages/${slug}`))} className={ACTION} title="Duplicate">
+                      <Glyph name="copy" label="Duplicate" />
                     </button>
                     <button
                       type="button"
@@ -104,9 +114,10 @@ export default function PagesTable({ pages, publicBase }: { pages: LandingPageSu
                       onClick={() => {
                         if (window.confirm(`Delete “${p.title}”? ${p.status === "published" ? "It disappears from the public site." : ""}`.trim())) run(() => deleteLandingPage(p.id));
                       }}
-                      className={`${ACTION} text-red-700 dark:text-red-400`}
+                      className={ACTION}
+                      title="Delete"
                     >
-                      Delete
+                      <Glyph name="trash" label="Delete" />
                     </button>
                   </td>
                 </tr>
