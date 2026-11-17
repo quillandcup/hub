@@ -1,3 +1,5 @@
+import Icon from "@/components/Icon";
+
 // Icon toggles for the two independent per-item settings on writing projects and goals:
 // the star pins a goal to the member's own dashboard (only they see it), and the lock/globe
 // controls whether other members can see it on their profile. The same icons label the
@@ -5,8 +7,6 @@
 
 export const STAR_ON = "⭐";
 export const STAR_OFF = "☆";
-export const PROFILE_PUBLIC = "🌐";
-export const PROFILE_PRIVATE = "🔒";
 
 interface ToggleProps {
   on: boolean;
@@ -61,7 +61,7 @@ export function ProfileVisibilityToggle({
       aria-pressed={on}
       className={withText ? `flex items-center gap-1.5 disabled:opacity-50 ${className}` : `${buttonClass} ${className}`}
     >
-      <span className={withText ? "text-base leading-none" : undefined}>{on ? PROFILE_PUBLIC : PROFILE_PRIVATE}</span>
+      <Icon name={on ? "publish" : "unpublish"} className="h-5 w-5" />
       {withText && <span>{on ? "On my profile" : "Only me"}</span>}
     </button>
   );

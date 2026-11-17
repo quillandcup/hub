@@ -154,9 +154,7 @@ function EditorHeader({
         </button>
         <LifecycleButton action="history" noun="page" onRun={onHistory} className={SECONDARY} />
         {hasUnpublished && <LifecycleButton action="reset" noun="page" variant="icon" onRun={onReset} disabled={busy} className={ICON} />}
-        <button type="button" onClick={onPreview} className={SECONDARY}>
-          Preview
-        </button>
+        <LifecycleButton action="preview" noun="page" onRun={onPreview} className={SECONDARY} />
         {published && (
           <a href={page.publicPath} target="_blank" rel="noopener noreferrer" className={SECONDARY}>
             View live
@@ -172,9 +170,14 @@ function EditorHeader({
             className={SECONDARY}
           />
         )}
-        <button type="button" disabled={busy} onClick={onPublish} className={PRIMARY}>
-          {published ? "Publish changes" : "Publish"}
-        </button>
+        <LifecycleButton
+          action="publish"
+          noun="page"
+          label={published ? "Publish changes" : undefined}
+          onRun={onPublish}
+          disabled={busy}
+          className={PRIMARY}
+        />
       </div>
     </header>
   );
