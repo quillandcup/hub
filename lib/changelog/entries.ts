@@ -56,6 +56,21 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "compliance-and-security-for-staff",
+    date: "2026-11-17",
+    audience: "staff",
+    category: "new",
+    title: "Compliance and Security detail pages for the team",
+    summary: "Two new pages in the admin System group show, for every line members read on the public Compliance and Security pages, where it is enforced, when it was last checked and what is still open.",
+    body: `Open **Compliance** or **Security** in the admin sidebar (System) to see what members read on the public [Compliance](/compliance) and [Security](/security) pages, with more behind each line.
+
+- **Where it is enforced.** The files, docs and tests that make the line true, so you can check it.
+- **Last checked.** The date someone last compared the line with the code.
+- **Still open.** What isn't finished or hasn't been reviewed yet, gathered at the top of each page and linked to its line.
+
+The pages hold nothing private: the repository is public, so they carry no names, keys or account details. If you change what the Hub does, change the matching line with it.`,
+  },
+  {
     slug: "security-page",
     date: "2026-11-17",
     audience: "product",

@@ -26,8 +26,12 @@ export interface ComplianceItem {
   status: ComplianceStatus;
   /** What we do about it, or what is still open. Plain sentences. */
   detail: string;
-  /** Where in the app or docs it can be checked (for engineers; not rendered). */
-  evidence: string;
+  /** Where in the app, code or docs it can be checked. Shown on the staff page (`/admin/compliance`), not to members. */
+  evidence: readonly string[];
+  /** When this row was last checked against the code (YYYY-MM-DD, Eastern). */
+  checked: string;
+  /** What is still open, in plain sentences. Empty when nothing is. */
+  open: readonly string[];
 }
 
 export interface ComplianceGroup {
@@ -35,6 +39,14 @@ export interface ComplianceGroup {
   title: string;
   intro: string;
   items: readonly ComplianceItem[];
+}
+
+/** A stable in-page id for a row, from its name: lowercase words joined by hyphens. */
+export function complianceItemId(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 export const COMPLIANCE_GROUPS: readonly ComplianceGroup[] = [
@@ -49,7 +61,9 @@ export const COMPLIANCE_GROUPS: readonly ComplianceGroup[] = [
         status: "inPlace",
         detail:
           "If you connect from the EU, EEA or UK we ask before recording usage statistics or loading Google Analytics, and we record nothing if you decline. You can ask us to show, correct or remove what we hold, and we answer within a month. Exact IP addresses and browser details are removed after 90 days and usage statistics after 13 months.",
-        evidence: "components/ConsentBanner.tsx, lib/gdpr-countries.ts, lib/retention.ts, app/privacy/page.tsx",
+        evidence: ["components/ConsentBanner.tsx", "lib/gdpr-countries.ts", "lib/retention.ts", "app/privacy/page.tsx", "tests/components/pages/privacy-page.test.tsx"],
+        checked: "2026-11-17",
+        open: [],
       },
       {
         name: "ePrivacy and PECR (cookies)",
@@ -57,7 +71,9 @@ export const COMPLIANCE_GROUPS: readonly ComplianceGroup[] = [
         status: "inPlace",
         detail:
           "Only what the Hub needs to work is stored without asking. Anything for statistics waits for a yes where the law requires one, and the Cookies section of the Privacy page lists what is kept.",
-        evidence: "components/ConsentBanner.tsx, lib/analytics/consent.ts, app/privacy/page.tsx (cookies)",
+        evidence: ["components/ConsentBanner.tsx", "lib/analytics/consent.ts", "app/privacy/page.tsx (cookies section)"],
+        checked: "2026-11-17",
+        open: [],
       },
       {
         name: "EU-U.S. Data Privacy Framework, its UK extension, and standard contractual clauses",
@@ -65,7 +81,9 @@ export const COMPLIANCE_GROUPS: readonly ComplianceGroup[] = [
         status: "provider",
         detail:
           "Our database and hosting are in the United States. Our providers are certified under the Data Privacy Framework, except our database provider, which relies on standard contractual clauses in its data processing terms. We check the certification list each autumn and whenever we add a provider.",
-        evidence: "app/privacy/page.tsx (services), docs/TODO.md entry on the Data Privacy Framework check",
+        evidence: ["app/privacy/page.tsx (services section)", "docs/TODO.md (the Data Privacy Framework check)"],
+        checked: "2026-11-17",
+        open: ["Checked against the Data Privacy Framework list on 2026-10-30: every provider active except our database provider, which relies on standard contractual clauses. One email provider was marked \"re-certification under review\" and Google's next due date is 2027-09-13. Look them up again each autumn and whenever a provider is added."],
       },
       {
         name: "California and other US state privacy laws",
@@ -73,7 +91,9 @@ export const COMPLIANCE_GROUPS: readonly ComplianceGroup[] = [
         status: "review",
         detail:
           "We do not sell or share your information with anyone except the services that run the Hub, and everyone, wherever they live, can ask us to show, correct or remove what we hold. We have not yet done a formal review against these laws.",
-        evidence: "app/privacy/page.tsx (also good to know, asking us); docs/TODO.md",
+        evidence: ["app/privacy/page.tsx (also good to know, asking us)", "docs/TODO.md (Compliance page: rows still to review)"],
+        checked: "2026-11-17",
+        open: ["No formal review against CCPA/CPRA or other state laws: check the thresholds, the notices and the request process against the Privacy page, then change this row and the Privacy wording together."],
       },
       {
         name: "COPPA and children's privacy",
@@ -81,7 +101,9 @@ export const COMPLIANCE_GROUPS: readonly ComplianceGroup[] = [
         status: "notApplicable",
         detail:
           "The Hub is not for children under 13. If one has joined, tell us and we will delete their information.",
-        evidence: "app/privacy/page.tsx (children)",
+        evidence: ["app/privacy/page.tsx (children)"],
+        checked: "2026-11-17",
+        open: [],
       },
       {
         name: "Email rules (CAN-SPAM and similar)",
@@ -89,7 +111,9 @@ export const COMPLIANCE_GROUPS: readonly ComplianceGroup[] = [
         status: "working",
         detail:
           "Every email has an unsubscribe link for that kind of email, and mail apps that support it show their own one-click Unsubscribe button. You choose which notifications you get, and where, in Settings. We still need to review the rest of the rules, such as the sender details in each email.",
-        evidence: "lib/email-unsubscribe.ts, lib/channels/email.ts, app/unsubscribe, docs/TODO.md",
+        evidence: ["lib/email-unsubscribe.ts", "lib/channels/email.ts", "app/unsubscribe", "docs/TODO.md (Compliance page: rows still to review)"],
+        checked: "2026-11-17",
+        open: ["The sender details each email has to carry were not checked (the templates in emails/)."],
       },
     ],
   },
@@ -104,7 +128,9 @@ export const COMPLIANCE_GROUPS: readonly ComplianceGroup[] = [
         status: "provider",
         detail:
           "Card and bank details never reach the Hub. They are handled by our payment provider, Stripe, which holds the PCI certification. The Hub only reads your plan, its dates and payment status back from Stripe, and has no card form of its own.",
-        evidence: "lib/stripe/client.ts (list and retrieve calls only), no Stripe.js or checkout code",
+        evidence: ["lib/stripe/client.ts (list and retrieve calls only)", "no Stripe.js or checkout code anywhere in app, components or lib"],
+        checked: "2026-11-17",
+        open: [],
       },
     ],
   },
@@ -119,14 +145,18 @@ export const COMPLIANCE_GROUPS: readonly ComplianceGroup[] = [
         status: "working",
         detail:
           "Automated checks for WCAG 2.0 and 2.1 levels A and AA, including colour contrast, run on every page we capture, at phone, tablet and desktop sizes in light and dark. Pages built in the landing page editor are checked for headings, image descriptions and link names before they can be published. Automated checks find only part of the problems. A walkthrough by keyboard alone and with a screen reader has not been done yet, and the checks cover only some screens so far.",
-        evidence: "demo/checks.ts, lib/landing/a11y.ts, docs/DEMO_AND_HELP.md, docs/TODO.md",
+        evidence: ["demo/checks.ts", "lib/landing/a11y.ts", "docs/DEMO_AND_HELP.md", "docs/TODO.md (accessibility entries)"],
+        checked: "2026-11-17",
+        open: ["A keyboard-only walkthrough and a screen reader pass (VoiceOver on iPhone and Mac) have not been done.", "The automated checks see only the screens the demo scenes visit (about a dozen); admin pages, chat, courses and events are fixed by the sweep but unverified.", "The course video player's controls are not checked (no demo video is ready)."],
       },
       {
         name: "Reduced motion and animation choices",
         about: "Respecting people who are bothered by moving pictures.",
         status: "inPlace",
         detail: "You can choose how animations behave in the Hub, and light and dark themes are available. The choice is saved on each device for now.",
-        evidence: "lib/animations.ts, ThemeSwitcher, docs/TODO.md",
+        evidence: ["lib/animations.ts", "app/(member)/settings/ThemeSwitcher.tsx", "docs/TODO.md (animations saved per device)"],
+        checked: "2026-11-17",
+        open: ["The animation choice is saved in the browser, so a member who relies on it must set it again on every device. Move it to the member profile and read it in the root layout."],
       },
     ],
   },
@@ -141,14 +171,18 @@ export const COMPLIANCE_GROUPS: readonly ComplianceGroup[] = [
         status: "inPlace",
         detail:
           "Sign-in is by invitation. The database enforces who can read each row, staff access is limited by role, and admin pages check it again on every request. Connections are encrypted, and the Slack connection of each member is stored encrypted and used only by the Hub's server.",
-        evidence: "docs/RLS_SECURITY.md, lib/supabase/middleware.ts, app/privacy/page.tsx",
+        evidence: ["lib/supabase/middleware.ts", "lib/admin-auth.ts", "lib/staff-access.ts", "the Security page (/admin/security) has the full detail"],
+        checked: "2026-11-17",
+        open: [],
       },
       {
         name: "Browser protections (Content-Security-Policy)",
         about: "A header that tells browsers which sources a page may load from.",
         status: "working",
         detail: "We send it on every page in report-only mode: it reports what it would block and blocks nothing yet.",
-        evidence: "next.config.ts, lib/csp.ts",
+        evidence: ["next.config.ts", "lib/csp.ts"],
+        checked: "2026-11-17",
+        open: ["The policy is report-only. Enforce it once the reports are quiet."],
       },
       {
         name: "Error monitoring and privacy",
@@ -156,7 +190,9 @@ export const COMPLIANCE_GROUPS: readonly ComplianceGroup[] = [
         status: "inPlace",
         detail:
           "Error recordings mask text and form fields, our monitoring provider scrubs sensitive data on its servers and does not store IP addresses, and its data is held in the EU. These settings are kept in the repository so a change is reviewed.",
-        evidence: "sentry-config.yml, docs/SENTRY_CONFIG.md, instrumentation-client.ts",
+        evidence: ["sentry-config.yml", "docs/SENTRY_CONFIG.md", "instrumentation-client.ts"],
+        checked: "2026-11-17",
+        open: [],
       },
       {
         name: "SOC 2 and ISO 27001",
@@ -164,7 +200,9 @@ export const COMPLIANCE_GROUPS: readonly ComplianceGroup[] = [
         status: "notApplicable",
         detail:
           "Quill & Cup does not hold either certificate. Our hosting and database providers publish their own audit reports, which cover the infrastructure the Hub runs on.",
-        evidence: "none held; provider reports are the providers' own",
+        evidence: ["none held by Quill & Cup; the providers' reports are the providers' own"],
+        checked: "2026-11-17",
+        open: ["If a customer or partner ever asks for a SOC 2 report, the answer today is that we have none and rely on our providers."],
       },
     ],
   },
