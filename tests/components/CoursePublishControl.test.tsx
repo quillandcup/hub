@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const setCoursePublished = vi.fn();
@@ -35,8 +35,20 @@ describe("CoursePublishControl", () => {
     expect(screen.getByText("Published")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Unpublish" }));
+    expect(screen.getByRole("heading", { name: "Take this course down?" })).toBeInTheDocument();
+    expect(screen.getByText(/Members can't open it until you publish it again/)).toBeInTheDocument();
+    expect(setCoursePublished).not.toHaveBeenCalled();
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Unpublish" }));
     expect(setCoursePublished).toHaveBeenCalledWith(COURSE, false);
     await waitFor(() => expect(refresh).toHaveBeenCalled());
+  });
+
+  it("leaves a published course alone when the unpublish is cancelled", async () => {
+    render(<CoursePublishControl courseId={COURSE} isDraft={false} />);
+    await userEvent.click(screen.getByRole("button", { name: "Unpublish" }));
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+    expect(setCoursePublished).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("shows the reason and does not refresh when the change fails", async () => {

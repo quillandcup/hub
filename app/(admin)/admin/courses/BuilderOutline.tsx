@@ -8,6 +8,7 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import Icon, { type IconName } from "@/components/Icon";
 import type { ExplainedLesson, ExplainedModule } from "@/lib/courses/explain";
 import { moduleContents } from "@/lib/courses/hub-outline";
+import { lifecycleConfirm, lifecycleIcon, lifecycleLabel } from "@/lib/lifecycle-actions";
 import { moveBefore, moveBy } from "@/lib/reorder";
 import { statusChoices, statusLabel } from "@/lib/courses/status-choices";
 import { addCourseLesson, addCourseModule, deleteCourseItem, duplicateCourseItem, renameCourseItem, reorderCourseItems, setCourseItemStatus, type ItemKind, type OutlineResult } from "./outline-actions";
@@ -272,14 +273,7 @@ function DeleteDialog({ title, what, detail, onConfirm, onClose }: { title: stri
       onClose={onClose}
       // The reason a delete failed is shown above the outline, so the dialog closes either way.
       onConfirm={async () => void (await onConfirm())}
-      title={`Delete ${what}?`}
-      confirmLabel={`Delete ${what}`}
-      tone="danger"
-      body={
-        <>
-          “{title}” will be deleted for good.{detail && ` ${detail}`}
-        </>
-      }
+      {...lifecycleConfirm("delete", { noun: what, title, detail: detail ?? undefined, permanent: true })!}
     />
   );
 }
@@ -300,10 +294,10 @@ function LessonRow({ lesson, indent, sibling }: { lesson: ExplainedLesson; inden
   const actions: RowAction[] = [
     { key: "edit", label: editor ? "Edit lesson" : "Edit video", icon: "edit", href: builder ?? undefined },
     ...(editor ? [{ key: "rename", label: "Rename lesson", icon: "rename" as const, onClick: () => setRenaming(true) }] : []),
-    { key: "duplicate", label: `Duplicate ${what}`, icon: "copy", onClick: editor ? () => void editor.run(() => duplicateCourseItem(editor.courseId, "lesson", lesson.kajabiId)) : undefined },
+    { key: "duplicate", label: lifecycleLabel("duplicate", what), icon: lifecycleIcon("duplicate"), onClick: editor ? () => void editor.run(() => duplicateCourseItem(editor.courseId, "lesson", lesson.kajabiId)) : undefined },
     { key: "comments", label: `Open ${what} comments`, icon: "comment", quickOnly: true },
-    { key: "preview", label: previewLabel, icon: "eye", href: preview ?? undefined },
-    { key: "delete", label: `Delete ${what}`, icon: "trash", onClick: editor ? () => setConfirming(true) : undefined },
+    { key: "preview", label: previewLabel, icon: lifecycleIcon("preview"), href: preview ?? undefined },
+    { key: "delete", label: lifecycleLabel("delete", what), icon: lifecycleIcon("delete"), onClick: editor ? () => setConfirming(true) : undefined },
     ...moveActions(editor, sibling, "lesson"),
   ];
   return (
@@ -389,12 +383,12 @@ function ModuleRow({
   };
   const actions: RowAction[] = [
     { key: "edit", label: `Edit ${noun}`, icon: "edit", onClick: editor ? () => setRenaming(true) : undefined },
-    { key: "duplicate", label: `Duplicate ${noun}`, icon: "copy", onClick: editor ? () => void editor.run(() => duplicateCourseItem(editor.courseId, "module", mod.kajabiId)) : undefined },
-    { key: "preview", label: `Open ${noun} preview`, icon: "eye", href: preview ?? undefined },
+    { key: "duplicate", label: lifecycleLabel("duplicate", noun), icon: lifecycleIcon("duplicate"), onClick: editor ? () => void editor.run(() => duplicateCourseItem(editor.courseId, "module", mod.kajabiId)) : undefined },
+    { key: "preview", label: `Open ${noun} preview`, icon: lifecycleIcon("preview"), href: preview ?? undefined },
     // On a wide outline these are the Add content button; here they are menu items.
     { key: "add-lesson", label: "Add lesson", onClick: editor ? () => startAdding("lesson") : undefined },
     ...(submodule ? [] : [{ key: "add-submodule", label: "Add submodule", onClick: editor ? () => startAdding("submodule") : undefined }]),
-    { key: "delete", label: `Delete ${noun}`, icon: "trash", onClick: editor ? () => setConfirming(true) : undefined },
+    { key: "delete", label: lifecycleLabel("delete", noun), icon: lifecycleIcon("delete"), onClick: editor ? () => setConfirming(true) : undefined },
     ...moveActions(editor, sibling, noun),
   ];
   return (

@@ -6,15 +6,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Puck, createUsePuck, type Data } from "@puckeditor/core";
 import { ArrowLeft, Monitor, PanelLeft, PanelRight, Redo2, Smartphone, Tablet, Undo2 } from "lucide-react";
-import { useConfirm } from "@/components/ConfirmDialog";
 import Modal from "@/components/Modal";
-import ResetToPublishedButton from "@/components/ResetToPublishedButton";
+import LifecycleButton from "@/components/LifecycleButton";
+import LifecycleStatusChip from "@/components/LifecycleStatusChip";
 import MediaPicker from "@/components/media/MediaPicker";
 import { editorConfig } from "@/components/landing/editor-config";
 import { checkLandingPage, type A11yIssue } from "@/lib/landing/a11y";
 import type { LandingData } from "@/lib/landing/data";
 import { aiPlugin } from "./AiPanel";
-import StatusChip from "../StatusChip";
 import { publishLandingPage, resetLandingDraftToPublished, restoreLandingPageVersion, saveLandingDraft, unpublishLandingPage, updateLandingPageDetails } from "../actions";
 
 const usePuck = createUsePuck();
@@ -118,7 +117,7 @@ function EditorHeader({
           <PanelRight size={16} aria-hidden="true" />
         </button>
       </div>
-      <StatusChip status={page.status} />
+      <LifecycleStatusChip published={published} />
       {published && hasUnpublished && <span className="text-xs text-amber-800 dark:text-amber-300">Changes not published yet</span>}
       {resetError && (
         <span role="alert" className="text-xs text-red-700 dark:text-red-400">
@@ -153,10 +152,8 @@ function EditorHeader({
         <button type="button" onClick={onDetails} className={SECONDARY}>
           Details
         </button>
-        <button type="button" onClick={onHistory} className={SECONDARY}>
-          History
-        </button>
-        {hasUnpublished && <ResetToPublishedButton onReset={onReset} disabled={busy} className={ICON} />}
+        <LifecycleButton action="history" noun="page" onRun={onHistory} className={SECONDARY} />
+        {hasUnpublished && <LifecycleButton action="reset" noun="page" variant="icon" onRun={onReset} disabled={busy} className={ICON} />}
         <button type="button" onClick={onPreview} className={SECONDARY}>
           Preview
         </button>
@@ -166,9 +163,14 @@ function EditorHeader({
           </a>
         )}
         {published && (
-          <button type="button" disabled={busy} onClick={onUnpublish} className={SECONDARY}>
-            Unpublish
-          </button>
+          <LifecycleButton
+            action="unpublish"
+            noun="page"
+            detail="It comes off the public site at once. Your draft and its versions stay."
+            onRun={onUnpublish}
+            disabled={busy}
+            className={SECONDARY}
+          />
         )}
         <button type="button" disabled={busy} onClick={onPublish} className={PRIMARY}>
           {published ? "Publish changes" : "Publish"}
@@ -189,7 +191,6 @@ export default function LandingEditor({ page: initial, data, versions }: { page:
   const [message, setMessage] = useState<string | null>(null);
   const [resetError, setResetError] = useState<string | null>(null);
   const [busy, startBusy] = useTransition();
-  const { ask, dialog: confirmDialog } = useConfirm();
 
   const latest = useRef<string>(JSON.stringify(data));
   const lastSaved = useRef<string>(JSON.stringify(data));
@@ -282,9 +283,7 @@ export default function LandingEditor({ page: initial, data, versions }: { page:
     });
   }
 
-  async function unpublish() {
-    const ok = await ask({ title: "Take this page down?", body: "It comes off the public site at once. Your draft and its versions stay.", confirmLabel: "Unpublish", tone: "danger" });
-    if (!ok) return;
+  function unpublish() {
     startBusy(async () => {
       const result = await unpublishLandingPage(page.id);
       if (result.error) return setMessage(result.error);
@@ -401,7 +400,6 @@ export default function LandingEditor({ page: initial, data, versions }: { page:
           }}
         />
       </Modal>
-      {confirmDialog}
     </div>
   );
 }
@@ -473,7 +471,6 @@ function DetailsDialog({ open, page, onClose, onSaved }: { open: boolean; page: 
 function VersionList({ versions, onRestore }: { versions: EditorVersion[]; onRestore: (id: string) => Promise<string | null> }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
-  const { ask, dialog } = useConfirm();
   if (versions.length === 0) return <p className="text-sm">Each time you publish, that version is kept here. Nothing has been published yet.</p>;
   return (
     <div className="space-y-3">
@@ -487,17 +484,7 @@ function VersionList({ versions, onRestore }: { versions: EditorVersion[]; onRes
                 {v.kind === "before_import" ? "Your draft before an import" : "Published"} {new Date(v.createdAt).toLocaleString()}
               </time>
             </span>
-            <button
-              type="button"
-              disabled={pending}
-              className={SECONDARY}
-              onClick={async () => {
-                const ok = await ask({ title: "Bring this version back?", body: "It replaces your current draft. Nothing goes live until you publish.", confirmLabel: "Bring back", tone: "danger" });
-                if (ok) start(async () => setError(await onRestore(v.id)));
-              }}
-            >
-              Bring back
-            </button>
+            <LifecycleButton action="restore" noun="version" disabled={pending} className={SECONDARY} onRun={() => start(async () => setError(await onRestore(v.id)))} />
           </li>
         ))}
       </ul>
@@ -506,7 +493,6 @@ function VersionList({ versions, onRestore }: { versions: EditorVersion[]; onRes
           {error}
         </p>
       )}
-      {dialog}
     </div>
   );
 }

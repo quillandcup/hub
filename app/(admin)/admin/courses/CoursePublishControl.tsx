@@ -3,7 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { setCoursePublished } from "./actions";
-import CourseStatusChip from "./CourseStatusChip";
+import LifecycleButton from "@/components/LifecycleButton";
+import LifecycleStatusChip from "@/components/LifecycleStatusChip";
 
 /**
  * Whether members can open the course. It is the same for a course imported from Kajabi and one made
@@ -27,21 +28,22 @@ export default function CoursePublishControl({ courseId, isDraft, compact = fals
     <div className="flex flex-wrap items-center gap-3">
       {!compact && (
         <>
-          <CourseStatusChip isDraft={isDraft} />
+          <LifecycleStatusChip published={!isDraft} />
           <span className="text-sm text-slate-600 dark:text-slate-300">
             {isDraft ? "Only staff can see it. Members who have access can open it once you publish." : "Members who have access can open it."}
           </span>
         </>
       )}
-      <button
-        type="button"
-        onClick={change}
+      <LifecycleButton
+        action={isDraft ? "publish" : "unpublish"}
+        noun="course"
+        detail="Members can't open it until you publish it again. Nothing is deleted."
+        label={pending ? "Saving…" : undefined}
+        onRun={change}
         disabled={pending}
-        data-track={isDraft ? "admin-course-publish" : "admin-course-unpublish"}
+        track={isDraft ? "admin-course-publish" : "admin-course-unpublish"}
         className="rounded border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-50 disabled:opacity-60 dark:border-slate-600 dark:hover:bg-slate-800"
-      >
-        {pending ? "Saving…" : isDraft ? "Publish" : "Unpublish"}
-      </button>
+      />
       {error && (
         <span role="alert" className="text-sm text-red-700 dark:text-red-400">
           {error}

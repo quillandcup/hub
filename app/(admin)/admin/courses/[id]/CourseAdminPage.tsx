@@ -20,7 +20,7 @@ import BuilderOutline from "../BuilderOutline";
 import CourseBuilderBanner from "../CourseBuilderBanner";
 import CourseDetailsForm from "../CourseDetailsForm";
 import CoursePublishControl from "../CoursePublishControl";
-import CourseStatusChip from "../CourseStatusChip";
+import LifecycleStatusChip from "@/components/LifecycleStatusChip";
 import { customersPanel } from "./customers-panel";
 import CourseActions from "./CourseActions";
 import CourseFilesPanel from "./CourseFilesPanel";
@@ -260,7 +260,7 @@ function CourseHeader({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <h1 className="text-2xl font-bold @pair:text-3xl">{title}</h1>
-            <CourseStatusChip isDraft={isDraft} />
+            <LifecycleStatusChip published={!isDraft} />
             <span className={CHIP}>{chip}</span>
           </div>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{summary}</p>
