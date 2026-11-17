@@ -460,6 +460,11 @@ function specialAuditPhrase(row: ActivityFeedRow): string | null {
     const what = row.entity_type === "course_lesson_order" ? "lessons" : "modules";
     return `reordered the${count} ${what}${row.description ? ` in “${formatValue(row.description)}”` : ""}`;
   }
+  // A member's reorder of their writing projects is one entry for the list (20270808000000).
+  if (row.entity_type === "writing_project_order") {
+    const order = fields.order?.new;
+    return Array.isArray(order) ? `reordered their ${order.length} writing project${order.length === 1 ? "" : "s"}` : "reordered their writing projects";
+  }
   // Staff moderation of a lesson comment is one entry with the lesson's title and what changed, never the comment's text (the migration says why).
   if (row.entity_type === "lesson_comment" && row.event_type === "update") {
     const lesson = row.description ? ` on “${formatValue(row.description)}”` : "";

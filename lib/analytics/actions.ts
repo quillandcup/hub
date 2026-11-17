@@ -148,6 +148,7 @@ export const OUTCOME_ACTIONS = [
   "project_cover_changed",
   "starting_balances_saved",
   "project_visibility_changed",
+  "projects_reordered",
   "project_phase_changed",
   "progress_entry_edited",
   "progress_entry_deleted",

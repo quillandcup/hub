@@ -7,7 +7,8 @@ import ActionMenu, { type ActionMenuItem } from "@/components/ActionMenu";
 import Icon, { ICONS } from "@/components/Icon";
 import Modal from "@/components/Modal";
 import type { ExplainedLesson, ExplainedModule } from "@/lib/courses/explain";
-import { moduleContents, moveBefore, moveBy } from "@/lib/courses/hub-outline";
+import { moduleContents } from "@/lib/courses/hub-outline";
+import { moveBefore, moveBy } from "@/lib/reorder";
 import { statusChoices, statusLabel } from "@/lib/courses/status-choices";
 import { addCourseLesson, addCourseModule, deleteCourseItem, duplicateCourseItem, renameCourseItem, reorderCourseItems, setCourseItemStatus, type ItemKind, type OutlineResult } from "./outline-actions";
 
