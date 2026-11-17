@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   publish: vi.fn(),
   unpublish: vi.fn(),
   restore: vi.fn(),
+  reset: vi.fn(),
   details: vi.fn(),
   dispatch: vi.fn(),
   back: vi.fn(),
@@ -27,6 +28,7 @@ vi.mock("../../app/(admin)/admin/pages/actions", () => ({
   publishLandingPage: mocks.publish,
   unpublishLandingPage: mocks.unpublish,
   restoreLandingPageVersion: mocks.restore,
+  resetLandingDraftToPublished: mocks.reset,
   updateLandingPageDetails: mocks.details,
 }));
 vi.mock("@puckeditor/core", () => ({
@@ -223,6 +225,69 @@ describe("publishing", () => {
       await vi.advanceTimersByTimeAsync(0);
     });
     expect(screen.getByText("Draft")).toBeInTheDocument();
+  });
+});
+
+describe("reset to published", () => {
+  const publishedPage = { status: "published", publishedJson: JSON.stringify(data) };
+  const reload = vi.fn();
+
+  beforeEach(() => {
+    reload.mockReset();
+    vi.stubGlobal("location", { ...window.location, reload });
+    mocks.reset.mockResolvedValue({ slug: "spring" });
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("is hidden until the draft differs from what is published", () => {
+    editor(publishedPage);
+    expect(screen.queryByRole("button", { name: "Reset to published" })).toBeNull();
+    edit("Welcome back");
+    expect(screen.getByRole("button", { name: "Reset to published" })).toHaveAttribute("title", "Reset to published");
+  });
+
+  it("is never offered on a page that was not published", () => {
+    editor();
+    edit("Welcome back");
+    expect(screen.queryByRole("button", { name: "Reset to published" })).toBeNull();
+  });
+
+  it("does nothing unless confirmed", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    editor(publishedPage);
+    edit("Welcome back");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Reset to published" }));
+    });
+    expect(mocks.reset).not.toHaveBeenCalled();
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it("resets the draft, stops the pending autosave and reloads the editor", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    editor(publishedPage);
+    edit("Welcome back");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Reset to published" }));
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(mocks.reset).toHaveBeenCalledWith(page.id);
+    expect(mocks.save).not.toHaveBeenCalled();
+    expect(reload).toHaveBeenCalled();
+  });
+
+  it("shows why it failed and does not reload", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    mocks.reset.mockResolvedValue({ error: "Couldn't reset the draft." });
+    editor(publishedPage);
+    edit("Welcome back");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Reset to published" }));
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't reset the draft.");
+    expect(reload).not.toHaveBeenCalled();
   });
 });
 

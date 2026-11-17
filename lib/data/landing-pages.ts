@@ -83,6 +83,8 @@ export interface LandingPageRepository {
   versionData(versionId: string): Promise<LandingData | null>;
   /** Puts a version's document into the draft (it does not publish). Null when the version or page is gone. */
   restoreVersion(versionId: string): Promise<LandingPage | null>;
+  /** Throws the draft away: copies the published document back into it (it does not publish). Null when the page is gone or has never been published. */
+  resetDraftToPublished(id: string, updatedBy: string | null): Promise<LandingPage | null>;
   /** Marks the page deleted (it frees its address). False when there was no live page. */
   remove(id: string, updatedBy: string | null): Promise<boolean>;
 }
@@ -217,6 +219,14 @@ export class SupabaseLandingPageRepository implements LandingPageRepository {
     const version = must(await this.db.from("landing_page_versions").select("page_id").eq("id", versionId).maybeSingle());
     if (!version) return null;
     return must(await this.db.from("landing_pages").select("*").eq("id", version.page_id).maybeSingle());
+  }
+
+  async resetDraftToPublished(id: string, updatedBy: string | null): Promise<LandingPage | null> {
+    const page = must(await this.db.from("landing_pages").select("published_data").eq("id", id).is("deleted_at", null).maybeSingle());
+    if (!page?.published_data) return null;
+    return must(
+      await this.db.from("landing_pages").update({ draft_data: page.published_data, updated_by: updatedBy, updated_at: new Date().toISOString() }).eq("id", id).is("deleted_at", null).select("*").maybeSingle(),
+    );
   }
 
   async remove(id: string, updatedBy: string | null): Promise<boolean> {
@@ -384,6 +394,13 @@ export class InMemoryLandingPageRepository implements LandingPageRepository {
     page.restored_from_version_id = version.id;
     page.restored_at = now;
     page.updated_at = now;
+    return structuredClone(page);
+  }
+
+  async resetDraftToPublished(id: string, updatedBy: string | null): Promise<LandingPage | null> {
+    const page = this.find(id);
+    if (!page?.published_data) return null;
+    Object.assign(page, { draft_data: asJson(structuredClone(page.published_data)), updated_by: updatedBy, updated_at: new Date().toISOString() });
     return structuredClone(page);
   }
 

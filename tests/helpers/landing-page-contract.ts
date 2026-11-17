@@ -96,6 +96,21 @@ export function defineLandingPageContract(name: string, setup: () => LandingPage
       expect(await ctx.repo().restoreVersion(`lpgv_${"A".repeat(12)}`)).toBeNull();
     });
 
+    it("resets the draft to the published copy, and has nothing to reset before the first publish", async () => {
+      const slug = ctx.unique("reset");
+      const page = await ctx.repo().create({ title: "Reset", slug, data: doc("one"), createdBy: null });
+      expect(await ctx.repo().resetDraftToPublished(page.id, null)).toBeNull();
+
+      await ctx.repo().publish(page.id);
+      await ctx.repo().saveDraft(page.id, doc("two"), null);
+      const reset = await ctx.repo().resetDraftToPublished(page.id, null);
+
+      expect(reset?.draft_data).toEqual(doc("one"));
+      expect((await ctx.repo().published(slug))?.data).toEqual(normalizeLandingData(doc("one")));
+      expect(await ctx.repo().versions(page.id)).toHaveLength(1);
+      expect(await ctx.repo().resetDraftToPublished(`lpg_${"A".repeat(12)}`, null)).toBeNull();
+    });
+
     it("changes the title, address and SEO, and refuses an address in use", async () => {
       const slug = ctx.unique("details");
       const other = ctx.unique("other");

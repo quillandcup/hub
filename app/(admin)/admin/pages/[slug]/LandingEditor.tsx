@@ -7,13 +7,14 @@ import { useRouter } from "next/navigation";
 import { Puck, createUsePuck, type Data } from "@puckeditor/core";
 import { ArrowLeft, Monitor, PanelLeft, PanelRight, Redo2, Smartphone, Tablet, Undo2 } from "lucide-react";
 import Modal from "@/components/Modal";
+import ResetToPublishedButton from "@/components/ResetToPublishedButton";
 import MediaPicker from "@/components/media/MediaPicker";
 import { editorConfig } from "@/components/landing/editor-config";
 import { checkLandingPage, type A11yIssue } from "@/lib/landing/a11y";
 import type { LandingData } from "@/lib/landing/data";
 import { aiPlugin } from "./AiPanel";
 import StatusChip from "../StatusChip";
-import { publishLandingPage, restoreLandingPageVersion, saveLandingDraft, unpublishLandingPage, updateLandingPageDetails } from "../actions";
+import { publishLandingPage, resetLandingDraftToPublished, restoreLandingPageVersion, saveLandingDraft, unpublishLandingPage, updateLandingPageDetails } from "../actions";
 
 const usePuck = createUsePuck();
 
@@ -69,8 +70,10 @@ function EditorHeader({
   page,
   save,
   hasUnpublished,
+  resetError,
   onDetails,
   onHistory,
+  onReset,
   onPublish,
   onUnpublish,
   onPreview,
@@ -79,8 +82,10 @@ function EditorHeader({
   page: EditorPage;
   save: SaveState;
   hasUnpublished: boolean;
+  resetError: string | null;
   onDetails: () => void;
   onHistory: () => void;
+  onReset: () => void;
   onPublish: () => void;
   onUnpublish: () => void;
   onPreview: () => void;
@@ -114,6 +119,11 @@ function EditorHeader({
       </div>
       <StatusChip status={page.status} />
       {published && hasUnpublished && <span className="text-xs text-amber-800 dark:text-amber-300">Changes not published yet</span>}
+      {resetError && (
+        <span role="alert" className="text-xs text-red-700 dark:text-red-400">
+          {resetError}
+        </span>
+      )}
 
       <div role="group" aria-label="Preview size" className="mx-auto flex items-center gap-1">
         {DEVICES.map(({ label, width, Icon, rotate }) => (
@@ -145,6 +155,7 @@ function EditorHeader({
         <button type="button" onClick={onHistory} className={SECONDARY}>
           History
         </button>
+        {hasUnpublished && <ResetToPublishedButton onReset={onReset} disabled={busy} className={ICON} />}
         <button type="button" onClick={onPreview} className={SECONDARY}>
           Preview
         </button>
@@ -175,6 +186,7 @@ export default function LandingEditor({ page: initial, data, versions }: { page:
   const [dialog, setDialog] = useState<"details" | "history" | "publish" | null>(null);
   const [issues, setIssues] = useState<A11yIssue[]>([]);
   const [message, setMessage] = useState<string | null>(null);
+  const [resetError, setResetError] = useState<string | null>(null);
   const [busy, startBusy] = useTransition();
 
   const latest = useRef<string>(JSON.stringify(data));
@@ -278,6 +290,23 @@ export default function LandingEditor({ page: initial, data, versions }: { page:
     });
   }
 
+  function resetToPublished() {
+    setResetError(null);
+    startBusy(async () => {
+      // Stop autosave from writing the unpublished edits back over the reset.
+      window.clearTimeout(timer.current);
+      if (saving.current) await saving.current;
+      const result = await resetLandingDraftToPublished(page.id);
+      if (result.error) {
+        setResetError(result.error);
+        return;
+      }
+      // The editor takes its document once, so a reset reloads the page to open the published copy as the draft.
+      latest.current = lastSaved.current;
+      window.location.reload();
+    });
+  }
+
   async function preview() {
     await flush();
     window.open(`/admin/pages/${page.slug}/preview`, "_blank", "noopener");
@@ -290,9 +319,11 @@ export default function LandingEditor({ page: initial, data, versions }: { page:
           page={page}
           save={save}
           hasUnpublished={hasUnpublished}
+          resetError={resetError}
           busy={busy}
           onDetails={() => setDialog("details")}
           onHistory={() => setDialog("history")}
+          onReset={resetToPublished}
           onPublish={openPublish}
           onUnpublish={unpublish}
           onPreview={() => void preview()}
@@ -300,7 +331,7 @@ export default function LandingEditor({ page: initial, data, versions }: { page:
       ),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the handlers read refs and state setters only
-    [page, save, hasUnpublished, busy],
+    [page, save, hasUnpublished, resetError, busy],
   );
 
   const errors = issues.filter((i) => i.severity === "error");
