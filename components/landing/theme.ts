@@ -7,15 +7,15 @@ import { mediaSrc } from "@/lib/media/url";
  * flips to light text by itself and no combination can fail contrast. Full class strings, so Tailwind finds them.
  */
 export const BACKGROUNDS = {
-  none: { label: "None (page)", bg: "", text: "text-slate-900", dark: false },
-  white: { label: "White", bg: "bg-white", text: "text-slate-900", dark: false },
-  cream: { label: "Cream", bg: "bg-cream", text: "text-slate-900", dark: false },
-  blush: { label: "Blush", bg: "bg-blush", text: "text-slate-900", dark: false },
-  mist: { label: "Mist", bg: "bg-mist-200", text: "text-slate-900", dark: false },
-  plum: { label: "Plum", bg: "bg-plum-700", text: "text-white", dark: true },
-  brownMid: { label: "Warm brown", bg: "bg-brown", text: "text-white", dark: true },
-  brown: { label: "Brown", bg: "bg-brown-deep", text: "text-cream", dark: true },
-  charcoal: { label: "Charcoal", bg: "bg-cup", text: "text-white", dark: true },
+  none: { label: "None (page)", bg: "", text: "text-slate-900 dark:text-cream", dark: false, scope: "" },
+  white: { label: "White", bg: "bg-white", text: "text-slate-900", dark: false, scope: "landing-light" },
+  cream: { label: "Cream", bg: "bg-cream", text: "text-slate-900", dark: false, scope: "landing-light" },
+  blush: { label: "Blush", bg: "bg-blush", text: "text-slate-900", dark: false, scope: "landing-light" },
+  mist: { label: "Mist", bg: "bg-mist-200", text: "text-slate-900", dark: false, scope: "landing-light" },
+  plum: { label: "Plum", bg: "bg-plum-700", text: "text-white", dark: true, scope: "" },
+  brownMid: { label: "Warm brown", bg: "bg-brown", text: "text-white", dark: true, scope: "" },
+  brown: { label: "Brown", bg: "bg-brown-deep", text: "text-cream", dark: true, scope: "" },
+  charcoal: { label: "Charcoal", bg: "bg-cup", text: "text-white", dark: true, scope: "" },
 } as const;
 export type BackgroundKey = keyof typeof BACKGROUNDS;
 export const BACKGROUND_OPTIONS = (Object.keys(BACKGROUNDS) as BackgroundKey[]).map((value) => ({ label: BACKGROUNDS[value].label, value }));

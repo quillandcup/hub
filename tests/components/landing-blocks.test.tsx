@@ -20,12 +20,26 @@ import LandingRender from "@/components/landing/LandingRender";
 
 afterEach(cleanup);
 
+const sectionProps = { overlay: "none", width: "wide", padding: "medium", align: "left", card: false, fadeIn: false } as const;
+
 describe("PageFrame", () => {
-  it("is always the light brand page, so dark text and white cards stay readable when the app is in dark mode", () => {
+  it("is the brand page, light or dark with the theme, and not the app's grey", () => {
     const { container } = render(<PageFrame>content</PageFrame>);
     const frame = container.firstElementChild!;
     expect(frame.className).toContain("bg-canvas");
+    expect(frame.className).toContain("dark:bg-plum-950");
+    expect(frame.className).toContain("dark:text-cream");
     expect(frame.className).not.toContain("bg-background");
+  });
+
+  it("keeps a white or cream band light in dark mode, and lets the page and dark bands follow the theme", () => {
+    const light = render(<Section {...sectionProps} background="cream" content={() => <p>x</p>} />);
+    expect(light.container.querySelector("section")!.className).toContain("landing-light");
+    const page = render(<Section {...sectionProps} background="none" content={() => <p>x</p>} />);
+    expect(page.container.querySelector("section")!.className).not.toContain("landing-light");
+    expect(page.container.querySelector("section")!.className).toContain("dark:text-cream");
+    const plum = render(<Section {...sectionProps} background="plum" content={() => <p>x</p>} />);
+    expect(plum.container.querySelector("section")!.className).not.toContain("landing-light");
   });
 });
 

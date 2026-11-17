@@ -50,6 +50,8 @@ Section (background colour or picture with a shade, width, space, optional white
 - **Stats**: two to four figures with a label, typed by hand (a description list). Live figures from the Hub are a later step (`docs/TODO.md`).
 - **Call-to-action banner**: heading, a line and one button on a theme colour (not the page colour); the button flips to the light style on a dark band.
 
+**Dark mode.** The page follows the theme (the app's setting in the editor, the visitor's system setting on the public page): a dark canvas and light text. The page colour and the dark bands follow it; white, cream, blush and mist bands stay light, marked `landing-light` in theme.ts, and `dark:` variants do not apply inside them (the `darkMode` variant in tailwind.config.ts). A block's `dark:` classes are for the page colour; give a new block both.
+
 Text colours in all four follow theme.ts; there is no colour picker. The page frame has optional header (logo, links) and footer (text, links) as root fields.
 
 ### Adding a block
