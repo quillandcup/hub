@@ -229,7 +229,10 @@ export async function fetchStripeTrialInfoByEmail(
 
 export async function fetchMembershipHistory(
   repos: MembershipHistoryRepos,
-  customerIds: string[]
+  customerIds: string[],
+  // Stripe invoices and charges are service role only, so callers holding a signed-in client pass
+  // service role repos here (after verifying the caller is allowed to see the history).
+  stripeRepos: MembershipHistoryRepos = repos
 ): Promise<MembershipPurchase[]> {
   if (customerIds.length === 0) return [];
 
@@ -258,7 +261,7 @@ export async function fetchMembershipHistory(
   const firstEmail = customers?.find((c: any) => c.email)?.email;
   const canonicalEmail = firstEmail ? resolveEmail(firstEmail, aliasMap) : undefined;
 
-  const stripeInfoByEmail = await fetchStripeTrialInfoByEmail(repos, emailAliases || []);
+  const stripeInfoByEmail = await fetchStripeTrialInfoByEmail(stripeRepos, emailAliases || []);
 
   return buildMembershipStints(purchases as RawPurchase[], offerMap, canonicalEmail, stripeInfoByEmail).reverse();
 }

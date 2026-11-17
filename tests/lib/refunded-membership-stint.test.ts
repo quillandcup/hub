@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { buildMembershipStints, fetchStripeTrialInfoByEmail } from "@/lib/kajabi/membership-history";
 import { computeMemberTenure } from "@/lib/member-tenure";
 import { InMemoryBillingRepository } from "@/lib/data/billing";
@@ -107,5 +107,29 @@ describe("a trial that was charged, cancelled and refunded in full", () => {
     const stints = buildMembershipStints(purchases, offerMap, EMAIL, stripeInfo);
 
     expect(stints).toHaveLength(2);
+  });
+});
+
+describe("fetchMembershipHistory Stripe repos", () => {
+  it("reads Stripe through the repos passed for it, not the caller's", async () => {
+    const { fetchMembershipHistory } = await import("@/lib/kajabi/membership-history");
+    const { createInMemoryRepos } = await import("@/lib/data/repos");
+    const customers = { stripeCustomers: [{ stripe_customer_id: "cus_x", email: EMAIL }] };
+    const denied = createInMemoryRepos(new InMemoryDataset(customers));
+    const stripeSpy = vi.fn(async () => new Set<string>());
+    denied.billing.fullyRefundedStripeSubscriptionIds = async () => {
+      throw new Error("permission denied for table stripe_charges");
+    };
+    const service = createInMemoryRepos(
+      new InMemoryDataset(customers));
+    service.billing.fullyRefundedStripeSubscriptionIds = stripeSpy;
+    denied.billing.kajabiPurchasesByCustomers = async () => [purchase("c1", "2025-01-01T00:00:00Z", null)] as never;
+    denied.billing.kajabiOffersByIds = async () => [{ kajabi_offer_id: "offer-1", name: OFFER.name, data: OFFER.data, trial_period_days: null }] as never;
+    denied.billing.kajabiCustomers = async () => [] as never;
+    service.aliases.emailAliases = async () => [];
+    denied.aliases.emailAliases = async () => [];
+    await expect(fetchMembershipHistory(denied, ["c1"])).rejects.toThrow();
+    await fetchMembershipHistory(denied, ["c1"], service);
+    expect(stripeSpy).toHaveBeenCalled();
   });
 });
