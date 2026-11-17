@@ -56,6 +56,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "goal-start-date-starting-count-note",
+    date: "2026-11-16",
+    audience: "product",
+    category: "improved",
+    title: "Goals tell you when your starting count isn't included",
+    summary: "A goal with a start date counts only what you log from that day on. It now says so when your project has a starting count that is left out.",
+    body: `If you gave a project a starting word count (or another starting count) and then set a start date on its goal, the goal counts only what you log from that date on. It now shows a note under the progress bar, such as "Your starting 20,000 words aren't counted because this goal has a start date."
+
+To include your starting count, clear the goal's start date. A goal without one counts everything on the project.`,
+  },
+  {
     slug: "checkin-dm-closes-on-answer",
     date: "2026-11-16",
     audience: "engineering",

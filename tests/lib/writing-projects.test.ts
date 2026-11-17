@@ -232,6 +232,14 @@ describe("computeGoalProgress", () => {
     });
     expect(progress.current).toBe(5000);
     expect(progress.includesStartingBalance).toBe(false);
+    expect(progress.excludedStartingBalance).toBe(60000);
+  });
+
+  it("reports no excluded starting balance when there is none or no start date", () => {
+    const base = { entries: [], targetAmount: 50000, endDate: null, now };
+    expect(computeGoalProgress({ ...base, startDate: "2026-08-01" }).excludedStartingBalance).toBeNull();
+    expect(computeGoalProgress({ ...base, startDate: "2026-08-01", startingBalance: 0 }).excludedStartingBalance).toBeNull();
+    expect(computeGoalProgress({ ...base, startDate: null, startingBalance: 60000 }).excludedStartingBalance).toBeNull();
   });
 
   it("computes a par target at the halfway point of a 30-day window", () => {

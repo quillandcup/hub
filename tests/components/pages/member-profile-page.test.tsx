@@ -299,6 +299,7 @@ describe("member profile page: Writing Progress", () => {
     current: 18,
     percent: 100,
     includesStartingBalance: false,
+    excludedStartingBalance: null,
     projectTotal: 18,
     parTarget: 18,
     onPace: true,
