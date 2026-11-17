@@ -22,8 +22,8 @@ type Props = Record<string, unknown>;
 type Block = { type: string; props: Props };
 
 
-/** What the model may use. Excluded on purpose: Image and Split (need a picture), Testimonials (it would invent quotes), Countdown (a date), Video, CardGrid (pictures, prices), OptInForm (a Kajabi form id). */
-export const AI_BLOCKS = ["Section", "Hero", "Heading", "RichText", "Button", "List", "Steps", "Stats", "Faq", "LinkList", "CtaBanner", "Divider", "Spacer"] as const;
+/** What the model may use. Excluded on purpose: Image and Split (need a picture), Testimonials (it would invent quotes), Countdown (a date), Video, OptInForm (a Kajabi form id). CardGrid is offered without pictures, prices or buttons. */
+export const AI_BLOCKS = ["Section", "Hero", "Heading", "RichText", "Button", "List", "Steps", "Stats", "Faq", "LinkList", "CtaBanner", "CardGrid", "Divider", "Spacer"] as const;
 type AiBlock = (typeof AI_BLOCKS)[number];
 
 const LOOK = ["solid", "outline"];
@@ -41,7 +41,17 @@ const ENUMS: Record<string, Record<string, readonly string[]>> = {
   Spacer: { size: ["small", "medium", "large"] },
   Hero: { level: ["h1", "h2"], imageMode: ["background", "side"], overlay: ["none", "dark", "light"], background: Object.keys(BACKGROUNDS), align: ALIGN },
   CtaBanner: { background: Object.keys(BACKGROUNDS).filter((k) => k !== "none"), align: ALIGN },
+  CardGrid: { columns: ["2", "3", "4"] },
 };
+
+/** What the model is shown and may set for a block: the builder's defaults, except where those are sample content (a card's price and "Buy now"). */
+const SHAPES: Partial<Record<AiBlock, Props>> = {
+  CardGrid: { columns: "3", items: [{ icon: "", title: "", description: "", price: "", buttonLabel: "", href: "" }] },
+};
+const shapeOf = (type: AiBlock): Props => SHAPES[type] ?? (BLOCK_DEFAULTS[type] as unknown as Props);
+
+/** A card grid with a picture on any card stays as it is: the model never sees pictures, so it could not keep them. */
+const hasPictures = (block: Block): boolean => block.type === "CardGrid" && Array.isArray(block.props.items) && block.props.items.some((i) => isObject(i) && typeof i.imageAssetId === "string" && i.imageAssetId !== "");
 
 const MAX_BLOCKS = 40;
 const MAX_ITEMS = 12;
@@ -100,10 +110,10 @@ function cleanBlock(raw: unknown, depth: number, existing?: Existing): Block | n
   const id = typeof raw.id === "string" ? raw.id : typeof given.id === "string" ? given.id : undefined;
   const before = id ? existing?.get(id) : undefined;
   // A block the model cannot write (a picture, a video, a form) stays exactly as it is, or is removed by leaving it out.
-  if (before && !(AI_BLOCKS as readonly string[]).includes(before.type)) return { type: before.type, props: before.props };
+  if (before && (!(AI_BLOCKS as readonly string[]).includes(before.type) || hasPictures(before))) return { type: before.type, props: before.props };
   if (!(AI_BLOCKS as readonly string[]).includes(raw.type)) return null;
   const type = raw.type as AiBlock;
-  const cleaned = cleanObject(type, BLOCK_DEFAULTS[type] as unknown as Props, given);
+  const cleaned = cleanObject(type, shapeOf(type), given);
   let props: Props;
   if (before && before.type === type) {
     // Only what the model sent changes; everything else (picture ids, other settings) is the page's own.
@@ -121,6 +131,24 @@ function cleanBlock(raw: unknown, depth: number, existing?: Existing): Block | n
   return { type, props };
 }
 
+/** The model's one-line account of what it did; plain text, short. */
+export function cleanSummary(raw: unknown): string | undefined {
+  const text = isObject(raw) && typeof raw.summary === "string" ? raw.summary.replace(/\s+/g, " ").trim().slice(0, 300) : "";
+  return text || undefined;
+}
+
+/** The problems in `after` that `before` did not already have, so a change is not blamed for what was on the page already. */
+export function newIssues(after: A11yIssue[], before: A11yIssue[]): A11yIssue[] {
+  const seen = new Map<string, number>();
+  for (const i of before) seen.set(`${i.severity}|${i.message}`, (seen.get(`${i.severity}|${i.message}`) ?? 0) + 1);
+  return after.filter((i) => {
+    const key = `${i.severity}|${i.message}`;
+    const left = seen.get(key) ?? 0;
+    if (left > 0) seen.set(key, left - 1);
+    return left === 0;
+  });
+}
+
 /** What the model returned, reduced to blocks the builder has. Anything else is dropped; `null` when nothing usable is left. */
 export function cleanGeneratedBlocks(raw: unknown, current?: unknown): LandingData | null {
   if (!isObject(raw) || !Array.isArray(raw.blocks)) return null;
@@ -132,7 +160,7 @@ export function cleanGeneratedBlocks(raw: unknown, current?: unknown): LandingDa
 
 function describeBlocks(): string {
   return AI_BLOCKS.map((type) => {
-    const props = { ...(BLOCK_DEFAULTS[type] as unknown as Props) };
+    const props = { ...shapeOf(type) };
     const options = ENUMS[type] ? ` Options: ${Object.entries(ENUMS[type]).map(([k, v]) => `${k}=${v.join("|")}`).join("; ")}.` : "";
     return `- ${type}: props ${JSON.stringify(props)}.${options}${type === "Section" ? " Also `content`: a list of blocks inside it (not Sections)." : ""}`;
   }).join("\n");
@@ -153,6 +181,7 @@ export function systemPrompt(task: Task = "page"): string {
     "Write warm, plain, specific copy in the voice the request implies. Use only facts, prices, dates, names and links the request gives you; never invent figures, quotes, testimonials, deadlines or links. Where a fact is missing, write copy that does not need it, and leave a button's href empty so the admin fills it in.",
     TASK_RULES[task],
     "A Section's blocks go in its props.content list. For a short set of parallel points with icons, use a List: each item's `icon` is one fitting emoji and its `text` is one or two short sentences (start with the point's name when it has one).",
+    "For cards side by side (pillars, offers, features), use a CardGrid: each card has an `icon` (one fitting emoji), a `title` and a short `description`; leave price, buttonLabel and href empty unless the request gives them.",
     "Rich text (`html`) may use only p, h2, h3, ul, ol, li, strong, em, a and blockquote. There are no pictures: leave picture props out. Never mention AI.",
     "Blocks and their props (each prop you set must be one of these, with a value of the same kind):",
     describeBlocks(),
@@ -166,6 +195,7 @@ const TOOL = {
   input_schema: {
     type: "object",
     properties: {
+      summary: { type: "string", description: "One plain sentence saying what you did, for the admin (for example: Shortened the intro and turned the steps into a list)." },
       blocks: {
         type: "array",
         description: "The page's blocks, top to bottom.",
@@ -180,7 +210,7 @@ const TOOL = {
   },
 } as const;
 
-export type GenerateResult = { ok: true; data: LandingData; issues: A11yIssue[] } | { ok: false; error: string };
+export type GenerateResult = { ok: true; data: LandingData; issues: A11yIssue[]; summary?: string } | { ok: false; error: string };
 
 export type Complete = (system: string, prompt: string) => Promise<unknown>;
 
@@ -195,7 +225,11 @@ export const completeWithClaude: Complete = async (system, prompt) => {
       headers: { "content-type": "application/json", "x-api-key": ANTHROPIC.apiKey as string, "anthropic-version": ANTHROPIC.apiVersion },
       body: JSON.stringify({
         model: ANTHROPIC.landingPageModel,
-        max_tokens: 8000,
+        // Thinking tokens count against this, so there is room for both.
+        max_tokens: 16000,
+        // Medium effort: Sonnet follows layout requests well at this level, at a fraction of the cost and wait of higher ones.
+        output_config: { effort: "medium" },
+        thinking: { type: "adaptive" },
         system,
         tools: [TOOL],
         // This model rejects a forced tool choice (400), so the instructions say to answer only by calling the tool.
@@ -224,7 +258,7 @@ export function pageForModel(content: unknown): unknown[] {
   const view = (raw: unknown): unknown => {
     if (!isObject(raw) || typeof raw.type !== "string" || !isObject(raw.props)) return null;
     const id = raw.props.id;
-    if (!(AI_BLOCKS as readonly string[]).includes(raw.type)) return { id, type: raw.type, locked: true };
+    if (!(AI_BLOCKS as readonly string[]).includes(raw.type) || hasPictures({ type: raw.type, props: raw.props })) return { id, type: raw.type, locked: true };
     const props: Props = {};
     for (const [key, value] of Object.entries(raw.props)) {
       if (key === "id" || NEVER.test(key)) continue;
@@ -252,7 +286,9 @@ export async function generateLandingPage(prompt: string, complete: Complete = c
   }
   const data = cleanGeneratedBlocks(raw);
   if (!data) return { ok: false, error: "The assistant's answer had no usable page. Nothing was created; try again, or describe the page in more detail." };
-  return { ok: true, data, issues: checkLandingPage(data) };
+  // Blocks added to a page are not a page: "needs a title" is about the page they are going into.
+  const issues = checkLandingPage(data).filter((i) => task !== "add" || i.block !== "Page");
+  return { ok: true, data, issues, summary: cleanSummary(raw) };
 }
 
 /**
@@ -277,5 +313,7 @@ export async function reviseLandingPage(prompt: string, current: unknown, comple
   }
   const data = cleanGeneratedBlocks(raw, current);
   if (!data) return { ok: false, error: "The assistant's answer had no usable page. The page is unchanged; try again." };
-  return { ok: true, data, issues: checkLandingPage(data) };
+  // Only what the change introduced: the page's old problems are the admin's to know already, and not repeated here.
+  const before = checkLandingPage({ content: current as never[], root: {} } as LandingData);
+  return { ok: true, data, issues: newIssues(checkLandingPage(data), before), summary: cleanSummary(raw) };
 }

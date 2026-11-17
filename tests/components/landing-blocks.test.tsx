@@ -153,6 +153,12 @@ describe("lists of things", () => {
     expect(screen.getByText("Really.")).toBeInTheDocument();
   });
 
+  it("shows a card's icon (hidden from screen readers) and description", () => {
+    const { container } = render(<CardGrid columns="3" items={[{ alt: "", icon: "🤝", title: "Community", description: "Kind company.", price: "", buttonLabel: "", href: "" }]} />);
+    expect(container.querySelector('[aria-hidden="true"]')).toHaveTextContent("🤝");
+    expect(screen.getByText("Kind company.")).toBeInTheDocument();
+  });
+
   it("shows cards in a grid whose columns follow the room, and hides a button with no link", () => {
     const { container } = render(
       <CardGrid

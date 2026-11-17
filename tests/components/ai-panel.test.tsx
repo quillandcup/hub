@@ -35,6 +35,16 @@ describe("the editor's AI tab", () => {
     expect(screen.getByRole("status")).toHaveTextContent("A button needs a link.");
   });
 
+  it("says what the assistant did and lists each problem once", async () => {
+    const note = { severity: "error" as const, block: "Button", message: "A button needs a link." };
+    const revise = vi.fn().mockResolvedValue({ blocks: [{ type: "Heading", props: { id: "h" } }], notes: [note, note], summary: "Shortened the intro." });
+    render(<AiPanelView {...noop} generate={vi.fn()} revise={revise} onAdd={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Change" }));
+    await submit("shorter", "Change the page", /What should change/);
+    expect(screen.getByRole("status")).toHaveTextContent("Shortened the intro.");
+    expect(screen.getAllByText("A button needs a link.")).toHaveLength(1);
+  });
+
   it("keeps the button off until something is typed", () => {
     render(<AiPanelView {...noop} generate={vi.fn()} onAdd={vi.fn()} />);
     expect(screen.getByRole("button", { name: "Add to the page" })).toBeDisabled();

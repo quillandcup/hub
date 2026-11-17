@@ -82,7 +82,7 @@ export async function createLandingPageWithAi(input: { title: string; slug?: str
   return withAction("landing_page_ai_built", () => buildWithAiImpl(auth, input), (r) => ({ ok: !r.error }));
 }
 
-export type AiBlocksResult = { error?: string; blocks?: unknown[]; notes?: A11yIssue[] };
+export type AiBlocksResult = { error?: string; blocks?: unknown[]; notes?: A11yIssue[]; summary?: string };
 
 /**
  * Blocks for the editor's AI tab: the admin's description in, blocks out, to be added to the page being edited. Saves
@@ -97,7 +97,7 @@ export async function generateLandingBlocks(prompt: string): Promise<AiBlocksRes
       if (!aiConfigured()) return { error: "Build with AI isn't set up yet." };
       const built = await generateLandingPage(prompt, undefined, "add");
       if (!built.ok) return { error: built.error };
-      return { blocks: built.data.content, notes: built.issues };
+      return { blocks: built.data.content, notes: built.issues, summary: built.summary };
     },
     (r) => ({ ok: !r.error }),
   );
@@ -117,7 +117,7 @@ export async function reviseLandingBlocks(prompt: string, content: unknown): Pro
       if (tooBig(content)) return { error: "This page is too large to change." };
       const built = await reviseLandingPage(prompt, content);
       if (!built.ok) return { error: built.error };
-      return { blocks: built.data.content, notes: built.issues };
+      return { blocks: built.data.content, notes: built.issues, summary: built.summary };
     },
     (r) => ({ ok: !r.error }),
   );
