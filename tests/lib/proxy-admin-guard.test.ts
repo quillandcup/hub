@@ -218,7 +218,7 @@ describe("remembering where a signed-out visitor was headed", () => {
 });
 
 describe("public pages", () => {
-  it.each(["/login", "/unsubscribe", "/privacy", "/compliance"])("lets an anonymous visitor read %s", async (path) => {
+  it.each(["/login", "/unsubscribe", "/privacy", "/compliance", "/security"])("lets an anonymous visitor read %s", async (path) => {
     expect(await redirectedTo(path)).toBeNull();
   });
 });
