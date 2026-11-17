@@ -66,6 +66,8 @@ vi.mock("@/lib/kajabi/membership-history", () => ({ fetchMembershipHistory: vi.f
 
 vi.mock("@/lib/channels/web-push", () => ({ loadPushDevices: vi.fn(async () => []) }));
 import { loadPushDevices } from "@/lib/channels/web-push";
+import ActivityRoute, { generateMetadata as activityMetadata } from "@/app/(admin)/admin/members/[id]/activity/page";
+import { COMMUNITY_MANAGER_FEATURES, type StaffFeature } from "@/lib/staff-access";
 import AccountRoute, { generateMetadata as accountMetadata } from "@/app/(admin)/admin/members/[id]/account/page";
 import NotificationsRoute, { generateMetadata as notificationsMetadata } from "@/app/(admin)/admin/members/[id]/notifications/page";
 import { getMemberBadges } from "@/lib/badges";
@@ -244,6 +246,64 @@ describe("MemberDetailPage", () => {
       .flatMap((q) => q.calls)
       .find((c) => c.method === "args");
     expect(feedCall?.args[0]).toMatchObject({ p_member_id: MEMBER.id, p_audit_only: false });
+  });
+
+  const feedArgs = (supabase: ReturnType<typeof useFakeSupabase>, rpc: string) =>
+    supabase.queries
+      .filter((q) => q.table === `rpc:${rpc}`)
+      .flatMap((q) => q.calls)
+      .find((c) => c.method === "args")?.args[0];
+
+  it("asks for everything for an admin, and for the member's activity only for a community manager", async () => {
+    const tables = memberTables({
+      "rpc:count_activity_feed": { data: 1 },
+      "rpc:get_activity_feed": { data: [{ event_id: "e1", kind: "activity", description: null }] },
+    });
+    const admin = useFakeSupabase(tables);
+    await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "activity" as const, searchParams: { view: "privacy", kinds: "audit" } });
+    expect(feedArgs(admin, "get_activity_feed")).toMatchObject({ p_member_id: MEMBER.id, p_kinds: ["audit"], p_entity_types: expect.any(Array) });
+
+    staff.role = "community_manager";
+    const manager = useFakeSupabase(tables);
+    await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "activity" as const, searchParams: { view: "privacy", kinds: "audit", actor: "00000000-0000-4000-8000-000000000001" } });
+    expect(screen.getAllByText("activity 1 on page 1").length).toBeGreaterThan(0);
+    expect(feedArgs(manager, "get_activity_feed")).toMatchObject({ p_member_id: MEMBER.id, p_kinds: ["activity"], p_entity_types: null, p_actor_user_id: null, p_audit_only: false });
+    expect(feedArgs(manager, "count_activity_feed")).toMatchObject({ p_kinds: ["activity"], p_entity_types: null });
+  });
+
+  it("reads no activity feed for a role that has neither Activity tab feature", async () => {
+    staff.role = "community_manager";
+    const features = COMMUNITY_MANAGER_FEATURES as StaffFeature[];
+    const saved = [...features];
+    features.splice(0, features.length, "care.write");
+    try {
+      const supabase = useFakeSupabase(memberTables());
+      await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "overview" as const });
+      expect(screen.getByText("activity unavailable")).toBeInTheDocument();
+      expect(supabase.queries.some((q) => q.table === "rpc:get_activity_feed" || q.table === "rpc:count_activity_feed")).toBe(false);
+    } finally {
+      features.splice(0, features.length, ...saved);
+    }
+  });
+
+  it("serves the Activity tab at its own route for an admin and a community manager, and sends one without the feature to the Overview", async () => {
+    useFakeSupabase(memberTables());
+    const params = Promise.resolve({ id: MEMBER.id });
+    expect(String((await activityMetadata({ params })).title)).toContain("Activity Log");
+    const searchParams = Promise.resolve({});
+    expect((await ActivityRoute({ params, searchParams } as never)).props).toMatchObject({ id: MEMBER.id, tab: "activity" });
+
+    staff.role = "community_manager";
+    expect((await ActivityRoute({ params, searchParams } as never)).props).toMatchObject({ id: MEMBER.id, tab: "activity" });
+
+    const features = COMMUNITY_MANAGER_FEATURES as StaffFeature[];
+    const saved = [...features];
+    features.splice(0, features.length, "care.write");
+    try {
+      await expectRedirect(ActivityRoute, { params, searchParams }, `/admin/members/${MEMBER.id}`);
+    } finally {
+      features.splice(0, features.length, ...saved);
+    }
   });
 
   it("still renders the page when the activity feed query times out", async () => {

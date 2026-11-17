@@ -18,6 +18,7 @@ describe("isCommunityManagerPath", () => {
     "/admin/at-risk/",
     "/admin/care",
     "/admin/care/earlier",
+    "/admin/members/mbr_AAAAAAAAAAA1/activity",
   ])("opens %s", (path) => {
     expect(isCommunityManagerPath(path)).toBe(true);
   });
@@ -30,7 +31,8 @@ describe("isCommunityManagerPath", () => {
     "/admin/members/network",
     "/admin/members/network/anything",
     "/admin/members/mbr_AAAAAAAAAAA1/account",
-    "/admin/members/mbr_AAAAAAAAAAA1/activity",
+    "/admin/members/mbr_AAAAAAAAAAA1/identity",
+    "/admin/members/mbr_AAAAAAAAAAA1/notifications",
     "/admin/prickles",
     "/admin/data/import",
     "/admin/work-queue",
@@ -76,8 +78,10 @@ describe("staff features are opt-in", () => {
     expect(staffCan("admin", "member.sudo")).toBe(true);
   });
 
-  it("gives a community manager only what is listed: Hedgie Care, and nothing else yet", () => {
-    expect(COMMUNITY_MANAGER_FEATURES).toEqual(["care.write"]);
+  it("gives a community manager only what is listed: Hedgie Care and the limited Activity tab, and nothing else yet", () => {
+    expect(COMMUNITY_MANAGER_FEATURES).toEqual(["care.write", "member.activity_tab_limited"]);
+    // The limited tab is hers; the whole Activity Log (audit entries, page visits) is not.
+    expect(staffCan(COMMUNITY_MANAGER_ROLE, "member.activity_tab")).toBe(false);
     for (const feature of STAFF_FEATURES) expect(staffCan(COMMUNITY_MANAGER_ROLE, feature), feature).toBe(COMMUNITY_MANAGER_FEATURES.includes(feature));
   });
 

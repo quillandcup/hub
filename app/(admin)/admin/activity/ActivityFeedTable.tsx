@@ -3,6 +3,7 @@
 import { Fragment, useState } from "react";
 import Link from "next/link";
 import { activityLink } from "@/lib/activity-links";
+import { isCommunityManagerPath } from "@/lib/staff-access";
 import ReactionEmoji from "@/components/ReactionEmoji";
 import type { ReactionEmojiValue } from "@/lib/slack-reaction-emoji";
 import { DataTablePager } from "@/components/DataTablePager";
@@ -96,9 +97,10 @@ function Summary({ row }: { row: ActivityFeedRow }) {
 }
 
 /** A link to the row's source (the prickle, the member, the feedback) when it has a page. */
-function SourceLink({ row }: { row: ActivityFeedRow }) {
+function SourceLink({ row, limited }: { row: ActivityFeedRow; limited: boolean }) {
   const link = activityLink(row);
-  if (!link) return null;
+  // A community manager is not offered a link to a page she may not open (the member's feedback list, for one).
+  if (!link || (limited && !isCommunityManagerPath(link.href.split("?")[0]))) return null;
   return (
     <>
       {" "}
@@ -129,6 +131,7 @@ export default function ActivityFeedTable({
   pageSize,
   filters,
   hideAbout = false,
+  limited = false,
   noteControls,
 }: {
   rows: ActivityFeedRow[];
@@ -138,6 +141,8 @@ export default function ActivityFeedTable({
   filters: FeedFilters;
   /** Drop the About column, where every row is about the same member (their own page). */
   hideAbout?: boolean;
+  /** A community manager's tab: no link to the central log (an admin-only page), none to other pages she may not open. */
+  limited?: boolean;
   /** On a member's own page: lets the note rows be edited (their author, for a while) and deleted. */
   noteControls?: NoteControls;
 }) {
@@ -186,7 +191,7 @@ export default function ActivityFeedTable({
                     >
                       {sudo ? "sudo" : row.actor_kind}
                     </span>
-                    {row.actor_user_id ? (
+                    {row.actor_user_id && !limited ? (
                       <Link
                         href={`/admin/activity${feedSearch({ ...filters, actorUserId: row.actor_user_id })}`}
                         className="font-medium text-slate-900 dark:text-slate-100 hover:underline"
@@ -211,12 +216,12 @@ export default function ActivityFeedTable({
                           <span aria-hidden className="mr-1 text-slate-500">{open.has(row.event_id) ? "▾" : "▸"}</span>
                           <Summary row={row} />
                         </button>
-                        <SourceLink row={row} />
+                        <SourceLink row={row} limited={limited} />
                       </>
                     ) : (
                       <>
                         <Summary row={row} />
-                        <SourceLink row={row} />
+                        <SourceLink row={row} limited={limited} />
                       </>
                     )}
                   </td>

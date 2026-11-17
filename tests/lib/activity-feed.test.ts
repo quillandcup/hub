@@ -11,6 +11,7 @@ import {
   MEMBER_DEFAULTS,
   feedSearch,
   fetchActivityFeed,
+  limitedFeedFilters,
   fetchRecordHistory,
   pageLabel,
   parseFeedFilters,
@@ -447,6 +448,18 @@ describe("fetchActivityFeed", () => {
     );
   });
 
+  it("asks only for the member's activity rows for a community manager, whatever the URL says", async () => {
+    const { supabase, rpc } = client(2, [row({})]);
+    const asked = query({ view: "privacy", kinds: "audit,session,note", actor: ACTOR });
+    await fetchActivityFeed(supabase, { ...asked, memberId: "mbr_AAAAAAAAAAA1" }, now, { memberActivityOnly: true });
+    for (const name of ["count_activity_feed", "get_activity_feed"]) {
+      expect(rpc).toHaveBeenCalledWith(
+        name,
+        expect.objectContaining({ p_kinds: ["activity"], p_audit_only: false, p_entity_types: null, p_actor_user_id: null, p_member_id: "mbr_AAAAAAAAAAA1" })
+      );
+    }
+  });
+
   it("surfaces errors", async () => {
     const failing = client(5, [], new Error("boom"));
     await expect(fetchActivityFeed(failing.supabase, query(), now)).rejects.toThrow("boom");
@@ -558,5 +571,12 @@ describe("a care plan's rows in the Activity Log", () => {
     );
     const feed = await fetchActivityFeed({ rpc } as unknown as SupabaseClient, { ...parseFeedFilters({}), page: 1, pageSize: 50 });
     expect(feed.rows.map(describeRow)).toEqual(["renewed the care plan (second plan)"]);
+  });
+});
+
+describe("limitedFeedFilters", () => {
+  it("drops the audit and privacy views, the type filter and the staff filter, and keeps range, sudo and the hide toggles", () => {
+    const asked = { ...parseFeedFilters({ view: "privacy", kinds: "audit,note", actor: ACTOR, sudo: "1", nosystem: "1", noslack: "1", days: "30" }, MEMBER_DEFAULTS), memberId: "mbr_AAAAAAAAAAA1" };
+    expect(limitedFeedFilters(asked)).toEqual({ view: "all", kinds: null, actorUserId: null, memberId: "mbr_AAAAAAAAAAA1", sudoOnly: true, hideSystem: true, hideSlack: true, days: 30 });
   });
 });

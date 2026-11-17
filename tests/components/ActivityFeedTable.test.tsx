@@ -149,3 +149,36 @@ describe("ActivityFeedTable source links", () => {
     expect(screen.queryByRole("link", { name: /→/ })).toBeNull();
   });
 });
+
+describe("ActivityFeedTable, limited (a community manager)", () => {
+  const staffRow = emailRow({ actor_kind: "staff", actor_user_id: "00000000-0000-4000-8000-000000000001", actor_label: "Ania Example", title: "Sent a message", source: "outreach", event_type: "outreach_touch" });
+  const renderLimited = (rows: ActivityFeedRow[], limited: boolean) =>
+    render(<ActivityFeedTable rows={rows} total={rows.length} page={1} pageSize={50} filters={MEMBER_DEFAULTS as never} hideAbout limited={limited} />);
+
+  it("names the actor without linking to the central log, which she may not open", () => {
+    const { unmount } = renderLimited([staffRow], false);
+    expect(screen.getByRole("link", { name: "Ania Example" }).getAttribute("href")).toContain("/admin/activity");
+    unmount();
+    renderLimited([staffRow], true);
+    expect(screen.getByText("Ania Example")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Ania Example" })).toBeNull();
+  });
+
+  it("keeps a link to a page she may open (a prickle) and drops one to a page she may not (the feedback list)", () => {
+    renderLimited(
+      [
+        emailRow({ event_id: "p1", source: "prickle_checkins", event_type: "prickle_checkin", title: "Checked in", entity_type: "prickle", entity_id: "prkl_AAAAAAAAAAA1", data: null }),
+        emailRow({ event_id: "f1", source: "feedback", event_type: "feedback_submitted", title: "Sent feedback", data: null }),
+      ],
+      true
+    );
+    expect(screen.getByRole("link", { name: /Open the prickle/ })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /See their feedback/ })).toBeNull();
+  });
+
+  it("shows an admin the feedback link as before", () => {
+    renderLimited([emailRow({ event_id: "f1", source: "feedback", event_type: "feedback_submitted", title: "Sent feedback", data: null })], false);
+    expect(screen.getByRole("link", { name: /See their feedback/ })).toBeInTheDocument();
+  });
+});
+

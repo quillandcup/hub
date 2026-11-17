@@ -148,13 +148,22 @@ export function feedSearch(filters: Partial<FeedFilters>, defaults: FeedDefaults
   return s ? `?${s}` : "";
 }
 
-function rpcArgs(filters: FeedFilters, now: Date) {
+/**
+ * What a community manager's Activity tab asks for: one member's own activity (the `activity` kind) and nothing else, whatever the
+ * URL says. The database enforces the same limit for her (get_activity_feed and count_activity_feed, migration
+ * 20270817000000); this keeps what the page asks for, and what its filter bar offers, inside it too.
+ */
+export function limitedFeedFilters(filters: FeedFilters): FeedFilters {
+  return { ...filters, view: "all", kinds: null, actorUserId: null };
+}
+
+function rpcArgs(filters: FeedFilters, now: Date, memberActivityOnly = false) {
   const from = new Date(now.getTime() - filters.days * 24 * 60 * 60 * 1000);
   return {
-    p_audit_only: filters.view === "audit",
-    p_kinds: filters.kinds,
-    p_entity_types: filters.view === "privacy" ? [...PRIVACY_ENTITY_TYPES] : null,
-    p_actor_user_id: filters.actorUserId,
+    p_audit_only: !memberActivityOnly && filters.view === "audit",
+    p_kinds: memberActivityOnly ? ["activity"] : filters.kinds,
+    p_entity_types: !memberActivityOnly && filters.view === "privacy" ? [...PRIVACY_ENTITY_TYPES] : null,
+    p_actor_user_id: memberActivityOnly ? null : filters.actorUserId,
     p_member_id: filters.memberId,
     p_sudo_only: filters.sudoOnly,
     p_hide_system: filters.hideSystem,
@@ -175,9 +184,11 @@ export interface FeedPage {
 export async function fetchActivityFeed(
   supabase: SupabaseClient,
   query: FeedQuery,
-  now: Date = new Date()
+  now: Date = new Date(),
+  /** A community manager's tab: only the member's `activity` rows are asked for (see `limitedFeedFilters`). */
+  options: { memberActivityOnly?: boolean } = {}
 ): Promise<FeedPage> {
-  const args = rpcArgs(query, now);
+  const args = rpcArgs(query, now, options.memberActivityOnly);
   const { data: count, error: countError } = await supabase.rpc("count_activity_feed", args);
   throwIfDbError("activity feed: count_activity_feed", countError);
   const total = (count as number | null) ?? 0;
