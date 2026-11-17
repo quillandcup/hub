@@ -177,12 +177,12 @@ export function Testimonials({ items }: TestimonialsProps) {
   return (
     <div className="grid gap-4 py-4 @cards:grid-cols-2">
       {rows.map((t, i) => (
-        <figure key={i} className="rounded-xl bg-white p-5 text-slate-900 shadow">
+        <figure key={i} className="rounded-xl border-t-4 border-plum-600 bg-cream p-5 text-plum-950 shadow-sm">
           <blockquote className="whitespace-pre-line">“{t.quote}”</blockquote>
           {(t.name || t.detail) && (
             <figcaption className="mt-3 text-sm">
               <span className="font-semibold">{t.name}</span>
-              {t.detail && <span className="block text-slate-600">{t.detail}</span>}
+              {t.detail && <span className="block text-plum-700">{t.detail}</span>}
             </figcaption>
           )}
         </figure>
@@ -244,14 +244,14 @@ export function CardGrid({ columns, items }: CardGridProps) {
         const src = pageImage(card.imageAssetId, "event_card");
         const href = safeHref(card.href);
         return (
-          <li key={i} className="flex flex-col overflow-hidden rounded-xl bg-white text-slate-900 shadow">
+          <li key={i} className="flex flex-col overflow-hidden rounded-xl border-t-4 border-plum-600 bg-cream text-plum-950 shadow-sm">
             {src && (
               // eslint-disable-next-line @next/next/no-img-element -- served by the media route, already sized by its preset
               <img src={src} alt={card.alt} loading="lazy" className="aspect-video w-full object-cover" />
             )}
             <div className="flex flex-1 flex-col gap-2 p-4">
               <h3 className="font-display text-lg font-semibold">{card.title}</h3>
-              {card.price && <p className="text-slate-700">{card.price}</p>}
+              {card.price && <p className="font-semibold text-plum-700">{card.price}</p>}
               {card.buttonLabel && href && (
                 <a href={href} className="mt-auto rounded-full bg-plum-600 px-4 py-2 text-center text-sm font-semibold text-white no-underline hover:bg-plum-700">
                   {card.buttonLabel}
