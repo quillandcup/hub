@@ -109,6 +109,8 @@ export interface TargetGoalRow extends GoalRowBase {
   current: number;
   percent: number;
   includesStartingBalance: boolean;
+  /** The starting balance the goal's start date leaves out of `current`; null when none is. */
+  excludedStartingBalance: number | null;
   /** The project's all-time total for this measure (starting balance included); null for prickles. */
   projectTotal: number | null;
   parTarget: number | null;

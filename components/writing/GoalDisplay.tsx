@@ -33,6 +33,7 @@ export default function GoalDisplay({ goal }: { goal: GoalRow }) {
           startDate={goal.startDate}
           projectTotal={goal.projectTotal}
           includesStartingBalance={goal.includesStartingBalance}
+          excludedStartingBalance={goal.excludedStartingBalance}
         />
       )}
     </div>

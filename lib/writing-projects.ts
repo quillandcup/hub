@@ -205,6 +205,8 @@ export interface GoalProgress {
   percent: number; // 0-100+, current/target
   /** True when `current` includes the project's starting balance (a goal with no start date). */
   includesStartingBalance: boolean;
+  /** The project's starting balance when the goal's start date leaves it out of `current`; null otherwise. */
+  excludedStartingBalance: number | null;
   /** Pace needed-to-date to finish on time, or null if the goal has no end date (nothing to pace against). */
   parTarget: number | null;
   /** True if current >= parTarget; null when parTarget is null. */
@@ -253,6 +255,7 @@ export function computeGoalProgress(input: GoalProgressInput): GoalProgress {
     target: targetAmount,
     percent,
     includesStartingBalance,
+    excludedStartingBalance: startDate && startingBalance ? startingBalance : null,
     parTarget,
     onPace: parTarget === null ? null : current >= parTarget,
     status,

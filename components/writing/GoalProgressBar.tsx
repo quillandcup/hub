@@ -13,6 +13,8 @@ interface GoalProgressBarProps {
   projectTotal?: number | null;
   /** Set when `current` includes the project's starting balance. */
   includesStartingBalance?: boolean;
+  /** The starting balance the goal's start date leaves out of `current`. */
+  excludedStartingBalance?: number | null;
   /** The goal's start date: with one, only progress logged since then counts. */
   startDate?: string | null;
 }
@@ -29,6 +31,7 @@ export default function GoalProgressBar({
   projectTotal = null,
   includesStartingBalance = false,
   startDate = null,
+  excludedStartingBalance = null,
 }: GoalProgressBarProps) {
   const clampedPercent = Math.min(100, Math.max(0, percent));
   // Pace only matters while the goal is running.
@@ -79,6 +82,12 @@ export default function GoalProgressBar({
               . Project total: {projectTotal.toLocaleString()} {MEASURE_LABELS[measure].toLowerCase()}
             </>
           )}
+        </p>
+      )}
+      {startDate && excludedStartingBalance !== null && (
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          Your starting {excludedStartingBalance.toLocaleString()} {MEASURE_LABELS[measure].toLowerCase()} aren&apos;t counted
+          because this goal is for what you log in a specific time frame. Clear the start date to count them.
         </p>
       )}
       {status === "achieved" ? (
