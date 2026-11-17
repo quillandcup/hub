@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, Copy, Equal, Eye, EyeOff, Folder, Globe, GripVertical, History, Link, MessageSquare, Pencil, Plus, RotateCcw, TextCursorInput, Trash2, Video, type LucideIcon } from "lucide-react";
+import { ChevronDown, ChevronUp, Copy, Equal, Eye, Folder, Globe, GripVertical, History, Link, Lock, MessageSquare, Pencil, Plus, RotateCcw, TextCursorInput, Trash2, Video, type LucideIcon } from "lucide-react";
 
 /**
  * THE icon set: one name per meaning, drawn by `lucide-react`. Every admin list, builder and editor uses the same icon for
@@ -28,10 +28,10 @@ export const ICONS = {
   down: ChevronDown,
   /** Throw the draft away and start over from what is published. Not `undo`: that one steps back one edit. */
   reset: RotateCcw,
-  /** Make it available to members or the public. */
+  /** Visible to others (members or the public): the globe. The writing visibility toggles use 🌐 for the same meaning. */
   publish: Globe,
-  /** Take it back down. */
-  unpublish: EyeOff,
+  /** Back to only you or staff (a draft, private): the lock, as 🔒 on the writing visibility toggles and "Only you can see this". */
+  unpublish: Lock,
   /** Earlier versions of something. */
   history: History,
 } satisfies Record<string, LucideIcon>;
