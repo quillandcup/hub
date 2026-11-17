@@ -39,6 +39,8 @@ const dateTime = (label: string): Field => ({
   render: ({ value, onChange }) => <ZonedDateTimeField label={label} value={(value as string) ?? ""} onChange={onChange} />,
 });
 
+const link = (label: string): Field => ({ type: "object", label, objectFields: { label: text("Button label"), href: text("Link (https://, or a path on this site)") } });
+
 const LOOK = select("Style", opts("solid", "outline"));
 const COLOR = select("Colour", opts("plum", "light", "brown"));
 
@@ -92,6 +94,39 @@ const FIELDS: Record<string, Fields> = {
   Divider: { look: select("Style", [{ label: "Short line", value: "short" }, { label: "Full line", value: "line" }]) },
   Spacer: { size: select("Size", opts("small", "medium", "large")) },
   Video: { url: text("YouTube, Vimeo or Mux link"), title: text("Title (for screen readers)") },
+  Hero: {
+    headline: text("Headline"),
+    level: select("Headline is", [{ label: "Page title (h1)", value: "h1" }, { label: "Section heading (h2), when the page has a title already", value: "h2" }]),
+    subhead: area("Line under the headline"),
+    primary: link("Main button"),
+    secondary: link("Second button (optional)"),
+    imageAssetId: image("Picture (optional)"),
+    imageMode: select("Show the picture", [{ label: "Behind the words", value: "background" }, { label: "Beside the words", value: "side" }]),
+    overlay: select("Shade over a picture behind the words", [
+      { label: "None", value: "none" },
+      { label: "Dark (light text)", value: "dark" },
+      { label: "Light (dark text)", value: "light" },
+    ]),
+    alt: text("Describe the picture, when it is beside the words (for screen readers)"),
+    decorative: toggle("Decoration only, no description needed"),
+    background: select("Background colour", BACKGROUND_OPTIONS),
+    align: select("Text alignment", opts("left", "center")),
+  },
+  Steps: {
+    heading: text("Heading above the steps (optional)"),
+    items: { type: "array", label: "Steps (2 to 5)", max: 5, arrayFields: { title: text("Title"), text: area("Short text") }, defaultItemProps: { title: "New step", text: "" }, getItemSummary: (i) => i.title || "Step" },
+  },
+  Stats: {
+    items: { type: "array", label: "Figures (2 to 4, typed in by hand)", max: 4, arrayFields: { value: text("Figure (for example 1,000 or 24/7)"), label: text("What it counts") }, defaultItemProps: { value: "0", label: "" }, getItemSummary: (i) => i.value || "Figure" },
+  },
+  CtaBanner: {
+    heading: text("Heading"),
+    text: area("Line under the heading (optional)"),
+    label: text("Button label"),
+    href: text("Button link (https://, or a path on this site)"),
+    background: select("Background colour", BACKGROUND_OPTIONS.filter((o) => o.value !== "none")),
+    align: select("Text alignment", opts("left", "center")),
+  },
   OptInForm: {
     kajabiFormId: text("Kajabi form (its id: Kajabi, Marketing, Forms; the sign-up goes into that form)"),
     instagramField: select("Ask for an Instagram handle, and keep it in", [

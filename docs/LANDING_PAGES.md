@@ -43,7 +43,14 @@ Pictures come from the media library through the same `MediaPicker` (surface `la
 
 ## Blocks
 
-Section (background colour or picture with a shade, width, space, optional white card, fade in; holds other blocks), Text (rich), Heading, Button (solid or outline, pill or rectangle, three colours), Image, Image and text (reversible), List (emoji or check markers), Testimonials, FAQ (native `details`), Countdown (an instant stored in UTC, entered as a wall time in `ORG_TIMEZONE`; at zero: a message, nothing, or zeros; fixed-size cells, no layout shift, read as one labelled timer), Card grid (image, title, price, button; up to 2, 3 or 4 columns by the room), Link list, Divider, Spacer, Video. The page frame has optional header (logo, links) and footer (text, links) as root fields.
+Section (background colour or picture with a shade, width, space, optional white card, fade in; holds other blocks), Text (rich), Heading, Button (solid or outline, pill or rectangle, three colours), Image, Image and text (reversible), List (emoji or check markers), Testimonials, FAQ (native `details`), Countdown (an instant stored in UTC, entered as a wall time in `ORG_TIMEZONE`; at zero: a message, nothing, or zeros; fixed-size cells, no layout shift, read as one labelled timer), Card grid (image, title, price, button; up to 2, 3 or 4 columns by the room), Link list, Divider, Spacer, Video. Four ready-made blocks (the "Ready-made" group) save assembling the common ones from Section, Heading, Text and Button; they are static, with no data behind them:
+
+- **Hero**: headline (the page title, `h1`, by default; `h2` when the page already has one), a line under it, a main and an optional second button (`primary` and `secondary`, each `{ label, href }`, so `href` is cleaned wherever it sits), an optional picture behind the words (with a shade, like Section) or beside them (needs a description, or "decoration only"), on a theme colour, left or centred.
+- **Steps**: two to five numbered steps (title, short text) under an optional heading; stacked on a narrow page, side by side with room. Titles are `h3` under its own heading and `h2` without one, and the checks count them the same way.
+- **Stats**: two to four figures with a label, typed by hand (a description list). Live figures from the Hub are a later step (`docs/TODO.md`).
+- **Call-to-action banner**: heading, a line and one button on a theme colour (not the page colour); the button flips to the light style on a dark band.
+
+Text colours in all four follow theme.ts; there is no colour picker. The page frame has optional header (logo, links) and footer (text, links) as root fields.
 
 ### Adding a block
 
