@@ -1,5 +1,6 @@
 import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 import { isMembershipOffer } from "@/lib/membership";
 import { buildMembershipStints, fetchStripeTrialInfoByEmail, isRealMembershipStint } from "@/lib/kajabi/membership-history";
 import { computeMemberTenure, computeActiveDays, type HiatusWindow } from "@/lib/member-tenure";
@@ -106,8 +107,10 @@ export async function POST(request: NextRequest) {
     // (Kajabi's created_at_kajabi is when a trial *started*, not when it
     // converted to a real transaction) and why it's keyed by email rather
     // than Kajabi customer ID (survives Kajabi-side contact merges).
+    // Stripe invoices and charges are service role only (no admin grant), so this read uses the
+    // service role; the caller was verified as an admin by requireAdmin above.
     const stripeTrialInfoByEmail = await fetchStripeTrialInfoByEmail(
-      createRepos(supabase),
+      createRepos(createServiceRoleClient()),
       Array.from(aliasMap, ([alias_email, canonical_email]) => ({ alias_email, canonical_email }))
     );
 
