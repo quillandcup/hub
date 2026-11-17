@@ -56,6 +56,22 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "compliance-page",
+    date: "2026-11-17",
+    audience: "product",
+    category: "new",
+    title: "See which privacy, payment and accessibility standards the Hub follows",
+    summary: "A new Compliance page lists the standards we follow, the ones our providers handle for us, and the ones we are still working toward.",
+    body: `The new [Compliance page](/compliance) is one place to see how the Hub treats your information and which standards it follows.
+
+- **Privacy.** What we do for members in the EU, the EEA and the UK, and for everyone else, with a link to the full [Privacy page](/privacy).
+- **Payments.** Card details never reach the Hub. Our payment provider, Stripe, handles them and holds the card-security certification.
+- **Accessibility.** The checks we run so the Hub works for as many people as possible, and what we haven't finished yet.
+- **Honest about gaps.** Each line says whether it is in place, handled by a provider, still in progress or not yet reviewed.
+
+You'll find it in the footer, next to Privacy.`,
+  },
+  {
     slug: "kbd-shortcut-hints",
     date: "2026-11-17",
     audience: "engineering",
