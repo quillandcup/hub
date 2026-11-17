@@ -9,7 +9,7 @@ import {
   computeCumulativeHiatusMonths,
   isCurrentlyOnHiatus,
   nextHedgieversaryDate,
-  resolveHedgieversaryClock,
+  toInactivePeriods,
   type HiatusWindow,
 } from "@/lib/member-tenure";
 import HedgieversariesTable, { type HedgieversaryRow } from "./HedgieversariesTable";
@@ -48,10 +48,9 @@ export default async function HedgieversariesPage() {
   const rows: HedgieversaryRow[] = members.map((m) => {
     const windows = hiatusWindowsByMember.get(m.id) ?? [];
     const cumulativeHiatusMonths = computeCumulativeHiatusMonths(windows, now);
-    const clock = resolveHedgieversaryClock(m.firstJoinedAt!, windows, m.inactivePeriods);
     const { nextDate, milestoneMonths, recentDate, recentMilestoneMonths } = nextHedgieversaryDate(
-      clock.startDate,
-      clock.periods,
+      m.firstJoinedAt!,
+      toInactivePeriods(windows, m.inactivePeriods),
       isCurrentlyOnHiatus(windows, now),
       now
     );
@@ -70,8 +69,6 @@ export default async function HedgieversariesPage() {
       recentMilestoneMonths,
       cumulativeHiatusMonths,
       hiatusWindows: windows,
-      countedFrom: clock.restartedAt,
-      returns: clock.returns,
     };
   });
 

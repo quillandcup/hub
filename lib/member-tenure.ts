@@ -138,10 +138,7 @@ export function computeMemberTenure(
 // calendarMonthsBetween). Display only: the milestone dates use the same
 // merged periods through inactiveShiftMonths.
 export function computeCumulativeHiatusMonths(hiatusWindows: HiatusWindow[], asOf: Date): number {
-  return mergeInactivePeriods(
-    hiatusWindows.map((w) => ({ start: toDateOnly(w.startsAt), end: w.endsAt ? toDateOnly(w.endsAt) : null })),
-    asOf
-  ).reduce(
+  return mergeInactivePeriods(toInactivePeriods(hiatusWindows, null), asOf).reduce(
     (sum, period) => sum + period.months,
     0
   );
@@ -198,61 +195,19 @@ export function computeInactiveGaps(
     .sort((a, b) => a.start.localeCompare(b.start));
 }
 
-// A cancel/resubscribe gap of at least this many days counts as a RETURN: the
-// member left and came back, and their Hedgieversary count starts again from
-// the day they came back (staff decision). A shorter gap is a billing blip: it
-// restarts nothing and adds no inactive time. This is a business rule rather
-// than deployment config, so it is a constant here and not in app.config.ts.
-// The stored gaps (members.inactive_periods) keep every gap, so changing this
-// takes effect without reprocessing.
-export const RETURN_GAP_MIN_DAYS = 60;
-
-function dayDiff(start: string, end: string): number {
-  return Math.round((new Date(`${end}T00:00:00Z`).getTime() - new Date(`${start}T00:00:00Z`).getTime()) / MS_PER_DAY);
-}
-
-// What a member's Hedgieversary count is measured from, and which hiatus
-// periods shift it.
-export interface HedgieversaryClock {
-  // Where the milestones count from: first joined, or the resubscribe date of
-  // the latest return.
-  startDate: string;
-  // How many returns (gaps of RETURN_GAP_MIN_DAYS or more) the member has had.
-  returns: number;
-  // The latest return's date when the count restarted, else null.
-  restartedAt: string | null;
-  // Hiatus periods that began on or after startDate (an earlier hiatus belongs
-  // to an earlier stint, whose milestones were already celebrated).
-  periods: InactivePeriod[];
-}
-
-// Works out the clock from the first-joined date, the hiatus windows and the
-// stored cancel/resubscribe gaps (null = never computed: no returns known, so
-// hiatus only). A hiatus never restarts the count; it only pushes later
-// milestones out. Gaps with no end are ignored (a stored gap always ends at
-// the resubscribe date).
-export function resolveHedgieversaryClock(
-  firstJoinedAt: string,
+// Hiatus windows plus the stored gaps, as one list of periods. `gaps` null
+// (never computed) means hiatus only.
+export function toInactivePeriods(
   hiatusWindows: HiatusWindow[],
   gaps: InactivePeriod[] | null | undefined
-): HedgieversaryClock {
-  const returnsDates = (gaps ?? [])
-    .filter((g): g is { start: string; end: string } => g.end !== null && dayDiff(g.start, g.end) >= RETURN_GAP_MIN_DAYS)
-    .map((g) => g.end)
-    .sort();
-  const restartedAt = returnsDates.length > 0 ? returnsDates[returnsDates.length - 1] : null;
-  const startDate = restartedAt ?? firstJoinedAt;
-  const periods = hiatusWindows
-    .map((w) => ({ start: toDateOnly(w.startsAt), end: w.endsAt ? toDateOnly(w.endsAt) : null }))
-    .filter((p) => p.start >= startDate);
-  return { startDate, returns: returnsDates.length, restartedAt, periods };
-}
-
-// "second time around" for a member's first return, then "third time around"...
-export function roundLabel(returns: number): string | null {
-  if (returns <= 0) return null;
-  const ordinals = ["second", "third", "fourth", "fifth"];
-  return `${ordinals[returns - 1] ?? `#${returns + 1}`} time around`;
+): InactivePeriod[] {
+  return [
+    ...hiatusWindows.map((w) => ({
+      start: toDateOnly(w.startsAt),
+      end: w.endsAt ? toDateOnly(w.endsAt) : null,
+    })),
+    ...(gaps ?? []),
+  ];
 }
 
 function utcDate(dateOnly: string): Date {
@@ -353,10 +308,7 @@ export interface NextHedgieversary {
 // shifted forward by the milestone (6 months, then yearly) plus the *inactive*
 // time (hiatus + cancel/resubscribe gaps, see milestoneDate) that happened
 // before that milestone, so the date reflects real elapsed *active* time
-// rather than raw calendar time since first joining. `firstJoinedAt` is where
-// the count starts (a returning member's start is their latest return, see
-// resolveHedgieversaryClock) and `inactivePeriods` are the hiatus periods
-// after it. A member
+// rather than raw calendar time since first joining. A member
 // currently mid-hiatus isn't accruing active time right now regardless of
 // whether the hiatus has a known return date — celebrating/surfacing a
 // projected date for someone who's paused doesn't make sense until they're
