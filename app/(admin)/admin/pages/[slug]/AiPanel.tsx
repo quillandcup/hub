@@ -43,7 +43,7 @@ export function AiPanelView({ generate, revise, getContent, onAdd, onReplace }: 
   const [mode, setMode] = useState<Mode>("add");
   const [prompt, setPrompt] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<{ count: number; notes: A11yIssue[] } | null>(null);
+  const [done, setDone] = useState<{ count: number; notes: A11yIssue[]; summary?: string } | null>(null);
   const [pending, start] = useTransition();
 
   function run() {
@@ -54,7 +54,7 @@ export function AiPanelView({ generate, revise, getContent, onAdd, onReplace }: 
       if (result.error || !result.blocks) return setError(result.error ?? "Couldn't build that. Try again.");
       if (mode === "add") onAdd(result.blocks);
       else onReplace(result.blocks);
-      setDone({ count: result.blocks.length, notes: result.notes ?? [] });
+      setDone({ count: result.blocks.length, notes: result.notes ?? [], summary: result.summary });
       setPrompt("");
     });
   }
@@ -106,9 +106,19 @@ export function AiPanelView({ generate, revise, getContent, onAdd, onReplace }: 
       {done && (
         <div role="status" className="space-y-1">
           <p>
-            {mode === "add" ? `Added ${done.count} ${done.count === 1 ? "block" : "blocks"} at the end of the page.` : `Changed the page. It now has ${done.count} top-level ${done.count === 1 ? "block" : "blocks"}. Undo brings the old one back.`}
+            {mode === "add" ? `Added ${done.count} ${done.count === 1 ? "block" : "blocks"} at the end of the page.` : "Changed the page. Undo brings the old version back."}
+            {done.summary ? ` ${done.summary}` : ""}
           </p>
-          {done.notes.length > 0 && <p className="text-xs text-slate-600 dark:text-slate-400">Still to fix: {done.notes.map((n) => n.message).join(" ")}</p>}
+          {done.notes.length > 0 && (
+            <div className="text-xs text-slate-600 dark:text-slate-400">
+              <p>To check:</p>
+              <ul className="list-disc pl-4">
+                {[...new Set(done.notes.map((n) => n.message))].map((message) => (
+                  <li key={message}>{message}</li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
     </div>

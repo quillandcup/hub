@@ -81,7 +81,7 @@ const FIELDS: Record<string, Fields> = {
     items: {
       type: "array",
       label: "Cards",
-      arrayFields: { imageAssetId: image("Picture"), alt: text("Describe the picture"), title: text("Title"), price: text("Price"), buttonLabel: text("Button label"), href: text("Button link") },
+      arrayFields: { imageAssetId: image("Picture"), alt: text("Describe the picture"), icon: text("Icon (an emoji)"), title: text("Title"), description: area("Short description"), price: text("Price"), buttonLabel: text("Button label"), href: text("Button link") },
       defaultItemProps: { alt: "", title: "New card", price: "", buttonLabel: "Buy now", href: "" },
       getItemSummary: (i) => i.title || "Card",
     },

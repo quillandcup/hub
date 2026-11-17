@@ -232,7 +232,7 @@ export function CountdownBlock({ targetAt, heading, whenExpired, expiredMessage 
 
 // ---- Card grid -----------------------------------------------------------------------------------------------
 
-export type CardGridProps = { columns: "2" | "3" | "4"; items: { imageAssetId?: string; alt: string; title: string; price: string; buttonLabel: string; href: string }[] };
+export type CardGridProps = { columns: "2" | "3" | "4"; items: { imageAssetId?: string; alt: string; icon?: string; title: string; description?: string; price: string; buttonLabel: string; href: string }[] };
 const GRID = { "2": "@pair:grid-cols-2", "3": "@pair:grid-cols-2 @cards:grid-cols-3", "4": "@pair:grid-cols-2 @cards:grid-cols-3 @columns:grid-cols-4" } as const;
 
 /** Cards that wrap into rows; the number of columns is the most the room allows (container queries), up to `columns`. */
@@ -251,7 +251,13 @@ export function CardGrid({ columns, items }: CardGridProps) {
               <img src={src} alt={card.alt} loading="lazy" className="aspect-video w-full object-cover" />
             )}
             <div className="flex flex-1 flex-col gap-2 p-4">
+              {card.icon && (
+                <span aria-hidden="true" className="text-3xl leading-none">
+                  {card.icon}
+                </span>
+              )}
               <h3 className="font-display text-lg font-semibold">{card.title}</h3>
+              {card.description && <p className="text-sm">{card.description}</p>}
               {card.price && <p className="font-semibold text-accent-ink">{card.price}</p>}
               {card.buttonLabel && href && (
                 <a href={href} className="mt-auto rounded-full bg-plum-600 px-4 py-2 text-center text-sm font-semibold text-white no-underline hover:bg-plum-700">

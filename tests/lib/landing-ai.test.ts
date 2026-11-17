@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AI_BLOCKS, cleanGeneratedBlocks, completeWithClaude, generateLandingPage, pageForModel, reviseLandingPage, systemPrompt } from "@/lib/landing/ai";
+import { AI_BLOCKS, cleanGeneratedBlocks, cleanSummary, newIssues, completeWithClaude, generateLandingPage, pageForModel, reviseLandingPage, systemPrompt } from "@/lib/landing/ai";
 import { PROMPT_MAX } from "@/lib/landing/ai-limits";
 import { ANTHROPIC } from "@/lib/config";
 import { BLOCK_DEFAULTS } from "@/components/landing/config";
@@ -30,7 +30,7 @@ describe("cleanGeneratedBlocks", () => {
     expect(content(data).map((b) => b.type)).toEqual(["Heading"]);
     expect(content(data)[0].props).not.toHaveProperty("onClick");
     expect(JSON.stringify(data)).not.toContain("med_x");
-    for (const type of ["Testimonials", "OptInForm", "Image", "Split", "Countdown", "Video", "CardGrid"]) expect(AI_BLOCKS).not.toContain(type);
+    for (const type of ["Testimonials", "OptInForm", "Image", "Split", "Countdown", "Video"]) expect(AI_BLOCKS).not.toContain(type);
   });
 
   it("replaces a value outside the options or of the wrong kind with the default", () => {
@@ -137,7 +137,7 @@ describe("completeWithClaude", () => {
     expect(headers["x-api-key"]).toBe("test-key");
     expect(headers["User-Agent"]).toContain("HedgieHub");
     const body = JSON.parse(String(init.body));
-    expect(body).toMatchObject({ model: ANTHROPIC.landingPageModel, tool_choice: { type: "auto" }, messages: [{ role: "user", content: "prompt" }] });
+    expect(body).toMatchObject({ model: ANTHROPIC.landingPageModel, tool_choice: { type: "auto" }, output_config: { effort: "medium" }, thinking: { type: "adaptive" }, messages: [{ role: "user", content: "prompt" }] });
   });
 
   it("puts Anthropic's error type and message in the thrown error, and copes with a body that isn't JSON", async () => {
@@ -153,6 +153,52 @@ describe("completeWithClaude", () => {
     await expect(completeWithClaude("s", "p")).rejects.toThrow("500");
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ content: [] }), { status: 200 })));
     await expect(completeWithClaude("s", "p")).rejects.toThrow("no tool call");
+  });
+});
+
+describe("cards", () => {
+  it("offers cards with an icon and a description, and no sample price or button", () => {
+    const data = cleanGeneratedBlocks({ blocks: [{ type: "CardGrid", props: { columns: "3", items: [{ icon: "🤝", title: "Community", description: "Kind company.", imageAssetId: "med_x", price: "$5" }, { title: "Education", description: "Craft." }] } }] });
+    const [grid] = content(data);
+    const items = grid.props.items as Record<string, unknown>[];
+    expect(items).toHaveLength(2);
+    expect(items[0]).toMatchObject({ icon: "🤝", title: "Community", description: "Kind company." });
+    expect(items[1]).toMatchObject({ price: "", buttonLabel: "", href: "" });
+    expect(JSON.stringify(data)).not.toContain("med_x");
+    expect(systemPrompt("add")).toContain("CardGrid");
+  });
+
+  it("keeps a card grid that has pictures exactly as it is, since the model never sees the pictures", () => {
+    const current = [{ type: "CardGrid", props: { id: "cg", columns: "3", items: [{ imageAssetId: "med_pic", alt: "A desk", title: "Old", price: "$1", buttonLabel: "", href: "" }] } }];
+    const data = cleanGeneratedBlocks({ blocks: [{ id: "cg", type: "CardGrid", props: { items: [{ title: "New" }] } }] }, current);
+    expect(content(data)).toEqual([{ type: "CardGrid", props: current[0].props }]);
+    expect(JSON.stringify(pageForModel(current))).toContain('"locked":true');
+  });
+});
+
+describe("what is reported back", () => {
+  const issue = (message: string) => ({ severity: "error" as const, block: "Button", message });
+  it("lists only the problems a change added, counting repeats", () => {
+    const before = [issue("A button needs a link."), issue("A button needs a link.")];
+    const after = [issue("A button needs a link."), issue("A button needs a link."), issue("A button needs a link."), issue("New problem.")];
+    expect(newIssues(after, before).map((i) => i.message)).toEqual(["A button needs a link.", "New problem."]);
+  });
+
+  it("reads the model's summary as one short plain line, or nothing", () => {
+    expect(cleanSummary({ summary: "  Shortened\nthe intro.  " })).toBe("Shortened the intro.");
+    expect(cleanSummary({ summary: 5 })).toBeUndefined();
+    expect(cleanSummary({ summary: "x".repeat(500) })?.length).toBe(300);
+  });
+
+  it("passes the summary through and does not blame a change for the page's old problems", async () => {
+    const current = [{ type: "Button", props: { id: "b1", label: "Join us", href: "" } }];
+    const complete = vi.fn().mockResolvedValue({ summary: "Made it shorter.", blocks: [{ id: "b1", type: "Button", props: { label: "Join us" } }] });
+    const result = await reviseLandingPage("shorter", current, complete);
+    expect(result).toMatchObject({ ok: true, summary: "Made it shorter.", issues: [] });
+    const built = await generateLandingPage("a page", vi.fn().mockResolvedValue({ summary: "Built it.", blocks: [{ type: "Heading", props: { text: "Hi" } }] }));
+    expect(built).toMatchObject({ ok: true, summary: "Built it." });
+    const added = await generateLandingPage("a faq", vi.fn().mockResolvedValue({ blocks: [{ type: "Heading", props: { text: "Hi", level: "h2" } }] }), "add");
+    expect(added.ok && added.issues.some((i) => i.block === "Page")).toBe(false);
   });
 });
 
