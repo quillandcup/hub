@@ -18,7 +18,7 @@ export type OptInFormProps = {
 };
 
 const INPUT =
-  "mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 placeholder:text-slate-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-600";
+  "mt-1 block w-full rounded-md border border-ink-muted bg-card px-3 py-2 text-base text-ink placeholder:text-ink-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-600";
 
 /** The page's address, read in the browser: the relay finds the form in the published page by it. Null in the editor and the preview. */
 function publicSlug(): string | null {

@@ -48,7 +48,7 @@ export function Section({ background: bg, backgroundImageAssetId, overlay, width
   const theme = background(bg);
   const image = pageImage(backgroundImageAssetId, "event_hero");
   // Over a picture, readable text follows the overlay (the editor warns when there is none); without one, the colour's own.
-  const text = image && overlay === "dark" ? "text-white" : image && overlay === "light" ? "text-slate-900" : theme.text;
+  const text = image && overlay === "dark" ? "text-white" : image && overlay === "light" ? "text-ink" : theme.text;
   const scope = image ? (overlay === "light" ? "landing-light" : "") : theme.scope;
   return (
     <section
@@ -58,7 +58,7 @@ export function Section({ background: bg, backgroundImageAssetId, overlay, width
       {image && overlay !== "none" && <div aria-hidden="true" className={`absolute inset-0 ${OVERLAY[overlay]}`} />}
       <div className={`relative mx-auto px-4 ${pick(WIDTHS, width, "wide").cls} ${alignClass(align === "center" ? "center" : "left")}`}>
         {card ? (
-          <div className="rounded-xl bg-white p-6 text-slate-900 shadow-lg dark:bg-slate-900 dark:text-slate-100 @pair:p-10">
+          <div className="rounded-xl bg-card p-6 text-ink shadow-lg @pair:p-10">
             <Content />
           </div>
         ) : (
@@ -88,7 +88,7 @@ export function Heading({ text, level, align }: HeadingProps) {
 export type ButtonProps = { label: string; href: string; look: "solid" | "outline"; color: "plum" | "light" | "brown"; shape: "pill" | "rect"; align: "left" | "center" | "right"; full: boolean };
 const BUTTON_COLORS = {
   solid: { plum: "bg-plum-600 text-white hover:bg-plum-700", light: "bg-cream text-plum-900 hover:bg-white", brown: "bg-brown text-white hover:bg-brown-deep" },
-  outline: { plum: "border-2 border-current text-plum-700 hover:bg-plum-50 dark:text-plum-300 dark:hover:bg-white/10", light: "border-2 border-current text-cream hover:bg-white/10", brown: "border-2 border-current text-brown hover:bg-cream dark:text-beige dark:hover:bg-white/10" },
+  outline: { plum: "border-2 border-current text-accent-ink hover:bg-accent/10", light: "border-2 border-current text-cream hover:bg-white/10", brown: "border-2 border-current text-warm hover:bg-accent/10" },
 } as const;
 const JUSTIFY = { left: "text-left", center: "text-center", right: "text-right" } as const;
 
@@ -178,12 +178,12 @@ export function Testimonials({ items }: TestimonialsProps) {
   return (
     <div className="grid gap-4 py-4 @cards:grid-cols-2">
       {rows.map((t, i) => (
-        <figure key={i} className="rounded-xl border-t-4 border-plum-600 bg-cream p-5 text-plum-950 shadow-sm dark:border-plum-500 dark:bg-slate-900 dark:text-slate-100">
+        <figure key={i} className="rounded-xl border-t-4 border-accent bg-tile p-5 text-ink shadow-sm">
           <blockquote className="whitespace-pre-line">“{t.quote}”</blockquote>
           {(t.name || t.detail) && (
             <figcaption className="mt-3 text-sm">
               <span className="font-semibold">{t.name}</span>
-              {t.detail && <span className="block text-plum-700 dark:text-slate-300">{t.detail}</span>}
+              {t.detail && <span className="block text-ink-muted">{t.detail}</span>}
             </figcaption>
           )}
         </figure>
@@ -245,14 +245,14 @@ export function CardGrid({ columns, items }: CardGridProps) {
         const src = pageImage(card.imageAssetId, "event_card");
         const href = safeHref(card.href);
         return (
-          <li key={i} className="flex flex-col overflow-hidden rounded-xl border-t-4 border-plum-600 bg-cream text-plum-950 shadow-sm dark:border-plum-500 dark:bg-slate-900 dark:text-slate-100">
+          <li key={i} className="flex flex-col overflow-hidden rounded-xl border-t-4 border-accent bg-tile text-ink shadow-sm">
             {src && (
               // eslint-disable-next-line @next/next/no-img-element -- served by the media route, already sized by its preset
               <img src={src} alt={card.alt} loading="lazy" className="aspect-video w-full object-cover" />
             )}
             <div className="flex flex-1 flex-col gap-2 p-4">
               <h3 className="font-display text-lg font-semibold">{card.title}</h3>
-              {card.price && <p className="font-semibold text-plum-700 dark:text-plum-300">{card.price}</p>}
+              {card.price && <p className="font-semibold text-accent-ink">{card.price}</p>}
               {card.buttonLabel && href && (
                 <a href={href} className="mt-auto rounded-full bg-plum-600 px-4 py-2 text-center text-sm font-semibold text-white no-underline hover:bg-plum-700">
                   {card.buttonLabel}
@@ -376,7 +376,7 @@ export function Hero({ headline, level, subhead, primary, secondary, imageAssetI
   const shade = asBackground ? pick(OVERLAY, overlay, "dark") : "";
   // Over a picture, readable text follows the shade (the editor warns when there is none); otherwise the colour's own.
   const dark = asBackground && overlay !== "none" ? overlay === "dark" : theme.dark;
-  const text = asBackground && overlay === "dark" ? "text-white" : asBackground && overlay === "light" ? "text-slate-900" : theme.text;
+  const text = asBackground && overlay === "dark" ? "text-white" : asBackground && overlay === "light" ? "text-ink" : theme.text;
   const scope = asBackground ? (overlay === "light" ? "landing-light" : "") : theme.scope;
   const Tag = level === "h2" ? "h2" : "h1";
   const centered = align === "center";

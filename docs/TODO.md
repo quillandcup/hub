@@ -1795,6 +1795,14 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 ## UI Enhancements
 
+### Move the app's colours onto the semantic tokens _(Needs Scheduling)_
+
+The landing pages take their colours from semantic tokens (`bg-page`, `bg-card`, `bg-tile`, `text-ink`, `text-ink-muted`, `border-accent`, `text-accent-ink`, `text-warm`): light and dark values are defined once as `--lp-*` in `app/globals.css` and named in `tailwind.config.ts`, so one edit retunes every page. The rest of the app does not do this, light or dark: surfaces and text are hard-coded Tailwind classes, each with its own `dark:` twin (about 1,300 `text-slate-600`, 600 `bg-white`, 420 `border-slate-200`, 360 `text-slate-900`, 80 `bg-slate-50`, plus the `dark:bg-slate-900/800/700/950` counterparts), and `--background` / `--foreground` are barely used. Deferred because a codemod over thousands of class uses is a risky single PR. Start by deciding whether the app shares the landing tokens (renaming them off the `lp` prefix) or gets its own set, then convert one shared component or page area at a time (cards, tables, form fields first), keeping both modes visually identical to today.
+
+### Keep new code on the tokens _(Needs Scheduling)_
+
+Once the app is moving onto the semantic tokens (see the entry above), add a guard so new code does not write another raw `bg-white dark:bg-slate-900` pair: an ESLint rule or a test like `tests/lib/landing-theme-tokens.test.ts` (which already does this for the landing blocks), with an allowlist of files not yet converted that shrinks as they move. Deferred until the tokens cover enough of the app that the rule would not flag most of it.
+
 ### Standardize action icons across admin lists _(Needs Scheduling)_
 
 The shared icon set is `components/Icon.tsx` (moved out of the course builder): edit is a pencil, preview an eye, duplicate a copy, delete a trash can, copy link a link. The course builder and the Pages list use it. Other admin tables and lists still spell actions as text links or draw their own inline SVGs (grep for `<svg` and for action columns in `app/(admin)/admin/`). Deferred to keep this change small; convert them one table at a time, keep an accessible name on every icon-only control, and add any missing glyph to `ICONS` instead of drawing it in the page.

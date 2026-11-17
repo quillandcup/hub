@@ -14,6 +14,42 @@
   --foreground: #ededed;
 }
 
+/* Landing page colours (components/landing, docs/LANDING_PAGES.md): semantic tokens as "r g b" channels, so Tailwind can add opacity.
+   The page follows the theme; `.landing-light` is a band that stays light in dark mode (a white or cream band), so it sets the light values again.
+   page: the page behind everything. card: a white panel (header, boxed section). tile: a testimonial or product card.
+   ink / ink-muted: text and its quieter form. accent: a line or bar. accent-ink: accent text (a price, an outline button). warm: the brown outline. */
+:root,
+.landing-light {
+  --lp-page: 244 242 243; /* canvas */
+  --lp-card: 255 255 255;
+  --lp-tile: 244 236 232; /* cream */
+  --lp-ink: 15 23 42; /* slate-900 */
+  --lp-ink-muted: 139 62 100; /* plum-700 */
+  --lp-accent: 166 77 121; /* plum-600 */
+  --lp-accent-ink: 139 62 100; /* plum-700 */
+  --lp-warm: 142 88 61; /* brown */
+}
+.dark {
+  --lp-page: 2 6 23; /* slate-950, as the app's dark pages */
+  --lp-card: 15 23 42; /* slate-900 */
+  --lp-tile: 15 23 42;
+  --lp-ink: 241 245 249; /* slate-100 */
+  --lp-ink-muted: 203 213 225; /* slate-300 */
+  --lp-accent: 182 90 136; /* plum-500 */
+  --lp-accent-ink: 220 164 192; /* plum-300 */
+  --lp-warm: 193 157 133; /* beige */
+}
+.dark .landing-light {
+  --lp-page: 244 242 243;
+  --lp-card: 255 255 255;
+  --lp-tile: 244 236 232;
+  --lp-ink: 15 23 42;
+  --lp-ink-muted: 139 62 100;
+  --lp-accent: 166 77 121;
+  --lp-accent-ink: 139 62 100;
+  --lp-warm: 142 88 61;
+}
+
 body {
   color: var(--foreground);
   background: var(--background);

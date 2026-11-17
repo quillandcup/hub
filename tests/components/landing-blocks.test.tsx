@@ -26,9 +26,8 @@ describe("PageFrame", () => {
   it("is the brand page, light or dark with the theme, and not the app's grey", () => {
     const { container } = render(<PageFrame>content</PageFrame>);
     const frame = container.firstElementChild!;
-    expect(frame.className).toContain("bg-canvas");
-    expect(frame.className).toContain("dark:bg-slate-950");
-    expect(frame.className).toContain("dark:text-slate-100");
+    expect(frame.className).toContain("bg-page");
+    expect(frame.className).toContain("text-ink");
     expect(frame.className).not.toContain("bg-background");
   });
 
@@ -37,7 +36,7 @@ describe("PageFrame", () => {
     expect(light.container.querySelector("section")!.className).toContain("landing-light");
     const page = render(<Section {...sectionProps} background="none" content={() => <p>x</p>} />);
     expect(page.container.querySelector("section")!.className).not.toContain("landing-light");
-    expect(page.container.querySelector("section")!.className).toContain("dark:text-slate-100");
+    expect(page.container.querySelector("section")!.className).toContain("text-ink");
     const plum = render(<Section {...sectionProps} background="plum" content={() => <p>x</p>} />);
     expect(plum.container.querySelector("section")!.className).not.toContain("landing-light");
   });
@@ -60,7 +59,7 @@ describe("Section", () => {
     expect(band.className).toContain("text-white");
     expect(band.className).toContain("landing-fade-in");
     expect(band.style.backgroundImage).toContain("/api/media/media_AAAAAAAAAAA1/");
-    expect(screen.getByText("inside").parentElement!.className).toContain("bg-white");
+    expect(screen.getByText("inside").parentElement!.className).toContain("bg-card");
   });
 });
 
@@ -143,9 +142,9 @@ describe("lists of things", () => {
     expect(screen.getByText(/Loved it/)).toBeInTheDocument();
     expect(screen.getByText("Ada Example")).toBeInTheDocument();
     const card = screen.getByText(/Loved it/).closest("figure")!;
-    expect(card.className).toContain("bg-cream");
-    expect(card.className).toContain("border-plum-600");
-    expect(screen.getByText("Member since 2024").className).toContain("text-plum-700");
+    expect(card.className).toContain("bg-tile");
+    expect(card.className).toContain("border-accent");
+    expect(screen.getByText("Member since 2024").className).toContain("text-ink-muted");
   });
 
   it("answers questions with native disclosure elements", () => {
@@ -167,8 +166,8 @@ describe("lists of things", () => {
     expect(container.querySelector("ul")!.className).toContain("@columns:grid-cols-4");
     expect(screen.getByRole("heading", { name: "Book one" })).toBeInTheDocument();
     expect(screen.getAllByRole("link")).toHaveLength(1);
-    expect(container.querySelector("li")!.className).toContain("bg-cream");
-    expect(screen.getByText("$12").className).toContain("text-plum-700");
+    expect(container.querySelector("li")!.className).toContain("bg-tile");
+    expect(screen.getByText("$12").className).toContain("text-accent-ink");
   });
 
   it("renders dividers and spacers that assistive technology skips", () => {
@@ -272,7 +271,7 @@ describe("Hero", () => {
     const { container } = render(<Hero {...heroProps} background="cream" imageAssetId="media_AAAAAAAAAAA1" overlay="light" />);
     const band = container.querySelector("section")!;
     expect(band.style.backgroundImage).toContain("/api/media/media_AAAAAAAAAAA1/");
-    expect(band.className).toContain("text-slate-900");
+    expect(band.className).toContain("text-ink");
     expect(container.querySelector("img")).toBeNull();
     expect(container.querySelector("[aria-hidden='true'].bg-white\\/70")).not.toBeNull();
     // Buttons flip with the shade: a light shade means dark-on-light buttons.
@@ -367,7 +366,7 @@ describe("CtaBanner", () => {
 
   it("uses dark text and a plum button on a light colour, and falls back to plum for the page colour", () => {
     const light = render(<CtaBanner {...banner} background="blush" align="left" />);
-    expect(light.container.querySelector("section")!.className).toContain("text-slate-900");
+    expect(light.container.querySelector("section")!.className).toContain("text-ink");
     expect(light.container.querySelector("section")!.className).toContain("text-left");
     expect(screen.getByRole("link").className).toContain("bg-plum-600");
     light.unmount();
