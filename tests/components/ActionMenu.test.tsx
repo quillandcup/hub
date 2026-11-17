@@ -110,6 +110,20 @@ describe("ActionMenu", () => {
     }
   });
 
+  it("lets an item add its own classes, link or button", async () => {
+    render(
+      <ActionMenu
+        items={[
+          { key: "a", label: "Open", href: "/a", className: "sm:hidden" },
+          { key: "b", label: "Run", className: "sm:hidden", onSelect: () => {} },
+        ]}
+      />
+    );
+    await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+    expect(screen.getByRole("menuitem", { name: "Open" }).className).toMatch(/\bsm:hidden\b/);
+    expect(screen.getByRole("menuitem", { name: "Run" }).className).toMatch(/\bsm:hidden\b/);
+  });
+
   it("renders nothing without items", () => {
     const { container } = render(<ActionMenu items={[]} />);
     expect(container).toBeEmptyDOMElement();

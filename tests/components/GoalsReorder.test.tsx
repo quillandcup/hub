@@ -95,6 +95,17 @@ describe("ProjectDetailClient goal reordering", () => {
     expect(screen.getAllByRole("button", { name: "More actions for Finish draft" })).toHaveLength(1);
   });
 
+  it("Delete in the menu asks first, then deletes that goal", async () => {
+    const { deleteGoal } = await import("@/app/(member)/projects/actions");
+    vi.mocked(deleteGoal).mockResolvedValue({ success: true } as never);
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<ProjectDetailClient project={project(three())} entries={[]} archivedGoals={[]} />);
+    await openMenu("Finish draft");
+    await userEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+    await waitFor(() => expect(deleteGoal).toHaveBeenCalledWith("g2"));
+    expect(window.confirm).toHaveBeenCalledWith("Delete this goal? This can't be undone.");
+  });
+
   it("Edit in the menu opens the goal form", async () => {
     render(<ProjectDetailClient project={project(three())} entries={[]} archivedGoals={[]} />);
     await openMenu("Finish draft");
