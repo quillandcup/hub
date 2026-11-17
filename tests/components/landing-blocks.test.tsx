@@ -27,8 +27,8 @@ describe("PageFrame", () => {
     const { container } = render(<PageFrame>content</PageFrame>);
     const frame = container.firstElementChild!;
     expect(frame.className).toContain("bg-canvas");
-    expect(frame.className).toContain("dark:bg-plum-950");
-    expect(frame.className).toContain("dark:text-cream");
+    expect(frame.className).toContain("dark:bg-slate-950");
+    expect(frame.className).toContain("dark:text-slate-100");
     expect(frame.className).not.toContain("bg-background");
   });
 
@@ -37,7 +37,7 @@ describe("PageFrame", () => {
     expect(light.container.querySelector("section")!.className).toContain("landing-light");
     const page = render(<Section {...sectionProps} background="none" content={() => <p>x</p>} />);
     expect(page.container.querySelector("section")!.className).not.toContain("landing-light");
-    expect(page.container.querySelector("section")!.className).toContain("dark:text-cream");
+    expect(page.container.querySelector("section")!.className).toContain("dark:text-slate-100");
     const plum = render(<Section {...sectionProps} background="plum" content={() => <p>x</p>} />);
     expect(plum.container.querySelector("section")!.className).not.toContain("landing-light");
   });
