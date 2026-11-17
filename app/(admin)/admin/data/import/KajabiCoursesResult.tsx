@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { CoursesSyncResult } from "@/lib/courses/sync";
+import LifecycleButton from "@/components/LifecycleButton";
 import { ACCESS_OPTIONS } from "@/lib/courses/access-options";
 
 type Unpublished = NonNullable<CoursesSyncResult["unpublished"]>[number];
@@ -65,14 +66,14 @@ function PublishRow({ course, onPublished }: { course: Unpublished; onPublished:
             className="rounded border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-600 dark:bg-slate-800"
           />
         </label>
-        <button
-          type="button"
-          onClick={publish}
+        <LifecycleButton
+          action="publish"
+          noun="course"
+          onRun={() => void publish()}
+          label={busy ? "Publishing…" : undefined}
           disabled={choice === "" || busy}
           className="rounded bg-plum-600 px-3 py-1 text-sm font-medium text-white hover:bg-plum-700 disabled:opacity-50"
-        >
-          {busy ? "Publishing…" : "Publish"}
-        </button>
+        />
       </div>
       {error && <p role="alert" className="mt-1 text-sm text-red-700 dark:text-red-300">{error}</p>}
     </li>
