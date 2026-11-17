@@ -87,7 +87,7 @@ export default function GoalProgressBar({
       {startDate && excludedStartingBalance !== null && (
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
           Your starting {excludedStartingBalance.toLocaleString()} {MEASURE_LABELS[measure].toLowerCase()} aren&apos;t counted
-          because this goal has a start date. Clear the start date to include them.
+          because this goal is for what you log in a specific time frame. Clear the start date to count them.
         </p>
       )}
       {status === "achieved" ? (
