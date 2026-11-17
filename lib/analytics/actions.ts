@@ -74,6 +74,8 @@ export const OUTCOME_ACTIONS = [
   "landing_page_deleted",
   "landing_page_imported",
   "landing_page_ai_built",
+  "landing_page_ai_added",
+  "landing_page_ai_revised",
   // Chat
   "chat_message_sent",
   "chat_reaction_toggled",

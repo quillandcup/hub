@@ -81,23 +81,49 @@ function cleanObject(block: string, shape: Props, value: Props): Props {
 let counter = 0;
 const newId = (type: string) => `${type}-ai${Date.now().toString(36)}${(counter++).toString(36)}`;
 
-function cleanBlock(raw: unknown, depth: number): Block | null {
-  if (!isObject(raw) || typeof raw.type !== "string" || !(AI_BLOCKS as readonly string[]).includes(raw.type)) return null;
-  const type = raw.type as AiBlock;
+/** Blocks already on the page, by id, so a revision keeps what the model was not shown (pictures) and what it must not change. */
+type Existing = Map<string, Block>;
+
+function indexBlocks(content: unknown, into: Existing = new Map()): Existing {
+  if (!Array.isArray(content)) return into;
+  for (const raw of content) {
+    if (!isObject(raw) || typeof raw.type !== "string" || !isObject(raw.props)) continue;
+    if (typeof raw.props.id === "string") into.set(raw.props.id, { type: raw.type, props: raw.props });
+    indexBlocks(raw.props.content, into);
+  }
+  return into;
+}
+
+function cleanBlock(raw: unknown, depth: number, existing?: Existing): Block | null {
+  if (!isObject(raw) || typeof raw.type !== "string") return null;
   const given = isObject(raw.props) ? raw.props : {};
-  const props = cleanObject(type, BLOCK_DEFAULTS[type] as unknown as Props, given);
+  const id = typeof raw.id === "string" ? raw.id : typeof given.id === "string" ? given.id : undefined;
+  const before = id ? existing?.get(id) : undefined;
+  // A block the model cannot write (a picture, a video, a form) stays exactly as it is, or is removed by leaving it out.
+  if (before && !(AI_BLOCKS as readonly string[]).includes(before.type)) return { type: before.type, props: before.props };
+  if (!(AI_BLOCKS as readonly string[]).includes(raw.type)) return null;
+  const type = raw.type as AiBlock;
+  const cleaned = cleanObject(type, BLOCK_DEFAULTS[type] as unknown as Props, given);
+  let props: Props;
+  if (before && before.type === type) {
+    // Only what the model sent changes; everything else (picture ids, other settings) is the page's own.
+    props = { ...before.props };
+    for (const key of Object.keys(cleaned)) if (key in given) props[key] = cleaned[key];
+  } else {
+    props = { id: newId(type), ...cleaned };
+  }
   if (type === "Section") {
     // One level of nesting: a section holds blocks, not more sections.
-    const children = Array.isArray(given.content) && depth === 0 ? given.content.map((c) => cleanBlock(c, depth + 1)).filter((b): b is Block => b !== null) : [];
-    props.content = children;
+    props.content = Array.isArray(given.content) && depth === 0 ? given.content.map((c) => cleanBlock(c, depth + 1, existing)).filter((b): b is Block => b !== null) : [];
   }
-  return { type, props: { id: newId(type), ...props } };
+  return { type, props };
 }
 
 /** What the model returned, reduced to blocks the builder has. Anything else is dropped; `null` when nothing usable is left. */
-export function cleanGeneratedBlocks(raw: unknown): LandingData | null {
+export function cleanGeneratedBlocks(raw: unknown, current?: unknown): LandingData | null {
   if (!isObject(raw) || !Array.isArray(raw.blocks)) return null;
-  const content = raw.blocks.slice(0, MAX_BLOCKS).map((b) => cleanBlock(b, 0)).filter((b): b is Block => b !== null);
+  const existing = current === undefined ? undefined : indexBlocks(current);
+  const content = raw.blocks.slice(0, MAX_BLOCKS).map((b) => cleanBlock(b, 0, existing)).filter((b): b is Block => b !== null);
   if (content.length === 0) return null;
   return sanitizeLandingData({ content, root: {} });
 }
@@ -133,7 +159,7 @@ const TOOL = {
         description: "The page's blocks, top to bottom.",
         items: {
           type: "object",
-          properties: { type: { type: "string", enum: [...AI_BLOCKS] }, props: { type: "object" } },
+          properties: { id: { type: "string", description: "Only when keeping or changing a block that is on the page now." }, type: { type: "string", enum: Object.keys(BLOCK_DEFAULTS), description: "Only the blocks listed in the instructions, except to keep a locked block already on the page: then give its own type and id with props {}." }, props: { type: "object" } },
           required: ["type", "props"],
         },
       },
@@ -174,6 +200,24 @@ export const completeWithClaude: Complete = async (system, prompt) => {
   return call.input;
 };
 
+const REVISE_MAX = 60_000;
+
+/** The page as the model sees it: ids and the props it may change; no picture ids; blocks it cannot write are marked locked. */
+export function pageForModel(content: unknown): unknown[] {
+  const view = (raw: unknown): unknown => {
+    if (!isObject(raw) || typeof raw.type !== "string" || !isObject(raw.props)) return null;
+    const id = raw.props.id;
+    if (!(AI_BLOCKS as readonly string[]).includes(raw.type)) return { id, type: raw.type, locked: true };
+    const props: Props = {};
+    for (const [key, value] of Object.entries(raw.props)) {
+      if (key === "id" || NEVER.test(key)) continue;
+      props[key] = key === "content" && Array.isArray(value) ? value.map(view).filter(Boolean) : value;
+    }
+    return { id, type: raw.type, props };
+  };
+  return (Array.isArray(content) ? content : []).map(view).filter(Boolean);
+}
+
 export const aiConfigured = (): boolean => Boolean(ANTHROPIC.apiKey);
 
 /** Turns an admin's description into page data, ready to save as a draft. `complete` is the model call (a fake in tests). */
@@ -191,5 +235,30 @@ export async function generateLandingPage(prompt: string, complete: Complete = c
   }
   const data = cleanGeneratedBlocks(raw);
   if (!data) return { ok: false, error: "The assistant's answer had no usable page. Nothing was created; try again, or describe the page in more detail." };
+  return { ok: true, data, issues: checkLandingPage(data) };
+}
+
+/**
+ * Changes the page being edited as the admin describes ("shorter", "add an FAQ", "make the buttons outline"). The model
+ * gets the page's blocks (no picture ids) and returns the whole revised list; blocks keep their ids, so pictures and
+ * settings it did not touch stay. Blocks it cannot write are kept as they are or removed, never altered.
+ */
+export async function reviseLandingPage(prompt: string, current: unknown, complete: Complete = completeWithClaude): Promise<GenerateResult> {
+  const text = prompt.trim();
+  if (!text) return { ok: false, error: "Describe the change you want." };
+  if (text.length > PROMPT_MAX) return { ok: false, error: `Keep the description under ${PROMPT_MAX} characters.` };
+  if (!Array.isArray(current) || current.length === 0) return { ok: false, error: "The page has nothing to change yet. Use Add to the page." };
+  const view = JSON.stringify(pageForModel(current));
+  if (view.length > REVISE_MAX) return { ok: false, error: "This page is too long to change in one go. Ask about one part of it, or add blocks instead." };
+  const request = `Here is the page as it is now (blocks keep their id; "locked" blocks cannot be changed by you, only kept or dropped):\n${view}\n\nChange it as follows, and return the complete revised page, keeping the id of every block you keep or change and giving new blocks no id. Change only what is asked; leave everything else as it is.\n\n${text}`;
+  let raw: unknown;
+  try {
+    raw = await complete(systemPrompt(), request);
+  } catch (error) {
+    console.error("landing page AI revision failed:", error instanceof Error ? error.message : String(error));
+    return { ok: false, error: "The page builder's assistant didn't answer. The page is unchanged; try again." };
+  }
+  const data = cleanGeneratedBlocks(raw, current);
+  if (!data) return { ok: false, error: "The assistant's answer had no usable page. The page is unchanged; try again." };
   return { ok: true, data, issues: checkLandingPage(data) };
 }

@@ -11,12 +11,14 @@ vi.mock("@/lib/admin-auth", () => ({
   requireAdminAction: async () => (state.admin ? { ok: true, user: { id: "00000000-0000-4000-a000-0000000000a1", email: "admin@example.test" }, supabase: {} } : { ok: false, error: "Not authorized" }),
 }));
 const ai = vi.hoisted(() => ({ configured: true, result: undefined as unknown }));
-vi.mock("@/lib/landing/ai", () => ({ aiConfigured: () => ai.configured, generateLandingPage: async () => ai.result }));
+vi.mock("@/lib/landing/ai", () => ({ aiConfigured: () => ai.configured, generateLandingPage: async () => ai.result, reviseLandingPage: async () => ai.result }));
 vi.mock("@/lib/data/repos", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/data/repos")>()), createRepos: () => state.repos }));
 
 import {
   createLandingPage,
   createLandingPageWithAi,
+  generateLandingBlocks,
+  reviseLandingBlocks,
   deleteLandingPage,
   duplicateLandingPage,
   publishLandingPage,
@@ -246,5 +248,48 @@ describe("createLandingPageWithAi", () => {
   it("is for admins only", async () => {
     state.admin = false;
     expect(await createLandingPageWithAi({ title: "Spring", prompt: "x" })).toEqual({ error: "Not authorized" });
+  });
+});
+
+describe("generateLandingBlocks", () => {
+  const blocks = [{ type: "Heading", props: { id: "h", text: "Hi" } }];
+
+  it("returns blocks for the editor and saves nothing", async () => {
+    ai.configured = true;
+    ai.result = { ok: true, data: { content: blocks, root: {} }, issues: [{ severity: "error", block: "Button", message: "x" }] };
+    expect(await generateLandingBlocks("a faq")).toEqual({ blocks, notes: [{ severity: "error", block: "Button", message: "x" }] });
+    expect(state.dataset.landingPages).toEqual([]);
+  });
+
+  it("passes on the assistant's failure, says when it isn't set up, and refuses non-admins", async () => {
+    ai.configured = true;
+    ai.result = { ok: false, error: "no" };
+    expect(await generateLandingBlocks("x")).toEqual({ error: "no" });
+    ai.configured = false;
+    expect((await generateLandingBlocks("x")).error).toContain("isn't set up");
+    state.admin = false;
+    expect(await generateLandingBlocks("x")).toEqual({ error: "Not authorized" });
+  });
+});
+
+describe("reviseLandingBlocks", () => {
+  const blocks = [{ type: "Heading", props: { id: "h", text: "Shorter" } }];
+
+  it("returns the revised blocks and saves nothing", async () => {
+    ai.configured = true;
+    ai.result = { ok: true, data: { content: blocks, root: {} }, issues: [] };
+    expect(await reviseLandingBlocks("shorter", [{ type: "Heading", props: { id: "h" } }])).toEqual({ blocks, notes: [] });
+    expect(state.dataset.landingPages).toEqual([]);
+  });
+
+  it("passes on a failure, says when it isn't set up, refuses a huge page and non-admins", async () => {
+    ai.configured = true;
+    ai.result = { ok: false, error: "unchanged" };
+    expect(await reviseLandingBlocks("x", [{}])).toEqual({ error: "unchanged" });
+    expect((await reviseLandingBlocks("x", [{ big: "x".repeat(2_000_001) }])).error).toContain("too large");
+    ai.configured = false;
+    expect((await reviseLandingBlocks("x", [{}])).error).toContain("isn't set up");
+    state.admin = false;
+    expect(await reviseLandingBlocks("x", [{}])).toEqual({ error: "Not authorized" });
   });
 });
