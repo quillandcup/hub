@@ -5,6 +5,8 @@ import { createPortal } from "react-dom";
 import { useBelow } from "@/lib/hooks/useBelow";
 import { useBlurDelay } from "@/lib/hooks/useBlurDelay";
 import { useComboboxKeys } from "@/lib/hooks/useComboboxKeys";
+import { submitFormOnModEnter } from "@/lib/submit-form-on-mod-enter";
+import Kbd from "@/components/Kbd";
 
 export interface SearchItem {
   id: string;
@@ -45,6 +47,29 @@ interface EntitySearchProps {
 const LOCAL_MATCH_LIMIT = 10;
 /** How many items a `browse` list shows before anything is typed (the dropdown scrolls). */
 const BROWSE_LIMIT = 50;
+
+/**
+ * The key hints under a dropdown's options (hidden where there is no keyboard, like every `Kbd`). `toggle` says
+ * Enter toggles the highlighted option (a multi-select) instead of picking it. Shared with MultiEntitySearch.
+ */
+export function KeyHints({ toggle }: { toggle: boolean }) {
+  return (
+    <div
+      aria-hidden="true"
+      className="sticky bottom-0 hidden fine-pointer:sm:flex items-center gap-3 border-t border-slate-100 bg-white px-3 py-1 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
+    >
+      <span className="flex items-center gap-1">
+        <Kbd keys={["up", "down"]} /> navigate
+      </span>
+      <span className="flex items-center gap-1">
+        <Kbd keys={["enter"]} /> {toggle ? "toggle" : "select"}
+      </span>
+      <span className="flex items-center gap-1">
+        <Kbd keys={["esc"]} /> close
+      </span>
+    </div>
+  );
+}
 
 /** Debounced server search: results for the current term, plus loading/error state. */
 function useRemoteResults(search: RemoteSearch | undefined, term: string, debounceMs: number) {
@@ -134,7 +159,9 @@ export default function EntitySearch({
   const failed = !!search && !!term && !!remote.error;
   const empty = !!emptyText && !!term && matches.length === 0 && !failed && !(search && remote.loading);
   const showList = matches.length > 0 && !failed;
-  const showDropdown = isFocused && (showList || loading || failed || empty);
+  // Escape closes the list without touching the typed text; typing, focusing or an arrow key brings it back.
+  const [dismissed, setDismissed] = useState(false);
+  const showDropdown = isFocused && !dismissed && (showList || loading || failed || empty);
   const below = useBelow(inputRef, showDropdown);
 
   function handleSelect(item: SearchItem | null) {
@@ -146,16 +173,28 @@ export default function EntitySearch({
   }
 
   const combobox = useComboboxKeys({
-    count: isFocused && showList ? matches.length : 0,
+    count: isFocused && !dismissed && showList ? matches.length : 0,
     // Server results are a new array only when they arrive; local matches are keyed by the term.
     options: search ? remote.results : term,
+    homeEnd: true,
     onPick: (i) => handleSelect(matches[i]),
+    // Only an open list takes the Escape, so a second one reaches the modal around the box.
     onEscape: () => {
-      if (!searchTerm) return false;
-      setSearchTerm("");
+      if (!showDropdown) return false;
+      setDismissed(true);
       return true;
     },
   });
+
+  function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (submitFormOnModEnter(e)) return;
+    if (dismissed && showList && (e.key === "ArrowDown" || e.key === "ArrowUp") && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      setDismissed(false);
+      return;
+    }
+    combobox.handleKey(e);
+  }
 
   if (displayName && !isFocused) {
     return (
@@ -189,13 +228,18 @@ export default function EntitySearch({
         value={searchTerm}
         onChange={(e) => {
           setSearchTerm(e.target.value);
+          setDismissed(false);
           combobox.reset();
         }}
-        onFocus={onFocus}
+        onFocus={() => {
+          setDismissed(false);
+          onFocus();
+        }}
         onBlur={onBlur}
         autoFocus={autoFocus}
         aria-label={ariaLabel ?? placeholder}
-        {...combobox.inputProps(isFocused && showList)}
+        {...combobox.inputProps(showDropdown && showList)}
+        onKeyDown={onKeyDown}
         className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded text-sm text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-plum-500"
       />
       {showDropdown && below && createPortal(
@@ -204,6 +248,8 @@ export default function EntitySearch({
           data-track-no-text
           data-entity-search-list
           style={{ top: below.top, left: below.left, width: below.width }}
+          // Keeps focus in the box when the footer is clicked.
+          onMouseDown={(e) => e.preventDefault()}
           className="fixed z-overlay bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto"
         >
           {loading ? (
@@ -234,6 +280,7 @@ export default function EntitySearch({
               ))}
             </ul>
           )}
+          {showList && <KeyHints toggle={false} />}
         </div>,
         document.body
       )}

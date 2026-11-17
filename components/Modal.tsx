@@ -2,6 +2,7 @@
 
 import { ReactNode, useEffect, useId, useRef } from "react";
 import Kbd from "@/components/Kbd";
+import { submitFormOnModEnter } from "@/lib/submit-form-on-mod-enter";
 
 interface ModalProps {
   isOpen: boolean;
@@ -83,6 +84,8 @@ export default function Modal({
           fill ? "flex h-[94vh] max-w-[96vw] flex-col" : `${maxWidthClasses[maxWidth]} max-h-[80vh]`
         }`}
         onClick={(e) => e.stopPropagation()}
+        // Ctrl/Cmd+Enter in any form inside the dialog submits it, like a click on its Save button.
+        onKeyDown={(e) => void submitFormOnModEnter(e)}
       >
         {/* Header */}
         <div className={`${fill ? "px-4 py-3" : "p-6"} border-b border-slate-200 dark:border-slate-800`}>

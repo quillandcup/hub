@@ -43,14 +43,16 @@ export function keyLabel(key: string, apple: boolean): string {
   return key.length === 1 ? key.toUpperCase() : key;
 }
 
-export default function Kbd({ keys, className = "" }: { keys: string[]; className?: string }) {
+/** `onAccent`: the caps sit on a filled accent button (white text and border), not on a plain surface. */
+export default function Kbd({ keys, className = "", onAccent = false }: { keys: string[]; className?: string; onAccent?: boolean }) {
   const apple = useIsApple();
+  const capColors = onAccent ? "border-white/60 text-white/90" : "border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400";
   return (
     <span aria-hidden="true" data-kbd className={`hidden fine-pointer:sm:inline-flex flex-shrink-0 items-center gap-0.5 ${className}`}>
       {keys.map((key) => (
         <kbd
           key={key}
-          className="rounded border border-slate-300 dark:border-slate-600 px-1.5 text-xs font-sans text-slate-600 dark:text-slate-400"
+          className={`rounded border px-1.5 text-xs font-sans ${capColors}`}
         >
           {keyLabel(key, apple)}
         </kbd>

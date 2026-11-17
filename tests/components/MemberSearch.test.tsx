@@ -61,6 +61,6 @@ describe("MultiMemberSearch", () => {
   it("finds members by display name too", async () => {
     render(<MultiMemberSearch members={MEMBERS} selectedMemberIds={[]} onChange={vi.fn()} placeholder="find" />);
     await userEvent.type(screen.getByPlaceholderText("find"), "bestie");
-    expect(screen.getByRole("button", { name: /Bestie/ })).toHaveTextContent("Laura May Best");
+    expect(screen.getByRole("option", { name: /Bestie/ })).toHaveTextContent("Laura May Best");
   });
 });
