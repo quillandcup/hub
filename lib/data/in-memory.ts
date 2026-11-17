@@ -78,6 +78,8 @@ export type MemberSeed = {
   /** When the row was last written; the Kajabi processing run touches it for every Kajabi member. */
   updatedAt?: string | null;
   totalActiveMonths?: number;
+  /** Dated cancel/resubscribe gaps (members.inactive_periods); null/absent = not computed yet. */
+  inactivePeriods?: { start: string; end: string | null }[] | null;
   /** The Kajabi tags on the contact. */
   kajabiTags?: string[];
   joinedAt?: string;

@@ -680,6 +680,24 @@ describe('Member Tenure computed during reprocessing', () => {
     expect(member?.total_active_months).toBeLessThanOrEqual(7)
   })
 
+  it('stores the dated cancel/resubscribe gap in inactive_periods, and writes the same value on every reprocess', async () => {
+    await reprocess()
+    const first = await fetchMember(emailResub)
+    const expectedGap = [{ start: dateOnly(daysAgo(200)), end: dateOnly(daysAgo(100)) }]
+    expect(first?.inactive_periods).toEqual(expectedGap)
+
+    await reprocess()
+    const second = await fetchMember(emailResub)
+    expect(second?.inactive_periods).toEqual(expectedGap)
+    expect(second?.id).toBe(first?.id)
+  })
+
+  it('stores an empty list for a continuous membership, and keeps hiatus windows out of inactive_periods', async () => {
+    await reprocess()
+    const member = await fetchMember(emailHiatus)
+    expect(member?.inactive_periods).toEqual([])
+  })
+
   it('excludes hiatus time from total_active_months and resets most_recent_joined_at once the hiatus ends', async () => {
     await reprocess()
     const before = await fetchMember(emailHiatus)
