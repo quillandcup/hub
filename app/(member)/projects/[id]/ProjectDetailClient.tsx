@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import LogProgressModal from "@/components/writing/LogProgressModal";
 import GoalDisplay from "@/components/writing/GoalDisplay";
+import { SortableList, SortableRow, useReorderableList } from "@/components/writing/SortableList";
 import ProjectCharts from "@/components/writing/ProjectCharts";
 import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
@@ -35,6 +36,7 @@ import {
   createGoal,
   deleteEntry,
   deleteGoal,
+  reorderMyGoals,
   toggleGoalStar,
   toggleGoalVisibility,
   toggleProjectVisibility,
@@ -156,11 +158,20 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
 
   const activeGoals = project.goals.filter((goal) => !isMissedGoal(goal));
   const missedGoals = project.goals.filter(isMissedGoal);
+  // The member's own order of the goals shown under "Goals" (the past ones aren't part of it).
+  const goalOrder = useReorderableList(
+    activeGoals,
+    (ids) => reorderMyGoals(project.id, ids),
+    (goal) => goal.title || `${MEASURE_LABELS[goal.measure]} goal`,
+    "Couldn't save the new order. Please try again.",
+    () => router.refresh()
+  );
 
   // A goal is on the profile only while its project is too; hiding a project keeps its goals' own setting.
   const goalOnProfile = (goal: GoalRow) => goal.showOnProfile && showOnProfile;
 
-  const renderGoal = (goal: GoalRow) =>
+  const renderGoal = (goal: GoalRow, index?: number) => {
+    const row = (
       editingGoal?.id === goal.id ? (
         <GoalForm
           key={goal.id}
@@ -223,7 +234,27 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
             </button>
           </div>
         </div>
-      );
+      )
+    );
+    if (index === undefined || editingGoal?.id === goal.id) return row;
+    return (
+      <SortableRow
+        key={goal.id}
+        id={goal.id}
+        label={goal.title || `${MEASURE_LABELS[goal.measure]} goal`}
+        index={index}
+        count={goalOrder.shown.length}
+        disabled={goalOrder.saving}
+        onMove={(delta) => goalOrder.move(goal.id, delta)}
+        track="project-goal"
+        className=""
+        idleClassName=""
+        liftedClassName="rounded-lg bg-white shadow-xl ring-2 ring-plum-400 dark:bg-slate-900 dark:ring-plum-500"
+      >
+        {row}
+      </SortableRow>
+    );
+  };
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -363,14 +394,24 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
       {activeGoals.length > 0 && (
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-5 space-y-4">
           <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide">Goals</h2>
-          {activeGoals.map(renderGoal)}
+          {goalOrder.error && (
+            <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+              {goalOrder.error}
+            </p>
+          )}
+          <p role="status" className="sr-only">
+            {goalOrder.note}
+          </p>
+          <SortableList ids={goalOrder.shown.map((g) => g.id)} onReorder={(ids) => void goalOrder.reorder(ids)}>
+            <div className="space-y-4">{goalOrder.shown.map((goal, index) => renderGoal(goal, index))}</div>
+          </SortableList>
         </div>
       )}
 
       {(missedGoals.length > 0 || archivedGoals.length > 0) && (
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-5 space-y-4">
           <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide">Past goals</h2>
-          {missedGoals.map(renderGoal)}
+          {missedGoals.map((goal) => renderGoal(goal))}
           {archivedGoals.map((goal) => (
             <div key={goal.id}>
               <GoalDisplay goal={goal} />

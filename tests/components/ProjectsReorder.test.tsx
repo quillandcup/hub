@@ -36,7 +36,7 @@ const project = (id: string, title: string) =>
 
 const projects = () => [project("wprj_a", "Alpha Draft"), project("wprj_b", "Beta Draft"), project("wprj_c", "Gamma Draft")];
 
-const titles = () => [...document.querySelectorAll("[data-project-card]")].map((card) => within(card as HTMLElement).getByRole("link").textContent);
+const titles = () => [...document.querySelectorAll("[data-sortable-row]")].map((card) => within(card as HTMLElement).getByRole("link").textContent);
 
 beforeEach(() => {
   m.refresh.mockReset();
