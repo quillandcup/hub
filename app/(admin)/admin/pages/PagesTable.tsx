@@ -13,6 +13,7 @@ import { useDataTable } from "@/lib/hooks/useDataTable";
 import { lifecycleIcon, lifecycleLabel } from "@/lib/lifecycle-actions";
 import type { LandingPageSummary } from "@/lib/data/landing-pages";
 import { deleteLandingPage, duplicateLandingPage } from "./actions";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
 
 type Column = "title" | "status" | "updated";
 
@@ -67,6 +68,7 @@ export default function PagesTable({ pages, publicBase }: { pages: LandingPageSu
           </p>
         )}
       </div>
+      <TableKeyboardNav table={table} label="Pages">
       {pages.length === 0 ? (
         <p className="rounded-lg bg-white p-6 text-sm text-slate-600 shadow dark:bg-slate-900 dark:text-slate-400">No pages yet. Make the first one with New page.</p>
       ) : (
@@ -133,6 +135,7 @@ export default function PagesTable({ pages, publicBase }: { pages: LandingPageSu
         </div>
       )}
       <DataTablePager table={table} itemLabel="pages" />
+      </TableKeyboardNav>
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import { DataTablePager } from "@/components/DataTablePager";
 import { etDate } from "@/lib/community-stats";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
 
 export type LeadStatus = "hot" | "warm" | "cold";
 
@@ -326,6 +327,7 @@ export default function OutreachTable({ leads, initialTodayCount }: OutreachTabl
       )}
 
       <div className="overflow-x-auto">
+      <TableKeyboardNav table={table} label="Leads">
         <table className="w-full">
           <thead className="bg-slate-50 dark:bg-slate-800">
             <tr>
@@ -459,6 +461,7 @@ export default function OutreachTable({ leads, initialTodayCount }: OutreachTabl
           </tbody>
         </table>
         <DataTablePager table={table} itemLabel="leads" />
+      </TableKeyboardNav>
       </div>
     </div>
   );

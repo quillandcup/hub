@@ -12,6 +12,7 @@ import CheckinPills from "@/components/CheckinPills";
 import type { CheckinInput } from "@/lib/prickle-checkins";
 import type { CheckinHalf } from "@/app/(member)/prickles/checkin-actions";
 import { DataTablePager } from "@/components/DataTablePager";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
 
 interface Props {
   attendance: any[];
@@ -123,6 +124,7 @@ export default function AttendanceListTable({
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
+      <TableKeyboardNav table={table} label="Attendances">
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0">
@@ -186,6 +188,7 @@ export default function AttendanceListTable({
                     return (
                       <tr
                         key={record.id}
+                        data-row-primary
                         className="hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
                         onClick={() => router.push(`${prickleBasePath}/${prickle.id}`)}
                       >
@@ -229,6 +232,7 @@ export default function AttendanceListTable({
         </table>
       </div>
       <DataTablePager table={table} itemLabel="attendances" />
+      </TableKeyboardNav>
     </div>
   );
 }

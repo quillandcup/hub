@@ -7,6 +7,7 @@ import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import AliasBadges from "./AliasBadges";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
 
 export interface MemberAliasRow {
   member: { id: string; name: string; displayName?: string | null; email: string; status: string };
@@ -44,6 +45,7 @@ export default function AliasesTable({ rows }: { rows: MemberAliasRow[] }) {
 
   return (
     <div className="overflow-x-auto">
+    <TableKeyboardNav table={table} label="Members">
       <table className="w-full">
         <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
           <tr>
@@ -88,6 +90,7 @@ export default function AliasesTable({ rows }: { rows: MemberAliasRow[] }) {
         </tbody>
       </table>
       <DataTablePager table={table} itemLabel="members" />
+    </TableKeyboardNav>
     </div>
   );
 }

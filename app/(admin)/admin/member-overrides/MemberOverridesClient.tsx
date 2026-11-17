@@ -11,6 +11,7 @@ import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
 import { formatDateOnly } from "@/lib/formatters";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
 
 interface Member {
   id: string;
@@ -243,6 +244,7 @@ export default function MemberOverridesClient() {
       )}
 
       <div className="border border-gray-200 dark:border-slate-700 rounded overflow-hidden">
+      <TableKeyboardNav table={table} label="Overrides">
         <table className="w-full">
           <thead className="bg-gray-50 dark:bg-slate-800">
             <tr>
@@ -358,6 +360,7 @@ export default function MemberOverridesClient() {
           </tbody>
         </table>
         <DataTablePager table={table} itemLabel="overrides" />
+      </TableKeyboardNav>
       </div>
     </div>
   );
