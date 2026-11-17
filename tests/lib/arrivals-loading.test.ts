@@ -5,6 +5,7 @@ import type { Repos } from "@/lib/data/repos";
 
 const mocks = vi.hoisted(() => ({ history: vi.fn(), trials: vi.fn() }));
 vi.mock("@/lib/kajabi/membership-history", () => ({ fetchMembershipHistory: mocks.history }));
+vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 vi.mock("@/lib/trial-window", async (original) => ({ ...(await original<typeof import("@/lib/trial-window")>()), fetchTrialWindows: mocks.trials }));
 import { getArrivals } from "@/lib/arrivals";
 
@@ -76,7 +77,7 @@ describe("arrival loading", () => {
       ],
     });
     expect(await load()).toEqual([{ memberId: ADA, memberName: "Ada", arrivedOn: "2026-10-08", kind: "trial", trialEndsOn: "2026-10-22", programName: null }]);
-    expect(mocks.history).toHaveBeenCalledWith(repos, ["customer"]);
+    expect(mocks.history).toHaveBeenCalledWith(repos, ["customer"], expect.not.objectContaining({ aliases: repos.aliases }));
   });
 
   it("does not count a purchase from before the window as an arrival", async () => {
