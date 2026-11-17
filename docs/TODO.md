@@ -1807,6 +1807,9 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 ## UI Enhancements
 
+### Date range on the central Activity Log _(Needs Scheduling)_
+A member's Activity tab has a custom From/To range and an "All time" preset (`docs/ACTIVITY_AND_AUDIT_LOG.md`, "The date range on a member's Activity tab"). The central log (`/admin/activity`) still has only the look-back presets (24h to 1y), because the owner asked for the member tab and the central page was left alone. To adopt it: set `rangeFilter: true` on `CENTRAL_DEFAULTS` in `lib/activity-feed.ts`, render `ActivityRangeForm` and the "All time" pill in `ActivityFilters` for the central variant (the member variant already does, behind `defaults.rangeFilter`), and show `ActivityRangeSummary` above the table. Then drop the "longest window" fallback on the member tab's "Open in the central log" link (`MemberDetails.tsx`) and the "central log ignores from and to" test in `tests/lib/activity-feed.test.ts`. The parsing and formatting are in `lib/activity-range.ts` and need no change.
+
 ### Cmd/Ctrl+Enter to submit forms, with a hint _(Resolved for modals; one thing open)_
 **Resolved:** `Modal` submits the form a Ctrl/Cmd+Enter was pressed in (`submitFormOnModEnter`, `lib/submit-form-on-mod-enter.ts`: `form.requestSubmit()`, ignoring IME composition, a key already handled, and a form whose Save button is disabled), and the search inputs (`EntitySearch`, `MultiEntitySearch`) use the same helper so an open list never swallows it. The primary button of the book, award, log-progress, new-project, project-details and re-sign-in modals shows `<Kbd keys={["mod", "enter"]} onAccent />` with `aria-keyshortcuts="Control+Enter Meta+Enter"`.
 
