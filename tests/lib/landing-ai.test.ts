@@ -140,6 +140,14 @@ describe("completeWithClaude", () => {
     expect(body).toMatchObject({ model: ANTHROPIC.landingPageModel, tool_choice: { type: "auto" }, messages: [{ role: "user", content: "prompt" }] });
   });
 
+  it("puts Anthropic's error type and message in the thrown error, and copes with a body that isn't JSON", async () => {
+    const body = { error: { type: "invalid_request_error", message: "tool_choice: not supported for this model" } };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status: 400 })));
+    await expect(completeWithClaude("s", "p")).rejects.toThrow("400: invalid_request_error: tool_choice: not supported for this model");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("<html>bad gateway</html>", { status: 502 })));
+    await expect(completeWithClaude("s", "p")).rejects.toThrow(/^Claude API answered 502$/);
+  });
+
   it("throws on an error status or a missing tool call", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("{}", { status: 500 })));
     await expect(completeWithClaude("s", "p")).rejects.toThrow("500");
