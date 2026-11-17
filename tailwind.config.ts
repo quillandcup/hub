@@ -48,7 +48,8 @@ export default {
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
-  darkMode: "class",
+  // `.landing-light` marks a band of a landing page that stays light in dark mode (a white or cream band): `dark:` does not apply inside it.
+  darkMode: ["variant", "&:where(.dark, .dark *):not(:where(.landing-light, .landing-light *))"],
   theme: {
     extend: {
       colors: {
