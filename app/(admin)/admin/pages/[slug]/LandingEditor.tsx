@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Puck, createUsePuck, type Data } from "@puckeditor/core";
-import { ArrowLeft, Monitor, Redo2, Smartphone, Tablet, Undo2 } from "lucide-react";
+import { ArrowLeft, Monitor, PanelLeft, PanelRight, Redo2, Smartphone, Tablet, Undo2 } from "lucide-react";
 import Modal from "@/components/Modal";
 import MediaPicker from "@/components/media/MediaPicker";
 import { editorConfig } from "@/components/landing/editor-config";
@@ -90,6 +90,8 @@ function EditorHeader({
   const dispatch = usePuck((s) => s.dispatch);
   const viewports = usePuck((s) => s.appState.ui.viewports);
   const current = viewports.current.width;
+  const leftOpen = usePuck((s) => s.appState.ui.leftSideBarVisible);
+  const rightOpen = usePuck((s) => s.appState.ui.rightSideBarVisible);
   const published = page.status === "published";
   return (
     <header className="flex flex-wrap items-center gap-3 border-b border-slate-200 bg-white px-4 py-2 dark:border-slate-700 dark:bg-slate-900">
@@ -101,6 +103,14 @@ function EditorHeader({
         <p role="status" className={`text-xs ${save === "error" ? "text-red-700" : "text-slate-600 dark:text-slate-400"}`}>
           {SAVE_TEXT[save]}
         </p>
+      </div>
+      <div role="group" aria-label="Side panels" className="flex items-center gap-1">
+        <button type="button" aria-label="Blocks panel" title="Show or hide the blocks panel" aria-pressed={leftOpen} onClick={() => dispatch({ type: "setUi", ui: { leftSideBarVisible: !leftOpen } })} className={ICON}>
+          <PanelLeft size={16} aria-hidden="true" />
+        </button>
+        <button type="button" aria-label="Settings panel" title="Show or hide the settings panel" aria-pressed={rightOpen} onClick={() => dispatch({ type: "setUi", ui: { rightSideBarVisible: !rightOpen } })} className={ICON}>
+          <PanelRight size={16} aria-hidden="true" />
+        </button>
       </div>
       <StatusChip status={page.status} />
       {published && hasUnpublished && <span className="text-xs text-amber-800 dark:text-amber-300">Changes not published yet</span>}

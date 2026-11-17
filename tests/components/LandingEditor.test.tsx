@@ -39,7 +39,7 @@ vi.mock("@puckeditor/core", () => ({
     select({
       history: { hasPast: true, hasFuture: false, back: mocks.back, forward: mocks.forward },
       dispatch: mocks.dispatch,
-      appState: { ui: { viewports: { current: { width: 1280, height: "auto" }, controlsVisible: false, options: [] } } },
+      appState: { ui: { leftSideBarVisible: true, rightSideBarVisible: false, viewports: { current: { width: 1280, height: "auto" }, controlsVisible: false, options: [] } } },
     }),
 }));
 
@@ -137,6 +137,18 @@ describe("the header", () => {
     fireEvent.click(screen.getByRole("button", { name: "Undo" }));
     expect(mocks.back).toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled();
+  });
+
+  it("shows or hides each side panel", () => {
+    editor();
+    const left = screen.getByRole("button", { name: "Blocks panel" });
+    const right = screen.getByRole("button", { name: "Settings panel" });
+    expect(left).toHaveAttribute("aria-pressed", "true");
+    expect(right).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(left);
+    expect(mocks.dispatch).toHaveBeenCalledWith({ type: "setUi", ui: { leftSideBarVisible: false } });
+    fireEvent.click(right);
+    expect(mocks.dispatch).toHaveBeenCalledWith({ type: "setUi", ui: { rightSideBarVisible: true } });
   });
 
   it("shows the page's state, and the live link only once published", () => {
