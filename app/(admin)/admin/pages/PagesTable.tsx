@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useConfirm } from "@/components/ConfirmDialog";
 import Icon, { type IconName } from "@/components/Icon";
 import { DataTablePager } from "@/components/DataTablePager";
 import { DataTableSearch } from "@/components/DataTableSearch";
@@ -28,6 +29,7 @@ function Glyph({ name, label }: { name: IconName; label: string }) {
 export default function PagesTable({ pages, publicBase }: { pages: LandingPageSummary[]; publicBase: string }) {
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
+  const { ask, dialog } = useConfirm();
   const [pending, startTransition] = useTransition();
   const table = useDataTable<LandingPageSummary, Column>({
     rows: pages,
@@ -111,8 +113,14 @@ export default function PagesTable({ pages, publicBase }: { pages: LandingPageSu
                     <button
                       type="button"
                       disabled={pending}
-                      onClick={() => {
-                        if (window.confirm(`Delete “${p.title}”? ${p.status === "published" ? "It disappears from the public site." : ""}`.trim())) run(() => deleteLandingPage(p.id));
+                      onClick={async () => {
+                        const ok = await ask({
+                          title: "Delete page?",
+                          body: `“${p.title}” will be deleted.${p.status === "published" ? " It disappears from the public site." : ""}`,
+                          confirmLabel: "Delete page",
+                          tone: "danger",
+                        });
+                        if (ok) run(() => deleteLandingPage(p.id));
                       }}
                       className={ACTION}
                       title="Delete"
@@ -127,6 +135,7 @@ export default function PagesTable({ pages, publicBase }: { pages: LandingPageSu
         </div>
       )}
       <DataTablePager table={table} itemLabel="pages" />
+      {dialog}
     </div>
   );
 }

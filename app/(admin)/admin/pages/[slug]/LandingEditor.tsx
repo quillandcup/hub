@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Puck, createUsePuck, type Data } from "@puckeditor/core";
 import { ArrowLeft, Monitor, PanelLeft, PanelRight, Redo2, Smartphone, Tablet, Undo2 } from "lucide-react";
+import { useConfirm } from "@/components/ConfirmDialog";
 import Modal from "@/components/Modal";
 import ResetToPublishedButton from "@/components/ResetToPublishedButton";
 import MediaPicker from "@/components/media/MediaPicker";
@@ -188,6 +189,7 @@ export default function LandingEditor({ page: initial, data, versions }: { page:
   const [message, setMessage] = useState<string | null>(null);
   const [resetError, setResetError] = useState<string | null>(null);
   const [busy, startBusy] = useTransition();
+  const { ask, dialog: confirmDialog } = useConfirm();
 
   const latest = useRef<string>(JSON.stringify(data));
   const lastSaved = useRef<string>(JSON.stringify(data));
@@ -280,8 +282,9 @@ export default function LandingEditor({ page: initial, data, versions }: { page:
     });
   }
 
-  function unpublish() {
-    if (!window.confirm("Take this page off the public site? The draft stays.")) return;
+  async function unpublish() {
+    const ok = await ask({ title: "Take this page down?", body: "It comes off the public site at once. Your draft and its versions stay.", confirmLabel: "Unpublish", tone: "danger" });
+    if (!ok) return;
     startBusy(async () => {
       const result = await unpublishLandingPage(page.id);
       if (result.error) return setMessage(result.error);
@@ -398,6 +401,7 @@ export default function LandingEditor({ page: initial, data, versions }: { page:
           }}
         />
       </Modal>
+      {confirmDialog}
     </div>
   );
 }
@@ -469,6 +473,7 @@ function DetailsDialog({ open, page, onClose, onSaved }: { open: boolean; page: 
 function VersionList({ versions, onRestore }: { versions: EditorVersion[]; onRestore: (id: string) => Promise<string | null> }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const { ask, dialog } = useConfirm();
   if (versions.length === 0) return <p className="text-sm">Each time you publish, that version is kept here. Nothing has been published yet.</p>;
   return (
     <div className="space-y-3">
@@ -486,9 +491,9 @@ function VersionList({ versions, onRestore }: { versions: EditorVersion[]; onRes
               type="button"
               disabled={pending}
               className={SECONDARY}
-              onClick={() => {
-                if (!window.confirm("Replace your current draft with this version?")) return;
-                start(async () => setError(await onRestore(v.id)));
+              onClick={async () => {
+                const ok = await ask({ title: "Bring this version back?", body: "It replaces your current draft. Nothing goes live until you publish.", confirmLabel: "Bring back", tone: "danger" });
+                if (ok) start(async () => setError(await onRestore(v.id)));
               }}
             >
               Bring back
@@ -501,6 +506,7 @@ function VersionList({ versions, onRestore }: { versions: EditorVersion[]; onRes
           {error}
         </p>
       )}
+      {dialog}
     </div>
   );
 }

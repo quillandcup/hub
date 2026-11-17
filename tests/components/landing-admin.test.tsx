@@ -90,23 +90,32 @@ describe("the pages list", () => {
   });
 
   it("deletes only after confirming, and shows why when it can't", async () => {
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     render(<PagesTable pages={[row({})]} publicBase="" />);
-    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
-    expect(mocks.remove).not.toHaveBeenCalled();
+    const answer = async (name: string) =>
+      act(async () => {
+        fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name }));
+      });
+    const askToDelete = async () =>
+      act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+      });
 
-    confirm.mockReturnValue(true);
+    await askToDelete();
+    expect(screen.getByRole("heading", { name: "Delete page?" })).toBeInTheDocument();
+    await answer("Cancel");
+    expect(mocks.remove).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).toBeNull();
+
     mocks.remove.mockResolvedValueOnce({ error: "Couldn't delete the page." });
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Delete" }));
-    });
+    await askToDelete();
+    await answer("Delete page");
     expect(screen.getByRole("status")).toHaveTextContent("Couldn't delete the page.");
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Delete" }));
-    });
+    await askToDelete();
+    await answer("Delete page");
     expect(mocks.refresh).toHaveBeenCalled();
   });
+
 
   it("invites a first page when there are none", () => {
     render(<PagesTable pages={[]} publicBase="" />);

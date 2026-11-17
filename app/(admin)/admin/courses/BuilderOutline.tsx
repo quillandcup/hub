@@ -4,8 +4,8 @@ import { createContext, useContext, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ActionMenu, { type ActionMenuItem } from "@/components/ActionMenu";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import Icon, { type IconName } from "@/components/Icon";
-import Modal from "@/components/Modal";
 import type { ExplainedLesson, ExplainedModule } from "@/lib/courses/explain";
 import { moduleContents } from "@/lib/courses/hub-outline";
 import { moveBefore, moveBy } from "@/lib/reorder";
@@ -266,31 +266,21 @@ function NameField({ label, initial, placeholder, submitLabel, onSubmit, onCance
 
 /** Asks before deleting, and says what goes with it. */
 function DeleteDialog({ title, what, detail, onConfirm, onClose }: { title: string; what: string; detail: string | null; onConfirm: () => Promise<boolean>; onClose: () => void }) {
-  const { editor } = useOutline();
   return (
-    <Modal isOpen onClose={onClose} title={`Delete ${what}?`} maxWidth="md">
-      <div className="p-6">
-        <p className="text-sm">
+    <ConfirmDialog
+      open
+      onClose={onClose}
+      // The reason a delete failed is shown above the outline, so the dialog closes either way.
+      onConfirm={async () => void (await onConfirm())}
+      title={`Delete ${what}?`}
+      confirmLabel={`Delete ${what}`}
+      tone="danger"
+      body={
+        <>
           “{title}” will be deleted for good.{detail && ` ${detail}`}
-        </p>
-        <div className="mt-6 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded border border-slate-300 px-4 py-2 text-sm font-medium dark:border-slate-600">
-            Cancel
-          </button>
-          <button
-            type="button"
-            disabled={editor?.busy}
-            onClick={async () => {
-              if (await onConfirm()) onClose();
-              else onClose(); // the reason is shown above the outline
-            }}
-            className="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-          >
-            Delete {what}
-          </button>
-        </div>
-      </div>
-    </Modal>
+        </>
+      }
+    />
   );
 }
 

@@ -13,6 +13,9 @@ interface ModalProps {
   fill?: boolean;
 }
 
+/** Open modals, oldest first: a dialog opened on top of another (a confirm inside a list) takes Escape alone. */
+const openModals: symbol[] = [];
+
 const maxWidthClasses = {
   sm: 'max-w-sm',
   md: 'max-w-md',
@@ -51,11 +54,16 @@ export default function Modal({
 
   useEffect(() => {
     if (!isOpen) return;
+    const me = Symbol("modal");
+    openModals.push(me);
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape" && openModals[openModals.length - 1] === me) onClose();
     };
     document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      openModals.splice(openModals.indexOf(me), 1);
+    };
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
