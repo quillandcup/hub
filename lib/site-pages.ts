@@ -108,7 +108,8 @@ export const SITE_PAGES: SitePage[] = [
   member({ title: "Hedgie Help", href: "/help", section: "Help", keywords: ["how to", "guide", "support", "docs"] }),
   member({ title: "What's new", href: "/changelog", section: "Help", keywords: ["changelog", "updates", "release notes", "new features", "fixes"] }),
   member({ title: "Privacy", href: "/privacy", section: "Help", keywords: ["data", "policy", "who can see"] }),
-  member({ title: "Compliance", href: "/compliance", section: "Help", keywords: ["gdpr", "pci", "wcag", "accessibility", "standards", "security", "certification"] }),
+  member({ title: "Compliance", href: "/compliance", section: "Help", keywords: ["gdpr", "pci", "wcag", "accessibility", "standards", "certification"] }),
+  member({ title: "Security", href: "/security", section: "Help", keywords: ["safe", "sign in", "encryption", "protect", "report a problem"] }),
 
   // Tabs
   ...tabPages("/projects", MY_WRITING_TITLE, MY_WRITING_TAB_IDS, MY_WRITING_TAB_LABELS, {
@@ -164,6 +165,7 @@ export const SITE_PAGES: SitePage[] = [
   admin({ title: "Health Check", href: "/admin/hygiene", section: "System", nav: { icon: "🏥" }, keywords: ["hygiene", "data quality"] }),
   admin({ title: "Users", href: "/admin/users", section: "System", nav: { icon: "🔑" }, keywords: ["invite", "roles"] }),
   admin({ title: "Activity Log", href: "/admin/activity", section: "System", nav: { icon: "📜" }, keywords: ["audit"] }),
+  admin({ title: "Security", href: "/admin/security", section: "System", nav: { icon: "🛡️" }, keywords: ["rls", "secrets", "webhooks", "open items", "compliance", "privacy"] }),
   admin({ title: "Slack Channels", href: "/admin/data/slack-channels", section: "System", nav: { icon: "🔒" }, keywords: ["restricted", "privacy"] }),
   admin({ title: "Prickle Types", href: "/admin/data/prickle-types", section: "System", nav: { icon: "🏷️" } }),
   admin({ title: "Member Overrides", href: "/admin/member-overrides", section: "System", nav: { icon: "🎁" }, feature: "member_overrides" }),

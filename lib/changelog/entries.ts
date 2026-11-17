@@ -56,6 +56,22 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "security-page",
+    date: "2026-11-17",
+    audience: "product",
+    category: "new",
+    title: "See how the Hub keeps your information safe",
+    summary: "A new Security page explains, in plain words, how sign-in, access, keys and changes are protected, and what to do if something looks wrong.",
+    body: `The new [Security page](/security) says how the Hub is protected, one short line at a time, with whether each is finished.
+
+- **Sign-in and access.** Joining is by invitation, and who can see what is decided by the database itself, not only by the page you are on.
+- **Behind the scenes.** What we do about messages from other services, replaceable keys and a record of changes.
+- **Still in progress.** Where something isn't finished, the line says so.
+- **Something wrong?** The page says how to tell us.
+
+It sits in the footer with [Privacy](/privacy) and [Compliance](/compliance).`,
+  },
+  {
     slug: "compliance-page",
     date: "2026-11-17",
     audience: "product",

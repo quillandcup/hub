@@ -2,24 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { SUPPORT_EMAIL } from "@/lib/config";
-import {
-  COMPLIANCE_EFFECTIVE,
-  COMPLIANCE_GROUPS,
-  COMPLIANCE_PROVIDERS,
-  COMPLIANCE_STATUSES,
-  type ComplianceStatus,
-} from "@/lib/compliance";
+import { COMPLIANCE_EFFECTIVE, COMPLIANCE_GROUPS, COMPLIANCE_PROVIDERS, COMPLIANCE_STATUSES, type ComplianceStatus } from "@/lib/compliance";
+import { StatusLegend, TrustAside, TrustCard, TrustNav, TrustSection } from "@/components/trust/Trust";
 
 export const metadata: Metadata = {
   title: "Compliance",
-};
-
-const STATUS_STYLES: Record<ComplianceStatus, string> = {
-  inPlace: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
-  provider: "bg-plum-100 text-plum-800 dark:bg-plum-900 dark:text-plum-300",
-  working: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
-  review: "bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-200",
-  notApplicable: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
 };
 
 /**
@@ -46,60 +33,30 @@ export default async function CompliancePage() {
           Effective <time dateTime={COMPLIANCE_EFFECTIVE}>{COMPLIANCE_EFFECTIVE}</time>.
         </p>
 
-        <aside className="mb-8 rounded-lg border border-plum-200 dark:border-plum-800 bg-plum-50 dark:bg-plum-950/30 p-4 text-sm text-slate-800 dark:text-slate-200">
-          <h2 className="text-base font-semibold mb-2">How to read this page</h2>
+        <TrustAside title="How to read this page">
           <p className="mb-2">
             We say what we do, not that we hold a certificate we don&apos;t. Where a provider holds the certification (for
             example, Stripe for card payments), the row says so. Where we haven&apos;t finished or haven&apos;t looked yet, it says that too.
           </p>
-          <ul className="space-y-1">
-            {Object.keys(COMPLIANCE_STATUSES).map((key) => (
-              <li key={key}>
-                <StatusPill status={key as ComplianceStatus} /> {STATUS_MEANING[key as ComplianceStatus]}
-              </li>
-            ))}
-          </ul>
-        </aside>
+          <StatusLegend statuses={Object.keys(COMPLIANCE_STATUSES) as ComplianceStatus[]} />
+        </TrustAside>
 
-        <nav aria-label="On this page" className="mb-8 text-sm">
-          <ul className="flex flex-wrap gap-x-4 gap-y-1 text-plum-700 dark:text-plum-300">
-            {COMPLIANCE_GROUPS.map((group) => (
-              <li key={group.id}>
-                <a href={`#${group.id}`} className="underline">
-                  {group.title}
-                </a>
-              </li>
-            ))}
-            <li>
-              <a href="#providers" className="underline">
-                Services we rely on
-              </a>
-            </li>
-          </ul>
-        </nav>
+        <TrustNav links={[...COMPLIANCE_GROUPS.map((g) => ({ id: g.id, title: g.title })), { id: "providers", title: "Services we rely on" }]} />
 
         {COMPLIANCE_GROUPS.map((group) => (
-          <Section key={group.id} id={group.id} title={group.title}>
+          <TrustSection key={group.id} id={group.id} title={group.title}>
             <p className="text-sm">{group.intro}</p>
             <ul className="space-y-3">
               {group.items.map((item) => (
-                <li
-                  key={item.name}
-                  className="rounded-lg border border-slate-200 dark:border-slate-700 p-4"
-                >
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <h3 className="font-semibold text-slate-900 dark:text-slate-100">{item.name}</h3>
-                    <StatusPill status={item.status} />
-                  </div>
-                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{item.about}</p>
-                  <p className="mt-2 text-sm">{item.detail}</p>
-                </li>
+                <TrustCard key={item.name} title={item.name} status={item.status} about={item.about}>
+                  <p>{item.detail}</p>
+                </TrustCard>
               ))}
             </ul>
-          </Section>
+          </TrustSection>
         ))}
 
-        <Section id="providers" title="Services we rely on">
+        <TrustSection id="providers" title="Services we rely on">
           <p className="text-sm">
             Some of the above rests on the services the Hub is built on. The{" "}
             <Link href="/privacy#services" className="underline">
@@ -125,7 +82,7 @@ export default async function CompliancePage() {
               ))}
             </tbody>
           </table>
-        </Section>
+        </TrustSection>
 
         <p className="mb-10 text-sm text-slate-700 dark:text-slate-300">
           Questions, or something here that doesn&apos;t look right? Email{" "}
@@ -136,30 +93,5 @@ export default async function CompliancePage() {
         </p>
       </div>
     </div>
-  );
-}
-
-const STATUS_MEANING: Record<ComplianceStatus, string> = {
-  inPlace: "We do this ourselves, and you can check it in the Hub.",
-  provider: "A provider we use holds the certification or does the work.",
-  working: "Partly there. The row says what is still open.",
-  review: "We haven't reviewed it yet.",
-  notApplicable: "Doesn't apply to the Hub, or we don't hold it.",
-};
-
-function StatusPill({ status }: { status: ComplianceStatus }) {
-  return (
-    <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${STATUS_STYLES[status]}`}>
-      {COMPLIANCE_STATUSES[status]}
-    </span>
-  );
-}
-
-function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
-  return (
-    <section id={id} className="mb-10 space-y-3 text-slate-700 dark:text-slate-300 scroll-mt-6">
-      <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 border-b border-slate-200 dark:border-slate-700 pb-2">{title}</h2>
-      {children}
-    </section>
   );
 }

@@ -39,7 +39,7 @@ function routes(dir: string, prefix = ""): string[] {
   return out;
 }
 
-const staticRoutes = [...routes("(member)"), ...routes("(admin)"), ...routes("privacy", "/privacy"), ...routes("compliance", "/compliance")].filter((r) => !r.includes("["));
+const staticRoutes = [...routes("(member)"), ...routes("(admin)"), ...routes("privacy", "/privacy"), ...routes("compliance", "/compliance"), ...routes("security", "/security")].filter((r) => !r.includes("["));
 const pathOf = (href: string) => href.split(/[?#]/)[0];
 
 describe("site pages registry", () => {
