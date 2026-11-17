@@ -27,6 +27,8 @@ function row(name: string, overrides: Partial<HedgieversaryRow> = {}): Hedgiever
     recentMilestoneMonths: null,
     cumulativeHiatusMonths: 0,
     hiatusWindows: [],
+    countedFrom: null,
+    returns: 0,
     ...overrides,
   }
 }
@@ -101,5 +103,22 @@ describe('HedgieversariesTable legal name', () => {
   it('shows the display name and keeps the legal name as a tooltip', () => {
     render(<HedgieversariesTable rows={[row('Ada E', { legalName: 'Ada Example' })]} asOf="2026-09-26T00:00:00Z" />)
     expect(screen.getByRole('link', { name: 'Ada E' })).toHaveAttribute('title', 'Ada Example')
+  })
+})
+
+describe('HedgieversariesTable returning members', () => {
+  it('says which date the count starts from when a member came back', () => {
+    render(
+      <HedgieversariesTable
+        rows={[row('Fern', { nextDate: '2026-10-28', milestoneMonths: 6, countedFrom: '2026-04-28', returns: 1 })]}
+        asOf="2026-09-26T00:00:00Z"
+      />,
+    )
+    expect(screen.getByText(/Counted from .*2026.*second time around/)).toBeTruthy()
+  })
+
+  it('says nothing extra for a member who never left', () => {
+    render(<HedgieversariesTable rows={[row('Fern', { nextDate: '2026-10-28', milestoneMonths: 6 })]} asOf="2026-09-26T00:00:00Z" />)
+    expect(screen.queryByText(/Counted from/)).toBeNull()
   })
 })

@@ -58,6 +58,8 @@ describe('client-side paging on HedgieversariesTable', () => {
     recentMilestoneMonths: null,
     cumulativeHiatusMonths: 0,
     hiatusWindows: [],
+    countedFrom: null,
+    returns: 0,
   }))
   const names = () => screen.getAllByRole('link').map((l) => l.textContent)
 

@@ -148,55 +148,76 @@ describe("buildHedgieversaryQueue", () => {
     expect(buildHedgieversaryQueue(members, hiatusWindows, NO_COMPLETIONS, NOW)).toEqual([]);
   });
 
-  it("pushes the milestone date out for cancel/resubscribe gap time, not just hiatus", () => {
-    // Joined 3 years ago, cancelled after a month and only came back in July
-    // 2026 (a dated 33-month gap, stored as inactive_periods) — the 6-month
-    // milestone shouldn't be "reached" yet; it lands 6 + 33 months after the
-    // first join, once she has accrued 6 real active months. (Before the
-    // dated gaps, the gap was guessed from total_active_months.)
-    const gappyMember: MemberInput[] = [
-      {
-        id: "m3",
-        name: "Stephanie Johnson",
-        first_joined_at: "2023-08-29",
-        total_active_months: 3,
-        inactive_periods: [{ start: "2023-10-01", end: "2026-07-01" }],
-      },
-    ];
-    const result = buildHedgieversaryQueue(gappyMember, new Map(), NO_COMPLETIONS, NOW, 120, 0);
-    expect(result).toEqual([
-      { queueType: "hedgieversary", memberId: "m3", memberName: "Stephanie Johnson", occurrenceKey: "6", deadline: "2026-11-29", label: "6-Month" },
-    ]);
-  });
 });
 
-describe("buildHedgieversaryQueue with stored gaps", () => {
-  it("does not move a milestone reached before a later gap", () => {
-    // The 3-year mark (2026-08-29) was reached before the gap began, so the gap can't move it.
-    const result = buildHedgieversaryQueue(
-      [{ id: "m4", name: "Ada Example", first_joined_at: "2023-08-29", total_active_months: 36, inactive_periods: [{ start: "2026-08-30", end: "2026-12-30" }] }],
-      new Map(),
-      NO_COMPLETIONS,
-      NOW
-    );
-    expect(result.map((r) => r.deadline)).toEqual(["2026-08-29"]);
+describe("buildHedgieversaryQueue for a returning member", () => {
+  // Joined 2023-08-29, left after a month and came back 2026-07-01 (a 33-month gap, stored as
+  // inactive_periods): the count restarts, so the 6-month mark is 2027-01-01.
+  const returning: MemberInput = {
+    id: "m3",
+    name: "Ada Example",
+    first_joined_at: "2023-08-29",
+    total_active_months: 3,
+    inactive_periods: [{ start: "2023-10-01", end: "2026-07-01" }],
+  };
+
+  it("counts from the return, keys the occurrence by the restart date and says second time around", () => {
+    const result = buildHedgieversaryQueue([returning], new Map(), NO_COMPLETIONS, NOW, 150, 0);
+    expect(result).toEqual([
+      {
+        queueType: "hedgieversary",
+        memberId: "m3",
+        memberName: "Ada Example",
+        occurrenceKey: "2026-07-01:6",
+        deadline: "2027-01-01",
+        label: "6-Month (second time around)",
+      },
+    ]);
   });
 
-  it("merges a stored gap with an overlapping hiatus window, counting the time once", () => {
-    const members: MemberInput[] = [
-      { id: "m5", name: "Ada Example", first_joined_at: "2023-08-29", total_active_months: 3, inactive_periods: [{ start: "2023-10-01", end: "2025-01-01" }] },
-    ];
-    const hiatus = new Map<string, HiatusWindow[]>([["m5", [{ startsAt: "2024-01-01", endsAt: "2026-07-01" }]]]);
-    const result = buildHedgieversaryQueue(members, hiatus, NO_COMPLETIONS, NOW, 120, 0);
-    // Oct 1 2023 to Jul 1 2026 is one 33-month period, not 15 + 30.
-    expect(result.map((r) => r.deadline)).toEqual(["2026-11-29"]);
+  it("produces none of the first stint's milestones", () => {
+    const result = buildHedgieversaryQueue([returning], new Map(), NO_COMPLETIONS, NOW, 150, 1000);
+    expect(result.map((r) => r.deadline)).toEqual(["2027-01-01"]);
+  });
+
+  it("is not suppressed by a completed 6-month from the first stint", () => {
+    const completed = completedMap([completionKey("hedgieversary", "m3", "6")]);
+    const result = buildHedgieversaryQueue([returning], new Map(), completed, NOW, 150, 0);
+    expect(result.map((r) => r.occurrenceKey)).toEqual(["2026-07-01:6"]);
+  });
+
+  it("is suppressed by its own completion", () => {
+    const completed = completedMap([completionKey("hedgieversary", "m3", "2026-07-01:6")]);
+    expect(buildHedgieversaryQueue([returning], new Map(), completed, NOW, 150, 0)).toEqual([]);
+  });
+
+  it("ignores a hiatus from before the return", () => {
+    const hiatus = new Map<string, HiatusWindow[]>([["m3", [{ startsAt: "2024-01-01", endsAt: "2024-06-01" }]]]);
+    const result = buildHedgieversaryQueue([returning], hiatus, NO_COMPLETIONS, NOW, 150, 0);
+    expect(result.map((r) => r.deadline)).toEqual(["2027-01-01"]);
+  });
+
+  it("a gap under 60 days is a billing blip: same dates, plain keys", () => {
+    const blip: MemberInput = { id: "m4", name: "Ada Example", first_joined_at: "2023-08-29", total_active_months: 36, inactive_periods: [{ start: "2026-01-01", end: "2026-02-15" }] };
+    expect(buildHedgieversaryQueue([blip], new Map(), NO_COMPLETIONS, NOW)).toEqual([
+      { queueType: "hedgieversary", memberId: "m4", memberName: "Ada Example", occurrenceKey: "36", deadline: "2026-08-29", label: "3-Year" },
+    ]);
   });
 
   it("falls back to hiatus windows alone when gaps were never computed (null)", () => {
     const members: MemberInput[] = [
       { id: "m6", name: "Ada Example", first_joined_at: "2023-08-29", total_active_months: 36, inactive_periods: null },
     ];
-    expect(buildHedgieversaryQueue(members, new Map(), NO_COMPLETIONS, NOW).map((r) => r.deadline)).toEqual(["2026-08-29"]);
+    expect(buildHedgieversaryQueue(members, new Map(), NO_COMPLETIONS, NOW).map((r) => r.occurrenceKey)).toEqual(["36"]);
+  });
+
+  it("a hiatus after the return shifts the later milestones", () => {
+    const hiatus = new Map<string, HiatusWindow[]>([["m3", [{ startsAt: "2026-08-01", endsAt: "2026-10-01" }]]]);
+    // on hiatus at NOW? 2026-09-03 is inside it: nothing
+    expect(buildHedgieversaryQueue([returning], hiatus, NO_COMPLETIONS, NOW, 300, 0)).toEqual([]);
+    const later = new Date("2026-10-15T00:00:00Z");
+    const result = buildHedgieversaryQueue([returning], hiatus, NO_COMPLETIONS, later, 150, 0);
+    expect(result.map((r) => r.deadline)).toEqual(["2027-03-01"]); // 2027-01-01 + the 2-month hiatus
   });
 });
 
