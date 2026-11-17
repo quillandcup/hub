@@ -191,10 +191,24 @@ describe("buildHedgieversaryQueue for a returning member", () => {
     expect(buildHedgieversaryQueue([returning], new Map(), completed, NOW, 150, 0)).toEqual([]);
   });
 
-  it("ignores a hiatus from before the return", () => {
-    const hiatus = new Map<string, HiatusWindow[]>([["m3", [{ startsAt: "2024-01-01", endsAt: "2024-06-01" }]]]);
+  it("ignores a hiatus from before the gap, and treats a hiatus inside the gap as the hiatus (no return)", () => {
+    const hiatus = new Map<string, HiatusWindow[]>([["m3", [{ startsAt: "2023-09-01", endsAt: "2023-09-20" }]]]);
     const result = buildHedgieversaryQueue([returning], hiatus, NO_COMPLETIONS, NOW, 150, 0);
     expect(result.map((r) => r.deadline)).toEqual(["2027-01-01"]);
+  });
+
+  it("a gap that coincides with a recorded hiatus is not a return: plain keys, hiatus shift only", () => {
+    const member: MemberInput = {
+      id: "m7",
+      name: "Ada Example",
+      first_joined_at: "2023-08-29",
+      total_active_months: 36,
+      inactive_periods: [{ start: "2025-01-01", end: "2025-05-01" }],
+    };
+    const hiatus = new Map<string, HiatusWindow[]>([["m7", [{ startsAt: "2025-01-01", endsAt: "2025-05-01" }]]]);
+    const result = buildHedgieversaryQueue([member], hiatus, NO_COMPLETIONS, NOW, 365, 0);
+    // 36 months is 2026-08-29 + 4 hiatus months (2025-01-01 to 2025-05-01, before the 3-year mark)
+    expect(result.map((r) => [r.occurrenceKey, r.deadline])).toEqual([["36", "2026-12-29"]]);
   });
 
   it("a gap under 60 days is a billing blip: same dates, plain keys", () => {

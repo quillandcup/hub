@@ -211,6 +211,17 @@ function dayDiff(start: string, end: string): number {
   return Math.round((new Date(`${end}T00:00:00Z`).getTime() - new Date(`${start}T00:00:00Z`).getTime()) / MS_PER_DAY);
 }
 
+// Whether two dated periods share at least one day. Each period covers the
+// days from its start up to, not including, its end (so a gap that ends on the
+// day a hiatus starts, or the reverse, does not overlap). An end of null is
+// open: it runs on without limit, so an open-ended hiatus overlaps every gap
+// that ends after it started.
+export function periodsOverlapByADay(a: InactivePeriod, b: InactivePeriod): boolean {
+  const aEndsAfterBStarts = a.end === null || a.end > b.start;
+  const bEndsAfterAStarts = b.end === null || b.end > a.start;
+  return aEndsAfterBStarts && bEndsAfterAStarts;
+}
+
 // What a member's Hedgieversary count is measured from, and which hiatus
 // periods shift it.
 export interface HedgieversaryClock {
@@ -231,20 +242,30 @@ export interface HedgieversaryClock {
 // hiatus only). A hiatus never restarts the count; it only pushes later
 // milestones out. Gaps with no end are ignored (a stored gap always ends at
 // the resubscribe date).
+//
+// A gap that coincides with a recorded hiatus is the hiatus, not a return: a
+// hiatus is often done as a cancel and resubscribe in Kajabi, so the stints
+// show a gap with the same dates as the hiatus window. Any overlap counts: a
+// gap that overlaps a hiatus window by at least one day (see
+// periodsOverlapByADay) is ignored, however long it is and however little of
+// it the hiatus covers; the hiatus window already stands for that time.
 export function resolveHedgieversaryClock(
   firstJoinedAt: string,
   hiatusWindows: HiatusWindow[],
   gaps: InactivePeriod[] | null | undefined
 ): HedgieversaryClock {
+  const hiatusPeriods: InactivePeriod[] = hiatusWindows.map((w) => ({
+    start: toDateOnly(w.startsAt),
+    end: w.endsAt ? toDateOnly(w.endsAt) : null,
+  }));
   const returnsDates = (gaps ?? [])
     .filter((g): g is { start: string; end: string } => g.end !== null && dayDiff(g.start, g.end) >= RETURN_GAP_MIN_DAYS)
+    .filter((g) => !hiatusPeriods.some((h) => periodsOverlapByADay(g, h)))
     .map((g) => g.end)
     .sort();
   const restartedAt = returnsDates.length > 0 ? returnsDates[returnsDates.length - 1] : null;
   const startDate = restartedAt ?? firstJoinedAt;
-  const periods = hiatusWindows
-    .map((w) => ({ start: toDateOnly(w.startsAt), end: w.endsAt ? toDateOnly(w.endsAt) : null }))
-    .filter((p) => p.start >= startDate);
+  const periods = hiatusPeriods.filter((p) => p.start >= startDate);
   return { startDate, returns: returnsDates.length, restartedAt, periods };
 }
 

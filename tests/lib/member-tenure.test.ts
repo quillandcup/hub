@@ -9,6 +9,7 @@ import {
   resolveHedgieversaryClock,
   roundLabel,
   RETURN_GAP_MIN_DAYS,
+  periodsOverlapByADay,
   isCurrentlyOnHiatus,
   nextHedgieversaryDate,
   hedgieversaryMilestonesInWindow,
@@ -334,6 +335,79 @@ describe("resolveHedgieversaryClock", () => {
     );
     expect(clock.startDate).toBe("2026-06-03");
     expect(clock.periods).toEqual([{ start: "2026-09-01", end: "2026-10-01" }]);
+  });
+});
+
+describe("a gap that coincides with a hiatus is the hiatus, not a return", () => {
+  const asOf = new Date("2026-09-01T00:00:00Z");
+
+  it("does not restart on a gap identical to a hiatus; the milestone shifts by the hiatus months only", () => {
+    const hiatus = [{ startsAt: "2023-05-17", endsAt: "2025-01-06" }];
+    const clock = resolveHedgieversaryClock("2022-09-23", hiatus, [{ start: "2023-05-17", end: "2025-01-06" }]);
+    expect(clock.restartedAt).toBeNull();
+    expect(clock.returns).toBe(0);
+    expect(clock.startDate).toBe("2022-09-23");
+    // 2023-05-17 to 2025-01-06 is 20 months (19 and 20 days of 31); the 6-month mark (2023-03-23) is before it, the 12-month (2023-09-23) after
+    const all = hedgieversaryMilestonesInWindow(clock.startDate, clock.periods, false, new Date("2025-06-01T00:00:00Z"), 0);
+    expect(all.map((m) => m.date)).toEqual(["2023-03-23", "2025-05-23"]);
+  });
+
+  it("ignores a gap that overlaps a hiatus by one day", () => {
+    const hiatus = [{ startsAt: "2024-03-09", endsAt: "2024-03-20" }];
+    // gap 2024-01-01 to 2024-03-10 covers 03-09 only
+    expect(resolveHedgieversaryClock("2023-01-01", hiatus, [{ start: "2024-01-01", end: "2024-03-10" }]).restartedAt).toBeNull();
+  });
+
+  it("does not count a gap that merely touches a hiatus at a boundary day as overlapping", () => {
+    const hiatus = [{ startsAt: "2024-03-10", endsAt: "2024-03-20" }];
+    expect(resolveHedgieversaryClock("2023-01-01", hiatus, [{ start: "2024-01-01", end: "2024-03-10" }]).restartedAt).toBe("2024-03-10");
+  });
+
+  it("still restarts for a gap of 60 days or more with no hiatus near it", () => {
+    const hiatus = [{ startsAt: "2022-01-01", endsAt: "2022-02-01" }];
+    const clock = resolveHedgieversaryClock("2021-01-01", hiatus, [{ start: "2024-01-01", end: "2024-03-01" }]);
+    expect(clock.restartedAt).toBe("2024-03-01");
+  });
+
+  it("treats a gap only partly covered by a hiatus as the hiatus (any overlap)", () => {
+    const hiatus = [{ startsAt: "2024-02-18", endsAt: "2024-07-10" }];
+    expect(resolveHedgieversaryClock("2022-01-01", hiatus, [{ start: "2024-02-19", end: "2024-07-17" }]).restartedAt).toBeNull();
+    const inside = [{ startsAt: "2024-01-16", endsAt: "2025-01-19" }];
+    expect(resolveHedgieversaryClock("2022-01-01", inside, [{ start: "2024-01-17", end: "2024-07-19" }]).restartedAt).toBeNull();
+  });
+
+  it("runs an open-ended hiatus on without limit", () => {
+    const open = [{ startsAt: "2025-12-04", endsAt: null }];
+    expect(resolveHedgieversaryClock("2022-01-01", open, [{ start: "2026-01-01", end: "2026-04-09" }]).restartedAt).toBeNull();
+    expect(resolveHedgieversaryClock("2022-01-01", open, [{ start: "2024-01-01", end: "2024-04-09" }]).restartedAt).toBe("2024-04-09");
+  });
+
+  it("a hiatus that overlaps a real return only counts when it starts on or after the restart", () => {
+    // real return 2024-01-01..2024-06-01; a hiatus 2024-05-01..2024-09-01 overlaps it, so the gap is the hiatus: no restart at all
+    const overlapping = resolveHedgieversaryClock("2022-01-01", [{ startsAt: "2024-05-01", endsAt: "2024-09-01" }], [{ start: "2024-01-01", end: "2024-06-01" }]);
+    expect(overlapping.restartedAt).toBeNull();
+    // a different real return, and a hiatus before it (ignored) and one after it (shifts)
+    const clock = resolveHedgieversaryClock(
+      "2022-01-01",
+      [
+        { startsAt: "2022-03-01", endsAt: "2022-04-01" },
+        { startsAt: "2025-01-01", endsAt: "2025-03-01" },
+      ],
+      [{ start: "2024-01-01", end: "2024-06-01" }]
+    );
+    expect(clock.startDate).toBe("2024-06-01");
+    expect(clock.periods).toEqual([{ start: "2025-01-01", end: "2025-03-01" }]);
+    expect(nextHedgieversaryDate(clock.startDate, clock.periods, false, asOf).nextDate).toBe("2027-08-01");
+  });
+
+  it("periodsOverlapByADay covers identical, nested, touching and open periods", () => {
+    const p = (start: string, end: string | null) => ({ start, end });
+    expect(periodsOverlapByADay(p("2024-01-01", "2024-02-01"), p("2024-01-01", "2024-02-01"))).toBe(true);
+    expect(periodsOverlapByADay(p("2024-01-01", "2024-12-01"), p("2024-03-01", "2024-04-01"))).toBe(true);
+    expect(periodsOverlapByADay(p("2024-01-01", "2024-02-01"), p("2024-02-01", "2024-03-01"))).toBe(false);
+    expect(periodsOverlapByADay(p("2024-02-01", "2024-03-01"), p("2024-01-01", "2024-02-01"))).toBe(false);
+    expect(periodsOverlapByADay(p("2024-01-01", "2024-02-01"), p("2024-01-31", null))).toBe(true);
+    expect(periodsOverlapByADay(p("2024-01-01", "2024-02-01"), p("2024-02-02", null))).toBe(false);
   });
 });
 
