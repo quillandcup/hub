@@ -16,6 +16,7 @@ import MediaPicker from "@/components/media/MediaPicker";
 import TagInput from "@/components/TagInput";
 import { MAX_GENRE_LENGTH, MAX_GENRES } from "@/lib/book-genres";
 import { bookCoverUrlFor, coverAssetIdOf } from "@/lib/bookCover";
+import Kbd from "@/components/Kbd";
 import { BOOK_FORMATS, BOOK_FORMAT_LABELS, type BookFormat } from "@/lib/book-editions";
 
 /** What the form holds for one format: whether the book is sold in it, and the link and price (as typed). */
@@ -306,9 +307,11 @@ export default function BookFormModal({
           <button data-track="book-form-save"
             type="submit"
             disabled={isPending || !coverUrl}
-            className="px-4 py-2 bg-plum-600 hover:bg-plum-700 disabled:bg-plum-400 text-white rounded-lg text-sm font-medium"
+            aria-keyshortcuts="Control+Enter Meta+Enter"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-plum-600 hover:bg-plum-700 disabled:bg-plum-400 text-white rounded-lg text-sm font-medium"
           >
             {isPending ? pendingLabel : submitLabel}
+            <Kbd keys={["mod", "enter"]} onAccent />
           </button>
         </div>
       </form>

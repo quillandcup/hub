@@ -2923,6 +2923,15 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     body: "Hub Chat draws what Slack sends natively: link previews, app messages and shared Slack messages. One parser (`parseUnfurls`, `lib/chat/unfurls.ts`) turns Slack's legacy attachments and Block Kit into a small set of typed variants (cards, blocks, shares), and renderers in `components/chat/MessageUnfurls.tsx` draw them. Apps show under their own name and logo.\n\n- **Hooks:** the parser registry (`BLOCK_PARSERS`) and the renderer registry (`BLOCK_RENDERERS`); a block type is one entry in each. Anything not understood falls back to an \"Open in Slack\" link.\n- **An app's message is drawn from its blocks; a person's message from its text.**\n- **Every picture goes through the picture proxy.**\n- **A shared Slack message** shows Slack's embedded copy to anyone who can read the sharing message.\n\nAdding a block type or unfurl kind: `docs/SLACK_BRIDGED_CHAT.md`, \"Adding a block type (or a new kind of unfurl)\".",
   },
   {
+    slug: "combobox-keyboard-hook",
+    date: "2026-11-17",
+    audience: "engineering",
+    category: "new",
+    title: "One keyboard pattern for every picker",
+    summary: "The member and staff pickers, single and multiple, answer the arrow keys, Enter and Escape the same way, and Ctrl/Cmd+Enter submits the form around them.",
+    body: "Every dropdown under a text box now follows the WAI-ARIA combobox pattern through one hook, `useComboboxKeys` (`lib/hooks/useComboboxKeys.ts`): arrows move a highlight that the mouse shares, Enter picks, the first Escape closes the list and only the second reaches the dialog around it, and the highlight is announced with `aria-activedescendant` and scrolled into view. Focus never leaves the box.\n\n- **Rule:** never hand-write arrow-key handling for a popup list; use the hook and its options (`homeEnd`, `pickSole`, `keepHighlight`, `preselect`, `pickOnTab`).\n- **Multi-select:** Enter toggles the highlighted option and keeps the list open; with nothing highlighted it is left to the form.\n- **Ctrl/Cmd+Enter** submits the enclosing form through `submitFormOnModEnter` (`lib/submit-form-on-mod-enter.ts`), wired into `Modal`. A primary button that works this way shows `Kbd` with `onAccent`.\n\nDetail and the pickers still outside the hook: `.claude/rules/reuse-ui-components.md` and `docs/TODO.md`, \"Move The Remaining List Popups Onto `useComboboxKeys`\".",
+  },
+  {
     slug: "chat-jump-to-a-day",
     date: "2026-11-13",
     audience: "product",

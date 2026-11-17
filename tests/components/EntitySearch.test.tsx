@@ -81,22 +81,161 @@ describe("EntitySearch", () => {
     expect(onSelect).toHaveBeenCalledWith(ITEMS[1]);
   });
 
-  it("picks the only match on Enter, and Escape clears the search without bubbling", async () => {
+  it("picks the only match on Enter", async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
+    render(<EntitySearch items={ITEMS} selectedId={null} onSelect={onSelect} placeholder="Search" />);
+    await user.type(screen.getByRole("combobox", { name: "Search" }), "fern{Enter}");
+    expect(onSelect).toHaveBeenCalledWith(ITEMS[0]);
+  });
+
+  it("closes the list on the first Escape, and only the second reaches the modal around it", async () => {
+    const user = userEvent.setup();
     const onOuterKey = vi.fn();
     render(
       <div onKeyDown={(e) => e.key === "Escape" && onOuterKey()}>
-        <EntitySearch items={ITEMS} selectedId={null} onSelect={onSelect} placeholder="Search" />
+        <EntitySearch items={ITEMS} selectedId={null} onSelect={vi.fn()} placeholder="Search" />
       </div>
     );
     const input = screen.getByRole("combobox", { name: "Search" });
-    await user.type(input, "zzz{Escape}");
-    expect(input).toHaveValue("");
+    await user.type(input, "example");
+    expect(screen.getAllByRole("option")).toHaveLength(2);
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(input).toHaveAttribute("aria-expanded", "false");
+    expect(input).toHaveValue("example");
     expect(onOuterKey).not.toHaveBeenCalled();
 
-    await user.type(input, "fern{Enter}");
+    await user.keyboard("{Escape}");
+    expect(onOuterKey).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets Escape through when there is no list to close", async () => {
+    const user = userEvent.setup();
+    const onOuterKey = vi.fn();
+    render(
+      <div onKeyDown={(e) => e.key === "Escape" && onOuterKey()}>
+        <EntitySearch items={ITEMS} selectedId={null} onSelect={vi.fn()} placeholder="Search" />
+      </div>
+    );
+    await user.type(screen.getByRole("combobox", { name: "Search" }), "zzz{Escape}");
+    expect(onOuterKey).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens a closed list again on ArrowDown, and typing brings it back too", async () => {
+    const user = userEvent.setup();
+    render(<EntitySearch items={ITEMS} selectedId={null} onSelect={vi.fn()} placeholder="Search" />);
+    const input = screen.getByRole("combobox", { name: "Search" });
+    await user.type(input, "example{Escape}");
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+
+    await user.keyboard("{ArrowDown}");
+    expect(screen.getAllByRole("option")).toHaveLength(2);
+    await user.keyboard("{ArrowDown}");
+    expect(input).toHaveAttribute("aria-activedescendant", screen.getAllByRole("option")[0].id);
+
+    await user.keyboard("{Escape}");
+    await user.type(input, "{Backspace}");
+    expect(screen.getAllByRole("option")).toHaveLength(2);
+  });
+
+  it("Home and End jump to the first and last option once one is highlighted, and leave the caret alone before", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    render(<EntitySearch items={ITEMS} selectedId={null} onSelect={onSelect} placeholder="Search" />);
+    const input = screen.getByRole("combobox", { name: "Search" });
+    await user.type(input, "example");
+    await user.keyboard("{Home}");
+    expect(input).not.toHaveAttribute("aria-activedescendant");
+
+    await user.keyboard("{ArrowDown}{End}");
+    expect(input).toHaveAttribute("aria-activedescendant", screen.getAllByRole("option")[1].id);
+    await user.keyboard("{Home}");
+    expect(input).toHaveAttribute("aria-activedescendant", screen.getAllByRole("option")[0].id);
+    await user.keyboard("{Enter}");
     expect(onSelect).toHaveBeenCalledWith(ITEMS[0]);
+  });
+
+  it("shares one highlight between the mouse and the keyboard, and resets it when the results change", async () => {
+    const user = userEvent.setup();
+    render(<EntitySearch items={ITEMS} selectedId={null} onSelect={vi.fn()} placeholder="Search" />);
+    const input = screen.getByRole("combobox", { name: "Search" });
+    await user.type(input, "example");
+    await user.hover(screen.getByRole("option", { name: /Bramble Admin/ }));
+    expect(input).toHaveAttribute("aria-activedescendant", screen.getByRole("option", { name: /Bramble Admin/ }).id);
+    await user.keyboard("{ArrowDown}");
+    expect(screen.getByRole("option", { name: /Fern Quillsby/ })).toHaveAttribute("aria-selected", "true");
+
+    await user.type(input, "{Backspace}");
+    expect(input).not.toHaveAttribute("aria-activedescendant");
+  });
+
+  it("scrolls the highlighted option into view", async () => {
+    const user = userEvent.setup();
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    try {
+      render(<EntitySearch items={ITEMS} selectedId={null} onSelect={vi.fn()} placeholder="Search" />);
+      await user.type(screen.getByRole("combobox", { name: "Search" }), "example{ArrowDown}");
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
+    } finally {
+      // @ts-expect-error jsdom has no scrollIntoView; restore that
+      delete Element.prototype.scrollIntoView;
+    }
+  });
+
+  it("does not take Enter when nothing matches, so the form around it submits", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn((e: React.FormEvent) => e.preventDefault());
+    render(
+      <form onSubmit={onSubmit}>
+        <EntitySearch items={ITEMS} selectedId={null} onSelect={vi.fn()} placeholder="Search" />
+        <button type="submit">Save</button>
+      </form>
+    );
+    await user.type(screen.getByRole("combobox", { name: "Search" }), "zzz{Enter}");
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not submit the form when Enter picks, and Ctrl+Enter submits it instead", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn((e: React.FormEvent) => e.preventDefault());
+    const onSelect = vi.fn();
+    render(
+      <form onSubmit={onSubmit}>
+        <EntitySearch items={ITEMS} selectedId={null} onSelect={onSelect} placeholder="Search" />
+        <button type="submit">Save</button>
+      </form>
+    );
+    await user.type(screen.getByRole("combobox", { name: "Search" }), "example{ArrowDown}{Enter}");
+    expect(onSelect).toHaveBeenCalledWith(ITEMS[0]);
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    await user.type(screen.getByRole("combobox", { name: "Search" }), "example{ArrowDown}{Control>}{Enter}{/Control}");
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the key hints under the options, hidden from assistive technology", async () => {
+    const user = userEvent.setup();
+    render(<EntitySearch items={ITEMS} selectedId={null} onSelect={vi.fn()} placeholder="Search" />);
+    await user.type(screen.getByRole("combobox", { name: "Search" }), "example");
+    const hints = screen.getByText("navigate").parentElement as HTMLElement;
+    expect(hints).toHaveAttribute("aria-hidden", "true");
+    expect(hints).toHaveTextContent(/select/);
+    expect(hints).toHaveTextContent(/close/);
+  });
+
+  it("says nothing is highlighted when there are no results, with emptyText showing", async () => {
+    const user = userEvent.setup();
+    render(<EntitySearch items={ITEMS} selectedId={null} onSelect={vi.fn()} placeholder="Search" emptyText="No matches" />);
+    const input = screen.getByRole("combobox", { name: "Search" });
+    await user.type(input, "zzz{ArrowDown}");
+    expect(screen.getByText("No matches")).toBeInTheDocument();
+    expect(screen.queryByRole("option")).not.toBeInTheDocument();
+    expect(input).toHaveAttribute("aria-expanded", "false");
+    expect(input).not.toHaveAttribute("aria-activedescendant");
   });
 
   it("leaves no close timer pending once it unmounts after a blur", () => {

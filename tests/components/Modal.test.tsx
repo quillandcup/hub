@@ -77,4 +77,58 @@ describe("Modal", () => {
     );
     expect(screen.getByLabelText("Name")).toHaveFocus();
   });
+
+  describe("Ctrl/Cmd+Enter", () => {
+    const setup = (opts: { disabled?: boolean; form?: boolean } = {}) => {
+      const onSubmit = vi.fn((e: { preventDefault: () => void }) => e.preventDefault());
+      const user = userEvent.setup();
+      const fields = (
+        <>
+          <label>
+            Note
+            <textarea />
+          </label>
+          <button type="submit" disabled={opts.disabled}>
+            Save
+          </button>
+        </>
+      );
+      render(
+        <Modal isOpen onClose={() => {}} title="Edit">
+          {opts.form === false ? fields : <form onSubmit={onSubmit}>{fields}</form>}
+        </Modal>,
+      );
+      return { user, onSubmit };
+    };
+
+    it("submits the form inside from a field, with Ctrl or Cmd", async () => {
+      const { user, onSubmit } = setup();
+      await user.click(screen.getByLabelText("Note"));
+      await user.keyboard("{Control>}{Enter}{/Control}");
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+      await user.keyboard("{Meta>}{Enter}{/Meta}");
+      expect(onSubmit).toHaveBeenCalledTimes(2);
+    });
+
+    it("leaves a plain Enter alone (a new line in a textarea)", async () => {
+      const { user, onSubmit } = setup();
+      await user.click(screen.getByLabelText("Note"));
+      await user.keyboard("{Enter}");
+      expect(onSubmit).not.toHaveBeenCalled();
+    });
+
+    it("does nothing without a form around the field", async () => {
+      const { user, onSubmit } = setup({ form: false });
+      await user.click(screen.getByLabelText("Note"));
+      await user.keyboard("{Control>}{Enter}{/Control}");
+      expect(onSubmit).not.toHaveBeenCalled();
+    });
+
+    it("waits while the Save button is disabled", async () => {
+      const { user, onSubmit } = setup({ disabled: true });
+      await user.click(screen.getByLabelText("Note"));
+      await user.keyboard("{Control>}{Enter}{/Control}");
+      expect(onSubmit).not.toHaveBeenCalled();
+    });
+  });
 });

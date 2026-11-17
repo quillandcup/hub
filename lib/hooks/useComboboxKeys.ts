@@ -1,17 +1,24 @@
-import { useId, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { useEffect, useId, useState, type KeyboardEvent, type MouseEvent } from "react";
 
 /** What the list needs of a key press: React's keyboard event satisfies it, and so does a wrapped native one (an editor's). */
-export type ComboboxKeyEvent = Pick<KeyboardEvent, "key" | "preventDefault" | "stopPropagation"> & { nativeEvent: { isComposing: boolean } };
+export type ComboboxKeyEvent = Pick<KeyboardEvent, "key" | "preventDefault" | "stopPropagation"> &
+  Partial<Pick<KeyboardEvent, "metaKey" | "ctrlKey">> & { nativeEvent: { isComposing: boolean } };
 
 /**
  * Keyboard and ARIA wiring for any list that pops up under a text box (the WAI-ARIA combobox pattern), so every
  * one of them behaves the same: ArrowDown/ArrowUp move through the options (wrapping), Enter picks the
  * highlighted one (or the only one), Escape closes, and none of it fires while an input method is composing.
- * Focus stays in the box; the highlighted option is announced through aria-activedescendant.
+ * Focus stays in the box; the highlighted option is announced through aria-activedescendant, scrolled into view,
+ * and shared with the mouse (hovering an option highlights it).
  *
- * Use it for every dropdown or suggestion list (`EntitySearch`, the message box's `@`, `#` and `:` choices) and
- * don't write arrow-key handling by hand. Options: `preselect` highlights the first one at once (Slack's
- * suggestions, where Enter takes it) instead of waiting for an arrow key; `pickOnTab` makes Tab pick too.
+ * Use it for every dropdown or suggestion list (`EntitySearch`, `MultiEntitySearch`, the message box's `@`, `#`
+ * and `:` choices) and don't write arrow-key handling by hand. Options: `preselect` highlights the first one at
+ * once (Slack's suggestions, where Enter takes it) instead of waiting for an arrow key; `pickOnTab` makes Tab pick
+ * too; `homeEnd` makes Home/End jump to the first/last option while one is highlighted (otherwise they move the
+ * caret); `pickSole: false` stops Enter taking the only option when nothing is highlighted (a multi-select, where
+ * Enter belongs to the surrounding form until the user has arrowed onto an option); `keepHighlight` leaves the
+ * highlight where it is after a pick (a list that stays open and toggles). Ctrl/Cmd+Enter is never the list's: it
+ * submits the form (`lib/submit-form-on-mod-enter.ts`).
  */
 export function useComboboxKeys({
   count,
@@ -20,6 +27,9 @@ export function useComboboxKeys({
   onEscape,
   preselect = false,
   pickOnTab = false,
+  homeEnd = false,
+  pickSole = true,
+  keepHighlight = false,
 }: {
   /** How many options are showing; 0 leaves every key but Escape to the box. */
   count: number;
@@ -30,6 +40,9 @@ export function useComboboxKeys({
   onEscape: () => boolean;
   preselect?: boolean;
   pickOnTab?: boolean;
+  homeEnd?: boolean;
+  pickSole?: boolean;
+  keepHighlight?: boolean;
 }) {
   const first = preselect ? 0 : -1;
   // The highlight remembers which option set it belongs to, so new results start at `first`.
@@ -41,6 +54,12 @@ export function useComboboxKeys({
   const active = activeIndex < count ? activeIndex : -1;
   const setActiveIndex = (next: number | ((i: number) => number)) =>
     setHighlight({ index: typeof next === "function" ? next(activeIndex) : next, options });
+
+  // Arrowing through a long list keeps the highlighted option visible (a hovered one already is).
+  useEffect(() => {
+    if (active < 0) return;
+    document.getElementById(`${listboxId}-${active}`)?.scrollIntoView?.({ block: "nearest" });
+  }, [active, listboxId]);
 
   /** Handles the key if it is the list's; returns whether it did, so the box's owner can have the rest. */
   const handleKey = (e: ComboboxKeyEvent): boolean => {
@@ -64,12 +83,18 @@ export function useComboboxKeys({
       setActiveIndex((i) => (i <= 0 || i >= count ? count - 1 : i - 1));
       return true;
     }
+    if (homeEnd && active >= 0 && (e.key === "Home" || e.key === "End")) {
+      e.preventDefault();
+      setActiveIndex(e.key === "Home" ? 0 : count - 1);
+      return true;
+    }
     if (e.key === "Enter" || (pickOnTab && e.key === "Tab")) {
-      const index = active >= 0 ? active : count === 1 ? 0 : -1;
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) return false;
+      const index = active >= 0 ? active : pickSole && count === 1 ? 0 : -1;
       if (index < 0) return false;
       e.preventDefault();
       onPick(index);
-      setActiveIndex(first);
+      if (!keepHighlight) setActiveIndex(first);
       return true;
     }
     return false;
