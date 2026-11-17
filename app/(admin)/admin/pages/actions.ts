@@ -8,7 +8,7 @@ import { createRepos } from "@/lib/data/repos";
 import { checkLandingPage, type A11yIssue } from "@/lib/landing/a11y";
 import { collectAssetIds, type LandingData } from "@/lib/landing/data";
 import { stampLandingVersion } from "@/lib/landing/migrations";
-import { aiConfigured, generateLandingPage } from "@/lib/landing/ai";
+import { aiConfigured, generateLandingPage, reviseLandingPage } from "@/lib/landing/ai";
 import { sanitizeLandingData } from "@/lib/landing/sanitize";
 import { isLandingPageId, isLandingVersionId, isValidSlug, slugify } from "@/lib/landing/slug";
 
@@ -80,6 +80,47 @@ export async function createLandingPageWithAi(input: { title: string; slug?: str
   const auth = await requireAdminAction();
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_page_ai_built", () => buildWithAiImpl(auth, input), (r) => ({ ok: !r.error }));
+}
+
+export type AiBlocksResult = { error?: string; blocks?: unknown[]; notes?: A11yIssue[] };
+
+/**
+ * Blocks for the editor's AI tab: the admin's description in, blocks out, to be added to the page being edited. Saves
+ * nothing: the editor inserts them (one undo step) and autosave takes it from there. The page itself is not sent.
+ */
+export async function generateLandingBlocks(prompt: string): Promise<AiBlocksResult> {
+  const auth = await requireAdminAction();
+  if (!auth.ok) return { error: auth.error };
+  return withAction(
+    "landing_page_ai_added",
+    async () => {
+      if (!aiConfigured()) return { error: "Build with AI isn't set up yet." };
+      const built = await generateLandingPage(prompt);
+      if (!built.ok) return { error: built.error };
+      return { blocks: built.data.content, notes: built.issues };
+    },
+    (r) => ({ ok: !r.error }),
+  );
+}
+
+/**
+ * Changes the page being edited as the admin describes. The editor sends the page's current blocks (what it shows, saved
+ * or not); the answer is the whole revised list for the editor to put in place as one undo step. Saves nothing.
+ */
+export async function reviseLandingBlocks(prompt: string, content: unknown): Promise<AiBlocksResult> {
+  const auth = await requireAdminAction();
+  if (!auth.ok) return { error: auth.error };
+  return withAction(
+    "landing_page_ai_revised",
+    async () => {
+      if (!aiConfigured()) return { error: "Build with AI isn't set up yet." };
+      if (tooBig(content)) return { error: "This page is too large to change." };
+      const built = await reviseLandingPage(prompt, content);
+      if (!built.ok) return { error: built.error };
+      return { blocks: built.data.content, notes: built.issues };
+    },
+    (r) => ({ ok: !r.error }),
+  );
 }
 
 // ---- autosave --------------------------------------------------------------------------------------------

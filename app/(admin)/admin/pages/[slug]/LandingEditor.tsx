@@ -11,6 +11,7 @@ import MediaPicker from "@/components/media/MediaPicker";
 import { editorConfig } from "@/components/landing/editor-config";
 import { checkLandingPage, type A11yIssue } from "@/lib/landing/a11y";
 import type { LandingData } from "@/lib/landing/data";
+import { aiPlugin } from "./AiPanel";
 import StatusChip from "../StatusChip";
 import { publishLandingPage, restoreLandingPageVersion, saveLandingDraft, unpublishLandingPage, updateLandingPageDetails } from "../actions";
 
@@ -300,6 +301,7 @@ export default function LandingEditor({ page: initial, data, versions }: { page:
         data={data as unknown as Data}
         onChange={onChange}
         overrides={overrides}
+        plugins={[aiPlugin]}
         viewports={DEVICES.map(({ label, width }) => ({ width, height: "auto", label }))}
         ui={{ viewports: { current: { width: 1280, height: "auto" }, controlsVisible: false, options: [] } }}
       />

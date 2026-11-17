@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AI_BLOCKS, cleanGeneratedBlocks, completeWithClaude, generateLandingPage, systemPrompt } from "@/lib/landing/ai";
+import { AI_BLOCKS, cleanGeneratedBlocks, completeWithClaude, generateLandingPage, pageForModel, reviseLandingPage, systemPrompt } from "@/lib/landing/ai";
 import { PROMPT_MAX } from "@/lib/landing/ai-limits";
 import { ANTHROPIC } from "@/lib/config";
 import { BLOCK_DEFAULTS } from "@/components/landing/config";
@@ -123,5 +123,63 @@ describe("completeWithClaude", () => {
     await expect(completeWithClaude("s", "p")).rejects.toThrow("500");
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ content: [] }), { status: 200 })));
     await expect(completeWithClaude("s", "p")).rejects.toThrow("no tool call");
+  });
+});
+
+describe("revising a page", () => {
+  const current = [
+    { type: "Hero", props: { id: "hero1", headline: "Old headline", subhead: "Old line", imageAssetId: "med_secret1", primary: { label: "Join", href: "/join" }, background: "plum" } },
+    { type: "Image", props: { id: "img1", imageAssetId: "med_secret2", alt: "A desk" } },
+    { type: "Section", props: { id: "sec1", background: "cream", content: [{ type: "Heading", props: { id: "h1", text: "Inside", level: "h2", align: "left" } }] } },
+  ];
+
+  it("shows the model ids and settings but never a picture id, and marks blocks it cannot write as locked", () => {
+    const view = JSON.stringify(pageForModel(current));
+    expect(view).not.toContain("med_secret");
+    expect(pageForModel(current)[1]).toEqual({ id: "img1", type: "Image", locked: true });
+    expect(view).toContain("Old headline");
+    expect(view).toContain("Inside");
+  });
+
+  it("changes only what the model sent: the picture, the link and the other settings stay", () => {
+    const data = cleanGeneratedBlocks({ blocks: [{ id: "hero1", type: "Hero", props: { headline: "New headline" } }] }, current);
+    const [hero] = content(data);
+    expect(hero.props).toMatchObject({ id: "hero1", headline: "New headline", subhead: "Old line", imageAssetId: "med_secret1", background: "plum", primary: { label: "Join", href: "/join" } });
+  });
+
+  it("keeps a locked block exactly as it was, even if the model rewrites it, and drops one it leaves out", () => {
+    const data = cleanGeneratedBlocks({ blocks: [{ id: "img1", type: "Image", props: { alt: "hacked", imageAssetId: "med_other" } }, { type: "Image", props: { alt: "new" } }] }, current);
+    expect(content(data)).toEqual([{ type: "Image", props: current[1].props }]);
+  });
+
+  it("matches blocks inside a section by id, adds new ones, and treats an unknown id as new", () => {
+    const data = cleanGeneratedBlocks(
+      { blocks: [{ id: "sec1", type: "Section", props: { content: [{ id: "h1", type: "Heading", props: { text: "Changed" } }, { id: "nope", type: "Heading", props: { text: "Fresh" } }] } }] },
+      current,
+    );
+    const kids = (content(data)[0].props.content as Node[]);
+    expect(kids[0].props).toMatchObject({ id: "h1", text: "Changed", level: "h2", align: "left" });
+    expect(kids[1].props.id).not.toBe("nope");
+    expect(content(data)[0].props.background).toBe("cream");
+  });
+
+  it("sends the page and the request to the model and returns the revised blocks", async () => {
+    const complete = vi.fn().mockResolvedValue({ blocks: [{ id: "hero1", type: "Hero", props: { headline: "Shorter" } }] });
+    const result = await reviseLandingPage("shorter", current, complete);
+    expect(complete.mock.calls[0][1]).toContain("Old headline");
+    expect(complete.mock.calls[0][1]).not.toContain("med_secret");
+    expect(result.ok).toBe(true);
+  });
+
+  it("refuses an empty request, an empty page and one that is too long, and leaves the page alone when the model fails", async () => {
+    const complete = vi.fn();
+    expect((await reviseLandingPage(" ", current, complete)).ok).toBe(false);
+    expect((await reviseLandingPage("x", [], complete)).ok).toBe(false);
+    const huge = [{ type: "RichText", props: { id: "r", html: "x".repeat(70_000) } }];
+    expect(await reviseLandingPage("x", huge, complete)).toMatchObject({ ok: false, error: expect.stringContaining("too long") });
+    expect(complete).not.toHaveBeenCalled();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await reviseLandingPage("x", current, async () => { throw new Error("529"); })).toMatchObject({ ok: false, error: expect.stringContaining("unchanged") });
+    expect(await reviseLandingPage("x", current, async () => ({ blocks: [] }))).toMatchObject({ ok: false });
   });
 });
