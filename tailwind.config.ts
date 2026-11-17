@@ -1,6 +1,7 @@
 import type { Config } from "tailwindcss";
 import typography from "@tailwindcss/typography";
 import containerQueries from "@tailwindcss/container-queries";
+import plugin from "tailwindcss/plugin";
 
 /**
  * Quill & Cup brand palette (from the brand guide). `plum` is the app's accent -- the
@@ -109,5 +110,10 @@ export default {
       },
     },
   },
-  plugins: [typography, containerQueries],
+  plugins: [
+    typography,
+    containerQueries,
+    // Only devices with a mouse or trackpad: keyboard-shortcut hints (`components/Kbd.tsx`) never show on a phone or tablet.
+    plugin(({ addVariant }) => addVariant("fine-pointer", "@media (hover: hover) and (pointer: fine)")),
+  ],
 } satisfies Config;

@@ -56,6 +56,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "kbd-shortcut-hints",
+    date: "2026-11-17",
+    audience: "engineering",
+    category: "new",
+    title: "One shared component for keyboard-shortcut hints",
+    summary: "A shared Kbd component draws shortcut keys as small caps next to the control that owns the shortcut, and only on devices with a keyboard.",
+    body: `Shortcut hints used to be hand-rolled \`<kbd>\` tags. \`components/Kbd.tsx\` is now the one place that draws them.
+
+- **Use it like this.** \`<Kbd keys={["mod", "K"]} />\` renders one cap per key. Names such as \`mod\`, \`shift\`, \`enter\`, \`esc\`, \`up\` and \`down\` are mapped; a single letter is upper-cased. \`mod\` is the Command key on Apple platforms and Ctrl elsewhere, read on the client with \`useSyncExternalStore\`, so the server render and hydration agree and the right key appears right after.
+- **Decorative only.** It is \`aria-hidden\`. The control that owns a shortcut declares it with \`aria-keyshortcuts\`, which keeps the visible hint out of the button's accessible name.
+- **Only where there is a keyboard.** It is hidden below \`sm\` and on devices without hover and a fine pointer, through the \`fine-pointer\` Tailwind variant in \`tailwind.config.ts\`. Use that variant for any other keyboard-only affordance.
+- **Add a hint only for a shortcut that works.** Today: search (open, move, choose, close), the modal close button, sending a chat message, and the admin calendar's week links.`,
+  },
+  {
     slug: "reorder-your-goals",
     date: "2026-11-17",
     audience: "product",
