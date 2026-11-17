@@ -128,6 +128,10 @@ describe("lists of things", () => {
     render(<Testimonials items={[{ quote: "Loved it", name: "Ada Example", detail: "Member since 2024" }]} />);
     expect(screen.getByText(/Loved it/)).toBeInTheDocument();
     expect(screen.getByText("Ada Example")).toBeInTheDocument();
+    const card = screen.getByText(/Loved it/).closest("figure")!;
+    expect(card.className).toContain("bg-cream");
+    expect(card.className).toContain("border-plum-600");
+    expect(screen.getByText("Member since 2024").className).toContain("text-plum-700");
   });
 
   it("answers questions with native disclosure elements", () => {
@@ -149,6 +153,8 @@ describe("lists of things", () => {
     expect(container.querySelector("ul")!.className).toContain("@columns:grid-cols-4");
     expect(screen.getByRole("heading", { name: "Book one" })).toBeInTheDocument();
     expect(screen.getAllByRole("link")).toHaveLength(1);
+    expect(container.querySelector("li")!.className).toContain("bg-cream");
+    expect(screen.getByText("$12").className).toContain("text-plum-700");
   });
 
   it("renders dividers and spacers that assistive technology skips", () => {
