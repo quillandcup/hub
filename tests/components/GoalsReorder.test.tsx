@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { DndContextProps } from "@dnd-kit/core";
+import { HANDLE_TOOLTIP } from "@/components/writing/SortableList";
 import ProjectDetailClient from "@/app/(member)/projects/[id]/ProjectDetailClient";
 import type { GoalRow, WritingProjectRow } from "@/app/(member)/projects/actions";
 
@@ -61,16 +62,22 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("ProjectDetailClient goal reordering", () => {
-  it("lists the goals in the order it is given, each with a grip", () => {
+  async function openMenu(title: string) {
+    await userEvent.click(screen.getByRole("button", { name: `More actions for ${title}` }));
+  }
+
+  it("lists the goals in the order it is given, each with a drag handle and a tooltip", () => {
     render(<ProjectDetailClient project={project(three())} entries={[]} archivedGoals={[]} />);
     expect(titles()).toEqual(["Daily words", "Finish draft", "Read aloud"]);
     expect(screen.getAllByRole("button", { name: /^Reorder / })).toHaveLength(3);
+    expect(screen.getAllByText(HANDLE_TOOLTIP)).toHaveLength(3);
+    expect(screen.queryByRole("button", { name: /^Move .* (up|down)$/ })).toBeNull();
   });
 
   it("has no ordering controls for a single goal", () => {
     render(<ProjectDetailClient project={project([goal("g1", "Daily words")])} entries={[]} archivedGoals={[]} />);
     expect(screen.queryByRole("button", { name: /^Reorder / })).toBeNull();
-    expect(screen.queryByRole("button", { name: /^Move / })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^More actions for / })).toBeNull();
   });
 
   it("leaves a missed goal out of the order, in Past goals", () => {
@@ -78,16 +85,11 @@ describe("ProjectDetailClient goal reordering", () => {
     expect(screen.getAllByRole("button", { name: /^Reorder / })).toHaveLength(3);
   });
 
-  it("disables Move up on the first goal and Move down on the last", () => {
+  it("shows the current position in the menu and moves a goal to the chosen one, saving the project's order and announcing it", async () => {
     render(<ProjectDetailClient project={project(three())} entries={[]} archivedGoals={[]} />);
-    expect(screen.getByRole("button", { name: "Move Daily words up" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Move Daily words down" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Move Read aloud down" })).toBeDisabled();
-  });
-
-  it("moves a goal with its button, shows it at once, saves the project's order and refreshes", async () => {
-    render(<ProjectDetailClient project={project(three())} entries={[]} archivedGoals={[]} />);
-    await userEvent.click(screen.getByRole("button", { name: "Move Daily words down" }));
+    await openMenu("Daily words");
+    expect(screen.getByRole("menuitem", { name: "Position 1 (current)" })).toHaveAttribute("aria-disabled", "true");
+    await userEvent.click(screen.getByRole("menuitem", { name: "Move to position 2" }));
     expect(titles()).toEqual(["Finish draft", "Daily words", "Read aloud"]);
     expect(m.reorder).toHaveBeenCalledWith("wprj_1", ["g2", "g1", "g3"]);
     await waitFor(() => expect(m.refresh).toHaveBeenCalledOnce());
@@ -106,7 +108,8 @@ describe("ProjectDetailClient goal reordering", () => {
   it("puts the list back and says so when the save is refused", async () => {
     m.reorder.mockResolvedValue({ error: "Failed to save the order" });
     render(<ProjectDetailClient project={project(three())} entries={[]} archivedGoals={[]} />);
-    await userEvent.click(screen.getByRole("button", { name: "Move Read aloud up" }));
+    await openMenu("Read aloud");
+    await userEvent.click(screen.getByRole("menuitem", { name: "Move to position 2" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't save the new order");
     expect(titles()).toEqual(["Daily words", "Finish draft", "Read aloud"]);
     expect(m.refresh).not.toHaveBeenCalled();

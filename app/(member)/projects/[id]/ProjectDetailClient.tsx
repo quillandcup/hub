@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import LogProgressModal from "@/components/writing/LogProgressModal";
@@ -158,11 +158,12 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
 
   const activeGoals = project.goals.filter((goal) => !isMissedGoal(goal));
   const missedGoals = project.goals.filter(isMissedGoal);
+  const goalLabel = (goal: GoalRow) => goal.title || `${MEASURE_LABELS[goal.measure]} goal`;
   // The member's own order of the goals shown under "Goals" (the past ones aren't part of it).
   const goalOrder = useReorderableList(
     activeGoals,
     (ids) => reorderMyGoals(project.id, ids),
-    (goal) => goal.title || `${MEASURE_LABELS[goal.measure]} goal`,
+    goalLabel,
     "Couldn't save the new order. Please try again.",
     () => router.refresh()
   );
@@ -171,7 +172,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
   const goalOnProfile = (goal: GoalRow) => goal.showOnProfile && showOnProfile;
 
   const renderGoal = (goal: GoalRow, index?: number) => {
-    const row = (
+    const makeRow = (menu: ReactNode = null) => (
       editingGoal?.id === goal.id ? (
         <GoalForm
           key={goal.id}
@@ -232,26 +233,27 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
             >
               🗑️
             </button>
+            {menu}
           </div>
         </div>
       )
     );
-    if (index === undefined || editingGoal?.id === goal.id) return row;
+    if (index === undefined || editingGoal?.id === goal.id) return makeRow();
     return (
       <SortableRow
         key={goal.id}
         id={goal.id}
-        label={goal.title || `${MEASURE_LABELS[goal.measure]} goal`}
+        label={goalLabel(goal)}
         index={index}
         count={goalOrder.shown.length}
         disabled={goalOrder.saving}
-        onMove={(delta) => goalOrder.move(goal.id, delta)}
+        onMoveTo={(position) => goalOrder.moveTo(goal.id, position)}
         track="project-goal"
         className=""
         idleClassName=""
         liftedClassName="rounded-lg bg-white shadow-xl ring-2 ring-plum-400 dark:bg-slate-900 dark:ring-plum-500"
       >
-        {row}
+        {(menu) => makeRow(menu)}
       </SortableRow>
     );
   };
@@ -402,7 +404,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
           <p role="status" className="sr-only">
             {goalOrder.note}
           </p>
-          <SortableList ids={goalOrder.shown.map((g) => g.id)} onReorder={(ids) => void goalOrder.reorder(ids)}>
+          <SortableList ids={goalOrder.shown.map((g) => g.id)} labels={Object.fromEntries(goalOrder.shown.map((g) => [g.id, goalLabel(g)]))} onReorder={(ids) => void goalOrder.reorder(ids)}>
             <div className="space-y-4">{goalOrder.shown.map((goal, index) => renderGoal(goal, index))}</div>
           </SortableList>
         </div>
