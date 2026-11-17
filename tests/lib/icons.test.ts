@@ -51,7 +51,6 @@ const SVG_BASELINE: Record<string, number> = {
   "app/(member)/my-prickles/AddToCalendar.tsx": 3,
   "app/(member)/my-prickles/CalendarSyncCard.tsx": 3,
   "app/(member)/settings/SessionsPanel.tsx": 1,
-  "components/ActionMenu.tsx": 1,
   "components/HelpMenu.tsx": 1,
   "components/InAppNotifications.tsx": 1,
   "components/InfoTip.tsx": 1,
