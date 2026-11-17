@@ -193,6 +193,13 @@ export default async function MemberDetailPage({
   const kajabiCustomers = await createRepos(supabase).billing.kajabiCustomers({ emails: allEmails });
 
   const customerIds = kajabiCustomers.map((c) => c.kajabi_customer_id).filter(Boolean);
+  // TEMPORARY diagnostic: which kind of key the service client holds (format only, never the value).
+  {
+    const k = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+    let role = "n/a";
+    try { role = JSON.parse(Buffer.from(k.split(".")[1] ?? "", "base64url").toString()).role ?? "none"; } catch {}
+    console.error("[diag] member page service key", { len: k.length, prefix: k.slice(0, 3), role });
+  }
   const membershipHistory = await traced("member page: membership history", () => fetchMembershipHistory(createRepos(supabase), customerIds, createRepos(createServiceRoleClient())), { memberId: id });
 
   // The Slack tab pages on the server (?type=&channel=&sort=&dir=&page=&pageSize=). Loaded for every
