@@ -128,6 +128,10 @@ describe("the header", () => {
     editor();
     fireEvent.click(screen.getByRole("button", { name: "Phone preview" }));
     expect(mocks.dispatch).toHaveBeenCalledWith({ type: "setUi", ui: { viewports: expect.objectContaining({ current: { width: 390, height: "auto" } }) } });
+    fireEvent.click(screen.getByRole("button", { name: "Tablet portrait preview" }));
+    expect(mocks.dispatch).toHaveBeenCalledWith({ type: "setUi", ui: { viewports: expect.objectContaining({ current: { width: 768, height: "auto" } }) } });
+    fireEvent.click(screen.getByRole("button", { name: "Tablet landscape preview" }));
+    expect(mocks.dispatch).toHaveBeenCalledWith({ type: "setUi", ui: { viewports: expect.objectContaining({ current: { width: 1024, height: "auto" } }) } });
     expect(screen.getByRole("button", { name: "Desktop preview" })).toHaveAttribute("aria-pressed", "true");
 
     fireEvent.click(screen.getByRole("button", { name: "Undo" }));
