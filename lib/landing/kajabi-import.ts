@@ -149,7 +149,8 @@ function textBlocks(html: string, align: "left" | "center" | "right", id: (type:
   const flush = () => {
     const rich = sanitizeRichText(pending.join(""));
     pending = [];
-    if (clean(rich.replace(/<[^>]*>/g, "")) || /<hr/.test(rich)) out.push({ type: "RichText", props: { id: id("RichText"), html: rich, align: align === "center" ? "center" : "left" } });
+    const fragment = parseFragment(rich).childNodes as unknown as Node5[];
+    if (clean(fragment.map(textOf).join("")) || /<hr/.test(rich)) out.push({ type: "RichText", props: { id: id("RichText"), html: rich, align: align === "center" ? "center" : "left" } });
   };
   const walk = (nodes: Node5[]) => {
     for (const node of nodes) {

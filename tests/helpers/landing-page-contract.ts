@@ -153,7 +153,7 @@ export function defineLandingPageContract(name: string, setup: () => LandingPage
       expect(replaced).toMatchObject({ id: page.id, title: "Title", slug, status: "published" });
       expect(replaced?.draft_data).toEqual(doc("second"));
       expect(replaced?.published_data).toEqual(doc("first"));
-      expect((await ctx.repo().published(slug))?.data).toEqual(doc("first"));
+      expect((await ctx.repo().published(slug))?.data).toEqual(normalizeLandingData(doc("first")));
       expect(await ctx.repo().versions(page.id)).toHaveLength(1);
       expect(await ctx.repo().replaceImportedDraft(`lpg_${"A".repeat(12)}`, doc("x"), null)).toBeNull();
     });

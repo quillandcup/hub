@@ -85,8 +85,11 @@ const isEmptyDocument = (d: unknown) => normalizeLandingData(d).content.length =
 /** Why replacing this page's draft needs a yes: the draft has changes only it holds, or the export is a different page than the one named. */
 export function replaceReasons(page: LandingPage, typedTitle: string): string[] {
   const reasons: string[] = [];
-  if (page.imported_at && Date.parse(page.updated_at) > Date.parse(page.imported_at)) reasons.push("Its draft was edited after the last import. Those edits will be replaced (the old draft is kept in the page's history).");
-  if (page.status === "published" && !sameDocument(page.draft_data, page.published_data)) reasons.push("Its draft has unpublished changes that differ from the live page. They will be replaced (the old draft is kept in the page's history); the live page doesn't change.");
+  const live = page.status === "published";
+  const sameAsLive = live && sameDocument(page.draft_data, page.published_data);
+  // Publishing also moves `updated_at`, and a draft equal to the live page has nothing that would be lost.
+  if (page.imported_at && Date.parse(page.updated_at) > Date.parse(page.imported_at) && !sameAsLive) reasons.push("Its draft was edited after the last import. Those edits will be replaced (the old draft is kept in the page's history).");
+  if (live && !sameAsLive) reasons.push("Its draft has unpublished changes that differ from the live page. They will be replaced (the old draft is kept in the page's history); the live page doesn't change.");
   if (typedTitle.trim() && typedTitle.trim().toLowerCase() !== page.title.trim().toLowerCase()) reasons.push(`This export matches the page "${page.title}", which you named "${typedTitle.trim()}". Its draft will be replaced.`);
   return reasons;
 }
