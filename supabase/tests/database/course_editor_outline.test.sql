@@ -7,7 +7,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(38);
+SELECT plan(41);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000e1a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'outline-alice@example.test'),
@@ -199,6 +199,21 @@ SELECT set_config('request.jwt.claims', '{"role": "anon"}', true);
 SELECT throws_ok(
   $$SELECT public.reorder_course_children('crs_OutlineHub001', 'lesson', 'mod_OutlineWk0001', (SELECT array_agg(id) FROM public.course_lessons WHERE module_id = 'mod_OutlineWk0001'))$$,
   'P0001', 'not_editable', 'someone who isn''t signed in may not');
+
+-- A caller whose claims carry no role (auth.role() is NULL) or whose user has no profile row must be refused
+-- too: an unguarded NOT (... OR NULL) is NULL, and the IF would not fire (20270815000000).
+SELECT set_config('request.jwt.claims', '', true);
+SELECT throws_ok(
+  $$SELECT public.reorder_course_children('crs_OutlineHub001', 'lesson', 'mod_OutlineWk0001', (SELECT array_agg(id) FROM public.course_lessons WHERE module_id = 'mod_OutlineWk0001'))$$,
+  'P0001', 'not_editable', 'a caller with no claims at all may not');
+SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000e1ff", "email": "outline-ghost@example.test"}', true);
+SELECT throws_ok(
+  $$SELECT public.reorder_course_children('crs_OutlineHub001', 'lesson', 'mod_OutlineWk0001', (SELECT array_agg(id) FROM public.course_lessons WHERE module_id = 'mod_OutlineWk0001'))$$,
+  'P0001', 'not_editable', 'a signed-in user with no profile and no role claim may not');
+SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000e1ff", "email": "outline-ghost@example.test", "role": "authenticated"}', true);
+SELECT throws_ok(
+  $$SELECT public.reorder_course_children('crs_OutlineHub001', 'lesson', 'mod_OutlineWk0001', (SELECT array_agg(id) FROM public.course_lessons WHERE module_id = 'mod_OutlineWk0001'))$$,
+  'P0001', 'not_editable', 'a signed-in user with no profile row may not');
 
 SELECT * FROM finish(true);
 ROLLBACK;
