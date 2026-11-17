@@ -8,6 +8,7 @@ import {
   COMPLIANCE_PROVIDERS,
   COMPLIANCE_STATUSES,
   COMPLIANCE_EFFECTIVE,
+  complianceItemId,
 } from "@/lib/compliance";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
@@ -79,6 +80,35 @@ describe("compliance list", () => {
     for (const item of COMPLIANCE_GROUPS.flatMap((g) => g.items)) {
       expect(Object.keys(COMPLIANCE_STATUSES)).toContain(item.status);
       expect(item.evidence.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("compliance list: public-repo rule", () => {
+  it("carries no emails, links or key-shaped strings, and every row is dated and has evidence", () => {
+    const text = JSON.stringify(COMPLIANCE_GROUPS);
+    expect(text).not.toMatch(/@[a-z0-9-]+\.[a-z]{2,}/i);
+    expect(text).not.toMatch(/https?:\/\//);
+    expect(text).not.toMatch(/\b(sk|pk|xox[bp])[-_][A-Za-z0-9]{8,}/);
+    for (const item of COMPLIANCE_GROUPS.flatMap((g) => g.items)) {
+      expect(item.checked).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(item.evidence.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("gives every row its own in-page id", () => {
+    const ids = COMPLIANCE_GROUPS.flatMap((g) => g.items.map((i) => complianceItemId(i.name)));
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const id of ids) expect(id).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
+    expect(complianceItemId("California and other US state privacy laws")).toBe("california-and-other-us-state-privacy-laws");
+  });
+
+  it("does not show the staff-only evidence or open items to members", async () => {
+    resetServerPageMocks();
+    signInAs(null);
+    await renderServerPage(CompliancePage, {});
+    for (const item of COMPLIANCE_GROUPS.flatMap((g) => g.items)) {
+      for (const text of item.open) expect(screen.queryByText(text)).not.toBeInTheDocument();
     }
   });
 });
