@@ -149,17 +149,54 @@ describe("buildHedgieversaryQueue", () => {
   });
 
   it("pushes the milestone date out for cancel/resubscribe gap time, not just hiatus", () => {
-    // Joined 3 years ago but has only ever accumulated 3 real active months
-    // (cancelled and mostly stayed away, unlike Julie above) — the 6-month
-    // milestone shouldn't be "reached" yet; it should land ~3 months from
-    // now, once she's accrued 6 real active months.
+    // Joined 3 years ago, cancelled after a month and only came back in July
+    // 2026 (a dated 33-month gap, stored as inactive_periods) — the 6-month
+    // milestone shouldn't be "reached" yet; it lands 6 + 33 months after the
+    // first join, once she has accrued 6 real active months. (Before the
+    // dated gaps, the gap was guessed from total_active_months.)
     const gappyMember: MemberInput[] = [
-      { id: "m3", name: "Stephanie Johnson", first_joined_at: "2023-08-29", total_active_months: 3 },
+      {
+        id: "m3",
+        name: "Stephanie Johnson",
+        first_joined_at: "2023-08-29",
+        total_active_months: 3,
+        inactive_periods: [{ start: "2023-10-01", end: "2026-07-01" }],
+      },
     ];
     const result = buildHedgieversaryQueue(gappyMember, new Map(), NO_COMPLETIONS, NOW, 120, 0);
     expect(result).toEqual([
       { queueType: "hedgieversary", memberId: "m3", memberName: "Stephanie Johnson", occurrenceKey: "6", deadline: "2026-11-29", label: "6-Month" },
     ]);
+  });
+});
+
+describe("buildHedgieversaryQueue with stored gaps", () => {
+  it("does not move a milestone reached before a later gap", () => {
+    // The 3-year mark (2026-08-29) was reached before the gap began, so the gap can't move it.
+    const result = buildHedgieversaryQueue(
+      [{ id: "m4", name: "Ada Example", first_joined_at: "2023-08-29", total_active_months: 36, inactive_periods: [{ start: "2026-08-30", end: "2026-12-30" }] }],
+      new Map(),
+      NO_COMPLETIONS,
+      NOW
+    );
+    expect(result.map((r) => r.deadline)).toEqual(["2026-08-29"]);
+  });
+
+  it("merges a stored gap with an overlapping hiatus window, counting the time once", () => {
+    const members: MemberInput[] = [
+      { id: "m5", name: "Ada Example", first_joined_at: "2023-08-29", total_active_months: 3, inactive_periods: [{ start: "2023-10-01", end: "2025-01-01" }] },
+    ];
+    const hiatus = new Map<string, HiatusWindow[]>([["m5", [{ startsAt: "2024-01-01", endsAt: "2026-07-01" }]]]);
+    const result = buildHedgieversaryQueue(members, hiatus, NO_COMPLETIONS, NOW, 120, 0);
+    // Oct 1 2023 to Jul 1 2026 is one 33-month period, not 15 + 30.
+    expect(result.map((r) => r.deadline)).toEqual(["2026-11-29"]);
+  });
+
+  it("falls back to hiatus windows alone when gaps were never computed (null)", () => {
+    const members: MemberInput[] = [
+      { id: "m6", name: "Ada Example", first_joined_at: "2023-08-29", total_active_months: 36, inactive_periods: null },
+    ];
+    expect(buildHedgieversaryQueue(members, new Map(), NO_COMPLETIONS, NOW).map((r) => r.deadline)).toEqual(["2026-08-29"]);
   });
 });
 

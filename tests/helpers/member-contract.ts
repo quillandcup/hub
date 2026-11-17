@@ -17,6 +17,8 @@ export type MemberSeedRecord = {
   photoUrl?: string;
   birthday?: [month: number, day: number];
   totalActiveMonths?: number;
+  /** Dated cancel/resubscribe gaps (members.inactive_periods). */
+  inactivePeriods?: { start: string; end: string | null }[];
   /** Kajabi tags on the contact. */
   kajabiTags?: string[];
   /** Name aliases (nicknames, pen names); a Supabase run suffixes them, since an alias is unique across members. */
@@ -491,7 +493,7 @@ export function defineMemberContract(name: string, setup: () => MemberContractCo
         { name: "Ada Example", displayName: "Penny Quill", kajabiTags: [tag], status: "cancelled" },
         { name: "Cy Example", kajabiTags: [tag], status: "active" },
         { name: "Dee Example", kajabiTags: ["Other"], status: "lead" },
-        { name: "Eli Example", status: "on_hiatus", firstJoinedAt: "2025-03-04", totalActiveMonths: 9 },
+        { name: "Eli Example", status: "on_hiatus", firstJoinedAt: "2025-03-04", totalActiveMonths: 9, inactivePeriods: [{ start: "2025-05-01", end: "2025-06-15" }] },
       ]);
 
       const tagged = await ctx.repo().withKajabiTag(tag, ["lead", "cancelled"]);
@@ -504,7 +506,9 @@ export function defineMemberContract(name: string, setup: () => MemberContractCo
 
       const tenure = (await ctx.repo().tenureOf(["on_hiatus"])).filter((m) => m.id === eli);
       expect(tenure).toHaveLength(1);
-      expect(tenure[0]).toMatchObject({ id: eli, name: "Eli Example", displayName: null, email: ctx.emailOf(eli), mostRecentJoinedAt: null, totalActiveMonths: 9 });
+      expect(tenure[0]).toMatchObject({ id: eli, name: "Eli Example", displayName: null, email: ctx.emailOf(eli), mostRecentJoinedAt: null, totalActiveMonths: 9, inactivePeriods: [{ start: "2025-05-01", end: "2025-06-15" }] });
+      const neverComputed = (await ctx.repo().tenureOf(["active"])).find((m) => m.id === cy);
+      expect(neverComputed?.inactivePeriods).toBeNull();
       expect(tenure[0].firstJoinedAt).toMatch(/^2025-03-04/);
       const both = (await ctx.repo().tenureOf(["on_hiatus", "active"])).map((m) => m.id);
       expect(both).toEqual(expect.arrayContaining([eli, cy]));

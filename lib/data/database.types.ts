@@ -5417,6 +5417,7 @@ export type Database = {
           first_joined_at: string | null
           has_trialed: boolean
           id: string
+          inactive_periods: Json | null
           instagram_url: string | null
           is_trial: boolean
           joined_at: string
@@ -5448,6 +5449,7 @@ export type Database = {
           first_joined_at?: string | null
           has_trialed?: boolean
           id?: string
+          inactive_periods?: Json | null
           instagram_url?: string | null
           is_trial?: boolean
           joined_at: string
@@ -5479,6 +5481,7 @@ export type Database = {
           first_joined_at?: string | null
           has_trialed?: boolean
           id?: string
+          inactive_periods?: Json | null
           instagram_url?: string | null
           is_trial?: boolean
           joined_at?: string

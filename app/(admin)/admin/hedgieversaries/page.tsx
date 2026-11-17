@@ -7,9 +7,9 @@ import { redirect } from "next/navigation";
 import { getUserFeaturePreviews } from "@/lib/features.server";
 import {
   computeCumulativeHiatusMonths,
-  computeCumulativeInactiveMonths,
   isCurrentlyOnHiatus,
   nextHedgieversaryDate,
+  toInactivePeriods,
   type HiatusWindow,
 } from "@/lib/member-tenure";
 import HedgieversariesTable, { type HedgieversaryRow } from "./HedgieversariesTable";
@@ -48,15 +48,9 @@ export default async function HedgieversariesPage() {
   const rows: HedgieversaryRow[] = members.map((m) => {
     const windows = hiatusWindowsByMember.get(m.id) ?? [];
     const cumulativeHiatusMonths = computeCumulativeHiatusMonths(windows, now);
-    const cumulativeInactiveMonths = computeCumulativeInactiveMonths(
-      m.firstJoinedAt!,
-      m.totalActiveMonths,
-      cumulativeHiatusMonths,
-      now
-    );
     const { nextDate, milestoneMonths, recentDate, recentMilestoneMonths } = nextHedgieversaryDate(
       m.firstJoinedAt!,
-      cumulativeInactiveMonths,
+      toInactivePeriods(windows, m.inactivePeriods),
       isCurrentlyOnHiatus(windows, now),
       now
     );

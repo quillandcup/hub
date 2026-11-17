@@ -5,12 +5,12 @@
 // no I/O, so they're independently testable; the page (page.tsx) does the
 // fetching and calls these.
 import {
-  computeCumulativeHiatusMonths,
-  computeCumulativeInactiveMonths,
   hedgieversaryMilestonesInWindow,
   isCurrentlyOnHiatus,
+  toInactivePeriods,
   milestoneLabel,
   type HiatusWindow,
+  type InactivePeriod,
 } from "./member-tenure";
 import { computeAllHiatusTouchpoints } from "./hiatus-touchpoints";
 
@@ -75,6 +75,8 @@ export interface MemberInput {
   name: string;
   first_joined_at: string | null;
   total_active_months: number | null;
+  // Dated cancel/resubscribe gaps (members.inactive_periods); null = not computed yet.
+  inactive_periods?: InactivePeriod[] | null;
 }
 
 export interface HiatusInput {
@@ -151,16 +153,9 @@ export function buildHedgieversaryQueue(
     if (!member.first_joined_at) continue;
 
     const windows = hiatusWindowsByMember.get(member.id) ?? [];
-    const cumulativeHiatusMonths = computeCumulativeHiatusMonths(windows, now);
-    const cumulativeInactiveMonths = computeCumulativeInactiveMonths(
-      member.first_joined_at,
-      member.total_active_months ?? 0,
-      cumulativeHiatusMonths,
-      now
-    );
     const milestones = hedgieversaryMilestonesInWindow(
       member.first_joined_at,
-      cumulativeInactiveMonths,
+      toInactivePeriods(windows, member.inactive_periods),
       isCurrentlyOnHiatus(windows, now),
       now,
       lookaheadDays

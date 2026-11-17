@@ -97,6 +97,8 @@ export type TenureMember = {
   firstJoinedAt: string | null;
   mostRecentJoinedAt: string | null;
   totalActiveMonths: number;
+  /** Dated cancel/resubscribe gaps between membership stints (hiatus windows are separate); null = not computed yet. */
+  inactivePeriods: { start: string; end: string | null }[] | null;
 };
 
 /** The columns a new member row needs; the rest take the database defaults. */
@@ -321,12 +323,13 @@ export class SupabaseMemberRepository implements MemberRepository {
       first_joined_at: string | null;
       most_recent_joined_at: string | null;
       total_active_months: number;
+      inactive_periods: unknown;
     };
     const rows = await fetchAllRows<Row>(
       (from, to) =>
         this.db
           .from("members")
-          .select("id, name, display_name, email, first_joined_at, most_recent_joined_at, total_active_months")
+          .select("id, name, display_name, email, first_joined_at, most_recent_joined_at, total_active_months, inactive_periods")
           .in("status", statuses)
           .order("id")
           .range(from, to),
@@ -339,6 +342,7 @@ export class SupabaseMemberRepository implements MemberRepository {
       firstJoinedAt: r.first_joined_at,
       mostRecentJoinedAt: r.most_recent_joined_at,
       totalActiveMonths: r.total_active_months,
+      inactivePeriods: Array.isArray(r.inactive_periods) ? (r.inactive_periods as TenureMember["inactivePeriods"]) : null,
     }));
   }
 
@@ -694,6 +698,7 @@ export class InMemoryMemberRepository implements MemberRepository {
         firstJoinedAt: m.firstJoinedAt,
         mostRecentJoinedAt: m.mostRecentJoinedAt,
         totalActiveMonths: seeds.get(m.id)?.totalActiveMonths ?? 0,
+        inactivePeriods: seeds.get(m.id)?.inactivePeriods ?? null,
       }));
   }
 

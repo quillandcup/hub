@@ -34,6 +34,7 @@ defineMemberContract("InMemoryMemberRepository", () => {
           updatedAt: new Date().toISOString(),
           firstJoinedAt: m.firstJoinedAt ?? null,
           totalActiveMonths: m.totalActiveMonths ?? 0,
+          inactivePeriods: m.inactivePeriods ?? null,
           kajabiTags: m.kajabiTags ?? [],
         };
       });
