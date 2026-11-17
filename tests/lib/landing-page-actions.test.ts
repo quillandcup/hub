@@ -22,6 +22,7 @@ import {
   deleteLandingPage,
   duplicateLandingPage,
   publishLandingPage,
+  resetLandingDraftToPublished,
   restoreLandingPageVersion,
   saveLandingDraft,
   unpublishLandingPage,
@@ -54,6 +55,7 @@ describe("who may use the page builder", () => {
       publishLandingPage(id, doc()),
       unpublishLandingPage(id),
       restoreLandingPageVersion("lpgv_AAAAAAAAAAA1"),
+      resetLandingDraftToPublished(id),
       duplicateLandingPage(id),
       deleteLandingPage(id),
     ]);
@@ -169,6 +171,27 @@ describe("unpublish, restore, duplicate and delete", () => {
     expect(await unpublishLandingPage(id)).toEqual({ slug: "page" });
     expect(await state.repos.landingPages.published("page")).toBeNull();
     expect(revalidated).toContain("/p/page");
+  });
+
+  it("throws the draft's changes away by copying the published page back, leaving the page live", async () => {
+    const id = await published();
+    await saveLandingDraft(id, doc({ type: "Spacer", props: { id: "s", size: "large" } }));
+    expect(JSON.stringify((await state.repos.landingPages.bySlug("page"))!.draft_data)).toContain("Spacer");
+
+    expect(await resetLandingDraftToPublished(id)).toEqual({ slug: "page" });
+
+    const page = (await state.repos.landingPages.bySlug("page"))!;
+    expect(JSON.stringify(page.draft_data)).not.toContain("Spacer");
+    expect(page.draft_data).toEqual(page.published_data);
+    expect(page.status).toBe("published");
+    expect(await state.repos.landingPages.versions(id)).toHaveLength(1);
+  });
+
+  it("has nothing to go back to for a page that was never published, or one that is gone", async () => {
+    const { slug } = await createLandingPage({ title: "Fresh", slug: "fresh" });
+    const id = (await state.repos.landingPages.bySlug(slug!))!.id;
+    expect(await resetLandingDraftToPublished(id)).toEqual({ error: "There is no published version to go back to." });
+    expect(await resetLandingDraftToPublished("not-an-id")).toEqual({ error: "That page no longer exists." });
   });
 
   it("brings an earlier version back into the draft without publishing it", async () => {

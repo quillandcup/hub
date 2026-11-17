@@ -248,6 +248,25 @@ export async function restoreLandingPageVersion(versionId: string): Promise<Page
   return withAction("landing_page_version_restored", () => restoreImpl(auth, versionId));
 }
 
+async function resetDraftImpl(auth: Auth, pageId: string): Promise<PageResult> {
+  if (!isLandingPageId(pageId)) return { error: NOT_FOUND };
+  try {
+    const page = await createRepos(auth.supabase).landingPages.resetDraftToPublished(pageId, auth.user.id);
+    if (!page) return { error: "There is no published version to go back to." };
+    refresh();
+    return { slug: page.slug };
+  } catch (error) {
+    return failed("draft reset", error, "Couldn't reset the draft.");
+  }
+}
+
+/** Throws the draft's unpublished changes away: the draft becomes the published document again. Nothing goes live or changes publicly. */
+export async function resetLandingDraftToPublished(pageId: string): Promise<PageResult> {
+  const auth = await requireAdminAction();
+  if (!auth.ok) return { error: auth.error };
+  return withAction("landing_page_draft_reset", () => resetDraftImpl(auth, pageId));
+}
+
 // ---- duplicate and delete --------------------------------------------------------------------------------
 
 async function duplicateImpl(auth: Auth, pageId: string): Promise<PageResult> {
