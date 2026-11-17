@@ -35,3 +35,19 @@ describe("ActivityFilters, member variant", () => {
     expect(slack).toHaveAttribute("href", BASE);
   });
 });
+
+describe("ActivityFilters, member variant, limited (a community manager)", () => {
+  it("offers no Audit or Everything switch and no type chips, only range, Viewed as member and the hide toggles", () => {
+    render(<ActivityFilters variant="member" limited filters={filters} basePath={BASE} />);
+    expect(screen.queryByRole("link", { name: "Audit" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Everything" })).toBeNull();
+    expect(screen.queryByText("All types")).toBeNull();
+    expect(screen.queryByText("Changes")).toBeNull();
+    expect(screen.queryByText("Page visits")).toBeNull();
+    expect(screen.getByRole("link", { name: "30d" })).toHaveAttribute("href", `${BASE}?days=30`);
+    expect(screen.getByRole("link", { name: "Viewed as member" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Hide system" })).toHaveAttribute("href", `${BASE}?nosystem=1`);
+    expect(screen.getByRole("link", { name: "Hide Slack" })).toBeInTheDocument();
+  });
+});
+

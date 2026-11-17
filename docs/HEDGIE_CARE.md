@@ -124,7 +124,7 @@ The repository is `CareRepository` (`lib/data/care.ts`) with a Supabase class, a
 
 ## Care plans in the Activity Log (built 2026-11-14)
 
-Owner's decision: a feature launches with its events in the activity log (`.claude/rules/audit-and-activity-log.md`, "A Feature Launches With Its Events in the Activity Log"). The unified log is the point of Hedgie Care: staff read, during a plan, what the member did and what staff did. Each event is one plain sentence, in the admin Activity Log (`/admin/activity`) and on a member's Activity tab (`/admin/members/<id>/activity`), read from the audit row of the plan (`care_engagement`) by `describeRow`, with the sentences in one pure module (`lib/care-events.ts`) that the plan card shares:
+Owner's decision: a feature launches with its events in the activity log (`.claude/rules/audit-and-activity-log.md`, "A Feature Launches With Its Events in the Activity Log"). The unified log is the point of Hedgie Care: staff read, during a plan, what the member did and what staff did. Each event is one plain sentence, in the admin Activity Log (`/admin/activity`) and on a member's Activity tab (`/admin/members/<id>/activity`; the community manager's tab is limited to the member's own activity and reads these events from their timeline rows instead of the audit rows she cannot read, `docs/ACTIVITY_AND_AUDIT_LOG.md`, "The community manager's Activity tab"), read from the audit row of the plan (`care_engagement`) by `describeRow`, with the sentences in one pure module (`lib/care-events.ts`) that the plan card shares:
 
 | What happened | How it reads | From |
 |---|---|---|
