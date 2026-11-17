@@ -54,7 +54,9 @@ export function PageFrame({ children, ...root }: RootProps & { children?: ReactN
   const nav = (root.navLinks ?? []).filter((l) => l.label && safeHref(l.href));
   const footerLinks = (root.footerLinks ?? []).filter((l) => l.label && safeHref(l.href));
   return (
-    <div className="@container min-h-screen bg-background text-slate-900">
+    // Always the light brand page (`canvas`), never the app's `bg-background`: that one turns near-black in dark mode, and the
+    // blocks' dark text and white cards are built for a light page (the editor's canvas is inside the app, so it was dark there).
+    <div className="@container min-h-screen bg-canvas text-slate-900">
       {root.showHeader && (logo || nav.length > 0) && (
         <header className="bg-white">
           <div className="mx-auto flex max-w-5xl flex-col items-center gap-3 px-4 py-4 @pair:flex-row @pair:justify-between">
