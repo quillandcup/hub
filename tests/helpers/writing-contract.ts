@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import type { WritingRepository } from "@/lib/data/writing";
 
 export type SeedProject = { key: string; member: 0 | 1; title: string; phase?: string; createdAt: string };
-export type SeedGoal = { member: 0 | 1; project?: string; measure: string; archived?: boolean };
+export type SeedGoal = { member: 0 | 1; project: string; measure: string; archived?: boolean };
 export type SeedEntry = { member: 0 | 1; project: string; entryDate: string; measure: string; mode: "delta" | "set_total"; amount: number; createdAt: string; prickle?: boolean; note?: string; tags?: string[] };
 
 export type WritingContractContext = {
@@ -67,19 +67,22 @@ export function defineWritingContract(name: string, setup: () => WritingContract
     it("counts goals, archived ones too, and lists the measures of the ones in play", async () => {
       const [a, b] = ctx.memberIds;
       const ids = await ctx.seed({
-        projects: [{ key: "p", member: 0, title: "P", createdAt: "2026-01-01T10:00:00Z" }],
+        projects: [
+          { key: "p", member: 0, title: "P", createdAt: "2026-01-01T10:00:00Z" },
+          { key: "theirs", member: 1, title: "Theirs", createdAt: "2026-01-01T10:00:00Z" },
+        ],
         goals: [
           { member: 0, project: "p", measure: "words" },
-          { member: 0, measure: "time_minutes" },
+          { member: 0, project: "p", measure: "time_minutes" },
           { member: 0, project: "p", measure: "pages", archived: true },
-          { member: 1, measure: "words" },
+          { member: 1, project: "theirs", measure: "words" },
         ],
       });
 
       expect(await ctx.repo().goalCount(a)).toBe(3);
       expect(await ctx.repo().goalCount(b)).toBe(1);
-      const measures = (await ctx.repo().activeGoalMeasures(a)).map((g) => `${g.project_id ?? "-"}|${g.measure}`).sort();
-      expect(measures).toEqual([`${ids.p}|words`, "-|time_minutes"].sort());
+      const measures = (await ctx.repo().activeGoalMeasures(a)).map((g) => `${g.project_id}|${g.measure}`).sort();
+      expect(measures).toEqual([`${ids.p}|words`, `${ids.p}|time_minutes`].sort());
     });
 
     it("returns the latest entries' measures newest first, up to the limit", async () => {
@@ -218,7 +221,6 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       });
       const mine = await ctx.repo().createGoal({ member_id: a, project_id: ids.p, measure: "words", target_amount: 1 });
       await ctx.repo().createGoal({ member_id: a, project_id: ids.p, measure: "pages", target_amount: 1, archived_at: "2026-06-01T00:00:00Z" });
-      await ctx.repo().createGoal({ member_id: a, measure: "words", target_amount: 1 });
       const theirs = await ctx.repo().createGoal({ member_id: b, project_id: ids.q, measure: "scenes", target_amount: 1 });
 
       const candidates = (await ctx.repo().activeGoalCandidates()).filter((c) => c.goal_id === mine || c.goal_id === theirs);
@@ -689,12 +691,13 @@ export function defineWritingContract(name: string, setup: () => WritingContract
         projects: [
           { key: "p", member: 0, title: "P", createdAt: "2026-01-01T10:00:00Z" },
           { key: "q", member: 0, title: "Q", createdAt: "2026-01-02T10:00:00Z" },
+          { key: "theirs", member: 1, title: "Theirs", createdAt: "2026-01-03T10:00:00Z" },
         ],
         goals: [
           { member: 0, project: "p", measure: "words" },
           { member: 0, project: "q", measure: "pages" },
           { member: 0, project: "p", measure: "scenes", archived: true },
-          { member: 1, measure: "words" },
+          { member: 1, project: "theirs", measure: "words" },
         ],
       });
 
@@ -703,7 +706,7 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       expect(ofP).toEqual([
         expect.objectContaining({ project_id: ids.p, measure: "words", goal_type: "target", is_starred: false, show_on_profile: false, title: null, description: null }),
       ]);
-      expect((await ctx.repo().projectGoals(b)).map((g) => g.project_id)).toEqual([null]);
+      expect((await ctx.repo().projectGoals(b)).map((g) => g.project_id)).toEqual([ids.theirs]);
     });
 
     it("sets, changes and clears starting balances", async () => {

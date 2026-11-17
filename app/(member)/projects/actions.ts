@@ -201,7 +201,6 @@ export async function getMyProjects(): Promise<WritingProjectRow[]> {
     getMyBooks(),
   ]);
 
-  // A goal can be project-less; buildProjectRows only ever matches goals to a project by id.
   return buildProjectRows(projects, entries, goals as RawGoal[], startingBalances, attendance, books);
 }
 
@@ -1205,10 +1204,10 @@ function buildGoalFields(
 async function shareProjectForGoal(
   writing: ReturnType<typeof createRepos>["writing"],
   memberId: string,
-  projectId: string | null,
+  projectId: string,
   details: { show_on_profile?: boolean }
 ) {
-  if (details.show_on_profile !== true || !projectId) return;
+  if (details.show_on_profile !== true) return;
   await writing.updateProject(memberId, projectId, { show_on_profile: true });
 }
 
@@ -1429,18 +1428,16 @@ export async function getStarredGoals(): Promise<(GoalRow & { projectTitle: stri
 
   const projectIds = [...new Set(goals.map((g) => g.project_id))];
   const [entries, attendance, startingBalances] = await Promise.all([
-    createRepos(supabase).writing.entries(effectiveIdentity.memberId, {
-      projectIds: projectIds.filter((id): id is string => id !== null),
-    }),
+    createRepos(supabase).writing.entries(effectiveIdentity.memberId, { projectIds }),
     getMyPrickleAttendance(),
     createRepos(supabase).writing.startingBalances(effectiveIdentity.memberId),
   ]);
 
   const now = new Date();
 
-  return (goals as unknown as (RawGoal & { project_title: string | null })[]).map((g) => {
+  return (goals as unknown as (RawGoal & { project_title: string })[]).map((g) => {
     const projectEntries = entries.filter((e) => e.project_id === g.project_id);
-    return { ...buildGoalRow(g, projectEntries, now, attendance, startingBalances), projectTitle: g.project_title ?? "Untitled project" };
+    return { ...buildGoalRow(g, projectEntries, now, attendance, startingBalances), projectTitle: g.project_title };
   });
 }
 

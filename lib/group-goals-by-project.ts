@@ -1,6 +1,5 @@
 export interface GoalGroup<T> {
-  /** The project's id, or null for goals that belong to no project. */
-  projectId: string | null;
+  projectId: string;
   projectTitle: string;
   goals: T[];
 }
@@ -12,9 +11,8 @@ export interface GoalGroup<T> {
  * order (`getStarredGoals`: the member's project order, then their goal order) already keeps a project's goals together,
  * so that is every goal of a project. If a list ever did have the same project twice apart, it would show as two
  * groups in the order it came, which is honest about the order it was given rather than silently moving a goal.
- * Consecutive goals with no project are one group.
  */
-export function groupConsecutiveByProject<T extends { projectId: string | null; projectTitle: string }>(goals: T[]): GoalGroup<T>[] {
+export function groupConsecutiveByProject<T extends { projectId: string; projectTitle: string }>(goals: T[]): GoalGroup<T>[] {
   const groups: GoalGroup<T>[] = [];
   for (const goal of goals) {
     const last = groups[groups.length - 1];

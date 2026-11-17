@@ -144,7 +144,7 @@ export async function getCheckModalData(prickleId: string): Promise<CheckModalDa
     for (const row of rows ?? []) map.set(row.project_id, [...(map.get(row.project_id) ?? []), row]);
     return map;
   };
-  const goals = byProject(goalRows.filter((g) => g.project_id !== null) as { project_id: string; measure: WritingMeasure }[]);
+  const goals = byProject(goalRows as { project_id: string; measure: WritingMeasure }[]);
   const recent = byProject(recentRows as { project_id: string; measure: WritingMeasure }[]);
   const logged = byProject(loggedRows as { project_id: string; measure: WritingMeasure; mode: "delta" | "set_total"; amount: number }[]);
 
@@ -166,7 +166,7 @@ export async function getCheckModalData(prickleId: string): Promise<CheckModalDa
     prickleTitle,
     entryDate: localDateOf(prickle.startTime, timeZone),
     hasStarted: new Date(prickle.startTime).getTime() <= Date.now(),
-    hasGoals: goalRows.some((g) => g.project_id !== null),
+    hasGoals: goalRows.length > 0,
     checkin,
     frequentEmotions,
     canEdit: !identity.isSudo,

@@ -37,7 +37,7 @@ vi.mock("@/lib/courses/member", () => ({ loadContinueWatching: async () => null 
 
 import DashboardPage from "@/app/(member)/dashboard/page";
 
-const goal = (id: string, title: string, projectId: string | null, projectTitle: string) => ({
+const goal = (id: string, title: string, projectId: string, projectTitle: string) => ({
   id, title, projectId, projectTitle, measure: "words", isStarred: true, kind: "target", status: "active",
 });
 
@@ -64,13 +64,5 @@ describe("dashboard Writing Goals", () => {
     const card = screen.getByRole("heading", { name: "Writing Goals" }).parentElement!;
     expect(within(card).getAllByRole("link").map((l) => l.textContent)).toEqual(["Essays", "Novel"]);
     expect(screen.getAllByTestId("goal").map((g) => g.textContent)).toEqual(["A1", "A2", "B1"]);
-  });
-
-  it("names a goal with no project without linking to a page that doesn't exist", async () => {
-    m.starred = [goal("g1", "Loose goal", null, "Untitled project")];
-    await renderServerPage(DashboardPage, undefined as never);
-    expect(screen.getByText("Untitled project")).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Untitled project" })).toBeNull();
-    expect(document.querySelector('a[href="/projects/null"]')).toBeNull();
   });
 });

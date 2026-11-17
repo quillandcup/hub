@@ -387,7 +387,7 @@ the summary says how many of each changed. Left alone: covers, a goal's dashboar
 Hub, a starting balance in a measure the export doesn't list, and anything the member deleted in Hub. It lists
 everything it can't bring over per import instead of silently dropping it. Closing these gaps needs Hub features first:
 
-- **Cross-project goals** (a TrackBear goal counting all projects or several): `writing_goals.project_id` is already nullable, but nothing displays or computes a goal with no project, or with several.
+- **Cross-project goals** (a TrackBear goal counting all projects or several): `writing_goals.project_id` is NOT NULL (a goal always has one project, `20270815000000`), and nothing displays or computes a goal with no project, or with several. Supporting them means relaxing that again or linking a goal to several projects.
 - **Tag-filtered goals** ("only count entries tagged X"): no tag filter on `writing_goals`.
 - **Habit cadences**: "every N days/weeks" (N > 1) and yearly habits; Hub habits are every 1 day/week/month.
 - **"Any measure" habits** (TrackBear habit with no threshold): Hub habits need one measure.

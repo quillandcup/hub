@@ -7228,7 +7228,7 @@ export type Database = {
           is_starred: boolean
           measure: string
           member_id: string
-          project_id: string | null
+          project_id: string
           show_on_profile: boolean
           sort_position: number | null
           start_date: string | null
@@ -7249,7 +7249,7 @@ export type Database = {
           is_starred?: boolean
           measure: string
           member_id: string
-          project_id?: string | null
+          project_id: string
           show_on_profile?: boolean
           sort_position?: number | null
           start_date?: string | null
@@ -7270,7 +7270,7 @@ export type Database = {
           is_starred?: boolean
           measure?: string
           member_id?: string
-          project_id?: string | null
+          project_id?: string
           show_on_profile?: boolean
           sort_position?: number | null
           start_date?: string | null
