@@ -7,7 +7,8 @@
 import {
   hedgieversaryMilestonesInWindow,
   isCurrentlyOnHiatus,
-  toInactivePeriods,
+  resolveHedgieversaryClock,
+  roundLabel,
   milestoneLabel,
   type HiatusWindow,
   type InactivePeriod,
@@ -135,9 +136,10 @@ export function buildWelcomeBackQueue(
 }
 
 // Queue 2: every Hedgieversary milestone reached (or due soon) that hasn't
-// been celebrated yet. occurrenceKey is the milestone month count — each
-// milestone happens once per member, ever, so it never collides across a
-// member's history even if hiatus edits later shift the exact date.
+// been celebrated yet. occurrenceKey is the milestone month count for a
+// member's original stint, and "<restart date>:<months>" once they have returned
+// (the count restarts, so a second 6-month is a new occurrence). Either way it
+// stays the same if hiatus edits later shift the exact date.
 export function buildHedgieversaryQueue(
   members: MemberInput[],
   hiatusWindowsByMember: Map<string, HiatusWindow[]>,
@@ -153,9 +155,11 @@ export function buildHedgieversaryQueue(
     if (!member.first_joined_at) continue;
 
     const windows = hiatusWindowsByMember.get(member.id) ?? [];
+    const clock = resolveHedgieversaryClock(member.first_joined_at, windows, member.inactive_periods);
+    const round = roundLabel(clock.returns);
     const milestones = hedgieversaryMilestonesInWindow(
-      member.first_joined_at,
-      toInactivePeriods(windows, member.inactive_periods),
+      clock.startDate,
+      clock.periods,
       isCurrentlyOnHiatus(windows, now),
       now,
       lookaheadDays
@@ -165,7 +169,11 @@ export function buildHedgieversaryQueue(
       const deadlineMs = new Date(`${milestone.date}T00:00:00Z`).getTime();
       if (!inWindow(deadlineMs, nowMs, lookaheadDays, lookbackDays)) continue;
 
-      const occurrenceKey = String(milestone.milestoneMonths);
+      // The original stint keeps the plain month count, so completions recorded before returns
+      // restarted the count still suppress it; a later stint is keyed by the date it restarted.
+      const occurrenceKey = clock.restartedAt
+        ? `${clock.restartedAt}:${milestone.milestoneMonths}`
+        : String(milestone.milestoneMonths);
       if (isSuppressed(completed, completionKey("hedgieversary", member.id, occurrenceKey), nowMs)) continue;
 
       items.push({
@@ -174,7 +182,7 @@ export function buildHedgieversaryQueue(
         memberName: member.name,
         occurrenceKey,
         deadline: milestone.date,
-        label: milestoneLabel(milestone.milestoneMonths),
+        label: round ? `${milestoneLabel(milestone.milestoneMonths)} (${round})` : milestoneLabel(milestone.milestoneMonths),
       });
     }
   }

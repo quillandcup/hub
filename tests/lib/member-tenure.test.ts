@@ -6,7 +6,9 @@ import {
   computeInactiveGaps,
   calendarMonthsBetween,
   mergeInactivePeriods,
-  toInactivePeriods,
+  resolveHedgieversaryClock,
+  roundLabel,
+  RETURN_GAP_MIN_DAYS,
   isCurrentlyOnHiatus,
   nextHedgieversaryDate,
   hedgieversaryMilestonesInWindow,
@@ -280,20 +282,115 @@ describe("computeInactiveGaps", () => {
   });
 });
 
-describe("toInactivePeriods", () => {
-  it("combines hiatus windows with gaps, as dates", () => {
-    expect(
-      toInactivePeriods([{ startsAt: "2024-01-01T00:00:00Z", endsAt: null }], [{ start: "2023-01-01", end: "2023-02-01" }])
-    ).toEqual([
-      { start: "2024-01-01", end: null },
-      { start: "2023-01-01", end: "2023-02-01" },
-    ]);
+describe("resolveHedgieversaryClock", () => {
+  it("keeps the first-joined date when there are no gaps, or gaps were never computed (null)", () => {
+    const hiatus = [{ startsAt: "2023-01-01", endsAt: "2023-02-01" }];
+    for (const gaps of [null, undefined, []]) {
+      expect(resolveHedgieversaryClock("2022-09-23", hiatus, gaps)).toEqual({
+        startDate: "2022-09-23",
+        returns: 0,
+        restartedAt: null,
+        periods: [{ start: "2023-01-01", end: "2023-02-01" }],
+      });
+    }
   });
 
-  it("falls back to hiatus only when gaps were never computed (null)", () => {
-    expect(toInactivePeriods([{ startsAt: "2024-01-01", endsAt: "2024-02-01" }], null)).toEqual([
-      { start: "2024-01-01", end: "2024-02-01" },
+  it("is a return from RETURN_GAP_MIN_DAYS (60) days, not before", () => {
+    expect(RETURN_GAP_MIN_DAYS).toBe(60);
+    // 2024-01-01 to 2024-02-29 is 59 days, to 2024-03-01 is 60 days
+    expect(resolveHedgieversaryClock("2023-01-01", [], [{ start: "2024-01-01", end: "2024-02-29" }]).restartedAt).toBeNull();
+    const exact = resolveHedgieversaryClock("2023-01-01", [], [{ start: "2024-01-01", end: "2024-03-01" }]);
+    expect(exact.restartedAt).toBe("2024-03-01");
+    expect(exact.startDate).toBe("2024-03-01");
+    expect(exact.returns).toBe(1);
+  });
+
+  it("ignores a short gap next to a long one: the long return restarts, the blip does nothing", () => {
+    const clock = resolveHedgieversaryClock("2022-09-23", [], [
+      { start: "2022-11-23", end: "2026-04-28" },
+      { start: "2026-07-27", end: "2026-08-12" },
     ]);
+    expect(clock.startDate).toBe("2026-04-28");
+    expect(clock.returns).toBe(1);
+  });
+
+  it("uses the latest of two returns", () => {
+    const clock = resolveHedgieversaryClock("2020-01-01", [], [
+      { start: "2021-01-01", end: "2021-06-01" },
+      { start: "2023-01-01", end: "2023-09-01" },
+    ]);
+    expect(clock.startDate).toBe("2023-09-01");
+    expect(clock.returns).toBe(2);
+  });
+
+  it("drops hiatus windows that began before the restart and keeps later ones", () => {
+    const clock = resolveHedgieversaryClock(
+      "2023-07-05",
+      [
+        { startsAt: "2023-08-05", endsAt: "2024-02-05" },
+        { startsAt: "2026-09-01", endsAt: "2026-10-01" },
+      ],
+      [{ start: "2024-04-05", end: "2026-06-03" }]
+    );
+    expect(clock.startDate).toBe("2026-06-03");
+    expect(clock.periods).toEqual([{ start: "2026-09-01", end: "2026-10-01" }]);
+  });
+});
+
+describe("roundLabel", () => {
+  it("names the round once a member has returned", () => {
+    expect(roundLabel(0)).toBeNull();
+    expect(roundLabel(1)).toBe("second time around");
+    expect(roundLabel(2)).toBe("third time around");
+    expect(roundLabel(7)).toBe("#8 time around");
+  });
+});
+
+describe("a returning member's milestones count from the return", () => {
+  const asOf = new Date("2026-09-01T00:00:00Z");
+  it("restarts the clock at the latest long gap and ignores the short one", () => {
+    const clock = resolveHedgieversaryClock("2022-09-23", [], [
+      { start: "2022-11-23", end: "2026-04-28" },
+      { start: "2026-07-27", end: "2026-08-12" },
+    ]);
+    const result = nextHedgieversaryDate(clock.startDate, clock.periods, false, asOf);
+    expect(result.nextDate).toBe("2026-10-28");
+    expect(result.milestoneMonths).toBe(6);
+    // The first stint's milestones are not produced, only counts from the return
+    const all = hedgieversaryMilestonesInWindow(clock.startDate, clock.periods, false, new Date("2028-01-01T00:00:00Z"), 0);
+    expect(all.map((m) => m.date)).toEqual(["2026-10-28", "2027-04-28"]);
+  });
+
+  it("restarts after a hiatus then a gap, with the hiatus before the return ignored", () => {
+    const clock = resolveHedgieversaryClock(
+      "2023-07-05",
+      [{ startsAt: "2023-08-05", endsAt: "2024-02-05" }],
+      [{ start: "2024-04-05", end: "2026-06-03" }]
+    );
+    expect(clock.restartedAt).toBe("2026-06-03");
+    expect(nextHedgieversaryDate(clock.startDate, clock.periods, false, asOf).nextDate).toBe("2026-12-03");
+  });
+
+  it("a hiatus after the return shifts the later milestones, not the earlier ones", () => {
+    const clock = resolveHedgieversaryClock(
+      "2022-09-23",
+      [{ startsAt: "2026-06-01", endsAt: "2026-09-01" }],
+      [{ start: "2022-11-23", end: "2026-04-28" }]
+    );
+    // 6 months from 2026-04-28 is 2026-10-28; the hiatus began 2026-06-01, before it: +3 months
+    const all = hedgieversaryMilestonesInWindow(clock.startDate, clock.periods, false, new Date("2028-01-01T00:00:00Z"), 0);
+    expect(all.map((m) => m.date)).toEqual(["2027-01-28", "2027-07-28"]);
+  });
+
+  it("clamps the day of month from the restart date", () => {
+    const clock = resolveHedgieversaryClock("2020-01-01", [], [{ start: "2020-03-01", end: "2023-08-31" }]);
+    expect(nextHedgieversaryDate(clock.startDate, clock.periods, false, new Date("2023-09-01T00:00:00Z")).nextDate).toBe("2024-02-29");
+  });
+
+  it("still reports nothing for a member currently on hiatus", () => {
+    const clock = resolveHedgieversaryClock("2022-09-23", [{ startsAt: "2026-08-15", endsAt: null }], [{ start: "2022-11-23", end: "2026-04-28" }]);
+    expect(nextHedgieversaryDate(clock.startDate, clock.periods, true, asOf).nextDate).toBeNull();
+    expect(hedgieversaryMilestonesInWindow(clock.startDate, clock.periods, true, asOf, 30)).toEqual([]);
   });
 });
 
@@ -452,22 +549,7 @@ describe("milestones and inactive periods (the spreadsheet rule)", () => {
     expect(overlapping[0]).toBe("2022-11-15"); // 6 + 4, not 6 + 3 + 3
   });
 
-  it("shifts for a cancel/resubscribe gap exactly like a hiatus", () => {
-    const period = { start: "2022-02-01", end: "2022-05-01" };
-    const viaHiatus = toInactivePeriods([{ startsAt: period.start, endsAt: period.end }], null);
-    const viaGap = toInactivePeriods([], [period]);
-    expect(dates(viaGap)).toEqual(dates(viaHiatus));
-    expect(dates(viaGap)[0]).toBe("2022-10-15");
-  });
-
-  it("a hiatus and a gap that overlap are one period", () => {
-    const result = dates(
-      toInactivePeriods([{ startsAt: "2022-02-01", endsAt: "2022-04-01" }], [{ start: "2022-03-01", end: "2022-05-01" }])
-    );
-    expect(result[0]).toBe("2022-10-15"); // Feb 1 to May 1 = 3 months
-  });
-
-  it("a 3-year gap shifts later milestones by 36 months, not 37", () => {
+  it("a 3-year hiatus shifts later milestones by 36 months, not 37", () => {
     const result = dates([{ start: "2022-03-01", end: "2025-03-01" }]);
     expect(result[0]).toBe("2025-07-15"); // 6 + 36
   });
@@ -485,7 +567,6 @@ describe("milestones and inactive periods (the spreadsheet rule)", () => {
 
   it("null/empty periods give the plain first-joined schedule", () => {
     expect(dates([])[0]).toBe("2022-07-15");
-    expect(dates(toInactivePeriods([], null))[0]).toBe("2022-07-15");
   });
 
   it("reports no next date or queue items for a member currently on hiatus", () => {
