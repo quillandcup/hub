@@ -13,6 +13,7 @@ export const BACKGROUNDS = {
   blush: { label: "Blush", bg: "bg-blush", text: "text-slate-900", dark: false },
   mist: { label: "Mist", bg: "bg-mist-200", text: "text-slate-900", dark: false },
   plum: { label: "Plum", bg: "bg-plum-700", text: "text-white", dark: true },
+  brownMid: { label: "Warm brown", bg: "bg-brown", text: "text-white", dark: true },
   brown: { label: "Brown", bg: "bg-brown-deep", text: "text-cream", dark: true },
   charcoal: { label: "Charcoal", bg: "bg-cup", text: "text-white", dark: true },
 } as const;

@@ -105,6 +105,22 @@ Detail: "Phase 3 (notifications), as built" in \`docs/COURSES.md\`.`,
 Detail: "Phase 2 (moderation), as built" in \`docs/COURSES.md\`.`,
   },
   {
+    slug: "landing-page-kajabi-import",
+    date: "2026-11-16",
+    audience: "engineering",
+    category: "new",
+    title: "Import a Kajabi page export as a draft landing page",
+    summary: "Pages has an Import from Kajabi item beside New page: upload a Kajabi page export (zip) and get an unpublished draft built from our blocks, with a report of what was approximated or left out. Importing the same page again replaces only its draft.",
+    body: `Kajabi has no content API, but its page export is structured (sections with typed blocks and their settings), so the move is a mapping and not a model.
+
+- **Deterministic mapper.** \`mapKajabiPage\` (\`lib/landing/kajabi-import.ts\`) is a pure function from the export's settings to Puck JSON: text becomes headings, dividers and cleaned rich text, call-to-action blocks become buttons, forms become the sign-up block, the header logo and footer copyright come across. Whatever has no counterpart is returned as a note (approximated, left out, hidden in Kajabi, still to do) and shown on a results screen. No AI, no new dependency.
+- **Untrusted upload.** The zip is read in memory by \`readKajabiZip\`: only the settings file and the images are inflated, each counted as it unpacks against size limits, with path and entry-count checks. Pictures go to the media library, private until a page that shows them is published. Everything passes the same sanitiser as any save.
+- **Idempotent and safe on live pages.** The export has no page id, so a key is derived from ids it does carry; the same page imported again replaces only the draft (never the published copy or versions), asks first when the draft holds edits the import would lose, and keeps the old draft in the page's history as a "before import" version you can bring back.
+- **Extension point.** A new Kajabi block type is one more branch in the mapper and a test.
+
+How to use it, what is not handled and the model: "Importing from Kajabi" in \`docs/LANDING_PAGES.md\`.`,
+  },
+  {
     slug: "landing-page-builder",
     date: "2026-11-15",
     audience: "engineering",

@@ -72,6 +72,7 @@ export const OUTCOME_ACTIONS = [
   "landing_page_version_restored",
   "landing_page_duplicated",
   "landing_page_deleted",
+  "landing_page_imported",
   // Chat
   "chat_message_sent",
   "chat_reaction_toggled",

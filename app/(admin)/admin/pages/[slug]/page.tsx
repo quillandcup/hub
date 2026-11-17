@@ -35,7 +35,7 @@ export default async function EditLandingPage({ params }: { params: Promise<{ sl
         publicPath: `/p/${page.slug}`,
       }}
       data={normalizeLandingData(page.draft_data)}
-      versions={versions.map((v) => ({ id: v.id, title: v.title, createdAt: v.created_at }))}
+      versions={versions.map((v) => ({ id: v.id, title: v.title, createdAt: v.created_at, kind: v.kind === "before_import" ? "before_import" : "published" }))}
     />
   );
 }

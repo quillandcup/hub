@@ -107,6 +107,9 @@ export const CHANGELOG_DIGEST_STARTS_ON: string = appConfig.changelogDigestStart
 /** Hosts where Kajabi keeps member photos; the adoption script copies those into our storage. */
 export const KAJABI_PHOTO_HOSTS: readonly string[] = appConfig.kajabiPhotoHosts;
 
+/** The Kajabi site's public address: what a Kajabi path in an imported landing page is resolved against. */
+export const KAJABI_SITE_URL: string = appConfig.kajabiSiteUrl;
+
 export const ATTENDANCE_DATA_STARTS_ON = appConfig.attendanceDataStartsOn;
 
 /** The course the Courses page offers to members who have none, and its waitlist page (app.config.ts `featuredCourse`). */

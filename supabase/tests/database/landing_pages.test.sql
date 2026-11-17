@@ -7,7 +7,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(26);
+SELECT plan(31);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000e5a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'pages-member@example.test'),
@@ -103,6 +103,18 @@ INSERT INTO result SELECT 'restore_missing_message', to_jsonb(pg_temp.failure($$
 
 -- Unpublish and rename are audited as the admin.
 UPDATE public.landing_pages SET status = 'draft', title = 'Page One, renamed' WHERE id = 'lpg_PagesTest0001';
+
+-- Import from Kajabi: a page made by an import has a key, one live page per key; a repeat import (a new draft and a new
+-- imported_at) is one audit entry that carries no content; the draft kept before it is a version that restores like any.
+INSERT INTO public.landing_pages (id, slug, title, import_key, imported_at, created_by) VALUES ('lpg_PagesTest0004', 'pgtap-pages-imported', 'Imported page', 'kajabi:key:1', now(), '00000000-0000-4000-a000-00000000e5a2');
+INSERT INTO result SELECT 'import_key_twin_refused', to_jsonb(pg_temp.refused($$INSERT INTO public.landing_pages (slug, title, import_key) VALUES ('pgtap-pages-imported-twin', 'Twin', 'kajabi:key:1')$$));
+INSERT INTO public.landing_page_versions (page_id, title, data, kind) VALUES ('lpg_PagesTest0004', 'Imported page', '{"content": [{"type": "Heading", "props": {"text": "Kept before"}}], "root": {}}', 'before_import');
+INSERT INTO result SELECT 'bad_version_kind_refused', to_jsonb(pg_temp.refused($$INSERT INTO public.landing_page_versions (page_id, title, data, kind) VALUES ('lpg_PagesTest0004', 'x', '{}', 'other')$$));
+UPDATE public.landing_pages SET draft_data = '{"content": [{"type": "Heading", "props": {"text": "Zzcontent"}}], "root": {}}', imported_at = now(), updated_at = now() WHERE id = 'lpg_PagesTest0002';
+INSERT INTO result SELECT 'import_audit', to_jsonb((SELECT count(*) FROM public.audit_log WHERE entity_type = 'landing_page' AND entity_id = 'lpg_PagesTest0002' AND action = 'update' AND changes ? 'imported_at' AND changes::text NOT LIKE '%Zzcontent%'));
+INSERT INTO result SELECT 'kept_version_kind', to_jsonb(kind) FROM public.landing_page_versions WHERE page_id = 'lpg_PagesTest0004';
+SELECT public.restore_landing_page_version((SELECT id FROM public.landing_page_versions WHERE page_id = 'lpg_PagesTest0004'));
+INSERT INTO result SELECT 'before_import_restored', to_jsonb(draft_data #>> '{content,0,props,text}') FROM public.landing_pages WHERE id = 'lpg_PagesTest0004';
 RESET ROLE;
 
 -- The server's read of a published page (the service role), and what an update by the service role records.
@@ -139,6 +151,11 @@ SELECT is((SELECT value FROM result WHERE label = 'restored_still_published'), '
 SELECT is(
   (SELECT (changes ? 'restored_at')::text || ':' || (changes ? 'title')::text FROM public.audit_log WHERE entity_type = 'landing_page' AND entity_id = 'lpg_PagesTest0001' AND action = 'update'),
   'true:true', 'a restore and a rename are audited as the admin''s intent');
+SELECT is((SELECT value FROM result WHERE label = 'import_key_twin_refused'), 'true'::jsonb, 'two live pages can''t come from the same import');
+SELECT is((SELECT value FROM result WHERE label = 'bad_version_kind_refused'), 'true'::jsonb, 'a version is a published one or one kept before an import');
+SELECT is((SELECT value FROM result WHERE label = 'import_audit'), '1'::jsonb, 'an import is one audit entry, without the page''s content');
+SELECT is((SELECT value FROM result WHERE label = 'kept_version_kind'), '"before_import"'::jsonb, 'the draft kept before an import is a before_import version');
+SELECT is((SELECT value FROM result WHERE label = 'before_import_restored'), '"Kept before"'::jsonb, 'a draft kept before an import can be brought back');
 SELECT is((SELECT value FROM result WHERE label = 'service_reads_published'), '1'::jsonb, 'the server reads a published page with the service role');
 
 SELECT * FROM finish(true);
