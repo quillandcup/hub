@@ -29,7 +29,8 @@ describe("ProfileVisibilityToggle", () => {
   it("shows a lock and says only you can see it when private", () => {
     render(<ProfileVisibilityToggle on={false} onToggle={() => {}} />);
     const button = screen.getByRole("button", { name: "Show on my profile" });
-    expect(button).toHaveTextContent("🔒");
+    expect(button.querySelector("svg")).not.toBeNull();
+    expect(button.querySelector("svg.lucide-globe")).toBeNull();
     expect(button).toHaveAttribute("aria-pressed", "false");
     expect(button).toHaveAttribute("title", "Only you can see this goal (click to show it on your profile, with its project)");
   });
@@ -38,7 +39,7 @@ describe("ProfileVisibilityToggle", () => {
     const onToggle = vi.fn();
     render(<ProfileVisibilityToggle on onToggle={onToggle} />);
     const button = screen.getByRole("button", { name: "Show on my profile" });
-    expect(button).toHaveTextContent("🌐");
+    expect(button.querySelector("svg.lucide-globe")).not.toBeNull();
     expect(button).toHaveAttribute("aria-pressed", "true");
     expect(button).toHaveAttribute("title", "Visible on your profile to other members, with its project (click to hide)");
     await userEvent.click(button);

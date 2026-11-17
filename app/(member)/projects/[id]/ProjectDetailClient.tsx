@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Icon from "@/components/Icon";
 import LogProgressModal from "@/components/writing/LogProgressModal";
 import GoalDisplay from "@/components/writing/GoalDisplay";
 import { SortableList, SortableRow, useReorderableList } from "@/components/writing/SortableList";
@@ -18,7 +19,6 @@ import {
   StarToggle,
   ProfileVisibilityToggle,
   STAR_ON,
-  PROFILE_PUBLIC,
 } from "@/components/writing/VisibilityToggles";
 import { deleteBook } from "@/app/(member)/bookshelf/actions";
 import { isMissedGoal } from "@/lib/writing-projects";
@@ -868,7 +868,7 @@ export function GoalForm({
             onChange={(e) => setShowOnProfile(e.target.checked)}
             className="rounded"
           />
-          <span aria-hidden="true">{PROFILE_PUBLIC}</span>
+          <Icon name="publish" className="h-4 w-4" />
           Show on my profile <span className="text-slate-500 dark:text-slate-400">(other members can see this goal, and its project with it)</span>
         </label>
       </div>
