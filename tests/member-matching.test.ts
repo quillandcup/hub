@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient } from './helpers/supabase'
+import { fetchAllRows } from '../lib/supabase/paginate'
 import { matchAttendeeToMember, normalizeName, type Member, type MemberAlias, type MatchResult } from '../lib/member-matching'
 
 /**
@@ -55,19 +56,19 @@ describe('member matching library', () => {
     zoom_name: string,
     zoom_email: string | null = null
   ): Promise<MatchResult | null> {
-    const { data: members } = await adminClient
-      .from('members')
-      .select('id, name, email')
-
-    const { data: aliases } = await adminClient
-      .from('member_name_aliases')
-      .select('member_id, alias, source')
+    // The shared test database can hold more than 1000 members, so page through them.
+    const members = await fetchAllRows<Member>((from, to) =>
+      adminClient.from('members').select('id, name, email').order('id').range(from, to)
+    )
+    const aliases = await fetchAllRows<MemberAlias>((from, to) =>
+      adminClient.from('member_name_aliases').select('member_id, alias, source').order('id').range(from, to)
+    )
 
     const result = matchAttendeeToMember(
       zoom_name,
       zoom_email,
-      members as Member[] || [],
-      aliases as MemberAlias[] || []
+      members,
+      aliases
     )
     return result && 'member_id' in result ? result : null
   }
