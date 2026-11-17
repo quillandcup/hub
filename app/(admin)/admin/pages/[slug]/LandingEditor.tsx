@@ -40,9 +40,10 @@ const PRIMARY = `${BUTTON} bg-plum-600 text-white hover:bg-plum-700`;
 const ICON = "flex h-8 w-8 items-center justify-center rounded text-slate-700 hover:bg-slate-100 disabled:opacity-40 aria-pressed:bg-plum-50 aria-pressed:text-plum-700 dark:text-slate-200 dark:hover:bg-slate-800";
 
 const DEVICES = [
-  { label: "Desktop", width: 1280 as const, Icon: Monitor },
-  { label: "Tablet", width: 768 as const, Icon: Tablet },
-  { label: "Phone", width: 390 as const, Icon: Smartphone },
+  { label: "Desktop", width: 1280 as const, Icon: Monitor, rotate: false },
+  { label: "Tablet portrait", width: 768 as const, Icon: Tablet, rotate: false },
+  { label: "Tablet landscape", width: 1024 as const, Icon: Tablet, rotate: true },
+  { label: "Phone", width: 390 as const, Icon: Smartphone, rotate: false },
 ];
 
 const SAVE_TEXT: Record<SaveState, string> = { saved: "Saved", unsaved: "Unsaved changes", saving: "Saving…", error: "Couldn't save. Trying again…" };
@@ -105,7 +106,7 @@ function EditorHeader({
       {published && hasUnpublished && <span className="text-xs text-amber-800 dark:text-amber-300">Changes not published yet</span>}
 
       <div role="group" aria-label="Preview size" className="mx-auto flex items-center gap-1">
-        {DEVICES.map(({ label, width, Icon }) => (
+        {DEVICES.map(({ label, width, Icon, rotate }) => (
           <button
             key={label}
             type="button"
@@ -115,7 +116,7 @@ function EditorHeader({
             onClick={() => dispatch({ type: "setUi", ui: { viewports: { ...viewports, current: { width, height: "auto" } } } })}
             className={ICON}
           >
-            <Icon size={16} aria-hidden="true" />
+            <Icon size={16} aria-hidden="true" className={rotate ? "rotate-90" : undefined} />
           </button>
         ))}
         <span aria-hidden="true" className="mx-1 h-5 w-px bg-slate-300 dark:bg-slate-600" />
