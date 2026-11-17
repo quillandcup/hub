@@ -13,12 +13,21 @@ vi.hoisted(() => {
 
 import { cleanup, render, screen, act } from "@testing-library/react";
 import { Button, CardGrid, CtaBanner, Divider, Faq, Heading, Hero, Image, LinkList, List, RichText, Section, Spacer, Split, Stats, Steps, Testimonials, Video } from "@/components/landing/blocks";
-import { BLOCK_DEFAULTS } from "@/components/landing/config";
+import { BLOCK_DEFAULTS, PageFrame } from "@/components/landing/config";
 import { checkLandingPage } from "@/lib/landing/a11y";
 import Countdown from "@/components/landing/Countdown";
 import LandingRender from "@/components/landing/LandingRender";
 
 afterEach(cleanup);
+
+describe("PageFrame", () => {
+  it("is always the light brand page, so dark text and white cards stay readable when the app is in dark mode", () => {
+    const { container } = render(<PageFrame>content</PageFrame>);
+    const frame = container.firstElementChild!;
+    expect(frame.className).toContain("bg-canvas");
+    expect(frame.className).not.toContain("bg-background");
+  });
+});
 
 describe("Section", () => {
   const Content = () => <p>inside</p>;
