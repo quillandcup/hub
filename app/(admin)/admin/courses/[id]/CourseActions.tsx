@@ -5,6 +5,7 @@ import ActionMenu, { type ActionMenuItem } from "@/components/ActionMenu";
 import type { DuplicatePreview } from "@/lib/courses/duplicate";
 import type { TakeOverPreview } from "@/lib/courses/take-over";
 import { duplicateBlockedReason, takeOverBlockedReason } from "@/lib/courses/blocked-reasons";
+import { lifecycleLabel } from "@/lib/lifecycle-actions";
 import DuplicatePanel from "./DuplicatePanel";
 import TakeOverPanel from "./TakeOverPanel";
 
@@ -30,7 +31,7 @@ export default function CourseActions({
   const items: ActionMenuItem[] = [];
   if (duplicate) {
     const hint = duplicateBlockedReason(duplicate);
-    items.push({ key: "duplicate", label: "Duplicate course", disabled: !!hint, hint: hint ?? undefined, track: "admin-course-duplicate-open", onSelect: () => setDialog("duplicate") });
+    items.push({ key: "duplicate", label: lifecycleLabel("duplicate", "course"), disabled: !!hint, hint: hint ?? undefined, track: "admin-course-duplicate-open", onSelect: () => setDialog("duplicate") });
   }
   if (takeOver) {
     const hint = takeOverBlockedReason(takeOver);

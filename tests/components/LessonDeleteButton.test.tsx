@@ -29,7 +29,7 @@ describe("LessonDeleteButton", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
     const dialog = await open(user);
-    expect(dialog.getByText(/“Welcome” will be deleted for good, with its text, its video link and its downloads/)).toBeInTheDocument();
+    expect(dialog.getByText(/“Welcome” will be deleted for good\. Its text, its video link and its downloads go with it\./)).toBeInTheDocument();
     expect(actions.deleteCourseItem).not.toHaveBeenCalled();
   });
 
