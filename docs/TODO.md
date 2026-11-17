@@ -1798,6 +1798,9 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 ## UI Enhancements
 
+### Cmd/Ctrl+Enter to submit forms, with a hint _(Needs Scheduling)_
+Save and Cancel pairs (modal forms) show no keyboard hint, because no shared Cmd/Ctrl+Enter handler exists: only chat (Enter) and search have submit keys today. Deferred in the `Kbd` hints PR (`components/Kbd.tsx`) to avoid inventing a shortcut per form. Worth doing once the shortcut registry exists: wire one handler in `components/Modal.tsx` (submit the form inside it on `mod+Enter`, ignoring IME composition), then add `<Kbd keys={["mod", "enter"]} />` and `aria-keyshortcuts="Control+Enter Meta+Enter"` on the primary button.
+
 ### Move the app's colours onto the semantic tokens _(Needs Scheduling)_
 
 The landing pages take their colours from semantic tokens (`bg-page`, `bg-card`, `bg-tile`, `text-ink`, `text-ink-muted`, `border-accent`, `text-accent-ink`, `text-warm`): light and dark values are defined once as `--lp-*` in `app/globals.css` and named in `tailwind.config.ts`, so one edit retunes every page. The rest of the app does not do this, light or dark: surfaces and text are hard-coded Tailwind classes, each with its own `dark:` twin (about 1,300 `text-slate-600`, 600 `bg-white`, 420 `border-slate-200`, 360 `text-slate-900`, 80 `bg-slate-50`, plus the `dark:bg-slate-900/800/700/950` counterparts), and `--background` / `--foreground` are barely used. Deferred because a codemod over thousands of class uses is a risky single PR. Start by deciding whether the app shares the landing tokens (renaming them off the `lp` prefix) or gets its own set, then convert one shared component or page area at a time (cards, tables, form fields first), keeping both modes visually identical to today.

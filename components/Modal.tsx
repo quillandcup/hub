@@ -1,6 +1,7 @@
 "use client";
 
 import { ReactNode, useEffect, useId, useRef } from "react";
+import Kbd from "@/components/Kbd";
 
 interface ModalProps {
   isOpen: boolean;
@@ -82,9 +83,11 @@ export default function Modal({
             <button
               type="button"
               onClick={onClose}
-              className="text-2xl leading-none text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-300 flex-shrink-0"
+              className="flex items-center gap-2 text-2xl leading-none text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-300 flex-shrink-0"
               aria-label="Close"
+              aria-keyshortcuts="Escape"
             >
+              <Kbd keys={["esc"]} />
               ✕
             </button>
           </div>

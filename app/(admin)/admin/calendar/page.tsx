@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createRepos } from "@/lib/data/repos";
 import Link from "next/link";
 import CalendarWeekView from "@/components/CalendarWeekView";
+import CalendarWeekNav from "@/components/CalendarWeekNav";
 import CalendarKeyboardNav from "@/components/CalendarKeyboardNav";
 import LiveRefresh from "@/components/LiveRefresh";
 import LivePoll from "@/components/LivePoll";
@@ -123,30 +124,7 @@ export default async function CalendarPage({
               )}
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Link
-              href="/admin/calendar"
-              data-track="admin-calendar-today"
-              title="Jump to this week (t)"
-              className="px-3 py-2 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-700 dark:text-slate-300 transition-colors"
-            >
-              Today
-            </Link>
-            <Link
-              href={`/admin/calendar?week=${prevWeekParam}`}
-              title="Previous week (p)"
-              className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-slate-700 dark:text-slate-300 transition-colors"
-            >
-              ← Previous
-            </Link>
-            <Link
-              href={`/admin/calendar?week=${nextWeekParam}`}
-              title="Next week (n)"
-              className="px-3 py-2 rounded-lg transition-colors bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
-            >
-              Next →
-            </Link>
-          </div>
+          <CalendarWeekNav todayHref="/admin/calendar" prevHref={`/admin/calendar?week=${prevWeekParam}`} nextHref={`/admin/calendar?week=${nextWeekParam}`} />
         </div>
       </div>
       {/* The calendar sync (a Google edit, within seconds) adds, moves or removes prickles: show them without a reload. */}

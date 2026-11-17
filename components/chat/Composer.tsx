@@ -14,6 +14,7 @@ import type { DraftFileView } from "@/lib/chat/draft-files";
 import { useFileDrop } from "@/components/chat/useFileDrop";
 import { track } from "@/lib/analytics/client";
 import { MAX_CHAT_FILES, MAX_CHAT_FILE_BYTES, type StagedUpload } from "@/lib/chat/staging";
+import Kbd from "@/components/Kbd";
 import { SLACK_FILES_BUCKET } from "@/lib/slack-capture";
 import { CHAT_UPLOAD_CONCURRENCY, runPool } from "@/lib/chat/upload-pool";
 import { signedUploadUrl, uploadWithProgress } from "@/lib/chat/upload-progress";
@@ -389,8 +390,10 @@ export default function Composer({
             data-track="chat-composer-send"
             disabled={sending || staging.length > 0 || (text.trim() === "" && attached.length === 0 && stored.length === 0)}
             className="shrink-0 rounded-lg bg-plum-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-plum-700 disabled:opacity-50"
+            aria-keyshortcuts="Enter"
           >
             {sending ? "Sending…" : "Send"}
+            <Kbd keys={["enter"]} className="ml-2 align-middle [&_kbd]:border-white/50 [&_kbd]:text-white" />
           </button>
         </div>
       </div>
