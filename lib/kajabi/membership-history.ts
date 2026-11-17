@@ -37,6 +37,10 @@ export type StripeTrialInfo = {
   createdAtStripe: string;
   trialEnd: string | null;
   canceledAt: string | null;
+  // Every payment this subscription took was refunded in full. A cancelled
+  // subscription like that cost the customer nothing, so it was never a
+  // membership, even though its trial "converted" and was charged for a moment.
+  fullyRefunded?: boolean;
 };
 
 type OfferInfo = {
@@ -94,6 +98,8 @@ export function isRealMembershipStint(
   if (!isMembershipOffer(offer.name || "")) return false;
   const rawDate = purchase.created_at_kajabi ?? purchase.effective_start_at ?? null;
   const matched = rawDate ? findMatchingStripeInfo(rawDate, canonicalEmail, stripeInfoByEmail) : null;
+  // Charged, then refunded in full and cancelled: not a member for any time.
+  if (matched?.fullyRefunded && matched.canceledAt) return false;
   const trialEnd = matched?.trialEnd ? new Date(matched.trialEnd) : trialEndDate(purchase, offer);
   if (!trialEnd) return true; // no trial at all — billed from day one
 
@@ -193,7 +199,10 @@ export async function fetchStripeTrialInfoByEmail(
   }
 
   const stripeCustomerIds = stripeCustomers.map((c) => c.stripe_customer_id);
-  const stripeSubscriptions = await billing.stripeSubscriptionsByCustomers(stripeCustomerIds);
+  const [stripeSubscriptions, fullyRefundedSubscriptionIds] = await Promise.all([
+    billing.stripeSubscriptionsByCustomers(stripeCustomerIds),
+    billing.fullyRefundedStripeSubscriptionIds(),
+  ]);
 
   const subscriptionsByStripeCustomerId = new Map<string, StripeTrialInfo[]>();
   for (const s of stripeSubscriptions) {
@@ -205,6 +214,7 @@ export async function fetchStripeTrialInfoByEmail(
       createdAtStripe: s.created_at_stripe as string,
       trialEnd: trialStart && trialEnd ? new Date(trialEnd * 1000).toISOString() : null,
       canceledAt: s.canceled_at ?? null,
+      fullyRefunded: fullyRefundedSubscriptionIds.has(s.stripe_subscription_id),
     });
     subscriptionsByStripeCustomerId.set(s.stripe_customer_id, list);
   }

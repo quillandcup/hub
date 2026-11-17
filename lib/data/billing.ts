@@ -56,7 +56,7 @@ export type StripeProductRef = Pick<StripeProductRow, "stripe_product_id" | "nam
 export type StripeSubscriptionStatus = Pick<StripeSubscriptionRow, "stripe_customer_id" | "status">;
 export type StripeSubscriptionDetail = Pick<StripeSubscriptionRow, "stripe_subscription_id" | "stripe_customer_id" | "status" | "created_at_stripe" | "canceled_at" | "data">;
 /** What the trial and conversion dates are read from. */
-export type StripeSubscriptionTrial = Pick<StripeSubscriptionRow, "stripe_customer_id" | "created_at_stripe" | "canceled_at" | "data">;
+export type StripeSubscriptionTrial = Pick<StripeSubscriptionRow, "stripe_subscription_id" | "stripe_customer_id" | "created_at_stripe" | "canceled_at" | "data">;
 
 /** Seeds for the in-memory twin: the key columns, anything else a test names (the rest default). */
 export type KajabiContactSeed = Pick<KajabiContactRow, "kajabi_contact_id"> & Partial<KajabiContactRow>;
@@ -146,6 +146,8 @@ export interface BillingRepository {
   stripeSubscriptionsByCustomers(stripeCustomerIds: string[]): Promise<StripeSubscriptionTrial[]>;
   /** When the newest subscription was imported, or null when none was. */
   lastStripeSubscriptionImportAt(): Promise<string | null>;
+  /** The subscriptions that were charged and then got every charge refunded in full: they cost the customer nothing, so they were never a membership. */
+  fullyRefundedStripeSubscriptionIds(): Promise<Set<string>>;
   /** Invoices, oldest created first (then by id), narrowed by the filter. Pages past 1000 rows. */
   stripeInvoices(filter?: StripeBillingFilter): Promise<StripeInvoiceRow[]>;
   /** The same invoices grouped per Stripe customer, each customer's oldest first. A customer with none is absent. */
@@ -191,6 +193,19 @@ export interface BillingRepository {
 
 /** Runs a query for each chunk of the distinct values, together, and joins the rows. */
 const inChunks = <T>(values: string[], run: (part: string[]) => Promise<T[]>) => inChunksOf(values, ID_CHUNK, run);
+
+type PaidInvoice = { stripe_invoice_id: string; stripe_subscription_id: string | null };
+
+/** The subscriptions with at least one paid invoice where every paid invoice is among the fully refunded ones. */
+function subscriptionsWithEveryPaymentRefunded(paidInvoices: PaidInvoice[], refundedInvoiceIds: Set<string>): Set<string> {
+  const everyPaymentRefunded = new Map<string, boolean>();
+  for (const invoice of paidInvoices) {
+    if (!invoice.stripe_subscription_id) continue;
+    const refunded = refundedInvoiceIds.has(invoice.stripe_invoice_id);
+    everyPaymentRefunded.set(invoice.stripe_subscription_id, (everyPaymentRefunded.get(invoice.stripe_subscription_id) ?? true) && refunded);
+  }
+  return new Set([...everyPaymentRefunded].filter(([, all]) => all).map(([id]) => id));
+}
 
 export class SupabaseBillingRepository implements BillingRepository {
   constructor(private readonly db: Db) {}
@@ -411,11 +426,42 @@ export class SupabaseBillingRepository implements BillingRepository {
             .range(from, to)
       )
     );
-    return sortByKey(rows, (r) => r.stripe_subscription_id).map(({ stripe_subscription_id: _id, ...trial }) => trial);
+    return sortByKey(rows, (r) => r.stripe_subscription_id);
   }
 
   lastStripeSubscriptionImportAt() {
     return this.newest("stripe_subscriptions");
+  }
+
+  async fullyRefundedStripeSubscriptionIds() {
+    // Refunds are rare, so start from the refunded charges and only look at the invoices and subscriptions they lead to.
+    const refundedCharges = await fetchAllRows<{ stripe_invoice_id: string | null; amount: number; amount_refunded: number }>((from, to) =>
+      this.charges.select("stripe_invoice_id, amount, amount_refunded").eq("refunded", true).order("stripe_charge_id").range(from, to)
+    );
+    const refundedInvoiceIds = new Set(
+      refundedCharges.filter((c) => c.stripe_invoice_id && c.amount > 0 && c.amount_refunded >= c.amount).map((c) => c.stripe_invoice_id as string)
+    );
+    if (refundedInvoiceIds.size === 0) return new Set<string>();
+
+    const refundedInvoices = await inChunks([...refundedInvoiceIds], (part) =>
+      fetchAllRows<{ stripe_subscription_id: string | null }>((from, to) =>
+        this.invoices.select("stripe_subscription_id").in("stripe_invoice_id", part).order("stripe_invoice_id").range(from, to)
+      )
+    );
+    const candidates = [...new Set(refundedInvoices.map((i) => i.stripe_subscription_id).filter((id): id is string => !!id))];
+    if (candidates.length === 0) return new Set<string>();
+
+    const paidInvoices = await inChunks(candidates, (part) =>
+      fetchAllRows<PaidInvoice>((from, to) =>
+        this.invoices
+          .select("stripe_invoice_id, stripe_subscription_id")
+          .in("stripe_subscription_id", part)
+          .gt("amount_paid", 0)
+          .order("stripe_invoice_id")
+          .range(from, to)
+      )
+    );
+    return subscriptionsWithEveryPaymentRefunded(paidInvoices, refundedInvoiceIds);
   }
 
   async stripeInvoices(filter: StripeBillingFilter = {}) {
@@ -842,11 +888,21 @@ export class InMemoryBillingRepository implements BillingRepository {
     const wanted = new Set(stripeCustomerIds);
     return sortByKey(this.subscriptionRows(), (r) => r.stripe_subscription_id)
       .filter((s) => wanted.has(s.stripe_customer_id))
-      .map(({ stripe_customer_id, created_at_stripe, canceled_at, data }) => ({ stripe_customer_id, created_at_stripe, canceled_at, data }));
+      .map(({ stripe_subscription_id, stripe_customer_id, created_at_stripe, canceled_at, data }) => ({ stripe_subscription_id, stripe_customer_id, created_at_stripe, canceled_at, data }));
   }
 
   async lastStripeSubscriptionImportAt() {
     return this.newest(this.subscriptionRows().map((r) => r.imported_at));
+  }
+
+  async fullyRefundedStripeSubscriptionIds() {
+    const refundedInvoiceIds = new Set(
+      this.chargeRows()
+        .filter((c) => c.refunded && c.stripe_invoice_id && c.amount > 0 && c.amount_refunded >= c.amount)
+        .map((c) => c.stripe_invoice_id as string)
+    );
+    const paidInvoices = this.invoiceRows().filter((i) => i.amount_paid > 0);
+    return subscriptionsWithEveryPaymentRefunded(paidInvoices, refundedInvoiceIds);
   }
 
   /** Adds each row, or merges it into the stored row with the same key (a column left out keeps its value, as in SQL). */

@@ -2352,6 +2352,12 @@ A member merge (`app/api/admin/members/merge/route.ts`) deletes the duplicate, a
 ### The auto-hide sidebar covers the footer links while it is open
 **Resolved:** by design. The auto-hide sidebar opens over whatever is on the screen and covers the footer's Privacy and Contact links while it is open; the owner decided that is fine. **Still open:** the demo harness's `control-covered` check flags it when a scene opens the rail on a page with the footer visible; a scene that does so should not treat that as a failure (start from `demo/fixtures.ts` `shot()`).
 
+### Hedgieversary dates drift by a few days after a cancel and resubscribe gap _(Needs Scheduling)_
+- **What is wrong:** `computeCumulativeInactiveMonths` (`lib/member-tenure.ts`) works out the time a member was not paying by subtraction: whole 30-day months since `first_joined_at`, minus `total_active_months`, minus hiatus months. Every term is floored or rounded to whole months, and `nextHedgieversaryDate` then shifts the first-joined date by that many calendar months. So after a gap between memberships the milestone can land a few days off the date the member's real active time gives (a gap of 17 months and 26 days counts as 18, about 4 days late). Found while fixing a refunded trial that counted as a stint (that fix is separate and exact).
+- **What it should be:** the milestone is the date the member reached 6 months, then each year, of active time, shifted by the exact inactive days (gaps from the stints themselves, hiatus from the hiatus windows), not by a rounded month count.
+- **Why deferred:** it changes the tenure model and every member's next Hedgieversary date, and needs a members reprocess. Before shipping, count in production how many members' dates would move and by how much (`verify-against-prod.md`).
+- **Where to start:** `computeMemberTenure` already has the stints in memory, so it can return the inactive days (or the milestone dates) directly. Then `nextHedgieversaryDate` and `hedgieversaryMilestonesInWindow` use them; `members.total_active_months` and the work queue (`lib/admin-work-queue.ts`) read the same values. Add boundary tests (a gap that is not a multiple of 30 days, a gap across a month with fewer days).
+
 ## CRM Features
 
 ### Slack Engagement Signals
