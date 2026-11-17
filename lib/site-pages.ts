@@ -108,6 +108,7 @@ export const SITE_PAGES: SitePage[] = [
   member({ title: "Hedgie Help", href: "/help", section: "Help", keywords: ["how to", "guide", "support", "docs"] }),
   member({ title: "What's new", href: "/changelog", section: "Help", keywords: ["changelog", "updates", "release notes", "new features", "fixes"] }),
   member({ title: "Privacy", href: "/privacy", section: "Help", keywords: ["data", "policy", "who can see"] }),
+  member({ title: "Compliance", href: "/compliance", section: "Help", keywords: ["gdpr", "pci", "wcag", "accessibility", "standards", "security", "certification"] }),
 
   // Tabs
   ...tabPages("/projects", MY_WRITING_TITLE, MY_WRITING_TAB_IDS, MY_WRITING_TAB_LABELS, {

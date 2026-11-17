@@ -19,6 +19,9 @@ export default function MemberFooter() {
         <Link data-track="footer-privacy" href="/privacy" className={link}>
           Privacy
         </Link>
+        <Link data-track="footer-compliance" href="/compliance" className={link}>
+          Compliance
+        </Link>
         <a data-track="footer-contact" href={`mailto:${SUPPORT_EMAIL}`} className={link}>
           Contact us
         </a>
