@@ -7,7 +7,7 @@ import { mediaSrc } from "@/lib/media/url";
  * flips to light text by itself and no combination can fail contrast. Full class strings, so Tailwind finds them.
  */
 export const BACKGROUNDS = {
-  none: { label: "None (page)", bg: "", text: "text-slate-900 dark:text-cream", dark: false, scope: "" },
+  none: { label: "None (page)", bg: "", text: "text-slate-900 dark:text-slate-100", dark: false, scope: "" },
   white: { label: "White", bg: "bg-white", text: "text-slate-900", dark: false, scope: "landing-light" },
   cream: { label: "Cream", bg: "bg-cream", text: "text-slate-900", dark: false, scope: "landing-light" },
   blush: { label: "Blush", bg: "bg-blush", text: "text-slate-900", dark: false, scope: "landing-light" },
