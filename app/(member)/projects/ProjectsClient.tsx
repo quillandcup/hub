@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { SortableList, SortableRow, useReorderableList } from "@/components/writing/SortableList";
 import NewProjectModal from "@/components/writing/NewProjectModal";
 import TrackbearImportModal from "@/components/writing/TrackbearImportModal";
 import LogProgressModal from "@/components/writing/LogProgressModal";
@@ -10,12 +11,14 @@ import PastProjects from "./PastProjects";
 import GoalDisplay from "@/components/writing/GoalDisplay";
 import BookFormModal from "@/components/books/BookFormModal";
 import { MEASURE_LABELS, PHASE_LABELS, isMissedGoal } from "@/lib/writing-projects";
-import type { WritingProjectRow } from "./actions";
+import { reorderMyProjects, type WritingProjectRow } from "./actions";
 
 interface ProjectsClientProps {
   initialProjects: WritingProjectRow[];
   pastProjects?: WritingProjectRow[];
 }
+
+const REORDER_FAILED = "Couldn't save the new order. Please try again.";
 
 export default function ProjectsClient({ initialProjects, pastProjects = [] }: ProjectsClientProps) {
   const router = useRouter();
@@ -23,6 +26,13 @@ export default function ProjectsClient({ initialProjects, pastProjects = [] }: P
   const [showImport, setShowImport] = useState(false);
   const [logProgressFor, setLogProgressFor] = useState<string | null>(null);
   const [publishing, setPublishing] = useState<WritingProjectRow | null>(null);
+  const { shown, saving, error: orderError, note: orderNote, moveTo, reorder } = useReorderableList(
+    initialProjects,
+    (ids) => reorderMyProjects(ids),
+    (project) => project.title,
+    REORDER_FAILED,
+    () => router.refresh()
+  );
 
   function handleChanged() {
     // Re-render the page's server data in place. Not window.location.reload(): that cancels the server action's
@@ -89,14 +99,36 @@ export default function ProjectsClient({ initialProjects, pastProjects = [] }: P
         </button>
       </div>
 
+      {orderError && (
+        <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+          {orderError}
+        </p>
+      )}
+      <p role="status" className="sr-only">
+        {orderNote}
+      </p>
+      <SortableList ids={shown.map((p) => p.id)} labels={Object.fromEntries(shown.map((p) => [p.id, p.title]))} onReorder={(ids) => void reorder(ids)}>
       <div className="space-y-4">
-        {initialProjects.map((project) => (
-          <div
+        {shown.map((project, index) => (
+          <SortableRow
             key={project.id}
-            className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-5"
+            id={project.id}
+            label={project.title}
+            index={index}
+            count={shown.length}
+            disabled={saving}
+            onMoveTo={(position) => moveTo(project.id, position)}
+            track="projects"
+            handle="cover"
+            overPicture={!!(project.book?.coverUrl || project.coverUrl)}
+            className="bg-white dark:bg-slate-900 rounded-lg border p-5"
+            idleClassName="border-slate-200 dark:border-slate-800"
+            liftedClassName="border-plum-400 shadow-xl ring-2 ring-plum-400 dark:border-plum-500 dark:ring-plum-500"
           >
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-start gap-3 min-w-0">
+            {(menu) => (
+            <>
+            <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+              <div className="flex min-w-0 flex-1 basis-44 items-start gap-3">
                 {project.book?.coverUrl || project.coverUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element -- fixed-size Supabase Storage upload, not optimizable by next/image
                   <img
@@ -122,7 +154,7 @@ export default function ProjectsClient({ initialProjects, pastProjects = [] }: P
                   </p>
                 </div>
               </div>
-              <div className="flex-shrink-0 flex items-center gap-2">
+              <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
                 <button data-track="projects-log-progress"
                   type="button"
                   onClick={() => setLogProgressFor(project.id)}
@@ -139,6 +171,7 @@ export default function ProjectsClient({ initialProjects, pastProjects = [] }: P
                     🚀 Publish
                   </button>
                 )}
+                {menu}
               </div>
             </div>
 
@@ -160,9 +193,12 @@ export default function ProjectsClient({ initialProjects, pastProjects = [] }: P
                 ))}
               </div>
             )}
-          </div>
+            </>
+            )}
+          </SortableRow>
         ))}
       </div>
+      </SortableList>
 
       <PastProjects projects={pastProjects} />
 

@@ -12,7 +12,7 @@ import { joinSlackBlocks, loadPrickleJoinSettings, joinAt, type PrickleJoin } fr
 import type { PrickleDetail } from "@/lib/data/prickles";
 import { createNotifier } from "@/lib/notifications/notify";
 import { resolveInAppNotifications } from "@/lib/channels/in-app";
-import type { ChannelId, OutboundMessage } from "@/lib/channels";
+import type { ChannelId, ChannelReceipt, OutboundMessage } from "@/lib/channels";
 import { countedPrickleIds, loadPresenceByMember, presenceDue, staysOf, toWindow, type PresenceInterval, type PresenceRepos, type PrickleWindow } from "@/lib/zoom-presence";
 import {
   checkinAnswered,
@@ -174,6 +174,18 @@ export async function tryRecordCheckinDM(
     console.error(`tryRecordCheckinDM failed for prickle=${prickleId} member=${memberId} kind=${kind}:`, error);
     return false;
   }
+}
+
+/**
+ * For notifier.send's `onReceipt`: keeps the Slack message a delivered check-in or check-out DM became
+ * (conversation and timestamp) on its log row, so answering the check-in elsewhere can collapse it
+ * (lib/prickle-checkin-dm-close.ts). Not being able to keep it costs only that: the DM stays as it was.
+ */
+export function keepDmMessage(repos: DmRepos, prickleId: string, memberId: string, kind: CheckinDMKind) {
+  return async (channel: ChannelId, receipt: ChannelReceipt): Promise<void> => {
+    if (channel !== "slack" || !receipt.slack) return;
+    await repos.prickleActivity.recordDmMessage(prickleId, memberId, kind, receipt.slack);
+  };
 }
 
 /** Release an undelivered claim so a later cron tick can retry within the normal send window. */
@@ -916,7 +928,7 @@ export async function sendCheckoutDMs(
     const shouldSend = await tryRecordCheckinDM(repos, prickle.id, memberId, "prickle_checkout");
     if (!shouldSend) continue;
 
-    const delivered = await notifier.send(memberId, message);
+    const delivered = await notifier.send(memberId, message, { onReceipt: keepDmMessage(repos, prickle.id, memberId, "prickle_checkout") });
     if (delivered.length > 0) sent++;
     else await releaseCheckinDM(repos, prickle.id, memberId, "prickle_checkout");
   }
@@ -1021,15 +1033,19 @@ export function checkoutMessage(
  * dedup log (nothing is logged, so it can't block the real one) and the already-answered checks.
  * It still shows their saved answers, and the check-out asks about every active goal (none, with
  * no goals). Over Slack and email, whatever their notification settings: they just asked for it.
- * Returns an error message, or the channels it went out on.
+ * Returns an error message, or the channels it went out on, plus the ones it didn't: `skipped`
+ * had no address for the member (no matched Slack account, no email), `failed` had one and the
+ * send threw (logged and reported by the notifier).
  */
+const TEST_CHANNELS: ChannelId[] = ["slack", "email"];
+
 export async function sendTestCheckinDM(
   repos: DmRepos,
   memberId: string,
   prickle: DMPrickle,
   kind: CheckinDMKind
-): Promise<{ error: string } | { delivered: ChannelId[] }> {
-  const notifier = await createNotifier(repos, kind, [memberId], { channels: ["slack", "email"] });
+): Promise<{ error: string } | { delivered: ChannelId[]; skipped: ChannelId[]; failed: ChannelId[] }> {
+  const notifier = await createNotifier(repos, kind, [memberId], { channels: TEST_CHANNELS });
   if (!notifier.canReach(memberId)) {
     return { error: "Neither a Slack account nor an email address is matched to your member record." };
   }
@@ -1048,7 +1064,13 @@ export async function sendTestCheckinDM(
     message = checkoutMessage(prickle, saved, await quickLogPrompts(repos, goals), { test: true, hasGoals: goals.length > 0, usual });
   }
   const delivered = await notifier.send(memberId, message);
-  return delivered.length > 0 ? { delivered } : { error: "Nothing went out; check the server logs." };
+  if (delivered.length === 0) return { error: "Nothing went out; check the server logs." };
+  const reachable = notifier.channelsFor(memberId);
+  return {
+    delivered,
+    skipped: TEST_CHANNELS.filter((c) => !reachable.includes(c)),
+    failed: reachable.filter((c) => !delivered.includes(c)),
+  };
 }
 
 // --- Check-in for a member who joins a running prickle -----------------------------------------
@@ -1157,7 +1179,7 @@ export async function sendDropInCheckins(
     // Opted out everywhere, or no address: not claimed, so turning check-ins back on still sends one.
     if (!notifier.canReach(memberId)) continue;
     if (!(await tryRecordCheckinDM(repos, prickle.id, memberId, "prickle_checkin"))) continue;
-    const delivered = await notifier.send(memberId, message);
+    const delivered = await notifier.send(memberId, message, { onReceipt: keepDmMessage(repos, prickle.id, memberId, "prickle_checkin") });
     if (delivered.length > 0) sent++;
     else await releaseCheckinDM(repos, prickle.id, memberId, "prickle_checkin");
   }

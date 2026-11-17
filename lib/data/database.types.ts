@@ -3899,6 +3899,251 @@ export type Database = {
           },
         ]
       }
+      landing_page_versions: {
+        Row: {
+          created_at: string
+          data: Json
+          id: string
+          kind: string
+          page_id: string
+          published_by: string | null
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          data: Json
+          id?: string
+          kind?: string
+          page_id: string
+          published_by?: string | null
+          title: string
+        }
+        Update: {
+          created_at?: string
+          data?: Json
+          id?: string
+          kind?: string
+          page_id?: string
+          published_by?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "landing_page_versions_page_id_fkey"
+            columns: ["page_id"]
+            isOneToOne: false
+            referencedRelation: "landing_pages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      landing_pages: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          draft_data: Json
+          first_published_at: string | null
+          id: string
+          import_key: string | null
+          imported_at: string | null
+          published_at: string | null
+          published_data: Json | null
+          restored_at: string | null
+          restored_from_version_id: string | null
+          seo_description: string | null
+          seo_title: string | null
+          slug: string
+          social_image_asset_id: string | null
+          status: string
+          title: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          draft_data?: Json
+          first_published_at?: string | null
+          id?: string
+          import_key?: string | null
+          imported_at?: string | null
+          published_at?: string | null
+          published_data?: Json | null
+          restored_at?: string | null
+          restored_from_version_id?: string | null
+          seo_description?: string | null
+          seo_title?: string | null
+          slug: string
+          social_image_asset_id?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          draft_data?: Json
+          first_published_at?: string | null
+          id?: string
+          import_key?: string | null
+          imported_at?: string | null
+          published_at?: string | null
+          published_data?: Json | null
+          restored_at?: string | null
+          restored_from_version_id?: string | null
+          seo_description?: string | null
+          seo_title?: string | null
+          slug?: string
+          social_image_asset_id?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "landing_pages_social_image_asset_id_fkey"
+            columns: ["social_image_asset_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lesson_comment_follows: {
+        Row: {
+          created_at: string
+          following: boolean
+          id: string
+          lesson_id: string
+          member_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          following?: boolean
+          id?: string
+          lesson_id: string
+          member_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          following?: boolean
+          id?: string
+          lesson_id?: string
+          member_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_comment_follows_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "course_lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_comment_follows_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lesson_comment_reads: {
+        Row: {
+          id: string
+          last_seen_at: string
+          lesson_id: string
+          member_id: string
+        }
+        Insert: {
+          id?: string
+          last_seen_at?: string
+          lesson_id: string
+          member_id: string
+        }
+        Update: {
+          id?: string
+          last_seen_at?: string
+          lesson_id?: string
+          member_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_comment_reads_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "course_lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_comment_reads_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lesson_comment_reports: {
+        Row: {
+          comment_id: string
+          created_at: string
+          id: string
+          reason: string
+          reporter_id: string
+          resolved_at: string | null
+          resolved_by: string | null
+        }
+        Insert: {
+          comment_id: string
+          created_at?: string
+          id?: string
+          reason: string
+          reporter_id: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+        }
+        Update: {
+          comment_id?: string
+          created_at?: string
+          id?: string
+          reason?: string
+          reporter_id?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_comment_reports_comment_id_fkey"
+            columns: ["comment_id"]
+            isOneToOne: false
+            referencedRelation: "lesson_comments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_comment_reports_reporter_id_fkey"
+            columns: ["reporter_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_comment_reports_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lesson_comments: {
         Row: {
           body: string
@@ -3906,6 +4151,10 @@ export type Database = {
           deleted_at: string | null
           deleted_by: string | null
           edited_at: string | null
+          handled_at: string | null
+          handled_by: string | null
+          held_at: string | null
+          held_reason: string | null
           hidden_at: string | null
           id: string
           is_staff_reply: boolean
@@ -3919,6 +4168,10 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           edited_at?: string | null
+          handled_at?: string | null
+          handled_by?: string | null
+          held_at?: string | null
+          held_reason?: string | null
           hidden_at?: string | null
           id?: string
           is_staff_reply?: boolean
@@ -3932,6 +4185,10 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           edited_at?: string | null
+          handled_at?: string | null
+          handled_by?: string | null
+          held_at?: string | null
+          held_reason?: string | null
           hidden_at?: string | null
           id?: string
           is_staff_reply?: boolean
@@ -3943,6 +4200,13 @@ export type Database = {
           {
             foreignKeyName: "lesson_comments_deleted_by_fkey"
             columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_comments_handled_by_fkey"
+            columns: ["handled_by"]
             isOneToOne: false
             referencedRelation: "members"
             referencedColumns: ["id"]
@@ -5153,6 +5417,7 @@ export type Database = {
           first_joined_at: string | null
           has_trialed: boolean
           id: string
+          inactive_periods: Json | null
           instagram_url: string | null
           is_trial: boolean
           joined_at: string
@@ -5184,6 +5449,7 @@ export type Database = {
           first_joined_at?: string | null
           has_trialed?: boolean
           id?: string
+          inactive_periods?: Json | null
           instagram_url?: string | null
           is_trial?: boolean
           joined_at: string
@@ -5215,6 +5481,7 @@ export type Database = {
           first_joined_at?: string | null
           has_trialed?: boolean
           id?: string
+          inactive_periods?: Json | null
           instagram_url?: string | null
           is_trial?: boolean
           joined_at?: string
@@ -5594,25 +5861,34 @@ export type Database = {
       }
       prickle_checkin_dm_log: {
         Row: {
+          closed_at: string | null
           id: string
           kind: string
           member_id: string
           prickle_id: string
           sent_at: string
+          slack_channel_id: string | null
+          slack_ts: string | null
         }
         Insert: {
+          closed_at?: string | null
           id?: string
           kind: string
           member_id: string
           prickle_id: string
           sent_at?: string
+          slack_channel_id?: string | null
+          slack_ts?: string | null
         }
         Update: {
+          closed_at?: string | null
           id?: string
           kind?: string
           member_id?: string
           prickle_id?: string
           sent_at?: string
+          slack_channel_id?: string | null
+          slack_ts?: string | null
         }
         Relationships: [
           {
@@ -6952,8 +7228,9 @@ export type Database = {
           is_starred: boolean
           measure: string
           member_id: string
-          project_id: string | null
+          project_id: string
           show_on_profile: boolean
+          sort_position: number | null
           start_date: string | null
           target_amount: number | null
           title: string | null
@@ -6972,8 +7249,9 @@ export type Database = {
           is_starred?: boolean
           measure: string
           member_id: string
-          project_id?: string | null
+          project_id: string
           show_on_profile?: boolean
+          sort_position?: number | null
           start_date?: string | null
           target_amount?: number | null
           title?: string | null
@@ -6992,8 +7270,9 @@ export type Database = {
           is_starred?: boolean
           measure?: string
           member_id?: string
-          project_id?: string | null
+          project_id?: string
           show_on_profile?: boolean
+          sort_position?: number | null
           start_date?: string | null
           target_amount?: number | null
           title?: string | null
@@ -7133,6 +7412,7 @@ export type Database = {
           member_id: string
           phase: string
           show_on_profile: boolean
+          sort_position: number | null
           title: string
         }
         Insert: {
@@ -7146,6 +7426,7 @@ export type Database = {
           member_id: string
           phase?: string
           show_on_profile?: boolean
+          sort_position?: number | null
           title: string
         }
         Update: {
@@ -7159,6 +7440,7 @@ export type Database = {
           member_id?: string
           phase?: string
           show_on_profile?: boolean
+          sort_position?: number | null
           title?: string
         }
         Relationships: [
@@ -8252,6 +8534,10 @@ export type Database = {
           mentored_count: number
         }[]
       }
+      moderate_lesson_comment: {
+        Args: { p_action: string; p_comment_id: string }
+        Returns: string
+      }
       move_course_lesson: {
         Args: { p_lesson_id: string; p_module_id: string }
         Returns: undefined
@@ -8366,6 +8652,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      publish_landing_page: { Args: { p_page_id: string }; Returns: undefined }
       rate_limit_hit: {
         Args: { p_bucket: string; p_max_hits: number; p_window_seconds: number }
         Returns: boolean
@@ -8433,6 +8720,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      reorder_writing_goals: {
+        Args: { p_ids: string[]; p_member_id: string; p_project_id: string }
+        Returns: undefined
+      }
+      reorder_writing_projects: {
+        Args: { p_ids: string[]; p_member_id: string }
+        Returns: undefined
+      }
       reprocess_hub_prickles_atomic: { Args: never; Returns: undefined }
       reprocess_member_interactions_atomic: {
         Args: { from_date: string; to_date: string }
@@ -8460,6 +8755,10 @@ export type Database = {
           user_member_map: Json
         }
         Returns: Json
+      }
+      restore_landing_page_version: {
+        Args: { p_version_id: string }
+        Returns: undefined
       }
       retention_pending_user_agents: {
         Args: { p_limit?: number; p_source: string }

@@ -16,6 +16,10 @@ const clear = async () => {
   // Replies go with their question (ON DELETE CASCADE).
   const { error } = await db.from("lesson_comments").delete().in("lesson_id", lessons);
   if (error) throw new Error(error.message);
+  for (const table of ["lesson_comment_follows", "lesson_comment_reads"] as const) {
+    const cleared = await db.from(table).delete().in("lesson_id", lessons);
+    if (cleared.error) throw new Error(cleared.error.message);
+  }
 };
 
 beforeAll(async () => {
@@ -53,6 +57,7 @@ defineCourseCommentContract("SupabaseCourseCommentRepository", () => ({
   get courseId() {
     return courseId;
   },
+  course: { slug: RUN, title: `Comments ${RUN}` },
   lessonTitles: ["Lesson 1", "Lesson 2"],
   get members() {
     return members;
@@ -61,10 +66,24 @@ defineCourseCommentContract("SupabaseCourseCommentRepository", () => ({
     const { error } = await db.from("members").update({ display_name: displayName }).eq("id", memberId);
     if (error) throw new Error(error.message);
   },
-  bulk: async (lessonId, memberId, count) => {
-    const rows = Array.from({ length: count }, (_, i) => ({ lesson_id: lessonId, member_id: memberId, body: `Comment ${i}` }));
+  bulk: async (lessonId, memberId, count, held) => {
+    const rows = Array.from({ length: count }, (_, i) => ({
+      lesson_id: lessonId,
+      member_id: memberId,
+      body: `Comment ${i}`,
+      ...(held ? { held_at: new Date().toISOString(), held_reason: "links" } : {}),
+    }));
     for (const part of chunk(rows, 500)) {
       const { error } = await db.from("lesson_comments").insert(part);
+      if (error) throw new Error(error.message);
+    }
+  },
+  bulkReported: async (lessonId, authorId, reporterId, count) => {
+    const rows = Array.from({ length: count }, (_, i) => ({ lesson_id: lessonId, member_id: authorId, body: `Reported ${i}` }));
+    for (const part of chunk(rows, 500)) {
+      const made = await db.from("lesson_comments").insert(part).select("id");
+      if (made.error) throw new Error(made.error.message);
+      const { error } = await db.from("lesson_comment_reports").insert(made.data.map((c) => ({ comment_id: c.id, reporter_id: reporterId, reason: "Reported" })));
       if (error) throw new Error(error.message);
     }
   },

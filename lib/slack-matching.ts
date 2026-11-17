@@ -1,5 +1,6 @@
 import { Member, MemberAlias, normalizeName } from './member-matching';
 import type { Repos } from '@/lib/data/repos';
+import type { MemberEmailAlias } from '@/lib/data/aliases';
 
 // Slack's own system assistant account. Slack's API reports it with
 // is_bot: false (unlike real app/bot integrations), so the usual `is_bot`
@@ -39,6 +40,9 @@ export async function loadVerifiedSlackLinks(repos: Pick<Repos, "memberProfile">
  * 1. Manual alias (slack user_id → member_id in member_name_aliases)
  * 2. Email match (slack email = member email)
  * 3. Normalized name match
+ * 4. Email alias match (slack email = one of the member's active email aliases; `emailAliases`), last
+ *    and only for a member no Slack user matched above: a member with one Slack account who also has
+ *    an alias on another would otherwise look like two people and be dropped as ambiguous.
  *
  * Returns Map: slack_user_id → member_id
  */
@@ -46,7 +50,8 @@ export async function matchSlackUsersToMembers(
   slackUsers: SlackUser[],
   members: Member[],
   aliases: MemberAlias[],
-  verified: Map<string, string> = new Map()
+  verified: Map<string, string> = new Map(),
+  emailAliases: MemberEmailAlias[] = []
 ): Promise<Map<string, string>> {
   const map = new Map<string, string>();
 
@@ -58,6 +63,13 @@ export async function matchSlackUsersToMembers(
   for (const member of members) {
     membersByEmail.set(member.email.toLowerCase(), member);
     membersByNormalizedName.set(normalizeName(member.name), member);
+  }
+
+  // alias email -> the member whose canonical email it points at
+  const memberIdByAliasEmail = new Map<string, string>();
+  for (const alias of emailAliases) {
+    const owner = membersByEmail.get(alias.canonical_email.toLowerCase());
+    if (owner) memberIdByAliasEmail.set(alias.alias_email.toLowerCase(), owner.id);
   }
 
   for (const alias of aliases) {
@@ -98,6 +110,18 @@ export async function matchSlackUsersToMembers(
 
     if (memberId) {
       map.set(slackUser.user_id, memberId);
+    }
+  }
+
+  // 4. Email alias, for members still without a Slack user.
+  if (memberIdByAliasEmail.size > 0) {
+    const matchedMembers = new Set(map.values());
+    for (const slackUser of slackUsers) {
+      if (map.has(slackUser.user_id) || !slackUser.email) continue;
+      const memberId = memberIdByAliasEmail.get(slackUser.email.toLowerCase());
+      if (!memberId || matchedMembers.has(memberId)) continue;
+      map.set(slackUser.user_id, memberId);
+      matchedMembers.add(memberId);
     }
   }
 

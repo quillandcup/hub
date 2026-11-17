@@ -60,6 +60,7 @@ export default async function WorkQueuePage() {
     name: getMemberDisplayName({ name: m.name, display_name: m.displayName }),
     first_joined_at: m.firstJoinedAt,
     total_active_months: m.totalActiveMonths,
+    inactive_periods: m.inactivePeriods,
   }));
   const membersById = new Map(memberInputs.map((m) => [m.id, { name: m.name }]));
   const hiatusInputs: HiatusInput[] = hiatusHistory;

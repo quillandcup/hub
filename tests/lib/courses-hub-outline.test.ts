@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildHubOutline, moduleContents, moveBefore, moveBy, type HubLessonRow, type HubModuleRow } from "@/lib/courses/hub-outline";
+import { buildHubOutline, moduleContents, type HubLessonRow, type HubModuleRow } from "@/lib/courses/hub-outline";
 
 const mod = (id: string, position: number, parent_id: string | null = null, over: Partial<HubModuleRow> = {}): HubModuleRow => ({ id, parent_id, title: id, position, publishing_option: "published", ...over });
 const les = (id: string, position: number, module_id: string | null, over: Partial<HubLessonRow> = {}): HubLessonRow => ({
@@ -74,40 +74,6 @@ describe("buildHubOutline", () => {
   it("can't loop on modules that name each other as parents", () => {
     const loop = buildHubOutline([mod("a", 1, "b"), mod("b", 2, "a"), mod("root", 3)], []);
     expect(loop.modules.map((m) => m.kajabiId)).toEqual(["root"]);
-  });
-});
-
-describe("moveBefore", () => {
-  it("moves an item to where the one it was dropped on is, in either direction", () => {
-    expect(moveBefore(["a", "b", "c", "d"], "d", "b")).toEqual(["a", "d", "b", "c"]);
-    expect(moveBefore(["a", "b", "c", "d"], "a", "c")).toEqual(["b", "a", "c", "d"]);
-  });
-
-  it("changes nothing when dropped on itself or when either id isn't in the list", () => {
-    const ids = ["a", "b", "c"];
-    expect(moveBefore(ids, "b", "b")).toBe(ids);
-    expect(moveBefore(ids, "x", "b")).toBe(ids);
-    expect(moveBefore(ids, "b", "x")).toBe(ids);
-  });
-
-  it("doesn't change the list it was given", () => {
-    const ids = ["a", "b", "c"];
-    moveBefore(ids, "c", "a");
-    expect(ids).toEqual(["a", "b", "c"]);
-  });
-});
-
-describe("moveBy", () => {
-  it("moves an item one place up or down", () => {
-    expect(moveBy(["a", "b", "c"], "b", -1)).toEqual(["b", "a", "c"]);
-    expect(moveBy(["a", "b", "c"], "b", 1)).toEqual(["a", "c", "b"]);
-  });
-
-  it("changes nothing at either end, or for an id that isn't there", () => {
-    const ids = ["a", "b", "c"];
-    expect(moveBy(ids, "a", -1)).toBe(ids);
-    expect(moveBy(ids, "c", 1)).toBe(ids);
-    expect(moveBy(ids, "x", 1)).toBe(ids);
   });
 });
 

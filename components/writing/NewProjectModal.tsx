@@ -4,6 +4,7 @@ import { useState } from "react";
 import Modal from "@/components/Modal";
 import { createProject } from "@/app/(member)/projects/actions";
 import { MANUALLY_SETTABLE_PHASES, PHASE_LABELS } from "@/lib/writing-projects";
+import Kbd from "@/components/Kbd";
 
 interface NewProjectModalProps {
   isOpen: boolean;
@@ -83,9 +84,11 @@ export default function NewProjectModal({ isOpen, onClose, onCreated }: NewProje
           <button data-track="new-project-create-project"
             type="submit"
             disabled={isPending}
-            className="px-4 py-2 text-sm bg-plum-600 text-white rounded-lg hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            aria-keyshortcuts="Control+Enter Meta+Enter"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-plum-600 text-white rounded-lg hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isPending ? "Creating..." : "Create project"}
+            <Kbd keys={["mod", "enter"]} onAccent />
           </button>
         </div>
       </form>

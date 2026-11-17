@@ -77,7 +77,7 @@ function settingsSections(): SitePage[] {
     ...NOTIFICATION_KINDS.map((k) => ({
       title: k.label,
       href: `${tabHref("notifications")}#notification-${k.id}`,
-      audience: "member" as const,
+      audience: ("staffOnly" in k ? "admin" : "member") as "admin" | "member",
       section: section("notifications"),
       keywords: [k.category, "notification", "reminder"],
       ...("feature" in k ? { feature: k.feature } : {}),
@@ -108,6 +108,8 @@ export const SITE_PAGES: SitePage[] = [
   member({ title: "Hedgie Help", href: "/help", section: "Help", keywords: ["how to", "guide", "support", "docs"] }),
   member({ title: "What's new", href: "/changelog", section: "Help", keywords: ["changelog", "updates", "release notes", "new features", "fixes"] }),
   member({ title: "Privacy", href: "/privacy", section: "Help", keywords: ["data", "policy", "who can see"] }),
+  member({ title: "Compliance", href: "/compliance", section: "Help", keywords: ["gdpr", "pci", "wcag", "accessibility", "standards", "certification"] }),
+  member({ title: "Security", href: "/security", section: "Help", keywords: ["safe", "sign in", "encryption", "protect", "report a problem"] }),
 
   // Tabs
   ...tabPages("/projects", MY_WRITING_TITLE, MY_WRITING_TAB_IDS, MY_WRITING_TAB_LABELS, {
@@ -150,6 +152,7 @@ export const SITE_PAGES: SitePage[] = [
   admin({ title: "Badges", href: "/admin/badges", section: "Community", nav: { icon: "🏅" } }),
   admin({ title: "Hosts", href: "/admin/hosts", section: "Accountability", nav: { icon: "🎙️" } }),
   admin({ title: "Events", href: "/admin/events", section: "Community", nav: { icon: "📸" } }),
+  admin({ title: "Pages", href: "/admin/pages", section: "Sales & Marketing", nav: { icon: "📄", activeFor: ["/admin/pages/"] }, keywords: ["landing", "page builder", "website", "opt-in", "funnel"] }),
   admin({ title: "Media", href: "/admin/media", section: "Community", nav: { icon: "🖼️" }, keywords: ["images", "photos", "covers", "library", "upload"] }),
   admin({ title: "Community Stats", href: "/admin/stats", section: "Analytics", nav: { icon: "✨" }, communityManager: true }),
   admin({ title: "Prickle Insights", href: "/admin/insights/prickles", section: "Accountability", nav: { icon: "✍️" } }),
@@ -162,6 +165,7 @@ export const SITE_PAGES: SitePage[] = [
   admin({ title: "Health Check", href: "/admin/hygiene", section: "System", nav: { icon: "🏥" }, keywords: ["hygiene", "data quality"] }),
   admin({ title: "Users", href: "/admin/users", section: "System", nav: { icon: "🔑" }, keywords: ["invite", "roles"] }),
   admin({ title: "Activity Log", href: "/admin/activity", section: "System", nav: { icon: "📜" }, keywords: ["audit"] }),
+  admin({ title: "Security", href: "/admin/security", section: "System", nav: { icon: "🛡️" }, keywords: ["rls", "secrets", "webhooks", "open items", "compliance", "privacy"] }),
   admin({ title: "Slack Channels", href: "/admin/data/slack-channels", section: "System", nav: { icon: "🔒" }, keywords: ["restricted", "privacy"] }),
   admin({ title: "Prickle Types", href: "/admin/data/prickle-types", section: "System", nav: { icon: "🏷️" } }),
   admin({ title: "Member Overrides", href: "/admin/member-overrides", section: "System", nav: { icon: "🎁" }, feature: "member_overrides" }),

@@ -10,7 +10,7 @@ const answers = (a: Partial<CheckinInput>): CheckinInput => ({ ...EMPTY_CHECKIN,
 
 // End-to-end through the real senders on the in-memory repositories, with Slack and the calendar
 // loader faked: what matters here is how many DMs go out.
-const sendSlackDM = vi.fn(async (_params: { slackUserId: string; text: string; blocks?: any[] }) => {});
+const sendSlackDM = vi.fn(async (params: { slackUserId: string; text: string; blocks?: any[] }) => ({ channel: `D-${params.slackUserId}`, ts: "1700000000.000100" }));
 vi.mock("@/lib/slack", () => ({ sendSlackDM: (p: any) => sendSlackDM(p) }));
 const sendEmail = vi.fn(async (_params: { to: string; subject: string; html: string }) => {});
 vi.mock("@/lib/email", () => ({ sendEmail: (p: any) => sendEmail(p) }));
@@ -161,6 +161,16 @@ describe("prickle check-in route", () => {
     expect(await res.json()).toEqual({ checkins: 1, checkouts: 0 });
     expect(sendSlackDM).toHaveBeenCalledTimes(1);
     expect(sendSlackDM.mock.calls[0][0].slackUserId).toBe("U-m1");
+  });
+
+  it("keeps the Slack message the check-in became, so answering elsewhere can close it", async () => {
+    onCalendar("m1");
+
+    await POST(cronRequest());
+
+    expect(dataset.checkinDmLog).toEqual([
+      expect.objectContaining({ member_id: "m1", kind: "prickle_checkin", slack_channel_id: "D-U-m1", slack_ts: "1700000000.000100", closed_at: null }),
+    ]);
   });
 
   it("checks in with a member who has no writing goal, for a prickle on their calendar", async () => {
@@ -391,7 +401,7 @@ describe("check-in for a member who joins a running prickle", () => {
   it("leaves alone a member who already got the check-in ahead of the start", async () => {
     world(5, [inRoom()]);
     dropInLive.add("m1");
-    dataset.checkinDmLog.push({ id: "log-1", prickle_id: "p1", member_id: "m1", kind: "prickle_checkin", sent_at: minutesAgo(25) });
+    dataset.checkinDmLog.push({ id: "log-1", prickle_id: "p1", member_id: "m1", kind: "prickle_checkin", sent_at: minutesAgo(25), slack_channel_id: null, slack_ts: null, closed_at: null });
 
     expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 0, checkouts: 0 });
     expect(sendSlackDM).not.toHaveBeenCalled();
@@ -632,7 +642,7 @@ describe("sendTestCheckinDM", () => {
     setup();
     saveCheckin("m1", answered);
 
-    expect(await sendTestCheckinDM(repos, "m1", PRICKLE_REF, "prickle_checkin")).toEqual({ delivered: ["slack"] });
+    expect(await sendTestCheckinDM(repos, "m1", PRICKLE_REF, "prickle_checkin")).toEqual({ delivered: ["slack"], skipped: ["email"], failed: [] });
 
     const dm = sendSlackDM.mock.calls[0][0];
     expect(dm.slackUserId).toBe("U-m1");
@@ -646,7 +656,7 @@ describe("sendTestCheckinDM", () => {
   it("sends the check-out with a quick-log for only that member's goals", async () => {
     setup();
 
-    expect(await sendTestCheckinDM(repos, "m1", PRICKLE_REF, "prickle_checkout")).toEqual({ delivered: ["slack"] });
+    expect(await sendTestCheckinDM(repos, "m1", PRICKLE_REF, "prickle_checkout")).toEqual({ delivered: ["slack"], skipped: ["email"], failed: [] });
 
     const dm = sendSlackDM.mock.calls[0][0];
     expect(dm.text).toBe("[Test] Checking out of Progress Prickle: did you get what you came for?");
@@ -675,10 +685,22 @@ describe("sendTestCheckinDM", () => {
     expect(sendSlackDM).not.toHaveBeenCalled();
   });
 
+  it("reports a channel that had an address but failed, next to the one that went out", async () => {
+    reset([PRICKLE], [{ id: "host", name: "Host Example" }, { id: "m1", name: "Ada Example", email: "alice@example.com" }, { id: "m2", name: "Bea Example" }]);
+    setup();
+    sendSlackDM.mockRejectedValueOnce(new Error("slack down"));
+
+    expect(await sendTestCheckinDM(repos, "m1", PRICKLE_REF, "prickle_checkin")).toEqual({
+      delivered: ["email"],
+      skipped: [],
+      failed: ["slack"],
+    });
+  });
+
   it("sends even when the admin turned that kind off: they just asked for it", async () => {
     setup();
     dataset.notificationPreferences.push(optIn("m1", "prickle_checkin", "slack", false));
-    expect(await sendTestCheckinDM(repos, "m1", PRICKLE_REF, "prickle_checkin")).toEqual({ delivered: ["slack"] });
+    expect(await sendTestCheckinDM(repos, "m1", PRICKLE_REF, "prickle_checkin")).toEqual({ delivered: ["slack"], skipped: ["email"], failed: [] });
     expect(sendSlackDM).toHaveBeenCalledTimes(1);
   });
 
@@ -688,6 +710,8 @@ describe("sendTestCheckinDM", () => {
 
     expect(await sendTestCheckinDM(repos, "m1", PRICKLE_REF, "prickle_checkout")).toEqual({
       delivered: ["slack", "email"],
+      skipped: [],
+      failed: [],
     });
     const email = sendEmail.mock.calls[0][0];
     expect(email.to).toBe("alice@example.com");

@@ -10,7 +10,7 @@ const src = fs.readFileSync(
 describe('AdminCalendarPage navigation', () => {
   it('prev week link points to /admin/calendar not /calendar', () => {
     // Extract all href strings that reference calendar navigation
-    const calendarLinks = src.match(/href=\{`[^`]*calendar[^`]*`\}/g) || [];
+    const calendarLinks = src.match(/[hH]ref=\{`[^`]*calendar[^`]*`\}/g) || [];
     expect(calendarLinks.length).toBeGreaterThan(0);
     calendarLinks.forEach((link) => {
       expect(link).toContain('/admin/calendar');

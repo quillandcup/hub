@@ -56,6 +56,178 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "security-page",
+    date: "2026-11-17",
+    audience: "product",
+    category: "new",
+    title: "See how the Hub keeps your information safe",
+    summary: "A new Security page explains, in plain words, how sign-in, access, keys and changes are protected, and what to do if something looks wrong.",
+    body: `The new [Security page](/security) says how the Hub is protected, one short line at a time, with whether each is finished.
+
+- **Sign-in and access.** Joining is by invitation, and who can see what is decided by the database itself, not only by the page you are on.
+- **Behind the scenes.** What we do about messages from other services, replaceable keys and a record of changes.
+- **Still in progress.** Where something isn't finished, the line says so.
+- **Something wrong?** The page says how to tell us.
+
+It sits in the footer with [Privacy](/privacy) and [Compliance](/compliance).`,
+  },
+  {
+    slug: "compliance-page",
+    date: "2026-11-17",
+    audience: "product",
+    category: "new",
+    title: "See which privacy, payment and accessibility standards the Hub follows",
+    summary: "A new Compliance page lists the standards we follow, the ones our providers handle for us, and the ones we are still working toward.",
+    body: `The new [Compliance page](/compliance) is one place to see how the Hub treats your information and which standards it follows.
+
+- **Privacy.** What we do for members in the EU, the EEA and the UK, and for everyone else, with a link to the full [Privacy page](/privacy).
+- **Payments.** Card details never reach the Hub. Our payment provider, Stripe, handles them and holds the card-security certification.
+- **Accessibility.** The checks we run so the Hub works for as many people as possible, and what we haven't finished yet.
+- **Honest about gaps.** Each line says whether it is in place, handled by a provider, still in progress or not yet reviewed.
+
+You'll find it in the footer, next to Privacy.`,
+  },
+  {
+    slug: "kbd-shortcut-hints",
+    date: "2026-11-17",
+    audience: "engineering",
+    category: "new",
+    title: "One shared component for keyboard-shortcut hints",
+    summary: "A shared Kbd component draws shortcut keys as small caps next to the control that owns the shortcut, and only on devices with a keyboard.",
+    body: `Shortcut hints used to be hand-rolled \`<kbd>\` tags. \`components/Kbd.tsx\` is now the one place that draws them.
+
+- **Use it like this.** \`<Kbd keys={["mod", "K"]} />\` renders one cap per key. Names such as \`mod\`, \`shift\`, \`enter\`, \`esc\`, \`up\` and \`down\` are mapped; a single letter is upper-cased. \`mod\` is the Command key on Apple platforms and Ctrl elsewhere, read on the client with \`useSyncExternalStore\`, so the server render and hydration agree and the right key appears right after.
+- **Decorative only.** It is \`aria-hidden\`. The control that owns a shortcut declares it with \`aria-keyshortcuts\`, which keeps the visible hint out of the button's accessible name.
+- **Only where there is a keyboard.** It is hidden below \`sm\` and on devices without hover and a fine pointer, through the \`fine-pointer\` Tailwind variant in \`tailwind.config.ts\`. Use that variant for any other keyboard-only affordance.
+- **Add a hint only for a shortcut that works.** Today: search (open, move, choose, close), the modal close button, sending a chat message, and the admin calendar's week links.`,
+  },
+  {
+    slug: "reorder-your-goals",
+    date: "2026-11-17",
+    audience: "product",
+    category: "new",
+    title: "Put a project's goals in the order you like",
+    summary: "On a project's page, drag a goal into the order you want, or pick its new place from its ⋯ button. The goals you star on your dashboard follow that order too.",
+    body: `A project's goals no longer have to stay in the order you first made them. Put the one you care about most at the top.
+
+- **Drag to move.** Each goal has a handle on its left. Press it and drag the goal where you want it, with a mouse or your finger. Swiping anywhere else still scrolls the page.
+- **Prefer not to drag?** Use the **⋯** button on a goal and choose **Move to position** to jump straight to the place you want. On a keyboard, select the handle, press Space, use the arrow keys, then press Space again. On a computer, hover over the handle to see these steps.
+- **Your dashboard shows them in this order.** Starred goals in **Writing Goals** stay grouped by project, in your project order, and within each project follow the order you chose.
+- **Nothing changes until you move a goal.** After that, goals you add go to the bottom of the list.
+
+Open a project from [your Projects page](/projects) to see its goals. Reordering needs two or more goals in that project.`,
+  },
+  {
+    slug: "goal-start-date-starting-count-note",
+    date: "2026-11-16",
+    audience: "product",
+    category: "improved",
+    title: "Goals tell you when your starting count isn't included",
+    summary: "A goal with a start date counts only what you log from that day on. It now says so when your project has a starting count that is left out.",
+    body: `If you gave a project a starting word count (or another starting count) and then set a start date on its goal, the goal counts only what you log from that date on. It now shows a note under the progress bar, such as "Your starting 20,000 words aren't counted because this goal is for what you log in a specific time frame."
+
+To count your starting words, clear the goal's start date. A goal without one counts everything on the project.`,
+  },
+  {
+    slug: "reorder-your-projects",
+    date: "2026-11-16",
+    audience: "product",
+    category: "new",
+    title: "Put your writing projects in the order you like",
+    summary: "On your Projects page you can now drag your projects into the order you want, or pick a project's new place from its ⋯ button. The goals you star on your dashboard follow the same order.",
+    body: `Your projects no longer have to stay newest first. Put the one you are working on right now at the top, and the ones you are saving for later below it.
+
+- **Drag the handle.** Each project has a handle on its left (on a computer it appears over the project's picture when you point at the card). Press it and drag the project to where you want it, with a mouse or your finger. Swiping anywhere else on the card still scrolls the page.
+- **Prefer not to drag?** Use the **⋯** button on a project and choose **Move to position** to jump straight to the place you want. On a keyboard, select the handle, press Space, use the arrow keys, then press Space again. On a computer, hover over the handle to see these steps.
+- **Your dashboard follows.** The goals you have starred in **Writing Goals** on your dashboard are shown in the same order as their projects, so moving a project moves its goals too.
+- **Nothing changes until you do.** Your projects stay as they are today until you move one. A project you create later appears at the top, and projects you have put on hold are not affected.
+
+Find it on [your Projects page](/projects) once you have two or more projects.`,
+  },
+  {
+    slug: "checkin-dm-closes-on-answer",
+    date: "2026-11-16",
+    audience: "engineering",
+    category: "improved",
+    title: "A check-in answered in the Hub closes its Slack DM and clears the unread badge",
+    summary: "When a member answers or skips a check-in or check-out in the Hub, the bot's Slack message collapses to the closed note, and for members who connected Slack it is marked read as them.",
+    body: `Answering a prickle check-in or check-out in the Hub used to leave the bot's Slack message live, with stale answers and an unread badge.
+
+- **Remember the message.** When a check-in or check-out DM is sent, the channel adapter now returns where the message landed, and the sender keeps it on the DM's dedup log row. \`notifier.send\` takes an \`onReceipt\` callback for this; any feature that edits its own Slack message later can use it the same way.
+- **One function closes it.** \`closeCheckinDms\` runs after the response from every Hub path that answers or dismisses a half. It collapses the DM with the bot token, then, for members whose Slack connection has the DM scopes, moves their read marker to that message (never backward). It is idempotent, production only, and a Slack failure is logged and never costs the answer.
+- **Slack's own buttons are untouched.** Submit and Skip in Slack already collapse the message, so they don't call it.
+- **Old DMs are skipped.** Ones sent before the message was kept have nothing to find; the live path never searches history.
+
+Detail: "Read state shared with Slack" in \`docs/SLACK_BRIDGED_CHAT.md\`.`,
+  },
+  {
+    slug: "lesson-comments-notifications",
+    date: "2026-11-16",
+    audience: "engineering",
+    category: "new",
+    title: "Lesson comments: follows, reply notifications and a daily digest, in dry run first",
+    summary: "Members follow a lesson's comments, hear about replies and instructors' answers, and get one daily note about new comments; staff get a daily note while reported or held comments wait. All of it logs instead of sending until its flag is on for them.",
+    body: `Notifications for lesson comments, on the same notifier as everything else the app sends.
+
+- **Four registry kinds.** Replies to your comment, instructor replies, a daily digest of followed lessons, and a staff note about the review queue (a kind marked \`staffOnly\`, shown in settings only to admins). Each has a sample message and an email template, and a message links to the exact comment (\`?comment=\`, which the thread scrolls to and marks) and carries no comment text.
+- **Follows and read markers** are two small tables behind the comment repository. Posting follows the lesson unless the member already chose; opening the thread records the visit, which gives "N new since your last visit" and marks the thread's in-app notifications read.
+- **Replies go out as they happen**, after the response, claimed per comment so a retry or a staff approval of a held reply never sends twice. The digests run once a day from a cron route, claimed per member and Eastern day; the digest starts where the last real run ended.
+- **A new automated sender starts in dry run.** The \`lesson_comment_notifications\` flag decides who is told for real; for everyone else the sender logs the member, kind, why, channels and message, and writes no claim or run mark, so switching it on starts clean. A member with no reachable channel never uses a claim, and a member whose access ended is never told.
+
+Detail: "Phase 3 (notifications), as built" in \`docs/COURSES.md\`.`,
+  },
+  {
+    slug: "lesson-comments-moderation",
+    date: "2026-11-16",
+    audience: "engineering",
+    category: "new",
+    title: "Lesson comments: reports, held links and staff moderation, one audit entry per action",
+    summary: "Members can report a comment, a comment with more than two links waits for staff, and staff hide, delete, approve or dismiss from a moderation page. Each staff action writes one audit entry without the comment's text. Still behind the lesson comments flag.",
+    body: `Moderation for lesson comments builds on the thread, behind the same flag.
+
+- **One function, one entry.** Staff actions call a database function that checks the caller is an admin, changes the comment, settles its reports and writes a single audit entry as that admin (who, which comment, the lesson's title, before and after). The table has no row-level audit trigger because that would copy every comment's text into the log; the entry never holds text either. It follows "Record the intent, not the noise" in \`docs/ACTIVITY_AND_AUDIT_LOG.md\`.
+- **Visibility is enforced twice.** A held comment is its author's and staff's alone, and a hidden one is a tombstone for members, both in the row-level policy and in the repository's \`threadFor(lessonId, viewer)\`.
+- **The link rule is one helper** (\`shouldHoldComment\`), counting links the way the thread auto-links them. There is no word filter.
+- **Reports** have their own table, one open report per reporter and comment, readable by admins only; the author is never told who reported.
+- **Admin pages** are tabs by path (Unanswered questions, Moderation), admin only.
+
+Detail: "Phase 2 (moderation), as built" in \`docs/COURSES.md\`.`,
+  },
+  {
+    slug: "landing-page-build-with-ai",
+    date: "2026-11-16",
+    audience: "staff",
+    category: "new",
+    title: "Build and change landing pages by describing them",
+    summary: "Describe a page on New page and get a draft, or open the AI tab in the editor to add blocks or change the page with a sentence. Nothing goes live until you publish.",
+    body: "On New page, type who the page is for, what you offer, and any dates, prices and links, then choose Draft the page. It can take a minute, and the draft opens in the editor.\n\nIn the editor, the AI tab sits beside Blocks and Outline. Add writes new blocks at the end of the page. Change edits the page you have: ask for a shorter intro, an FAQ, outline buttons. Pictures and anything you didn't mention stay as they are, and Undo brings the old page back.\n\nThe assistant only uses what you wrote. Where it lacks a fact it writes around it and leaves a button's link empty, so the publish check stops you until you fill it in. Check every fact and link before you publish. It does not add pictures, testimonials, countdowns, videos or sign-up forms, because it cannot know the right ones: add those in the editor.\n\nWhat is sent to the Claude API: your description, and in Change mode the page's text and settings (no pictures, no member data).",
+  },
+  {
+    slug: "landing-page-kajabi-import",
+    date: "2026-11-16",
+    audience: "engineering",
+    category: "new",
+    title: "Import a Kajabi page export as a draft landing page",
+    summary: "Pages has an Import from Kajabi item beside New page: upload a Kajabi page export (zip) and get an unpublished draft built from our blocks, with a report of what was approximated or left out. Importing the same page again replaces only its draft.",
+    body: `Kajabi has no content API, but its page export is structured (sections with typed blocks and their settings), so the move is a mapping and not a model.
+
+- **Deterministic mapper.** \`mapKajabiPage\` (\`lib/landing/kajabi-import.ts\`) is a pure function from the export's settings to Puck JSON: text becomes headings, dividers and cleaned rich text, call-to-action blocks become buttons, forms become the sign-up block, the header logo and footer copyright come across. Whatever has no counterpart is returned as a note (approximated, left out, hidden in Kajabi, still to do) and shown on a results screen. No AI, no new dependency.
+- **Untrusted upload.** The zip is read in memory by \`readKajabiZip\`: only the settings file and the images are inflated, each counted as it unpacks against size limits, with path and entry-count checks. Pictures go to the media library, private until a page that shows them is published. Everything passes the same sanitiser as any save.
+- **Idempotent and safe on live pages.** The export has no page id, so a key is derived from ids it does carry; the same page imported again replaces only the draft (never the published copy or versions), asks first when the draft holds edits the import would lose, and keeps the old draft in the page's history as a "before import" version you can bring back.
+- **Extension point.** A new Kajabi block type is one more branch in the mapper and a test.
+
+How to use it, what is not handled and the model: "Importing from Kajabi" in \`docs/LANDING_PAGES.md\`.`,
+  },
+  {
+    slug: "landing-page-builder",
+    date: "2026-11-15",
+    audience: "engineering",
+    category: "new",
+    title: "A page builder for landing pages, on Puck, with drafts, publishing and history",
+    summary: "Admins build landing pages from blocks at Pages, see them on a phone, tablet and desktop as they edit, and publish them as a separate, explicit step. Published pages are public at /p/<address>.",
+    body: "Kajabi's landing pages are moving into the Hub. A page is Puck's JSON, edited in a shell of ours and rendered by the same blocks in the editor and on the public route, so the preview is the page. Autosave writes only the draft; publishing runs accessibility checks, keeps a version and makes the page's pictures public, so an edit never goes live by accident and an earlier version can be brought back.\n\nThe rules to follow: a page's id never appears in a URL (the address is the slug); rich text is cleaned to an allowlist on save and again before every public render; props named `*AssetId`, `href`, `url` and `html` are picture ids, links and rich text everywhere, so one set of helpers covers any block; only a signed-in admin reads the tables, and the public route reads published pages with the service role. A block is a component, its defaults and its fields, with container-query layout. Sign-up forms are a block too: the browser posts to a relay that forwards to Kajabi through an `OptInDestination`, stores nothing, and only forwards to a form the published page shows. How to add a block, the model and the checks: `docs/LANDING_PAGES.md`.",
+  },
+  {
     slug: "lesson-comments-foundation",
     date: "2026-11-15",
     audience: "engineering",
@@ -1179,7 +1351,7 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     category: "improved",
     title: "Member tenure derived from billing history with join date overrides",
     summary: "First join date, time as a member and hiatus handling are computed from billing data, replacing a manual spreadsheet.",
-    body: "First join date, time as a member and hiatus handling are computed from billing data, replacing a manual spreadsheet, and drive the admin Hedgieversary page and hiatus touchpoints. Tenure is first joined, most recent join and active months excluding hiatus. Join date is the first real transaction; where a real trial existed it comes from the Stripe subscription's trial end, since Kajabi offers never expose trial length. One shared function decides what counts as a real membership stint, keyed by canonical email so Kajabi contact merges do not break it, and the Stripe import requests all statuses because the default omitted cancelled subscriptions. A join-date override table covers members from before the 2022 Kajabi migration. Hiatus is read from the overrides that reprocessing uses.",
+    body: "First join date, time as a member and hiatus handling are computed from billing data, replacing a manual spreadsheet, and drive the admin Hedgieversary page and hiatus touchpoints. Tenure is first joined, most recent join and active months excluding hiatus. Join date is the first real transaction; where a real trial existed it comes from the Stripe subscription's trial end, since Kajabi offers never expose trial length. One shared function decides what counts as a real membership stint, keyed by canonical email so Kajabi contact merges do not break it, and the Stripe import requests all statuses because the default omitted cancelled subscriptions. A join-date override table covers members from before the 2022 Kajabi migration. Hiatus is read from the overrides that reprocessing uses. Hedgieversary dates count time active: each hiatus and each cancel and resubscribe gap (the gaps are stored dated on the member by reprocessing) pushes out only the milestones that come after it, overlapping periods are counted once, and each merged period is rounded to calendar months once, as the staff spreadsheet does.",
   },
   {
     slug: "profile-badges-and-bookshelf",
@@ -2782,6 +2954,15 @@ Moderation, notifications and the Kajabi import are later phases: see "Lesson co
     title: "Hub Chat draws Slack's link previews and app cards",
     summary: "Messages that Slack gave a link preview, and messages posted by apps such as deploy notices, now show as cards in Hub Chat, with the app's own name and logo.",
     body: "Hub Chat draws what Slack sends natively: link previews, app messages and shared Slack messages. One parser (`parseUnfurls`, `lib/chat/unfurls.ts`) turns Slack's legacy attachments and Block Kit into a small set of typed variants (cards, blocks, shares), and renderers in `components/chat/MessageUnfurls.tsx` draw them. Apps show under their own name and logo.\n\n- **Hooks:** the parser registry (`BLOCK_PARSERS`) and the renderer registry (`BLOCK_RENDERERS`); a block type is one entry in each. Anything not understood falls back to an \"Open in Slack\" link.\n- **An app's message is drawn from its blocks; a person's message from its text.**\n- **Every picture goes through the picture proxy.**\n- **A shared Slack message** shows Slack's embedded copy to anyone who can read the sharing message.\n\nAdding a block type or unfurl kind: `docs/SLACK_BRIDGED_CHAT.md`, \"Adding a block type (or a new kind of unfurl)\".",
+  },
+  {
+    slug: "combobox-keyboard-hook",
+    date: "2026-11-17",
+    audience: "engineering",
+    category: "new",
+    title: "One keyboard pattern for every picker",
+    summary: "The member and staff pickers, single and multiple, answer the arrow keys, Enter and Escape the same way, and Ctrl/Cmd+Enter submits the form around them.",
+    body: "Every dropdown under a text box now follows the WAI-ARIA combobox pattern through one hook, `useComboboxKeys` (`lib/hooks/useComboboxKeys.ts`): arrows move a highlight that the mouse shares, Enter picks, the first Escape closes the list and only the second reaches the dialog around it, and the highlight is announced with `aria-activedescendant` and scrolled into view. Focus never leaves the box.\n\n- **Rule:** never hand-write arrow-key handling for a popup list; use the hook and its options (`homeEnd`, `pickSole`, `keepHighlight`, `preselect`, `pickOnTab`).\n- **Multi-select:** Enter toggles the highlighted option and keeps the list open; with nothing highlighted it is left to the form.\n- **Ctrl/Cmd+Enter** submits the enclosing form through `submitFormOnModEnter` (`lib/submit-form-on-mod-enter.ts`), wired into `Modal`. A primary button that works this way shows `Kbd` with `onAccent`.\n\nDetail and the pickers still outside the hook: `.claude/rules/reuse-ui-components.md` and `docs/TODO.md`, \"Move The Remaining List Popups Onto `useComboboxKeys`\".",
   },
   {
     slug: "chat-jump-to-a-day",

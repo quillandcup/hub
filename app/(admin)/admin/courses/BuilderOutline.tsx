@@ -4,9 +4,12 @@ import { createContext, useContext, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ActionMenu, { type ActionMenuItem } from "@/components/ActionMenu";
-import Modal from "@/components/Modal";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import Icon, { type IconName } from "@/components/Icon";
 import type { ExplainedLesson, ExplainedModule } from "@/lib/courses/explain";
-import { moduleContents, moveBefore, moveBy } from "@/lib/courses/hub-outline";
+import { moduleContents } from "@/lib/courses/hub-outline";
+import { lifecycleConfirm, lifecycleIcon, lifecycleLabel } from "@/lib/lifecycle-actions";
+import { moveBefore, moveBy } from "@/lib/reorder";
 import { statusChoices, statusLabel } from "@/lib/courses/status-choices";
 import { addCourseLesson, addCourseModule, deleteCourseItem, duplicateCourseItem, renameCourseItem, reorderCourseItems, setCourseItemStatus, type ItemKind, type OutlineResult } from "./outline-actions";
 
@@ -35,30 +38,6 @@ const PILL: Record<string, string> = {
   locked: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300",
   drip: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
   scheduled: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
-};
-
-function Icon({ path, className = "h-4 w-4" }: { path: string; className?: string }) {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 20 20" className={className} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d={path} />
-    </svg>
-  );
-}
-
-const ICONS = {
-  folder: "M2.5 6a1.5 1.5 0 0 1 1.5-1.5h3.2l1.6 1.8H16A1.5 1.5 0 0 1 17.5 7.8V14A1.5 1.5 0 0 1 16 15.5H4A1.5 1.5 0 0 1 2.5 14z",
-  video: "M3 6.5A1.5 1.5 0 0 1 4.5 5h7A1.5 1.5 0 0 1 13 6.5v7a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 3 13.5zM13 9l4-2v6l-4-2",
-  edit: "M4 13.5V16h2.5l7-7L11 6.5zM12 5.5l2.5 2.5",
-  rename: "M7 4H5v12h2M13 4h2v12h-2M10 6v8",
-  copy: "M7 7h8v8H7zM5 13V5h8",
-  comment: "M4 5h12v8H9l-3 3v-3H4z",
-  eye: "M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5zM10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z",
-  trash: "M5 6h10M8 6V4h4v2M6.5 6l.5 10h6l.5-10",
-  plus: "M10 4v12M4 10h12",
-  chevron: "m5 8 5 5 5-5",
-  grip: "M4 7.5h12M4 12.5h12",
-  up: "m5 12 5-5 5 5",
-  down: "m5 8 5 5 5-5",
 };
 
 /** What the rows share: which course, whether it can be changed, and how a change is made. */
@@ -123,12 +102,12 @@ function rowNote(reason: string): string | null {
 const ACTION ="flex items-center gap-1 rounded p-1.5 text-slate-600 disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-300";
 
 /** An action: a working button when `onClick` is given, otherwise off with the reason on hover. */
-function Action({ label, icon, count, onClick, disabled }: { label: string; icon: keyof typeof ICONS; count?: number; onClick?: () => void; disabled?: boolean }) {
+function Action({ label, icon, count, onClick, disabled }: { label: string; icon: IconName; count?: number; onClick?: () => void; disabled?: boolean }) {
   const { soon, editor } = useOutline();
   const working = !!onClick;
   return (
     <button type="button" disabled={!working || disabled || editor?.busy} onClick={onClick} title={working ? label : `${label}. ${soon}`} aria-label={label} className={ACTION}>
-      <Icon path={ICONS[icon]} />
+      <Icon name={icon} />
       {count !== undefined && <span className="text-xs">{count}</span>}
     </button>
   );
@@ -145,7 +124,7 @@ const HOVER_ACTIONS = "hidden items-center opacity-0 transition-opacity group-ho
 interface RowAction {
   key: string;
   label: string;
-  icon?: keyof typeof ICONS;
+  icon?: IconName;
   href?: string;
   onClick?: () => void;
   disabled?: boolean;
@@ -167,7 +146,7 @@ function RowActions({ name, actions }: { name: string; actions: RowAction[] }) {
           .map((a) =>
             a.href ? (
               <Link key={a.key} href={a.href} aria-label={a.label} title={a.label} className="rounded p-1.5 text-slate-600 dark:text-slate-300">
-                <Icon path={ICONS[a.icon!]} />
+                <Icon name={a.icon!} />
               </Link>
             ) : (
               <Action key={a.key} label={a.label} icon={a.icon!} onClick={a.onClick} disabled={a.disabled} />
@@ -195,7 +174,7 @@ function DragHandle({ label, sibling }: { label: string; sibling?: Sibling }) {
   if (!editor || !sibling) {
     return (
       <span role="img" aria-label={label} title={soon} className="-ml-1 hidden w-4 shrink-0 cursor-not-allowed text-slate-400 @split:block opacity-0 transition-opacity group-hover:opacity-100">
-        <Icon path={ICONS.grip} />
+        <Icon name="grip" />
       </span>
     );
   }
@@ -213,7 +192,7 @@ function DragHandle({ label, sibling }: { label: string; sibling?: Sibling }) {
       onDragEnd={() => editor.drag.end()}
       className="-ml-1 hidden w-4 shrink-0 cursor-grab text-slate-400 @split:block opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
     >
-      <Icon path={ICONS.grip} />
+      <Icon name="grip" />
     </span>
   );
 }
@@ -288,31 +267,14 @@ function NameField({ label, initial, placeholder, submitLabel, onSubmit, onCance
 
 /** Asks before deleting, and says what goes with it. */
 function DeleteDialog({ title, what, detail, onConfirm, onClose }: { title: string; what: string; detail: string | null; onConfirm: () => Promise<boolean>; onClose: () => void }) {
-  const { editor } = useOutline();
   return (
-    <Modal isOpen onClose={onClose} title={`Delete ${what}?`} maxWidth="md">
-      <div className="p-6">
-        <p className="text-sm">
-          “{title}” will be deleted for good.{detail && ` ${detail}`}
-        </p>
-        <div className="mt-6 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded border border-slate-300 px-4 py-2 text-sm font-medium dark:border-slate-600">
-            Cancel
-          </button>
-          <button
-            type="button"
-            disabled={editor?.busy}
-            onClick={async () => {
-              if (await onConfirm()) onClose();
-              else onClose(); // the reason is shown above the outline
-            }}
-            className="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-          >
-            Delete {what}
-          </button>
-        </div>
-      </div>
-    </Modal>
+    <ConfirmDialog
+      open
+      onClose={onClose}
+      // The reason a delete failed is shown above the outline, so the dialog closes either way.
+      onConfirm={async () => void (await onConfirm())}
+      {...lifecycleConfirm("delete", { noun: what, title, detail: detail ?? undefined, permanent: true })!}
+    />
   );
 }
 
@@ -332,10 +294,10 @@ function LessonRow({ lesson, indent, sibling }: { lesson: ExplainedLesson; inden
   const actions: RowAction[] = [
     { key: "edit", label: editor ? "Edit lesson" : "Edit video", icon: "edit", href: builder ?? undefined },
     ...(editor ? [{ key: "rename", label: "Rename lesson", icon: "rename" as const, onClick: () => setRenaming(true) }] : []),
-    { key: "duplicate", label: `Duplicate ${what}`, icon: "copy", onClick: editor ? () => void editor.run(() => duplicateCourseItem(editor.courseId, "lesson", lesson.kajabiId)) : undefined },
+    { key: "duplicate", label: lifecycleLabel("duplicate", what), icon: lifecycleIcon("duplicate"), onClick: editor ? () => void editor.run(() => duplicateCourseItem(editor.courseId, "lesson", lesson.kajabiId)) : undefined },
     { key: "comments", label: `Open ${what} comments`, icon: "comment", quickOnly: true },
-    { key: "preview", label: previewLabel, icon: "eye", href: preview ?? undefined },
-    { key: "delete", label: `Delete ${what}`, icon: "trash", onClick: editor ? () => setConfirming(true) : undefined },
+    { key: "preview", label: previewLabel, icon: lifecycleIcon("preview"), href: preview ?? undefined },
+    { key: "delete", label: lifecycleLabel("delete", what), icon: lifecycleIcon("delete"), onClick: editor ? () => setConfirming(true) : undefined },
     ...moveActions(editor, sibling, "lesson"),
   ];
   return (
@@ -345,7 +307,7 @@ function LessonRow({ lesson, indent, sibling }: { lesson: ExplainedLesson; inden
       {...dropProps(editor, sibling)}
     >
       <DragHandle label="Drag to reorder lesson" sibling={sibling} />
-      <Icon path={ICONS.video} className="h-4 w-4 shrink-0 text-slate-500" />
+      <Icon name="video" className="h-4 w-4 shrink-0 text-slate-500" />
       {renaming && editor ? (
         <NameField label="Lesson name" initial={lesson.title} submitLabel="Save" onSubmit={(title) => editor.run(() => renameCourseItem(editor.courseId, "lesson", lesson.kajabiId, title))} onCancel={() => setRenaming(false)} />
       ) : (
@@ -421,19 +383,19 @@ function ModuleRow({
   };
   const actions: RowAction[] = [
     { key: "edit", label: `Edit ${noun}`, icon: "edit", onClick: editor ? () => setRenaming(true) : undefined },
-    { key: "duplicate", label: `Duplicate ${noun}`, icon: "copy", onClick: editor ? () => void editor.run(() => duplicateCourseItem(editor.courseId, "module", mod.kajabiId)) : undefined },
-    { key: "preview", label: `Open ${noun} preview`, icon: "eye", href: preview ?? undefined },
+    { key: "duplicate", label: lifecycleLabel("duplicate", noun), icon: lifecycleIcon("duplicate"), onClick: editor ? () => void editor.run(() => duplicateCourseItem(editor.courseId, "module", mod.kajabiId)) : undefined },
+    { key: "preview", label: `Open ${noun} preview`, icon: lifecycleIcon("preview"), href: preview ?? undefined },
     // On a wide outline these are the Add content button; here they are menu items.
     { key: "add-lesson", label: "Add lesson", onClick: editor ? () => startAdding("lesson") : undefined },
     ...(submodule ? [] : [{ key: "add-submodule", label: "Add submodule", onClick: editor ? () => startAdding("submodule") : undefined }]),
-    { key: "delete", label: `Delete ${noun}`, icon: "trash", onClick: editor ? () => setConfirming(true) : undefined },
+    { key: "delete", label: lifecycleLabel("delete", noun), icon: lifecycleIcon("delete"), onClick: editor ? () => setConfirming(true) : undefined },
     ...moveActions(editor, sibling, noun),
   ];
   return (
     <li className={submodule ?"border-t border-slate-100 dark:border-slate-800" : "overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700"} {...dropProps(editor, sibling)}>
       <div className={ROW_CLASS} style={{ paddingLeft: `${0.75 + depth * 1}rem` }}>
         <DragHandle label={`Drag to reorder ${noun}`} sibling={sibling} />
-        <Icon path={ICONS.folder} className="h-4 w-4 shrink-0 text-slate-500" />
+        <Icon name="folder" className="h-4 w-4 shrink-0 text-slate-500" />
         {renaming && editor ? (
           <NameField label={`${submodule ? "Submodule" : "Module"} name`} initial={mod.title} submitLabel="Save" onSubmit={(title) => editor.run(() => renameCourseItem(editor.courseId, "module", mod.kajabiId, title))} onCancel={() => setRenaming(false)} />
         ) : (
@@ -453,7 +415,7 @@ function ModuleRow({
             onClick={editor ? () => setMenu(!menu) : undefined}
             className="flex items-center gap-1 text-sm text-slate-600 disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-300"
           >
-            <Icon path={ICONS.plus} />
+            <Icon name="plus" />
             Add content
           </button>
           {menu && editor && (
@@ -471,7 +433,7 @@ function ModuleRow({
         </span>
         <StatusPill title={mod.title} option={mod.publishingOption} kind="module" id={mod.kajabiId} />
         <button type="button" onClick={() => setOpen(!open)} aria-expanded={shown} aria-label={`${shown ? "Collapse" : "Expand"} ${mod.title}`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded text-slate-600 @split:h-auto @split:w-auto @split:p-1 dark:text-slate-300">
-          <Icon path={ICONS.chevron} className={`h-4 w-4 transition-transform ${shown ? "rotate-180" : ""}`} />
+          <Icon name="chevron" className={`h-4 w-4 transition-transform ${shown ? "rotate-180" : ""}`} />
         </button>
       </div>
       {shown && (

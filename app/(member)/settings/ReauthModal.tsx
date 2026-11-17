@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import Modal from "@/components/Modal";
+import Kbd from "@/components/Kbd";
 import { loadRecentSignIn, sendReauthCode, verifyReauthCode } from "./identityActions";
 
 /**
@@ -110,9 +111,11 @@ export default function ReauthModal({ isOpen, onClose, onVerified }: { isOpen: b
             type="submit"
             data-track="settings-identity-reauth-confirm"
             disabled={busy || !code.trim()}
-            className="px-4 py-2 bg-plum-600 text-white text-sm rounded-md hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-keyshortcuts="Control+Enter Meta+Enter"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-plum-600 text-white text-sm rounded-md hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Confirm
+            <Kbd keys={["mod", "enter"]} onAccent />
           </button>
         </div>
       </form>

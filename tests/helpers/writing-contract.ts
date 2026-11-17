@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import type { WritingRepository } from "@/lib/data/writing";
 
 export type SeedProject = { key: string; member: 0 | 1; title: string; phase?: string; createdAt: string };
-export type SeedGoal = { member: 0 | 1; project?: string; measure: string; archived?: boolean };
+export type SeedGoal = { member: 0 | 1; project: string; measure: string; archived?: boolean };
 export type SeedEntry = { member: 0 | 1; project: string; entryDate: string; measure: string; mode: "delta" | "set_total"; amount: number; createdAt: string; prickle?: boolean; note?: string; tags?: string[] };
 
 export type WritingContractContext = {
@@ -67,19 +67,22 @@ export function defineWritingContract(name: string, setup: () => WritingContract
     it("counts goals, archived ones too, and lists the measures of the ones in play", async () => {
       const [a, b] = ctx.memberIds;
       const ids = await ctx.seed({
-        projects: [{ key: "p", member: 0, title: "P", createdAt: "2026-01-01T10:00:00Z" }],
+        projects: [
+          { key: "p", member: 0, title: "P", createdAt: "2026-01-01T10:00:00Z" },
+          { key: "theirs", member: 1, title: "Theirs", createdAt: "2026-01-01T10:00:00Z" },
+        ],
         goals: [
           { member: 0, project: "p", measure: "words" },
-          { member: 0, measure: "time_minutes" },
+          { member: 0, project: "p", measure: "time_minutes" },
           { member: 0, project: "p", measure: "pages", archived: true },
-          { member: 1, measure: "words" },
+          { member: 1, project: "theirs", measure: "words" },
         ],
       });
 
       expect(await ctx.repo().goalCount(a)).toBe(3);
       expect(await ctx.repo().goalCount(b)).toBe(1);
-      const measures = (await ctx.repo().activeGoalMeasures(a)).map((g) => `${g.project_id ?? "-"}|${g.measure}`).sort();
-      expect(measures).toEqual([`${ids.p}|words`, "-|time_minutes"].sort());
+      const measures = (await ctx.repo().activeGoalMeasures(a)).map((g) => `${g.project_id}|${g.measure}`).sort();
+      expect(measures).toEqual([`${ids.p}|words`, `${ids.p}|time_minutes`].sort());
     });
 
     it("returns the latest entries' measures newest first, up to the limit", async () => {
@@ -218,7 +221,6 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       });
       const mine = await ctx.repo().createGoal({ member_id: a, project_id: ids.p, measure: "words", target_amount: 1 });
       await ctx.repo().createGoal({ member_id: a, project_id: ids.p, measure: "pages", target_amount: 1, archived_at: "2026-06-01T00:00:00Z" });
-      await ctx.repo().createGoal({ member_id: a, measure: "words", target_amount: 1 });
       const theirs = await ctx.repo().createGoal({ member_id: b, project_id: ids.q, measure: "scenes", target_amount: 1 });
 
       const candidates = (await ctx.repo().activeGoalCandidates()).filter((c) => c.goal_id === mine || c.goal_id === theirs);
@@ -402,6 +404,167 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       expect((await ctx.repo().projectSummary(a, ids.gone))?.title).toBe("Shelved");
     });
 
+    it("puts a member's active projects in the order they chose, and leaves the others alone", async () => {
+      const [a, b] = ctx.memberIds;
+      const ids = await ctx.seed({
+        projects: [
+          { key: "old", member: 0, title: "Old", createdAt: "2026-01-01T10:00:00Z" },
+          { key: "mid", member: 0, title: "Mid", createdAt: "2026-02-01T10:00:00Z" },
+          { key: "new", member: 0, title: "New", createdAt: "2026-03-01T10:00:00Z" },
+          { key: "shelved", member: 0, title: "Shelved", phase: "hibernating", createdAt: "2026-04-01T10:00:00Z" },
+          { key: "b1", member: 1, title: "B One", createdAt: "2026-01-01T10:00:00Z" },
+          { key: "b2", member: 1, title: "B Two", createdAt: "2026-02-01T10:00:00Z" },
+        ],
+      });
+      const repo = ctx.repo();
+      const titles = async (memberId: string, past = false) => (await repo.projectSummaries(memberId, { past })).map((p) => p.title);
+      // Until a member reorders, nothing changes: newest first.
+      expect(await titles(a)).toEqual(["New", "Mid", "Old"]);
+
+      await repo.reorderProjects(a, [ids.old, ids.new, ids.mid]);
+      expect(await titles(a)).toEqual(["Old", "New", "Mid"]);
+      expect(await titles(a, true)).toEqual(["Shelved"]);
+      // Another member's list is untouched, and a repeat of the same list changes nothing.
+      expect(await titles(b)).toEqual(["B Two", "B One"]);
+      await repo.reorderProjects(a, [ids.old, ids.new, ids.mid]);
+      expect(await titles(a)).toEqual(["Old", "New", "Mid"]);
+    });
+
+    it("ignores ids in a reorder that aren't the member's live projects, and lists a repeated id once", async () => {
+      const [a, b] = ctx.memberIds;
+      const ids = await ctx.seed({
+        projects: [
+          { key: "p1", member: 0, title: "One", createdAt: "2026-01-01T10:00:00Z" },
+          { key: "p2", member: 0, title: "Two", createdAt: "2026-02-01T10:00:00Z" },
+          { key: "gone", member: 0, title: "Deleted", createdAt: "2026-03-01T10:00:00Z" },
+          { key: "theirs", member: 1, title: "Theirs", createdAt: "2026-01-01T10:00:00Z" },
+          { key: "theirs2", member: 1, title: "Theirs Too", createdAt: "2026-02-01T10:00:00Z" },
+        ],
+      });
+      const repo = ctx.repo();
+      await repo.deleteProject(a, ids.gone);
+
+      await repo.reorderProjects(a, [ids.theirs, ids.p1, ids.gone, ids.p1, "nope", ids.p2, ids.theirs2]);
+      expect((await repo.projectSummaries(a)).map((p) => p.title)).toEqual(["One", "Two"]);
+      // Nothing of the other member's changed: still newest first.
+      expect((await repo.projectSummaries(b)).map((p) => p.title)).toEqual(["Theirs Too", "Theirs"]);
+      // An empty list is a no-op.
+      await repo.reorderProjects(a, []);
+      expect((await repo.projectSummaries(a)).map((p) => p.title)).toEqual(["One", "Two"]);
+    });
+
+    it("puts a project created after a reorder at the top", async () => {
+      const [a] = ctx.memberIds;
+      const ids = await ctx.seed({
+        projects: [
+          { key: "old", member: 0, title: "Old", createdAt: "2026-01-01T10:00:00Z" },
+          { key: "mid", member: 0, title: "Mid", createdAt: "2026-02-01T10:00:00Z" },
+          { key: "new", member: 0, title: "New", createdAt: "2026-03-01T10:00:00Z" },
+        ],
+      });
+      const repo = ctx.repo();
+      await repo.reorderProjects(a, [ids.old, ids.mid, ids.new]);
+      const fresh = await repo.createProject(a, "Fresh", "drafting");
+      expect((await repo.projectSummaries(a)).map((p) => p.id)).toEqual([fresh, ids.old, ids.mid, ids.new]);
+    });
+
+    it("lists the starred goals in the order of their projects", async () => {
+      const [a, b] = ctx.memberIds;
+      const ids = await ctx.seed({
+        projects: [
+          { key: "p1", member: 0, title: "First made", createdAt: "2026-01-01T10:00:00Z" },
+          { key: "p2", member: 0, title: "Second made", createdAt: "2026-02-01T10:00:00Z" },
+          { key: "q", member: 1, title: "Other", createdAt: "2026-01-01T10:00:00Z" },
+        ],
+      });
+      const repo = ctx.repo();
+      const g1 = await repo.createGoal({ member_id: a, project_id: ids.p1, measure: "words", target_amount: 100, is_starred: true });
+      const g2 = await repo.createGoal({ member_id: a, project_id: ids.p2, measure: "words", target_amount: 100, is_starred: true });
+      await repo.createGoal({ member_id: b, project_id: ids.q, measure: "words", target_amount: 9, is_starred: true });
+
+      // Unplaced projects: newest project first, as the projects list shows them.
+      expect((await repo.starredGoals(a)).map((g) => g.id)).toEqual([g2, g1]);
+
+      await repo.reorderProjects(a, [ids.p1, ids.p2]);
+      const starred = await repo.starredGoals(a);
+      expect(starred.map((g) => [g.id, g.project_title])).toEqual([[g1, "First made"], [g2, "Second made"]]);
+      expect(starred[0]).toHaveProperty("project_id", ids.p1);
+    });
+
+    it("puts the goals of a project in the order the member chose, and touches nothing else", async () => {
+      const [a, b] = ctx.memberIds;
+      const ids = await ctx.seed({
+        projects: [
+          { key: "p", member: 0, title: "Novel", createdAt: "2026-01-01T10:00:00Z" },
+          { key: "q", member: 0, title: "Essays", createdAt: "2026-02-01T10:00:00Z" },
+          { key: "theirs", member: 1, title: "Theirs", createdAt: "2026-01-01T10:00:00Z" },
+        ],
+      });
+      const repo = ctx.repo();
+      const goal = (member: string, project: string, title: string, extra: Record<string, unknown> = {}) =>
+        repo.createGoal({ member_id: member, project_id: project, measure: "words", target_amount: 100, title, ...extra });
+      const g1 = await goal(a, ids.p, "One");
+      const g2 = await goal(a, ids.p, "Two");
+      const g3 = await goal(a, ids.p, "Three");
+      const other = await goal(a, ids.q, "Elsewhere");
+      const archived = await goal(a, ids.p, "Archived", { archived_at: "2026-06-01T00:00:00Z" });
+      const gone = await goal(a, ids.p, "Deleted");
+      await repo.deleteGoal(a, gone);
+      const theirs = await goal(b, ids.theirs, "Theirs");
+      const titles = async (memberId: string, projectId?: string) => (await repo.projectGoals(memberId, projectId)).map((g) => g.title);
+      const sortedByNothing = (await titles(a, ids.p)).sort();
+      expect(sortedByNothing).toEqual(["One", "Three", "Two"]);
+
+      // Foreign, other-project, archived, deleted, unknown and repeated ids are ignored; the rest get 1..n.
+      await repo.reorderGoals(a, ids.p, [g3, theirs, g1, other, archived, gone, "nope", g3, g2]);
+      expect(await titles(a, ids.p)).toEqual(["Three", "One", "Two"]);
+      expect(await titles(b, ids.theirs)).toEqual(["Theirs"]);
+      // The other project's goal wasn't placed by that list, so it still has no position: a reorder of it starts from there.
+      await repo.reorderGoals(a, ids.q, [other]);
+      expect(await titles(a, ids.q)).toEqual(["Elsewhere"]);
+      expect(await titles(a, ids.p)).toEqual(["Three", "One", "Two"]);
+
+      // The same list again changes nothing, and so does an empty one.
+      await repo.reorderGoals(a, ids.p, [g3, g1, g2]);
+      await repo.reorderGoals(a, ids.p, []);
+      expect(await titles(a, ids.p)).toEqual(["Three", "One", "Two"]);
+      // A list for another member's project, with the member's own goal in it, moves nothing.
+      await repo.reorderGoals(b, ids.p, [g1, g2, g3]);
+      expect(await titles(a, ids.p)).toEqual(["Three", "One", "Two"]);
+      expect((await repo.archivedGoals(a, ids.p)).map((g) => g.id)).toEqual([archived]);
+    });
+
+    it("puts a goal created after a reorder at the end of its project's list", async () => {
+      const [a] = ctx.memberIds;
+      const ids = await ctx.seed({ projects: [{ key: "p", member: 0, title: "Novel", createdAt: "2026-01-01T10:00:00Z" }] });
+      const repo = ctx.repo();
+      const make = (title: string) => repo.createGoal({ member_id: a, project_id: ids.p, measure: "words", target_amount: 100, title });
+      const g1 = await make("One");
+      const g2 = await make("Two");
+      await repo.reorderGoals(a, ids.p, [g2, g1]);
+      await make("Fresh");
+      expect((await repo.projectGoals(a, ids.p)).map((g) => g.title)).toEqual(["Two", "One", "Fresh"]);
+    });
+
+    it("lists the starred goals by project order, then by the order of the goals in their project", async () => {
+      const [a] = ctx.memberIds;
+      const ids = await ctx.seed({
+        projects: [
+          { key: "p1", member: 0, title: "First made", createdAt: "2026-01-01T10:00:00Z" },
+          { key: "p2", member: 0, title: "Second made", createdAt: "2026-02-01T10:00:00Z" },
+        ],
+      });
+      const repo = ctx.repo();
+      const star = (project: string, title: string) => repo.createGoal({ member_id: a, project_id: project, measure: "words", target_amount: 1, title, is_starred: true });
+      const a1 = await star(ids.p1, "A1");
+      const a2 = await star(ids.p1, "A2");
+      const b1 = await star(ids.p2, "B1");
+      await repo.reorderProjects(a, [ids.p1, ids.p2]);
+      await repo.reorderGoals(a, ids.p1, [a2, a1]);
+      expect((await repo.starredGoals(a)).map((g) => g.id)).toEqual([a2, a1, b1]);
+      expect(Object.keys((await repo.starredGoals(a))[0])).not.toContain("sort_position");
+    });
+
     it("lists hibernating projects apart from the others, and moves one back when its status changes", async () => {
       const [a, b] = ctx.memberIds;
       const ids = await ctx.seed({
@@ -528,12 +691,13 @@ export function defineWritingContract(name: string, setup: () => WritingContract
         projects: [
           { key: "p", member: 0, title: "P", createdAt: "2026-01-01T10:00:00Z" },
           { key: "q", member: 0, title: "Q", createdAt: "2026-01-02T10:00:00Z" },
+          { key: "theirs", member: 1, title: "Theirs", createdAt: "2026-01-03T10:00:00Z" },
         ],
         goals: [
           { member: 0, project: "p", measure: "words" },
           { member: 0, project: "q", measure: "pages" },
           { member: 0, project: "p", measure: "scenes", archived: true },
-          { member: 1, measure: "words" },
+          { member: 1, project: "theirs", measure: "words" },
         ],
       });
 
@@ -542,7 +706,7 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       expect(ofP).toEqual([
         expect.objectContaining({ project_id: ids.p, measure: "words", goal_type: "target", is_starred: false, show_on_profile: false, title: null, description: null }),
       ]);
-      expect((await ctx.repo().projectGoals(b)).map((g) => g.project_id)).toEqual([null]);
+      expect((await ctx.repo().projectGoals(b)).map((g) => g.project_id)).toEqual([ids.theirs]);
     });
 
     it("sets, changes and clears starting balances", async () => {

@@ -1,6 +1,7 @@
 import type { Config } from "tailwindcss";
 import typography from "@tailwindcss/typography";
 import containerQueries from "@tailwindcss/container-queries";
+import plugin from "tailwindcss/plugin";
 
 /**
  * Quill & Cup brand palette (from the brand guide). `plum` is the app's accent -- the
@@ -55,6 +56,13 @@ export default {
         background: "var(--background)",
         foreground: "var(--foreground)",
         plum,
+        // Semantic colours for the landing pages (values per mode in app/globals.css): change one there and every page follows.
+        page: "rgb(var(--lp-page) / <alpha-value>)",
+        card: "rgb(var(--lp-card) / <alpha-value>)",
+        tile: "rgb(var(--lp-tile) / <alpha-value>)",
+        ink: { DEFAULT: "rgb(var(--lp-ink) / <alpha-value>)", muted: "rgb(var(--lp-ink-muted) / <alpha-value>)" },
+        accent: { DEFAULT: "rgb(var(--lp-accent) / <alpha-value>)", ink: "rgb(var(--lp-accent-ink) / <alpha-value>)" },
+        warm: "rgb(var(--lp-warm) / <alpha-value>)",
         // Page background behind cards (brand color).
         canvas: "#f4f2f3",
         // Logo colors.
@@ -102,5 +110,10 @@ export default {
       },
     },
   },
-  plugins: [typography, containerQueries],
+  plugins: [
+    typography,
+    containerQueries,
+    // Only devices with a mouse or trackpad: keyboard-shortcut hints (`components/Kbd.tsx`) never show on a phone or tablet.
+    plugin(({ addVariant }) => addVariant("fine-pointer", "@media (hover: hover) and (pointer: fine)")),
+  ],
 } satisfies Config;

@@ -397,7 +397,7 @@ describe('Members Bronze Pagination (>1000 rows)', () => {
       data: {},
     }))
 
-    // Insert in chunks of 500 (CLAUDE.md batching guidance)
+    // Insert in chunks of 500 (.claude/rules/api-routes-and-queries.md batching guidance)
     for (let i = 0; i < contacts.length; i += 500) {
       const { error } = await supabase
         .schema('bronze').from('kajabi_contacts')
@@ -678,6 +678,24 @@ describe('Member Tenure computed during reprocessing', () => {
     // ~100 active days in the first stint + ~100 so far in the second = ~200 days
     expect(member?.total_active_months).toBeGreaterThanOrEqual(6)
     expect(member?.total_active_months).toBeLessThanOrEqual(7)
+  })
+
+  it('stores the dated cancel/resubscribe gap in inactive_periods, and writes the same value on every reprocess', async () => {
+    await reprocess()
+    const first = await fetchMember(emailResub)
+    const expectedGap = [{ start: dateOnly(daysAgo(200)), end: dateOnly(daysAgo(100)) }]
+    expect(first?.inactive_periods).toEqual(expectedGap)
+
+    await reprocess()
+    const second = await fetchMember(emailResub)
+    expect(second?.inactive_periods).toEqual(expectedGap)
+    expect(second?.id).toBe(first?.id)
+  })
+
+  it('stores an empty list for a continuous membership, and keeps hiatus windows out of inactive_periods', async () => {
+    await reprocess()
+    const member = await fetchMember(emailHiatus)
+    expect(member?.inactive_periods).toEqual([])
   })
 
   it('excludes hiatus time from total_active_months and resets most_recent_joined_at once the hiatus ends', async () => {

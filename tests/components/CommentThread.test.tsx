@@ -11,10 +11,14 @@ vi.mock("@/lib/analytics/client", () => ({ track: (...a: unknown[]) => track(...
 const postLessonComment = vi.fn();
 const editLessonComment = vi.fn();
 const deleteLessonComment = vi.fn();
+const reportLessonComment = vi.fn();
+const setLessonCommentFollow = vi.fn();
 vi.mock("@/app/(member)/courses/comment-actions", () => ({
   postLessonComment: (...a: unknown[]) => postLessonComment(...a),
   editLessonComment: (...a: unknown[]) => editLessonComment(...a),
   deleteLessonComment: (...a: unknown[]) => deleteLessonComment(...a),
+  reportLessonComment: (...a: unknown[]) => reportLessonComment(...a),
+  setLessonCommentFollow: (...a: unknown[]) => setLessonCommentFollow(...a),
 }));
 
 import CommentThread from "@/components/courses/CommentThread";
@@ -30,6 +34,8 @@ const comment = (over: Partial<ThreadComment> & { id: string }): ThreadComment =
   editedAt: null,
   removed: false,
   body: "A question",
+  hidden: false,
+  held: false,
   ...over,
 });
 
@@ -40,6 +46,8 @@ function renderThread(entries: ThreadEntry[], over: Partial<React.ComponentProps
       courseId="crs_AAAAAAAAAAA1"
       entries={entries}
       count={entries.reduce((n, e) => n + (e.comment.removed ? 0 : 1) + e.replies.length, 0)}
+      following={false}
+      unread={0}
       currentMemberId="m1"
       isStaff={false}
       readOnly={false}
@@ -57,6 +65,10 @@ beforeEach(() => {
   postLessonComment.mockReset().mockResolvedValue({ id: "cmnt_AAAAAAAAAAA9" });
   editLessonComment.mockReset().mockResolvedValue({ id: "x" });
   deleteLessonComment.mockReset().mockResolvedValue({ id: "x" });
+  reportLessonComment.mockReset().mockResolvedValue({ id: "x" });
+  setLessonCommentFollow.mockReset().mockResolvedValue({ id: "les_AAAAAAAAAAA1" });
+  window.history.replaceState(null, "", "/");
+  window.HTMLElement.prototype.scrollIntoView = vi.fn();
 });
 
 describe("CommentThread", () => {
@@ -107,7 +119,8 @@ describe("CommentThread", () => {
 
   it("replies with the keyboard, under the question, and announces it", async () => {
     renderThread([{ comment: comment({ id: "cmnt_AAAAAAAAAAA1" }), replies: [] }]);
-    // Reach the Reply button with the keyboard alone: the composer's textarea (Post is disabled while empty), then Reply.
+    // Reach the Reply button with the keyboard alone: Follow, the composer's textarea (Post is disabled while empty), then Reply.
+    await userEvent.tab();
     await userEvent.tab();
     await userEvent.tab();
     expect(screen.getByRole("button", { name: "Reply" })).toHaveFocus();
@@ -201,4 +214,124 @@ describe("CommentThread", () => {
     await waitFor(() => expect(track).toHaveBeenCalledWith("lesson_comment_posted", expect.objectContaining({ is_staff: true })));
     expect(within(screen.getByRole("region")).getByRole("status")).toBeInTheDocument();
   });
+
+  describe("reporting and review", () => {
+    const others = () => renderThread([{ comment: comment({ id: "cmnt_AAAAAAAAAAA2", body: "Someone else's words" }), replies: [] }]);
+
+    it("offers Report on someone else's comment only, and sends a reason with the keyboard", async () => {
+      others();
+      await userEvent.click(screen.getByRole("button", { name: "Report" }));
+      const box = screen.getByLabelText("What's wrong with this comment?");
+      expect(box).toHaveFocus();
+      expect(screen.getByRole("button", { name: "Send report" })).toBeDisabled();
+      await userEvent.type(box, "Spam & <links>");
+      await userEvent.keyboard("{Tab}");
+      expect(screen.getByRole("button", { name: "Send report" })).toHaveFocus();
+      await userEvent.keyboard("{Enter}");
+
+      await waitFor(() => expect(reportLessonComment).toHaveBeenCalledWith("cmnt_AAAAAAAAAAA2", "Spam & <links>"));
+      // The event carries the course and whether it was a reply, never the reason.
+      expect(track).toHaveBeenCalledWith("lesson_comment_reported", { course_id: "crs_AAAAAAAAAAA1", is_reply: false });
+      expect(JSON.stringify(track.mock.calls)).not.toContain("Spam");
+      expect(await screen.findByText("Reported")).toBeInTheDocument();
+      expect(screen.queryByLabelText("What's wrong with this comment?")).toBeNull();
+      expect(refresh).toHaveBeenCalled();
+    });
+
+    it("says the author isn't told, can be cancelled, and keeps the form with the error when refused", async () => {
+      reportLessonComment.mockResolvedValue({ error: "You've already reported this comment" });
+      others();
+      await userEvent.click(screen.getByRole("button", { name: "Report" }));
+      expect(screen.getByText(/isn't told/)).toBeInTheDocument();
+      await userEvent.type(screen.getByLabelText("What's wrong with this comment?"), "Rude");
+      await userEvent.click(screen.getByRole("button", { name: "Send report" }));
+      expect(await screen.findByText("You've already reported this comment")).toBeInTheDocument();
+      expect(track).not.toHaveBeenCalledWith("lesson_comment_reported", expect.anything());
+      await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      expect(screen.queryByLabelText("What's wrong with this comment?")).toBeNull();
+    });
+
+    it("hides Report on your own comment, while previewing, and for staff", () => {
+      renderThread([{ comment: comment({ id: "cmnt_AAAAAAAAAAA1", memberId: "m1", authorName: "Me" }), replies: [] }]);
+      expect(screen.queryByRole("button", { name: "Report" })).toBeNull();
+      cleanup();
+      renderThread([{ comment: comment({ id: "cmnt_AAAAAAAAAAA2" }), replies: [] }], { readOnly: true });
+      expect(screen.queryByRole("button", { name: "Report" })).toBeNull();
+      cleanup();
+      renderThread([{ comment: comment({ id: "cmnt_AAAAAAAAAAA2" }), replies: [] }], { isStaff: true });
+      expect(screen.queryByRole("button", { name: "Report" })).toBeNull();
+    });
+
+    it("shows a held comment to its author with a note, no Reply and a held badge", () => {
+      renderThread([{ comment: comment({ id: "cmnt_AAAAAAAAAAA1", memberId: "m1", authorName: "Me", held: true, body: "links links links" }), replies: [] }]);
+      expect(screen.getByText("Held for review")).toBeInTheDocument();
+      expect(screen.getByText(/Only you and our staff can see this/)).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Reply" })).toBeNull();
+      expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
+    });
+
+    it("shows staff a hidden comment with its text and a badge, and a member the tombstone", () => {
+      renderThread([{ comment: comment({ id: "cmnt_AAAAAAAAAAA2", hidden: true, body: "Hidden words" }), replies: [] }], { isStaff: true });
+      expect(screen.getByText("Hidden from members")).toBeInTheDocument();
+      expect(screen.getByText("Hidden words")).toBeInTheDocument();
+      cleanup();
+      renderThread([{ comment: comment({ id: "cmnt_AAAAAAAAAAA2", removed: true, body: null, authorName: "" }), replies: [{ ...comment({ id: "cmnt_AAAAAAAAAAA3", parentId: "cmnt_AAAAAAAAAAA2" }) }] }]);
+      expect(screen.getByText("Comment removed")).toBeInTheDocument();
+      // Only the reply carries a Report button; the tombstone has none.
+      expect(screen.getAllByRole("button", { name: "Report" })).toHaveLength(1);
+    });
+
+    it("tells the writer a held post will show once staff have looked", async () => {
+      postLessonComment.mockResolvedValue({ id: "cmnt_AAAAAAAAAAA9", held: true });
+      renderThread([]);
+      await userEvent.type(screen.getByLabelText("Ask a question or leave a comment"), "see a b c");
+      await userEvent.click(screen.getByRole("button", { name: "Post comment" }));
+      expect(await screen.findByText(/will show to others once staff have looked/)).toBeInTheDocument();
+    });
+  });
+  it("follows and unfollows the lesson's comments, saying what that means, and records the choice without who", async () => {
+    const user = userEvent.setup();
+    renderThread([]);
+    const button = screen.getByRole("button", { name: "Follow" });
+    expect(button).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByText(/Follow to hear about instructors' replies/)).toBeInTheDocument();
+    await user.click(button);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Following" })).toHaveAttribute("aria-pressed", "true"));
+    expect(setLessonCommentFollow).toHaveBeenCalledWith("les_AAAAAAAAAAA1", true);
+    expect(track).toHaveBeenCalledWith("lesson_follow_toggled", { course_id: "crs_AAAAAAAAAAA1", following: true });
+    expect(screen.getByText("You follow this lesson's comments")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Following" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Follow" })).toBeInTheDocument());
+    expect(setLessonCommentFollow).toHaveBeenLastCalledWith("les_AAAAAAAAAAA1", false);
+  });
+
+  it("keeps the old state and shows the error when following is refused", async () => {
+    setLessonCommentFollow.mockResolvedValue({ error: "Couldn't save that" });
+    const user = userEvent.setup();
+    renderThread([]);
+    await user.click(screen.getByRole("button", { name: "Follow" }));
+    expect(await screen.findByText("Couldn't save that")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Follow" })).toBeInTheDocument();
+  });
+
+  it("has no follow button while previewing as a member", () => {
+    renderThread([], { readOnly: true });
+    expect(screen.queryByRole("button", { name: /^Follow/ })).toBeNull();
+  });
+
+  it("says how many comments are new since the last visit", () => {
+    renderThread([], { unread: 3, following: true });
+    expect(screen.getByText("3 new since your last visit")).toBeInTheDocument();
+    expect(screen.getByText(/You'll hear about instructors' replies here/)).toBeInTheDocument();
+  });
+
+  it("scrolls to and marks the comment a notification linked to", () => {
+    window.history.replaceState(null, "", "/courses/c/lessons/l?comment=cmnt_AAAAAAAAAAA2");
+    const entry = { comment: comment({ id: "cmnt_AAAAAAAAAAA1" }), replies: [comment({ id: "cmnt_AAAAAAAAAAA2", parentId: "cmnt_AAAAAAAAAAA1", body: "The reply" })] };
+    renderThread([entry]);
+    expect(window.HTMLElement.prototype.scrollIntoView).toHaveBeenCalled();
+    expect(document.getElementById("cmnt_AAAAAAAAAAA2")?.className).toContain("ring-2");
+    expect(document.getElementById("cmnt_AAAAAAAAAAA1")?.className ?? "").not.toContain("ring-2");
+  });
+
 });

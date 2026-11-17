@@ -1,4 +1,5 @@
-import type { Repos } from "@/lib/data/repos";
+import { createRepos, type Repos } from "@/lib/data/repos";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 import { fetchMembershipHistory } from "@/lib/kajabi/membership-history";
 import { buildMembershipTimeline } from "@/lib/membership-timeline";
 
@@ -44,7 +45,7 @@ export async function memberStatusTimeline(
   const allEmails = [member.email, ...emailAliasRows.map((a) => a.alias_email)];
   const kajabiCustomers = await repos.billing.kajabiCustomers({ emails: allEmails });
   const customerIds = kajabiCustomers.map((c) => c.kajabi_customer_id).filter(Boolean);
-  const membershipHistory = await fetchMembershipHistory(repos, customerIds);
+  const membershipHistory = await fetchMembershipHistory(repos, customerIds, createRepos(createServiceRoleClient()));
 
   const programOverrides = enrollments.map((e) => ({
     id: e.id,

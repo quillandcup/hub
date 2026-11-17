@@ -369,9 +369,21 @@ describe("SearchPalette button name", () => {
     const button = screen.getByRole("button", { name: /Search pages, members, chat/ });
     expect(button).toHaveTextContent("Search pages, members, chat…");
     expect(button).toHaveAccessibleName("Search pages, members, chat…");
-    // The shortcut hint is drawn by CSS, so it is not visible text that the name would have to include.
-    expect(button).not.toHaveTextContent("⌘K");
+    // The shortcut hint is aria-hidden, so the name does not have to include it.
+    expect(button.querySelector("[data-kbd]")).toHaveAttribute("aria-hidden", "true");
     expect(button).toHaveAttribute("aria-keyshortcuts", "Meta+K Control+K");
+  });
+});
+
+describe("SearchPalette keyboard hints", () => {
+  it("shows the move, open and close keys in the footer and Enter on the active row", async () => {
+    const user = await openAndType("cody");
+    await waitFor(() => expect(searchPalette).toHaveBeenCalled());
+    await screen.findByRole("link", { name: /Guide/ });
+    const footer = screen.getByText(/to move/).parentElement!;
+    expect(footer).toHaveTextContent("↑↓ to move ↵ to open Esc to close");
+    await user.keyboard("{ArrowDown}");
+    expect(document.querySelector("[aria-current] [data-kbd]")).toHaveTextContent("↵");
   });
 });
 

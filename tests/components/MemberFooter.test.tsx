@@ -15,11 +15,13 @@ afterEach(() => {
 });
 
 describe("MemberFooter", () => {
-  it("has Privacy and a way to reach us", () => {
+  it("has Privacy, Compliance and a way to reach us", () => {
     render(<MemberFooter />);
     const footer = screen.getByRole("navigation", { name: "Footer" });
     expect(footer).toContainElement(screen.getByRole("link", { name: "Privacy" }));
     expect(screen.getByRole("link", { name: "Privacy" })).toHaveAttribute("href", "/privacy");
+    expect(screen.getByRole("link", { name: "Compliance" })).toHaveAttribute("href", "/compliance");
+    expect(screen.getByRole("link", { name: "Security" })).toHaveAttribute("href", "/security");
     expect(screen.getByRole("link", { name: "Contact us" })).toHaveAttribute("href", `mailto:${SUPPORT_EMAIL}`);
   });
 

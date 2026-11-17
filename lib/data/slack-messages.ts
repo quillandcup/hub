@@ -108,7 +108,7 @@ const NOT_SYSTEM = `message_type.is.null,message_type.not.in.(${SLACK_SYSTEM_SUB
 
 /**
  * The Bronze copy of Slack's messages and reactions. Message text, files and the raw payload are service role
- * only ("Slack content is service role only", CLAUDE.md): methods that name content say so, and everything
+ * only ("Slack content is service role only", .claude/rules/data-architecture.md): methods that name content say so, and everything
  * an admin page needs goes through the content-free `slack_messages_meta` view. Reads throw on a database
  * error and page past 1000 rows (with a stable order).
  */

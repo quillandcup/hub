@@ -205,6 +205,8 @@ export interface GoalProgress {
   percent: number; // 0-100+, current/target
   /** True when `current` includes the project's starting balance (a goal with no start date). */
   includesStartingBalance: boolean;
+  /** The project's starting balance when the goal's start date leaves it out of `current`; null otherwise. */
+  excludedStartingBalance: number | null;
   /** Pace needed-to-date to finish on time, or null if the goal has no end date (nothing to pace against). */
   parTarget: number | null;
   /** True if current >= parTarget; null when parTarget is null. */
@@ -253,6 +255,7 @@ export function computeGoalProgress(input: GoalProgressInput): GoalProgress {
     target: targetAmount,
     percent,
     includesStartingBalance,
+    excludedStartingBalance: startDate && startingBalance ? startingBalance : null,
     parTarget,
     onPace: parTarget === null ? null : current >= parTarget,
     status,
@@ -287,7 +290,7 @@ export interface PrickleAttendanceRow {
  * directly into computeHabitGoalProgress unchanged. Every writing prickle counts; purpose
  * filtering happens upstream, at the query that produces `attendance` (see
  * getMyPrickleAttendance). A member who left and rejoined has several rows for one prickle
- * (see CLAUDE.md), and that's still one prickle.
+ * (see .claude/rules/attendance-table.md), and that's still one prickle.
  */
 export function derivePrickleHabitEntries(attendance: PrickleAttendanceRow[]): { entryDate: string; amount: number }[] {
   const pricklesByDate = new Map<string, Set<string>>();
@@ -397,4 +400,36 @@ export const PAST_PHASES = ["hibernating"] as const satisfies readonly ProjectPh
 
 export function isPastPhase(phase: string): boolean {
   return (PAST_PHASES as readonly string[]).includes(phase);
+}
+
+/**
+ * The order of a member's projects: the ones they never placed first (newest first, so a new project is at the top as it
+ * always was), then the placed ones by `sort_position`. The database sorts the same way (`projectSummaries`).
+ */
+export function compareProjectOrder(
+  a: { id: string; created_at: string; sort_position?: number | null },
+  b: { id: string; created_at: string; sort_position?: number | null }
+): number {
+  const pa = a.sort_position ?? null;
+  const pb = b.sort_position ?? null;
+  if (pa !== pb) {
+    if (pa === null) return -1;
+    if (pb === null) return 1;
+    return pa - pb;
+  }
+  if (a.created_at !== b.created_at) return a.created_at < b.created_at ? 1 : -1;
+  return a.id === b.id ? 0 : a.id < b.id ? 1 : -1;
+}
+
+/**
+ * The order of a project's goals: the ones the member placed by `sort_position`, then the ones never placed (their order
+ * before this existed, by id, which the caller applies as the tie-break). The database sorts the same way (`projectGoals`).
+ */
+export function compareGoalOrder(a: number | null | undefined, b: number | null | undefined): number {
+  const pa = a ?? null;
+  const pb = b ?? null;
+  if (pa === pb) return 0;
+  if (pa === null) return 1;
+  if (pb === null) return -1;
+  return pa - pb;
 }

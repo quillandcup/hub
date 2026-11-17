@@ -68,9 +68,12 @@ export async function getNotificationSettings(): Promise<NotificationSettings | 
     ...kindFeatures.map((key) => membersWithFeature(createRepos(service), key, [identity.memberId])),
   ]);
   const featureOn = new Set(kindFeatures.filter((_, i) => kindFeatureMembers[i].has(identity.memberId)));
-  const visibleKinds = NOTIFICATION_KINDS.filter((k) => !("feature" in k) || featureOn.has(k.feature as FeatureKey)).map(
-    (k) => k.id
-  );
+  // A staff-only kind shows only for a member whose own account is an admin (the member's, not the signed-in admin's, in sudo).
+  const memberUserId = (await createRepos(service).members.userIdsByMemberId([identity.memberId])).get(identity.memberId);
+  const memberIsAdmin = memberUserId ? await createRepos(service).profiles.isAdmin(memberUserId) : false;
+  const visibleKinds = NOTIFICATION_KINDS.filter(
+    (k) => (!("feature" in k) || featureOn.has(k.feature as FeatureKey)) && (!("staffOnly" in k) || memberIsAdmin)
+  ).map((k) => k.id);
   // The member's own join date decides the new-member default, same as the sender (lib/notifications/notify.ts).
   const [memberRecord] = await createRepos(service).members.byIds([identity.memberId]);
   const newcomer = isNewcomer(memberRecord?.firstJoinedAt, new Date(clock.now()));

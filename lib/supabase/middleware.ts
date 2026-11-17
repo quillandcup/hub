@@ -163,15 +163,19 @@ export async function updateSession(request: NextRequest) {
   }
 
   // Public routes — no auth required
-  // /privacy is the public privacy policy.
+  // /privacy is the public privacy policy; /compliance is the public list of standards we follow; /security says how we protect the Hub.
   // /unsubscribe and /verify-email are authorized by the signed token in their link
   // (lib/email-unsubscribe.ts, lib/email-verification.ts).
+  // /p/<slug> is a published landing page (docs/LANDING_PAGES.md): the route itself 404s anything that isn't published.
   // API routes handle their own auth via requireAdmin/createApiAuth
   const isPublic =
     pathname === '/login' ||
     pathname === '/unsubscribe' ||
     pathname === '/verify-email' ||
     pathname === '/privacy' ||
+    pathname === '/compliance' ||
+    pathname === '/security' ||
+    pathname.startsWith('/p/') ||
     pathname.startsWith('/auth/') ||
     pathname.startsWith('/api/')
 
@@ -211,7 +215,7 @@ export async function updateSession(request: NextRequest) {
   // before any admin page/layout renders (including RSC fetches on client
   // navigation, which skip the layout). This is the pre-filter only -- the
   // secure check is requireAdminPage() (lib/admin-auth.ts) in the admin layout
-  // and every admin page. See "Admin route protection" in CLAUDE.md.
+  // and every admin page. See "Admin route protection" in .claude/rules/admin-route-protection.md.
   if (user && isAdminPath(pathname)) {
     // The role comes from the `app_role` claim that the custom access token
     // hook (supabase/migrations/20260926000900_add_role_to_access_token.sql)

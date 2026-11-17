@@ -44,6 +44,7 @@ describe("SupabaseBillingRepository on a database error", () => {
     ["stripeSubscriptionsWithStatus", () => repo.stripeSubscriptionsWithStatus("active")],
     ["stripeSubscriptionsByCustomers", () => repo.stripeSubscriptionsByCustomers(["c"])],
     ["lastStripeSubscriptionImportAt", () => repo.lastStripeSubscriptionImportAt()],
+    ["fullyRefundedStripeSubscriptionIds", () => repo.fullyRefundedStripeSubscriptionIds()],
     ["upsertKajabiContacts", () => repo.upsertKajabiContacts([{ kajabi_contact_id: "c", email: "a@example.test", data: {} }])],
     ["setKajabiContactEmail", () => repo.setKajabiContactEmail("c", "a@example.test")],
     ["upsertKajabiCustomers", () => repo.upsertKajabiCustomers([{ kajabi_customer_id: "c", email: "a@example.test", data: {} }])],

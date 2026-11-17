@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { fullDate, linkifyText, relativeAgo } from "@/lib/courses/comment-text";
-import { COMMENT_EDIT_WINDOW_MS, cleanCommentBody, commentCountBucket, withinEditWindow } from "@/lib/courses/comments";
+import { COMMENT_EDIT_WINDOW_MS, COMMENT_MAX_LINKS, cleanCommentBody, cleanReportReason, commentCountBucket, countCommentLinks, shouldHoldComment, withinEditWindow } from "@/lib/courses/comments";
 
 describe("linkifyText", () => {
   it("links only http(s) addresses and leaves everything else as text", () => {
@@ -64,5 +64,34 @@ describe("comment rules", () => {
 
   it("buckets the count of comments seen", () => {
     expect([0, 1, 5, 6, 20, 21].map(commentCountBucket)).toEqual(["0", "1-5", "1-5", "6-20", "6-20", "21+"]);
+  });
+});
+
+describe("the held-link rule", () => {
+  const link = (n: number) => `https://example.com/${n}`;
+
+  it("counts links the way the thread auto-links them", () => {
+    expect(COMMENT_MAX_LINKS).toBe(2);
+    expect(countCommentLinks("no links, only example.com and javascript:alert(1)")).toBe(0);
+    expect(countCommentLinks(`${link(1)}, then (${link(2)}). ftp://x.example/a and https://`)).toBe(2);
+    expect(countCommentLinks(`${link(1)}\n${link(2)}\n${link(3)}`)).toBe(3);
+  });
+
+  it("holds a comment with more than two links, and nothing else", () => {
+    expect(shouldHoldComment("")).toBe(false);
+    expect(shouldHoldComment(`${link(1)} ${link(2)}`)).toBe(false);
+    expect(shouldHoldComment(`${link(1)} ${link(2)} ${link(3)}`)).toBe(true);
+    // No word filter: strong words and writing talk are not held.
+    expect(shouldHoldComment("How do I kill my darlings? This is damn hard.")).toBe(false);
+  });
+});
+
+describe("cleanReportReason", () => {
+  it("trims, keeps what was typed, and bounds the length", () => {
+    expect(cleanReportReason("  Spam & <b>ads</b>\r\nagain  ")).toEqual({ reason: "Spam & <b>ads</b>\nagain" });
+    expect(cleanReportReason("   ")).toEqual({ error: "Tell us briefly what's wrong" });
+    expect(cleanReportReason(undefined)).toEqual({ error: "Tell us briefly what's wrong" });
+    expect(cleanReportReason("x".repeat(500))).toEqual({ reason: "x".repeat(500) });
+    expect(cleanReportReason("x".repeat(501))).toEqual({ error: "Keep it under 500 characters" });
   });
 });

@@ -14,6 +14,7 @@ import { defaultPrickleId, type PrickleOption } from "@/lib/prickle-writing";
 import { getCheckinForLogging, saveCheckin } from "@/app/(member)/prickles/checkin-actions";
 import { checkinHref, EMPTY_CHECKIN, halfOf, type CheckinInput, type Emotion } from "@/lib/prickle-checkins";
 import { CheckinHalfFields } from "@/components/writing/CheckinFields";
+import Kbd from "@/components/Kbd";
 
 type Checkout = Partial<CheckinInput>;
 
@@ -372,9 +373,11 @@ export default function LogProgressModal({
             type="submit"
             data-track="log-progress-submit"
             disabled={isPending}
-            className="px-4 py-2 text-sm bg-plum-600 text-white rounded-lg hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            aria-keyshortcuts="Control+Enter Meta+Enter"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-plum-600 text-white rounded-lg hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isPending ? "Saving..." : editingEntry ? "Save changes" : "Log progress"}
+            <Kbd keys={["mod", "enter"]} onAccent />
           </button>
         </div>
       </form>

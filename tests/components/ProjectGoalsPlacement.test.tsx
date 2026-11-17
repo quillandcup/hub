@@ -46,6 +46,7 @@ function targetGoal(id: string, title: string, status: "active" | "achieved" | "
     current: 700,
     percent: 70,
     includesStartingBalance: false,
+    excludedStartingBalance: null,
     projectTotal: 700,
     parTarget: null,
     onPace: null,

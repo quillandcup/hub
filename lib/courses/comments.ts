@@ -1,4 +1,5 @@
-import type { LessonCommentRecord } from "@/lib/data/course-comments";
+import { linkifyText } from "@/lib/courses/comment-text";
+import type { LessonCommentRecord, ThreadEntry } from "@/lib/data/course-comments";
 import type { CoursesCaller } from "@/lib/courses/caller";
 import { canOpenLessons, loadMemberCourseAccess } from "@/lib/courses/member";
 import type { Repos } from "@/lib/data/repos";
@@ -26,6 +27,35 @@ export function cleanCommentBody(raw: unknown): { body: string } | { error: stri
   return { body };
 }
 
+/** Reports per member: a burst and a sustained rate, so a report can't be used to flood staff. */
+export const REPORT_RATE_LIMIT = [
+  { name: "hour", windowSeconds: 3600, maxHits: 10 },
+  { name: "day", windowSeconds: 86400, maxHits: 30 },
+] as const;
+
+/** A comment with more than this many links is held for staff review. */
+export const COMMENT_MAX_LINKS = 2;
+export const REPORT_REASON_MAX_LENGTH = 500;
+
+/** How many `http(s)` links a text has, counted the way the thread auto-links them, so what is held is what would show as links. */
+export function countCommentLinks(text: string): number {
+  return linkifyText(text).filter((part) => part.type === "link").length;
+}
+
+/** Whether a comment goes to staff for review before others see it: more than two links. No word filter. */
+export function shouldHoldComment(text: string): boolean {
+  return countCommentLinks(text) > COMMENT_MAX_LINKS;
+}
+
+/** A report's reason as it will be stored: trimmed, 1 to 500 characters. Returns an error to show otherwise. */
+export function cleanReportReason(raw: unknown): { reason: string } | { error: string } {
+  if (typeof raw !== "string") return { error: "Tell us briefly what's wrong" };
+  const reason = raw.replace(/\r\n?/g, "\n").trim();
+  if (reason.length === 0) return { error: "Tell us briefly what's wrong" };
+  if (reason.length > REPORT_REASON_MAX_LENGTH) return { error: `Keep it under ${REPORT_REASON_MAX_LENGTH} characters` };
+  return { reason };
+}
+
 /** Whether the author can still change the text, `now` being a time in milliseconds. */
 export function withinEditWindow(createdAt: string, now: number): boolean {
   return now - new Date(createdAt).getTime() <= COMMENT_EDIT_WINDOW_MS;
@@ -51,6 +81,23 @@ export async function lessonOpenForComments(repos: CommentRepos, caller: Courses
   const access = await loadMemberCourseAccess(repos, caller.scope, lesson.course_id);
   if (!canOpenLessons(access)) return null;
   return { lessonId: lesson.id, courseId: lesson.course_id };
+}
+
+/**
+ * How many comments in a thread are new to a member: live comments by others made after `since`, when they last opened it.
+ * A first visit (`since` null) has no "new": the whole thread is new to them, which says nothing.
+ */
+export function countUnread(entries: ThreadEntry[], viewerId: string, since: string | null): number {
+  if (!since) return 0;
+  const after = Date.parse(since);
+  let count = 0;
+  for (const entry of entries) {
+    for (const comment of [entry.comment, ...entry.replies]) {
+      if (comment.removed || comment.held || comment.hidden || comment.memberId === viewerId) continue;
+      if (Date.parse(comment.createdAt) > after) count += 1;
+    }
+  }
+  return count;
 }
 
 /** How many comments a member saw, in the buckets the analytics event allows. */

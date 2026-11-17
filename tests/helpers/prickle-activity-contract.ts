@@ -288,6 +288,30 @@ export function definePrickleActivityContract(name: string, setup: () => Prickle
         expect(await repo.claimedDmPairs("prickle_checkin", [p0.id, p1.id])).toEqual(new Set([`${m1}:${p0.id}`]));
         expect(await repo.claimedDmPairs("prickle_checkout", [])).toEqual(new Set());
       });
+
+      it("keeps the Slack message a claimed DM became, and stamps it closed only once", async () => {
+        const [p0] = ctx.prickles;
+        const repo = ctx.repo();
+        expect(await repo.dmMessage(p0.id, m1, "prickle_checkin")).toBeNull();
+        await repo.recordDmMessage(p0.id, m1, "prickle_checkin", { channelId: "D0FAKE", ts: "1700000000.000100" }); // no claim: nothing happens
+        expect(await repo.dmMessage(p0.id, m1, "prickle_checkin")).toBeNull();
+
+        await repo.claimDm(p0.id, m1, "prickle_checkin");
+        await repo.claimDm(p0.id, m1, "prickle_checkout");
+        expect(await repo.dmMessage(p0.id, m1, "prickle_checkin")).toEqual({ message: null, closedAt: null }); // sent before the message was kept
+
+        await repo.recordDmMessage(p0.id, m1, "prickle_checkin", { channelId: "D0FAKE", ts: "1700000000.000100" });
+        expect(await repo.dmMessage(p0.id, m1, "prickle_checkin")).toEqual({ message: { channelId: "D0FAKE", ts: "1700000000.000100" }, closedAt: null });
+        expect(await repo.dmMessage(p0.id, m1, "prickle_checkout")).toEqual({ message: null, closedAt: null }); // the other kind is its own DM
+
+        expect(await repo.markDmClosed(p0.id, m1, "prickle_checkin")).toBe(true);
+        expect(await repo.markDmClosed(p0.id, m1, "prickle_checkin")).toBe(false);
+        expect(await repo.markDmClosed(p0.id, m2, "prickle_checkin")).toBe(false); // no such claim
+        const after = await repo.dmMessage(p0.id, m1, "prickle_checkin");
+        expect(after?.message).toEqual({ channelId: "D0FAKE", ts: "1700000000.000100" });
+        expect(after?.closedAt).toEqual(expect.any(String));
+        expect((await repo.dmMessage(p0.id, m1, "prickle_checkout"))?.closedAt).toBeNull();
+      });
     });
   });
 }

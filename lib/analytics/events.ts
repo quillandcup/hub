@@ -116,7 +116,17 @@ export const EVENTS = {
   lesson_comment_posted: { course_id: text(24), is_reply: bool(), is_staff: bool() },
   lesson_comment_edited: { course_id: text(24) },
   lesson_comment_deleted: { course_id: text(24), is_reply: bool() },
+  /** A member sent a report (components/courses/CommentThread.tsx): the course and whether it was a reply, never the reason or whose comment. */
+  lesson_comment_reported: { course_id: text(24), is_reply: bool() },
+  /** Staff moderated a comment from the course's comments pages (app/(admin)/admin/courses/[id]/comments): the action and where, never text or a name. */
+  lesson_comment_moderated: {
+    course_id: text(24),
+    action: oneOf("hide", "unhide", "delete", "approve", "handle", "dismiss"),
+    from: oneOf("unanswered", "reported", "held"),
+  },
   lesson_comments_viewed: { course_id: text(24), count_bucket: oneOf("0", "1-5", "6-20", "21+") },
+  /** A member followed or stopped following a lesson's comments (components/courses/CommentThread.tsx): the course and which way, never who. */
+  lesson_follow_toggled: { course_id: text(24), following: bool() },
 
   /** The lesson's video started playing, once per page view (components/courses/LessonPlayer.tsx): `resumed` is whether it picked up from a saved position. */
   course_video_played: { resumed: bool() },
@@ -304,12 +314,12 @@ export const EVENTS = {
 
   // The media library picker (components/media/MediaPicker.tsx). `surface` is where it was opened,
   // named by us; a title, tag, file name or search text never goes in.
-  media_picker_opened: { surface: oneOf("event_cover", "admin_library", "book_cover", "lesson_thumbnail") },
+  media_picker_opened: { surface: oneOf("event_cover", "admin_library", "book_cover", "lesson_thumbnail", "landing_page") },
   /** An image was chosen: from the library (`searched` says a search was typed first) or by uploading it right there. */
-  media_picked: { surface: oneOf("event_cover", "admin_library", "book_cover", "lesson_thumbnail"), from: oneOf("library", "upload", "event_photo"), searched: bool() },
-  media_cleared: { surface: oneOf("event_cover", "admin_library", "book_cover", "lesson_thumbnail") },
+  media_picked: { surface: oneOf("event_cover", "admin_library", "book_cover", "lesson_thumbnail", "landing_page"), from: oneOf("library", "upload", "event_photo"), searched: bool() },
+  media_cleared: { surface: oneOf("event_cover", "admin_library", "book_cover", "lesson_thumbnail", "landing_page") },
   /** An upload finished or failed. `converted` is a HEIC photo turned into JPEG, `duplicate` a file the library already had, `large` one sent through the signed URL. */
-  media_uploaded: { surface: oneOf("event_cover", "admin_library", "book_cover", "lesson_thumbnail"), ok: bool(), converted: bool(), duplicate: bool(), large: bool() },
+  media_uploaded: { surface: oneOf("event_cover", "admin_library", "book_cover", "lesson_thumbnail", "landing_page"), ok: bool(), converted: bool(), duplicate: bool(), large: bool() },
   // The staff library (app/(admin)/admin/media). Which fields a save changed; never their values.
   media_edited: { title: bool(), alt: bool(), tags: bool(), focal: bool(), fit: bool(), is_public: bool() },
   /** A delete was attempted; `in_use` means it was refused because something still shows the image. */

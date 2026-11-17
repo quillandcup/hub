@@ -140,8 +140,20 @@ export const appConfig = {
    */
   kajabiPhotoHosts: ["kajabi-storefronts-production.kajabi-cdn.com"],
 
+  /**
+   * The public address of the Kajabi site, where its landing pages live today. A link in an imported page that is a
+   * Kajabi path (`/resource_redirect/...`) is resolved against it (lib/landing/kajabi-import.ts); retire it with Kajabi.
+   */
+  kajabiSiteUrl: "https://www.quillandcup.com",
+
   /** An offer's edit page in the Kajabi admin, for the admin Offers page; `{offerId}` is filled in. */
   kajabiAdminOfferUrl: "https://app.kajabi.com/admin/offers/{offerId}/edit",
+
+  /**
+   * The Claude API, used only by "Build with AI" on the landing page builder (lib/landing/ai.ts): the admin's own
+   * description of a page goes in, a draft comes out. Nothing a member wrote is ever sent (docs/LANDING_PAGES.md).
+   */
+  anthropic: { apiUrl: "https://api.anthropic.com", apiVersion: "2023-06-01", landingPageModel: "claude-sonnet-5-5" },
 
   csp: {
     imageHosts: [

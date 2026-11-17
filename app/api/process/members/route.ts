@@ -1,8 +1,9 @@
 import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 import { isMembershipOffer } from "@/lib/membership";
 import { buildMembershipStints, fetchStripeTrialInfoByEmail, isRealMembershipStint } from "@/lib/kajabi/membership-history";
-import { computeMemberTenure, computeActiveDays, type HiatusWindow } from "@/lib/member-tenure";
+import { computeMemberTenure, computeActiveDays, computeInactiveGaps, type HiatusWindow } from "@/lib/member-tenure";
 import { buildMembersRunAliasMap, partitionEmailConflicts, resolveEmail as resolveEmailShared } from "@/lib/email-aliases";
 import { toKajabiPhotoUrl } from "@/lib/member-avatar";
 import { slackPhotoUrl } from "@/lib/slack-avatar-url";
@@ -42,7 +43,7 @@ export const maxDuration = 300;
  * 4. Regenerates members table (UPSERT pattern to preserve UUIDs)
  */
 // Bronze reads (billing, Slack users) page past Supabase's default 1000-row cap inside their
-// repositories in lib/data/. See CLAUDE.md "Database Query Limits".
+// repositories in lib/data/. See .claude/rules/api-routes-and-queries.md "Database Query Limits".
 
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request);
@@ -106,8 +107,10 @@ export async function POST(request: NextRequest) {
     // (Kajabi's created_at_kajabi is when a trial *started*, not when it
     // converted to a real transaction) and why it's keyed by email rather
     // than Kajabi customer ID (survives Kajabi-side contact merges).
+    // Stripe invoices and charges are service role only (no admin grant), so this read uses the
+    // service role; the caller was verified as an admin by requireAdmin above.
     const stripeTrialInfoByEmail = await fetchStripeTrialInfoByEmail(
-      createRepos(supabase),
+      createRepos(createServiceRoleClient()),
       Array.from(aliasMap, ([alias_email, canonical_email]) => ({ alias_email, canonical_email }))
     );
 
@@ -340,6 +343,9 @@ export async function POST(request: NextRequest) {
           first_joined_at: firstJoinedAt,
           most_recent_joined_at: mostRecentJoinedAt,
           total_active_months: totalActiveMonths,
+          // Dated cancel/resubscribe gaps (hiatus windows are read live, not stored). Measured from
+          // the effective first-joined date, so a join-date override leaves no gaps before it.
+          inactive_periods: computeInactiveGaps(stints, firstJoinedAt),
           status,
           plan,
           source: 'kajabi',
@@ -403,6 +409,7 @@ export async function POST(request: NextRequest) {
 
       member.staff_role = staff.role;
       member.status = 'active'; // Staff are always active
+      member.inactive_periods = []; // ...so a lapsed Kajabi purchase is not a gap in their time (hiatus is still read live)
       // Use staff hire date if earlier than Kajabi joined_at
       if (staff.hire_date && staff.hire_date < member.joined_at) {
         member.joined_at = staff.hire_date;
@@ -429,6 +436,7 @@ export async function POST(request: NextRequest) {
         total_active_months: Math.floor(
           computeActiveDays(staffJoinedAt, now.toISOString(), staffHiatusWindows, now) / 30
         ),
+        inactive_periods: [],
         status: 'active' as const,
         plan: null,
         source: 'staff',

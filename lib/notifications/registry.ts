@@ -42,6 +42,8 @@ export interface NotificationKindDef {
   newcomerDefaultChannels?: readonly NotificationChannelId[];
   /** A feature preview this kind belongs to: members without it don't see the kind in settings or search. */
   feature?: FeatureKey;
+  /** For staff only: shown in settings and search only to members who are admins (the kind goes only to staff). */
+  staffOnly?: boolean;
 }
 
 export const NOTIFICATION_KINDS = [
@@ -120,6 +122,40 @@ export const NOTIFICATION_KINDS = [
     description: "Sent for new messages in a channel you have set to notify you about every message (the bell on the conversation), until you read it. Channels notify you only when you are mentioned unless you change that.",
     defaultChannels: [],
     feature: "chat_notifications",
+  },
+  // Lesson comments (docs/COURSES.md, "Lesson comments"): shown in settings only to members who have comments on.
+  {
+    id: "lesson_comment_reply",
+    category: "Courses",
+    label: "Replies to your comments",
+    description: "Sent when someone replies to a comment you wrote under a course lesson, with a link to the reply. The reply itself isn't in the message.",
+    defaultChannels: ["slack", "in_app"],
+    feature: "lesson_comments",
+  },
+  {
+    id: "lesson_comment_instructor_reply",
+    category: "Courses",
+    label: "Instructor replies",
+    description: "Sent when an instructor answers your question, or replies in a lesson thread you follow. Turn it off to keep other members' replies but not the instructors'.",
+    defaultChannels: ["slack", "in_app"],
+    feature: "lesson_comments",
+  },
+  {
+    id: "lesson_comment_activity",
+    category: "Courses",
+    label: "New comments on lessons you follow",
+    description: "A note at most once a day, only on days when a lesson you follow has new comments. You follow a lesson by commenting on it or with the Follow button under its comments.",
+    defaultChannels: ["slack", "in_app"],
+    feature: "lesson_comments",
+  },
+  {
+    id: "lesson_comment_moderation",
+    category: "Courses",
+    label: "Comments waiting for review",
+    description: "For staff: a note at most once a day, while lesson comments that were reported or held for review are waiting for a look.",
+    defaultChannels: ["slack", "in_app"],
+    feature: "lesson_comments",
+    staffOnly: true,
   },
 ] as const satisfies readonly NotificationKindDef[];
 

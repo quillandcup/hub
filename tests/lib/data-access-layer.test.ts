@@ -185,6 +185,9 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   lesson_progress: [],
   // Lesson comments (CourseCommentRepository): every query is in the repository.
   lesson_comments: [],
+  lesson_comment_reports: [],
+  lesson_comment_follows: [],
+  lesson_comment_reads: [],
   course_access: [],
   course_access_grants: [],
   video_watch_segments: [],
@@ -217,6 +220,9 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   slack_sign_in_tokens: [],
   analytics_events: [],
   calendar_watch_channels: [],
+  // Landing pages from the page builder (LandingPageRepository): every query is in the repository.
+  landing_pages: [],
+  landing_page_versions: [],
 };
 
 /**

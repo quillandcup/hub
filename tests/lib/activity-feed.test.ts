@@ -174,6 +174,22 @@ describe("describeRow", () => {
     expect(describeRow(row({ entity_type: "course_lesson_order", description: "Week 1", data: order }))).toBe("reordered the 4 lessons in “Week 1”");
     expect(describeRow(row({ entity_type: "course_module_order", description: "The Ready Writer", data: order }))).toBe("reordered the 4 modules in “The Ready Writer”");
     expect(describeRow(row({ entity_type: "course_lesson_order", description: null, data: {} }))).toBe("reordered the lessons");
+    expect(describeRow(row({ entity_type: "writing_project_order", data: { order: { old: ["a", "b", "c"], new: ["c", "a", "b"] } } }))).toBe("reordered their 3 writing projects");
+    expect(describeRow(row({ entity_type: "writing_project_order", data: {} }))).toBe("reordered their writing projects");
+    expect(describeRow(row({ entity_type: "writing_goal_order", data: { order: { old: ["a", "b"], new: ["b", "a"] } } }))).toBe("reordered the 2 goals in a writing project");
+    expect(describeRow(row({ entity_type: "writing_goal_order", data: {} }))).toBe("reordered the goals in a writing project");
+  });
+
+  it("reads staff moderation of a lesson comment as one sentence with the lesson, never text", () => {
+    const entry = (data: Record<string, unknown>) => row({ entity_type: "lesson_comment", description: "Lesson <1> & more", data });
+    expect(describeRow(entry({ visibility: { old: "visible", new: "hidden" }, reports_resolved: { old: 2, new: 0 } }))).toBe("hid a comment on “Lesson <1> & more”, settling its reports");
+    expect(describeRow(entry({ visibility: { old: "held", new: "hidden" } }))).toBe("hid a comment on “Lesson <1> & more”");
+    expect(describeRow(entry({ visibility: { old: "visible", new: "deleted" } }))).toBe("deleted a comment on “Lesson <1> & more”");
+    expect(describeRow(entry({ visibility: { old: "held", new: "visible" } }))).toBe("approved a held comment on “Lesson <1> & more”");
+    expect(describeRow(entry({ visibility: { old: "hidden", new: "visible" } }))).toBe("showed a hidden comment again on “Lesson <1> & more”");
+    expect(describeRow(entry({ handled: { old: false, new: true } }))).toBe("marked a question as handled on “Lesson <1> & more”");
+    expect(describeRow(entry({ reports_resolved: { old: 1, new: 0 } }))).toBe("dismissed the reports on a comment on “Lesson <1> & more”");
+    expect(describeRow(row({ entity_type: "lesson_comment", description: null, data: { visibility: { old: "visible", new: "hidden" } } }))).toBe("hid a comment");
   });
 
   it("reads a duplicated course as one sentence with what it holds", () => {

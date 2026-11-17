@@ -1,17 +1,19 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { withAction } from "@/lib/analytics/server";
 import { clock } from "@/lib/clock";
 import { getCoursesCaller } from "@/lib/courses/caller";
-import { COMMENT_RATE_LIMITS, cleanCommentBody, isRemovedComment, lessonOpenForComments, withinEditWindow } from "@/lib/courses/comments";
+import { notifyLessonComment } from "@/lib/courses/comment-notifications";
+import { COMMENT_MAX_LINKS, COMMENT_RATE_LIMITS, REPORT_RATE_LIMIT, cleanCommentBody, cleanReportReason, isRemovedComment, lessonOpenForComments, shouldHoldComment, withinEditWindow } from "@/lib/courses/comments";
 import { createRepos } from "@/lib/data/repos";
 import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
 import { isId } from "@/lib/ids";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 
 /**
- * Lesson comments: post, reply, edit and delete your own (docs/COURSES.md, "Lesson comments"). Each is a directly callable
+ * Lesson comments: post, reply, edit and delete your own, and report someone else's (docs/COURSES.md, "Lesson comments"). Each is a directly callable
  * endpoint, so each checks for itself: a signed-in member with courses on, a lesson they may open (open, course not a draft,
  * current access or staff acting as themselves), and not sudo, which is read-only. They write with the service role scoped to the
  * verified effective member, like the other course actions; row-level security is the second layer. The text is never
@@ -20,7 +22,12 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 
 const NOT_AVAILABLE = "Comments aren't available on this lesson";
 
-export type CommentResult = { error?: string; id?: string };
+export type CommentResult = {
+  error?: string;
+  id?: string;
+  /** Posted, but held for staff review (more than two links): only its author and staff see it until it is approved. */
+  held?: boolean;
+};
 
 /** The `lesson_comments` flag, for the member the caller is acting as: with it off, nothing about comments works. */
 async function commentsOn(caller: NonNullable<Awaited<ReturnType<typeof getCoursesCaller>>>): Promise<boolean> {
@@ -45,11 +52,11 @@ async function postLessonCommentImpl(lessonId: string, rawBody: string, parentId
   let attachTo: string | null = null;
   if (parentId) {
     const parent = await repos.courseComments.byId(parentId);
-    if (!parent || parent.lessonId !== lessonId || isRemovedComment(parent)) return { error: "That comment is no longer there" };
+    if (!parent || parent.lessonId !== lessonId || isRemovedComment(parent) || parent.heldAt) return { error: "That comment is no longer there" };
     attachTo = parent.parentId ?? parent.id;
     if (parent.parentId) {
       const top = await repos.courseComments.byId(parent.parentId);
-      if (!top || isRemovedComment(top)) return { error: "That comment is no longer there" };
+      if (!top || isRemovedComment(top) || top.heldAt) return { error: "That comment is no longer there" };
     }
   }
 
@@ -59,6 +66,8 @@ async function postLessonCommentImpl(lessonId: string, rawBody: string, parentId
     if (!within) return { error: "You're posting quickly. Try again in a little while." };
   }
 
+  // More than two links goes to staff first (never staff's own); no word filter, which mangles writing talk.
+  const held = !caller.scope.isAdminActing && shouldHoldComment(cleaned.body);
   try {
     const comment = await repos.courseComments.create({
       lessonId,
@@ -66,9 +75,14 @@ async function postLessonCommentImpl(lessonId: string, rawBody: string, parentId
       parentId: attachTo,
       body: cleaned.body,
       isStaffReply: caller.scope.isAdminActing,
+      held,
     });
+    // Posting follows the lesson (unless the member already chose), and a reply tells the people it is for: after the response, so
+    // the post never waits on Slack. Never throws; a held comment tells no one until staff release it.
+    await repos.courseComments.ensureFollowing(memberId, lessonId).catch((error) => console.error("lesson_comment_follows insert failed:", error instanceof Error ? error.message : error));
+    if (!held) after(() => notifyLessonComment(createRepos(createServiceRoleClient()), comment.id));
     revalidatePath("/courses", "layout");
-    return { id: comment.id };
+    return held ? { id: comment.id, held: true } : { id: comment.id };
   } catch (error) {
     // The database's own message (never the text) is enough to find it.
     console.error("lesson_comments insert failed:", error instanceof Error ? error.message : error);
@@ -92,6 +106,8 @@ async function editLessonCommentImpl(commentId: string, rawBody: string): Promis
 
   const cleaned = cleanCommentBody(rawBody);
   if ("error" in cleaned) return { error: cleaned.error };
+  // An edit can't be used to slip past the link rule.
+  if (!caller.scope.isAdminActing && shouldHoldComment(cleaned.body)) return { error: `Comments can have up to ${COMMENT_MAX_LINKS} links` };
 
   try {
     await repos.courseComments.edit(commentId, cleaned.body, new Date(clock.now()).toISOString());
@@ -125,6 +141,62 @@ async function deleteLessonCommentImpl(commentId: string): Promise<CommentResult
   }
 }
 
+async function reportLessonCommentImpl(commentId: string, rawReason: string): Promise<CommentResult> {
+  if (!isId(commentId, "cmnt")) return { error: NOT_AVAILABLE };
+  const caller = await getCoursesCaller();
+  if (!caller) return { error: "Not available" };
+  if (caller.identity.isSudo) return { error: "Read-only while previewing" };
+  if (!(await commentsOn(caller))) return { error: NOT_AVAILABLE };
+
+  const repos = createRepos(createServiceRoleClient());
+  const comment = await repos.courseComments.byId(commentId);
+  // A comment that is gone, hidden or held for review looks the same as one that never was.
+  if (!comment || isRemovedComment(comment) || comment.heldAt) return { error: NOT_AVAILABLE };
+  if (!(await lessonOpenForComments(repos, caller, comment.lessonId))) return { error: NOT_AVAILABLE };
+  // Staff hide or delete directly; nobody reports their own words.
+  if (caller.scope.isAdminActing) return { error: "Staff can hide or delete comments from the moderation queue" };
+  if (comment.memberId === caller.identity.memberId) return { error: "You can't report your own comment" };
+
+  const cleaned = cleanReportReason(rawReason);
+  if ("error" in cleaned) return { error: cleaned.error };
+
+  const memberId = caller.identity.memberId;
+  for (const limit of REPORT_RATE_LIMIT) {
+    const within = await repos.rateLimit.hit(`lesson_comment_report:${limit.name}:${memberId}`, limit.windowSeconds, limit.maxHits);
+    if (!within) return { error: "You've sent a lot of reports. Try again in a little while." };
+  }
+
+  try {
+    const outcome = await repos.courseComments.report({ commentId, reporterId: memberId, reason: cleaned.reason });
+    if (outcome === "already_reported") return { error: "You've already reported this comment" };
+    if (outcome === "not_found") return { error: NOT_AVAILABLE };
+    // The author sees nothing of this: no notification, no change to the thread.
+    return { id: commentId };
+  } catch (error) {
+    // The database's own message (never the reason) is enough to find it.
+    console.error("lesson_comment_reports insert failed:", error instanceof Error ? error.message : error);
+    return { error: "Couldn't send your report" };
+  }
+}
+
+async function setLessonCommentFollowImpl(lessonId: string, following: boolean): Promise<CommentResult> {
+  if (!isId(lessonId, "les") || typeof following !== "boolean") return { error: NOT_AVAILABLE };
+  const caller = await getCoursesCaller();
+  if (!caller) return { error: "Not available" };
+  if (caller.identity.isSudo) return { error: "Read-only while previewing" };
+  if (!(await commentsOn(caller))) return { error: NOT_AVAILABLE };
+
+  const repos = createRepos(createServiceRoleClient());
+  if (!(await lessonOpenForComments(repos, caller, lessonId))) return { error: NOT_AVAILABLE };
+  try {
+    await repos.courseComments.setFollowing(caller.identity.memberId, lessonId, following);
+    return { id: lessonId };
+  } catch (error) {
+    console.error("lesson_comment_follows write failed:", error instanceof Error ? error.message : error);
+    return { error: "Couldn't save that" };
+  }
+}
+
 // Usage analytics: each action records whether it worked (lib/analytics/server.ts).
 export async function postLessonComment(...args: Parameters<typeof postLessonCommentImpl>): ReturnType<typeof postLessonCommentImpl> {
   return withAction("lesson_comment_posted", () => postLessonCommentImpl(...args));
@@ -136,4 +208,12 @@ export async function editLessonComment(...args: Parameters<typeof editLessonCom
 
 export async function deleteLessonComment(...args: Parameters<typeof deleteLessonCommentImpl>): ReturnType<typeof deleteLessonCommentImpl> {
   return withAction("lesson_comment_deleted", () => deleteLessonCommentImpl(...args));
+}
+
+export async function reportLessonComment(...args: Parameters<typeof reportLessonCommentImpl>): ReturnType<typeof reportLessonCommentImpl> {
+  return withAction("lesson_comment_reported", () => reportLessonCommentImpl(...args));
+}
+
+export async function setLessonCommentFollow(...args: Parameters<typeof setLessonCommentFollowImpl>): ReturnType<typeof setLessonCommentFollowImpl> {
+  return withAction("lesson_follow_toggled", () => setLessonCommentFollowImpl(...args));
 }

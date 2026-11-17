@@ -20,6 +20,7 @@ import { SEARCH_KINDS, matchWords, parseUniversal, withKind } from "@/lib/search
 import { useTimeout } from "@/components/useTimeout";
 import Highlight from "@/components/search/Highlight";
 import SearchSpinner from "@/components/search/SearchSpinner";
+import Kbd from "@/components/Kbd";
 
 const DEBOUNCE_MS = 150;
 const MIN_QUERY_CHARS = 2;
@@ -503,9 +504,9 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
       >
         <SearchIcon className="h-4 w-4 flex-shrink-0" />
         <span className="hidden sm:inline flex-1 truncate text-left">Search pages, members, chat…</span>
-        {/* The shortcut hint is drawn with CSS, not text: the shortcut is announced by aria-keyshortcuts, and a visible
-            "⌘K" that is not in the button's name fails WCAG label-in-name. */}
-        <kbd aria-hidden="true" data-hint="⌘K" className="hidden sm:inline rounded border border-slate-300 dark:border-slate-600 px-1.5 text-xs after:content-[attr(data-hint)]" />
+        {/* The shortcut is announced by aria-keyshortcuts; the visible hint is aria-hidden, so it stays out of the
+            button's name (WCAG label-in-name). */}
+        <Kbd keys={["mod", "K"]} />
       </button>
 
       {open && createPortal(
@@ -902,7 +903,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                 <span className="text-slate-600 dark:text-slate-400">Type to search</span>
               )}
               <span className="text-xs text-slate-500 dark:text-slate-400">
-                {busy ? "Searching…" : <span className="hidden sm:inline">↑↓ to move · Enter to open · Esc to close</span>}
+                {busy ? "Searching…" : <span className="hidden fine-pointer:sm:inline-flex items-center gap-1"><Kbd keys={["up", "down"]} /> to move <Kbd keys={["enter"]} /> to open <Kbd keys={["esc"]} /> to close</span>}
               </span>
             </div>
           </div>
@@ -951,7 +952,7 @@ function Row({
         {subtitle && <span className="block truncate text-slate-600 dark:text-slate-400">{subtitle}</span>}
       </span>
       {right}
-      {active && <kbd className="flex-shrink-0 rounded border border-slate-300 dark:border-slate-600 px-1.5 text-xs text-slate-600 dark:text-slate-400">Enter</kbd>}
+      {active && <Kbd keys={["enter"]} />}
     </>
   );
   return href ? (
@@ -992,7 +993,7 @@ function HitRow({ hit, words, active, onOpen }: { hit: SearchHit; words: string[
         )}
       </span>
       {hit.date && <span className="flex-shrink-0 text-xs text-slate-600 dark:text-slate-400">{formatHitDate(hit.date)}</span>}
-      {active && <kbd className="flex-shrink-0 rounded border border-slate-300 dark:border-slate-600 px-1.5 text-xs text-slate-600 dark:text-slate-400">Enter</kbd>}
+      {active && <Kbd keys={["enter"]} />}
     </Link>
   );
 }

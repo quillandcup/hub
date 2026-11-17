@@ -4,6 +4,7 @@ import { getMemberDisplayName } from "@/lib/member-display-name";
 import { createRepos } from "@/lib/data/repos";
 import { BookExistsError } from "@/lib/data/books";
 import { dismissCheckout, recentPresentPrickles } from "@/lib/prickle-checkin-dms";
+import { closeCheckinDmsAfterResponse } from "@/lib/prickle-checkin-dm-close";
 import { createClient } from "@/lib/supabase/server";
 import type { ProjectPatch } from "@/lib/data/writing";
 import { getCurrentUser } from "@/lib/auth";
@@ -108,6 +109,8 @@ export interface TargetGoalRow extends GoalRowBase {
   current: number;
   percent: number;
   includesStartingBalance: boolean;
+  /** The starting balance the goal's start date leaves out of `current`; null when none is. */
+  excludedStartingBalance: number | null;
   /** The project's all-time total for this measure (starting balance included); null for prickles. */
   projectTotal: number | null;
   parTarget: number | null;
@@ -198,7 +201,6 @@ export async function getMyProjects(): Promise<WritingProjectRow[]> {
     getMyBooks(),
   ]);
 
-  // A goal can be project-less; buildProjectRows only ever matches goals to a project by id.
   return buildProjectRows(projects, entries, goals as RawGoal[], startingBalances, attendance, books);
 }
 
@@ -592,6 +594,58 @@ async function toggleProjectVisibilityImpl(
 
   revalidatePath(`/projects/${projectId}`);
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
+  return { success: true };
+}
+
+/** The most projects one reorder may name (a member has a handful; this only stops a runaway request). */
+const MAX_REORDER = 500;
+
+/**
+ * Saves the order the member put their active projects in (the dashboard's starred goals follow it). One database
+ * statement; ids that aren't theirs are ignored there, and the hibernating projects keep their place.
+ */
+async function reorderMyProjectsImpl(orderedIds: string[]): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  if (!Array.isArray(orderedIds) || orderedIds.length > MAX_REORDER || orderedIds.some((id) => typeof id !== "string" || !id)) {
+    return { error: "Invalid project order" };
+  }
+
+  try {
+    await createRepos(supabase).writing.reorderProjects(effectiveIdentity.memberId, orderedIds);
+  } catch (error) {
+    return { error: errorMessage(error, "Failed to save the order") };
+  }
+
+  revalidatePath("/projects", "layout");
+  revalidatePath("/dashboard");
+  return { success: true };
+}
+
+/**
+ * Saves the order the member put one project's goals in (the dashboard's starred goals follow it within the project).
+ * One database statement; ids that aren't that project's live, unarchived goals of theirs are ignored there.
+ */
+async function reorderMyGoalsImpl(projectId: string, orderedIds: string[]): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  if (typeof projectId !== "string" || !projectId || !Array.isArray(orderedIds) || orderedIds.length > MAX_REORDER || orderedIds.some((id) => typeof id !== "string" || !id)) {
+    return { error: "Invalid goal order" };
+  }
+
+  try {
+    await createRepos(supabase).writing.reorderGoals(effectiveIdentity.memberId, projectId, orderedIds);
+  } catch (error) {
+    return { error: errorMessage(error, "Failed to save the order") };
+  }
+
+  revalidatePath("/projects", "layout");
+  revalidatePath(`/projects/${projectId}`);
+  revalidatePath("/dashboard");
   return { success: true };
 }
 
@@ -1050,6 +1104,7 @@ async function dismissUnloggedPrickleImpl(prickleId: string): Promise<{ success:
   if (await dismissCheckout(createRepos(supabase), effectiveIdentity.memberId, prickleId)) {
     return { error: "Couldn't dismiss that prickle — please try again." };
   }
+  closeCheckinDmsAfterResponse({ memberId: effectiveIdentity.memberId, prickleId, halves: ["checkout"] });
 
   revalidatePath("/dashboard");
   return { success: true };
@@ -1149,10 +1204,10 @@ function buildGoalFields(
 async function shareProjectForGoal(
   writing: ReturnType<typeof createRepos>["writing"],
   memberId: string,
-  projectId: string | null,
+  projectId: string,
   details: { show_on_profile?: boolean }
 ) {
-  if (details.show_on_profile !== true || !projectId) return;
+  if (details.show_on_profile !== true) return;
   await writing.updateProject(memberId, projectId, { show_on_profile: true });
 }
 
@@ -1373,18 +1428,16 @@ export async function getStarredGoals(): Promise<(GoalRow & { projectTitle: stri
 
   const projectIds = [...new Set(goals.map((g) => g.project_id))];
   const [entries, attendance, startingBalances] = await Promise.all([
-    createRepos(supabase).writing.entries(effectiveIdentity.memberId, {
-      projectIds: projectIds.filter((id): id is string => id !== null),
-    }),
+    createRepos(supabase).writing.entries(effectiveIdentity.memberId, { projectIds }),
     getMyPrickleAttendance(),
     createRepos(supabase).writing.startingBalances(effectiveIdentity.memberId),
   ]);
 
   const now = new Date();
 
-  return (goals as unknown as (RawGoal & { project_title: string | null })[]).map((g) => {
+  return (goals as unknown as (RawGoal & { project_title: string })[]).map((g) => {
     const projectEntries = entries.filter((e) => e.project_id === g.project_id);
-    return { ...buildGoalRow(g, projectEntries, now, attendance, startingBalances), projectTitle: g.project_title ?? "Untitled project" };
+    return { ...buildGoalRow(g, projectEntries, now, attendance, startingBalances), projectTitle: g.project_title };
   });
 }
 
@@ -1522,6 +1575,14 @@ export async function updateProjectCover(...args: Parameters<typeof updateProjec
 
 export async function setStartingBalances(...args: Parameters<typeof setStartingBalancesImpl>): ReturnType<typeof setStartingBalancesImpl> {
   return withAction("starting_balances_saved", () => setStartingBalancesImpl(...args));
+}
+
+export async function reorderMyGoals(...args: Parameters<typeof reorderMyGoalsImpl>): ReturnType<typeof reorderMyGoalsImpl> {
+  return withAction("goals_reordered", () => reorderMyGoalsImpl(...args));
+}
+
+export async function reorderMyProjects(...args: Parameters<typeof reorderMyProjectsImpl>): ReturnType<typeof reorderMyProjectsImpl> {
+  return withAction("projects_reordered", () => reorderMyProjectsImpl(...args));
 }
 
 export async function toggleProjectVisibility(...args: Parameters<typeof toggleProjectVisibilityImpl>): ReturnType<typeof toggleProjectVisibilityImpl> {

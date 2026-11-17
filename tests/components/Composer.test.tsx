@@ -38,6 +38,13 @@ beforeEach(() => {
 });
 
 describe("Composer", () => {
+  it("shows the Enter key on the Send button and declares it", () => {
+    render(<Composer channelId="c1" placeholder="Message #hosts" />);
+    const send = screen.getByRole("button", { name: "Send" });
+    expect(send).toHaveAttribute("aria-keyshortcuts", "Enter");
+    expect(send.querySelector("kbd")).toHaveTextContent("↵");
+  });
+
   it("sends on Enter, clears the box and refreshes the page", async () => {
     vi.mocked(sendChatMessage).mockResolvedValue({ ok: true, id: "m1" });
     render(<Composer channelId="c1" placeholder="Message #hosts" />);

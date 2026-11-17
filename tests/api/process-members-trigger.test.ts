@@ -45,3 +45,9 @@ describe('Member processing attendance cascade', () => {
     expect(memberRouteSrc).toContain('90')
   })
 })
+
+describe('Member processing Stripe billing reads', () => {
+  it('reads invoices and charges (service role only tables) with the service role client', () => {
+    expect(memberRouteSrc).toMatch(/fetchStripeTrialInfoByEmail\(\s*createRepos\(createServiceRoleClient\(\)\)/)
+  })
+})

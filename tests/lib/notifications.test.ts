@@ -4,7 +4,7 @@ import { createInMemoryRepos, type Repos } from "@/lib/data/repos";
 import { useFakeClock } from "../helpers/fake-clock";
 import { APP_URL } from "@/lib/config";
 
-const sendSlackDM = vi.fn(async (_params: { slackUserId: string; text: string; blocks?: any[] }) => {});
+const sendSlackDM = vi.fn(async (_params: { slackUserId: string; text: string; blocks?: any[] }): Promise<{ channel: string; ts: string } | null | void> => {});
 vi.mock("@/lib/slack", () => ({ sendSlackDM: (p: any) => sendSlackDM(p) }));
 const captureException = vi.hoisted(() => vi.fn());
 vi.mock("@sentry/nextjs", () => ({ captureException }));
@@ -161,6 +161,33 @@ describe("createNotifier", () => {
     expect(await notifier.send("m1", { text: "Hello", url: `${APP_URL}/prickles/p1` })).toEqual(["slack", "in_app"]);
     expect(sendSlackDM).toHaveBeenCalledWith(expect.objectContaining({ slackUserId: "U-m1", text: "Hello" }));
     expect(dataset.inAppNotifications).toEqual([expect.objectContaining({ memberId: "m1", kind: "prickle_checkin", url: "/prickles/p1" })]);
+  });
+
+  it("hands the Slack message's place to onReceipt, and a failing handler does not undo the send", async () => {
+    sendSlackDM.mockResolvedValue({ channel: "D-m1", ts: "1700000000.000100" });
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const notifier = await createNotifier(world(), "prickle_checkin", ["m1"]);
+    const onReceipt = vi.fn();
+
+    expect(await notifier.send("m1", { text: "Hello" }, { onReceipt })).toEqual(["slack", "in_app"]);
+    expect(onReceipt).toHaveBeenCalledTimes(1);
+    expect(onReceipt).toHaveBeenCalledWith("slack", { slack: { channelId: "D-m1", ts: "1700000000.000100" } });
+
+    onReceipt.mockImplementation(() => {
+      throw new Error("db down");
+    });
+    expect(await notifier.send("m1", { text: "Hello again" }, { onReceipt })).toEqual(["slack", "in_app"]);
+    expect(error).toHaveBeenCalledWith(expect.stringContaining("receipt"), expect.any(Error));
+    expect(sendOperationsAlert).not.toHaveBeenCalled();
+    error.mockRestore();
+  });
+
+  it("gives onReceipt nothing when Slack did not say where the message went", async () => {
+    sendSlackDM.mockResolvedValue(null);
+    const notifier = await createNotifier(world(), "prickle_checkin", ["m1"]);
+    const onReceipt = vi.fn();
+    await notifier.send("m1", { text: "Hello" }, { onReceipt });
+    expect(onReceipt).not.toHaveBeenCalled();
   });
 
   it("still sends in-app to a member who opted out of Slack only", async () => {

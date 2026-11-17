@@ -462,6 +462,29 @@ function specialAuditPhrase(row: ActivityFeedRow): string | null {
     const what = row.entity_type === "course_lesson_order" ? "lessons" : "modules";
     return `reordered the${count} ${what}${row.description ? ` in “${formatValue(row.description)}”` : ""}`;
   }
+  // A member's reorder of the goals in a project is one entry for the list (20270811000000).
+  if (row.entity_type === "writing_goal_order") {
+    const order = fields.order?.new;
+    return Array.isArray(order) ? `reordered the ${order.length} goal${order.length === 1 ? "" : "s"} in a writing project` : "reordered the goals in a writing project";
+  }
+  // A member's reorder of their writing projects is one entry for the list (20270808000000).
+  if (row.entity_type === "writing_project_order") {
+    const order = fields.order?.new;
+    return Array.isArray(order) ? `reordered their ${order.length} writing project${order.length === 1 ? "" : "s"}` : "reordered their writing projects";
+  }
+  // Staff moderation of a lesson comment is one entry with the lesson's title and what changed, never the comment's text (the migration says why).
+  if (row.entity_type === "lesson_comment" && row.event_type === "update") {
+    const lesson = row.description ? ` on “${formatValue(row.description)}”` : "";
+    const settled = fields.reports_resolved ? ", settling its reports" : "";
+    const before = fields.visibility?.old;
+    const after = fields.visibility?.new;
+    if (after === "hidden") return `hid a comment${lesson}${settled}`;
+    if (after === "deleted") return `deleted a comment${lesson}${settled}`;
+    if (before === "held" && after === "visible") return `approved a held comment${lesson}`;
+    if (before === "hidden") return `showed a hidden comment again${lesson}`;
+    if (fields.handled?.new) return `marked a question as handled${lesson}`;
+    if (fields.reports_resolved) return `dismissed the reports on a comment${lesson}`;
+  }
   // An admin or community manager opened a member's Hedgie Care plan messages (the member is the row's subject). Only the fact is recorded, never the text.
   if (row.entity_type === "care_dm_read") return "opened a member's Hedgie Care plan messages (the messages are not recorded)";
   // A course made by duplicating another is one entry with where it came from and what it holds (the migration says why not one per row).

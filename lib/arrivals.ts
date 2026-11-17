@@ -1,5 +1,6 @@
 import { getMemberDisplayName } from "@/lib/member-display-name";
-import type { Repos } from "@/lib/data/repos";
+import { createRepos, type Repos } from "@/lib/data/repos";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 import { buildAliasMap, resolveEmail } from "@/lib/email-aliases";
 import { fetchMembershipHistory } from "@/lib/kajabi/membership-history";
 import { isMembershipOffer } from "@/lib/membership";
@@ -162,7 +163,7 @@ async function wasAlreadyMember(repos: ArrivalsRepos, c: Candidate): Promise<boo
   const emails = [c.email, ...aliasRows.map((a) => a.alias_email)];
   const kajabiCustomers = await repos.billing.kajabiCustomers({ emails });
   const customerIds = kajabiCustomers.map((k) => k.kajabi_customer_id).filter((id): id is string => !!id);
-  const stints = (await fetchMembershipHistory(repos, customerIds)).filter(
+  const stints = (await fetchMembershipHistory(repos, customerIds, createRepos(createServiceRoleClient()))).filter(
     (s) => Date.parse(s.created_at_kajabi) < cutoff
   );
 

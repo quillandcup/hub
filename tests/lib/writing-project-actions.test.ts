@@ -17,7 +17,7 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
-import { deleteProject, getMyPastProjects, getMyProjects, getProject, updateProjectPhase } from "@/app/(member)/projects/actions";
+import { deleteProject, getMyPastProjects, getMyProjects, getProject, reorderMyGoals, reorderMyProjects, updateProjectPhase } from "@/app/(member)/projects/actions";
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
@@ -128,5 +128,97 @@ describe("deleteProject", () => {
   it("answers an error for a member without a session", async () => {
     vi.mocked(getEffectiveIdentity).mockResolvedValue(null);
     expect("error" in (await deleteProject("wprj_1"))).toBe(true);
+  });
+});
+
+describe("reorderMyProjects", () => {
+  it("saves the order and the projects list and dashboard are refreshed", async () => {
+    expect((await getMyProjects()).map((p) => p.id)).toEqual(["wprj_2", "wprj_1"]);
+    expect(await reorderMyProjects(["wprj_1", "wprj_2"])).toEqual({ success: true });
+    expect((await getMyProjects()).map((p) => p.id)).toEqual(["wprj_1", "wprj_2"]);
+    expect(revalidatePath).toHaveBeenCalledWith("/projects", "layout");
+    expect(revalidatePath).toHaveBeenCalledWith("/dashboard");
+  });
+
+  it("leaves another member's project and the hibernating one alone when they are named", async () => {
+    await reorderMyProjects(["wprj_other", "wprj_1", "wprj_3", "wprj_2"]);
+    expect(dataset.writingProjects.find((p) => p.id === "wprj_other")?.sort_position ?? null).toBeNull();
+    expect((await getMyProjects()).map((p) => p.id)).toEqual(["wprj_1", "wprj_2"]);
+  });
+
+  it("reorders the member being acted as when an admin is in sudo", async () => {
+    vi.mocked(getEffectiveIdentity).mockResolvedValue({ ...IDENTITY, memberId: OTHER, isSudo: true });
+    const spy = vi.spyOn(repos.writing, "reorderProjects");
+    expect(await reorderMyProjects(["wprj_other"])).toEqual({ success: true });
+    expect(spy).toHaveBeenCalledWith(OTHER, ["wprj_other"]);
+  });
+
+  it("refuses a malformed list without touching anything", async () => {
+    const spy = vi.spyOn(repos.writing, "reorderProjects");
+    expect(await reorderMyProjects("wprj_1" as unknown as string[])).toEqual({ error: "Invalid project order" });
+    expect(await reorderMyProjects(["wprj_1", ""])).toEqual({ error: "Invalid project order" });
+    expect(await reorderMyProjects(Array.from({ length: 501 }, (_, i) => `wprj_${i}`))).toEqual({ error: "Invalid project order" });
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("returns the database error without refreshing", async () => {
+    vi.spyOn(repos.writing, "reorderProjects").mockRejectedValue(new Error("boom"));
+    expect(await reorderMyProjects(["wprj_1"])).toEqual({ error: "boom" });
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("answers an error for a member without a session", async () => {
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(null);
+    expect("error" in (await reorderMyProjects(["wprj_1"]))).toBe(true);
+  });
+});
+
+describe("reorderMyGoals", () => {
+  const goalIds = () => dataset.writingGoals.filter((g) => g.project_id === "wprj_1").sort((a, b) => (a.sort_position ?? 99) - (b.sort_position ?? 99)).map((g) => g.id);
+
+  beforeEach(() => {
+    dataset.writingGoals.push(goal("wgol_2", "wprj_1"), goal("wgol_3", "wprj_1"), goal("wgol_4", "wprj_2"));
+  });
+
+  it("saves the order, and the project page and dashboard are refreshed", async () => {
+    expect(await reorderMyGoals("wprj_1", ["wgol_3", "wgol_1", "wgol_2"])).toEqual({ success: true });
+    expect(goalIds()).toEqual(["wgol_3", "wgol_1", "wgol_2"]);
+    expect(revalidatePath).toHaveBeenCalledWith("/projects/wprj_1");
+    expect(revalidatePath).toHaveBeenCalledWith("/dashboard");
+  });
+
+  it("leaves another project's goals and another member's project alone", async () => {
+    await reorderMyGoals("wprj_1", ["wgol_4", "wgol_2", "wgol_1"]);
+    expect(dataset.writingGoals.find((g) => g.id === "wgol_4")?.sort_position ?? null).toBeNull();
+    expect(goalIds()[0]).toBe("wgol_2");
+    await reorderMyGoals("wprj_other", ["wgol_1"]);
+    expect(dataset.writingGoals.find((g) => g.id === "wgol_1")?.sort_position).toBe(2);
+  });
+
+  it("reorders for the member being acted as when an admin is in sudo", async () => {
+    vi.mocked(getEffectiveIdentity).mockResolvedValue({ ...IDENTITY, memberId: OTHER, isSudo: true });
+    const spy = vi.spyOn(repos.writing, "reorderGoals");
+    expect(await reorderMyGoals("wprj_other", ["wgol_x"])).toEqual({ success: true });
+    expect(spy).toHaveBeenCalledWith(OTHER, "wprj_other", ["wgol_x"]);
+  });
+
+  it("refuses a malformed request without touching anything", async () => {
+    const spy = vi.spyOn(repos.writing, "reorderGoals");
+    expect(await reorderMyGoals("wprj_1", "wgol_1" as unknown as string[])).toEqual({ error: "Invalid goal order" });
+    expect(await reorderMyGoals("wprj_1", ["wgol_1", ""])).toEqual({ error: "Invalid goal order" });
+    expect(await reorderMyGoals("", ["wgol_1"])).toEqual({ error: "Invalid goal order" });
+    expect(await reorderMyGoals("wprj_1", Array.from({ length: 501 }, (_, i) => `wgol_${i}`))).toEqual({ error: "Invalid goal order" });
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("returns the database error without refreshing", async () => {
+    vi.spyOn(repos.writing, "reorderGoals").mockRejectedValue(new Error("boom"));
+    expect(await reorderMyGoals("wprj_1", ["wgol_1"])).toEqual({ error: "boom" });
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("answers an error for a member without a session", async () => {
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(null);
+    expect("error" in (await reorderMyGoals("wprj_1", ["wgol_1"]))).toBe(true);
   });
 });

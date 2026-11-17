@@ -54,6 +54,39 @@ describe('Slack User Matching', () => {
     expect(map.has('U003')).toBe(false);
   });
 
+  describe('email aliases', () => {
+    const emailAliases = [{ alias_email: 'alice.work@example.com', canonical_email: 'alice@example.com' }];
+
+    it('matches a Slack email that is one of the member\'s aliases', async () => {
+      const slackUsers = [{ user_id: 'U010', email: 'Alice.Work@example.com', real_name: 'Someone Else' }];
+      const map = await matchSlackUsersToMembers(slackUsers, members, aliases, new Map(), emailAliases);
+      expect(map.get('U010')).toBe('member-1');
+    });
+
+    it('does not use aliases when none are passed', async () => {
+      const slackUsers = [{ user_id: 'U010', email: 'alice.work@example.com', real_name: 'Someone Else' }];
+      expect((await matchSlackUsersToMembers(slackUsers, members, aliases)).has('U010')).toBe(false);
+    });
+
+    it('leaves a member who already has a Slack user alone, so one person is not split in two', async () => {
+      const slackUsers = [
+        { user_id: 'U001', email: 'alice@example.com', real_name: 'Alice J' },
+        { user_id: 'U010', email: 'alice.work@example.com', real_name: 'Someone Else' },
+      ];
+      const map = await matchSlackUsersToMembers(slackUsers, members, aliases, new Map(), emailAliases);
+      expect(map.get('U001')).toBe('member-1');
+      expect(map.has('U010')).toBe(false);
+    });
+
+    it('ignores an alias whose canonical email belongs to no member', async () => {
+      const slackUsers = [{ user_id: 'U010', email: 'ghost.alias@example.com', real_name: null }];
+      const map = await matchSlackUsersToMembers(slackUsers, members, aliases, new Map(), [
+        { alias_email: 'ghost.alias@example.com', canonical_email: 'nobody@example.com' },
+      ]);
+      expect(map.has('U010')).toBe(false);
+    });
+  });
+
   it('should let a verified link outrank alias, email and name', async () => {
     const slackUsers = [
       { user_id: 'U_ALICE_MANUAL', email: 'alice@example.com', real_name: 'Alice Johnson' },

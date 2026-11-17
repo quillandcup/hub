@@ -1,6 +1,8 @@
 "use client";
 
 import { ReactNode, useEffect, useId, useRef } from "react";
+import Kbd from "@/components/Kbd";
+import { submitFormOnModEnter } from "@/lib/submit-form-on-mod-enter";
 
 interface ModalProps {
   isOpen: boolean;
@@ -11,6 +13,9 @@ interface ModalProps {
   /** Nearly the whole screen, with the content filling it (a diagram or canvas that wants the room). */
   fill?: boolean;
 }
+
+/** Open modals, oldest first: a dialog opened on top of another (a confirm inside a list) takes Escape alone. */
+const openModals: symbol[] = [];
 
 const maxWidthClasses = {
   sm: 'max-w-sm',
@@ -50,11 +55,16 @@ export default function Modal({
 
   useEffect(() => {
     if (!isOpen) return;
+    const me = Symbol("modal");
+    openModals.push(me);
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape" && openModals[openModals.length - 1] === me) onClose();
     };
     document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      openModals.splice(openModals.indexOf(me), 1);
+    };
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
@@ -74,6 +84,8 @@ export default function Modal({
           fill ? "flex h-[94vh] max-w-[96vw] flex-col" : `${maxWidthClasses[maxWidth]} max-h-[80vh]`
         }`}
         onClick={(e) => e.stopPropagation()}
+        // Ctrl/Cmd+Enter in any form inside the dialog submits it, like a click on its Save button.
+        onKeyDown={(e) => void submitFormOnModEnter(e)}
       >
         {/* Header */}
         <div className={`${fill ? "px-4 py-3" : "p-6"} border-b border-slate-200 dark:border-slate-800`}>
@@ -82,9 +94,11 @@ export default function Modal({
             <button
               type="button"
               onClick={onClose}
-              className="text-2xl leading-none text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-300 flex-shrink-0"
+              className="flex items-center gap-2 text-2xl leading-none text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-300 flex-shrink-0"
               aria-label="Close"
+              aria-keyshortcuts="Escape"
             >
+              <Kbd keys={["esc"]} />
               ✕
             </button>
           </div>

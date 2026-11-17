@@ -1,9 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { CHANNELS } from "@/lib/channels/catalog";
+import { CHANNELS, type ChannelId } from "@/lib/channels/catalog";
 import type { CheckinDMKind } from "@/lib/prickle-checkin-dms";
 import { sendTestPrickleDM } from "./actions";
+
+const SKIPPED_REASON: Partial<Record<ChannelId, string>> = {
+  slack: "no Slack account is matched to your member record",
+  email: "your member record has no email address",
+};
 
 const BUTTONS: { kind: CheckinDMKind; label: string }[] = [
   { kind: "prickle_checkin", label: "Send me the check-in" },
@@ -13,24 +18,28 @@ const BUTTONS: { kind: CheckinDMKind; label: string }[] = [
 /** Admin-only: sends the signed-in admin this prickle's check-in or check-out, to see what members get. */
 export default function TestCheckinDMs({ prickleId }: { prickleId: string }) {
   const [pending, startTransition] = useTransition();
-  const [status, setStatus] = useState<{ ok: boolean; message: string } | null>(null);
+  const [status, setStatus] = useState<{ ok: boolean; message: string; notes: string[] } | null>(null);
 
   function send(kind: CheckinDMKind, label: string) {
     setStatus(null);
     startTransition(async () => {
       const result = await sendTestPrickleDM(prickleId, kind);
-      setStatus(
-        "error" in result && result.error
-          ? { ok: false, message: result.error }
-          : {
-              ok: true,
-              message: `${label.replace("Send me the ", "Sent the ")} by ${
-                CHANNELS.filter((c) => "delivered" in result && result.delivered?.includes(c.id))
-                  .map((c) => c.label)
-                  .join(" and ")
-              }.`,
-            }
-      );
+      if ("error" in result && result.error) {
+        setStatus({ ok: false, message: result.error, notes: [] });
+        return;
+      }
+      const labelOf = (id: ChannelId) => CHANNELS.find((c) => c.id === id)?.label ?? id;
+      const delivered = "delivered" in result ? (result.delivered ?? []) : [];
+      const skipped = "skipped" in result ? (result.skipped ?? []) : [];
+      const failed = "failed" in result ? (result.failed ?? []) : [];
+      setStatus({
+        ok: true,
+        message: `${label.replace("Send me the ", "Sent the ")} by ${delivered.map(labelOf).join(" and ")}.`,
+        notes: [
+          ...skipped.map((id) => `Not sent by ${labelOf(id)}: ${SKIPPED_REASON[id] ?? "no address for you"}.`),
+          ...failed.map((id) => `Not sent by ${labelOf(id)}: the send failed, see the server logs.`),
+        ],
+      });
     });
   }
 
@@ -62,6 +71,11 @@ export default function TestCheckinDMs({ prickleId }: { prickleId: string }) {
           {status.message}
         </p>
       )}
+      {status?.notes.map((note) => (
+        <p key={note} role="status" className="mt-1 text-sm text-red-600 dark:text-red-400">
+          {note}
+        </p>
+      ))}
     </div>
   );
 }

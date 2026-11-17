@@ -8,6 +8,7 @@ import { getEffectiveIdentity } from "@/lib/sudo"
 import { getUserTimezonePreference } from "@/lib/timezone"
 import { getStarredGoals, getUnloggedRecentPrickles } from "../projects/actions"
 import UnloggedPricklesCard from "@/components/writing/UnloggedPricklesCard"
+import { groupConsecutiveByProject } from "@/lib/group-goals-by-project"
 import GoalDisplay from "@/components/writing/GoalDisplay"
 import { isMissedGoal } from "@/lib/writing-projects"
 import UpcomingPrickleRow from "@/components/UpcomingPrickleRow"
@@ -126,18 +127,20 @@ export default async function DashboardPage() {
           <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-4">
             Writing Goals
           </h2>
-          <div className="space-y-4">
-            {starredGoals.map((goal) => (
-              <div key={goal.id}>
+          <div className="space-y-6">
+            {groupConsecutiveByProject(starredGoals).map((group, index) => (
+              <div key={`${group.projectId}-${index}`}>
                 <Link
-                  href={`/projects/${goal.projectId}`}
+                  href={`/projects/${group.projectId}`}
                   data-track="dashboard-goal-project"
                   className="text-lg font-semibold text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400"
                 >
-                  {goal.projectTitle}
+                  {group.projectTitle}
                 </Link>
-                <div className="mt-1">
-                  <GoalDisplay goal={goal} />
+                <div className="mt-1 space-y-3">
+                  {group.goals.map((goal) => (
+                    <GoalDisplay key={goal.id} goal={goal} />
+                  ))}
                 </div>
               </div>
             ))}

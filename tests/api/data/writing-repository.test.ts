@@ -78,7 +78,7 @@ defineWritingContract("SupabaseWritingRepository", () => ({
     if (goals.length > 0) {
       const { error } = await db
         .from("writing_goals")
-        .insert(goals.map((g) => ({ member_id: memberIds[g.member], project_id: g.project ? ids[g.project] : null, measure: g.measure, target_amount: 1000, archived_at: g.archived ? "2026-06-01T00:00:00Z" : null })));
+        .insert(goals.map((g) => ({ member_id: memberIds[g.member], project_id: ids[g.project], measure: g.measure, target_amount: 1000, archived_at: g.archived ? "2026-06-01T00:00:00Z" : null })));
       if (error) throw new Error(error.message);
     }
     if (entries.length > 0) {

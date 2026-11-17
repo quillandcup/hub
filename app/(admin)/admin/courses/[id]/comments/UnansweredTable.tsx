@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { DataTablePager } from "@/components/DataTablePager";
 import { DataTableSearch } from "@/components/DataTableSearch";
+import ModerationButtons from "./ModerationButtons";
 import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
@@ -25,7 +26,7 @@ function sortValue(row: UnansweredQuestion, column: Column): SortValue {
 }
 
 /** The waiting questions, one row each; the lesson links to its thread. */
-export default function UnansweredTable({ rows, courseSlug, nowMs }: { rows: UnansweredQuestion[]; courseSlug: string; nowMs: number }) {
+export default function UnansweredTable({ rows, courseId, courseSlug, nowMs }: { rows: UnansweredQuestion[]; courseId: string; courseSlug: string; nowMs: number }) {
   const table = useDataTable<UnansweredQuestion, Column>({
     rows,
     getSortValue: sortValue,
@@ -44,6 +45,7 @@ export default function UnansweredTable({ rows, courseSlug, nowMs }: { rows: Una
             <SortableTh label="Asked by" className={CELL} {...table.sortProps("author")} />
             <SortableTh label="Question" className={CELL} {...table.sortProps("question")} />
             <SortableTh label="Asked" className={CELL} {...table.sortProps("asked")} />
+            <th className={CELL}>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -57,6 +59,9 @@ export default function UnansweredTable({ rows, courseSlug, nowMs }: { rows: Una
               <td className="px-3 py-2">{row.authorName}</td>
               <td className="max-w-md break-words px-3 py-2">{row.body.length > EXCERPT ? `${row.body.slice(0, EXCERPT)}…` : row.body}</td>
               <td className="whitespace-nowrap px-3 py-2 tabular-nums">{relativeAgo(row.createdAt, nowMs, ORG_TIMEZONE)}</td>
+              <td className="px-3 py-2">
+                <ModerationButtons courseId={courseId} commentId={row.id} buttons={["handle", "hide"]} from="unanswered" />
+              </td>
             </tr>
           ))}
         </tbody>

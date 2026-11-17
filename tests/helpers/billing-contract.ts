@@ -334,6 +334,44 @@ export function defineBillingContract(name: string, setup: () => BillingContract
         expect(at((await ctx.repo().newestStripeInvoiceCreatedAt())!)).toBeGreaterThanOrEqual(at("2091-06-01T00:00:00+00:00"));
         expect(at((await ctx.repo().newestStripeChargeCreatedAt())!)).toBeGreaterThanOrEqual(at("2091-05-01T00:00:00+00:00"));
       });
+
+      it("names the subscriptions whose every payment was refunded in full", async () => {
+        const cus = ctx.unique("cus-ref");
+        const [refunded, partly, keptOne, unpaid] = ["sub-ref", "sub-part", "sub-kept", "sub-unpaid"].map((l) => ctx.unique(l));
+        const paid = (label: string, subscription: string): StripeInvoiceSeed => ({
+          ...inv(label, cus, "2092-01-01T00:00:00+00:00", { amount_paid: 4700 }),
+          stripe_subscription_id: subscription,
+        });
+        const charge = (invoice: StripeInvoiceSeed, extra: Partial<StripeChargeSeed>): StripeChargeSeed => ({
+          stripe_charge_id: ctx.unique("c-ref"),
+          stripe_customer_id: cus,
+          stripe_invoice_id: invoice.stripe_invoice_id,
+          amount: 4700,
+          ...extra,
+        });
+        const refundedInvoice = paid("i-ref", refunded);
+        const partlyInvoice = paid("i-part", partly);
+        const keptFirst = paid("i-kept-1", keptOne);
+        const keptSecond = paid("i-kept-2", keptOne);
+        const unpaidInvoice = { ...inv("i-unpaid", cus, "2092-01-01T00:00:00+00:00"), stripe_subscription_id: unpaid };
+        await ctx.seed({
+          stripeInvoices: [refundedInvoice, partlyInvoice, keptFirst, keptSecond, unpaidInvoice],
+          stripeCharges: [
+            charge(refundedInvoice, { refunded: true, amount_refunded: 4700 }),
+            charge(partlyInvoice, { refunded: false, amount_refunded: 1000 }),
+            charge(keptFirst, { refunded: true, amount_refunded: 4700 }),
+            charge(keptSecond, { refunded: false, amount_refunded: 0 }),
+            charge(unpaidInvoice, { refunded: true, amount_refunded: 4700 }),
+          ],
+        });
+
+        const result = await ctx.repo().fullyRefundedStripeSubscriptionIds();
+        expect(result.has(refunded)).toBe(true);
+        // Only part of it came back, one payment of two was kept, and one was never paid.
+        expect(result.has(partly)).toBe(false);
+        expect(result.has(keptOne)).toBe(false);
+        expect(result.has(unpaid)).toBe(false);
+      });
     });
 
     describe("the imports' writes", () => {

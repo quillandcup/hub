@@ -45,6 +45,19 @@ describe("GoalProgressBar", () => {
     expect(screen.getByText(/Project total: 98,681 words/)).toBeInTheDocument();
   });
 
+  it("tells the member their starting count is left out when the goal has a start date", () => {
+    render(<GoalProgressBar {...BASE} startDate="2026-01-01" excludedStartingBalance={20000} />);
+    expect(screen.getByText(/Your starting 20,000 words aren't counted because this goal is for what you log in a specific time frame/)).toBeInTheDocument();
+    expect(screen.getByText(/Clear the start date to count them/)).toBeInTheDocument();
+  });
+
+  it("gives no starting-count hint without a start date or an excluded balance", () => {
+    const { rerender } = render(<GoalProgressBar {...BASE} startDate="2026-01-01" />);
+    expect(screen.queryByText(/starting/)).not.toBeInTheDocument();
+    rerender(<GoalProgressBar {...BASE} excludedStartingBalance={20000} />);
+    expect(screen.queryByText(/aren't counted/)).not.toBeInTheDocument();
+  });
+
   it("adds no explanation for a plain goal", () => {
     render(<GoalProgressBar {...BASE} />);
     expect(screen.queryByText(/Counts progress/)).not.toBeInTheDocument();

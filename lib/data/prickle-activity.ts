@@ -157,6 +157,18 @@ export interface PrickleActivityRepository {
   releaseDm(prickleId: string, memberId: string, kind: CheckinDmKind): Promise<void>;
   /** `${memberId}:${prickleId}` for every member already claimed for a DM of this kind on these prickles. Chunked and paginated. */
   claimedDmPairs(kind: CheckinDmKind, prickleIds: string[]): Promise<Set<string>>;
+  /** Keeps which Slack message the claimed DM became, so a later answer can collapse it and clear its unread badge. A claim that is not there is left alone. */
+  recordDmMessage(prickleId: string, memberId: string, kind: CheckinDmKind, message: DmMessageRef): Promise<void>;
+  /** The claimed DM's Slack message (both null for one sent before it was kept) and whether it was collapsed already; null when no DM is claimed for the pair. */
+  dmMessage(prickleId: string, memberId: string, kind: CheckinDmKind): Promise<{ message: DmMessageRef | null; closedAt: string | null } | null>;
+  /** Notes the DM was collapsed, once: the first call stamps it and answers true, a repeat answers false and changes nothing. */
+  markDmClosed(prickleId: string, memberId: string, kind: CheckinDmKind): Promise<boolean>;
+}
+
+/** A check-in DM's place in Slack: the conversation and the message's timestamp. */
+export interface DmMessageRef {
+  channelId: string;
+  ts: string;
 }
 
 type RawSlot = { id: string; type_id: string; day_of_week: number; start_time_local: string; timezone: string; prickle_types: { name: string } | { name: string }[] | null };
@@ -473,6 +485,43 @@ export class SupabasePrickleActivityRepository implements PrickleActivityReposit
     }
     return pairs;
   }
+
+  async recordDmMessage(prickleId: string, memberId: string, kind: CheckinDmKind, message: DmMessageRef) {
+    const { error } = await this.db
+      .from("prickle_checkin_dm_log")
+      .update({ slack_channel_id: message.channelId, slack_ts: message.ts })
+      .eq("prickle_id", prickleId)
+      .eq("member_id", memberId)
+      .eq("kind", kind);
+    if (error) throw new Error(error.message);
+  }
+
+  async dmMessage(prickleId: string, memberId: string, kind: CheckinDmKind) {
+    const { data, error } = await this.db
+      .from("prickle_checkin_dm_log")
+      .select("slack_channel_id, slack_ts, closed_at")
+      .eq("prickle_id", prickleId)
+      .eq("member_id", memberId)
+      .eq("kind", kind)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) return null;
+    const message = data.slack_channel_id && data.slack_ts ? { channelId: data.slack_channel_id, ts: data.slack_ts } : null;
+    return { message, closedAt: data.closed_at };
+  }
+
+  async markDmClosed(prickleId: string, memberId: string, kind: CheckinDmKind) {
+    const { data, error } = await this.db
+      .from("prickle_checkin_dm_log")
+      .update({ closed_at: new Date().toISOString() })
+      .eq("prickle_id", prickleId)
+      .eq("member_id", memberId)
+      .eq("kind", kind)
+      .is("closed_at", null)
+      .select("id");
+    if (error) throw new Error(error.message);
+    return (data?.length ?? 0) > 0;
+  }
 }
 
 // --- in-memory twin ---
@@ -670,7 +719,7 @@ export class InMemoryPrickleActivityRepository implements PrickleActivityReposit
 
   async claimDm(prickleId: string, memberId: string, kind: CheckinDmKind) {
     if (this.data.checkinDmLog.some((r) => r.prickle_id === prickleId && r.member_id === memberId && r.kind === kind)) return false;
-    this.data.checkinDmLog.push({ id: crypto.randomUUID(), prickle_id: prickleId, member_id: memberId, kind, sent_at: new Date().toISOString() });
+    this.data.checkinDmLog.push({ id: crypto.randomUUID(), prickle_id: prickleId, member_id: memberId, kind, sent_at: new Date().toISOString(), slack_channel_id: null, slack_ts: null, closed_at: null });
     return true;
   }
 
@@ -680,5 +729,27 @@ export class InMemoryPrickleActivityRepository implements PrickleActivityReposit
 
   async claimedDmPairs(kind: CheckinDmKind, prickleIds: string[]) {
     return new Set(this.data.checkinDmLog.filter((r) => r.kind === kind && prickleIds.includes(r.prickle_id)).map((r) => pairKey(r.member_id, r.prickle_id)));
+  }
+
+  private dmRow(prickleId: string, memberId: string, kind: CheckinDmKind) {
+    return this.data.checkinDmLog.find((r) => r.prickle_id === prickleId && r.member_id === memberId && r.kind === kind);
+  }
+
+  async recordDmMessage(prickleId: string, memberId: string, kind: CheckinDmKind, message: DmMessageRef) {
+    const row = this.dmRow(prickleId, memberId, kind);
+    if (row) Object.assign(row, { slack_channel_id: message.channelId, slack_ts: message.ts });
+  }
+
+  async dmMessage(prickleId: string, memberId: string, kind: CheckinDmKind) {
+    const row = this.dmRow(prickleId, memberId, kind);
+    if (!row) return null;
+    return { message: row.slack_channel_id && row.slack_ts ? { channelId: row.slack_channel_id, ts: row.slack_ts } : null, closedAt: row.closed_at };
+  }
+
+  async markDmClosed(prickleId: string, memberId: string, kind: CheckinDmKind) {
+    const row = this.dmRow(prickleId, memberId, kind);
+    if (!row || row.closed_at) return false;
+    row.closed_at = new Date().toISOString();
+    return true;
   }
 }

@@ -1,7 +1,7 @@
 // Fetches every row from a Bronze-schema table, paginating past Supabase's
 // default 1000-row cap (5000 locally, per supabase/config.toml's [api] block)
 // so large tables (e.g. kajabi_contacts, kajabi_purchases, stripe_customers)
-// don't get silently truncated. See CLAUDE.md "Database Query Limits".
+// don't get silently truncated. See .claude/rules/api-routes-and-queries.md "Database Query Limits".
 //
 // Shared by app/api/process/members/route.ts and lib/kajabi/membership-history.ts
 // so every Bronze read used to build a member's profile goes through the same

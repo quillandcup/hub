@@ -28,6 +28,8 @@ import MarkCompleteButton from "../../../MarkCompleteButton";
 import NextLessonPreview from "../../../NextLessonPreview";
 import { createRepos } from "@/lib/data/repos";
 import CommentThread from "@/components/courses/CommentThread";
+import { resolveLessonCommentNotifications } from "@/lib/courses/comment-notifications";
+import { countUnread } from "@/lib/courses/comments";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { isValidTimeZone } from "@/lib/time-zone";
 import { ORG_TIMEZONE } from "@/lib/config";
@@ -139,13 +141,27 @@ export default async function LessonPage({
   // Comments (flag `lesson_comments`): only on a lesson members can open, never on a staff preview of one that is not.
   let comments: React.ReactNode = null;
   if (!preview && (await effectiveMemberHasFeature("lesson_comments", caller.identity, await getUserFeaturePreviews(caller.userId)))) {
-    const [thread, timezonePreference] = await Promise.all([repos.courseComments.threadFor(lesson.id), getUserTimezonePreference()]);
+    const [thread, timezonePreference, following] = await Promise.all([
+      repos.courseComments.threadFor(lesson.id, { memberId: caller.identity.memberId, isStaff: caller.scope.isAdminActing }),
+      getUserTimezonePreference(),
+      repos.courseComments.isFollowing(caller.identity.memberId, lesson.id),
+    ]);
+    // Opening the thread is reading it (never in sudo, which is read-only): "N new" counts what came since the last visit, and the
+    // thread's in-app notifications are marked read.
+    let unread = 0;
+    if (!caller.identity.isSudo) {
+      const previous = await repos.courseComments.markRead(caller.identity.memberId, lesson.id, new Date(clock.now()).toISOString());
+      unread = countUnread(thread.entries, caller.identity.memberId, previous);
+      await resolveLessonCommentNotifications(repos, caller.identity.memberId, lesson.id);
+    }
     comments = (
       <CommentThread
         lessonId={lesson.id}
         courseId={view.course.id}
         entries={thread.entries}
         count={thread.count}
+        following={following}
+        unread={unread}
         currentMemberId={caller.identity.memberId}
         isStaff={caller.scope.isAdminActing}
         readOnly={caller.identity.isSudo}
