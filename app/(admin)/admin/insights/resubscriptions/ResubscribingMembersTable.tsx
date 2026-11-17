@@ -7,6 +7,7 @@ import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
 import type { ResubscribingMember } from "@/lib/resubscription-data";
 import { formatGapLabel } from "@/lib/resubscription-detection";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", {
@@ -98,6 +99,7 @@ export default function ResubscribingMembersTable({ members }: { members: Resubs
 
   return (
     <div className="overflow-x-auto">
+    <TableKeyboardNav table={table} label="Members">
       <table className="w-full text-sm">
         <thead className="bg-slate-50 dark:bg-slate-800/50">
           <tr className="border-b border-slate-100 dark:border-slate-800">
@@ -129,6 +131,7 @@ export default function ResubscribingMembersTable({ members }: { members: Resubs
         </tbody>
       </table>
       <DataTablePager table={table} itemLabel="members" />
+    </TableKeyboardNav>
     </div>
   );
 }

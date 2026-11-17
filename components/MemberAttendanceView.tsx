@@ -12,6 +12,7 @@ import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
 import { ORG_TIMEZONE } from "@/lib/config";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
 
 type SortColumn = "type" | "date" | "time" | "duration" | "host";
 
@@ -184,6 +185,7 @@ export default function MemberAttendanceView({
         <div className="p-6">
           {view === "list" ? (
             <div className="overflow-x-auto -mx-6">
+              <TableKeyboardNav table={table} label="Attendances">
               <table className="w-full">
                 <thead className="bg-slate-50 dark:bg-slate-800">
                   <tr>
@@ -231,6 +233,7 @@ export default function MemberAttendanceView({
                     return (
                       <tr
                         key={record.id}
+                        data-row-primary
                         className="hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
                         onClick={() => router.push(`${prickleBasePath}/${prickle.id}`)}
                       >
@@ -268,6 +271,7 @@ export default function MemberAttendanceView({
                 </tbody>
               </table>
               <DataTablePager table={table} itemLabel="attendances" />
+              </TableKeyboardNav>
             </div>
           ) : (
             <div className="space-y-6">

@@ -88,6 +88,20 @@ It sits in the footer with [Privacy](/privacy) and [Compliance](/compliance).`,
 You'll find it in the footer, next to Privacy.`,
   },
   {
+    slug: "table-keyboard-navigation",
+    date: "2026-11-17",
+    audience: "engineering",
+    category: "new",
+    title: "Keyboard row navigation for tables",
+    summary: "Wrap a table and its pager in TableKeyboardNav and it answers j/k, arrows, Enter, Space and the page keys, with no key code of its own.",
+    body: `Tables are navigated from the keyboard by \`components/TableKeyboardNav.tsx\` (logic in \`lib/hooks/useTableKeyboardNav.ts\`), driven from the DOM, so a table adopts it by wrapping its markup and pager, not by writing handlers.
+
+- **Rows opt in by what they hold.** A link, or an element (or the row) marked \`data-row-primary\`, is what Enter opens; a checkbox is what Space toggles, and Shift+j/k extends the range. A row with one full-width cell, or marked \`data-kbd-skip\`, is not a row.
+- **Focus model.** The region is one tab stop with a highlighted row (\`aria-activedescendant\`, a live announcement). With one table on the page and nothing focused, j/k start it Gmail style. The highlight returns to the first row on a page or sort change.
+- **Stays out of the way.** Single letters are ignored while typing, with a dialog, menu or open combobox, and with Ctrl/Cmd/Alt held (\`lib/keyboard.ts\`, shared with the calendar's keys). A page with its own single-key shortcuts declares \`data-page-keys\`.
+- **For the shortcut panel.** \`TABLE_KEYBOARD_SHORTCUTS\` lists the keys and labels. Hints use \`Kbd\`. Tables not yet wrapped are in \`docs/TODO.md\`.`,
+  },
+  {
     slug: "kbd-shortcut-hints",
     date: "2026-11-17",
     audience: "engineering",

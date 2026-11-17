@@ -1,5 +1,7 @@
 "use client";
 
+import Kbd from "@/components/Kbd";
+import { useTablePageKeysHint } from "@/components/TableKeyboardNav";
 import { PAGE_SIZE_OPTIONS, pageBounds } from "@/lib/pagination";
 
 interface PaginationProps {
@@ -29,6 +31,7 @@ export function Pagination({
   pageSizeOptions = PAGE_SIZE_OPTIONS,
   itemLabel = "rows",
 }: PaginationProps) {
+  const pageKeys = useTablePageKeysHint();
   const smallestSize = Math.min(pageSize, ...pageSizeOptions);
   if (total <= smallestSize) return null;
 
@@ -65,8 +68,10 @@ export function Pagination({
           className={BUTTON_CLASS}
           onClick={() => onPageChange(bounds.page - 1)}
           disabled={bounds.page <= 1}
+          aria-keyshortcuts={pageKeys ? "[" : undefined}
         >
           ← Prev
+          {pageKeys && <Kbd keys={["["]} className="ml-1.5 align-middle" />}
         </button>
         <span aria-current="page">
           Page {bounds.page} of {bounds.pageCount}
@@ -76,8 +81,10 @@ export function Pagination({
           className={BUTTON_CLASS}
           onClick={() => onPageChange(bounds.page + 1)}
           disabled={bounds.page >= bounds.pageCount}
+          aria-keyshortcuts={pageKeys ? "]" : undefined}
         >
           Next →
+          {pageKeys && <Kbd keys={["]"]} className="ml-1.5 align-middle" />}
         </button>
       </div>
     </nav>

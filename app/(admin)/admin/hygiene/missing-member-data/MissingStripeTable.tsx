@@ -6,6 +6,7 @@ import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
 
 export interface MissingStripeRow {
   id: string;
@@ -46,6 +47,7 @@ export default function MissingStripeTable({ rows }: { rows: MissingStripeRow[] 
 
   return (
     <div className="overflow-x-auto">
+    <TableKeyboardNav table={table} label="Members">
       <table className="w-full">
         <thead className="bg-slate-50 dark:bg-slate-800">
           <tr>
@@ -88,6 +90,7 @@ export default function MissingStripeTable({ rows }: { rows: MissingStripeRow[] 
         </tbody>
       </table>
       <DataTablePager table={table} itemLabel="members" />
+    </TableKeyboardNav>
     </div>
   );
 }

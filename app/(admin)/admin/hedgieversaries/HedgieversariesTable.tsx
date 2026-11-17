@@ -6,6 +6,7 @@ import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
 import { parseDateOnly, milestoneLabel } from "@/lib/member-tenure";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
 
 export interface HedgieversaryRow {
   id: string;
@@ -62,6 +63,7 @@ export default function HedgieversariesTable({ rows, asOf }: { rows: Hedgieversa
 
   return (
     <div className="overflow-x-auto">
+    <TableKeyboardNav table={table} label="Members">
       <table className="w-full">
         <thead className="bg-slate-50 dark:bg-slate-800">
           <tr>
@@ -149,6 +151,7 @@ export default function HedgieversariesTable({ rows, asOf }: { rows: Hedgieversa
         </tbody>
       </table>
       <DataTablePager table={table} itemLabel="members" />
+    </TableKeyboardNav>
       {rows.length === 0 && (
         <div className="p-12 text-center text-slate-600 dark:text-slate-400">No members to show yet.</div>
       )}
