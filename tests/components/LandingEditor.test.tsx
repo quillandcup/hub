@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 
 const mocks = vi.hoisted(() => ({
@@ -68,6 +68,12 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
 });
+
+/** Answers the confirm dialog that is open (the topmost one), by its button. */
+const answer = (name: string) =>
+  act(async () => {
+    fireEvent.click(within(screen.getAllByRole("dialog").at(-1)!).getByRole("button", { name }));
+  });
 
 const edit = (text: string) => act(() => mocks.change!({ content: [{ ...heading, props: { ...heading.props, text } }], root: {} }));
 
@@ -214,12 +220,19 @@ describe("publishing", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Fix these before publishing.");
   });
 
-  it("takes a published page down after confirming", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
+  it("takes a published page down only after confirming", async () => {
     editor({ status: "published", publishedJson: JSON.stringify(data) });
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Unpublish" }));
     });
+    expect(screen.getByRole("heading", { name: "Take this page down?" })).toBeInTheDocument();
+    await answer("Cancel");
+    expect(mocks.unpublish).not.toHaveBeenCalled();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Unpublish" }));
+    });
+    await answer("Unpublish");
     expect(mocks.unpublish).toHaveBeenCalledWith(page.id);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
@@ -253,23 +266,24 @@ describe("reset to published", () => {
   });
 
   it("does nothing unless confirmed", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(false);
     editor(publishedPage);
     edit("Welcome back");
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Reset to published" }));
     });
+    expect(screen.getByRole("heading", { name: "Reset to published?" })).toBeInTheDocument();
+    await answer("Cancel");
     expect(mocks.reset).not.toHaveBeenCalled();
     expect(reload).not.toHaveBeenCalled();
   });
 
   it("resets the draft, stops the pending autosave and reloads the editor", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     editor(publishedPage);
     edit("Welcome back");
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Reset to published" }));
     });
+    await answer("Reset to published");
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5000);
     });
@@ -279,13 +293,13 @@ describe("reset to published", () => {
   });
 
   it("shows why it failed and does not reload", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     mocks.reset.mockResolvedValue({ error: "Couldn't reset the draft." });
     editor(publishedPage);
     edit("Welcome back");
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Reset to published" }));
     });
+    await answer("Reset to published");
     expect(screen.getByRole("alert")).toHaveTextContent("Couldn't reset the draft.");
     expect(reload).not.toHaveBeenCalled();
   });
@@ -293,13 +307,18 @@ describe("reset to published", () => {
 
 describe("history and details", () => {
   it("lists the versions kept at each publish and brings one back after confirming", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     mocks.restore.mockResolvedValue({ error: "That version no longer exists." });
     editor({}, [{ id: "lpgv_AAAAAAAAAAA1", title: "Spring sprint", createdAt: "2027-01-01T00:00:00Z" }]);
     fireEvent.click(screen.getByRole("button", { name: "History" }));
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Bring back" }));
     });
+    await answer("Cancel");
+    expect(mocks.restore).not.toHaveBeenCalled();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Bring back" }));
+    });
+    await answer("Bring back");
     expect(mocks.restore).toHaveBeenCalledWith("lpgv_AAAAAAAAAAA1");
     expect(screen.getByRole("alert")).toHaveTextContent("That version no longer exists.");
   });
