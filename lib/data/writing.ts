@@ -170,7 +170,8 @@ export type GoalColumns = Pick<
 export type GoalForEdit = Pick<WritingGoalRow, "id" | "project_id" | "member_id" | "goal_type" | "measure" | "target_amount" | "start_date" | "end_date" | "habit_period" | "habit_threshold">;
 
 /** A starred goal with its project's title. */
-export type StarredGoal = GoalColumns & { project_title: string | null };
+/** A starred goal with its project's title (a goal always has a project, and a deleted project's goals are deleted with it). */
+export type StarredGoal = GoalColumns & { project_title: string };
 
 /** An active goal on an active project, for the check-in and check-out DMs. */
 export interface GoalCandidateRow {
@@ -211,8 +212,8 @@ export interface WritingRepository {
   coverAssetOf(memberId: string, projectId: string): Promise<string | null>;
   /** How many goals the member has set (archived ones included). */
   goalCount(memberId: string): Promise<number>;
-  /** The measure of each goal that isn't archived, with its project (a goal can be project-less). */
-  activeGoalMeasures(memberId: string): Promise<{ project_id: string | null; measure: string }[]>;
+  /** The measure of each goal that isn't archived, with its project. */
+  activeGoalMeasures(memberId: string): Promise<{ project_id: string; measure: string }[]>;
   /** The measures of the member's latest entries, newest first, `limit` of them (repeats kept), optionally one project's. */
   recentEntryMeasures(memberId: string, limit: number, options?: { projectId?: string }): Promise<{ project_id: string; measure: string }[]>;
   /** The member's entries by date, with their project's title, optionally one project's. */
@@ -463,7 +464,7 @@ export class SupabaseWritingRepository implements WritingRepository {
     return (data ?? [])
       .map(({ project, sort_position, ...goal }) => {
         const p = Array.isArray(project) ? project[0] : project;
-        return { goal: { ...goal, project_title: p?.title ?? null }, project: { id: goal.project_id ?? "", created_at: p?.created_at ?? "", sort_position: p?.sort_position ?? null }, position: sort_position };
+        return { goal: { ...goal, project_title: p?.title ?? "" }, project: { id: goal.project_id, created_at: p?.created_at ?? "", sort_position: p?.sort_position ?? null }, position: sort_position };
       })
       .sort((a, b) => compareProjectOrder(a.project, b.project) || compareGoalOrder(a.position, b.position))
       .map(({ goal }) => goal);
@@ -482,7 +483,7 @@ export class SupabaseWritingRepository implements WritingRepository {
       if (error) throw new Error(error.message);
       for (const g of data ?? []) {
         const p = Array.isArray(g.writing_projects) ? g.writing_projects[0] : g.writing_projects;
-        out.push({ goal_id: g.id, member_id: g.member_id, project_id: g.project_id as string, project_title: p?.title ?? null, measure: g.measure });
+        out.push({ goal_id: g.id, member_id: g.member_id, project_id: g.project_id, project_title: p?.title ?? null, measure: g.measure });
       }
       if ((data?.length ?? 0) < GOAL_PAGE) return out;
     }
@@ -927,7 +928,7 @@ export class InMemoryWritingRepository implements WritingRepository {
     this.data.writingGoals.push({
       id,
       member_id: goal.member_id,
-      project_id: goal.project_id ?? null,
+      project_id: goal.project_id,
       title: goal.title ?? null,
       description: goal.description ?? null,
       external_id: goal.external_id ?? null,
@@ -976,10 +977,10 @@ export class InMemoryWritingRepository implements WritingRepository {
       .map((goal) => ({ goal, project: projectOf(goal) }))
       .sort(
         (a, b) =>
-          compareProjectOrder({ id: a.goal.project_id ?? "", created_at: a.project?.created_at ?? "", sort_position: a.project?.sort_position ?? null }, { id: b.goal.project_id ?? "", created_at: b.project?.created_at ?? "", sort_position: b.project?.sort_position ?? null }) ||
+          compareProjectOrder({ id: a.goal.project_id, created_at: a.project?.created_at ?? "", sort_position: a.project?.sort_position ?? null }, { id: b.goal.project_id, created_at: b.project?.created_at ?? "", sort_position: b.project?.sort_position ?? null }) ||
           compareGoalOrder(a.goal.sort_position, b.goal.sort_position)
       )
-      .map(({ goal: g, project }) => ({ ...goalColumns(g), project_title: project?.title ?? null }));
+      .map(({ goal: g, project }) => ({ ...goalColumns(g), project_title: project?.title ?? "" }));
   }
 
   async activeGoalCandidates() {
@@ -1317,7 +1318,7 @@ export class InMemoryWritingRepository implements WritingRepository {
       this.data.writingGoals.push({
         id: this.newId("wgol"),
         member_id: r.member_id,
-        project_id: r.project_id ?? null,
+        project_id: r.project_id,
         goal_type: r.goal_type ?? "target",
         measure: r.measure,
         target_amount: r.target_amount ?? null,

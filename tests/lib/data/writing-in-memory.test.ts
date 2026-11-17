@@ -41,7 +41,7 @@ defineWritingContract("InMemoryWritingRepository", () => {
       data.writingGoals = goals.map((g) => ({
         id: `wgol_${++n}`,
         member_id: memberIds[g.member],
-        project_id: g.project ? ids[g.project] : null,
+        project_id: ids[g.project],
         title: null,
         description: null,
         external_id: null,

@@ -129,19 +129,14 @@ export default async function DashboardPage() {
           </h2>
           <div className="space-y-6">
             {groupConsecutiveByProject(starredGoals).map((group, index) => (
-              <div key={`${group.projectId ?? "none"}-${index}`}>
-                {group.projectId ? (
-                  <Link
-                    href={`/projects/${group.projectId}`}
-                    data-track="dashboard-goal-project"
-                    className="text-lg font-semibold text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400"
-                  >
-                    {group.projectTitle}
-                  </Link>
-                ) : (
-                  // A goal with no project has nowhere to link to.
-                  <span className="text-lg font-semibold text-slate-900 dark:text-slate-100">{group.projectTitle}</span>
-                )}
+              <div key={`${group.projectId}-${index}`}>
+                <Link
+                  href={`/projects/${group.projectId}`}
+                  data-track="dashboard-goal-project"
+                  className="text-lg font-semibold text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400"
+                >
+                  {group.projectTitle}
+                </Link>
                 <div className="mt-1 space-y-3">
                   {group.goals.map((goal) => (
                     <GoalDisplay key={goal.id} goal={goal} />

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { groupConsecutiveByProject } from "@/lib/group-goals-by-project";
 
-const goal = (id: string, projectId: string | null, projectTitle = "Untitled project") => ({ id, projectId, projectTitle });
+const goal = (id: string, projectId: string, projectTitle = "Project") => ({ id, projectId, projectTitle });
 
 describe("groupConsecutiveByProject", () => {
   it("has no groups for no goals", () => {
@@ -23,14 +23,6 @@ describe("groupConsecutiveByProject", () => {
   it("never re-sorts: the same project twice, apart, stays two groups in the order given", () => {
     const groups = groupConsecutiveByProject([goal("g1", "p1", "Novel"), goal("g2", "p2", "Essays"), goal("g3", "p1", "Novel")]);
     expect(groups.map((g) => g.goals.map((x) => x.id))).toEqual([["g1"], ["g2"], ["g3"]]);
-  });
-
-  it("groups goals with no project together, apart from any project", () => {
-    const groups = groupConsecutiveByProject([goal("g1", null), goal("g2", null), goal("g3", "p1", "Novel")]);
-    expect(groups.map((g) => [g.projectId, g.goals.map((x) => x.id)])).toEqual([
-      [null, ["g1", "g2"]],
-      ["p1", ["g3"]],
-    ]);
   });
 
   it("doesn't change the list it was given", () => {
