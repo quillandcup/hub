@@ -1,6 +1,8 @@
-/** Draft or Published: the one chip the list and the editor share. */
-export default function StatusChip({ status }: { status: string }) {
-  const published = status === "published";
+/**
+ * Draft or Published: THE pill for whether members (or the public) can open something, the same in every list and header
+ * (landing pages, courses). It says "Published" or "Draft" and nothing else; reasons live next to it, in text.
+ */
+export default function LifecycleStatusChip({ published }: { published: boolean }) {
   return (
     <span
       className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${

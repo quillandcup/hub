@@ -83,7 +83,7 @@ describe("the pages list", () => {
   it("duplicates a page and opens the copy", async () => {
     render(<PagesTable pages={[row({})]} publicBase="" />);
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Duplicate" }));
+      fireEvent.click(screen.getByRole("button", { name: "Duplicate page" }));
     });
     expect(mocks.duplicate).toHaveBeenCalledWith("lpg_AAAAAAAAAAA1");
     expect(mocks.push).toHaveBeenCalledWith("/admin/pages/spring-copy");
@@ -97,7 +97,7 @@ describe("the pages list", () => {
       });
     const askToDelete = async () =>
       act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+        fireEvent.click(screen.getByRole("button", { name: "Delete page" }));
       });
 
     await askToDelete();

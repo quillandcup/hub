@@ -3,15 +3,16 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useConfirm } from "@/components/ConfirmDialog";
 import Icon, { type IconName } from "@/components/Icon";
+import LifecycleButton from "@/components/LifecycleButton";
+import LifecycleStatusChip from "@/components/LifecycleStatusChip";
 import { DataTablePager } from "@/components/DataTablePager";
 import { DataTableSearch } from "@/components/DataTableSearch";
 import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
+import { lifecycleIcon, lifecycleLabel } from "@/lib/lifecycle-actions";
 import type { LandingPageSummary } from "@/lib/data/landing-pages";
 import { deleteLandingPage, duplicateLandingPage } from "./actions";
-import StatusChip from "./StatusChip";
 
 type Column = "title" | "status" | "updated";
 
@@ -29,7 +30,6 @@ function Glyph({ name, label }: { name: IconName; label: string }) {
 export default function PagesTable({ pages, publicBase }: { pages: LandingPageSummary[]; publicBase: string }) {
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
-  const { ask, dialog } = useConfirm();
   const [pending, startTransition] = useTransition();
   const table = useDataTable<LandingPageSummary, Column>({
     rows: pages,
@@ -90,7 +90,7 @@ export default function PagesTable({ pages, publicBase }: { pages: LandingPageSu
                     <span className="block text-xs text-slate-600 dark:text-slate-400">/p/{p.slug}</span>
                   </td>
                   <td className="px-6 py-3">
-                    <StatusChip status={p.status} />
+                    <LifecycleStatusChip published={p.status === "published"} />
                   </td>
                   <td className="px-6 py-3 text-slate-600 dark:text-slate-400">
                     <time dateTime={p.updated_at}>{new Date(p.updated_at).toLocaleString()}</time>
@@ -99,34 +99,32 @@ export default function PagesTable({ pages, publicBase }: { pages: LandingPageSu
                     <Link href={`/admin/pages/${p.slug}`} className={ACTION} title="Customize">
                       <Glyph name="edit" label="Customize" />
                     </Link>
-                    <Link href={`/admin/pages/${p.slug}/preview`} className={ACTION} title="Preview">
-                      <Glyph name="eye" label="Preview" />
+                    <Link href={`/admin/pages/${p.slug}/preview`} className={ACTION} title={lifecycleLabel("preview")}>
+                      <Glyph name={lifecycleIcon("preview")} label={lifecycleLabel("preview")} />
                     </Link>
                     {p.status === "published" && (
                       <button type="button" onClick={() => void copyLink(p.slug)} className={ACTION} title="Copy link">
                         <Glyph name="link" label="Copy link" />
                       </button>
                     )}
-                    <button type="button" disabled={pending} onClick={() => run(() => duplicateLandingPage(p.id), (slug) => router.push(`/admin/pages/${slug}`))} className={ACTION} title="Duplicate">
-                      <Glyph name="copy" label="Duplicate" />
-                    </button>
-                    <button
-                      type="button"
+                    <LifecycleButton
+                      action="duplicate"
+                      noun="page"
+                      variant="icon"
                       disabled={pending}
-                      onClick={async () => {
-                        const ok = await ask({
-                          title: "Delete page?",
-                          body: `“${p.title}” will be deleted.${p.status === "published" ? " It disappears from the public site." : ""}`,
-                          confirmLabel: "Delete page",
-                          tone: "danger",
-                        });
-                        if (ok) run(() => deleteLandingPage(p.id));
-                      }}
+                      onRun={() => run(() => duplicateLandingPage(p.id), (slug) => router.push(`/admin/pages/${slug}`))}
                       className={ACTION}
-                      title="Delete"
-                    >
-                      <Glyph name="trash" label="Delete" />
-                    </button>
+                    />
+                    <LifecycleButton
+                      action="delete"
+                      noun="page"
+                      title={p.title}
+                      detail={p.status === "published" ? "It disappears from the public site." : undefined}
+                      variant="icon"
+                      disabled={pending}
+                      onRun={() => run(() => deleteLandingPage(p.id))}
+                      className={ACTION}
+                    />
                   </td>
                 </tr>
               ))}
@@ -135,7 +133,6 @@ export default function PagesTable({ pages, publicBase }: { pages: LandingPageSu
         </div>
       )}
       <DataTablePager table={table} itemLabel="pages" />
-      {dialog}
     </div>
   );
 }

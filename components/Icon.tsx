@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, Copy, Equal, Eye, Folder, GripVertical, Link, MessageSquare, Pencil, Plus, RotateCcw, TextCursorInput, Trash2, Video, type LucideIcon } from "lucide-react";
+import { ChevronDown, ChevronUp, Copy, Equal, Eye, EyeOff, Folder, Globe, GripVertical, History, Link, MessageSquare, Pencil, Plus, RotateCcw, TextCursorInput, Trash2, Video, type LucideIcon } from "lucide-react";
 
 /**
  * THE icon set: one name per meaning, drawn by `lucide-react`. Every admin list, builder and editor uses the same icon for
@@ -28,6 +28,12 @@ export const ICONS = {
   down: ChevronDown,
   /** Throw the draft away and start over from what is published. Not `undo`: that one steps back one edit. */
   reset: RotateCcw,
+  /** Make it available to members or the public. */
+  publish: Globe,
+  /** Take it back down. */
+  unpublish: EyeOff,
+  /** Earlier versions of something. */
+  history: History,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;
