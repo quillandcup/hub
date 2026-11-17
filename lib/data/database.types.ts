@@ -7227,6 +7227,7 @@ export type Database = {
           member_id: string
           project_id: string | null
           show_on_profile: boolean
+          sort_position: number | null
           start_date: string | null
           target_amount: number | null
           title: string | null
@@ -7247,6 +7248,7 @@ export type Database = {
           member_id: string
           project_id?: string | null
           show_on_profile?: boolean
+          sort_position?: number | null
           start_date?: string | null
           target_amount?: number | null
           title?: string | null
@@ -7267,6 +7269,7 @@ export type Database = {
           member_id?: string
           project_id?: string | null
           show_on_profile?: boolean
+          sort_position?: number | null
           start_date?: string | null
           target_amount?: number | null
           title?: string | null
@@ -8707,6 +8710,10 @@ export type Database = {
           p_kind: string
           p_parent_id: string
         }
+        Returns: undefined
+      }
+      reorder_writing_goals: {
+        Args: { p_ids: string[]; p_member_id: string; p_project_id: string }
         Returns: undefined
       }
       reorder_writing_projects: {

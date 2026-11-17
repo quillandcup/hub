@@ -420,3 +420,16 @@ export function compareProjectOrder(
   if (a.created_at !== b.created_at) return a.created_at < b.created_at ? 1 : -1;
   return a.id === b.id ? 0 : a.id < b.id ? 1 : -1;
 }
+
+/**
+ * The order of a project's goals: the ones the member placed by `sort_position`, then the ones never placed (their order
+ * before this existed, by id, which the caller applies as the tie-break). The database sorts the same way (`projectGoals`).
+ */
+export function compareGoalOrder(a: number | null | undefined, b: number | null | undefined): number {
+  const pa = a ?? null;
+  const pb = b ?? null;
+  if (pa === pb) return 0;
+  if (pa === null) return 1;
+  if (pb === null) return -1;
+  return pa - pb;
+}

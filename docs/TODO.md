@@ -1657,6 +1657,9 @@ Track external competitions (awards, contests, anthologies, showcases) that memb
 - Member removal (`remove_member_data`) deletes the override row, so the copy in `member-photos` (`<member id>/<hash>.webp`) is left behind: add that bucket to the files it returns next to the media library and feedback ones (`supabase/migrations/20270412000000_remove_member_data_paths_by_bucket.sql`, then the code that deletes them).
 - A member-facing "upload my own photo" setting does not exist; when it does, it should write `photo_path` the same way, so the one mechanism covers both.
 
+### Profile goals follow the member's goal order
+Members can now put a project's goals in their own order (`writing_goals.sort_position`, `reorder_writing_goals`), and the project page and the dashboard's starred goals follow it. The profile's goals (`get_profile_writing`, `jsonb_agg` over `shown_goals`) have no `ORDER BY` today, so they show in whatever order the database returns, and the member directory doesn't list goals. Deferred because it means redefining that large SQL function in a new migration for a small gain. To do it: order `shown_goals` by the project's `sort_position` (nulls first, newest first), then the goal's `sort_position` (nulls last), then id, and check `components` that render the profile goals keep that order.
+
 ### Public Pen Names ("Also writes as …") _(Idea)_
 Let members choose which of their alternate names show on their public profile. Today the only public name is `members.display_name` (the "default pen name", used as the profile heading via `getMemberDisplayName`). Other pen names live in `member_name_aliases`, mixed in with internal Zoom/Slack matching names that can include typos or legal names, and RLS only lets a member read their own aliases (`20260831180000_add_alias_self_service.sql`) — so they can't be shown to other members as-is.
 

@@ -56,6 +56,22 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "reorder-your-goals",
+    date: "2026-11-17",
+    audience: "product",
+    category: "new",
+    title: "Put a project's goals in the order you like",
+    summary: "On a project's page, drag a goal into the order you want, or use its Move up and Move down buttons. The goals you star on your dashboard follow that order too.",
+    body: `A project's goals no longer have to stay in the order you first made them. Put the one you care about most at the top.
+
+- **Drag to move.** Each goal has a handle on its left. Press it and drag the goal where you want it, with a mouse or your finger. Swiping anywhere else still scrolls the page.
+- **Prefer buttons?** Every goal also has **Move up** and **Move down** buttons. On a keyboard, select the handle, press Space, use the arrow keys, then press Space again.
+- **Your dashboard shows them in this order.** Starred goals in **Writing Goals** stay grouped by project, in your project order, and within each project follow the order you chose.
+- **Nothing changes until you move a goal.** After that, goals you add go to the bottom of the list.
+
+Find your projects on [your Projects page](/projects). Reordering needs two or more goals in a project.`,
+  },
+  {
     slug: "goal-start-date-starting-count-note",
     date: "2026-11-16",
     audience: "product",

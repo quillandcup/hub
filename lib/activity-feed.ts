@@ -460,6 +460,11 @@ function specialAuditPhrase(row: ActivityFeedRow): string | null {
     const what = row.entity_type === "course_lesson_order" ? "lessons" : "modules";
     return `reordered the${count} ${what}${row.description ? ` in “${formatValue(row.description)}”` : ""}`;
   }
+  // A member's reorder of the goals in a project is one entry for the list (20270811000000).
+  if (row.entity_type === "writing_goal_order") {
+    const order = fields.order?.new;
+    return Array.isArray(order) ? `reordered the ${order.length} goal${order.length === 1 ? "" : "s"} in a writing project` : "reordered the goals in a writing project";
+  }
   // A member's reorder of their writing projects is one entry for the list (20270808000000).
   if (row.entity_type === "writing_project_order") {
     const order = fields.order?.new;

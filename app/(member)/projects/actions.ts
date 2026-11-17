@@ -626,6 +626,31 @@ async function reorderMyProjectsImpl(orderedIds: string[]): Promise<{ success: t
 }
 
 /**
+ * Saves the order the member put one project's goals in (the dashboard's starred goals follow it within the project).
+ * One database statement; ids that aren't that project's live, unarchived goals of theirs are ignored there.
+ */
+async function reorderMyGoalsImpl(projectId: string, orderedIds: string[]): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  if (typeof projectId !== "string" || !projectId || !Array.isArray(orderedIds) || orderedIds.length > MAX_REORDER || orderedIds.some((id) => typeof id !== "string" || !id)) {
+    return { error: "Invalid goal order" };
+  }
+
+  try {
+    await createRepos(supabase).writing.reorderGoals(effectiveIdentity.memberId, projectId, orderedIds);
+  } catch (error) {
+    return { error: errorMessage(error, "Failed to save the order") };
+  }
+
+  revalidatePath("/projects", "layout");
+  revalidatePath(`/projects/${projectId}`);
+  revalidatePath("/dashboard");
+  return { success: true };
+}
+
+/**
  * Deletes a project, with its goals and entries. A soft delete: nothing shows it to the member or
  * anyone else and it counts toward nothing, but the row stays until they ask us to remove it
  * (/privacy). A book published from it stays on the bookshelf.
@@ -1553,6 +1578,10 @@ export async function updateProjectCover(...args: Parameters<typeof updateProjec
 
 export async function setStartingBalances(...args: Parameters<typeof setStartingBalancesImpl>): ReturnType<typeof setStartingBalancesImpl> {
   return withAction("starting_balances_saved", () => setStartingBalancesImpl(...args));
+}
+
+export async function reorderMyGoals(...args: Parameters<typeof reorderMyGoalsImpl>): ReturnType<typeof reorderMyGoalsImpl> {
+  return withAction("goals_reordered", () => reorderMyGoalsImpl(...args));
 }
 
 export async function reorderMyProjects(...args: Parameters<typeof reorderMyProjectsImpl>): ReturnType<typeof reorderMyProjectsImpl> {

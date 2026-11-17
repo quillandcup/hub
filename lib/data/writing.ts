@@ -1,4 +1,4 @@
-import { PAST_PHASES, compareProjectOrder, isPastPhase } from "@/lib/writing-projects";
+import { PAST_PHASES, compareGoalOrder, compareProjectOrder, isPastPhase } from "@/lib/writing-projects";
 import { fetchAllRows } from "@/lib/supabase/paginate";
 import type { Db, Insert, Row, Update } from "./db";
 import { inChunks } from "./query";
@@ -7,7 +7,7 @@ import type { InMemoryDataset } from "./in-memory";
 /** Stored rows, as the database has them; the twin keeps these. */
 // `deleted_at` is optional on the twin's rows so a fixture that predates soft delete still reads as live.
 export type WritingProjectRow = Omit<Row<"writing_projects">, "deleted_at" | "sort_position"> & { deleted_at?: string | null; sort_position?: number | null };
-export type WritingGoalRow = Omit<Row<"writing_goals">, "deleted_at"> & { deleted_at?: string | null };
+export type WritingGoalRow = Omit<Row<"writing_goals">, "deleted_at" | "sort_position"> & { deleted_at?: string | null; sort_position?: number | null };
 export type WritingEntryRow = Omit<Row<"writing_progress_entries">, "deleted_at"> & { deleted_at?: string | null };
 export type WritingBalanceRow = Row<"writing_project_starting_balances">;
 
@@ -267,7 +267,7 @@ export interface WritingRepository {
   projectSummary(memberId: string, projectId: string): Promise<ProjectSummary | null>;
   /** One project's entries, newest date first, each with the prickle it was logged against (type and host joined). */
   projectEntriesWithPrickles(memberId: string, projectId: string): Promise<ProjectEntryDetail[]>;
-  /** The member's goals that aren't archived, optionally one project's. */
+  /** The member's goals that aren't archived, optionally one project's, in the member's own order within a project (`compareGoalOrder`). */
   projectGoals(memberId: string, projectId?: string): Promise<ProjectGoal[]>;
   /** The member's starting balances, optionally one project's. */
   startingBalances(memberId: string, projectId?: string): Promise<StartingBalance[]>;
@@ -277,6 +277,12 @@ export interface WritingRepository {
    * list again changes nothing.
    */
   reorderProjects(memberId: string, orderedIds: string[]): Promise<void>;
+  /**
+   * Puts the given goals of one project in the given order, in one statement. Ids that aren't the member's live,
+   * unarchived goals of that project are ignored, goals not in the list keep their place, and the same list again
+   * changes nothing.
+   */
+  reorderGoals(memberId: string, projectId: string, orderedIds: string[]): Promise<void>;
   /** Creates a project and returns its id. */
   createProject(memberId: string, title: string, phase: string): Promise<string>;
   /** Changes the given fields of the member's project (a project that isn't theirs, or is deleted, is left alone). */
@@ -444,7 +450,7 @@ export class SupabaseWritingRepository implements WritingRepository {
   async starredGoals(memberId: string): Promise<StarredGoal[]> {
     const { data, error } = await this.db
       .from("writing_goals")
-      .select(`${GOAL_COLUMNS}, project:writing_projects(title, created_at, sort_position)`)
+      .select(`${GOAL_COLUMNS}, sort_position, project:writing_projects(title, created_at, sort_position)`)
       .eq("member_id", memberId)
       .eq("is_starred", true)
       .is("archived_at", null)
@@ -452,13 +458,14 @@ export class SupabaseWritingRepository implements WritingRepository {
       .order("created_at", { ascending: true })
       .order("id", { ascending: true });
     if (error) throw new Error(error.message);
-    // The member's few starred goals follow their projects' order (the sort is stable, so within a project they stay oldest first).
+    // The member's few starred goals follow their projects' order, then the order of the goals in their project
+    // (the sort is stable, so goals that were never placed stay oldest first).
     return (data ?? [])
-      .map(({ project, ...goal }) => {
+      .map(({ project, sort_position, ...goal }) => {
         const p = Array.isArray(project) ? project[0] : project;
-        return { goal: { ...goal, project_title: p?.title ?? null }, order: { id: goal.project_id ?? "", created_at: p?.created_at ?? "", sort_position: p?.sort_position ?? null } };
+        return { goal: { ...goal, project_title: p?.title ?? null }, project: { id: goal.project_id ?? "", created_at: p?.created_at ?? "", sort_position: p?.sort_position ?? null }, position: sort_position };
       })
-      .sort((a, b) => compareProjectOrder(a.order, b.order))
+      .sort((a, b) => compareProjectOrder(a.project, b.project) || compareGoalOrder(a.position, b.position))
       .map(({ goal }) => goal);
   }
 
@@ -591,6 +598,11 @@ export class SupabaseWritingRepository implements WritingRepository {
     if (error) throw new Error(error.message);
   }
 
+  async reorderGoals(memberId: string, projectId: string, orderedIds: string[]): Promise<void> {
+    const { error } = await this.db.rpc("reorder_writing_goals", { p_member_id: memberId, p_project_id: projectId, p_ids: orderedIds });
+    if (error) throw new Error(error.message);
+  }
+
   async projectSummary(memberId: string, projectId: string): Promise<ProjectSummary | null> {
     const { data, error } = await this.db
       .from("writing_projects")
@@ -627,7 +639,8 @@ export class SupabaseWritingRepository implements WritingRepository {
     return fetchAllRows<ProjectGoal>((from, to) => {
       let query = this.db.from("writing_goals").select(GOAL_COLUMNS).eq("member_id", memberId).is("archived_at", null).is("deleted_at", null);
       if (projectId) query = query.eq("project_id", projectId);
-      return query.order("id").range(from, to);
+      // Placed goals by position, then the ones never placed by id (the order goals always had). The range pages stay stable on the id tie-break.
+      return query.order("sort_position", { ascending: true, nullsFirst: false }).order("id").range(from, to);
     });
   }
 
@@ -961,7 +974,11 @@ export class InMemoryWritingRepository implements WritingRepository {
     const projectOf = (g: WritingGoalRow) => this.data.writingProjects.find((p) => p.id === g.project_id);
     return this.oldestFirst(this.liveGoals().filter((g) => g.member_id === memberId && g.is_starred && !g.archived_at))
       .map((goal) => ({ goal, project: projectOf(goal) }))
-      .sort((a, b) => compareProjectOrder({ id: a.goal.project_id ?? "", created_at: a.project?.created_at ?? "", sort_position: a.project?.sort_position ?? null }, { id: b.goal.project_id ?? "", created_at: b.project?.created_at ?? "", sort_position: b.project?.sort_position ?? null }))
+      .sort(
+        (a, b) =>
+          compareProjectOrder({ id: a.goal.project_id ?? "", created_at: a.project?.created_at ?? "", sort_position: a.project?.sort_position ?? null }, { id: b.goal.project_id ?? "", created_at: b.project?.created_at ?? "", sort_position: b.project?.sort_position ?? null }) ||
+          compareGoalOrder(a.goal.sort_position, b.goal.sort_position)
+      )
       .map(({ goal: g, project }) => ({ ...goalColumns(g), project_title: project?.title ?? null }));
   }
 
@@ -1049,6 +1066,15 @@ export class InMemoryWritingRepository implements WritingRepository {
       .map(summaryOf);
   }
 
+  async reorderGoals(memberId: string, projectId: string, orderedIds: string[]): Promise<void> {
+    const mine = new Map(this.liveGoals().filter((g) => g.member_id === memberId && g.project_id === projectId && !g.archived_at).map((g) => [g.id, g]));
+    [...new Set(orderedIds)]
+      .filter((id) => mine.has(id))
+      .forEach((id, i) => {
+        mine.get(id)!.sort_position = i + 1;
+      });
+  }
+
   async reorderProjects(memberId: string, orderedIds: string[]): Promise<void> {
     const mine = new Map(this.data.writingProjects.filter((p) => p.member_id === memberId && !p.deleted_at).map((p) => [p.id, p]));
     [...new Set(orderedIds)]
@@ -1088,7 +1114,7 @@ export class InMemoryWritingRepository implements WritingRepository {
   async projectGoals(memberId: string, projectId?: string): Promise<ProjectGoal[]> {
     return this.liveGoals()
       .filter((g) => g.member_id === memberId && !g.archived_at && (!projectId || g.project_id === projectId))
-      .sort((a, b) => (a.id < b.id ? -1 : 1))
+      .sort((a, b) => compareGoalOrder(a.sort_position, b.sort_position) || (a.id < b.id ? -1 : 1))
       .map((g) => ({
         id: g.id,
         project_id: g.project_id,
