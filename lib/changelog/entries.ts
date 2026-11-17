@@ -67,6 +67,22 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
 To count your starting words, clear the goal's start date. A goal without one counts everything on the project.`,
   },
   {
+    slug: "reorder-your-projects",
+    date: "2026-11-16",
+    audience: "product",
+    category: "new",
+    title: "Put your writing projects in the order you like",
+    summary: "On your Projects page you can now drag your projects into the order you want, or use the Move up and Move down buttons. The goals you star on your dashboard follow the same order.",
+    body: `Your projects no longer have to stay newest first. Put the one you are working on right now at the top, and the ones you are saving for later below it.
+
+- **Drag the grip.** Each project has a grip on its left. Press it and drag the project to where you want it, with a mouse or your finger. Swiping anywhere else on the card still scrolls the page.
+- **Prefer buttons or the keyboard?** Every project also has **Move up** and **Move down** buttons, and on the grip you can press Space, use the arrow keys, then press Space again.
+- **Your dashboard follows.** The goals you have starred in **Writing Goals** on your dashboard are shown in the same order as their projects, so moving a project moves its goals too.
+- **Nothing changes until you do.** Your projects stay as they are today until you move one. A project you create later appears at the top, and projects you have put on hold are not affected.
+
+Find it on [your Projects page](/projects) once you have two or more projects.`,
+  },
+  {
     slug: "checkin-dm-closes-on-answer",
     date: "2026-11-16",
     audience: "engineering",

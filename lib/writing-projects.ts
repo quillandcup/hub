@@ -401,3 +401,22 @@ export const PAST_PHASES = ["hibernating"] as const satisfies readonly ProjectPh
 export function isPastPhase(phase: string): boolean {
   return (PAST_PHASES as readonly string[]).includes(phase);
 }
+
+/**
+ * The order of a member's projects: the ones they never placed first (newest first, so a new project is at the top as it
+ * always was), then the placed ones by `sort_position`. The database sorts the same way (`projectSummaries`).
+ */
+export function compareProjectOrder(
+  a: { id: string; created_at: string; sort_position?: number | null },
+  b: { id: string; created_at: string; sort_position?: number | null }
+): number {
+  const pa = a.sort_position ?? null;
+  const pb = b.sort_position ?? null;
+  if (pa !== pb) {
+    if (pa === null) return -1;
+    if (pb === null) return 1;
+    return pa - pb;
+  }
+  if (a.created_at !== b.created_at) return a.created_at < b.created_at ? 1 : -1;
+  return a.id === b.id ? 0 : a.id < b.id ? 1 : -1;
+}

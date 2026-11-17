@@ -173,6 +173,8 @@ describe("describeRow", () => {
     expect(describeRow(row({ entity_type: "course_lesson_order", description: "Week 1", data: order }))).toBe("reordered the 4 lessons in “Week 1”");
     expect(describeRow(row({ entity_type: "course_module_order", description: "The Ready Writer", data: order }))).toBe("reordered the 4 modules in “The Ready Writer”");
     expect(describeRow(row({ entity_type: "course_lesson_order", description: null, data: {} }))).toBe("reordered the lessons");
+    expect(describeRow(row({ entity_type: "writing_project_order", data: { order: { old: ["a", "b", "c"], new: ["c", "a", "b"] } } }))).toBe("reordered their 3 writing projects");
+    expect(describeRow(row({ entity_type: "writing_project_order", data: {} }))).toBe("reordered their writing projects");
   });
 
   it("reads staff moderation of a lesson comment as one sentence with the lesson, never text", () => {

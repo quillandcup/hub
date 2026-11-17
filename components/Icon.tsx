@@ -17,6 +17,7 @@ export const ICONS = {
   plus: "M10 4v12M4 10h12",
   chevron: "m5 8 5 5 5-5",
   grip: "M4 7.5h12M4 12.5h12",
+  dots: "M7 5h.01M13 5h.01M7 10h.01M13 10h.01M7 15h.01M13 15h.01",
   up: "m5 12 5-5 5 5",
   down: "m5 8 5 5 5-5",
 };

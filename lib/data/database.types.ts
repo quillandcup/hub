@@ -7406,6 +7406,7 @@ export type Database = {
           member_id: string
           phase: string
           show_on_profile: boolean
+          sort_position: number | null
           title: string
         }
         Insert: {
@@ -7419,6 +7420,7 @@ export type Database = {
           member_id: string
           phase?: string
           show_on_profile?: boolean
+          sort_position?: number | null
           title: string
         }
         Update: {
@@ -7432,6 +7434,7 @@ export type Database = {
           member_id?: string
           phase?: string
           show_on_profile?: boolean
+          sort_position?: number | null
           title?: string
         }
         Relationships: [
@@ -8704,6 +8707,10 @@ export type Database = {
           p_kind: string
           p_parent_id: string
         }
+        Returns: undefined
+      }
+      reorder_writing_projects: {
+        Args: { p_ids: string[]; p_member_id: string }
         Returns: undefined
       }
       reprocess_hub_prickles_atomic: { Args: never; Returns: undefined }

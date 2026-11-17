@@ -402,6 +402,93 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       expect((await ctx.repo().projectSummary(a, ids.gone))?.title).toBe("Shelved");
     });
 
+    it("puts a member's active projects in the order they chose, and leaves the others alone", async () => {
+      const [a, b] = ctx.memberIds;
+      const ids = await ctx.seed({
+        projects: [
+          { key: "old", member: 0, title: "Old", createdAt: "2026-01-01T10:00:00Z" },
+          { key: "mid", member: 0, title: "Mid", createdAt: "2026-02-01T10:00:00Z" },
+          { key: "new", member: 0, title: "New", createdAt: "2026-03-01T10:00:00Z" },
+          { key: "shelved", member: 0, title: "Shelved", phase: "hibernating", createdAt: "2026-04-01T10:00:00Z" },
+          { key: "b1", member: 1, title: "B One", createdAt: "2026-01-01T10:00:00Z" },
+          { key: "b2", member: 1, title: "B Two", createdAt: "2026-02-01T10:00:00Z" },
+        ],
+      });
+      const repo = ctx.repo();
+      const titles = async (memberId: string, past = false) => (await repo.projectSummaries(memberId, { past })).map((p) => p.title);
+      // Until a member reorders, nothing changes: newest first.
+      expect(await titles(a)).toEqual(["New", "Mid", "Old"]);
+
+      await repo.reorderProjects(a, [ids.old, ids.new, ids.mid]);
+      expect(await titles(a)).toEqual(["Old", "New", "Mid"]);
+      expect(await titles(a, true)).toEqual(["Shelved"]);
+      // Another member's list is untouched, and a repeat of the same list changes nothing.
+      expect(await titles(b)).toEqual(["B Two", "B One"]);
+      await repo.reorderProjects(a, [ids.old, ids.new, ids.mid]);
+      expect(await titles(a)).toEqual(["Old", "New", "Mid"]);
+    });
+
+    it("ignores ids in a reorder that aren't the member's live projects, and lists a repeated id once", async () => {
+      const [a, b] = ctx.memberIds;
+      const ids = await ctx.seed({
+        projects: [
+          { key: "p1", member: 0, title: "One", createdAt: "2026-01-01T10:00:00Z" },
+          { key: "p2", member: 0, title: "Two", createdAt: "2026-02-01T10:00:00Z" },
+          { key: "gone", member: 0, title: "Deleted", createdAt: "2026-03-01T10:00:00Z" },
+          { key: "theirs", member: 1, title: "Theirs", createdAt: "2026-01-01T10:00:00Z" },
+          { key: "theirs2", member: 1, title: "Theirs Too", createdAt: "2026-02-01T10:00:00Z" },
+        ],
+      });
+      const repo = ctx.repo();
+      await repo.deleteProject(a, ids.gone);
+
+      await repo.reorderProjects(a, [ids.theirs, ids.p1, ids.gone, ids.p1, "nope", ids.p2, ids.theirs2]);
+      expect((await repo.projectSummaries(a)).map((p) => p.title)).toEqual(["One", "Two"]);
+      // Nothing of the other member's changed: still newest first.
+      expect((await repo.projectSummaries(b)).map((p) => p.title)).toEqual(["Theirs Too", "Theirs"]);
+      // An empty list is a no-op.
+      await repo.reorderProjects(a, []);
+      expect((await repo.projectSummaries(a)).map((p) => p.title)).toEqual(["One", "Two"]);
+    });
+
+    it("puts a project created after a reorder at the top", async () => {
+      const [a] = ctx.memberIds;
+      const ids = await ctx.seed({
+        projects: [
+          { key: "old", member: 0, title: "Old", createdAt: "2026-01-01T10:00:00Z" },
+          { key: "mid", member: 0, title: "Mid", createdAt: "2026-02-01T10:00:00Z" },
+          { key: "new", member: 0, title: "New", createdAt: "2026-03-01T10:00:00Z" },
+        ],
+      });
+      const repo = ctx.repo();
+      await repo.reorderProjects(a, [ids.old, ids.mid, ids.new]);
+      const fresh = await repo.createProject(a, "Fresh", "drafting");
+      expect((await repo.projectSummaries(a)).map((p) => p.id)).toEqual([fresh, ids.old, ids.mid, ids.new]);
+    });
+
+    it("lists the starred goals in the order of their projects", async () => {
+      const [a, b] = ctx.memberIds;
+      const ids = await ctx.seed({
+        projects: [
+          { key: "p1", member: 0, title: "First made", createdAt: "2026-01-01T10:00:00Z" },
+          { key: "p2", member: 0, title: "Second made", createdAt: "2026-02-01T10:00:00Z" },
+          { key: "q", member: 1, title: "Other", createdAt: "2026-01-01T10:00:00Z" },
+        ],
+      });
+      const repo = ctx.repo();
+      const g1 = await repo.createGoal({ member_id: a, project_id: ids.p1, measure: "words", target_amount: 100, is_starred: true });
+      const g2 = await repo.createGoal({ member_id: a, project_id: ids.p2, measure: "words", target_amount: 100, is_starred: true });
+      await repo.createGoal({ member_id: b, project_id: ids.q, measure: "words", target_amount: 9, is_starred: true });
+
+      // Unplaced projects: newest project first, as the projects list shows them.
+      expect((await repo.starredGoals(a)).map((g) => g.id)).toEqual([g2, g1]);
+
+      await repo.reorderProjects(a, [ids.p1, ids.p2]);
+      const starred = await repo.starredGoals(a);
+      expect(starred.map((g) => [g.id, g.project_title])).toEqual([[g1, "First made"], [g2, "Second made"]]);
+      expect(starred[0]).toHaveProperty("project_id", ids.p1);
+    });
+
     it("lists hibernating projects apart from the others, and moves one back when its status changes", async () => {
       const [a, b] = ctx.memberIds;
       const ids = await ctx.seed({

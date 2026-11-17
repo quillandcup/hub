@@ -598,6 +598,33 @@ async function toggleProjectVisibilityImpl(
   return { success: true };
 }
 
+/** The most projects one reorder may name (a member has a handful; this only stops a runaway request). */
+const MAX_REORDER = 500;
+
+/**
+ * Saves the order the member put their active projects in (the dashboard's starred goals follow it). One database
+ * statement; ids that aren't theirs are ignored there, and the hibernating projects keep their place.
+ */
+async function reorderMyProjectsImpl(orderedIds: string[]): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  if (!Array.isArray(orderedIds) || orderedIds.length > MAX_REORDER || orderedIds.some((id) => typeof id !== "string" || !id)) {
+    return { error: "Invalid project order" };
+  }
+
+  try {
+    await createRepos(supabase).writing.reorderProjects(effectiveIdentity.memberId, orderedIds);
+  } catch (error) {
+    return { error: errorMessage(error, "Failed to save the order") };
+  }
+
+  revalidatePath("/projects", "layout");
+  revalidatePath("/dashboard");
+  return { success: true };
+}
+
 /**
  * Deletes a project, with its goals and entries. A soft delete: nothing shows it to the member or
  * anyone else and it counts toward nothing, but the row stays until they ask us to remove it
@@ -1526,6 +1553,10 @@ export async function updateProjectCover(...args: Parameters<typeof updateProjec
 
 export async function setStartingBalances(...args: Parameters<typeof setStartingBalancesImpl>): ReturnType<typeof setStartingBalancesImpl> {
   return withAction("starting_balances_saved", () => setStartingBalancesImpl(...args));
+}
+
+export async function reorderMyProjects(...args: Parameters<typeof reorderMyProjectsImpl>): ReturnType<typeof reorderMyProjectsImpl> {
+  return withAction("projects_reordered", () => reorderMyProjectsImpl(...args));
 }
 
 export async function toggleProjectVisibility(...args: Parameters<typeof toggleProjectVisibilityImpl>): ReturnType<typeof toggleProjectVisibilityImpl> {
