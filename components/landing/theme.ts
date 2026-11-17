@@ -7,11 +7,11 @@ import { mediaSrc } from "@/lib/media/url";
  * flips to light text by itself and no combination can fail contrast. Full class strings, so Tailwind finds them.
  */
 export const BACKGROUNDS = {
-  none: { label: "None (page)", bg: "", text: "text-slate-900 dark:text-slate-100", dark: false, scope: "" },
-  white: { label: "White", bg: "bg-white", text: "text-slate-900", dark: false, scope: "landing-light" },
-  cream: { label: "Cream", bg: "bg-cream", text: "text-slate-900", dark: false, scope: "landing-light" },
-  blush: { label: "Blush", bg: "bg-blush", text: "text-slate-900", dark: false, scope: "landing-light" },
-  mist: { label: "Mist", bg: "bg-mist-200", text: "text-slate-900", dark: false, scope: "landing-light" },
+  none: { label: "None (page)", bg: "", text: "text-ink", dark: false, scope: "" },
+  white: { label: "White", bg: "bg-white", text: "text-ink", dark: false, scope: "landing-light" },
+  cream: { label: "Cream", bg: "bg-cream", text: "text-ink", dark: false, scope: "landing-light" },
+  blush: { label: "Blush", bg: "bg-blush", text: "text-ink", dark: false, scope: "landing-light" },
+  mist: { label: "Mist", bg: "bg-mist-200", text: "text-ink", dark: false, scope: "landing-light" },
   plum: { label: "Plum", bg: "bg-plum-700", text: "text-white", dark: true, scope: "" },
   brownMid: { label: "Warm brown", bg: "bg-brown", text: "text-white", dark: true, scope: "" },
   brown: { label: "Brown", bg: "bg-brown-deep", text: "text-cream", dark: true, scope: "" },

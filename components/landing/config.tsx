@@ -54,11 +54,11 @@ export function PageFrame({ children, ...root }: RootProps & { children?: ReactN
   const nav = (root.navLinks ?? []).filter((l) => l.label && safeHref(l.href));
   const footerLinks = (root.footerLinks ?? []).filter((l) => l.label && safeHref(l.href));
   return (
-    // The brand page (`canvas`), light or dark with the theme (the app's dark mode, or the visitor's system setting); never `bg-background`, which is the app's grey.
+    // The page colour (`page`: the brand canvas, or slate in dark mode), light or dark with the theme (the app's dark mode, or the visitor's system setting); never `bg-background`, which is the app's grey.
     // Light bands (`landing-light`) stay light in dark mode.
-    <div className="@container min-h-screen bg-canvas text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+    <div className="@container min-h-screen bg-page text-ink">
       {root.showHeader && (logo || nav.length > 0) && (
-        <header className="bg-white dark:bg-slate-900">
+        <header className="bg-card">
           <div className="mx-auto flex max-w-5xl flex-col items-center gap-3 px-4 py-4 @pair:flex-row @pair:justify-between">
             {logo && (
               <a href={safeHref(root.logoHref) || "/"} className="shrink-0">

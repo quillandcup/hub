@@ -48,14 +48,20 @@ export default {
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
-  // `.landing-light` marks a band of a landing page that stays light in dark mode (a white or cream band): `dark:` does not apply inside it.
-  darkMode: ["variant", "&:where(.dark, .dark *):not(:where(.landing-light, .landing-light *))"],
+  darkMode: "class",
   theme: {
     extend: {
       colors: {
         background: "var(--background)",
         foreground: "var(--foreground)",
         plum,
+        // Semantic colours for the landing pages (values per mode in app/globals.css): change one there and every page follows.
+        page: "rgb(var(--lp-page) / <alpha-value>)",
+        card: "rgb(var(--lp-card) / <alpha-value>)",
+        tile: "rgb(var(--lp-tile) / <alpha-value>)",
+        ink: { DEFAULT: "rgb(var(--lp-ink) / <alpha-value>)", muted: "rgb(var(--lp-ink-muted) / <alpha-value>)" },
+        accent: { DEFAULT: "rgb(var(--lp-accent) / <alpha-value>)", ink: "rgb(var(--lp-accent-ink) / <alpha-value>)" },
+        warm: "rgb(var(--lp-warm) / <alpha-value>)",
         // Page background behind cards (brand color).
         canvas: "#f4f2f3",
         // Logo colors.
