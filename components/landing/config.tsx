@@ -5,9 +5,11 @@ import {
   Button,
   CardGrid,
   CountdownBlock,
+  CtaBanner,
   Divider,
   Faq,
   Heading,
+  Hero,
   Image,
   LinkList,
   List,
@@ -16,6 +18,8 @@ import {
   Section,
   Spacer,
   Split,
+  Stats,
+  Steps,
   Testimonials,
   Video,
 } from "./blocks";
@@ -118,6 +122,10 @@ export const BLOCK_DEFAULTS = {
   Divider: { look: "short" },
   Spacer: { size: "medium" },
   Video: { url: "", title: "" },
+  Hero: { headline: "A headline that says what you offer", level: "h1", subhead: "One or two lines that say who it is for and why it helps.", primary: { label: "Join us", href: "" }, secondary: { label: "", href: "" }, alt: "", decorative: false, imageMode: "background", overlay: "dark", background: "plum", align: "center" },
+  Steps: { heading: "How it works", items: [{ title: "Sign up", text: "Tell us a little about you." }, { title: "Join in", text: "Come to your first session." }, { title: "Keep going", text: "Write a little each day." }] },
+  Stats: { items: [{ value: "1,000", label: "words written a day" }, { value: "24/7", label: "company" }, { value: "3", label: "sessions a week" }] },
+  CtaBanner: { heading: "Ready to start?", text: "", label: "Join us", href: "", background: "plum", align: "center" },
   OptInForm: { kajabiFormId: "", instagramField: "none", buttonLabel: "Sign me up", reassurance: "No spam. Unsubscribe any time.", successMessage: "Thank you! Please check your email.", href: "", look: "solid", color: "plum", shape: "pill" },
 } as const;
 
@@ -138,6 +146,10 @@ export const BLOCK_LABELS: Record<keyof typeof BLOCK_DEFAULTS, string> = {
   Spacer: "Spacer",
   Video: "Video",
   OptInForm: "Sign-up form",
+  Hero: "Hero",
+  Steps: "Steps",
+  Stats: "Stats",
+  CtaBanner: "Call-to-action banner",
 };
 
 const RENDERERS: Record<keyof typeof BLOCK_DEFAULTS, (props: never) => ReactNode> = {
@@ -157,6 +169,10 @@ const RENDERERS: Record<keyof typeof BLOCK_DEFAULTS, (props: never) => ReactNode
   Spacer: Spacer as never,
   Video: Video as never,
   OptInForm: OptInFormBlock as never,
+  Hero: Hero as never,
+  Steps: Steps as never,
+  Stats: Stats as never,
+  CtaBanner: CtaBanner as never,
 };
 
 const SECTION_DEFAULTS = { ...BLOCK_DEFAULTS.Section, content: [] };
@@ -179,6 +195,7 @@ export const renderConfig = {
   root: rootConfig as unknown as Config["root"],
   categories: {
     layout: { title: "Layout", components: ["Section", "Split", "CardGrid", "Divider", "Spacer"] },
+    ready_made: { title: "Ready-made", components: ["Hero", "Steps", "Stats", "CtaBanner"] },
     content: { title: "Content", components: ["Heading", "RichText", "List", "Image", "Video", "Testimonials", "Faq", "Countdown"] },
     links: { title: "Links", components: ["Button", "LinkList", "OptInForm"] },
   },

@@ -44,6 +44,28 @@ export function checkLandingPage(value: unknown): A11yIssue[] {
       case "Split":
         if (str(p.imageAssetId) && !p.decorative && !str(p.alt)) issues.push({ severity: "error", block: type === "Split" ? "Image and text" : "Image", message: "A picture needs a description for people who can't see it, or mark it as decoration." });
         break;
+      case "Hero": {
+        // A picture behind the words is a background, like a Section's; a picture beside them is content and needs a description.
+        if (str(p.imageAssetId) && p.imageMode === "side" && !p.decorative && !str(p.alt)) issues.push({ severity: "error", block: "Hero", message: "A picture needs a description for people who can't see it, or mark it as decoration." });
+        if (str(p.imageAssetId) && p.imageMode !== "side" && p.overlay === "none") issues.push({ severity: "warning", block: "Hero", message: "Text over a picture with no shade can be hard to read. Add a dark or light shade." });
+        for (const button of [p.primary, p.secondary] as Record<string, unknown>[]) {
+          if (!button) continue;
+          if (str(button.label) && !safeHref(button.href)) issues.push({ severity: "error", block: "Hero", message: `The button "${str(button.label)}" has no link.` });
+          if (GENERIC_LINK_TEXT.test(str(button.label))) issues.push({ severity: "warning", block: "Hero", message: `A button that says "${str(button.label)}" doesn't say where it goes.` });
+        }
+        if (str(p.headline)) headings.push({ level: p.level === "h2" ? 2 : 1, text: str(p.headline) });
+        break;
+      }
+      case "Steps":
+        // Mirrors the block: titles are h3 under the block's own heading, h2 without one.
+        if (str(p.heading)) headings.push({ level: 2, text: str(p.heading) });
+        for (const step of ((p.items as Record<string, unknown>[]) ?? []).filter((i) => str(i.title))) headings.push({ level: str(p.heading) ? 3 : 2, text: str(step.title) });
+        break;
+      case "CtaBanner":
+        if (str(p.heading)) headings.push({ level: 2, text: str(p.heading) });
+        if (str(p.label) && !safeHref(p.href)) issues.push({ severity: "error", block: "Banner", message: `The button "${str(p.label)}" has no link.` });
+        if (GENERIC_LINK_TEXT.test(str(p.label))) issues.push({ severity: "warning", block: "Banner", message: `A button that says "${str(p.label)}" doesn't say where it goes.` });
+        break;
       case "CardGrid":
         for (const [i, card] of ((p.items as Record<string, unknown>[]) ?? []).entries()) {
           if (str(card.imageAssetId) && !str(card.alt)) issues.push({ severity: "error", block: "Card grid", message: `Card ${i + 1} has a picture with no description.` });

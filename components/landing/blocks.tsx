@@ -329,3 +329,143 @@ export function OptInFormBlock({ look, color, shape, ...props }: OptInBlockProps
   if (!props.kajabiFormId?.trim()) return null;
   return <OptInForm {...props} buttonClass={buttonClasses(look, color, shape, true)} />;
 }
+
+// ---- Hero, steps, stats and call-to-action banner ------------------------------------------------------------
+// Static, ready-made compositions of what staff otherwise assemble from Section, Heading, Text and Button. Their
+// colours come from theme.ts only, and their buttons are built like the Button block's (same classes, `safeHref`).
+
+export type LinkProp = { label: string; href: string };
+
+/** One of the buttons in a hero or banner: a link when the address is safe, shown disabled otherwise, nothing without a label. */
+function ActionLink({ label, href, look, dark }: Partial<LinkProp> & { look: "solid" | "outline"; dark: boolean }) {
+  if (!label) return null;
+  const target = safeHref(href);
+  const classes = buttonClasses(look, dark ? "light" : "plum", "pill", false);
+  return target ? (
+    <a href={target} className={classes}>
+      {label}
+    </a>
+  ) : (
+    <span aria-disabled="true" className={`${classes} opacity-50`}>
+      {label}
+    </span>
+  );
+}
+
+export type HeroProps = {
+  headline: string;
+  level: "h1" | "h2";
+  subhead: string;
+  primary: LinkProp;
+  secondary: LinkProp;
+  imageAssetId?: string;
+  alt: string;
+  decorative: boolean;
+  imageMode: "background" | "side";
+  overlay: "none" | "dark" | "light";
+  background: string;
+  align: "left" | "center";
+};
+
+/** A page opening: headline (the page title by default), a line under it, up to two buttons and an optional picture, as the band's background under a shade or beside the words. */
+export function Hero({ headline, level, subhead, primary, secondary, imageAssetId, alt, decorative, imageMode, overlay, background: bg, align }: HeroProps) {
+  const theme = background(bg);
+  const src = pageImage(imageAssetId, "event_hero");
+  const asBackground = !!src && imageMode !== "side";
+  const shade = asBackground ? pick(OVERLAY, overlay, "dark") : "";
+  // Over a picture, readable text follows the shade (the editor warns when there is none); otherwise the colour's own.
+  const dark = asBackground && overlay !== "none" ? overlay === "dark" : theme.dark;
+  const text = asBackground && overlay === "dark" ? "text-white" : asBackground && overlay === "light" ? "text-slate-900" : theme.text;
+  const Tag = level === "h2" ? "h2" : "h1";
+  const centered = align === "center";
+  if (!headline && !subhead && !primary?.label && !secondary?.label && !src) return null;
+  return (
+    <section
+      className={`relative ${theme.bg} ${text} py-16 @split:py-24`}
+      style={asBackground ? { backgroundImage: `url(${src})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}
+    >
+      {asBackground && overlay !== "none" && <div aria-hidden="true" className={`absolute inset-0 ${shade}`} />}
+      <div className={`relative mx-auto grid max-w-5xl items-center gap-8 px-4 ${src && !asBackground ? "@split:grid-cols-2 @split:gap-12" : ""}`}>
+        <div className={centered ? "text-center" : "text-left"}>
+          {headline && <Tag className="font-display text-4xl font-semibold leading-tight @pair:text-5xl @columns:text-6xl">{headline}</Tag>}
+          {subhead && <p className="mt-4 whitespace-pre-line text-lg @pair:text-xl">{subhead}</p>}
+          {(primary?.label || secondary?.label) && (
+            <div className={`mt-8 flex flex-wrap gap-3 ${centered ? "justify-center" : ""}`}>
+              <ActionLink {...primary} look="solid" dark={dark} />
+              <ActionLink {...secondary} look="outline" dark={dark} />
+            </div>
+          )}
+        </div>
+        {src && !asBackground && (
+          // eslint-disable-next-line @next/next/no-img-element -- served by the media route, already sized by its preset
+          <img src={src} alt={decorative ? "" : alt} className="h-auto w-full rounded-2xl" />
+        )}
+      </div>
+    </section>
+  );
+}
+
+export type StepsProps = { heading: string; items: { title: string; text: string }[] };
+const STEP_COLUMNS = ["", "", "@pair:grid-cols-2", "@cards:grid-cols-3", "@cards:grid-cols-2 @columns:grid-cols-4", "@cards:grid-cols-3 @columns:grid-cols-5"] as const;
+
+/** Numbered steps: stacked on a narrow page, side by side once there is room. The text colour is inherited, so it follows the section it sits in. */
+export function Steps({ heading, items }: StepsProps) {
+  const rows = (items ?? []).filter((i) => i.title).slice(0, 5);
+  if (rows.length === 0) return null;
+  // Under the block's own heading the steps are one level down; without one they are the section headings themselves.
+  const StepTitle = heading ? "h3" : "h2";
+  return (
+    <div className="py-4">
+      {heading && <h2 className="mb-6 text-center font-display text-3xl font-semibold leading-tight @pair:text-4xl">{heading}</h2>}
+      <ol className={`grid gap-8 ${STEP_COLUMNS[rows.length]}`}>
+        {rows.map((step, i) => (
+          <li key={i} className="flex flex-col items-center gap-3 text-center">
+            <span aria-hidden="true" className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-current text-xl font-semibold">
+              {i + 1}
+            </span>
+            <StepTitle className="font-display text-xl font-semibold">{step.title}</StepTitle>
+            {step.text && <p className="whitespace-pre-line">{step.text}</p>}
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+export type StatsProps = { items: { value: string; label: string }[] };
+const STAT_COLUMNS = ["", "", "@pair:grid-cols-2", "@pair:grid-cols-3", "@pair:grid-cols-2 @columns:grid-cols-4"] as const;
+
+/** A strip of typed figures (not live data) with a label under each. A description list, so a screen reader hears the label with its figure. */
+export function Stats({ items }: StatsProps) {
+  const rows = (items ?? []).filter((i) => i.value).slice(0, 4);
+  if (rows.length === 0) return null;
+  return (
+    <dl className={`grid gap-8 py-4 text-center ${STAT_COLUMNS[rows.length]}`}>
+      {rows.map((stat, i) => (
+        <div key={i} className="flex flex-col-reverse">
+          <dt className="mt-1 text-base">{stat.label}</dt>
+          <dd className="font-display text-4xl font-semibold leading-tight @pair:text-5xl">{stat.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+export type CtaBannerProps = { heading: string; text: string; label: string; href: string; background: string; align: "left" | "center" };
+
+/** A call to action on a coloured band: heading, a line, one button. Colours are the theme's backgrounds with their own readable text; the page colour is not offered, so it is always a band. */
+export function CtaBanner({ heading, text, label, href, background: bg, align }: CtaBannerProps) {
+  const theme = background(bg === "none" ? "plum" : bg);
+  if (!heading && !text && !label) return null;
+  return (
+    <section className={`my-4 rounded-2xl px-6 py-10 @pair:px-10 ${theme.bg} ${theme.text} ${align === "left" ? "text-left" : "text-center"}`}>
+      {heading && <h2 className="font-display text-3xl font-semibold leading-tight @pair:text-4xl">{heading}</h2>}
+      {text && <p className="mt-3 whitespace-pre-line text-lg">{text}</p>}
+      {label && (
+        <div className="mt-6">
+          <ActionLink label={label} href={href} look="solid" dark={theme.dark} />
+        </div>
+      )}
+    </section>
+  );
+}
