@@ -4,12 +4,12 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import type { ReactNode } from "react";
 import type { LandingPageSummary } from "@/lib/data/landing-pages";
 
-const mocks = vi.hoisted(() => ({ duplicate: vi.fn(), remove: vi.fn(), create: vi.fn(), push: vi.fn(), refresh: vi.fn() }));
+const mocks = vi.hoisted(() => ({ duplicate: vi.fn(), remove: vi.fn(), create: vi.fn(), createAi: vi.fn(), push: vi.fn(), refresh: vi.fn() }));
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: mocks.push, refresh: mocks.refresh, replace: vi.fn() }) }));
 vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: ReactNode }) => <a href={href} {...rest}>{children}</a> }));
 vi.mock("@/components/media/MediaPicker", () => ({ default: () => <div>picker</div> }));
-vi.mock("../../app/(admin)/admin/pages/actions", () => ({ duplicateLandingPage: mocks.duplicate, deleteLandingPage: mocks.remove, createLandingPage: mocks.create }));
+vi.mock("../../app/(admin)/admin/pages/actions", () => ({ duplicateLandingPage: mocks.duplicate, deleteLandingPage: mocks.remove, createLandingPage: mocks.create, createLandingPageWithAi: mocks.createAi }));
 
 import PagesTable from "@/app/(admin)/admin/pages/PagesTable";
 import NewPageForm from "@/app/(admin)/admin/pages/new/NewPageForm";
@@ -116,7 +116,7 @@ describe("the pages list", () => {
 
 describe("the new page form", () => {
   it("fills the address in from the title until it is typed over, then opens the editor", async () => {
-    render(<NewPageForm />);
+    render(<NewPageForm aiAvailable={false} />);
     const title = screen.getByLabelText("Title");
     const address = screen.getByLabelText(/Address/) as HTMLInputElement;
     fireEvent.change(title, { target: { value: "My Page!" } });
@@ -134,12 +134,44 @@ describe("the new page form", () => {
 
   it("shows why a page couldn't be made", async () => {
     mocks.create.mockResolvedValueOnce({ error: "Another page already has that address." });
-    render(<NewPageForm />);
+    render(<NewPageForm aiAvailable={false} />);
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Taken" } });
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Create page" }));
     });
     expect(screen.getByRole("alert")).toHaveTextContent("Another page already has that address.");
+    expect(mocks.push).not.toHaveBeenCalled();
+  });
+});
+
+describe("the new page form, Build with AI", () => {
+  it("drafts the page from the description and opens the editor", async () => {
+    mocks.createAi.mockResolvedValueOnce({ slug: "spring" });
+    render(<NewPageForm aiAvailable />);
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Spring" } });
+    fireEvent.change(screen.getByLabelText(/Describe the page/), { target: { value: "A spring sprint for new writers" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Draft the page" }));
+    });
+    expect(mocks.createAi).toHaveBeenCalledWith({ title: "Spring", slug: "spring", prompt: "A spring sprint for new writers" });
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect(mocks.push).toHaveBeenCalledWith("/admin/pages/spring");
+  });
+
+  it("says so, and stays disabled, when the assistant isn't set up", () => {
+    render(<NewPageForm aiAvailable={false} />);
+    expect(screen.getByLabelText(/Describe the page/)).toBeDisabled();
+  });
+
+  it("shows why the assistant failed and does not leave the form", async () => {
+    mocks.createAi.mockResolvedValueOnce({ error: "The page builder's assistant didn't answer. Nothing was created; try again." });
+    render(<NewPageForm aiAvailable />);
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Spring" } });
+    fireEvent.change(screen.getByLabelText(/Describe the page/), { target: { value: "anything" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Draft the page" }));
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent("didn't answer");
     expect(mocks.push).not.toHaveBeenCalled();
   });
 });

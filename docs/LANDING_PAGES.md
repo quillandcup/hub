@@ -69,6 +69,16 @@ Stored pages (draft, published copy, every saved version) keep the props they we
 - Adding a prop with a default needs no step (the block's `defaultProps` cover it); only renames, removals and changes of meaning do.
 - Tests: add a case for the step to `tests/lib/landing-migrations.test.ts` (old shape in, new shape out, run twice).
 
+## Build with AI
+
+On **New page**, an optional "Describe the page" box turns the admin's description into a draft (`createLandingPageWithAi`, event `landing_page_ai_built`; `lib/landing/ai.ts`). It is our own call to the Claude API, not Puck Cloud's AI (which needs Puck Cloud). The key is `ANTHROPIC_API_KEY`; the host and model are in `app.config.ts` (`anthropic`); without the key the box is disabled.
+
+- **Only the description is sent**: no member data, no existing page, no pictures. This is staff-written marketing copy; the rule that members' writing never touches AI still holds, and nothing a member wrote can reach this call (the Kajabi import, which maps exports deterministically, is unchanged and has no AI).
+- **The answer is never trusted.** The model must call one tool, `build_page`, with a list of `{ type, props }`. `cleanGeneratedBlocks` keeps only the blocks in `AI_BLOCKS`, only the props a block has in `BLOCK_DEFAULTS`, checks each value against the default's kind and the option lists, caps lists and nesting, then `sanitizeLandingData` cleans links and rich text like anything an admin types.
+- **Blocks the model is not offered**: those needing something it cannot know (Image, Image and text, Countdown, Video, Card grid, Sign-up form) and Testimonials (it would invent quotes). Pictures are added in the editor. Adding a block to the builder does not offer it to the model: add it to `AI_BLOCKS` and `ENUMS` on purpose.
+- **Always a draft.** The page is created only if generation worked (no empty page is left on a failure), is never published, and the publish checks still apply: a button the model left without a link stops a publish until filled in. The form says to check every fact and link.
+- **Tests** mock the model call (`tests/lib/landing-ai.test.ts`, `landing-page-actions.test.ts`); nothing in CI calls the API. Not verified: a live call against the real API (needs the key in an environment).
+
 ## Opt-in forms
 
 The Sign-up form block (name, email, optional Instagram handle, button label, a line under the button, a success message or a thank-you page) sends sign-ups to Kajabi. The decision (owner) is that during the migration the mailing list, tags and automations stay in Kajabi, so **the Hub stores no submission**: there is no table, and nothing about the person reaches a log, an analytics event or Sentry.

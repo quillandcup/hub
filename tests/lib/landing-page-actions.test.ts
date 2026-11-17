@@ -10,10 +10,13 @@ vi.mock("@/lib/analytics/server", () => ({ withAction: async (_action: string, r
 vi.mock("@/lib/admin-auth", () => ({
   requireAdminAction: async () => (state.admin ? { ok: true, user: { id: "00000000-0000-4000-a000-0000000000a1", email: "admin@example.test" }, supabase: {} } : { ok: false, error: "Not authorized" }),
 }));
+const ai = vi.hoisted(() => ({ configured: true, result: undefined as unknown }));
+vi.mock("@/lib/landing/ai", () => ({ aiConfigured: () => ai.configured, generateLandingPage: async () => ai.result }));
 vi.mock("@/lib/data/repos", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/data/repos")>()), createRepos: () => state.repos }));
 
 import {
   createLandingPage,
+  createLandingPageWithAi,
   deleteLandingPage,
   duplicateLandingPage,
   publishLandingPage,
@@ -213,5 +216,35 @@ describe("updateLandingPageDetails", () => {
     expect((await updateLandingPageDetails(id, { title: "Uno", slug: "two", seoTitle: "", seoDescription: "", socialImageAssetId: "" })).error).toContain("already has that address");
     expect((await updateLandingPageDetails(id, { title: "", slug: "uno", seoTitle: "", seoDescription: "", socialImageAssetId: "" })).error).toContain("title");
     expect((await updateLandingPageDetails(id, { title: "x", slug: "Bad Slug", seoTitle: "", seoDescription: "", socialImageAssetId: "" })).error).toContain("lowercase");
+  });
+});
+
+describe("createLandingPageWithAi", () => {
+  const built = { ok: true, data: { content: [{ type: "Heading", props: { id: "h", text: "Hi", level: "h1", align: "center" } }], root: {} }, issues: [] };
+
+  it("saves the generated blocks as an unpublished draft", async () => {
+    ai.configured = true;
+    ai.result = built;
+    expect(await createLandingPageWithAi({ title: "Spring", prompt: "a spring page" })).toEqual({ slug: "spring" });
+    const page = state.dataset.landingPages[0];
+    expect(page).toMatchObject({ title: "Spring", status: "draft", published_data: null });
+    expect((page.draft_data as { content: unknown[] }).content).toHaveLength(1);
+  });
+
+  it("creates nothing when the assistant fails, isn't set up, or the title or address is bad", async () => {
+    ai.configured = true;
+    ai.result = { ok: false, error: "no" };
+    expect(await createLandingPageWithAi({ title: "Spring", prompt: "x" })).toEqual({ error: "no" });
+    ai.result = built;
+    expect((await createLandingPageWithAi({ title: " ", prompt: "x" })).error).toBe("Give the page a title.");
+    expect((await createLandingPageWithAi({ title: "A", slug: "Bad Slug", prompt: "x" })).error).toContain("lowercase");
+    ai.configured = false;
+    expect((await createLandingPageWithAi({ title: "Spring", prompt: "x" })).error).toContain("isn't set up");
+    expect(state.dataset.landingPages).toEqual([]);
+  });
+
+  it("is for admins only", async () => {
+    state.admin = false;
+    expect(await createLandingPageWithAi({ title: "Spring", prompt: "x" })).toEqual({ error: "Not authorized" });
   });
 });

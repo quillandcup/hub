@@ -79,7 +79,7 @@ const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]
   [
     () => import("@/app/(admin)/admin/pages/actions"),
     "app/(admin)/admin/pages/actions.ts",
-    [["createLandingPage", "landing_page_created"], ["updateLandingPageDetails", "landing_page_details_saved"], ["publishLandingPage", "landing_page_published"], ["unpublishLandingPage", "landing_page_unpublished"], ["restoreLandingPageVersion", "landing_page_version_restored"], ["duplicateLandingPage", "landing_page_duplicated"], ["deleteLandingPage", "landing_page_deleted"]],
+    [["createLandingPage", "landing_page_created"], ["createLandingPageWithAi", "landing_page_ai_built"], ["updateLandingPageDetails", "landing_page_details_saved"], ["publishLandingPage", "landing_page_published"], ["unpublishLandingPage", "landing_page_unpublished"], ["restoreLandingPageVersion", "landing_page_version_restored"], ["duplicateLandingPage", "landing_page_duplicated"], ["deleteLandingPage", "landing_page_deleted"]],
   ],
   [() => import("@/app/api/admin/landing-pages/import/route"), "app/api/admin/landing-pages/import/route.ts", [["POST", "landing_page_imported"]]],
   [() => import("@/app/api/feedback/route"), "app/api/feedback/route.ts", [["POST", "feedback_submitted"]]],

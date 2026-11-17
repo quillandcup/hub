@@ -6,8 +6,9 @@ import { withAction } from "@/lib/analytics/server";
 import { LandingPageSlugTakenError } from "@/lib/data/landing-pages";
 import { createRepos } from "@/lib/data/repos";
 import { checkLandingPage, type A11yIssue } from "@/lib/landing/a11y";
-import { collectAssetIds } from "@/lib/landing/data";
+import { collectAssetIds, type LandingData } from "@/lib/landing/data";
 import { stampLandingVersion } from "@/lib/landing/migrations";
+import { aiConfigured, generateLandingPage } from "@/lib/landing/ai";
 import { sanitizeLandingData } from "@/lib/landing/sanitize";
 import { isLandingPageId, isLandingVersionId, isValidSlug, slugify } from "@/lib/landing/slug";
 
@@ -40,13 +41,13 @@ function failed(action: string, error: unknown, shown: string): { error: string 
 
 // ---- create ----------------------------------------------------------------------------------------------
 
-async function createImpl(auth: Auth, input: { title: string; slug?: string }): Promise<PageResult> {
+async function createImpl(auth: Auth, input: { title: string; slug?: string; data?: LandingData }): Promise<PageResult> {
   const title = (input.title ?? "").trim();
   if (!title) return { error: "Give the page a title." };
   const slug = (input.slug ?? "").trim() || slugify(title);
   if (!isValidSlug(slug)) return { error: "The address can use lowercase letters, numbers and dashes." };
   try {
-    const page = await createRepos(auth.supabase).landingPages.create({ title, slug, createdBy: auth.user.id });
+    const page = await createRepos(auth.supabase).landingPages.create({ title, slug, data: input.data, createdBy: auth.user.id });
     refresh();
     return { slug: page.slug };
   } catch (error) {
@@ -61,6 +62,24 @@ export async function createLandingPage(input: { title: string; slug?: string })
   const auth = await requireAdminAction();
   if (!auth.ok) return { error: auth.error };
   return withAction("landing_page_created", () => createImpl(auth, input));
+}
+
+async function buildWithAiImpl(auth: Auth, input: { title: string; slug?: string; prompt: string }): Promise<PageResult> {
+  if (!aiConfigured()) return { error: "Build with AI isn't set up yet." };
+  if (!input.title?.trim()) return { error: "Give the page a title." };
+  const slug = (input.slug ?? "").trim() || slugify(input.title);
+  if (!isValidSlug(slug)) return { error: "The address can use lowercase letters, numbers and dashes." };
+  // Generate first: when the assistant fails, no empty page is left behind.
+  const built = await generateLandingPage(input.prompt);
+  if (!built.ok) return { error: built.error };
+  return createImpl(auth, { title: input.title, slug, data: sanitizeLandingData(stampLandingVersion(built.data)) });
+}
+
+/** Makes a draft page from the admin's description (lib/landing/ai.ts). Never published: the admin reads it in the editor first. */
+export async function createLandingPageWithAi(input: { title: string; slug?: string; prompt: string }): Promise<PageResult> {
+  const auth = await requireAdminAction();
+  if (!auth.ok) return { error: auth.error };
+  return withAction("landing_page_ai_built", () => buildWithAiImpl(auth, input), (r) => ({ ok: !r.error }));
 }
 
 // ---- autosave --------------------------------------------------------------------------------------------
