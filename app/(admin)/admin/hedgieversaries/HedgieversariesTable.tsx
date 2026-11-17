@@ -5,7 +5,7 @@ import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
-import { parseDateOnly, milestoneLabel, roundLabel } from "@/lib/member-tenure";
+import { parseDateOnly, milestoneLabel } from "@/lib/member-tenure";
 
 export interface HedgieversaryRow {
   id: string;
@@ -21,8 +21,6 @@ export interface HedgieversaryRow {
   recentMilestoneMonths: number | null;
   cumulativeHiatusMonths: number;
   hiatusWindows: { startsAt: string; endsAt: string | null }[];
-  countedFrom: string | null; // the day a returning member came back, when the count restarted from it
-  returns: number; // how many times they have come back (a gap of 60 days or more)
 }
 
 type SortColumn = "name" | "firstJoinedAt" | "mostRecentJoinedAt" | "totalActiveMonths" | "nextDate";
@@ -104,11 +102,6 @@ export default function HedgieversariesTable({ rows, asOf }: { rows: Hedgieversa
                     </span>
                   ) : (
                     <span className="text-sm text-slate-500 dark:text-slate-400">TBD (on hiatus)</span>
-                  )}
-                  {row.countedFrom && (
-                    <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                      Counted from {fmt(row.countedFrom)} ({roundLabel(row.returns)})
-                    </div>
                   )}
                   {row.recentDate && row.recentMilestoneMonths != null && (
                     <div className="mt-1">
