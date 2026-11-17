@@ -140,6 +140,12 @@ export const appConfig = {
    */
   kajabiPhotoHosts: ["kajabi-storefronts-production.kajabi-cdn.com"],
 
+  /**
+   * The public address of the Kajabi site, where its landing pages live today. A link in an imported page that is a
+   * Kajabi path (`/resource_redirect/...`) is resolved against it (lib/landing/kajabi-import.ts); retire it with Kajabi.
+   */
+  kajabiSiteUrl: "https://www.quillandcup.com",
+
   /** An offer's edit page in the Kajabi admin, for the admin Offers page; `{offerId}` is filled in. */
   kajabiAdminOfferUrl: "https://app.kajabi.com/admin/offers/{offerId}/edit",
 

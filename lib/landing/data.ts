@@ -53,6 +53,11 @@ export function collectAssetIds(data: unknown): string[] {
   return [...ids];
 }
 
+/** The page with the value of every `*AssetId` prop passed through `fn` (the importer swaps its picture placeholders for library ids). */
+export function mapAssetIds(data: LandingData, fn: (value: string) => string): LandingData {
+  return mapProps(data, (key, value) => (key.endsWith("AssetId") && typeof value === "string" && value ? fn(value) : value)) as LandingData;
+}
+
 /** The link in `props.href`/`props.url` kept only if it is safe: the one rule for every block, applied on save and on render. */
 export function cleanLinks(data: unknown): unknown {
   return mapProps(data, (key, value) => (key === "href" || key === "url" ? safeHref(value) : value));

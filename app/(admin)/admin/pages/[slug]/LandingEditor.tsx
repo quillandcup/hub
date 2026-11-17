@@ -29,7 +29,7 @@ export type EditorPage = {
   /** Path of the public page, for the "view" link once published. */
   publicPath: string;
 };
-export type EditorVersion = { id: string; title: string; createdAt: string };
+export type EditorVersion = { id: string; title: string; createdAt: string; kind?: "published" | "before_import" };
 
 type SaveState = "saved" | "unsaved" | "saving" | "error";
 
@@ -435,7 +435,7 @@ function VersionList({ versions, onRestore }: { versions: EditorVersion[]; onRes
             <span>
               {v.title}
               <time dateTime={v.createdAt} className="block text-xs text-slate-600 dark:text-slate-400">
-                Published {new Date(v.createdAt).toLocaleString()}
+                {v.kind === "before_import" ? "Your draft before an import" : "Published"} {new Date(v.createdAt).toLocaleString()}
               </time>
             </span>
             <button

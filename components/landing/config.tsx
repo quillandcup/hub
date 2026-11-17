@@ -29,7 +29,7 @@ import { pageImage } from "./theme";
  */
 
 // Puck types each component's props from its config; our blocks are plain components, so they are registered loosely.
-const block = <P,>(config: { label: string; defaultProps: P; render: (props: P) => ReactNode }) => config as unknown as ComponentConfig;
+const block = <P,>(config: { label: string; defaultProps: P; render: (props: P) => ReactNode; fields?: Record<string, { type: string }> }) => config as unknown as ComponentConfig;
 
 export type RootProps = {
   showHeader?: boolean;
@@ -168,6 +168,8 @@ function components(): Config["components"] {
       label: BLOCK_LABELS[name],
       defaultProps: name === "Section" ? SECTION_DEFAULTS : { ...BLOCK_DEFAULTS[name] },
       render: RENDERERS[name] as (props: unknown) => ReactNode,
+      // A slot must be declared for Puck's Render to turn a section's stored blocks into the component it renders (the editor config declares it too).
+      ...(name === "Section" ? { fields: { content: { type: "slot" } } } : {}),
     });
   }
   return out;

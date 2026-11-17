@@ -37,9 +37,14 @@ export class LandingPageSlugTakenError extends Error {
 }
 
 const UNIQUE_VIOLATION = "23505";
+/** The columns an import sets on a new page; `updated_at` equals `imported_at` so a later edit is told from the import. */
+const importStamp = (importKey: string) => {
+  const now = new Date().toISOString();
+  return { import_key: importKey, imported_at: now, updated_at: now };
+};
 const SUMMARY_COLUMNS =
-  "id, slug, title, status, seo_title, seo_description, social_image_asset_id, first_published_at, published_at, restored_from_version_id, restored_at, created_by, updated_by, created_at, updated_at, deleted_at";
-const VERSION_COLUMNS = "id, page_id, title, published_by, created_at";
+  "id, slug, title, status, seo_title, seo_description, social_image_asset_id, first_published_at, published_at, restored_from_version_id, restored_at, import_key, imported_at, created_by, updated_by, created_at, updated_at, deleted_at";
+const VERSION_COLUMNS = "id, page_id, title, kind, published_by, created_at";
 
 /**
  * Landing pages from the page builder (docs/LANDING_PAGES.md): a draft the editor autosaves, a published copy the
@@ -56,8 +61,14 @@ export interface LandingPageRepository {
   bySlug(slug: string): Promise<LandingPage | null>;
   /** What the public page renders: the published page with this address, or null for a draft, a deleted page or no page. */
   published(slug: string): Promise<PublishedLandingPage | null>;
-  /** Makes a draft page (an empty document unless `data` is given). Throws `LandingPageSlugTakenError`. */
-  create(input: { title: string; slug: string; data?: LandingData; createdBy: string | null }): Promise<LandingPage>;
+  /** The live page made by an import with this key (docs/LANDING_PAGES.md, "Importing from Kajabi"), or null. */
+  byImportKey(importKey: string): Promise<LandingPage | null>;
+  /** Makes a draft page (an empty document unless `data` is given). An `importKey` marks it as imported (one live page per key) and stamps `imported_at`. Throws `LandingPageSlugTakenError`. */
+  create(input: { title: string; slug: string; data?: LandingData; createdBy: string | null; importKey?: string }): Promise<LandingPage>;
+  /** Keeps the page's draft as it is now in its history, as a "before import" version (restorable like any version). Null when the page is gone. */
+  keepDraftBeforeImport(id: string, updatedBy: string | null): Promise<LandingPageVersion | null>;
+  /** An import again: replaces the draft document and stamps `imported_at` (one audit entry). Never touches the published copy, title, address or versions. Null when the page is gone. */
+  replaceImportedDraft(id: string, data: LandingData, updatedBy: string | null): Promise<LandingPage | null>;
   /** Autosave: replaces the draft document. Not audited. Returns the save time, or null when the page is gone. */
   saveDraft(id: string, data: LandingData, updatedBy: string | null): Promise<string | null>;
   /** Title, address and SEO. Audited. Null when the page is gone; throws `LandingPageSlugTakenError`. */
@@ -107,15 +118,39 @@ export class SupabaseLandingPageRepository implements LandingPageRepository {
     return page ? toPublished(page) : null;
   }
 
-  async create(input: { title: string; slug: string; data?: LandingData; createdBy: string | null }): Promise<LandingPage> {
+  async byImportKey(importKey: string): Promise<LandingPage | null> {
+    return must(await this.db.from("landing_pages").select("*").eq("import_key", importKey).is("deleted_at", null).maybeSingle());
+  }
+
+  async create(input: { title: string; slug: string; data?: LandingData; createdBy: string | null; importKey?: string }): Promise<LandingPage> {
     const { data, error } = await this.db
       .from("landing_pages")
-      .insert({ title: input.title, slug: input.slug, draft_data: asJson(input.data ?? EMPTY_LANDING_DATA), created_by: input.createdBy, updated_by: input.createdBy })
+      .insert({
+        title: input.title,
+        slug: input.slug,
+        draft_data: asJson(input.data ?? EMPTY_LANDING_DATA),
+        ...(input.importKey ? importStamp(input.importKey) : {}),
+        created_by: input.createdBy,
+        updated_by: input.createdBy,
+      })
       .select("*")
       .single();
     if (error?.code === UNIQUE_VIOLATION) throw new LandingPageSlugTakenError(input.slug);
     if (error) throw new Error(error.message);
     return data;
+  }
+
+  async keepDraftBeforeImport(id: string, updatedBy: string | null): Promise<LandingPageVersion | null> {
+    const page = must(await this.db.from("landing_pages").select("title, draft_data").eq("id", id).is("deleted_at", null).maybeSingle());
+    if (!page) return null;
+    return must(await this.db.from("landing_page_versions").insert({ page_id: id, title: page.title, data: page.draft_data, kind: "before_import", published_by: updatedBy }).select(VERSION_COLUMNS).single());
+  }
+
+  async replaceImportedDraft(id: string, data: LandingData, updatedBy: string | null): Promise<LandingPage | null> {
+    const now = new Date().toISOString();
+    return must(
+      await this.db.from("landing_pages").update({ draft_data: asJson(data), imported_at: now, updated_by: updatedBy, updated_at: now }).eq("id", id).is("deleted_at", null).select("*").maybeSingle(),
+    );
   }
 
   async saveDraft(id: string, data: LandingData, updatedBy: string | null): Promise<string | null> {
@@ -226,8 +261,31 @@ export class InMemoryLandingPageRepository implements LandingPageRepository {
     return page ? toPublished(page) : null;
   }
 
-  async create(input: { title: string; slug: string; data?: LandingData; createdBy: string | null }): Promise<LandingPage> {
-    if (this.live().some((p) => p.slug === input.slug)) throw new LandingPageSlugTakenError(input.slug);
+  async byImportKey(importKey: string): Promise<LandingPage | null> {
+    const found = this.live().find((p) => p.import_key === importKey);
+    return found ? structuredClone(found) : null;
+  }
+
+  async keepDraftBeforeImport(id: string, updatedBy: string | null): Promise<LandingPageVersion | null> {
+    const page = this.find(id);
+    if (!page) return null;
+    const row = { id: newId("lpgv"), page_id: id, title: page.title, data: structuredClone(page.draft_data), kind: "before_import", published_by: updatedBy, created_at: new Date().toISOString() };
+    this.data.landingPageVersions.push(row);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- the document is left out of a version's summary
+    const { data: _document, ...version } = row;
+    return version;
+  }
+
+  async replaceImportedDraft(id: string, data: LandingData, updatedBy: string | null): Promise<LandingPage | null> {
+    const page = this.find(id);
+    if (!page) return null;
+    const now = new Date().toISOString();
+    Object.assign(page, { draft_data: asJson(structuredClone(data)), imported_at: now, updated_by: updatedBy, updated_at: now });
+    return structuredClone(page);
+  }
+
+  async create(input: { title: string; slug: string; data?: LandingData; createdBy: string | null; importKey?: string }): Promise<LandingPage> {
+    if (this.live().some((p) => p.slug === input.slug || (input.importKey && p.import_key === input.importKey))) throw new LandingPageSlugTakenError(input.slug);
     const now = new Date().toISOString();
     const page: LandingPage = {
       id: newId("lpg"),
@@ -243,6 +301,8 @@ export class InMemoryLandingPageRepository implements LandingPageRepository {
       published_at: null,
       restored_from_version_id: null,
       restored_at: null,
+      import_key: input.importKey ?? null,
+      imported_at: input.importKey ? now : null,
       created_by: input.createdBy,
       updated_by: input.createdBy,
       created_at: now,
@@ -291,7 +351,7 @@ export class InMemoryLandingPageRepository implements LandingPageRepository {
     page.published_at = now;
     page.first_published_at = page.first_published_at ?? now;
     page.updated_at = now;
-    this.data.landingPageVersions.push({ id: newId("lpgv"), page_id: id, title: page.title, data: structuredClone(page.draft_data), published_by: page.updated_by, created_at: now });
+    this.data.landingPageVersions.push({ id: newId("lpgv"), page_id: id, title: page.title, data: structuredClone(page.draft_data), kind: "published", published_by: page.updated_by, created_at: now });
     return structuredClone(page);
   }
 
@@ -307,7 +367,7 @@ export class InMemoryLandingPageRepository implements LandingPageRepository {
       .filter((v) => v.page_id === pageId)
       .reverse() // newest first: versions are only ever appended
       .slice(0, limit)
-      .map((v) => ({ id: v.id, page_id: v.page_id, title: v.title, published_by: v.published_by, created_at: v.created_at }));
+      .map((v) => ({ id: v.id, page_id: v.page_id, title: v.title, kind: v.kind, published_by: v.published_by, created_at: v.created_at }));
   }
 
   async versionData(versionId: string): Promise<LandingData | null> {

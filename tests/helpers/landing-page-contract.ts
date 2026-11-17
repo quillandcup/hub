@@ -125,6 +125,45 @@ export function defineLandingPageContract(name: string, setup: () => LandingPage
       expect(await ctx.repo().remove(gone.id, null)).toBe(false);
     });
 
+    it("marks an imported page by its key: one live page per key, found by it, freed on delete", async () => {
+      const key = ctx.unique("kajabi:key");
+      expect(await ctx.repo().byImportKey(key)).toBeNull();
+      const page = await ctx.repo().create({ title: "Imported", slug: ctx.unique("imp"), data: doc("one"), createdBy: null, importKey: key });
+
+      expect(page.import_key).toBe(key);
+      expect(page.imported_at).toEqual(expect.any(String));
+      expect((await ctx.repo().byImportKey(key))?.id).toBe(page.id);
+      expect((await ctx.repo().list()).find((p) => p.id === page.id)?.import_key).toBe(key);
+      await expect(ctx.repo().create({ title: "Again", slug: ctx.unique("imp2"), createdBy: null, importKey: key })).rejects.toBeInstanceOf(LandingPageSlugTakenError);
+
+      await ctx.repo().remove(page.id, null);
+      expect(await ctx.repo().byImportKey(key)).toBeNull();
+      const again = await ctx.repo().create({ title: "Again", slug: ctx.unique("imp3"), createdBy: null, importKey: key });
+      expect(again.id).not.toBe(page.id);
+    });
+
+    it("replaces only the draft on a repeat import, never the published copy, title, address or versions", async () => {
+      const key = ctx.unique("kajabi:replace");
+      const slug = ctx.unique("rep");
+      const page = await ctx.repo().create({ title: "Title", slug, data: doc("first"), createdBy: null, importKey: key });
+      await ctx.repo().publish(page.id);
+
+      const replaced = await ctx.repo().replaceImportedDraft(page.id, doc("second"), null);
+
+      expect(replaced).toMatchObject({ id: page.id, title: "Title", slug, status: "published" });
+      expect(replaced?.draft_data).toEqual(doc("second"));
+      expect(replaced?.published_data).toEqual(doc("first"));
+      expect((await ctx.repo().published(slug))?.data).toEqual(doc("first"));
+      expect(await ctx.repo().versions(page.id)).toHaveLength(1);
+      expect(await ctx.repo().replaceImportedDraft(`lpg_${"A".repeat(12)}`, doc("x"), null)).toBeNull();
+    });
+
+    it("has no import key for a page built in the Hub", async () => {
+      const page = await ctx.repo().create({ title: "Hub", slug: ctx.unique("hub"), createdBy: null });
+      expect(page.import_key).toBeNull();
+      expect(page.imported_at).toBeNull();
+    });
+
     it("answers null for a page that is gone", async () => {
       const missing = `lpg_${"A".repeat(12)}`;
       expect(await ctx.repo().publish(missing)).toBeNull();

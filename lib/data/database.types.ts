@@ -3904,6 +3904,7 @@ export type Database = {
           created_at: string
           data: Json
           id: string
+          kind: string
           page_id: string
           published_by: string | null
           title: string
@@ -3912,6 +3913,7 @@ export type Database = {
           created_at?: string
           data: Json
           id?: string
+          kind?: string
           page_id: string
           published_by?: string | null
           title: string
@@ -3920,6 +3922,7 @@ export type Database = {
           created_at?: string
           data?: Json
           id?: string
+          kind?: string
           page_id?: string
           published_by?: string | null
           title?: string
@@ -3942,6 +3945,8 @@ export type Database = {
           draft_data: Json
           first_published_at: string | null
           id: string
+          import_key: string | null
+          imported_at: string | null
           published_at: string | null
           published_data: Json | null
           restored_at: string | null
@@ -3962,6 +3967,8 @@ export type Database = {
           draft_data?: Json
           first_published_at?: string | null
           id?: string
+          import_key?: string | null
+          imported_at?: string | null
           published_at?: string | null
           published_data?: Json | null
           restored_at?: string | null
@@ -3982,6 +3989,8 @@ export type Database = {
           draft_data?: Json
           first_published_at?: string | null
           id?: string
+          import_key?: string | null
+          imported_at?: string | null
           published_at?: string | null
           published_data?: Json | null
           restored_at?: string | null
