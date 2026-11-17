@@ -110,6 +110,12 @@ export const KAJABI_PHOTO_HOSTS: readonly string[] = appConfig.kajabiPhotoHosts;
 /** The Kajabi site's public address: what a Kajabi path in an imported landing page is resolved against. */
 export const KAJABI_SITE_URL: string = appConfig.kajabiSiteUrl;
 
+/** The Claude API for "Build with AI" on landing pages (lib/landing/ai.ts). No key, no feature: the button says so. */
+export const ANTHROPIC = {
+  ...appConfig.anthropic,
+  apiKey: process.env.ANTHROPIC_API_KEY,
+};
+
 export const ATTENDANCE_DATA_STARTS_ON = appConfig.attendanceDataStartsOn;
 
 /** The course the Courses page offers to members who have none, and its waitlist page (app.config.ts `featuredCourse`). */

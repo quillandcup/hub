@@ -149,6 +149,12 @@ export const appConfig = {
   /** An offer's edit page in the Kajabi admin, for the admin Offers page; `{offerId}` is filled in. */
   kajabiAdminOfferUrl: "https://app.kajabi.com/admin/offers/{offerId}/edit",
 
+  /**
+   * The Claude API, used only by "Build with AI" on the landing page builder (lib/landing/ai.ts): the admin's own
+   * description of a page goes in, a draft comes out. Nothing a member wrote is ever sent (docs/LANDING_PAGES.md).
+   */
+  anthropic: { apiUrl: "https://api.anthropic.com", apiVersion: "2023-06-01", landingPageModel: "claude-sonnet-5-5" },
+
   csp: {
     imageHosts: [
       "https://image.mux.com", // lesson video stills

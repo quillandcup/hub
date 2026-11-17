@@ -633,4 +633,13 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     type: "config",
     destinations: vercelAllEnvs,
   },
+  // --- Anthropic -----------------------------------------------------------------------------
+  {
+    name: "ANTHROPIC_API_KEY",
+    group: "Anthropic",
+    description:
+      "Claude API key for \"Build with AI\" on the landing page builder (lib/landing/ai.ts). Only the admin's own description of a page is sent, never anything a member wrote. Without it the option is shown as unavailable.",
+    type: "secret",
+    destinations: vercelAllEnvs,
+  },
 ];
