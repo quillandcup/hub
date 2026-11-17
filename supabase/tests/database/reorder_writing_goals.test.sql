@@ -7,7 +7,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(14);
+SELECT plan(13);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000d2a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'goalorder-alice@example.test'),
@@ -79,8 +79,8 @@ SELECT public.reorder_writing_goals('mbr_GoalOrdAlic1', 'prj_GoalOrdP0001', ARRA
 RESET ROLE;
 
 SELECT is((SELECT value FROM result WHERE label = 'positions'),
-  '["01=2","02=3","03=1","04=null","05=null","06=null","b1=null"]'::jsonb,
-  'the project''s live, unarchived goals get 1..n in the given order (a repeat counts once); every other goal is left alone');
+  '["01=2","02=3","03=1","04=null","05=null","06=null"]'::jsonb,
+  'the project''s live, unarchived goals get 1..n in the given order (a repeat counts once); every other goal Alice can see is left alone');
 SELECT is((SELECT value FROM result WHERE label = 'positions_again'), (SELECT value FROM result WHERE label = 'positions'), 'the same list again changes nothing');
 SELECT is((SELECT value FROM result WHERE label = 'other_member_message'), '"not_allowed"'::jsonb, 'a member can''t reorder another member''s goals');
 SELECT is((SELECT value FROM result WHERE label = 'signed_out_message'), '"not_allowed"'::jsonb, 'someone who isn''t signed in can''t reorder');

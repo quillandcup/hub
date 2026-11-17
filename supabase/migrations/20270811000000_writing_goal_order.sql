@@ -67,12 +67,12 @@ BEGIN
   WITH given AS (
     SELECT u.id, min(u.ord) AS ord FROM unnest(p_ids) WITH ORDINALITY AS u(id, ord) GROUP BY u.id
   ), mine AS (
-    SELECT w.id AS uid, w.id::text AS id, w.sort_position, gv.ord
+    SELECT w.id AS gid, w.id::text AS id, w.sort_position, gv.ord
       FROM public.writing_goals w JOIN given gv ON gv.id = w.id::text
       WHERE w.member_id = p_member_id AND w.project_id = p_project_id AND w.archived_at IS NULL AND w.deleted_at IS NULL
   )
   SELECT
-    coalesce((SELECT array_agg(id ORDER BY sort_position ASC NULLS LAST, uid ASC) FROM mine), '{}'),
+    coalesce((SELECT array_agg(id ORDER BY sort_position ASC NULLS LAST, gid ASC) FROM mine), '{}'),
     coalesce((SELECT array_agg(id ORDER BY ord) FROM mine), '{}')
   INTO old_ids, new_ids;
 
