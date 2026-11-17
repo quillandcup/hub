@@ -63,10 +63,32 @@ describe("cleanGeneratedBlocks", () => {
     expect(kids[1].props.content).toEqual([]);
   });
 
+  it("reads a section's blocks from props.content or from beside props", () => {
+    const heading = { type: "Heading", props: { text: "Inside" } };
+    const [inProps, beside] = content(cleanGeneratedBlocks({ blocks: [{ type: "Section", props: { content: [heading] } }, { type: "Section", props: {}, content: [heading] }] }));
+    expect((inProps.props.content as Node[]).map((b) => b.type)).toEqual(["Heading"]);
+    expect((beside.props.content as Node[]).map((b) => b.type)).toEqual(["Heading"]);
+  });
+
   it("returns null when nothing usable is left", () => {
     expect(cleanGeneratedBlocks(null)).toBeNull();
     expect(cleanGeneratedBlocks({ blocks: "x" })).toBeNull();
     expect(cleanGeneratedBlocks({ blocks: [{ type: "Nope" }] })).toBeNull();
+  });
+});
+
+describe("what the model is told", () => {
+  it("asks for a whole page, for blocks to add without a hero or call to action, or for a change that touches only what is asked", () => {
+    expect(systemPrompt("page")).toContain("start with a Hero");
+    expect(systemPrompt("add")).toContain("no Hero, no CtaBanner, no h1");
+    expect(systemPrompt("add")).not.toContain("start with a Hero");
+    expect(systemPrompt("change")).toContain("leave everything else exactly as it is");
+  });
+
+  it("uses the add instructions when adding blocks", async () => {
+    const complete = vi.fn().mockResolvedValue({ blocks: [{ type: "Heading", props: { text: "x" } }] });
+    await generateLandingPage("a faq", complete, "add");
+    expect(complete.mock.calls[0][0]).toBe(systemPrompt("add"));
   });
 });
 
@@ -115,7 +137,7 @@ describe("completeWithClaude", () => {
     expect(headers["x-api-key"]).toBe("test-key");
     expect(headers["User-Agent"]).toContain("HedgieHub");
     const body = JSON.parse(String(init.body));
-    expect(body).toMatchObject({ model: ANTHROPIC.landingPageModel, tool_choice: { type: "tool", name: "build_page" }, messages: [{ role: "user", content: "prompt" }] });
+    expect(body).toMatchObject({ model: ANTHROPIC.landingPageModel, tool_choice: { type: "auto" }, messages: [{ role: "user", content: "prompt" }] });
   });
 
   it("throws on an error status or a missing tool call", async () => {

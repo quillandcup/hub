@@ -114,7 +114,9 @@ function cleanBlock(raw: unknown, depth: number, existing?: Existing): Block | n
   }
   if (type === "Section") {
     // One level of nesting: a section holds blocks, not more sections.
-    props.content = Array.isArray(given.content) && depth === 0 ? given.content.map((c) => cleanBlock(c, depth + 1, existing)).filter((b): b is Block => b !== null) : [];
+    // Models put the children in props.content as asked, or beside props; both are read.
+    const kids = Array.isArray(given.content) ? given.content : Array.isArray(raw.content) ? raw.content : [];
+    props.content = depth === 0 ? kids.map((c) => cleanBlock(c, depth + 1, existing)).filter((b): b is Block => b !== null) : [];
   }
   return { type, props };
 }
@@ -136,11 +138,21 @@ function describeBlocks(): string {
   }).join("\n");
 }
 
-export function systemPrompt(): string {
+/** What the request is: a whole new page, blocks to add to a page that exists, or a change to the page that exists. */
+export type Task = "page" | "add" | "change";
+
+const TASK_RULES: Record<Task, string> = {
+  page: "Structure: start with a Hero (its headline is the page's only h1; every other heading is h2 or h3, in order). Group related content in Sections with alternating backgrounds (none, cream, blush, plum), end with a CtaBanner. Keep it to what the request asks for, usually 4 to 8 top-level blocks.",
+  add: "You are adding to a page that already has its own hero and call to action. Return only the blocks the request asks for, and nothing around them: no Hero, no CtaBanner, no h1 (headings are h2 or h3). Usually one Section holding the content, or a few blocks.",
+  change: "You are changing a page that already exists. Return the complete revised page, change only what is asked, and leave everything else exactly as it is.",
+};
+
+export function systemPrompt(task: Task = "page"): string {
   return [
     "You build landing pages for Quill & Cup, a community for writers, in a block page builder. You answer only by calling the build_page tool.",
     "Write warm, plain, specific copy in the voice the request implies. Use only facts, prices, dates, names and links the request gives you; never invent figures, quotes, testimonials, deadlines or links. Where a fact is missing, write copy that does not need it, and leave a button's href empty so the admin fills it in.",
-    "Structure: start with a Hero (its headline is the page's only h1; every other heading is h2 or h3, in order). Group related content in Sections with alternating backgrounds (none, cream, blush, plum), end with a CtaBanner. Keep it to what the request asks for, usually 4 to 8 top-level blocks.",
+    TASK_RULES[task],
+    "A Section's blocks go in its props.content list. For a short set of parallel points with icons, use a List: each item's `icon` is one fitting emoji and its `text` is one or two short sentences (start with the point's name when it has one).",
     "Rich text (`html`) may use only p, h2, h3, ul, ol, li, strong, em, a and blockquote. There are no pictures: leave picture props out. Never mention AI.",
     "Blocks and their props (each prop you set must be one of these, with a value of the same kind):",
     describeBlocks(),
@@ -186,14 +198,19 @@ export const completeWithClaude: Complete = async (system, prompt) => {
         max_tokens: 8000,
         system,
         tools: [TOOL],
-        tool_choice: { type: "tool", name: TOOL.name },
+        // This model rejects a forced tool choice (400), so the instructions say to answer only by calling the tool.
+        tool_choice: { type: "auto" },
         messages: [{ role: "user", content: prompt }],
       }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     },
     "landing-ai/1",
   );
-  if (!response.ok) throw new Error(`Claude API answered ${response.status}`);
+  if (!response.ok) {
+    // Anthropic's error message says what was wrong with the request; it never holds the key or our prompt.
+    const detail = (await response.json().catch(() => undefined)) as { error?: { type?: string; message?: string } } | undefined;
+    throw new Error(`Claude API answered ${response.status}${detail?.error ? `: ${detail.error.type ?? "error"}: ${String(detail.error.message ?? "").slice(0, 300)}` : ""}`);
+  }
   const body = (await response.json()) as { content?: { type: string; input?: unknown }[] };
   const call = body.content?.find((c) => c.type === "tool_use");
   if (!call) throw new Error("Claude API returned no tool call");
@@ -221,13 +238,13 @@ export function pageForModel(content: unknown): unknown[] {
 export const aiConfigured = (): boolean => Boolean(ANTHROPIC.apiKey);
 
 /** Turns an admin's description into page data, ready to save as a draft. `complete` is the model call (a fake in tests). */
-export async function generateLandingPage(prompt: string, complete: Complete = completeWithClaude): Promise<GenerateResult> {
+export async function generateLandingPage(prompt: string, complete: Complete = completeWithClaude, task: Task = "page"): Promise<GenerateResult> {
   const text = prompt.trim();
   if (!text) return { ok: false, error: "Describe the page you want." };
   if (text.length > PROMPT_MAX) return { ok: false, error: `Keep the description under ${PROMPT_MAX} characters.` };
   let raw: unknown;
   try {
-    raw = await complete(systemPrompt(), text);
+    raw = await complete(systemPrompt(task), text);
   } catch (error) {
     // The message is for the logs only: it holds the status, never the key or the prompt.
     console.error("landing page AI build failed:", error instanceof Error ? error.message : String(error));
@@ -253,7 +270,7 @@ export async function reviseLandingPage(prompt: string, current: unknown, comple
   const request = `Here is the page as it is now (blocks keep their id; "locked" blocks cannot be changed by you, only kept or dropped):\n${view}\n\nChange it as follows, and return the complete revised page, keeping the id of every block you keep or change and giving new blocks no id. Change only what is asked; leave everything else as it is.\n\n${text}`;
   let raw: unknown;
   try {
-    raw = await complete(systemPrompt(), request);
+    raw = await complete(systemPrompt("change"), request);
   } catch (error) {
     console.error("landing page AI revision failed:", error instanceof Error ? error.message : String(error));
     return { ok: false, error: "The page builder's assistant didn't answer. The page is unchanged; try again." };

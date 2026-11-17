@@ -95,7 +95,7 @@ export async function generateLandingBlocks(prompt: string): Promise<AiBlocksRes
     "landing_page_ai_added",
     async () => {
       if (!aiConfigured()) return { error: "Build with AI isn't set up yet." };
-      const built = await generateLandingPage(prompt);
+      const built = await generateLandingPage(prompt, undefined, "add");
       if (!built.ok) return { error: built.error };
       return { blocks: built.data.content, notes: built.issues };
     },
