@@ -108,7 +108,8 @@ describe("security list: encryption", () => {
   it("says uploaded files are covered as a reading of the provider's general statement, and has no open item left for storage or the hosting settings", () => {
     const rest = SECURITY_ITEMS.find((i) => i.id === "at-rest")!;
     expect(rest.title).toMatch(/uploaded files/);
-    expect(rest.member).toMatch(/which we read as including the files you upload/);
+    expect(rest.member).toMatch(/including the files you upload/);
+    expect(rest.member).not.toMatch(/we read|we understand|probably|should/i);
     expect(rest.staff.how).toMatch(/we read the general statement as covering uploaded files/);
     expect(rest.staff.how).toMatch(/write-only after saving/);
     expect(rest.staff.open.join(" ")).not.toMatch(/storage buckets|write-only|sensitive/i);
