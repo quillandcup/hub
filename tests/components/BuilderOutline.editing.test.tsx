@@ -19,6 +19,7 @@ vi.mock("@/app/(admin)/admin/courses/outline-actions", () => actions);
 
 import BuilderOutline, { type OutlineCourse } from "@/app/(admin)/admin/courses/BuilderOutline";
 import { buildHubOutline } from "@/lib/courses/hub-outline";
+import { tooltipText, tooltipTexts } from "@/tests/helpers/tooltip";
 
 const COURSE = "crs_AAAAAAAAAAA1";
 const M1 = "mod_AAAAAAAAAAA1";
@@ -533,7 +534,7 @@ describe("an imported course", () => {
     expect(within(screen.getByRole("menu")).queryByRole("menuitem", { name: /position/i })).not.toBeInTheDocument();
     await user.keyboard("{Escape}");
     for (const handle of screen.getAllByRole("img", { name: "Drag to reorder lesson" })) {
-      expect(handle).toHaveAttribute("title", expect.stringMatching(/imported from Kajabi/));
+      expect(tooltipText(handle)).toMatch(/imported from Kajabi/);
       expect(handle).not.toHaveAttribute("draggable");
     }
     await user.click(screen.getAllByRole("button", { name: "Duplicate module" })[0]);

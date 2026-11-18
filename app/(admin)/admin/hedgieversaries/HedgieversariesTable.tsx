@@ -7,6 +7,7 @@ import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
 import { parseDateOnly, milestoneLabel } from "@/lib/member-tenure";
 import TableKeyboardNav from "@/components/TableKeyboardNav";
+import Tooltip from "@/components/Tooltip";
 
 export interface HedgieversaryRow {
   id: string;
@@ -107,12 +108,13 @@ export default function HedgieversariesTable({ rows, asOf }: { rows: Hedgieversa
                   )}
                   {row.recentDate && row.recentMilestoneMonths != null && (
                     <div className="mt-1">
-                      <span
-                        className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300"
-                        title={`Reached ${fmt(row.recentDate)}`}
-                      >
-                        {milestoneLabel(row.recentMilestoneMonths)} reached {fmt(row.recentDate)}
-                      </span>
+                      <Tooltip content={`Reached ${fmt(row.recentDate)}`}>
+                        <span
+                          className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300"
+                        >
+                          {milestoneLabel(row.recentMilestoneMonths)} reached {fmt(row.recentDate)}
+                        </span>
+                      </Tooltip>
                     </div>
                   )}
                 </td>
@@ -134,15 +136,16 @@ export default function HedgieversariesTable({ rows, asOf }: { rows: Hedgieversa
                   {row.hiatusWindows.length === 0 ? (
                     "—"
                   ) : (
-                    <span
-                      className="cursor-help underline decoration-dotted"
-                      title={row.hiatusWindows
+                    <Tooltip content={row.hiatusWindows
                         .map((w) => `${fmt(w.startsAt.slice(0, 10))} → ${w.endsAt ? fmt(w.endsAt.slice(0, 10)) : "ongoing"}`)
-                        .join("\n")}
-                    >
-                      {row.cumulativeHiatusMonths} mo
-                      {row.hiatusWindows.length > 1 ? ` (${row.hiatusWindows.length} periods)` : ""}
-                    </span>
+                        .join("\n")}>
+                      <span
+                        className="cursor-help underline decoration-dotted"
+                      >
+                        {row.cumulativeHiatusMonths} mo
+                        {row.hiatusWindows.length > 1 ? ` (${row.hiatusWindows.length} periods)` : ""}
+                      </span>
+                    </Tooltip>
                   )}
                 </td>
               </tr>

@@ -16,6 +16,7 @@ import { REASON_ICON } from "@/components/ReasonBadges";
 import PrickleDescription from "@/components/PrickleDescription";
 import { stripEventTag } from "@/lib/event-tag";
 import PrickleEditForm, { type PrickleEditConfig } from "@/components/PrickleEditForm";
+import Tooltip from "@/components/Tooltip";
 
 /** The same icons the prickle lists use (ReasonBadges), here worded for what another member did. */
 const ROSTER_REASONS: Record<RosterReason, { icon: string; label: string }> = {
@@ -166,9 +167,11 @@ export default function PrickleDetails({
                     {getMemberDisplayName({ name: hostMember.name, display_name: hostMember.displayName })}
                   </Link>
                   {(hostMissing || hostLate) && (
-                    <span className="ml-2" title={hostMissing ? "Host did not attend" : "Host was late (>5 min)"}>
-                      ⚠️
-                    </span>
+                    <Tooltip content={hostMissing ? "Host did not attend" : "Host was late (>5 min)"}>
+                      <span className="ml-2">
+                        ⚠️
+                      </span>
+                    </Tooltip>
                   )}
                   {hostMissing && (
                     <span className="ml-2 text-xs text-yellow-600 dark:text-yellow-400">
@@ -329,14 +332,15 @@ export default function PrickleDetails({
             <ul className="divide-y divide-slate-100 dark:divide-slate-800">
               {roster.entries.map((entry) => (
                 <li key={entry.memberId} className="py-2 flex items-center gap-3 text-sm">
-                  <span
-                    role="img"
-                    aria-label={ROSTER_REASONS[entry.reason].label}
-                    title={ROSTER_REASONS[entry.reason].label}
-                    className="w-6 shrink-0 text-center"
-                  >
-                    {ROSTER_REASONS[entry.reason].icon}
-                  </span>
+                  <Tooltip content={ROSTER_REASONS[entry.reason].label}>
+                    <span
+                      role="img"
+                      aria-label={ROSTER_REASONS[entry.reason].label}
+                      className="w-6 shrink-0 text-center"
+                    >
+                      {ROSTER_REASONS[entry.reason].icon}
+                    </span>
+                  </Tooltip>
                   <span className="min-w-0">
                     <Link data-track="prickle-open-roster-member"
                       href={`${memberBasePath}/${entry.memberId}`}

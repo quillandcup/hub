@@ -111,10 +111,12 @@ export default function LessonBuilderForm({ detail, media }: { detail: AdminLess
                 const choice = choices.find((x) => x.value === c.value)!;
                 return (
                   // Why a choice is blocked is its tooltip, not text beside it.
-                  <label key={c.value} title={choice.disabledReason} className="flex items-center gap-2">
-                    <input type="radio" name="status" defaultChecked={lesson.publishingOption === c.value} disabled={!!choice.disabledReason} />
-                    {c.label}
-                  </label>
+                  <Tooltip key={c.value} content={choice.disabledReason}>
+                    <label className="flex items-center gap-2">
+                      <input type="radio" name="status" defaultChecked={lesson.publishingOption === c.value} disabled={!!choice.disabledReason} />
+                      {c.label}
+                    </label>
+                  </Tooltip>
                 );
               })}
             </div>

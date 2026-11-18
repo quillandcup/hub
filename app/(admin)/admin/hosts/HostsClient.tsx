@@ -56,12 +56,13 @@ export function HostEligibilityBadge({ eligibility }: { eligibility: HostEligibi
     ? `Member for less than a full month; eligible to host from ${eligibility.eligibleOn}`
     : "No join date on record, so we can't confirm a full month of membership";
   return (
-    <span
-      title={title}
-      className="inline-block mt-1 px-2 py-0.5 text-xs rounded bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-300"
-    >
-      {eligibility.eligibleOn ? `New member — eligible ${eligibility.eligibleOn}` : "Join date unknown"}
-    </span>
+    <Tooltip content={title}>
+      <span
+        className="inline-block mt-1 px-2 py-0.5 text-xs rounded bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-300"
+      >
+        {eligibility.eligibleOn ? `New member — eligible ${eligibility.eligibleOn}` : "Join date unknown"}
+      </span>
+    </Tooltip>
   );
 }
 

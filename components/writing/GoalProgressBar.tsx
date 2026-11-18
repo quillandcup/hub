@@ -1,4 +1,5 @@
 import { MEASURE_LABELS, type WritingMeasure } from "@/lib/writing-projects";
+import Tooltip from "@/components/Tooltip";
 
 interface GoalProgressBarProps {
   measure: WritingMeasure;
@@ -63,11 +64,12 @@ export default function GoalProgressBar({
         <div className="relative h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
           <div className={`absolute inset-y-0 left-0 rounded-full ${barColor}`} style={{ width: `${clampedPercent}%` }} />
           {parPercent !== null && (
-            <div
-              className="absolute inset-y-0 w-0.5 bg-slate-900 dark:bg-slate-100"
-              style={{ left: `${parPercent}%` }}
-              title="Pace needed to finish on time"
-            />
+            <Tooltip content="Pace needed to finish on time">
+              <div
+                className="absolute inset-y-0 w-0.5 bg-slate-900 dark:bg-slate-100"
+                style={{ left: `${parPercent}%` }}
+              />
+            </Tooltip>
           )}
         </div>
       )}

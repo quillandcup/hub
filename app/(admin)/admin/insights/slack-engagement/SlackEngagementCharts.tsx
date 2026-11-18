@@ -20,6 +20,7 @@ import { SortableTh } from "@/components/SortableTh"
 import { useDataTable } from "@/lib/hooks/useDataTable"
 import type { SortValue } from "@/lib/hooks/useTableSort"
 import { DataTablePager } from "@/components/DataTablePager"
+import HintTip from "@/components/Tooltip";
 
 interface Props {
   heatmap: HeatCell[]
@@ -103,13 +104,13 @@ function DayHourHeatmap({ heatmap }: { heatmap: HeatCell[] }) {
               {day}
             </div>
             {(byDay.get(day) ?? []).map((cell) => (
-              <div
-                key={cell.hour}
-                title={`${day} ${formatHour(cell.hour)} ET · ${cell.count} event${cell.count === 1 ? "" : "s"}`}
-                aria-label={`${day} ${formatHour(cell.hour)}: ${cell.count} events`}
-                className="aspect-square rounded-sm"
-                style={{ backgroundColor: heatColor(cell.count, max) }}
-              />
+              <HintTip key={cell.hour} content={`${day} ${formatHour(cell.hour)} ET · ${cell.count} event${cell.count === 1 ? "" : "s"}`}>
+                <div
+                  aria-label={`${day} ${formatHour(cell.hour)}: ${cell.count} events`}
+                  className="aspect-square rounded-sm"
+                  style={{ backgroundColor: heatColor(cell.count, max) }}
+                />
+              </HintTip>
             ))}
           </div>
         ))}

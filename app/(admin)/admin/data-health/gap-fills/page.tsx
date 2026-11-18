@@ -4,6 +4,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { createRepos } from "@/lib/data/repos";
 import { requireAdminPage } from "@/lib/admin-auth";
+import Tooltip from "@/components/Tooltip";
 
 export const metadata: Metadata = {
   title: "Chat Gap-fills",
@@ -107,7 +108,9 @@ export default async function ChatGapFillsPage() {
                   <th className="px-4 py-2">Conversation</th>
                   <th className="px-4 py-2">What</th>
                   <th className="px-4 py-2">Triggered by</th>
-                  <th className="px-4 py-2 text-right" title="Messages Slack returned, new or not: 0 here means nothing came back">Slack returned</th>
+                  <Tooltip content="Messages Slack returned, new or not: 0 here means nothing came back">
+                    <th className="px-4 py-2 text-right">Slack returned</th>
+                  </Tooltip>
                   <th className="px-4 py-2 text-right">New messages</th>
                   <th className="px-4 py-2 text-right">Reactions</th>
                   <th className="px-4 py-2">Result</th>

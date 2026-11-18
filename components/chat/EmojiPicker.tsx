@@ -17,6 +17,7 @@ import {
   searchStandard,
   type StandardEntry,
 } from "@/lib/chat/emoji-catalog";
+import Tooltip from "@/components/Tooltip";
 
 type TabId = "recent" | (typeof CATEGORIES)[number]["id"] | "custom";
 
@@ -288,18 +289,18 @@ export default function EmojiPicker({
           {tabs.map((t) => {
             const Icon = TAB_ICONS[t.id];
             return (
-              <button
-                key={t.id}
-                type="button"
-                role="tab"
-                aria-selected={active === t.id}
-                aria-label={t.label}
-                title={t.label}
-                onClick={() => jump(t.id)}
-                className={`flex h-11 min-w-0 flex-1 items-center justify-center border-b-2 hover:text-slate-900 dark:hover:text-slate-100 ${active === t.id ? "border-plum-600 text-plum-700 dark:border-plum-400 dark:text-plum-300" : "border-transparent text-slate-500 dark:text-slate-400"}`}
-              >
-                <Icon aria-hidden="true" className="h-5 w-5" strokeWidth={active === t.id ? 2.25 : 1.5} />
-              </button>
+              <Tooltip key={t.id} content={t.label}>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={active === t.id}
+                  aria-label={t.label}
+                  onClick={() => jump(t.id)}
+                  className={`flex h-11 min-w-0 flex-1 items-center justify-center border-b-2 hover:text-slate-900 dark:hover:text-slate-100 ${active === t.id ? "border-plum-600 text-plum-700 dark:border-plum-400 dark:text-plum-300" : "border-transparent text-slate-500 dark:text-slate-400"}`}
+                >
+                  <Icon aria-hidden="true" className="h-5 w-5" strokeWidth={active === t.id ? 2.25 : 1.5} />
+                </button>
+              </Tooltip>
             );
           })}
         </div>
@@ -372,21 +373,21 @@ export default function EmojiPicker({
         {pickingTone ? (
           <div role="radiogroup" aria-label="Skin tone" className="flex items-center gap-0.5 overflow-x-auto">
             {[{ tone: null, label: "Default", sample: "\u{1F44D}" }, ...SKIN_TONES].map((t) => (
-              <button
-                key={t.label}
-                type="button"
-                role="radio"
-                aria-checked={tone === t.tone}
-                aria-label={`${t.label} skin tone`}
-                title={`${t.label} skin tone`}
-                onClick={() => {
-                  chooseTone(t.tone);
-                  setPickingTone(false);
-                }}
-                className={`h-10 w-10 shrink-0 rounded text-lg hover:bg-slate-100 dark:hover:bg-slate-800 ${tone === t.tone ? "bg-plum-50 ring-1 ring-plum-400 dark:bg-plum-900/30" : ""}`}
-              >
-                {t.sample}
-              </button>
+              <Tooltip key={t.label} content={`${t.label} skin tone`}>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={tone === t.tone}
+                  aria-label={`${t.label} skin tone`}
+                  onClick={() => {
+                    chooseTone(t.tone);
+                    setPickingTone(false);
+                  }}
+                  className={`h-10 w-10 shrink-0 rounded text-lg hover:bg-slate-100 dark:hover:bg-slate-800 ${tone === t.tone ? "bg-plum-50 ring-1 ring-plum-400 dark:bg-plum-900/30" : ""}`}
+                >
+                  {t.sample}
+                </button>
+              </Tooltip>
             ))}
           </div>
         ) : (

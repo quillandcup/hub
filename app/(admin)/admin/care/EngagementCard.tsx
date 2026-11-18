@@ -224,12 +224,13 @@ export default function EngagementCard({ card, canWrite, owners, meId }: { card:
               ? `Last message: you wrote ${card.lastActivityLabel}`
               : "No message logged yet"}
         {card.fromSlack && !closed && (
-          <span
-            title="Kept up to date from your tracked Slack DM with them, so you don't need to log replies here"
-            className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-          >
-            from Slack
-          </span>
+          <Tooltip content="Kept up to date from your tracked Slack DM with them, so you don't need to log replies here">
+            <span
+              className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+            >
+              from Slack
+            </span>
+          </Tooltip>
         )}
         <span> · Started {formatDateOnly(card.startedOn)}</span>
         <span> · {card.periodOver ? "Care plan ended" : "Care plan ends"} {formatDateOnly(card.periodEndsOn)}</span>

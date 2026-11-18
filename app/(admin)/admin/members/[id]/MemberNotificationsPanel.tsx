@@ -1,4 +1,5 @@
 import { NOTIFICATION_CHANNELS, type NotificationChannelId } from "@/lib/notifications/registry";
+import Tooltip from "@/components/Tooltip";
 
 export interface NotificationKindRow {
   id: string;
@@ -62,7 +63,9 @@ export default function MemberNotificationsPanel({ devices, email, newcomer, kin
                   {NOTIFICATION_CHANNELS.map((c) => (
                     <td key={c.id} className="py-2 px-3 text-center">
                       {k.channels.includes(c.id) ? "On" : "Off"}
-                      {k.changed.includes(c.id) && <span title="Chosen by the member, not the default">*</span>}
+                      {k.changed.includes(c.id) && <Tooltip content="Chosen by the member, not the default">
+                        <span>*</span>
+                      </Tooltip>}
                     </td>
                   ))}
                 </tr>

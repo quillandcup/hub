@@ -67,7 +67,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
 - **Use it like this.** Wrap the one control: \`<Tooltip content="Pin to my dashboard"><button aria-label="Pin to my dashboard">...</button></Tooltip>\`. It adds no wrapper element, and \`content\` may be undefined for a conditional hint.
 - **The behavior is built in.** Hover only on devices that hover, a long press on touch (that press doesn't click the control), keyboard focus shows it (not a tap), a short delay, Escape hides it, it stays while the pointer is over it, and it is linked with \`aria-describedby\`. It is drawn on the page body, so no scrolling card or modal clips it.
 - **A hint is never the only place something lives.** The control keeps its own name; touch users don't see the tip.
-- **Guarded.** A native \`title\` on a DOM element fails \`tests/lib/tooltip-native-title.test.ts\` unless the file is in its shrinking baseline. Rule: \`.claude/rules/tooltips.md\`; what is left to convert is in \`docs/TODO.md\`.`,
+- **Guarded.** Every native \`title\` tooltip in the app has moved over, and a new one fails \`tests/lib/tooltip-native-title.test.ts\` (iframe, abbr and pattern-input titles are the only exceptions). Rule: \`.claude/rules/tooltips.md\`.`,
   },
   {
     slug: "keyboard-shortcuts",

@@ -5,6 +5,7 @@ import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
+import Tooltip from "@/components/Tooltip";
 
 export interface PrickleTypeRow {
   id: string;
@@ -125,9 +126,11 @@ export default function PrickleTypesTable({ rows }: { rows: PrickleTypeRow[] }) 
                 )}
               </td>
               <td className="px-6 py-4 max-w-xs">
-                <div className="text-sm text-slate-600 dark:text-slate-400 truncate" title={type.description ?? ""}>
-                  {type.description ?? <span className="text-slate-500 dark:text-slate-600 italic">—</span>}
-                </div>
+                <Tooltip content={type.description ?? ""}>
+                  <div className="text-sm text-slate-600 dark:text-slate-400 truncate">
+                    {type.description ?? <span className="text-slate-500 dark:text-slate-600 italic">—</span>}
+                  </div>
+                </Tooltip>
               </td>
               <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
                 {type.default_host_name ?? <span className="text-slate-500 dark:text-slate-600 italic">—</span>}

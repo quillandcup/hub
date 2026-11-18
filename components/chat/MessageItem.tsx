@@ -14,6 +14,7 @@ import { formatChatClock, formatChatTime } from "@/lib/chat/format";
 import { isPendingId } from "@/lib/chat/list-events";
 import type { ChatMessageView } from "@/lib/chat/load";
 import { decodeEntities, mentionsToPlainText } from "@/lib/chat/render";
+import Tooltip from "@/components/Tooltip";
 
 /**
  * Slack's own wording for a channel notice: "Ania renamed the channel…", a plain name rather than a
@@ -90,9 +91,11 @@ export default function MessageItem({
         <div className="min-w-0 flex-1">
           <p className="text-[13px] text-slate-600 dark:text-slate-400">
             {systemNoticeText(message.body, message.authorName, ctx)}
-            <time dateTime={message.createdAt} title={formatChatTime(message.createdAt, timeZone)} className="ml-3 text-xs text-slate-500 dark:text-slate-400">
-              {clock}
-            </time>
+            <Tooltip content={formatChatTime(message.createdAt, timeZone)}>
+              <time dateTime={message.createdAt} className="ml-3 text-xs text-slate-500 dark:text-slate-400">
+                {clock}
+              </time>
+            </Tooltip>
           </p>
           <ReactionBar channelId={channelId} messageId={message.id} reactions={message.reactions} custom={ctx.customEmoji} canReact={canReact && !isPendingId(message.id)} />
         </div>
@@ -108,13 +111,14 @@ export default function MessageItem({
     >
       <div className="w-9 shrink-0 pt-0.5">
         {compact ? (
-          <time
-            dateTime={message.createdAt}
-            title={formatChatTime(message.createdAt, timeZone)}
-            className="invisible block whitespace-nowrap pt-0.5 text-right text-[10px] leading-5 text-slate-600 group-hover:visible group-focus-within:visible dark:text-slate-400"
-          >
-            {clock.replace(/\s?[AP]M$/i, "")}
-          </time>
+          <Tooltip content={formatChatTime(message.createdAt, timeZone)}>
+            <time
+              dateTime={message.createdAt}
+              className="invisible block whitespace-nowrap pt-0.5 text-right text-[10px] leading-5 text-slate-600 group-hover:visible group-focus-within:visible dark:text-slate-400"
+            >
+              {clock.replace(/\s?[AP]M$/i, "")}
+            </time>
+          </Tooltip>
         ) : message.authorMemberId ? (
           <MemberHoverCard memberId={message.authorMemberId} surface="chat">
             <Link data-track="chat-message-avatar" href={profileHref} scroll={false} aria-hidden="true" tabIndex={-1}>

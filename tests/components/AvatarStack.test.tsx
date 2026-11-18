@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import { render } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import AvatarStack from "@/components/AvatarStack";
+import { tooltipText, tooltipTexts } from "@/tests/helpers/tooltip";
 
 const people = ["Fern", "Gale", "Bramble", "Moss"].map((name) => ({ name, photoUrl: null }));
 
@@ -14,7 +15,7 @@ describe("AvatarStack", () => {
 
   it("shows up to max people, each titled with their name, and is hidden from assistive tech", () => {
     const { container } = render(<AvatarStack people={people} max={3} />);
-    expect([...container.querySelectorAll("[title]")].map((e) => e.getAttribute("title"))).toEqual(["Fern", "Gale", "Bramble"]);
+    expect(tooltipTexts(container).map((t) => t.text)).toEqual(["Fern", "Gale", "Bramble"]);
     expect(container.firstElementChild).toHaveAttribute("aria-hidden", "true");
   });
 

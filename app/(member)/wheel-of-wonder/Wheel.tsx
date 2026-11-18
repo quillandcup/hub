@@ -10,6 +10,7 @@ import {
   type WheelSpinResponse,
   type WheelWinner,
 } from "./actions";
+import Tooltip from "@/components/Tooltip";
 
 // Slot count for the idle (pre-spin) placeholder ring. Once real results
 // come back, the wheel shrinks to however many distinct real candidates are
@@ -78,25 +79,26 @@ function SlotAvatar({ slot, size, dimmed }: { slot: SlotPhoto; size: number; dim
   const showPhoto = !!slot.photoUrl && !imgFailed;
 
   return (
-    <div
-      className={`relative rounded-full flex items-center justify-center flex-shrink-0 text-white font-semibold shadow border-2 border-white dark:border-slate-900 transition-opacity overflow-hidden ${getAvatarColor(
-        slot.memberName
-      )} ${dimmed ? "opacity-60" : ""}`}
-      style={{ width: size, height: size, fontSize: size * 0.32 }}
-      title={slot.memberName}
-    >
-      {!showPhoto && getInitials(slot.memberName)}
-      {slot.photoUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          key={slot.photoUrl}
-          src={slot.photoUrl}
-          alt=""
-          onError={() => setImgFailed(true)}
-          className={`absolute inset-0 w-full h-full object-cover ${showPhoto ? "" : "hidden"}`}
-        />
-      )}
-    </div>
+    <Tooltip content={slot.memberName}>
+      <div
+        className={`relative rounded-full flex items-center justify-center flex-shrink-0 text-white font-semibold shadow border-2 border-white dark:border-slate-900 transition-opacity overflow-hidden ${getAvatarColor(
+          slot.memberName
+        )} ${dimmed ? "opacity-60" : ""}`}
+        style={{ width: size, height: size, fontSize: size * 0.32 }}
+      >
+        {!showPhoto && getInitials(slot.memberName)}
+        {slot.photoUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            key={slot.photoUrl}
+            src={slot.photoUrl}
+            alt=""
+            onError={() => setImgFailed(true)}
+            className={`absolute inset-0 w-full h-full object-cover ${showPhoto ? "" : "hidden"}`}
+          />
+        )}
+      </div>
+    </Tooltip>
   );
 }
 

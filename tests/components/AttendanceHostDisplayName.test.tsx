@@ -4,6 +4,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import AttendanceListTable from "@/components/AttendanceListTable";
 import AttendanceMonthGrid from "@/components/AttendanceMonthGrid";
+import { tooltipText, tooltipTexts } from "@/tests/helpers/tooltip";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 Element.prototype.scrollIntoView = vi.fn();
@@ -52,7 +53,8 @@ describe("attendance views name the host by display name", () => {
     render(
       <AttendanceMonthGrid attendance={[attendance(BESTIE)]} timezone="America/New_York" currentMonthDate={new Date(2026, 9, 15)} memberId="m1" />
     );
-    expect(screen.getByTitle(/Midnight Crew w\/ Bestie/)).toBeInTheDocument();
-    expect(screen.queryByTitle(/Laura/)).not.toBeInTheDocument();
+    const tips = tooltipTexts().map((t) => t.text);
+    expect(tips.some((t) => /Midnight Crew w\/ Bestie/.test(t))).toBe(true);
+    expect(tips.some((t) => /Laura/.test(t))).toBe(false);
   });
 });
