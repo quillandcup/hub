@@ -154,7 +154,6 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
           open: [
             "The sign-in cookies are not HttpOnly, so a script injected into a page could read the session. Making them HttpOnly means the server hands the browser a short-lived token instead (docs/TODO.md, \"Make the sign-in cookies HttpOnly\").",
             "Two-factor sign-in (TOTP) is switched on in the project's settings, but the Hub has no screen to enrol in or require it. Decide whether staff accounts should need it.",
-            "Two-factor sign-in on the team's own accounts at the database, hosting and code providers, and a second owner on each, are not in place. Whoever holds one of those accounts can reach everything the Hub holds, so this is the largest single risk (docs/TODO.md, \"Supabase security checklist follow-ups\"; docs/THREAT_MODEL.md, A07).",
           ],
         },
       },
