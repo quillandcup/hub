@@ -13,6 +13,9 @@ export const appConfig = {
   /** The app's name as shown when installed to a home screen (the web app manifest). */
   appName: "Quill & Cup Hub",
 
+  /** The issuer on the two-step sign-in QR code: authenticator apps show it beside the account (components/mfa/MfaPanel.tsx). */
+  mfaIssuer: "Quill & Cup Hedgie Hub",
+
   /**
    * The product token in the User-Agent every outbound request sends (lib/config.ts `OUTBOUND_USER_AGENT`,
    * docs/OUTBOUND_REQUESTS.md). An HTTP token: letters, digits and `-._` only, no spaces, so it is not `appName`.
