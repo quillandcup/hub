@@ -59,7 +59,7 @@ jobs:
           REPO: ${{ github.repository }}
           EXPECTED: ${{ inputs.only_if_production_is }}
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         if: steps.guard.outputs.proceed == 'true'
         with:
           ref: ${{ inputs.ref }}
