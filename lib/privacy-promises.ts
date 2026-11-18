@@ -1,10 +1,12 @@
 import type { ComplianceStatus } from "@/lib/compliance";
+import { privacyText } from "@/lib/privacy";
 import { RETENTION } from "@/lib/retention";
 
 /**
  * What the Privacy page promises, one row per promise, with where the code keeps it: the list behind the staff
- * view (`/admin/privacy`). The member page (`/privacy`) is still written by hand and stays the source of what
- * members read; `member` here restates each promise in a line, so a change to the page means a change to its row.
+ * view (`/admin/privacy`). What members read is written once, in `lib/privacy.ts`, and the page renders it; a row
+ * here names the items it is about (`reads`) and `member` is those items' text, so the staff page shows exactly
+ * what the page says and a change to the wording changes both.
  *
  * Every row must be true of the code today. The staff detail is public-safe on purpose (the repo is public):
  * where a thing is enforced and tested, when it was last checked, and what is still open. Never a name, an
@@ -18,7 +20,9 @@ export interface PrivacyPromise {
   id: string;
   title: string;
   status: ComplianceStatus;
-  /** The promise, as the Privacy page makes it (one or two sentences). */
+  /** The ids in `lib/privacy.ts` of the sentences or table rows that make this promise on the page. */
+  reads: readonly string[];
+  /** The promise exactly as the Privacy page says it: the text of `reads`, from `lib/privacy.ts`. */
   member: string;
   /** How the code keeps it, for the team. */
   how: string;
@@ -35,7 +39,10 @@ export interface PrivacyGroup {
   rows: readonly PrivacyPromise[];
 }
 
-export const PRIVACY_GROUPS: readonly PrivacyGroup[] = [
+type PromiseDef = Omit<PrivacyPromise, "member">;
+type GroupDef = Omit<PrivacyGroup, "rows"> & { rows: readonly PromiseDef[] };
+
+export const PRIVACY_GROUPS: readonly PrivacyGroup[] = ([
   {
     id: "choices",
     title: "Asking first, and your choices",
@@ -45,8 +52,7 @@ export const PRIVACY_GROUPS: readonly PrivacyGroup[] = [
         id: "consent",
         title: "We ask first in the EU, EEA and UK",
         status: "inPlace",
-        member:
-          "If you are in the EU, EEA or UK we ask before we start recording usage statistics, and if you decline we record none of it, apart from error recordings. Elsewhere it is on until you turn it off.",
+        reads: ["consent-rule"],
         how: "The banner is decided from the visitor's country, read from the hosting provider's header. An unknown location is treated as needing consent. Google Analytics runs in Consent Mode: where consent is needed its consent starts denied, before its script loads, and the banner updates it.",
         evidence: ["components/ConsentBanner.tsx", "lib/analytics/consent.ts", "lib/gdpr-countries.ts", "tests/components/pages/privacy-page.test.tsx"],
         checked: "2026-11-17",
@@ -56,7 +62,7 @@ export const PRIVACY_GROUPS: readonly PrivacyGroup[] = [
         id: "opt-out",
         title: "A switch to leave usage statistics off",
         status: "inPlace",
-        member: "You can leave usage statistics off with a switch on the Privacy page, and turning it on again later is your choice.",
+        reads: ["summary-switch"],
         how: "One flag per account. The browser, the receiving route, the server-side recorders and Google Analytics all follow it, and turning it on deletes the account's stored usage events. While an admin views the Hub as a member the switch is read-only.",
         evidence: ["lib/analytics/opt-out.ts", "app/privacy/actions.ts", "app/privacy/StatsOptOutSwitch.tsx", "supabase/tests/database/analytics_opt_out.test.sql", "tests/lib/privacy-actions.test.ts"],
         checked: "2026-11-17",
@@ -66,8 +72,7 @@ export const PRIVACY_GROUPS: readonly PrivacyGroup[] = [
         id: "no-typed-text",
         title: "Usage statistics never record what you type",
         status: "inPlace",
-        member:
-          "Usage statistics record which pages, buttons and links are used and what kind of search ran with how many results, never the words typed into search, forms or messages. Button and link names are the app's own.",
+        reads: ["stats-no-typed-text"],
         how: "Search records only its kind and result count. Click labels that could identify a person (a member's name or email shown in a menu, for instance) are removed by a database function, which a pgTAP test covers.",
         evidence: ["lib/analytics/events.ts", "lib/analytics/receive.ts", "supabase/tests/database/analytics_scrub_labels.test.sql"],
         checked: "2026-11-17",
@@ -77,8 +82,7 @@ export const PRIVACY_GROUPS: readonly PrivacyGroup[] = [
         id: "recordings",
         title: "Error recordings mask text and form fields",
         status: "inPlace",
-        member:
-          "When something breaks we keep the error and a short recording of what was on screen around it, with text and form fields masked. These continue if you leave statistics off, because we can't fix a bug we can't see.",
+        reads: ["stats-recordings"],
         how: "Session replay masks text, form fields and media by default (Sentry's defaults, kept on purpose); only the app's own navigation labels are unmasked. The monitoring provider scrubs on its side and does not store IP addresses.",
         evidence: ["instrumentation-client.ts", "components/SessionReplay.tsx", "sentry-config.yml", "docs/SENTRY_CONFIG.md"],
         checked: "2026-11-17",
@@ -90,8 +94,7 @@ export const PRIVACY_GROUPS: readonly PrivacyGroup[] = [
         id: "video-quality",
         title: "Video quality measurement is anonymous",
         status: "inPlace",
-        member:
-          "Only if usage statistics are on, how well a course video plays is measured with your IP address, browser and device. It carries no name, email or account id and sets no cookie.",
+        reads: ["collect-video-quality"],
         how: "No viewer id and no custom dimension that could hold a person are sent to the video provider, and its cookies are off. The same switch and banner decide whether it runs.",
         evidence: ["lib/mux-data.ts", "components/courses/LessonPlayer.tsx", "docs/MUX_CONFIG.md", "docs/ANALYTICS.md"],
         checked: "2026-11-17",
@@ -110,7 +113,7 @@ export const PRIVACY_GROUPS: readonly PrivacyGroup[] = [
         id: "retention-network",
         title: `Exact IP address and browser details: ${RETENTION.rawNetworkDays} days`,
         status: "inPlace",
-        member: `Your exact IP address and your browser's identification string are removed after ${RETENTION.rawNetworkDays} days. After that we keep the approximate place and the type of browser and device.`,
+        reads: ["keep-network"],
         how: "A nightly job strips the raw values from the visit log, the usage log and course viewing once they pass the limit. The page and the job import the same constant.",
         evidence: [
           "lib/retention.ts",
@@ -128,7 +131,7 @@ export const PRIVACY_GROUPS: readonly PrivacyGroup[] = [
         id: "retention-usage",
         title: `Usage statistics: ${RETENTION.usageMonths} months, then anonymous totals`,
         status: "inPlace",
-        member: `Usage statistics are kept ${RETENTION.usageMonths} months, then only anonymous totals remain.`,
+        reads: ["keep-usage"],
         how: "The same job rolls usage events up into totals and removes the individual rows once their totals are kept.",
         evidence: ["lib/retention.ts", "lib/retention/usage-events.ts", "docs/EVENT_LOG.md (retention schedule)"],
         checked: "2026-11-17",
@@ -138,8 +141,7 @@ export const PRIVACY_GROUPS: readonly PrivacyGroup[] = [
         id: "deletes",
         title: "What you delete stays until you ask us to remove it",
         status: "inPlace",
-        member:
-          "When you delete something you added, it disappears for you and everyone else, but we may keep a copy, and the change history keeps a record, until you ask us to close your account and remove it. Removed data can stay in the database provider's backups for a limited time.",
+        reads: ["keep-deletes"],
         how: "Deleted things are soft deletes, or live in the audit log. A removal request either deletes them or takes the name off.",
         evidence: [".claude/rules/data-architecture.md (soft delete)", "docs/ACTIVITY_AND_AUDIT_LOG.md"],
         checked: "2026-11-17",
@@ -156,8 +158,7 @@ export const PRIVACY_GROUPS: readonly PrivacyGroup[] = [
         id: "chat-content",
         title: "Staff read chat content only where the database allows it",
         status: "inPlace",
-        member:
-          "Staff can read the content of public channels and of private channels that aren't marked restricted. Restricted channels, group DMs and one-on-one DMs have no staff read path except break-glass access. Staff can always see who is in a conversation, who wrote and reacted and when.",
+        reads: ["chat-public", "chat-private", "chat-restricted", "chat-group", "chat-dm", "chat-planned", "chat-metadata"],
         how: "Enforced by row-level security on the message contents table (`chat_can_read_content`) and a separate, wider rule for metadata (`chat_can_see_channel`), not by the page. Files follow the content rule.",
         evidence: [
           "supabase/migrations/20261009000000_slack_content_privacy.sql",
@@ -174,7 +175,7 @@ export const PRIVACY_GROUPS: readonly PrivacyGroup[] = [
         id: "deleted-messages",
         title: "Deleted messages can't be read by staff in the Hub",
         status: "inPlace",
-        member: "When you delete a message or remove a reaction it disappears for everyone. Staff can't read a deleted message's text or files in the Hub; the only way is break-glass access.",
+        reads: ["chat-deleted"],
         how: "The content table's policy requires the message not to be deleted, so there is no read path for it.",
         evidence: ["supabase/migrations/20261130000000_chat_edit_delete.sql", "supabase/migrations/20261010000000_chat_mirror.sql"],
         checked: "2026-11-17",
@@ -184,8 +185,7 @@ export const PRIVACY_GROUPS: readonly PrivacyGroup[] = [
         id: "slack-dms",
         title: "One-on-one Slack DMs are shown only to the people in them",
         status: "inPlace",
-        member:
-          "The Hub brings your one-on-one Slack DMs into your chat with your own Slack connection and keeps them. You, and the other person if they are a member who has brought theirs in, can read them. Staff can see that the conversation exists and its metadata, and read the text only through break-glass access. Viewing the Hub as you never shows them.",
+        reads: ["dm-what", "dm-who", "dm-stop"],
         how: "Each member's own Slack token lists and reads their DMs (on opening chat, on a live event and nightly) into a service-role-only store, and a private restricted conversation is made for the members who pulled it. A non-member's messages are kept under their Slack name and nothing else about them.",
         evidence: ["lib/chat/slack-dms.ts", "lib/chat/slack-dm-events.ts", "app/api/reconcile/slack-dms/route.ts", "tests/lib/slack-dms.test.ts", "tests/lib/slack-dm-events.test.ts", "docs/SLACK_BRIDGED_CHAT.md"],
         checked: "2026-11-17",
@@ -195,10 +195,9 @@ export const PRIVACY_GROUPS: readonly PrivacyGroup[] = [
         id: "break-glass",
         title: "Break-glass access is recorded",
         status: "working",
-        member:
-          "In rare cases, such as a safety or conduct report, an admin may need to read a specific restricted channel or group DM. We do that only for that conversation and only as long as it takes, and record who looked, why and when.",
+        reads: ["chat-break-glass"],
         how: "A commitment, not a screen. There is no in-app tool, so anything done under it is done by hand and has to be recorded as the page promises.",
-        evidence: ["app/privacy/page.tsx (break-glass access)", "docs/SLACK_BRIDGED_CHAT.md"],
+        evidence: ["lib/privacy.ts (break-glass access)", "docs/SLACK_BRIDGED_CHAT.md"],
         checked: "2026-11-17",
         open: ["Build the in-app tool, with the record written by the tool, so the promise doesn't rest on a person remembering to write it down."],
       },
@@ -206,7 +205,7 @@ export const PRIVACY_GROUPS: readonly PrivacyGroup[] = [
         id: "view-as",
         title: "Viewing the Hub as a member is read-only in chat",
         status: "inPlace",
-        member: "An admin can view the Hub as a member to help with support. The chat is read-only and shows what you can see, except restricted channels, group DMs and direct messages.",
+        reads: ["chat-view-as"],
         how: "The effective member comes from one function, so every member page reads the same identity; the stats switch is read-only while viewing as someone.",
         evidence: ["lib/sudo.ts", ".claude/rules/member-identity.md", "app/privacy/StatsOptOutSwitch.tsx"],
         checked: "2026-11-17",
@@ -216,8 +215,7 @@ export const PRIVACY_GROUPS: readonly PrivacyGroup[] = [
         id: "slack-connection",
         title: "Your Slack connection is stored encrypted",
         status: "inPlace",
-        member:
-          "The Slack connection is kept encrypted and used only by the Hub's server. You can disconnect it in Settings at any time, and Slack shows it under your authorized apps.",
+        reads: ["chat-connection"],
         how: "The token is in the database vault behind service-role-only functions, with only a pointer in our table.",
         evidence: ["lib/slack-connect.ts", "docs/TODO.md (Secrets at Rest)"],
         checked: "2026-11-17",
@@ -234,24 +232,22 @@ export const PRIVACY_GROUPS: readonly PrivacyGroup[] = [
         id: "services",
         title: "Only the services that run the Hub receive your information",
         status: "provider",
-        member:
-          "We don't share your information with anyone except the services that run the Hub, listed at the bottom of the page. Our database and hosting are in the United States, and our providers are certified under the EU-U.S. Data Privacy Framework (and its UK extension) or we rely on standard contractual clauses.",
-        how: "The list on the page is kept by hand. The certification status was checked against the Data Privacy Framework list; the Compliance page carries the row and its open items.",
-        evidence: ["app/privacy/page.tsx (services)", "docs/TODO.md (the Data Privacy Framework check)"],
+        reads: ["more-sharing", "services-transfers"],
+        how: "The list is kept by hand in lib/privacy.ts. The certification status was checked against the Data Privacy Framework list; the Compliance page carries the row and its open items.",
+        evidence: ["lib/privacy.ts (services)", "docs/TODO.md (the Data Privacy Framework check)"],
         checked: "2026-11-17",
         open: [
           "A new provider must be added to the page's list and checked against the certification list before it receives anything. Nothing enforces that; it is a review step.",
-          "Gravatar is asked with a hash of the member's email address. The page calls it \"a scrambled form\"; the hash is MD5 (Gravatar's format), so anyone who already has an address can check it against the hash. Consider saying \"a hash\" plainly.",
+          "Gravatar is asked with a hash of the member's email address (MD5, Gravatar's format), so anyone who already has an address can check it against the hash. The page says \"a hash\" and names no provider.",
         ],
       },
       {
         id: "rights",
         title: "Members can ask to see, correct or remove what we hold",
         status: "working",
-        member:
-          "You can ask us at any time to show you what we hold about you, correct it, remove it, or stop using it for usage statistics. We will answer as soon as we can, and within a month. For removal we either delete it or take your name off it.",
+        reads: ["choices-asking"],
         how: "Requests come by email to the support address and are handled by a person.",
-        evidence: ["app/privacy/page.tsx (asking us)"],
+        evidence: ["lib/privacy.ts (asking us)"],
         checked: "2026-11-17",
         open: [
           "There is no in-app tool or queue for these requests, and nothing tracks a request or its one-month deadline. Writing the steps down, and a way to log each request, would make the promise checkable.",
@@ -261,12 +257,15 @@ export const PRIVACY_GROUPS: readonly PrivacyGroup[] = [
         id: "children",
         title: "The Hub isn't for children under 13",
         status: "inPlace",
-        member: "If a child under 13 has joined, tell us and we will delete their information.",
+        reads: ["more-children"],
         how: "A policy statement; membership is by invitation.",
-        evidence: ["app/privacy/page.tsx (also good to know)"],
+        evidence: ["lib/privacy.ts (also good to know)"],
         checked: "2026-11-17",
         open: [],
       },
     ],
   },
-];
+] satisfies readonly GroupDef[]).map((group) => ({
+  ...group,
+  rows: group.rows.map((row) => ({ ...row, member: privacyText(row.reads) })),
+}));

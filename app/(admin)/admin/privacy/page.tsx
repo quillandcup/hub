@@ -24,9 +24,9 @@ const ALL_ROWS: StaffRow[] = PRIVACY_GROUPS.flatMap((group) =>
 
 /**
  * The staff view of the Privacy page: one row per promise it makes, with how the code keeps it, where it is
- * enforced and tested, when it was last checked and what is still open. The member page (`/privacy`) is still
- * written by hand; this list restates its promises, so change them together. The repo is public, so the detail
- * is public-safe by design (see `lib/privacy-promises.ts`).
+ * enforced and tested, when it was last checked and what is still open. "Members read" is the member page's own
+ * text (`lib/privacy.ts`, which `/privacy` renders), not a second copy. The repo is public, so the detail is
+ * public-safe by design (see `lib/privacy-promises.ts`).
  */
 export default async function AdminPrivacyPage() {
   await requireAdminPage();
