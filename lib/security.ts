@@ -186,7 +186,7 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
             "docs/RLS_SECURITY.md is out of date: it still says every signed-in user has full access. It should be rewritten from the policies. Nothing else relies on it.",
             "The definer-function test proves that a caller check exists in each function, not that it is right or complete. A reviewer still reads every new SECURITY DEFINER function in the pull request that adds it.",
             "A mentor's match count and first and last match dates can be read by any signed-in member (deliberate: badges need it and members cannot read the matches table). Confirm it matches what members were told.",
-            "Chat uses Realtime row changes, and row-level security does not filter delete events: when a chat message or reaction is deleted, its id (only the id) is sent to every subscriber of that table. Low impact, since messages are soft deleted and only reaction removals send it. Details in docs/SUPABASE_SECURITY_CHECKLIST.md; the fix (server-sent Broadcast with its own authorization) is tracked in docs/TODO.md, Realtime cost and limits.",
+            "Chat uses Realtime row changes, and row-level security does not filter delete events: when a chat row is hard deleted, its id (only the id) is sent to every subscriber of that table. Low impact: messages and reactions are soft deleted, so only a hard delete by a maintenance job sends one. Details in docs/SUPABASE_SECURITY_CHECKLIST.md; the fix (server-sent Broadcast with its own authorization) is tracked in docs/TODO.md, Realtime cost and limits.",
           ],
         },
       },
