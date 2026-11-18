@@ -156,15 +156,15 @@ describe("/privacy page", () => {
     expect(chat.queryByText(/only where they could see the original/)).not.toBeInTheDocument();
     expect(chat.getByText(/we will record who looked, why and when/)).toBeInTheDocument();
     expect(chat.getByText("Break-glass access")).toBeInTheDocument();
-    // One-on-one DMs: what is kept, who sees it, and that there is no separate switch (no objection promise).
-    expect(chat.getByText(/^One-on-one DMs, and group DMs without Billie Bot, as they reach the Hub/)).toBeInTheDocument();
+    // One-on-one Slack DMs: what is kept, who sees it, and that there is no separate switch (no objection promise).
+    expect(chat.getByText(/^One-on-one Slack DMs, and group DMs without Billie Bot, as they reach the Hub/)).toBeInTheDocument();
     // Private channels without Billie Bot are planned, not bridged yet, and the permission is asked for ahead of them.
     expect(chat.getByText(/^Private channels without Billie Bot/)).toBeInTheDocument();
     expect(chat.queryByText(/Slack group DMs or private channels without Billie Bot/)).not.toBeInTheDocument();
     expect(chat.getByText(/read the private\s+channels you are in/)).toBeInTheDocument();
     expect(chat.getByText(/we plan to bring private channels Billie Bot isn't in into Hub Chat too/)).toBeInTheDocument();
-    expect(chat.getByText(/the Hub brings yours into chat with your own chat service connection/)).toBeInTheDocument();
-    expect(chat.getByText(/The chat service only shows about 90 days of history/)).toBeInTheDocument();
+    expect(chat.getByText(/the Hub brings yours into chat with your own Slack connection/)).toBeInTheDocument();
+    expect(chat.getByText(/Slack only shows about 90 days of history/)).toBeInTheDocument();
     expect(chat.getByText(/they can read the\s+text only through break-glass access/)).toBeInTheDocument();
     expect(chat.getByText(/There is no separate switch for DMs/)).toBeInTheDocument();
     expect(chat.getByText(/closes Hub Chat for you until you reconnect/)).toBeInTheDocument();
@@ -182,7 +182,7 @@ describe("/privacy page", () => {
   it("folds the long chat explanations into collapsed details", async () => {
     await renderServerPage(PrivacyPage, {});
     const titles = [...document.querySelectorAll("details > summary")].map((s) => s.textContent);
-    expect(titles).toEqual(["Break-glass access", "Connecting your chat service account", "Your chat service direct messages", "Viewing the Hub as you", "Deleted messages and reactions", "How usage statistics work"]);
+    expect(titles).toEqual(["Break-glass access", "Connecting your Slack account", "Your Slack direct messages", "Viewing the Hub as you", "Deleted messages and reactions", "How usage statistics work"]);
     expect(document.querySelectorAll("details[open]")).toHaveLength(0);
   });
 
@@ -248,7 +248,7 @@ describe("/privacy page", () => {
     const choices = section("choices");
     expect(choices.getByRole("heading", { name: "Notifications" })).toBeInTheDocument();
     // "such as", so the page doesn't need an edit when a channel is added.
-    expect(choices.getByText(/in more than one place, such as chat, email, inside the Hub, or your browser/)).toBeInTheDocument();
+    expect(choices.getByText(/in more than one place, such as Slack, email, inside the Hub, or your browser/)).toBeInTheDocument();
     expect(choices.queryByText(/four places/)).not.toBeInTheDocument();
     expect(choices.queryByText(/We keep a record/)).not.toBeInTheDocument();
     expect(choices.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings/notifications");
@@ -280,29 +280,30 @@ describe("/privacy page", () => {
     for (const kind of [
       "database provider, our sign-in and auth provider, and our hosting provider \\(which also counts visits and page speed\\)",
       "payment and course providers, for your membership and billing",
-      "live-session service, where live prickles happen",
-      "chat service, for chat and notifications",
+      "Zoom, where live prickles happen",
+      "Slack, for chat and notifications",
       "email provider, and your browser's push service",
       "video hosting provider, for course videos",
       "calendar service for the prickle schedule, and our photo service only when you choose",
-      "profile-picture service, which supplies a profile picture",
+      "Gravatar, which supplies a profile picture",
       "monitoring providers, for errors and performance",
-      "analytics service, only where you allow it",
+      "Google Analytics, only where you allow it",
     ]) {
       expect(services.getByText(new RegExp(kind))).toBeInTheDocument();
     }
     const order = [...services.getAllByRole("listitem")].map((li) => li.textContent ?? "");
-    expect(order.findIndex((t) => t.includes("video hosting provider"))).toBeLessThan(order.findIndex((t) => t.startsWith("Our live-session service")));
-    expect(order.findIndex((t) => t.startsWith("Our live-session service"))).toBeLessThan(order.findIndex((t) => t.startsWith("Our chat service")));
+    expect(order.findIndex((t) => t.includes("video hosting provider"))).toBeLessThan(order.findIndex((t) => t.startsWith("Zoom")));
+    expect(order.findIndex((t) => t.startsWith("Zoom"))).toBeLessThan(order.findIndex((t) => t.startsWith("Slack")));
     expect(services.getByText(/asked using a hash of your email address/)).toBeInTheDocument();
     expect(services.queryByText(/scrambled/)).not.toBeInTheDocument();
     expect(services.getByText(/Our database and hosting are in the United States, so if you use the Hub from elsewhere your information is transferred\s+there/)).toBeInTheDocument();
     expect(services.getByText(/certified under the EU-U\.S\. Data Privacy Framework \(and its UK extension\) or we rely on standard\s+contractual clauses with them/)).toBeInTheDocument();
     // The hosting provider's own aggregate counts can't be switched off per member, and the page says so next to the switch.
     expect(section("choices").getByText(/that count is not part of\s+this switch/)).toBeInTheDocument();
-    // No provider is named on the page (the guard in tests/lib/trust-no-provider-names.test.ts covers the data too).
+    // Internal providers stay generic; the services members use or see directly (Slack, Zoom, Google Analytics, Gravatar) are named.
+    // The guard in tests/lib/trust-no-provider-names.test.ts covers the data too.
     const text = document.body.textContent ?? "";
-    for (const vendor of ["Supabase", "Mux", "Sentry", "Resend", "Vercel", "Stripe", "Kajabi", "Zoom", "Slack", "Google", "Gravatar"]) expect(text).not.toContain(vendor);
+    for (const vendor of ["Supabase", "Mux", "Sentry", "Resend", "Vercel", "Stripe", "Kajabi", "Google Calendar", "Google Photos"]) expect(text).not.toContain(vendor);
   });
 });
 
