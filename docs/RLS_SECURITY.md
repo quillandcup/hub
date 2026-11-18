@@ -130,6 +130,10 @@ Files live in Supabase Storage buckets, and `storage.objects` has row level secu
 
 A bucket with a limit set says it in the dashboard; "Unset (50 MB)" is the project default. `book-covers` (public, members could write to it) and `course-images` are retired: nothing uses them, and a bucket can only be deleted through the Storage API or the dashboard, not SQL.
 
+## Table privileges (grants)
+
+Row level security decides which rows a role sees; grants decide whether it may touch the table at all. Both should say no to what the role never needs. The signed-out role (`anon`) holds no privileges on any table in `public` or `bronze`: signed-out pages and routes use the service role (after their own check), and everything signed-in runs as `authenticated`. Default privileges for the migration role also hand `anon` nothing on new tables and sequences, so a new table starts closed and only the grants its migration writes (`authenticated`, `service_role`) exist. `supabase/tests/database/anon_has_no_table_privileges.test.sql` fails if `anon` holds a privilege on any table or a new table gets one. If a table ever has to be readable signed-out, grant that one privilege in its migration with the reason beside it, and change the test's expectation for it. Functions are separate: `is_admin()` and the other helpers keep their execute grants.
+
 ## Helper Functions
 
 ### `is_admin()`

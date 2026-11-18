@@ -56,6 +56,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "database-roles-closed-by-default",
+    date: "2026-11-17",
+    audience: "engineering",
+    category: "improved",
+    title: "Signed-out database access is closed by default",
+    summary: "The signed-out database role now holds no table privileges, and new tables start without any for it, so row level security is no longer the only lock.",
+    body: `Row level security says which rows a role may see; grants say whether it may touch a table at all. Older migrations and Supabase's default privileges had left the signed-out role with grants it never used, so one policy mistake would have exposed a table. Now both layers say no.
+
+- **The rule.** The signed-out role has no privileges on any table in the app's schemas, and default privileges for the migration role give it nothing on new ones. Signed-out pages and routes use the service role after their own check; everything signed-in runs as the signed-in role.
+- **A new table** gets its grants in its own migration (\`authenticated\`, \`service_role\`), as before. If a table must be readable signed-out, grant that one privilege in its migration, say why beside it, and change the test's expectation.
+- **Guarded.** A database test fails if the signed-out role holds a privilege on any table, or if a freshly created table gives it one. Functions keep their own execute grants.
+- **Detail.** \`docs/RLS_SECURITY.md\`, "Table privileges (grants)".`,
+  },
+  {
     slug: "one-tooltip-component",
     date: "2026-11-17",
     audience: "engineering",
