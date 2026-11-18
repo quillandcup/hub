@@ -88,19 +88,20 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         title: "Encrypted at rest: the database and our settings",
         status: "provider",
         member:
-          "Our hosting provider and our database provider both encrypt what they store on disk with AES-256, and that includes the database's backups. The database's encryption keys are specific to our project and protected by hardware security modules. The keys and settings we give our hosting provider are encrypted at rest too.",
+          "Our hosting provider and our database provider both encrypt what they store on disk with AES-256, and that includes the database's backups. Our database provider says all customer data is encrypted at rest; it does not name uploaded files on their own. The database's encryption keys are specific to our project and protected by hardware security modules. The keys and settings we give our hosting provider are encrypted at rest too.",
         staff: {
-          how: "Database: the provider states that database data and backups are encrypted with AES-256, with keys generated per project and protected by FIPS 140-2 compliant hardware security modules, and destroyed if the project is deleted (its data residency and transfers FAQ, version dated 2026-10-06, read on 2026-11-17). Hosting: AES-256 at rest (provider documentation); environment variable values are encrypted at rest, and a variable marked sensitive is write-only after saving. These are the providers' statements, not something we tested.",
+          how: "Database: the provider states that database data and backups are encrypted with AES-256, with keys generated per project and protected by FIPS 140-2 compliant hardware security modules, and destroyed if the project is deleted (its data residency and transfers FAQ, version dated 2026-10-06, read on 2026-11-17). Hosting: AES-256 at rest (provider documentation); environment variable values are encrypted at rest, and a variable marked sensitive is write-only after saving. The database provider's security page also says \"All customer data is encrypted at rest with AES-256 and in transit via TLS\" and that a project's Postgres database, Auth service and Storage objects are hosted in its region; neither that page nor the Storage documentation names Storage objects in an encryption sentence (read on 2026-11-18). These are the providers' statements, not something we tested.",
           evidence: [
             "env-vars.config.ts",
             "docs/ENV_MANAGEMENT.md",
             "provider documentation, read 2026-11-17: the database provider's data residency and transfers FAQ (at rest section) and the hosting provider's security documentation",
+            "provider documentation, read 2026-11-18: the database provider's security page and Storage documentation",
           ],
-          checked: "2026-11-17",
+          checked: "2026-11-18",
           open: [
             "The database provider's FAQ does not say who holds the keys or whether they rotate, and points to its data processing addendum (schedule 1) for full technical detail. Read that, and ask the provider for its SOC 2 report, before quoting more than the sentences above.",
             "Whether the production secrets are marked sensitive (write-only) in the hosting provider has not been checked.",
-            "Uploaded files (the storage buckets that hold pictures, covers and media) are not covered by this row: the provider statements read for it are about the database and its backups. Confirm from the provider's documentation that storage is encrypted at rest, then add it here and retitle the row.",
+            "Uploaded files (the storage buckets that hold pictures, covers and media) are covered only by the provider's general sentence that all customer data is encrypted at rest. Nothing it publishes names Storage objects in an encryption sentence. Get written confirmation (the data processing addendum, schedule 1, or a support answer), then name uploaded files in the member text and retitle the row.",
           ],
         },
       },
