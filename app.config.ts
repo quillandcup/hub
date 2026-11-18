@@ -41,6 +41,16 @@ export const appConfig = {
   adminNoteEditMinutes: 15,
 
   /**
+   * When staff (admins and community managers) must sign in with a second step (a TOTP code from an authenticator app,
+   * lib/staff-mfa.ts, docs/STAFF_MFA.md). `null` = not required yet: staff without it see a banner that points them to
+   * Settings, and staff who have set it up are still asked for the code. To require it for everyone, set an ISO 8601
+   * instant with an offset, for example "2027-02-01T00:00:00-05:00"; from then on staff without it are sent to the
+   * set-up screen instead of the admin area. Set it a week or two ahead, after every admin has enrolled. A value that
+   * doesn't parse counts as off (tests/lib/staff-mfa.test.ts fails on one).
+   */
+  staffMfaRequiredFrom: null as string | null,
+
+  /**
    * Hedgie Care (the community manager's reach-outs, lib/care.ts, docs/HEDGIE_CARE.md). These are starting points
    * for her to confirm, not settled numbers; change them here, never in code.
    *

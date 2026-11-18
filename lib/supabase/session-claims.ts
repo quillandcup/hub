@@ -49,3 +49,13 @@ export function getAppRoleFromAccessToken(token: string): string | null | undefi
   if (role === null || typeof role === "string") return role;
   return undefined;
 }
+
+/**
+ * The `aal` claim: `"aal2"` once the session has passed a second factor (a TOTP code), `"aal1"` after a
+ * link or code sign-in alone, `null` when the token doesn't carry it. Only as trustworthy as the caller's
+ * own verification of the token (the proxy reads it after `getUser()`); never for anything but a pre-filter.
+ */
+export function getAalFromAccessToken(token: string): string | null {
+  const aal = decodeAccessTokenClaims(token)?.aal;
+  return typeof aal === "string" ? aal : null;
+}

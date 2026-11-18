@@ -6,6 +6,18 @@ import { getCurrentUser, type AuthUser } from "@/lib/auth";
 import { ADMIN_NO_ACCESS_PATH } from "@/lib/admin-paths";
 import { COMMUNITY_MANAGER_HOME, COMMUNITY_MANAGER_ROLE } from "@/lib/staff-access";
 import { getStaffPreviewRole } from "@/lib/staff-preview.server";
+import { getStaffMfaState } from "@/lib/staff-mfa.server";
+import { blocksStaff } from "@/lib/staff-mfa";
+import { redirectToGate } from "@/lib/gates.server";
+import { GATES } from "@/lib/gates";
+
+/** What an action returns when the staff member hasn't passed (or set up) the second sign-in step. */
+export const MFA_REQUIRED_ERROR = "Two-step sign-in required";
+
+/** Staff who must pass (or set up) their second sign-in step are sent to /mfa, then back (lib/staff-mfa.ts). */
+async function requireStaffMfaPage(): Promise<void> {
+  if (blocksStaff(await getStaffMfaState())) await redirectToGate(GATES.staffMfa);
+}
 
 /**
  * Secure admin check for admin-area server components (the Data Access Layer
@@ -40,6 +52,7 @@ export const requireAdminPage = cache(async (): Promise<AuthUser> => {
   // An admin previewing a lower role is refused an admin-only page like that role would be. They go to that
   // role's home, not /no-access, which has no banner to leave the preview from.
   if (await getStaffPreviewRole()) redirect(COMMUNITY_MANAGER_HOME);
+  await requireStaffMfaPage();
 
   return user;
 });
@@ -62,6 +75,7 @@ export const requireStaffPage = cache(async (): Promise<StaffUser> => {
 
   const profile = await createRepos(await createClient()).profiles.byId(user.id).catch(() => null);
   if (profile?.role !== "admin" && profile?.role !== COMMUNITY_MANAGER_ROLE) redirect(ADMIN_NO_ACCESS_PATH);
+  await requireStaffMfaPage();
 
   // A real admin previewing a lower role is that role here.
   const role = (profile.role === "admin" && (await getStaffPreviewRole())) || profile.role;
@@ -70,7 +84,7 @@ export const requireStaffPage = cache(async (): Promise<StaffUser> => {
 
 export type AdminActionAuth =
   | { ok: true; user: AuthUser; supabase: Awaited<ReturnType<typeof createClient>> }
-  | { ok: false; error: "Not authenticated" | "Not authorized" };
+  | { ok: false; error: "Not authenticated" | "Not authorized" | typeof MFA_REQUIRED_ERROR };
 
 /**
  * Admin check for server actions (`"use server"` exports). Server actions are
@@ -93,12 +107,13 @@ export async function requireAdminAction(): Promise<AdminActionAuth> {
   if (!(await createRepos(supabase).profiles.isAdmin(user.id))) return { ok: false, error: "Not authorized" };
   // Previewing a lower role: its actions are refused, as they would be for that role.
   if (await getStaffPreviewRole()) return { ok: false, error: "Not authorized" };
+  if (blocksStaff(await getStaffMfaState())) return { ok: false, error: MFA_REQUIRED_ERROR };
   return { ok: true, user, supabase };
 }
 
 export type StaffActionAuth =
   | { ok: true; user: AuthUser; supabase: Awaited<ReturnType<typeof createClient>>; role: StaffRole; realRole: StaffRole }
-  | { ok: false; error: "Not authenticated" | "Not authorized" };
+  | { ok: false; error: "Not authenticated" | "Not authorized" | typeof MFA_REQUIRED_ERROR };
 
 /**
  * Staff check for a server action a community manager may also call (a page that lists them in
@@ -121,6 +136,8 @@ export async function requireStaffAction(): Promise<StaffActionAuth> {
   const supabase = await createClient();
   const profile = await createRepos(supabase).profiles.byId(user.id).catch(() => null);
   if (profile?.role !== "admin" && profile?.role !== COMMUNITY_MANAGER_ROLE) return { ok: false, error: "Not authorized" };
+
+  if (blocksStaff(await getStaffMfaState())) return { ok: false, error: MFA_REQUIRED_ERROR };
 
   const role = (profile.role === "admin" && (await getStaffPreviewRole())) || profile.role;
   return { ok: true, user, supabase, role, realRole: profile.role };

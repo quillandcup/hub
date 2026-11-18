@@ -56,6 +56,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "staff-two-step-sign-in",
+    date: "2026-11-18",
+    audience: "staff",
+    category: "new",
+    title: "Two-step sign-in for the team",
+    summary: "You can now add a code from an authenticator app to your sign-in. Once you have, the admin pages ask for that code, so a stolen sign-in link is not enough to get in.",
+    body: `Open **Settings** and, on the Account tab, choose **Set up two-step sign-in**. Scan the picture with an authenticator app on your phone (or type the key shown under it), then enter the 6-digit code to turn it on. You can remove it there too.
+
+- **After you turn it on**, opening the admin pages asks for the code from your app the first time in each sign-in. Your member pages are not affected.
+- **Until it is required of everyone**, a banner at the top of the admin pages reminds you to set it up. When the date is set, staff without it will be sent to the set-up screen first.
+- **Lost your phone?** Ask the owner to reset it; the steps are in \`docs/STAFF_MFA.md\`.`,
+  },
+  {
     slug: "database-roles-closed-by-default",
     date: "2026-11-17",
     audience: "engineering",

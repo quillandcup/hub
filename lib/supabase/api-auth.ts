@@ -6,6 +6,8 @@ import { NextRequest } from "next/server";
 import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from "@/lib/with-timeout";
 import { getCurrentUser, type AuthUser } from "@/lib/auth";
 import { secretsMatch } from "@/lib/webhook-auth";
+import { staffMfaStateFor } from "@/lib/staff-mfa.server";
+import { blocksStaff } from "@/lib/staff-mfa";
 
 /**
  * Creates a Supabase client for API routes.
@@ -71,5 +73,7 @@ export async function requireAdmin(request: NextRequest) {
     return { ...auth, forbidden: false as const };
   }
   if (!(await createRepos(auth.supabase).profiles.isAdmin(auth.user.id))) return { ...auth, forbidden: true as const };
+  // An admin who hasn't passed (or set up) the second sign-in step gets what a non-admin gets (lib/staff-mfa.ts).
+  if (blocksStaff(await staffMfaStateFor(auth.supabase))) return { ...auth, forbidden: true as const };
   return { ...auth, forbidden: false as const };
 }
