@@ -16,6 +16,7 @@ const refreshSession = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ auth: { mfa, refreshSession } }) }));
 vi.mock("@/components/SignOutButton", () => ({ default: () => <button>Sign Out</button> }));
 
+import { APP_NAME } from "@/lib/config";
 import MfaPanel from "@/components/mfa/MfaPanel";
 import MfaChallengeForm from "@/components/mfa/MfaChallengeForm";
 
@@ -53,7 +54,7 @@ describe("MfaPanel", () => {
     await user.click(await screen.findByRole("button", { name: "Set up two-step sign-in" }));
     expect(await screen.findByAltText(/QR code/)).toBeInTheDocument();
     expect(screen.getByTestId("mfa-secret")).toHaveTextContent(SECRET);
-    expect(mfa.enroll).toHaveBeenCalledWith({ factorType: "totp", friendlyName: "Authenticator app" });
+    expect(mfa.enroll).toHaveBeenCalledWith({ factorType: "totp", friendlyName: "Authenticator app", issuer: APP_NAME });
 
     const turnOn = screen.getByRole("button", { name: "Turn on" });
     expect(turnOn).toBeDisabled();
