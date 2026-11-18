@@ -60,7 +60,7 @@ export const COMPLIANCE_GROUPS: readonly ComplianceGroup[] = [
         about: "Data protection law in the EU, the EEA and the UK.",
         status: "inPlace",
         detail:
-          "If you connect from the EU, EEA or UK we ask before recording usage statistics or loading Google Analytics, and we record nothing if you decline. You can ask us to show, correct or remove what we hold, and we answer within a month. Exact IP addresses and browser details are removed after 90 days and usage statistics after 13 months.",
+          "If you connect from the EU, EEA or UK we ask before recording usage statistics or loading analytics cookies, and we record nothing if you decline. You can ask us to show, correct or remove what we hold, and we answer within a month. Exact IP addresses and browser details are removed after 90 days and usage statistics after 13 months.",
         evidence: ["components/ConsentBanner.tsx", "lib/gdpr-countries.ts", "lib/retention.ts", "app/privacy/page.tsx", "tests/components/pages/privacy-page.test.tsx"],
         checked: "2026-11-17",
         open: [],
@@ -127,7 +127,7 @@ export const COMPLIANCE_GROUPS: readonly ComplianceGroup[] = [
         about: "The security standard for anyone who handles payment card details.",
         status: "provider",
         detail:
-          "Card and bank details never reach the Hub. They are handled by our payment provider, Stripe, which holds the PCI certification. The Hub only reads your plan, its dates and payment status back from Stripe, and has no card form of its own.",
+          "Card and bank details never reach the Hub. They are handled by our payment provider, which holds the PCI certification. The Hub only reads your plan, its dates and payment status back from the provider, and has no card form of its own.",
         evidence: ["lib/stripe/client.ts (list and retrieve calls only)", "no Stripe.js or checkout code anywhere in app, components or lib"],
         checked: "2026-11-17",
         open: [],
@@ -170,8 +170,8 @@ export const COMPLIANCE_GROUPS: readonly ComplianceGroup[] = [
         about: "Who can see and change what.",
         status: "inPlace",
         detail:
-          "Sign-in is by invitation. The database enforces who can read each row, staff access is limited by role, and admin pages check it again on every request. Connections are encrypted, and the Slack connection of each member is stored encrypted and used only by the Hub's server.",
-        evidence: ["lib/supabase/middleware.ts", "lib/admin-auth.ts", "lib/staff-access.ts", "the Security page (/admin/security) has the full detail"],
+          "Sign-in is by invitation. The database enforces who can read each row, staff access is limited by role, and admin pages check it again on every request. Connections are encrypted, and each member's chat connection is stored encrypted and used only by the Hub's server. The Security page has the detail.",
+        evidence: ["lib/supabase/middleware.ts", "lib/admin-auth.ts", "lib/staff-access.ts", "/admin/security has the full detail"],
         checked: "2026-11-17",
         open: [],
       },
@@ -210,6 +210,7 @@ export const COMPLIANCE_GROUPS: readonly ComplianceGroup[] = [
 
 /** The services we lean on for part of the above, and what each does for us. Full list: the Privacy page. */
 export interface ComplianceProvider {
+  /** The provider's name. Shown only on the staff page (`/admin/compliance`): the public page describes providers by `role`. */
   name: string;
   role: string;
   /** What they handle for compliance. */
