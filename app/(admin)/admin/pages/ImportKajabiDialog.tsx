@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Kbd from "@/components/Kbd";
 import Modal from "@/components/Modal";
 import type { A11yIssue } from "@/lib/landing/a11y";
 import type { ImportNote } from "@/lib/landing/kajabi-import";
@@ -99,8 +100,9 @@ export default function ImportKajabiDialog({ isOpen, onClose }: { isOpen: boolea
               <button type="button" onClick={close} className={SECONDARY}>
                 Cancel
               </button>
-              <button type="submit" disabled={pending || !file} className={PRIMARY}>
+              <button type="submit" disabled={pending || !file} aria-keyshortcuts="Control+Enter Meta+Enter" className={`${PRIMARY} inline-flex items-center gap-2`}>
                 {pending ? "Importing…" : "Import"}
+                <Kbd keys={["mod", "enter"]} onAccent />
               </button>
             </div>
           </form>

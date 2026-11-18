@@ -30,7 +30,17 @@ function Registers({ group, has }: { group: ShortcutGroupId; has?: ShortcutNeed[
   return null;
 }
 
-function Page({ withCalendar = false, withTable, withDialog = false }: { withCalendar?: boolean; withTable?: ShortcutNeed[]; withDialog?: boolean }) {
+function Page({
+  withCalendar = false,
+  withTable,
+  withDialog = false,
+  withGroups = [],
+}: {
+  withCalendar?: boolean;
+  withTable?: ShortcutNeed[];
+  withDialog?: boolean;
+  withGroups?: ShortcutGroupId[];
+}) {
   const [showCalendar, setShowCalendar] = useState(withCalendar);
   return (
     <ShortcutsProvider>
@@ -45,6 +55,9 @@ function Page({ withCalendar = false, withTable, withDialog = false }: { withCal
           </button>
           {showCalendar && <Registers group="calendar" />}
           {withTable && <Registers group="table" has={withTable} />}
+          {withGroups.map((group) => (
+            <Registers key={group} group={group} />
+          ))}
         </main>
       </ShortcutsLayout>
     </ShortcutsProvider>
@@ -192,9 +205,12 @@ describe("the list", () => {
     render(<Page />);
     await user.keyboard("?");
     const region = panel()!;
-    for (const name of ["Basics", "Search", "Forms and pickers"]) {
+    for (const name of ["Basics", "Search"]) {
       expect(within(region).getByRole("heading", { name })).toBeInTheDocument();
     }
+    // The picker and dialog form keys are page-scoped too: nothing on this page has them.
+    expect(within(region).queryByRole("heading", { name: "Pickers" })).toBeNull();
+    expect(within(region).queryByRole("heading", { name: "Forms in dialogs" })).toBeNull();
     expect(within(region).getByText("to toggle this panel")).toBeInTheDocument();
     // Page-scoped groups that are not on the page stay out.
     expect(within(region).queryByRole("heading", { name: "Calendar" })).toBeNull();
@@ -254,7 +270,7 @@ describe("the list", () => {
 
   it("filters by label, by keys and by section, and says when nothing matches", async () => {
     const user = userEvent.setup();
-    render(<Page withCalendar />);
+    render(<Page withCalendar withGroups={["pickers", "forms"]} />);
     await user.keyboard("?");
     const region = panel()!;
 

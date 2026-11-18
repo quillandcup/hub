@@ -80,4 +80,18 @@ describe('TrackbearImportModal', () => {
     expect(await screen.findByText(/doesn't contain trackbear-progress-data.json/)).toBeInTheDocument()
     expect(onImported).not.toHaveBeenCalled()
   })
+
+  it('shows the Ctrl/Cmd+Enter hint on Import, and the key imports', async () => {
+    const fetchMock = stubFetch(200, RESULT)
+    render(<TrackbearImportModal isOpen onClose={() => {}} onImported={() => {}} />)
+    const button = screen.getByRole('button', { name: 'Import' })
+    expect(button).toHaveAttribute('aria-keyshortcuts', 'Control+Enter Meta+Enter')
+    expect(button.querySelector('[data-kbd]')).not.toBeNull()
+
+    const user = userEvent.setup()
+    await user.upload(screen.getByLabelText('TrackBear export file'), new File(['PK'], 'export.zip', { type: 'application/zip' }))
+    await user.keyboard('{Control>}{Enter}{/Control}')
+    expect(await screen.findByText('2 projects')).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
 })

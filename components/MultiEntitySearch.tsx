@@ -7,6 +7,7 @@ import { useBlurDelay } from "@/lib/hooks/useBlurDelay";
 import { KeyHints, type SearchItem } from "@/components/EntitySearch";
 import { useComboboxKeys } from "@/lib/hooks/useComboboxKeys";
 import { submitFormOnModEnter } from "@/lib/submit-form-on-mod-enter";
+import { useRegisterShortcuts } from "@/components/shortcuts/ShortcutsProvider";
 import Tooltip from "@/components/Tooltip";
 
 interface MultiEntitySearchProps {
@@ -41,6 +42,8 @@ export default function MultiEntitySearch({
   showUnknown = false,
   chipNote,
 }: MultiEntitySearchProps) {
+  // The picker's keys are listed in the `?` panel while one is on the page.
+  useRegisterShortcuts("pickers");
   const [searchTerm, setSearchTerm] = useState("");
   const { isFocused, setIsFocused, onFocus, onBlur } = useBlurDelay();
 

@@ -111,4 +111,16 @@ describe("New page with Import from Kajabi", () => {
     await user.click(screen.getByRole("button", { name: "Import" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't reach the server");
   });
+
+  it("shows the Ctrl/Cmd+Enter hint on Import, and the key imports", async () => {
+    reply(imported());
+    const user = await openDialog();
+    const button = screen.getByRole("button", { name: "Import" });
+    expect(button).toHaveAttribute("aria-keyshortcuts", "Control+Enter Meta+Enter");
+    expect(button.querySelector("[data-kbd]")).not.toBeNull();
+    await user.click(screen.getByLabelText(/Page title/));
+    await user.keyboard("{Control>}{Enter}{/Control}");
+    expect(await screen.findByRole("status")).toHaveTextContent("Created a draft: Example Sprint");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });
