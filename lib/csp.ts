@@ -101,13 +101,15 @@ export function scriptStyleCsp({ nonce, sentryDsn, dev = false }: { nonce: strin
 }
 
 /**
- * TEMPORARY DIAGNOSTIC: what the policy headers on a request look like when the layout renders, with nonces blanked out.
- * Used for one deploy to learn what Vercel hands Next (docs/TODO.md, "CSP for scripts and styles"), then removed.
+ * The enforcing policy as a `<meta http-equiv>` tag for pages (app/layout.tsx), for now. Why not the header: Next takes the script
+ * nonce from the request's `content-security-policy` header, and on Vercel any such header, from next.config.ts or from the proxy,
+ * is copied onto the request and hides the nonce that sits in the report-only one (diagnosed 2026-11-18, docs/TODO.md, "CSP for
+ * scripts and styles"). A meta tag has no such side effect. It cannot carry `frame-ancestors` (X-Frame-Options says the same) or
+ * `report-uri`, so those are left out. Goes away when one header carries the picture and script policies.
  */
-export function describeCspRequestHeaders(headers: Pick<Headers, "get">): string {
-  const show = (name: string) => {
-    const value = headers.get(name);
-    return value === null ? null : value.replace(/'nonce-[^']*'/g, "'nonce-…'").slice(0, 90);
-  };
-  return JSON.stringify({ csp: show(CSP_HEADER), reportOnly: show(CSP_REPORT_ONLY_HEADER), nonceHeader: headers.get(NONCE_HEADER) !== null });
+export function buildMetaCsp(inputs: CspInputs): string {
+  return buildCsp({ ...inputs, sentryDsn: undefined })
+    .split("; ")
+    .filter((d) => !d.startsWith("frame-ancestors"))
+    .join("; ");
 }
