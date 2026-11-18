@@ -139,7 +139,7 @@ You'll find it in the footer, next to Privacy.`,
     summary: "On a project's page, drag a goal into the order you want, or pick its new place from its ⋯ button. The goals you star on your dashboard follow that order too.",
     body: `A project's goals no longer have to stay in the order you first made them. Put the one you care about most at the top.
 
-- **Drag to move.** Each goal has a handle on its left. Press it and drag the goal where you want it, with a mouse or your finger. Swiping anywhere else still scrolls the page.
+- **Drag to move.** Each goal has a small grip (two lines) on its left. Press it and drag the goal where you want it, with a mouse or your finger. Swiping anywhere else still scrolls the page.
 - **Prefer not to drag?** Use the **⋯** button on a goal and choose **Move to position** to jump straight to the place you want. On a keyboard, select the handle, press Space, use the arrow keys, then press Space again. On a computer, hover over the handle to see these steps.
 - **Your dashboard shows them in this order.** Starred goals in **Writing Goals** stay grouped by project, in your project order, and within each project follow the order you chose.
 - **Nothing changes until you move a goal.** After that, goals you add go to the bottom of the list.
@@ -166,7 +166,7 @@ To count your starting words, clear the goal's start date. A goal without one co
     summary: "On your Projects page you can now drag your projects into the order you want, or pick a project's new place from its ⋯ button. The goals you star on your dashboard follow the same order.",
     body: `Your projects no longer have to stay newest first. Put the one you are working on right now at the top, and the ones you are saving for later below it.
 
-- **Drag the handle.** Each project has a handle on its left (on a computer it appears over the project's picture when you point at the card). Press it and drag the project to where you want it, with a mouse or your finger. Swiping anywhere else on the card still scrolls the page.
+- **Drag the handle.** Each project has a small grip (two lines) next to its ⋯ menu button. Press it and drag the project to where you want it, with a mouse or your finger. Swiping anywhere else on the card still scrolls the page.
 - **Prefer not to drag?** Use the **⋯** button on a project and choose **Move to position** to jump straight to the place you want. On a keyboard, select the handle, press Space, use the arrow keys, then press Space again. On a computer, hover over the handle to see these steps.
 - **Your dashboard follows.** The goals you have starred in **Writing Goals** on your dashboard are shown in the same order as their projects, so moving a project moves its goals too.
 - **Nothing changes until you do.** Your projects stay as they are today until you move one. A project you create later appears at the top, and projects you have put on hold are not affected.

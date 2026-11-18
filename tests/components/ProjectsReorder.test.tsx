@@ -58,8 +58,23 @@ describe("ProjectsClient reordering", () => {
     // Not only an aria-label: a tooltip that shows on hover and keyboard focus, with the keyboard steps.
     expect(screen.getAllByText(HANDLE_TOOLTIP)).toHaveLength(3);
     expect(HANDLE_TOOLTIP).toBe("Drag to reorder. Keyboard: press Space to pick up, arrow keys to move, Space to drop.");
-    expect(screen.getAllByText(HANDLE_TOOLTIP)[0].className).toMatch(/group-hover\/handle:block/);
-    expect(screen.getAllByText(HANDLE_TOOLTIP)[0].className).toMatch(/group-focus-within\/handle:block/);
+    // Only where a pointer really hovers, or on keyboard focus: never on a tap or a touch drag (jsdom can't evaluate the media query; the real-browser pass did).
+    const tooltip = screen.getAllByText(HANDLE_TOOLTIP)[0].className.split(/\s+/);
+    expect(tooltip).toContain("hidden");
+    expect(tooltip).toContain("[@media(hover:hover)]:group-hover/handle:block");
+    expect(tooltip).toContain("group-has-[:focus-visible]/handle:block");
+    expect(tooltip.filter((c) => /group-focus-within|^group-hover/.test(c))).toEqual([]);
+  });
+
+  it("gives every handle the shared two-bar grip icon, small and unboxed", () => {
+    render(<ProjectsClient initialProjects={projects()} />);
+    for (const handle of screen.getAllByRole("button", { name: /^Reorder / })) {
+      expect(handle.querySelector("svg.lucide-equal")).not.toBeNull();
+      expect(handle.querySelector("svg.lucide-grip-vertical")).toBeNull();
+      expect(handle.querySelector("svg")!.getAttribute("class")).toMatch(/\bh-5 w-5\b/);
+      expect(handle.className).toMatch(/touch-none/);
+      expect(handle.className).not.toMatch(/(^|\s)(dark:)?bg-|h-11|w-11/);
+    }
   });
 
   it("has no Move up / Move down buttons any more", () => {

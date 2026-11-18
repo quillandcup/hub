@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import Link from "next/link";
+import Icon from "@/components/Icon";
 import { placeMenu, type MenuPlacement } from "@/lib/menu-placement";
 
 export interface ActionMenuItem {
@@ -17,6 +18,8 @@ export interface ActionMenuItem {
   track?: string;
   /** A divider line above this item. */
   separatorBefore?: boolean;
+  /** Extra classes for the item, e.g. `sm:hidden` for one that is also shown inline on wide screens. */
+  className?: string;
 }
 
 const ITEM =
@@ -127,13 +130,7 @@ export default function ActionMenu({
           "flex h-10 w-10 items-center justify-center rounded border border-slate-300 text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
         }
       >
-        {trigger ?? (
-          <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
-            <circle cx="10" cy="4" r="1.6" />
-            <circle cx="10" cy="10" r="1.6" />
-            <circle cx="10" cy="16" r="1.6" />
-          </svg>
-        )}
+        {trigger ?? <Icon name="more" />}
       </button>
       {open && (
         <div
@@ -161,7 +158,7 @@ export default function ActionMenu({
             );
             if (item.href && !item.disabled) {
               return (
-                <Fragment key={item.key}>{sep}<Link href={item.href} role="menuitem" data-track={item.track} onClick={() => setOpen(false)} className={ITEM}>
+                <Fragment key={item.key}>{sep}<Link href={item.href} role="menuitem" data-track={item.track} onClick={() => setOpen(false)} className={item.className ? `${ITEM} ${item.className}` : ITEM}>
                   {body}
                 </Link></Fragment>
               );
@@ -179,7 +176,7 @@ export default function ActionMenu({
                   setOpen(false);
                   item.onSelect?.();
                 }}
-                className={ITEM}
+                className={item.className ? `${ITEM} ${item.className}` : ITEM}
               >
                 {body}
               </button>
