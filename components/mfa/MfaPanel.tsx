@@ -146,7 +146,7 @@ export default function MfaPanel({ afterEnrol, staff = false }: { afterEnrol?: s
               Open an authenticator app (such as Google Authenticator, Authy or 1Password) and scan this picture.
               {/* A data: SVG from Supabase Auth; next/image can't optimise it. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={enrolment.qrCode} alt="QR code to scan with your authenticator app" className="mt-2 h-44 w-44 rounded-md bg-white p-2" />
+              <img src={enrolment.qrCode} alt="QR code to scan with your authenticator app" className="mt-2 aspect-square w-full max-w-xs rounded-md bg-white p-3" />
             </li>
             <li>
               Can&apos;t scan it? Type this key into your app instead:
