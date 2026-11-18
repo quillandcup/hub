@@ -60,14 +60,15 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     date: "2026-11-17",
     audience: "engineering",
     category: "improved",
-    title: "Signed-out database access is closed by default",
-    summary: "The signed-out database role now holds no table privileges, and new tables start without any for it, so row level security is no longer the only lock.",
-    body: `Row level security says which rows a role may see; grants say whether it may touch a table at all. Older migrations and Supabase's default privileges had left the signed-out role with grants it never used, so one policy mistake would have exposed a table. Now both layers say no.
+    title: "Database access is closed by default, and three tests keep it that way",
+    summary: "The signed-out database role holds no table privileges, new tables start closed, and database tests now fail CI for a table without row level security or a caller-privileged function with no caller check.",
+    body: `Row level security says which rows a role may see; grants say whether it may touch a table at all; a function that runs with its owner's rights can bypass both. Each layer now says no unless a migration says otherwise, and a test holds each one.
 
-- **The rule.** The signed-out role has no privileges on any table in the app's schemas, and default privileges for the migration role give it nothing on new ones. Signed-out pages and routes use the service role after their own check; everything signed-in runs as the signed-in role.
-- **A new table** gets its grants in its own migration (\`authenticated\`, \`service_role\`), as before. If a table must be readable signed-out, grant that one privilege in its migration, say why beside it, and change the test's expectation.
-- **Guarded.** A database test fails if the signed-out role holds a privilege on any table, or if a freshly created table gives it one. Functions keep their own execute grants.
-- **Detail.** \`docs/RLS_SECURITY.md\`, "Table privileges (grants)".`,
+- **Grants.** The signed-out role has no privileges on any table in the app's schemas, and new tables start without any for it. A new table's migration grants \`authenticated\` and \`service_role\`, as before.
+- **Row level security.** A test fails if any table in those schemas has it off.
+- **Definer functions.** A test fails if a function that runs as its owner and that callers can execute has no recognizable caller check, does not pin its search path, or is runnable signed-out. A deliberate exception is one reviewed line in the test, with a reason, and a stale one fails too.
+- **The limit.** The test proves a check exists, not that it is right. A person still reads every new definer function in its PR.
+- **Detail.** \`docs/RLS_SECURITY.md\`, "Table privileges (grants)" and "Security definer functions".`,
   },
   {
     slug: "one-tooltip-component",
