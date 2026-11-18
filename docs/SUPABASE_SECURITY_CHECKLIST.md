@@ -8,7 +8,8 @@ Sources: `supabase/config.toml`, the code in this repo, and read-only checks of 
 
 | Item | Status | Evidence and what to do |
 |---|---|---|
-| RLS on every table | Done | 0 tables without RLS in `public` and `bronze` (prod, today). Policy detail is in the migrations (`docs/RLS_SECURITY.md` is out of date); new tables are covered by pgTAP (`.claude/rules/testing-requirements.md`). |
+| RLS on every table | Done | 0 tables without RLS in `public` and `bronze` (prod, 2026-11-18). A pgTAP test (`supabase/tests/database/security_guards.test.sql`) fails CI for a table without it. Policy detail is in the migrations (`docs/RLS_SECURITY.md` is out of date on policies). |
+| Signed-out role and SECURITY DEFINER functions | Done | `anon` holds no table privileges (prod, 2026-11-18; `anon_has_no_table_privileges.test.sql`). 51 `SECURITY DEFINER` functions in `public` are callable by signed-in users (the same 51 that the advisor lists, `is_admin()` also by `anon`); each was read on 2026-11-18 and checks the caller or is a reviewed deliberate read, and the same test fails CI for a new one without a recognizable check. It proves a check exists, not that it is right (`docs/RLS_SECURITY.md`). |
 | RLS and policies on replicated tables with sensitive data | Done | Published to Realtime: `chat_messages`, `chat_reactions`, `prickles` (prod). All three have RLS on, so `postgres_changes` only delivers rows the signed-in member may read. |
 | Broadcast with Realtime Authorization for sensitive changes | Partial | We use `postgres_changes`, not Broadcast, and `realtime.messages` has no policies (0, prod), so nothing is authorized there. The checklist's concern is that RLS does not filter `DELETE` events: a delete of a `chat_messages` or `chat_reactions` row is sent to every subscriber of the table, carrying only the primary key with the default replica identity. That leaks that a row id was deleted, not its content, but it is a gap against the letter of the checklist. Revisit together with "Realtime cost and limits" in `docs/TODO.md`; moving chat to server-sent Broadcast would fix both. |
 | SSL enforcement | Done | `ssl-enforcement get`: `database: true` (prod). |
@@ -37,7 +38,7 @@ Sources: `supabase/config.toml`, the code in this repo, and read-only checks of 
 | Item | Status | Evidence and what to do |
 |---|---|---|
 | Think through how an attacker could abuse the app | Done | `docs/THREAT_MODEL.md` (2026-11-17). |
-| OWASP Top 10 review | Done | Same document; its open items are in `docs/TODO.md`, "Threat model follow-ups". |
+| OWASP Top 10 review | Partial | `docs/THREAT_MODEL.md` (2026-11-17) is a static review of the code and configuration against the 2021 list; its open items are in `docs/TODO.md`, "Threat model follow-ups". Not covered: a policy-by-policy review of the RLS logic, live dynamic testing (nothing was attacked), and the authorization of the file upload routes beyond what the model read. |
 
 ## What to do next
 

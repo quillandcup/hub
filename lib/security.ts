@@ -74,13 +74,16 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         status: "inPlace",
         member: "Every connection between the Hub and its database is encrypted with TLS, and the database refuses connections that are not.",
         staff: {
-          how: "The app reaches the database only through the provider's HTTPS API and secure websockets. The provider's switch that rejects non-SSL connections to the database is on (read from the provider's API on 2026-11-17, after it was switched on that day) and is declared in supabase/config.toml, so CI's config push keeps it on. Direct Postgres connections (migrations in CI, the CLI, tooling) therefore must use SSL.",
+          how: "The app reaches the database only through the provider's HTTPS API and secure websockets. The provider's switch that rejects non-SSL connections to the database is on (read again from the provider's API with the CLI on 2026-11-18: database enforcement true) and is declared in supabase/config.toml, so CI's config push keeps it on. Direct Postgres connections (migrations in CI, the CLI, tooling) therefore must use SSL. Network access to the database is not restricted by address: the provider's setting allows every IPv4 and IPv6 address (read 2026-11-18). That is accepted, because the app reaches the database from serverless functions that have no fixed address list; a direct connection is protected by the database password and SSL.",
           evidence: [
             "supabase/config.toml (db.ssl_enforcement)",
-            "live check, 2026-11-17: the provider's SSL-enforcement setting for the production database",
+            "docs/SUPABASE_SECURITY_CHECKLIST.md (SSL enforcement, network restrictions)",
+            "live check, 2026-11-18: the provider's SSL-enforcement and network-restriction settings for the production database",
           ],
-          checked: "2026-11-17",
-          open: [],
+          checked: "2026-11-18",
+          open: [
+            "Network restrictions are open on purpose (accepted): an allow-list would risk breaking production while the app calls from addresses we do not control. Revisit if static addresses or a private link are adopted.",
+          ],
         },
       },
       {
@@ -142,16 +145,18 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         member:
           "Joining is by invitation. A sign-in lasts an hour at a time and renews in the background, each renewal replaces the last, and staff can end a member's sessions if an account is at risk.",
         staff: {
-          how: "Self-signup is off and email confirmation is on. Access tokens last 3600 seconds; refresh tokens rotate on every use with a 10-second reuse window, after which an old one is refused. These are declared in supabase/config.toml and pushed by CI, and production inherits them. The sign-in cookies are Secure in every deployed build, SameSite=Lax, set for the exact host only (no Domain, so subdomains never receive them) and readable by the page's own scripts, because the browser client reads the session for chat and uploads (docs/TODO.md, \"Make the sign-in cookies HttpOnly\"). The proxy re-checks the session on every request and clears the cookies of a revoked one; server code then verifies the token against the project's keys. An admin can revoke a member's sessions.",
+          how: "Self-signup is off and email confirmation is on. Access tokens last 3600 seconds; refresh tokens rotate on every use with a 10-second reuse window, after which an old one is refused. These are declared in supabase/config.toml and pushed by CI, and production inherits them. The sign-in cookies are Secure in every deployed build, SameSite=Lax, set for the exact host only (no Domain, so subdomains never receive them) and readable by the page's own scripts, because the browser client reads the session for chat and uploads (docs/TODO.md, \"Make the sign-in cookies HttpOnly\"). The proxy re-checks the session on every request and clears the cookies of a revoked one; server code then verifies the token against the project's keys. An admin can revoke a member's sessions. Sign-in, invitation and recovery links stay valid for 86400 seconds (24 hours, the provider's maximum), declared in supabase/config.toml and inherited by production. That is a deliberate trade-off, so a link requested in the evening still works the next morning, and the cost is a longer window for a link that leaks or is forwarded.",
           evidence: [
             "supabase/config.toml",
+            "docs/SUPABASE_SECURITY_CHECKLIST.md (OTP expiry)",
             "lib/supabase/middleware.ts",
             "lib/supabase/cookie-options.ts",
             "lib/auth.ts",
             "app/api/admin/users/[id]/revoke-sessions/route.ts",
           ],
-          checked: "2026-11-17",
+          checked: "2026-11-18",
           open: [
+            "Sign-in links last 24 hours against the provider checklist's 1 hour. Accepted for now (invite-only, single-use links); lower it once a spent link has a typed-code fallback (docs/TODO.md, Supabase security checklist follow-ups).",
             "The sign-in cookies are not HttpOnly, so a script injected into a page could read the session. Making them HttpOnly means the server hands the browser a short-lived token instead (docs/TODO.md, \"Make the sign-in cookies HttpOnly\").",
             "Two-factor sign-in (TOTP) is switched on in the project's settings, but the Hub has no screen to enrol in or require it. Decide whether staff accounts should need it.",
           ],
@@ -164,18 +169,24 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         member:
           "The database itself decides who can read each row, so a page can't show you what you aren't meant to see. Staff access is limited by role, and admin pages and actions check the role again every time.",
         staff: {
-          how: "Row-level security in Postgres, with admin pages and server actions each calling the admin check (never relying on the layout). Community managers open a fixed, read-only set of admin pages, and every new role starts with nothing. Data read in a member's name goes through the effective identity, so viewing as a member never widens access.",
+          how: "Row-level security in Postgres, with admin pages and server actions each calling the admin check (never relying on the layout). Community managers open a fixed, read-only set of admin pages, and every new role starts with nothing. Data read in a member's name goes through the effective identity, so viewing as a member never widens access. Every table in the public and bronze schemas has row-level security (read from production on 2026-11-17: none without), and a database test now fails CI for a table without it. The signed-out database role holds no table privileges (read from production after the 2026-11-18 deploy: no table grants for it), a test pins that, and a new table gives it nothing by default. The functions that run with their owner's rights (SECURITY DEFINER) and can be called by signed-in users were each read on 2026-11-18: 51 in the public schema (all callable by signed-in users, and the admin check also by the signed-out role). Each one checks the caller (the current member, an admin or the service role) or is one of four deliberate, limited reads of other members' data (the member directory's alias list and its search, the writing a member chose to show on their profile, and each mentor's match counts). One more is a wrapper that only calls a checked function. A database test now fails CI for a new such function with no recognizable caller check, with one that does not pin its search path, or with any other signed-out one.",
           evidence: [
             ".claude/rules/admin-route-protection.md",
             "lib/admin-auth.ts",
             "lib/staff-access.ts",
             "tests/components/pages/admin-auth.test.tsx",
-            "supabase/tests/database (pgTAP: RLS and SECURITY DEFINER functions)",
+            "supabase/tests/database/security_guards.test.sql",
+            "supabase/tests/database/anon_has_no_table_privileges.test.sql",
+            "supabase/migrations/20270818000000_revoke_anon_table_privileges.sql",
+            "docs/RLS_SECURITY.md (Table privileges, Security definer functions)",
+            "live check, 2026-11-17 and 2026-11-18: counts of tables without row-level security, of table grants for the signed-out role and of callable SECURITY DEFINER functions in production (counts only)",
           ],
-          checked: "2026-11-17",
+          checked: "2026-11-18",
           open: [
             "docs/RLS_SECURITY.md is out of date: it still says every signed-in user has full access. It should be rewritten from the policies. Nothing else relies on it.",
-            "There is no automated check that every new table has row-level security turned on; new tables are covered by review and the pgTAP tests of each feature.",
+            "The definer-function test proves that a caller check exists in each function, not that it is right or complete. A reviewer still reads every new SECURITY DEFINER function in the pull request that adds it.",
+            "A mentor's match count and first and last match dates can be read by any signed-in member (deliberate: badges need it and members cannot read the matches table). Confirm it matches what members were told.",
+            "Chat uses Realtime row changes, and row-level security does not filter delete events: when a chat message or reaction is deleted, its id (only the id) is sent to every subscriber of that table. Low impact, since messages are soft deleted and only reaction removals send it. Details in docs/SUPABASE_SECURITY_CHECKLIST.md; the fix (server-sent Broadcast with its own authorization) is tracked in docs/TODO.md, Realtime cost and limits.",
           ],
         },
       },
@@ -186,8 +197,8 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         member:
           "The keys that let the Hub's server reach its services are kept out of the code and encrypted at rest, and there is a written procedure for replacing them after any exposure.",
         staff: {
-          how: "Every variable is declared once with whether it is a secret and where it is synced; values live in git-ignored env files and are synced to the hosting provider's encrypted store, to GitHub's secrets or to the Vault. GitHub secret scanning and push protection are both on for the repository (read from GitHub's API on 2026-11-18; the extra generic-pattern and validity checks are off), so a key committed by mistake is flagged and a push that contains a known kind of one is blocked. Single-use sign-in tokens are stored as hashes. Members' sessions are short-lived (see \"Signing in and sessions\"), but the server's database key (the service role) and the CI database password are long-lived: they do not expire or rotate on their own and change only when someone follows the rotation runbook.",
-          evidence: ["env-vars.config.ts", "docs/SECRET_ROTATION.md", "docs/ENV_MANAGEMENT.md", "docs/TODO.md (Secrets at Rest)", "live check, 2026-11-18: the repository's security settings from GitHub's API"],
+          how: "Every variable is declared once with whether it is a secret and where it is synced; values live in git-ignored env files and are synced to the hosting provider's encrypted store, to GitHub's secrets or to the Vault. GitHub secret scanning and push protection are both on for the repository (read from GitHub's API on 2026-11-18; the extra generic-pattern and validity checks are off), so a key committed by mistake is flagged and a push that contains a known kind of one is blocked. Single-use sign-in tokens are stored as hashes. On API routes the server's database key and the scheduled-job secret are accepted only as an exact \"Bearer <secret>\" header, compared in constant time and never as a substring. Members' sessions are short-lived (see \"Signing in and sessions\"), but the server's database key (the service role) and the CI database password are long-lived: they do not expire or rotate on their own and change only when someone follows the rotation runbook.",
+          evidence: ["env-vars.config.ts", "lib/supabase/api-auth.ts", "tests/lib/api-auth-secrets.test.ts", "docs/SECRET_ROTATION.md", "docs/ENV_MANAGEMENT.md", "docs/TODO.md (Secrets at Rest)", "live check, 2026-11-18: the repository's security settings from GitHub's API"],
           checked: "2026-11-18",
           open: [
             "The service-role key and the CI database password rotate only by hand: no schedule and no automatic rotation. Decide an interval (the runbook has the steps) and whether to move to keys the provider can rotate without downtime.",
@@ -248,9 +259,9 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         status: "working",
         member: "A few actions that could be abused, such as comments, signing in through chat and the sign-up form on a landing page, are rate limited.",
         staff: {
-          how: "Fixed-window counters in the database (rate_limit_hit), used by the course comment action, the Slack sign-in action, the landing page opt-in, chat link previews and course playback tokens.",
-          evidence: ["lib/data/rate-limit.ts", "app/api/landing/opt-in/route.ts", "app/auth/slack/actions.ts", "docs/THREAT_MODEL.md"],
-          checked: "2026-11-17",
+          how: "Fixed-window counters in the database (rate_limit_hit), used by the course comment action, the Slack sign-in action, the landing page opt-in, chat link previews and course playback tokens. Sign-in emails are limited by the provider: one per address per minute and 150 an hour for the whole project in production (supabase/config.toml, pushed by CI). No CAPTCHA is configured, which is acceptable while sign-ups are off; the hourly cap is shared, so a flood of sign-in requests could delay everyone's email for up to an hour.",
+          evidence: ["lib/data/rate-limit.ts", "app/api/landing/opt-in/route.ts", "app/auth/slack/actions.ts", "supabase/config.toml", "docs/THREAT_MODEL.md"],
+          checked: "2026-11-18",
           open: [
             "Not every public or member-callable route has a limit. Each route's exposure has not been reviewed; start from the list of routes that are public in lib/supabase/middleware.ts.",
             "Every route under /api is public to the proxy and must check the caller itself; nothing fails a build when a new one forgets to. A test that lists each route with its credential would close that (docs/THREAT_MODEL.md, A01).",
@@ -305,18 +316,18 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         member:
           "Formatted text on course lessons and landing pages is reduced to a short list of safe formatting (headings, lists, links, emphasis) before it is stored, so it cannot carry scripts.",
         staff: {
-          how: "Rich text is cleaned to an allowlist: no scripts, styles, event handlers, iframes or forms, links limited to http(s) and mailto and opened without passing on the opener. Landing page text is cleaned when it is saved and again before every public render. Lesson text is cleaned when it is imported. A search of the app, components and emails on 2026-11-17 found three places that write raw HTML into a page (the member lesson page, the admin lesson preview and the landing page text block); the last two clean it first.",
+          how: "Rich text is cleaned to an allowlist: no scripts, styles, event handlers, iframes or forms, links limited to http(s) and mailto and opened without passing on the opener. Landing page text is cleaned when it is saved and again before every public render. Lesson text is cleaned when it is imported and again every time it is shown. A search of the app, components and emails on 2026-11-18 found three places that write raw HTML into a page (the member lesson page, the admin lesson preview and the landing page text block); each cleans the text first.",
           evidence: [
             "lib/landing/sanitize.ts",
             "lib/courses/sanitize.ts",
             "lib/courses/process.ts",
             "tests/lib/courses-sanitize.test.ts",
+            "lib/courses/admin.ts",
             "tests/lib/landing-data.test.ts",
           ],
-          checked: "2026-11-17",
+          checked: "2026-11-18",
           open: [
-            "The member lesson page shows the stored lesson text as it is, relying on the cleaning done at import. Landing pages clean again at render; doing the same for lessons means a second write path could never reach members unclean.",
-            "The Content-Security-Policy does not yet limit scripts, so the cleaning is the only barrier against injected script (see Browser protections).",
+            "The script and style policy is report-only, so nothing in the browser yet blocks an injected script: the cleaning is the only barrier. The enforcing policy does not limit scripts (see Browser protections).",
           ],
         },
       },
@@ -327,9 +338,9 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         member:
           "Browsers are told to use only HTTPS, to load pictures only from sources the Hub lists, to submit forms only to the Hub, and not to show Hub pages inside other sites. They are also told not to guess file types, to share less about where you came from when you follow a link, and not to give pages your camera, microphone or location.",
         staff: {
-          how: "Strict-Transport-Security from the hosting provider's default, and on every response an enforcing Content-Security-Policy (pictures, plugins, base tag, form targets and framing), X-Content-Type-Options, Referrer-Policy, X-Frame-Options and Permissions-Policy. The policy was report-only from 2026-11-10 to 2026-11-17; the one picture host its reports showed was added before it was enforced, and violations still go to Sentry. A second policy for scripts and styles, with a per-request nonce (proxy.ts), is sent in report-only mode: violations go to Sentry and nothing is blocked yet (docs/TODO.md, CSP for scripts and styles).",
+          how: "Strict-Transport-Security from the hosting provider's default, and on every response an enforcing Content-Security-Policy (pictures, plugins, base tag, form targets and framing), X-Content-Type-Options, Referrer-Policy, X-Frame-Options and Permissions-Policy. The policy was report-only from 2026-11-10 to 2026-11-17; the one picture host its reports showed was added before it was enforced, and violations still go to Sentry. A second policy for scripts and styles (script sources only our own files and nonce-marked ones, style sources our own files, nonce-marked styles and inline style attributes, workers from our own files and blob addresses), with a per-request nonce (proxy.ts), is sent as Content-Security-Policy-Report-Only: violations go to Sentry and nothing is blocked yet (docs/TODO.md, CSP for scripts and styles). Not covered by either policy: connection, frame, media and font sources.",
           evidence: ["next.config.ts", "proxy.ts", "lib/csp.ts", "tests/lib/csp.test.ts", "Sentry CSP reports, 2026-11-10 to 2026-11-17"],
-          checked: "2026-11-17",
+          checked: "2026-11-18",
           open: [
             "The enforcing policy covers pictures, plugins, the base tag, form targets and framing. The script and style policy is report-only: enforce it after a week of Sentry reports, then add connect, frame, media and font sources; inline style attributes stay allowed until they move to classes (docs/TODO.md, CSP for scripts and styles).",
           ],
