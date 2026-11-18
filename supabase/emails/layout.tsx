@@ -42,12 +42,11 @@ export function EmailLayout({
   return (
     <Html lang="en">
       <Head>
-        {/* Mail apps turn a street address into a map link; keep it plain text like the rest of the footer. */}
-        <style>{`a[x-apple-data-detectors], u + .body a { color: inherit !important; text-decoration: none !important; font: inherit !important; }`}</style>
+        {/* Mail apps (Apple Mail, Gmail) wrap a street address in a map link. Restyle only links inside the address element, never a selector that could reach the button or other links. */}
+        <style>{`#postal-address a { color: inherit !important; text-decoration: none !important; font: inherit !important; }`}</style>
       </Head>
       <Preview>{preview}</Preview>
       <Body
-        className="body"
         style={{
           margin: 0,
           padding: 0,
@@ -119,7 +118,7 @@ export function EmailLayout({
             {postalAddress ? (
               <>
                 <br />
-                {postalAddress}
+                <span id="postal-address">{postalAddress}</span>
               </>
             ) : null}
           </Text>

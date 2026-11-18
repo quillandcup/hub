@@ -56,8 +56,15 @@ describe("postal address in the footer (CAN-SPAM)", () => {
     expect(html).toContain("Notification settings</a> · <a");
     expect(html).toContain(`mailto:${SUPPORT_EMAIL}`);
     expect(html).toContain("aren&#x27;t monitored");
-    expect(html).toContain("a[x-apple-data-detectors]");
+    expect(html).toContain("#postal-address a {");
+    // Only the address element is restyled: a rule that reached every link (Gmail's `u + .body a`) turned the button's white text dark.
+    const css = /<style>([^<]*)<\/style>/.exec(html)?.[1] ?? "";
+    const selectors = [...css.matchAll(/(?:^|\})\s*([^{}]+)\{/g)].map((m) => m[1].trim());
+    expect(selectors.length).toBeGreaterThan(0);
+    expect(selectors.every((s) => s.startsWith("#postal-address"))).toBe(true);
+    expect(html).toContain("background-color:#3d2b1f;color:#ffffff");
     expect(html).not.toContain(`>${postalAddress()}</a>`);
+    expect(html).toContain(`<span id="postal-address">${postalAddress()}</span>`);
   });
 
   it("refuses to render without it, so an email never goes out with no address", async () => {
