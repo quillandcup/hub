@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { requireAdminPage } from "@/lib/admin-auth";
-import { SECURITY_EFFECTIVE, SECURITY_ITEMS, SECURITY_STATUSES } from "@/lib/security";
+import { SECURITY_EFFECTIVE, SECURITY_GROUPS, SECURITY_ITEMS, SECURITY_STATUSES } from "@/lib/security";
 import { OpenSummary, StaffIntro, StaffRows, StatusKey, type StaffRow } from "@/components/trust/StaffView";
+import { TrustNav } from "@/components/trust/Trust";
 
 export const metadata: Metadata = {
   title: "Security",
@@ -32,7 +33,16 @@ export default async function AdminSecurityPage() {
       <StaffIntro publicHref="/security" publicName="Security" listFile="lib/security.ts" effective={SECURITY_EFFECTIVE} />
       <OpenSummary rows={ROWS} />
       <StatusKey statuses={SECURITY_STATUSES} />
-      <StaffRows id="rows" title="Every row" rows={ROWS} />
+      <TrustNav links={SECURITY_GROUPS.map((g) => ({ id: g.id, title: g.title }))} />
+      {SECURITY_GROUPS.map((group) => (
+        <StaffRows
+          key={group.id}
+          id={group.id}
+          title={group.title}
+          intro={group.intro}
+          rows={ROWS.filter((row) => group.items.some((item) => item.id === row.id))}
+        />
+      ))}
     </div>
   );
 }

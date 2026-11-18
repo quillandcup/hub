@@ -36,7 +36,7 @@ export default async function CompliancePage() {
         <TrustAside title="How to read this page">
           <p className="mb-2">
             We say what we do, not that we hold a certificate we don&apos;t. Where a provider holds the certification (for
-            example, Stripe for card payments), the row says so. Where we haven&apos;t finished or haven&apos;t looked yet, it says that too.
+            example, our payment provider for card payments), the row says so. Where we haven&apos;t finished or haven&apos;t looked yet, it says that too.
           </p>
           <StatusLegend statuses={Object.keys(COMPLIANCE_STATUSES) as ComplianceStatus[]} />
         </TrustAside>
@@ -58,7 +58,7 @@ export default async function CompliancePage() {
 
         <TrustSection id="providers" title="Services we rely on">
           <p className="text-sm">
-            Some of the above rests on the services the Hub is built on. The{" "}
+            Some of the above rests on the services the Hub is built on, described here by what they do. The{" "}
             <Link href="/privacy#services" className="underline">
               Privacy page
             </Link>{" "}
@@ -67,16 +67,14 @@ export default async function CompliancePage() {
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="border-b border-slate-200 dark:border-slate-700 text-left">
-                <th className="py-2 pr-4 font-semibold">Service</th>
                 <th className="py-2 pr-4 font-semibold">What it does</th>
                 <th className="py-2 font-semibold">What it covers</th>
               </tr>
             </thead>
             <tbody className="align-top">
               {COMPLIANCE_PROVIDERS.map((provider) => (
-                <tr key={provider.name} className="border-b border-slate-100 dark:border-slate-800">
-                  <td className="py-2 pr-4 font-medium text-slate-900 dark:text-slate-100">{provider.name}</td>
-                  <td className="py-2 pr-4">{provider.role}</td>
+                <tr key={provider.role} className="border-b border-slate-100 dark:border-slate-800">
+                  <td className="py-2 pr-4 font-medium text-slate-900 dark:text-slate-100">{provider.role}</td>
                   <td className="py-2">{provider.covers}</td>
                 </tr>
               ))}

@@ -60,11 +60,15 @@ describe("/compliance", () => {
     expect(within(card).getByText(/never reach the Hub/)).toBeInTheDocument();
   });
 
-  it("lists the services and links to the privacy page and the support address", async () => {
+  it("describes the services by what they do, never by name, and links to the privacy page and the support address", async () => {
     signInAs(null);
     await renderServerPage(CompliancePage, {});
     const providers = within(document.getElementById("providers") as HTMLElement);
-    for (const p of COMPLIANCE_PROVIDERS) expect(providers.getByText(p.name)).toBeInTheDocument();
+    for (const p of COMPLIANCE_PROVIDERS) {
+      expect(providers.getByText(p.role)).toBeInTheDocument();
+      expect(providers.queryByText(p.name)).not.toBeInTheDocument();
+    }
+    expect(providers.queryByRole("columnheader", { name: "Service" })).not.toBeInTheDocument();
     expect(providers.getByRole("link", { name: "Privacy page" })).toHaveAttribute("href", "/privacy#services");
     expect(screen.getByRole("link", { name: SUPPORT_EMAIL })).toHaveAttribute("href", `mailto:${SUPPORT_EMAIL}`);
   });
