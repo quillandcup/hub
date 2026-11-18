@@ -23,7 +23,7 @@ export function InviteEmail({ confirmationUrl }: { confirmationUrl: string }) {
 
       <EmailBody>
         Click below to accept your invitation and set up your account. This link
-        expires in 24 hours.
+        works once and expires in one hour. If it has expired, ask for a new one on the sign-in page.
       </EmailBody>
 
       <Button
