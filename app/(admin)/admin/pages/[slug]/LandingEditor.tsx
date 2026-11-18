@@ -7,12 +7,14 @@ import { useRouter } from "next/navigation";
 import { Puck, createUsePuck, type Data } from "@puckeditor/core";
 import { ArrowLeft, Monitor, PanelLeft, PanelRight, Redo2, Smartphone, Tablet, Undo2 } from "lucide-react";
 import Modal from "@/components/Modal";
+import AppIcon from "@/components/Icon";
 import LifecycleButton from "@/components/LifecycleButton";
 import LifecycleStatusChip from "@/components/LifecycleStatusChip";
 import MediaPicker from "@/components/media/MediaPicker";
 import { editorConfig } from "@/components/landing/editor-config";
 import { checkLandingPage, type A11yIssue } from "@/lib/landing/a11y";
 import type { LandingData } from "@/lib/landing/data";
+import { lifecycleIcon, lifecycleLabel } from "@/lib/lifecycle-actions";
 import { aiPlugin } from "./AiPanel";
 import { publishLandingPage, resetLandingDraftToPublished, restoreLandingPageVersion, saveLandingDraft, unpublishLandingPage, updateLandingPageDetails } from "../actions";
 
@@ -38,7 +40,7 @@ type SaveState = "saved" | "unsaved" | "saving" | "error";
 const BUTTON = "rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50";
 const SECONDARY = `${BUTTON} border border-slate-300 bg-white text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100`;
 const PRIMARY = `${BUTTON} bg-plum-600 text-white hover:bg-plum-700`;
-const ICON = "flex h-8 w-8 items-center justify-center rounded text-slate-700 hover:bg-slate-100 disabled:opacity-40 aria-pressed:bg-plum-50 aria-pressed:text-plum-700 dark:text-slate-200 dark:hover:bg-slate-800";
+const ICON = "flex h-8 w-8 items-center justify-center rounded text-slate-700 hover:bg-slate-100 disabled:opacity-40 aria-pressed:bg-plum-50 aria-pressed:text-plum-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:aria-pressed:bg-plum-800 dark:aria-pressed:text-plum-50";
 
 const DEVICES = [
   { label: "Desktop", width: 1280 as const, Icon: Monitor, rotate: false },
@@ -148,28 +150,36 @@ function EditorHeader({
         </button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <button type="button" onClick={onDetails} className={SECONDARY}>
-          Details
+      <div className="flex flex-wrap items-center gap-1">
+        <button type="button" onClick={onDetails} aria-label="Details" title="Details" className={ICON}>
+          <AppIcon name="details" />
         </button>
-        <LifecycleButton action="history" noun="page" onRun={onHistory} className={SECONDARY} />
-        {hasUnpublished && <LifecycleButton action="reset" noun="page" variant="icon" onRun={onReset} disabled={busy} className={ICON} />}
-        <LifecycleButton action="preview" noun="page" onRun={onPreview} className={SECONDARY} />
+        <LifecycleButton action="history" noun="page" variant="icon" onRun={onHistory} className={ICON} />
+        {hasUnpublished && (
+          <>
+            <span aria-hidden="true" className="mx-1 h-5 w-px bg-slate-300 dark:bg-slate-600" />
+            <LifecycleButton action="reset" noun="page" variant="icon" onRun={onReset} disabled={busy} className={ICON} />
+          </>
+        )}
+        <span aria-hidden="true" className="mx-1 h-5 w-px bg-slate-300 dark:bg-slate-600" />
+        <LifecycleButton action="preview" noun="page" variant="icon" onRun={onPreview} className={ICON} />
         {published && (
-          <a href={page.publicPath} target="_blank" rel="noopener noreferrer" className={SECONDARY}>
-            View live
+          <a href={page.publicPath} target="_blank" rel="noopener noreferrer" aria-label={lifecycleLabel("viewLive")} title={lifecycleLabel("viewLive")} className={ICON}>
+            <AppIcon name={lifecycleIcon("viewLive")} />
           </a>
         )}
         {published && (
           <LifecycleButton
             action="unpublish"
             noun="page"
+            variant="icon"
             detail="It comes off the public site at once. Your draft and its versions stay."
             onRun={onUnpublish}
             disabled={busy}
-            className={SECONDARY}
+            className={ICON}
           />
         )}
+        <span aria-hidden="true" className="mx-1 h-5 w-px bg-slate-300 dark:bg-slate-600" />
         <LifecycleButton
           action="publish"
           noun="page"
