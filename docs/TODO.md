@@ -973,7 +973,7 @@ Realtime is used for chat (`components/chat/ChatLive.tsx`, `ChatSidebar.tsx`), p
 
 ### Supabase security checklist follow-ups
 
-From `docs/SUPABASE_SECURITY_CHECKLIST.md` (2026-11-17). Deferred because each needs the dashboard, an owner decision or a design. (1) **Resolved 2026-11-18** (owner-reported): MFA is required for the Supabase, Vercel and GitHub organizations, and each has a second owner with MFA. **Still open:** (2) OTP expiry is 24 hours against the checklist's 1 hour; lower it once the `/auth/confirm` fix gives a spent link a fallback. (3) Realtime uses `postgres_changes` and `realtime.messages` has no policies; only reaction removals send DELETE events (messages soft delete), so this is low priority; revisit with "Realtime cost and limits". (4) Staff accounts are not required to use TOTP, and the Hub has no screen to enrol in it.
+From `docs/SUPABASE_SECURITY_CHECKLIST.md` (2026-11-17). Deferred because each needs the dashboard, an owner decision or a design. (1) **Resolved 2026-11-18** (owner-reported): MFA is required for the Supabase, Vercel and GitHub organizations, and each has a second owner with MFA. **Still open:** (2) OTP expiry is 24 hours against the checklist's 1 hour; lower it once the `/auth/confirm` fix gives a spent link a fallback. (3) Realtime uses `postgres_changes` and `realtime.messages` has no policies; messages and reactions both soft delete (corrected 2026-11-18: reaction removal is an UPDATE), so only a hard delete by a maintenance job sends a DELETE event and this is low priority; revisit with "Realtime cost and limits". (4) Staff accounts are not required to use TOTP, and the Hub has no screen to enrol in it.
 
 ### Threat model follow-ups
 
