@@ -52,6 +52,9 @@ describe("BlockedPreviewsList", () => {
     expect(track).not.toHaveBeenCalled();
 
     unblockChatPreviews.mockRejectedValue(new Error("network"));
+    // The alert shows while the first action's transition is still pending, and the button is disabled until it ends: a click
+    // before then is ignored and the alert never changes (it failed on slow runners).
+    await waitFor(() => expect(screen.getByRole("button", { name: /Stop blocking/ })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: /Stop blocking/ }));
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Something went wrong"));
   });
