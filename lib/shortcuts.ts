@@ -15,7 +15,7 @@ import { TABLE_KEYBOARD_SHORTCUTS } from "@/components/TableKeyboardNav";
  * are alternatives for the same action (`[["j"], ["down"]]`, shown with "or").
  */
 
-export type ShortcutGroupId = "basics" | "search" | "forms" | "chat" | "table" | "calendar";
+export type ShortcutGroupId = "basics" | "search" | "forms" | "chat" | "table" | "calendar" | "landingEditor" | "photoViewer";
 
 /** `global`: works wherever the app shell is. `page-key`: only while its component is on the page. */
 export type ShortcutScope = "global" | "page-key";
@@ -38,6 +38,8 @@ export const SHORTCUT_GROUPS: Record<ShortcutGroupId, ShortcutGroup> = {
   table: { section: "Lists and tables", scope: "page-key", component: "components/TableKeyboardNav.tsx" },
   calendar: { section: "Calendar", scope: "page-key", component: "components/CalendarKeyboardNav.tsx" },
   chat: { section: "Chat", scope: "page-key", component: "components/chat/Composer.tsx" },
+  landingEditor: { section: "Page editor", scope: "page-key", component: "app/(admin)/admin/pages/[slug]/LandingEditor.tsx" },
+  photoViewer: { section: "Photo viewer", scope: "page-key", component: "lib/hooks/usePhotoViewerKeys.ts" },
   forms: { section: "Forms and pickers", scope: "global" },
 };
 
@@ -82,6 +84,11 @@ const ENTRIES: Entry[] = [
   // `components/chat/Composer.tsx`.
   { id: "chat-send", group: "chat", keys: [["enter"]], label: "Send the message" },
   { id: "chat-newline", group: "chat", keys: [["shift", "enter"]], label: "Start a new line" },
+  // `app/(admin)/admin/pages/[slug]/LandingEditor.tsx`: admin only, while a landing page is open in the editor.
+  { id: "landing-editor-save", group: "landingEditor", keys: [["mod", "S"]], label: "Save the page now (it also saves by itself)" },
+  // `lib/hooks/usePhotoViewerKeys.ts`, used by `ImageLightbox.tsx` and `PhotoLightbox.tsx`: only while a photo is open full size.
+  { id: "photo-viewer-previous", group: "photoViewer", keys: [["left"]], label: "Previous photo" },
+  { id: "photo-viewer-next", group: "photoViewer", keys: [["right"]], label: "Next photo" },
   ...tableEntries(),
   ...CALENDAR_KEYBOARD_SHORTCUTS.map(({ keys, label }) => ({
     id: `calendar-${label.toLowerCase().replace(/[^a-z]+/g, "-")}`,

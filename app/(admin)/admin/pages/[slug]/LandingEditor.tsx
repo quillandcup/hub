@@ -18,6 +18,7 @@ import { lifecycleIcon, lifecycleLabel } from "@/lib/lifecycle-actions";
 import { aiPlugin } from "./AiPanel";
 import { publishLandingPage, resetLandingDraftToPublished, restoreLandingPageVersion, saveLandingDraft, unpublishLandingPage, updateLandingPageDetails } from "../actions";
 import Tooltip from "@/components/Tooltip";
+import { useRegisterShortcuts } from "@/components/shortcuts/ShortcutsProvider";
 
 const usePuck = createUsePuck();
 
@@ -265,6 +266,8 @@ export default function LandingEditor({ page: initial, data, versions }: { page:
     },
     [flush],
   );
+
+  useRegisterShortcuts("landingEditor");
 
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => {
