@@ -65,7 +65,7 @@ export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
     body: `Hints on controls used to be a mix of the browser's grey \`title\` box and hand-rolled CSS boxes, so two icons side by side could look different. \`components/Tooltip.tsx\` is now the one place that draws them.
 
 - **Use it like this.** Wrap the one control: \`<Tooltip content="Pin to my dashboard"><button aria-label="Pin to my dashboard">...</button></Tooltip>\`. It adds no wrapper element, and \`content\` may be undefined for a conditional hint.
-- **The behavior is built in.** Hover only on devices that hover, never on touch, keyboard focus shows it (not a tap), a short delay, Escape hides it, it stays while the pointer is over it, and it is linked with \`aria-describedby\`. It is drawn on the page body, so no scrolling card or modal clips it.
+- **The behavior is built in.** Hover only on devices that hover, a long press on touch (that press doesn't click the control), keyboard focus shows it (not a tap), a short delay, Escape hides it, it stays while the pointer is over it, and it is linked with \`aria-describedby\`. It is drawn on the page body, so no scrolling card or modal clips it.
 - **A hint is never the only place something lives.** The control keeps its own name; touch users don't see the tip.
 - **Guarded.** A native \`title\` on a DOM element fails \`tests/lib/tooltip-native-title.test.ts\` unless the file is in its shrinking baseline. Rule: \`.claude/rules/tooltips.md\`; what is left to convert is in \`docs/TODO.md\`.`,
   },
