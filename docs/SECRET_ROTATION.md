@@ -108,6 +108,7 @@ management).
   it isn't synced from `.env.prod`: CI replaces it on every run. See `docs/SLACK_MANIFEST.md`.
 
 ### GitHub
+- `SLACK_ALERTS_WEBHOOK_URL` (GitHub Actions secret, used by `.github/workflows/audit.yml` to post to #hub-alerts when the dependency audit finds something): a Slack incoming webhook for that one channel. It can only post there. Create a small separate Slack app for it (api.slack.com/apps -> Create New App -> Incoming Webhooks -> Add New Webhook to Workspace -> #hub-alerts); it is not part of the Billie Bot manifest, which CI replaces on every run. Set it with `gh secret set SLACK_ALERTS_WEBHOOK_URL --repo quillandcup/hub`. To rotate: revoke the webhook in that app and add a new one. Until it is set the step does nothing.
 - `GH_TOKEN_SLACK_MANIFEST`: https://github.com/settings/personal-access-tokens -> generate a
   fine-grained token, resource owner `quillandcup`, only this repository, **Secrets: Read and
   write**. Put it in `.env.shared`, run `pnpm env:sync:github`, then delete the old token on
