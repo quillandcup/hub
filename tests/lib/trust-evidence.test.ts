@@ -33,4 +33,14 @@ describe("trust page evidence", () => {
       for (const path of paths) expect(existsSync(resolve(ROOT, path)), `${name}: ${path} should exist`).toBe(true);
     });
   }
+
+  it("staff text carries no literal backticks (the pages render plain text, so they would show)", () => {
+    const text: string[] = [
+      ...SECURITY_ITEMS.flatMap((i) => [i.staff.how, ...i.staff.open]),
+      ...COMPLIANCE_GROUPS.flatMap((g) => g.items.flatMap((i) => [i.detail, ...i.open])),
+      ...PRIVACY_GROUPS.flatMap((g) => g.rows.flatMap((r) => [r.how, ...r.open])),
+    ];
+    expect(text.length).toBeGreaterThan(50);
+    for (const t of text) expect(t, `"${t.slice(0, 60)}..." has a backtick`).not.toContain("`");
+  });
 });

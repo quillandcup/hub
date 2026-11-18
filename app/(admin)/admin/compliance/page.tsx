@@ -8,7 +8,7 @@ import {
   complianceItemId,
   type ComplianceStatus,
 } from "@/lib/compliance";
-import { OpenSummary, StaffIntro, StaffRows, StatusKey, type StaffRow } from "@/components/trust/StaffView";
+import { OpenSummary, StaffIntro, StaffPage, StaffRows, StatusKey, type StaffRow } from "@/components/trust/StaffView";
 import { TrustNav, TrustSection } from "@/components/trust/Trust";
 
 export const metadata: Metadata = {
@@ -37,8 +37,7 @@ export default async function AdminCompliancePage() {
   await requireAdminPage();
 
   return (
-    <div className="max-w-5xl">
-      <h1 className="text-2xl font-bold mb-1">Compliance</h1>
+    <StaffPage title="Compliance">
       <StaffIntro publicHref="/compliance" publicName="Compliance" listFile="lib/compliance.ts" effective={COMPLIANCE_EFFECTIVE} />
       <OpenSummary rows={ALL_ROWS} />
       <StatusKey statuses={Object.keys(COMPLIANCE_STATUSES) as ComplianceStatus[]} />
@@ -74,6 +73,6 @@ export default async function AdminCompliancePage() {
           </tbody>
         </table>
       </TrustSection>
-    </div>
+    </StaffPage>
   );
 }

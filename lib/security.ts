@@ -247,11 +247,11 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         status: "working",
         member: "A few actions that could be abused, such as comments, signing in through chat and the sign-up form on a landing page, are rate limited.",
         staff: {
-          how: "Fixed-window counters in the database (`rate_limit_hit`), used by the course comment action, the Slack sign-in action, the landing page opt-in, chat link previews and course playback tokens.",
+          how: "Fixed-window counters in the database (rate_limit_hit), used by the course comment action, the Slack sign-in action, the landing page opt-in, chat link previews and course playback tokens.",
           evidence: ["lib/data/rate-limit.ts", "app/api/landing/opt-in/route.ts", "app/auth/slack/actions.ts"],
           checked: "2026-11-17",
           open: [
-            "Not every public or member-callable route has a limit. Each route's exposure has not been reviewed; start from the list of routes that are public in `lib/supabase/middleware.ts`.",
+            "Not every public or member-callable route has a limit. Each route's exposure has not been reviewed; start from the list of routes that are public in lib/supabase/middleware.ts.",
           ],
         },
       },

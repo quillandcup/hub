@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import type { ComplianceStatus } from "@/lib/compliance";
 import { StatusLegend, TrustAside, TrustCard, TrustSection } from "@/components/trust/Trust";
@@ -25,6 +26,19 @@ export interface StaffRow {
 }
 
 const LABEL = "font-medium text-slate-900 dark:text-slate-100";
+
+/**
+ * The page frame of a staff trust page: the same container the other admin pages use (padding, centred, a readable
+ * width), then the title. One component, so Compliance, Privacy and Security can't drift apart.
+ */
+export function StaffPage({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="container mx-auto px-6 py-8 max-w-5xl">
+      <h1 className="text-2xl font-bold mb-1">{title}</h1>
+      {children}
+    </div>
+  );
+}
 
 export function StaffIntro({ publicHref, publicName, listFile, effective }: { publicHref: string; publicName: string; listFile: string; effective: string }) {
   return (

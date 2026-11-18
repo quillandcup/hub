@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { requireAdminPage } from "@/lib/admin-auth";
 import { SECURITY_EFFECTIVE, SECURITY_GROUPS, SECURITY_ITEMS, SECURITY_STATUSES } from "@/lib/security";
-import { OpenSummary, StaffIntro, StaffRows, StatusKey, type StaffRow } from "@/components/trust/StaffView";
+import { OpenSummary, StaffIntro, StaffPage, StaffRows, StatusKey, type StaffRow } from "@/components/trust/StaffView";
 import { TrustNav } from "@/components/trust/Trust";
 
 export const metadata: Metadata = {
@@ -28,8 +28,7 @@ export default async function AdminSecurityPage() {
   await requireAdminPage();
 
   return (
-    <div className="max-w-5xl">
-      <h1 className="text-2xl font-bold mb-1">Security</h1>
+    <StaffPage title="Security">
       <StaffIntro publicHref="/security" publicName="Security" listFile="lib/security.ts" effective={SECURITY_EFFECTIVE} />
       <OpenSummary rows={ROWS} />
       <StatusKey statuses={SECURITY_STATUSES} />
@@ -43,6 +42,6 @@ export default async function AdminSecurityPage() {
           rows={ROWS.filter((row) => group.items.some((item) => item.id === row.id))}
         />
       ))}
-    </div>
+    </StaffPage>
   );
 }

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { requireAdminPage } from "@/lib/admin-auth";
 import { COMPLIANCE_STATUSES, type ComplianceStatus } from "@/lib/compliance";
 import { PRIVACY_GROUPS, PRIVACY_PROMISES_EFFECTIVE } from "@/lib/privacy-promises";
-import { OpenSummary, StaffIntro, StaffRows, StatusKey, type StaffRow } from "@/components/trust/StaffView";
+import { OpenSummary, StaffIntro, StaffPage, StaffRows, StatusKey, type StaffRow } from "@/components/trust/StaffView";
 import { TrustNav } from "@/components/trust/Trust";
 
 export const metadata: Metadata = {
@@ -32,8 +32,7 @@ export default async function AdminPrivacyPage() {
   await requireAdminPage();
 
   return (
-    <div className="max-w-5xl">
-      <h1 className="text-2xl font-bold mb-1">Privacy</h1>
+    <StaffPage title="Privacy">
       <StaffIntro publicHref="/privacy" publicName="Privacy" listFile="lib/privacy-promises.ts" effective={PRIVACY_PROMISES_EFFECTIVE} />
       <OpenSummary rows={ALL_ROWS} />
       <StatusKey statuses={Object.keys(COMPLIANCE_STATUSES) as ComplianceStatus[]} />
@@ -47,6 +46,6 @@ export default async function AdminPrivacyPage() {
           rows={ALL_ROWS.filter((row) => group.rows.some((r) => r.id === row.id))}
         />
       ))}
-    </div>
+    </StaffPage>
   );
 }
