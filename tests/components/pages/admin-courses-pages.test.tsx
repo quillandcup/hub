@@ -91,7 +91,10 @@ describe("/admin/courses", () => {
     await renderServerPage(AdminCoursesPage, {});
 
     const ready = screen.getByRole("row", { name: /The Ready Writer/ });
-    expect(within(ready).getByText("Published")).toBeInTheDocument();
+    // The one status chip (a pill with a dot), the same as on the course page and the Pages list, not plain text.
+    const published = within(ready).getByText("Published");
+    expect(published).toHaveClass("rounded-full");
+    expect(published.querySelector('span[aria-hidden="true"]')).not.toBeNull();
     expect(within(ready).getByText("1 year")).toBeInTheDocument();
     expect(within(ready).getByText("opens November 2, 2026")).toBeInTheDocument();
     expect(within(ready).getByText("0 / 8 / 45")).toBeInTheDocument();
@@ -99,7 +102,9 @@ describe("/admin/courses", () => {
     expect(screen.getByRole("link", { name: "The Ready Writer" })).toHaveAttribute("href", "/admin/courses/crs_AAAAAAAAAAA1");
 
     const other = screen.getByRole("row", { name: /Self Editing Academy/ });
-    expect(within(other).getByText("Draft")).toBeInTheDocument();
+    const draft = within(other).getByText("Draft");
+    expect(draft).toHaveClass("rounded-full");
+    expect(draft.querySelector('span[aria-hidden="true"]')).not.toBeNull();
     // No Hub row yet (the Kajabi import makes it), so there is no id to link by, and never a Kajabi one.
     expect(within(other).queryByRole("link")).not.toBeInTheDocument();
     expect(within(other).getByText("0 / 0 / 138")).toBeInTheDocument();

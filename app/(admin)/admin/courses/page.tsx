@@ -6,6 +6,7 @@ import { loadAdminCourses } from "@/lib/courses/admin";
 import { accessLabel } from "@/lib/courses/access-options";
 import { formatCourseDate } from "@/lib/courses/format";
 import { createRepos } from "@/lib/data/repos";
+import LifecycleStatusChip from "@/components/LifecycleStatusChip";
 import Tooltip from "@/components/Tooltip";
 
 export const metadata: Metadata = { title: "Courses" };
@@ -57,7 +58,9 @@ export default async function AdminCoursesPage() {
                   )}
                   {c.source === "hub" && <span className="ml-2 rounded-full bg-plum-100 px-2 py-0.5 text-xs font-medium text-plum-800 dark:bg-plum-900/30 dark:text-plum-200">Hub</span>}
                 </td>
-                <td className="px-4 py-3">{c.isDraft ? <span className="text-slate-600 dark:text-slate-400">Draft</span> : <span>Published</span>}</td>
+                <td className="px-4 py-3">
+                  <LifecycleStatusChip published={!c.isDraft} />
+                </td>
                 <td className="px-4 py-3">
                   {c.hub ? (
                     <>
