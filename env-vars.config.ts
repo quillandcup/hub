@@ -631,7 +631,7 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     name: "POSTAL_ADDRESS",
     group: "Email (Resend)",
     description:
-      "Our mailing address on one line (street, city, state and zip), printed in the footer of every notification email (CAN-SPAM). Not in the repo, which is public. Emails aren't sent without it (lib/config.ts postalAddress()).",
+      "Our mailing address on one line (street, city, state and zip), printed in the footer of every notification email (CAN-SPAM). Quote the value in the env file if it has a `#` (a unit number, say): unquoted, everything from the `#` on is read as a comment. Not in the repo, which is public. Emails aren't sent without it (lib/config.ts postalAddress()).",
     type: "config",
     destinations: vercelAllEnvs,
   },
