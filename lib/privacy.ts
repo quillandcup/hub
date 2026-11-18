@@ -362,7 +362,7 @@ export const PRIVACY_SECTIONS: readonly PrivacySection[] = [
           { text: "Our payment and course providers, for your membership and billing." },
           { text: "Zoom, where live prickles happen, and how we know who joined and for how long." },
           { text: "Slack, for chat and notifications." },
-          { text: "Our calendar service for the prickle schedule, and our photo service only when you choose photos to add." },
+          { text: "Our calendar service, for the prickle schedule, and our photo service, where event albums live and staff choose photos to bring into the Hub." },
           { text: "Google Analytics, only where you allow it." },
           { text: "Gravatar, which supplies a profile picture if you haven't set one; it is asked using a hash of your email address." },
         ],
