@@ -1,6 +1,6 @@
 # Supabase production checklist: where we stand
 
-Evaluation of the production project against Supabase's [Production Checklist](https://supabase.com/docs/guides/deployment/going-into-prod), done 2026-11-17. The security half of that checklist lives on a separate page ([Production security checklist](https://supabase.com/docs/guides/security/production-checklist)), which this pass did not cover; see "Not covered".
+Evaluation of the production project against Supabase's [Production Checklist](https://supabase.com/docs/guides/deployment/going-into-prod), done 2026-11-17. The security half of that checklist lives on a separate page ([Production security checklist](https://supabase.com/docs/guides/security/production-checklist)), evaluated in `docs/SUPABASE_SECURITY_CHECKLIST.md`.
 
 Sources: `supabase/config.toml`, the docs and CI in this repo, and read-only checks of production (`supabase db query --linked`, `supabase db advisors --linked`, `supabase backups list`), per `.claude/rules/verify-against-prod.md`. Each line says which. Status: **Done**, **Partial**, **Gap**, **N/A**.
 
@@ -47,8 +47,8 @@ Sources: `supabase/config.toml`, the docs and CI in this repo, and read-only che
 
 ## Not covered
 
-- The linked [Production security checklist](https://supabase.com/docs/guides/security/production-checklist) (SSL enforcement, network restrictions, account and organization access such as MFA for dashboard members, threat review). `docs/RLS_SECURITY.md` and `docs/DEPLOYMENT.md` ("Security Checklist") cover RLS and secrets; the rest needs a dashboard look.
-- Dashboard-only facts the CLI can't read: plan name, support tier, SSL enforcement, network restrictions.
+- The [Production security checklist](https://supabase.com/docs/guides/security/production-checklist): see `docs/SUPABASE_SECURITY_CHECKLIST.md`.
+- Dashboard-only facts the CLI can't read: plan name, support tier.
 - The [Shared Responsibility Model](https://supabase.com/docs/guides/deployment/shared-responsibility-model).
 
 ## Review again when
