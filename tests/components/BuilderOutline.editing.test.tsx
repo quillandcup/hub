@@ -469,6 +469,19 @@ describe("reordering", () => {
     void user;
   });
 
+  it("forgets a drag that ended without a drop, so a later drop does nothing", async () => {
+    const user = userEvent.setup();
+    render(<BuilderOutline course={course()} />);
+    await open(user);
+    const handle = within(screen.getByText("Module 2").closest("li")!).getAllByRole("img", { name: "Drag to reorder module" })[0];
+    const transfer = { setData: vi.fn(), effectAllowed: "" };
+    fireEvent.dragStart(handle, { dataTransfer: transfer });
+    fireEvent.dragEnd(handle, { dataTransfer: transfer });
+    fireEvent.drop(screen.getByText("Module 1").closest("li")!, { dataTransfer: transfer });
+    expect(actions.reorderCourseItems).not.toHaveBeenCalled();
+    void user;
+  });
+
   it("ignores a drop when nothing is being dragged", async () => {
     const user = userEvent.setup();
     render(<BuilderOutline course={course()} />);

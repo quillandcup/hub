@@ -8,6 +8,7 @@ const introduceOnSlack = vi.hoisted(() => vi.fn());
 vi.mock("@/app/(member)/wheel-of-wonder/actions", () => ({ spinWheel, introduceOnSlack }));
 
 import Wheel from "@/app/(member)/wheel-of-wonder/Wheel";
+import { tooltipTexts } from "@/tests/helpers/tooltip";
 
 const winner = {
   memberId: "mbr_1",
@@ -48,6 +49,21 @@ describe("Wheel", () => {
     const slack = screen.getByRole("button", { name: /Message on Slack/ });
     expect(slack.parentElement).toHaveClass("flex-col", "@pair:flex-row", "@pair:justify-center");
     expect(screen.getByRole("button", { name: "Spin Again" })).toBeInTheDocument();
+  });
+
+  it("falls back to initials when the winner's photo fails to load, and names them in a tooltip", async () => {
+    const withPhoto = { ...winner, photoUrl: "https://photos.example.test/fern.jpg" };
+    spinWheel.mockResolvedValue({ winner: withPhoto, reel: [withPhoto] });
+    const { container } = render(<Wheel />);
+    await userEvent.click(screen.getByRole("button", { name: /spin/i }));
+    await act(async () => frames.shift()!(performance.now() + 60_000));
+
+    const photo = container.querySelector('img[src="https://photos.example.test/fern.jpg"]')!;
+    expect(photo).not.toHaveClass("hidden");
+    fireEvent.error(photo);
+    expect(photo).toHaveClass("hidden");
+    expect(screen.getAllByText("FQ").length).toBeGreaterThan(0);
+    expect(tooltipTexts().map((t) => t.text)).toContain("Fern Quillsby");
   });
 
   it("tells the member what Message on Slack will do, and sends nothing until they click it", async () => {
