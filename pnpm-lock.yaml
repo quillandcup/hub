@@ -335,8 +335,8 @@ importers:
         specifier: ^4.14.0
         version: 4.14.0(playwright-core@1.64.1)
       '@slack/types':
-        specifier: ^2.22.0
-        version: 2.22.0
+        specifier: ^3.3.0
+        version: 3.3.0
       '@testing-library/jest-dom':
         specifier: ^7.0.1
         version: 7.0.1(@testing-library/dom@10.4.1)(vitest@4.1.11)
@@ -2557,10 +2557,6 @@ packages:
     resolution: {integrity: sha512-VGXhmmgsAo9shdQYh4tFDndd+7nsgp0Y5h0UPDaUp8K359pBasI6YdkMqFW3mCOxLQkq09qj7o7cq6f3DuXcJQ==}
     engines: {node: '>= 20', npm: '>=9.6.4'}
 
-  '@slack/types@2.22.0':
-    resolution: {integrity: sha512-sZ9lIgJhPX2qft/tKWiklFlc0o1FWeI7QtciZJfW1+ErH1eGGHvOZ8e73sleTCFEFJp1q/R0WeS8Oa7AsiDprg==}
-    engines: {node: '>= 12.13.0', npm: '>= 6.12.0'}
-
   '@slack/types@3.3.0':
     resolution: {integrity: sha512-11r2kM9Zy/UlaV6OwPibZueVlyNJ5xtHEHK/iYDnPLyhQcxRtsifNAwNhJ1Lm0nszW4jrWCHThXCHCNJC/hvqg==}
     engines: {node: '>= 20', npm: '>=9.6.4'}
@@ -4482,11 +4478,6 @@ packages:
 
   dotenv@18.0.10:
     resolution: {integrity: sha512-89FAA1xchzK2mxVWdr5F/0rldwiueXs6zJM86rO66EzekR1iBdiXRthyG+m5GvkJaFH3C2LESzamTkgndmLT2A==}
-    engines: {node: '>=12'}
-    hasBin: true
-
-  dotenv@18.0.9:
-    resolution: {integrity: sha512-3fVOW4cB02R066PUSwn8O4TJyz9NckQl7F81blIbaq9jKBm2tSmOKky7ZHIXzGvkVPXCSn6jkpziBPZdGFs8Tw==}
     engines: {node: '>=12'}
     hasBin: true
 
@@ -9803,8 +9794,6 @@ snapshots:
     dependencies:
       '@types/node': 26.6.6
 
-  '@slack/types@2.22.0': {}
-
   '@slack/types@3.3.0': {}
 
   '@slack/web-api@8.4.0':
@@ -11509,7 +11498,7 @@ snapshots:
       ci-info: 4.4.0
       conf: 15.1.0
       debug: 4.4.3(supports-color@8.1.1)
-      dotenv: 18.0.9
+      dotenv: 18.0.10
       execa: 10.2.1
       git-repo-info: 2.1.1
       glob: 13.0.6
@@ -11936,8 +11925,6 @@ snapshots:
   dotenv@17.4.2: {}
 
   dotenv@18.0.10: {}
-
-  dotenv@18.0.9: {}
 
   dunder-proto@1.0.1:
     dependencies:
