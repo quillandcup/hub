@@ -124,6 +124,12 @@ export interface CareRepository {
   /** Marks an engagement deleted. False when there is none. */
   softDelete(id: string, at: string): Promise<boolean>;
   /**
+   * Puts on record, in the audit log, that the signed-in admin or community manager opened this member's care plan messages (one entry per
+   * reader and member per hour; it holds no text). True when it is on record, false when no entry applies (a member that does not exist, a
+   * reader who is not staff). Call it with the reader's own client, before the messages are read. Throws on a database error.
+   */
+  logMessagesRead(memberId: string): Promise<boolean>;
+  /**
    * Hand-overs need both sides (docs/HEDGIE_CARE.md, "Owners"): a plan, open or closed, changes owner only when the receiver
    * accepts, and the database refuses any other change of `owned_by`. The steps answer for the signed-in caller: the owner (or
    * an admin on their behalf) proposes to a staff member who may own plans, who accepts or declines; the proposer, the owner
@@ -384,6 +390,12 @@ export class SupabaseCareRepository implements CareRepository {
     return data;
   }
 
+  async logMessagesRead(memberId: string) {
+    const { data, error } = await this.db.rpc("care_log_messages_read", { p_member_id: memberId });
+    if (error) throw new Error(error.message);
+    return data === true;
+  }
+
   async proposeHandover(id: string, toUserId: string) {
     return handoverResult(await this.db.rpc("propose_care_handover", { p_id: id, p_to: toUserId }));
   }
@@ -620,6 +632,11 @@ export class InMemoryCareRepository implements CareRepository {
     if (!row) return null;
     Object.assign(row, { closed_at: at, ended_how: endedHow, updated_at: new Date().toISOString() });
     return { ...row };
+  }
+
+  /** The twin has no signed-in reader, so who may be logged and the once-an-hour rule are the database's (pgTAP). */
+  async logMessagesRead(memberId: string) {
+    return this.data.members.some((m) => m.id === memberId);
   }
 
   async proposeHandover(id: string, toUserId: string): Promise<HandoverResult> {

@@ -25,7 +25,7 @@ interface Unit {
 
 export type PrivacyBlock =
   | { kind: "p"; id?: string; text: Rich; small?: boolean }
-  | { kind: "subheading"; text: string }
+  | { kind: "subheading"; text: string; /** An anchor other pages link to. */ id?: string }
   | { kind: "table"; columns: readonly string[]; emphasizeFirst?: boolean; rows: readonly { id?: string; cells: readonly Rich[] }[] }
   | { kind: "details"; title: string; paragraphs: readonly Unit[] }
   | { kind: "list"; small?: boolean; items: readonly Unit[] }
@@ -51,7 +51,7 @@ export const PRIVACY_SUMMARY: readonly Unit[] = [
     text: "We keep what you do in the Hub, how you use it (the pages and buttons, never what you type), where you connect from, and your activity in chat.",
   },
   {
-    text: "Staff can see who talks with whom, where and when, and what is said in the channels that reach the Hub. Restricted channels, group DMs and your one-on-one DMs are open to them only through break-glass access.",
+    text: "Staff can see who talks with whom, where and when, and what is said in the channels that reach the Hub. Restricted channels, group DMs and your one-on-one DMs are open to them only through break-glass access, with one exception: the messages sent during a Hedgie Care plan, below.",
   },
   {
     text: "The Hub brings your one-on-one Slack DMs into Hub Chat as we roll it out to every member, and keeps them. See “Your Slack direct messages” below.",
@@ -212,7 +212,8 @@ export const PRIVACY_SECTIONS: readonly PrivacySection[] = [
           { id: "chat-private", cells: ["Private channels that include Billie Bot", "Yes", "Yes, unless the channel is marked restricted"] },
           { id: "chat-restricted", cells: ["Restricted private channels", "Yes", "No, except break-glass access (below)"] },
           { id: "chat-group", cells: ["Group DMs that include Billie Bot", "Yes", "No, except break-glass access (below)"] },
-          { id: "chat-dm", cells: ["One-on-one Slack DMs, and group DMs without Billie Bot, as they reach the Hub", "Yes", "No, except break-glass access (below)"] },
+          { id: "chat-dm", cells: ["One-on-one Slack DMs, and group DMs without Billie Bot, as they reach the Hub (apart from the messages in a Hedgie Care plan, next row)", "Yes", "No, except break-glass access (below)"] },
+          { id: "chat-care-plan", cells: ["One-on-one Slack DMs tracked in a Hedgie Care plan: the messages sent during the plan", "Yes", "Yes, admins and community managers can read them in Hedgie Care (see “Messages in a Hedgie Care plan”, below)"] },
           { id: "chat-planned", cells: ["Private channels without Billie Bot", "Not yet. Planned: yes", "Not yet. Planned: restricted, so break-glass access only"] },
         ],
       },
@@ -220,6 +221,22 @@ export const PRIVACY_SECTIONS: readonly PrivacySection[] = [
         kind: "p",
         id: "chat-metadata",
         text: "In every conversation that reaches the Hub, restricted channels and group DMs included, staff can see who is in it, who wrote and reacted and when, and when you last read it (the Hub keeps that in step with Slack). Files shared in a conversation follow the same rule as its text. We keep a copy of files shared in the channels and group DMs the Hub mirrors, and the copy is removed if the file is deleted.",
+      },
+      { kind: "subheading", id: "care-plan-messages", text: "Messages in a Hedgie Care plan" },
+      {
+        kind: "p",
+        id: "care-plan-what",
+        text: "Hedgie Care is how our community manager and admins keep in touch with members: to say hello, check in on your writing or welcome you back. Each time is recorded as a care plan, with a start and an end.",
+      },
+      {
+        kind: "p",
+        id: "care-plan-who",
+        text: "When a care plan starts, the staff member's one-on-one Slack DM with you is tracked automatically, when the Hub has it: there is nothing to choose or switch off. Admins and community managers can then read, in Hedgie Care, the messages sent in that DM from the start of each of your plans to its end, or until now while a plan is open. A plan can be handed over to another staff member, or taken over by an admin, and whoever holds it then sees the messages of your earlier plans, and their own DM with you is tracked too. They read the full messages, as they were sent; deleted messages are not shown.",
+      },
+      {
+        kind: "p",
+        id: "care-plan-limits",
+        text: "Messages sent outside a plan are not shown there, and other direct messages with staff are treated like direct messages between members, so staff can read them only through break-glass access (below). Each time someone opens these messages, we record who looked and whose plan it was, but not the messages, and Hub Chat shows a short note at the top of such a conversation. Slack's own app shows no note, so keep this in mind when you message the team there. Only admins and community managers can read them: assistants cannot.",
       },
       {
         kind: "details",
@@ -253,7 +270,7 @@ export const PRIVACY_SECTIONS: readonly PrivacySection[] = [
             id: "dm-who",
             text: [
               { strong: "Who can see them." },
-              " You, and the other person if they are a Hub member (they see the same conversation in their own chat once their own DMs are brought in). If they aren't a member, their messages are kept in your conversation under their Slack name, and we keep nothing else about them. Staff can see that the conversation exists, who is in it, who wrote and when, but they can read the text only through break-glass access, as for a restricted channel. Viewing the Hub as you never shows them.",
+              " You, and the other person if they are a Hub member (they see the same conversation in their own chat once their own DMs are brought in). If they aren't a member, their messages are kept in your conversation under their Slack name, and we keep nothing else about them. Staff can see that the conversation exists, who is in it, who wrote and when, but they can read the text only through break-glass access, as for a restricted channel, except for the messages sent during a Hedgie Care plan (see “Messages in a Hedgie Care plan” above). Viewing the Hub as you never shows them.",
             ],
           },
           {

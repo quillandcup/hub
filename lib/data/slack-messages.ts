@@ -92,6 +92,12 @@ export type SlackMessageTime = { channel_id: string; occurred_at: string };
 /** When one person last wrote in one Slack conversation: who and when, never what (`lastWritesIn`). */
 export type SlackLastWrite = { channel_id: string; user_id: string; last_at: string };
 
+/**
+ * One message of a Slack DM with its text, for Hedgie Care's plan messages (`dmMessagesBetween`): who wrote it (a Slack user id),
+ * when, the text exactly as Slack has it (never shortened), and whether it carried files (their content is not read here).
+ */
+export type SlackDmMessage = { channel_id: string; message_ts: string; user_id: string; occurred_at: string; text: string; has_files: boolean };
+
 const SYSTEM_SUBTYPES: readonly string[] = SLACK_SYSTEM_SUBTYPES;
 
 /**
@@ -175,6 +181,13 @@ export interface SlackMessageRepository {
    * because these are people's private DMs. By channel then user. Chunked.
    */
   lastWritesIn(channelIds: string[]): Promise<SlackLastWrite[]>;
+  /**
+   * The live messages written in one Slack conversation from `from` (included) to `to` (not included), newest first, at most `limit`:
+   * who, when and the full text (`SlackDmMessage`). Deleted messages and the notices Slack posts itself are left out. **Service role
+   * only, and it reads private DM text**: the one caller is Hedgie Care's plan messages (`lib/care-messages.ts`), which checks the
+   * reader is staff and the conversation is a DM tracked for one of the member's care plans before it asks.
+   */
+  dmMessagesBetween(channelId: string, from: string, to: string, limit: number): Promise<SlackDmMessage[]>;
 }
 
 const TS_CHUNK = 100;
@@ -435,6 +448,30 @@ export class SupabaseSlackMessageRepository implements SlackMessageRepository {
     }
     return out.sort((a, b) => compareText(a.channel_id, b.channel_id) || compareText(a.user_id, b.user_id));
   }
+
+  async dmMessagesBetween(channelId: string, from: string, to: string, limit: number) {
+    const rows = must(
+      await this.bronze
+        .from("slack_messages")
+        .select("channel_id, message_ts, user_id, occurred_at, text, files")
+        .eq("channel_id", channelId)
+        .gte("occurred_at", from)
+        .lt("occurred_at", to)
+        .is("deleted_at", null)
+        .or(NOT_SYSTEM)
+        .order("occurred_at", { ascending: false })
+        .order("message_ts", { ascending: false })
+        .limit(limit)
+    );
+    return (rows ?? []).map((r) => ({
+      channel_id: r.channel_id,
+      message_ts: r.message_ts,
+      user_id: r.user_id,
+      occurred_at: new Date(r.occurred_at).toISOString(),
+      text: r.text ?? "",
+      has_files: r.files !== null && JSON.stringify(r.files) !== "null",
+    }));
+  }
 }
 
 /** In-memory twin over an `InMemoryDataset`. */
@@ -648,6 +685,23 @@ export class InMemorySlackMessageRepository implements SlackMessageRepository {
       if (!seen || at > seen.last_at) latest.set(key, { channel_id: m.channel_id, user_id: m.user_id, last_at: at });
     }
     return [...latest.values()].sort((a, b) => compareText(a.channel_id, b.channel_id) || compareText(a.user_id, b.user_id));
+  }
+
+  async dmMessagesBetween(channelId: string, from: string, to: string, limit: number) {
+    const f = Date.parse(from);
+    const t = Date.parse(to);
+    return this.data.slackMessages
+      .filter((m) => m.channel_id === channelId && this.memberWritten(m) && Date.parse(m.occurred_at) >= f && Date.parse(m.occurred_at) < t)
+      .sort((a, b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at) || compareText(b.message_ts, a.message_ts))
+      .slice(0, limit)
+      .map((m) => ({
+        channel_id: m.channel_id,
+        message_ts: m.message_ts,
+        user_id: m.user_id,
+        occurred_at: new Date(m.occurred_at).toISOString(),
+        text: m.text ?? "",
+        has_files: m.files != null,
+      }));
   }
 
   async liveMessageTimes() {

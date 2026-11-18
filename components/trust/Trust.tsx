@@ -119,8 +119,12 @@ export function RichText({ text }: { text: Rich }) {
 }
 
 /** Smaller than a section's heading and in capitals, so the two levels can't be mistaken for each other. */
-export function TrustSubheading({ children }: { children: ReactNode }) {
-  return <h3 className="pt-2 text-sm font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">{children}</h3>;
+export function TrustSubheading({ children, id }: { children: ReactNode; /** An anchor other pages link to (the note in Hub Chat links to `#care-plan-messages`). */ id?: string }) {
+  return (
+    <h3 id={id} className={`pt-2 text-sm font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400${id ? " scroll-mt-6" : ""}`}>
+      {children}
+    </h3>
+  );
 }
 
 /** A long explanation that stays folded until someone wants it. */

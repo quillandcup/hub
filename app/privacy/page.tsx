@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 };
 
 /** When the wording was last checked against the code. Bump it whenever the page or `lib/privacy.ts` changes. */
-export const PRIVACY_EFFECTIVE = "2026-11-17";
+export const PRIVACY_EFFECTIVE = "2026-11-18";
 
 /**
  * What the Hub collects, who can see it, how long it is kept and what a member can do about it.
@@ -48,6 +48,14 @@ export const PRIVACY_EFFECTIVE = "2026-11-17";
  *   added by their own pull, `slack_dm_member_pulled`; the other person only once theirs finds it) can read it, admins see only that it exists and its metadata, sudo never shows it. A DM with a
  *   non-member keeps their messages under their Slack name; nothing else about them. The page's DM statements must
  *   change with that code, in particular if a pull ever starts to cover a member the feature doesn't.
+ * - Hedgie Care plan messages (decided 2026-11-12, docs/HEDGIE_CARE.md "Plan messages"): the one exception to the above. Admins and
+ *   community managers (never an assistant: `requireStaffAction()`, `care.write`) see, inside Hedgie Care, the full text of the
+ *   one-on-one Slack DM(s) tracked with a member (`care_tracked_dms`; tracking comes automatically with a care plan and nothing
+ *   untracks it), sent in the window of each of that member's care plans (the plan's start to its close, or now while open), across all
+ *   the member's plans and owners; read with the service role from Bronze by `lib/care-messages.ts`, deleted messages left out. No chat
+ *   policy changed: a DM with a staff member is otherwise break-glass only. Opening them writes an audit entry (`care_dm_read`,
+ *   `care_log_messages_read`; one per reader and member per hour, no text) shown in the Activity Log's Privacy view, and a tracked DM
+ *   shows a note at the top in Hub Chat (`CarePlanNotice`). Slack's own app shows no such note, and the page says so.
  * - Usage log: what is recorded and when (`lib/analytics/events.ts`, `lib/analytics/receive.ts`), the consent
  *   rule (`components/ConsentBanner.tsx`, `lib/analytics/consent.ts`), the visit cookie
  *   (`lib/analytics/session-cookie.ts`), notification sends and opens (`lib/notifications/notify.ts`,
@@ -85,7 +93,11 @@ export default async function PrivacyPage() {
           </p>
         );
       case "subheading":
-        return <TrustSubheading key={key}>{block.text}</TrustSubheading>;
+        return (
+          <TrustSubheading key={key} id={block.id}>
+            {block.text}
+          </TrustSubheading>
+        );
       case "table":
         return <TrustTable key={key} columns={block.columns} rows={block.rows} emphasizeFirst={block.emphasizeFirst} />;
       case "details":

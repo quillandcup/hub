@@ -254,6 +254,13 @@ export interface ChatRepository {
    * so the chat's own member list can't name them. Names only; the bots are left out.
    */
   dmCounterparts(memberId: string): Promise<Map<string, string[]>>;
+  /**
+   * Whether this Slack DM is tracked in a Hedgie Care plan of its member, open or past: a live tracked DM for its Slack
+   * conversation, whose member has a care plan (tracking exists only because a plan does, so a hand-over leaves the earlier owner's DM in it). The team can read the
+   * messages sent in a plan (docs/HEDGIE_CARE.md), and Hub Chat says so at the top of the conversation. False for a channel, a
+   * group message, and a conversation the caller cannot see.
+   */
+  dmInCarePlan(channelId: string): Promise<boolean>;
   /** The member's own DMs that are with an app (a bot and nobody else), by conversation, to the app's name. These are listed under Apps, not Direct messages. */
   dmApps(memberId: string): Promise<Map<string, string>>;
   /** Which of these members are in the conversation now. */
@@ -676,6 +683,12 @@ export class SupabaseChatRepository implements ChatRepository {
       .maybeSingle();
     if (error) throw new Error(error.message);
     return data;
+  }
+
+  async dmInCarePlan(channelId: string) {
+    const { data, error } = await this.db.rpc("chat_dm_in_care_plan", { p_channel_id: channelId });
+    if (error) throw new Error(error.message);
+    return data === true;
   }
 
   async dmCounterparts(memberId: string) {
@@ -1316,6 +1329,15 @@ export class InMemoryChatRepository implements ChatRepository {
   async activeMembership(channelId: string, memberId: string) {
     const m = this.active(channelId).find((x) => x.member_id === memberId);
     return m ? { source: m.source ?? "slack" } : null;
+  }
+
+  async dmInCarePlan(channelId: string) {
+    const channel = this.data.chatChannels.find((c) => c.id === channelId);
+    const slackId = channel?.slack_channel_id;
+    if (!channel || (channel.kind ?? "channel") !== "dm" || !slackId) return false;
+    return this.data.careTrackedDms
+      .filter((t) => t.slack_channel_id === slackId && t.deleted_at === null)
+      .some((t) => this.data.careEngagements.some((e) => e.member_id === t.member_id && e.deleted_at === null));
   }
 
   async dmCounterparts(memberId: string) {
