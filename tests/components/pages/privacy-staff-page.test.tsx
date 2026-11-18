@@ -94,3 +94,18 @@ describe("privacy promises list", () => {
     expect(text).not.toMatch(/\b(sk|pk|xox[bp])[-_][A-Za-z0-9]{8,}/);
   });
 });
+
+describe("the data-requests row", () => {
+  const rights = ROWS.find((r) => r.id === "rights")!;
+
+  it("names the staff removal tool and points at the files that do it", async () => {
+    expect(rights.how).toContain("Remove on request");
+    const { existsSync } = await import("node:fs");
+    for (const where of rights.evidence.filter((e) => /\.(tsx?|sql)$/.test(e))) expect(existsSync(where), where).toBe(true);
+  });
+
+  it("does not say there is no tool for requests, and keeps what is really missing open", () => {
+    expect(rights.open.join(" ")).not.toMatch(/no in-app tool or queue/);
+    expect(rights.open.join(" ")).toMatch(/one-month deadline/);
+  });
+});
