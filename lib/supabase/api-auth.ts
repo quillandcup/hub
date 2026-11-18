@@ -5,6 +5,7 @@ import { createRepos } from "@/lib/data/repos";
 import { NextRequest } from "next/server";
 import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from "@/lib/with-timeout";
 import { getCurrentUser, type AuthUser } from "@/lib/auth";
+import { secretsMatch } from "@/lib/webhook-auth";
 
 /**
  * Creates a Supabase client for API routes.
@@ -22,10 +23,9 @@ export async function createApiAuth(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const cronSecret = process.env.CRON_SECRET;
-  const isServiceRole =
-    authHeader && serviceRoleKey && authHeader.includes(serviceRoleKey);
-  const isCron =
-    authHeader && cronSecret && serviceRoleKey && authHeader === `Bearer ${cronSecret}`;
+  // Exact `Bearer <secret>` only, compared in constant time (never a substring match).
+  const isServiceRole = !!serviceRoleKey && secretsMatch(`Bearer ${serviceRoleKey}`, authHeader);
+  const isCron = !!cronSecret && !!serviceRoleKey && secretsMatch(`Bearer ${cronSecret}`, authHeader);
 
   if (isServiceRole || isCron) {
     const supabase = createDirectClient<Database>(

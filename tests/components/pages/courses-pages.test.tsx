@@ -428,6 +428,18 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
     expect(screen.getByRole("link", { name: "View the full course outline" })).toHaveAttribute("href", "/courses/the-ready-writer");
   });
 
+  it("sanitizes the stored lesson text when it renders it", async () => {
+    const stored = '<h2>Safe heading</h2><p onclick="steal()">Text</p><script>alert(1)</script><img src="x" onerror="steal()" alt="pic"><a href="javascript:steal()">bad link</a><a href="https://example.com/ok">good link</a>';
+    loadLessonView.mockResolvedValue(ok({ lesson: { ...lesson(LESSON_B, "Voice", 2), body_html: stored } }));
+    const { container } = await renderServerPage(LessonPage, params());
+
+    expect(screen.getByRole("heading", { name: "Safe heading" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "good link" })).toHaveAttribute("href", "https://example.com/ok");
+    const text = container.querySelector(".prose") as HTMLElement;
+    expect(text.querySelector("script")).toBeNull();
+    expect(text.innerHTML).not.toMatch(/onerror|onclick|javascript:|alert\(1\)/i);
+  });
+
   it("backs out to the course when the lesson sits in no module", async () => {
     loadLessonView.mockResolvedValue(ok({ lesson: { ...lesson("les_AAAAAAAAAAA9", "Loose", 1), body_html: "<p>Hi</p>" } }));
     await renderServerPage(LessonPage, params("les_AAAAAAAAAAA9"));
