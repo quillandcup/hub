@@ -14,6 +14,10 @@ export type SignInOutcome =
   | "callback_other_browser"
   /** The link's code was refused for any other reason (expired, already used). */
   | "callback_refused"
+  /** /auth/confirm got no token_hash (or a type we don't send), so there was nothing to check. */
+  | "confirm_no_token"
+  /** The emailed link's token was refused (expired, already used, e.g. by a mail scanner). */
+  | "confirm_refused"
   /** A typed email code worked. */
   | "code_ok"
   /** A typed email code was refused (expired, wrong, replaced by a newer email). */

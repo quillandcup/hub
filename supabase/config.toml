@@ -435,7 +435,14 @@ max_client_conn = 400
 
 [remotes.prod.auth]
 site_url = "https://hub.quillandcup.com/auth/callback"
-additional_redirect_urls = ["http://localhost:3000/auth/callback", "https://quillandcup-hub.vercel.app/auth/callback"]
+# /auth/confirm is where the emailed links point ({{ .RedirectTo }} in the templates); /auth/callback stays for links
+# sent before that (they last 24 hours) and as the fallback address above.
+additional_redirect_urls = [
+  "https://hub.quillandcup.com/auth/confirm",
+  "http://localhost:3000/auth/callback",
+  "https://quillandcup-hub.vercel.app/auth/callback",
+  "https://quillandcup-hub.vercel.app/auth/confirm",
+]
 
 [remotes.prod.auth.email]
 enable_confirmations = true

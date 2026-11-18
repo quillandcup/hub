@@ -9,6 +9,13 @@ export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
 
+  // An email sent with the new link (/auth/confirm) can still land here: the template names the address
+  // the member's sign-in asked to come back to, which was /auth/callback until the sign-in page was changed.
+  // Hand it over untouched; /auth/confirm does the checking.
+  if (searchParams.has('token_hash')) {
+    return NextResponse.redirect(`${origin}/auth/confirm${new URL(request.url).search}`, 307)
+  }
+
   if (code) {
     const supabase = await createClient()
     const { error } = await supabase.auth.exchangeCodeForSession(code)
