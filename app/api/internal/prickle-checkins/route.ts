@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import { bearerMatches } from "@/lib/webhook-auth";
 import { joinAt, loadPrickleJoinSettings } from "@/lib/prickle-join";
 import { createNotifier } from "@/lib/notifications/notify";
 import { membersWithFeatureForOutreach } from "@/lib/features.server";
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest) {
 async function runPrickleCheckins(request: NextRequest): Promise<NextResponse> {
   const auth = request.headers.get("authorization");
   const expected = process.env.CRON_INTERNAL_SECRET;
-  if (!expected || auth !== `Bearer ${expected}`) {
+  if (!bearerMatches(expected, auth)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

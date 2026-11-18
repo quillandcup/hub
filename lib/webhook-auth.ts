@@ -22,3 +22,13 @@ export function secretsMatch(expected: string, given: string | null | undefined)
   const got = createHash("sha256").update(given).digest();
   return timingSafeEqual(want, got);
 }
+
+/**
+ * True when an `Authorization` header is `Bearer <expected>`, compared in constant time. For the
+ * routes that a scheduled job calls with a shared secret (`CRON_INTERNAL_SECRET`). An unset secret
+ * never matches, so a build without one refuses every request.
+ */
+export function bearerMatches(expected: string | undefined, header: string | null | undefined): boolean {
+  if (!expected || !header?.startsWith("Bearer ")) return false;
+  return secretsMatch(expected, header.slice("Bearer ".length));
+}
