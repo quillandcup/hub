@@ -426,6 +426,19 @@ Production (2026-11-10): lesson thumbnails are all copied into the media library
 
 ## Infrastructure & Deployment
 
+### Make the Unit Test Job Faster, then Lower Its Timeout Again
+`Test (unit)` has a 15 minute limit (it was 10) because the suite takes 5 to 9.5 minutes depending on the runner it lands on, and grows by about 30 test files a day. Measured on CI runs from 13 to 17 November: median 426s, p90 566s, six runs cancelled at the 10 minute limit. Every phase (setup, import, environment, tests) scales together between a fast and a slow runner, so it is runner CPU, not one slow test. About half the worker time is per-file overhead (the jsdom environment for ~400 files, module imports, the setup files), not the tests themselves.
+- Shard the unit project (`vitest --shard=i/n`) in a matrix of 2 or 3 jobs. The required check is named `Test (unit)` (`github-repo-config.yml`), so add an aggregator job with that name or rename the check there. The coverage report already merges several `--suite name=dir` inputs, so each shard can upload its own.
+- Find what each file pays to start: `tests/setup.ts` runs `vi.mock` with `importOriginal` on `lib/slack-bot-token` in every file, so the real module and its imports load 1,000+ times. Measure with and without it. Also look at jsdom versus happy-dom for the ~400 component files, and the slowest files (`EmojiPicker`, `EmojiPickerKeyboardTones`, `care-page`, `MessageBox`: ~87s of test time between them).
+- Check the "Show runner size" step's output in the unit job to confirm the core count the estimates assumed (4 vCPU for a standard runner on a public repo), and measure what skipping coverage on `main` (done) saved.
+- Why deferred: the timeout bump and the coverage change stop the failures now; sharding changes the required checks, which deserves its own PR.
+
+### `member-matching` and `orphaned-meetings-idempotency` Fail Now and Then in the db Suite
+About 1 in 25 db runs in mid-November failed in `tests/member-matching.test.ts` (all 14 tests, even the plain email match) or `tests/api/reprocessability/orphaned-meetings-idempotency.test.ts` (`expected 0 to be 1`), on `main` and on unrelated PRs. The files that run just before are the same in passing and failing runs, so it is not test order. In both, the member the test just inserted is not found when the test loads all members and matches against them.
+- Suspects: a leftover duplicate member or alias in the shared local database making the match ambiguous (`matchAttendeeToMember` returns `ambiguous`, which `matchMember` turns into null), or the members table changing between the pages `fetchAllRows` reads.
+- Start by making the helper return the ambiguity reason and the member count when it fails, so the next occurrence in CI says which it was. Logs of the failing runs are in the CI history (runs of 16 and 17 November on `main`).
+- Why deferred: it needs a failing run to look at, and the cause is not known.
+
 ### A Docs-Only Merge Can Leave an Earlier Code Merge Undeployed
 A code PR can merge, never deploy, and the `main` run that replaced it still report success. Seen on the video stats modal follow-up: the code merge's `main` run was cancelled when a docs-only PR (a `CLAUDE.md` edit) merged right after it, and the docs-only run succeeded with every test, migration and deploy job skipped, so the `production` tag stayed on an earlier commit. Two things combine:
 - `main` runs queue one at a time and a run still waiting is cancelled when a newer merge lands (`concurrency` in `.github/workflows/ci.yml`; `ship-via-pr.md`, step 7).

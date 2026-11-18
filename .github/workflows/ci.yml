@@ -168,7 +168,10 @@ jobs:
     # !cancelled() keeps these running if `changes` itself fails: only an explicit `true` skips.
     if: ${{ !cancelled() && needs.changes.outputs.docs_only != 'true' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    # 15, not 10: the same suite takes 5 to 9.5 minutes depending on the runner it lands on (setup, import and
+    # tests all scale together), the suite grows by ~30 files a day, and at 10 six runs in four days were
+    # cancelled at the limit. Lower it again once the suite is sharded or measurably faster.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
 
@@ -181,6 +184,13 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+
+      # The runner's size decides how many vitest workers run and how long this job takes; printing it
+      # makes a slow run explainable from its own log.
+      - name: Show runner size
+        run: |
+          nproc
+          free -m | head -2
 
       # Next.js 16 removed linting from `next build` entirely (it used to run
       # as part of the "Production build" step in test-db below, gated by
@@ -200,10 +210,17 @@ jobs:
       # (vi.mock / vi.fn / stubbed global.fetch) or the test is pure functions in,
       # assertions out. No Supabase, no app server, no Docker: see vitest.config.mts's
       # "unit" project for exactly which files land here and why.
-      # Runs the unit suite once, with v8 coverage. The coverage floors are on the unit and db
-      # runs combined, so they are checked by the Coverage report job (scripts/coverage-report.ts).
+      # Runs the unit suite once. On pull requests it runs with v8 coverage: the floors are on the unit and db
+      # runs combined, so they are checked by the Coverage report job (scripts/coverage-report.ts), which only
+      # runs on pull requests. On main nothing reads the coverage, so it runs without it (less time per run, and
+      # main is where the job came closest to its timeout).
       - name: Run unit test suite (with coverage)
+        if: github.event_name == 'pull_request'
         run: pnpm test:unit:coverage
+
+      - name: Run unit test suite
+        if: github.event_name != 'pull_request'
+        run: pnpm test:unit
 
       - name: Check lint result
         if: ${{ !cancelled() }}
@@ -219,7 +236,7 @@ jobs:
           fi
 
       - name: Upload coverage report
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
         uses: actions/upload-artifact@v7
         with:
           name: coverage-unit

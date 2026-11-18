@@ -5,7 +5,12 @@ import { afterEach } from 'vitest'
 // nothing to clean up.
 if (typeof document !== 'undefined') {
   await import('@testing-library/jest-dom/vitest')
-  const { cleanup } = await import('@testing-library/react')
+  const { cleanup, configure } = await import('@testing-library/react')
+  // findBy*/waitFor give up after 1s by default. CI runners vary by almost 2x in speed and the suite runs on all
+  // their cores, so a dialog or error that renders in milliseconds locally can take over a second there (the
+  // flaky "Unable to find role" / toHaveTextContent failures). A passing wait returns as soon as it succeeds, so
+  // a longer limit only costs time when a test is really failing.
+  configure({ asyncUtilTimeout: 5000 })
   afterEach(() => {
     cleanup()
   })
