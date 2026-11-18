@@ -3,12 +3,17 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import FeedbackWidget from "@/components/FeedbackWidget";
+import Kbd from "@/components/Kbd";
+import { useShortcutsPanel } from "@/components/shortcuts/ShortcutsProvider";
 
 /** The help button in the top bar, beside the notification bell: a question mark in a circle that opens a menu with Hedgie Help (the articles), What's new (the changelog) and Send feedback (the feedback form). */
 export default function HelpMenu() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  // Only on a device with a keyboard, inside the app shell (the shortcuts panel lives there).
+  const shortcuts = useShortcutsPanel();
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -33,6 +38,7 @@ export default function HelpMenu() {
     <>
       <div className="relative" ref={ref}>
         <button
+          ref={buttonRef}
           type="button"
           onClick={() => setMenuOpen((o) => !o)}
           data-track="help-menu"
@@ -61,6 +67,22 @@ export default function HelpMenu() {
             <Link href="/changelog" role="menuitem" data-track="help-menu-changelog" onClick={() => setMenuOpen(false)} className={item}>
               What&apos;s new
             </Link>
+            {shortcuts.available && (
+              <button
+                type="button"
+                role="menuitem"
+                data-track="help-menu-shortcuts"
+                aria-keyshortcuts="?"
+                onClick={() => {
+                  setMenuOpen(false);
+                  shortcuts.openPanel("help_menu", buttonRef.current);
+                }}
+                className={`${item} flex items-center justify-between gap-2`}
+              >
+                Keyboard shortcuts
+                <Kbd keys={["?"]} />
+              </button>
+            )}
             <div className="my-1 border-t border-slate-200 dark:border-slate-700" />
             <button
               type="button"

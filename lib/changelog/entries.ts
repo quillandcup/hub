@@ -56,6 +56,22 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "keyboard-shortcuts",
+    date: "2026-11-17",
+    audience: "product",
+    category: "new",
+    title: "Get around the Hub faster with a computer keyboard",
+    summary: "On a computer, press ? to see every keyboard shortcut. Then use the arrow keys to move through lists and tables, and Ctrl+Enter (Cmd+Enter on a Mac) to save a form in a dialog.",
+    body: `On a computer, you can now do more without reaching for the mouse.
+
+- **See every shortcut.** Press **?** (or choose Keyboard shortcuts in the help menu at the top) to open a panel beside the page. It shows the shortcuts for the page you are on first, then the ones that work everywhere, and you can search it.
+- **Lists and tables.** Move between rows with the arrow keys (j and k also work), and press Enter to open one.
+- **Search boxes that suggest people or items.** Use the up and down arrows, Enter to choose and Esc to close the list.
+- **Saving.** Press Ctrl+Enter (Cmd+Enter on a Mac) to save a form in a dialog.
+
+Press **?** again, or the Esc key, to close the panel. These work on a computer with a keyboard and a mouse or trackpad. On a phone or tablet you will not see them.`,
+  },
+  {
     slug: "security-page-details",
     date: "2026-11-17",
     audience: "product",

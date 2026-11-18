@@ -15,6 +15,8 @@ import { getSlackConnectionStatus, isSlackConnectConfigured } from '@/lib/slack-
 import { createServiceRoleClient } from '@/lib/supabase/service'
 import UserMenu from '@/components/UserMenu'
 import AppHeader from '@/components/AppHeader'
+import ShortcutsProvider from '@/components/shortcuts/ShortcutsProvider'
+import ShortcutsLayout from '@/components/shortcuts/ShortcutsPanel'
 import WithInAppNotifications from '@/components/WithInAppNotifications'
 import SudoBanner from '@/components/SudoBanner'
 import AnnouncementStack, { ANNOUNCEMENT_PRIORITY } from '@/components/announcements/AnnouncementStack'
@@ -89,6 +91,7 @@ export default async function MemberLayout({
         <TimezoneProvider zone={resolveTimeZone(storedTimezone)}>
         <SecondaryTimezoneProvider zone={secondaryTimezone}>
         <WithInAppNotifications identity={effectiveIdentity}>
+        <ShortcutsProvider>
           <AppHeader resultsPath="/search" isAdmin={isAdmin}>
             <UserMenu
               userEmail={effectiveIdentity.memberDisplayName ?? effectiveIdentity.memberName}
@@ -99,8 +102,9 @@ export default async function MemberLayout({
               canStartOnboarding={showOnboarding}
             />
           </AppHeader>
-          {main}
+          <ShortcutsLayout>{main}</ShortcutsLayout>
           <MemberFooter />
+        </ShortcutsProvider>
         </WithInAppNotifications>
         </SecondaryTimezoneProvider>
         </TimezoneProvider>

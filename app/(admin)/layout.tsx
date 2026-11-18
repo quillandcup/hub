@@ -8,6 +8,8 @@ import type { FeatureKey } from "@/lib/features";
 import AdminNavigation from "./admin/AdminNavigation";
 import UserMenu from "@/components/UserMenu";
 import AppHeader from "@/components/AppHeader";
+import ShortcutsProvider from "@/components/shortcuts/ShortcutsProvider";
+import ShortcutsLayout from "@/components/shortcuts/ShortcutsPanel";
 import WithInAppNotifications from "@/components/WithInAppNotifications";
 import PageViewTracker from "@/components/PageViewTracker";
 import { TimezoneProvider } from "@/components/Timezone";
@@ -51,14 +53,18 @@ export default async function AdminLayout({
           ]}
         />
         <WithInAppNotifications identity={identity}>
+          <ShortcutsProvider>
           <AppHeader resultsPath={isAdmin ? "/admin/search" : "/search"} isAdmin={isAdmin}>
             <UserMenu userEmail={user.email || "User"} isAdmin={isAdmin} canPreviewRole={isAdmin} />
           </AppHeader>
           <TimezoneProvider zone={timeZone}>
-            <main className="min-w-0 flex-1 overflow-auto">
-              {children}
-            </main>
+            <ShortcutsLayout>
+              <main className="min-w-0 flex-1 overflow-auto">
+                {children}
+              </main>
+            </ShortcutsLayout>
           </TimezoneProvider>
+          </ShortcutsProvider>
         </WithInAppNotifications>
       </div>
       <PageViewTracker />
