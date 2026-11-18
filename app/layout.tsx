@@ -17,6 +17,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { isAnalyticsOptedOut } from "@/lib/analytics/opt-out";
 import { initialUserIdCommand } from "@/lib/analytics-identity";
 import { analyticsUserId } from "@/lib/analytics-user";
+import { NONCE_HEADER } from "@/lib/csp";
 import { countryNeedsConsent } from "@/lib/gdpr-countries";
 import { eventsNeedConsent as eventsNeedConsentFor } from "@/lib/analytics/consent";
 import { DEFAULT_TITLE, TITLE_TEMPLATE } from "@/lib/page-title";
@@ -64,6 +65,8 @@ export default async function RootLayout({
   // (e.g. local dev, non-Vercel hosting) is treated as "needs consent" to
   // fail closed rather than silently track visitors we can't place.
   const headersList = await headers();
+  // The per-request script nonce the proxy made (lib/csp.ts): our own inline scripts and styles carry it.
+  const nonce = headersList.get(NONCE_HEADER) ?? undefined;
   const needsConsent = countryNeedsConsent(headersList.get("x-vercel-ip-country"));
 
   // Signed-in visitors are identified to GA by their auth user ID (see
@@ -86,6 +89,7 @@ export default async function RootLayout({
           defaultTheme="system"
           enableSystem
           disableTransitionOnChange
+          nonce={nonce}
         >
           <EnvironmentIndicator />
           <AnimationsController />
@@ -103,7 +107,7 @@ export default async function RootLayout({
               which defaults to "afterInteractive"). EU/EEA/UK visitors start denied
               until they accept the banner below; everyone else starts granted.
             */}
-            <Script id="ga-consent-default" strategy="beforeInteractive">
+            <Script id="ga-consent-default" strategy="beforeInteractive" nonce={nonce}>
               {`window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('consent', 'default', {
@@ -112,7 +116,7 @@ gtag('consent', 'default', {
 });
 ${initialUserIdCommand(gaUserId)}`}
             </Script>
-            <GoogleAnalytics gaId={gaId} />
+            <GoogleAnalytics gaId={gaId} nonce={nonce} />
             <AnalyticsIdentity userId={gaUserId} />
             <ConsentBanner needsConsent={needsConsent} optedOut={optedOut} />
           </>

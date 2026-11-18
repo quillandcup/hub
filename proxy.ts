@@ -1,6 +1,6 @@
 import { type NextRequest } from 'next/server'
 import { updateSession } from './lib/supabase/middleware'
-import { CSP_REPORT_ONLY_HEADER, NONCE_HEADER, generateNonce, scriptStyleCsp } from './lib/csp'
+import { CSP_HEADER, CSP_REPORT_ONLY_HEADER, NONCE_HEADER, generateNonce, scriptStyleCsp } from './lib/csp'
 
 export async function proxy(request: NextRequest) {
   // The script and style policy carries a fresh nonce per request. Next reads it from the request's policy header and puts
@@ -12,7 +12,10 @@ export async function proxy(request: NextRequest) {
     sentryDsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
     dev: process.env.NODE_ENV === 'development',
   })
-  const response = await updateSession(request, { [NONCE_HEADER]: nonce, [CSP_REPORT_ONLY_HEADER]: policy })
+  // Next takes the nonce from the request's `content-security-policy` header before the report-only one. On Vercel that header
+  // can already hold the enforcing policy from next.config.ts (no script directive, so no nonce), and then no script got one
+  // (production reports, 2026-11-18). The request copy is only for Next to read; what the browser enforces is the response.
+  const response = await updateSession(request, { [NONCE_HEADER]: nonce, [CSP_HEADER]: policy, [CSP_REPORT_ONLY_HEADER]: policy })
   response.headers.set(CSP_REPORT_ONLY_HEADER, policy)
   return response
 }

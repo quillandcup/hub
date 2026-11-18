@@ -91,5 +91,8 @@ describe("the script nonce", () => {
     expect(nonce).not.toBe(forwarded(b, "x-nonce"));
     expect(a.headers.get("content-security-policy-report-only")).toContain(`'nonce-${nonce}'`);
     expect(forwarded(a, "content-security-policy-report-only")).toContain(`'nonce-${nonce}'`);
+    // The header Next reads first must carry the nonce, whatever other policy header the request arrives with.
+    expect(forwarded(a, "content-security-policy")).toContain(`'nonce-${nonce}'`);
+    expect(a.headers.get("content-security-policy")).toBeNull();
   });
 });
