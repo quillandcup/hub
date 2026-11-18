@@ -64,6 +64,10 @@ describe("/admin/compliance (staff)", () => {
   it("lists the services we rely on", async () => {
     await renderServerPage(AdminCompliancePage, {});
     const providers = within(document.getElementById("providers") as HTMLElement);
-    for (const p of COMPLIANCE_PROVIDERS) expect(providers.getByText(p.name)).toBeInTheDocument();
+    // Two roles can be served by one provider today, so look up by role and check the name in the same row.
+    for (const p of COMPLIANCE_PROVIDERS) {
+      const row = providers.getByText(p.role).closest("tr") as HTMLElement;
+      expect(within(row).getByText(p.name)).toBeInTheDocument();
+    }
   });
 });
