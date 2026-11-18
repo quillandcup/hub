@@ -284,7 +284,7 @@ describe("/privacy page", () => {
       "Slack, for chat and notifications",
       "email provider, and your browser's push service",
       "video hosting provider, for course videos",
-      "calendar service for the prickle schedule, and our photo service only when you choose",
+      "calendar service, for the prickle schedule, and our photo service, where event albums live and staff choose photos to bring into the Hub",
       "Gravatar, which supplies a profile picture",
       "monitoring providers, for errors and performance",
       "Google Analytics, only where you allow it",
