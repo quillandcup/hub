@@ -18,10 +18,8 @@ const ALLOWED: Record<string, string> = {
   "components/search/SearchPalette.tsx": "registered: Mod+K and / (search-open); the list keys are its own (search-*)",
   "components/CalendarKeyboardNav.tsx": "registered: reads CALENDAR_KEYBOARD_SHORTCUTS, calls useRegisterShortcuts",
   "lib/hooks/useTableKeyboardNav.ts": "registered: reads TABLE_KEYBOARD_SHORTCUTS via TableKeyboardNav",
-  "components/ImageLightbox.tsx": "Left/Right step through photos while the lightbox covers the page; not in the panel yet (docs/TODO.md, \"Registry-driven keyboard handlers\")",
-  "components/PhotoLightbox.tsx": "Left/Right step through photos while the lightbox covers the page; not in the panel yet (docs/TODO.md, \"Registry-driven keyboard handlers\")",
-  "app/(admin)/admin/pages/[slug]/LandingEditor.tsx":
-    "Ctrl/Cmd+S saves the landing page editor; admin-only and not in the panel yet (docs/TODO.md, \"Registry-driven keyboard handlers\")",
+  "lib/hooks/usePhotoViewerKeys.ts": "registered: Left/Right step through photos while a lightbox is open (photo-viewer-previous, photo-viewer-next)",
+  "app/(admin)/admin/pages/[slug]/LandingEditor.tsx": "registered: Ctrl/Cmd+S saves the page (landing-editor-save)",
 };
 
 /** Escape-only popups that also have a keyboard handler of their own on an element, which this check cannot tell apart. */

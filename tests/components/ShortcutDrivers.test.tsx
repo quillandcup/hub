@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useState } from "react";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { useState, type ReactNode } from "react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 
@@ -24,11 +24,41 @@ vi.mock("@/app/(member)/chat/mention-actions", () => ({ suggestMentions: vi.fn()
 import { saveChatDraft, sendChatMessage } from "@/app/(member)/chat/actions";
 import { suggestMentions } from "@/app/(member)/chat/mention-actions";
 
+const landing = vi.hoisted(() => ({ save: vi.fn(), change: undefined as undefined | ((data: unknown) => void) }));
+vi.mock("@puckeditor/core/puck.css", () => ({}));
+vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: ReactNode }) => <a href={href} {...rest}>{children}</a> }));
+vi.mock("@/components/landing/editor-config", () => ({ editorConfig: {} }));
+vi.mock("@/components/media/MediaPicker", () => ({ default: () => <div>picker</div> }));
+vi.mock("../../app/(admin)/admin/pages/actions", () => ({
+  saveLandingDraft: landing.save,
+  publishLandingPage: vi.fn(),
+  unpublishLandingPage: vi.fn(),
+  restoreLandingPageVersion: vi.fn(),
+  resetLandingDraftToPublished: vi.fn(),
+  updateLandingPageDetails: vi.fn(),
+}));
+vi.mock("@puckeditor/core", () => ({
+  Puck: ({ onChange, overrides }: { onChange: (data: unknown) => void; overrides: { header: () => ReactNode } }) => {
+    landing.change = onChange;
+    return <div>{overrides.header()}</div>;
+  },
+  createUsePuck: () => (select: (state: unknown) => unknown) =>
+    select({
+      history: { hasPast: false, hasFuture: false, back: vi.fn(), forward: vi.fn() },
+      dispatch: vi.fn(),
+      appState: { ui: { leftSideBarVisible: true, rightSideBarVisible: false, viewports: { current: { width: 1280, height: "auto" }, controlsVisible: false, options: [] } } },
+    }),
+}));
+
 import Composer from "@/components/chat/Composer";
+import ImageLightbox from "@/components/ImageLightbox";
+import LandingEditor, { type EditorPage } from "@/app/(admin)/admin/pages/[slug]/LandingEditor";
 import Modal from "@/components/Modal";
 import MultiEntitySearch from "@/components/MultiEntitySearch";
+import PhotoLightbox from "@/components/PhotoLightbox";
 import SearchPalette from "@/components/search/SearchPalette";
 import ShortcutsProvider, { useShortcutsPanel } from "@/components/shortcuts/ShortcutsProvider";
+import ShortcutsLayout from "@/components/shortcuts/ShortcutsPanel";
 import { SHORTCUTS, type Shortcut } from "@/lib/shortcuts";
 import { messageBox, typeInto } from "../helpers/message-box";
 
@@ -45,7 +75,7 @@ type Chord = string[];
 
 const MODIFIERS = ["mod", "ctrl", "alt", "shift"];
 const MODIFIER_KEY: Record<string, string> = { mod: "Control", ctrl: "Control", alt: "Alt", shift: "Shift" };
-const NAMED_KEY: Record<string, string> = { enter: "Enter", esc: "Escape", up: "ArrowUp", down: "ArrowDown", backspace: "Backspace" };
+const NAMED_KEY: Record<string, string> = { enter: "Enter", esc: "Escape", up: "ArrowUp", down: "ArrowDown", left: "ArrowLeft", right: "ArrowRight", backspace: "Backspace" };
 
 /** A registry chord (`["mod", "K"]`) as a user-event keyboard string (`{Control>}k{/Control}`). */
 function keyString(chord: Chord): string {
@@ -123,6 +153,49 @@ function Picker({ initial = [] as string[] }: { initial?: string[] }) {
 }
 
 const pickerInput = () => screen.getByRole("combobox", { name: "find" });
+
+const landingPage: EditorPage = { id: "lpg_AAAAAAAAAAA1", slug: "spring", title: "Spring sprint", status: "draft", seoTitle: "", seoDescription: "", socialImageAssetId: "", publishedJson: null, publicPath: "/p/spring" };
+const landingData = { content: [{ type: "Heading", props: { id: "h", text: "Welcome", level: "h1", align: "center" } }], root: {} };
+const renderLandingEditor = () => render(<LandingEditor page={landingPage} data={landingData} versions={[]} />);
+
+const PHOTOS = [
+  { id: "p1", src: "/p1.jpg", alt: "First" },
+  { id: "p2", src: "/p2.jpg", alt: "Second" },
+  { id: "p3", src: "/p3.jpg", alt: "Third" },
+];
+
+function PhotoViewer({ start }: { start: number }) {
+  const [open, setOpen] = useState<number | null>(start);
+  return <PhotoLightbox photos={PHOTOS} openIndex={open} onClose={() => setOpen(null)} onNavigate={setOpen} />;
+}
+
+const shownPhoto = (container: HTMLElement) => container.querySelector("img")?.getAttribute("alt") ?? null;
+
+/** Left and Right step through the photos of both viewers and stop at the ends. */
+async function stepThroughViewers(previous: Shortcut, next: Shortcut) {
+  const user = userEvent.setup();
+  const left = keyString(chordFor(previous, "left"));
+  const right = keyString(chordFor(next, "right"));
+
+  const image = render(<ImageLightbox images={PHOTOS.map(({ src, alt }) => ({ src, name: alt }))} onClose={vi.fn()} />);
+  await user.keyboard(right);
+  expect(shownPhoto(image.container)).toBe("Second");
+  await user.keyboard(right + right);
+  expect(shownPhoto(image.container), "stops at the last photo").toBe("Third");
+  await user.keyboard(left);
+  expect(shownPhoto(image.container)).toBe("Second");
+  cleanup();
+
+  const photo = render(<PhotoViewer start={0} />);
+  await user.keyboard(left);
+  expect(shownPhoto(photo.container), "stops at the first photo").toBe("First");
+  await user.keyboard(right);
+  expect(shownPhoto(photo.container)).toBe("Second");
+  await user.keyboard(right + right);
+  expect(shownPhoto(photo.container), "stops at the last photo").toBe("Third");
+  await user.keyboard(left);
+  expect(shownPhoto(photo.container)).toBe("Second");
+}
 
 type Driver = (shortcut: Shortcut) => Promise<void>;
 
@@ -259,6 +332,20 @@ const DRIVERS: Record<string, Driver> = {
     expect(sendChatMessage).not.toHaveBeenCalled();
     expect(box.innerHTML).toContain("one<br>two");
   },
+
+  "landing-editor-save": async (s) => {
+    landing.save.mockResolvedValue({ savedAt: "2027-01-01T00:00:00Z" });
+    renderLandingEditor();
+    expect(screen.getByRole("status")).toHaveTextContent("Saved");
+    act(() => landing.change!({ content: [{ ...landingData.content[0], props: { ...landingData.content[0].props, text: "Changed" } }], root: {} }));
+    expect(screen.getByRole("status")).toHaveTextContent("Unsaved changes");
+    expect(landing.save).not.toHaveBeenCalled();
+    await userEvent.setup().keyboard(keyString(chordFor(s, "s")));
+    await waitFor(() => expect(landing.save).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Saved"));
+  },
+  "photo-viewer-previous": (s) => stepThroughViewers(s, SHORTCUTS.find((x) => x.id === "photo-viewer-next")!),
+  "photo-viewer-next": (s) => stepThroughViewers(SHORTCUTS.find((x) => x.id === "photo-viewer-previous")!, s),
 };
 
 /** Entries that are read from their component's own constant, so they cannot drift (see `tests/lib/shortcuts.test.ts`). */
@@ -270,6 +357,7 @@ describe("keyboard shortcuts panel: every hand-written entry is backed by a hand
     push.mockReset();
     searchPalette.mockReset().mockResolvedValue(results);
     vi.mocked(sendChatMessage).mockReset();
+    landing.save.mockReset();
     vi.mocked(saveChatDraft).mockReset().mockResolvedValue(undefined);
     vi.mocked(suggestMentions).mockReset().mockResolvedValue([]);
     Element.prototype.scrollIntoView = vi.fn();
@@ -291,5 +379,83 @@ describe("keyboard shortcuts panel: every hand-written entry is backed by a hand
     const driver = DRIVERS[id];
     if (!driver) throw new Error(`shortcut ${id} has no behavior test; add a driver in tests/components/ShortcutDrivers.test.tsx`);
     await driver(shortcut);
+  });
+});
+
+describe("keyboard shortcuts panel: page-scoped groups appear only while their component is on the page", () => {
+  beforeEach(() => mockKeyboard());
+  afterEach(() => cleanup());
+
+  const panel = () => screen.queryByRole("complementary", { name: "Keyboard shortcuts" });
+
+  function Page({ children }: { children: ReactNode }) {
+    return (
+      <ShortcutsProvider>
+        {children}
+        <ShortcutsLayout>
+          <main />
+        </ShortcutsLayout>
+      </ShortcutsProvider>
+    );
+  }
+
+  it("lists the photo viewer keys while a lightbox is open, and not once it is closed", async () => {
+    const user = userEvent.setup();
+    render(
+      <Page>
+        <PhotoViewer start={1} />
+      </Page>,
+    );
+    await user.keyboard("?");
+    expect(within(panel()!).getByRole("heading", { name: "Photo viewer" })).toBeInTheDocument();
+    expect(within(panel()!).getByText("Previous photo")).toBeInTheDocument();
+    expect(within(panel()!).getByText("Next photo")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    cleanup();
+    // A closed PhotoLightbox (no photo chosen) reports nothing.
+    render(
+      <Page>
+        <PhotoLightbox photos={PHOTOS} openIndex={null} onClose={vi.fn()} onNavigate={vi.fn()} />
+      </Page>,
+    );
+    await user.keyboard("?");
+    expect(within(panel()!).queryByRole("heading", { name: "Photo viewer" })).toBeNull();
+  });
+
+  it("lists the page editor's save key only on the editor page", async () => {
+    const user = userEvent.setup();
+    render(
+      <Page>
+        <LandingEditor page={landingPage} data={landingData} versions={[]} />
+      </Page>,
+    );
+    await user.keyboard("?");
+    expect(within(panel()!).getByRole("heading", { name: "Page editor" })).toBeInTheDocument();
+    cleanup();
+    render(<Page>{null}</Page>);
+    await user.keyboard("?");
+    expect(within(panel()!).queryByRole("heading", { name: "Page editor" })).toBeNull();
+  });
+
+  it("leaves Left and Right alone while typing, with a modifier held, or when no viewer is open", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <div>
+        <input aria-label="Caption" />
+        <ImageLightbox images={PHOTOS.map(({ src, alt }) => ({ src, name: alt }))} onClose={vi.fn()} />
+      </div>,
+    );
+    await user.click(screen.getByRole("textbox", { name: "Caption" }));
+    await user.keyboard("{ArrowRight}");
+    expect(shownPhoto(container)).toBe("First");
+    await user.click(document.body);
+    await user.keyboard("{Alt>}{ArrowRight}{/Alt}");
+    expect(shownPhoto(container)).toBe("First");
+    cleanup();
+    const closed = render(<PhotoViewer start={0} />);
+    await user.keyboard("{Escape}");
+    expect(closed.container.querySelector("img")).toBeNull();
+    await user.keyboard("{ArrowRight}");
+    expect(closed.container.querySelector("img")).toBeNull();
   });
 });
