@@ -26,8 +26,9 @@ export async function POST(request: NextRequest) {
     const resourceId = request.headers.get("x-goog-resource-id");
     const channelId = request.headers.get("x-goog-channel-id");
 
+    // The channel token is the shared secret that authenticates this call: log that it was sent, never its value.
     console.log("Calendar webhook received:", {
-      channelToken,
+      hasChannelToken: Boolean(channelToken),
       resourceState,
       resourceId,
       channelId,

@@ -154,6 +154,7 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
           open: [
             "The sign-in cookies are not HttpOnly, so a script injected into a page could read the session. Making them HttpOnly means the server hands the browser a short-lived token instead (docs/TODO.md, \"Make the sign-in cookies HttpOnly\").",
             "Two-factor sign-in (TOTP) is switched on in the project's settings, but the Hub has no screen to enrol in or require it. Decide whether staff accounts should need it.",
+            "Two-factor sign-in on the team's own accounts at the database, hosting and code providers, and a second owner on each, are not in place. Whoever holds one of those accounts can reach everything the Hub holds, so this is the largest single risk (docs/TODO.md, \"Supabase security checklist follow-ups\"; docs/THREAT_MODEL.md, A07).",
           ],
         },
       },
@@ -249,10 +250,11 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         member: "A few actions that could be abused, such as comments, signing in through chat and the sign-up form on a landing page, are rate limited.",
         staff: {
           how: "Fixed-window counters in the database (rate_limit_hit), used by the course comment action, the Slack sign-in action, the landing page opt-in, chat link previews and course playback tokens.",
-          evidence: ["lib/data/rate-limit.ts", "app/api/landing/opt-in/route.ts", "app/auth/slack/actions.ts"],
+          evidence: ["lib/data/rate-limit.ts", "app/api/landing/opt-in/route.ts", "app/auth/slack/actions.ts", "docs/THREAT_MODEL.md"],
           checked: "2026-11-17",
           open: [
             "Not every public or member-callable route has a limit. Each route's exposure has not been reviewed; start from the list of routes that are public in lib/supabase/middleware.ts.",
+            "Every route under /api is public to the proxy and must check the caller itself; nothing fails a build when a new one forgets to. A test that lists each route with its credential would close that (docs/THREAT_MODEL.md, A01).",
           ],
         },
       },
