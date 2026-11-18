@@ -20,6 +20,22 @@ describe("sign-in code email", () => {
     expect(magic.html).toMatch(/<p[^>]*>Use the verification code below to sign in to Hedgie Hub\.<\/p>/);
   });
 
+  it("points the sign-in, invitation and recovery links at /auth/confirm with the token hash, and not at Supabase's own address", async () => {
+    const templates = await buildTemplates();
+    const html = (name: string) => templates.find((t) => t.name === name)!.html;
+    expect(html("magic_link")).toContain("{{ .RedirectTo }}?token_hash={{ .TokenHash }}&amp;type=email");
+    expect(html("invite")).toContain("{{ .RedirectTo }}?token_hash={{ .TokenHash }}&amp;type=invite");
+    expect(html("recovery")).toContain("{{ .RedirectTo }}?token_hash={{ .TokenHash }}&amp;type=recovery");
+    for (const name of ["magic_link", "invite", "recovery"]) expect(html(name)).not.toContain("{{ .ConfirmationURL }}");
+  });
+
+  it("allows /auth/confirm as a redirect address in production and keeps /auth/callback for links already sent", () => {
+    const config = readFileSync(resolve(__dirname, "../../supabase/config.toml"), "utf8");
+    const prod = config.slice(config.indexOf("[remotes.prod.auth]"), config.indexOf("[remotes.prod.auth.email]"));
+    expect(prod).toContain("/auth/confirm");
+    expect(prod).toContain("/auth/callback");
+  });
+
   it("keeps the committed supabase/templates/magic_link.html in sync (run pnpm templates:render)", async () => {
     const magic = (await buildTemplates()).find((t) => t.name === "magic_link")!;
     const committed = readFileSync(resolve(__dirname, "../../supabase/templates/magic_link.html"), "utf8");

@@ -17,6 +17,8 @@ vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }
 vi.mock("@/lib/auth", () => ({ getCurrentUser: vi.fn() }));
 vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+const { storeNextPath } = vi.hoisted(() => ({ storeNextPath: vi.fn() }));
+vi.mock("@/lib/next-path-cookie", () => ({ storeNextPath }));
 const updateContact = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/kajabi/client", () => ({ createKajabiClient: () => ({ updateContact }) }));
 vi.mock("@/lib/kajabi/contact-refresh", () => ({ refreshKajabiContactInBronze: vi.fn() }));
@@ -237,7 +239,7 @@ describe("signing in again before the primary email changes", () => {
     expect(await sendReauthCode()).toEqual({ success: true, sentTo: "ada@example.com" });
     expect(auth.signInWithOtp).toHaveBeenCalledWith({
       email: "ada@example.com",
-      options: { shouldCreateUser: false, emailRedirectTo: `${APP_URL}/auth/callback?next=/settings/identity` },
+      options: { shouldCreateUser: false, emailRedirectTo: `${APP_URL}/auth/confirm` },
     });
   });
 

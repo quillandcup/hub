@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { isBrowserNavigation } from "@/lib/browser-navigation";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { consumeSlackSignIn } from "@/lib/slack-sign-in";
 import { rememberSignInFailure, rememberSignInMethod } from "@/lib/signin-method";
@@ -19,9 +20,7 @@ export async function GET(request: NextRequest) {
   const token = url.searchParams.get("token") ?? "";
   const origin = url.origin;
 
-  const isNavigation =
-    request.headers.get("sec-fetch-mode") === "navigate" && request.headers.get("sec-fetch-dest") === "document";
-  if (!isNavigation) {
+  if (!isBrowserNavigation(request.headers)) {
     const continueUrl = new URL("/auth/slack/continue", origin);
     if (token) continueUrl.searchParams.set("token", token);
     return NextResponse.redirect(continueUrl, 303);

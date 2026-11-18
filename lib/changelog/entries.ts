@@ -56,6 +56,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: readonly ChangelogEntry[] = [
   {
+    slug: "sign-in-link-works-on-any-device",
+    date: "2026-11-18",
+    audience: "product",
+    category: "improved",
+    title: "The sign-in link in your email now works on any device",
+    summary:
+      "You can ask for a sign-in link on your laptop and open it on your phone, or the other way round. It no longer has to be opened in the same browser you asked from.",
+    body: [
+      "Until now the link in the sign-in email only worked in the browser where you asked for it, so opening it from your phone's mail app after asking on a laptop failed. It now works wherever you open it, and the invitation and password reset emails use the same kind of link.",
+      "Like before, each link works once, and the code in the same email is still there if you would rather type it on the [sign-in page](/login).",
+    ].join("\n\n"),
+  },
+  {
     slug: "staff-two-step-sign-in",
     date: "2026-11-18",
     audience: "staff",

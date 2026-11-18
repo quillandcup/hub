@@ -25,7 +25,7 @@ import {
 
 /**
  * The methods are SIGNIN_METHODS (lib/signin-method-client.ts): `email_link` is the one-click link in
- * the sign-in email, `email_code` the code from it typed on /login, `slack_link` a Slack sign-in link
+ * the sign-in email, `email_continue` the Continue page that link falls back to when a click didn't look like a plain browser navigation (/auth/confirm), `email_code` the code from it typed on /login, `slack_link` a Slack sign-in link
  * opened in any browser (the app's "Open Hedgie Hub" button, a link tapped in Slack, "Open in browser" on
  * iOS, or one pasted into the sign-in page's box or the address bar: it is one route, so they can't be told apart),
  * `slack_continue` the Continue page shown when a click didn't look like a plain browser navigation,
