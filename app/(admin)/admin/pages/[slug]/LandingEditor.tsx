@@ -160,9 +160,11 @@ function EditorHeader({
       </div>
 
       <div className="flex flex-wrap items-center gap-1">
-        <button type="button" onClick={onDetails} aria-label="Details" title="Details" className={ICON}>
-          <AppIcon name="details" />
-        </button>
+        <Tooltip content="Details">
+          <button type="button" onClick={onDetails} aria-label="Details" className={ICON}>
+            <AppIcon name="details" />
+          </button>
+        </Tooltip>
         <LifecycleButton action="history" noun="page" variant="icon" onRun={onHistory} className={ICON} />
         {hasUnpublished && (
           <>
@@ -173,9 +175,11 @@ function EditorHeader({
         <span aria-hidden="true" className="mx-1 h-5 w-px bg-slate-300 dark:bg-slate-600" />
         <LifecycleButton action="preview" noun="page" variant="icon" onRun={onPreview} className={ICON} />
         {published && (
-          <a href={page.publicPath} target="_blank" rel="noopener noreferrer" aria-label={lifecycleLabel("viewLive")} title={lifecycleLabel("viewLive")} className={ICON}>
-            <AppIcon name={lifecycleIcon("viewLive")} />
-          </a>
+          <Tooltip content={lifecycleLabel("viewLive")}>
+            <a href={page.publicPath} target="_blank" rel="noopener noreferrer" aria-label={lifecycleLabel("viewLive")} className={ICON}>
+              <AppIcon name={lifecycleIcon("viewLive")} />
+            </a>
+          </Tooltip>
         )}
         {published && (
           <LifecycleButton
