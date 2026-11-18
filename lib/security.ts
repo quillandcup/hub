@@ -257,6 +257,69 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         },
       },
       {
+        id: "outbound-fetch",
+        title: "Fetching pictures and pages from other sites",
+        status: "inPlace",
+        member:
+          "When the Hub shows a link preview or copies a picture from another website, it only visits ordinary public web addresses, never addresses inside our own network, and it gives up on anything slow or oversized.",
+        staff: {
+          how: "Every place that fetches an address someone else supplied (chat link previews and their pictures, member photo copies, book covers, imported landing pages) goes through one function. It allows only http(s) on ports 80 and 443, resolves the name itself and refuses private, loopback and link-local addresses (IPv4 hidden inside IPv6 too), then connects to the address it checked, so a name that answers differently the second time gets nothing. Redirects are followed by hand, at most three, and each hop is checked again. Size and time are capped. Chat pictures reach a viewer through a route that takes a message and a key rather than an address, and that serves a picture only to someone who can read the message. Calls to fixed provider hosts use the plain outbound wrapper, and a test fails on a new external request that skips it.",
+          evidence: [
+            "lib/net/safe-fetch.ts",
+            "tests/lib/net/safe-fetch.test.ts",
+            "app/api/chat/unfurl-image/route.ts",
+            "tests/api/chat-unfurl-image.test.ts",
+            "tests/lib/outbound-user-agent.test.ts",
+            "docs/OUTBOUND_REQUESTS.md",
+          ],
+          checked: "2026-11-17",
+          open: [],
+        },
+      },
+      {
+        id: "uploads",
+        title: "Files people upload",
+        status: "inPlace",
+        member:
+          "Files shared in chat are offered as downloads rather than opened inside the Hub, apart from ordinary pictures, so an uploaded file cannot run as part of a Hub page.",
+        staff: {
+          how: "The chat file route serves only PNG, JPEG, GIF, WebP and AVIF inline; every other type is sent as an attachment with a generic type, with X-Content-Type-Options: nosniff and a cleaned file name, so an uploaded HTML or SVG file is never rendered on the Hub's own address. Storage buckets are private except the member photo, chat avatar and custom emoji buckets, which are public to read and written only by the server (read from the production project's bucket list and storage policies on 2026-11-17). The feedback screenshot, help picture and link picture buckets also limit file types, and every bucket that takes uploads has a size cap except the three public ones.",
+          evidence: [
+            "app/api/chat/files/[messageId]/[fileId]/route.ts",
+            "lib/chat/files.ts",
+            "tests/api/chat-files.test.ts",
+            "live check, 2026-11-17: the production project's storage buckets and storage policies",
+          ],
+          checked: "2026-11-17",
+          open: [
+            "The three public buckets (member photos, chat avatars, custom emoji) have no size or file-type limit at the storage layer. Only the server writes to them, so the limit has to be in the code that does.",
+            "Most buckets that take uploads limit size but not file type (course files, event photos, media library). Decide whether to add allowed types there.",
+          ],
+        },
+      },
+      {
+        id: "rich-text",
+        title: "Formatted text is cleaned before it is shown",
+        status: "inPlace",
+        member:
+          "Formatted text on course lessons and landing pages is reduced to a short list of safe formatting (headings, lists, links, emphasis) before it is stored, so it cannot carry scripts.",
+        staff: {
+          how: "Rich text is cleaned to an allowlist: no scripts, styles, event handlers, iframes or forms, links limited to http(s) and mailto and opened without passing on the opener. Landing page text is cleaned when it is saved and again before every public render. Lesson text is cleaned when it is imported. A search of the app, components and emails on 2026-11-17 found three places that write raw HTML into a page (the member lesson page, the admin lesson preview and the landing page text block); the last two clean it first.",
+          evidence: [
+            "lib/landing/sanitize.ts",
+            "lib/courses/sanitize.ts",
+            "lib/courses/process.ts",
+            "tests/lib/courses-sanitize.test.ts",
+            "tests/lib/landing-data.test.ts",
+          ],
+          checked: "2026-11-17",
+          open: [
+            "The member lesson page shows the stored lesson text as it is, relying on the cleaning done at import. Landing pages clean again at render; doing the same for lessons means a second write path could never reach members unclean.",
+            "The Content-Security-Policy does not yet limit scripts, so the cleaning is the only barrier against injected script (see Browser protections).",
+          ],
+        },
+      },
+      {
         id: "browser",
         title: "Browser protections",
         status: "inPlace",
