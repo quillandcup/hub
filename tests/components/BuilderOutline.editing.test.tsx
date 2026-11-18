@@ -407,6 +407,10 @@ describe("reordering", () => {
       await user.click(screen.getByRole("button", { name: "Move Lesson two to position" }));
       return screen.getByRole("menu", { name: "Move Lesson two to position" });
     };
+    const trigger = screen.getByRole("button", { name: "Move Lesson two to position" });
+    expect(tooltipText(trigger)).toBe("Move Lesson two to position");
+    expect(trigger).toHaveTextContent("");
+    expect(trigger.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
     let menu = await open2();
     expect(within(menu).getByText("Move to position (of 3)")).toBeInTheDocument();
     expect(within(menu).getAllByRole("menuitem").map((i) => i.textContent)).toEqual(["Move to position 1", "Position 2 (current)", "Move to position 3"]);

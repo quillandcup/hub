@@ -168,7 +168,14 @@ function RowActions({ name, actions, sibling }: { name: string; actions: RowActi
       </span>
       {positions.length > 0 && (
         <span className="hidden @split:block">
-          <ActionMenu label={`Move ${name} to position`} heading={positionsHeading(positions.length)} items={positions} />
+          <ActionMenu
+            label={`Move ${name} to position`}
+            tooltip={`Move ${name} to position`}
+            heading={positionsHeading(positions.length)}
+            items={positions}
+            trigger={<Icon name="reorder" />}
+            triggerClassName="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-500 before:absolute before:inset-x-0 before:-inset-y-1.5 before:content-[''] hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+          />
         </span>
       )}
     </>

@@ -164,6 +164,9 @@ export function SortableRow({
         label={`More actions for ${label}`}
         heading={extraItems.length === 0 ? positionsHeading(count) : undefined}
         items={[...extraItems, ...positions]}
+        // A menu holding only the positions gets the reorder icon; one that also holds the row's own actions stays the dots.
+        trigger={extraItems.length === 0 ? <Icon name="reorder" /> : undefined}
+        tooltip={extraItems.length === 0 ? `More actions for ${label}` : undefined}
         // 32px to look at, 32px wide; the invisible `before` stretches the touch area to 44px tall.
         triggerClassName="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-500 before:absolute before:inset-x-0 before:-inset-y-1.5 before:content-[''] hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
       />

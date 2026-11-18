@@ -55,6 +55,11 @@ describe("ProjectsClient reordering", () => {
     render(<ProjectsClient initialProjects={projects()} />);
     expect(titles()).toEqual(["Alpha Draft", "Beta Draft", "Gamma Draft"]);
     expect(screen.getAllByRole("button", { name: /^Reorder / })).toHaveLength(3);
+    // The position menu has its own reorder icon (an svg, no three dots) and a tooltip equal to its name.
+    const trigger = screen.getByRole("button", { name: "More actions for Beta Draft" });
+    expect(trigger).toHaveTextContent("");
+    expect(trigger.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+    expect(tooltipText(trigger)).toBe("More actions for Beta Draft");
     expect(screen.getByRole("button", { name: /^Reorder Beta Draft/ })).toHaveAttribute("aria-roledescription", "sortable");
     // Not only an aria-label: a tooltip that shows on hover and keyboard focus, with the keyboard steps.
     for (const handle of screen.getAllByRole("button", { name: /^Reorder / })) expect(tooltipText(handle)).toBe(HANDLE_TOOLTIP);

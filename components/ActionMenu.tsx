@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import Link from "next/link";
 import Icon from "@/components/Icon";
+import Tooltip from "@/components/Tooltip";
 import { placeMenu, type MenuPlacement } from "@/lib/menu-placement";
 
 export interface ActionMenuItem {
@@ -36,6 +37,7 @@ export default function ActionMenu({
   trigger,
   triggerClassName,
   heading,
+  tooltip,
 }: {
   label?: string;
   items: readonly ActionMenuItem[];
@@ -44,6 +46,8 @@ export default function ActionMenu({
   triggerClassName?: string;
   /** A muted title at the top of the panel ("Jump to..."). */
   heading?: string;
+  /** A hint for the button (for an icon-only trigger other than the three dots), shown with `Tooltip`. */
+  tooltip?: string;
 }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -117,6 +121,7 @@ export default function ActionMenu({
   if (items.length === 0) return null;
   return (
     <div ref={root} className="relative" onKeyDown={onKeyDown}>
+      <Tooltip content={tooltip}>
       <button
         ref={button}
         type="button"
@@ -132,6 +137,7 @@ export default function ActionMenu({
       >
         {trigger ?? <Icon name="more" />}
       </button>
+      </Tooltip>
       {open && (
         <div
           ref={panel}
