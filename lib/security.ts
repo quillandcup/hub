@@ -258,16 +258,15 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
       {
         id: "browser",
         title: "Browser protections",
-        status: "working",
+        status: "inPlace",
         member:
-          "Browsers are told to use only HTTPS, and which sources a Hub page may load from. For now the second only reports what it would block, and does not block anything yet.",
+          "Browsers are told to use only HTTPS, to load pictures only from sources the Hub lists, to submit forms only to the Hub, and not to show Hub pages inside other sites. They are also told not to guess file types, to share less about where you came from when you follow a link, and not to give pages your camera, microphone or location.",
         staff: {
-          how: "Strict-Transport-Security from the hosting provider's default, and a Content-Security-Policy in report-only mode on every response. Checked live on 2026-11-17: the response carries those two and does not send X-Content-Type-Options, Referrer-Policy, X-Frame-Options or Permissions-Policy.",
-          evidence: ["next.config.ts", "lib/csp.ts", "live check, 2026-11-17: response headers from the production host"],
+          how: "Strict-Transport-Security from the hosting provider's default, and on every response an enforcing Content-Security-Policy (pictures, plugins, base tag, form targets and framing), X-Content-Type-Options, Referrer-Policy, X-Frame-Options and Permissions-Policy. The policy was report-only from 2026-11-10 to 2026-11-17; the one picture host its reports showed was added before it was enforced, and violations still go to Sentry. The policy does not yet cover scripts and styles, which need per-request nonces (docs/TODO.md, CSP for scripts and styles).",
+          evidence: ["next.config.ts", "lib/csp.ts", "tests/lib/csp.test.ts", "Sentry CSP reports, 2026-11-10 to 2026-11-17"],
           checked: "2026-11-17",
           open: [
-            "Send X-Content-Type-Options: nosniff, Referrer-Policy and Permissions-Policy from `headers()` in next.config.ts. They are cheap and low risk.",
-            "Enforce the CSP once its reports are quiet. Nothing enforces anti-framing today: frame-ancestors is only in the report-only policy and there is no X-Frame-Options.",
+            "The policy covers pictures, plugins, the base tag, form targets and framing, not scripts or styles: those need a per-request nonce, which makes every page render per request (docs/TODO.md, CSP for scripts and styles).",
           ],
         },
       },

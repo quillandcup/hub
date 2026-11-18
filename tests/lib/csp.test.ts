@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import appConfig from "../../app.config";
-import { buildCsp, CSP_REPORT_ONLY_HEADER, sentryReportUri } from "@/lib/csp";
+import { buildCsp, CSP_HEADER, SECURITY_HEADERS, sentryReportUri } from "@/lib/csp";
 
 const DSN = "https://publickey123@o123456.ingest.de.sentry.io/4510000000";
 
@@ -44,15 +44,28 @@ describe("sentryReportUri", () => {
 });
 
 describe("next.config headers", () => {
-  it("sends the Report-Only policy on every path, and no enforcing policy", async () => {
+  it("sends the enforcing policy and the other browser protections on every path, and no Report-Only policy", async () => {
     const config = (await import("../../next.config")).default as { headers?: () => Promise<{ source: string; headers: { key: string; value: string }[] }[]> };
     const rules = await config.headers!();
     expect(rules).toHaveLength(1);
     expect(rules[0].source).toBe("/:path*");
     const keys = rules[0].headers.map((h) => h.key);
-    expect(keys).toEqual([CSP_REPORT_ONLY_HEADER]);
+    expect(keys).toEqual([CSP_HEADER, ...SECURITY_HEADERS.map((h) => h.key)]);
+    expect(keys).not.toContain("Content-Security-Policy-Report-Only");
     const value = rules[0].headers[0].value;
     for (const part of ["img-src ", "object-src 'none'", "base-uri 'self'", "form-action 'self'", "frame-ancestors 'self'"]) expect(value).toContain(part);
+  });
+
+  it("sets nosniff, a referrer policy, same-origin framing and no camera, microphone or location", () => {
+    const byKey = Object.fromEntries(SECURITY_HEADERS.map((h) => [h.key, h.value]));
+    expect(byKey["X-Content-Type-Options"]).toBe("nosniff");
+    expect(byKey["Referrer-Policy"]).toBe("strict-origin-when-cross-origin");
+    expect(byKey["X-Frame-Options"]).toBe("SAMEORIGIN");
+    for (const feature of ["camera", "microphone", "geolocation"]) expect(byKey["Permissions-Policy"]).toContain(`${feature}=()`);
+  });
+
+  it("allows the Kajabi storage host that /courses thumbnails load from", () => {
+    expect(appConfig.csp.imageHosts).toContain("https://kajabi-storefronts-production.s3.amazonaws.com");
   });
 });
 
