@@ -228,7 +228,8 @@ export class KajabiClient {
     const data = await response.json();
 
     if (!data.access_token) {
-      console.error('[Kajabi OAuth] Response missing access_token:', data);
+      // The field names only: the body can hold other credentials (a refresh token) or a partly-valid one.
+      console.error('[Kajabi OAuth] Response missing access_token; fields:', Object.keys(data ?? {}).join(', '));
       throw new Error('Kajabi OAuth response missing access_token');
     }
 
