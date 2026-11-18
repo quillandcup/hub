@@ -17,6 +17,10 @@ export interface CspInputs {
   imageHosts: readonly string[];
   /** The Sentry DSN, whose ingest host also takes CSP reports. Without one, violations are not reported anywhere. */
   sentryDsn?: string;
+  /** Report-only for now: where requests may go (app.config.ts `csp.connectHosts`), what may be framed, where media loads from. */
+  connectHosts?: readonly string[];
+  frameHosts?: readonly string[];
+  mediaHosts?: readonly string[];
 }
 
 function originOf(url: string | undefined): string | null {
@@ -45,16 +49,21 @@ export function sentryReportUri(dsn: string | undefined): string | null {
   }
 }
 
-export function buildCsp({ supabaseUrl, imageHosts, sentryDsn }: CspInputs): string {
+/** The picture, plugin, base, form and framing directives (what is enforced). */
+function pictureDirectives({ supabaseUrl, imageHosts }: CspInputs): string[] {
   const images = ["'self'", "data:", "blob:", originOf(supabaseUrl), ...imageHosts].filter((v): v is string => Boolean(v));
-  const directives = [
+  return [
     `img-src ${[...new Set(images)].join(" ")}`,
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'self'",
   ];
-  const report = sentryReportUri(sentryDsn);
+}
+
+export function buildCsp(inputs: CspInputs): string {
+  const directives = pictureDirectives(inputs);
+  const report = sentryReportUri(inputs.sentryDsn);
   if (report) directives.push(`report-uri ${report}`);
   return directives.join("; ");
 }
@@ -88,14 +97,45 @@ export function generateNonce(): string {
  * Next reads the nonce out of this header on the request and puts it on its own inline scripts and styles, which is why a
  * page that uses it must render per request (the root layout already does: it reads headers and the signed-in member).
  */
-export function scriptStyleCsp({ nonce, sentryDsn, dev = false }: { nonce: string; sentryDsn?: string; dev?: boolean }): string {
-  const directives = [
+function scriptStyleDirectives(nonce: string, dev: boolean): string[] {
+  return [
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
     `style-src 'self' 'nonce-${nonce}'`,
     "style-src-attr 'unsafe-inline'",
     "worker-src 'self' blob:",
   ];
+}
+
+export function scriptStyleCsp({ nonce, sentryDsn, dev = false }: { nonce: string; sentryDsn?: string; dev?: boolean }): string {
+  const directives = scriptStyleDirectives(nonce, dev);
   const report = sentryReportUri(sentryDsn);
+  if (report) directives.push(`report-uri ${report}`);
+  return directives.join("; ");
+}
+
+/** An https origin's WebSocket twin (Supabase Realtime). */
+function websocketOf(origin: string | null): string | null {
+  return origin?.startsWith("https://") ? `wss://${origin.slice("https://".length)}` : null;
+}
+
+/**
+ * The whole policy, sent report-only by proxy.ts: scripts and styles (with the nonce), everything the enforced picture policy says
+ * (so violations of it are reported even though pages enforce it through a meta tag, which cannot report), and connection, frame,
+ * media and font sources, which nothing enforces yet. Reports go to Sentry; nothing is blocked by this header.
+ */
+export function reportOnlyCsp(inputs: CspInputs & { nonce: string; dev?: boolean }): string {
+  const supabase = originOf(inputs.supabaseUrl);
+  const sentry = originOf(inputs.sentryDsn);
+  const list = (...sources: (string | null | undefined)[]) => [...new Set(sources.filter((v): v is string => Boolean(v)))].join(" ");
+  const directives = [
+    ...scriptStyleDirectives(inputs.nonce, inputs.dev ?? false),
+    ...pictureDirectives(inputs),
+    `connect-src ${list("'self'", supabase, websocketOf(supabase), sentry, ...(inputs.connectHosts ?? []))}`,
+    `frame-src ${list("'self'", ...(inputs.frameHosts ?? []))}`,
+    `media-src ${list("'self'", "blob:", supabase, ...(inputs.mediaHosts ?? []))}`,
+    "font-src 'self' data:",
+  ];
+  const report = sentryReportUri(inputs.sentryDsn);
   if (report) directives.push(`report-uri ${report}`);
   return directives.join("; ");
 }

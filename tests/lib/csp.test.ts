@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import appConfig from "../../app.config";
-import { buildCsp, CSP_HEADER, SECURITY_HEADERS, buildMetaCsp, generateNonce, scriptStyleCsp, sentryReportUri } from "@/lib/csp";
+import { buildCsp, CSP_HEADER, SECURITY_HEADERS, buildMetaCsp, reportOnlyCsp, generateNonce, scriptStyleCsp, sentryReportUri } from "@/lib/csp";
 
 const DSN = "https://publickey123@o123456.ingest.de.sentry.io/4510000000";
 
@@ -132,5 +132,49 @@ describe("buildMetaCsp", () => {
     expect(meta).not.toContain("frame-ancestors");
     expect(meta).not.toContain("report-uri");
     expect(meta).not.toMatch(/script-src/);
+  });
+});
+
+describe("reportOnlyCsp", () => {
+  const nonce = generateNonce();
+  const policy = reportOnlyCsp({
+    nonce,
+    supabaseUrl: "https://project.supabase.co/",
+    imageHosts: appConfig.csp.imageHosts,
+    connectHosts: appConfig.csp.connectHosts,
+    frameHosts: appConfig.csp.frameHosts,
+    mediaHosts: appConfig.csp.mediaHosts,
+    sentryDsn: DSN,
+  });
+  const directive = (name: string) => policy.split("; ").find((d) => d.startsWith(`${name} `));
+
+  it("carries the script and style policy with the nonce", () => {
+    expect(directive("script-src")).toContain(`'nonce-${nonce}'`);
+    expect(directive("style-src")).toContain(`'nonce-${nonce}'`);
+  });
+
+  it("repeats the enforced picture, plugin, base, form and framing directives so their violations are reported", () => {
+    const enforced = buildCsp({ supabaseUrl: "https://project.supabase.co/", imageHosts: appConfig.csp.imageHosts }).split("; ");
+    for (const d of enforced) expect(policy.split("; ")).toContain(d);
+  });
+
+  it("adds connection, frame, media and font sources from the config, with Supabase's websocket and Sentry's host", () => {
+    expect(directive("connect-src")).toContain("wss://project.supabase.co");
+    expect(directive("connect-src")).toContain("https://project.supabase.co");
+    expect(directive("connect-src")).toContain("https://o123456.ingest.de.sentry.io");
+    for (const host of appConfig.csp.connectHosts) expect(directive("connect-src")).toContain(host);
+    for (const host of appConfig.csp.frameHosts) expect(directive("frame-src")).toContain(host);
+    for (const host of appConfig.csp.mediaHosts) expect(directive("media-src")).toContain(host);
+    expect(directive("font-src")).toContain("'self'");
+  });
+
+  it("names Sentry once, as the only report address", () => {
+    expect(policy.match(/report-uri/g)).toHaveLength(1);
+  });
+
+  it("works with no hosts and no Supabase or Sentry settings", () => {
+    const bare = reportOnlyCsp({ nonce, imageHosts: [] });
+    expect(bare).toContain("connect-src 'self'");
+    expect(bare).not.toContain("report-uri");
   });
 });
