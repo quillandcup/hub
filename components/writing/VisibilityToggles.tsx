@@ -64,7 +64,7 @@ export function ProfileVisibilityToggle({
         className={withText ? `flex items-center gap-1.5 disabled:opacity-50 ${className}` : `${buttonClass} ${className}`}
       >
         <Icon name={on ? "publish" : "unpublish"} className="h-5 w-5" />
-        {withText && <span>{on ? "On my profile" : "Only me"}</span>}
+        {withText && <span className="whitespace-nowrap">{on ? "On my profile" : "Only me"}</span>}
       </button>
     </Tooltip>
   );

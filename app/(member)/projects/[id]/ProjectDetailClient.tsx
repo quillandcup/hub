@@ -270,8 +270,8 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <div className="flex items-center justify-between text-sm">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-sm">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <ProfileVisibilityToggle
             on={showOnProfile}
             disabled={visibilityPending}
@@ -300,14 +300,14 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
           <button data-track="project-edit-details"
             type="button"
             onClick={() => setShowEditDetails(true)}
-            className="text-plum-600 hover:text-plum-700 dark:text-plum-400"
+            className="whitespace-nowrap text-plum-600 hover:text-plum-700 dark:text-plum-400"
           >
             ✏️ Edit details
           </button>
         </div>
         <a data-track="project-export-csv"
           href={`/api/projects/export?projectId=${project.id}`}
-          className="text-plum-600 hover:text-plum-700 dark:text-plum-400"
+          className="whitespace-nowrap text-plum-600 hover:text-plum-700 dark:text-plum-400"
         >
           ⬇ Export CSV
         </a>
