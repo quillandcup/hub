@@ -27,6 +27,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase';
 import { matchAttendeeToMember } from '@/lib/member-matching';
 import { apiFetch } from '../../helpers/api-fetch'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 
 describe('Orphaned Meetings Idempotency', () => {
   const supabase = getTestSupabaseAdminClient();
@@ -113,11 +114,17 @@ describe('Orphaned Meetings Idempotency', () => {
     ]);
 
     // HELPER: Calculate orphaned meetings using same logic as hygiene dashboard
-    async function calculateOrphanedMeetings(): Promise<number> {
+    async function calculateOrphanedMeetings() {
       // Load members and aliases for matching (same as dashboard)
-      const [{ data: members }, { data: aliases }] = await Promise.all([
-        supabase.from('members').select('id, name, email'),
-        supabase.from('member_name_aliases').select('alias, member_id, source'),
+      // Paged and ordered like the code under test: the shared test database holds more rows than one request
+      // returns, and a bare select has no defined order.
+      const [members, aliases] = await Promise.all([
+        fetchAllRows<{ id: string; name: string; email: string }>((from, to) =>
+          supabase.from('members').select('id, name, email').order('id').range(from, to)
+        ),
+        fetchAllRows<{ alias: string; member_id: string; source: string }>((from, to) =>
+          supabase.from('member_name_aliases').select('alias, member_id, source').order('id').range(from, to)
+        ),
       ]);
 
       // Get all zoom_attendees for test meeting
@@ -130,7 +137,7 @@ describe('Orphaned Meetings Idempotency', () => {
       const meetingTimeWindows = new Map<string, { start: Date; end: Date }>();
       allAttendees?.forEach((m: any) => {
         // Use centralized matching logic
-        if (!matchAttendeeToMember(m.name, m.email, members || [], aliases || [])) return;
+        if (!matchAttendeeToMember(m.name, m.email, members, aliases)) return;
 
         const existing = meetingTimeWindows.get(m.meeting_uuid);
         const joinTime = new Date(m.join_time);
@@ -145,23 +152,24 @@ describe('Orphaned Meetings Idempotency', () => {
       });
 
       // Get all prickles
-      const { data: allPrickles } = await supabase
-        .from('prickles')
-        .select('id, start_time, end_time, zoom_meeting_uuid, source');
+      const allPrickles = await fetchAllRows<{ id: string; start_time: string; end_time: string; zoom_meeting_uuid: string | null; source: string }>(
+        (from, to) =>
+          supabase.from('prickles').select('id, start_time, end_time, zoom_meeting_uuid, source').order('id').range(from, to)
+      );
 
       // Check if meeting is orphaned
       let orphanedCount = 0;
 
       for (const [uuid, timeWindow] of meetingTimeWindows) {
         // Check if has PUP
-        const hasPUP = allPrickles?.some(
+        const hasPUP = allPrickles.some(
           (p: any) => p.source === 'zoom' && p.zoom_meeting_uuid === uuid
         );
 
         if (hasPUP) continue;
 
         // Check if overlaps calendar
-        const overlapsCalendar = allPrickles?.some((p: any) => {
+        const overlapsCalendar = allPrickles.some((p: any) => {
           if (p.source !== 'calendar') return false;
           const prickleStart = new Date(p.start_time);
           const prickleEnd = new Date(p.end_time);
@@ -173,12 +181,24 @@ describe('Orphaned Meetings Idempotency', () => {
         }
       }
 
-      return orphanedCount;
+      return {
+        orphanedCount,
+        // For the failure message below: why the count is what it is.
+        why: {
+          members: members.length,
+          memberLoaded: members.some((m) => m.id === member!.id),
+          aliasLoaded: aliases.some((a) => a.member_id === member!.id),
+          attendees: allAttendees?.length ?? 0,
+          windows: meetingTimeWindows.size,
+          prickles: allPrickles.length,
+          pupForMeeting: allPrickles.some((p) => p.zoom_meeting_uuid === meetingUuid),
+        },
+      };
     }
 
     // VERIFY: Before processing, meeting should be counted as orphaned
     const orphanedBefore = await calculateOrphanedMeetings();
-    expect(orphanedBefore).toBe(1);
+    expect(orphanedBefore.orphanedCount, JSON.stringify(orphanedBefore.why)).toBe(1);
 
     // ACT: Process attendance (same as clicking "Process Orphaned Meetings" button)
     const fromDate = new Date(baseDate.getTime() - 60 * 60 * 1000).toISOString(); // 1 hour before
@@ -199,7 +219,7 @@ describe('Orphaned Meetings Idempotency', () => {
 
     // ASSERT: After first processing, orphaned count should be 0
     const orphanedAfterFirst = await calculateOrphanedMeetings();
-    expect(orphanedAfterFirst).toBe(0); // BUG: This would be 1 before the fix
+    expect(orphanedAfterFirst.orphanedCount, JSON.stringify(orphanedAfterFirst.why)).toBe(0); // BUG: This would be 1 before the fix
 
     // Verify PUP was created for matched attendee window (9:30-10:30), not full window (9:00-10:30)
     const { data: createdPrickles } = await supabase
@@ -235,7 +255,7 @@ describe('Orphaned Meetings Idempotency', () => {
 
     // ASSERT: After second processing, orphaned count should STILL be 0 (idempotent)
     const orphanedAfterSecond = await calculateOrphanedMeetings();
-    expect(orphanedAfterSecond).toBe(0);
+    expect(orphanedAfterSecond.orphanedCount, JSON.stringify(orphanedAfterSecond.why)).toBe(0);
 
     // Verify only 1 PUP exists (DELETE + INSERT removes old one, creates new one)
     const { data: pricklesAfterSecond } = await supabase
@@ -286,9 +306,13 @@ describe('Orphaned Meetings Idempotency', () => {
     });
 
     // Before processing: meeting should show as orphaned (matched attendee, no PUP)
-    const [{ data: members }, { data: aliases }] = await Promise.all([
-      supabase.from('members').select('id, name, email'),
-      supabase.from('member_name_aliases').select('alias, member_id, source'),
+    const [members, aliases] = await Promise.all([
+      fetchAllRows<{ id: string; name: string; email: string }>((from, to) =>
+        supabase.from('members').select('id, name, email').order('id').range(from, to)
+      ),
+      fetchAllRows<{ alias: string; member_id: string; source: string }>((from, to) =>
+        supabase.from('member_name_aliases').select('alias, member_id, source').order('id').range(from, to)
+      ),
     ]);
 
     const { data: allAttendees } = await supabase
@@ -298,7 +322,7 @@ describe('Orphaned Meetings Idempotency', () => {
 
     const meetingTimeWindows = new Map<string, { start: Date; end: Date }>();
     allAttendees?.forEach((m: any) => {
-      if (!matchAttendeeToMember(m.name, m.email, members || [], aliases || [])) return;
+      if (!matchAttendeeToMember(m.name, m.email, members, aliases)) return;
       const existing = meetingTimeWindows.get(m.meeting_uuid);
       const joinTime = new Date(m.join_time);
       const leaveTime = new Date(m.leave_time);
@@ -376,8 +400,14 @@ describe('Orphaned Meetings Idempotency', () => {
     ]);
 
     // Calculate orphaned meetings using centralized matching logic
-    const { data: members } = await supabase.from('members').select('id, name, email');
-    const { data: aliases } = await supabase.from('member_name_aliases').select('alias, member_id, source');
+    const [members, aliases] = await Promise.all([
+      fetchAllRows<{ id: string; name: string; email: string }>((from, to) =>
+        supabase.from('members').select('id, name, email').order('id').range(from, to)
+      ),
+      fetchAllRows<{ alias: string; member_id: string; source: string }>((from, to) =>
+        supabase.from('member_name_aliases').select('alias, member_id, source').order('id').range(from, to)
+      ),
+    ]);
 
     const { data: allAttendees } = await supabase
       .schema('bronze').from('zoom_attendees')
@@ -387,7 +417,7 @@ describe('Orphaned Meetings Idempotency', () => {
     const meetingTimeWindows = new Map<string, { start: Date; end: Date }>();
     allAttendees?.forEach((m: any) => {
       // Use centralized matching logic
-      if (!matchAttendeeToMember(m.name, m.email, members || [], aliases || [])) return;
+      if (!matchAttendeeToMember(m.name, m.email, members, aliases)) return;
 
       const existing = meetingTimeWindows.get(m.meeting_uuid);
       const joinTime = new Date(m.join_time);
