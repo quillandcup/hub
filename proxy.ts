@@ -1,10 +1,21 @@
 import { type NextRequest } from 'next/server'
 import { updateSession } from './lib/supabase/middleware'
+import { CSP_REPORT_ONLY_HEADER, NONCE_HEADER, generateNonce, scriptStyleCsp } from './lib/csp'
 
 export async function proxy(request: NextRequest) {
-  return await updateSession(request)
+  // The script and style policy carries a fresh nonce per request. Next reads it from the request's policy header and puts
+  // it on its own scripts and styles; the same policy goes out on the response. Report-only until Sentry shows no
+  // violations (docs/TODO.md, "CSP for scripts and styles").
+  const nonce = generateNonce()
+  const policy = scriptStyleCsp({
+    nonce,
+    sentryDsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+    dev: process.env.NODE_ENV === 'development',
+  })
+  const response = await updateSession(request, { [NONCE_HEADER]: nonce, [CSP_REPORT_ONLY_HEADER]: policy })
+  response.headers.set(CSP_REPORT_ONLY_HEADER, policy)
+  return response
 }
-
 export const config = {
   matcher: [
     /*

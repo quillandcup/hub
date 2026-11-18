@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import appConfig from "../../app.config";
-import { buildCsp, CSP_HEADER, SECURITY_HEADERS, sentryReportUri } from "@/lib/csp";
+import { buildCsp, CSP_HEADER, SECURITY_HEADERS, generateNonce, scriptStyleCsp, sentryReportUri } from "@/lib/csp";
 
 const DSN = "https://publickey123@o123456.ingest.de.sentry.io/4510000000";
 
@@ -73,5 +73,31 @@ describe("next.config redirects", () => {
   it("sends the old Identity tab of the member page to Account", async () => {
     const config = (await import("../../next.config")).default as { redirects?: () => Promise<{ source: string; destination: string; permanent: boolean }[]> };
     expect(await config.redirects!()).toContainEqual({ source: "/admin/members/:id/identity", destination: "/admin/members/:id/account", permanent: true });
+  });
+});
+
+describe("scriptStyleCsp", () => {
+  const nonce = generateNonce();
+  const policy = scriptStyleCsp({ nonce, sentryDsn: DSN });
+
+  it("allows scripts and styles only from us or with the nonce", () => {
+    expect(policy).toContain(`script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`);
+    expect(policy).toContain(`style-src 'self' 'nonce-${nonce}'`);
+    expect(policy).not.toMatch(/script-src[^;]*unsafe-inline/);
+    expect(policy).not.toContain("unsafe-eval");
+  });
+
+  it("allows eval only in development", () => {
+    expect(scriptStyleCsp({ nonce, dev: true })).toContain("'unsafe-eval'");
+  });
+
+  it("reports to Sentry when there is a DSN", () => {
+    expect(policy).toContain("report-uri ");
+    expect(scriptStyleCsp({ nonce })).not.toContain("report-uri");
+  });
+
+  it("makes a new nonce each time, in a form Next accepts", () => {
+    expect(generateNonce()).not.toBe(generateNonce());
+    expect(nonce).toMatch(/^[A-Za-z0-9+/_-]+={0,2}$/);
   });
 });

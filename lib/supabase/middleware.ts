@@ -34,14 +34,19 @@ function askedFor(request: NextRequest): string {
  * from the proxy to Server Components: `NextResponse.next({ request: { headers } })`). The headers are copied from the request
  * at this moment, so cookies a token refresh just set on it (see setAll below) go along.
  */
-function continueWithPath(request: NextRequest): NextResponse {
+function continueWithPath(request: NextRequest, extraHeaders: Record<string, string> = {}): NextResponse {
   const headers = new Headers(request.headers)
   headers.set(CURRENT_PATH_HEADER, askedFor(request))
+  for (const [name, value] of Object.entries(extraHeaders)) headers.set(name, value)
   return NextResponse.next({ request: { headers } })
 }
 
-export async function updateSession(request: NextRequest) {
-  let supabaseResponse = continueWithPath(request)
+/**
+ * `requestHeaders` are added to the request Server Components see (proxy.ts uses it to hand over the script nonce,
+ * lib/csp.ts, so Next can put it on its own scripts).
+ */
+export async function updateSession(request: NextRequest, requestHeaders: Record<string, string> = {}) {
+  let supabaseResponse = continueWithPath(request, requestHeaders)
 
   // GoTrue records auth.sessions.user_agent/ip from whatever hit its own
   // endpoint — since this refresh call originates from our server, not the
@@ -59,7 +64,7 @@ export async function updateSession(request: NextRequest) {
         getAll() { return request.cookies.getAll() },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          supabaseResponse = continueWithPath(request)
+          supabaseResponse = continueWithPath(request, requestHeaders)
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           )
