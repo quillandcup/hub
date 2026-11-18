@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { STAFF_MFA_FACTOR_TYPE } from "@/lib/staff-mfa";
+import { APP_NAME } from "@/lib/config";
 import { MFA_CODE_LENGTH, cleanMfaCode } from "@/lib/mfa-code";
 
 /**
@@ -61,7 +62,7 @@ export default function MfaPanel({ afterEnrol, staff = false }: { afterEnrol?: s
     for (const stale of existing?.all.filter((f) => f.factor_type === STAFF_MFA_FACTOR_TYPE && f.status === "unverified") ?? []) {
       await supabase.auth.mfa.unenroll({ factorId: stale.id });
     }
-    const { data, error: enrolError } = await supabase.auth.mfa.enroll({ factorType: STAFF_MFA_FACTOR_TYPE, friendlyName: FRIENDLY_NAME });
+    const { data, error: enrolError } = await supabase.auth.mfa.enroll({ factorType: STAFF_MFA_FACTOR_TYPE, friendlyName: FRIENDLY_NAME, issuer: APP_NAME });
     setBusy(false);
     if (enrolError || !data) {
       setError("We couldn't start the set-up. Try again in a moment.");
