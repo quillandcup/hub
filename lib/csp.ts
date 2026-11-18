@@ -1,10 +1,10 @@
 // Content-Security-Policy for every response. Imported by next.config.ts, so it uses relative imports only.
 //
-// Report-Only for now: the browser tells us what the policy would have blocked and blocks nothing. Once the reports
-// are clean the same value becomes the enforcing `Content-Security-Policy` (docs/TODO.md, "Enforce the Content-Security-Policy").
+// Enforcing since 2026-11-17, after a week of Report-Only reports showed one missing picture host (now in app.config.ts).
+// Violations are still sent to Sentry, so a picture host we forgot shows up as a report.
 // Scripts and styles are not covered yet: that needs per-request nonces (docs/TODO.md, "Script and style nonces").
 
-export const CSP_REPORT_ONLY_HEADER = "Content-Security-Policy-Report-Only";
+export const CSP_HEADER = "Content-Security-Policy";
 
 export interface CspInputs {
   /** The Supabase project URL (storage serves media, covers, emoji, help and changelog pictures). */
@@ -54,3 +54,14 @@ export function buildCsp({ supabaseUrl, imageHosts, sentryDsn }: CspInputs): str
   if (report) directives.push(`report-uri ${report}`);
   return directives.join("; ");
 }
+
+/**
+ * The other protections every response carries. `frame-ancestors` in the policy covers framing in current browsers;
+ * X-Frame-Options says the same to older ones. The Hub uses no camera, microphone, location or payment request.
+ */
+export const SECURITY_HEADERS: readonly { key: string; value: string }[] = [
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "X-Frame-Options", value: "SAMEORIGIN" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
+];

@@ -129,7 +129,7 @@ export const appConfig = {
   sentry: { org: "quillandcup", project: "hub", apiUrl: "https://de.sentry.io" },
 
   /**
-   * Content-Security-Policy (lib/csp.ts, sent by next.config.ts, today as Report-Only): the origins other than our own
+   * Content-Security-Policy (lib/csp.ts, sent by next.config.ts, enforcing): the origins other than our own
    * and Supabase storage that pictures may load from. Member photos, book covers and Slack link previews can come from
    * anywhere, so the reports will name hosts missing here; Slack app pictures go through our own proxy
    * (/api/chat/unfurl-image) and need nothing listed.
@@ -161,6 +161,7 @@ export const appConfig = {
       "https://www.gravatar.com", // avatars by email
       "https://secure.gravatar.com",
       "https://kajabi-storefronts-production.kajabi-cdn.com", // photos and covers imported from Kajabi
+      "https://kajabi-storefronts-production.s3.amazonaws.com", // course thumbnails imported from Kajabi (seen on /courses)
       "https://avatars.slack-edge.com", // Slack profile photos
       "https://a.slack-edge.com", // one Slack user picture lives here
       "https://*.googleusercontent.com", // Google profile photos

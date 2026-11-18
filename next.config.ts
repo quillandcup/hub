@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 import path from "path";
 import { withSentryConfig } from "@sentry/nextjs/config";
 import appConfig from "./app.config";
-import { buildCsp, CSP_REPORT_ONLY_HEADER } from "./lib/csp";
+import { buildCsp, CSP_HEADER, SECURITY_HEADERS } from "./lib/csp";
 import { helpImagesVersion } from "./scripts/help-images-version";
 import { readSkewMaxAgeSeconds } from "./scripts/skew-protection-config";
 
@@ -49,20 +49,21 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [{ source: "/admin/members/:id/identity", destination: "/admin/members/:id/account", permanent: true }];
   },
-  // Report-Only Content-Security-Policy on every response (lib/csp.ts): reports what it would block, blocks nothing.
+  // The Content-Security-Policy and the other browser protections on every response (lib/csp.ts).
   async headers() {
     return [
       {
         source: "/:path*",
         headers: [
           {
-            key: CSP_REPORT_ONLY_HEADER,
+            key: CSP_HEADER,
             value: buildCsp({
               supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
               imageHosts: appConfig.csp.imageHosts,
               sentryDsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
             }),
           },
+          ...SECURITY_HEADERS,
         ],
       },
     ];

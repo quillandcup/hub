@@ -178,11 +178,11 @@ export const COMPLIANCE_GROUPS: readonly ComplianceGroup[] = [
       {
         name: "Browser protections (Content-Security-Policy)",
         about: "A header that tells browsers which sources a page may load from.",
-        status: "working",
-        detail: "We send it on every page in report-only mode: it reports what it would block and blocks nothing yet.",
-        evidence: ["next.config.ts", "lib/csp.ts"],
+        status: "inPlace",
+        detail: "We send it on every page. It limits which sources pictures may load from, where forms may send data, and whether other sites may show Hub pages inside their own. It does not cover scripts or styles yet. We also send the headers that stop browsers guessing file types, limit what is shared when you follow a link, and keep pages from using your camera, microphone or location.",
+        evidence: ["next.config.ts", "lib/csp.ts", "tests/lib/csp.test.ts"],
         checked: "2026-11-17",
-        open: ["The policy is report-only. Enforce it once the reports are quiet."],
+        open: ["The policy does not cover scripts or styles; that needs per-request nonces (docs/TODO.md, CSP for scripts and styles)."],
       },
       {
         name: "Error monitoring and privacy",
