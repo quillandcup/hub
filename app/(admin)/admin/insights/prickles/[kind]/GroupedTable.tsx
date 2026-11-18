@@ -6,6 +6,7 @@ import type { GroupStats, PrickleSession } from "@/lib/scheduled-prickle-stats";
 import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import { DataTablePager } from "@/components/DataTablePager";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
 
 // ---------------------------------------------------------------------------
 // Sparkline
@@ -218,7 +219,7 @@ export default function GroupedTable({ rows, groupBy, defaultExpanded }: Props) 
           </button>
         </div>
       )}
-      <div className="overflow-x-auto">
+      <TableKeyboardNav table={table} label={groupBy === "schedule" ? "Schedule slots" : "Hosts"} className="overflow-x-auto">
         <table className="w-full">
           <thead className="bg-slate-50 dark:bg-slate-800">
             <tr>
@@ -289,6 +290,7 @@ export default function GroupedTable({ rows, groupBy, defaultExpanded }: Props) 
                 <Fragment key={row.groupKey}>
                   <tr
                     ref={row.groupKey === defaultExpanded ? defaultExpandedRowRef : null}
+                    data-row-primary
                     className="hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
                     onClick={() => toggleExpand(row.groupKey)}
                   >
@@ -335,7 +337,7 @@ export default function GroupedTable({ rows, groupBy, defaultExpanded }: Props) 
           </tbody>
         </table>
         <DataTablePager table={table} itemLabel="groups" />
-      </div>
+      </TableKeyboardNav>
 
       {table.total === 0 && rows.length > 0 && (
         <div className="p-8 text-center text-slate-600 dark:text-slate-400 text-sm">

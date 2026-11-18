@@ -449,6 +449,44 @@ describe("TableKeyboardNav starts from nothing (Gmail style)", () => {
     expect(activeRows()).toEqual([]);
   });
 
+  it("starts in the one table that has rows when the other is empty", async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <Fixture rows={[]} label="Empty" />
+        <Fixture label="Full" />
+      </>
+    );
+    await user.keyboard("j");
+    expect(activeName()).toContain("Person 01");
+    expect(region("Full")).toHaveFocus();
+  });
+
+  it("with two tables, Tab reaches each one's region and the keys act on the focused table only", async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <button type="button">Before</button>
+        <Fixture label="First" />
+        <Fixture label="Second" />
+      </>
+    );
+    screen.getByRole("button", { name: "Before" }).focus();
+    await user.tab();
+    // The first table's search box comes first; the region follows it.
+    await user.tab();
+    expect(region("First")).toHaveFocus();
+    await user.keyboard("jj");
+    expect(within(region("First")).getAllByRole("row").filter((r) => r.getAttribute("data-kbd-active") === "true")).toHaveLength(1);
+    region("Second").focus();
+    await user.keyboard("j]");
+    // Each table keeps its own highlight and its own page.
+    expect(activeRows()).toHaveLength(2);
+    expect(within(region("Second")).getByText(/Showing 26–50 of 60/)).toBeInTheDocument();
+    expect(within(region("First")).getByText(/Showing 1–25 of 60/)).toBeInTheDocument();
+    expect(within(region("First")).getByRole("link", { name: "Person 02" }).closest("tr")).toHaveAttribute("data-kbd-active", "true");
+  });
+
   it("does not start while something else has focus", async () => {
     const user = userEvent.setup();
     render(

@@ -9,6 +9,7 @@ import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
 
 interface WorkQueueSectionsProps {
   welcomeBackQueue: WorkQueueItem[];
@@ -101,6 +102,7 @@ function QueueRow({ item, busyKey, onMarkDone, onOptOut, onPostpone, onExtend }:
       <td className="px-6 py-4 whitespace-nowrap">
         <Link
           href={`/admin/members/${item.memberId}`}
+          data-row-primary
           className="text-sm font-medium text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline"
         >
           {item.memberName}
@@ -321,7 +323,7 @@ function QueueSection({ items }: { items: WorkQueueItem[] }) {
         </div>
       )}
 
-      <div className="overflow-x-auto">
+      <TableKeyboardNav table={table} label={meta.title} className="overflow-x-auto">
         <table className="w-full">
           <thead className="bg-slate-50 dark:bg-slate-800">
             <tr>
@@ -363,7 +365,7 @@ function QueueSection({ items }: { items: WorkQueueItem[] }) {
           </tbody>
         </table>
         <DataTablePager table={table} itemLabel="items" />
-      </div>
+      </TableKeyboardNav>
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { useWithSecondaryTime } from "@/components/SecondaryTimezone";
 import type { PrickleRoster, RosterReason } from "@/lib/prickle-roster";
@@ -257,7 +258,7 @@ export default function PrickleDetails({
           )}
         </div>
         {attendanceRecords.length > 0 ? (
-          <div className="overflow-x-auto">
+          <TableKeyboardNav table={table} label="Attendees" className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-slate-50 dark:bg-slate-800">
                 <tr>
@@ -298,7 +299,7 @@ export default function PrickleDetails({
                   return (
                     <tr key={record.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
                       <td className="px-6 py-4">
-                        <Link data-track="prickle-open-attendee" href={`${memberBasePath}/${member.id}`} className="text-sm font-medium text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline">
+                        <Link data-track="prickle-open-attendee" data-row-primary href={`${memberBasePath}/${member.id}`} className="text-sm font-medium text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline">
                           {getMemberDisplayName(member)}
                         </Link>
                         {showMemberEmails && (
@@ -322,7 +323,7 @@ export default function PrickleDetails({
               </tbody>
             </table>
             <DataTablePager table={table} itemLabel="attendees" />
-          </div>
+          </TableKeyboardNav>
         ) : !hasStarted && roster && roster.entries.length > 0 ? (
           <div className="px-6 py-4">
             <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">

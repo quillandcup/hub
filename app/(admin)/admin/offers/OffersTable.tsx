@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { DataTablePager } from "@/components/DataTablePager";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
 import { DataTableSearch } from "@/components/DataTableSearch";
 import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
@@ -57,63 +58,65 @@ export default function OffersTable({ rows }: { rows: OfferCoverageRow[] }) {
         </select>
       </div>
 
-      <div className="overflow-x-auto rounded-lg bg-white shadow dark:bg-slate-900">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-slate-200 dark:border-slate-800">
-            <tr>
-              <SortableTh label="Offer" {...table.sortProps("offer")} />
-              <SortableTh label="State" {...table.sortProps("state")} />
-              <SortableTh label="Hub resources" {...table.sortProps("resources")} />
-              <th className="px-6 py-3 text-xs font-medium uppercase tracking-wider text-slate-600 dark:text-slate-400">In Kajabi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {table.rows.map((row) => {
-              const state = coverageState(row);
-              return (
-                <tr key={row.offerId} className="border-b border-slate-100 align-top last:border-0 dark:border-slate-800">
-                  <td className="px-6 py-3">
-                    {row.name}
-                    {row.status && <span className="ml-2 text-xs text-slate-500">{row.status}</span>}
-                  </td>
-                  <td className="px-6 py-3">
-                    <span className={`rounded px-2 py-0.5 text-xs font-medium ${STATE_CLASS[state]}`}>{STATE_LABEL[state]}</span>
-                  </td>
-                  <td className="px-6 py-3">
-                    {row.resources.length === 0 ? (
-                      <span className="text-slate-500">None</span>
-                    ) : (
-                      <ul className="space-y-1">
-                        {row.resources.map((r) => (
-                          <li key={`${r.kind}:${r.href}`}>
-                            <span className="mr-2 text-xs uppercase text-slate-500">{r.kind}</span>
-                            <Link href={r.href} className="text-plum-700 hover:underline dark:text-plum-300">
-                              {r.title}
-                            </Link>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </td>
-                  <td className="whitespace-nowrap px-6 py-3">
-                    {row.kajabiUrl && (
-                      <a href={row.kajabiUrl} target="_blank" rel="noreferrer" className="text-plum-700 hover:underline dark:text-plum-300">
-                        Edit
-                      </a>
-                    )}
-                    {row.checkoutUrl && (
-                      <a href={row.checkoutUrl} target="_blank" rel="noreferrer" className="ml-3 text-plum-700 hover:underline dark:text-plum-300">
-                        Checkout
-                      </a>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      <DataTablePager table={table} itemLabel="offers" />
+      <TableKeyboardNav table={table} label="Offers">
+        <div className="overflow-x-auto rounded-lg bg-white shadow dark:bg-slate-900">
+          <table className="w-full text-left text-sm">
+            <thead className="border-b border-slate-200 dark:border-slate-800">
+              <tr>
+                <SortableTh label="Offer" {...table.sortProps("offer")} />
+                <SortableTh label="State" {...table.sortProps("state")} />
+                <SortableTh label="Hub resources" {...table.sortProps("resources")} />
+                <th className="px-6 py-3 text-xs font-medium uppercase tracking-wider text-slate-600 dark:text-slate-400">In Kajabi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {table.rows.map((row) => {
+                const state = coverageState(row);
+                return (
+                  <tr key={row.offerId} className="border-b border-slate-100 align-top last:border-0 dark:border-slate-800">
+                    <td className="px-6 py-3">
+                      {row.name}
+                      {row.status && <span className="ml-2 text-xs text-slate-500">{row.status}</span>}
+                    </td>
+                    <td className="px-6 py-3">
+                      <span className={`rounded px-2 py-0.5 text-xs font-medium ${STATE_CLASS[state]}`}>{STATE_LABEL[state]}</span>
+                    </td>
+                    <td className="px-6 py-3">
+                      {row.resources.length === 0 ? (
+                        <span className="text-slate-500">None</span>
+                      ) : (
+                        <ul className="space-y-1">
+                          {row.resources.map((r) => (
+                            <li key={`${r.kind}:${r.href}`}>
+                              <span className="mr-2 text-xs uppercase text-slate-500">{r.kind}</span>
+                              <Link href={r.href} data-row-primary className="text-plum-700 hover:underline dark:text-plum-300">
+                                {r.title}
+                              </Link>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-3">
+                      {row.kajabiUrl && (
+                        <a href={row.kajabiUrl} target="_blank" rel="noreferrer" data-row-primary className="text-plum-700 hover:underline dark:text-plum-300">
+                          Edit
+                        </a>
+                      )}
+                      {row.checkoutUrl && (
+                        <a href={row.checkoutUrl} target="_blank" rel="noreferrer" className="ml-3 text-plum-700 hover:underline dark:text-plum-300">
+                          Checkout
+                        </a>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <DataTablePager table={table} itemLabel="offers" />
+      </TableKeyboardNav>
     </>
   );
 }

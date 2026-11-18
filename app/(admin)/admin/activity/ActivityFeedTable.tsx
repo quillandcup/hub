@@ -7,6 +7,7 @@ import { isCommunityManagerPath } from "@/lib/staff-access";
 import ReactionEmoji from "@/components/ReactionEmoji";
 import type { ReactionEmojiValue } from "@/lib/slack-reaction-emoji";
 import { DataTablePager } from "@/components/DataTablePager";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
 import { useServerDataTable } from "@/lib/hooks/useDataTable";
 import { formatDateTime } from "@/lib/formatters";
 import { useTimeZone } from "@/components/Timezone";
@@ -104,7 +105,7 @@ function SourceLink({ row, limited }: { row: ActivityFeedRow; limited: boolean }
   return (
     <>
       {" "}
-      <Link href={link.href} data-track="activity-open-source" className="whitespace-nowrap text-plum-600 hover:underline dark:text-plum-400">
+      <Link href={link.href} data-row-primary data-track="activity-open-source" className="whitespace-nowrap text-plum-600 hover:underline dark:text-plum-400">
         {link.label} →
       </Link>
     </>
@@ -165,7 +166,7 @@ export default function ActivityFeedTable({
   });
 
   return (
-    <div>
+    <TableKeyboardNav table={table} label="Activity log">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -232,6 +233,7 @@ export default function ActivityFeedTable({
                       ) : row.member_id && row.member_name ? (
                         <Link
                           href={`/admin/members/${row.member_id}`}
+                          data-row-primary
                           className="text-plum-600 dark:text-plum-400 hover:underline"
                         >
                           {row.member_name}
@@ -273,6 +275,6 @@ export default function ActivityFeedTable({
         </table>
       </div>
       <DataTablePager table={table} itemLabel="events" />
-    </div>
+    </TableKeyboardNav>
   );
 }

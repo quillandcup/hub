@@ -8,6 +8,7 @@ import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
+import TableKeyboardNav from "@/components/TableKeyboardNav";
 import { FEATURE_PREVIEWS } from "@/lib/features";
 import MemberSearch from "@/components/MemberSearch";
 import { ORG_TIMEZONE } from "@/lib/config";
@@ -501,7 +502,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
         )}
 
         {!loading && !error && (
-          <div className="overflow-x-auto">
+          <TableKeyboardNav table={table} label="Users" className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-slate-50 dark:bg-slate-800">
                 <tr>
@@ -588,6 +589,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                               <div className="flex items-center gap-1">
                                 <a
                                   href={`/admin/members/${user.memberId}`}
+                                  data-row-primary
                                   className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300 hover:underline"
                                 >
                                   Member: {user.memberName}
@@ -767,7 +769,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
               </tbody>
             </table>
             <DataTablePager table={table} itemLabel="users" />
-          </div>
+          </TableKeyboardNav>
         )}
       </div>
     </div>
