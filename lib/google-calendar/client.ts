@@ -1,4 +1,4 @@
-import { google } from "googleapis";
+import { auth as googleAuth, calendar as googleCalendar } from "@googleapis/calendar";
 import { OUTBOUND_COMMENT, OUTBOUND_PRODUCT } from "@/lib/config";
 
 /**
@@ -18,13 +18,13 @@ export class GoogleCalendarClient {
       throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY not configured");
     }
 
-    const auth = new google.auth.GoogleAuth({
+    const auth = new googleAuth.GoogleAuth({
       credentials,
       scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
     });
 
-    // googleapis builds its User-Agent from these directives and adds its own `google-api-nodejs-client` clause.
-    this.calendar = google.calendar({
+    // the Google client builds its User-Agent from these directives and adds its own `google-api-nodejs-client` clause.
+    this.calendar = googleCalendar({
       version: "v3",
       auth,
       userAgentDirectives: [{ product: OUTBOUND_PRODUCT.name, version: OUTBOUND_PRODUCT.version, comment: OUTBOUND_COMMENT }],

@@ -1,4 +1,4 @@
-import type { calendar_v3 } from "googleapis";
+import type { calendar_v3 } from "@googleapis/calendar";
 import { asJson } from "@/lib/data/json";
 import type { NewCalendarSourceEvent } from "@/lib/data/calendar-events";
 
