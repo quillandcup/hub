@@ -12,8 +12,6 @@ Sentry.init({
   // performance trace volume modest to control event usage.
   tracesSampleRate: process.env.NODE_ENV === "development" ? 1.0 : 0.2,
 
-  enableLogs: true,
-
   // Errors from visitors' own browser extensions, not ours (see the list for why each is there).
   ignoreErrors: IGNORED_BROWSER_ERRORS,
 

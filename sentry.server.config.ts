@@ -15,6 +15,4 @@ Sentry.init({
   // ws://...") and on Vercel it added ~800ms to every server render
   // (/login went from ~850ms to ~40ms of function time with it disabled).
   includeLocalVariables: false,
-
-  enableLogs: true,
 });
