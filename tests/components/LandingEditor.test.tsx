@@ -175,12 +175,12 @@ describe("the header", () => {
     edit("Different");
     for (const name of ["Details", "History", "Reset to published", "Preview", "Unpublish"]) {
       const button = screen.getByRole("button", { name });
-      expect(button, name).toHaveAttribute("title", name);
+      expect(tooltipText(button), name).toBe(name);
       expect(button, name).toHaveTextContent("");
       expect(button.querySelector("svg"), name).not.toBeNull();
     }
     const live = screen.getByRole("link", { name: "View live" });
-    expect(live).toHaveAttribute("title", "View live");
+    expect(tooltipText(live)).toBe("View live");
     expect(live).toHaveAttribute("target", "_blank");
     expect(live).toHaveTextContent("");
     expect(screen.getByRole("button", { name: "Publish changes" })).toHaveTextContent("Publish changes");
