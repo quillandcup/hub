@@ -116,3 +116,13 @@ describe("compliance list: public-repo rule", () => {
     }
   });
 });
+
+describe("services we rely on", () => {
+  it("lists the database and sign-in as separate rows, whatever provider serves them today", () => {
+    const roles = COMPLIANCE_PROVIDERS.map((p) => p.role);
+    expect(roles).toContain("Database");
+    expect(roles).toContain("Sign-in");
+    expect(roles).not.toContain("Database and sign-in");
+    expect(new Set(roles).size).toBe(roles.length);
+  });
+});

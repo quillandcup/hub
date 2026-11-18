@@ -219,7 +219,8 @@ export interface ComplianceProvider {
 
 export const COMPLIANCE_PROVIDERS: readonly ComplianceProvider[] = [
   { name: "Stripe", role: "Payments", covers: "Card and bank details, and the PCI certification." },
-  { name: "Supabase", role: "Database and sign-in", covers: "Storage in the United States, under standard contractual clauses." },
+  { name: "Supabase", role: "Database", covers: "Storage in the United States, under standard contractual clauses." },
+  { name: "Supabase", role: "Sign-in", covers: "Signs members in and keeps their sessions. Its data is stored in the United States, under standard contractual clauses." },
   { name: "Vercel", role: "Hosting", covers: "Hosting in the United States; counts visits and page speed in aggregate, with no individual profile." },
   { name: "Sentry", role: "Error monitoring", covers: "Errors and masked recordings, kept in the EU." },
   { name: "Mux", role: "Course video", covers: "Video hosting and, only if usage statistics are on, playback quality measured without a name, email or account id and with no cookie." },
