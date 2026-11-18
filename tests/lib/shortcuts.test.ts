@@ -39,16 +39,29 @@ describe("the shortcut registry", () => {
     const pageGroups = (Object.keys(SHORTCUT_GROUPS) as ShortcutGroupId[]).filter((id) => SHORTCUT_GROUPS[id].scope === "page-key");
     expect(pageGroups.length).toBeGreaterThan(0);
     for (const id of pageGroups) {
-      const component = SHORTCUT_GROUPS[id].component;
-      expect(component, `${id} has no component`).toBeTruthy();
-      const source = readFileSync(join(process.cwd(), component!), "utf8");
-      expect(source, `${component} must call useRegisterShortcuts("${id}")`).toMatch(new RegExp(`useRegisterShortcuts\\(\\s*"${id}"`));
+      const components = SHORTCUT_GROUPS[id].components;
+      expect(components?.length, `${id} has no component`).toBeGreaterThan(0);
+      for (const component of components!) {
+        const source = readFileSync(join(process.cwd(), component), "utf8");
+        expect(source, `${component} must call useRegisterShortcuts("${id}")`).toMatch(new RegExp(`useRegisterShortcuts\\(\\s*"${id}"`));
+      }
     }
+  });
+
+  it("scopes the picker and dialog form keys to the page, leaving only the basics and search everywhere", () => {
+    expect(SHORTCUT_GROUPS.pickers.scope).toBe("page-key");
+    expect(SHORTCUT_GROUPS.forms.scope).toBe("page-key");
+    expect(SHORTCUT_GROUPS.basics.scope).toBe("global");
+    expect(SHORTCUT_GROUPS.search.scope).toBe("global");
+    const everywhere = visibleSections([]).map((s) => s.group);
+    expect(everywhere).toEqual(["basics", "search"]);
+    expect(visibleSections([{ group: "pickers", has: [] }]).map((s) => s.group)).toEqual(["pickers", "basics", "search"]);
+    expect(visibleSections([{ group: "forms", has: [] }]).flatMap((s) => (s.group === "forms" ? s.shortcuts.map((x) => x.id) : []))).toEqual(["forms-submit"]);
   });
 
   it("gives global groups no component, and every group at least one shortcut", () => {
     for (const id of Object.keys(SHORTCUT_GROUPS) as ShortcutGroupId[]) {
-      if (SHORTCUT_GROUPS[id].scope === "global") expect(SHORTCUT_GROUPS[id].component).toBeUndefined();
+      if (SHORTCUT_GROUPS[id].scope === "global") expect(SHORTCUT_GROUPS[id].components).toBeUndefined();
       expect(SHORTCUTS.some((s) => s.group === id), id).toBe(true);
     }
   });

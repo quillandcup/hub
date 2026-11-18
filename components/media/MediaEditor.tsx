@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import Kbd from "@/components/Kbd";
 import Modal from "@/components/Modal";
 import AmazonCoverDownload from "./AmazonCoverDownload";
 import { track } from "@/lib/analytics/client";
@@ -340,8 +341,9 @@ export default function MediaEditor({ assetId, onClose, onChanged, own = false }
           </div>
 
           <div className="flex gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
-            <button type="submit" disabled={busy || (!own && !title.trim())} className={PRIMARY}>
+            <button type="submit" disabled={busy || (!own && !title.trim())} aria-keyshortcuts="Control+Enter Meta+Enter" className={`${PRIMARY} inline-flex items-center gap-2`}>
               {busy ? "Saving..." : "Save"}
+              <Kbd keys={["mod", "enter"]} onAccent />
             </button>
             <button type="button" disabled={busy} onClick={onClose} className={SECONDARY}>
               Close

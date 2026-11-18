@@ -271,4 +271,18 @@ describe("PrickleCheckModal check-out", () => {
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
     expect(screen.getByLabelText(NOVEL_QUESTION)).toBeDisabled();
   });
+
+describe("PrickleCheckModal save hint", () => {
+  it("shows the Ctrl/Cmd+Enter hint on Save, and the key saves", async () => {
+    const user = userEvent.setup();
+    const { onClose } = renderModal("checkin");
+    await user.click(await option(PLEASANTNESS_QUESTION, "Bad"));
+    const save = screen.getByRole("button", { name: "Save" });
+    expect(save).toHaveAttribute("aria-keyshortcuts", "Control+Enter Meta+Enter");
+    expect(save.querySelector("[data-kbd]")).not.toBeNull();
+    await user.keyboard("{Control>}{Enter}{/Control}");
+    await waitFor(() => expect(saveCheckinHalf).toHaveBeenCalled());
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+});
 });

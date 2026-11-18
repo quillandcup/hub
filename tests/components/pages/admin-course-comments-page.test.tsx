@@ -191,7 +191,7 @@ describe("admin course comments moderation page", () => {
     openReports.mockResolvedValue([reported("cmnt_AAAAAAAAAAA1")]);
     heldComments.mockResolvedValue([held("cmnt_AAAAAAAAAAA3")]);
     await renderServerPage(CourseCommentsModerationPage, params());
-    const [reportRow, heldRow] = screen.getAllByRole("row").filter((r) => within(r).queryAllByRole("button").length > 0);
+    const [reportRow, heldRow] = screen.getAllByRole("row").filter((r) => within(r).queryAllByRole("columnheader").length === 0 && within(r).queryAllByRole("button").length > 0);
 
     await userEvent.click(within(reportRow).getByRole("button", { name: "Hide" }));
     await waitFor(() => expect(actions.hideLessonComment).toHaveBeenCalledWith(COURSE, "cmnt_AAAAAAAAAAA1"));

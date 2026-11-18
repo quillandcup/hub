@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Kbd from "@/components/Kbd";
 import Modal from "@/components/Modal";
 import type { ImportIssue } from "@/lib/trackbear-import";
 import type { TrackbearImportResult } from "@/lib/trackbear-import-runner";
@@ -134,9 +135,11 @@ export default function TrackbearImportModal({ isOpen, onClose, onImported }: Tr
             <button data-track="trackbear-import-import"
               type="submit"
               disabled={isPending}
-              className="px-4 py-2 text-sm bg-plum-600 text-white rounded-lg hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              aria-keyshortcuts="Control+Enter Meta+Enter"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-plum-600 text-white rounded-lg hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {isPending ? "Importing..." : "Import"}
+              <Kbd keys={["mod", "enter"]} onAccent />
             </button>
           </div>
         </form>

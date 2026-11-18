@@ -53,13 +53,14 @@ vi.mock("@puckeditor/core", () => ({
 import Composer from "@/components/chat/Composer";
 import ImageLightbox from "@/components/ImageLightbox";
 import LandingEditor, { type EditorPage } from "@/app/(admin)/admin/pages/[slug]/LandingEditor";
+import EntitySearch from "@/components/EntitySearch";
 import Modal from "@/components/Modal";
 import MultiEntitySearch from "@/components/MultiEntitySearch";
 import PhotoLightbox from "@/components/PhotoLightbox";
 import SearchPalette from "@/components/search/SearchPalette";
-import ShortcutsProvider, { useShortcutsPanel } from "@/components/shortcuts/ShortcutsProvider";
+import ShortcutsProvider, { useShortcutsPanel, useShortcutsState } from "@/components/shortcuts/ShortcutsProvider";
 import ShortcutsLayout from "@/components/shortcuts/ShortcutsPanel";
-import { SHORTCUTS, type Shortcut } from "@/lib/shortcuts";
+import { SHORTCUTS, visibleSections, type Shortcut } from "@/lib/shortcuts";
 import { messageBox, typeInto } from "../helpers/message-box";
 
 /**
@@ -303,14 +304,6 @@ const DRIVERS: Record<string, Driver> = {
     await user.keyboard(keyString(chordFor(s, "enter")));
     expect(screen.getByTestId("chosen")).toHaveTextContent("b");
   },
-  "pickers-close": async (s) => {
-    render(<Picker />);
-    const user = userEvent.setup();
-    await user.type(pickerInput(), "al");
-    expect(screen.getByRole("listbox")).toBeInTheDocument();
-    await user.keyboard(keyString(chordFor(s, "esc")));
-    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
-  },
   "pickers-remove": async (s) => {
     render(<Picker initial={["a", "b"]} />);
     const user = userEvent.setup();
@@ -420,6 +413,80 @@ describe("keyboard shortcuts panel: page-scoped groups appear only while their c
     );
     await user.keyboard("?");
     expect(within(panel()!).queryByRole("heading", { name: "Photo viewer" })).toBeNull();
+  });
+
+  it("lists the picker keys only while a picker is on the page", async () => {
+    const user = userEvent.setup();
+    render(
+      <Page>
+        <Picker />
+      </Page>,
+    );
+    await user.keyboard("?");
+    expect(within(panel()!).getByRole("heading", { name: "Pickers" })).toBeInTheDocument();
+    expect(within(panel()!).getByText("Move through a picker's options")).toBeInTheDocument();
+    expect(within(panel()!).queryByRole("heading", { name: "Forms in dialogs" })).toBeNull();
+    cleanup();
+    render(<Page>{null}</Page>);
+    await user.keyboard("?");
+    expect(within(panel()!).queryByRole("heading", { name: "Pickers" })).toBeNull();
+  });
+
+  it("closes a picker's list with Escape, which the Basics entry for Esc says", async () => {
+    const user = userEvent.setup();
+    render(<Picker />);
+    await user.type(pickerInput(), "al");
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(SHORTCUTS.find((s) => s.id === "basics-close")!.label).toMatch(/picker's list/);
+  });
+
+  it("lists the picker keys for a single-choice picker too", async () => {
+    const user = userEvent.setup();
+    render(
+      <Page>
+        <EntitySearch items={PEOPLE} selectedId="" onSelect={vi.fn()} ariaLabel="one" />
+      </Page>,
+    );
+    await user.keyboard("?");
+    expect(within(panel()!).getByRole("heading", { name: "Pickers" })).toBeInTheDocument();
+  });
+
+  it("lists the dialog form key only while a dialog with a form is open", async () => {
+    // `?` is ignored while a dialog is open, so read what the panel would show from the provider's own state.
+    const seen: string[][] = [];
+    function Probe() {
+      const state = useShortcutsState();
+      seen.push(visibleSections(state?.registrations ?? []).map((s) => s.group));
+      return null;
+    }
+    const last = () => seen[seen.length - 1];
+    const dialog = (open: boolean, body: ReactNode) => (
+      <ShortcutsProvider>
+        <Probe />
+        <Modal isOpen={open} onClose={() => {}} title="Example">
+          {body}
+        </Modal>
+      </ShortcutsProvider>
+    );
+    const form = (
+      <form>
+        <input aria-label="Name" />
+        <button type="submit">Save</button>
+      </form>
+    );
+    const { rerender } = render(dialog(true, form));
+    await waitFor(() => expect(last()).toContain("forms"));
+    rerender(dialog(true, <p>Nothing to save</p>));
+    await waitFor(() => expect(last()).not.toContain("forms"));
+    rerender(dialog(true, <form data-no-mod-enter-submit />));
+    await waitFor(() => expect(last()).not.toContain("forms"));
+    rerender(dialog(true, form));
+    await waitFor(() => expect(last()).toContain("forms"));
+    rerender(dialog(false, form));
+    await waitFor(() => expect(last()).not.toContain("forms"));
+    expect(last()).toEqual(["basics", "search"]);
   });
 
   it("lists the page editor's save key only on the editor page", async () => {

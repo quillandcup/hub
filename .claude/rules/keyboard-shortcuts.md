@@ -18,7 +18,7 @@ The `?` panel (`components/shortcuts/`) lists the shortcuts from the registry in
 - Pin it with a test: a hand-written registry entry needs a driver in `tests/components/ShortcutDrivers.test.tsx` (renders the real component, presses the registered keys, asserts the handler responds; a missing driver or a changed key fails). Table and calendar entries are already tied to their constants in `tests/lib/shortcuts.test.ts`.
 
 **Guards**
-- `tests/lib/shortcuts.test.ts`: unique ids and keys, no clash with the basics, page-scoped groups name a component that registers them, table and calendar read from their own constants.
+- `tests/lib/shortcuts.test.ts`: unique ids and keys, no clash with the basics, page-scoped groups name the components (or shared hook) that register them (`components` in `SHORTCUT_GROUPS`: the pickers and `Modal` report "Pickers" and "Forms in dialogs"), table and calendar read from their own constants.
 - `tests/components/ShortcutDrivers.test.tsx`: the behavior of each hand-written entry.
 - `tests/lib/shortcut-listeners.test.ts`: a `document`/`window` `keydown` listener that reads any key besides Escape fails unless its file is on the short allowlist there, with a reason. Register the shortcut rather than adding to the list; the list is for things that are not shortcuts or are known gaps noted in `docs/TODO.md`.
 

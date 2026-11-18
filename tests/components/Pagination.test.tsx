@@ -25,7 +25,7 @@ describe('Pagination', () => {
     expect(screen.getByText('Showing 1–50 of 134 members')).toBeInTheDocument()
     expect(screen.getByText('Page 1 of 3')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /prev/i })).toBeDisabled()
-    expect(screen.getByRole('button', { name: /next/i })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /^next →/i })).toBeEnabled()
   })
 
   it('reports page and page-size changes', async () => {
@@ -34,7 +34,7 @@ describe('Pagination', () => {
     render(
       <Pagination page={3} pageSize={50} total={134} onPageChange={onPageChange} onPageSizeChange={onPageSizeChange} />
     )
-    expect(screen.getByRole('button', { name: /next/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /^next →/i })).toBeDisabled()
     await userEvent.click(screen.getByRole('button', { name: /prev/i }))
     expect(onPageChange).toHaveBeenCalledWith(2)
     await userEvent.selectOptions(screen.getByRole('combobox'), '100')
@@ -64,14 +64,14 @@ describe('client-side paging on HedgieversariesTable', () => {
   it('shows 50 rows per page and pages through the rest', async () => {
     render(<HedgieversariesTable rows={rows} asOf="2026-09-26T00:00:00Z" />)
     expect(names()).toHaveLength(50)
-    await userEvent.click(screen.getByRole('button', { name: /next/i }))
+    await userEvent.click(screen.getByRole('button', { name: /^next →/i }))
     expect(names()).toHaveLength(10)
     expect(screen.getByText('Showing 51–60 of 60 members')).toBeInTheDocument()
   })
 
   it('sorts across all pages and returns to page 1 on a new sort', async () => {
     render(<HedgieversariesTable rows={rows} asOf="2026-09-26T00:00:00Z" />)
-    await userEvent.click(screen.getByRole('button', { name: /next/i }))
+    await userEvent.click(screen.getByRole('button', { name: /^next →/i }))
     await userEvent.click(screen.getByText('First Joined'))
     await userEvent.click(screen.getByText('First Joined')) // descending
     expect(screen.getByText('Page 1 of 2')).toBeInTheDocument()
