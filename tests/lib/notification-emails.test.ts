@@ -57,6 +57,10 @@ describe("postal address in the footer (CAN-SPAM)", () => {
     expect(html).toContain(`mailto:${SUPPORT_EMAIL}`);
     expect(html).toContain("aren&#x27;t monitored");
     expect(html).toContain("a[x-apple-data-detectors]");
+    // A selector that matches every link (Gmail's `u + .body a`) would turn the button's white text dark.
+    expect(html).not.toMatch(/<style>[^<]*\ba\s*\{/);
+    expect(html).not.toContain("u + .body");
+    expect(html).toContain("background-color:#3d2b1f;color:#ffffff");
     expect(html).not.toContain(`>${postalAddress()}</a>`);
   });
 

@@ -42,12 +42,11 @@ export function EmailLayout({
   return (
     <Html lang="en">
       <Head>
-        {/* Mail apps turn a street address into a map link; keep it plain text like the rest of the footer. */}
-        <style>{`a[x-apple-data-detectors], u + .body a { color: inherit !important; text-decoration: none !important; font: inherit !important; }`}</style>
+        {/* Apple Mail turns a street address into a map link; keep it plain text like the rest of the footer. Only that attribute: a broader selector (Gmail's `u + .body a`) also hits the button and every link. */}
+        <style>{`a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; font: inherit !important; }`}</style>
       </Head>
       <Preview>{preview}</Preview>
       <Body
-        className="body"
         style={{
           margin: 0,
           padding: 0,
