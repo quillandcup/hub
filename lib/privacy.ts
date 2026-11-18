@@ -54,7 +54,7 @@ export const PRIVACY_SUMMARY: readonly Unit[] = [
     text: "Staff can see who talks with whom, where and when, and what is said in the channels that reach the Hub. Restricted channels, group DMs and your one-on-one DMs are open to them only through break-glass access.",
   },
   {
-    text: "The Hub brings your one-on-one DMs from the chat service into Hub Chat as we roll it out to every member, and keeps them. See “Your chat service direct messages” below.",
+    text: "The Hub brings your one-on-one Slack DMs into Hub Chat as we roll it out to every member, and keeps them. See “Your Slack direct messages” below.",
   },
   {
     text: `Your exact IP address and browser details are removed after ${RETENTION.rawNetworkDays} days, and usage statistics after ${RETENTION.usageMonths} months. What you do in the Hub is kept while you are a member, and after you cancel your membership until you ask us to close your account and remove it.`,
@@ -90,7 +90,7 @@ export const PRIVACY_SECTIONS: readonly PrivacySection[] = [
           {
             cells: [
               "Membership, billing and sessions",
-              "Your plan and membership dates from our payment and course providers, and which live sessions (prickles) you joined and for how long. We do not store your card or bank details; our payment provider handles those.",
+              "Your plan and membership dates from our payment and course providers, and which live sessions (such as Zoom prickles) you joined and for how long. We do not store your card or bank details; our payment provider handles those.",
               "To know who is a member, and to count and recognize your time writing together.",
             ],
           },
@@ -212,14 +212,14 @@ export const PRIVACY_SECTIONS: readonly PrivacySection[] = [
           { id: "chat-private", cells: ["Private channels that include Billie Bot", "Yes", "Yes, unless the channel is marked restricted"] },
           { id: "chat-restricted", cells: ["Restricted private channels", "Yes", "No, except break-glass access (below)"] },
           { id: "chat-group", cells: ["Group DMs that include Billie Bot", "Yes", "No, except break-glass access (below)"] },
-          { id: "chat-dm", cells: ["One-on-one DMs, and group DMs without Billie Bot, as they reach the Hub", "Yes", "No, except break-glass access (below)"] },
+          { id: "chat-dm", cells: ["One-on-one Slack DMs, and group DMs without Billie Bot, as they reach the Hub", "Yes", "No, except break-glass access (below)"] },
           { id: "chat-planned", cells: ["Private channels without Billie Bot", "Not yet. Planned: yes", "Not yet. Planned: restricted, so break-glass access only"] },
         ],
       },
       {
         kind: "p",
         id: "chat-metadata",
-        text: "In every conversation that reaches the Hub, restricted channels and group DMs included, staff can see who is in it, who wrote and reacted and when, and when you last read it (the Hub keeps that in step with the chat service). Files shared in a conversation follow the same rule as its text. We keep a copy of files shared in the channels and group DMs the Hub mirrors, and the copy is removed if the file is deleted.",
+        text: "In every conversation that reaches the Hub, restricted channels and group DMs included, staff can see who is in it, who wrote and reacted and when, and when you last read it (the Hub keeps that in step with Slack). Files shared in a conversation follow the same rule as its text. We keep a copy of files shared in the channels and group DMs the Hub mirrors, and the copy is removed if the file is deleted.",
       },
       {
         kind: "details",
@@ -233,34 +233,34 @@ export const PRIVACY_SECTIONS: readonly PrivacySection[] = [
       },
       {
         kind: "details",
-        title: "Connecting your chat service account",
+        title: "Connecting your Slack account",
         paragraphs: [
           {
             id: "chat-connection",
-            text: "Hub Chat needs your chat service account connected. That lets the Hub act as you in the chat service: post your messages and reactions, edit and delete the ones you wrote, join and leave channels, add people to a channel, and mark conversations read. The chat service also lists permission to read and send your direct messages, and to read the private channels you are in. The Hub uses the first only for the DM bridge below, and only for members it is switched on for. The second it doesn't use yet: we plan to bring private channels Billie Bot isn't in into Hub Chat too, restricted like the rest, and it is asked for now so you only reconnect once. Apart from that the Hub does nothing in the chat service you didn't ask for. The connection is kept encrypted and used only by the Hub's server. You can disconnect it in Settings at any time (chat then stays closed until you reconnect), and the chat service shows it under your authorized apps.",
+            text: "Hub Chat needs your Slack account connected. That lets the Hub act as you in Slack: post your messages and reactions, edit and delete the ones you wrote, join and leave channels, add people to a channel, and mark conversations read. Slack also lists permission to read and send your direct messages, and to read the private channels you are in. The Hub uses the first only for the DM bridge below, and only for members it is switched on for. The second it doesn't use yet: we plan to bring private channels Billie Bot isn't in into Hub Chat too, restricted like the rest, and it is asked for now so you only reconnect once. Apart from that the Hub does nothing in Slack you didn't ask for. The connection is kept encrypted and used only by the Hub's server. You can disconnect it in Settings at any time (chat then stays closed until you reconnect), and Slack shows it under your authorized apps.",
           },
         ],
       },
       {
         kind: "details",
-        title: "Your chat service direct messages",
+        title: "Your Slack direct messages",
         paragraphs: [
           {
             id: "dm-what",
-            text: "The chat service's bot can't be in a one-on-one DM, or in a group message it wasn't added to, so the Hub brings yours into chat with your own chat service connection, as we roll it out to every member. The Hub keeps them, shows them in your chat so you can read and reply there (your replies go to the chat service as you), and counts them as activity, like any message. The chat service only shows about 90 days of history on our plan; the Hub keeps its copy until you ask us to remove it.",
+            text: "Slack's bot can't be in a one-on-one DM, or in a group message it wasn't added to, so the Hub brings yours into chat with your own Slack connection, as we roll it out to every member. The Hub keeps them, shows them in your chat so you can read and reply there (your replies go to Slack as you), and counts them as activity, like any message. Slack only shows about 90 days of history on our plan; the Hub keeps its copy until you ask us to remove it.",
           },
           {
             id: "dm-who",
             text: [
               { strong: "Who can see them." },
-              " You, and the other person if they are a Hub member (they see the same conversation in their own chat once their own DMs are brought in). If they aren't a member, their messages are kept in your conversation under their chat service name, and we keep nothing else about them. Staff can see that the conversation exists, who is in it, who wrote and when, but they can read the text only through break-glass access, as for a restricted channel. Viewing the Hub as you never shows them.",
+              " You, and the other person if they are a Hub member (they see the same conversation in their own chat once their own DMs are brought in). If they aren't a member, their messages are kept in your conversation under their Slack name, and we keep nothing else about them. Staff can see that the conversation exists, who is in it, who wrote and when, but they can read the text only through break-glass access, as for a restricted channel. Viewing the Hub as you never shows them.",
             ],
           },
           {
             id: "dm-stop",
             text: [
               { strong: "Stopping it." },
-              " There is no separate switch for DMs. Disconnecting the chat service in Settings stops the Hub reading your DMs, and closes Hub Chat for you until you reconnect. What the Hub has already kept stays until you ask us to close your account and remove it.",
+              " There is no separate switch for DMs. Disconnecting Slack in Settings stops the Hub reading your DMs, and closes Hub Chat for you until you reconnect. What the Hub has already kept stays until you ask us to close your account and remove it.",
             ],
           },
         ],
@@ -341,7 +341,7 @@ export const PRIVACY_SECTIONS: readonly PrivacySection[] = [
               ", only while usage statistics are on: a short-lived random number that groups the things you do in one visit. It expires after 30 minutes without activity and holds nothing about you.",
             ],
           },
-          { text: [{ strong: "Our analytics service" }, " sets its own cookie, only if you have allowed it."] },
+          { text: [{ strong: "Google Analytics" }, " sets its own cookie, only if you have allowed it."] },
         ],
       },
     ],
@@ -360,11 +360,11 @@ export const PRIVACY_SECTIONS: readonly PrivacySection[] = [
           { text: "Our email provider, and your browser's push service if you turn on browser notifications." },
           { text: "Our video hosting provider, for course videos, and, only if usage statistics are on, for measuring how well they play." },
           { text: "Our payment and course providers, for your membership and billing." },
-          { text: "Our live-session service, where live prickles happen, and how we know who joined and for how long." },
-          { text: "Our chat service, for chat and notifications." },
+          { text: "Zoom, where live prickles happen, and how we know who joined and for how long." },
+          { text: "Slack, for chat and notifications." },
           { text: "Our calendar service for the prickle schedule, and our photo service only when you choose photos to add." },
-          { text: "Our analytics service, only where you allow it." },
-          { text: "Our profile-picture service, which supplies a profile picture if you haven't set one; it is asked using a hash of your email address." },
+          { text: "Google Analytics, only where you allow it." },
+          { text: "Gravatar, which supplies a profile picture if you haven't set one; it is asked using a hash of your email address." },
         ],
       },
       {
@@ -421,7 +421,7 @@ export const PRIVACY_SECTIONS: readonly PrivacySection[] = [
             text: "If usage statistics are on, we also record a small share of visits as screen recordings, with text and form fields masked. Recordings made when something breaks are separate: they continue if you leave statistics off, because we can't fix a bug we can't see.",
           },
           {
-            text: `Our hosting provider also counts visits and page speed in aggregate, as totals with no individual profile, and that count is not part of this switch. We use our analytics service only where you have allowed it. The same switch and banner decide whether our video provider measures how well course videos play on your device (start time, buffering, errors). After ${RETENTION.usageMonths} months the individual records are removed and only anonymous totals remain (for example “this page was opened 300 times in March”), which is how we see trends over several years.`,
+            text: `Our hosting provider also counts visits and page speed in aggregate, as totals with no individual profile, and that count is not part of this switch. We use Google Analytics only where you have allowed it. The same switch and banner decide whether our video provider measures how well course videos play on your device (start time, buffering, errors). After ${RETENTION.usageMonths} months the individual records are removed and only anonymous totals remain (for example “this page was opened 300 times in March”), which is how we see trends over several years.`,
           },
         ],
       },
@@ -429,7 +429,7 @@ export const PRIVACY_SECTIONS: readonly PrivacySection[] = [
       {
         kind: "p",
         text: [
-          "The Hub can notify you in more than one place, such as chat, email, inside the Hub, or your browser. You choose which, for each kind of notification, in ",
+          "The Hub can notify you in more than one place, such as Slack, email, inside the Hub, or your browser. You choose which, for each kind of notification, in ",
           { link: "/settings/notifications", text: "Settings" },
           ", and every email has an unsubscribe link for that kind.",
         ],

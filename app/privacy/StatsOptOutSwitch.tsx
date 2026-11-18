@@ -41,7 +41,7 @@ export function StatsOptOutSwitch({ initialOptedOut, readOnly }: { initialOptedO
         <div className="min-w-0">
           <p className="text-sm font-medium text-slate-900 dark:text-slate-100">Share usage statistics</p>
           <p className="text-sm text-slate-600 dark:text-slate-400">
-            Helps us see which parts of the Hub people use, so we can improve what's useful. It covers our usage log, our analytics service and screen recordings of ordinary visits. Turning it off stops them and removes the usage log recorded so far. Recordings of errors continue.
+            Helps us see which parts of the Hub people use, so we can improve what's useful. It covers our usage log, Google Analytics and screen recordings of ordinary visits. Turning it off stops them and removes the usage log recorded so far. Recordings of errors continue.
           </p>
         </div>
         <button
