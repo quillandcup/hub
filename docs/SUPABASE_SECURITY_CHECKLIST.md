@@ -2,7 +2,7 @@
 
 Evaluation of the production project against Supabase's [Production security checklist](https://supabase.com/docs/guides/security/production-checklist), done 2026-11-17. The general checklist (performance, availability, deployment, rate limits) is in `docs/SUPABASE_PRODUCTION_CHECKLIST.md`.
 
-Sources: `supabase/config.toml`, the code in this repo, and read-only checks of production (`supabase db query --linked`, `supabase ssl-enforcement get --experimental`, `supabase network-restrictions get --experimental`), per `.claude/rules/verify-against-prod.md`. Each line says which. Status: **Done**, **Partial**, **Gap**, **Accepted**, **Unchecked** (the CLI can't read it; needs a dashboard look).
+Sources: `supabase/config.toml`, the code in this repo, and read-only checks of production (`supabase db query --linked`, `supabase ssl-enforcement get --experimental`, `supabase network-restrictions get --experimental`), per `.claude/rules/verify-against-prod.md`. Each line says which. Status: **Done**, **Done (owner-reported)** (the CLI can't read it; the owner said so, with the date), **Partial**, **Gap**, **Accepted**, **Unchecked**.
 
 ## 1. Database
 
@@ -18,9 +18,9 @@ Sources: `supabase/config.toml`, the code in this repo, and read-only checks of 
 
 | Item | Status | Evidence and what to do |
 |---|---|---|
-| MFA on the Supabase accounts (and on GitHub if used to sign in) | Gap | Confirmed by the owner as not in place. Turn it on for every account with dashboard access, and 2FA on GitHub if that is how they sign in. |
-| MFA enforcement on the organization | Gap | Confirmed by the owner as not in place. Needs a Pro or higher plan (we are on a paid plan, `docs/DEPLOYMENT.md` "Plans and headroom"); turn it on after everyone has enrolled. |
-| More than one Owner | Gap | Confirmed by the owner as not in place. Organization > Team. |
+| MFA on the Supabase accounts (and on GitHub if used to sign in) | Done (owner-reported) | The owner reported on 2026-11-18 that MFA is required for the Supabase organization, so every member needs it. Not readable from the CLI. |
+| MFA enforcement on the organization | Done (owner-reported) | Required for the organization as of 2026-11-18, reported by the owner. |
+| More than one Owner | Done (owner-reported) | A second Owner, with MFA, was added on 2026-11-18, reported by the owner. |
 
 ## 3. Auth
 
@@ -41,7 +41,7 @@ Sources: `supabase/config.toml`, the code in this repo, and read-only checks of 
 
 ## What to do next
 
-Tracked in `docs/TODO.md`, "Supabase security checklist follow-ups": turn on MFA and add a second owner, decide on OTP expiry, and consider Broadcast for chat (low priority: only reaction removals send DELETE events, since messages soft delete).
+Tracked in `docs/TODO.md`, "Supabase security checklist follow-ups": decide on OTP expiry, and consider Broadcast for chat (low priority: only reaction removals send DELETE events, since messages soft delete).
 
 ## Review again when
 
