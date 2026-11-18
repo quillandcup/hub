@@ -213,7 +213,9 @@ export default async function MemberDetailPage({
   // limited tab (`member.activity_tab_limited`): only the member's own activity, whatever the URL says; the
   // database enforces it too. Without either feature nothing is fetched.
   const activityLimited = !can("member.activity_tab") && can("member.activity_tab_limited");
-  const parsedActivityFilters = { ...parseFeedFilters(searchParams, MEMBER_DEFAULTS), memberId: id };
+  // The range filter (?days=all, ?from=&to=, Eastern days) is the same for both; it only picks the dates, never the rows.
+  const feedNow = new Date(clock.now());
+  const parsedActivityFilters = { ...parseFeedFilters(searchParams, MEMBER_DEFAULTS, feedNow), memberId: id };
   const activityFilters = activityLimited ? limitedFeedFilters(parsedActivityFilters) : parsedActivityFilters;
   // A failing feed (traced has already alerted and tagged the section) shows as a message on the
   // Activity Log tab instead of taking the whole member page down.
@@ -230,7 +232,7 @@ export default async function MemberDetailPage({
               page: parsePageParam(searchParams.page),
               pageSize: parsePageSizeParam(searchParams.pageSize),
             },
-            undefined,
+            feedNow,
             { memberActivityOnly: activityLimited }
           ),
         { memberId: id, days: String(activityFilters.days), view: activityFilters.view }

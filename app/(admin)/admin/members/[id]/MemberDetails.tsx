@@ -17,7 +17,8 @@ import ActivityFeedTable from "@/app/(admin)/admin/activity/ActivityFeedTable";
 import MemberNoteForm from "./MemberNoteForm";
 import LatestNoteCard, { type LatestNote } from "./LatestNoteCard";
 import ActivityFilters from "@/app/(admin)/admin/activity/ActivityFilters";
-import { feedSearch, type FeedFilters, type FeedPage } from "@/lib/activity-feed";
+import ActivityRangeSummary from "@/app/(admin)/admin/activity/ActivityRangeSummary";
+import { ALL_TIME_DAYS, feedSearch, MEMBER_DEFAULTS, type FeedFilters, type FeedPage } from "@/lib/activity-feed";
 import MemberBadgesPanel from "./MemberBadgesPanel";
 import MemberNotificationsPanel, { type NotificationKindRow } from "./MemberNotificationsPanel";
 import MemberIdentityPanel, { type NameAliasRow, type EmailAliasRow } from "./MemberIdentityPanel";
@@ -313,7 +314,8 @@ export default function MemberDetails({
               <>
                 Their own activity, what staff did for or as them, and changes to their record.{" "}
                 <Link
-                  href={`/admin/activity${feedSearch(activityFilters)}`}
+                  // The central log has no custom range or all time yet: its longest window (a year) is the nearest.
+                  href={`/admin/activity${feedSearch(activityFilters.range || activityFilters.days === ALL_TIME_DAYS ? { ...activityFilters, days: 365 } : activityFilters)}`}
                   className="text-plum-600 dark:text-plum-400 hover:underline"
                 >
                   Open in the central log
@@ -327,10 +329,20 @@ export default function MemberDetails({
             <p role="alert" className="text-sm text-red-700 dark:text-red-400">
               The activity log didn&apos;t load. Reload the page to try again; if it keeps failing, the team has been alerted.
             </p>
-          ) : activityFeed.total === 0 ? (
-            <p className="text-sm text-slate-600 dark:text-slate-400">Nothing in this window. Try a longer range or other filters.</p>
           ) : (
-            <ActivityFeedTable {...activityFeed} filters={activityFilters} hideAbout limited={activityLimited} noteControls={!can("member.notes_write") ? undefined : { memberId: member.id, currentUserId, editMinutes: noteEditMinutes }} />
+            <>
+              <ActivityRangeSummary
+                filters={activityFilters}
+                total={activityFeed.total}
+                now={new Date(clock.now())}
+                clearHref={`/admin/members/${member.id}/activity${feedSearch({ ...activityFilters, range: null, memberId: null }, MEMBER_DEFAULTS)}`}
+              />
+              {activityFeed.total === 0 ? (
+                <p className="text-sm text-slate-600 dark:text-slate-400">Nothing in this range. Try a longer one.</p>
+              ) : (
+                <ActivityFeedTable {...activityFeed} filters={activityFilters} hideAbout limited={activityLimited} noteControls={!can("member.notes_write") ? undefined : { memberId: member.id, currentUserId, editMinutes: noteEditMinutes }} />
+              )}
+            </>
           )}
         </div>
       )}

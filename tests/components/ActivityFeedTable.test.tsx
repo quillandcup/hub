@@ -9,10 +9,11 @@ import { MEMBER_DEFAULTS, type ActivityFeedRow } from "@/lib/activity-feed";
 vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
 }));
+const nav = vi.hoisted(() => ({ push: vi.fn(), query: "" }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useRouter: () => ({ push: nav.push, replace: vi.fn() }),
   usePathname: () => "/admin/members/mbr_AAAAAAAAAAA1/activity",
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => new URLSearchParams(nav.query),
 }));
 
 const emailRow = (over: Partial<ActivityFeedRow> = {}): ActivityFeedRow => ({
@@ -182,3 +183,24 @@ describe("ActivityFeedTable, limited (a community manager)", () => {
   });
 });
 
+
+describe("ActivityFeedTable paging, with a date range", () => {
+  const PATH = "/admin/members/mbr_AAAAAAAAAAA1/activity";
+  const renderPaged = (page: number) =>
+    render(<ActivityFeedTable rows={[emailRow()]} total={120} page={page} pageSize={50} filters={MEMBER_DEFAULTS as never} hideAbout />);
+
+  it("keeps the range and the other filters in the link when going to the next page, and back to page 1 without a page", async () => {
+    nav.push.mockClear();
+    nav.query = "from=2026-11-03&to=2026-11-10&noslack=1";
+    const { unmount } = renderPaged(1);
+    await userEvent.click(screen.getByRole("button", { name: /Next/ }));
+    expect(nav.push).toHaveBeenLastCalledWith(`${PATH}?from=2026-11-03&to=2026-11-10&noslack=1&page=2`);
+    unmount();
+
+    nav.query = "from=2026-11-03&to=2026-11-10&noslack=1&page=2";
+    renderPaged(2);
+    await userEvent.click(screen.getByRole("button", { name: /Prev/ }));
+    expect(nav.push).toHaveBeenLastCalledWith(`${PATH}?from=2026-11-03&to=2026-11-10&noslack=1`);
+    nav.query = "";
+  });
+});

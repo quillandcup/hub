@@ -21,7 +21,9 @@ vi.mock("@/app/(admin)/admin/activity/ActivityFeedTable", () => ({
   default: ({ limited }: { limited?: boolean }) => <p>{limited ? "limited table" : "full table"}</p>,
 }));
 
-function renderTab(features: readonly StaffFeature[], total = 1) {
+const FILTERS = { view: "all", kinds: null, actorUserId: null, memberId: "mbr_AAAAAAAAAAA1", sudoOnly: false, hideSystem: false, hideSlack: false, days: 90 } as const;
+
+function renderTab(features: readonly StaffFeature[], total = 1, filters: Record<string, unknown> = FILTERS) {
   render(
     <MemberDetails
       initialTab="activity"
@@ -45,7 +47,7 @@ function renderTab(features: readonly StaffFeature[], total = 1) {
       slackPage={{ rows: [], total: 0, page: 1, pageSize: 50, kind: "all", channel: null, channels: [] }}
       slackSummary={{ total: 0, messages: 0, reactions: 0, channels: 0, last30Days: 0 }}
       activityFeed={{ rows: [], total, page: 1, pageSize: 50 }}
-      activityFilters={{ view: "all", kinds: null, actorUserId: null, memberId: "mbr_AAAAAAAAAAA1", sudoOnly: false, hideSystem: false, hideSlack: false, days: 90 }}
+      activityFilters={filters as never}
       currentUserId={null}
       noteEditMinutes={15}
       latestNote={null}
@@ -79,9 +81,43 @@ describe("MemberDetails Activity tab", () => {
     expect(screen.getByText("limited table")).toBeInTheDocument();
   });
 
-  it("says when nothing is in the window, in her tab too", () => {
+  it("says when nothing is in the range, and what to try, in her tab too", () => {
     renderTab(COMMUNITY_MANAGER_FEATURES, 0);
-    expect(screen.getByText(/Nothing in this window/)).toBeInTheDocument();
+    expect(screen.getByText("Nothing in this range. Try a longer one.")).toBeInTheDocument();
+    expect(screen.queryByText("limited table")).toBeNull();
+  });
+
+  describe("the range, in words", () => {
+    const range = { ...FILTERS, range: { from: "2026-11-03", to: "2026-11-17" }, rangeNotice: null };
+
+    it.each([
+      ["an admin", STAFF_FEATURES, "full table"],
+      ["a community manager", COMMUNITY_MANAGER_FEATURES, "limited table"],
+    ])("tells %s the total and the days, with a Clear that keeps the other filters", (_who, features, table) => {
+      renderTab(features, 12, { ...range, hideSlack: true });
+      expect(screen.getByText(/^12 events, (\d+ \w+( \d{4})?) to (\d+ \w+( \d{4})?)/)).toBeInTheDocument();
+      expect(screen.getByText(/3 Nov/)).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Clear" })).toHaveAttribute("href", "/admin/members/mbr_AAAAAAAAAAA1/activity?noslack=1");
+      expect(screen.getByText(table)).toBeInTheDocument();
+    });
+
+    it("says the usual window, with no Clear, when no range was asked for", () => {
+      renderTab(STAFF_FEATURES, 1);
+      expect(screen.getByText("1 event, last 90 days")).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Clear" })).toBeNull();
+    });
+
+    it("shows why a range in the URL was not used, and the usual window it fell back to", () => {
+      renderTab(COMMUNITY_MANAGER_FEATURES, 2, { ...FILTERS, range: null, rangeNotice: "The From day was after the To day, so the usual range is shown." });
+      expect(screen.getByRole("status")).toHaveTextContent("The From day was after the To day");
+      expect(screen.getByText("2 events, last 90 days")).toBeInTheDocument();
+    });
+
+    it("sends an admin to the central log with its longest window while a custom range or all time is on", () => {
+      renderTab(STAFF_FEATURES, 12, range);
+      expect(screen.getByRole("link", { name: "Open in the central log" })).toHaveAttribute("href", expect.stringContaining("days=365"));
+      expect(screen.getByRole("link", { name: "Open in the central log" })).not.toHaveAttribute("href", expect.stringContaining("from="));
+    });
   });
 
   it("shows neither the tab nor its content to a role without either feature, even when the route opened on it", () => {
