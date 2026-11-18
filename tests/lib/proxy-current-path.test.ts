@@ -81,16 +81,18 @@ describe("the current address handed to Server Components", () => {
   });
 });
 
-describe("the script and style policy (experiment while paused)", () => {
-  it("gives Next the nonce policy as the request's report-only header and sends only the enforcing policy to the browser", async () => {
-    const res = await proxy(new NextRequest("http://localhost:3000/dashboard"));
-    const nonce = forwarded(res, "x-nonce");
+describe("the script and style policy", () => {
+  it("hands Next the nonce policy and sends it report-only, with no enforcing policy header to hide it", async () => {
+    const a = await proxy(new NextRequest("http://localhost:3000/dashboard"));
+    const b = await proxy(new NextRequest("http://localhost:3000/dashboard"));
+    const nonce = forwarded(a, "x-nonce");
 
     expect(nonce).toBeTruthy();
-    expect(forwarded(res, "content-security-policy-report-only")).toContain(`'nonce-${nonce}'`);
-    expect(forwarded(res, "content-security-policy")).toBeNull();
-    expect(res.headers.get("content-security-policy")).toContain("img-src ");
-    expect(res.headers.get("content-security-policy")).not.toContain("script-src");
-    expect(res.headers.get("content-security-policy-report-only")).toBeNull();
+    expect(nonce).not.toBe(forwarded(b, "x-nonce"));
+    expect(forwarded(a, "content-security-policy-report-only")).toContain(`'nonce-${nonce}'`);
+    expect(a.headers.get("content-security-policy-report-only")).toContain(`'nonce-${nonce}'`);
+    // Next reads `content-security-policy` first: neither the request nor the response may carry one from here.
+    expect(forwarded(a, "content-security-policy")).toBeNull();
+    expect(a.headers.get("content-security-policy")).toBeNull();
   });
 });

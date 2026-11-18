@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import appConfig from "../../app.config";
-import { buildCsp, CSP_HEADER, SECURITY_HEADERS, describeCspRequestHeaders, generateNonce, scriptStyleCsp, sentryReportUri } from "@/lib/csp";
+import { buildCsp, CSP_HEADER, SECURITY_HEADERS, buildMetaCsp, generateNonce, scriptStyleCsp, sentryReportUri } from "@/lib/csp";
 
 const DSN = "https://publickey123@o123456.ingest.de.sentry.io/4510000000";
 
@@ -120,13 +120,17 @@ describe("scriptStyleCsp", () => {
   });
 });
 
-describe("describeCspRequestHeaders (temporary diagnostic)", () => {
-  it("shows the policy headers a request holds, without nonce values", () => {
-    const headers = new Headers({ "content-security-policy": "script-src 'self' 'nonce-SECRET' 'strict-dynamic'", "x-nonce": "SECRET" });
-    const seen = JSON.parse(describeCspRequestHeaders(headers));
-    expect(seen.csp).toBe("script-src 'self' 'nonce-…' 'strict-dynamic'");
-    expect(seen.reportOnly).toBeNull();
-    expect(seen.nonceHeader).toBe(true);
-    expect(describeCspRequestHeaders(headers)).not.toContain("SECRET");
+describe("buildMetaCsp", () => {
+  const meta = buildMetaCsp({ supabaseUrl: "https://project.supabase.co/", imageHosts: appConfig.csp.imageHosts, sentryDsn: DSN });
+
+  it("keeps the picture, plugin, base and form directives", () => {
+    for (const part of ["img-src ", "object-src 'none'", "base-uri 'self'", "form-action 'self'"]) expect(meta).toContain(part);
+    expect(meta).toContain("https://project.supabase.co");
+  });
+
+  it("leaves out what a meta tag cannot carry", () => {
+    expect(meta).not.toContain("frame-ancestors");
+    expect(meta).not.toContain("report-uri");
+    expect(meta).not.toMatch(/script-src/);
   });
 });

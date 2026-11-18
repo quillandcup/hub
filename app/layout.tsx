@@ -17,7 +17,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { isAnalyticsOptedOut } from "@/lib/analytics/opt-out";
 import { initialUserIdCommand } from "@/lib/analytics-identity";
 import { analyticsUserId } from "@/lib/analytics-user";
-import { NONCE_HEADER, describeCspRequestHeaders } from "@/lib/csp";
+import { NONCE_HEADER, buildMetaCsp } from "@/lib/csp";
 import { countryNeedsConsent } from "@/lib/gdpr-countries";
 import { eventsNeedConsent as eventsNeedConsentFor } from "@/lib/analytics/consent";
 import { DEFAULT_TITLE, TITLE_TEMPLATE } from "@/lib/page-title";
@@ -83,7 +83,14 @@ export default async function RootLayout({
 
   return (
     <html lang="en" className={displayFont.variable} suppressHydrationWarning>
-      <body className="antialiased" data-csp-seen={describeCspRequestHeaders(headersList)}>
+      <head>
+        {/* The enforcing policy for pictures, plugins, base tag and forms (lib/csp.ts, buildMetaCsp). */}
+        <meta
+          httpEquiv="Content-Security-Policy"
+          content={buildMetaCsp({ supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL, imageHosts: appConfig.csp.imageHosts })}
+        />
+      </head>
+      <body className="antialiased">
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
