@@ -1,6 +1,6 @@
 "use client";
 
-import { cloneElement, useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type FocusEvent, type PointerEvent, type ReactElement, type ReactNode } from "react";
+import { cloneElement, useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type FocusEvent, type MouseEvent, type PointerEvent, type ReactElement, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 /**
@@ -13,6 +13,13 @@ import { createPortal } from "react-dom";
  *   the tip is a description, linked to the control with `aria-describedby` while it is shown.
  * - Shows on hover only where there is a hover (`(hover: hover)`, checked when the pointer arrives) and never for a
  *   touch pointer, so a tap never leaves one stuck; shows on keyboard focus (`:focus-visible`), not on a tap or click.
+ * - On touch (and pen) it shows on a deliberate long press: about half a second without moving more than a few pixels.
+ *   Moving, lifting early, scrolling or a cancelled pointer cancel it. A long press that shows the tip swallows the click
+ *   that follows (long-pressing a star must not toggle it) and the context menu; the control gets `user-select: none` and
+ *   `-webkit-touch-callout: none` where there is no hover so the phone shows no callout of its own. The tip stays a couple
+ *   of seconds, or goes on the next touch elsewhere, on Escape, or when a drag starts.
+ * - `touchContent` is the text for the long press when it should differ from the hover and focus text (keyboard
+ *   instructions mean nothing on a phone).
  * - A short delay before it shows on hover, so moving across a list doesn't flash one per row.
  * - Escape hides it; it stays up while the pointer is over the tip itself (WCAG 1.4.13).
  * - Drawn on `<body>` (fixed, placed from the control's rectangle, kept inside the window, flipped above when there is
@@ -24,6 +31,9 @@ import { createPortal } from "react-dom";
  */
 
 const SHOW_DELAY_MS = 400;
+const LONG_PRESS_MS = 500;
+const LONG_PRESS_SLOP_PX = 8;
+const TOUCH_STAY_MS = 2500;
 const HIDE_DELAY_MS = 120;
 const GAP = 6;
 const EDGE = 8;
@@ -46,6 +56,11 @@ function canHover(): boolean {
   return typeof window.matchMedia !== "function" || window.matchMedia("(hover: hover)").matches;
 }
 
+/** A finger or a pen: the pointers that long-press. A mouse hovers. */
+function isTouchLike(pointerType: string): boolean {
+  return pointerType === "touch" || pointerType === "pen";
+}
+
 /** True for keyboard-style focus. A click or tap focuses a button too, but `:focus-visible` doesn't match then. */
 function focusIsVisible(target: Element): boolean {
   try {
@@ -60,17 +75,46 @@ type Handlers = {
   onPointerEnter?: (e: PointerEvent<HTMLElement>) => void;
   onPointerLeave?: (e: PointerEvent<HTMLElement>) => void;
   onPointerDown?: (e: PointerEvent<HTMLElement>) => void;
+  onPointerMove?: (e: PointerEvent<HTMLElement>) => void;
+  onPointerUp?: (e: PointerEvent<HTMLElement>) => void;
+  onPointerCancel?: (e: PointerEvent<HTMLElement>) => void;
+  onClickCapture?: (e: MouseEvent<HTMLElement>) => void;
+  onContextMenu?: (e: MouseEvent<HTMLElement>) => void;
+  className?: string;
   onFocus?: (e: FocusEvent<HTMLElement>) => void;
   onBlur?: (e: FocusEvent<HTMLElement>) => void;
 };
 
-export default function Tooltip({ content, children, delayMs = SHOW_DELAY_MS }: { content: ReactNode; children: ReactElement<Handlers>; delayMs?: number }) {
+export default function Tooltip({ content, touchContent, children, delayMs = SHOW_DELAY_MS }: { content: ReactNode; touchContent?: ReactNode; children: ReactElement<Handlers>; delayMs?: number }) {
   const tipId = useId();
   const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   // A change of mind that takes effect after a delay (show after the hover pause, hide after the grace period). Held as
   // state so that a newer one replaces the older: the effect's cleanup is what cancels the pending timer.
   const [pending, setPending] = useState<{ show: boolean; ms: number } | null>(null);
+  // A touch or pen press in progress: where it started, and whether the long-press timer has fired (the tip is up).
+  const [touch, setTouch] = useState<{ x: number; y: number; fired: boolean } | null>(null);
+  const [via, setVia] = useState<"hover" | "touch">("hover");
+  // Set when a long press showed the tip: the click that follows the lift is swallowed. Cleared by the next press.
+  const [swallowClick, setSwallowClick] = useState(false);
+  const waiting = touch !== null && !touch.fired;
+
+  useEffect(() => {
+    if (!waiting) return;
+    const id = setTimeout(() => {
+      setTouch((t) => (t ? { ...t, fired: true } : t));
+      setVia("touch");
+      setSwallowClick(true);
+      setOpen(true);
+      setPending({ show: false, ms: TOUCH_STAY_MS });
+    }, LONG_PRESS_MS);
+    const cancel = () => setTouch(null);
+    window.addEventListener("scroll", cancel, true);
+    return () => {
+      clearTimeout(id);
+      window.removeEventListener("scroll", cancel, true);
+    };
+  }, [waiting]);
 
   useEffect(() => {
     if (!pending) return;
@@ -100,29 +144,73 @@ export default function Tooltip({ content, children, delayMs = SHOW_DELAY_MS }: 
 
   const own = children.props;
   const describedBy = [own["aria-describedby"], open ? tipId : null].filter(Boolean).join(" ") || undefined;
+  const shown = via === "touch" && touchContent !== undefined ? touchContent : content;
+  // Where there is no hover, the phone's own callout and text selection would fight the long press.
+  const className = [own.className, "[@media(hover:none)]:select-none [@media(hover:none)]:[-webkit-touch-callout:none]"].filter(Boolean).join(" ");
 
   return (
     <>
       {cloneElement(children, {
         "aria-describedby": describedBy,
+        className,
         onPointerEnter: (e) => {
           own.onPointerEnter?.(e);
-          if (e.pointerType === "touch" || !canHover()) return;
+          if (isTouchLike(e.pointerType) || !canHover()) return;
+          setVia("hover");
           setAnchor(e.currentTarget);
           showAfter(delayMs);
         },
         onPointerLeave: (e) => {
           own.onPointerLeave?.(e);
-          hideAfter(HIDE_DELAY_MS);
+          if (!isTouchLike(e.pointerType)) hideAfter(HIDE_DELAY_MS);
         },
         onPointerDown: (e) => {
           own.onPointerDown?.(e);
-          // A press is not a hover: a click on the control, or a tap, dismisses it.
+          setSwallowClick(false);
+          if (!isTouchLike(e.pointerType)) {
+            // A press is not a hover: a click on the control dismisses it.
+            hideAfter(0);
+            return;
+          }
+          // Touch or pen: a long press shows it. A plain tap never does.
           hideAfter(0);
+          setAnchor(e.currentTarget);
+          setTouch({ x: e.clientX, y: e.clientY, fired: false });
+        },
+        onPointerMove: (e) => {
+          own.onPointerMove?.(e);
+          if (!touch) return;
+          if (Math.hypot(e.clientX - touch.x, e.clientY - touch.y) > LONG_PRESS_SLOP_PX) {
+            // Moving is a drag or a scroll, not a long press: cancel it, and take the tip down if it is already up.
+            if (touch.fired) hideAfter(0);
+            setTouch(null);
+          }
+        },
+        onPointerUp: (e) => {
+          own.onPointerUp?.(e);
+          setTouch(null);
+        },
+        onPointerCancel: (e) => {
+          own.onPointerCancel?.(e);
+          setTouch(null);
+          if (via === "touch") hideAfter(0);
+        },
+        onClickCapture: (e) => {
+          own.onClickCapture?.(e);
+          if (swallowClick) {
+            e.preventDefault();
+            e.stopPropagation();
+            setSwallowClick(false);
+          }
+        },
+        onContextMenu: (e) => {
+          own.onContextMenu?.(e);
+          if (touch || swallowClick) e.preventDefault();
         },
         onFocus: (e) => {
           own.onFocus?.(e);
           if (!focusIsVisible(e.currentTarget)) return;
+          setVia("hover");
           setAnchor(e.currentTarget);
           showAfter(0);
         },
@@ -132,8 +220,8 @@ export default function Tooltip({ content, children, delayMs = SHOW_DELAY_MS }: 
         },
       })}
       {open && anchor && (
-        <Bubble id={tipId} anchor={anchor} onEnter={clear} onLeave={() => hideAfter(HIDE_DELAY_MS)} onDismiss={dismiss}>
-          {content}
+        <Bubble id={tipId} anchor={anchor} touchOnly={via === "touch"} onEnter={clear} onLeave={() => hideAfter(HIDE_DELAY_MS)} onDismiss={dismiss}>
+          {shown}
         </Bubble>
       )}
     </>
@@ -141,7 +229,7 @@ export default function Tooltip({ content, children, delayMs = SHOW_DELAY_MS }: 
 }
 
 /** The box itself, drawn on `<body>`. It exists only while shown, so its position starts empty each time. */
-function Bubble({ id, anchor, onEnter, onLeave, onDismiss, children }: { id: string; anchor: HTMLElement; onEnter: () => void; onLeave: () => void; onDismiss: () => void; children: ReactNode }) {
+function Bubble({ id, anchor, touchOnly, onEnter, onLeave, onDismiss, children }: { id: string; anchor: HTMLElement; touchOnly: boolean; onEnter: () => void; onLeave: () => void; onDismiss: () => void; children: ReactNode }) {
   const tipRef = useRef<HTMLSpanElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
 
@@ -176,6 +264,16 @@ function Bubble({ id, anchor, onEnter, onLeave, onDismiss, children }: { id: str
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [onDismiss]);
+
+  // A touch anywhere else puts a long-press tip away.
+  useEffect(() => {
+    if (!touchOnly) return;
+    const onDown = (e: Event) => {
+      if (!anchor.contains(e.target as Node)) onDismiss();
+    };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [touchOnly, anchor, onDismiss]);
 
   return createPortal(
     <span

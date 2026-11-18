@@ -171,7 +171,7 @@ export function SortableRow({
 
   const handle =
     count > 1 ? (
-      <Tooltip content={HANDLE_TOOLTIP}>
+      <Tooltip content={HANDLE_TOOLTIP} touchContent="Drag to reorder">
         <button
           type="button"
           ref={setActivatorNodeRef}

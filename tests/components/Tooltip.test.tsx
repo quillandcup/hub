@@ -22,7 +22,17 @@ function focusVisible(visible: boolean) {
   });
 }
 
+// jsdom has no PointerEvent: a MouseEvent that carries the pointer type, so the touch paths can be driven.
+class FakePointerEvent extends MouseEvent {
+  pointerType: string;
+  constructor(type: string, init: MouseEventInit & { pointerType?: string } = {}) {
+    super(type, init);
+    this.pointerType = init.pointerType ?? "mouse";
+  }
+}
+
 beforeEach(() => {
+  (window as unknown as { PointerEvent: unknown }).PointerEvent = FakePointerEvent;
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   hoverCapable(true);
 });
@@ -252,5 +262,112 @@ describe("placeTip", () => {
 
   it("stays below when there is no room above either", () => {
     expect(placeTip({ left: 100, right: 140, top: 10, bottom: 590 }, { width: 200, height: 40 }, { width: 400, height: 600 }).top).toBe(596);
+  });
+});
+
+describe("Tooltip long press (touch)", () => {
+  const touch = { pointerType: "touch" };
+  const down = (el: Element, x = 10, y = 10) => fireEvent.pointerDown(el, { ...touch, clientX: x, clientY: y });
+
+  function setup(onClick = vi.fn()) {
+    render(
+      <Tooltip content="Full hover text" touchContent="Short touch text">
+        <button aria-label="Pin" onClick={onClick}>
+          p
+        </button>
+      </Tooltip>,
+    );
+    return onClick;
+  }
+
+  it("shows after a long press, with the touch text, and a plain tap shows nothing", () => {
+    setup();
+    down(button());
+    wait(300);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    fireEvent.pointerUp(button(), touch);
+    wait(1000);
+    expect(screen.queryByRole("tooltip")).toBeNull(); // lifted before the timer: a tap
+    down(button());
+    wait(500);
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Short touch text");
+  });
+
+  it("is cancelled by movement beyond the slop, by a cancelled pointer and by scrolling; small jitter is fine", () => {
+    setup();
+    down(button());
+    fireEvent.pointerMove(button(), { ...touch, clientX: 30, clientY: 10 });
+    wait(600);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    down(button());
+    fireEvent.pointerCancel(button(), touch);
+    wait(600);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    down(button());
+    act(() => void window.dispatchEvent(new Event("scroll")));
+    wait(600);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    down(button());
+    fireEvent.pointerMove(button(), { ...touch, clientX: 13, clientY: 12 });
+    wait(500);
+    expect(screen.getByRole("tooltip")).toBeInTheDocument();
+  });
+
+  it("swallows the click that follows a long press, but not the next tap", () => {
+    const onClick = setup();
+    down(button());
+    wait(500);
+    fireEvent.pointerUp(button(), touch);
+    fireEvent.click(button());
+    expect(onClick).not.toHaveBeenCalled();
+    down(button());
+    fireEvent.pointerUp(button(), touch);
+    fireEvent.click(button());
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("a tap clicks through with no tooltip", () => {
+    const onClick = setup();
+    down(button());
+    fireEvent.pointerUp(button(), touch);
+    fireEvent.click(button());
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("prevents the context menu during a press, and stays after the lift for a couple of seconds, then goes", () => {
+    setup();
+    down(button());
+    const notPrevented = fireEvent.contextMenu(button());
+    expect(notPrevented).toBe(false); // preventDefault was called
+    wait(500);
+    fireEvent.pointerUp(button(), touch);
+    wait(2000);
+    expect(screen.getByRole("tooltip")).toBeInTheDocument();
+    wait(600);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("goes on a touch elsewhere, and when a drag starts after the tip is up", () => {
+    setup();
+    down(button());
+    wait(500);
+    fireEvent.pointerDown(document.body, touch);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    down(button());
+    wait(500);
+    expect(screen.getByRole("tooltip")).toBeInTheDocument();
+    fireEvent.pointerMove(button(), { ...touch, clientX: 60, clientY: 10 }); // the handle's drag begins
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("hover keeps its text, and the control gets no-callout classes only where there is no hover (class-gated)", () => {
+    setup();
+    expect(button().className).toContain("[@media(hover:none)]:select-none");
+    expect(button().className).toContain("[@media(hover:none)]:[-webkit-touch-callout:none]");
+    expect(button().className).not.toMatch(/(^|\s)select-none/);
+    hover(button());
+    wait(400);
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Full hover text");
   });
 });
