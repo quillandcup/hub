@@ -4,6 +4,7 @@ paths:
   - "github-repo-config.yml"
   - "sentry-config.yml"
   - "slack-app-manifest.yml"
+  - "slack-alerts-app-manifest.yml"
   - "scripts/slack-manifest.ts"
   - "scripts/sentry-config.ts"
   - ".github/workflows/**"
@@ -31,4 +32,4 @@ paths:
 
 ### Slack app manifest as code
 
-`slack-app-manifest.yml` is the source of truth for the Slack app (Billie Bot). On a push to main that changes it or `scripts/slack-manifest.ts` (or a manual `workflow_dispatch` run), after the production deploy (the manifest points at app routes, so they must be live first), the `push-slack-manifest` job runs `scripts/slack-manifest.ts push`, which **replaces** the live app's configuration. Anything set in the Slack dashboard but missing from the manifest is removed, so change the manifest, not the dashboard. Before merging a manifest change, run `pnpm slack:manifest:diff` (read-only) and check it shows only what you intend. `SLACK_CONFIG_REFRESH_TOKEN` is rewritten by CI on every run and is deliberately not in `env-vars.config.ts`. Setup, token rotation and recovery: `docs/SLACK_MANIFEST.md`.
+`slack-app-manifest.yml` is the source of truth for the Slack app (Billie Bot); `slack-alerts-app-manifest.yml` for the second, minimal incoming-webhook app that posts to #hub-alerts (pushed by the same job and one token rotation once the `SLACK_ALERTS_APP_ID` variable is set; `pnpm slack:alerts:create` makes it once). On a push to main that changes it or `scripts/slack-manifest.ts` (or a manual `workflow_dispatch` run), after the production deploy (the manifest points at app routes, so they must be live first), the `push-slack-manifest` job runs `scripts/slack-manifest.ts push`, which **replaces** the live app's configuration. Anything set in the Slack dashboard but missing from the manifest is removed, so change the manifest, not the dashboard. Before merging a manifest change, run `pnpm slack:manifest:diff` (read-only) and check it shows only what you intend. `SLACK_CONFIG_REFRESH_TOKEN` is rewritten by CI on every run and is deliberately not in `env-vars.config.ts`. Setup, token rotation and recovery: `docs/SLACK_MANIFEST.md`.

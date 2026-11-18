@@ -1,0 +1,23 @@
+# The second, minimal Slack app: an incoming webhook that posts to one channel (#hub-alerts), used by
+# .github/workflows/audit.yml through the SLACK_ALERTS_WEBHOOK_URL secret. It is its own app on purpose:
+# a manifest push replaces the whole live configuration, and this app must stay least-privilege (it cannot
+# read or post anywhere else, receives no events and has no request URLs, slash commands or DM scopes).
+# Managed by scripts/slack-manifest.ts (app "alerts"); see docs/SLACK_MANIFEST.md.
+display_information:
+  name: Hub alerts webhook
+  description: Posts Hedgie Hub alerts (such as the weekly dependency audit) to one channel through an incoming webhook
+  background_color: "#4A154B"
+features:
+  bot_user:
+    display_name: Hub alerts
+    always_online: false
+oauth_config:
+  scopes:
+    bot:
+      - incoming-webhook
+settings:
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false
+  app_level_token_rotation_enabled: false
+  is_mcp_enabled: false
