@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import appConfig from "../../app.config";
-import { buildCsp, CSP_HEADER, SECURITY_HEADERS, generateNonce, scriptStyleCsp, sentryReportUri } from "@/lib/csp";
+import { buildCsp, CSP_HEADER, SECURITY_HEADERS, describeCspRequestHeaders, generateNonce, scriptStyleCsp, sentryReportUri } from "@/lib/csp";
 
 const DSN = "https://publickey123@o123456.ingest.de.sentry.io/4510000000";
 
@@ -99,5 +99,16 @@ describe("scriptStyleCsp", () => {
   it("makes a new nonce each time, in a form Next accepts", () => {
     expect(generateNonce()).not.toBe(generateNonce());
     expect(nonce).toMatch(/^[A-Za-z0-9+/_-]+={0,2}$/);
+  });
+});
+
+describe("describeCspRequestHeaders (temporary diagnostic)", () => {
+  it("shows the policy headers a request holds, without nonce values", () => {
+    const headers = new Headers({ "content-security-policy": "script-src 'self' 'nonce-SECRET' 'strict-dynamic'", "x-nonce": "SECRET" });
+    const seen = JSON.parse(describeCspRequestHeaders(headers));
+    expect(seen.csp).toBe("script-src 'self' 'nonce-…' 'strict-dynamic'");
+    expect(seen.reportOnly).toBeNull();
+    expect(seen.nonceHeader).toBe(true);
+    expect(describeCspRequestHeaders(headers)).not.toContain("SECRET");
   });
 });
