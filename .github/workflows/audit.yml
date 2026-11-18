@@ -2,8 +2,8 @@ name: Dependency audit
 
 # Known advisories in the production dependencies (`pnpm audit --prod --audit-level=high`). Not a required check
 # and never blocks a merge: an advisory with no patched version, or one in a transitive package we can't bump, would
-# stop every PR for something unrelated to it. The job is informational (continue-on-error), so a finding shows as a
-# warning on the run, and the weekly schedule is how it gets noticed even when no PR touches the lockfile.
+# stop every PR for something unrelated to it. The step is informational (continue-on-error), so the check stays green
+# and a finding shows in the step's log, and the weekly schedule is how it gets noticed even when no PR touches the lockfile.
 # Dependabot (weekly) is what raises the fix PRs; the open findings are listed in docs/TODO.md,
 # "Threat model follow-ups". Nothing here uses a secret.
 on:
@@ -24,7 +24,6 @@ jobs:
     name: Audit production dependencies
     runs-on: ubuntu-24.04
     timeout-minutes: 5
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v7
 
@@ -34,5 +33,8 @@ jobs:
         with:
           node-version-file: ".nvmrc"
 
+      # Step-level continue-on-error: the job (and its check) stays green, because a job-level one still shows
+      # a red check on the PR. The findings are in this step's log, which shows a failed step.
       - name: Audit
+        continue-on-error: true
         run: pnpm audit --prod --audit-level=high
