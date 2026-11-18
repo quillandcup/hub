@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import type { ComplianceStatus } from "@/lib/compliance";
-import { StatusLegend, TrustAside, TrustCard, TrustSection } from "@/components/trust/Trust";
+import { RichText, StatusLegend, TrustAside, TrustCard, TrustSection } from "@/components/trust/Trust";
 
 /**
  * The staff side of a trust page (`/admin/security`, `/admin/compliance`, `/admin/privacy`): the same rows
@@ -72,7 +72,7 @@ export function OpenSummary({ rows }: { rows: readonly StaffRow[] }) {
               <a href={`#${row.id}`} className="underline">
                 {row.title}
               </a>
-              : {text}
+              : <RichText text={text} />
             </li>
           ))}
         </ul>
@@ -93,18 +93,22 @@ export function StatusKey({ statuses }: { statuses: readonly ComplianceStatus[] 
 export function StaffRows({ id, title, intro, rows }: { id: string; title: string; intro?: string; rows: readonly StaffRow[] }) {
   return (
     <TrustSection id={id} title={title}>
-      {intro ? <p className="text-sm">{intro}</p> : null}
+      {intro ? (
+        <p className="text-sm">
+          <RichText text={intro} />
+        </p>
+      ) : null}
       <ul className="space-y-3">
         {rows.map((row) => (
           <TrustCard key={row.id} id={row.id} title={row.title} status={row.status} about={row.about}>
             <p>
               <span className={LABEL}>Members read: </span>
-              {row.member}
+              <RichText text={row.member} />
             </p>
             {row.how ? (
               <p>
                 <span className={LABEL}>How it works: </span>
-                {row.how}
+                <RichText text={row.how} />
               </p>
             ) : null}
             <p>
@@ -125,7 +129,9 @@ export function StaffRows({ id, title, intro, rows }: { id: string; title: strin
                 <p className={LABEL}>Still open</p>
                 <ul className="list-disc pl-5 space-y-1">
                   {row.open.map((text) => (
-                    <li key={text}>{text}</li>
+                    <li key={text}>
+                      <RichText text={text} />
+                    </li>
                   ))}
                 </ul>
               </div>

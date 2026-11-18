@@ -7,7 +7,7 @@
  * provider's, and the row says so. Evidence for each row is in the `evidence` note (not shown to members).
  */
 
-export const COMPLIANCE_EFFECTIVE = "2026-11-17";
+export const COMPLIANCE_EFFECTIVE = "2026-11-18";
 
 export const COMPLIANCE_STATUSES = {
   inPlace: "In place",
@@ -111,8 +111,8 @@ export const COMPLIANCE_GROUPS: readonly ComplianceGroup[] = [
         status: "inPlace",
         detail:
           "Notification emails, the ones you choose in Settings, are off until you turn them on. Each has an unsubscribe link for that kind of email, and mail apps that support it show their own one-click Unsubscribe button. Each also shows our mailing address at the bottom. Emails about your account, such as a sign-in link or confirming a new address, are sent because of something you did, and don't carry the unsubscribe link.",
-        evidence: ["lib/email-unsubscribe.ts", "lib/channels/email.ts", "emails/notifications/index.tsx (postal address)", "lib/config.ts (postalAddress)", "tests/lib/notification-emails.test.ts", "app/unsubscribe"],
-        checked: "2026-11-17",
+        evidence: ["lib/email-unsubscribe.ts", "lib/channels/email.ts", "emails/notifications/index.tsx (postal address)", "lib/config.ts (postalAddress)", "tests/lib/notification-emails.test.ts", "app/unsubscribe", "app/api/email/unsubscribe/route.ts"],
+        checked: "2026-11-18",
         open: [],
       },
     ],

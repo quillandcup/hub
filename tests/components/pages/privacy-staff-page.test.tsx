@@ -13,6 +13,7 @@ const requireAdminPage = vi.fn<() => Promise<unknown>>();
 vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: () => requireAdminPage() }));
 
 import AdminPrivacyPage from "@/app/(admin)/admin/privacy/page";
+import { containsText } from "@/tests/helpers/contains-text";
 
 const ROWS = PRIVACY_GROUPS.flatMap((g) => g.rows);
 
@@ -30,7 +31,7 @@ describe("/admin/privacy (staff)", () => {
 
   it("links to the public Privacy page and has a section for each group, with only its own rows", async () => {
     await renderServerPage(AdminPrivacyPage, {});
-    expect(screen.getByRole("link", { name: "Privacy page" })).toHaveAttribute("href", "/privacy");
+    expect(screen.getAllByRole("link", { name: "Privacy page" }).map((a) => a.getAttribute("href"))).toContain("/privacy");
     for (const group of PRIVACY_GROUPS) {
       const section = document.getElementById(group.id) as HTMLElement;
       expect(within(section).getByRole("heading", { level: 2, name: group.title })).toBeInTheDocument();
@@ -47,11 +48,11 @@ describe("/admin/privacy (staff)", () => {
       const card = document.getElementById(row.id) as HTMLElement;
       expect(card).not.toBeNull();
       expect(within(card).getByText(COMPLIANCE_STATUSES[row.status])).toBeInTheDocument();
-      expect(within(card).getByText(row.member)).toBeInTheDocument();
-      expect(within(card).getByText(row.how)).toBeInTheDocument();
+      expect(within(card).getByText(containsText(row.member))).toBeInTheDocument();
+      expect(within(card).getByText(containsText(row.how))).toBeInTheDocument();
       for (const where of row.evidence) expect(within(card).getByText(where)).toBeInTheDocument();
       expect(within(card).getByText(row.checked)).toBeInTheDocument();
-      for (const text of row.open) expect(within(card).getByText(text)).toBeInTheDocument();
+      for (const text of row.open) expect(within(card).getByText(containsText(text))).toBeInTheDocument();
     }
   });
 
@@ -61,7 +62,7 @@ describe("/admin/privacy (staff)", () => {
     expect(total).toBeGreaterThan(0);
     const box = screen.getByRole("heading", { level: 2, name: `Still open (${total})` }).closest("aside") as HTMLElement;
     const first = ROWS.find((r) => r.open.length > 0)!;
-    const entry = within(box).getByText(first.open[0], { exact: false }).closest("li") as HTMLElement;
+    const entry = within(box).getByText(containsText(first.open[0])).closest("li") as HTMLElement;
     expect(within(entry).getByRole("link", { name: first.title })).toHaveAttribute("href", `#${first.id}`);
   });
 });

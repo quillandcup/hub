@@ -15,6 +15,7 @@ vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) 
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
 
 import CompliancePage from "@/app/compliance/page";
+import { containsText } from "@/tests/helpers/contains-text";
 
 describe("/compliance", () => {
   beforeEach(() => {
@@ -47,7 +48,7 @@ describe("/compliance", () => {
         const card = scope.getByRole("heading", { level: 3, name: item.name }).closest("li");
         expect(card).not.toBeNull();
         expect(within(card as HTMLElement).getByText(COMPLIANCE_STATUSES[item.status])).toBeInTheDocument();
-        expect(within(card as HTMLElement).getByText(item.detail)).toBeInTheDocument();
+        expect(within(card as HTMLElement).getByText(containsText(item.detail))).toBeInTheDocument();
       }
     }
   });
@@ -60,6 +61,17 @@ describe("/compliance", () => {
     expect(within(card).getByText(/never reach the Hub/)).toBeInTheDocument();
   });
 
+  it("links every mention of the Privacy page: a group's intro, a row and the services table", async () => {
+    signInAs(null);
+    await renderServerPage(CompliancePage, {});
+    const privacy = document.getElementById("privacy") as HTMLElement;
+    expect(within(privacy).getAllByRole("link", { name: "Privacy page" })[0]).toHaveAttribute("href", "/privacy");
+    const providers = within(document.getElementById("providers") as HTMLElement);
+    const covers = COMPLIANCE_PROVIDERS.find((p) => /Privacy page/.test(String(p.covers)))!;
+    const row = providers.getByText(containsText(String(covers.covers))).closest("tr") as HTMLElement;
+    expect(within(row).getByRole("link", { name: "Privacy page" })).toHaveAttribute("href", "/privacy");
+  });
+
   it("describes the services by what they do, never by name, and links to the privacy page and the support address", async () => {
     signInAs(null);
     await renderServerPage(CompliancePage, {});
@@ -69,7 +81,7 @@ describe("/compliance", () => {
       expect(providers.queryByText(p.name)).not.toBeInTheDocument();
     }
     expect(providers.queryByRole("columnheader", { name: "Service" })).not.toBeInTheDocument();
-    expect(providers.getByRole("link", { name: "Privacy page" })).toHaveAttribute("href", "/privacy#services");
+    expect(providers.getAllByRole("link", { name: "Privacy page" }).map((a) => a.getAttribute("href"))).toContain("/privacy#services");
     expect(screen.getByRole("link", { name: SUPPORT_EMAIL })).toHaveAttribute("href", `mailto:${SUPPORT_EMAIL}`);
   });
 });

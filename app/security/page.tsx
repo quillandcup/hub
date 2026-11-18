@@ -3,7 +3,7 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { SUPPORT_EMAIL } from "@/lib/config";
 import { SECURITY_EFFECTIVE, SECURITY_GROUPS, SECURITY_STATUSES } from "@/lib/security";
-import { StatusLegend, TrustAside, TrustCard, TrustNav, TrustSection } from "@/components/trust/Trust";
+import { RichText, StatusLegend, TrustAside, TrustCard, TrustNav, TrustSection } from "@/components/trust/Trust";
 
 export const metadata: Metadata = {
   title: "Security",
@@ -53,11 +53,15 @@ export default async function SecurityPage() {
 
         {SECURITY_GROUPS.map((group) => (
           <TrustSection key={group.id} id={group.id} title={group.title}>
-            <p className="text-sm">{group.intro}</p>
+            <p className="text-sm">
+              <RichText text={group.intro} />
+            </p>
             <ul className="space-y-3">
               {group.items.map((item) => (
                 <TrustCard key={item.id} title={item.title} status={item.status}>
-                  <p>{item.member}</p>
+                  <p>
+                    <RichText text={item.member} />
+                  </p>
                 </TrustCard>
               ))}
             </ul>
