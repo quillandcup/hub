@@ -159,7 +159,7 @@ export const PRIVACY_GROUPS: readonly PrivacyGroup[] = ([
         title: "Staff read chat content only where the database allows it",
         status: "inPlace",
         reads: ["chat-public", "chat-private", "chat-restricted", "chat-group", "chat-dm", "chat-planned", "chat-metadata"],
-        how: "Enforced by row-level security on the message contents table (`chat_can_read_content`) and a separate, wider rule for metadata (`chat_can_see_channel`), not by the page. Files follow the content rule.",
+        how: "Enforced by row-level security on the message contents table (chat_can_read_content) and a separate, wider rule for metadata (chat_can_see_channel), not by the page. Files follow the content rule.",
         evidence: [
           "supabase/migrations/20261009000000_slack_content_privacy.sql",
           "supabase/migrations/20261010000000_chat_mirror.sql",
