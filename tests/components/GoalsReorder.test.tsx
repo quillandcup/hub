@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 /**
  * A member puts the goals of a project in their own order on the project page: a grip on each goal (drag it, or Space
- * and the arrow keys) and Move up / Move down buttons. jsdom has no layout or real touch, so the drag itself is driven
- * through the `onDragEnd` the list hands to dnd-kit, and the buttons are clicked.
+ * and the arrow keys) and a "Move to position" menu. jsdom has no layout or real touch, so the drag itself is driven
+ * through the `onDragEnd` the list hands to dnd-kit, and the menu is clicked.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";

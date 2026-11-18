@@ -6,6 +6,7 @@ import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from "@dnd-kit/utilities";
 import ActionMenu, { type ActionMenuItem } from "@/components/ActionMenu";
 import Icon from "@/components/Icon";
+import { positionItems, positionsHeading } from "@/lib/reorder";
 
 /**
  * A member puts a list of their own things (projects, a project's goals) in the order they like. The pieces:
@@ -158,18 +159,12 @@ export function SortableRow({
   children: (controls: { handle: ReactNode; menu: ReactNode }) => ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id, disabled });
-  const positions: ActionMenuItem[] = Array.from({ length: count }, (_, i) => ({
-    key: `pos-${i + 1}`,
-    label: i === index ? `Position ${i + 1} (current)` : `Move to position ${i + 1}`,
-    disabled: i === index,
-    track: `${track}-move-to-position`,
-    onSelect: () => onMoveTo(i + 1),
-  }));
+  const positions = positionItems(count, index, onMoveTo, `${track}-move-to-position`);
   const menu =
     count > 1 ? (
       <ActionMenu
         label={`More actions for ${label}`}
-        heading={extraItems.length === 0 ? `Move to position (of ${count})` : undefined}
+        heading={extraItems.length === 0 ? positionsHeading(count) : undefined}
         items={[...extraItems, ...positions]}
         // 32px to look at, 32px wide; the invisible `before` stretches the touch area to 44px tall.
         triggerClassName="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-500 before:absolute before:inset-x-0 before:-inset-y-1.5 before:content-[''] hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"

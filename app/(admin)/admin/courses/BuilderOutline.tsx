@@ -9,7 +9,7 @@ import Icon, { type IconName } from "@/components/Icon";
 import type { ExplainedLesson, ExplainedModule } from "@/lib/courses/explain";
 import { moduleContents } from "@/lib/courses/hub-outline";
 import { lifecycleConfirm, lifecycleIcon, lifecycleLabel } from "@/lib/lifecycle-actions";
-import { moveBefore, moveBy } from "@/lib/reorder";
+import { moveBefore, moveToPosition, positionItems, positionsHeading } from "@/lib/reorder";
 import { statusChoices, statusLabel } from "@/lib/courses/status-choices";
 import { addCourseLesson, addCourseModule, deleteCourseItem, duplicateCourseItem, renameCourseItem, reorderCourseItems, setCourseItemStatus, type ItemKind, type OutlineResult } from "./outline-actions";
 
@@ -132,12 +132,16 @@ interface RowAction {
   quickOnly?: boolean;
 }
 
-function RowActions({ name, actions }: { name: string; actions: RowAction[] }) {
+function RowActions({ name, actions, sibling }: { name: string; actions: RowAction[]; sibling?: Sibling }) {
   const { editor, soon } = useOutline();
   const items: ActionMenuItem[] = actions.filter((a) => !a.quickOnly).map((a) => {
     const working = !!a.onClick || !!a.href;
     return { key: a.key, label: a.label, href: a.href, onSelect: a.onClick, disabled: !working || a.disabled || editor?.busy, hint: working ? undefined : soon, track: "admin-course-row-action" };
   });
+  // "Move to position", for people who can't drag: the same menu the writing lists have, among the row's siblings.
+  // A row alone in its list has nothing to move to, so it gets no menu (as in the writing lists).
+  const positions = movePositions(editor, sibling);
+  const narrowItems = positions.length > 0 ? [...items, ...positions.map((p, i) => (i === 0 ? { ...p, separatorBefore: true } : p))] : items;
   return (
     <>
       <span className={HOVER_ACTIONS}>
@@ -154,8 +158,13 @@ function RowActions({ name, actions }: { name: string; actions: RowAction[] }) {
           )}
       </span>
       <span className="@split:hidden">
-        <ActionMenu label={`Actions for ${name}`} items={items} />
+        <ActionMenu label={`Actions for ${name}`} items={narrowItems} />
       </span>
+      {positions.length > 0 && (
+        <span className="hidden @split:block">
+          <ActionMenu label={`Move ${name} to position`} heading={positionsHeading(positions.length)} items={positions} />
+        </span>
+      )}
     </>
   );
 }
@@ -219,15 +228,16 @@ function dropProps(editor: Editor | null, sibling?: Sibling) {
   };
 }
 
-/** Move up and Move down, for people who can't drag. */
-function moveActions(editor: Editor | null, sibling: Sibling | undefined, what: string): RowAction[] {
-  if (!editor || !sibling) return [];
-  const move = (delta: -1 | 1) => void editor.run(() => reorderCourseItems(editor.courseId, sibling.kind, sibling.parentId, moveBy(sibling.ids, sibling.id, delta)));
+/**
+ * The "Move to position" items for a row among its siblings (the same menu as the writing lists), for people who
+ * can't drag. Empty for an imported course, while searching, and for a row alone in its list. Choosing one sends the
+ * whole new order of the list, as a drop does.
+ */
+function movePositions(editor: Editor | null, sibling: Sibling | undefined): ActionMenuItem[] {
+  if (!editor || !sibling || sibling.ids.length < 2) return [];
   const index = sibling.ids.indexOf(sibling.id);
-  return [
-    { key: "up", label: `Move ${what} up`, icon: "up", onClick: () => move(-1), disabled: index <= 0 },
-    { key: "down", label: `Move ${what} down`, icon: "down", onClick: () => move(1), disabled: index === sibling.ids.length - 1 },
-  ];
+  const move = (position: number) => void editor.run(() => reorderCourseItems(editor.courseId, sibling.kind, sibling.parentId, moveToPosition(sibling.ids, sibling.id, position)));
+  return positionItems(sibling.ids.length, index, move, "admin-course-move-to-position").map((item) => ({ ...item, disabled: item.disabled || editor.busy }));
 }
 
 /** A one-line text field that saves on Enter and cancels on Escape. */
@@ -298,7 +308,6 @@ function LessonRow({ lesson, indent, sibling }: { lesson: ExplainedLesson; inden
     { key: "comments", label: `Open ${what} comments`, icon: "comment", quickOnly: true },
     { key: "preview", label: previewLabel, icon: lifecycleIcon("preview"), href: preview ?? undefined },
     { key: "delete", label: lifecycleLabel("delete", what), icon: lifecycleIcon("delete"), onClick: editor ? () => setConfirming(true) : undefined },
-    ...moveActions(editor, sibling, "lesson"),
   ];
   return (
     <li
@@ -323,7 +332,7 @@ function LessonRow({ lesson, indent, sibling }: { lesson: ExplainedLesson; inden
           {note && <span className="block text-xs text-slate-600 dark:text-slate-400">{note}</span>}
         </span>
       )}
-      <RowActions name={lesson.title} actions={actions} />
+      <RowActions name={lesson.title} actions={actions} sibling={sibling} />
       <StatusPill title={lesson.title} option={lesson.publishingOption} kind="lesson" id={lesson.kajabiId} />
       {confirming && editor && (
         <DeleteDialog title={lesson.title} what="lesson" detail={null} onConfirm={() => editor.run(() => deleteCourseItem(editor.courseId, "lesson", lesson.kajabiId))} onClose={() => setConfirming(false)} />
@@ -389,7 +398,6 @@ function ModuleRow({
     { key: "add-lesson", label: "Add lesson", onClick: editor ? () => startAdding("lesson") : undefined },
     ...(submodule ? [] : [{ key: "add-submodule", label: "Add submodule", onClick: editor ? () => startAdding("submodule") : undefined }]),
     { key: "delete", label: lifecycleLabel("delete", noun), icon: lifecycleIcon("delete"), onClick: editor ? () => setConfirming(true) : undefined },
-    ...moveActions(editor, sibling, noun),
   ];
   return (
     <li className={submodule ?"border-t border-slate-100 dark:border-slate-800" : "overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700"} {...dropProps(editor, sibling)}>
@@ -404,7 +412,7 @@ function ModuleRow({
             {note && <span className="block text-xs text-slate-600 dark:text-slate-400">{note}</span>}
           </span>
         )}
-        <RowActions name={mod.title} actions={actions} />
+        <RowActions name={mod.title} actions={actions} sibling={sibling} />
         <span className="relative hidden @split:block">
           <button
             type="button"
@@ -484,7 +492,7 @@ function ModuleRow({
  * a search, and per row a drag handle, hover actions and a quick status menu. An imported course is
  * read only (search, expand, open a lesson or its preview; the rest is off until a course is taken
  * over from Kajabi). A Hub-owned course (`editable`) can be changed: add, rename, duplicate, delete
- * and reorder modules, submodules and lessons, by dragging or with Move up and down; the status
+ * and reorder modules, submodules and lessons, by dragging or with the "Move to position" menu; the status
  * menu comes next.
  */
 export default function BuilderOutline({ course }: { course: OutlineCourse }) {
