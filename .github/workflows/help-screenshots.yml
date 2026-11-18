@@ -52,7 +52,7 @@ jobs:
       sha: ${{ steps.commit.outputs.sha }}
       published: ${{ steps.publish.outcome == 'success' }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: production # the tag the deploy moves to the commit it deployed
           fetch-depth: 0 # the newest published set is found through the commit history
