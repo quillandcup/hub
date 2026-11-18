@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
+import { tooltipText } from "@/tests/helpers/tooltip";
 
 const mocks = vi.hoisted(() => ({
   save: vi.fn(),
@@ -272,7 +273,7 @@ describe("reset to published", () => {
     editor(publishedPage);
     expect(screen.queryByRole("button", { name: "Reset to published" })).toBeNull();
     edit("Welcome back");
-    expect(screen.getByRole("button", { name: "Reset to published" })).toHaveAttribute("title", "Reset to published");
+    expect(tooltipText(screen.getByRole("button", { name: "Reset to published" }))).toEqual("Reset to published");
   });
 
   it("is never offered on a page that was not published", () => {

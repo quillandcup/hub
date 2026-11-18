@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import EmojiIconField from "@/components/EmojiIconField";
+import Tooltip from "@/components/Tooltip";
 
 export type Category = "milestone" | "community" | "course" | "retreat" | "special";
 
@@ -393,19 +394,20 @@ export default function BadgeTypeForm({
             </button>
           </div>
           {mode === "edit" && (
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={loading || deleting || isAutomatic}
-              title={
+            <Tooltip content={
                 isAutomatic
                   ? "Automatic badges are computed in code (lib/badges.ts) and can't be deleted from here."
                   : undefined
-              }
-              className="px-4 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
-            >
-              {deleting ? "Deleting..." : "Delete Badge"}
-            </button>
+              }>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={loading || deleting || isAutomatic}
+                className="px-4 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
+              >
+                {deleting ? "Deleting..." : "Delete Badge"}
+              </button>
+            </Tooltip>
           )}
         </div>
       </form>

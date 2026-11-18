@@ -14,6 +14,7 @@ import { lifecycleIcon, lifecycleLabel } from "@/lib/lifecycle-actions";
 import type { LandingPageSummary } from "@/lib/data/landing-pages";
 import { deleteLandingPage, duplicateLandingPage } from "./actions";
 import TableKeyboardNav from "@/components/TableKeyboardNav";
+import Tooltip from "@/components/Tooltip";
 
 type Column = "title" | "status" | "updated";
 
@@ -105,9 +106,11 @@ export default function PagesTable({ pages, publicBase }: { pages: LandingPageSu
                       <Glyph name={lifecycleIcon("preview")} label={lifecycleLabel("preview")} />
                     </Link>
                     {p.status === "published" && (
-                      <button type="button" onClick={() => void copyLink(p.slug)} className={ACTION} title="Copy link">
-                        <Glyph name="link" label="Copy link" />
-                      </button>
+                      <Tooltip content="Copy link">
+                        <button type="button" onClick={() => void copyLink(p.slug)} className={ACTION}>
+                          <Glyph name="link" label="Copy link" />
+                        </button>
+                      </Tooltip>
                     )}
                     <LifecycleButton
                       action="duplicate"

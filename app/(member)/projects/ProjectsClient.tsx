@@ -119,7 +119,6 @@ export default function ProjectsClient({ initialProjects, pastProjects = [] }: P
             disabled={saving}
             onMoveTo={(position) => moveTo(project.id, position)}
             track="projects"
-            tooltipAlign="end"
             className="bg-white dark:bg-slate-900 rounded-lg border p-5"
             idleClassName="border-slate-200 dark:border-slate-800"
             liftedClassName="border-plum-400 shadow-xl ring-2 ring-plum-400 dark:border-plum-500 dark:ring-plum-500"

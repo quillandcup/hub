@@ -7,6 +7,7 @@ import { useBlurDelay } from "@/lib/hooks/useBlurDelay";
 import { useComboboxKeys } from "@/lib/hooks/useComboboxKeys";
 import { submitFormOnModEnter } from "@/lib/submit-form-on-mod-enter";
 import Kbd from "@/components/Kbd";
+import Tooltip from "@/components/Tooltip";
 
 export interface SearchItem {
   id: string;
@@ -204,16 +205,17 @@ export default function EntitySearch({
             <div className={`truncate ${selectedDetail ? "font-medium" : ""}`}>{displayName}</div>
             {selectedDetail && <div className="truncate text-xs text-slate-600 dark:text-slate-400">{selectedDetail}</div>}
           </div>
-          <button
-            data-track="entity-search-select"
-            type="button"
-            onClick={() => handleSelect(null)}
-            className="ml-2 text-gray-400 hover:text-gray-600 dark:text-slate-400 dark:hover:text-slate-300"
-            title="Clear selection"
-            aria-label="Clear selection"
-          >
-            ✕
-          </button>
+          <Tooltip content="Clear selection">
+            <button
+              data-track="entity-search-select"
+              type="button"
+              onClick={() => handleSelect(null)}
+              className="ml-2 text-gray-400 hover:text-gray-600 dark:text-slate-400 dark:hover:text-slate-300"
+              aria-label="Clear selection"
+            >
+              ✕
+            </button>
+          </Tooltip>
         </div>
       </div>
     );

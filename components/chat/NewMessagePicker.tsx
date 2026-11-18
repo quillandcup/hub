@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import EntitySearch from "@/components/EntitySearch";
 import { searchDmCandidates, startDirectMessage } from "@/app/(member)/chat/dm-actions";
+import Tooltip from "@/components/Tooltip";
 
 /**
  * The icon in the Direct messages heading and the panel under it: find a member by name and open a
@@ -46,25 +47,26 @@ export default function NewMessagePicker({ pathname }: { pathname: string }) {
 
   return (
     <div ref={root}>
-      <button
-        type="button"
-        data-track="chat-sidebar-new-message"
-        aria-label="New message"
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        title="New message"
-        onClick={() => {
-          setError(null);
-          setOpen((o) => !o);
-        }}
-        className={`rounded p-1 text-slate-600 hover:bg-slate-200 focus-visible:opacity-100 group-hover:opacity-100 dark:text-slate-400 dark:hover:bg-slate-700 [@media(hover:none)]:opacity-100 ${
-          open ? "bg-slate-200 opacity-100 dark:bg-slate-700" : "opacity-0"
-        }`}
-      >
-        <svg aria-hidden="true" viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <path d="M8 3v10M3 8h10" />
-        </svg>
-      </button>
+      <Tooltip content="New message">
+        <button
+          type="button"
+          data-track="chat-sidebar-new-message"
+          aria-label="New message"
+          aria-expanded={open}
+          aria-haspopup="dialog"
+          onClick={() => {
+            setError(null);
+            setOpen((o) => !o);
+          }}
+          className={`rounded p-1 text-slate-600 hover:bg-slate-200 focus-visible:opacity-100 group-hover:opacity-100 dark:text-slate-400 dark:hover:bg-slate-700 [@media(hover:none)]:opacity-100 ${
+            open ? "bg-slate-200 opacity-100 dark:bg-slate-700" : "opacity-0"
+          }`}
+        >
+          <svg aria-hidden="true" viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M8 3v10M3 8h10" />
+          </svg>
+        </button>
+      </Tooltip>
       {open && (
         <div
           role="dialog"

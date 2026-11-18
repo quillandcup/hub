@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 vi.mock("@/app/(member)/courses/actions", () => ({ clearMyLessonProgress: (...a: unknown[]) => clearMyLessonProgress(...a) }));
 const clearMyLessonProgress = vi.fn();
 import VideoActions from "@/app/(admin)/admin/courses/[id]/lessons/[lessonId]/VideoActions";
+import { tooltipText } from "@/tests/helpers/tooltip";
 
 const URL = "https://hub.example/courses/the-ready-writer/lessons/les_AAAAAAAAAAA1";
 const STATS = "/admin/courses/k1/stats/les_AAAAAAAAAAA1";
@@ -55,7 +56,7 @@ describe("VideoActions", () => {
 
   it("says why Download video isn't available", async () => {
     await open();
-    expect(screen.getByRole("menuitem", { name: "Download video" })).toHaveAttribute("title", expect.stringMatching(/MP4.*Mux/));
+    expect(tooltipText(screen.getByRole("menuitem", { name: "Download video" }))).toEqual(expect.stringMatching(/MP4.*Mux/));
   });
 
   describe("staff tools", () => {
@@ -91,7 +92,7 @@ describe("VideoActions", () => {
       await open(<VideoActions statsHref={STATS} lessonUrl={URL} thumbnailLink={null} thumbnailLinkBlocked="Only a lesson that is open to members has a public link" />);
       const item = screen.getByRole("menuitem", { name: "Copy with thumbnail" });
       expect(item).toBeDisabled();
-      expect(item).toHaveAttribute("title", "Only a lesson that is open to members has a public link");
+      expect(tooltipText(item)).toEqual("Only a lesson that is open to members has a public link");
     });
 
     it("copies the picture as a link to the lesson, with the plain address as text, escaping the title", async () => {

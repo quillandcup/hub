@@ -6,6 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { APP_URL, FEATURED_COURSE, SUPPORT_EMAIL } from "@/lib/config";
 import { buildOutline, courseProgress, type OutlineLesson, type OutlineModule } from "@/lib/courses/outline";
 import { expectRedirect, renderServerPage, resetServerPageMocks } from "@/tests/helpers/server-page";
+import { tooltipText } from "@/tests/helpers/tooltip";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
@@ -758,7 +759,7 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
     expect(banner.parentElement?.className).not.toMatch(/max-w|container/);
     const button = screen.getByRole("button", { name: "Mark as complete" });
     expect(button).toBeDisabled();
-    expect(button).toHaveAttribute("title", "Progress isn't tracked for lessons members can't open yet");
+    expect(tooltipText(button)).toEqual("Progress isn't tracked for lessons members can't open yet");
     // Staff can open coming-soon lessons from the section list too.
     expect(within(sectionList()).getByRole("link", { name: /Revision/ })).toBeInTheDocument();
   });

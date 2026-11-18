@@ -7,6 +7,7 @@ import { detailLines } from "@/lib/audit-details";
 import { actorDisplay, describeRow, type ActivityFeedRow } from "@/lib/activity-feed";
 import { formatDateTime } from "@/lib/formatters";
 import { useTimeZone } from "@/components/Timezone";
+import Tooltip from "@/components/Tooltip";
 
 /**
  * A clock icon that opens a change history: who changed what, when, newest first (the audit log
@@ -51,17 +52,18 @@ export default function RecordHistoryButton({
 
   return (
     <>
-      <button
-        type="button"
-        onClick={show}
-        title="Show change history"
-        aria-label={`Change history of ${label}`}
-        className="inline-flex items-center justify-center w-7 h-7 rounded-md text-slate-500 hover:text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-300 dark:hover:bg-slate-800"
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      </button>
+      <Tooltip content="Show change history">
+        <button
+          type="button"
+          onClick={show}
+          aria-label={`Change history of ${label}`}
+          className="inline-flex items-center justify-center w-7 h-7 rounded-md text-slate-500 hover:text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-300 dark:hover:bg-slate-800"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </button>
+      </Tooltip>
       {open && (
         <div
           className="fixed inset-0 z-overlay flex items-center justify-center bg-black/40 p-4"

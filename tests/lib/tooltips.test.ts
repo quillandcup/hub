@@ -3,7 +3,8 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
- * Tooltips and popovers go through `InfoTip` (components/InfoTip.tsx), which hides with display:none and
+ * Hints on a control go through `Tooltip` (components/Tooltip.tsx; a native `title` is guarded by tooltip-native-title.test.ts).
+ * Definitions and popovers go through `InfoTip` (components/InfoTip.tsx), which hides with display:none and
  * stays inside the viewport on a phone. A hand-rolled hover box hidden with `opacity-0`/`invisible` is
  * still laid out: a 16rem box hanging off an icon near the right edge widened the admin member page on a
  * phone, so the whole page scrolled sideways into blank space. This fails on
@@ -11,6 +12,7 @@ import { describe, expect, it } from "vitest";
  *   2. `role="tooltip"` outside InfoTip,
  * in app and components, unless the file is listed with a reason. A stale entry fails too.
  */
+const TOOLTIP_COMPONENTS = ["components/InfoTip.tsx", "components/Tooltip.tsx"];
 const ALLOWED_TOOLTIP_ROLE: Record<string, string> = {
   "components/chat/ReactionBar.tsx": "hover card of a reaction chip: display:none until shown, anchored to the chip it names",
   "components/ReasonBadges.tsx": "rendered only while shown (state), centred above a small badge; nothing laid out at rest",
@@ -52,7 +54,7 @@ describe("tooltips", () => {
 
   it("has no hover box hidden with opacity-0 or invisible (use InfoTip)", () => {
     const offenders = files
-      .filter(([file, src]) => file !== "components/InfoTip.tsx" && hiddenBoxes(src))
+      .filter(([file, src]) => !TOOLTIP_COMPONENTS.includes(file) && hiddenBoxes(src))
       .map(([file]) => file)
       .filter((file) => !(file in ALLOWED_HIDDEN_BOX));
     expect(offenders, "use components/InfoTip.tsx (display:none, phone-safe) instead of a hand-rolled hover box").toEqual([]);
@@ -61,10 +63,10 @@ describe("tooltips", () => {
     }
   });
 
-  it('has no role="tooltip" outside InfoTip unless listed', () => {
+  it('has no role="tooltip" outside Tooltip and InfoTip unless listed', () => {
     const withRole = files.filter(([, src]) => src.includes('role="tooltip"')).map(([file]) => file);
-    const offenders = withRole.filter((file) => file !== "components/InfoTip.tsx" && !(file in ALLOWED_TOOLTIP_ROLE));
-    expect(offenders, "use components/InfoTip.tsx").toEqual([]);
+    const offenders = withRole.filter((file) => !TOOLTIP_COMPONENTS.includes(file) && !(file in ALLOWED_TOOLTIP_ROLE));
+    expect(offenders, "use components/Tooltip.tsx (a hint on a control) or components/InfoTip.tsx (a definition)").toEqual([]);
     for (const file of Object.keys(ALLOWED_TOOLTIP_ROLE)) expect(withRole, `stale: ${file}`).toContain(file);
   });
 });

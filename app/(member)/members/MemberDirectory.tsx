@@ -4,6 +4,7 @@ import { useMemo, useState } from "react"
 import Link from "next/link"
 import MemberAvatar from "./[id]/MemberAvatar"
 import { directoryMatchHint, filterDirectory, type DirectoryEntry } from "@/lib/member-directory"
+import Tooltip from "@/components/Tooltip";
 
 /** Keep the search in the URL (?q=) so it survives reloads and "Ask me about" chips can link here. */
 function syncQueryToUrl(query: string) {
@@ -106,16 +107,16 @@ export default function MemberDirectory({
                   <div className="mt-2 flex flex-wrap items-center gap-1">
                     <span className="text-xs text-slate-500 dark:text-slate-400 mr-0.5">Ask me about</span>
                     {entry.topics.map((topic) => (
-                      <button
-                        key={topic}
-                        type="button"
-                        data-track="directory-topic"
-                        onClick={() => search(topic)}
-                        className="rounded-full bg-plum-50 dark:bg-plum-900/30 text-plum-700 dark:text-plum-300 text-xs px-2 py-0.5 hover:bg-plum-100 dark:hover:bg-plum-900/50"
-                        title={`Show everyone who mentions ${topic}`}
-                      >
-                        {topic}
-                      </button>
+                      <Tooltip key={topic} content={`Show everyone who mentions ${topic}`}>
+                        <button
+                          type="button"
+                          data-track="directory-topic"
+                          onClick={() => search(topic)}
+                          className="rounded-full bg-plum-50 dark:bg-plum-900/30 text-plum-700 dark:text-plum-300 text-xs px-2 py-0.5 hover:bg-plum-100 dark:hover:bg-plum-900/50"
+                        >
+                          {topic}
+                        </button>
+                      </Tooltip>
                     ))}
                   </div>
                 )}

@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { afterEach, describe, expect, it, vi } from "vitest";
 import LifecycleButton from "@/components/LifecycleButton";
 import LifecycleStatusChip from "@/components/LifecycleStatusChip";
+import { tooltipText } from "@/tests/helpers/tooltip";
 
 afterEach(cleanup);
 
@@ -15,7 +16,7 @@ describe("LifecycleButton", () => {
   it("as an icon is named and titled by the registry, and shows no text", () => {
     render(<LifecycleButton action="delete" noun="page" variant="icon" onRun={() => {}} />);
     const button = screen.getByRole("button", { name: "Delete page" });
-    expect(button).toHaveAttribute("title", "Delete page");
+    expect(tooltipText(button)).toEqual("Delete page");
     expect(button).toHaveTextContent("");
     expect(button.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
   });

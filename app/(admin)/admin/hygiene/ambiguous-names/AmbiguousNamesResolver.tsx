@@ -5,6 +5,7 @@ import Link from "next/link";
 import { formatDateInZone } from "@/lib/formatters";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { useTimeZone } from "@/components/Timezone";
+import Tooltip from "@/components/Tooltip";
 
 interface Candidate {
   id: string;
@@ -95,16 +96,16 @@ export default function AmbiguousNamesResolver({ entries }: { entries: Ambiguous
 
               <div className="flex flex-wrap gap-1.5 items-center">
                 {entry.candidates.map((candidate) => (
-                  <button
-                    key={candidate.id}
-                    type="button"
-                    onClick={() => assign(entry.zoomName, candidate.id)}
-                    disabled={busy === `${entry.zoomName}:${candidate.id}`}
-                    className="px-2 py-1 text-xs bg-plum-50 dark:bg-plum-900/20 text-plum-700 dark:text-plum-300 border border-plum-200 dark:border-plum-800 rounded-full hover:bg-plum-100 dark:hover:bg-plum-900/40 disabled:opacity-50"
-                    title={`${candidate.name} · ${candidate.email}`}
-                  >
-                    {busy === `${entry.zoomName}:${candidate.id}` ? "Assigning…" : getMemberDisplayName({ name: candidate.name, display_name: candidate.displayName })}
-                  </button>
+                  <Tooltip key={candidate.id} content={`${candidate.name} · ${candidate.email}`}>
+                    <button
+                      type="button"
+                      onClick={() => assign(entry.zoomName, candidate.id)}
+                      disabled={busy === `${entry.zoomName}:${candidate.id}`}
+                      className="px-2 py-1 text-xs bg-plum-50 dark:bg-plum-900/20 text-plum-700 dark:text-plum-300 border border-plum-200 dark:border-plum-800 rounded-full hover:bg-plum-100 dark:hover:bg-plum-900/40 disabled:opacity-50"
+                    >
+                      {busy === `${entry.zoomName}:${candidate.id}` ? "Assigning…" : getMemberDisplayName({ name: candidate.name, display_name: candidate.displayName })}
+                    </button>
+                  </Tooltip>
                 ))}
                 <button
                   onClick={() => ignore(entry.zoomName)}

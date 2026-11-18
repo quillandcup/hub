@@ -11,6 +11,7 @@ import type { DndContextProps } from "@dnd-kit/core";
 import { HANDLE_TOOLTIP } from "@/components/writing/SortableList";
 import ProjectDetailClient from "@/app/(member)/projects/[id]/ProjectDetailClient";
 import type { GoalRow, WritingProjectRow } from "@/app/(member)/projects/actions";
+import { tooltipText } from "@/tests/helpers/tooltip";
 
 const m = vi.hoisted(() => ({ refresh: vi.fn(), reorder: vi.fn(), dnd: { current: null as null | DndContextProps } }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: m.refresh }) }));
@@ -70,7 +71,7 @@ describe("ProjectDetailClient goal reordering", () => {
     render(<ProjectDetailClient project={project(three())} entries={[]} archivedGoals={[]} />);
     expect(titles()).toEqual(["Daily words", "Finish draft", "Read aloud"]);
     expect(screen.getAllByRole("button", { name: /^Reorder / })).toHaveLength(3);
-    expect(screen.getAllByText(HANDLE_TOOLTIP)).toHaveLength(3);
+    for (const handle of screen.getAllByRole("button", { name: /^Reorder / })) expect(tooltipText(handle)).toBe(HANDLE_TOOLTIP);
     expect(screen.queryByRole("button", { name: /^Move .* (up|down)$/ })).toBeNull();
   });
 
@@ -82,8 +83,9 @@ describe("ProjectDetailClient goal reordering", () => {
       expect(handle.querySelector("svg")!.getAttribute("class")).toMatch(/\bh-5 w-5\b/);
       expect(handle.className).not.toMatch(/(^|\s)(dark:)?bg-|h-11|w-11/);
     }
-    const tooltip = screen.getAllByText(HANDLE_TOOLTIP)[0].className.split(/\s+/);
-    expect(tooltip.filter((c) => /group-focus-within|^group-hover/.test(c))).toEqual([]);
+    // The tip is the shared Tooltip: it shows on keyboard focus (hover and the rest: tests/components/Tooltip.test.tsx).
+    const handle = screen.getAllByRole("button", { name: /^Reorder / })[0];
+    expect(tooltipText(handle)).toBe(HANDLE_TOOLTIP);
   });
 
   it("carries Edit, Delete and the positions in one menu, with Edit and Delete only on narrow screens", async () => {

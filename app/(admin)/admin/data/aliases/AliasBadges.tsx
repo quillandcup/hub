@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Tooltip from "@/components/Tooltip";
 
 export default function AliasBadges({ aliases }: { aliases: { id: string; alias: string }[] }) {
   const router = useRouter();
@@ -31,16 +32,17 @@ export default function AliasBadges({ aliases }: { aliases: { id: string; alias:
           className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200"
         >
           {alias.alias}
-          <button
-            type="button"
-            onClick={() => handleRemove(alias.id)}
-            disabled={removingId === alias.id}
-            aria-label={`Remove alias ${alias.alias}`}
-            title="Remove alias"
-            className="text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
-          >
-            ×
-          </button>
+          <Tooltip content="Remove alias">
+            <button
+              type="button"
+              onClick={() => handleRemove(alias.id)}
+              disabled={removingId === alias.id}
+              aria-label={`Remove alias ${alias.alias}`}
+              className="text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
+            >
+              ×
+            </button>
+          </Tooltip>
         </span>
       ))}
     </div>

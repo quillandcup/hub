@@ -33,6 +33,7 @@ vi.mock("@/components/courses/LessonPlayer", () => ({
 }));
 
 import AdminLessonPage, { generateMetadata } from "@/app/(admin)/admin/courses/[id]/lessons/[lessonId]/page";
+import { tooltipText } from "@/tests/helpers/tooltip";
 
 const detail = (over: Partial<AdminLessonDetail> = {}, lesson: Partial<AdminLessonDetail["lesson"]> = {}): AdminLessonDetail => ({
   course: { id: "crs_AAAAAAAAAAA1", title: "The Ready Writer" },
@@ -323,14 +324,14 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
       await user.click(screen.getByRole("button", { name: /Video actions/ }));
       const item = screen.getByRole("menuitem", { name: "Copy with thumbnail" });
       expect(item).toBeDisabled();
-      expect(item).toHaveAttribute("title", expect.stringMatching(reason));
+      expect(tooltipText(item)).toEqual(expect.stringMatching(reason));
       view.unmount();
     }
 
     loadAdminLesson.mockResolvedValue(detail({ hub: null, video: null }));
     await renderServerPage(AdminLessonPage, params);
     await user.click(screen.getByRole("button", { name: /Video actions/ }));
-    expect(screen.getByRole("menuitem", { name: "Copy with thumbnail" })).toHaveAttribute("title", "This lesson isn't in the Hub yet");
+    expect(tooltipText(screen.getByRole("menuitem", { name: "Copy with thumbnail" }))).toEqual("This lesson isn't in the Hub yet");
     expect(publicLessonPreview).toHaveBeenCalledTimes(4);
   });
 

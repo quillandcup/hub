@@ -15,6 +15,7 @@ import { getCheckinForLogging, saveCheckin } from "@/app/(member)/prickles/check
 import { checkinHref, EMPTY_CHECKIN, halfOf, type CheckinInput, type Emotion } from "@/lib/prickle-checkins";
 import { CheckinHalfFields } from "@/components/writing/CheckinFields";
 import Kbd from "@/components/Kbd";
+import Tooltip from "@/components/Tooltip";
 
 type Checkout = Partial<CheckinInput>;
 
@@ -262,30 +263,32 @@ export default function LogProgressModal({
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Amount</label>
           <div className="flex gap-2">
             <div className="flex rounded-lg border border-slate-300 dark:border-slate-700 overflow-hidden flex-shrink-0">
-              <button data-track="log-progress-add"
-                type="button"
-                onClick={() => setMode("delta")}
-                className={`px-3 py-2 text-sm font-medium ${
-                  mode === "delta"
-                    ? "bg-plum-600 text-white"
-                    : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400"
-                }`}
-                title="Add to the running total"
-              >
-                +Add
-              </button>
-              <button data-track="log-progress-set-total"
-                type="button"
-                onClick={() => setMode("set_total")}
-                className={`px-3 py-2 text-sm font-medium ${
-                  mode === "set_total"
-                    ? "bg-plum-600 text-white"
-                    : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400"
-                }`}
-                title="Set the running total to this number"
-              >
-                =Set
-              </button>
+              <Tooltip content="Add to the running total">
+                <button data-track="log-progress-add"
+                  type="button"
+                  onClick={() => setMode("delta")}
+                  className={`px-3 py-2 text-sm font-medium ${
+                    mode === "delta"
+                      ? "bg-plum-600 text-white"
+                      : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                  }`}
+                >
+                  +Add
+                </button>
+              </Tooltip>
+              <Tooltip content="Set the running total to this number">
+                <button data-track="log-progress-set-total"
+                  type="button"
+                  onClick={() => setMode("set_total")}
+                  className={`px-3 py-2 text-sm font-medium ${
+                    mode === "set_total"
+                      ? "bg-plum-600 text-white"
+                      : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                  }`}
+                >
+                  =Set
+                </button>
+              </Tooltip>
             </div>
             <input
               type="number"

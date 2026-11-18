@@ -9,6 +9,7 @@ import { Bold, Italic, Link as LinkIcon, Link2Off, List, ListOrdered, Quote, Red
 import { linkAddress } from "@/components/chat/FormatToolbar";
 import { saveLessonText } from "../../../outline-actions";
 import { useLessonSave } from "./LessonSave";
+import Tooltip from "@/components/Tooltip";
 
 const BUTTON =
   "flex h-8 w-8 items-center justify-center rounded text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 aria-pressed:bg-plum-50 aria-pressed:text-plum-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:aria-pressed:bg-plum-900/30 dark:aria-pressed:text-plum-300";
@@ -16,9 +17,11 @@ const BUTTON =
 function ToolbarButton({ label, Icon, active, disabled, onClick }: { label: string; Icon: LucideIcon; active?: boolean; disabled?: boolean; onClick: () => void }) {
   return (
     // mousedown, not click: the editor would lose its selection before a click lands.
-    <button type="button" aria-label={label} title={label} aria-pressed={active} disabled={disabled} onMouseDown={(e) => e.preventDefault()} onClick={onClick} className={BUTTON}>
-      <Icon size={16} aria-hidden="true" />
-    </button>
+    <Tooltip content={label}>
+      <button type="button" aria-label={label} aria-pressed={active} disabled={disabled} onMouseDown={(e) => e.preventDefault()} onClick={onClick} className={BUTTON}>
+        <Icon size={16} aria-hidden="true" />
+      </button>
+    </Tooltip>
   );
 }
 
