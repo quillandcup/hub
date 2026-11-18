@@ -263,11 +263,11 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         member:
           "Browsers are told to use only HTTPS, to load pictures only from sources the Hub lists, to submit forms only to the Hub, and not to show Hub pages inside other sites. They are also told not to guess file types, to share less about where you came from when you follow a link, and not to give pages your camera, microphone or location.",
         staff: {
-          how: "Strict-Transport-Security from the hosting provider's default, and on every response an enforcing Content-Security-Policy (pictures, plugins, base tag, form targets and framing), X-Content-Type-Options, Referrer-Policy, X-Frame-Options and Permissions-Policy. The policy was report-only from 2026-11-10 to 2026-11-17; the one picture host its reports showed was added before it was enforced, and violations still go to Sentry. The policy does not yet cover scripts and styles, which need per-request nonces (docs/TODO.md, CSP for scripts and styles).",
-          evidence: ["next.config.ts", "lib/csp.ts", "tests/lib/csp.test.ts", "Sentry CSP reports, 2026-11-10 to 2026-11-17"],
+          how: "Strict-Transport-Security from the hosting provider's default, and on every response an enforcing Content-Security-Policy (pictures, plugins, base tag, form targets and framing), X-Content-Type-Options, Referrer-Policy, X-Frame-Options and Permissions-Policy. The policy was report-only from 2026-11-10 to 2026-11-17; the one picture host its reports showed was added before it was enforced, and violations still go to Sentry. A second policy for scripts and styles, with a per-request nonce (proxy.ts), is sent in report-only mode: violations go to Sentry and nothing is blocked yet (docs/TODO.md, CSP for scripts and styles).",
+          evidence: ["next.config.ts", "proxy.ts", "lib/csp.ts", "tests/lib/csp.test.ts", "Sentry CSP reports, 2026-11-10 to 2026-11-17"],
           checked: "2026-11-17",
           open: [
-            "The policy covers pictures, plugins, the base tag, form targets and framing, not scripts or styles: those need a per-request nonce, which makes every page render per request (docs/TODO.md, CSP for scripts and styles).",
+            "The enforcing policy covers pictures, plugins, the base tag, form targets and framing. The script and style policy is report-only: enforce it after a week of Sentry reports, then add connect, frame, media and font sources; inline style attributes stay allowed until they move to classes (docs/TODO.md, CSP for scripts and styles).",
           ],
         },
       },
