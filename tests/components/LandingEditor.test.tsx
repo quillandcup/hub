@@ -169,6 +169,22 @@ describe("the header", () => {
     expect(screen.getByRole("link", { name: "View live" })).toHaveAttribute("href", "/p/spring");
   });
 
+  it("keeps the controls as icons with a name and a tooltip each, so the header fits on one line", () => {
+    editor({ status: "published", publishedJson: JSON.stringify(data) });
+    edit("Different");
+    for (const name of ["Details", "History", "Reset to published", "Preview", "Unpublish"]) {
+      const button = screen.getByRole("button", { name });
+      expect(button, name).toHaveAttribute("title", name);
+      expect(button, name).toHaveTextContent("");
+      expect(button.querySelector("svg"), name).not.toBeNull();
+    }
+    const live = screen.getByRole("link", { name: "View live" });
+    expect(live).toHaveAttribute("title", "View live");
+    expect(live).toHaveAttribute("target", "_blank");
+    expect(live).toHaveTextContent("");
+    expect(screen.getByRole("button", { name: "Publish changes" })).toHaveTextContent("Publish changes");
+  });
+
   it("notes changes that aren't published yet", () => {
     editor({ status: "published", publishedJson: JSON.stringify(data) });
     expect(screen.queryByText("Changes not published yet")).toBeNull();
