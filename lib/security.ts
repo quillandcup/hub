@@ -71,18 +71,16 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
       {
         id: "database-in-transit",
         title: "The Hub talks to its database over HTTPS",
-        status: "working",
-        member: "Every request from the Hub to its database service goes over HTTPS or a secure websocket.",
+        status: "inPlace",
+        member: "Every request from the Hub to its database service goes over HTTPS or a secure websocket, and the database refuses connections that are not encrypted.",
         staff: {
-          how: "The app reaches the database only through the provider's HTTPS API and secure websockets. Direct Postgres connections (migrations in CI, the CLI, tooling) are made by our own tools; nothing on the server side forces them to use SSL, because the provider's switch that rejects non-SSL connections is off (read from the provider's API on 2026-11-17).",
+          how: "The app reaches the database only through the provider's HTTPS API and secure websockets. The provider's switch that rejects non-SSL connections to the database is on (read from the provider's API on 2026-11-17, after it was switched on that day) and is declared in supabase/config.toml, so CI's config push keeps it on. Direct Postgres connections (migrations in CI, the CLI, tooling) therefore must use SSL.",
           evidence: [
-            "supabase/config.toml (the commented ssl_enforcement block)",
+            "supabase/config.toml (db.ssl_enforcement)",
             "live check, 2026-11-17: the provider's SSL-enforcement setting for the production database",
           ],
           checked: "2026-11-17",
-          open: [
-            "Turn SSL enforcement on for the production database. The provider says enabling it needs a brief restart with a few minutes of downtime, so schedule it, then declare it in supabase/config.toml so the CI config push keeps it on.",
-          ],
+          open: [],
         },
       },
       {
@@ -142,15 +140,17 @@ export const SECURITY_GROUPS: readonly SecurityGroup[] = [
         member:
           "Joining is by invitation. A sign-in lasts an hour at a time and renews in the background, each renewal replaces the last, and staff can end a member's sessions if an account is at risk.",
         staff: {
-          how: "Self-signup is off and email confirmation is on. Access tokens last 3600 seconds; refresh tokens rotate on every use with a 10-second reuse window, after which an old one is refused. These are declared in supabase/config.toml and pushed by CI, and production inherits them. The proxy re-checks the session on every request and clears the cookies of a revoked one; server code then verifies the token against the project's keys. An admin can revoke a member's sessions.",
+          how: "Self-signup is off and email confirmation is on. Access tokens last 3600 seconds; refresh tokens rotate on every use with a 10-second reuse window, after which an old one is refused. These are declared in supabase/config.toml and pushed by CI, and production inherits them. The sign-in cookies are Secure in every deployed build, SameSite=Lax, set for the exact host only (no Domain, so subdomains never receive them) and readable by the page's own scripts, because the browser client reads the session for chat and uploads (docs/TODO.md, \"Make the sign-in cookies HttpOnly\"). The proxy re-checks the session on every request and clears the cookies of a revoked one; server code then verifies the token against the project's keys. An admin can revoke a member's sessions.",
           evidence: [
             "supabase/config.toml",
             "lib/supabase/middleware.ts",
+            "lib/supabase/cookie-options.ts",
             "lib/auth.ts",
             "app/api/admin/users/[id]/revoke-sessions/route.ts",
           ],
           checked: "2026-11-17",
           open: [
+            "The sign-in cookies are not HttpOnly, so a script injected into a page could read the session. Making them HttpOnly means the server hands the browser a short-lived token instead (docs/TODO.md, \"Make the sign-in cookies HttpOnly\").",
             "Two-factor sign-in (TOTP) is switched on in the project's settings, but the Hub has no screen to enrol in or require it. Decide whether staff accounts should need it.",
           ],
         },
