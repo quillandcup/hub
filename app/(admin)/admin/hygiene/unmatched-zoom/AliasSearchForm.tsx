@@ -8,6 +8,7 @@ import Modal from "@/components/Modal";
 import { formatDateTime } from "@/lib/formatters";
 import { useTimeZone } from "@/components/Timezone";
 import { suggestMemberMatches } from "@/lib/member-matching";
+import Tooltip from "@/components/Tooltip";
 
 interface UnmatchedAttendee {
   zoomName: string;
@@ -299,15 +300,15 @@ export default function AliasSearchForm({
                     {suggestionsByZoomName.get(attendee.zoomName)!.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 mb-1.5">
                         {suggestionsByZoomName.get(attendee.zoomName)!.map(({ member }) => (
-                          <button
-                            key={member.id}
-                            type="button"
-                            onClick={() => handleSelectMember(attendee.zoomName, member)}
-                            className="px-2 py-1 text-xs bg-plum-50 dark:bg-plum-900/20 text-plum-700 dark:text-plum-300 border border-plum-200 dark:border-plum-800 rounded-full hover:bg-plum-100 dark:hover:bg-plum-900/40"
-                            title={member.email}
-                          >
-                            {displayNameOf(member)}
-                          </button>
+                          <Tooltip key={member.id} content={member.email}>
+                            <button
+                              type="button"
+                              onClick={() => handleSelectMember(attendee.zoomName, member)}
+                              className="px-2 py-1 text-xs bg-plum-50 dark:bg-plum-900/20 text-plum-700 dark:text-plum-300 border border-plum-200 dark:border-plum-800 rounded-full hover:bg-plum-100 dark:hover:bg-plum-900/40"
+                            >
+                              {displayNameOf(member)}
+                            </button>
+                          </Tooltip>
                         ))}
                       </div>
                     )}
@@ -321,23 +322,25 @@ export default function AliasSearchForm({
                   {/* Right: Ignore buttons */}
                   <div className="flex gap-2">
                     {prickleId && (
+                      <Tooltip content="Hide this name on this prickle only">
+                        <button
+                          onClick={() => handleIgnore(attendee.zoomName, "here")}
+                          disabled={ignoring === attendee.zoomName}
+                          className="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500 rounded disabled:opacity-50"
+                        >
+                          Ignore here
+                        </button>
+                      </Tooltip>
+                    )}
+                    <Tooltip content="Hide this name for every prickle, including future ones">
                       <button
-                        onClick={() => handleIgnore(attendee.zoomName, "here")}
+                        onClick={() => handleIgnore(attendee.zoomName, "everywhere")}
                         disabled={ignoring === attendee.zoomName}
-                        title="Hide this name on this prickle only"
                         className="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500 rounded disabled:opacity-50"
                       >
-                        Ignore here
+                        {ignoring === attendee.zoomName ? "Ignoring..." : prickleId ? "Ignore always" : "Ignore"}
                       </button>
-                    )}
-                    <button
-                      onClick={() => handleIgnore(attendee.zoomName, "everywhere")}
-                      disabled={ignoring === attendee.zoomName}
-                      title="Hide this name for every prickle, including future ones"
-                      className="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500 rounded disabled:opacity-50"
-                    >
-                      {ignoring === attendee.zoomName ? "Ignoring..." : prickleId ? "Ignore always" : "Ignore"}
-                    </button>
+                    </Tooltip>
                   </div>
                 </div>
               </div>

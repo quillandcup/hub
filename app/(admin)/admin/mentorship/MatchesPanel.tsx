@@ -12,6 +12,7 @@ import type { VolunteerSuggestion } from "@/lib/big-sister-volunteers";
 import type { Arrival } from "@/lib/arrivals";
 import { createMentorship, deleteMentorship, updateMentorship } from "./actions";
 import { formatDateOnly } from "@/lib/formatters";
+import Tooltip from "@/components/Tooltip";
 
 interface PickerMember {
   id: string;
@@ -206,24 +207,24 @@ export default function MatchesPanel({
             </p>
             <div className="flex flex-wrap gap-2">
               {volunteers.slice(0, SUGGESTED_VOLUNTEERS).map((v) => (
-                <button
-                  key={v.memberId}
-                  type="button"
-                  onClick={() => setMentor({ id: v.memberId, name: v.name, email: "" })}
-                  title={v.note ?? undefined}
-                  className={`px-3 py-1.5 rounded-lg border text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800 ${
-                    mentor?.id === v.memberId
-                      ? "border-plum-500 bg-plum-50 dark:bg-plum-900/20"
-                      : "border-slate-200 dark:border-slate-700"
-                  }`}
-                >
-                  <span className="font-medium text-slate-900 dark:text-slate-100">{v.name}</span>
-                  <span className="block text-xs text-slate-600 dark:text-slate-400">
-                    {v.openLoad === 0 ? "free now" : `${v.openLoad} new member${v.openLoad === 1 ? "" : "s"} now`}
-                    {" · "}
-                    {v.lastStartedOn ? `last matched ${formatDay(v.lastStartedOn)}` : "never matched"}
-                  </span>
-                </button>
+                <Tooltip key={v.memberId} content={v.note ?? undefined}>
+                  <button
+                    type="button"
+                    onClick={() => setMentor({ id: v.memberId, name: v.name, email: "" })}
+                    className={`px-3 py-1.5 rounded-lg border text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800 ${
+                      mentor?.id === v.memberId
+                        ? "border-plum-500 bg-plum-50 dark:bg-plum-900/20"
+                        : "border-slate-200 dark:border-slate-700"
+                    }`}
+                  >
+                    <span className="font-medium text-slate-900 dark:text-slate-100">{v.name}</span>
+                    <span className="block text-xs text-slate-600 dark:text-slate-400">
+                      {v.openLoad === 0 ? "free now" : `${v.openLoad} new member${v.openLoad === 1 ? "" : "s"} now`}
+                      {" · "}
+                      {v.lastStartedOn ? `last matched ${formatDay(v.lastStartedOn)}` : "never matched"}
+                    </span>
+                  </button>
+                </Tooltip>
               ))}
             </div>
           </div>
@@ -348,17 +349,18 @@ export default function MatchesPanel({
                         </button>
                       </div>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingId(row.id);
-                          setEditNote(row.outcomeNote ?? "");
-                        }}
-                        className="text-left hover:underline"
-                        title="Edit note"
-                      >
-                        {row.outcomeNote || <span className="text-slate-500 dark:text-slate-400">Add note</span>}
-                      </button>
+                      <Tooltip content="Edit note">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingId(row.id);
+                            setEditNote(row.outcomeNote ?? "");
+                          }}
+                          className="text-left hover:underline"
+                        >
+                          {row.outcomeNote || <span className="text-slate-500 dark:text-slate-400">Add note</span>}
+                        </button>
+                      </Tooltip>
                     )}
                   </td>
                   <td className="px-6 py-3">

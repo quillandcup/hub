@@ -6,6 +6,7 @@ import { track } from "@/lib/analytics/client";
 import { useAnimationsOff } from "@/components/AnimationsController";
 import ImageLightbox from "@/components/ImageLightbox";
 import { chatFileUrl, chatZipUrl, formatFileSize, isInlineImage, type ChatFile } from "@/lib/chat/files";
+import Tooltip from "@/components/Tooltip";
 
 const iconBtn = "inline-flex h-6 w-6 items-center justify-center rounded text-sm text-white hover:bg-white/20";
 
@@ -120,9 +121,11 @@ function ImageTile({
       {/* Slack's layout: a small dark group in the top-right corner, clear of the picture's middle; delete is in More. */}
       <div className="absolute right-1.5 top-1.5 hidden items-center gap-0.5 rounded-md bg-slate-900/70 p-0.5 group-focus-within:flex group-hover:flex">
         {stills && (
-          <button type="button" aria-label={`Expand ${file.name ?? "image"}`} title="Expand" data-track="chat-file-open" onClick={onOpen} className={iconBtn}>
-            🔍
-          </button>
+          <Tooltip content="Expand">
+            <button type="button" aria-label={`Expand ${file.name ?? "image"}`} data-track="chat-file-open" onClick={onOpen} className={iconBtn}>
+              🔍
+            </button>
+          </Tooltip>
         )}
         <a href={url} download={file.name ?? undefined} aria-label={`Download ${file.name ?? "image"}`} data-track="chat-file-download" className={iconBtn}>
           ⬇

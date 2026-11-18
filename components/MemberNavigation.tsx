@@ -11,6 +11,7 @@ import { exitSudoToAdmin } from "@/app/actions/sudo";
 import { navTrackName } from "@/lib/analytics/names";
 import type { NavMode } from "@/lib/nav-mode";
 import { NavModeButton, useSidebarMode } from "@/components/useSidebarMode";
+import Tooltip from "@/components/Tooltip";
 
 interface MemberNavigationProps {
   isAdmin: boolean;
@@ -81,16 +82,18 @@ function NavLinks({ isAdmin, isSudo = false, enabledFeatures, pathname, collapse
         <div className="px-2 py-3 border-t border-slate-200 dark:border-slate-800 flex-shrink-0">
           {isSudo ? (
             <form action={exitSudoToAdmin}>
-              <button
-                type="submit"
-                data-track="nav-admin-portal"
-                onClick={onNavigate}
-                className="flex items-center justify-center gap-2 px-2 py-2 w-full rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                title="Admin Portal"
-              >
-            <span className="text-base flex-shrink-0">⚙️</span>
-            {showLabels && <span className={`text-sm whitespace-nowrap ${labelFade}`}>Admin Portal →</span>}
-              </button>
+              <Tooltip content="Admin Portal">
+                <button
+                  type="submit"
+                  aria-label="Admin Portal"
+                  data-track="nav-admin-portal"
+                  onClick={onNavigate}
+                  className="flex items-center justify-center gap-2 px-2 py-2 w-full rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                >
+              <span className="text-base flex-shrink-0">⚙️</span>
+              {showLabels && <span className={`text-sm whitespace-nowrap ${labelFade}`}>Admin Portal →</span>}
+                </button>
+              </Tooltip>
             </form>
           ) : (
           <Link

@@ -7,6 +7,7 @@ import { linkAddress } from "@/components/chat/FormatToolbar";
 import MediaPicker from "@/components/media/MediaPicker";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { utcToZonedLocal, zonedLocalToUtc } from "@/lib/landing/countdown";
+import Tooltip from "@/components/Tooltip";
 
 /** Custom Puck fields for the page builder: the media library picker, rich text and a date in the organization's zone. */
 
@@ -16,9 +17,11 @@ const BUTTON =
 function ToolbarButton({ label, Icon, active, disabled, onClick }: { label: string; Icon: LucideIcon; active?: boolean; disabled?: boolean; onClick: () => void }) {
   return (
     // mousedown, not click: the editor would lose its selection before a click lands.
-    <button type="button" aria-label={label} title={label} aria-pressed={active} disabled={disabled} onMouseDown={(e) => e.preventDefault()} onClick={onClick} className={BUTTON}>
-      <Icon size={16} aria-hidden="true" />
-    </button>
+    <Tooltip content={label}>
+      <button type="button" aria-label={label} aria-pressed={active} disabled={disabled} onMouseDown={(e) => e.preventDefault()} onClick={onClick} className={BUTTON}>
+        <Icon size={16} aria-hidden="true" />
+      </button>
+    </Tooltip>
   );
 }
 

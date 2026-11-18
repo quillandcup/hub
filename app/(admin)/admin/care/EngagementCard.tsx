@@ -43,6 +43,7 @@ import {
   updateEngagement,
   type CareActionResult,
 } from "./actions";
+import Tooltip from "@/components/Tooltip";
 
 const FIELD = "w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-sm";
 const BUTTON =
@@ -241,9 +242,11 @@ export default function EngagementCard({ card, canWrite, owners, meId }: { card:
                 Open the DM
               </Link>
             ) : (
-              <a href={card.dmLink.href} target="_blank" rel="noopener noreferrer" title="Opens the DM in Slack" className="font-medium text-plum-700 underline dark:text-plum-300">
-                Open the DM
-              </a>
+              <Tooltip content="Opens the DM in Slack">
+                <a href={card.dmLink.href} target="_blank" rel="noopener noreferrer" className="font-medium text-plum-700 underline dark:text-plum-300">
+                  Open the DM
+                </a>
+              </Tooltip>
             )}
           </>
         )}

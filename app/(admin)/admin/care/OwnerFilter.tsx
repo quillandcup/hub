@@ -6,6 +6,7 @@ import MemberAvatar from "@/app/(member)/members/[id]/MemberAvatar";
 import EntitySearch from "@/components/EntitySearch";
 import type { CareOwner } from "@/lib/care-owners";
 import type { EngagementCardData } from "./card";
+import Tooltip from "@/components/Tooltip";
 
 /** What the filter holds: everyone, the signed-in user's own, nobody's, or one owner's auth user id. */
 export type OwnerChoice = "everyone" | "me" | "unassigned" | string;
@@ -85,17 +86,18 @@ export default function OwnerFilter({
           const pressed = ownerId === null ? choice === "unassigned" : selected === ownerId;
           return (
             <li key={value}>
-              <button
-                type="button"
-                aria-pressed={pressed}
-                aria-label={`${name}, ${n}`}
-                title={`${name}: ${n}`}
-                onClick={() => toggle(value)}
-                className={`${CHIP} ${pressed ? "border-plum-600 bg-plum-50 dark:bg-plum-900/30" : "border-slate-300 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"}`}
-              >
-                <MemberAvatar name={name} photoUrl={null} size={22} />
-                <span aria-hidden="true">{n}</span>
-              </button>
+              <Tooltip content={`${name}: ${n}`}>
+                <button
+                  type="button"
+                  aria-pressed={pressed}
+                  aria-label={`${name}, ${n}`}
+                  onClick={() => toggle(value)}
+                  className={`${CHIP} ${pressed ? "border-plum-600 bg-plum-50 dark:bg-plum-900/30" : "border-slate-300 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"}`}
+                >
+                  <MemberAvatar name={name} photoUrl={null} size={22} />
+                  <span aria-hidden="true">{n}</span>
+                </button>
+              </Tooltip>
             </li>
           );
         })}

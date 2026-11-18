@@ -262,7 +262,7 @@ describe("EntitySearch", () => {
     const { rerender } = render(<EntitySearch items={ITEMS} selectedId="1" onSelect={onSelect} />);
     expect(screen.getByText("Fern Quillsby")).toBeInTheDocument();
     rerender(<EntitySearch items={ITEMS} selectedId="zzz" selectedName="Someone Else" onSelect={onSelect} />);
-    await userEvent.click(screen.getByTitle("Clear selection"));
+    await userEvent.click(screen.getByRole("button", { name: "Clear selection" }));
     expect(screen.getByText("Someone Else")).toBeInTheDocument();
     expect(onSelect).toHaveBeenCalledWith(null);
   });

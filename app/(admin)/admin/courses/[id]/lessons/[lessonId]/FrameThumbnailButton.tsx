@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatClock } from "@/lib/courses/watch-stats";
 import { setLessonThumbnailFromVideo } from "../../../lesson-video-actions";
+import Tooltip from "@/components/Tooltip";
 
 /** Makes the lesson's thumbnail from the video as it looks where the player is now. */
 export default function FrameThumbnailButton({ courseId, lessonId, seconds }: { courseId: string; lessonId: string; seconds: number }) {
@@ -30,16 +31,17 @@ export default function FrameThumbnailButton({ courseId, lessonId, seconds }: { 
 
   return (
     <div className="text-right">
-      <button
-        type="button"
-        data-track="admin-lesson-frame-thumbnail"
-        disabled={busy}
-        onClick={use}
-        title={`Uses the frame at ${formatClock(seconds)}`}
-        className="text-sm text-plum-700 hover:underline disabled:cursor-not-allowed disabled:opacity-60 dark:text-plum-300"
-      >
-        {busy ? "Making the thumbnail…" : "Use current frame as thumbnail"}
-      </button>
+      <Tooltip content={`Uses the frame at ${formatClock(seconds)}`}>
+        <button
+          type="button"
+          data-track="admin-lesson-frame-thumbnail"
+          disabled={busy}
+          onClick={use}
+          className="text-sm text-plum-700 hover:underline disabled:cursor-not-allowed disabled:opacity-60 dark:text-plum-300"
+        >
+          {busy ? "Making the thumbnail…" : "Use current frame as thumbnail"}
+        </button>
+      </Tooltip>
       {message?.done && <p role="status" className="mt-2 text-sm text-slate-600 dark:text-slate-400">{message.done}</p>}
       {message?.error && <p role="alert" className="mt-2 text-sm text-red-700 dark:text-red-300">{message.error}</p>}
     </div>

@@ -13,6 +13,7 @@ import AliasesTable from "@/app/(admin)/admin/data/aliases/AliasesTable";
 import MissingStripeTable from "@/app/(admin)/admin/hygiene/missing-member-data/MissingStripeTable";
 import MatchingGame from "@/app/(admin)/admin/hygiene/name-matching/MatchingGame";
 import MemberSlackSearchForm from "@/app/(admin)/admin/hygiene/members-without-slack/MemberSlackSearchForm";
+import { tooltipText } from "@/tests/helpers/tooltip";
 
 const ada = { id: "mbr_AAAAAAAAAAA1", name: "Ada Example", displayName: "Ada E", email: "ada@example.com" };
 
@@ -24,7 +25,7 @@ describe("admin hygiene tools show display names", () => {
       />,
     );
     const button = screen.getByRole("button", { name: "Ada E" });
-    expect(button).toHaveAttribute("title", expect.stringContaining("Ada Example"));
+    expect(tooltipText(button)).toEqual(expect.stringContaining("Ada Example"));
   });
 
   it("aliases table: display name leads with the legal name beneath", () => {

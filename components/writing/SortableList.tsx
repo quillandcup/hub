@@ -7,6 +7,7 @@ import { CSS } from "@dnd-kit/utilities";
 import ActionMenu, { type ActionMenuItem } from "@/components/ActionMenu";
 import Icon from "@/components/Icon";
 import { positionItems, positionsHeading } from "@/lib/reorder";
+import Tooltip from "@/components/Tooltip";
 
 /**
  * A member puts a list of their own things (projects, a project's goals) in the order they like. The pieces:
@@ -137,7 +138,6 @@ export function SortableRow({
   idleClassName,
   liftedClassName,
   extraItems = [],
-  tooltipAlign = "start",
   children,
 }: {
   id: string;
@@ -154,8 +154,6 @@ export function SortableRow({
   liftedClassName: string;
   /** The row's own actions the menu lists before the positions (each can hide itself where the row shows it inline). */
   extraItems?: ActionMenuItem[];
-  /** Which edge of the handle its tooltip lines up with: "end" for a handle at the right of the row. */
-  tooltipAlign?: "start" | "end";
   children: (controls: { handle: ReactNode; menu: ReactNode }) => ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id, disabled });
@@ -173,7 +171,7 @@ export function SortableRow({
 
   const handle =
     count > 1 ? (
-      <span className="group/handle relative block shrink-0">
+      <Tooltip content={HANDLE_TOOLTIP}>
         <button
           type="button"
           ref={setActivatorNodeRef}
@@ -182,14 +180,11 @@ export function SortableRow({
           {...attributes}
           {...listeners}
           // One look everywhere: the `grip` icon, no box. `before` makes the touch area 44px tall without taking layout height.
-          className="relative flex h-8 w-6 touch-none select-none items-center justify-center rounded-md text-slate-500 cursor-grab before:absolute before:inset-x-0 before:-inset-y-1.5 before:content-[''] hover:bg-slate-100 hover:text-slate-900 active:cursor-grabbing focus-visible:outline-2 focus-visible:outline-plum-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+          className="relative flex h-8 w-6 shrink-0 touch-none select-none items-center justify-center rounded-md text-slate-500 cursor-grab before:absolute before:inset-x-0 before:-inset-y-1.5 before:content-[''] hover:bg-slate-100 hover:text-slate-900 active:cursor-grabbing focus-visible:outline-2 focus-visible:outline-plum-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
         >
           <Icon name="grip" className="h-5 w-5" />
         </button>
-        <span aria-hidden="true" className={`pointer-events-none absolute top-full z-dropdown mt-1 hidden w-56 rounded-md bg-slate-900 px-2 py-1.5 text-xs text-white shadow-lg [@media(hover:hover)]:group-hover/handle:block group-has-[:focus-visible]/handle:block dark:bg-slate-700 ${tooltipAlign === "end" ? "right-0" : "left-0"}`}>
-          {HANDLE_TOOLTIP}
-        </span>
-      </span>
+      </Tooltip>
     ) : null;
 
   return (

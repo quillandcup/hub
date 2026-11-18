@@ -167,7 +167,7 @@ describe("MatchesPanel", () => {
   it("saves an edited note", async () => {
     const user = userEvent.setup();
     render(<MatchesPanel rows={[row]} openLoad={{}} />);
-    await user.click(screen.getByTitle("Edit note"));
+    await user.click(screen.getByRole("button", { name: "Add note" }));
     await user.type(screen.getByLabelText("Note for Bea Moss"), "loved it");
     await user.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(updateMentorship).toHaveBeenCalledWith("x", { outcomeNote: "loved it" }));

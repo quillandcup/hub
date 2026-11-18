@@ -4,6 +4,7 @@ import { getMemberDisplayName } from "@/lib/member-display-name";
 import { useMemo, useState } from "react";
 import MemberSearch from "@/components/MemberSearch";
 import { suggestMemberMatches } from "@/lib/member-matching";
+import Tooltip from "@/components/Tooltip";
 
 interface UnmatchedSlackUser {
   slack_user_id: string;
@@ -191,16 +192,16 @@ export default function SlackAliasSearchForm({
                     {suggestionsByUserId.get(user.slack_user_id)!.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 mb-1.5">
                         {suggestionsByUserId.get(user.slack_user_id)!.map(({ member }) => (
-                          <button
-                            key={member.id}
-                            type="button"
-                            onClick={() => handleSelectMember(user.slack_user_id, member)}
-                            disabled={matchingUserId === user.slack_user_id}
-                            className="px-2 py-1 text-xs bg-plum-50 dark:bg-plum-900/20 text-plum-700 dark:text-plum-300 border border-plum-200 dark:border-plum-800 rounded-full hover:bg-plum-100 dark:hover:bg-plum-900/40 disabled:opacity-50"
-                            title={member.email}
-                          >
-                            {displayNameOf(member)}
-                          </button>
+                          <Tooltip key={member.id} content={member.email}>
+                            <button
+                              type="button"
+                              onClick={() => handleSelectMember(user.slack_user_id, member)}
+                              disabled={matchingUserId === user.slack_user_id}
+                              className="px-2 py-1 text-xs bg-plum-50 dark:bg-plum-900/20 text-plum-700 dark:text-plum-300 border border-plum-200 dark:border-plum-800 rounded-full hover:bg-plum-100 dark:hover:bg-plum-900/40 disabled:opacity-50"
+                            >
+                              {displayNameOf(member)}
+                            </button>
+                          </Tooltip>
                         ))}
                       </div>
                     )}

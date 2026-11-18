@@ -74,7 +74,7 @@ describe("MultiEntitySearch", () => {
   it("removes a chip", async () => {
     const onChange = vi.fn();
     render(<MultiEntitySearch items={[{ id: "a", name: "Alder" }]} selectedIds={["a"]} onChange={onChange} />);
-    await userEvent.click(screen.getByTitle("Remove Alder"));
+    await userEvent.click(screen.getByRole("button", { name: "Remove Alder" }));
     expect(onChange).toHaveBeenCalledWith([]);
   });
 });
@@ -240,7 +240,7 @@ describe("wrappers", () => {
         placeholder="who"
       />
     );
-    expect(screen.queryByTitle(/Remove/)).toBeNull();
+    expect(screen.queryByRole("button", { name: /Remove/ })).toBeNull();
     await userEvent.type(screen.getByPlaceholderText("who"), "moss@");
     await userEvent.click(screen.getByRole("option", { name: /Moss Bramble/ }));
     expect(onChange).toHaveBeenCalledWith(["gone", "m1"]);

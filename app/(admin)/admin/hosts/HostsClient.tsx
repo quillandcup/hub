@@ -18,6 +18,7 @@ import { SortableTh } from "@/components/SortableTh";
 import { DataTablePager } from "@/components/DataTablePager";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
+import Tooltip from "@/components/Tooltip";
 
 interface Member {
   id: string;
@@ -414,14 +415,15 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
               Add Schedule
             </button>
           )}
-          <button
-            onClick={handleBootstrap}
-            disabled={bootstrapping}
-            className="px-4 py-2 bg-plum-600 text-white rounded hover:bg-plum-700 disabled:opacity-50"
-            title={`Create confirmed schedules from who's hosting on the calendar in ${monthLabel(month)}, then copy them to the following month`}
-          >
-            {bootstrapping ? "Bootstrapping…" : `Bootstrap ${monthLabel(month)} from calendar`}
-          </button>
+          <Tooltip content={`Create confirmed schedules from who's hosting on the calendar in ${monthLabel(month)}, then copy them to the following month`}>
+            <button
+              onClick={handleBootstrap}
+              disabled={bootstrapping}
+              className="px-4 py-2 bg-plum-600 text-white rounded hover:bg-plum-700 disabled:opacity-50"
+            >
+              {bootstrapping ? "Bootstrapping…" : `Bootstrap ${monthLabel(month)} from calendar`}
+            </button>
+          </Tooltip>
         </div>
         <button
           onClick={handleToggleLock}

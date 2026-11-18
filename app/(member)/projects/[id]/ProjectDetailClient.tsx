@@ -46,6 +46,7 @@ import {
   type EntryRow,
   type GoalRow,
 } from "../actions";
+import Tooltip from "@/components/Tooltip";
 
 interface ProjectDetailClientProps {
   project: WritingProjectRow;
@@ -886,14 +887,15 @@ export function GoalForm({
 
       <div className="flex items-center justify-between gap-2">
         {isEditing && onArchive ? (
-          <button data-track="project-mark-as-done"
-            type="button"
-            onClick={onArchive}
-            className="text-sm text-slate-600 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400"
-            title="Mark as done (keeps the record, removes from active goals)"
-          >
-            ✅ Mark as done
-          </button>
+          <Tooltip content="Mark as done (keeps the record, removes from active goals)">
+            <button data-track="project-mark-as-done"
+              type="button"
+              onClick={onArchive}
+              className="text-sm text-slate-600 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400"
+            >
+              ✅ Mark as done
+            </button>
+          </Tooltip>
         ) : (
           <span />
         )}

@@ -21,6 +21,7 @@ import { useTimeout } from "@/components/useTimeout";
 import Highlight from "@/components/search/Highlight";
 import SearchSpinner from "@/components/search/SearchSpinner";
 import Kbd from "@/components/Kbd";
+import Tooltip from "@/components/Tooltip";
 
 const DEBOUNCE_MS = 150;
 const MIN_QUERY_CHARS = 2;
@@ -536,28 +537,30 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                   Clear
                 </button>
               )}
-              <button
-                type="button"
-                onClick={toggleFilters}
-                data-track="search-filters-toggle"
-                aria-pressed={showFilters}
-                aria-label={showFilters ? "Hide filters" : "Show filters"}
-                title={showFilters ? "Hide filters" : "Show filters"}
-                className={`${iconButton} ${showFilters ? "bg-plum-100 text-plum-700 dark:bg-plum-900/40 dark:text-plum-300" : ""}`}
-              >
-                <FilterIcon className="h-5 w-5" />
-              </button>
-              <button
-                type="button"
-                onClick={toggleHistory}
-                data-track="search-history-toggle"
-                aria-pressed={historyOn}
-                aria-label={historyOn ? "Hide search history" : "Show search history"}
-                title={historyOn ? "Hide search history" : "Show search history"}
-                className={`${iconButton} ${historyOn ? "bg-plum-100 text-plum-700 dark:bg-plum-900/40 dark:text-plum-300" : ""}`}
-              >
-                <ClockIcon className="h-5 w-5" />
-              </button>
+              <Tooltip content={showFilters ? "Hide filters" : "Show filters"}>
+                <button
+                  type="button"
+                  onClick={toggleFilters}
+                  data-track="search-filters-toggle"
+                  aria-pressed={showFilters}
+                  aria-label={showFilters ? "Hide filters" : "Show filters"}
+                  className={`${iconButton} ${showFilters ? "bg-plum-100 text-plum-700 dark:bg-plum-900/40 dark:text-plum-300" : ""}`}
+                >
+                  <FilterIcon className="h-5 w-5" />
+                </button>
+              </Tooltip>
+              <Tooltip content={historyOn ? "Hide search history" : "Show search history"}>
+                <button
+                  type="button"
+                  onClick={toggleHistory}
+                  data-track="search-history-toggle"
+                  aria-pressed={historyOn}
+                  aria-label={historyOn ? "Hide search history" : "Show search history"}
+                  className={`${iconButton} ${historyOn ? "bg-plum-100 text-plum-700 dark:bg-plum-900/40 dark:text-plum-300" : ""}`}
+                >
+                  <ClockIcon className="h-5 w-5" />
+                </button>
+              </Tooltip>
               <button
                 type="button"
                 onClick={close}
@@ -632,17 +635,18 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                     ))}
                     {afterToken && !timeRange && <option value="custom" disabled>{afterToken.replace(/^after:/i, "Since ")}</option>}
                   </select>
-                  <button
-                    type="button"
-                    onClick={() => setMenuOpen((m) => !m)}
-                    data-track="search-filter-more"
-                    aria-expanded={menuOpen}
-                    aria-label="More filters"
-                    title="More filters"
-                    className="flex-shrink-0 rounded-md border border-slate-200 dark:border-slate-700 px-2.5 py-1.5 sm:px-2 sm:py-1 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-                  >
-                    +
-                  </button>
+                  <Tooltip content="More filters">
+                    <button
+                      type="button"
+                      onClick={() => setMenuOpen((m) => !m)}
+                      data-track="search-filter-more"
+                      aria-expanded={menuOpen}
+                      aria-label="More filters"
+                      className="flex-shrink-0 rounded-md border border-slate-200 dark:border-slate-700 px-2.5 py-1.5 sm:px-2 sm:py-1 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    >
+                      +
+                    </button>
+                  </Tooltip>
                 </div>
                 {menuOpen && (
                   <div className="border-t border-slate-100 dark:border-slate-800 px-4 py-2 text-sm">
@@ -748,26 +752,28 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                         <ClockIcon className="h-5 w-5 flex-shrink-0 text-slate-500 dark:text-slate-400" />
                         <span className="min-w-0 flex-1 truncate">{r}</span>
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => copyRecent(r)}
-                        data-track="search-recent-copy"
-                        title={copied === r ? "Copied" : "Copy search query"}
-                        aria-label={`Copy search query “${r}”`}
-                        className={`${iconButton} ${revealOnHover}`}
-                      >
-                        {copied === r ? <CheckIcon className="h-4 w-4" /> : <CopyIcon className="h-4 w-4" />}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => deleteRecent(r)}
-                        data-track="search-recent-delete"
-                        title="Delete"
-                        aria-label={`Delete “${r}” from recent searches`}
-                        className={`${iconButton} ${revealOnHover}`}
-                      >
-                        ×
-                      </button>
+                      <Tooltip content={copied === r ? "Copied" : "Copy search query"}>
+                        <button
+                          type="button"
+                          onClick={() => copyRecent(r)}
+                          data-track="search-recent-copy"
+                          aria-label={`Copy search query “${r}”`}
+                          className={`${iconButton} ${revealOnHover}`}
+                        >
+                          {copied === r ? <CheckIcon className="h-4 w-4" /> : <CopyIcon className="h-4 w-4" />}
+                        </button>
+                      </Tooltip>
+                      <Tooltip content="Delete">
+                        <button
+                          type="button"
+                          onClick={() => deleteRecent(r)}
+                          data-track="search-recent-delete"
+                          aria-label={`Delete “${r}” from recent searches`}
+                          className={`${iconButton} ${revealOnHover}`}
+                        >
+                          ×
+                        </button>
+                      </Tooltip>
                     </div>
                   ))}
                 </section>
@@ -798,16 +804,17 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                             />
                             </div>
                             {s.kind !== "chat" && (
-                              <button
-                                type="button"
-                                onClick={() => dismissSuggestion(s)}
-                                data-track="search-attention-dismiss"
-                                title="Mark as read"
-                                aria-label={`Mark “${s.title}” as read`}
-                                className={`${iconButton} ${revealOnHover}`}
-                              >
-                                ×
-                              </button>
+                              <Tooltip content="Mark as read">
+                                <button
+                                  type="button"
+                                  onClick={() => dismissSuggestion(s)}
+                                  data-track="search-attention-dismiss"
+                                  aria-label={`Mark “${s.title}” as read`}
+                                  className={`${iconButton} ${revealOnHover}`}
+                                >
+                                  ×
+                                </button>
+                              </Tooltip>
                             )}
                           </div>
                         );

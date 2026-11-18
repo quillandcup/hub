@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useEditorState, type Editor } from "@tiptap/react";
 import { Bold, Code, Italic, Link as LinkIcon, List, ListOrdered, Quote, SquareCode, Strikethrough, Underline, type LucideIcon } from "lucide-react";
 import type { FormatKind } from "@/lib/chat/format-text";
+import Tooltip from "@/components/Tooltip";
 
 /** An address typed in the link box as a link address: `https://` added when it has no scheme, only web and mail addresses. */
 export function linkAddress(typed: string): string | null {
@@ -91,18 +92,19 @@ export default function FormatToolbar({ editor, onFormat }: { editor: Editor; on
         {BUTTONS.map(({ kind, label, hint, Icon, group }, i) => (
           <span key={kind} className="flex shrink-0 items-center">
             {i > 0 && BUTTONS[i - 1].group !== group && <span aria-hidden="true" className="mx-1 h-4 w-px bg-slate-300 dark:bg-slate-700" />}
-            <button
-              type="button"
-              aria-label={label}
-              aria-pressed={active[kind]}
-              title={hint ? `${label} (${hint})` : label}
-              // mousedown, not click: the editor would lose its selection before a click lands.
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => run(kind)}
-              className="flex h-7 w-7 items-center justify-center rounded text-slate-600 hover:bg-slate-100 aria-pressed:bg-plum-50 aria-pressed:text-plum-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:aria-pressed:bg-plum-900/30 dark:aria-pressed:text-plum-300"
-            >
-              <Icon size={16} aria-hidden="true" />
-            </button>
+            <Tooltip content={hint ? `${label} (${hint})` : label}>
+              <button
+                type="button"
+                aria-label={label}
+                aria-pressed={active[kind]}
+                // mousedown, not click: the editor would lose its selection before a click lands.
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => run(kind)}
+                className="flex h-7 w-7 items-center justify-center rounded text-slate-600 hover:bg-slate-100 aria-pressed:bg-plum-50 aria-pressed:text-plum-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:aria-pressed:bg-plum-900/30 dark:aria-pressed:text-plum-300"
+              >
+                <Icon size={16} aria-hidden="true" />
+              </button>
+            </Tooltip>
           </span>
         ))}
       </div>
